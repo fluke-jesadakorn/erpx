@@ -6,10 +6,10 @@ Date: 2026-07-26
 
 ERPX now exposes an authenticated Tonic `MarketingContentService.SubmitMarketingForm` command. The transport:
 
-- requires the existing authenticated session, command context, tenant scope, and authoritative entitlement/RBAC check;
-- rejects platform and subtree scopes and validates tenant, holding, form, and submission references;
+- requires the existing authenticated session, command context, holding scope, and authoritative entitlement/RBAC check;
+- rejects platform and subtree scopes and validates holding, holding, form, and submission references;
 - bounds the request body to 2 MiB and accepts only a JSON object whose values are strings;
-- routes the write through the tenant write/read database router and SQLx Marketing content store;
+- routes the write through the holding write/read database router and SQLx Marketing content store;
 - preserves idempotent write receipts and the existing published-form, scope, and forced-RLS rules;
 - records a customer-visible audit event without logging submitted values; and
 - returns stable aggregate/version/idempotency/event metadata plus correlation identity.

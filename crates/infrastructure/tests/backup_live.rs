@@ -3,8 +3,8 @@
 //! This test deliberately uses the configured `pg_dump`, `pg_restore`, and
 //! S3-compatible MinIO endpoint. It does not inject process, object, or
 //! verification fakes. The test creates disposable PostgreSQL databases,
-//! registers one tenant in disposable control-plane databases, uploads one
-//! tenant-bound artifact, restores it through the durable routed restore-test
+//! registers one holding in disposable control-plane databases, uploads one
+//! holding-bound artifact, restores it through the durable routed restore-test
 //! path, verifies the fenced replacement activation and failed-run rollback,
 //! and removes the artifact/databases/control-plane fixture.
 
@@ -13,16 +13,16 @@ use std::{fs, sync::Arc};
 
 use chrono::Utc;
 use erpx_infrastructure::{
-    ControlPlaneDatabaseConfig, ControlPlanePools, DatabaseSide, MinioBackupObjectTransport,
-    MinioObjectStore, MinioObjectStoreConfig, PhysicalTenantDatabases, PostgresMinioBackupAdapter,
-    PostgresMinioBackupConfig, PostgresRestoredDatabaseVerifier, RoutedDatabaseSide,
-    SqlxControlPlane, SqlxTenantStoreRegistry, SystemBackupProcessRunner, TenantBackupRun,
-    TenantBackupTarget, TenantDatabaseProvisioner, TenantDatabaseProvisioningConfig,
-    TenantDatabaseRouter, TenantProvisioner, TenantRestoreTestTarget, TenantSourceProjection,
-    TenantStoreRegistration,
+    ControlPlaneDatabaseConfig, ControlPlanePools, DatabaseSide, HoldingBackupRun,
+    HoldingBackupTarget, HoldingDatabaseProvisioner, HoldingDatabaseProvisioningConfig,
+    HoldingDatabaseRouter, HoldingProvisioner, HoldingRestoreTestTarget, HoldingSourceProjection,
+    HoldingStoreRegistration, MinioBackupObjectTransport, MinioObjectStore, MinioObjectStoreConfig,
+    PhysicalHoldingDatabases, PostgresMinioBackupAdapter, PostgresMinioBackupConfig,
+    PostgresRestoredDatabaseVerifier, RoutedDatabaseSide, SqlxControlPlane,
+    SqlxHoldingStoreRegistry, SystemBackupProcessRunner,
 };
 use erpx_migration::{
-    migrate_control_plane, migrate_control_read, migrate_tenant_read, migrate_tenant_write,
+    migrate_control_plane, migrate_control_read, migrate_holding_read, migrate_holding_write,
 };
 use sqlx::{PgPool, Row, postgres::PgPoolOptions};
 use uuid::Uuid;
@@ -85,11 +85,11 @@ fn database_url(template: &str, database_key: &str) -> String {
 }
 
 #[test]
-fn restore_evidence_rejects_cross_tenant_candidates_and_missing_source_fences() {
+fn restore_evidence_rejects_cross_holding_candidates_and_missing_source_fences() {
     let now = Utc::now();
-    let run = TenantBackupRun {
+    let run = HoldingBackupRun {
         id: Uuid::new_v4(),
-        tenant_id: "tenant-backup-live-a".into(),
+        holding_id: "holding-backup-live-a".into(),
         kind: "restore_test".into(),
         status: "started".into(),
         backup_ref: "backup-a".into(),
@@ -100,30 +100,30 @@ fn restore_evidence_rejects_cross_tenant_candidates_and_missing_source_fences() 
         verified: false,
         error: None,
     };
-    let tenant_a = PhysicalTenantDatabases::new("tenant-backup-live-a", "write-a", "read-a")
-        .expect("tenant A databases");
-    let target_a = TenantBackupTarget::for_run_in_namespace(
-        tenant_a.clone(),
-        "tenant-backup-live-a-storage",
+    let holding_a = PhysicalHoldingDatabases::new("holding-backup-live-a", "write-a", "read-a")
+        .expect("holding A databases");
+    let target_a = HoldingBackupTarget::for_run_in_namespace(
+        holding_a.clone(),
+        "holding-backup-live-a-storage",
         "chain-a",
         &run,
     )
-    .expect("tenant A backup target");
-    let tenant_b = PhysicalTenantDatabases::new("tenant-backup-live-b", "write-b", "read-b")
-        .expect("tenant B databases");
-    let cross_tenant_replacement = tenant_b
+    .expect("holding A backup target");
+    let holding_b = PhysicalHoldingDatabases::new("holding-backup-live-b", "write-b", "read-b")
+        .expect("holding B databases");
+    let cross_holding_replacement = holding_b
         .replacement_read_database("candidate-b")
-        .expect("tenant B replacement");
+        .expect("holding B replacement");
     assert!(
-        TenantRestoreTestTarget::new(target_a.clone(), "restore-a", cross_tenant_replacement, 1,)
+        HoldingRestoreTestTarget::new(target_a.clone(), "restore-a", cross_holding_replacement, 1,)
             .is_err()
     );
 
-    let same_tenant_replacement = tenant_a
+    let same_holding_replacement = holding_a
         .replacement_read_database("candidate-a")
-        .expect("tenant A replacement");
+        .expect("holding A replacement");
     assert!(
-        TenantRestoreTestTarget::new(target_a, "restore-a", same_tenant_replacement, 0,).is_err()
+        HoldingRestoreTestTarget::new(target_a, "restore-a", same_holding_replacement, 0,).is_err()
     );
 }
 
@@ -147,22 +147,22 @@ async fn drop_database(admin: &PgPool, database_key: &str) -> TestResult {
     Ok(())
 }
 
-async fn cleanup_control_fixture(control: &SqlxControlPlane, tenant_id: &str) -> TestResult {
+async fn cleanup_control_fixture(control: &SqlxControlPlane, holding_id: &str) -> TestResult {
     let mut transaction = control.pools().write.begin().await?;
-    sqlx::query("DELETE FROM erpx_control.tenant_projection_switches WHERE tenant_id = $1")
-        .bind(tenant_id)
+    sqlx::query("DELETE FROM erpx_control.holding_projection_switches WHERE holding_id = $1")
+        .bind(holding_id)
         .execute(&mut *transaction)
         .await?;
-    sqlx::query("DELETE FROM erpx_control.tenant_backup_runs WHERE tenant_id = $1")
-        .bind(tenant_id)
+    sqlx::query("DELETE FROM erpx_control.holding_backup_runs WHERE holding_id = $1")
+        .bind(holding_id)
         .execute(&mut *transaction)
         .await?;
-    sqlx::query("DELETE FROM erpx_control.tenant_provisioning WHERE tenant_id = $1")
-        .bind(tenant_id)
+    sqlx::query("DELETE FROM erpx_control.holding_provisioning WHERE holding_id = $1")
+        .bind(holding_id)
         .execute(&mut *transaction)
         .await?;
-    sqlx::query("DELETE FROM erpx_control.tenant_registry WHERE tenant_id = $1")
-        .bind(tenant_id)
+    sqlx::query("DELETE FROM erpx_control.holding_registry WHERE holding_id = $1")
+        .bind(holding_id)
         .execute(&mut *transaction)
         .await?;
     transaction.commit().await?;
@@ -171,24 +171,24 @@ async fn cleanup_control_fixture(control: &SqlxControlPlane, tenant_id: &str) ->
 
 async fn cleanup_backup_artifact(
     adapter: &PostgresMinioBackupAdapter,
-    tenant_id: &str,
+    holding_id: &str,
     namespace: &str,
     backup_chain_ref: &str,
     backup_ref: &str,
 ) -> TestResult {
     let inventory = adapter
-        .list_backup_artifacts(tenant_id, namespace, backup_chain_ref, 10)
+        .list_backup_artifacts(holding_id, namespace, backup_chain_ref, 10)
         .await
         .map_err(|error| format!("live pre-cleanup inventory failed: {error:?}"))?;
     if inventory.is_empty() {
         return Ok(());
     }
     adapter
-        .delete_backup_artifact(tenant_id, namespace, backup_chain_ref, backup_ref)
+        .delete_backup_artifact(holding_id, namespace, backup_chain_ref, backup_ref)
         .await
         .map_err(|error| format!("live compensating artifact cleanup failed: {error:?}"))?;
     let remaining = adapter
-        .list_backup_artifacts(tenant_id, namespace, backup_chain_ref, 10)
+        .list_backup_artifacts(holding_id, namespace, backup_chain_ref, 10)
         .await
         .map_err(|error| format!("live post-cleanup inventory failed: {error:?}"))?;
     if !remaining.is_empty() {
@@ -204,11 +204,11 @@ async fn cleanup_backup_artifact(
 async fn execute_round_trip(
     control: Arc<SqlxControlPlane>,
     admin: &PgPool,
-    database_config: &TenantDatabaseProvisioningConfig,
+    database_config: &HoldingDatabaseProvisioningConfig,
     adapter: &PostgresMinioBackupAdapter,
     namespace: &str,
-    tenant_id: &str,
-    holding_ref: &str,
+    holding_id: &str,
+    data_profile_key: &str,
     backup_chain_ref: &str,
     source_database_key: &str,
     current_read_database_key: &str,
@@ -226,33 +226,33 @@ async fn execute_round_trip(
             source_database_key,
         ))
         .await?;
-    migrate_tenant_write(&source_pool).await?;
+    migrate_holding_write(&source_pool).await?;
     let source_event_id = Uuid::new_v4();
     let source_aggregate_id = Uuid::new_v4();
     let source_occurred_at = Utc::now();
     let mut source_transaction = source_pool.begin().await?;
-    sqlx::query("SELECT set_config('app.tenant_id', $1, true)")
-        .bind(tenant_id)
+    sqlx::query("SELECT set_config('app.holding_id', $1, true)")
+        .bind(holding_id)
         .execute(&mut *source_transaction)
         .await?;
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(data_profile_key)
         .execute(&mut *source_transaction)
         .await?;
     sqlx::query(
         "INSERT INTO erpx_cqrs_write.outbox_events
              (event_id, context_name, partition_key, command_id, event_type,
               event_version, aggregate_type, aggregate_id, aggregate_version,
-              tenant_scope, actor, correlation_id, causation_id, payload,
+              active_scope, actor, correlation_id, causation_id, payload,
               occurred_at, available_at)
          VALUES ($1, 'operations', $2, $3, 'operations.backup_live_fixture',
                  1, 'backup_live_fixture', $4, 1, $5, $6, $7, NULL, $8, $9, $9)",
     )
     .bind(source_event_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(Uuid::new_v4())
     .bind(source_aggregate_id)
-    .bind(serde_json::json!({"holding_ref": holding_ref}))
+    .bind(serde_json::json!({"data_profile_key": data_profile_key}))
     .bind(serde_json::json!({"actor_ref": "backup-live-test"}))
     .bind(Uuid::new_v4())
     .bind(serde_json::json!({"source_fence_marker": source_event_id}))
@@ -261,17 +261,17 @@ async fn execute_round_trip(
     .await?;
     source_transaction.commit().await?;
     let mut source_version_transaction = source_pool.begin().await?;
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(data_profile_key)
         .execute(&mut *source_version_transaction)
         .await?;
     let source_version: i64 = sqlx::query_scalar(
         "SELECT COALESCE(MAX(global_sequence), 0)
          FROM erpx_cqrs_write.outbox_events
          WHERE context_name = 'operations'
-           AND current_setting('erpx.holding_ref') = $1",
+           AND current_setting('erpx.data_profile_key') = $1",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_one(&mut *source_version_transaction)
     .await?;
     source_version_transaction.commit().await?;
@@ -288,36 +288,36 @@ async fn execute_round_trip(
             current_read_database_key,
         ))
         .await?;
-    migrate_tenant_read(&read_pool).await?;
+    migrate_holding_read(&read_pool).await?;
     let customer_id = Uuid::new_v4();
     let backup_marker = format!("backup-marker-{}", Uuid::new_v4().simple());
     let mut read_transaction = read_pool.begin().await?;
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(data_profile_key)
         .execute(&mut *read_transaction)
         .await?;
     sqlx::query(
-        "INSERT INTO erpx_tenant.customer_summary
-             (customer_id, holding_ref, payload)
+        "INSERT INTO erpx_holding.customer_summary
+             (customer_id, data_profile_key, payload)
          VALUES ($1, $2, $3)",
     )
     .bind(customer_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(serde_json::json!({"backup_marker": backup_marker}))
     .execute(&mut *read_transaction)
     .await?;
     read_transaction.commit().await?;
     read_pool.close().await;
 
-    let registry = SqlxTenantStoreRegistry::new(control.clone());
+    let registry = SqlxHoldingStoreRegistry::new(control.clone());
     registry
-        .register(TenantStoreRegistration {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+        .register(HoldingStoreRegistration {
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
             write_database_key: source_database_key.into(),
             read_database_key: current_read_database_key.into(),
             storage_namespace: namespace.into(),
-            credential_key_ref: format!("credential-{tenant_id}"),
+            credential_key_ref: format!("credential-{holding_id}"),
             backup_chain_ref: backup_chain_ref.into(),
             state: "active".into(),
             registry_version: 1,
@@ -328,12 +328,12 @@ async fn execute_round_trip(
     // both sides of that authoritative state boundary for this disposable
     // already-active fixture.
     sqlx::query(
-        "INSERT INTO erpx_control.tenant_provisioning
-            (tenant_id, state, write_database_key, read_database_key,
+        "INSERT INTO erpx_control.holding_provisioning
+            (holding_id, state, write_database_key, read_database_key,
              storage_namespace, version)
          VALUES ($1, 'active', $2, $3, $4, 1)",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(source_database_key)
     .bind(current_read_database_key)
     .bind(namespace)
@@ -342,10 +342,10 @@ async fn execute_round_trip(
 
     let backup_ref = format!("backup-{}", Uuid::new_v4().simple());
     let execution_result = async {
-        let provisioner = TenantProvisioner::new(control.clone());
-        let full_run = TenantBackupRun {
+        let provisioner = HoldingProvisioner::new(control.clone());
+        let full_run = HoldingBackupRun {
             id: Uuid::new_v4(),
-            tenant_id: tenant_id.into(),
+            holding_id: holding_id.into(),
             kind: "full".into(),
             status: "started".into(),
             backup_ref: backup_ref.clone(),
@@ -368,7 +368,7 @@ async fn execute_round_trip(
             return Err("live backup did not produce complete verified evidence".into());
         }
         let inventory = adapter
-            .list_backup_artifacts(tenant_id, namespace, backup_chain_ref, 10)
+            .list_backup_artifacts(holding_id, namespace, backup_chain_ref, 10)
             .await
             .map_err(|error| format!("live backup inventory failed: {error:?}"))?;
         if inventory != [backup_ref.clone()] {
@@ -379,14 +379,14 @@ async fn execute_round_trip(
         }
 
         let database_provisioner =
-            TenantDatabaseProvisioner::new(control.clone(), database_config.clone())?;
+            HoldingDatabaseProvisioner::new(control.clone(), database_config.clone())?;
         database_provisioner
-            .provision_restore_test_candidate_database(tenant_id, candidate_database_key)
+            .provision_restore_test_candidate_database(holding_id, candidate_database_key)
             .await?;
-        let router = TenantDatabaseRouter::new(control.clone(), database_config.clone())?;
-        let restore_run = TenantBackupRun {
+        let router = HoldingDatabaseRouter::new(control.clone(), database_config.clone())?;
+        let restore_run = HoldingBackupRun {
             id: Uuid::new_v4(),
-            tenant_id: tenant_id.into(),
+            holding_id: holding_id.into(),
             kind: "restore_test".into(),
             status: "started".into(),
             backup_ref: backup_ref.clone(),
@@ -401,9 +401,9 @@ async fn execute_round_trip(
             .execute_restore_test_with_routed_read_replacement_executor(
                 &router,
                 restore_run.clone(),
-                holding_ref,
+                data_profile_key,
                 candidate_database_key,
-                TenantSourceProjection::Operations,
+                HoldingSourceProjection::Operations,
                 source_version,
                 adapter,
             )
@@ -421,11 +421,15 @@ async fn execute_round_trip(
             return Err("live restore-test activation evidence was incomplete".into());
         }
         if !router
-            .replacement_read_is_activated(tenant_id, candidate_database_key, activation.generation)
+            .replacement_read_is_activated(
+                holding_id,
+                candidate_database_key,
+                activation.generation,
+            )
             .await?
             || router
                 .replacement_read_is_ready(
-                    tenant_id,
+                    holding_id,
                     candidate_database_key,
                     activation.generation,
                     source_version,
@@ -437,10 +441,10 @@ async fn execute_round_trip(
         let switch_row = sqlx::query(
             "SELECT current_read_database_key, candidate_read_database_key, state,
                 source_version, version, activated_at
-         FROM erpx_control.tenant_projection_switches
-         WHERE tenant_id = $1",
+         FROM erpx_control.holding_projection_switches
+         WHERE holding_id = $1",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .fetch_one(&control.pools().write)
         .await?;
         let current_read: String = switch_row.try_get("current_read_database_key")?;
@@ -460,7 +464,7 @@ async fn execute_round_trip(
         }
 
         let routed_read = router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Read)
             .await?;
         if routed_read.database_key != candidate_database_key {
             routed_read.close().await;
@@ -472,7 +476,7 @@ async fn execute_round_trip(
              SELECT 1
              FROM pg_class AS c
              JOIN pg_namespace AS n ON n.oid = c.relnamespace
-             WHERE n.nspname = 'erpx_tenant'
+             WHERE n.nspname = 'erpx_holding'
                AND c.relname = 'customer_summary'
                AND c.relrowsecurity
                AND c.relforcerowsecurity
@@ -483,25 +487,25 @@ async fn execute_round_trip(
         let rls_ready: bool = rls_row.try_get("rls_ready")?;
         let restored_marker: String = sqlx::query_scalar(
             "SELECT payload->>'backup_marker'
-         FROM erpx_tenant.customer_summary
-         WHERE customer_id = $1 AND holding_ref = $2",
+         FROM erpx_holding.customer_summary
+         WHERE customer_id = $1 AND data_profile_key = $2",
         )
         .bind(customer_id)
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .fetch_one(&mut *routed_transaction)
         .await?;
         routed_transaction.commit().await?;
         routed_read.close().await;
         if !rls_ready || restored_marker != backup_marker {
-            return Err("activated live candidate lost forced RLS or tenant marker".into());
+            return Err("activated live candidate lost forced RLS or holding marker".into());
         }
 
         database_provisioner
-            .provision_restore_test_candidate_database(tenant_id, failed_candidate_database_key)
+            .provision_restore_test_candidate_database(holding_id, failed_candidate_database_key)
             .await?;
-        let failed_restore_run = TenantBackupRun {
+        let failed_restore_run = HoldingBackupRun {
             id: Uuid::new_v4(),
-            tenant_id: tenant_id.into(),
+            holding_id: holding_id.into(),
             kind: "restore_test".into(),
             status: "started".into(),
             backup_ref: format!("missing-backup-{}", Uuid::new_v4().simple()),
@@ -516,9 +520,9 @@ async fn execute_round_trip(
             .execute_restore_test_with_routed_read_replacement_executor(
                 &router,
                 failed_restore_run.clone(),
-                holding_ref,
+                data_profile_key,
                 failed_candidate_database_key,
-                TenantSourceProjection::Operations,
+                HoldingSourceProjection::Operations,
                 source_version,
                 adapter,
             )
@@ -529,7 +533,7 @@ async fn execute_round_trip(
         }
         let failed_row = sqlx::query(
             "SELECT status, completed_at, verified, error
-         FROM erpx_control.tenant_backup_runs WHERE id = $1",
+         FROM erpx_control.holding_backup_runs WHERE id = $1",
         )
         .bind(failed_restore_run.id)
         .fetch_one(&control.pools().write)
@@ -547,19 +551,19 @@ async fn execute_round_trip(
             return Err("live failed restore test did not leave durable failure evidence".into());
         }
         let registered = registry
-            .get(tenant_id)
+            .get(holding_id)
             .await?
-            .ok_or("live tenant registration disappeared during failed restore")?;
+            .ok_or("live holding registration disappeared during failed restore")?;
         if registered.read_database_key != candidate_database_key {
             return Err("failed restore test changed the active read route".into());
         }
         let failed_switch_exists: bool = sqlx::query_scalar(
             "SELECT EXISTS (
-             SELECT 1 FROM erpx_control.tenant_projection_switches
-             WHERE tenant_id = $1 AND candidate_read_database_key = $2
+             SELECT 1 FROM erpx_control.holding_projection_switches
+             WHERE holding_id = $1 AND candidate_read_database_key = $2
          )",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(failed_candidate_database_key)
         .fetch_one(&control.pools().write)
         .await?;
@@ -568,11 +572,11 @@ async fn execute_round_trip(
         }
 
         database_provisioner
-            .provision_restore_test_candidate_database(tenant_id, stale_candidate_database_key)
+            .provision_restore_test_candidate_database(holding_id, stale_candidate_database_key)
             .await?;
-        let stale_restore_run = TenantBackupRun {
+        let stale_restore_run = HoldingBackupRun {
             id: Uuid::new_v4(),
-            tenant_id: tenant_id.into(),
+            holding_id: holding_id.into(),
             kind: "restore_test".into(),
             status: "started".into(),
             backup_ref: backup_ref.clone(),
@@ -590,9 +594,9 @@ async fn execute_round_trip(
             .execute_restore_test_with_routed_read_replacement_executor(
                 &router,
                 stale_restore_run.clone(),
-                holding_ref,
+                data_profile_key,
                 stale_candidate_database_key,
-                TenantSourceProjection::Operations,
+                HoldingSourceProjection::Operations,
                 stale_source_version,
                 adapter,
             )
@@ -603,7 +607,7 @@ async fn execute_round_trip(
         }
         let stale_row = sqlx::query(
             "SELECT status, completed_at, verified, error
-         FROM erpx_control.tenant_backup_runs WHERE id = $1",
+         FROM erpx_control.holding_backup_runs WHERE id = $1",
         )
         .bind(stale_restore_run.id)
         .fetch_one(&control.pools().write)
@@ -622,11 +626,11 @@ async fn execute_round_trip(
         }
         let stale_switch_exists: bool = sqlx::query_scalar(
             "SELECT EXISTS (
-             SELECT 1 FROM erpx_control.tenant_projection_switches
-             WHERE tenant_id = $1 AND candidate_read_database_key = $2
+             SELECT 1 FROM erpx_control.holding_projection_switches
+             WHERE holding_id = $1 AND candidate_read_database_key = $2
          )",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(stale_candidate_database_key)
         .fetch_one(&control.pools().write)
         .await?;
@@ -635,8 +639,8 @@ async fn execute_round_trip(
         }
         if router
             .route_replacement_read_for_generation(
-                tenant_id,
-                holding_ref,
+                holding_id,
+                data_profile_key,
                 candidate_database_key,
                 activation.generation,
                 source_version,
@@ -648,7 +652,7 @@ async fn execute_round_trip(
         }
         if router
             .replacement_read_is_activated(
-                tenant_id,
+                holding_id,
                 candidate_database_key,
                 activation.generation + 1,
             )
@@ -659,8 +663,14 @@ async fn execute_round_trip(
         Ok(())
     }
     .await;
-    let cleanup_result =
-        cleanup_backup_artifact(adapter, tenant_id, namespace, backup_chain_ref, &backup_ref).await;
+    let cleanup_result = cleanup_backup_artifact(
+        adapter,
+        holding_id,
+        namespace,
+        backup_chain_ref,
+        &backup_ref,
+    )
+    .await;
     match (execution_result, cleanup_result) {
         (Ok(()), Ok(())) => Ok(()),
         (Ok(()), Err(cleanup_error)) => Err(cleanup_error),
@@ -698,7 +708,7 @@ async fn real_postgres_minio_backup_restore_and_cleanup_are_authoritative() -> T
         return Err("ERPX_BACKUP_LIVE_MINIO_CA_CERT_PATH is empty".into());
     }
 
-    let database_config = TenantDatabaseProvisioningConfig::from_values(
+    let database_config = HoldingDatabaseProvisioningConfig::from_values(
         admin_url.clone(),
         database_template.clone(),
     )?;
@@ -744,8 +754,8 @@ async fn real_postgres_minio_backup_restore_and_cleanup_are_authoritative() -> T
         .await?;
 
     let suffix = Uuid::new_v4().simple().to_string();
-    let tenant_id = Uuid::new_v4().to_string();
-    let holding_ref = format!("holding-backup-live-{suffix}");
+    let holding_id = Uuid::new_v4().to_string();
+    let data_profile_key = format!("holding-backup-live-{suffix}");
     let backup_chain_ref = format!("chain-backup-live-{suffix}");
     let source_database_key = format!("erpx_bk_src_{suffix}");
     let current_read_database_key = format!("erpx_bk_read_{suffix}");
@@ -759,8 +769,8 @@ async fn real_postgres_minio_backup_restore_and_cleanup_are_authoritative() -> T
         &database_config,
         &adapter,
         &namespace,
-        &tenant_id,
-        &holding_ref,
+        &holding_id,
+        &data_profile_key,
         &backup_chain_ref,
         &source_database_key,
         &current_read_database_key,
@@ -769,7 +779,7 @@ async fn real_postgres_minio_backup_restore_and_cleanup_are_authoritative() -> T
         &stale_candidate_database_key,
     )
     .await;
-    let control_cleanup = cleanup_control_fixture(&control, &tenant_id).await;
+    let control_cleanup = cleanup_control_fixture(&control, &holding_id).await;
     let mut database_cleanup_errors = Vec::new();
     for database_key in [
         source_database_key.as_str(),

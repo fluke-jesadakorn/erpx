@@ -1,4 +1,4 @@
-#![doc = "Versioned ERPX Tonic contracts."]
+#![doc = "Unversioned ERPX Tonic contracts."]
 
 /// The descriptor set generated from the checked-in protobuf sources. The
 /// build script compares it with the approved development baseline.
@@ -9,197 +9,118 @@ pub const APPROVED_DESCRIPTOR_SHA256: &str =
     include_str!("../descriptor/erpx_descriptor_set.sha256");
 
 pub const ACTIVE_SERVICE_COUNT: usize = 65;
-pub const ACTIVE_SERVICE_ID_FIRST: u16 = 201;
-pub const ACTIVE_SERVICE_ID_LAST: u16 = 265;
-pub const RETIRED_SERVICE_ID_FIRST: u16 = 101;
-pub const RETIRED_SERVICE_ID_LAST: u16 = 165;
-
 pub mod erpx {
     pub mod common {
-        pub mod v2 {
-            tonic::include_proto!("erpx.common.v2");
-        }
+        tonic::include_proto!("erpx.common");
     }
 
     pub mod interface {
-        pub mod v2 {
-            tonic::include_proto!("erpx.interface.v2");
-        }
+        tonic::include_proto!("erpx.interface");
     }
 
     pub mod identity_access {
-        pub mod v2 {
-            tonic::include_proto!("erpx.identity_access.v2");
-        }
+        tonic::include_proto!("erpx.identity_access");
     }
     pub mod platform_administration {
-        pub mod v2 {
-            tonic::include_proto!("erpx.platform_administration.v2");
-        }
+        tonic::include_proto!("erpx.platform_administration");
         pub mod data_plane_agent {
-            pub mod v2 {
-                tonic::include_proto!("erpx.platform_administration.data_plane_agent.v2");
-            }
+            tonic::include_proto!("erpx.platform_administration.data_plane_agent");
         }
     }
     pub mod organization {
-        pub mod v2 {
-            tonic::include_proto!("erpx.organization.v2");
-        }
+        tonic::include_proto!("erpx.organization");
     }
     pub mod commercial {
-        pub mod v2 {
-            tonic::include_proto!("erpx.commercial.v2");
-        }
+        tonic::include_proto!("erpx.commercial");
     }
     pub mod brand {
-        pub mod v2 {
-            tonic::include_proto!("erpx.brand.v2");
-        }
+        tonic::include_proto!("erpx.brand");
     }
     pub mod customer_authority {
-        pub mod v2 {
-            tonic::include_proto!("erpx.customer_authority.v2");
-        }
+        tonic::include_proto!("erpx.customer_authority");
     }
     pub mod customer_360 {
-        pub mod v2 {
-            tonic::include_proto!("erpx.customer_360.v2");
-        }
+        tonic::include_proto!("erpx.customer_360");
     }
     pub mod support {
-        pub mod v2 {
-            tonic::include_proto!("erpx.support.v2");
-        }
+        tonic::include_proto!("erpx.support");
     }
     pub mod finance {
-        pub mod v2 {
-            tonic::include_proto!("erpx.finance.v2");
-        }
+        tonic::include_proto!("erpx.finance");
     }
     pub mod sales {
-        pub mod v2 {
-            tonic::include_proto!("erpx.sales.v2");
-        }
+        tonic::include_proto!("erpx.sales");
     }
     pub mod pos {
-        pub mod v2 {
-            tonic::include_proto!("erpx.pos.v2");
-        }
+        tonic::include_proto!("erpx.pos");
     }
     pub mod procurement {
-        pub mod v2 {
-            tonic::include_proto!("erpx.procurement.v2");
-        }
+        tonic::include_proto!("erpx.procurement");
     }
     pub mod inventory {
-        pub mod v2 {
-            tonic::include_proto!("erpx.inventory.v2");
-        }
+        tonic::include_proto!("erpx.inventory");
     }
     pub mod assets {
-        pub mod v2 {
-            tonic::include_proto!("erpx.assets.v2");
-        }
+        tonic::include_proto!("erpx.assets");
     }
     pub mod maintenance {
-        pub mod v2 {
-            tonic::include_proto!("erpx.maintenance.v2");
-        }
+        tonic::include_proto!("erpx.maintenance");
     }
     pub mod quality {
-        pub mod v2 {
-            tonic::include_proto!("erpx.quality.v2");
-        }
+        tonic::include_proto!("erpx.quality");
     }
     pub mod operations {
-        pub mod v2 {
-            tonic::include_proto!("erpx.operations.v2");
-        }
+        tonic::include_proto!("erpx.operations");
     }
     pub mod people_payroll {
-        pub mod v2 {
-            tonic::include_proto!("erpx.people_payroll.v2");
-        }
+        tonic::include_proto!("erpx.people_payroll");
     }
     pub mod legal {
-        pub mod v2 {
-            tonic::include_proto!("erpx.legal.v2");
-        }
+        tonic::include_proto!("erpx.legal");
     }
     pub mod marketing {
-        pub mod v2 {
-            tonic::include_proto!("erpx.marketing.v2");
-        }
+        tonic::include_proto!("erpx.marketing");
     }
     pub mod crm {
-        pub mod v2 {
-            tonic::include_proto!("erpx.crm.v2");
-        }
+        tonic::include_proto!("erpx.crm");
     }
     pub mod manufacturing {
-        pub mod v2 {
-            tonic::include_proto!("erpx.manufacturing.v2");
-        }
+        tonic::include_proto!("erpx.manufacturing");
     }
     pub mod planning {
-        pub mod v2 {
-            tonic::include_proto!("erpx.planning.v2");
-        }
+        tonic::include_proto!("erpx.planning");
     }
     pub mod projects {
-        pub mod v2 {
-            tonic::include_proto!("erpx.projects.v2");
-        }
+        tonic::include_proto!("erpx.projects");
     }
     pub mod ecommerce {
-        pub mod v2 {
-            tonic::include_proto!("erpx.ecommerce.v2");
-        }
+        tonic::include_proto!("erpx.ecommerce");
     }
     pub mod talent {
-        pub mod v2 {
-            tonic::include_proto!("erpx.talent.v2");
-        }
+        tonic::include_proto!("erpx.talent");
     }
     pub mod learning {
-        pub mod v2 {
-            tonic::include_proto!("erpx.learning.v2");
-        }
+        tonic::include_proto!("erpx.learning");
     }
     pub mod benefits {
-        pub mod v2 {
-            tonic::include_proto!("erpx.benefits.v2");
-        }
+        tonic::include_proto!("erpx.benefits");
     }
     pub mod field_service {
-        pub mod v2 {
-            tonic::include_proto!("erpx.field_service.v2");
-        }
+        tonic::include_proto!("erpx.field_service");
     }
     pub mod collaboration {
-        pub mod v2 {
-            tonic::include_proto!("erpx.collaboration.v2");
-        }
+        tonic::include_proto!("erpx.collaboration");
     }
     pub mod agent {
-        pub mod v2 {
-            tonic::include_proto!("erpx.agent.v2");
-        }
+        tonic::include_proto!("erpx.agent");
     }
     pub mod reference {
-        pub mod v2 {
-            tonic::include_proto!("erpx.reference.v2");
-        }
+        tonic::include_proto!("erpx.reference");
     }
 }
 
 pub mod common {
-    pub mod v2 {
-        pub use crate::erpx::common::v2::*;
-    }
-
-    pub use v2::*;
+    pub use crate::erpx::common::*;
 }
 
 #[cfg(test)]
@@ -239,7 +160,7 @@ mod tests {
         assert!(
             actual
                 .iter()
-                .all(|(package, _)| package != concat!("erpx.", "platform.v2"))
+                .all(|(package, _)| package != concat!("erpx.", "platform"))
         );
     }
 
@@ -274,30 +195,6 @@ mod tests {
                 service.name
             );
         }
-    }
-
-    #[test]
-    fn generated_v1_proto_source_trees_are_absent() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("proto/erpx");
-        let retired = root.join("platform").join("v1");
-        assert!(
-            !retired.exists(),
-            "retired monolith proto sources must not remain in the tree"
-        );
-        assert!(
-            !std::fs::read_dir(root)
-                .expect("proto root")
-                .filter_map(Result::ok)
-                .any(|entry| entry.path().join("v1").exists()),
-            "generated v1 context modules must not remain in the tree"
-        );
-    }
-
-    #[test]
-    fn active_and_retired_service_id_ranges_do_not_overlap() {
-        assert_eq!(ACTIVE_SERVICE_ID_LAST - ACTIVE_SERVICE_ID_FIRST + 1, 65);
-        assert_eq!(RETIRED_SERVICE_ID_LAST - RETIRED_SERVICE_ID_FIRST + 1, 65);
-        assert!(RETIRED_SERVICE_ID_LAST < std::hint::black_box(ACTIVE_SERVICE_ID_FIRST));
     }
 
     #[test]

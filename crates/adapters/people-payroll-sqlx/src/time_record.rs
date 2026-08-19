@@ -8,7 +8,7 @@ use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, ItemDescriptorDraft,
     record_policy_id,
 };
-use erpx_kernel::{AggregateId, DataClassification, EventId, RecordId, TenantScope};
+use erpx_kernel::{AggregateId, AuthorityScope, DataClassification, EventId, RecordId};
 use erpx_people_payroll::{
     EmployeeId, PortError, TimeRecord, TimeRecordCommand, TimeRecordQueryPort, TimeRecordReceipt,
     TimeRecordStatus, TimeRecordUnitOfWork, TimeRecordView,
@@ -31,7 +31,7 @@ enum Payload {
 struct TimeRecordProjectionFact {
     time_record_id: Uuid,
     time_record_version: u64,
-    tenant_scope: TenantScope,
+    active_scope: AuthorityScope,
     employee_id: Uuid,
     work_date: chrono::NaiveDate,
     minutes: u16,
@@ -43,7 +43,7 @@ impl From<&TimeRecord> for TimeRecordProjectionFact {
         Self {
             time_record_id: record.id().as_uuid(),
             time_record_version: record.version(),
-            tenant_scope: record.scope().clone(),
+            active_scope: record.scope().clone(),
             employee_id: record.employee_id().as_uuid(),
             work_date: record.work_date(),
             minutes: record.minutes(),
@@ -77,7 +77,7 @@ impl TimeRecordReadAdapter {
 impl TimeRecordQueryPort for TimeRecordReadAdapter {
     async fn get_time_record(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         time_record_id: RecordId,
     ) -> Result<Option<TimeRecordView>, PortError> {
         let mut tx = self
@@ -86,7 +86,7 @@ impl TimeRecordQueryPort for TimeRecordReadAdapter {
             .await
             .map_err(|_| PortError::Unavailable)?;
         require_active_generation(&mut tx).await?;
-        let row=sqlx::query("SELECT record.time_record_id,record.source_aggregate_version,record.employee_id,record.work_date,record.minutes,record.cost_center,record.time_status FROM erpx_people_payroll_read.time_record_projection record JOIN erpx_cqrs_read.projection_generations generation ON generation.tenant_id=record.tenant_id AND generation.projection_name=record.projection_name AND generation.generation=record.generation AND generation.status='active' WHERE record.tenant_id=erpx_cqrs_read.current_tenant_id() AND record.projection_name=$1 AND record.scope_key=$2 AND record.time_record_id=$3")
+        let row=sqlx::query("SELECT record.time_record_id,record.source_aggregate_version,record.employee_id,record.work_date,record.minutes,record.cost_center,record.time_status FROM erpx_people_payroll_read.time_record_projection record JOIN erpx_cqrs_read.projection_generations generation ON generation.holding_id=record.holding_id AND generation.projection_name=record.projection_name AND generation.generation=record.generation AND generation.status='active' WHERE record.holding_id=erpx_cqrs_read.current_holding_id() AND record.projection_name=$1 AND record.scope_key=$2 AND record.time_record_id=$3")
             .bind(PROJECTION).bind(scope_key(authority_scope)).bind(time_record_id.as_uuid()).fetch_optional(&mut *tx).await.map_err(|_|PortError::Unavailable)?;
         row.map(|row| {
             let minutes: i32 = row.try_get("minutes").map_err(|_| PortError::Internal)?;
@@ -121,7 +121,7 @@ impl TimeRecordQueryPort for TimeRecordReadAdapter {
     }
 }
 async fn require_active_generation(tx: &mut Transaction<'_, Postgres>) -> Result<(), PortError> {
-    let active:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM erpx_cqrs_read.projection_generations WHERE tenant_id=erpx_cqrs_read.current_tenant_id() AND projection_name=$1 AND status='active')").bind(PROJECTION).fetch_one(&mut **tx).await.map_err(|_|PortError::Unavailable)?;
+    let active:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM erpx_cqrs_read.projection_generations WHERE holding_id=erpx_cqrs_read.current_holding_id() AND projection_name=$1 AND status='active')").bind(PROJECTION).fetch_one(&mut **tx).await.map_err(|_|PortError::Unavailable)?;
     if active {
         Ok(())
     } else {
@@ -174,7 +174,7 @@ impl TimeRecordUnitOfWork for TimeRecordSqlxAdapter {
             correlation_id: c.correlation_id,
             idempotency_key: c.idempotency_key,
             request_hash: hash,
-            tenant_scope: c.record.scope().clone(),
+            active_scope: c.record.scope().clone(),
             actor: c.actor,
             audit_context: c.audit,
             aggregate_type: AGGREGATE.into(),
@@ -216,7 +216,7 @@ impl AtomicCommandGuard for Guard {
                 "time record metadata mismatch",
             ));
         }
-        let version:Option<i64>=sqlx::query_scalar("SELECT time_record_version FROM erpx_people_payroll_write.time_records WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND time_record_id=$1 FOR UPDATE").bind(self.0.id().as_uuid()).fetch_optional(&mut **tx).await?;
+        let version:Option<i64>=sqlx::query_scalar("SELECT time_record_version FROM erpx_people_payroll_write.time_records WHERE holding_id=erpx_cqrs_write.current_holding_id() AND time_record_id=$1 FOR UPDATE").bind(self.0.id().as_uuid()).fetch_optional(&mut **tx).await?;
         version
             .map(|value| u64::try_from(value).map_err(|_| CqrsSqlxError::NumericRange))
             .transpose()
@@ -248,7 +248,7 @@ impl AtomicCommandGuard for Guard {
                 "time record metadata mismatch",
             ));
         }
-        let changed=sqlx::query("INSERT INTO erpx_people_payroll_write.time_records (tenant_id,time_record_id,time_record_version,tenant_scope,scope_key,employee_id,employment_record_id,work_date,minutes,cost_center,evidence_sha256,time_status,submitted_by,approved_by,posted_by,created_at,updated_at) VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) ON CONFLICT (tenant_id,time_record_id) DO UPDATE SET time_record_version=EXCLUDED.time_record_version,evidence_sha256=EXCLUDED.evidence_sha256,time_status=EXCLUDED.time_status,approved_by=EXCLUDED.approved_by,posted_by=EXCLUDED.posted_by,updated_at=EXCLUDED.updated_at WHERE erpx_people_payroll_write.time_records.time_record_version+1=EXCLUDED.time_record_version").bind(self.0.id().as_uuid()).bind(to_i64(self.0.version())?).bind(serde_json::to_value(self.0.scope())?).bind(scope_key(self.0.scope())).bind(self.0.employee_id().as_uuid()).bind(self.0.employment_record().id().as_uuid()).bind(self.0.work_date()).bind(i32::from(self.0.minutes())).bind(self.0.cost_center()).bind(self.0.evidence_sha256()).bind(status(self.0.status())).bind(self.0.submitted_by()).bind(self.0.approved_by()).bind(self.0.posted_by()).bind(self.0.created_at()).bind(self.0.updated_at()).execute(&mut **tx).await?.rows_affected();
+        let changed=sqlx::query("INSERT INTO erpx_people_payroll_write.time_records (holding_id,time_record_id,time_record_version,active_scope,scope_key,employee_id,employment_record_id,work_date,minutes,cost_center,evidence_sha256,time_status,submitted_by,approved_by,posted_by,created_at,updated_at) VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) ON CONFLICT (holding_id,time_record_id) DO UPDATE SET time_record_version=EXCLUDED.time_record_version,evidence_sha256=EXCLUDED.evidence_sha256,time_status=EXCLUDED.time_status,approved_by=EXCLUDED.approved_by,posted_by=EXCLUDED.posted_by,updated_at=EXCLUDED.updated_at WHERE erpx_people_payroll_write.time_records.time_record_version+1=EXCLUDED.time_record_version").bind(self.0.id().as_uuid()).bind(to_i64(self.0.version())?).bind(serde_json::to_value(self.0.scope())?).bind(scope_key(self.0.scope())).bind(self.0.employee_id().as_uuid()).bind(self.0.employment_record().id().as_uuid()).bind(self.0.work_date()).bind(i32::from(self.0.minutes())).bind(self.0.cost_center()).bind(self.0.evidence_sha256()).bind(status(self.0.status())).bind(self.0.submitted_by()).bind(self.0.approved_by()).bind(self.0.posted_by()).bind(self.0.created_at()).bind(self.0.updated_at()).execute(&mut **tx).await?.rows_affected();
         if changed != 1 {
             return Err(CqrsSqlxError::GuardRejected("time record write conflict"));
         }
@@ -278,7 +278,7 @@ fn status(v: TimeRecordStatus) -> &'static str {
         TimeRecordStatus::Voided => "voided",
     }
 }
-fn scope_key(v: &erpx_kernel::TenantScope) -> String {
+fn scope_key(v: &erpx_kernel::AuthorityScope) -> String {
     serde_json::to_string(v).expect("scope")
 }
 fn to_i64(v: u64) -> Result<i64, CqrsSqlxError> {
@@ -348,15 +348,15 @@ impl Projector for TimeRecordProjector {
             serde_json::from_value(e.payload.clone()).map_err(pfailure)?;
         if r.time_record_id != e.aggregate_id.as_uuid()
             || r.time_record_version != e.aggregate_version
-            || r.tenant_scope != e.tenant_scope
-            || r.tenant_scope.validate().is_err()
+            || r.active_scope != e.active_scope
+            || r.active_scope.validate().is_err()
             || r.minutes == 0
             || r.minutes > 1_440
             || r.cost_center.trim().is_empty()
         {
             return Err(ProjectionFailure::new("time record metadata mismatch"));
         }
-        sqlx::query("INSERT INTO erpx_people_payroll_read.time_record_projection (tenant_id,projection_name,generation,partition_key,time_record_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,employee_id,work_date,minutes,cost_center,time_status,projected_at) VALUES (erpx_cqrs_read.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,now()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,time_record_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,minutes=EXCLUDED.minutes,cost_center=EXCLUDED.cost_center,time_status=EXCLUDED.time_status,projected_at=now() WHERE erpx_people_payroll_read.time_record_projection.source_aggregate_version<EXCLUDED.source_aggregate_version").bind(PROJECTION).bind(c.generation).bind(&e.partition).bind(r.time_record_id).bind(pi64(r.time_record_version)?).bind(pi64(e.global_sequence)?).bind(serde_json::to_value(&r.tenant_scope).map_err(pfailure)?).bind(scope_key(&r.tenant_scope)).bind(r.employee_id).bind(r.work_date).bind(i32::from(r.minutes)).bind(&r.cost_center).bind(status(r.time_status)).execute(&mut **tx).await.map_err(pfailure)?;
+        sqlx::query("INSERT INTO erpx_people_payroll_read.time_record_projection (holding_id,projection_name,generation,partition_key,time_record_id,source_aggregate_version,source_global_sequence,active_scope,scope_key,employee_id,work_date,minutes,cost_center,time_status,projected_at) VALUES (erpx_cqrs_read.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,now()) ON CONFLICT (holding_id,projection_name,generation,partition_key,time_record_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,minutes=EXCLUDED.minutes,cost_center=EXCLUDED.cost_center,time_status=EXCLUDED.time_status,projected_at=now() WHERE erpx_people_payroll_read.time_record_projection.source_aggregate_version<EXCLUDED.source_aggregate_version").bind(PROJECTION).bind(c.generation).bind(&e.partition).bind(r.time_record_id).bind(pi64(r.time_record_version)?).bind(pi64(e.global_sequence)?).bind(serde_json::to_value(&r.active_scope).map_err(pfailure)?).bind(scope_key(&r.active_scope)).bind(r.employee_id).bind(r.work_date).bind(i32::from(r.minutes)).bind(&r.cost_center).bind(status(r.time_status)).execute(&mut **tx).await.map_err(pfailure)?;
         Ok(())
     }
     async fn reset(
@@ -364,7 +364,7 @@ impl Projector for TimeRecordProjector {
         tx: &mut Transaction<'_, Postgres>,
         c: &ProjectorContext<'_>,
     ) -> Result<(), ProjectionFailure> {
-        sqlx::query("DELETE FROM erpx_people_payroll_read.time_record_projection WHERE tenant_id=erpx_cqrs_read.current_tenant_id() AND projection_name=$1 AND generation=$2").bind(PROJECTION).bind(c.generation).execute(&mut **tx).await.map_err(pfailure)?;
+        sqlx::query("DELETE FROM erpx_people_payroll_read.time_record_projection WHERE holding_id=erpx_cqrs_read.current_holding_id() AND projection_name=$1 AND generation=$2").bind(PROJECTION).bind(c.generation).execute(&mut **tx).await.map_err(pfailure)?;
         Ok(())
     }
 }

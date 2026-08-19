@@ -379,7 +379,7 @@ fn support_outbox_from_row(row: PgRow) -> Result<OutboxEnvelope, PersistenceErro
         aggregate_id: row.try_get("aggregate_id")?,
         aggregate_version: u64::try_from(row.try_get::<i64, _>("aggregate_version")?)
             .map_err(|_| PersistenceError::InvalidData("negative aggregate version".into()))?,
-        tenant_scope: row.try_get("tenant_scope")?,
+        active_scope: row.try_get("active_scope")?,
         actor: row.try_get("actor")?,
         correlation_id: row.try_get("correlation_id")?,
         causation_id: row.try_get("causation_id")?,
@@ -455,7 +455,7 @@ mod tests {
             "customer",
             "support_ticket",
             "finance_invoice",
-            "platform_tenant",
+            "platform_holding",
             "directory_identity",
         ] {
             assert!(!is_support_aggregate_type(aggregate_type));
@@ -479,7 +479,7 @@ mod tests {
             aggregate_type: "support_session".into(),
             aggregate_id: Uuid::new_v4(),
             aggregate_version: 1,
-            tenant_scope: None,
+            active_scope: None,
             actor: None,
             correlation_id: Uuid::new_v4(),
             causation_id: None,
@@ -511,7 +511,7 @@ mod tests {
             aggregate_type: "support_session".into(),
             aggregate_id: Uuid::new_v4(),
             aggregate_version: 1,
-            tenant_scope: None,
+            active_scope: None,
             actor: None,
             correlation_id: Uuid::new_v4(),
             causation_id: None,

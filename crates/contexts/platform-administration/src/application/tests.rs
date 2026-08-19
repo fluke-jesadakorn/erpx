@@ -14,14 +14,14 @@ use erpx_cqrs::{
     IdempotencyKey, ProjectionMetadata, QueryConsistency, QueryEnvelope, QueryHandler,
 };
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, EventId, FixedClock,
-    QueryId, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
+    FixedClock, QueryId,
 };
 use uuid::Uuid;
 
 use super::*;
 use crate::{
-    domain::{EnvironmentId, PlatformTenant, TenantLifecycleState},
+    domain::{EnvironmentId, HoldingLifecycleState, PlatformHolding},
     ports::{AuthorizationGrant, ReadProjection},
 };
 
@@ -31,13 +31,13 @@ fn id(value: u128) -> Uuid {
 fn at() -> chrono::DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap()
 }
-fn tenant_id() -> PlatformTenantId {
-    PlatformTenantId::try_from_uuid(id(1)).unwrap()
+fn holding_id() -> PlatformHoldingId {
+    PlatformHoldingId::try_from_uuid(id(1)).unwrap()
 }
 
-fn tenant() -> PlatformTenant {
-    PlatformTenant::register(
-        tenant_id(),
+fn holding() -> PlatformHolding {
+    PlatformHolding::register(
+        holding_id(),
         "ACME".into(),
         "Acme".into(),
         EnvironmentId::try_from_uuid(id(2)).unwrap(),
@@ -68,7 +68,7 @@ fn command_envelope<C>(sequence: u128, expected: Option<u64>, command: C) -> Com
         correlation_id: CorrelationId::try_from_uuid(id(200 + sequence)).unwrap(),
         causation_id: None,
         actor: actor(),
-        tenant_scope: TenantScope::Platform,
+        active_scope: AuthorityScope::Platform,
         audit: AuditContext {
             purpose: "platform_administration.test".into(),
             customer_visible: false,
@@ -85,7 +85,7 @@ fn query_envelope<Q>(query: Q) -> QueryEnvelope<Q> {
         query_id: QueryId::try_from_uuid(id(300)).unwrap(),
         correlation_id: CorrelationId::try_from_uuid(id(301)).unwrap(),
         actor: actor(),
-        tenant_scope: TenantScope::Platform,
+        active_scope: AuthorityScope::Platform,
         audit: AuditContext {
             purpose: "platform_administration.test.query".into(),
             customer_visible: false,
@@ -99,7 +99,7 @@ fn query_envelope<Q>(query: Q) -> QueryEnvelope<Q> {
 #[derive(Clone)]
 struct FakeAuthorization {
     mfa: bool,
-    scope: TenantScope,
+    scope: AuthorityScope,
     calls: Arc<AtomicUsize>,
 }
 
@@ -134,27 +134,27 @@ impl EntitlementPort for FakeEntitlement {
 }
 
 #[derive(Clone, Default)]
-struct FakeTenantAuthority {
+struct FakeHoldingAuthority {
     binding_checks: Arc<AtomicUsize>,
     scope_checks: Arc<AtomicUsize>,
 }
 
 #[async_trait]
-impl TenantAuthorityPort for FakeTenantAuthority {
+impl HoldingAuthorityPort for FakeHoldingAuthority {
     async fn ensure_binding_available(
         &self,
         _customer_id: Uuid,
-        _root_holding_id: Uuid,
-        _holding_ref: &str,
+        _canonical_holding_id: Uuid,
+        _data_profile_key: &str,
     ) -> Result<(), PortError> {
         self.binding_checks.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
 
-    async fn ensure_tenant_scope(
+    async fn ensure_holding_scope(
         &self,
-        _tenant_id: PlatformTenantId,
-        _target_scope: &TenantScope,
+        _holding_id: PlatformHoldingId,
+        _target_scope: &AuthorityScope,
     ) -> Result<(), PortError> {
         self.scope_checks.fetch_add(1, Ordering::SeqCst);
         Ok(())
@@ -163,32 +163,32 @@ impl TenantAuthorityPort for FakeTenantAuthority {
 
 #[derive(Clone, Default)]
 struct FakeWriteRepository {
-    tenant: Arc<Mutex<Option<PlatformTenant>>>,
+    holding: Arc<Mutex<Option<PlatformHolding>>>,
     loads: Arc<AtomicUsize>,
 }
 
 #[async_trait]
 impl WriteRepository for FakeWriteRepository {
-    async fn load_tenant(
+    async fn load_holding(
         &self,
-        _scope: &TenantScope,
-        _id: PlatformTenantId,
-    ) -> Result<Option<PlatformTenant>, PortError> {
+        _scope: &AuthorityScope,
+        _id: PlatformHoldingId,
+    ) -> Result<Option<PlatformHolding>, PortError> {
         self.loads.fetch_add(1, Ordering::SeqCst);
-        Ok(self.tenant.lock().unwrap().clone())
+        Ok(self.holding.lock().unwrap().clone())
     }
     async fn load_connector(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _id: ConnectorBindingId,
     ) -> Result<Option<ConnectorBinding>, PortError> {
         Ok(None)
     }
     async fn load_admin_context(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _id: AdminContextId,
-    ) -> Result<Option<TenantAdminContext>, PortError> {
+    ) -> Result<Option<HoldingAdminContext>, PortError> {
         Ok(None)
     }
 }
@@ -238,7 +238,7 @@ fn handler(
     FakeUnitOfWork,
     FakeAuthorization,
     FakeEntitlement,
-    FakeTenantAuthority,
+    FakeHoldingAuthority,
     FixedClock,
 > {
     PlatformAdministrationCommandHandler::new(
@@ -246,11 +246,11 @@ fn handler(
         unit,
         FakeAuthorization {
             mfa,
-            scope: TenantScope::Platform,
+            scope: AuthorityScope::Platform,
             calls: Arc::new(AtomicUsize::new(0)),
         },
         FakeEntitlement { allow: true },
-        FakeTenantAuthority::default(),
+        FakeHoldingAuthority::default(),
         FixedClock::new(at()),
     )
 }
@@ -258,7 +258,7 @@ fn handler(
 #[test]
 fn high_risk_command_requires_mfa_before_write_store_access() {
     let write = FakeWriteRepository {
-        tenant: Arc::new(Mutex::new(Some(tenant()))),
+        holding: Arc::new(Mutex::new(Some(holding()))),
         loads: Arc::new(AtomicUsize::new(0)),
     };
     let loads = write.loads.clone();
@@ -266,9 +266,9 @@ fn high_risk_command_requires_mfa_before_write_store_access() {
         command_envelope(
             1,
             Some(1),
-            TransitionPlatformTenant {
-                tenant_id: tenant_id(),
-                action: TenantLifecycleAction::Activate,
+            TransitionPlatformHolding {
+                holding_id: holding_id(),
+                action: HoldingLifecycleAction::Activate,
             },
         ),
     ));
@@ -286,7 +286,7 @@ fn high_risk_command_requires_mfa_before_write_store_access() {
 #[test]
 fn expected_version_is_mandatory_and_checked_before_commit() {
     let write = FakeWriteRepository {
-        tenant: Arc::new(Mutex::new(Some(tenant()))),
+        holding: Arc::new(Mutex::new(Some(holding()))),
         loads: Arc::new(AtomicUsize::new(0)),
     };
     let unit = FakeUnitOfWork::default();
@@ -294,9 +294,9 @@ fn expected_version_is_mandatory_and_checked_before_commit() {
     let result = block_on(handler(write, unit, true).handle(command_envelope(
         2,
         None,
-        TransitionPlatformTenant {
-            tenant_id: tenant_id(),
-            action: TenantLifecycleAction::Activate,
+        TransitionPlatformHolding {
+            holding_id: holding_id(),
+            action: HoldingLifecycleAction::Activate,
         },
     )));
     assert_eq!(
@@ -310,14 +310,14 @@ fn expected_version_is_mandatory_and_checked_before_commit() {
 fn command_commit_carries_snapshot_receipt_audit_and_typed_outbox_fact() {
     let unit = FakeUnitOfWork::default();
     let commits = unit.commits.clone();
-    let command = RegisterPlatformTenant {
-        tenant_id: tenant_id(),
+    let command = RegisterPlatformHolding {
+        holding_id: holding_id(),
         code: "ACME".into(),
         name: "Acme".into(),
         environment_id: EnvironmentId::try_from_uuid(id(2)).unwrap(),
         customer_id: id(3),
-        root_holding_id: id(4),
-        holding_ref: "holding/acme".into(),
+        canonical_holding_id: id(4),
+        data_profile_key: "holding/acme".into(),
     };
     let receipt = block_on(
         handler(FakeWriteRepository::default(), unit, true)
@@ -338,14 +338,14 @@ fn command_commit_carries_snapshot_receipt_audit_and_typed_outbox_fact() {
 fn stable_fingerprint_excludes_correlation_and_audit_retry_metadata() {
     let unit_a = FakeUnitOfWork::default();
     let unit_b = FakeUnitOfWork::default();
-    let command = RegisterPlatformTenant {
-        tenant_id: tenant_id(),
+    let command = RegisterPlatformHolding {
+        holding_id: holding_id(),
         code: "ACME".into(),
         name: "Acme".into(),
         environment_id: EnvironmentId::try_from_uuid(id(2)).unwrap(),
         customer_id: id(3),
-        root_holding_id: id(4),
-        holding_ref: "holding/acme".into(),
+        canonical_holding_id: id(4),
+        data_profile_key: "holding/acme".into(),
     };
     let first = command_envelope(30, None, command.clone());
     let mut retry = command_envelope(30, None, command);
@@ -369,7 +369,7 @@ fn stable_idempotency_replay_skips_write_repository_and_commit() {
     let stored = StoredCommit {
         command_id: CommandId::try_from_uuid(id(101)).unwrap(),
         correlation_id: CorrelationId::try_from_uuid(id(201)).unwrap(),
-        aggregate: PlatformAggregate::Tenant(tenant()),
+        aggregate: PlatformAggregate::Holding(holding()),
         committed_events: vec![],
         committed_at: at(),
         replayed: false,
@@ -383,9 +383,9 @@ fn stable_idempotency_replay_skips_write_repository_and_commit() {
     let result = block_on(handler(write, unit.clone(), true).handle(command_envelope(
         1,
         Some(1),
-        TransitionPlatformTenant {
-            tenant_id: tenant_id(),
-            action: TenantLifecycleAction::Activate,
+        TransitionPlatformHolding {
+            holding_id: holding_id(),
+            action: HoldingLifecycleAction::Activate,
         },
     )))
     .unwrap();
@@ -396,39 +396,39 @@ fn stable_idempotency_replay_skips_write_repository_and_commit() {
 
 #[derive(Clone)]
 struct FakeReadRepository {
-    tenant: TenantView,
+    holding: HoldingView,
     calls: Arc<AtomicUsize>,
     error: Option<PortError>,
 }
 
 #[async_trait]
 impl ReadRepository for FakeReadRepository {
-    async fn get_tenant(
+    async fn get_holding(
         &self,
-        _scope: &TenantScope,
-        _id: PlatformTenantId,
+        _scope: &AuthorityScope,
+        _id: PlatformHoldingId,
         _consistency: &QueryConsistency,
-    ) -> Result<ReadProjection<Option<TenantView>>, PortError> {
+    ) -> Result<ReadProjection<Option<HoldingView>>, PortError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         if let Some(error) = self.error.clone() {
             return Err(error);
         }
         Ok(ReadProjection {
-            value: Some(self.tenant.clone()),
+            value: Some(self.holding.clone()),
             metadata: projection_metadata(),
         })
     }
-    async fn list_tenants(
+    async fn list_holdings(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _filter: &PageFilter,
         _consistency: &QueryConsistency,
-    ) -> Result<ReadProjection<Page<TenantView>>, PortError> {
+    ) -> Result<ReadProjection<Page<HoldingView>>, PortError> {
         unreachable!()
     }
     async fn get_connector(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _id: ConnectorBindingId,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<ConnectorView>>, PortError> {
@@ -436,7 +436,7 @@ impl ReadRepository for FakeReadRepository {
     }
     async fn list_connectors(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _filter: &PageFilter,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Page<ConnectorView>>, PortError> {
@@ -444,7 +444,7 @@ impl ReadRepository for FakeReadRepository {
     }
     async fn get_admin_context(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _id: AdminContextId,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<AdminContextView>>, PortError> {
@@ -464,7 +464,7 @@ fn projection_metadata() -> ProjectionMetadata {
 fn query_uses_projection_repository_and_returns_projection_metadata() {
     let calls = Arc::new(AtomicUsize::new(0));
     let read = FakeReadRepository {
-        tenant: TenantView::from(&tenant()),
+        holding: HoldingView::from(&holding()),
         calls: calls.clone(),
         error: None,
     };
@@ -472,19 +472,19 @@ fn query_uses_projection_repository_and_returns_projection_metadata() {
         read,
         FakeAuthorization {
             mfa: false,
-            scope: TenantScope::Platform,
+            scope: AuthorityScope::Platform,
             calls: Arc::new(AtomicUsize::new(0)),
         },
         FakeEntitlement { allow: true },
     );
-    let result = block_on(handler.handle(query_envelope(GetPlatformTenant {
-        tenant_id: tenant_id(),
+    let result = block_on(handler.handle(query_envelope(GetPlatformHolding {
+        holding_id: holding_id(),
     })))
     .unwrap();
     assert_eq!(calls.load(Ordering::SeqCst), 1);
     assert_eq!(
-        result.value.tenant.unwrap().status,
-        TenantLifecycleState::Provisioning
+        result.value.holding.unwrap().status,
+        HoldingLifecycleState::PendingSubscription
     );
     assert_eq!(
         result.metadata.projection.freshness,

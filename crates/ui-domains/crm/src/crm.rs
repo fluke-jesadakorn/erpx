@@ -1,7 +1,7 @@
 //! Client-local CRM read and display models.
 //!
 //! These types are presentation-only. A consuming application converts an already-authorized
-//! CRM read response into them; this module contains no transport, endpoint, tenant credential,
+//! CRM read response into them; this module contains no transport, endpoint, holding credential,
 //! database, or authorization behavior. All string candidates cross a small allow-list and
 //! redaction boundary before becoming display data.
 
@@ -180,7 +180,7 @@ impl CrmAttributionModel {
 
 /// Private, validated CRM scope binding used by the presentation boundary.
 ///
-/// The shape mirrors the domain's non-platform `TenantScope` variants without making the UI
+/// The shape mirrors the domain's non-platform `AuthorityScope` variants without making the UI
 /// crate depend on transport or domain serialization. Holding/company/branch identifiers stay
 /// opaque and are only compared for containment.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -363,14 +363,14 @@ impl CrmProjectionMetadata {
         self.scope.as_ref().map(CrmScope::kind)
     }
 
-    /// Whether the read payload has an explicit tenant scope binding.
+    /// Whether the read payload has an explicit holding scope binding.
     pub const fn has_scope(&self) -> bool {
         self.scope.is_some()
     }
 
     /// Whether this metadata contains a target CRM record scope.
     ///
-    /// This mirrors the domain `TenantScope::contains` rule for the CRM-supported holding,
+    /// This mirrors the domain `AuthorityScope::contains` rule for the CRM-supported holding,
     /// company, and branch levels. The target must be company- or branch-scoped; a holding-only
     /// target is not a valid CRM aggregate scope.
     pub fn permits_record_scope(
@@ -894,7 +894,7 @@ impl<T> CrmViewState<T> {
         match self {
             // A CRM payload is renderable only when the authorized adapter supplied an exact
             // holding/company/branch binding. This applies equally to current, stale, conflict,
-            // and offline cache data; an unbound cache must never look like tenant data.
+            // and offline cache data; an unbound cache must never look like holding data.
             Self::Ready { data, metadata }
             | Self::Stale { data, metadata, .. }
             | Self::ReadOnly { data, metadata, .. }
@@ -982,7 +982,7 @@ impl<T> CrmViewState<T> {
     /// Whether a mutation is safe to submit for the given CRM surface and record scope.
     ///
     /// The checks mirror the existing domain/application boundary: CRM records must be inside
-    /// the authorized tenant scope, stale/offline/conflict/read-only states cannot write, and
+    /// the authorized holding scope, stale/offline/conflict/read-only states cannot write, and
     /// attribution requires a positive optimistic version. The server remains authoritative and
     /// must repeat these checks before persistence.
     pub fn mutation_allowed(

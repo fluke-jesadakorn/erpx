@@ -1,20 +1,22 @@
 //! Target-neutral metadata for the Platform Operations routes.
 //!
 //! This module describes navigation and deep-link shape only. It deliberately contains no
-//! tenant data and does not evaluate the platform authorization requirement; those concerns stay
+//! holding data and does not evaluate the platform authorization requirement; those concerns stay
 //! at the consuming application and server boundaries.
 
 use std::{error::Error, fmt};
 
-pub use erpx_domain::data_plane::BusinessUnitId as TenantWorkspaceModule;
+pub use erpx_domain::{
+    contracts::HoldingId as PlatformHoldingId, data_plane::BusinessUnitId as HoldingWorkspaceModule,
+};
 
 use erpx_ui_core::{
     Locale, NavItem, ProjectionFreshness, RouteAuthRequirement, SafeUiText, TranslationKey,
     UiStateKind, normalize_deep_link, redact_deep_link,
 };
 
-/// Maximum bytes retained for a Platform Operations tenant route identifier.
-pub const MAX_PLATFORM_TENANT_ID_BYTES: usize = 128;
+/// Maximum bytes retained for a Platform Operations holding route identifier.
+pub const MAX_PLATFORM_HOLDING_ID_BYTES: usize = 36;
 
 /// The audience for a Platform Operations route.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,12 +28,12 @@ pub enum PlatformOperationsAudience {
 /// Stable identifiers for the Platform Operations route allow-list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlatformOperationsRouteId {
-    /// Tenant list.
-    Tenants,
-    /// A single tenant's platform operations view.
-    Tenant,
-    /// A tenant-bound module workspace entered by a platform administrator.
-    TenantWorkspace,
+    /// Holding list.
+    Holdings,
+    /// A single holding's platform operations view.
+    Holding,
+    /// A holding-bound module workspace entered by a platform administrator.
+    HoldingWorkspace,
     /// Projection health and rebuild controls.
     Projections,
     /// Backup and restore history.
@@ -53,7 +55,7 @@ pub enum PlatformOperationsRouteId {
 pub struct PlatformOperationsRouteDefinition {
     /// Stable route identifier.
     pub id: PlatformOperationsRouteId,
-    /// Canonical route template. `:id` is an opaque tenant identifier segment.
+    /// Canonical route template. `:id` is an opaque holding identifier segment.
     pub template: &'static str,
     /// Existing localization key for the route label.
     pub label: TranslationKey,
@@ -80,25 +82,25 @@ impl PlatformOperationsRouteDefinition {
 /// Canonical Platform Operations route allow-list in stable display order.
 pub const PLATFORM_OPERATIONS_ROUTES: &[PlatformOperationsRouteDefinition] = &[
     PlatformOperationsRouteDefinition {
-        id: PlatformOperationsRouteId::Tenants,
-        template: "/platform/tenants",
-        label: TranslationKey::PlatformTenants,
+        id: PlatformOperationsRouteId::Holdings,
+        template: "/platform/holdings",
+        label: TranslationKey::PlatformHoldings,
         audience: PlatformOperationsAudience::Platform,
         auth: RouteAuthRequirement::Authenticated,
         icon: "▦",
     },
     PlatformOperationsRouteDefinition {
-        id: PlatformOperationsRouteId::Tenant,
-        template: "/platform/tenants/:id",
-        label: TranslationKey::PlatformTenant,
+        id: PlatformOperationsRouteId::Holding,
+        template: "/platform/holdings/:id",
+        label: TranslationKey::PlatformHolding,
         audience: PlatformOperationsAudience::Platform,
         auth: RouteAuthRequirement::Authenticated,
         icon: "▤",
     },
     PlatformOperationsRouteDefinition {
-        id: PlatformOperationsRouteId::TenantWorkspace,
-        template: "/platform/tenants/:id/workspace/:module",
-        label: TranslationKey::PlatformTenant,
+        id: PlatformOperationsRouteId::HoldingWorkspace,
+        template: "/platform/holdings/:id/workspace/:module",
+        label: TranslationKey::PlatformHolding,
         audience: PlatformOperationsAudience::Platform,
         auth: RouteAuthRequirement::Authenticated,
         icon: "▣",
@@ -161,45 +163,28 @@ pub const PLATFORM_OPERATIONS_ROUTES: &[PlatformOperationsRouteDefinition] = &[
     },
 ];
 
-/// A validated opaque tenant identifier used only as a route segment.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct PlatformTenantId(String);
-
-impl PlatformTenantId {
-    /// Validate an opaque tenant identifier without interpreting its contents.
-    pub fn new(value: impl Into<String>) -> Result<Self, PlatformOperationsRouteError> {
-        let value = value.into();
-        if value.len() <= MAX_PLATFORM_TENANT_ID_BYTES
-            && is_safe_segment(&value)
-            && !contains_sensitive_marker(&value)
-        {
-            Ok(Self(value))
-        } else {
-            Err(PlatformOperationsRouteError::new("/".to_string()))
-        }
-    }
-
-    /// Borrow the validated identifier.
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
+fn platform_holding_id(value: &str) -> Result<PlatformHoldingId, PlatformOperationsRouteError> {
+    let value = uuid::Uuid::parse_str(value)
+        .map_err(|_| PlatformOperationsRouteError::new("/".to_string()))?;
+    PlatformHoldingId::try_from_uuid(value)
+        .map_err(|_| PlatformOperationsRouteError::new("/".to_string()))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TenantWorkspaceViewerKind {
-    TenantUser,
-    PlatformTenantAdministrator,
+pub enum HoldingWorkspaceViewerKind {
+    HoldingUser,
+    PlatformHoldingAdministrator,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TenantWorkspaceBillingMode {
+pub enum HoldingWorkspaceBillingMode {
     Writable,
     Grace,
     ReadOnly,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TenantWorkspaceOrganizationScope {
+pub enum HoldingWorkspaceOrganizationScope {
     Headquarters {
         holding_id: SafeUiText,
     },
@@ -217,26 +202,22 @@ pub enum TenantWorkspaceOrganizationScope {
 /// Shared, display-safe module context. Authorization and consolidation stay
 /// server-owned; the UI only carries the selected scope and opaque evidence.
 #[derive(Clone, PartialEq, Eq)]
-pub struct TenantWorkspaceContext {
-    pub tenant_id: PlatformTenantId,
-    pub customer_id: SafeUiText,
-    pub root_holding_id: SafeUiText,
-    pub scope: TenantWorkspaceOrganizationScope,
-    pub viewer_kind: TenantWorkspaceViewerKind,
-    pub billing_mode: TenantWorkspaceBillingMode,
-    pub entitled_modules: Vec<TenantWorkspaceModule>,
+pub struct HoldingWorkspaceContext {
+    pub holding_id: PlatformHoldingId,
+    pub scope: HoldingWorkspaceOrganizationScope,
+    pub viewer_kind: HoldingWorkspaceViewerKind,
+    pub billing_mode: HoldingWorkspaceBillingMode,
+    pub entitled_modules: Vec<HoldingWorkspaceModule>,
     /// Never rendered in UI diagnostics. Targets pass it only through the
     /// protected transport metadata boundary.
     administrative_context_id: Option<SafeUiText>,
 }
 
-impl fmt::Debug for TenantWorkspaceContext {
+impl fmt::Debug for HoldingWorkspaceContext {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("TenantWorkspaceContext")
-            .field("tenant_id", &self.tenant_id)
-            .field("customer_id", &self.customer_id)
-            .field("root_holding_id", &self.root_holding_id)
+            .debug_struct("HoldingWorkspaceContext")
+            .field("holding_id", &self.holding_id)
             .field("scope", &self.scope)
             .field("viewer_kind", &self.viewer_kind)
             .field("billing_mode", &self.billing_mode)
@@ -252,14 +233,12 @@ impl fmt::Debug for TenantWorkspaceContext {
     }
 }
 
-impl TenantWorkspaceContext {
+impl HoldingWorkspaceContext {
     pub fn entered_platform(
-        tenant_id: PlatformTenantId,
-        customer_id: impl AsRef<str>,
-        root_holding_id: impl AsRef<str>,
-        scope: TenantWorkspaceOrganizationScope,
-        billing_mode: TenantWorkspaceBillingMode,
-        entitled_modules: Vec<TenantWorkspaceModule>,
+        holding_id: PlatformHoldingId,
+        scope: HoldingWorkspaceOrganizationScope,
+        billing_mode: HoldingWorkspaceBillingMode,
+        entitled_modules: Vec<HoldingWorkspaceModule>,
         administrative_context_id: impl AsRef<str>,
     ) -> Option<Self> {
         let administrative_context_id = administrative_context_id.as_ref().trim();
@@ -267,11 +246,9 @@ impl TenantWorkspaceContext {
             return None;
         }
         Some(Self {
-            tenant_id,
-            customer_id: SafeUiText::new(customer_id),
-            root_holding_id: SafeUiText::new(root_holding_id),
+            holding_id,
             scope,
-            viewer_kind: TenantWorkspaceViewerKind::PlatformTenantAdministrator,
+            viewer_kind: HoldingWorkspaceViewerKind::PlatformHoldingAdministrator,
             billing_mode,
             entitled_modules,
             administrative_context_id: Some(SafeUiText::new(administrative_context_id)),
@@ -284,19 +261,19 @@ impl TenantWorkspaceContext {
             .map(SafeUiText::as_str)
     }
 
-    pub fn permits_module(&self, module: TenantWorkspaceModule) -> bool {
+    pub fn permits_module(&self, module: HoldingWorkspaceModule) -> bool {
         self.entitled_modules.contains(&module)
     }
 
     pub const fn is_read_only(&self) -> bool {
-        matches!(self.billing_mode, TenantWorkspaceBillingMode::ReadOnly)
+        matches!(self.billing_mode, HoldingWorkspaceBillingMode::ReadOnly)
     }
 }
 
-/// Tenant administration detail tabs. `EnterWorkspace` remains distinct from
+/// Holding administration detail tabs. `EnterWorkspace` remains distinct from
 /// read-only administrative projections.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PlatformTenantAdministrationTab {
+pub enum PlatformHoldingAdministrationTab {
     Overview,
     Infrastructure,
     Identity,
@@ -313,7 +290,7 @@ pub enum PlatformTenantAdministrationTab {
     EnterWorkspace,
 }
 
-impl PlatformTenantAdministrationTab {
+impl PlatformHoldingAdministrationTab {
     pub const ALL: [Self; 14] = [
         Self::Overview,
         Self::Infrastructure,
@@ -335,8 +312,8 @@ impl PlatformTenantAdministrationTab {
 /// Safe metadata accompanying an authorized Platform Operations read.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlatformOperationsProjectionMetadata {
-    /// Tenant binding for a tenant detail/read; absent for platform-wide lists.
-    pub tenant_id: Option<PlatformTenantId>,
+    /// Holding binding for a holding detail/read; absent for platform-wide lists.
+    pub holding_id: Option<PlatformHoldingId>,
     /// Freshness classification supplied by the server read boundary.
     pub freshness: ProjectionFreshness,
     /// Platform Operations pages never authorize mutations locally.
@@ -348,23 +325,31 @@ pub struct PlatformOperationsProjectionMetadata {
 impl PlatformOperationsProjectionMetadata {
     /// Construct metadata for a fresh platform read.
     pub fn fresh(
-        tenant_id: Option<PlatformTenantId>,
+        holding_id: Option<PlatformHoldingId>,
         projection_updated_at: impl AsRef<str>,
     ) -> Self {
-        Self::present(tenant_id, ProjectionFreshness::Fresh, projection_updated_at)
+        Self::present(
+            holding_id,
+            ProjectionFreshness::Fresh,
+            projection_updated_at,
+        )
     }
 
     /// Construct metadata for a stale but displayable platform read.
     pub fn stale(
-        tenant_id: Option<PlatformTenantId>,
+        holding_id: Option<PlatformHoldingId>,
         projection_updated_at: impl AsRef<str>,
     ) -> Self {
-        Self::present(tenant_id, ProjectionFreshness::Stale, projection_updated_at)
+        Self::present(
+            holding_id,
+            ProjectionFreshness::Stale,
+            projection_updated_at,
+        )
     }
 
     /// Construct metadata with an explicit freshness classification.
     pub fn present(
-        tenant_id: Option<PlatformTenantId>,
+        holding_id: Option<PlatformHoldingId>,
         freshness: ProjectionFreshness,
         projection_updated_at: impl AsRef<str>,
     ) -> Self {
@@ -375,7 +360,7 @@ impl PlatformOperationsProjectionMetadata {
             Some(SafeUiText::new(projection_updated_at))
         };
         Self {
-            tenant_id,
+            holding_id,
             freshness: if projection_updated_at.is_some() {
                 freshness
             } else {
@@ -391,9 +376,9 @@ impl PlatformOperationsProjectionMetadata {
         matches!(self.freshness, ProjectionFreshness::Stale)
     }
 
-    /// Whether this metadata is bound to the requested tenant route.
-    pub fn is_bound_to_tenant(&self, tenant_id: &PlatformTenantId) -> bool {
-        self.tenant_id.as_ref() == Some(tenant_id)
+    /// Whether this metadata is bound to the requested holding route.
+    pub fn is_bound_to_holding(&self, holding_id: &PlatformHoldingId) -> bool {
+        self.holding_id.as_ref() == Some(holding_id)
     }
 }
 
@@ -478,33 +463,33 @@ impl<T> PlatformOperationsPageState<T> {
         true
     }
 
-    /// Fail closed when a tenant detail state carries another tenant's metadata or payload.
-    /// States with no payload are safe without a tenant binding; a cached payload is not.
-    pub fn is_scope_bound_to_tenant(&self, tenant_id: &PlatformTenantId) -> bool {
+    /// Fail closed when a holding detail state carries another holding's metadata or payload.
+    /// States with no payload are safe without a holding binding; a cached payload is not.
+    pub fn is_scope_bound_to_holding(&self, holding_id: &PlatformHoldingId) -> bool {
         match self {
             Self::Ready { metadata, .. } | Self::Stale { metadata, .. } => {
-                metadata.is_bound_to_tenant(tenant_id)
+                metadata.is_bound_to_holding(holding_id)
             }
             Self::Offline {
                 data: Some(_),
                 metadata: Some(metadata),
                 ..
-            } => metadata.is_bound_to_tenant(tenant_id),
+            } => metadata.is_bound_to_holding(holding_id),
             Self::Offline { data: Some(_), .. } => false,
             Self::Loading { metadata } | Self::Denied { metadata, .. } => metadata
                 .as_ref()
-                .is_none_or(|metadata| metadata.is_bound_to_tenant(tenant_id)),
+                .is_none_or(|metadata| metadata.is_bound_to_holding(holding_id)),
             Self::Empty { metadata } => metadata
-                .tenant_id
+                .holding_id
                 .as_ref()
-                .is_none_or(|bound| bound == tenant_id),
+                .is_none_or(|bound| bound == holding_id),
             Self::Offline {
                 data: None,
                 metadata,
                 ..
             } => metadata
                 .as_ref()
-                .is_none_or(|metadata| metadata.is_bound_to_tenant(tenant_id)),
+                .is_none_or(|metadata| metadata.is_bound_to_holding(holding_id)),
             Self::Error { .. } => true,
         }
     }
@@ -513,14 +498,14 @@ impl<T> PlatformOperationsPageState<T> {
 /// A typed Platform Operations route.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlatformOperationsRoute {
-    /// Tenant list.
-    Tenants,
-    /// A single tenant route with a validated opaque identifier.
-    Tenant { tenant_id: PlatformTenantId },
+    /// Holding list.
+    Holdings,
+    /// A single holding route with a validated opaque identifier.
+    Holding { holding_id: PlatformHoldingId },
     /// Reused module UI inside one entered administrative context.
-    TenantWorkspace {
-        tenant_id: PlatformTenantId,
-        module: TenantWorkspaceModule,
+    HoldingWorkspace {
+        holding_id: PlatformHoldingId,
+        module: HoldingWorkspaceModule,
     },
     /// Projection health and rebuild controls.
     Projections,
@@ -529,7 +514,7 @@ pub enum PlatformOperationsRoute {
     /// Provider connector registry.
     Providers,
     /// One provider connector identified by an opaque, validated segment.
-    Provider { connector_id: PlatformTenantId },
+    Provider { connector_id: PlatformHoldingId },
     /// Integration health and configuration metadata.
     Integrations,
     /// Platform audit records.
@@ -548,9 +533,9 @@ impl PlatformOperationsRoute {
     /// Return the stable route identifier.
     pub const fn id(&self) -> PlatformOperationsRouteId {
         match self {
-            Self::Tenants => PlatformOperationsRouteId::Tenants,
-            Self::Tenant { .. } => PlatformOperationsRouteId::Tenant,
-            Self::TenantWorkspace { .. } => PlatformOperationsRouteId::TenantWorkspace,
+            Self::Holdings => PlatformOperationsRouteId::Holdings,
+            Self::Holding { .. } => PlatformOperationsRouteId::Holding,
+            Self::HoldingWorkspace { .. } => PlatformOperationsRouteId::HoldingWorkspace,
             Self::Projections => PlatformOperationsRouteId::Projections,
             Self::Backups => PlatformOperationsRouteId::Backups,
             Self::Providers | Self::Provider { .. } => PlatformOperationsRouteId::Providers,
@@ -566,20 +551,20 @@ impl PlatformOperationsRoute {
     /// Return the canonical path without query or fragment state.
     pub fn path(&self) -> String {
         match self {
-            Self::Tenants => "/platform/tenants".to_string(),
-            Self::Tenant { tenant_id } => {
-                format!("/platform/tenants/{}", tenant_id.as_str())
+            Self::Holdings => "/platform/holdings".to_string(),
+            Self::Holding { holding_id } => {
+                format!("/platform/holdings/{holding_id}")
             }
-            Self::TenantWorkspace { tenant_id, module } => format!(
-                "/platform/tenants/{}/workspace/{}",
-                tenant_id.as_str(),
+            Self::HoldingWorkspace { holding_id, module } => format!(
+                "/platform/holdings/{}/workspace/{}",
+                holding_id,
                 module.as_str()
             ),
             Self::Projections => "/platform/projections".to_string(),
             Self::Backups => "/platform/backups".to_string(),
             Self::Providers => "/platform/provider".to_string(),
             Self::Provider { connector_id } => {
-                format!("/platform/provider/{}", connector_id.as_str())
+                format!("/platform/provider/{connector_id}")
             }
             Self::Integrations => "/platform/integrations".to_string(),
             Self::Audit => "/platform/audit".to_string(),
@@ -625,21 +610,21 @@ impl PlatformOperationsRouteRegistry {
             .collect();
 
         match segments.as_slice() {
-            ["platform", "tenants"] => Ok(PlatformOperationsRoute::Tenants),
-            ["platform", "tenants", tenant_id] => PlatformTenantId::new(*tenant_id)
-                .map(|tenant_id| PlatformOperationsRoute::Tenant { tenant_id })
+            ["platform", "holdings"] => Ok(PlatformOperationsRoute::Holdings),
+            ["platform", "holdings", holding_id] => platform_holding_id(holding_id)
+                .map(|holding_id| PlatformOperationsRoute::Holding { holding_id })
                 .map_err(|_| PlatformOperationsRouteError::new(normalized)),
-            ["platform", "tenants", tenant_id, "workspace", module] => {
-                let tenant_id = PlatformTenantId::new(*tenant_id)
+            ["platform", "holdings", holding_id, "workspace", module] => {
+                let holding_id = platform_holding_id(holding_id)
                     .map_err(|_| PlatformOperationsRouteError::new(normalized.clone()))?;
-                let module = TenantWorkspaceModule::parse(module)
+                let module = HoldingWorkspaceModule::parse(module)
                     .map_err(|_| PlatformOperationsRouteError::new(normalized.clone()))?;
-                Ok(PlatformOperationsRoute::TenantWorkspace { tenant_id, module })
+                Ok(PlatformOperationsRoute::HoldingWorkspace { holding_id, module })
             }
             ["platform", "projections"] => Ok(PlatformOperationsRoute::Projections),
             ["platform", "backups"] => Ok(PlatformOperationsRoute::Backups),
             ["platform", "provider"] => Ok(PlatformOperationsRoute::Providers),
-            ["platform", "provider", connector_id] => PlatformTenantId::new(*connector_id)
+            ["platform", "provider", connector_id] => platform_holding_id(connector_id)
                 .map(|connector_id| PlatformOperationsRoute::Provider { connector_id })
                 .map_err(|_| PlatformOperationsRouteError::new(normalized)),
             ["platform", "integrations"] => Ok(PlatformOperationsRoute::Integrations),
@@ -699,39 +684,13 @@ impl fmt::Display for PlatformOperationsRouteError {
 
 impl Error for PlatformOperationsRouteError {}
 
-fn is_safe_segment(value: &str) -> bool {
-    !value.is_empty()
-        && value != "."
-        && value != ".."
-        && value
-            .chars()
-            .all(|character| !character.is_control() && !character.is_whitespace())
-        && !value.contains(['/', '\\', '?', '#'])
-}
-
-fn contains_sensitive_marker(value: &str) -> bool {
-    let value = value.to_ascii_lowercase();
-    [
-        "access_token=",
-        "refresh_token=",
-        "password=",
-        "authorization:",
-        "bearer ",
-        "database_url=",
-        "client_secret=",
-        "api_key=",
-    ]
-    .iter()
-    .any(|marker| value.contains(marker))
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
-        PLATFORM_OPERATIONS_ROUTES, PlatformOperationsAudience, PlatformOperationsPageState,
-        PlatformOperationsProjectionMetadata, PlatformOperationsRoute, PlatformOperationsRouteId,
-        PlatformOperationsRouteRegistry, PlatformTenantId, TenantWorkspaceBillingMode,
-        TenantWorkspaceContext, TenantWorkspaceModule, TenantWorkspaceOrganizationScope,
+        HoldingWorkspaceBillingMode, HoldingWorkspaceContext, HoldingWorkspaceModule,
+        HoldingWorkspaceOrganizationScope, PLATFORM_OPERATIONS_ROUTES, PlatformOperationsAudience,
+        PlatformOperationsPageState, PlatformOperationsProjectionMetadata, PlatformOperationsRoute,
+        PlatformOperationsRouteId, PlatformOperationsRouteRegistry, platform_holding_id,
     };
     use erpx_ui_core::{
         Locale, ProjectionFreshness, RouteAuthRequirement, SafeUiText, UiStateKind,
@@ -740,11 +699,11 @@ mod tests {
     #[test]
     fn registry_contains_exact_platform_operations_allow_list() {
         let expected = [
-            (PlatformOperationsRouteId::Tenants, "/platform/tenants"),
-            (PlatformOperationsRouteId::Tenant, "/platform/tenants/:id"),
+            (PlatformOperationsRouteId::Holdings, "/platform/holdings"),
+            (PlatformOperationsRouteId::Holding, "/platform/holdings/:id"),
             (
-                PlatformOperationsRouteId::TenantWorkspace,
-                "/platform/tenants/:id/workspace/:module",
+                PlatformOperationsRouteId::HoldingWorkspace,
+                "/platform/holdings/:id/workspace/:module",
             ),
             (
                 PlatformOperationsRouteId::Projections,
@@ -782,12 +741,12 @@ mod tests {
         let registry = PlatformOperationsRouteRegistry::new();
 
         assert!(matches!(
-            registry.resolve("/platform/tenants"),
-            Ok(PlatformOperationsRoute::Tenants)
+            registry.resolve("/platform/holdings"),
+            Ok(PlatformOperationsRoute::Holdings)
         ));
         assert!(matches!(
-            registry.resolve("/platform/tenants/tenant_123"),
-            Ok(PlatformOperationsRoute::Tenant { .. })
+            registry.resolve("/platform/holdings/00000000-0000-4000-8000-000000000123"),
+            Ok(PlatformOperationsRoute::Holding { .. })
         ));
         assert!(matches!(
             registry.resolve("/platform/projections"),
@@ -798,13 +757,15 @@ mod tests {
             Ok(PlatformOperationsRoute::Providers)
         ));
         assert!(matches!(
-            registry.resolve("/platform/provider/connector_123"),
+            registry.resolve("/platform/provider/00000000-0000-4000-8000-000000000125"),
             Ok(PlatformOperationsRoute::Provider { .. })
         ));
         assert!(matches!(
-            registry.resolve("/platform/tenants/tenant_123/workspace/finance"),
-            Ok(PlatformOperationsRoute::TenantWorkspace {
-                module: TenantWorkspaceModule::Finance,
+            registry.resolve(
+                "/platform/holdings/00000000-0000-4000-8000-000000000123/workspace/finance"
+            ),
+            Ok(PlatformOperationsRoute::HoldingWorkspace {
+                module: HoldingWorkspaceModule::Finance,
                 ..
             })
         ));
@@ -821,17 +782,17 @@ mod tests {
             Ok(PlatformOperationsRoute::AccessSimulation)
         ));
         for path in [
-            "/platform/tenants-extra",
-            "/platform/tenants/tenant_123/extra",
-            "/platform/tenants/tenant_123/workspace/unknown",
-            "/platform/tenants/tenant_123/workspace/finance/extra",
+            "/platform/holdings-extra",
+            "/platform/holdings/00000000-0000-4000-8000-000000000123/extra",
+            "/platform/holdings/00000000-0000-4000-8000-000000000123/workspace/unknown",
+            "/platform/holdings/00000000-0000-4000-8000-000000000123/workspace/finance/extra",
             "/platform/projections-extra",
             "/platform/backups-old",
             "/platform/provider/connector_123/extra",
             "/platform/settings/child",
             "/platform/settings/access-simulation/child",
             "/platform/role-review/child",
-            "/platformx/tenants",
+            "/platformx/holdings",
         ] {
             assert!(
                 registry.resolve(path).is_err(),
@@ -863,25 +824,27 @@ mod tests {
 
         assert_eq!(
             registry
-                .resolve("/#/platform//tenants///?tab=health#details")
-                .expect("normalized tenant route"),
-            PlatformOperationsRoute::Tenants
+                .resolve("/#/platform//holdings///?tab=health#details")
+                .expect("normalized holding route"),
+            PlatformOperationsRoute::Holdings
         );
         assert_eq!(
             registry
-                .resolve("/platform/tenants/tenant_123/?from=platform#tenant")
-                .expect("normalized tenant detail route")
+                .resolve(
+                    "/platform/holdings/00000000-0000-4000-8000-000000000123/?from=platform#holding"
+                )
+                .expect("normalized holding detail route")
                 .path(),
-            "/platform/tenants/tenant_123"
+            "/platform/holdings/00000000-0000-4000-8000-000000000123"
         );
-        assert!(registry.resolve("/platform/../tenants").is_err());
+        assert!(registry.resolve("/platform/../holdings").is_err());
     }
 
     #[test]
     fn credential_bearing_links_are_rejected_without_leaking_values() {
         let registry = PlatformOperationsRouteRegistry::new();
         for path in [
-            "/platform/tenants?access_token=top-secret",
+            "/platform/holdings?access_token=top-secret",
             "/platform/projections#refresh_token=top-secret",
             "/platform/backups?authorization=Bearer%20top-secret",
             "/platform/settings?client_secret=top-secret",
@@ -896,11 +859,11 @@ mod tests {
 
     #[test]
     fn platform_state_is_typed_bounded_and_never_authorizes_locally() {
-        let tenant = PlatformTenantId::new("tenant_123").expect("tenant");
-        assert!(PlatformTenantId::new("a".repeat(129)).is_err());
-        assert!(PlatformTenantId::new("database_url=secret").is_err());
+        let holding = platform_holding_id("00000000-0000-4000-8000-000000000123").expect("holding");
+        assert!(platform_holding_id(&"a".repeat(129)).is_err());
+        assert!(platform_holding_id("database_url=secret").is_err());
         let metadata =
-            PlatformOperationsProjectionMetadata::fresh(Some(tenant), "2026-07-29T00:00:00Z");
+            PlatformOperationsProjectionMetadata::fresh(Some(holding), "2026-07-29T00:00:00Z");
         assert_eq!(metadata.freshness, ProjectionFreshness::Fresh);
         let state = PlatformOperationsPageState::<u8>::Ready { data: 1, metadata };
         assert_eq!(state.kind(), None);
@@ -917,30 +880,29 @@ mod tests {
     }
 
     #[test]
-    fn tenant_state_scope_checks_fail_closed_for_cached_cross_tenant_payloads() {
-        let tenant = PlatformTenantId::new("tenant_123").expect("tenant");
-        let other = PlatformTenantId::new("tenant_other").expect("other tenant");
-        let bound = PlatformOperationsProjectionMetadata::fresh(
-            Some(tenant.clone()),
-            "2026-07-29T00:00:00Z",
-        );
+    fn holding_state_scope_checks_fail_closed_for_cached_cross_holding_payloads() {
+        let holding = platform_holding_id("00000000-0000-4000-8000-000000000123").expect("holding");
+        let other =
+            platform_holding_id("00000000-0000-4000-8000-000000000124").expect("other holding");
+        let bound =
+            PlatformOperationsProjectionMetadata::fresh(Some(holding), "2026-07-29T00:00:00Z");
         let mismatched =
             PlatformOperationsProjectionMetadata::fresh(Some(other), "2026-07-29T00:00:00Z");
-        assert!(bound.is_bound_to_tenant(&tenant));
-        assert!(!mismatched.is_bound_to_tenant(&tenant));
+        assert!(bound.is_bound_to_holding(&holding));
+        assert!(!mismatched.is_bound_to_holding(&holding));
         assert!(
             PlatformOperationsPageState::<u8>::Ready {
                 data: 1,
                 metadata: bound.clone(),
             }
-            .is_scope_bound_to_tenant(&tenant)
+            .is_scope_bound_to_holding(&holding)
         );
         assert!(
             !PlatformOperationsPageState::<u8>::Ready {
                 data: 1,
                 metadata: mismatched.clone(),
             }
-            .is_scope_bound_to_tenant(&tenant)
+            .is_scope_bound_to_holding(&holding)
         );
         assert!(
             !PlatformOperationsPageState::<u8>::Offline {
@@ -948,39 +910,38 @@ mod tests {
                 metadata: Some(mismatched),
                 reason: SafeUiText::new("offline"),
             }
-            .is_scope_bound_to_tenant(&tenant)
+            .is_scope_bound_to_holding(&holding)
         );
         assert!(
             PlatformOperationsPageState::<u8>::Loading { metadata: None }
-                .is_scope_bound_to_tenant(&tenant)
+                .is_scope_bound_to_holding(&holding)
         );
     }
 
     #[test]
-    fn entered_workspace_is_tenant_bound_module_allow_listed_and_context_backed() {
+    fn entered_workspace_is_holding_bound_module_allow_listed_and_context_backed() {
         let registry = PlatformOperationsRouteRegistry::new();
         let route = registry
-            .resolve("/platform/tenants/tenant_123/workspace/finance")
+            .resolve("/platform/holdings/00000000-0000-4000-8000-000000000123/workspace/finance")
             .expect("entered workspace route");
         assert_eq!(
             route.path(),
-            "/platform/tenants/tenant_123/workspace/finance"
+            "/platform/holdings/00000000-0000-4000-8000-000000000123/workspace/finance"
         );
-        let tenant_id = PlatformTenantId::new("tenant_123").expect("tenant");
-        let context = TenantWorkspaceContext::entered_platform(
-            tenant_id,
-            "customer-123",
-            "holding-123",
-            TenantWorkspaceOrganizationScope::Headquarters {
+        let holding_id =
+            platform_holding_id("00000000-0000-4000-8000-000000000123").expect("holding");
+        let context = HoldingWorkspaceContext::entered_platform(
+            holding_id,
+            HoldingWorkspaceOrganizationScope::Headquarters {
                 holding_id: SafeUiText::new("holding-123"),
             },
-            TenantWorkspaceBillingMode::ReadOnly,
-            vec![TenantWorkspaceModule::Finance],
+            HoldingWorkspaceBillingMode::ReadOnly,
+            vec![HoldingWorkspaceModule::Finance],
             "opaque-admin-context",
         )
         .expect("administrative context");
-        assert!(context.permits_module(TenantWorkspaceModule::Finance));
-        assert!(!context.permits_module(TenantWorkspaceModule::Sales));
+        assert!(context.permits_module(HoldingWorkspaceModule::Finance));
+        assert!(!context.permits_module(HoldingWorkspaceModule::Sales));
         assert!(context.is_read_only());
         assert_eq!(
             context.administrative_context_metadata(),

@@ -1,4 +1,4 @@
-# G10-MKT-021 — CRM tenant-read projection seam
+# G10-MKT-021 — CRM holding-read projection seam
 
 ## Delivered
 
@@ -13,9 +13,9 @@ The source-event page allow-list includes those types. CRM envelopes are
 validated against aggregate type, version, event type, aggregate identity, and
 domain payload rules before projection.
 
-Projection rows are persisted in the tenant read database. The four read-side
+Projection rows are persisted in the holding read database. The four read-side
 tables are handoff rows, opportunity rows, attribution rows, and
-`crm_projection_event_receipts`. All have `holding_ref` policies and forced
+`crm_projection_event_receipts`. All have `data_profile_key` policies and forced
 RLS. Event receipts hash the complete envelope. Exact event replay is a
 no-op; a reused event ID with changed data fails; an older aggregate version
 is receipt-recorded without overwriting a newer row; a different event for an
@@ -29,7 +29,7 @@ credential logic was introduced.
 
 ## Files changed
 
-- `crates/migration/migrations_tenant_read/0030_marketing_crm_projection.sql`
+- `crates/migration/migrations_holding_read/0030_marketing_crm_projection.sql`
 - `crates/migration/src/lib.rs`
 - `crates/infrastructure/src/marketing_persistence.rs`
 - `crates/infrastructure/tests/marketing_crm_read_projection.rs`
@@ -51,10 +51,10 @@ restored, with no duplicate migration or module added.
 - `cargo test -p erpx-migration` — 6 passed; doc-tests 0.
 - Disposable PostgreSQL test `marketing_crm_read_projection` — 1 passed.
 
-The disposable test applied clean tenant write/read migrations and verified
+The disposable test applied clean holding write/read migrations and verified
 all four CRM events (handoff, opportunity create, opportunity transition, and
 attribution), projection application, exact replay, receipt persistence,
-rebuild clearing, four forced-RLS tables, and four tenant-scope policies.
+rebuild clearing, four forced-RLS tables, and four holding-scope policies.
 
 ## Integration boundary
 
@@ -76,9 +76,9 @@ the read tables are disposable and do not affect CRM write authority.
 
 ## Security concerns
 
-Tenant scope is applied through the existing transaction-local
-`erpx.holding_ref` setting and enforced by forced RLS. Payload identity and
+Holding scope is applied through the existing transaction-local
+`erpx.data_profile_key` setting and enforced by forced RLS. Payload identity and
 source versions are checked before writes. PostgreSQL disposable tests run as
-the database superuser, so runtime cross-tenant filtering is represented by
+the database superuser, so runtime cross-holding filtering is represented by
 forced-RLS and policy metadata rather than a false superuser behavior claim;
 non-superuser production roles must remain in force-RLS deployment policy.

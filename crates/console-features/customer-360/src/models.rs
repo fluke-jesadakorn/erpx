@@ -34,7 +34,7 @@ pub struct SourceProjectionDisplay {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Customer360SourceProjectionsDisplay {
     pub control_customers: SourceProjectionDisplay,
-    pub tenant_activity: SourceProjectionDisplay,
+    pub holding_activity: SourceProjectionDisplay,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

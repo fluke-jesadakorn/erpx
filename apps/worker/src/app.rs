@@ -36,15 +36,15 @@ use std::{env, sync::Arc};
 
 use chrono::{Duration, Utc};
 use erpx_cqrs_sqlx::{ProjectionPool, ProjectionRunnerConfig, WritePool};
-use erpx_domain::{access::Scope, contracts::TenantScope};
+use erpx_domain::contracts::AuthorityScope;
 use erpx_identity::{DirectoryRoleAccess, SqlxIdentityStore};
 use erpx_infrastructure::{
-    AssetMaintenanceSourceEventCursor, MarketingDeliveryScheduleRequest, ProjectionClaimRecord,
-    ProjectionJobKind, ProjectionSchedulerAuthorization, RoleReviewPersistence, RoutedDatabaseSide,
-    SalesSourceEventCursor, SqlxControlPlane, SqlxMarketingContentStore,
+    AssetMaintenanceSourceEventCursor, HoldingDatabaseProvisioningConfig, HoldingDatabaseRouter,
+    MarketingDeliveryScheduleRequest, ProjectionClaimRecord, ProjectionJobKind,
+    ProjectionSchedulerAuthorization, RoleReviewPersistence, RoutedDatabaseSide,
+    SalesSourceEventCursor, SqlxControlPlane, SqlxHoldingStoreRegistry, SqlxMarketingContentStore,
     SqlxMarketingDeliverySchedulerRepository, SqlxMarketingDeliveryStore,
-    SqlxMarketingJourneyExecutionStore, SqlxTenantStoreRegistry, SupportWorkflowStore,
-    TenantDatabaseProvisioningConfig, TenantDatabaseRouter,
+    SqlxMarketingJourneyExecutionStore, SupportWorkflowStore,
     UnconfiguredBankProviderCredentialResolver,
 };
 use erpx_worker::FutureEnterpriseProjectionKind;
@@ -57,14 +57,18 @@ use erpx_worker::{
     DirectorySupervisorRuntimeHandler, DirectorySyncRuntimeHandler,
     FINANCE_BANK_PROVIDER_IMPORT_HANDLER_NAME, FINANCE_SUBLEDGER_RECONCILIATION_MAX_ROWS,
     FinanceBankProviderImportAuthorizer, FinanceBankProviderImportError,
-    FinanceBankingTenantProjectionExecutor, FinanceChartTenantProjectionExecutor,
-    FinanceCloseTenantProjectionExecutor, FinanceCompletionAuthorizationProof,
+    FinanceBankingHoldingProjectionExecutor, FinanceChartHoldingProjectionExecutor,
+    FinanceCloseHoldingProjectionExecutor, FinanceCompletionAuthorizationProof,
     FinanceCompletionRequest, FinanceCompletionRuntimeAdapter,
-    FinanceSubledgerReconciliationRequest, FinanceSubledgerReconciliationRunner,
-    FinanceSubledgerTenantProjectionExecutor, FinanceThaiTaxTenantProjectionExecutor,
-    G13_TARGET_HANDLER_NAME, G13TargetRuntimeHandler, HR_COMPLETION_HANDLER_NAME,
-    HrCompletionRuntimeHandler, HrProjectionRequest, HrProjectionRunner, HrProjectionWorkerError,
-    ITEM_DIRECTORY_PROJECTION_MAX_PAGE_SIZE, ItemDirectoryTenantProjectionExecutor,
+    FinanceSubledgerHoldingProjectionExecutor, FinanceSubledgerReconciliationRequest,
+    FinanceSubledgerReconciliationRunner, FinanceThaiTaxHoldingProjectionExecutor,
+    G13_TARGET_HANDLER_NAME, G13TargetRuntimeHandler, HOLDING_BACKUP_HANDLER_NAME,
+    HOLDING_BACKUP_RETENTION_HANDLER_NAME, HOLDING_PROJECTION_SCHEDULER_HANDLER_NAME,
+    HOLDING_PROJECTION_STATUS_PROJECTION_HANDLER_NAME, HR_COMPLETION_HANDLER_NAME,
+    HoldingBackupJobRuntimeHandler, HoldingBackupRetentionRuntimeHandler,
+    HoldingProjectionExecutor, HoldingProjectionExecutorError, HrCompletionRuntimeHandler,
+    HrProjectionRequest, HrProjectionRunner, HrProjectionWorkerError,
+    ITEM_DIRECTORY_PROJECTION_MAX_PAGE_SIZE, ItemDirectoryHoldingProjectionExecutor,
     LEGAL_RETENTION_DEFAULT_BATCH_SIZE, LEGAL_RETENTION_HANDLER_NAME, LegalProjectionRequest,
     LegalProjectionRunner, LegalProjectionWorkerError, LegalRetentionRequest, LegalRetentionRunner,
     LegalRetentionWorkerContext, MARKETING_CONTENT_PREVIEW_EXPIRY_HANDLER_NAME,
@@ -77,19 +81,15 @@ use erpx_worker::{
     MarketingContentPrivacyRequest, MarketingContentPrivacyRunner,
     MarketingContentPrivacyWorkerContext, MarketingDeliveryHandler,
     MarketingDeliverySchedulerHandler, MarketingDeliverySecretManagerResolver,
-    MarketingJourneyExecutionHandler, MarketingJourneyIntegrationMultiTenantRuntimeHandler,
-    MarketingPublicAbuseCleanupRunner, MarketingTenantProjectionExecutor, NamedWorkerHandler,
-    PosProjectionRequest, PosProjectionRunner, PosProjectionWorkerError,
+    MarketingHoldingProjectionExecutor, MarketingJourneyExecutionHandler,
+    MarketingJourneyIntegrationMultiHoldingRuntimeHandler, MarketingPublicAbuseCleanupRunner,
+    NamedWorkerHandler, PosProjectionRequest, PosProjectionRunner, PosProjectionWorkerError,
     SUPPORT_WORKFLOW_HANDLER_NAME, SalesProjectionRequest, SalesProjectionRunner,
     ScmProjectionPageRequest, ScmProjectionRebuildRequest, ScmProjectionRunner,
     ScmProjectionWorkerError, SqlxMarketingContentPreviewExpiryExecutor,
     SqlxMarketingJourneyExecutionDecisionSource, SqlxMarketingProjectionFactory,
-    TENANT_BACKUP_HANDLER_NAME, TENANT_BACKUP_RETENTION_HANDLER_NAME,
-    TENANT_PROJECTION_SCHEDULER_HANDLER_NAME, TENANT_PROJECTION_STATUS_PROJECTION_HANDLER_NAME,
-    TenantBackupJobRuntimeHandler, TenantBackupRetentionRuntimeHandler, TenantProjectionExecutor,
-    TenantProjectionExecutorError, TrustedAgentTenantOperationsConfig, WorkerHandlerReport,
-    WorkerRuntime, WorkerRuntimeConfig, WorkerRuntimeError,
-    compose_trusted_tenant_agent_operations,
+    TrustedAgentHoldingOperationsConfig, WorkerHandlerReport, WorkerRuntime, WorkerRuntimeConfig,
+    WorkerRuntimeError, compose_trusted_holding_agent_operations,
 };
 use erpx_worker::{
     ROLE_REVIEW_NOTIFICATION_HANDLER_NAME, ROLE_REVIEW_SNAPSHOT_HANDLER_NAME,
@@ -100,11 +100,11 @@ use uuid::Uuid;
 
 use contexts::commercial::CommercialProjectionKind;
 use contexts::marketing_approval::{
-    MARKETING_APPROVAL_DECISIONS_HANDLER_NAME, MARKETING_APPROVAL_DECISIONS_MAX_ACTIVE_TENANTS,
+    MARKETING_APPROVAL_DECISIONS_HANDLER_NAME, MARKETING_APPROVAL_DECISIONS_MAX_ACTIVE_HOLDINGS,
     MARKETING_APPROVAL_DECISIONS_MAX_PAGE_SIZE, MarketingApprovalDecisionHandler,
 };
 use contexts::operations_source::{
-    OPERATIONS_SOURCE_INGESTION_HANDLER_NAME, OPERATIONS_SOURCE_MAX_ACTIVE_TENANTS,
+    OPERATIONS_SOURCE_INGESTION_HANDLER_NAME, OPERATIONS_SOURCE_MAX_ACTIVE_HOLDINGS,
     OPERATIONS_SOURCE_MAX_PAGE_SIZE,
 };
 use contexts::organization::OrganizationProjectionKind;
@@ -121,7 +121,7 @@ use wave6_composition::{Wave6ProjectionExecutor, Wave6ProjectionKind};
 use wave7_composition::{Wave7ProjectionExecutor, Wave7ProjectionKind};
 use wave8_composition::{Wave8ProjectionExecutor, Wave8ProjectionKind};
 use wave9_composition::{
-    CUSTOMER360_CONTROL_PROJECTION_HANDLER_NAME, CUSTOMER360_TENANT_PROJECTION_HANDLER_NAME,
+    CUSTOMER360_CONTROL_PROJECTION_HANDLER_NAME, CUSTOMER360_HOLDING_PROJECTION_HANDLER_NAME,
     Customer360ProjectionHandler, Customer360ProjectionKind, Wave9ProjectionExecutor,
     Wave9ProjectionKind, operations_source_ingestion_handler,
 };
@@ -149,19 +149,19 @@ impl FinanceBankProviderImportAuthorizer for ControlPlaneFinanceBankProviderImpo
     async fn authorize(
         &self,
         context: &erpx_domain::contracts::CommandContext,
-        account_scope: &TenantScope,
+        account_scope: &AuthorityScope,
     ) -> Result<(), FinanceBankProviderImportError> {
-        if !context.tenant_scope.contains(account_scope) {
+        if !context.active_scope.contains(account_scope) {
             return Err(FinanceBankProviderImportError::AuthorizationDenied);
         }
         let requested_scope = finance_access_scope(account_scope);
         let directory_scope = requested_scope.canonical_key();
         let holding_scope = match requested_scope {
-            Scope::Platform => None,
-            Scope::Holding { holding_id }
-            | Scope::Company { holding_id, .. }
-            | Scope::Branch { holding_id, .. }
-            | Scope::Subtree { holding_id, .. } => Some(format!("holding:{holding_id}")),
+            AuthorityScope::Platform => None,
+            AuthorityScope::Holding { holding_id }
+            | AuthorityScope::Company { holding_id, .. }
+            | AuthorityScope::Branch { holding_id, .. }
+            | AuthorityScope::Subtree { holding_id, .. } => Some(format!("holding:{holding_id}")),
         };
         match self
             .identity
@@ -196,36 +196,34 @@ impl FinanceBankProviderImportAuthorizer for ControlPlaneFinanceBankProviderImpo
     }
 }
 
-fn finance_access_scope(scope: &TenantScope) -> Scope {
+fn finance_access_scope(scope: &AuthorityScope) -> AuthorityScope {
     match scope {
-        TenantScope::Platform => Scope::Platform,
-        TenantScope::Holding { holding_id } => Scope::Holding {
+        AuthorityScope::Platform => AuthorityScope::Platform,
+        AuthorityScope::Holding { holding_id } => AuthorityScope::Holding {
             holding_id: *holding_id,
         },
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
-        } => Scope::Company {
+        } => AuthorityScope::Company {
             holding_id: *holding_id,
             company_id: *company_id,
         },
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
-        } => Scope::Branch {
+        } => AuthorityScope::Branch {
             holding_id: *holding_id,
             company_id: *company_id,
             branch_id: *branch_id,
         },
-        TenantScope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
-        } => Scope::Subtree {
+            organization_node_id,
+        } => AuthorityScope::Subtree {
             holding_id: *holding_id,
-            company_ids: company_ids.clone(),
-            branch_ids: branch_ids.clone(),
+            organization_node_id: *organization_node_id,
         },
     }
 }
@@ -244,22 +242,22 @@ impl RoleReviewNotificationPublisher for ControlOutboxRoleReviewPublisher {
     }
 }
 
-fn role_review_scope_from_env() -> Result<Scope, Box<dyn std::error::Error>> {
+fn role_review_scope_from_env() -> Result<AuthorityScope, Box<dyn std::error::Error>> {
     let value = required_env("ERPX_ROLE_REVIEW_SCOPE")?;
     let parts = value.split(':').collect::<Vec<_>>();
     let parse_id = |field: &str| {
         Uuid::parse_str(field).map_err(|_| format!("invalid role-review scope UUID: {field}"))
     };
     match parts.as_slice() {
-        ["platform"] => Ok(Scope::Platform),
-        ["holding", holding] => Ok(Scope::Holding {
+        ["platform"] => Ok(AuthorityScope::Platform),
+        ["holding", holding] => Ok(AuthorityScope::Holding {
             holding_id: parse_id(holding)?,
         }),
-        ["company", holding, company] => Ok(Scope::Company {
+        ["company", holding, company] => Ok(AuthorityScope::Company {
             holding_id: parse_id(holding)?,
             company_id: parse_id(company)?,
         }),
-        ["branch", holding, company, branch] => Ok(Scope::Branch {
+        ["branch", holding, company, branch] => Ok(AuthorityScope::Branch {
             holding_id: parse_id(holding)?,
             company_id: parse_id(company)?,
             branch_id: parse_id(branch)?,
@@ -284,9 +282,9 @@ struct FinanceCompletionRuntimeHandler {
 }
 
 impl FinanceCompletionRuntimeHandler {
-    fn from_env(router: TenantDatabaseRouter) -> Result<Self, Box<dyn std::error::Error>> {
-        let tenant_id = required_env("ERPX_FINANCE_COMPLETION_TENANT_ID")?;
-        let holding_ref = required_env("ERPX_FINANCE_COMPLETION_HOLDING_REF")?;
+    fn from_env(router: HoldingDatabaseRouter) -> Result<Self, Box<dyn std::error::Error>> {
+        let holding_id = required_env("ERPX_FINANCE_COMPLETION_HOLDING_ID")?;
+        let data_profile_key = required_env("ERPX_FINANCE_COMPLETION_DATA_PROFILE_KEY")?;
         let reconciliation_max_rows = env::var("ERPX_FINANCE_COMPLETION_MAX_ROWS")
             .unwrap_or_else(|_| "1000".into())
             .parse::<u32>()
@@ -296,8 +294,8 @@ impl FinanceCompletionRuntimeHandler {
             .parse::<u32>()
             .map_err(|_| "ERPX_FINANCE_COMPLETION_PAGE_SIZE must be an integer")?;
         let request = FinanceCompletionRequest::new(
-            tenant_id,
-            holding_ref,
+            holding_id,
+            data_profile_key,
             reconciliation_max_rows,
             page_size,
         )
@@ -396,37 +394,37 @@ enum ProductProjectionExecutor {
 
 #[derive(Debug, Clone)]
 struct QualityCqrsProjectionExecutor {
-    router: TenantDatabaseRouter,
+    router: HoldingDatabaseRouter,
     kind: QualityProjectionKind,
 }
 
 impl QualityCqrsProjectionExecutor {
-    const fn new(router: TenantDatabaseRouter, kind: QualityProjectionKind) -> Self {
+    const fn new(router: HoldingDatabaseRouter, kind: QualityProjectionKind) -> Self {
         Self { router, kind }
     }
 
     async fn runtime(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         page_size: u32,
-    ) -> Result<contexts::quality::QualityProjectionRuntime, TenantProjectionExecutorError> {
+    ) -> Result<contexts::quality::QualityProjectionRuntime, HoldingProjectionExecutorError> {
         let write = self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Write)
             .await
-            .map_err(|_| TenantProjectionExecutorError::Retryable)?;
+            .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
         let read = self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Read)
             .await
-            .map_err(|_| TenantProjectionExecutorError::Retryable)?;
-        let tenant_id = cqrs_tenant_uuid(tenant_id)?;
+            .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
+        let holding_id = cqrs_holding_uuid(holding_id)?;
         let runtime = QualityProjectionFactory
             .build(
-                WritePool::for_tenant(write.database_pool().clone(), tenant_id)
+                WritePool::for_holding(write.database_pool().clone(), holding_id)
                     .map_err(map_cqrs_projection_error)?,
-                ProjectionPool::for_tenant(read.database_pool().clone(), tenant_id)
+                ProjectionPool::for_holding(read.database_pool().clone(), holding_id)
                     .map_err(map_cqrs_projection_error)?,
                 ProjectionRunnerConfig {
                     page_size,
@@ -446,29 +444,31 @@ impl QualityCqrsProjectionExecutor {
 
     async fn project(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         page_size: u32,
-    ) -> Result<(), TenantProjectionExecutorError> {
+    ) -> Result<(), HoldingProjectionExecutorError> {
         let run = self
-            .runtime(tenant_id, holding_ref, page_size)
+            .runtime(holding_id, data_profile_key, page_size)
             .await?
             .run_once(self.kind)
             .await
             .map_err(map_cqrs_projection_error)?;
         if run.retry_scheduled || run.dead_lettered != 0 {
-            return Err(TenantProjectionExecutorError::Retryable);
+            return Err(HoldingProjectionExecutorError::Retryable);
         }
         Ok(())
     }
 
     async fn rebuild(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         page_size: u32,
-    ) -> Result<(), TenantProjectionExecutorError> {
-        let runtime = self.runtime(tenant_id, holding_ref, page_size).await?;
+    ) -> Result<(), HoldingProjectionExecutorError> {
+        let runtime = self
+            .runtime(holding_id, data_profile_key, page_size)
+            .await?;
         let handle = runtime
             .begin_rebuild(self.kind)
             .await
@@ -480,7 +480,7 @@ impl QualityCqrsProjectionExecutor {
                 .await
                 .map_err(map_cqrs_projection_error)?;
             if run.retry_scheduled || run.dead_lettered != 0 {
-                return Err(TenantProjectionExecutorError::Retryable);
+                return Err(HoldingProjectionExecutorError::Retryable);
             }
             cursor = run.cursor;
             if run.fetched < page_size {
@@ -495,7 +495,7 @@ impl QualityCqrsProjectionExecutor {
 }
 
 #[async_trait::async_trait]
-impl TenantProjectionExecutor for ProductProjectionExecutor {
+impl HoldingProjectionExecutor for ProductProjectionExecutor {
     fn projection_name_filter(&self) -> Option<&str> {
         match self {
             Self::QualityCqrs(executor) => Some(match executor.kind {
@@ -517,7 +517,7 @@ impl TenantProjectionExecutor for ProductProjectionExecutor {
     async fn execute(
         &self,
         claim: &ProjectionClaimRecord,
-    ) -> Result<(), TenantProjectionExecutorError> {
+    ) -> Result<(), HoldingProjectionExecutorError> {
         if self
             .projection_name_filter()
             .is_some_and(|expected| expected != claim.job.projection_name)
@@ -525,27 +525,27 @@ impl TenantProjectionExecutor for ProductProjectionExecutor {
             || claim.job.payload.get("source_version").is_some()
             || claim.job.payload.get("generation").is_some()
         {
-            return Err(TenantProjectionExecutorError::Permanent);
+            return Err(HoldingProjectionExecutorError::Permanent);
         }
-        let tenant_id = claim.job.binding.tenant_id.clone();
-        let holding_ref = claim.job.binding.holding_ref.clone();
+        let holding_id = claim.job.binding.holding_id.clone();
+        let data_profile_key = claim.job.binding.data_profile_key.clone();
         let page_size = projection_page_size(&claim.job.payload, 500)?;
         match (self, claim.job.kind) {
             (Self::AssetMaintenance(runner), ProjectionJobKind::Incremental) => runner
                 .project_page(
                     AssetMaintenanceProjectionRequest::new(
-                        tenant_id,
-                        holding_ref,
+                        holding_id,
+                        data_profile_key,
                         projection_asset_maintenance_cursor(&claim.job.payload)?,
                         page_size,
                     )
-                    .map_err(|_| TenantProjectionExecutorError::Permanent)?,
+                    .map_err(|_| HoldingProjectionExecutorError::Permanent)?,
                 )
                 .await
                 .map(|_| ())
                 .map_err(map_worker_projection_error),
             (Self::AssetMaintenance(runner), ProjectionJobKind::Rebuild) => runner
-                .rebuild(tenant_id, holding_ref, page_size)
+                .rebuild(holding_id, data_profile_key, page_size)
                 .await
                 .map(|_| ())
                 .map_err(map_worker_projection_error),
@@ -553,12 +553,16 @@ impl TenantProjectionExecutor for ProductProjectionExecutor {
                 if claim.job.payload.get("after").is_some()
                     || claim.job.payload.get("cursor").is_some()
                 {
-                    return Err(TenantProjectionExecutorError::Permanent);
+                    return Err(HoldingProjectionExecutorError::Permanent);
                 }
-                runner.project(&tenant_id, &holding_ref, page_size).await
+                runner
+                    .project(&holding_id, &data_profile_key, page_size)
+                    .await
             }
             (Self::QualityCqrs(runner), ProjectionJobKind::Rebuild) => {
-                runner.rebuild(&tenant_id, &holding_ref, page_size).await
+                runner
+                    .rebuild(&holding_id, &data_profile_key, page_size)
+                    .await
             }
             (Self::Wave4(runner), _) => runner.execute(claim).await,
             (Self::Wave6(runner), _) => runner.execute(claim).await,
@@ -569,33 +573,33 @@ impl TenantProjectionExecutor for ProductProjectionExecutor {
             (Self::Legal(runner), ProjectionJobKind::Incremental) => runner
                 .project_page(
                     LegalProjectionRequest::new(
-                        tenant_id,
-                        holding_ref,
+                        holding_id,
+                        data_profile_key,
                         projection_legal_cursor(&claim.job.payload)?,
                         page_size,
                     )
-                    .map_err(|_| TenantProjectionExecutorError::Permanent)?,
+                    .map_err(|_| HoldingProjectionExecutorError::Permanent)?,
                 )
                 .await
                 .map(|_| ())
                 .map_err(map_legal_projection_error),
             (Self::Legal(runner), ProjectionJobKind::Rebuild) => runner
-                .rebuild(tenant_id, holding_ref, page_size)
+                .rebuild(holding_id, data_profile_key, page_size)
                 .await
                 .map(|_| ())
                 .map_err(map_legal_projection_error),
             (Self::Scm(runner), ProjectionJobKind::Incremental) => runner
                 .project_to_caught_up_and_reconcile(
-                    ScmProjectionPageRequest::new(tenant_id, holding_ref, page_size)
-                        .map_err(|_| TenantProjectionExecutorError::Permanent)?,
+                    ScmProjectionPageRequest::new(holding_id, data_profile_key, page_size)
+                        .map_err(|_| HoldingProjectionExecutorError::Permanent)?,
                 )
                 .await
                 .map(|_| ())
                 .map_err(map_scm_projection_error),
             (Self::Scm(runner), ProjectionJobKind::Rebuild) => runner
                 .rebuild(
-                    ScmProjectionRebuildRequest::new(tenant_id, holding_ref, page_size)
-                        .map_err(|_| TenantProjectionExecutorError::Permanent)?,
+                    ScmProjectionRebuildRequest::new(holding_id, data_profile_key, page_size)
+                        .map_err(|_| HoldingProjectionExecutorError::Permanent)?,
                 )
                 .await
                 .map(|_| ())
@@ -603,54 +607,54 @@ impl TenantProjectionExecutor for ProductProjectionExecutor {
             (Self::Pos(runner), ProjectionJobKind::Incremental) => runner
                 .project_page(
                     PosProjectionRequest::new(
-                        tenant_id,
-                        holding_ref,
+                        holding_id,
+                        data_profile_key,
                         projection_pos_cursor(&claim.job.payload)?,
                         page_size,
                     )
-                    .map_err(|_| TenantProjectionExecutorError::Permanent)?,
+                    .map_err(|_| HoldingProjectionExecutorError::Permanent)?,
                 )
                 .await
                 .map(|_| ())
                 .map_err(map_pos_projection_error),
             (Self::Pos(runner), ProjectionJobKind::Rebuild) => runner
-                .rebuild(tenant_id, holding_ref, page_size)
+                .rebuild(holding_id, data_profile_key, page_size)
                 .await
                 .map(|_| ())
                 .map_err(map_pos_projection_error),
             (Self::Hr(runner), ProjectionJobKind::Incremental) => runner
                 .project_page(
                     HrProjectionRequest::new(
-                        tenant_id,
-                        holding_ref,
+                        holding_id,
+                        data_profile_key,
                         projection_hr_cursor(&claim.job.payload)?,
                         page_size,
                     )
-                    .map_err(|_| TenantProjectionExecutorError::Permanent)?,
+                    .map_err(|_| HoldingProjectionExecutorError::Permanent)?,
                 )
                 .await
                 .map(|_| ())
                 .map_err(map_hr_projection_error),
             (Self::Hr(runner), ProjectionJobKind::Rebuild) => runner
-                .rebuild(tenant_id, holding_ref, page_size)
+                .rebuild(holding_id, data_profile_key, page_size)
                 .await
                 .map(|_| ())
                 .map_err(map_hr_projection_error),
             (Self::Sales(runner), ProjectionJobKind::Incremental) => runner
                 .project_page(
                     SalesProjectionRequest::new(
-                        tenant_id,
-                        holding_ref,
+                        holding_id,
+                        data_profile_key,
                         projection_sales_cursor(&claim.job.payload)?,
                         page_size,
                     )
-                    .map_err(|_| TenantProjectionExecutorError::Permanent)?,
+                    .map_err(|_| HoldingProjectionExecutorError::Permanent)?,
                 )
                 .await
                 .map(|_| ())
                 .map_err(map_worker_projection_error),
             (Self::Sales(runner), ProjectionJobKind::Rebuild) => runner
-                .rebuild(tenant_id, holding_ref, page_size)
+                .rebuild(holding_id, data_profile_key, page_size)
                 .await
                 .map(|_| ())
                 .map_err(map_worker_projection_error),
@@ -661,22 +665,22 @@ impl TenantProjectionExecutor for ProductProjectionExecutor {
 pub(crate) fn projection_page_size(
     payload: &serde_json::Value,
     default: u32,
-) -> Result<u32, TenantProjectionExecutorError> {
+) -> Result<u32, HoldingProjectionExecutorError> {
     let Some(value) = payload.get("page_size") else {
         return Ok(default);
     };
     let Some(value) = value.as_u64().and_then(|value| u32::try_from(value).ok()) else {
-        return Err(TenantProjectionExecutorError::Permanent);
+        return Err(HoldingProjectionExecutorError::Permanent);
     };
     if value == 0 || value > 500 {
-        return Err(TenantProjectionExecutorError::Permanent);
+        return Err(HoldingProjectionExecutorError::Permanent);
     }
     Ok(value)
 }
 
 fn projection_cursor_object(
     payload: &serde_json::Value,
-) -> Result<Option<&serde_json::Map<String, serde_json::Value>>, TenantProjectionExecutorError> {
+) -> Result<Option<&serde_json::Map<String, serde_json::Value>>, HoldingProjectionExecutorError> {
     let Some(value) = payload.get("cursor") else {
         return Ok(None);
     };
@@ -686,34 +690,34 @@ fn projection_cursor_object(
     value
         .as_object()
         .map(Some)
-        .ok_or(TenantProjectionExecutorError::Permanent)
+        .ok_or(HoldingProjectionExecutorError::Permanent)
 }
 
 fn projection_uuid(
     object: &serde_json::Map<String, serde_json::Value>,
     field: &str,
-) -> Result<Uuid, TenantProjectionExecutorError> {
+) -> Result<Uuid, HoldingProjectionExecutorError> {
     object
         .get(field)
         .and_then(serde_json::Value::as_str)
         .and_then(|value| Uuid::parse_str(value).ok())
         .filter(|value| !value.is_nil())
-        .ok_or(TenantProjectionExecutorError::Permanent)
+        .ok_or(HoldingProjectionExecutorError::Permanent)
 }
 
 fn projection_version(
     object: &serde_json::Map<String, serde_json::Value>,
-) -> Result<u64, TenantProjectionExecutorError> {
+) -> Result<u64, HoldingProjectionExecutorError> {
     object
         .get("aggregate_version")
         .and_then(serde_json::Value::as_u64)
         .filter(|value| *value != 0)
-        .ok_or(TenantProjectionExecutorError::Permanent)
+        .ok_or(HoldingProjectionExecutorError::Permanent)
 }
 
 fn projection_pos_cursor(
     payload: &serde_json::Value,
-) -> Result<Option<erpx_infrastructure::PosSourceEventCursor>, TenantProjectionExecutorError> {
+) -> Result<Option<erpx_infrastructure::PosSourceEventCursor>, HoldingProjectionExecutorError> {
     let Some(cursor) = projection_cursor_object(payload)? else {
         return Ok(None);
     };
@@ -725,7 +729,7 @@ fn projection_pos_cursor(
 
 fn projection_hr_cursor(
     payload: &serde_json::Value,
-) -> Result<Option<erpx_infrastructure::HrSourceEventCursor>, TenantProjectionExecutorError> {
+) -> Result<Option<erpx_infrastructure::HrSourceEventCursor>, HoldingProjectionExecutorError> {
     let Some(cursor) = projection_cursor_object(payload)? else {
         return Ok(None);
     };
@@ -733,7 +737,7 @@ fn projection_hr_cursor(
         .get("aggregate_type")
         .and_then(serde_json::Value::as_str)
         .filter(|value| !value.trim().is_empty())
-        .ok_or(TenantProjectionExecutorError::Permanent)?
+        .ok_or(HoldingProjectionExecutorError::Permanent)?
         .to_owned();
     Ok(Some(erpx_infrastructure::HrSourceEventCursor {
         aggregate_type,
@@ -744,18 +748,18 @@ fn projection_hr_cursor(
 
 fn projection_aggregate_type(
     object: &serde_json::Map<String, serde_json::Value>,
-) -> Result<String, TenantProjectionExecutorError> {
+) -> Result<String, HoldingProjectionExecutorError> {
     object
         .get("aggregate_type")
         .and_then(serde_json::Value::as_str)
         .filter(|value| !value.trim().is_empty())
         .map(ToOwned::to_owned)
-        .ok_or(TenantProjectionExecutorError::Permanent)
+        .ok_or(HoldingProjectionExecutorError::Permanent)
 }
 
 fn projection_asset_maintenance_cursor(
     payload: &serde_json::Value,
-) -> Result<Option<AssetMaintenanceSourceEventCursor>, TenantProjectionExecutorError> {
+) -> Result<Option<AssetMaintenanceSourceEventCursor>, HoldingProjectionExecutorError> {
     let Some(cursor) = projection_cursor_object(payload)? else {
         return Ok(None);
     };
@@ -768,7 +772,7 @@ fn projection_asset_maintenance_cursor(
 
 fn projection_legal_cursor(
     payload: &serde_json::Value,
-) -> Result<Option<erpx_infrastructure::LegalSourceEventCursor>, TenantProjectionExecutorError> {
+) -> Result<Option<erpx_infrastructure::LegalSourceEventCursor>, HoldingProjectionExecutorError> {
     let Some(cursor) = projection_cursor_object(payload)? else {
         return Ok(None);
     };
@@ -781,7 +785,7 @@ fn projection_legal_cursor(
 
 fn projection_sales_cursor(
     payload: &serde_json::Value,
-) -> Result<Option<SalesSourceEventCursor>, TenantProjectionExecutorError> {
+) -> Result<Option<SalesSourceEventCursor>, HoldingProjectionExecutorError> {
     let Some(cursor) = projection_cursor_object(payload)? else {
         return Ok(None);
     };
@@ -792,73 +796,73 @@ fn projection_sales_cursor(
     }))
 }
 
-fn map_scm_projection_error(error: ScmProjectionWorkerError) -> TenantProjectionExecutorError {
+fn map_scm_projection_error(error: ScmProjectionWorkerError) -> HoldingProjectionExecutorError {
     match error {
-        ScmProjectionWorkerError::Configuration(_) => TenantProjectionExecutorError::Permanent,
-        ScmProjectionWorkerError::Projection { .. } => TenantProjectionExecutorError::Retryable,
+        ScmProjectionWorkerError::Configuration(_) => HoldingProjectionExecutorError::Permanent,
+        ScmProjectionWorkerError::Projection { .. } => HoldingProjectionExecutorError::Retryable,
     }
 }
 
-fn map_pos_projection_error(error: PosProjectionWorkerError) -> TenantProjectionExecutorError {
+fn map_pos_projection_error(error: PosProjectionWorkerError) -> HoldingProjectionExecutorError {
     match error {
-        PosProjectionWorkerError::Configuration(_) => TenantProjectionExecutorError::Permanent,
-        PosProjectionWorkerError::Projection { .. } => TenantProjectionExecutorError::Retryable,
+        PosProjectionWorkerError::Configuration(_) => HoldingProjectionExecutorError::Permanent,
+        PosProjectionWorkerError::Projection { .. } => HoldingProjectionExecutorError::Retryable,
     }
 }
 
-fn map_hr_projection_error(error: HrProjectionWorkerError) -> TenantProjectionExecutorError {
+fn map_hr_projection_error(error: HrProjectionWorkerError) -> HoldingProjectionExecutorError {
     match error {
-        HrProjectionWorkerError::Configuration(_) => TenantProjectionExecutorError::Permanent,
-        HrProjectionWorkerError::Projection { .. } => TenantProjectionExecutorError::Retryable,
+        HrProjectionWorkerError::Configuration(_) => HoldingProjectionExecutorError::Permanent,
+        HrProjectionWorkerError::Projection { .. } => HoldingProjectionExecutorError::Retryable,
     }
 }
 
-fn map_worker_projection_error(error: WorkerRuntimeError) -> TenantProjectionExecutorError {
+fn map_worker_projection_error(error: WorkerRuntimeError) -> HoldingProjectionExecutorError {
     match error {
-        WorkerRuntimeError::Configuration(_) => TenantProjectionExecutorError::Permanent,
+        WorkerRuntimeError::Configuration(_) => HoldingProjectionExecutorError::Permanent,
         WorkerRuntimeError::Persistence(_)
         | WorkerRuntimeError::Database(_)
-        | WorkerRuntimeError::Migration(_) => TenantProjectionExecutorError::Retryable,
+        | WorkerRuntimeError::Migration(_) => HoldingProjectionExecutorError::Retryable,
     }
 }
 
 pub(crate) fn map_cqrs_projection_error(
     error: erpx_cqrs_sqlx::CqrsSqlxError,
-) -> TenantProjectionExecutorError {
+) -> HoldingProjectionExecutorError {
     match error {
         erpx_cqrs_sqlx::CqrsSqlxError::InvalidInput(_)
         | erpx_cqrs_sqlx::CqrsSqlxError::NumericRange
         | erpx_cqrs_sqlx::CqrsSqlxError::ProjectionPositionConflict
         | erpx_cqrs_sqlx::CqrsSqlxError::ProjectionOutOfOrder => {
-            TenantProjectionExecutorError::Permanent
+            HoldingProjectionExecutorError::Permanent
         }
-        _ => TenantProjectionExecutorError::Retryable,
+        _ => HoldingProjectionExecutorError::Retryable,
     }
 }
 
-pub(crate) fn cqrs_tenant_uuid(tenant_id: &str) -> Result<Uuid, TenantProjectionExecutorError> {
-    let tenant_id =
-        Uuid::parse_str(tenant_id).map_err(|_| TenantProjectionExecutorError::Permanent)?;
-    if tenant_id.is_nil() {
-        return Err(TenantProjectionExecutorError::Permanent);
+pub(crate) fn cqrs_holding_uuid(holding_id: &str) -> Result<Uuid, HoldingProjectionExecutorError> {
+    let holding_id =
+        Uuid::parse_str(holding_id).map_err(|_| HoldingProjectionExecutorError::Permanent)?;
+    if holding_id.is_nil() {
+        return Err(HoldingProjectionExecutorError::Permanent);
     }
-    Ok(tenant_id)
+    Ok(holding_id)
 }
 
-fn map_legal_projection_error(error: LegalProjectionWorkerError) -> TenantProjectionExecutorError {
+fn map_legal_projection_error(error: LegalProjectionWorkerError) -> HoldingProjectionExecutorError {
     match error {
-        LegalProjectionWorkerError::Configuration(_) => TenantProjectionExecutorError::Permanent,
-        LegalProjectionWorkerError::Projection { .. } => TenantProjectionExecutorError::Retryable,
+        LegalProjectionWorkerError::Configuration(_) => HoldingProjectionExecutorError::Permanent,
+        LegalProjectionWorkerError::Projection { .. } => HoldingProjectionExecutorError::Retryable,
     }
 }
 
-/// The executable composition boundary for the tenant-scoped marketing
+/// The executable composition boundary for the holding-scoped marketing
 /// preview expiry seam. The durable worker loop supplies restart-safe polling;
-/// the injected SQLx executor supplies the tenant route and idempotent write.
+/// the injected SQLx executor supplies the holding route and idempotent write.
 struct MarketingContentPreviewExpiryRuntimeHandler {
     handler: MarketingContentPreviewExpiryHandler<SqlxMarketingContentPreviewExpiryExecutor>,
-    tenant_id: String,
-    holding_ref: String,
+    holding_id: String,
+    data_profile_key: String,
     batch_size: u32,
 }
 
@@ -871,16 +875,17 @@ struct FinanceSubledgerReconciliationRuntimeHandler {
 }
 
 impl FinanceSubledgerReconciliationRuntimeHandler {
-    fn from_env(router: TenantDatabaseRouter) -> Result<Self, Box<dyn std::error::Error>> {
-        let tenant_id = required_env("ERPX_FINANCE_RECONCILIATION_TENANT_ID")?;
-        let holding_ref = required_env("ERPX_FINANCE_RECONCILIATION_HOLDING_REF")?;
+    fn from_env(router: HoldingDatabaseRouter) -> Result<Self, Box<dyn std::error::Error>> {
+        let holding_id = required_env("ERPX_FINANCE_RECONCILIATION_HOLDING_ID")?;
+        let data_profile_key = required_env("ERPX_FINANCE_RECONCILIATION_DATA_PROFILE_KEY")?;
         let max_rows = match env::var("ERPX_FINANCE_RECONCILIATION_MAX_ROWS") {
             Ok(value) => value
                 .parse::<u32>()
                 .map_err(|_| "ERPX_FINANCE_RECONCILIATION_MAX_ROWS must be an integer")?,
             Err(_) => FINANCE_SUBLEDGER_RECONCILIATION_MAX_ROWS,
         };
-        let request = FinanceSubledgerReconciliationRequest::new(tenant_id, holding_ref, max_rows)?;
+        let request =
+            FinanceSubledgerReconciliationRequest::new(holding_id, data_profile_key, max_rows)?;
         Ok(Self {
             runner: FinanceSubledgerReconciliationRunner::new(router),
             request,
@@ -905,8 +910,8 @@ impl NamedWorkerHandler for FinanceSubledgerReconciliationRuntimeHandler {
         let reconciled = report.is_reconciled();
         if !reconciled {
             tracing::warn!(
-                tenant_id = %self.request.tenant_id,
-                holding_ref = %self.request.holding_ref,
+                holding_id = %self.request.holding_id,
+                data_profile_key = %self.request.data_profile_key,
                 issue_count = report.issues.len(),
                 "Finance subledger reconciliation requires projection rebuild or incident review"
             );
@@ -924,23 +929,23 @@ impl NamedWorkerHandler for FinanceSubledgerReconciliationRuntimeHandler {
 
 impl MarketingContentPreviewExpiryRuntimeHandler {
     async fn new(
-        router: &TenantDatabaseRouter,
-        tenant_id: String,
-        holding_ref: String,
+        router: &HoldingDatabaseRouter,
+        holding_key: String,
+        data_profile_key: String,
         holding_id: Uuid,
         actor_ref: String,
         batch_size: u32,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let write = router
-            .route(&tenant_id, &holding_ref, RoutedDatabaseSide::Write)
+            .route(&holding_key, &data_profile_key, RoutedDatabaseSide::Write)
             .await?;
         let read = router
-            .route(&tenant_id, &holding_ref, RoutedDatabaseSide::Read)
+            .route(&holding_key, &data_profile_key, RoutedDatabaseSide::Read)
             .await?;
         let store = SqlxMarketingContentStore::new(
             write.database_pool().clone(),
             read.database_pool().clone(),
-            holding_ref.clone(),
+            data_profile_key.clone(),
         )?;
         // Do not close either routed handle here: the store owns cloned pools
         // for the lifetime of the registered handler. Dropping the handles
@@ -948,17 +953,17 @@ impl MarketingContentPreviewExpiryRuntimeHandler {
         drop(write);
         drop(read);
 
-        let scope = TenantScope::Holding { holding_id };
+        let scope = AuthorityScope::Holding { holding_id };
         let executor = SqlxMarketingContentPreviewExpiryExecutor::new(
             store,
-            tenant_id.clone(),
+            holding_key.clone(),
             scope,
             actor_ref,
         )?;
         Ok(Self {
             handler: MarketingContentPreviewExpiryHandler::new(executor),
-            tenant_id,
-            holding_ref,
+            holding_id: holding_key,
+            data_profile_key,
             batch_size,
         })
     }
@@ -973,8 +978,8 @@ impl NamedWorkerHandler for MarketingContentPreviewExpiryRuntimeHandler {
     async fn run_once(&self, worker_id: Uuid) -> Result<WorkerHandlerReport, WorkerRuntimeError> {
         let request = MarketingContentPreviewExpiryRequest::new(
             worker_id,
-            self.tenant_id.clone(),
-            self.holding_ref.clone(),
+            self.holding_id.clone(),
+            self.data_profile_key.clone(),
             self.batch_size,
             Utc::now(),
         )
@@ -1004,8 +1009,8 @@ impl NamedWorkerHandler for MarketingContentPreviewExpiryRuntimeHandler {
         }
         if retryable != 0 || permanent != 0 {
             tracing::warn!(
-                tenant_id = %self.tenant_id,
-                holding_ref = %self.holding_ref,
+                holding_id = %self.holding_id,
+                data_profile_key = %self.data_profile_key,
                 retryable,
                 permanent,
                 "marketing content preview expiry items were not applied"
@@ -1034,19 +1039,19 @@ impl NamedWorkerHandler for MarketingContentPreviewExpiryRuntimeHandler {
 const MAX_MARKETING_DELIVERY_ACTIVE_HOLDINGS: usize = 1_000;
 
 /// Durable Marketing delivery composition over every active holding in the
-/// control-plane registry. Each holding/account still gets its own tenant
-/// write/read pools and account-bound provider; no tenant credentials or
+/// control-plane registry. Each holding/account still gets its own holding
+/// write/read pools and account-bound provider; no holding credentials or
 /// provider account set is inferred from environment configuration.
-struct MarketingDeliveryMultiTenantRuntimeHandler {
+struct MarketingDeliveryMultiHoldingRuntimeHandler {
     control: Arc<SqlxControlPlane>,
-    registry: SqlxTenantStoreRegistry,
-    router: TenantDatabaseRouter,
+    registry: SqlxHoldingStoreRegistry,
+    router: HoldingDatabaseRouter,
     credentials: MarketingDeliverySecretManagerResolver,
     batch_size: u32,
     lease: Duration,
 }
 
-impl MarketingDeliveryMultiTenantRuntimeHandler {
+impl MarketingDeliveryMultiHoldingRuntimeHandler {
     fn validate_config(batch_size: u32, lease: Duration) -> Result<(), WorkerRuntimeError> {
         if batch_size == 0 || batch_size > erpx_worker::MARKETING_DELIVERY_MAX_BATCH_SIZE {
             return Err(WorkerRuntimeError::Configuration(
@@ -1065,8 +1070,8 @@ impl MarketingDeliveryMultiTenantRuntimeHandler {
 
     fn new(
         control: Arc<SqlxControlPlane>,
-        registry: SqlxTenantStoreRegistry,
-        router: TenantDatabaseRouter,
+        registry: SqlxHoldingStoreRegistry,
+        router: HoldingDatabaseRouter,
         credentials: MarketingDeliverySecretManagerResolver,
         batch_size: u32,
         lease: Duration,
@@ -1084,7 +1089,7 @@ impl MarketingDeliveryMultiTenantRuntimeHandler {
 }
 
 #[async_trait::async_trait]
-impl NamedWorkerHandler for MarketingDeliveryMultiTenantRuntimeHandler {
+impl NamedWorkerHandler for MarketingDeliveryMultiHoldingRuntimeHandler {
     fn name(&self) -> &str {
         MARKETING_DELIVERY_HANDLER_NAME
     }
@@ -1102,8 +1107,8 @@ impl NamedWorkerHandler for MarketingDeliveryMultiTenantRuntimeHandler {
             let accounts = self
                 .control
                 .list_marketing_provider_accounts_for_outbound(
-                    &registration.tenant_id,
-                    &registration.holding_ref,
+                    &registration.holding_id,
+                    &registration.data_profile_key,
                 )
                 .await
                 .map_err(|_| {
@@ -1119,8 +1124,8 @@ impl NamedWorkerHandler for MarketingDeliveryMultiTenantRuntimeHandler {
                 let write = self
                     .router
                     .route(
-                        &registration.tenant_id,
-                        &registration.holding_ref,
+                        &registration.holding_id,
+                        &registration.data_profile_key,
                         RoutedDatabaseSide::Write,
                     )
                     .await
@@ -1130,8 +1135,8 @@ impl NamedWorkerHandler for MarketingDeliveryMultiTenantRuntimeHandler {
                 let read = match self
                     .router
                     .route(
-                        &registration.tenant_id,
-                        &registration.holding_ref,
+                        &registration.holding_id,
+                        &registration.data_profile_key,
                         RoutedDatabaseSide::Read,
                     )
                     .await
@@ -1147,7 +1152,7 @@ impl NamedWorkerHandler for MarketingDeliveryMultiTenantRuntimeHandler {
                 let source = match SqlxMarketingDeliveryStore::new_for_channels(
                     write.database_pool().clone(),
                     read.database_pool().clone(),
-                    registration.holding_ref.clone(),
+                    registration.data_profile_key.clone(),
                     binding.channels.clone(),
                 ) {
                     Ok(source) => source,
@@ -1199,8 +1204,8 @@ impl NamedWorkerHandler for MarketingDeliveryMultiTenantRuntimeHandler {
                 let account_resolver = erpx_worker::SqlxMarketingDeliveryAccountResolver::new(
                     Arc::clone(&self.control),
                     binding.provider_account_ref.clone(),
-                    registration.tenant_id.clone(),
-                    registration.holding_ref.clone(),
+                    registration.holding_id.clone(),
+                    registration.data_profile_key.clone(),
                 )
                 .map_err(|_| {
                     WorkerRuntimeError::Configuration("Marketing delivery worker failed".into())
@@ -1269,36 +1274,38 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                 "worker_started"
             );
             let registry = if handler_name == AGENT_ASSIGNMENT_HANDLER_NAME {
-                let routing = TenantDatabaseProvisioningConfig::from_env()?;
-                let router = TenantDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
-                let runner = compose_trusted_tenant_agent_operations(
-                    SqlxTenantStoreRegistry::new(Arc::clone(runtime.store())),
+                let routing = HoldingDatabaseProvisioningConfig::from_env()?;
+                let router = HoldingDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
+                let runner = compose_trusted_holding_agent_operations(
+                    SqlxHoldingStoreRegistry::new(Arc::clone(runtime.store())),
                     router,
-                    TrustedAgentTenantOperationsConfig::try_new(
+                    TrustedAgentHoldingOperationsConfig::try_new(
                         std::time::Duration::from_secs(60),
                         100,
                     )?,
                 )?;
                 runtime.handler_registry_with_agent_assignment(runner)?
-            } else if handler_name == TENANT_BACKUP_RETENTION_HANDLER_NAME {
+            } else if handler_name == HOLDING_BACKUP_RETENTION_HANDLER_NAME {
                 let batch_size = runtime
                     .config()
                     .batch_size
-                    .min(erpx_infrastructure::MAX_TENANT_BACKUP_RETENTION_PAGE_SIZE);
+                    .min(erpx_infrastructure::MAX_HOLDING_BACKUP_RETENTION_PAGE_SIZE);
                 let handler = match BackupRuntime::from_env() {
-                    Ok(backup_runtime) => TenantBackupRetentionRuntimeHandler::with_backup_adapter(
-                        Arc::clone(runtime.store()),
-                        Arc::new(backup_runtime.adapter().clone()),
-                        batch_size,
-                        runtime.config().claim_timeout,
-                    )?,
+                    Ok(backup_runtime) => {
+                        HoldingBackupRetentionRuntimeHandler::with_backup_adapter(
+                            Arc::clone(runtime.store()),
+                            Arc::new(backup_runtime.adapter().clone()),
+                            batch_size,
+                            runtime.config().claim_timeout,
+                        )?
+                    }
                     Err(error) => {
                         tracing::warn!(
                             blocker = "backup_external_credentials_unavailable",
-                            "tenant backup retention certification blocker queued; retention worker will fail closed until the external adapter is configured"
+                            "holding backup retention certification blocker queued; retention worker will fail closed until the external adapter is configured"
                         );
-                        tracing::debug!(?error, "tenant backup retention adapter is disabled");
-                        TenantBackupRetentionRuntimeHandler::new(
+                        tracing::debug!(?error, "holding backup retention adapter is disabled");
+                        HoldingBackupRetentionRuntimeHandler::new(
                             Arc::clone(runtime.store()),
                             batch_size,
                             runtime.config().claim_timeout,
@@ -1327,14 +1334,14 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
             } else if matches!(
                 handler_name.as_str(),
                 CUSTOMER360_CONTROL_PROJECTION_HANDLER_NAME
-                    | CUSTOMER360_TENANT_PROJECTION_HANDLER_NAME
+                    | CUSTOMER360_HOLDING_PROJECTION_HANDLER_NAME
             ) {
                 let kind = match handler_name.as_str() {
                     CUSTOMER360_CONTROL_PROJECTION_HANDLER_NAME => {
                         Customer360ProjectionKind::ControlCustomers
                     }
-                    CUSTOMER360_TENANT_PROJECTION_HANDLER_NAME => {
-                        Customer360ProjectionKind::TenantActivity
+                    CUSTOMER360_HOLDING_PROJECTION_HANDLER_NAME => {
+                        Customer360ProjectionKind::HoldingActivity
                     }
                     _ => unreachable!("matched Customer 360 projection handler"),
                 };
@@ -1354,22 +1361,22 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                 let handler = operations_source_ingestion_handler(
                     Arc::clone(runtime.store()),
                     page_size,
-                    OPERATIONS_SOURCE_MAX_ACTIVE_TENANTS,
+                    OPERATIONS_SOURCE_MAX_ACTIVE_HOLDINGS,
                 )?;
                 let mut registry = runtime.handler_registry()?;
                 registry.register(handler)?;
                 registry
             } else if handler_name == MARKETING_APPROVAL_DECISIONS_HANDLER_NAME {
-                let routing = TenantDatabaseProvisioningConfig::from_env()?;
-                let router = TenantDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
+                let routing = HoldingDatabaseProvisioningConfig::from_env()?;
+                let router = HoldingDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
                 let handler = MarketingApprovalDecisionHandler::new(
-                    SqlxTenantStoreRegistry::new(Arc::clone(runtime.store())),
+                    SqlxHoldingStoreRegistry::new(Arc::clone(runtime.store())),
                     router,
                     runtime
                         .config()
                         .batch_size
                         .min(MARKETING_APPROVAL_DECISIONS_MAX_PAGE_SIZE),
-                    MARKETING_APPROVAL_DECISIONS_MAX_ACTIVE_TENANTS,
+                    MARKETING_APPROVAL_DECISIONS_MAX_ACTIVE_HOLDINGS,
                 )?;
                 let mut registry = runtime.handler_registry()?;
                 registry.register(Arc::new(handler))?;
@@ -1457,30 +1464,30 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                 registry.register(Arc::new(handler))?;
                 registry
             } else if handler_name == HR_COMPLETION_HANDLER_NAME {
-                let routing = TenantDatabaseProvisioningConfig::from_env()?;
-                let router = TenantDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
+                let routing = HoldingDatabaseProvisioningConfig::from_env()?;
+                let router = HoldingDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
                 let handler = HrCompletionRuntimeHandler::from_env(router)
                     .map_err(|_| "HR completion runtime configuration is invalid")?;
                 let mut registry = runtime.handler_registry()?;
                 registry.register(Arc::new(handler))?;
                 registry
             } else if handler_name == FINANCE_COMPLETION_HANDLER_NAME {
-                let routing = TenantDatabaseProvisioningConfig::from_env()?;
-                let router = TenantDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
+                let routing = HoldingDatabaseProvisioningConfig::from_env()?;
+                let router = HoldingDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
                 let handler = FinanceCompletionRuntimeHandler::from_env(router)?;
                 let mut registry = runtime.handler_registry()?;
                 registry.register(Arc::new(handler))?;
                 registry
             } else if handler_name == FINANCE_SUBLEDGER_RECONCILIATION_HANDLER_NAME {
-                let routing = TenantDatabaseProvisioningConfig::from_env()?;
-                let router = TenantDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
+                let routing = HoldingDatabaseProvisioningConfig::from_env()?;
+                let router = HoldingDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
                 let handler = FinanceSubledgerReconciliationRuntimeHandler::from_env(router)?;
                 let mut registry = runtime.handler_registry()?;
                 registry.register(Arc::new(handler))?;
                 registry
             } else if handler_name == FINANCE_BANK_PROVIDER_IMPORT_HANDLER_NAME {
-                let routing = TenantDatabaseProvisioningConfig::from_env()?;
-                let router = TenantDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
+                let routing = HoldingDatabaseProvisioningConfig::from_env()?;
+                let router = HoldingDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
                 let authorizer = ControlPlaneFinanceBankProviderImportAuthorizer {
                     control: Arc::clone(runtime.store()),
                     identity: Arc::new(SqlxIdentityStore::new(
@@ -1501,20 +1508,21 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                     runtime.config().batch_size.min(100),
                     runtime.config().claim_timeout,
                 )?
-            } else if handler_name == TENANT_BACKUP_HANDLER_NAME {
-                let handler = TenantBackupJobRuntimeHandler::from_env(
+            } else if handler_name == HOLDING_BACKUP_HANDLER_NAME {
+                let handler = HoldingBackupJobRuntimeHandler::from_env(
                     Arc::clone(runtime.store()),
                     runtime
                         .config()
                         .batch_size
-                        .min(erpx_infrastructure::MAX_TENANT_BACKUP_JOB_PAGE_SIZE),
+                        .min(erpx_infrastructure::MAX_HOLDING_BACKUP_JOB_PAGE_SIZE),
                     runtime.config().claim_timeout,
                 )?;
                 let mut registry = runtime.handler_registry()?;
                 registry.register(Arc::new(handler))?;
                 registry
-            } else if handler_name == TENANT_PROJECTION_STATUS_PROJECTION_HANDLER_NAME {
-                runtime.handler_registry_with_control_plane_tenant_projection_status_projection()?
+            } else if handler_name == HOLDING_PROJECTION_STATUS_PROJECTION_HANDLER_NAME {
+                runtime
+                    .handler_registry_with_control_plane_holding_projection_status_projection()?
             } else if handler_name == MARKETING_PUBLIC_ABUSE_CLEANUP_HANDLER_NAME {
                 let batch_size = match env::var("ERPX_MARKETING_PUBLIC_ABUSE_CLEANUP_BATCH_SIZE") {
                     Ok(value) => value.parse::<u32>().map_err(
@@ -1539,12 +1547,12 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                 registry.register(Arc::new(handler))?;
                 registry
             } else if handler_name == MARKETING_DELIVERY_HANDLER_NAME {
-                let routing = TenantDatabaseProvisioningConfig::from_env()?;
-                let router = TenantDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
+                let routing = HoldingDatabaseProvisioningConfig::from_env()?;
+                let router = HoldingDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
                 let credential_resolver = MarketingDeliverySecretManagerResolver::from_env()?;
-                let inner = MarketingDeliveryMultiTenantRuntimeHandler::new(
+                let inner = MarketingDeliveryMultiHoldingRuntimeHandler::new(
                     Arc::clone(runtime.store()),
-                    SqlxTenantStoreRegistry::new(Arc::clone(runtime.store())),
+                    SqlxHoldingStoreRegistry::new(Arc::clone(runtime.store())),
                     router,
                     credential_resolver,
                     runtime
@@ -1575,19 +1583,19 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                 registry.register(Arc::new(handler))?;
                 registry
             } else if handler_name == MARKETING_JOURNEY_EXECUTION_HANDLER_NAME {
-                let routing = TenantDatabaseProvisioningConfig::from_env()?;
-                let router = TenantDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
-                let tenant_id = env::var("ERPX_MARKETING_JOURNEY_TENANT_ID")
-                    .map_err(|_| "ERPX_MARKETING_JOURNEY_TENANT_ID is required")?;
-                let holding_ref = env::var("ERPX_MARKETING_JOURNEY_HOLDING_REF")
-                    .map_err(|_| "ERPX_MARKETING_JOURNEY_HOLDING_REF is required")?;
+                let routing = HoldingDatabaseProvisioningConfig::from_env()?;
+                let router = HoldingDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
+                let holding_id = env::var("ERPX_MARKETING_JOURNEY_HOLDING_ID")
+                    .map_err(|_| "ERPX_MARKETING_JOURNEY_HOLDING_ID is required")?;
+                let data_profile_key = env::var("ERPX_MARKETING_JOURNEY_DATA_PROFILE_KEY")
+                    .map_err(|_| "ERPX_MARKETING_JOURNEY_DATA_PROFILE_KEY is required")?;
                 let routed = router
-                    .route(&tenant_id, &holding_ref, RoutedDatabaseSide::Write)
+                    .route(&holding_id, &data_profile_key, RoutedDatabaseSide::Write)
                     .await?;
                 let write_pool = routed.database_pool().clone();
                 let store = SqlxMarketingJourneyExecutionStore::new_with_control(
                     write_pool,
-                    holding_ref,
+                    data_profile_key,
                     Arc::clone(runtime.store()),
                 )?;
                 let handler = MarketingJourneyExecutionHandler::new(
@@ -1603,12 +1611,12 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                 registry.register(Arc::new(handler))?;
                 registry
             } else if handler_name == MARKETING_JOURNEY_INTEGRATION_HANDLER_NAME {
-                let routing = TenantDatabaseProvisioningConfig::from_env()?;
-                let router = TenantDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
+                let routing = HoldingDatabaseProvisioningConfig::from_env()?;
+                let router = HoldingDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
                 let credentials = MarketingDeliverySecretManagerResolver::from_env()?;
-                let handler = MarketingJourneyIntegrationMultiTenantRuntimeHandler::new(
+                let handler = MarketingJourneyIntegrationMultiHoldingRuntimeHandler::new(
                     Arc::clone(runtime.store()),
-                    SqlxTenantStoreRegistry::new(Arc::clone(runtime.store())),
+                    SqlxHoldingStoreRegistry::new(Arc::clone(runtime.store())),
                     router,
                     credentials,
                     runtime
@@ -1621,15 +1629,15 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                 registry.register(Arc::new(handler))?;
                 registry
             } else if handler_name == MARKETING_CONTENT_PREVIEW_EXPIRY_HANDLER_NAME {
-                let routing = TenantDatabaseProvisioningConfig::from_env()?;
-                let router = TenantDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
-                let tenant_id = required_env("ERPX_MARKETING_CONTENT_PREVIEW_EXPIRY_TENANT_ID")?;
-                let holding_ref =
-                    required_env("ERPX_MARKETING_CONTENT_PREVIEW_EXPIRY_HOLDING_REF")?;
+                let routing = HoldingDatabaseProvisioningConfig::from_env()?;
+                let router = HoldingDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
+                let holding_key = required_env("ERPX_MARKETING_CONTENT_PREVIEW_EXPIRY_HOLDING_ID")?;
+                let data_profile_key =
+                    required_env("ERPX_MARKETING_CONTENT_PREVIEW_EXPIRY_DATA_PROFILE_KEY")?;
                 let holding_id_ref = env::var("ERPX_MARKETING_CONTENT_PREVIEW_EXPIRY_HOLDING_ID")
-                    .unwrap_or_else(|_| holding_ref.clone());
+                    .unwrap_or_else(|_| data_profile_key.clone());
                 let holding_id = Uuid::parse_str(&holding_id_ref).map_err(|_| {
-                    "ERPX_MARKETING_CONTENT_PREVIEW_EXPIRY_HOLDING_ID (or HOLDING_REF fallback) must be a UUID"
+                    "ERPX_MARKETING_CONTENT_PREVIEW_EXPIRY_HOLDING_ID (or DATA_PROFILE_KEY fallback) must be a UUID"
                 })?;
                 let actor_ref = optional_env(
                     "ERPX_MARKETING_CONTENT_PREVIEW_EXPIRY_ACTOR_REF",
@@ -1654,8 +1662,8 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 let handler = MarketingContentPreviewExpiryRuntimeHandler::new(
                     &router,
-                    tenant_id,
-                    holding_ref,
+                    holding_key,
+                    data_profile_key,
                     holding_id,
                     actor_ref,
                     batch_size,
@@ -1665,14 +1673,15 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                 registry.register(Arc::new(handler))?;
                 registry
             } else if handler_name == MARKETING_CONTENT_PRIVACY_HANDLER_NAME {
-                let routing = TenantDatabaseProvisioningConfig::from_env()?;
-                let router = TenantDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
-                let tenant_id = required_env("ERPX_MARKETING_CONTENT_PRIVACY_TENANT_ID")?;
-                let holding_ref = required_env("ERPX_MARKETING_CONTENT_PRIVACY_HOLDING_REF")?;
+                let routing = HoldingDatabaseProvisioningConfig::from_env()?;
+                let router = HoldingDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
+                let holding_key = required_env("ERPX_MARKETING_CONTENT_PRIVACY_HOLDING_ID")?;
+                let data_profile_key =
+                    required_env("ERPX_MARKETING_CONTENT_PRIVACY_DATA_PROFILE_KEY")?;
                 let holding_id_ref = env::var("ERPX_MARKETING_CONTENT_PRIVACY_HOLDING_ID")
-                    .unwrap_or_else(|_| holding_ref.clone());
+                    .unwrap_or_else(|_| data_profile_key.clone());
                 let holding_id = Uuid::parse_str(&holding_id_ref).map_err(|_| {
-                    "ERPX_MARKETING_CONTENT_PRIVACY_HOLDING_ID (or HOLDING_REF fallback) must be a UUID"
+                    "ERPX_MARKETING_CONTENT_PRIVACY_HOLDING_ID (or DATA_PROFILE_KEY fallback) must be a UUID"
                 })?;
                 let actor_ref = optional_env(
                     "ERPX_MARKETING_CONTENT_PRIVACY_ACTOR_REF",
@@ -1700,8 +1709,8 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                         .min(MARKETING_CONTENT_PRIVACY_DEFAULT_BATCH_SIZE),
                 };
                 let request = MarketingContentPrivacyRequest::new(
-                    tenant_id,
-                    holding_ref,
+                    holding_key,
+                    data_profile_key,
                     holding_id,
                     batch_size,
                     context,
@@ -1711,12 +1720,12 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                 registry.register(Arc::new(runner))?;
                 registry
             } else if handler_name == LEGAL_RETENTION_HANDLER_NAME {
-                let routing = TenantDatabaseProvisioningConfig::from_env()?;
-                let router = TenantDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
-                let tenant_id = env::var("ERPX_LEGAL_RETENTION_TENANT_ID")
-                    .map_err(|_| "ERPX_LEGAL_RETENTION_TENANT_ID is required")?;
-                let holding_ref = env::var("ERPX_LEGAL_RETENTION_HOLDING_REF")
-                    .map_err(|_| "ERPX_LEGAL_RETENTION_HOLDING_REF is required")?;
+                let routing = HoldingDatabaseProvisioningConfig::from_env()?;
+                let router = HoldingDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
+                let holding_id = env::var("ERPX_LEGAL_RETENTION_HOLDING_ID")
+                    .map_err(|_| "ERPX_LEGAL_RETENTION_HOLDING_ID is required")?;
+                let data_profile_key = env::var("ERPX_LEGAL_RETENTION_DATA_PROFILE_KEY")
+                    .map_err(|_| "ERPX_LEGAL_RETENTION_DATA_PROFILE_KEY is required")?;
                 let actor_ref = env::var("ERPX_WORKER_ACTOR_REF")
                     .unwrap_or_else(|_| "system-worker:legal-retention".into());
                 let purpose = env::var("ERPX_LEGAL_RETENTION_PURPOSE")
@@ -1737,16 +1746,16 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                         .min(LEGAL_RETENTION_DEFAULT_BATCH_SIZE),
                 };
                 let request =
-                    LegalRetentionRequest::new(tenant_id, holding_ref, batch_size, context)?;
+                    LegalRetentionRequest::new(holding_id, data_profile_key, batch_size, context)?;
                 let runner = LegalRetentionRunner::new(router, request)?;
                 runtime.handler_registry_with_legal_retention(runner)?
-            } else if handler_name == TENANT_PROJECTION_SCHEDULER_HANDLER_NAME {
-                let routing = TenantDatabaseProvisioningConfig::from_env()?;
-                let router = TenantDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
+            } else if handler_name == HOLDING_PROJECTION_SCHEDULER_HANDLER_NAME {
+                let routing = HoldingDatabaseProvisioningConfig::from_env()?;
+                let router = HoldingDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
                 let actor_ref = env::var("ERPX_WORKER_ACTOR_REF")
                     .unwrap_or_else(|_| format!("erpx-worker:{}", runtime.config().worker_id));
                 let purpose = env::var("ERPX_WORKER_PROJECTION_PURPOSE")
-                    .unwrap_or_else(|_| "durable tenant projection".into());
+                    .unwrap_or_else(|_| "durable holding projection".into());
                 let correlation_id = match env::var("ERPX_WORKER_PROJECTION_CORRELATION_ID") {
                     Ok(value) => Uuid::parse_str(&value)
                         .map_err(|_| "ERPX_WORKER_PROJECTION_CORRELATION_ID must be a UUID")?,
@@ -1754,9 +1763,9 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                 };
                 let authorization =
                     ProjectionSchedulerAuthorization::new(actor_ref, purpose, correlation_id)?;
-                let claim_key_prefix = env::var("ERPX_TENANT_PROJECTION_CLAIM_KEY_PREFIX")
-                    .unwrap_or_else(|_| "tenant-projection".into());
-                match env::var("ERPX_TENANT_PROJECTION_KIND")
+                let claim_key_prefix = env::var("ERPX_HOLDING_PROJECTION_CLAIM_KEY_PREFIX")
+                    .unwrap_or_else(|_| "holding-projection".into());
+                match env::var("ERPX_HOLDING_PROJECTION_KIND")
                     .unwrap_or_else(|_| "operations".into())
                     .as_str()
                 {
@@ -1765,7 +1774,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                             AssetMaintenanceProjectionRunner::new(router),
                         );
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler_executor(
                                 executor,
                                 authorization,
                                 claim_key_prefix,
@@ -1786,7 +1795,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                             QualityCqrsProjectionExecutor::new(router, kind),
                         );
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler_executor(
                                 executor,
                                 authorization,
                                 claim_key_prefix,
@@ -1843,7 +1852,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                             Wave6ProjectionExecutor::new(router, kind),
                         );
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler_executor(
                                 executor,
                                 authorization,
                                 claim_key_prefix,
@@ -1888,7 +1897,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                             Wave7ProjectionExecutor::new(router, kind),
                         );
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler_executor(
                                 executor,
                                 authorization,
                                 claim_key_prefix,
@@ -1920,7 +1929,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                             _ => unreachable!("matched current completion projection kind"),
                         };
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler_executor(
                                 CurrentCompletionProjectionExecutor::new(router, kind),
                                 authorization,
                                 claim_key_prefix,
@@ -1977,7 +1986,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                             Wave8ProjectionExecutor::new(router, kind),
                         );
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler_executor(
                                 executor,
                                 authorization,
                                 claim_key_prefix,
@@ -2000,7 +2009,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                             Wave9ProjectionExecutor::new(router, kind),
                         );
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler_executor(
                                 executor,
                                 authorization,
                                 claim_key_prefix,
@@ -2059,7 +2068,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                             Wave10ProjectionExecutor::new(router, kind),
                         );
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler_executor(
                                 executor,
                                 authorization,
                                 claim_key_prefix,
@@ -2073,7 +2082,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                             ),
                         );
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler_executor(
                                 executor,
                                 authorization,
                                 claim_key_prefix,
@@ -2087,7 +2096,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                             ),
                         );
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler_executor(
                                 executor,
                                 authorization,
                                 claim_key_prefix,
@@ -2101,7 +2110,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                             ),
                         );
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler_executor(
                                 executor,
                                 authorization,
                                 claim_key_prefix,
@@ -2115,7 +2124,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                             ),
                         );
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler_executor(
                                 executor,
                                 authorization,
                                 claim_key_prefix,
@@ -2129,7 +2138,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                             ),
                         );
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler_executor(
                                 executor,
                                 authorization,
                                 claim_key_prefix,
@@ -2143,7 +2152,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                                 CommercialProjectionKind::Subscriptions,
                             ));
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler_executor(
                                 executor,
                                 authorization,
                                 claim_key_prefix,
@@ -2157,7 +2166,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                                 CommercialProjectionKind::Entitlements,
                             ));
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler_executor(
                                 executor,
                                 authorization,
                                 claim_key_prefix,
@@ -2171,7 +2180,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                                 CommercialProjectionKind::LifecycleRecords,
                             ));
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler_executor(
                                 executor,
                                 authorization,
                                 claim_key_prefix,
@@ -2181,7 +2190,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                         let executor =
                             ProductProjectionExecutor::Legal(LegalProjectionRunner::new(router));
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler_executor(
                                 executor,
                                 authorization,
                                 claim_key_prefix,
@@ -2194,12 +2203,12 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                             )?,
                             Err(_) => ITEM_DIRECTORY_PROJECTION_MAX_PAGE_SIZE,
                         };
-                        let executor = ItemDirectoryTenantProjectionExecutor::new(page_size)
+                        let executor = ItemDirectoryHoldingProjectionExecutor::new(page_size)
                             .map_err(
                                 |_| "ERPX_ITEM_DIRECTORY_PROJECTION_PAGE_SIZE is outside its bound",
                             )?;
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler(
                                 router,
                                 executor,
                                 authorization,
@@ -2216,9 +2225,9 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                                 erpx_infrastructure::MAX_FINANCE_BANKING_SOURCE_EVENT_PAGE_SIZE
                             }
                         };
-                        let executor = FinanceBankingTenantProjectionExecutor::new(page_size)?;
+                        let executor = FinanceBankingHoldingProjectionExecutor::new(page_size)?;
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler(
                                 router,
                                 executor,
                                 authorization,
@@ -2233,9 +2242,9 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                             Err(_) => erpx_worker::FINANCE_CHART_PROJECTION_MAX_PAGE_SIZE,
                         };
                         let executor =
-                            FinanceChartTenantProjectionExecutor::new(router, page_size)?;
+                            FinanceChartHoldingProjectionExecutor::new(router, page_size)?;
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler_executor(
                                 executor,
                                 authorization,
                                 claim_key_prefix,
@@ -2251,9 +2260,9 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                         };
                         let scheduler_router = router.clone();
                         let executor =
-                            FinanceSubledgerTenantProjectionExecutor::new(router, page_size)?;
+                            FinanceSubledgerHoldingProjectionExecutor::new(router, page_size)?;
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_unfenced_rebuilds(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler_unfenced_rebuilds(
                                 scheduler_router,
                                 executor,
                                 authorization,
@@ -2269,9 +2278,9 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                         };
                         let scheduler_router = router.clone();
                         let executor =
-                            FinanceCloseTenantProjectionExecutor::new(router, page_size)?;
+                            FinanceCloseHoldingProjectionExecutor::new(router, page_size)?;
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_unfenced_rebuilds(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler_unfenced_rebuilds(
                                 scheduler_router,
                                 executor,
                                 authorization,
@@ -2288,12 +2297,12 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                         };
                         let scheduler_router = router.clone();
                         let executor =
-                            FinanceThaiTaxTenantProjectionExecutor::new(router, page_size)
+                            FinanceThaiTaxHoldingProjectionExecutor::new(router, page_size)
                                 .map_err(
                                     |_| "Finance Thai tax projection configuration is invalid",
                                 )?;
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_unfenced_rebuilds(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler_unfenced_rebuilds(
                                 scheduler_router,
                                 executor,
                                 authorization,
@@ -2304,7 +2313,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                         let executor =
                             ProductProjectionExecutor::Scm(ScmProjectionRunner::new(router));
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler_executor(
                                 executor,
                                 authorization,
                                 claim_key_prefix,
@@ -2314,7 +2323,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                         let executor =
                             ProductProjectionExecutor::Pos(PosProjectionRunner::new(router));
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler_executor(
                                 executor,
                                 authorization,
                                 claim_key_prefix,
@@ -2324,7 +2333,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                         let executor =
                             ProductProjectionExecutor::Hr(HrProjectionRunner::new(router));
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler_executor(
                                 executor,
                                 authorization,
                                 claim_key_prefix,
@@ -2334,7 +2343,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                         let executor =
                             ProductProjectionExecutor::Sales(SalesProjectionRunner::new(router));
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler_executor(
                                 executor,
                                 authorization,
                                 claim_key_prefix,
@@ -2347,21 +2356,21 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                             )?,
                             Err(_) => erpx_worker::MARKETING_PROJECTION_MAX_PAGE_SIZE,
                         };
-                        let executor = MarketingTenantProjectionExecutor::new(
+                        let executor = MarketingHoldingProjectionExecutor::new(
                             router,
                             SqlxMarketingProjectionFactory,
                             page_size,
                         )
                         .map_err(|_| "ERPX_MARKETING_PROJECTION_PAGE_SIZE is outside its bound")?;
                         runtime
-                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                            .handler_registry_with_control_plane_multi_holding_projection_scheduler_executor(
                                 executor,
                                 authorization,
                                 claim_key_prefix,
                             )?
                     }
                     _ => {
-                        return Err("ERPX_TENANT_PROJECTION_KIND must be one of the registered legacy or CQRS projection scheduler names, including item_directory (Waves 3-10)".into());
+                        return Err("ERPX_HOLDING_PROJECTION_KIND must be one of the registered legacy or CQRS projection scheduler names, including item_directory (Waves 3-10)".into());
                     }
                 }
             } else {
@@ -2393,21 +2402,21 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg(test)]
 mod marketing_delivery_runtime_tests {
-    use super::MarketingDeliveryMultiTenantRuntimeHandler;
+    use super::MarketingDeliveryMultiHoldingRuntimeHandler;
     use chrono::Duration;
 
     #[test]
     fn marketing_delivery_runtime_bounds_are_fail_closed() {
         assert!(
-            MarketingDeliveryMultiTenantRuntimeHandler::validate_config(1, Duration::seconds(1))
+            MarketingDeliveryMultiHoldingRuntimeHandler::validate_config(1, Duration::seconds(1))
                 .is_ok()
         );
         assert!(
-            MarketingDeliveryMultiTenantRuntimeHandler::validate_config(0, Duration::seconds(1))
+            MarketingDeliveryMultiHoldingRuntimeHandler::validate_config(0, Duration::seconds(1))
                 .is_err()
         );
         assert!(
-            MarketingDeliveryMultiTenantRuntimeHandler::validate_config(1, Duration::zero())
+            MarketingDeliveryMultiHoldingRuntimeHandler::validate_config(1, Duration::zero())
                 .is_err()
         );
     }
@@ -2416,7 +2425,7 @@ mod marketing_delivery_runtime_tests {
 #[cfg(test)]
 mod product_projection_registration_tests {
     use super::{
-        TenantProjectionExecutorError, projection_hr_cursor, projection_page_size,
+        HoldingProjectionExecutorError, projection_hr_cursor, projection_page_size,
         projection_pos_cursor,
     };
     use serde_json::json;
@@ -2431,11 +2440,11 @@ mod product_projection_registration_tests {
         );
         assert!(matches!(
             projection_page_size(&json!({"page_size": 0}), 500),
-            Err(TenantProjectionExecutorError::Permanent)
+            Err(HoldingProjectionExecutorError::Permanent)
         ));
         assert!(matches!(
             projection_page_size(&json!({"page_size": 501}), 500),
-            Err(TenantProjectionExecutorError::Permanent)
+            Err(HoldingProjectionExecutorError::Permanent)
         ));
     }
 

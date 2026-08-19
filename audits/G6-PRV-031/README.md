@@ -1,4 +1,4 @@
-# G6-PRV-031 — Tenant-bound backup object inventory reconciliation
+# G6-PRV-031 — Holding-bound backup object inventory reconciliation
 
 ## Objective
 
@@ -8,11 +8,11 @@ credentials or accepting a partial provider page as complete evidence.
 ## Delivered behavior
 
 - MinIO/S3-compatible listing uses a short-lived signed provider query bound to
-  one namespace and tenant backup-chain prefix.
+  one namespace and holding backup-chain prefix.
 - Listing validates entry and response bounds and rejects truncated or malformed
   XML responses.
 - Backup adapters normalize only the opaque artifact references belonging to
-  the requested tenant and chain.
+  the requested holding and chain.
 - Retention workers compare expected control-plane references with provider
   inventory and persist `matched`, `drifted`, or `unavailable` evidence.
 - Inventory evidence is keyed to the retention action, replay-safe, and

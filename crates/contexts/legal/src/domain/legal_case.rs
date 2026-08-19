@@ -5,7 +5,7 @@ use erpx_integration_contracts::{
     catalog::ContextId,
     reference::{RecordTypeId, ReferenceValidationError},
 };
-use erpx_kernel::{RecordId, TenantScope};
+use erpx_kernel::{AuthorityScope, RecordId};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -23,7 +23,7 @@ pub enum LegalCaseStatus {
 pub struct LegalCase {
     id: RecordId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     case_reference: String,
     title: String,
     related_matter: Option<StableRecordRef>,
@@ -42,7 +42,7 @@ impl LegalCase {
     pub fn try_rehydrate(
         id: RecordId,
         version: u64,
-        scope: TenantScope,
+        scope: AuthorityScope,
         case_reference: String,
         title: String,
         related_matter: Option<StableRecordRef>,
@@ -78,7 +78,7 @@ impl LegalCase {
     #[allow(clippy::too_many_arguments)]
     pub fn propose(
         id: RecordId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         case_reference: String,
         title: String,
         related_matter: Option<StableRecordRef>,
@@ -147,7 +147,7 @@ impl LegalCase {
             || self.scope.validate().is_err()
             || !matches!(
                 self.scope,
-                TenantScope::Company { .. } | TenantScope::Branch { .. }
+                AuthorityScope::Company { .. } | AuthorityScope::Branch { .. }
             )
             || self.case_reference.trim().is_empty()
             || self.case_reference.len() > 128
@@ -182,7 +182,7 @@ impl LegalCase {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn case_reference(&self) -> &str {
@@ -241,7 +241,7 @@ mod tests {
         .unwrap();
         let mut case = LegalCase::propose(
             RecordId::try_from_uuid(Uuid::new_v4()).unwrap(),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id: Uuid::from_u128(1),
                 company_id: Uuid::from_u128(2),
             },

@@ -126,37 +126,37 @@ impl ContextId {
 
     pub const fn proto_package(self) -> &'static str {
         match self {
-            Self::IdentityAccess => "erpx.identity_access.v2",
-            Self::PlatformAdministration => "erpx.platform_administration.v2",
-            Self::Organization => "erpx.organization.v2",
-            Self::Commercial => "erpx.commercial.v2",
-            Self::Brand => "erpx.brand.v2",
-            Self::CustomerAuthority => "erpx.customer_authority.v2",
-            Self::Customer360 => "erpx.customer_360.v2",
-            Self::Support => "erpx.support.v2",
-            Self::Finance => "erpx.finance.v2",
-            Self::Sales => "erpx.sales.v2",
-            Self::PointOfSale => "erpx.pos.v2",
-            Self::Procurement => "erpx.procurement.v2",
-            Self::Inventory => "erpx.inventory.v2",
-            Self::Assets => "erpx.assets.v2",
-            Self::Maintenance => "erpx.maintenance.v2",
-            Self::Quality => "erpx.quality.v2",
-            Self::Operations => "erpx.operations.v2",
-            Self::PeoplePayroll => "erpx.people_payroll.v2",
-            Self::Legal => "erpx.legal.v2",
-            Self::Marketing => "erpx.marketing.v2",
-            Self::Crm => "erpx.crm.v2",
-            Self::Manufacturing => "erpx.manufacturing.v2",
-            Self::Planning => "erpx.planning.v2",
-            Self::Projects => "erpx.projects.v2",
-            Self::Ecommerce => "erpx.ecommerce.v2",
-            Self::RecruitingTalent => "erpx.talent.v2",
-            Self::Learning => "erpx.learning.v2",
-            Self::Benefits => "erpx.benefits.v2",
-            Self::FieldService => "erpx.field_service.v2",
-            Self::Collaboration => "erpx.collaboration.v2",
-            Self::AgentOrchestration => "erpx.agent.v2",
+            Self::IdentityAccess => "erpx.identity_access",
+            Self::PlatformAdministration => "erpx.platform_administration",
+            Self::Organization => "erpx.organization",
+            Self::Commercial => "erpx.commercial",
+            Self::Brand => "erpx.brand",
+            Self::CustomerAuthority => "erpx.customer_authority",
+            Self::Customer360 => "erpx.customer_360",
+            Self::Support => "erpx.support",
+            Self::Finance => "erpx.finance",
+            Self::Sales => "erpx.sales",
+            Self::PointOfSale => "erpx.pos",
+            Self::Procurement => "erpx.procurement",
+            Self::Inventory => "erpx.inventory",
+            Self::Assets => "erpx.assets",
+            Self::Maintenance => "erpx.maintenance",
+            Self::Quality => "erpx.quality",
+            Self::Operations => "erpx.operations",
+            Self::PeoplePayroll => "erpx.people_payroll",
+            Self::Legal => "erpx.legal",
+            Self::Marketing => "erpx.marketing",
+            Self::Crm => "erpx.crm",
+            Self::Manufacturing => "erpx.manufacturing",
+            Self::Planning => "erpx.planning",
+            Self::Projects => "erpx.projects",
+            Self::Ecommerce => "erpx.ecommerce",
+            Self::RecruitingTalent => "erpx.talent",
+            Self::Learning => "erpx.learning",
+            Self::Benefits => "erpx.benefits",
+            Self::FieldService => "erpx.field_service",
+            Self::Collaboration => "erpx.collaboration",
+            Self::AgentOrchestration => "erpx.agent",
         }
     }
 
@@ -784,7 +784,7 @@ const COLLABORATION_STREAM_SERVICE: ServiceDescriptor = ServiceDescriptor {
 const REFERENCE_QUERY_SERVICE: ServiceDescriptor = ServiceDescriptor {
     id: ServiceId::catalog(264),
     name: "ReferenceQueryService",
-    package: "erpx.reference.v2",
+    package: "erpx.reference",
     owner: ServiceOwner::FederatedItemDirectory,
     kind: ServiceKind::Query,
 };
@@ -926,7 +926,7 @@ pub const LIVE_CURRENT_RECORD_PUBLISHERS: [&str; 92] = [
     "identity.grant",
     "identity.access-review",
     "identity.break-glass-session",
-    "platform.tenant",
+    "platform.holding",
     "platform.provider",
     "platform.data-plane-operation",
     "platform.migration",
@@ -1062,7 +1062,7 @@ macro_rules! records {
 /// First-class aggregate-root route families in the clean baseline.
 pub const RECORD_TYPES: &[RecordTypeDescriptor] = records! {
     IdentityAccess, "identity" => ["principal", "role", "grant", "access-review", "break-glass-session"];
-    PlatformAdministration, "platform" => ["tenant", "data-plane-operation", "migration", "provider", "release"];
+    PlatformAdministration, "platform" => ["holding", "data-plane-operation", "migration", "provider", "release"];
     Organization, "organization" => ["holding", "company", "branch", "sharing-agreement"];
     Commercial, "commercial" => ["subscription", "entitlement", "account", "adjustment"];
     Brand, "brand" => ["profile", "asset", "publication"];

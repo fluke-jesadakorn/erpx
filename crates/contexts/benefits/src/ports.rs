@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use erpx_kernel::{CommandId, CorrelationId, PrincipalId, TenantId, TenantScope};
+use erpx_kernel::{AuthorityScope, CommandId, CorrelationId, HoldingId, PrincipalId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -10,9 +10,9 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ActorContext {
-    pub tenant_id: TenantId,
+    pub holding_id: HoldingId,
     pub principal_id: PrincipalId,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BenefitsAction {
@@ -27,7 +27,7 @@ pub enum BenefitsAction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorizedBenefitsAccess {
     pub actor: ActorContext,
-    pub target_scope: TenantScope,
+    pub target_scope: AuthorityScope,
     pub action: BenefitsAction,
 }
 #[async_trait]
@@ -35,7 +35,7 @@ pub trait AuthorizationPort: Send + Sync {
     async fn authorize(
         &self,
         actor: &ActorContext,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         action: BenefitsAction,
     ) -> Result<AuthorizedBenefitsAccess, PortError>;
 }
@@ -86,7 +86,7 @@ impl BenefitsAggregate {
             Self::Record(value) => value.version(),
         }
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         match self {
             Self::Plan(value) => value.scope(),
             Self::Enrollment(value) => value.scope(),

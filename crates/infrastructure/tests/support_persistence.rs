@@ -4,7 +4,7 @@ mod support_persistence;
 
 use chrono::DateTime;
 use chrono::{Duration, Utc};
-use erpx_domain::contracts::TenantScope;
+use erpx_domain::contracts::AuthorityScope;
 use erpx_domain::support::{
     Incident, IncidentStatus, SupportCapability, SupportCapabilityBinding, SupportCapabilitySecret,
     SupportMode, SupportSession, SupportTicket, SupportTicketAssignment, SupportTicketCommand,
@@ -210,7 +210,7 @@ async fn support_persistence_enforces_idempotency_hash_only_secrets_and_immutabl
         ticket.id,
         Uuid::new_v4(),
         "platform-agent-1",
-        SupportMode::TenantMutation,
+        SupportMode::HoldingMutation,
         vec!["operations:write".into()],
         "holding-1/company-1/branch-1",
         "attempt cross-customer support access",
@@ -257,7 +257,7 @@ async fn support_persistence_enforces_idempotency_hash_only_secrets_and_immutabl
         ticket.id,
         ticket.customer_account_id,
         "platform-agent-1",
-        SupportMode::TenantMutation,
+        SupportMode::HoldingMutation,
         vec!["operations:write".into()],
         "holding-1/company-1/branch-1",
         "operations",
@@ -296,7 +296,7 @@ async fn support_persistence_enforces_idempotency_hash_only_secrets_and_immutabl
         "device-1",
         session.id,
         ticket.id,
-        SupportMode::TenantMutation,
+        SupportMode::HoldingMutation,
         vec!["operations:write".into()],
         "holding-1/company-1/branch-1",
         "operations",
@@ -359,7 +359,7 @@ async fn support_persistence_enforces_idempotency_hash_only_secrets_and_immutabl
         device_ref: "device-1".into(),
         session_id: session.id,
         ticket_id: ticket.id,
-        mode: "tenant_mutation".into(),
+        mode: "holding_mutation".into(),
         permission: "operations:write".into(),
         scope: "holding-1/company-1/branch-1".into(),
         module: "operations".into(),
@@ -545,7 +545,7 @@ async fn support_ticket_metadata_commands_are_durable_audience_safe_and_replay_s
     };
     let mut with_internal_note = ticket.clone();
     with_internal_note
-        .apply_command(internal_command.clone(), &TenantScope::Platform, now)
+        .apply_command(internal_command.clone(), &AuthorityScope::Platform, now)
         .expect("apply internal note");
     let first = persistence
         .apply_ticket_command(
@@ -577,7 +577,7 @@ async fn support_ticket_metadata_commands_are_durable_audience_safe_and_replay_s
     };
     let mut with_reply = first.value;
     with_reply
-        .apply_command(reply_command.clone(), &TenantScope::Platform, now)
+        .apply_command(reply_command.clone(), &AuthorityScope::Platform, now)
         .expect("apply customer reply");
     let second = persistence
         .apply_ticket_command(
@@ -592,7 +592,7 @@ async fn support_ticket_metadata_commands_are_durable_audience_safe_and_replay_s
     let assignment = SupportTicketAssignment::new(
         "queue-owner",
         "manager",
-        TenantScope::Holding {
+        AuthorityScope::Holding {
             holding_id: Uuid::new_v4(),
         },
         now,
@@ -601,7 +601,7 @@ async fn support_ticket_metadata_commands_are_durable_audience_safe_and_replay_s
     let assignment_command = SupportTicketCommand::Assign { assignment };
     let mut with_assignment = second.value;
     with_assignment
-        .apply_command(assignment_command.clone(), &TenantScope::Platform, now)
+        .apply_command(assignment_command.clone(), &AuthorityScope::Platform, now)
         .expect("apply assignment");
     let third = persistence
         .apply_ticket_command(
@@ -622,7 +622,7 @@ async fn support_ticket_metadata_commands_are_durable_audience_safe_and_replay_s
     };
     let mut with_escalation = third.value;
     with_escalation
-        .apply_command(escalation_command.clone(), &TenantScope::Platform, now)
+        .apply_command(escalation_command.clone(), &AuthorityScope::Platform, now)
         .expect("apply escalation");
     let fourth = persistence
         .apply_ticket_command(
@@ -642,7 +642,7 @@ async fn support_ticket_metadata_commands_are_durable_audience_safe_and_replay_s
     };
     let mut complete = fourth.value;
     complete
-        .apply_command(sla_command.clone(), &TenantScope::Platform, now)
+        .apply_command(sla_command.clone(), &AuthorityScope::Platform, now)
         .expect("apply SLA");
     let persisted = persistence
         .apply_ticket_command(
@@ -885,7 +885,7 @@ async fn support_ticket_metadata_commands_are_durable_audience_safe_and_replay_s
         created_at: now,
     };
     stale
-        .apply_command(stale_command.clone(), &TenantScope::Platform, now)
+        .apply_command(stale_command.clone(), &AuthorityScope::Platform, now)
         .expect("apply stale fixture command");
     assert!(matches!(
         persistence

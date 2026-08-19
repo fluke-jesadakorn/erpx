@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use erpx_kernel::{CommandId, CorrelationId, TenantId, TenantScope};
+use erpx_kernel::{AuthorityScope, CommandId, CorrelationId, HoldingId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -9,9 +9,9 @@ use crate::{RealmPrincipal, TalentAggregate, TalentRealm};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TalentActor {
-    pub tenant_id: TenantId,
+    pub holding_id: HoldingId,
     pub principal: RealmPrincipal,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -57,8 +57,8 @@ pub trait AuthorizationPort: Send + Sync {
     async fn authorize(
         &self,
         principal: &RealmPrincipal,
-        authority_scope: &TenantScope,
-        target_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         action: TalentAction,
     ) -> Result<(), TalentPortError>;
 }
@@ -67,15 +67,15 @@ pub trait AuthorizationPort: Send + Sync {
 pub trait AggregateRepository: Send + Sync {
     async fn replay(
         &self,
-        tenant_id: TenantId,
+        holding_id: HoldingId,
         identity: &MutationIdentity,
         aggregate_type: &str,
         aggregate_id: Uuid,
     ) -> Result<Option<TalentCommitReceipt>, TalentPortError>;
     async fn load(
         &self,
-        tenant_id: TenantId,
-        authority: &TenantScope,
+        holding_id: HoldingId,
+        authority: &AuthorityScope,
         realm: TalentRealm,
         aggregate_type: &str,
         id: Uuid,
@@ -115,7 +115,7 @@ pub struct TalentMutationReceipt {
 pub struct TalentProjection {
     pub aggregate_type: String,
     pub aggregate_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub authority_realm: TalentRealm,
     pub candidate_principal_id: Option<Uuid>,
     pub lifecycle_status: String,
@@ -130,7 +130,7 @@ pub struct TalentProjection {
 pub trait TalentReadRepository: Send + Sync {
     async fn get(
         &self,
-        tenant_id: TenantId,
+        holding_id: HoldingId,
         realm: TalentRealm,
         aggregate_type: &str,
         id: Uuid,

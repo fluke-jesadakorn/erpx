@@ -153,8 +153,8 @@ impl ThaiTaxFact {
             .map_err(|_| ThaiTaxError::InvalidScope)?;
         if !self
             .context
-            .tenant_scope
-            .contains(&crate::contracts::TenantScope::Company {
+            .active_scope
+            .contains(&crate::contracts::AuthorityScope::Company {
                 holding_id: self.holding_id,
                 company_id: self.company_id,
             })
@@ -475,19 +475,19 @@ fn validate_tax_currency(value: &str) -> Result<(), ThaiTaxError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::contracts::{ActorAttribution, ActorKind, TenantScope};
+    use crate::contracts::{ActorAttribution, ActorKind, AuthorityScope};
 
     fn context(holding_id: Uuid, company_id: Uuid) -> CommandContext {
         CommandContext::try_new(
             "thai-tax-test-idempotency",
             ActorAttribution {
                 principal_ref: "finance-tax-test".into(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: Some(Uuid::new_v4()),
                 represented_principal_ref: None,
                 support_capability_id: None,
             },
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             },

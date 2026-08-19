@@ -1,4 +1,4 @@
-//! Tenant-bound Marketing and CRM acquisition rules.
+//! Holding-bound Marketing and CRM acquisition rules.
 //!
 //! This module owns consent and campaign policy only. Channel adapters,
 //! templates, journeys, CRM handoff, attribution, and delivery workers remain
@@ -12,7 +12,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::contracts::TenantScope;
+use crate::contracts::AuthorityScope;
 
 pub const MAX_MARKETING_TEXT: usize = 255;
 pub const MAX_MARKETING_POLICY_VERSION: usize = 64;
@@ -31,7 +31,7 @@ pub enum MarketingError {
     ControlCharacter { field: &'static str },
     #[error("identifier cannot be nil: {field}")]
     NilIdentifier { field: &'static str },
-    #[error("marketing scope is invalid or not contained by the tenant")]
+    #[error("marketing scope is invalid or not contained by the holding")]
     InvalidScope,
     #[error("marketing profile erasure scope is not contained by the authorizing scope")]
     ErasureScopeMismatch,
@@ -45,7 +45,7 @@ pub enum MarketingError {
     DoubleOptInRequired,
     #[error("campaign lifecycle transition is not allowed")]
     InvalidCampaignTransition,
-    #[error("campaign tenant scope does not match the requested scope")]
+    #[error("campaign holding scope does not match the requested scope")]
     CampaignScopeMismatch,
     #[error("delivery idempotency key has already been used for another message")]
     DeliveryIdempotencyConflict,
@@ -53,7 +53,7 @@ pub enum MarketingError {
     AudienceTooLarge,
 }
 
-/// Tenant-scoped source/read reconciliation facts for the disposable
+/// Holding-scoped source/read reconciliation facts for the disposable
 /// Marketing/CRM projection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct MarketingProjectionReconciliation {
@@ -108,7 +108,7 @@ pub enum ConsentState {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MarketingProfile {
     pub id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub external_ref: String,
     pub email: Option<String>,
     pub phone: Option<String>,
@@ -123,7 +123,7 @@ impl MarketingProfile {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         external_ref: impl Into<String>,
         email: Option<String>,
         phone: Option<String>,
@@ -181,7 +181,7 @@ impl MarketingProfile {
     }
 }
 
-/// A tenant-scoped, contact-free command to redact a Marketing profile.
+/// A holding-scoped, contact-free command to redact a Marketing profile.
 ///
 /// The erasure contract intentionally carries neither a profile snapshot nor
 /// any contact/attribute values. Infrastructure must use `profile_id` and
@@ -190,7 +190,7 @@ impl MarketingProfile {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MarketingProfileErasure {
     pub profile_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub erased_at: DateTime<Utc>,
     pub reason: String,
 }
@@ -198,7 +198,7 @@ pub struct MarketingProfileErasure {
 impl MarketingProfileErasure {
     pub fn new(
         profile_id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         erased_at: DateTime<Utc>,
         reason: impl Into<String>,
     ) -> Result<Self, MarketingError> {
@@ -233,7 +233,7 @@ impl MarketingProfileErasure {
     /// Validates that an actor's scope contains the profile erasure target.
     pub fn validate_for_scope(
         &self,
-        authorizing_scope: &TenantScope,
+        authorizing_scope: &AuthorityScope,
     ) -> Result<(), MarketingError> {
         self.validate()?;
         validate_scope(authorizing_scope)?;
@@ -259,7 +259,7 @@ impl MarketingProfileErasure {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MarketingProfileRedactedProjection {
     pub profile_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub erased_at: DateTime<Utc>,
     pub marker: String,
 }
@@ -268,7 +268,7 @@ pub struct MarketingProfileRedactedProjection {
 pub struct ConsentRecord {
     pub id: Uuid,
     pub profile_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub purpose: MarketingPurpose,
     pub channel: MarketingChannel,
     pub state: ConsentState,
@@ -336,7 +336,7 @@ impl ConsentRecord {
 pub struct SuppressionRecord {
     pub id: Uuid,
     pub profile_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub reason: String,
     pub source: String,
     pub created_at: DateTime<Utc>,
@@ -370,7 +370,7 @@ impl SuppressionRecord {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AudienceMembership {
     pub audience_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub profile_ids: Vec<Uuid>,
     pub materialized_at: DateTime<Utc>,
 }
@@ -429,7 +429,7 @@ impl CampaignStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Campaign {
     pub id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub name: String,
     pub status: CampaignStatus,
     pub audience_id: Uuid,
@@ -442,7 +442,7 @@ impl Campaign {
     pub fn transition(
         &mut self,
         next: CampaignStatus,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         at: DateTime<Utc>,
     ) -> Result<(), MarketingError> {
         if !scope.contains(&self.scope) || !self.status.can_transition_to(next) {
@@ -534,44 +534,36 @@ pub fn dedupe_key(email: Option<&str>, phone: Option<&str>, external_ref: &str) 
     hex::encode(Sha256::digest(canonical.as_bytes()))
 }
 
-fn validate_scope(scope: &TenantScope) -> Result<(), MarketingError> {
+fn validate_scope(scope: &AuthorityScope) -> Result<(), MarketingError> {
     match scope {
-        TenantScope::Holding { holding_id }
-        | TenantScope::Company { holding_id, .. }
-        | TenantScope::Branch { holding_id, .. }
-        | TenantScope::Subtree { holding_id, .. }
+        AuthorityScope::Holding { holding_id }
+        | AuthorityScope::Company { holding_id, .. }
+        | AuthorityScope::Branch { holding_id, .. }
+        | AuthorityScope::Subtree { holding_id, .. }
             if holding_id.is_nil() =>
         {
             Err(MarketingError::InvalidScope)
         }
-        TenantScope::Company { company_id, .. } if company_id.is_nil() => {
+        AuthorityScope::Company { company_id, .. } if company_id.is_nil() => {
             Err(MarketingError::InvalidScope)
         }
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             company_id,
             branch_id,
             ..
         } if company_id.is_nil() || branch_id.is_nil() => Err(MarketingError::InvalidScope),
-        TenantScope::Subtree {
-            company_ids,
-            branch_ids,
+        AuthorityScope::Subtree {
+            organization_node_id,
             ..
-        } if company_ids.iter().any(Uuid::is_nil) || branch_ids.iter().any(Uuid::is_nil) => {
-            Err(MarketingError::InvalidScope)
-        }
+        } if organization_node_id.is_nil() => Err(MarketingError::InvalidScope),
         _ => Ok(()),
     }
 }
 
-fn validate_erasure_scope(scope: &TenantScope) -> Result<(), MarketingError> {
+fn validate_erasure_scope(scope: &AuthorityScope) -> Result<(), MarketingError> {
     validate_scope(scope)?;
     match scope {
-        TenantScope::Platform => Err(MarketingError::InvalidScope),
-        TenantScope::Subtree {
-            company_ids,
-            branch_ids,
-            ..
-        } if company_ids.is_empty() && branch_ids.is_empty() => Err(MarketingError::InvalidScope),
+        AuthorityScope::Platform => Err(MarketingError::InvalidScope),
         _ => Ok(()),
     }
 }
@@ -595,8 +587,8 @@ mod tests {
     use crate::contracts::{ActorAttribution, ActorKind, AuditContext, CommandContext};
     use chrono::Duration;
 
-    fn scope() -> TenantScope {
-        TenantScope::Company {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         }
@@ -802,20 +794,20 @@ mod tests {
     }
 
     #[test]
-    fn scope_and_dedupe_are_tenant_bound() {
+    fn scope_and_dedupe_are_holding_bound() {
         let first = dedupe_key(Some("Person@Example.test"), None, "crm-10");
         let second = dedupe_key(Some("person@example.test"), None, "crm-10");
         assert_eq!(first, second);
         let actor = ActorAttribution {
             principal_ref: "marketing".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
         };
         let context = CommandContext::try_new("marketing-test", actor, scope(), "marketing test")
             .expect("context");
-        assert!(context.tenant_scope.contains(&TenantScope::Company {
+        assert!(context.active_scope.contains(&AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         }));
@@ -879,7 +871,7 @@ mod tests {
     fn profile_erasure_rejects_invalid_scopes_and_enforces_containment() {
         let target = MarketingProfileErasure::new(
             Uuid::from_u128(10),
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id: Uuid::from_u128(1),
                 company_id: Uuid::from_u128(2),
                 branch_id: Uuid::from_u128(3),
@@ -891,13 +883,13 @@ mod tests {
 
         assert!(
             target
-                .validate_for_scope(&TenantScope::Holding {
+                .validate_for_scope(&AuthorityScope::Holding {
                     holding_id: Uuid::from_u128(1),
                 })
                 .is_ok()
         );
         assert_eq!(
-            target.validate_for_scope(&TenantScope::Company {
+            target.validate_for_scope(&AuthorityScope::Company {
                 holding_id: Uuid::from_u128(1),
                 company_id: Uuid::from_u128(9),
             }),
@@ -906,7 +898,7 @@ mod tests {
         assert_eq!(
             MarketingProfileErasure::new(
                 Uuid::from_u128(10),
-                TenantScope::Platform,
+                AuthorityScope::Platform,
                 Utc::now(),
                 "customer request",
             ),
@@ -915,10 +907,9 @@ mod tests {
         assert_eq!(
             MarketingProfileErasure::new(
                 Uuid::from_u128(10),
-                TenantScope::Subtree {
+                AuthorityScope::Subtree {
                     holding_id: Uuid::from_u128(1),
-                    company_ids: Vec::new(),
-                    branch_ids: Vec::new(),
+                    organization_node_id: Uuid::nil(),
                 },
                 Utc::now(),
                 "customer request",
@@ -928,7 +919,7 @@ mod tests {
         assert_eq!(
             MarketingProfileErasure::new(
                 Uuid::from_u128(10),
-                TenantScope::Branch {
+                AuthorityScope::Branch {
                     holding_id: Uuid::from_u128(1),
                     company_id: Uuid::nil(),
                     branch_id: Uuid::from_u128(3),

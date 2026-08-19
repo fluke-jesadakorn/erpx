@@ -1,7 +1,7 @@
 //! Application-layer adapter for authoritative Marketing content writes.
 //!
 //! This module is intentionally an adapter only. The SQLx store remains the
-//! owner of tenant routing, forced-RLS transaction setup, aggregate re-reads,
+//! owner of holding routing, forced-RLS transaction setup, aggregate re-reads,
 //! idempotency, optimistic concurrency, and atomic outbox persistence. The
 //! application port sees only transport-neutral commands, receipts, and a
 //! deliberately redacted repository error.
@@ -49,7 +49,7 @@ impl SqlxMarketingContentWriteAdapter {
 
 fn repository_error(_: PersistenceError) -> ApplicationError {
     // Do not format PersistenceError here. SQLx errors can contain database
-    // URLs, SQL text, bound values, schema details, or other tenant data; the
+    // URLs, SQL text, bound values, schema details, or other holding data; the
     // application port deliberately exposes none of that information.
     ApplicationError::Repository(REDACTED_REPOSITORY_ERROR.into())
 }

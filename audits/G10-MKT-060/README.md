@@ -6,7 +6,7 @@ Date: 2026-07-26
 
 `SqlxMarketingContentWriteAdapter` now implements the application-layer `MarketingContentWritePort` for published form submissions, preview issue/revoke/expiry, domain challenge issue/verify, and domain binding. It owns a clone of the existing SQLx store and converts persistence receipts into transport-neutral application receipts. Persistence errors are mapped to one redacted repository message; database URLs, SQL details, bound values, raw form values, idempotency keys, and secrets are not formatted into application errors.
 
-The adapter is exported by infrastructure and composed into the authenticated Marketing Tonic server commands. The server constructs application commands after authoritative authentication, scope, entitlement, and RBAC checks; the adapter/store retain authoritative aggregate re-reads, forced-RLS transactions, idempotency, optimistic concurrency, audit/outbox persistence, and tenant database separation. A disposable two-database proof now exercises the application adapter on the form-submission path alongside the preview/domain/read-model lifecycle.
+The adapter is exported by infrastructure and composed into the authenticated Marketing Tonic server commands. The server constructs application commands after authoritative authentication, scope, entitlement, and RBAC checks; the adapter/store retain authoritative aggregate re-reads, forced-RLS transactions, idempotency, optimistic concurrency, audit/outbox persistence, and holding database separation. A disposable two-database proof now exercises the application adapter on the form-submission path alongside the preview/domain/read-model lifecycle.
 
 ## Evidence
 

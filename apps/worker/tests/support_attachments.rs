@@ -6,7 +6,7 @@ use std::sync::{
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use erpx_domain::{
-    contracts::TenantScope,
+    contracts::AuthorityScope,
     support::{
         SupportAttachment, SupportAttachmentUpload, SupportAttachmentVisibility, SupportCapability,
         SupportCapabilityBinding, SupportMode, SupportSlaNotification, SupportTicket, TicketStatus,
@@ -73,7 +73,7 @@ impl SupportSlaNotificationSource for NotificationSource {
     }
 }
 
-fn attachment(at: DateTime<Utc>, scope: TenantScope) -> PersistedSupportAttachment {
+fn attachment(at: DateTime<Utc>, scope: AuthorityScope) -> PersistedSupportAttachment {
     PersistedSupportAttachment {
         value: SupportAttachment {
             id: Uuid::from_u128(10),
@@ -99,7 +99,7 @@ fn attachment(at: DateTime<Utc>, scope: TenantScope) -> PersistedSupportAttachme
 #[tokio::test]
 async fn expiry_worker_refuses_to_acknowledge_non_terminal_store_rows() {
     let at = Utc::now();
-    let mut row = attachment(at, TenantScope::Platform);
+    let mut row = attachment(at, AuthorityScope::Platform);
     row.status = "active".into();
     let handler = SupportAttachmentExpiryHandler::new(ExpiryStore { rows: vec![row] }, 10);
 
@@ -113,7 +113,7 @@ async fn expiry_worker_refuses_to_acknowledge_non_terminal_store_rows() {
 #[tokio::test]
 async fn expiry_worker_rejects_duplicate_terminal_rows_before_reporting_progress() {
     let at = Utc::now();
-    let mut row = attachment(at, TenantScope::Platform);
+    let mut row = attachment(at, AuthorityScope::Platform);
     row.status = "expired".into();
     row.version = 2;
     row.value.expires_at = at - Duration::minutes(1);
@@ -134,7 +134,7 @@ async fn expiry_worker_rejects_duplicate_terminal_rows_before_reporting_progress
 #[tokio::test]
 async fn expiry_worker_rejects_terminal_rows_that_break_sqlx_order() {
     let at = Utc::now();
-    let mut first = attachment(at, TenantScope::Platform);
+    let mut first = attachment(at, AuthorityScope::Platform);
     first.status = "expired".into();
     first.version = 2;
     first.value.expires_at = at - Duration::minutes(1);
@@ -207,7 +207,7 @@ async fn expiry_worker_reconciles_real_sqlx_transition_and_retry_is_empty() {
             sha256_hex: "ab".repeat(32),
             visibility: SupportAttachmentVisibility::Internal,
             uploader_ref: "worker-test".into(),
-            scope: TenantScope::Platform,
+            scope: AuthorityScope::Platform,
             expires_at: sweep_at - Duration::minutes(1),
         },
         sweep_at - Duration::hours(1),
@@ -218,7 +218,7 @@ async fn expiry_worker_reconciles_real_sqlx_transition_and_retry_is_empty() {
             &ticket,
             &attachment,
             1,
-            &TenantScope::Platform,
+            &AuthorityScope::Platform,
             sweep_at - Duration::hours(1),
             &SupportIdempotencyKey::new("worker-expiry-attachment", "worker-expiry-attachment-v1"),
         )
@@ -294,7 +294,7 @@ fn object_access_requires_exact_binding_fresh_authorization_and_live_state() {
     let at = Utc::now();
     let holding_id = Uuid::from_u128(1);
     let company_id = Uuid::from_u128(2);
-    let scope = TenantScope::Company {
+    let scope = AuthorityScope::Company {
         holding_id,
         company_id,
     };

@@ -27,7 +27,7 @@ Status: integrated and independently verified on 2026-07-26.
 
 - Control-plane PostgreSQL is authoritative for provider account routing and
   onboarding state.
-- Tenant databases are not touched by onboarding commands.
+- Holding databases are not touched by onboarding commands.
 - The worker still resolves active accounts from control state and uses the
   existing provider-neutral HTTP adapter. Vendor-native SDKs, external
   provider verification, and live provider evidence remain open work.

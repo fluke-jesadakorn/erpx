@@ -17,7 +17,7 @@
   explicit journal handoffs.
 - Cash reconciliation status with in-progress, exception, reconciled, and
   terminal closed transitions; out-of-balance completion is rejected.
-- Every owned record carries `TenantScope`, `CommandContext`, holding/company
+- Every owned record carries `HoldingScope`, `CommandContext`, holding/company
   scope, accounting period/date, deterministic reference and idempotency key,
   and an optimistic version.
 - Accounting period/company/date checks use the existing Finance
@@ -104,7 +104,7 @@ workflow evidence are recorded separately.
 1. Main agent exports the module without changing the contracts in this packet.
 2. Run `cargo fmt --all --check`, `cargo test -p erpx-domain`, and strict
    domain Clippy; independently review the new tests after collection.
-3. Add tenant write/read persistence and transactional outbox/idempotency
+3. Add holding write/read persistence and transactional outbox/idempotency
    enforcement.
 4. Add Finance transport/application authorization and journal posting
    handoffs.

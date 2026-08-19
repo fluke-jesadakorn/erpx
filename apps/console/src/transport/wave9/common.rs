@@ -5,9 +5,9 @@ use erpx_cqrs::{
     QueryResult,
 };
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AggregateId, CommandId, CorrelationId, EventId, TenantScope,
+    ActorAttribution, ActorKind, AggregateId, AuthorityScope, CommandId, CorrelationId, EventId,
 };
-use erpx_proto::common::v2 as wire;
+use erpx_proto::common as wire;
 use erpx_ui_foundation::{UiError, UiErrorKind};
 use tonic::metadata::MetadataValue;
 use uuid::Uuid;
@@ -19,37 +19,37 @@ const MAX_ROUTE_REFERENCE_LENGTH: usize = 256;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Wave9Route {
-    tenant_id: Uuid,
-    holding_ref: String,
+    holding_id: Uuid,
+    data_profile_key: String,
 }
 
 impl Wave9Route {
     pub(crate) fn try_new(
-        tenant_id: impl AsRef<str>,
-        holding_ref: impl Into<String>,
+        holding_id: impl AsRef<str>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, UiError> {
-        let tenant_id = parse_request_uuid(tenant_id.as_ref(), "build Wave 9 route")?;
-        let holding_ref = holding_ref.into();
-        if holding_ref.trim().is_empty()
-            || holding_ref.len() > MAX_ROUTE_REFERENCE_LENGTH
-            || holding_ref.chars().any(char::is_control)
+        let holding_id = parse_request_uuid(holding_id.as_ref(), "build Wave 9 route")?;
+        let data_profile_key = data_profile_key.into();
+        if data_profile_key.trim().is_empty()
+            || data_profile_key.len() > MAX_ROUTE_REFERENCE_LENGTH
+            || data_profile_key.chars().any(char::is_control)
         {
             return Err(invalid_request("build Wave 9 route"));
         }
         Ok(Self {
-            tenant_id,
-            holding_ref,
+            holding_id,
+            data_profile_key,
         })
     }
 
-    pub(super) const fn tenant_id(&self) -> Uuid {
-        self.tenant_id
+    pub(super) const fn holding_id(&self) -> Uuid {
+        self.holding_id
     }
 
-    fn to_wire(&self) -> wire::TenantRoute {
-        wire::TenantRoute {
-            tenant_id: self.tenant_id.to_string(),
-            holding_ref: self.holding_ref.clone(),
+    fn to_wire(&self) -> wire::HoldingRoute {
+        wire::HoldingRoute {
+            holding_id: self.holding_id.to_string(),
+            data_profile_key: self.data_profile_key.clone(),
         }
     }
 }
@@ -90,7 +90,7 @@ impl AuthenticatedRoute {
             correlation_id: envelope.correlation_id.to_string(),
             causation_id: envelope.causation_id.map(|value| value.to_string()),
             actor: Some(encode_actor(&envelope.actor)),
-            tenant_scope: Some(encode_scope(&envelope.tenant_scope)),
+            active_scope: Some(encode_scope(&envelope.active_scope)),
             audit: Some(wire::AuditContext {
                 purpose: envelope.audit.purpose.clone(),
                 customer_visible: envelope.audit.customer_visible,
@@ -100,7 +100,7 @@ impl AuthenticatedRoute {
             expected_aggregate_version: envelope.expected_aggregate_version,
             subscription_id: None,
             mfa_code: None,
-            tenant_route: Some(self.route.to_wire()),
+            holding_route: Some(self.route.to_wire()),
         })
     }
 
@@ -116,7 +116,7 @@ impl AuthenticatedRoute {
             query_id: envelope.query_id.to_string(),
             correlation_id: envelope.correlation_id.to_string(),
             actor: Some(encode_actor(&envelope.actor)),
-            tenant_scope: Some(encode_scope(&envelope.tenant_scope)),
+            active_scope: Some(encode_scope(&envelope.active_scope)),
             audit: Some(wire::AuditContext {
                 purpose: envelope.audit.purpose.clone(),
                 customer_visible: envelope.audit.customer_visible,
@@ -124,7 +124,7 @@ impl AuthenticatedRoute {
                 correlation_id: envelope.correlation_id.to_string(),
             }),
             consistency: Some(encode_consistency(&envelope.consistency)),
-            tenant_route: Some(self.route.to_wire()),
+            holding_route: Some(self.route.to_wire()),
         })
     }
 
@@ -262,21 +262,21 @@ pub(super) fn projection_metadata(
     })
 }
 
-pub(super) fn encode_scope(value: &TenantScope) -> wire::TenantScope {
-    use wire::tenant_scope::Scope;
+pub(super) fn encode_scope(value: &AuthorityScope) -> wire::AuthorityScope {
+    use wire::authority_scope::Scope;
     let scope = match value {
-        TenantScope::Platform => Scope::Platform(wire::PlatformScope {}),
-        TenantScope::Holding { holding_id } => Scope::Holding(wire::HoldingScope {
+        AuthorityScope::Platform => Scope::Platform(wire::PlatformScope {}),
+        AuthorityScope::Holding { holding_id } => Scope::Holding(wire::HoldingScope {
             holding_id: holding_id.to_string(),
         }),
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Scope::Company(wire::CompanyScope {
             holding_id: holding_id.to_string(),
             company_id: company_id.to_string(),
         }),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -285,55 +285,44 @@ pub(super) fn encode_scope(value: &TenantScope) -> wire::TenantScope {
             company_id: company_id.to_string(),
             branch_id: branch_id.to_string(),
         }),
-        TenantScope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
+            organization_node_id,
         } => Scope::Subtree(wire::SubtreeScope {
             holding_id: holding_id.to_string(),
-            company_ids: company_ids.iter().map(ToString::to_string).collect(),
-            branch_ids: branch_ids.iter().map(ToString::to_string).collect(),
+            organization_node_id: organization_node_id.to_string(),
         }),
     };
-    wire::TenantScope { scope: Some(scope) }
+    wire::AuthorityScope { scope: Some(scope) }
 }
 
-pub(super) fn decode_scope(value: Option<wire::TenantScope>) -> Result<TenantScope, UiError> {
-    use wire::tenant_scope::Scope;
+pub(super) fn decode_scope(value: Option<wire::AuthorityScope>) -> Result<AuthorityScope, UiError> {
+    use wire::authority_scope::Scope;
     let value = value
         .and_then(|value| value.scope)
-        .ok_or_else(|| invalid_response("decode tenant scope"))?;
+        .ok_or_else(|| invalid_response("decode holding scope"))?;
     let scope = match value {
-        Scope::Platform(_) => TenantScope::Platform,
-        Scope::Holding(value) => TenantScope::Holding {
+        Scope::Platform(_) => AuthorityScope::Platform,
+        Scope::Holding(value) => AuthorityScope::Holding {
             holding_id: response_uuid(&value.holding_id)?,
         },
-        Scope::Company(value) => TenantScope::Company {
+        Scope::Company(value) => AuthorityScope::Company {
             holding_id: response_uuid(&value.holding_id)?,
             company_id: response_uuid(&value.company_id)?,
         },
-        Scope::Branch(value) => TenantScope::Branch {
+        Scope::Branch(value) => AuthorityScope::Branch {
             holding_id: response_uuid(&value.holding_id)?,
             company_id: response_uuid(&value.company_id)?,
             branch_id: response_uuid(&value.branch_id)?,
         },
-        Scope::Subtree(value) => TenantScope::Subtree {
+        Scope::Subtree(value) => AuthorityScope::Subtree {
             holding_id: response_uuid(&value.holding_id)?,
-            company_ids: value
-                .company_ids
-                .iter()
-                .map(|id| response_uuid(id))
-                .collect::<Result<_, _>>()?,
-            branch_ids: value
-                .branch_ids
-                .iter()
-                .map(|id| response_uuid(id))
-                .collect::<Result<_, _>>()?,
+            organization_node_id: uuid(&value.organization_node_id)?,
         },
     };
     scope
         .validate()
-        .map_err(|_| invalid_response("decode tenant scope"))?;
+        .map_err(|_| invalid_response("decode holding scope"))?;
     Ok(scope)
 }
 
@@ -430,7 +419,7 @@ fn encode_actor(value: &ActorAttribution) -> wire::ActorAttribution {
         principal_ref: value.principal_ref.clone(),
         kind: match value.kind {
             ActorKind::PlatformUser => wire::ActorKind::PlatformUser as i32,
-            ActorKind::TenantUser => wire::ActorKind::TenantUser as i32,
+            ActorKind::HoldingUser => wire::ActorKind::HoldingUser as i32,
             ActorKind::Service => wire::ActorKind::Service as i32,
             ActorKind::SystemWorker => wire::ActorKind::SystemWorker as i32,
             // The legacy wire contract has no Agent discriminator. Encoding it

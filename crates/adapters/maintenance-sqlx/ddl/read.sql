@@ -1,2 +1,2 @@
--- Evidence contract: canonical installation is tenant-read migration 0052.
+-- Evidence contract: canonical installation is holding-read migration 0052.
 -- Maintenance work-order projections are generation-scoped and disposable.

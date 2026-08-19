@@ -10,7 +10,7 @@ DTOs in the boundary:
   references and exposes no credential, token, card, PAN, CVV, or payment
   instrument field.
 - `BankProviderAccountBinding` binds the opaque account to a local account ID,
-  holding, legal company, explicit company/branch `TenantScope`, currency, and
+  holding, legal company, explicit company/branch `HoldingScope`, currency, and
   display label. The existing validated `BankAccount` constructor is used to
   reject scope mismatches.
 - `BankProviderCursor`, `BankStatementPageRequest`, and
@@ -68,7 +68,7 @@ Results:
   integration run.
 
 The focused tests cover page-size and cursor bounds, repeated cursor
-rejection, incomplete-page mapping rejection, tenant/holding/company scope
+rejection, incomplete-page mapping rejection, holding/holding/company scope
 binding, opaque-reference credential-marker rejection, deterministic request
 and response binding, stable domain transaction IDs, provider-error
 redaction, and an injected fake adapter with no network.
@@ -112,7 +112,7 @@ caller-owned typed workflow that must map only after the final page.
 ## Integration order
 
 1. Keep `BankProviderAdapter` injected at the application boundary.
-2. Resolve active tenant/company scope and Finance entitlement through the
+2. Resolve active holding/company scope and Finance entitlement through the
    authoritative command path.
 3. Fetch pages through `fetch_validated_statement_page` and accumulate only
    typed `BankStatementFacts`.

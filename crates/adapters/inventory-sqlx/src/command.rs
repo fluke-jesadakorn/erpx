@@ -14,7 +14,7 @@ use erpx_inventory::{
     Reservation, ReservationId, ReservationStatus, StockItem, StockItemId, StockItemState,
     StoredCommit, WarehouseId, WriteRepository,
 };
-use erpx_kernel::{AggregateId, CommandId, DataClassification, EventId, RecordId, TenantScope};
+use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId, RecordId};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use sqlx::{Postgres, Row, Transaction};
@@ -48,10 +48,10 @@ struct AuthoritySqlScope {
 }
 
 impl AuthoritySqlScope {
-    fn try_from_scope(scope: &TenantScope) -> Result<Self, PortError> {
+    fn try_from_scope(scope: &AuthorityScope) -> Result<Self, PortError> {
         scope.validate().map_err(|_| PortError::Denied)?;
         Ok(match scope {
-            TenantScope::Platform => Self {
+            AuthorityScope::Platform => Self {
                 mode: "platform",
                 holding_id: None,
                 company_id: None,
@@ -59,7 +59,7 @@ impl AuthoritySqlScope {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Holding { holding_id } => Self {
+            AuthorityScope::Holding { holding_id } => Self {
                 mode: "holding",
                 holding_id: Some(*holding_id),
                 company_id: None,
@@ -67,7 +67,7 @@ impl AuthoritySqlScope {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => Self {
@@ -78,7 +78,7 @@ impl AuthoritySqlScope {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -90,17 +90,16 @@ impl AuthoritySqlScope {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Self {
                 mode: "subtree",
                 holding_id: Some(*holding_id),
                 company_id: None,
                 branch_id: None,
-                company_ids: company_ids.clone(),
-                branch_ids: branch_ids.clone(),
+                company_ids: vec![*organization_node_id],
+                branch_ids: Vec::new(),
             },
         })
     }
@@ -110,7 +109,7 @@ impl AuthoritySqlScope {
 impl WriteRepository for InventoryWriteRepository {
     async fn load(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         stock_item_id: StockItemId,
     ) -> Result<Option<StockItem>, PortError> {
         let authority = AuthoritySqlScope::try_from_scope(authority_scope)?;
@@ -119,7 +118,7 @@ impl WriteRepository for InventoryWriteRepository {
             "SELECT aggregate_version,holding_id,company_id,branch_id,warehouse_id,item_code,
                     on_hand,reserved,created_at,updated_at
              FROM erpx_inventory_write.stock_item_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND stock_item_id=$1
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND stock_item_id=$1
                AND (
                  $2='platform'
                  OR ($2='holding' AND holding_id=$3)
@@ -150,7 +149,7 @@ impl WriteRepository for InventoryWriteRepository {
         let reservation_rows = sqlx::query(
             "SELECT reservation_id,quantity,demand_reference,reservation_status
              FROM erpx_inventory_write.reservation_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND stock_item_id=$1
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND stock_item_id=$1
              ORDER BY reservation_id",
         )
         .bind(stock_item_id.as_uuid())
@@ -165,11 +164,11 @@ impl WriteRepository for InventoryWriteRepository {
         let company_id = row.try_get("company_id").map_err(|_| PortError::Internal)?;
         let branch_id: Option<Uuid> = row.try_get("branch_id").map_err(|_| PortError::Internal)?;
         let scope = branch_id.map_or(
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             },
-            |branch_id| TenantScope::Branch {
+            |branch_id| AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -320,7 +319,7 @@ impl CommandUnitOfWork for InventoryCommandAdapter {
             correlation_id: request.correlation_id,
             idempotency_key: request.identity.idempotency_key,
             request_hash: request_hash(&request.identity.fingerprint)?,
-            tenant_scope: aggregate.scope().clone(),
+            active_scope: aggregate.scope().clone(),
             actor: request.actor,
             audit_context: request.audit,
             aggregate_type: AGGREGATE_TYPE.into(),
@@ -370,7 +369,7 @@ impl AtomicCommandGuard for InventoryGuard {
         guard_context(&self.aggregate, context)?;
         let current: Option<i64> = sqlx::query_scalar(
             "SELECT aggregate_version FROM erpx_inventory_write.stock_item_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND stock_item_id=$1
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND stock_item_id=$1
              FOR UPDATE",
         )
         .bind(self.aggregate.id().as_uuid())
@@ -387,7 +386,7 @@ impl AtomicCommandGuard for InventoryGuard {
         guard_context(&self.aggregate, context)?;
         let current: Option<i64> = sqlx::query_scalar(
             "SELECT aggregate_version FROM erpx_inventory_write.stock_item_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND stock_item_id=$1 FOR UPDATE",
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND stock_item_id=$1 FOR UPDATE",
         )
         .bind(self.aggregate.id().as_uuid())
         .fetch_optional(&mut **transaction)
@@ -402,7 +401,7 @@ impl AtomicCommandGuard for InventoryGuard {
         }
         let duplicate: Option<Uuid> = sqlx::query_scalar(
             "SELECT stock_item_id FROM erpx_inventory_write.stock_item_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id()
+             WHERE holding_id=erpx_cqrs_write.current_holding_id()
                AND scope_key=$1 AND warehouse_id=$2 AND item_code=$3 AND stock_item_id<>$4
              ORDER BY stock_item_id LIMIT 1 FOR UPDATE",
         )
@@ -423,7 +422,7 @@ impl AtomicCommandGuard for InventoryGuard {
             | CommandFingerprint::FulfillReservation { movement_id, .. } => {
                 let exists: bool = sqlx::query_scalar(
                     "SELECT EXISTS (SELECT 1 FROM erpx_inventory_write.movement_authority
-                     WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND movement_id=$1)",
+                     WHERE holding_id=erpx_cqrs_write.current_holding_id() AND movement_id=$1)",
                 )
                 .bind(movement_id.as_uuid())
                 .fetch_one(&mut **transaction)
@@ -437,7 +436,7 @@ impl AtomicCommandGuard for InventoryGuard {
             CommandFingerprint::Reserve { reservation_id, .. } => {
                 let exists: bool = sqlx::query_scalar(
                     "SELECT EXISTS (SELECT 1 FROM erpx_inventory_write.reservation_authority
-                     WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND reservation_id=$1)",
+                     WHERE holding_id=erpx_cqrs_write.current_holding_id() AND reservation_id=$1)",
                 )
                 .bind(reservation_id.as_uuid())
                 .fetch_one(&mut **transaction)
@@ -471,18 +470,18 @@ impl AtomicCommandGuard for InventoryGuard {
         let (holding_id, company_id, branch_id) = exact_scope_columns(self.aggregate.scope())?;
         let result = sqlx::query(
             "INSERT INTO erpx_inventory_write.stock_item_authority
-                (tenant_id,stock_item_id,aggregate_version,scope_key,holding_id,company_id,
+                (holding_id,stock_item_id,aggregate_version,scope_key,holding_id,company_id,
                  branch_id,warehouse_id,item_code,on_hand,reserved,created_at,updated_at)
-             VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-             ON CONFLICT (tenant_id,stock_item_id) DO UPDATE SET
+             VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+             ON CONFLICT (holding_id,stock_item_id) DO UPDATE SET
                 aggregate_version=EXCLUDED.aggregate_version,scope_key=EXCLUDED.scope_key,
                 holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,
                 branch_id=EXCLUDED.branch_id,
                 warehouse_id=EXCLUDED.warehouse_id,item_code=EXCLUDED.item_code,
                 on_hand=EXCLUDED.on_hand,reserved=EXCLUDED.reserved,
                 created_at=EXCLUDED.created_at,updated_at=EXCLUDED.updated_at
-             WHERE erpx_inventory_write.stock_item_authority.tenant_id=
-                       erpx_cqrs_write.current_tenant_id()
+             WHERE erpx_inventory_write.stock_item_authority.holding_id=
+                       erpx_cqrs_write.current_holding_id()
                AND erpx_inventory_write.stock_item_authority.aggregate_version + 1=
                        EXCLUDED.aggregate_version",
         )
@@ -511,9 +510,9 @@ impl AtomicCommandGuard for InventoryGuard {
         {
             sqlx::query(
                 "INSERT INTO erpx_inventory_write.movement_authority
-                    (tenant_id,movement_id,stock_item_id,quantity_delta,procurement_line_id,
+                    (holding_id,movement_id,stock_item_id,quantity_delta,procurement_line_id,
                      aggregate_version,occurred_at)
-                 VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6)",
+                 VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6)",
             )
             .bind(movement_id)
             .bind(self.aggregate.id().as_uuid())
@@ -527,7 +526,7 @@ impl AtomicCommandGuard for InventoryGuard {
 
         sqlx::query(
             "DELETE FROM erpx_inventory_write.reservation_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND stock_item_id=$1",
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND stock_item_id=$1",
         )
         .bind(self.aggregate.id().as_uuid())
         .execute(&mut **transaction)
@@ -535,9 +534,9 @@ impl AtomicCommandGuard for InventoryGuard {
         for reservation in self.aggregate.reservations().values() {
             sqlx::query(
                 "INSERT INTO erpx_inventory_write.reservation_authority
-                    (tenant_id,reservation_id,stock_item_id,quantity,demand_reference,
+                    (holding_id,reservation_id,stock_item_id,quantity,demand_reference,
                      reservation_status,aggregate_version,updated_at)
-                 VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7)",
+                 VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7)",
             )
             .bind(reservation.reservation_id.as_uuid())
             .bind(self.aggregate.id().as_uuid())
@@ -551,7 +550,7 @@ impl AtomicCommandGuard for InventoryGuard {
         }
         sqlx::query(
             "DELETE FROM erpx_inventory_write.reservation_records
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND stock_item_id=$1",
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND stock_item_id=$1",
         )
         .bind(self.aggregate.id().as_uuid())
         .execute(&mut **transaction)
@@ -559,9 +558,9 @@ impl AtomicCommandGuard for InventoryGuard {
         for reservation in self.aggregate.reservations().values() {
             sqlx::query(
                 "INSERT INTO erpx_inventory_write.reservation_records
-                    (tenant_id,reservation_id,stock_item_id,source_item_version,tenant_scope,
+                    (holding_id,reservation_id,stock_item_id,source_item_version,active_scope,
                      warehouse_id,item_code,quantity,demand_reference,reservation_status,updated_at)
-                 VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+                 VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
             )
             .bind(reservation.reservation_id.as_uuid())
             .bind(self.aggregate.id().as_uuid())
@@ -763,13 +762,13 @@ fn deterministic_uuid(seed: Uuid, label: &[u8]) -> Uuid {
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
     Uuid::from_bytes(bytes)
 }
-fn scope_key(scope: &TenantScope) -> Result<String, CqrsSqlxError> {
+fn scope_key(scope: &AuthorityScope) -> Result<String, CqrsSqlxError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok(format!("company:{holding_id}:{company_id}")),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -786,13 +785,15 @@ fn from_i64(value: i64) -> Result<u64, PortError> {
 fn from_i64_store(value: i64) -> Result<u64, CqrsSqlxError> {
     u64::try_from(value).map_err(|_| CqrsSqlxError::NumericRange)
 }
-fn exact_scope_columns(scope: &TenantScope) -> Result<(Uuid, Uuid, Option<Uuid>), CqrsSqlxError> {
+fn exact_scope_columns(
+    scope: &AuthorityScope,
+) -> Result<(Uuid, Uuid, Option<Uuid>), CqrsSqlxError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok((*holding_id, *company_id, None)),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -845,7 +846,7 @@ mod tests {
                 &fingerprint,
                 &StockItem::register(
                     StockItemId::try_from_uuid(Uuid::from_u128(10)).unwrap(),
-                    TenantScope::Company {
+                    AuthorityScope::Company {
                         holding_id: Uuid::from_u128(1),
                         company_id: Uuid::from_u128(2)
                     },

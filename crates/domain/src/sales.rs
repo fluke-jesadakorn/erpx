@@ -1,4 +1,4 @@
-//! Tenant-bound Sales contracts.
+//! Holding-bound Sales contracts.
 //!
 //! Sales owns the commercial progression from a customer master reference to
 //! a collection state. It does not own customer master data, inventory,
@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::contracts::{CommandContext, TenantScope};
+use crate::contracts::{AuthorityScope, CommandContext};
 
 pub const SALES_CONTRACT_VERSION: u16 = 1;
 pub const MAX_SALES_TEXT_BYTES: usize = 255;
@@ -34,8 +34,8 @@ pub enum SalesError {
     InvalidScope,
     #[error("command scope {command_scope:?} does not contain record scope {record_scope:?}")]
     CommandScopeOutside {
-        command_scope: Box<TenantScope>,
-        record_scope: Box<TenantScope>,
+        command_scope: Box<AuthorityScope>,
+        record_scope: Box<AuthorityScope>,
     },
     #[error("customer reference scope does not contain the sales record scope")]
     CustomerScopeOutside,
@@ -93,7 +93,7 @@ pub enum SalesError {
     },
 }
 
-/// Tenant-scoped source/read reconciliation facts for the disposable Sales
+/// Holding-scoped source/read reconciliation facts for the disposable Sales
 /// projection. The write aggregate and outbox remain authoritative; callers
 /// must treat any non-zero mismatch as a rebuild/incident signal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -190,7 +190,7 @@ pub fn validate_save_command_binding(
     kind: SalesAggregateKind,
     aggregate_command_id: Uuid,
     aggregate_idempotency_key: &str,
-    aggregate_scope: &TenantScope,
+    aggregate_scope: &AuthorityScope,
     context: &CommandContext,
 ) -> Result<(), SalesError> {
     validate_command_scope(context, aggregate_scope)?;
@@ -217,7 +217,7 @@ pub fn validate_save_command_binding(
 pub struct CustomerMasterReference {
     pub customer_id: Uuid,
     pub customer_reference: String,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub holding_id: Uuid,
     pub company_id: Uuid,
     pub branch_id: Option<Uuid>,
@@ -226,7 +226,7 @@ pub struct CustomerMasterReference {
 impl CustomerMasterReference {
     pub fn new(
         customer_id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         holding_id: Uuid,
         company_id: Uuid,
         branch_id: Option<Uuid>,
@@ -324,7 +324,7 @@ pub struct Lead {
     pub reference: String,
     pub idempotency_key: String,
     pub command_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub holding_id: Uuid,
     pub company_id: Uuid,
     pub branch_id: Option<Uuid>,
@@ -340,7 +340,7 @@ impl Lead {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         holding_id: Uuid,
         company_id: Uuid,
         branch_id: Option<Uuid>,
@@ -454,7 +454,7 @@ pub struct Opportunity {
     pub reference: String,
     pub idempotency_key: String,
     pub command_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub holding_id: Uuid,
     pub company_id: Uuid,
     pub branch_id: Option<Uuid>,
@@ -472,7 +472,7 @@ impl Opportunity {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         holding_id: Uuid,
         company_id: Uuid,
         branch_id: Option<Uuid>,
@@ -619,7 +619,7 @@ pub struct Quote {
     pub reference: String,
     pub idempotency_key: String,
     pub command_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub holding_id: Uuid,
     pub company_id: Uuid,
     pub branch_id: Option<Uuid>,
@@ -638,7 +638,7 @@ impl Quote {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         holding_id: Uuid,
         company_id: Uuid,
         branch_id: Option<Uuid>,
@@ -787,7 +787,7 @@ pub struct SalesOrder {
     pub reference: String,
     pub idempotency_key: String,
     pub command_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub holding_id: Uuid,
     pub company_id: Uuid,
     pub branch_id: Option<Uuid>,
@@ -958,7 +958,7 @@ pub struct DeliveryHandoff {
     pub reference: String,
     pub idempotency_key: String,
     pub command_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub holding_id: Uuid,
     pub company_id: Uuid,
     pub branch_id: Option<Uuid>,
@@ -1084,7 +1084,7 @@ pub struct InvoiceHandoff {
     pub reference: String,
     pub idempotency_key: String,
     pub command_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub holding_id: Uuid,
     pub company_id: Uuid,
     pub branch_id: Option<Uuid>,
@@ -1274,7 +1274,7 @@ pub struct CollectionState {
     pub reference: String,
     pub idempotency_key: String,
     pub command_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub holding_id: Uuid,
     pub company_id: Uuid,
     pub branch_id: Option<Uuid>,
@@ -1520,7 +1520,7 @@ impl_sales_save_validation!(CollectionState, SalesAggregateKind::CollectionState
 
 fn validate_customer(
     customer: Option<&CustomerMasterReference>,
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     holding_id: Uuid,
     company_id: Uuid,
 ) -> Result<(), SalesError> {
@@ -1573,7 +1573,7 @@ fn validate_identity(
     Ok(())
 }
 
-fn compatible_scopes(left: &TenantScope, right: &TenantScope) -> bool {
+fn compatible_scopes(left: &AuthorityScope, right: &AuthorityScope) -> bool {
     left.contains(right) || right.contains(left)
 }
 
@@ -1602,21 +1602,21 @@ fn validate_context(context: &CommandContext) -> Result<(), SalesError> {
 
 fn validate_command_scope(
     context: &CommandContext,
-    record_scope: &TenantScope,
+    record_scope: &AuthorityScope,
 ) -> Result<(), SalesError> {
     validate_context(context)?;
-    if context.tenant_scope.contains(record_scope) {
+    if context.active_scope.contains(record_scope) {
         Ok(())
     } else {
         Err(SalesError::CommandScopeOutside {
-            command_scope: Box::new(context.tenant_scope.clone()),
+            command_scope: Box::new(context.active_scope.clone()),
             record_scope: Box::new(record_scope.clone()),
         })
     }
 }
 
 fn validate_scope_binding(
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     holding_id: Uuid,
     company_id: Uuid,
     branch_id: Option<Uuid>,
@@ -1628,14 +1628,14 @@ fn validate_scope_binding(
     }
     match (scope, branch_id) {
         (
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id: scoped_holding,
                 company_id: scoped_company,
             },
             None,
         ) if *scoped_holding == holding_id && *scoped_company == company_id => Ok(()),
         (
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id: scoped_holding,
                 company_id: scoped_company,
                 branch_id: scoped_branch,
@@ -1723,27 +1723,27 @@ mod tests {
     use crate::contracts::{ActorAttribution, ActorKind};
     use chrono::Duration;
 
-    fn company_scope() -> TenantScope {
-        TenantScope::Company {
+    fn company_scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         }
     }
 
-    fn branch_scope(branch_id: u128) -> TenantScope {
-        TenantScope::Branch {
+    fn branch_scope(branch_id: u128) -> AuthorityScope {
+        AuthorityScope::Branch {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
             branch_id: Uuid::from_u128(branch_id),
         }
     }
 
-    fn context(scope: TenantScope, key: &str) -> CommandContext {
+    fn context(scope: AuthorityScope, key: &str) -> CommandContext {
         CommandContext::try_new(
             key,
             ActorAttribution {
                 principal_ref: "sales-test-user".into(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: Some(Uuid::from_u128(90)),
                 represented_principal_ref: None,
                 support_capability_id: None,
@@ -1754,7 +1754,7 @@ mod tests {
         .expect("valid command context")
     }
 
-    fn customer(scope: TenantScope, branch_id: Option<Uuid>) -> CustomerMasterReference {
+    fn customer(scope: AuthorityScope, branch_id: Option<Uuid>) -> CustomerMasterReference {
         CustomerMasterReference::new(
             Uuid::from_u128(10),
             scope,
@@ -1780,7 +1780,7 @@ mod tests {
     fn rejects_platform_scope_and_unbound_branch_scope() {
         let invalid_customer = CustomerMasterReference::new(
             Uuid::from_u128(10),
-            TenantScope::Platform,
+            AuthorityScope::Platform,
             Uuid::from_u128(1),
             Uuid::from_u128(2),
             None,

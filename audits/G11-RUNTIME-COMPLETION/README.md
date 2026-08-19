@@ -14,9 +14,9 @@ read-model SQL, migrations, transport, authorization, or worker composition.
 
 ## Delivered behavior
 
-- Tenant and holding references are validated through the existing bounded HR
+- Holding and holding references are validated through the existing bounded HR
   request contract.
-- The handler receives a `TenantDatabaseRouter` from the coordinator. The
+- The handler receives a `HoldingDatabaseRouter` from the coordinator. The
   existing runner routes the authoritative write/outbox database and the
   disposable read database independently and closes both routes on every
   result path.
@@ -32,7 +32,7 @@ read-model SQL, migrations, transport, authorization, or worker composition.
   append-only events are never deleted or rewritten.
 - Worker counters are derived from typed reports, and all database failures are
   mapped to operation-only redacted errors. No database URL, SQL text,
-  credential, payload, or tenant data is included in an error string.
+  credential, payload, or holding data is included in an error string.
 - Focused tests cover mode parsing, shared bounds, fail-closed references,
   rebuild health decisions, bounded worker counters, and redacted errors.
 
@@ -44,8 +44,8 @@ The coordinator must, in shared registration-owned files:
    `HR_COMPLETION_HANDLER_NAME` and `HrCompletionRuntimeHandler` from the
    worker library.
 2. In the worker composition root, create
-   `TenantDatabaseProvisioningConfig::from_env()`, construct the existing
-   `TenantDatabaseRouter` from the control-plane store, and register
+   `HoldingDatabaseProvisioningConfig::from_env()`, construct the existing
+   `HoldingDatabaseRouter` from the control-plane store, and register
    `HrCompletionRuntimeHandler::from_env(router)` when
    `ERPX_WORKER_HANDLER=hr_payroll_completion`.
 3. Persist the `project_page` continuation cursor in the authoritative
@@ -59,10 +59,10 @@ The coordinator must, in shared registration-owned files:
 ## Blockers and rollback
 
 This packet cannot claim live acceptance until the coordinator registers the
-module and supplies two disposable tenant databases/control-plane routing.
+module and supplies two disposable holding databases/control-plane routing.
 The existing ignored HR test and any payroll-provider certification still need
 real infrastructure; no mock or schema-only result is sufficient. No external
-payroll provider, production tenant, Folio write path, or cutover was changed.
+payroll provider, production holding, Folio write path, or cutover was changed.
 
 Rollback is additive: remove this module and audit directory. Existing HR
 authoritative write tables, outbox history, and typed read-model rebuild path

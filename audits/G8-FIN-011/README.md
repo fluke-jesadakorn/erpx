@@ -2,7 +2,7 @@
 
 ## Scope
 
-This packet implements the tenant-local Finance banking write slice. It does
+This packet implements the holding-local Finance banking write slice. It does
 not close the G8 Finance gate and does not claim a bank-provider adapter,
 banking read projection, transport, or statutory reconciliation.
 
@@ -20,7 +20,7 @@ banking read projection, transport, or statutory reconciliation.
   receipts with the authoritative rows.
 - Added bounded Finance banking source-event pages with stable aggregate/type/
   version cursors for a later worker projector.
-- Added tenant-write migration `0028_finance_banking.sql` with forced RLS on
+- Added holding-write migration `0028_finance_banking.sql` with forced RLS on
   all banking tables and no provider credentials or payment instruments.
 - Kept provider ingestion outside the repository boundary; callers provide
   validated domain facts.
@@ -29,7 +29,7 @@ banking read projection, transport, or statutory reconciliation.
 
 - `crates/infrastructure/src/finance_banking_persistence.rs`
 - `crates/infrastructure/src/lib.rs`
-- `crates/migration/migrations_tenant_write/0028_finance_banking.sql`
+- `crates/migration/migrations_holding_write/0028_finance_banking.sql`
 - `crates/migration/src/lib.rs` (migration composition marker)
 - `crates/infrastructure/tests/finance_banking_persistence.rs`
 
@@ -50,7 +50,7 @@ banking read projection, transport, or statutory reconciliation.
 
 ## Security and remaining work
 
-Holding-scoped transactions set `erpx.holding_ref` before reads/writes, and
+Holding-scoped transactions set `erpx.data_profile_key` before reads/writes, and
 the migration enables and forces RLS for every banking relation. Only opaque
 account/provider references are stored. No credentials, tokens, or payment
 instruments are accepted or serialized by this packet.
@@ -65,5 +65,5 @@ Finance migration reconciliation remain open.
 
 The packet is additive. Stop any banking worker/transport integration before
 removing the store exports and migration after confirming no rows use the
-tables. The disposable verification databases were removed; Folio and tenant
+tables. The disposable verification databases were removed; Folio and holding
 command ownership were not changed.

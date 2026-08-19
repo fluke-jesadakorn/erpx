@@ -2,27 +2,29 @@ use async_trait::async_trait;
 use erpx_cqrs::{CommandEnvelope, CommandReceipt, QueryEnvelope, QueryResult};
 use erpx_platform_administration::{
     AdminContextStatus, AdminContextView, ConnectorKind, ConnectorView, GetAdminContext,
-    GetAdminContextResult, GetConnector, GetConnectorResult, GetPlatformTenant,
-    GetPlatformTenantResult, IssueTenantAdminContext, ListConnectors, ListPlatformTenants, Page,
-    PlatformAdministrationMutationResult, RegisterConnector, RegisterPlatformTenant,
-    RevokeTenantAdminContext, TenantLifecycleState, TenantView, TransitionConnector,
-    TransitionPlatformTenant,
+    GetAdminContextResult, GetConnector, GetConnectorResult, GetPlatformHolding,
+    GetPlatformHoldingResult, HoldingLifecycleState, HoldingView, IssueHoldingAdminContext,
+    ListConnectors, ListPlatformHoldings, Page, PlatformAdministrationMutationResult,
+    RegisterConnector, RegisterPlatformHolding, RevokeHoldingAdminContext, TransitionConnector,
+    TransitionPlatformHolding,
 };
 use erpx_ui_foundation::{CommandGateway, QueryGateway, UiError};
 
-use super::model::{AdminContextItem, ConnectorItem, TenantItem};
+use super::model::{AdminContextItem, ConnectorItem, HoldingItem};
 
-pub fn tenant_item(value: &TenantView) -> TenantItem {
-    TenantItem {
-        id: value.tenant_id.as_uuid().to_string(),
+pub fn holding_item(value: &HoldingView) -> HoldingItem {
+    HoldingItem {
+        id: value.holding_id.as_uuid().to_string(),
         code: value.code.clone(),
         name: value.name.clone(),
         status: match value.status {
-            TenantLifecycleState::Provisioning => "provisioning",
-            TenantLifecycleState::Active => "active",
-            TenantLifecycleState::Suspended => "suspended",
-            TenantLifecycleState::Recovery => "recovery",
-            TenantLifecycleState::Retired => "retired",
+            HoldingLifecycleState::PendingSubscription => "pending_subscription",
+            HoldingLifecycleState::Provisioning => "provisioning",
+            HoldingLifecycleState::ProvisioningFailed => "provisioning_failed",
+            HoldingLifecycleState::Active => "active",
+            HoldingLifecycleState::Suspended => "suspended",
+            HoldingLifecycleState::Recovery => "recovery",
+            HoldingLifecycleState::Retired => "retired",
         }
         .into(),
         environment_id: value.environment_id.as_uuid().to_string(),
@@ -50,7 +52,7 @@ pub fn connector_item(value: &ConnectorView) -> ConnectorItem {
 pub fn admin_context_item(value: &AdminContextView) -> AdminContextItem {
     AdminContextItem {
         id: value.context_id.as_uuid().to_string(),
-        tenant_id: value.tenant_id.as_uuid().to_string(),
+        holding_id: value.holding_id.as_uuid().to_string(),
         principal_ref: value.principal_ref.clone(),
         reason: value.reason.clone(),
         status: match value.status {
@@ -67,13 +69,13 @@ pub fn admin_context_item(value: &AdminContextView) -> AdminContextItem {
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 pub trait PlatformAdministrationProtoTransport: Send + Sync {
-    async fn register_tenant(
+    async fn register_holding(
         &self,
-        envelope: CommandEnvelope<RegisterPlatformTenant>,
+        envelope: CommandEnvelope<RegisterPlatformHolding>,
     ) -> Result<CommandReceipt<PlatformAdministrationMutationResult>, UiError>;
-    async fn transition_tenant(
+    async fn transition_holding(
         &self,
-        envelope: CommandEnvelope<TransitionPlatformTenant>,
+        envelope: CommandEnvelope<TransitionPlatformHolding>,
     ) -> Result<CommandReceipt<PlatformAdministrationMutationResult>, UiError>;
     async fn register_connector(
         &self,
@@ -85,20 +87,20 @@ pub trait PlatformAdministrationProtoTransport: Send + Sync {
     ) -> Result<CommandReceipt<PlatformAdministrationMutationResult>, UiError>;
     async fn issue_admin_context(
         &self,
-        envelope: CommandEnvelope<IssueTenantAdminContext>,
+        envelope: CommandEnvelope<IssueHoldingAdminContext>,
     ) -> Result<CommandReceipt<PlatformAdministrationMutationResult>, UiError>;
     async fn revoke_admin_context(
         &self,
-        envelope: CommandEnvelope<RevokeTenantAdminContext>,
+        envelope: CommandEnvelope<RevokeHoldingAdminContext>,
     ) -> Result<CommandReceipt<PlatformAdministrationMutationResult>, UiError>;
-    async fn get_tenant(
+    async fn get_holding(
         &self,
-        envelope: QueryEnvelope<GetPlatformTenant>,
-    ) -> Result<QueryResult<GetPlatformTenantResult>, UiError>;
-    async fn list_tenants(
+        envelope: QueryEnvelope<GetPlatformHolding>,
+    ) -> Result<QueryResult<GetPlatformHoldingResult>, UiError>;
+    async fn list_holdings(
         &self,
-        envelope: QueryEnvelope<ListPlatformTenants>,
-    ) -> Result<QueryResult<Page<TenantView>>, UiError>;
+        envelope: QueryEnvelope<ListPlatformHoldings>,
+    ) -> Result<QueryResult<Page<HoldingView>>, UiError>;
     async fn get_connector(
         &self,
         envelope: QueryEnvelope<GetConnector>,
@@ -145,12 +147,12 @@ macro_rules! command_gateway {
         }
     };
 }
-command_gateway!(RegisterPlatformTenant, register_tenant);
-command_gateway!(TransitionPlatformTenant, transition_tenant);
+command_gateway!(RegisterPlatformHolding, register_holding);
+command_gateway!(TransitionPlatformHolding, transition_holding);
 command_gateway!(RegisterConnector, register_connector);
 command_gateway!(TransitionConnector, transition_connector);
-command_gateway!(IssueTenantAdminContext, issue_admin_context);
-command_gateway!(RevokeTenantAdminContext, revoke_admin_context);
+command_gateway!(IssueHoldingAdminContext, issue_admin_context);
+command_gateway!(RevokeHoldingAdminContext, revoke_admin_context);
 macro_rules! query_gateway {
     ($query:ty,$response:ty,$method:ident) => {
         #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
@@ -168,8 +170,8 @@ macro_rules! query_gateway {
         }
     };
 }
-query_gateway!(GetPlatformTenant, GetPlatformTenantResult, get_tenant);
-query_gateway!(ListPlatformTenants, Page<TenantView>, list_tenants);
+query_gateway!(GetPlatformHolding, GetPlatformHoldingResult, get_holding);
+query_gateway!(ListPlatformHoldings, Page<HoldingView>, list_holdings);
 query_gateway!(GetConnector, GetConnectorResult, get_connector);
 query_gateway!(ListConnectors, Page<ConnectorView>, list_connectors);
 query_gateway!(GetAdminContext, GetAdminContextResult, get_admin_context);
@@ -186,14 +188,14 @@ mod tests {
     fn all_typed_operations_are_registered() {
         let source = include_str!("gateway.rs");
         for method in [
-            "register_tenant",
-            "transition_tenant",
+            "register_holding",
+            "transition_holding",
             "register_connector",
             "transition_connector",
             "issue_admin_context",
             "revoke_admin_context",
-            "get_tenant",
-            "list_tenants",
+            "get_holding",
+            "list_holdings",
             "get_connector",
             "list_connectors",
             "get_admin_context",

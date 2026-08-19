@@ -58,7 +58,7 @@ rollback-safe claim. No source fix was made in this packet.
 This packet does not claim G11 completion. The following remain queued for
 separate bounded ownership:
 
-- Quality SQLx write/read persistence, outbox/idempotency receipts, tenant RLS,
+- Quality SQLx write/read persistence, outbox/idempotency receipts, holding RLS,
   projection, reconciliation, clear/replay, and live rollback evidence.
 - Quality worker registration, claiming, retry/restart behavior,
   idempotent projection, and replay/dead-letter evidence.

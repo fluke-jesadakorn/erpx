@@ -6,12 +6,12 @@ use erpx_infrastructure::RoutedDatabaseSide;
 use erpx_integration_contracts::{
     RecordTypeId, RecordVersionRef, StableRecordRef, catalog::ContextId,
 };
-use erpx_kernel::{CommandId, CorrelationId, PrincipalId, RecordId, TenantScope};
+use erpx_kernel::{AuthorityScope, CommandId, CorrelationId, PrincipalId, RecordId};
 use erpx_learning as learning;
 use erpx_learning_sqlx as learning_sqlx;
 use erpx_proto::{
-    common::v2 as common,
-    erpx::learning::v2::{self as wire},
+    common,
+    erpx::learning::{self as wire},
 };
 use prost::Message;
 use sha2::{Digest, Sha256};
@@ -58,7 +58,7 @@ impl learning::AuthorizationPort for LearningAccess {
     async fn authorize(
         &self,
         actor: &learning::ActorContext,
-        target_scope: &TenantScope,
+        target_scope: &AuthorityScope,
         action: learning::LearningAction,
     ) -> Result<learning::AuthorizedLearningAccess, learning::PortError> {
         let writes = !matches!(action, learning::LearningAction::View);
@@ -78,7 +78,7 @@ impl learning::AuthorizationPort for LearningAccess {
 
 fn actor(invocation: &FutureInvocation) -> learning::ActorContext {
     learning::ActorContext {
-        tenant_id: invocation.tenant_id,
+        holding_id: invocation.holding_id,
         principal_id: invocation.principal_id,
         authority_scope: invocation.scope.clone(),
     }
@@ -143,37 +143,28 @@ fn query_context(context: Option<&common::QueryContext>) -> Result<&common::Quer
     context.ok_or_else(|| Status::invalid_argument("query context is required"))
 }
 
-fn decode_scope(value: Option<&common::TenantScope>) -> Result<TenantScope, Status> {
-    use common::tenant_scope::Scope;
+fn decode_scope(value: Option<&common::AuthorityScope>) -> Result<AuthorityScope, Status> {
+    use common::authority_scope::Scope;
     let scope = value
         .and_then(|value| value.scope.as_ref())
         .ok_or_else(|| Status::invalid_argument("record scope is required"))?;
     let decoded = match scope {
-        Scope::Platform(_) => TenantScope::Platform,
-        Scope::Holding(value) => TenantScope::Holding {
+        Scope::Platform(_) => AuthorityScope::Platform,
+        Scope::Holding(value) => AuthorityScope::Holding {
             holding_id: uuid(&value.holding_id, "holding_id")?,
         },
-        Scope::Company(value) => TenantScope::Company {
+        Scope::Company(value) => AuthorityScope::Company {
             holding_id: uuid(&value.holding_id, "holding_id")?,
             company_id: uuid(&value.company_id, "company_id")?,
         },
-        Scope::Branch(value) => TenantScope::Branch {
+        Scope::Branch(value) => AuthorityScope::Branch {
             holding_id: uuid(&value.holding_id, "holding_id")?,
             company_id: uuid(&value.company_id, "company_id")?,
             branch_id: uuid(&value.branch_id, "branch_id")?,
         },
-        Scope::Subtree(value) => TenantScope::Subtree {
+        Scope::Subtree(value) => AuthorityScope::Subtree {
             holding_id: uuid(&value.holding_id, "holding_id")?,
-            company_ids: value
-                .company_ids
-                .iter()
-                .map(|value| uuid(value, "company_id"))
-                .collect::<Result<_, _>>()?,
-            branch_ids: value
-                .branch_ids
-                .iter()
-                .map(|value| uuid(value, "branch_id"))
-                .collect::<Result<_, _>>()?,
+            organization_node_id: uuid(&value.organization_node_id, "organization_node_id")?,
         },
     };
     decoded.validate().map_err(|_| invalid("record scope"))?;
@@ -182,7 +173,7 @@ fn decode_scope(value: Option<&common::TenantScope>) -> Result<TenantScope, Stat
 
 fn ensure_scope(
     invocation: &FutureInvocation,
-    presented: Option<&common::TenantScope>,
+    presented: Option<&common::AuthorityScope>,
 ) -> Result<(), Status> {
     if decode_scope(presented)? == invocation.scope {
         Ok(())
@@ -193,21 +184,21 @@ fn ensure_scope(
     }
 }
 
-fn encode_scope(scope: &TenantScope) -> common::TenantScope {
-    use common::tenant_scope::Scope;
+fn encode_scope(scope: &AuthorityScope) -> common::AuthorityScope {
+    use common::authority_scope::Scope;
     let scope = match scope {
-        TenantScope::Platform => Scope::Platform(common::PlatformScope {}),
-        TenantScope::Holding { holding_id } => Scope::Holding(common::HoldingScope {
+        AuthorityScope::Platform => Scope::Platform(common::PlatformScope {}),
+        AuthorityScope::Holding { holding_id } => Scope::Holding(common::HoldingScope {
             holding_id: holding_id.to_string(),
         }),
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Scope::Company(common::CompanyScope {
             holding_id: holding_id.to_string(),
             company_id: company_id.to_string(),
         }),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -216,17 +207,15 @@ fn encode_scope(scope: &TenantScope) -> common::TenantScope {
             company_id: company_id.to_string(),
             branch_id: branch_id.to_string(),
         }),
-        TenantScope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
+            organization_node_id,
         } => Scope::Subtree(common::SubtreeScope {
             holding_id: holding_id.to_string(),
-            company_ids: company_ids.iter().map(ToString::to_string).collect(),
-            branch_ids: branch_ids.iter().map(ToString::to_string).collect(),
+            organization_node_id: organization_node_id.to_string(),
         }),
     };
-    common::TenantScope { scope: Some(scope) }
+    common::AuthorityScope { scope: Some(scope) }
 }
 
 fn stable_reference(
@@ -317,7 +306,7 @@ async fn invocation_for_command<T>(
     state: &AppState,
     request: &Request<T>,
     context: &common::CommandContext,
-    scope: Option<&common::TenantScope>,
+    scope: Option<&common::AuthorityScope>,
 ) -> Result<FutureInvocation, Status> {
     let invocation =
         future_auth::command(state, request, Some(context), PRODUCT, WRITE_PERMISSION).await?;
@@ -727,7 +716,7 @@ impl wire::learning_query_service_server::LearningQueryService for LearningQuery
         ensure_scope(&invocation, body.enrollment_scope.as_ref())?;
         let pool = future_auth::pool(&self.state, &invocation, RoutedDatabaseSide::Read).await?;
         let owner_actor = actor(&invocation);
-        let read = learning_sqlx::SqlxLearningReadRepository::new(pool, invocation.tenant_id)
+        let read = learning_sqlx::SqlxLearningReadRepository::new(pool, invocation.holding_id)
             .map_err(|_| Status::unavailable("learning read model is unavailable"))?;
         let projection = learning::LearningQueryService::new(
             LearningAccess {
@@ -784,7 +773,7 @@ impl wire::learning_query_service_server::LearningQueryService for LearningQuery
         ensure_scope(&invocation, body.record_scope.as_ref())?;
         let pool = future_auth::pool(&self.state, &invocation, RoutedDatabaseSide::Read).await?;
         let owner_actor = actor(&invocation);
-        let read = learning_sqlx::SqlxLearningReadRepository::new(pool, invocation.tenant_id)
+        let read = learning_sqlx::SqlxLearningReadRepository::new(pool, invocation.holding_id)
             .map_err(|_| Status::unavailable("learning read model is unavailable"))?;
         let projection = learning::LearningQueryService::new(
             LearningAccess {

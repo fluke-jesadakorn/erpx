@@ -133,17 +133,17 @@ impl ReadSideStore {
         partition: &str,
         command_id: CommandId,
     ) -> Result<Option<ReadSideReceipt>, CqrsSqlxError> {
-        let statement = if self.pool.tenant_id().is_some() {
+        let statement = if self.pool.holding_id().is_some() {
             "SELECT receipt.command_id, receipt.correlation_id, receipt.event_id,
                     receipt.global_sequence, receipt.projected_at
              FROM erpx_cqrs_read.projection_receipts receipt
              JOIN erpx_cqrs_read.projection_generations generation
-               ON generation.tenant_id = receipt.tenant_id
+               ON generation.holding_id = receipt.holding_id
               AND generation.projection_name = receipt.projection_name
               AND generation.generation = receipt.generation
               AND generation.status = 'active'
              WHERE receipt.projection_name = $1 AND receipt.partition_key = $2
-               AND receipt.command_id = $3 AND receipt.tenant_id = $4"
+               AND receipt.command_id = $3 AND receipt.holding_id = $4"
         } else {
             "SELECT receipt.command_id, receipt.correlation_id, receipt.event_id,
                     receipt.global_sequence, receipt.projected_at
@@ -160,10 +160,10 @@ impl ReadSideStore {
             .bind(projection)
             .bind(partition)
             .bind(command_id.as_uuid());
-        let row = match self.pool.tenant_id() {
-            Some(tenant_id) => {
+        let row = match self.pool.holding_id() {
+            Some(holding_id) => {
                 query
-                    .bind(tenant_id)
+                    .bind(holding_id)
                     .fetch_optional(&mut *transaction)
                     .await?
             }
@@ -194,16 +194,16 @@ async fn load_active_checkpoint(
     projection: &str,
     partition: &str,
 ) -> Result<Option<ProjectionCheckpoint>, CqrsSqlxError> {
-    let statement = if pool.tenant_id().is_some() {
+    let statement = if pool.holding_id().is_some() {
         "SELECT checkpoint.event_id, checkpoint.global_sequence, checkpoint.updated_at
          FROM erpx_cqrs_read.projection_checkpoints checkpoint
          JOIN erpx_cqrs_read.projection_generations generation
-           ON generation.tenant_id = checkpoint.tenant_id
+           ON generation.holding_id = checkpoint.holding_id
           AND generation.projection_name = checkpoint.projection_name
           AND generation.generation = checkpoint.generation
           AND generation.status = 'active'
          WHERE checkpoint.projection_name = $1 AND checkpoint.partition_key = $2
-           AND checkpoint.tenant_id = $3"
+           AND checkpoint.holding_id = $3"
     } else {
         "SELECT checkpoint.event_id, checkpoint.global_sequence, checkpoint.updated_at
          FROM erpx_cqrs_read.projection_checkpoints checkpoint
@@ -215,10 +215,10 @@ async fn load_active_checkpoint(
     };
     let mut transaction = pool.begin().await?;
     let query = sqlx::query(statement).bind(projection).bind(partition);
-    let row = match pool.tenant_id() {
-        Some(tenant_id) => {
+    let row = match pool.holding_id() {
+        Some(holding_id) => {
             query
-                .bind(tenant_id)
+                .bind(holding_id)
                 .fetch_optional(&mut *transaction)
                 .await?
         }

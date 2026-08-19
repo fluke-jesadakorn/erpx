@@ -8,20 +8,21 @@ use std::{
 
 use chrono::Utc;
 use erpx_domain::{
-    access::{RiskTier, RoleAssignment, Scope},
+    access::{RiskTier, RoleAssignment},
     commercial::{BillingLifecycle, BillingState, EntitlementAllocationBook, EntitlementCapacity},
+    contracts::AuthorityScope as Scope,
     data_plane::BusinessUnitId,
 };
 use erpx_identity::{
     DEVELOPMENT_CLUSTER_MARKER, DEVELOPMENT_CONTROLLER_PRINCIPAL, DEVELOPMENT_CONTROLLER_ROLE,
-    DEVELOPMENT_CONTROLLER_TARGET_TENANT, DirectoryRoleTargetScope, SqlxIdentityStore,
+    DEVELOPMENT_CONTROLLER_TARGET_HOLDING, DirectoryRoleTargetScope, SqlxIdentityStore,
     demo_personas, development_controller_permissions, permission_catalog, platform_personas,
 };
 use erpx_infrastructure::{
     ApprovedDatabaseProfileConnection, BranchProvisioningState, DatabaseProfileRegistration,
-    PersistenceError, ProvisionBranchRequest, SodDecision, SqlxBranchProvisioningStore,
-    SqlxCommercialStore, SqlxControlPlane, TenantDatabaseProvisioner, branch_database_keys,
-    tenant_holding_scope_id,
+    HoldingDatabaseProvisioner, PersistenceError, ProvisionBranchRequest, SodDecision,
+    SqlxBranchProvisioningStore, SqlxCommercialStore, SqlxControlPlane, branch_database_keys,
+    holding_holding_scope_id,
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -29,15 +30,15 @@ use sqlx::{PgPool, Postgres, Row, Transaction};
 use uuid::Uuid;
 
 use crate::{
-    DATABASES, DevConfig, HOLDING_REF, RESTRICTED_HOLDING_REF, RESTRICTED_TENANT_ID, TENANT_ID,
-    TaskResult, runtime_dir,
+    DATA_PROFILE_KEY, DATABASES, DevConfig, HOLDING_ID, RESTRICTED_DATA_PROFILE_KEY,
+    RESTRICTED_HOLDING_ID, TaskResult, runtime_dir,
 };
 
 const CONTROLLER_PASSWORD_FILE: &str = "secrets/dev-controller.password";
 const UCS_SHARED_PASSWORD_FILE: &str = "secrets/ucs-shared.password";
 const FIXTURE_VERSION: &str = "erpx-dev-access-v7";
 const PLATFORM_ASSIGNMENT_REVISION: &str = "platform-permissions-v6";
-const CONTROLLER_ASSIGNMENT_REVISION: &str = "restricted-tenant-full-admin-v1";
+const CONTROLLER_ASSIGNMENT_REVISION: &str = "restricted-holding-full-admin-v1";
 const CONTROLLER_CATALOG_ASSIGNMENT_REVISION: &str = "controller-role-catalog-v2";
 const BRANCH_PROFILE_KEY: &str = "dev-local";
 const BRANCH_CREDENTIAL_PROFILE_KEY: &str = "default";
@@ -129,30 +130,26 @@ const RESTRICTED_BRANCHES: [DevelopmentBranchFixture; 4] = [
     },
 ];
 
-fn branch_fixtures(tenant_id: &str) -> &'static [DevelopmentBranchFixture] {
-    if tenant_id == RESTRICTED_TENANT_ID {
+fn branch_fixtures(holding_id: &str) -> &'static [DevelopmentBranchFixture] {
+    if holding_id == RESTRICTED_HOLDING_ID {
         &RESTRICTED_BRANCHES
     } else {
         &DEMO_BRANCHES
     }
 }
 
-fn branch_ids(tenant_id: &str, fixture: DevelopmentBranchFixture) -> (Uuid, Uuid) {
+fn branch_ids(holding_id: &str, fixture: DevelopmentBranchFixture) -> (Uuid, Uuid) {
     let company_id = Uuid::new_v5(
         &Uuid::NAMESPACE_URL,
         format!(
-            "erpx:dev-access:company:v1:{tenant_id}:{}",
+            "erpx:dev-access:company:{holding_id}:{}",
             fixture.company_key
         )
         .as_bytes(),
     );
     let branch_id = Uuid::new_v5(
         &Uuid::NAMESPACE_URL,
-        format!(
-            "erpx:dev-access:branch:v1:{tenant_id}:{}",
-            fixture.branch_key
-        )
-        .as_bytes(),
+        format!("erpx:dev-access:branch:{holding_id}:{}", fixture.branch_key).as_bytes(),
     );
     (company_id, branch_id)
 }
@@ -171,33 +168,33 @@ fn controller_assignment_id() -> Uuid {
     )
 }
 
-fn controller_catalog_assignment_id(target_tenant: &str, role_key: &str) -> Uuid {
+fn controller_catalog_assignment_id(target_holding: &str, role_key: &str) -> Uuid {
     Uuid::new_v5(
         &Uuid::NAMESPACE_URL,
         format!(
-            "erpx:dev-access:{CONTROLLER_CATALOG_ASSIGNMENT_REVISION}:{target_tenant}:{role_key}"
+            "erpx:dev-access:{CONTROLLER_CATALOG_ASSIGNMENT_REVISION}:{target_holding}:{role_key}"
         )
         .as_bytes(),
     )
 }
 
-fn controller_catalog_holding_assignment_id(target_tenant: &str, role_key: &str) -> Uuid {
+fn controller_catalog_holding_assignment_id(target_holding: &str, role_key: &str) -> Uuid {
     Uuid::new_v5(
         &Uuid::NAMESPACE_URL,
         format!(
-            "erpx:dev-access:{CONTROLLER_CATALOG_ASSIGNMENT_REVISION}:{target_tenant}:{role_key}:holding"
+            "erpx:dev-access:{CONTROLLER_CATALOG_ASSIGNMENT_REVISION}:{target_holding}:{role_key}:holding"
         )
         .as_bytes(),
     )
 }
 
 fn controller_catalog_assignments(
-    target_tenant: &str,
-    holding_ref: &str,
+    target_holding: &str,
+    data_profile_key: &str,
     representative_branch: (Uuid, Uuid),
     now: chrono::DateTime<Utc>,
 ) -> Vec<RoleAssignment> {
-    let holding_id = tenant_holding_scope_id(holding_ref);
+    let holding_id = holding_holding_scope_id(data_profile_key);
     permission_catalog()
         .into_iter()
         .flat_map(|entry| {
@@ -221,11 +218,11 @@ fn controller_catalog_assignments(
                 entry
                     .role_key
                     .split_once('_')
-                    .map_or("tenant-administration", |(domain, _)| domain)
+                    .map_or("holding-administration", |(domain, _)| domain)
                     .to_owned()
             };
             let assignment = RoleAssignment {
-                id: controller_catalog_assignment_id(target_tenant, &entry.role_key),
+                id: controller_catalog_assignment_id(target_holding, &entry.role_key),
                 principal_ref: DEVELOPMENT_CONTROLLER_PRINCIPAL.into(),
                 role_key: entry.role_key,
                 permissions: entry.permissions,
@@ -252,7 +249,7 @@ fn controller_catalog_assignments(
             ) {
                 assignments.push(RoleAssignment {
                     id: controller_catalog_holding_assignment_id(
-                        target_tenant,
+                        target_holding,
                         &assignment.role_key,
                     ),
                     scope: Scope::Holding { holding_id },
@@ -266,24 +263,24 @@ fn controller_catalog_assignments(
 
 async fn controller_catalog_scope_context(
     write: &PgPool,
-    target_tenant: &str,
+    target_holding: &str,
 ) -> TaskResult<(String, (Uuid, Uuid))> {
-    let holding_ref: String = sqlx::query_scalar(
-        "SELECT holding_ref FROM erpx_control.tenant_registry
-         WHERE tenant_id=$1 AND state='active'",
+    let data_profile_key: String = sqlx::query_scalar(
+        "SELECT data_profile_key FROM erpx_control.holding_registry
+         WHERE holding_id=$1 AND state='active'",
     )
-    .bind(target_tenant)
+    .bind(target_holding)
     .fetch_one(write)
     .await?;
-    let deterministic_branch = branch_ids(target_tenant, RESTRICTED_BRANCHES[0]);
+    let deterministic_branch = branch_ids(target_holding, RESTRICTED_BRANCHES[0]);
     let representative = sqlx::query(
         "SELECT company_id, branch_id
          FROM erpx_control.branch_database_routes
-         WHERE tenant_id=$1 AND state='active'
+         WHERE holding_id=$1 AND state='active'
          ORDER BY (branch_id=$2) DESC, branch_id
          LIMIT 1",
     )
-    .bind(target_tenant)
+    .bind(target_holding)
     .bind(deterministic_branch.1)
     .fetch_optional(write)
     .await?
@@ -294,12 +291,15 @@ async fn controller_catalog_scope_context(
         ))
     })
     .transpose()?;
-    Ok((holding_ref, representative.unwrap_or(deterministic_branch)))
+    Ok((
+        data_profile_key,
+        representative.unwrap_or(deterministic_branch),
+    ))
 }
 
 async fn reconcile_controller_role(
     write: &PgPool,
-    target_tenant: &str,
+    target_holding: &str,
     now: chrono::DateTime<Utc>,
 ) -> TaskResult {
     let assignment = RoleAssignment {
@@ -307,7 +307,7 @@ async fn reconcile_controller_role(
         principal_ref: DEVELOPMENT_CONTROLLER_PRINCIPAL.into(),
         role_key: DEVELOPMENT_CONTROLLER_ROLE.into(),
         permissions: development_controller_permissions(),
-        functional_domain: "platform_tenant_administration".into(),
+        functional_domain: "platform_holding_administration".into(),
         authority_level: 64,
         approval_limit_minor: 0,
         scope: Scope::Platform,
@@ -315,7 +315,7 @@ async fn reconcile_controller_role(
         valid_until: now + chrono::Duration::days(365),
         timezone: "Asia/Bangkok".into(),
         risk_tier: RiskTier::Standard,
-        grant_reason: "environment-gated local restricted tenant administration".into(),
+        grant_reason: "environment-gated local restricted holding administration".into(),
         ticket_reference: Some("local:dev-controller-role".into()),
         grantor: DEVELOPMENT_CONTROLLER_PRINCIPAL.into(),
         approver: None,
@@ -323,10 +323,14 @@ async fn reconcile_controller_role(
         parent_assignment_id: None,
         assignment_version: 1,
     };
-    let (holding_ref, representative_branch) =
-        controller_catalog_scope_context(write, target_tenant).await?;
-    let catalog_assignments =
-        controller_catalog_assignments(target_tenant, &holding_ref, representative_branch, now);
+    let (data_profile_key, representative_branch) =
+        controller_catalog_scope_context(write, target_holding).await?;
+    let catalog_assignments = controller_catalog_assignments(
+        target_holding,
+        &data_profile_key,
+        representative_branch,
+        now,
+    );
     for candidate in std::iter::once(&assignment).chain(catalog_assignments.iter()) {
         candidate.validate_for_grant(None)?;
     }
@@ -362,7 +366,7 @@ async fn reconcile_controller_role(
         sqlx::query(
             "INSERT INTO erpx_control.role_assignment_target_policies
                 (assignment_id, policy_kind, environment_gate, configured_by, configured_at)
-             VALUES ($1,'tenant_allowlist',$2,$3,$4)
+             VALUES ($1,'holding_allowlist',$2,$3,$4)
              ON CONFLICT (assignment_id) DO UPDATE SET
                 policy_kind=EXCLUDED.policy_kind,
                 environment_gate=EXCLUDED.environment_gate,
@@ -376,19 +380,19 @@ async fn reconcile_controller_role(
         .execute(&mut *transaction)
         .await?;
         sqlx::query(
-            "DELETE FROM erpx_control.role_assignment_tenant_targets
+            "DELETE FROM erpx_control.role_assignment_holding_targets
              WHERE assignment_id=$1",
         )
         .bind(candidate.id)
         .execute(&mut *transaction)
         .await?;
         sqlx::query(
-            "INSERT INTO erpx_control.role_assignment_tenant_targets
-                (assignment_id, tenant_id, configured_at)
+            "INSERT INTO erpx_control.role_assignment_holding_targets
+                (assignment_id, holding_id, configured_at)
              VALUES ($1,$2,$3)",
         )
         .bind(candidate.id)
-        .bind(target_tenant)
+        .bind(target_holding)
         .bind(now)
         .execute(&mut *transaction)
         .await?;
@@ -426,14 +430,14 @@ async fn reconcile_controller_role(
         "INSERT INTO erpx_control.audit_events
             (id,actor_ref,customer_account_id,action,purpose,correlation_id,payload)
          VALUES ($1,$2,NULL,'development.authorization.role_reconciled',
-                 'local restricted tenant controller reconcile',$3,$4)",
+                 'local restricted holding controller reconcile',$3,$4)",
     )
     .bind(Uuid::new_v4())
     .bind(DEVELOPMENT_CONTROLLER_PRINCIPAL)
     .bind(Uuid::new_v4())
     .bind(serde_json::json!({
         "role_key": DEVELOPMENT_CONTROLLER_ROLE,
-        "target_tenant": target_tenant,
+        "target_holding": target_holding,
         "catalog_role_count": catalog_assignments.len(),
         "total_controller_role_count": catalog_assignments.len() + 1,
         "legacy_superuser_retired": true,
@@ -449,10 +453,10 @@ async fn reconcile_controller_role(
     sqlx::query(
         "INSERT INTO erpx_identity.development_audit
             (id,controller_principal_ref,persona_principal_ref,persona_key,
-             role_key,tenant_id,organization_scope,feature,correlation_id,
+             role_key,holding_id,organization_scope,feature,correlation_id,
              outcome,recorded_at,details)
          SELECT $3,$1,manifest.principal_ref,manifest.persona_key,
-                manifest.role_key,manifest.tenant_id,manifest.organization_scope,
+                manifest.role_key,manifest.holding_id,manifest.organization_scope,
                 manifest.feature,$4,'ended',$2,
                 '{\"reason\":\"legacy_superuser_retired\"}'::jsonb
          FROM erpx_identity.development_persona_manifests manifest
@@ -491,17 +495,17 @@ async fn reconcile_controller_role(
 }
 
 fn persona_assignment_scopes(
-    tenant_id: &str,
-    holding_ref: &str,
+    holding_key: &str,
+    data_profile_key: &str,
     role_key: &str,
 ) -> Vec<(Scope, String)> {
-    let holding_id = tenant_holding_scope_id(holding_ref);
+    let holding_id = holding_holding_scope_id(data_profile_key);
     if role_key == "company_admin" {
         let mut seen = Vec::new();
-        return branch_fixtures(tenant_id)
+        return branch_fixtures(holding_key)
             .iter()
             .filter_map(|fixture| {
-                let (company_id, _) = branch_ids(tenant_id, *fixture);
+                let (company_id, _) = branch_ids(holding_key, *fixture);
                 if seen.contains(&company_id) {
                     None
                 } else {
@@ -522,10 +526,10 @@ fn persona_assignment_scopes(
             .iter()
             .any(|unit| role_key.starts_with(&format!("{unit}_")));
     if branch_scoped {
-        return branch_fixtures(tenant_id)
+        return branch_fixtures(holding_key)
             .iter()
             .map(|fixture| {
-                let (company_id, branch_id) = branch_ids(tenant_id, *fixture);
+                let (company_id, branch_id) = branch_ids(holding_key, *fixture);
                 (
                     Scope::Branch {
                         holding_id,
@@ -544,14 +548,14 @@ fn persona_assignment_scopes(
 }
 
 fn scoped_demo_personas(
-    tenant_id: &str,
-    holding_ref: &str,
+    holding_id: &str,
+    data_profile_key: &str,
     entitled_units: &[&str],
 ) -> Vec<erpx_identity::DevelopmentPersona> {
-    let mut personas = demo_personas(tenant_id, entitled_units);
+    let mut personas = demo_personas(holding_id, entitled_units);
     for persona in &mut personas {
         if let Some((scope, _)) =
-            persona_assignment_scopes(tenant_id, holding_ref, &persona.role_key).first()
+            persona_assignment_scopes(holding_id, data_profile_key, &persona.role_key).first()
         {
             // The selector presents one bounded representative scope per test
             // persona. Durable assignments still cover every fixture branch.
@@ -597,7 +601,7 @@ pub(crate) fn init(root: &Path, _config: &DevConfig) -> TaskResult {
     }
     fs::set_permissions(&shared_password, fs::Permissions::from_mode(0o600))?;
     write_ucs_authorities_file(root)?;
-    for authority in ["platform", TENANT_ID, RESTRICTED_TENANT_ID] {
+    for authority in ["platform", HOLDING_ID, RESTRICTED_HOLDING_ID] {
         let legacy = runtime_dir(root).join(format!("secrets/ucs-{authority}.password"));
         if legacy.is_file() {
             fs::remove_file(legacy)?;
@@ -615,7 +619,7 @@ fn write_ucs_authorities_file(root: &Path) -> TaskResult {
     let directory = runtime.join("ucs-lab");
     fs::create_dir_all(&directory)?;
     fs::set_permissions(&directory, fs::Permissions::from_mode(0o700))?;
-    let authorities = ["platform", TENANT_ID, RESTRICTED_TENANT_ID]
+    let authorities = ["platform", HOLDING_ID, RESTRICTED_HOLDING_ID]
         .into_iter()
         .map(|authority| UcsAuthorityEntry {
             authority,
@@ -780,7 +784,7 @@ async fn reconcile_persona_catalog(
     config: &DevConfig,
     control_write_database: &str,
     control_read_database: &str,
-    controller_target_tenant: &str,
+    controller_target_holding: &str,
 ) -> TaskResult<(
     PgPool,
     std::sync::Arc<SqlxControlPlane>,
@@ -792,34 +796,34 @@ async fn reconcile_persona_catalog(
     let now = Utc::now();
     reconcile_controller_principal(root, &write, now).await?;
 
-    let fresh_runtime = controller_target_tenant != DEVELOPMENT_CONTROLLER_TARGET_TENANT;
-    let tenants = if fresh_runtime {
+    let fresh_runtime = controller_target_holding != DEVELOPMENT_CONTROLLER_TARGET_HOLDING;
+    let holdings = if fresh_runtime {
         let row = sqlx::query(
-            "SELECT registry.tenant_id, registry.holding_ref
-             FROM erpx_control.tenant_registry registry
-             JOIN erpx_control.customer_tenant_bindings binding USING (tenant_id)
-             WHERE registry.tenant_id=$1 AND registry.state='active'
+            "SELECT registry.holding_id, registry.data_profile_key
+             FROM erpx_control.holding_registry registry
+             JOIN erpx_control.customer_holding_bindings binding USING (holding_id)
+             WHERE registry.holding_id=$1 AND registry.state='active'
                AND binding.binding_state='configured'",
         )
-        .bind(controller_target_tenant)
+        .bind(controller_target_holding)
         .fetch_optional(&write)
         .await?
-        .ok_or("the development controller target has no authoritative tenant workspace")?;
+        .ok_or("the development controller target has no authoritative holding workspace")?;
         vec![(
-            row.try_get::<String, _>("tenant_id")?,
-            row.try_get::<String, _>("holding_ref")?,
+            row.try_get::<String, _>("holding_id")?,
+            row.try_get::<String, _>("data_profile_key")?,
             erpx_identity::BUSINESS_UNITS.to_vec(),
         )]
     } else {
         vec![
             (
-                TENANT_ID.to_owned(),
-                HOLDING_REF.to_owned(),
+                HOLDING_ID.to_owned(),
+                DATA_PROFILE_KEY.to_owned(),
                 erpx_identity::BUSINESS_UNITS.to_vec(),
             ),
             (
-                RESTRICTED_TENANT_ID.to_owned(),
-                RESTRICTED_HOLDING_REF.to_owned(),
+                RESTRICTED_HOLDING_ID.to_owned(),
+                RESTRICTED_DATA_PROFILE_KEY.to_owned(),
                 RESTRICTED_UNITS.to_vec(),
             ),
         ]
@@ -830,17 +834,17 @@ async fn reconcile_persona_catalog(
              WHERE persona_key IN (
                  SELECT persona_key
                  FROM erpx_identity.development_persona_manifests
-                 WHERE tenant_id IS NOT NULL AND tenant_id <> $1
+                 WHERE holding_id IS NOT NULL AND holding_id <> $1
              )",
         )
-        .bind(controller_target_tenant)
+        .bind(controller_target_holding)
         .execute(&write)
         .await?;
         sqlx::query(
             "DELETE FROM erpx_identity.development_persona_manifests
-             WHERE tenant_id IS NOT NULL AND tenant_id <> $1",
+             WHERE holding_id IS NOT NULL AND holding_id <> $1",
         )
-        .bind(controller_target_tenant)
+        .bind(controller_target_holding)
         .execute(&write)
         .await?;
     }
@@ -853,7 +857,7 @@ async fn reconcile_persona_catalog(
         std::sync::Arc::new(erpx_application::SystemClock),
         control.clone(),
     );
-    reconcile_controller_role(&write, controller_target_tenant, now).await?;
+    reconcile_controller_role(&write, controller_target_holding, now).await?;
     let platform_personas = platform_personas();
     let platform_persona_count = platform_personas.len();
     identity
@@ -899,11 +903,11 @@ async fn reconcile_persona_catalog(
     }
     sqlx::query(
         "INSERT INTO erpx_identity.development_seed_receipts
-            (receipt_key, fixture_version, tenant_id, manifest_digest, applied_at, counts)
+            (receipt_key, fixture_version, holding_id, manifest_digest, applied_at, counts)
          VALUES ('persona-manifest:platform',$1,NULL,$2,$3,$4)
          ON CONFLICT (receipt_key) DO UPDATE SET
             fixture_version=EXCLUDED.fixture_version,
-            tenant_id=EXCLUDED.tenant_id,
+            holding_id=EXCLUDED.holding_id,
             manifest_digest=EXCLUDED.manifest_digest,
             applied_at=EXCLUDED.applied_at,
             counts=EXCLUDED.counts",
@@ -914,20 +918,20 @@ async fn reconcile_persona_catalog(
     .bind(serde_json::json!({"platform_personas": platform_persona_count}))
     .execute(&write)
     .await?;
-    for (tenant_id, holding_ref, entitled_units) in tenants {
-        let personas = scoped_demo_personas(&tenant_id, &holding_ref, &entitled_units);
+    for (holding_id, data_profile_key, entitled_units) in holdings {
+        let personas = scoped_demo_personas(&holding_id, &data_profile_key, &entitled_units);
         identity
             .reconcile_development_personas(&personas, now)
             .await?;
         for persona in personas {
             ensure_principal(&write, &persona.principal_ref, now).await?;
             for (scope, scope_key) in
-                persona_assignment_scopes(&tenant_id, &holding_ref, &persona.role_key)
+                persona_assignment_scopes(&holding_id, &data_profile_key, &persona.role_key)
             {
                 let assignment_id = Uuid::new_v5(
                     &Uuid::NAMESPACE_URL,
                     format!(
-                        "erpx:dev-access:{tenant_id}:{}:{scope_key}",
+                        "erpx:dev-access:{holding_id}:{}:{scope_key}",
                         persona.role_key
                     )
                     .as_bytes(),
@@ -968,10 +972,10 @@ async fn reconcile_persona_catalog(
                 }
             }
         }
-        let digest = manifest_digest(&tenant_id);
+        let digest = manifest_digest(&holding_id);
         sqlx::query(
             "INSERT INTO erpx_identity.development_seed_receipts
-                (receipt_key, fixture_version, tenant_id, manifest_digest, applied_at, counts)
+                (receipt_key, fixture_version, holding_id, manifest_digest, applied_at, counts)
              VALUES ($1,$2,$3,$4,$5,$6)
              ON CONFLICT (receipt_key) DO UPDATE SET
                 fixture_version=EXCLUDED.fixture_version,
@@ -979,9 +983,9 @@ async fn reconcile_persona_catalog(
                 applied_at=EXCLUDED.applied_at,
                 counts=EXCLUDED.counts",
         )
-        .bind(format!("persona-manifest:{tenant_id}"))
+        .bind(format!("persona-manifest:{holding_id}"))
         .bind(FIXTURE_VERSION)
-        .bind(&tenant_id)
+        .bind(&holding_id)
         .bind(digest)
         .bind(now)
         .bind(serde_json::json!({
@@ -989,7 +993,7 @@ async fn reconcile_persona_catalog(
             "negative_personas": 4,
             "companies": 2,
             "branches": 4,
-            "holding_name": if tenant_id == TENANT_ID { "Atlas Holdings" } else if tenant_id == RESTRICTED_TENANT_ID { "Beacon Services" } else { "Development Holding" },
+            "holding_name": if holding_id == HOLDING_ID { "Atlas Holdings" } else if holding_id == RESTRICTED_HOLDING_ID { "Beacon Services" } else { "Development Holding" },
             "entitled_business_units": entitled_units,
         }))
         .execute(&write)
@@ -1007,14 +1011,14 @@ pub(crate) async fn reconcile_runtime_catalog(
     config: &DevConfig,
     control_write_database: &str,
     control_read_database: &str,
-    controller_target_tenant: &str,
+    controller_target_holding: &str,
 ) -> TaskResult {
     let (write, control, now) = reconcile_persona_catalog(
         root,
         config,
         control_write_database,
         control_read_database,
-        controller_target_tenant,
+        controller_target_holding,
     )
     .await?;
     reconcile_typed_organization_read_fixtures(config, &control, now).await?;
@@ -1030,7 +1034,7 @@ pub(crate) async fn reconcile(root: &Path, config: &DevConfig) -> TaskResult {
         config,
         DATABASES[0],
         DATABASES[1],
-        DEVELOPMENT_CONTROLLER_TARGET_TENANT,
+        DEVELOPMENT_CONTROLLER_TARGET_HOLDING,
     )
     .await?;
     let identity = SqlxIdentityStore::new(write.clone());
@@ -1039,31 +1043,34 @@ pub(crate) async fn reconcile(root: &Path, config: &DevConfig) -> TaskResult {
         std::sync::Arc::new(erpx_application::SystemClock),
         control.clone(),
     );
-    let local_tenants = sqlx::query(
-        "SELECT tenant_id, holding_ref
-         FROM erpx_control.tenant_registry
+    let local_holdings = sqlx::query(
+        "SELECT holding_id, data_profile_key
+         FROM erpx_control.holding_registry
          WHERE state='active' AND credential_key_ref='local-development-disabled'",
     )
     .fetch_all(&write)
     .await?;
-    for row in local_tenants {
-        let tenant_id: String = row.try_get("tenant_id")?;
-        if [TENANT_ID, RESTRICTED_TENANT_ID].contains(&tenant_id.as_str()) {
+    for row in local_holdings {
+        let holding_key: String = row.try_get("holding_id")?;
+        if [HOLDING_ID, RESTRICTED_HOLDING_ID].contains(&holding_key.as_str()) {
             continue;
         }
-        let holding_ref: String = row.try_get("holding_ref")?;
-        let personas =
-            scoped_demo_personas(&tenant_id, &holding_ref, &erpx_identity::BUSINESS_UNITS);
+        let data_profile_key: String = row.try_get("data_profile_key")?;
+        let personas = scoped_demo_personas(
+            &holding_key,
+            &data_profile_key,
+            &erpx_identity::BUSINESS_UNITS,
+        );
         identity
             .reconcile_development_personas(&personas, now)
             .await?;
-        let holding_id = tenant_holding_scope_id(&holding_ref);
+        let holding_id = holding_holding_scope_id(&data_profile_key);
         for persona in personas {
             ensure_principal(&write, &persona.principal_ref, now).await?;
             let assignment_id = Uuid::new_v5(
                 &Uuid::NAMESPACE_URL,
                 format!(
-                    "erpx:dev-access:{tenant_id}:{}:holding:{holding_id}",
+                    "erpx:dev-access:{holding_id}:{}:holding:{holding_id}",
                     persona.role_key
                 )
                 .as_bytes(),
@@ -1105,7 +1112,7 @@ pub(crate) async fn reconcile(root: &Path, config: &DevConfig) -> TaskResult {
         }
         sqlx::query(
             "INSERT INTO erpx_identity.development_seed_receipts
-                (receipt_key, fixture_version, tenant_id, manifest_digest, applied_at, counts)
+                (receipt_key, fixture_version, holding_id, manifest_digest, applied_at, counts)
              VALUES ($1,$2,$3,$4,$5,$6)
              ON CONFLICT (receipt_key) DO UPDATE SET
                 fixture_version=EXCLUDED.fixture_version,
@@ -1113,10 +1120,10 @@ pub(crate) async fn reconcile(root: &Path, config: &DevConfig) -> TaskResult {
                 applied_at=EXCLUDED.applied_at,
                 counts=EXCLUDED.counts",
         )
-        .bind(format!("persona-manifest:{tenant_id}"))
+        .bind(format!("persona-manifest:{holding_key}"))
         .bind(FIXTURE_VERSION)
-        .bind(&tenant_id)
-        .bind(manifest_digest(&tenant_id))
+        .bind(&holding_key)
+        .bind(manifest_digest(&holding_key))
         .bind(now)
         .bind(
             serde_json::json!({"core_personas": 65, "negative_personas": 4, "auto_enrolled": true}),
@@ -1125,13 +1132,13 @@ pub(crate) async fn reconcile(root: &Path, config: &DevConfig) -> TaskResult {
         .await?;
     }
     sqlx::query(
-        "UPDATE erpx_control.tenant_registry
+        "UPDATE erpx_control.holding_registry
          SET isolation_mode='holding_and_branch_pairs', updated_at=$2
-         WHERE tenant_id IN ($1, $3)",
+         WHERE holding_id IN ($1, $3)",
     )
-    .bind(TENANT_ID)
+    .bind(HOLDING_ID)
     .bind(now)
-    .bind(RESTRICTED_TENANT_ID)
+    .bind(RESTRICTED_HOLDING_ID)
     .execute(&write)
     .await?;
     reconcile_branch_fixtures(root, config, control.clone()).await?;
@@ -1147,40 +1154,41 @@ async fn reconcile_typed_organization_read_fixtures(
     control: &SqlxControlPlane,
     now: chrono::DateTime<Utc>,
 ) -> TaskResult {
-    let tenants = sqlx::query(
-        "SELECT registry.tenant_id, registry.holding_ref, registry.write_database_key,
-                registry.read_database_key, binding.root_holding_id
-         FROM erpx_control.tenant_registry registry
-         JOIN erpx_control.customer_tenant_bindings binding USING (tenant_id)
+    let holdings = sqlx::query(
+        "SELECT registry.holding_id, registry.data_profile_key, registry.write_database_key,
+                registry.read_database_key, binding.canonical_holding_id
+         FROM erpx_control.holding_registry registry
+         JOIN erpx_control.customer_holding_bindings binding USING (holding_id)
          WHERE registry.state='active' AND binding.binding_state='configured'
            AND registry.credential_key_ref IN
                ('local_shared','local-development-disabled','database-profile:default')
-         ORDER BY registry.tenant_id",
+         ORDER BY registry.holding_id",
     )
     .fetch_all(&control.pools().write)
     .await?;
-    for tenant in tenants {
-        let tenant_id: String = tenant.try_get("tenant_id")?;
-        let holding_ref: String = tenant.try_get("holding_ref")?;
-        let write_database_key: String = tenant.try_get("write_database_key")?;
-        let read_database_key: String = tenant.try_get("read_database_key")?;
-        let holding_id: Uuid = tenant.try_get("root_holding_id")?;
+    for holding in holdings {
+        let holding_key: String = holding.try_get("holding_id")?;
+        let data_profile_key: String = holding.try_get("data_profile_key")?;
+        let write_database_key: String = holding.try_get("write_database_key")?;
+        let read_database_key: String = holding.try_get("read_database_key")?;
+        let holding_id: Uuid = holding.try_get("canonical_holding_id")?;
         let write = super::pool(&config.database_url(&write_database_key)).await?;
-        let tenant_uuid = Uuid::parse_str(&tenant_id)?;
+        let holding_uuid = holding_id;
         let mut write_transaction = write.begin().await?;
-        let bound_tenant: String = sqlx::query_scalar("SELECT set_config('app.tenant_id',$1,true)")
-            .bind(tenant_uuid.to_string())
-            .fetch_one(&mut *write_transaction)
-            .await?;
-        if bound_tenant != tenant_uuid.to_string() {
-            return Err("typed Organization authority tenant binding was not retained".into());
+        let bound_holding: String =
+            sqlx::query_scalar("SELECT set_config('app.holding_id',$1,true)")
+                .bind(holding_uuid.to_string())
+                .fetch_one(&mut *write_transaction)
+                .await?;
+        if bound_holding != holding_uuid.to_string() {
+            return Err("typed Organization authority holding binding was not retained".into());
         }
         let authoritative_node_ids = sqlx::query_scalar::<_, Uuid>(
             "SELECT node_id
              FROM erpx_organization_write.organization_node_authority
-             WHERE tenant_id=$1",
+             WHERE holding_id=$1",
         )
-        .bind(tenant_uuid)
+        .bind(holding_uuid)
         .fetch_all(&mut *write_transaction)
         .await?
         .into_iter()
@@ -1189,18 +1197,19 @@ async fn reconcile_typed_organization_read_fixtures(
         write.close().await;
         let read = super::pool(&config.database_url(&read_database_key)).await?;
         let mut read_transaction = read.begin().await?;
-        let bound_tenant: String = sqlx::query_scalar("SELECT set_config('app.tenant_id',$1,true)")
-            .bind(tenant_uuid.to_string())
-            .fetch_one(&mut *read_transaction)
-            .await?;
-        if bound_tenant != tenant_uuid.to_string() {
-            return Err("typed Organization fixture tenant binding was not retained".into());
+        let bound_holding: String =
+            sqlx::query_scalar("SELECT set_config('app.holding_id',$1,true)")
+                .bind(holding_uuid.to_string())
+                .fetch_one(&mut *read_transaction)
+                .await?;
+        if bound_holding != holding_uuid.to_string() {
+            return Err("typed Organization fixture holding binding was not retained".into());
         }
         let generation = match sqlx::query_scalar(
             "SELECT generation FROM erpx_cqrs_read.projection_generations
-             WHERE tenant_id=$1 AND projection_name='organization.nodes' AND status='active'",
+             WHERE holding_id=$1 AND projection_name='organization.nodes' AND status='active'",
         )
-        .bind(tenant_uuid)
+        .bind(holding_uuid)
         .fetch_optional(&mut *read_transaction)
         .await?
         {
@@ -1208,14 +1217,14 @@ async fn reconcile_typed_organization_read_fixtures(
             None => {
                 let generation = Uuid::new_v5(
                     &Uuid::NAMESPACE_URL,
-                    format!("erpx:{FIXTURE_VERSION}:{tenant_id}:organization.nodes").as_bytes(),
+                    format!("erpx:{FIXTURE_VERSION}:{holding_id}:organization.nodes").as_bytes(),
                 );
                 sqlx::query(
                     "INSERT INTO erpx_cqrs_read.projection_generations
-                        (tenant_id,projection_name,generation,status,source_sequence,created_at,activated_at)
+                        (holding_id,projection_name,generation,status,source_sequence,created_at,activated_at)
                      VALUES ($1,'organization.nodes',$2,'active',0,$3,$3)",
                 )
-                .bind(tenant_uuid)
+                .bind(holding_uuid)
                 .bind(generation)
                 .bind(now)
                 .execute(&mut *read_transaction)
@@ -1224,9 +1233,9 @@ async fn reconcile_typed_organization_read_fixtures(
             }
         };
 
-        let holding_name = if holding_ref == HOLDING_REF {
+        let holding_name = if data_profile_key == DATA_PROFILE_KEY {
             "Atlas Holdings"
-        } else if holding_ref == RESTRICTED_HOLDING_REF {
+        } else if data_profile_key == RESTRICTED_DATA_PROFILE_KEY {
             "Beacon Services"
         } else {
             "Development Holding"
@@ -1234,7 +1243,7 @@ async fn reconcile_typed_organization_read_fixtures(
         if !authoritative_node_ids.contains(&holding_id) {
             insert_typed_organization_read_fixture(
                 &mut read_transaction,
-                tenant_uuid,
+                holding_uuid,
                 generation,
                 1,
                 holding_id,
@@ -1242,7 +1251,7 @@ async fn reconcile_typed_organization_read_fixtures(
                 holding_id,
                 None,
                 None,
-                holding_ref.clone(),
+                data_profile_key.clone(),
                 holding_name.to_owned(),
                 now,
             )
@@ -1255,16 +1264,16 @@ async fn reconcile_typed_organization_read_fixtures(
              JOIN LATERAL (
                  SELECT branch_code, branch_name
                  FROM erpx_control.branch_provisioning_jobs candidate
-                 WHERE candidate.tenant_id=route.tenant_id
+                 WHERE candidate.holding_id=route.holding_id
                    AND candidate.branch_id=route.branch_id
                    AND candidate.state='active'
                  ORDER BY candidate.completed_at DESC, candidate.job_id DESC
                  LIMIT 1
              ) job ON TRUE
-             WHERE route.tenant_id=$1 AND route.state='active'
+             WHERE route.holding_id=$1 AND route.state='active'
              ORDER BY route.company_id,route.branch_id",
         )
-        .bind(&tenant_id)
+        .bind(&holding_key)
         .fetch_all(&control.pools().write)
         .await?;
         let mut seen_companies = BTreeSet::new();
@@ -1275,9 +1284,9 @@ async fn reconcile_typed_organization_read_fixtures(
             let branch_code: String = route.try_get("branch_code")?;
             let branch_name: String = route.try_get("branch_name")?;
             if seen_companies.insert(company_id) && !authoritative_node_ids.contains(&company_id) {
-                let fixture = branch_fixtures(&tenant_id)
+                let fixture = branch_fixtures(&holding_key)
                     .iter()
-                    .find(|fixture| branch_ids(&tenant_id, **fixture).0 == company_id);
+                    .find(|fixture| branch_ids(&holding_key, **fixture).0 == company_id);
                 let company_code = fixture.map_or_else(
                     || format!("COMPANY-{}", &company_id.simple().to_string()[..8]),
                     |fixture| fixture.company_key.to_owned(),
@@ -1288,7 +1297,7 @@ async fn reconcile_typed_organization_read_fixtures(
                 );
                 insert_typed_organization_read_fixture(
                     &mut read_transaction,
-                    tenant_uuid,
+                    holding_uuid,
                     generation,
                     u64::try_from(index)?.saturating_mul(2).saturating_add(2),
                     company_id,
@@ -1305,7 +1314,7 @@ async fn reconcile_typed_organization_read_fixtures(
             if !authoritative_node_ids.contains(&branch_id) {
                 insert_typed_organization_read_fixture(
                     &mut read_transaction,
-                    tenant_uuid,
+                    holding_uuid,
                     generation,
                     u64::try_from(index)?.saturating_mul(2).saturating_add(3),
                     branch_id,
@@ -1325,13 +1334,13 @@ async fn reconcile_typed_organization_read_fixtures(
         let assignment_payloads = sqlx::query_scalar::<_, serde_json::Value>(
             "SELECT assignment.payload
              FROM erpx_control.role_assignments assignment
-             JOIN erpx_control.role_assignment_tenant_targets target
+             JOIN erpx_control.role_assignment_holding_targets target
                ON target.assignment_id=assignment.id
-             WHERE target.tenant_id=$1
+             WHERE target.holding_id=$1
                AND assignment.valid_from <= $2 AND assignment.valid_until > $2
              ORDER BY assignment.id",
         )
-        .bind(&tenant_id)
+        .bind(&holding_key)
         .bind(now)
         .fetch_all(&control.pools().write)
         .await?;
@@ -1358,13 +1367,13 @@ async fn reconcile_typed_organization_read_fixtures(
                 .iter()
                 .chain(RESTRICTED_BRANCHES.iter())
                 .find(|fixture| {
-                    let ids = branch_ids(&tenant_id, **fixture);
+                    let ids = branch_ids(&holding_key, **fixture);
                     ids.0 == company_id && branch_id.is_none_or(|branch_id| ids.1 == branch_id)
                 });
             if seen_companies.insert(company_id) && !authoritative_node_ids.contains(&company_id) {
                 insert_typed_organization_read_fixture(
                     &mut read_transaction,
-                    tenant_uuid,
+                    holding_uuid,
                     generation,
                     u64::try_from(index)?
                         .saturating_mul(2)
@@ -1392,7 +1401,7 @@ async fn reconcile_typed_organization_read_fixtures(
             {
                 insert_typed_organization_read_fixture(
                     &mut read_transaction,
-                    tenant_uuid,
+                    holding_uuid,
                     generation,
                     u64::try_from(index)?
                         .saturating_mul(2)
@@ -1424,7 +1433,7 @@ async fn reconcile_typed_organization_read_fixtures(
 #[allow(clippy::too_many_arguments)]
 async fn insert_typed_organization_read_fixture(
     read: &mut Transaction<'_, Postgres>,
-    tenant_id: Uuid,
+    rls_holding_id: Uuid,
     generation: Uuid,
     source_global_sequence: u64,
     node_id: Uuid,
@@ -1473,14 +1482,14 @@ async fn insert_typed_organization_read_fixture(
     });
     sqlx::query(
         "INSERT INTO erpx_organization_read.node_projection
-            (tenant_id,projection_name,generation,partition_key,node_id,source_aggregate_version,
-             source_global_sequence,node_kind,node_status,parent_node_id,tenant_scope,
+            (holding_id,projection_name,generation,partition_key,node_id,source_aggregate_version,
+             source_global_sequence,node_kind,node_status,parent_node_id,active_scope,
              scope_key,placement,node_code,display_name,state,aggregate_created_at,
              aggregate_updated_at,projected_at)
          VALUES ($1,'organization.nodes',$2,$3,$4,1,$5,$6,'active',$7,$8,$9,$10,$11,$12,$13,$14,$14,$14)
-         ON CONFLICT (tenant_id,projection_name,generation,partition_key,node_id) DO NOTHING",
+         ON CONFLICT (holding_id,projection_name,generation,partition_key,node_id) DO NOTHING",
     )
-    .bind(tenant_id)
+    .bind(rls_holding_id)
     .bind(generation)
     .bind(format!("organization.node:{}", node_id.simple()))
     .bind(node_id)
@@ -1505,23 +1514,23 @@ async fn reconcile_asset_maintenance_entitlements(
 ) -> TaskResult {
     let commercial = SqlxCommercialStore::new(control);
     let bindings = sqlx::query(
-        "SELECT binding.tenant_id, binding.customer_id, binding.root_holding_id
-         FROM erpx_control.customer_tenant_bindings binding
-         JOIN erpx_control.tenant_registry registry USING (tenant_id)
+        "SELECT binding.holding_id, binding.customer_id, binding.canonical_holding_id
+         FROM erpx_control.customer_holding_bindings binding
+         JOIN erpx_control.holding_registry registry USING (holding_id)
          WHERE binding.binding_state='configured'
            AND registry.credential_key_ref IN
                ('local_shared','local-development-disabled','database-profile:default')
-         ORDER BY binding.tenant_id",
+         ORDER BY binding.holding_id",
     )
     .fetch_all(&control.pools().write)
     .await?;
     for binding in bindings {
-        let tenant_id: String = binding.try_get("tenant_id")?;
+        let holding_id: String = binding.try_get("holding_id")?;
         let customer_id: Uuid = binding.try_get("customer_id")?;
-        let root_holding_id: Uuid = binding.try_get("root_holding_id")?;
+        let canonical_holding_id: Uuid = binding.try_get("canonical_holding_id")?;
         let subscription_id = Uuid::new_v5(
             &Uuid::NAMESPACE_URL,
-            format!("erpx:dev-access:{tenant_id}:subscription:v1").as_bytes(),
+            format!("erpx:dev-access:{holding_id}:subscription:v1").as_bytes(),
         );
         let subscriptions = commercial.customer_subscription_ids(customer_id).await?;
         if subscriptions
@@ -1573,44 +1582,35 @@ async fn reconcile_asset_maintenance_entitlements(
             .into_iter()
             .map(serde_json::from_value::<RoleAssignment>)
             .collect::<Result<Vec<_>, _>>()?;
-        reconcile_asset_maintenance_sod(control, &assignments, root_holding_id, now).await?;
+        reconcile_asset_maintenance_sod(control, &assignments, canonical_holding_id, now).await?;
         let mut companies = BTreeMap::<Uuid, BTreeSet<Uuid>>::new();
         for assignment in &assignments {
             match &assignment.scope {
                 Scope::Company {
                     holding_id,
                     company_id,
-                } if *holding_id == root_holding_id => {
+                } if *holding_id == canonical_holding_id => {
                     companies.entry(*company_id).or_default();
                 }
                 Scope::Branch {
                     holding_id,
                     company_id,
                     branch_id,
-                } if *holding_id == root_holding_id => {
+                } if *holding_id == canonical_holding_id => {
                     companies.entry(*company_id).or_default().insert(*branch_id);
                 }
                 Scope::Subtree {
                     holding_id,
-                    company_ids,
-                    branch_ids,
-                } if *holding_id == root_holding_id => {
-                    for company_id in company_ids {
-                        companies.entry(*company_id).or_default();
-                    }
-                    if let [company_id] = company_ids.as_slice() {
-                        companies
-                            .entry(*company_id)
-                            .or_default()
-                            .extend(branch_ids.iter().copied());
-                    }
+                    organization_node_id,
+                } if *holding_id == canonical_holding_id => {
+                    companies.entry(*organization_node_id).or_default();
                 }
                 _ => {}
             }
         }
         if companies.is_empty() {
             return Err(format!(
-                "development tenant {tenant_id} has no company or branch assignment for its root holding"
+                "development holding {holding_id} has no company or branch assignment for its root holding"
             )
             .into());
         }
@@ -1690,12 +1690,12 @@ fn writable_asset_maintenance_modules(assignment: &RoleAssignment) -> Vec<&'stat
 async fn reconcile_asset_maintenance_sod(
     control: &SqlxControlPlane,
     assignments: &[RoleAssignment],
-    root_holding_id: Uuid,
+    canonical_holding_id: Uuid,
     now: chrono::DateTime<Utc>,
 ) -> TaskResult {
     for assignment in assignments
         .iter()
-        .filter(|assignment| scope_root_holding(&assignment.scope) == Some(root_holding_id))
+        .filter(|assignment| scope_root_holding(&assignment.scope) == Some(canonical_holding_id))
     {
         for module_key in writable_asset_maintenance_modules(assignment) {
             let scope = serde_json::to_value(&assignment.scope)?;
@@ -1760,22 +1760,22 @@ async fn reconcile_branch_fixtures(
          SET state='failed', failure_category='development_reconcile_recovery',
              completed_at=NULL, claimed_by=NULL, claimed_at=NULL,
              lease_expires_at=NULL, updated_at=now()
-         WHERE tenant_id IN ($1,$2)
+         WHERE holding_id IN ($1,$2)
            AND state IN ('provisioning','verifying')
            AND claimed_by IS NULL",
     )
-    .bind(TENANT_ID)
-    .bind(RESTRICTED_TENANT_ID)
+    .bind(HOLDING_ID)
+    .bind(RESTRICTED_HOLDING_ID)
     .execute(&control.pools().write)
     .await?;
     sqlx::query(
         "UPDATE erpx_control.branch_database_routes
          SET state='failed', failure_category='development_reconcile_recovery',
              activated_at=NULL, suspended_at=NULL, updated_at=now()
-         WHERE tenant_id IN ($1,$2) AND state IN ('provisioning','verifying')",
+         WHERE holding_id IN ($1,$2) AND state IN ('provisioning','verifying')",
     )
-    .bind(TENANT_ID)
-    .bind(RESTRICTED_TENANT_ID)
+    .bind(HOLDING_ID)
+    .bind(RESTRICTED_HOLDING_ID)
     .execute(&control.pools().write)
     .await?;
     jobs.register_profile(&DatabaseProfileRegistration {
@@ -1789,13 +1789,13 @@ async fn reconcile_branch_fixtures(
     })
     .await?;
     jobs.bind_profile(
-        TENANT_ID,
+        HOLDING_ID,
         BRANCH_PROFILE_KEY,
         DEVELOPMENT_CONTROLLER_PRINCIPAL,
     )
     .await?;
     jobs.bind_profile(
-        RESTRICTED_TENANT_ID,
+        RESTRICTED_HOLDING_ID,
         BRANCH_PROFILE_KEY,
         DEVELOPMENT_CONTROLLER_PRINCIPAL,
     )
@@ -1823,12 +1823,12 @@ async fn reconcile_branch_fixtures(
         &profile_password,
     )?;
     let mut branch_databases = Vec::with_capacity(16);
-    for (tenant_id, holding_ref) in [
-        (TENANT_ID, HOLDING_REF),
-        (RESTRICTED_TENANT_ID, RESTRICTED_HOLDING_REF),
+    for (holding_key, data_profile_key) in [
+        (HOLDING_ID, DATA_PROFILE_KEY),
+        (RESTRICTED_HOLDING_ID, RESTRICTED_DATA_PROFILE_KEY),
     ] {
-        let holding_id = tenant_holding_scope_id(holding_ref);
-        let units = if tenant_id == RESTRICTED_TENANT_ID {
+        let holding_id = holding_holding_scope_id(data_profile_key);
+        let units = if holding_key == RESTRICTED_HOLDING_ID {
             RESTRICTED_UNITS
                 .iter()
                 .map(|unit| BusinessUnitId::parse(unit).map_err(|_| "invalid fixture unit"))
@@ -1836,15 +1836,15 @@ async fn reconcile_branch_fixtures(
         } else {
             BusinessUnitId::ALL.to_vec()
         };
-        for fixture in branch_fixtures(tenant_id) {
-            let (company_id, branch_id) = branch_ids(tenant_id, *fixture);
+        for fixture in branch_fixtures(holding_key) {
+            let (company_id, branch_id) = branch_ids(holding_key, *fixture);
             let (write_database_key, read_database_key) =
-                branch_database_keys("devbranch", tenant_id, branch_id)?;
+                branch_database_keys("devbranch", &holding_id, branch_id)?;
             branch_databases.push(write_database_key);
             branch_databases.push(read_database_key);
             let request = ProvisionBranchRequest {
-                tenant_id: tenant_id.into(),
-                holding_ref: holding_ref.into(),
+                holding_key: holding_key.into(),
+                data_profile_key: data_profile_key.into(),
                 holding_id,
                 company_id,
                 branch_id,
@@ -1858,14 +1858,14 @@ async fn reconcile_branch_fixtures(
                 profile_key: BRANCH_PROFILE_KEY.into(),
                 enabled_business_units: units.clone(),
                 idempotency_key: format!(
-                    "{FIXTURE_VERSION}:branch:{tenant_id}:{}",
+                    "{FIXTURE_VERSION}:branch:{holding_id}:{}",
                     fixture.branch_key
                 ),
                 requested_by: DEVELOPMENT_CONTROLLER_PRINCIPAL.into(),
                 correlation_id: Uuid::new_v5(
                     &Uuid::NAMESPACE_URL,
                     format!(
-                        "erpx:{FIXTURE_VERSION}:branch-correlation:{tenant_id}:{}",
+                        "erpx:{FIXTURE_VERSION}:branch-correlation:{holding_id}:{}",
                         fixture.branch_key
                     )
                     .as_bytes(),
@@ -1873,7 +1873,7 @@ async fn reconcile_branch_fixtures(
             };
             let job = jobs.enqueue(&request).await?;
             if let Some(route) = jobs
-                .route(tenant_id, branch_id)
+                .route(holding_key, branch_id)
                 .await?
                 .filter(|route| route.state == BranchProvisioningState::Active)
             {
@@ -1886,10 +1886,10 @@ async fn reconcile_branch_fixtures(
                          SET state='active', completed_at=now(), failure_category=NULL,
                              claimed_by=NULL, claimed_at=NULL, lease_expires_at=NULL,
                              updated_at=now()
-                         WHERE tenant_id=$1 AND job_id=$2
+                         WHERE holding_id=$1 AND job_id=$2
                            AND state IN ('queued','failed')",
                     )
-                    .bind(tenant_id)
+                    .bind(holding_id)
                     .bind(job.job_id)
                     .execute(&control.pools().write)
                     .await?;
@@ -1902,7 +1902,7 @@ async fn reconcile_branch_fixtures(
                 }
                 reconcile_active_branch_business_units(
                     &control,
-                    &route.tenant_id,
+                    &route.holding_key,
                     route.branch_id,
                     &units,
                 )
@@ -1910,13 +1910,13 @@ async fn reconcile_branch_fixtures(
                 continue;
             }
             if job.state == BranchProvisioningState::Failed {
-                jobs.retry(tenant_id, job.job_id, request.correlation_id, Utc::now())
+                jobs.retry(holding_key, job.job_id, request.correlation_id, Utc::now())
                     .await?;
             }
         }
     }
 
-    let provisioner = TenantDatabaseProvisioner::for_approved_profiles(control.clone());
+    let provisioner = HoldingDatabaseProvisioner::for_approved_profiles(control.clone());
     while let Some(claim) = jobs
         .claim_next(BRANCH_PROVISIONING_WORKER_ID, Utc::now())
         .await?
@@ -1957,17 +1957,17 @@ async fn reconcile_branch_fixtures(
 
 async fn reconcile_active_branch_business_units(
     control: &SqlxControlPlane,
-    tenant_id: &str,
+    holding_id: &str,
     branch_id: Uuid,
     units: &[BusinessUnitId],
 ) -> TaskResult {
     for unit in units {
         sqlx::query(
             "INSERT INTO erpx_control.branch_business_unit_configurations
-                (tenant_id, branch_id, business_unit, active,
+                (holding_id, branch_id, business_unit, active,
                  configuration_version, updated_by)
              VALUES ($1,$2,$3,TRUE,1,$4)
-             ON CONFLICT (tenant_id, branch_id, business_unit) DO UPDATE
+             ON CONFLICT (holding_id, branch_id, business_unit) DO UPDATE
              SET active=TRUE,
                  configuration_version=CASE
                      WHEN erpx_control.branch_business_unit_configurations.active THEN
@@ -1977,7 +1977,7 @@ async fn reconcile_active_branch_business_units(
                  updated_by=EXCLUDED.updated_by,
                  updated_at=now()",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(branch_id)
         .bind(unit.as_str())
         .bind(DEVELOPMENT_CONTROLLER_PRINCIPAL)
@@ -2003,27 +2003,27 @@ async fn grant_branch_database_objects(
     ] {
         let pool = profile.connect(database_key).await?;
         sqlx::query(&format!(
-            "GRANT USAGE, CREATE ON SCHEMA erpx_tenant TO {target}"
+            "GRANT USAGE, CREATE ON SCHEMA erpx_holding TO {target}"
         ))
         .execute(&pool)
         .await?;
         sqlx::query(&format!(
-            "GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON ALL TABLES IN SCHEMA erpx_tenant TO {target}"
+            "GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON ALL TABLES IN SCHEMA erpx_holding TO {target}"
         ))
         .execute(&pool)
         .await?;
         sqlx::query(&format!(
-            "GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA erpx_tenant TO {target}"
+            "GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA erpx_holding TO {target}"
         ))
         .execute(&pool)
         .await?;
         sqlx::query(&format!(
-            "ALTER DEFAULT PRIVILEGES FOR ROLE {source} IN SCHEMA erpx_tenant GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLES TO {target}"
+            "ALTER DEFAULT PRIVILEGES FOR ROLE {source} IN SCHEMA erpx_holding GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLES TO {target}"
         ))
         .execute(&pool)
         .await?;
         sqlx::query(&format!(
-            "ALTER DEFAULT PRIVILEGES FOR ROLE {source} IN SCHEMA erpx_tenant GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO {target}"
+            "ALTER DEFAULT PRIVILEGES FOR ROLE {source} IN SCHEMA erpx_holding GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO {target}"
         ))
             .execute(&pool)
             .await?;
@@ -2036,7 +2036,7 @@ pub(crate) async fn controller_fixture_current(
     root: &Path,
     config: &DevConfig,
     control_write_database: &str,
-    target_tenant: &str,
+    target_holding: &str,
 ) -> TaskResult<bool> {
     let password_path = controller_password_path(root);
     let password_is_private_file = fs::symlink_metadata(&password_path).is_ok_and(|metadata| {
@@ -2067,33 +2067,33 @@ pub(crate) async fn controller_fixture_current(
     expected_assignment_ids.extend(
         permission_catalog()
             .into_iter()
-            .map(|entry| controller_catalog_assignment_id(target_tenant, &entry.role_key)),
+            .map(|entry| controller_catalog_assignment_id(target_holding, &entry.role_key)),
     );
     expected_assignment_ids.extend(
         ["assets_administrator", "maintenance_administrator"]
             .into_iter()
-            .map(|role_key| controller_catalog_holding_assignment_id(target_tenant, role_key)),
+            .map(|role_key| controller_catalog_holding_assignment_id(target_holding, role_key)),
     );
     let controller_role_count: i64 = sqlx::query_scalar(
         "SELECT count(*)
          FROM erpx_control.role_assignments assignment
          JOIN erpx_control.role_assignment_target_policies policy
            ON policy.assignment_id=assignment.id
-         JOIN erpx_control.role_assignment_tenant_targets target
+         JOIN erpx_control.role_assignment_holding_targets target
            ON target.assignment_id=assignment.id
          WHERE assignment.id = ANY($1)
            AND assignment.principal_ref=$2
            AND assignment.valid_until>now()
-           AND policy.policy_kind='tenant_allowlist'
+           AND policy.policy_kind='holding_allowlist'
            AND policy.environment_gate='local-ucs-lab'
-           AND target.tenant_id=$3
+           AND target.holding_id=$3
            AND (SELECT count(*)
-                FROM erpx_control.role_assignment_tenant_targets exact_target
+                FROM erpx_control.role_assignment_holding_targets exact_target
                 WHERE exact_target.assignment_id=assignment.id)=1",
     )
     .bind(&expected_assignment_ids)
     .bind(DEVELOPMENT_CONTROLLER_PRINCIPAL)
-    .bind(target_tenant)
+    .bind(target_holding)
     .fetch_one(&write)
     .await?;
     write.close().await;
@@ -2104,9 +2104,9 @@ pub(crate) async fn runtime_catalog_current(
     root: &Path,
     config: &DevConfig,
     control_write_database: &str,
-    target_tenant: &str,
+    target_holding: &str,
 ) -> TaskResult<bool> {
-    if !controller_fixture_current(root, config, control_write_database, target_tenant).await? {
+    if !controller_fixture_current(root, config, control_write_database, target_holding).await? {
         return Ok(false);
     }
 
@@ -2116,7 +2116,7 @@ pub(crate) async fn runtime_catalog_current(
         "SELECT EXISTS(
              SELECT 1 FROM erpx_identity.development_seed_receipts
              WHERE receipt_key='persona-manifest:platform'
-               AND fixture_version=$1 AND tenant_id IS NULL AND manifest_digest=$2
+               AND fixture_version=$1 AND holding_id IS NULL AND manifest_digest=$2
          )",
     )
     .bind(FIXTURE_VERSION)
@@ -2125,7 +2125,7 @@ pub(crate) async fn runtime_catalog_current(
     .await?;
     let platform_manifest_count: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM erpx_identity.development_persona_manifests
-         WHERE tenant_id IS NULL",
+         WHERE holding_id IS NULL",
     )
     .fetch_one(&write)
     .await?;
@@ -2161,45 +2161,45 @@ pub(crate) async fn runtime_catalog_current(
     }
 
     let runtime_workspace = sqlx::query(
-        "SELECT registry.tenant_id, registry.holding_ref
-         FROM erpx_control.tenant_registry registry
-         JOIN erpx_control.customer_tenant_bindings binding USING (tenant_id)
-         WHERE registry.tenant_id=$1 AND registry.state='active'
+        "SELECT registry.holding_id, registry.data_profile_key
+         FROM erpx_control.holding_registry registry
+         JOIN erpx_control.customer_holding_bindings binding USING (holding_id)
+         WHERE registry.holding_id=$1 AND registry.state='active'
            AND binding.binding_state='configured'",
     )
-    .bind(target_tenant)
+    .bind(target_holding)
     .fetch_optional(&write)
     .await?;
     let Some(runtime_workspace) = runtime_workspace else {
         write.close().await;
         return Ok(false);
     };
-    let tenant_id: String = runtime_workspace.try_get("tenant_id")?;
-    let holding_ref: String = runtime_workspace.try_get("holding_ref")?;
-    for (tenant_id, holding_ref) in [(tenant_id, holding_ref)] {
+    let holding_id: String = runtime_workspace.try_get("holding_id")?;
+    let data_profile_key: String = runtime_workspace.try_get("data_profile_key")?;
+    for (holding_id, data_profile_key) in [(holding_id, data_profile_key)] {
         let expected_personas = scoped_demo_personas(
-            &tenant_id,
-            &holding_ref,
+            &holding_id,
+            &data_profile_key,
             erpx_identity::BUSINESS_UNITS.as_slice(),
         );
         let receipt_current: bool = sqlx::query_scalar(
             "SELECT EXISTS(
                  SELECT 1 FROM erpx_identity.development_seed_receipts
                  WHERE receipt_key=$1 AND fixture_version=$2
-                   AND tenant_id=$3 AND manifest_digest=$4
+                   AND holding_id=$3 AND manifest_digest=$4
              )",
         )
-        .bind(format!("persona-manifest:{tenant_id}"))
+        .bind(format!("persona-manifest:{holding_id}"))
         .bind(FIXTURE_VERSION)
-        .bind(&tenant_id)
-        .bind(manifest_digest(&tenant_id))
+        .bind(&holding_id)
+        .bind(manifest_digest(&holding_id))
         .fetch_one(&write)
         .await?;
         let manifest_count: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM erpx_identity.development_persona_manifests
-             WHERE tenant_id=$1",
+             WHERE holding_id=$1",
         )
-        .bind(&tenant_id)
+        .bind(&holding_id)
         .fetch_one(&write)
         .await?;
         let mut principal_refs = expected_personas
@@ -2218,13 +2218,13 @@ pub(crate) async fn runtime_catalog_current(
         let mut assignment_ids = expected_personas
             .iter()
             .flat_map(|persona| {
-                persona_assignment_scopes(&tenant_id, &holding_ref, &persona.role_key)
+                persona_assignment_scopes(&holding_id, &data_profile_key, &persona.role_key)
                     .into_iter()
                     .map(|(_, scope_key)| {
                         Uuid::new_v5(
                             &Uuid::NAMESPACE_URL,
                             format!(
-                                "erpx:dev-access:{tenant_id}:{}:{scope_key}",
+                                "erpx:dev-access:{holding_id}:{}:{scope_key}",
                                 persona.role_key
                             )
                             .as_bytes(),
@@ -2261,21 +2261,21 @@ pub(crate) async fn runtime_catalog_current(
 
 async fn asset_maintenance_entitlements_current(write: &PgPool) -> TaskResult<bool> {
     let now = Utc::now();
-    let root_holding_ids = sqlx::query_scalar::<_, Uuid>(
-        "SELECT binding.root_holding_id
-         FROM erpx_control.customer_tenant_bindings binding
-         JOIN erpx_control.tenant_registry registry USING (tenant_id)
+    let canonical_holding_ids = sqlx::query_scalar::<_, Uuid>(
+        "SELECT binding.canonical_holding_id
+         FROM erpx_control.customer_holding_bindings binding
+         JOIN erpx_control.holding_registry registry USING (holding_id)
          WHERE binding.binding_state='configured'
            AND registry.credential_key_ref IN
                ('local_shared','local-development-disabled','database-profile:default')
-         ORDER BY binding.root_holding_id",
+         ORDER BY binding.canonical_holding_id",
     )
     .fetch_all(write)
     .await?;
     let customer_count: i64 = sqlx::query_scalar(
         "SELECT count(*)
-         FROM erpx_control.customer_tenant_bindings binding
-         JOIN erpx_control.tenant_registry registry USING (tenant_id)
+         FROM erpx_control.customer_holding_bindings binding
+         JOIN erpx_control.holding_registry registry USING (holding_id)
          WHERE binding.binding_state='configured'
            AND registry.credential_key_ref IN
                ('local_shared','local-development-disabled','database-profile:default')",
@@ -2288,9 +2288,9 @@ async fn asset_maintenance_entitlements_current(write: &PgPool) -> TaskResult<bo
     let billing_count: i64 = sqlx::query_scalar(
         "SELECT count(*)
          FROM erpx_control.billing_lifecycles lifecycle
-         JOIN erpx_control.customer_tenant_bindings binding
+         JOIN erpx_control.customer_holding_bindings binding
            ON binding.customer_id=lifecycle.customer_id
-         JOIN erpx_control.tenant_registry registry USING (tenant_id)
+         JOIN erpx_control.holding_registry registry USING (holding_id)
          WHERE binding.binding_state='configured'
            AND registry.credential_key_ref IN
                ('local_shared','local-development-disabled','database-profile:default')",
@@ -2300,9 +2300,9 @@ async fn asset_maintenance_entitlements_current(write: &PgPool) -> TaskResult<bo
     let active_billing_count: i64 = sqlx::query_scalar(
         "SELECT count(*)
          FROM erpx_control.billing_lifecycles lifecycle
-         JOIN erpx_control.customer_tenant_bindings binding
+         JOIN erpx_control.customer_holding_bindings binding
            ON binding.customer_id=lifecycle.customer_id
-         JOIN erpx_control.tenant_registry registry USING (tenant_id)
+         JOIN erpx_control.holding_registry registry USING (holding_id)
          WHERE registry.credential_key_ref IN
                ('local_shared','local-development-disabled','database-profile:default')
            AND binding.binding_state='configured'
@@ -2313,9 +2313,9 @@ async fn asset_maintenance_entitlements_current(write: &PgPool) -> TaskResult<bo
     let active_entitlement_count: i64 = sqlx::query_scalar(
         "SELECT count(*)
          FROM erpx_control.entitlement_allocation_books entitlement
-         JOIN erpx_control.customer_tenant_bindings binding
+         JOIN erpx_control.customer_holding_bindings binding
            ON binding.customer_id=entitlement.customer_id
-         JOIN erpx_control.tenant_registry registry USING (tenant_id)
+         JOIN erpx_control.holding_registry registry USING (holding_id)
          WHERE registry.credential_key_ref IN
                ('local_shared','local-development-disabled','database-profile:default')
            AND binding.binding_state='configured'
@@ -2338,7 +2338,7 @@ async fn asset_maintenance_entitlements_current(write: &PgPool) -> TaskResult<bo
     let mut required_sod_decisions = 0_usize;
     for assignment in assignments.iter().filter(|assignment| {
         scope_root_holding(&assignment.scope)
-            .is_some_and(|holding_id| root_holding_ids.contains(&holding_id))
+            .is_some_and(|holding_id| canonical_holding_ids.contains(&holding_id))
     }) {
         for module_key in writable_asset_maintenance_modules(assignment) {
             required_sod_decisions = required_sod_decisions.saturating_add(1);
@@ -2371,7 +2371,7 @@ pub(crate) async fn fixtures_current(root: &Path, config: &DevConfig) -> TaskRes
         root,
         config,
         DATABASES[0],
-        DEVELOPMENT_CONTROLLER_TARGET_TENANT,
+        DEVELOPMENT_CONTROLLER_TARGET_HOLDING,
     )
     .await?
     {
@@ -2383,7 +2383,7 @@ pub(crate) async fn fixtures_current(root: &Path, config: &DevConfig) -> TaskRes
         "SELECT EXISTS(
              SELECT 1 FROM erpx_identity.development_seed_receipts
              WHERE receipt_key='persona-manifest:platform'
-               AND fixture_version=$1 AND tenant_id IS NULL AND manifest_digest=$2
+               AND fixture_version=$1 AND holding_id IS NULL AND manifest_digest=$2
          )",
     )
     .bind(FIXTURE_VERSION)
@@ -2393,7 +2393,7 @@ pub(crate) async fn fixtures_current(root: &Path, config: &DevConfig) -> TaskRes
     let expected_platform_personas = platform_personas();
     let platform_manifest_count: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM erpx_identity.development_persona_manifests
-         WHERE tenant_id IS NULL",
+         WHERE holding_id IS NULL",
     )
     .fetch_one(&write)
     .await?;
@@ -2414,70 +2414,72 @@ pub(crate) async fn fixtures_current(root: &Path, config: &DevConfig) -> TaskRes
         return Ok(false);
     }
 
-    let local_tenants = sqlx::query_scalar::<_, String>(
-        "SELECT tenant_id FROM erpx_control.tenant_registry
+    let local_holdings = sqlx::query_scalar::<_, String>(
+        "SELECT holding_id FROM erpx_control.holding_registry
          WHERE state='active'
-           AND tenant_id IN ($1,$2)
+           AND holding_id IN ($1,$2)
            AND credential_key_ref='local_shared'
-         ORDER BY tenant_id",
+         ORDER BY holding_id",
     )
-    .bind(TENANT_ID)
-    .bind(RESTRICTED_TENANT_ID)
+    .bind(HOLDING_ID)
+    .bind(RESTRICTED_HOLDING_ID)
     .fetch_all(&write)
     .await?;
-    if !local_tenants.iter().any(|tenant_id| tenant_id == TENANT_ID)
-        || !local_tenants
+    if !local_holdings
+        .iter()
+        .any(|holding_id| holding_id == HOLDING_ID)
+        || !local_holdings
             .iter()
-            .any(|tenant_id| tenant_id == RESTRICTED_TENANT_ID)
+            .any(|holding_id| holding_id == RESTRICTED_HOLDING_ID)
     {
         write.close().await;
         return Ok(false);
     }
-    for tenant_id in &local_tenants {
-        let holding_ref = if tenant_id == TENANT_ID {
-            HOLDING_REF
+    for holding_id in &local_holdings {
+        let data_profile_key = if holding_id == HOLDING_ID {
+            DATA_PROFILE_KEY
         } else {
-            RESTRICTED_HOLDING_REF
+            RESTRICTED_DATA_PROFILE_KEY
         };
         let expected_personas =
-            scoped_demo_personas(tenant_id, holding_ref, entitled_units(tenant_id));
+            scoped_demo_personas(holding_id, data_profile_key, entitled_units(holding_id));
         let receipt_current: bool = sqlx::query_scalar(
             "SELECT EXISTS(
                  SELECT 1 FROM erpx_identity.development_seed_receipts
                  WHERE receipt_key=$1 AND fixture_version=$2
-                   AND tenant_id=$3 AND manifest_digest=$4
+                   AND holding_id=$3 AND manifest_digest=$4
              )",
         )
-        .bind(format!("persona-manifest:{tenant_id}"))
+        .bind(format!("persona-manifest:{holding_id}"))
         .bind(FIXTURE_VERSION)
-        .bind(tenant_id)
-        .bind(manifest_digest(tenant_id))
+        .bind(holding_id)
+        .bind(manifest_digest(holding_id))
         .fetch_one(&write)
         .await?;
         let manifest_count: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM erpx_identity.development_persona_manifests
-             WHERE tenant_id=$1",
+             WHERE holding_id=$1",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .fetch_one(&write)
         .await?;
-        let mut required_assignment_ids = match tenant_id.as_str() {
-            TENANT_ID | RESTRICTED_TENANT_ID => {
-                let holding_ref = if tenant_id == TENANT_ID {
-                    HOLDING_REF
+        let mut required_assignment_ids = match holding_id.as_str() {
+            HOLDING_ID | RESTRICTED_HOLDING_ID => {
+                let data_profile_key = if holding_id == HOLDING_ID {
+                    DATA_PROFILE_KEY
                 } else {
-                    RESTRICTED_HOLDING_REF
+                    RESTRICTED_DATA_PROFILE_KEY
                 };
                 expected_personas
                     .iter()
                     .flat_map(|persona| {
-                        persona_assignment_scopes(tenant_id, holding_ref, &persona.role_key)
+                        persona_assignment_scopes(holding_id, data_profile_key, &persona.role_key)
                             .into_iter()
                             .map(|(_, scope_key)| {
                                 Uuid::new_v5(
                                     &Uuid::NAMESPACE_URL,
                                     format!(
-                                        "erpx:dev-access:{tenant_id}:{}:{scope_key}",
+                                        "erpx:dev-access:{holding_id}:{}:{scope_key}",
                                         persona.role_key
                                     )
                                     .as_bytes(),
@@ -2514,29 +2516,29 @@ pub(crate) async fn fixtures_current(root: &Path, config: &DevConfig) -> TaskRes
 
     let active_branch_count: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM erpx_control.branch_database_routes
-         WHERE tenant_id IN ($1,$2) AND state='active'",
+         WHERE holding_id IN ($1,$2) AND state='active'",
     )
-    .bind(TENANT_ID)
-    .bind(RESTRICTED_TENANT_ID)
+    .bind(HOLDING_ID)
+    .bind(RESTRICTED_HOLDING_ID)
     .fetch_one(&write)
     .await?;
     let configured_branch_count: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM (
-             SELECT route.tenant_id, route.branch_id
+             SELECT route.holding_id, route.branch_id
              FROM erpx_control.branch_database_routes route
              JOIN erpx_control.branch_business_unit_configurations configuration
-               ON configuration.tenant_id=route.tenant_id
+               ON configuration.holding_id=route.holding_id
               AND configuration.branch_id=route.branch_id
-             WHERE route.tenant_id IN ($1,$2)
+             WHERE route.holding_id IN ($1,$2)
                AND route.state='active'
                AND configuration.active
                AND configuration.business_unit = ANY($3)
-             GROUP BY route.tenant_id, route.branch_id
+             GROUP BY route.holding_id, route.branch_id
              HAVING count(DISTINCT configuration.business_unit)=$4
          ) configured_branches",
     )
-    .bind(TENANT_ID)
-    .bind(RESTRICTED_TENANT_ID)
+    .bind(HOLDING_ID)
+    .bind(RESTRICTED_HOLDING_ID)
     .bind(erpx_identity::BUSINESS_UNITS.as_slice())
     .bind(i64::try_from(erpx_identity::BUSINESS_UNITS.len())?)
     .fetch_one(&write)
@@ -2575,11 +2577,11 @@ pub(crate) async fn status(
          FROM erpx_control.role_assignments assignment
          JOIN erpx_control.role_assignment_target_policies policy
            ON policy.assignment_id=assignment.id
-         JOIN erpx_control.role_assignment_tenant_targets target
+         JOIN erpx_control.role_assignment_holding_targets target
            ON target.assignment_id=assignment.id
          WHERE assignment.principal_ref=$1
            AND assignment.valid_until>now()
-           AND policy.policy_kind='tenant_allowlist'
+           AND policy.policy_kind='holding_allowlist'
            AND policy.environment_gate=$2",
     )
     .bind(DEVELOPMENT_CONTROLLER_PRINCIPAL)
@@ -2599,17 +2601,17 @@ pub(crate) async fn status(
     Ok(())
 }
 
-pub(crate) fn credentials(root: &Path, tenant: Option<&str>) -> TaskResult {
-    if let Some(tenant) = tenant
-        && (tenant.is_empty()
-            || tenant.len() > 128
-            || !tenant
+pub(crate) fn credentials(root: &Path, holding: Option<&str>) -> TaskResult {
+    if let Some(holding) = holding
+        && (holding.is_empty()
+            || holding.len() > 128
+            || !holding
                 .chars()
                 .all(|value| value.is_ascii_alphanumeric() || matches!(value, '-' | '_' | '.')))
     {
-        return Err("tenant credential profile contains an invalid identifier".into());
+        return Err("holding credential profile contains an invalid identifier".into());
     }
-    let path = tenant.map_or_else(
+    let path = holding.map_or_else(
         || controller_password_path(root),
         |_| runtime_dir(root).join(UCS_SHARED_PASSWORD_FILE),
     );
@@ -2623,10 +2625,10 @@ pub(crate) fn credentials(root: &Path, tenant: Option<&str>) -> TaskResult {
     if credential.is_empty() || credential.chars().any(char::is_control) {
         return Err("development credential file is empty or invalid".into());
     }
-    match tenant {
-        Some(tenant) => {
+    match holding {
+        Some(holding) => {
             println!("UCS authority credentials:");
-            println!("  authority: {tenant}");
+            println!("  authority: {holding}");
             println!("  password: {credential}");
         }
         None => {
@@ -2689,8 +2691,8 @@ pub(crate) async fn reset(
     Ok(())
 }
 
-fn entitled_units(tenant_id: &str) -> &'static [&'static str] {
-    if tenant_id == RESTRICTED_TENANT_ID {
+fn entitled_units(holding_id: &str) -> &'static [&'static str] {
+    if holding_id == RESTRICTED_HOLDING_ID {
         &RESTRICTED_UNITS
     } else {
         erpx_identity::BUSINESS_UNITS.as_slice()
@@ -2716,7 +2718,7 @@ fn platform_manifest_digest() -> String {
     format!("{:x}", digest.finalize())
 }
 
-fn manifest_digest(tenant_id: &str) -> String {
+fn manifest_digest(holding_id: &str) -> String {
     let mut digest = Sha256::new();
     for value in [
         FIXTURE_VERSION,
@@ -2726,7 +2728,7 @@ fn manifest_digest(tenant_id: &str) -> String {
         "devbranch",
         "erpx_managed",
         "erpx-ucs-authority",
-        tenant_id,
+        holding_id,
         "Asia/Bangkok",
         "local:dev-access",
     ] {
@@ -2737,17 +2739,17 @@ fn manifest_digest(tenant_id: &str) -> String {
         &format!(
             "{:?}",
             scoped_demo_personas(
-                tenant_id,
-                if tenant_id == TENANT_ID {
-                    HOLDING_REF
+                holding_id,
+                if holding_id == HOLDING_ID {
+                    DATA_PROFILE_KEY
                 } else {
-                    RESTRICTED_HOLDING_REF
+                    RESTRICTED_DATA_PROFILE_KEY
                 },
-                entitled_units(tenant_id),
+                entitled_units(holding_id),
             )
         ),
     );
-    for fixture in branch_fixtures(tenant_id) {
+    for fixture in branch_fixtures(holding_id) {
         update_manifest_digest(&mut digest, &format!("{fixture:?}"));
     }
     format!("{:x}", digest.finalize())
@@ -2782,10 +2784,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn development_fixture_digests_cover_authority_and_tenant_inputs() {
+    fn development_fixture_digests_cover_authority_and_holding_inputs() {
         let platform = platform_manifest_digest();
-        let demo = manifest_digest(TENANT_ID);
-        let restricted = manifest_digest(RESTRICTED_TENANT_ID);
+        let demo = manifest_digest(HOLDING_ID);
+        let restricted = manifest_digest(RESTRICTED_HOLDING_ID);
         assert_eq!(platform.len(), 64);
         assert_eq!(demo.len(), 64);
         assert_eq!(restricted.len(), 64);
@@ -2794,16 +2796,16 @@ mod tests {
     }
 
     #[test]
-    fn runtime_catalog_contains_platform_and_both_demo_tenants() {
+    fn runtime_catalog_contains_platform_and_both_demo_holdings() {
         let platform = platform_personas();
-        let demo = scoped_demo_personas(TENANT_ID, HOLDING_REF, entitled_units(TENANT_ID));
+        let demo = scoped_demo_personas(HOLDING_ID, DATA_PROFILE_KEY, entitled_units(HOLDING_ID));
         let restricted = scoped_demo_personas(
-            RESTRICTED_TENANT_ID,
-            RESTRICTED_HOLDING_REF,
-            entitled_units(RESTRICTED_TENANT_ID),
+            RESTRICTED_HOLDING_ID,
+            RESTRICTED_DATA_PROFILE_KEY,
+            entitled_units(RESTRICTED_HOLDING_ID),
         );
         assert_eq!(platform.len() + demo.len() + restricted.len(), 146);
-        assert!(platform.iter().all(|persona| persona.tenant_id.is_none()));
+        assert!(platform.iter().all(|persona| persona.holding_id.is_none()));
         let demo_denied = demo.iter().filter(|persona| !persona.entitled).count();
         let restricted_denied = restricted
             .iter()
@@ -2811,15 +2813,15 @@ mod tests {
             .count();
         assert!(demo_denied > 0);
         assert_eq!(restricted_denied, demo_denied);
-        assert_eq!(entitled_units(RESTRICTED_TENANT_ID).len(), 12);
+        assert_eq!(entitled_units(RESTRICTED_HOLDING_ID).len(), 12);
     }
 
     #[test]
     fn controller_catalog_has_every_role_with_bounded_representative_scopes() {
         let assignments = controller_catalog_assignments(
-            RESTRICTED_TENANT_ID,
-            RESTRICTED_HOLDING_REF,
-            branch_ids(RESTRICTED_TENANT_ID, RESTRICTED_BRANCHES[0]),
+            RESTRICTED_HOLDING_ID,
+            RESTRICTED_DATA_PROFILE_KEY,
+            branch_ids(RESTRICTED_HOLDING_ID, RESTRICTED_BRANCHES[0]),
             Utc::now(),
         );
         assert_eq!(assignments.len(), 75);
@@ -2844,7 +2846,7 @@ mod tests {
         let mut company_scopes = 0;
         let mut branch_scopes = 0;
         let (expected_company_id, expected_branch_id) =
-            branch_ids(RESTRICTED_TENANT_ID, RESTRICTED_BRANCHES[0]);
+            branch_ids(RESTRICTED_HOLDING_ID, RESTRICTED_BRANCHES[0]);
         for assignment in &assignments {
             assert_eq!(assignment.principal_ref, DEVELOPMENT_CONTROLLER_PRINCIPAL);
             assert_eq!(

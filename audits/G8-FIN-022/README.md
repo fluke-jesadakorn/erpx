@@ -7,10 +7,10 @@
 - **Objective:** Add a production-safe control-plane registry and exact
   resolver for Finance bank-provider account bindings and opaque credential
   references.
-- **Dependencies:** `erpx_control.tenant_registry`, `SqlxControlPlane`, and
+- **Dependencies:** `erpx_control.holding_registry`, `SqlxControlPlane`, and
   the provider-neutral Finance banking boundary.
-- **Database scope:** control-plane write database only. No tenant banking
-  tables or tenant credentials are changed.
+- **Database scope:** control-plane write database only. No holding banking
+  tables or holding credentials are changed.
 - **Migration:** `0027_finance_bank_provider_accounts.sql`.
 
 ## Delivered behavior
@@ -19,21 +19,21 @@ The control plane now has `erpx_control.finance_bank_provider_accounts` with:
 
 - globally unique opaque `provider_account_ref`;
 - provider key;
-- tenant and holding binding, including authoritative `holding_id`;
+- holding and holding binding, including authoritative `holding_id`;
 - opaque `credential_key_ref` for a secret-manager lookup;
 - `active`/`suspended` state and positive version;
 - timestamps and an exact route lookup index;
-- a restrictive foreign key to `tenant_registry`.
+- a restrictive foreign key to `holding_registry`.
 
 `SqlxControlPlane::resolve_finance_bank_provider_account` validates every
-reference before querying and requires exact account, provider, tenant,
+reference before querying and requires exact account, provider, holding,
 holding, and credential-reference equality. It returns no row for a suspended
-account, inactive tenant, or any mismatched route component. The returned DTO
+account, inactive holding, or any mismatched route component. The returned DTO
 contains only routing metadata and an opaque credential key reference; its
 custom `Debug` implementation redacts that reference and it is not
 serializable by default.
 
-No provider SDK calls, credential-manager calls, provider payloads, tenant
+No provider SDK calls, credential-manager calls, provider payloads, holding
 banking writes, bank matching, journal posting, worker scheduling,
 gRPC/protobuf, UI, or Marketing code was added.
 
@@ -65,8 +65,8 @@ cargo test -p erpx-infrastructure --test finance_banking_provider_accounts -- --
 The non-disposable checks cover compilation, linting, embedded migration
 assertions, and test compilation. The ignored PostgreSQL test applies clean
 control write/read migrations and covers exact active resolution, wrong
-provider/tenant/holding/credential rejection, suspended-account rejection,
-inactive-tenant rejection, malformed-reference rejection, positive version,
+provider/holding/holding/credential rejection, suspended-account rejection,
+inactive-holding rejection, malformed-reference rejection, positive version,
 foreign-key-backed registration, and redacted DTO diagnostics. Disposable
 database URLs are never printed.
 
@@ -92,13 +92,13 @@ Recorded results:
 
 The table has no raw credential, token, provider payload, or secret-byte
 column. A secret-manager key reference is matched exactly but redacted from
-DTO debug output and errors contain no values. Tenant activity and holding
+DTO debug output and errors contain no values. Holding activity and holding
 identity are checked in the same authoritative lookup query. The provider
 account reference is globally unique so a route cannot silently select an
 alternate binding.
 
 Rollback is additive: disable or ignore this resolver and retain migration
-0027. No tenant data, Folio state, environment file, or runtime service is
+0027. No holding data, Folio state, environment file, or runtime service is
 changed.
 
 ## Integration order and unfinished work

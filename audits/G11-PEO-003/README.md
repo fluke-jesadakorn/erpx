@@ -2,7 +2,7 @@
 
 ## Delivered behavior
 
-- Added tenant read migration 0032 with typed employee, leave, expense,
+- Added holding read migration 0032 with typed employee, leave, expense,
   payroll run/line, and expired-role reassignment tables.
 - Added checkpoints and event receipts with source versions/event IDs.
 - Enabled and forced holding RLS on all eight tables.
@@ -29,5 +29,5 @@
 
 HR read transport, UI, durable scheduler registration, live projector replay,
 and end-to-end HR reconciliation remain open. Rollback removes migration 0032
-and additive projector/worker code; tenant-write source state and Folio remain
+and additive projector/worker code; holding-write source state and Folio remain
 unchanged.

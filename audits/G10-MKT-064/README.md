@@ -3,23 +3,23 @@
 ## Delivered behavior
 
 - The domain crate exports a pure, deterministic abuse policy with exact
-  tenant/form/domain binding, bounded opaque fingerprints, sustained and burst
+  holding/form/domain binding, bounded opaque fingerprints, sustained and burst
   limits, honeypot rejection, explicit challenge decisions, and redacted
   `Debug`/error output.
 - Public Marketing form and preview ingress derives a keyed HMAC fingerprint
   from the configured ingress key and bounded proxy/client headers. The raw
   header values and fingerprint source are never persisted.
-- The ingress validates the active tenant registration, hostname, resource
+- The ingress validates the active holding registration, hostname, resource
   kind, and opaque resource UUID before consuming the quota. Missing or empty
   `ERPX_MARKETING_ABUSE_FINGERPRINT_KEY` fails closed with a generic service
   error.
 - Control-plane migration 0047 adds an atomic minute-window counter keyed by
-  tenant, holding, normalized hostname, resource kind, resource ID, and window
+  holding, holding, normalized hostname, resource kind, resource ID, and window
   start. It stores no IP address, email, contact value, token, or request body.
-- The atomic control-plane counter is consumed before tenant database routing;
-  an exhausted window returns `429 Too Many Requests`. The tenant registry is
+- The atomic control-plane counter is consumed before holding database routing;
+  an exhausted window returns `429 Too Many Requests`. The holding registry is
   rechecked inside the same control-plane transaction.
-- Form honeypot fields are rejected before tenant writes. Explicit challenge
+- Form honeypot fields are rejected before holding writes. Explicit challenge
   adapter signals remain bounded to deterministic reject/challenge responses;
   a passed challenge never bypasses durable limits.
 
@@ -57,5 +57,5 @@ control counter is intentionally not an identity or contact-tracking store.
 
 Disable the public Marketing ingress route while preserving the additive
 control-plane table and policy code. Do not delete counter history outside its
-bounded retention cleanup; tenant write state and existing form idempotency
+bounded retention cleanup; holding write state and existing form idempotency
 records remain authoritative.

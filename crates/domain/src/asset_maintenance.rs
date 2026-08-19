@@ -14,7 +14,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::contracts::{CommandContext, TenantScope};
+use crate::contracts::{AuthorityScope, CommandContext};
 use crate::operations::SourceTransactionRef;
 
 pub const ASSET_MAINTENANCE_CONTRACT_VERSION: u16 = 1;
@@ -43,8 +43,8 @@ pub enum AssetMaintenanceError {
     InvalidCommandContext(String),
     #[error("command scope {context:?} does not contain required scope {required:?}")]
     ScopeNotContained {
-        context: Box<TenantScope>,
-        required: Box<TenantScope>,
+        context: Box<AuthorityScope>,
+        required: Box<AuthorityScope>,
     },
     #[error("actor principal reference cannot be empty")]
     EmptyActorReference,
@@ -96,7 +96,7 @@ pub enum AssetMaintenanceError {
     InvalidOperationsHandoff,
 }
 
-/// Tenant-scoped source/read reconciliation facts for the disposable
+/// Holding-scoped source/read reconciliation facts for the disposable
 /// Asset/Maintenance projection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct AssetMaintenanceProjectionReconciliation {
@@ -167,14 +167,14 @@ impl AssetScope {
         Ok(())
     }
 
-    pub fn tenant_scope(&self) -> TenantScope {
+    pub fn active_scope(&self) -> AuthorityScope {
         match self.branch_id {
-            Some(branch_id) => TenantScope::Branch {
+            Some(branch_id) => AuthorityScope::Branch {
                 holding_id: self.holding_id,
                 company_id: self.company_id,
                 branch_id,
             },
-            None => TenantScope::Company {
+            None => AuthorityScope::Company {
                 holding_id: self.holding_id,
                 company_id: self.company_id,
             },
@@ -1515,12 +1515,12 @@ fn validate_context_for_scope(
         return Err(AssetMaintenanceError::EmptyActorReference);
     }
     required.validate()?;
-    if context.tenant_scope.contains(&required.tenant_scope()) {
+    if context.active_scope.contains(&required.active_scope()) {
         Ok(())
     } else {
         Err(AssetMaintenanceError::ScopeNotContained {
-            context: Box::new(context.tenant_scope.clone()),
-            required: Box::new(required.tenant_scope()),
+            context: Box::new(context.active_scope.clone()),
+            required: Box::new(required.active_scope()),
         })
     }
 }
@@ -1576,10 +1576,10 @@ mod tests {
         )
     }
 
-    fn context(scope: TenantScope, key: &str, expected: Option<u64>) -> CommandContext {
+    fn context(scope: AuthorityScope, key: &str, expected: Option<u64>) -> CommandContext {
         let actor = ActorAttribution {
             principal_ref: "user:asset-admin".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: Some(Uuid::from_u128(99)),
             represented_principal_ref: None,
             support_capability_id: None,
@@ -1598,7 +1598,7 @@ mod tests {
     fn asset() -> Asset {
         let value = ids();
         let asset_scope = scope(Some(value.2));
-        let context = context(asset_scope.tenant_scope(), "asset-create", None);
+        let context = context(asset_scope.active_scope(), "asset-create", None);
         Asset::new(
             &context,
             value.4,
@@ -1619,7 +1619,7 @@ mod tests {
     fn scope_is_required_and_branch_authority_cannot_cross_siblings() {
         let value = ids();
         let asset_scope = scope(Some(value.2));
-        let wrong_scope = TenantScope::Branch {
+        let wrong_scope = AuthorityScope::Branch {
             holding_id: value.0,
             company_id: value.1,
             branch_id: Uuid::from_u128(6),
@@ -1649,7 +1649,7 @@ mod tests {
         let mut value = asset();
         let (_, company, _, branch_b, _) = ids();
         let destination = AssetScope::new(value.scope.holding_id, company, Some(branch_b)).unwrap();
-        let wrong_context = context(value.scope.tenant_scope(), "transfer-branch", Some(0));
+        let wrong_context = context(value.scope.active_scope(), "transfer-branch", Some(0));
         let transfer = AssetCommand::Transfer {
             to_scope: destination.clone(),
             custodian_ref: "employee:other".into(),
@@ -1663,7 +1663,7 @@ mod tests {
         ));
 
         let company_context = context(
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id: value.scope.holding_id,
                 company_id: company,
             },
@@ -1680,7 +1680,7 @@ mod tests {
     #[test]
     fn accounting_arithmetic_preserves_non_negative_book_value_and_is_idempotent() {
         let mut value = asset();
-        let base = value.scope.tenant_scope();
+        let base = value.scope.active_scope();
         value
             .apply(
                 &context(base.clone(), "place", Some(0)),
@@ -1738,7 +1738,7 @@ mod tests {
     #[test]
     fn impairment_and_revaluation_cannot_cross_the_residual_value_boundary() {
         let mut value = asset();
-        let base = value.scope.tenant_scope();
+        let base = value.scope.active_scope();
         value
             .apply(
                 &context(base.clone(), "residual-place", Some(0)),
@@ -1775,7 +1775,7 @@ mod tests {
         let mut value = asset();
         let before = value.clone();
         let context = context(
-            value.scope.tenant_scope(),
+            value.scope.active_scope(),
             "custody-before-acquisition",
             Some(0),
         );
@@ -1802,7 +1802,7 @@ mod tests {
     fn maintenance_lifecycle_is_closed_and_costs_are_accounted() {
         let value = ids();
         let asset = asset();
-        let base = asset.scope.tenant_scope();
+        let base = asset.scope.active_scope();
         let create_context = context(base.clone(), "mwo-create", None);
         let mut work_order = MaintenanceWorkOrder::new(
             &create_context,
@@ -1905,7 +1905,7 @@ mod tests {
     fn reliability_record_exposes_mtbf_and_availability_without_negative_metrics() {
         let value = ids();
         let asset = asset();
-        let scope = asset.scope.tenant_scope();
+        let scope = asset.scope.active_scope();
         let mut work_order = MaintenanceWorkOrder::new(
             &context(scope.clone(), "mwo-create", None),
             value.3,
@@ -1951,7 +1951,7 @@ mod tests {
     fn downtime_is_aggregated_without_overlap_and_handed_to_operations() {
         let value = ids();
         let asset = asset();
-        let scope = asset.scope.tenant_scope();
+        let scope = asset.scope.active_scope();
         let mut work_order = MaintenanceWorkOrder::new(
             &context(scope.clone(), "mwo-create", None),
             value.3,
@@ -2028,7 +2028,7 @@ mod tests {
     fn maintenance_version_overflow_rejects_without_mutating_state_or_idempotency() {
         let value = ids();
         let asset = asset();
-        let scope = asset.scope.tenant_scope();
+        let scope = asset.scope.active_scope();
         let mut work_order = MaintenanceWorkOrder::new(
             &context(scope.clone(), "mwo-overflow-create", None),
             value.3,

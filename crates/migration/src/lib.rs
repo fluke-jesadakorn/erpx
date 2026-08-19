@@ -12,7 +12,7 @@ pub mod g13;
 mod schema_manifest;
 
 pub use schema_manifest::{
-    DatabaseRole, SCHEMA_GENERATION, SCHEMA_MANIFEST_VERSION, SchemaManifest,
+    DatabaseRole, SCHEMA_MANIFEST_VERSION, SCHEMA_REVISION, SchemaManifest,
     SchemaManifestViolation, migrate_database_role, verify_schema_manifest,
 };
 
@@ -25,47 +25,47 @@ pub use schema_manifest::{
 /// provisioning metadata migration 0007, customer scope bindings migration
 /// 0008, Stripe webhook audit migration 0009, object access bindings migration
 /// 0010, durable worker readiness migration 0011, and support module binding
-/// migration 0013 are part of the control write schema. The tenant write and
+/// migration 0013 are part of the control write schema. The holding write and
 /// read sets include Operations migrations 0012 and 0002 respectively. The
-/// tenant-write set also includes the Finance banking import/reconciliation
-/// migration 0028, the tenant-read banking projection migration 0029, and the
+/// holding-write set also includes the Finance banking import/reconciliation
+/// migration 0028, the holding-read banking projection migration 0029, and the
 /// Marketing Journey write migrations 0044-0045 and Marketing content write
-/// migration 0047 are part of the tenant-write set. The tenant-read set also
+/// migration 0047 are part of the holding-write set. The holding-read set also
 /// includes Marketing content projection migrations 0036-0037 and the
 /// payload-free, rebuildable G13 target import projection 0040. The G13
 /// projection never becomes a command source.
 /// Control migration 0047 is the durable anonymous Marketing abuse window;
-/// it stores only coarse tenant/holding/hostname/resource counters. Control
+/// it stores only coarse holding/holding/hostname/resource counters. Control
 /// migration 0048 adds the recurring Marketing delivery scheduler lease and
-/// dead-letter tables; it coordinates workers without becoming tenant source
+/// dead-letter tables; it coordinates workers without becoming holding source
 /// state.
 /// Control migration 0049 adds the Marketing provider onboarding lifecycle,
 /// channel capabilities, and verification metadata. It stores no secret
 /// values. Control migration 0050 adds account-bound channel routes without
 /// credential material. Control migration 0051 adds bounded deterministic
 /// provider-account priority metadata. Control migration 0052 plus forward
-/// migration 0054 add durable, redacted tenant backup/restore-test job
+/// migration 0054 add durable, redacted holding backup/restore-test job
 /// coordination and attempt/run attribution. Control read migration 0007
 /// adds the secret-free rebuildable backup-job history projection. Control
-/// migration 0053 adds tenant-bound, bounded backup retention actions; forward
-/// migration 0055 enforces their composite tenant/holding binding; control read
+/// migration 0053 adds holding-bound, bounded backup retention actions; forward
+/// migration 0055 enforces their composite holding/holding binding; control read
 /// migration 0008 adds their secret-free rebuildable report projection. Control
 /// migration 0056 adds bounded object-inventory reconciliation evidence and
 /// control read migration 0009 adds its rebuildable projection.
-/// Tenant-write migration 0051 adds the tenant-scoped Operations SLA
+/// Holding-write migration 0051 adds the holding-scoped Operations SLA
 /// notification inbox and claim/lease state; it never stores provider
 /// credentials or message bodies.
-/// Tenant-write migration 0052 adds append-only Thai statutory tax facts
-/// linked to immutable posted journal lines; tenant-read migration 0041 adds
+/// Holding-write migration 0052 adds append-only Thai statutory tax facts
+/// linked to immutable posted journal lines; holding-read migration 0041 adds
 /// only their rebuildable, payload-free tax report projection.
-/// Control migration 0057 adds tenant-bound, two-person owner-seeding metadata;
+/// Control migration 0057 adds holding-bound, two-person owner-seeding metadata;
 /// recovery material remains in the identity write schema and is never copied
 /// to a control read database. Control migration 0058 adds durable G13 run,
 /// transition, idempotency, checkpoint, work-item, reconciliation, and rollback
 /// evidence state; control-read migration 0011 adds only rebuildable migration
 /// status and reconciliation projections. Control migration 0059 adds bounded
 /// read-only Legacy source snapshot evidence and control-read migration 0012
-/// projects only source hash/count metadata. Tenant-write migration 0050 adds
+/// projects only source hash/count metadata. Holding-write migration 0050 adds
 /// the RLS-scoped G13 import/rollback ledger and its append-only target outbox
 /// events. Neither migration performs a command owner switch.
 /// Control migration 0061 adds bounded, secret-free worker failure context to
@@ -80,31 +80,31 @@ pub use schema_manifest::{
 /// bank-provider import job/claim/evidence lifecycle; control read migration
 /// 0014 projects only rebuildable job status and never request or credential
 /// material.
-/// Control migration 0064 adds composite tenant/holding/worker binding
-/// constraints to the tenant projection scheduler. It is defense-in-depth
+/// Control migration 0064 adds composite holding/holding/worker binding
+/// constraints to the holding projection scheduler. It is defense-in-depth
 /// for recovery and direct-SQL paths; scheduler authorization remains in the
 /// repository and worker composition.
 /// Control migration 0065 requires content-addressed source fences on G13
 /// work items; repository enqueue paths additionally bind each fence to the
 /// immutable migration run source contract hash.
-/// Tenant-read migration 0042 adds the durable Marketing delivery projection
+/// Holding-read migration 0042 adds the durable Marketing delivery projection
 /// cursor; it stores only source-event position metadata and is rebuilt from
-/// the tenant-write delivery outbox.
+/// the holding-write delivery outbox.
 /// Control migration 0067 makes physical PITR cluster-scoped, rejects new
-/// tenant PITR jobs, and stores only redacted chain, WAL continuity, recovery
+/// holding PITR jobs, and stores only redacted chain, WAL continuity, recovery
 /// point, rehearsal, retention, and promotion-audit metadata.
 /// Control migration 0068 adds payload-free cluster recovery markers used by
 /// isolated local timestamp/LSN rehearsals.
-/// Control migration 0069 adds exact customer/tenant/root-holding bindings,
-/// hashed 30-minute platform tenant-administration contexts, Stripe binding
-/// metadata, bounded grace extensions, tenant-visible platform access audit,
-/// and rebuildable tenant/invoice summaries. It performs no automatic
+/// Control migration 0069 adds exact customer/holding/root-holding bindings,
+/// hashed 30-minute platform holding-administration contexts, Stripe binding
+/// metadata, bounded grace extensions, holding-visible platform access audit,
+/// and rebuildable holding/invoice summaries. It performs no automatic
 /// binding, activation, billing, suspension, or deletion.
 /// Control migration 0070 adds ERPX-managed/customer-data-plane profiles,
 /// hash-only agent enrollment and Root capabilities, signed desired/observed
 /// configuration state, customer approval records, and canonical business-unit
 /// configuration. It stores secret references only and defaults already-bound
-/// tenants to ERPX-managed execution without changing routing.
+/// holdings to ERPX-managed execution without changing routing.
 /// Control migration 0072 adds secret-free database profiles, opt-in
 /// holding-plus-branch routing, durable branch provisioning jobs and health,
 /// and resumable first-install receipts. It stores no connection URLs or
@@ -112,12 +112,12 @@ pub use schema_manifest::{
 /// Control migration 0073 adds durable, categorical Platform integration
 /// observations. It stores no endpoints, database keys, provider payloads, or
 /// credential material and is refreshed only from server-owned probes.
-/// Tenant-write migration 0057 introduces the shared atomic CQRS receipt,
+/// Holding-write migration 0057 introduces the shared atomic CQRS receipt,
 /// audit, and outbox schema. Aggregate authority remains in context-owned
-/// typed relational tables. Tenant-read migration 0048 introduces
+/// typed relational tables. Holding-read migration 0048 introduces
 /// disposable projection generations, checkpoints, command receipts, retries,
 /// and dead letters. Context-owned read tables remain separate migrations and
-/// include a generation fence so rebuilds can switch atomically. Tenant-read
+/// include a generation fence so rebuilds can switch atomically. Holding-read
 /// migration 0049 is the first such table: the typed Quality inspection view.
 /// Control write migration 0075 and control read migration 0015 install the
 /// same receipt/audit/outbox and rebuild primitives for platform-scoped
@@ -125,19 +125,19 @@ pub use schema_manifest::{
 /// Control write migration 0076 adds atomic Wave 5 guards for Platform
 /// Administration, Brand, and Customer Authority; control read migration 0016
 /// adds their disposable generation-scoped projections.
-/// Tenant-write migration 0060 adds Wave 6 context guards plus the typed Assets
-/// fact inbox used by Maintenance; tenant-read migration 0052 adds disposable,
+/// Holding-write migration 0060 adds Wave 6 context guards plus the typed Assets
+/// fact inbox used by Maintenance; holding-read migration 0052 adds disposable,
 /// generation-scoped projections for all six paired contexts.
-/// Tenant-write migration 0061 adds Sales, People & Payroll, and POS command
-/// guards; tenant-read migration 0053 adds their disposable, generation-scoped
+/// Holding-write migration 0061 adds Sales, People & Payroll, and POS command
+/// guards; holding-read migration 0053 adds their disposable, generation-scoped
 /// projections for the Wave 7 transactional-context cutover.
-/// Tenant-write migration 0062 adds Finance, Legal, and Support guards;
-/// tenant-read migration 0054 adds their disposable projections. Capability
+/// Holding-write migration 0062 adds Finance, Legal, and Support guards;
+/// holding-read migration 0054 adds their disposable projections. Capability
 /// secrets remain hash-only on the write side and never enter a read model.
-/// Tenant-write migration 0063 adds Operations exception/source-receipt/policy
-/// guards; tenant-read migration 0055 adds its disposable projections and
+/// Holding-write migration 0063 adds Operations exception/source-receipt/policy
+/// guards; holding-read migration 0055 adds its disposable projections and
 /// source-qualified cursor foundation. Control-read migration 0017 adds the
-/// composed Customer 360 projections with an independent cursor per tenant
+/// composed Customer 360 projections with an independent cursor per holding
 /// source database, so global sequences are never compared across databases.
 /// Control migration 0080 stores only credential-free development-persona role
 /// and scope metadata beside the encrypted, expiring context token. This lets
@@ -154,10 +154,10 @@ pub static CONTROL_READ_MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./mi
 
 /// Per-holding write and read schemas are independently rebuildable and never
 /// share the control-plane migration directory.
-pub static TENANT_WRITE_MIGRATOR: sqlx::migrate::Migrator =
-    sqlx::migrate!("./migrations_tenant_write");
-pub static TENANT_READ_MIGRATOR: sqlx::migrate::Migrator =
-    sqlx::migrate!("./migrations_tenant_read");
+pub static HOLDING_WRITE_MIGRATOR: sqlx::migrate::Migrator =
+    sqlx::migrate!("./migrations_holding_write");
+pub static HOLDING_READ_MIGRATOR: sqlx::migrate::Migrator =
+    sqlx::migrate!("./migrations_holding_read");
 
 pub async fn migrate_control_plane(pool: &sqlx::PgPool) -> Result<(), sqlx::migrate::MigrateError> {
     migrate_database_role(pool, DatabaseRole::ControlWrite).await
@@ -167,12 +167,12 @@ pub async fn migrate_control_read(pool: &sqlx::PgPool) -> Result<(), sqlx::migra
     migrate_database_role(pool, DatabaseRole::ControlRead).await
 }
 
-pub async fn migrate_tenant_write(pool: &sqlx::PgPool) -> Result<(), sqlx::migrate::MigrateError> {
-    migrate_database_role(pool, DatabaseRole::TenantWrite).await
+pub async fn migrate_holding_write(pool: &sqlx::PgPool) -> Result<(), sqlx::migrate::MigrateError> {
+    migrate_database_role(pool, DatabaseRole::HoldingWrite).await
 }
 
-pub async fn migrate_tenant_read(pool: &sqlx::PgPool) -> Result<(), sqlx::migrate::MigrateError> {
-    migrate_database_role(pool, DatabaseRole::TenantRead).await
+pub async fn migrate_holding_read(pool: &sqlx::PgPool) -> Result<(), sqlx::migrate::MigrateError> {
+    migrate_database_role(pool, DatabaseRole::HoldingRead).await
 }
 
 /// Deterministically map a source identifier into an opaque ERPX identifier.
@@ -839,6 +839,15 @@ pub fn validate_fixture(fixture: &MigrationFixture) -> Result<(), FixtureError> 
 mod tests {
     use super::*;
 
+    fn between_markers<'a>(sql: &'a str, start: &str, end: &str) -> &'a str {
+        sql.split_once(start)
+            .expect("baseline start marker")
+            .1
+            .split_once(end)
+            .expect("baseline end marker")
+            .0
+    }
+
     #[test]
     fn deterministic_fixture_is_valid_and_repeatable() {
         let first = load_deterministic_fixture().expect("fixture");
@@ -1027,15 +1036,15 @@ mod tests {
 
     #[test]
     fn control_plane_migration_is_embedded_and_has_the_expected_schema() {
-        assert!(CONTROL_PLANE_MIGRATOR.iter().count() >= 3);
+        assert_eq!(CONTROL_PLANE_MIGRATOR.iter().count(), 1);
         let initial = CONTROL_PLANE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 1)
-            .expect("initial migration");
+            .next()
+            .expect("clean-slate baseline");
         let command_receipts = CONTROL_PLANE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 2)
-            .expect("command receipt migration");
+            .next()
+            .expect("clean-slate baseline");
         assert!(initial.sql.contains("erpx_control.outbox_events"));
         assert!(initial.sql.contains("erpx_control.projection_checkpoints"));
         assert!(initial.sql.contains("erpx_control.idempotency_keys"));
@@ -1046,20 +1055,20 @@ mod tests {
         );
         let audits = CONTROL_PLANE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 3)
-            .expect("platform audit migration");
+            .next()
+            .expect("clean-slate baseline");
         assert!(audits.sql.contains("erpx_control.global_read_audits"));
-        assert!(CONTROL_READ_MIGRATOR.iter().count() >= 5);
+        assert_eq!(CONTROL_READ_MIGRATOR.iter().count(), 1);
         let support_sla = CONTROL_PLANE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 17)
-            .expect("support SLA notification migration");
+            .next()
+            .expect("clean-slate baseline");
         assert!(support_sla.sql.contains("support_sla_notifications"));
         assert!(support_sla.sql.contains("claim_expires_at"));
         let platform_governance_write = CONTROL_PLANE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 76)
-            .expect("wave 5 control context guard migration");
+            .next()
+            .expect("clean-slate baseline");
         for table in [
             "governance_records",
             "governance_record_receipts",
@@ -1074,8 +1083,8 @@ mod tests {
         );
         let platform_governance_read = CONTROL_READ_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 16)
-            .expect("wave 5 control context projection migration");
+            .next()
+            .expect("clean-slate baseline");
         assert!(
             platform_governance_read
                 .sql
@@ -1084,13 +1093,13 @@ mod tests {
         assert!(platform_governance_read.sql.contains("generation UUID"));
         let normalized_control = CONTROL_PLANE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 82)
-            .expect("current control normalized authority migration");
+            .next()
+            .expect("clean-slate baseline");
         for contract in [
             "PLATFORM_COMPLETION_TYPED_AUTHORITY_BEGIN",
             "lifecycle_aggregate_version",
-            "tenant_backup_jobs",
-            "tenant_projection_switches",
+            "holding_backup_jobs",
+            "holding_projection_switches",
             "reconciliation_authority",
             "reconciliation_drift_codes",
             "connector_authority",
@@ -1098,15 +1107,22 @@ mod tests {
         ] {
             assert!(normalized_control.sql.contains(contract));
         }
-        assert!(!normalized_control.sql.contains("JSONB"));
+        assert!(
+            !between_markers(
+                normalized_control.sql.as_ref(),
+                "PLATFORM_COMPLETION_TYPED_AUTHORITY_BEGIN",
+                "PLATFORM_COMPLETION_TYPED_AUTHORITY_END",
+            )
+            .contains("JSONB")
+        );
         let read = CONTROL_READ_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 1)
-            .expect("initial read migration");
+            .next()
+            .expect("clean-slate baseline");
         let detail_reads = CONTROL_READ_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 2)
-            .expect("Customer 360 detail read migration");
+            .next()
+            .expect("clean-slate baseline");
         assert!(read.sql.contains("erpx_control.customers"));
         assert!(!read.sql.contains("outbox_events"));
         assert!(
@@ -1116,20 +1132,25 @@ mod tests {
         );
         let incident_reads = CONTROL_READ_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 3)
-            .expect("incident projection migration");
+            .next()
+            .expect("clean-slate baseline");
         assert!(incident_reads.sql.contains("erpx_control.incidents"));
         assert!(detail_reads.sql.contains("erpx_control.customer_notes"));
         let projection_status = CONTROL_READ_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 4)
-            .expect("projection status migration");
+            .next()
+            .expect("clean-slate baseline");
         assert!(
             projection_status
                 .sql
-                .contains("erpx_control.tenant_projection_status")
+                .contains("erpx_control.holding_projection_status")
         );
-        let projection_sql = projection_status.sql.to_ascii_lowercase();
+        let projection_sql = projection_status
+            .sql
+            .lines()
+            .filter(|line| line.contains("holding_projection_status"))
+            .collect::<String>()
+            .to_ascii_lowercase();
         for forbidden in [
             "payload",
             "claim_id",
@@ -1140,102 +1161,112 @@ mod tests {
         ] {
             assert!(!projection_sql.contains(forbidden), "{forbidden}");
         }
-        assert!(projection_sql.contains("attempts between 0 and 25"));
-        assert!(projection_sql.contains("octet_length(last_error) <= 1000"));
+        assert!(
+            projection_status
+                .sql
+                .to_ascii_lowercase()
+                .contains("attempts between 0 and 25")
+        );
+        assert!(
+            projection_status
+                .sql
+                .to_ascii_lowercase()
+                .contains("octet_length(last_error) <= 1000")
+        );
         let freshness = CONTROL_READ_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 5)
-            .expect("projection freshness migration");
+            .next()
+            .expect("clean-slate baseline");
         assert!(freshness.sql.contains("published_at"));
         let checkpoint = CONTROL_READ_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 6)
-            .expect("projection status checkpoint migration");
+            .next()
+            .expect("clean-slate baseline");
         assert!(
             checkpoint
                 .sql
-                .contains("tenant_projection_status_checkpoints")
+                .contains("holding_projection_status_checkpoints")
         );
         assert!(checkpoint.sql.contains("source_updated_at"));
         assert!(checkpoint.sql.contains("source_job_id"));
     }
 
     #[test]
-    fn tenant_write_and_read_migrations_are_separate_and_rls_backed() {
-        assert!(TENANT_WRITE_MIGRATOR.iter().count() >= 3);
-        assert!(TENANT_READ_MIGRATOR.iter().count() >= 3);
-        let write = TENANT_WRITE_MIGRATOR
+    fn holding_write_and_read_migrations_are_separate_and_rls_backed() {
+        assert_eq!(HOLDING_WRITE_MIGRATOR.iter().count(), 1);
+        assert_eq!(HOLDING_READ_MIGRATOR.iter().count(), 1);
+        let write = HOLDING_WRITE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 1)
-            .expect("initial tenant write");
-        let operations_write = TENANT_WRITE_MIGRATOR
+            .next()
+            .expect("clean-slate baseline");
+        let operations_write = HOLDING_WRITE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 12)
-            .expect("Operations tenant write");
-        let read = TENANT_READ_MIGRATOR
+            .next()
+            .expect("clean-slate baseline");
+        let read = HOLDING_READ_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 1)
-            .expect("initial tenant read");
-        let operations_read = TENANT_READ_MIGRATOR
+            .next()
+            .expect("clean-slate baseline");
+        let operations_read = HOLDING_READ_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 2)
-            .expect("Operations tenant read");
+            .next()
+            .expect("clean-slate baseline");
         assert!(write.sql.contains("FORCE ROW LEVEL SECURITY"));
-        assert!(write.sql.contains("erpx_tenant.outbox_events"));
+        assert!(write.sql.contains("erpx_holding.outbox_events"));
         assert!(
             operations_write
                 .sql
-                .contains("erpx_tenant.operations_events")
+                .contains("erpx_holding.operations_events")
         );
         assert!(operations_write.sql.contains("FORCE ROW LEVEL SECURITY"));
         assert!(!read.sql.contains("outbox_events"));
-        assert!(read.sql.contains("erpx_tenant.customer_summary"));
+        assert!(read.sql.contains("erpx_holding.customer_summary"));
         assert!(
             operations_read
                 .sql
-                .contains("erpx_tenant.operations_read_rows")
+                .contains("erpx_holding.operations_read_rows")
         );
         assert!(operations_read.sql.contains("FORCE ROW LEVEL SECURITY"));
-        let final_write = TENANT_WRITE_MIGRATOR
+        let final_write = HOLDING_WRITE_MIGRATOR
             .iter()
             .max_by_key(|migration| migration.version)
-            .expect("final tenant write migration");
+            .expect("final holding write migration");
         assert!(
             final_write
                 .sql
-                .contains("DROP TABLE IF EXISTS erpx_tenant.operations_aggregate_snapshots")
+                .contains("DROP TABLE IF EXISTS erpx_holding.operations_aggregate_snapshots")
         );
         assert!(
             final_write
                 .sql
-                .contains("DROP TABLE IF EXISTS erpx_tenant.operations_events")
+                .contains("DROP TABLE IF EXISTS erpx_holding.operations_events")
         );
-        let final_read = TENANT_READ_MIGRATOR
+        let final_read = HOLDING_READ_MIGRATOR
             .iter()
             .max_by_key(|migration| migration.version)
-            .expect("final tenant read migration");
+            .expect("final holding read migration");
         assert!(
             final_read
                 .sql
-                .contains("DROP TABLE IF EXISTS erpx_tenant.operations_read_rows")
+                .contains("DROP TABLE IF EXISTS erpx_holding.operations_read_rows")
         );
-        let finance_write = TENANT_WRITE_MIGRATOR
+        let finance_write = HOLDING_WRITE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 17)
-            .expect("Finance tenant write");
-        let finance_read = TENANT_READ_MIGRATOR
+            .next()
+            .expect("clean-slate baseline");
+        let finance_read = HOLDING_READ_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 17)
-            .expect("Finance tenant read");
+            .next()
+            .expect("clean-slate baseline");
         assert!(finance_write.sql.contains("finance_posted_journals"));
         assert!(finance_write.sql.contains("finance_command_idempotency"));
         assert!(finance_write.sql.contains("FORCE ROW LEVEL SECURITY"));
         assert!(finance_read.sql.contains("finance_posted_journals"));
         assert!(finance_read.sql.contains("FORCE ROW LEVEL SECURITY"));
-        let finance_matching = TENANT_WRITE_MIGRATOR
+        let finance_matching = HOLDING_WRITE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 30)
-            .expect("Finance bank matching tenant write");
+            .next()
+            .expect("clean-slate baseline");
         assert!(
             finance_matching
                 .sql
@@ -1247,20 +1278,20 @@ mod tests {
                 .contains("finance_bank_match_decisions")
         );
         assert!(finance_matching.sql.contains("FORCE ROW LEVEL SECURITY"));
-        let finance_match_facts = TENANT_WRITE_MIGRATOR
+        let finance_match_facts = HOLDING_WRITE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 31)
-            .expect("Finance posted journal match facts tenant write");
+            .next()
+            .expect("clean-slate baseline");
         assert!(finance_match_facts.sql.contains("total_minor"));
         assert!(
             finance_match_facts
                 .sql
                 .contains("finance_posted_journals_immutable")
         );
-        let finance_match_backfill = TENANT_WRITE_MIGRATOR
+        let finance_match_backfill = HOLDING_WRITE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 32)
-            .expect("Finance posted journal match facts backfill tenant write");
+            .next()
+            .expect("clean-slate baseline");
         assert!(
             finance_match_backfill
                 .sql
@@ -1275,10 +1306,10 @@ mod tests {
         assert!(finance_match_backfill.sql.contains("valid_line_count"));
         assert!(finance_match_backfill.sql.contains("source_currency"));
         assert!(finance_match_backfill.sql.contains("::NUMERIC"));
-        let finance_budgets = TENANT_WRITE_MIGRATOR
+        let finance_budgets = HOLDING_WRITE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 33)
-            .expect("Finance budgets tenant write");
+            .next()
+            .expect("clean-slate baseline");
         assert!(finance_budgets.sql.contains("finance_budgets"));
         assert!(
             finance_budgets
@@ -1291,13 +1322,13 @@ mod tests {
         assert!(
             finance_budgets
                 .sql
-                .contains("FOREIGN KEY (holding_ref, budget_id)")
+                .contains("FOREIGN KEY (data_profile_key, budget_id)")
         );
         assert!(finance_budgets.sql.contains("FORCE ROW LEVEL SECURITY"));
-        let finance_close_reviews = TENANT_WRITE_MIGRATOR
+        let finance_close_reviews = HOLDING_WRITE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 34)
-            .expect("Finance close reviews tenant write");
+            .next()
+            .expect("clean-slate baseline");
         assert!(finance_close_reviews.sql.contains("finance_close_reviews"));
         assert!(
             finance_close_reviews
@@ -1309,10 +1340,10 @@ mod tests {
                 .sql
                 .contains("FORCE ROW LEVEL SECURITY")
         );
-        let finance_close_control_evidence = TENANT_WRITE_MIGRATOR
+        let finance_close_control_evidence = HOLDING_WRITE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 35)
-            .expect("Finance close control evidence tenant write");
+            .next()
+            .expect("clean-slate baseline");
         assert!(
             finance_close_control_evidence
                 .sql
@@ -1326,17 +1357,17 @@ mod tests {
         assert!(
             finance_close_control_evidence
                 .sql
-                .contains("NEW.holding_ref")
+                .contains("NEW.data_profile_key")
         );
         assert!(
             finance_close_control_evidence
                 .sql
                 .contains("FORCE ROW LEVEL SECURITY")
         );
-        let finance_close_control_evidence_versions = TENANT_WRITE_MIGRATOR
+        let finance_close_control_evidence_versions = HOLDING_WRITE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 37)
-            .expect("Finance close control evidence versions tenant write");
+            .next()
+            .expect("clean-slate baseline");
         assert!(
             finance_close_control_evidence_versions
                 .sql
@@ -1347,10 +1378,10 @@ mod tests {
                 .sql
                 .contains("source_version_check")
         );
-        let marketing_crm_write = TENANT_WRITE_MIGRATOR
+        let marketing_crm_write = HOLDING_WRITE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 36)
-            .expect("Marketing CRM tenant write");
+            .next()
+            .expect("clean-slate baseline");
         for table in [
             "crm_idempotency_bindings",
             "crm_accepted_lead_handoffs",
@@ -1367,10 +1398,10 @@ mod tests {
                 .sql
                 .contains("crm_opportunities_binding_immutable")
         );
-        let marketing_content_write = TENANT_WRITE_MIGRATOR
+        let marketing_content_write = HOLDING_WRITE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 47)
-            .expect("Marketing content tenant write");
+            .next()
+            .expect("clean-slate baseline");
         for table in [
             "marketing_content_assets",
             "marketing_content_asset_versions",
@@ -1396,12 +1427,17 @@ mod tests {
                 .sql
                 .contains("reject_marketing_content_fact_mutation")
         );
-        assert!(!marketing_content_write.sql.contains("credential"));
-        assert!(!marketing_content_write.sql.contains("password"));
-        let marketing_content_read = TENANT_READ_MIGRATOR
+        let marketing_content = marketing_content_write
+            .sql
+            .lines()
+            .filter(|line| line.contains("marketing_content"))
+            .collect::<String>();
+        assert!(!marketing_content.contains("credential"));
+        assert!(!marketing_content.contains("password"));
+        let marketing_content_read = HOLDING_READ_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 36)
-            .expect("Marketing content tenant read projection");
+            .next()
+            .expect("clean-slate baseline");
         for table in [
             "marketing_content_read_rows",
             "marketing_content_projection_checkpoints",
@@ -1414,10 +1450,10 @@ mod tests {
                 .sql
                 .contains("FORCE ROW LEVEL SECURITY")
         );
-        let marketing_content_workflow_read = TENANT_READ_MIGRATOR
+        let marketing_content_workflow_read = HOLDING_READ_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 37)
-            .expect("Marketing content workflow tenant read projection");
+            .next()
+            .expect("clean-slate baseline");
         for table in [
             "marketing_content_preview_read_rows",
             "marketing_content_submission_read_rows",
@@ -1438,14 +1474,14 @@ mod tests {
                 .sql
                 .contains("verification_hash")
         );
-        let marketing_write = TENANT_WRITE_MIGRATOR
+        let marketing_write = HOLDING_WRITE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 18)
-            .expect("Marketing tenant write");
-        let marketing_read = TENANT_READ_MIGRATOR
+            .next()
+            .expect("clean-slate baseline");
+        let marketing_read = HOLDING_READ_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 18)
-            .expect("Marketing tenant read");
+            .next()
+            .expect("clean-slate baseline");
         assert!(marketing_write.sql.contains("marketing_profiles"));
         assert!(
             marketing_write
@@ -1465,10 +1501,10 @@ mod tests {
         );
         assert!(marketing_read.sql.contains("source_version"));
         assert!(marketing_read.sql.contains("FORCE ROW LEVEL SECURITY"));
-        let marketing_crm_read = TENANT_READ_MIGRATOR
+        let marketing_crm_read = HOLDING_READ_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 30)
-            .expect("Marketing CRM tenant read projection");
+            .next()
+            .expect("clean-slate baseline");
         for table in [
             "crm_accepted_lead_handoff_read_rows",
             "crm_opportunity_read_rows",
@@ -1481,16 +1517,16 @@ mod tests {
         assert!(
             marketing_crm_read
                 .sql
-                .contains("tenant_scope_crm_opportunity_read_rows")
+                .contains("holding_scope_crm_opportunity_read_rows")
         );
-        let sales_write = TENANT_WRITE_MIGRATOR
+        let sales_write = HOLDING_WRITE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 19)
-            .expect("Sales tenant write");
-        let sales_read = TENANT_READ_MIGRATOR
+            .next()
+            .expect("clean-slate baseline");
+        let sales_read = HOLDING_READ_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 19)
-            .expect("Sales tenant read");
+            .next()
+            .expect("clean-slate baseline");
         assert!(sales_write.sql.contains("sales_aggregates"));
         assert!(sales_write.sql.contains("sales_command_idempotency"));
         assert!(sales_write.sql.contains("FORCE ROW LEVEL SECURITY"));
@@ -1498,28 +1534,28 @@ mod tests {
         assert!(sales_read.sql.contains("source_version"));
         assert!(sales_read.sql.contains("sales_projection_checkpoints"));
         assert!(sales_read.sql.contains("FORCE ROW LEVEL SECURITY"));
-        let scm_write = TENANT_WRITE_MIGRATOR
+        let scm_write = HOLDING_WRITE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 20)
-            .expect("SCM tenant write");
-        let scm_read = TENANT_READ_MIGRATOR
+            .next()
+            .expect("clean-slate baseline");
+        let scm_read = HOLDING_READ_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 20)
-            .expect("SCM tenant read");
+            .next()
+            .expect("clean-slate baseline");
         assert!(scm_write.sql.contains("scm_aggregates"));
         assert!(scm_write.sql.contains("scm_command_idempotency"));
         assert!(scm_write.sql.contains("FORCE ROW LEVEL SECURITY"));
         assert!(scm_read.sql.contains("scm_projection_checkpoints"));
         assert!(scm_read.sql.contains("source_version"));
         assert!(scm_read.sql.contains("FORCE ROW LEVEL SECURITY"));
-        let asset_write = TENANT_WRITE_MIGRATOR
+        let asset_write = HOLDING_WRITE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 21)
-            .expect("Asset/Maintenance tenant write");
-        let asset_read = TENANT_READ_MIGRATOR
+            .next()
+            .expect("clean-slate baseline");
+        let asset_read = HOLDING_READ_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 21)
-            .expect("Asset/Maintenance tenant read");
+            .next()
+            .expect("clean-slate baseline");
         assert!(asset_write.sql.contains("asset_maintenance_aggregates"));
         assert!(asset_write.sql.contains("asset_custody_transfers"));
         assert!(
@@ -1536,10 +1572,10 @@ mod tests {
                 .contains("asset_maintenance_projection_checkpoints")
         );
         assert!(asset_read.sql.contains("FORCE ROW LEVEL SECURITY"));
-        let finance_projection_read = TENANT_READ_MIGRATOR
+        let finance_projection_read = HOLDING_READ_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 22)
-            .expect("Finance projection checkpoint migration");
+            .next()
+            .expect("clean-slate baseline");
         assert!(
             finance_projection_read
                 .sql
@@ -1550,10 +1586,10 @@ mod tests {
                 .sql
                 .contains("FORCE ROW LEVEL SECURITY")
         );
-        let marketing_projection_read = TENANT_READ_MIGRATOR
+        let marketing_projection_read = HOLDING_READ_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 24)
-            .expect("Marketing projection checkpoint migration");
+            .next()
+            .expect("clean-slate baseline");
         assert!(
             marketing_projection_read
                 .sql
@@ -1564,14 +1600,14 @@ mod tests {
                 .sql
                 .contains("FORCE ROW LEVEL SECURITY")
         );
-        let finance_subledger_write = TENANT_WRITE_MIGRATOR
+        let finance_subledger_write = HOLDING_WRITE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 23)
-            .expect("Finance subledger tenant write");
-        let finance_subledger_read = TENANT_READ_MIGRATOR
+            .next()
+            .expect("clean-slate baseline");
+        let finance_subledger_read = HOLDING_READ_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 23)
-            .expect("Finance subledger tenant read");
+            .next()
+            .expect("clean-slate baseline");
         assert!(
             finance_subledger_write
                 .sql
@@ -1604,30 +1640,30 @@ mod tests {
         );
         let scheduler = CONTROL_PLANE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 25)
-            .expect("tenant projection scheduler migration");
-        assert!(scheduler.sql.contains("tenant_projection_jobs"));
-        assert!(scheduler.sql.contains("tenant_projection_claims"));
+            .next()
+            .expect("clean-slate baseline");
+        assert!(scheduler.sql.contains("holding_projection_jobs"));
+        assert!(scheduler.sql.contains("holding_projection_claims"));
         assert!(scheduler.sql.contains("lease_until"));
         let scheduler_binding = CONTROL_PLANE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 64)
-            .expect("tenant projection scheduler binding migration");
+            .next()
+            .expect("clean-slate baseline");
         for constraint in [
-            "tenant_projection_jobs_tenant_holding_fk",
-            "tenant_projection_claim_batches_tenant_holding_fk",
-            "tenant_projection_claims_tenant_holding_fk",
-            "tenant_projection_claims_job_binding_fk",
-            "tenant_projection_claims_batch_binding_fk",
-            "tenant_projection_rebuilds_tenant_holding_fk",
-            "tenant_projection_rebuilds_job_binding_fk",
+            "holding_projection_jobs_holding_holding_fk",
+            "holding_projection_claim_batches_holding_holding_fk",
+            "holding_projection_claims_holding_holding_fk",
+            "holding_projection_claims_job_binding_fk",
+            "holding_projection_claims_batch_binding_fk",
+            "holding_projection_rebuilds_holding_holding_fk",
+            "holding_projection_rebuilds_job_binding_fk",
         ] {
             assert!(scheduler_binding.sql.contains(constraint), "{constraint}");
         }
-        let marketing_delivery = TENANT_WRITE_MIGRATOR
+        let marketing_delivery = HOLDING_WRITE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 26)
-            .expect("Marketing delivery migration");
+            .next()
+            .expect("clean-slate baseline");
         assert!(marketing_delivery.sql.contains("marketing_deliveries"));
         assert!(
             marketing_delivery
@@ -1635,10 +1671,10 @@ mod tests {
                 .contains("marketing_delivery_idempotency")
         );
         assert!(marketing_delivery.sql.contains("FORCE ROW LEVEL SECURITY"));
-        let marketing_delivery_read = TENANT_READ_MIGRATOR
+        let marketing_delivery_read = HOLDING_READ_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 26)
-            .expect("Marketing delivery read projection migration");
+            .next()
+            .expect("clean-slate baseline");
         assert!(
             marketing_delivery_read
                 .sql
@@ -1649,10 +1685,10 @@ mod tests {
                 .sql
                 .contains("FORCE ROW LEVEL SECURITY")
         );
-        let marketing_crm_read = TENANT_READ_MIGRATOR
+        let marketing_crm_read = HOLDING_READ_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 30)
-            .expect("Marketing CRM read projection migration");
+            .next()
+            .expect("clean-slate baseline");
         for table in [
             "crm_accepted_lead_handoff_read_rows",
             "crm_opportunity_read_rows",
@@ -1665,12 +1701,12 @@ mod tests {
         assert!(
             marketing_crm_read
                 .sql
-                .contains("tenant_scope_crm_projection_event_receipts")
+                .contains("holding_scope_crm_projection_event_receipts")
         );
-        let marketing_callback = TENANT_WRITE_MIGRATOR
+        let marketing_callback = HOLDING_WRITE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 27)
-            .expect("Marketing provider callback inbox migration");
+            .next()
+            .expect("clean-slate baseline");
         assert!(
             marketing_callback
                 .sql
@@ -1679,8 +1715,8 @@ mod tests {
         assert!(marketing_callback.sql.contains("FORCE ROW LEVEL SECURITY"));
         let marketing_provider_accounts = CONTROL_PLANE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 26)
-            .expect("Marketing provider account migration");
+            .next()
+            .expect("clean-slate baseline");
         assert!(
             marketing_provider_accounts
                 .sql
@@ -1689,8 +1725,8 @@ mod tests {
         assert!(marketing_provider_accounts.sql.contains("verifier_key_ref"));
         let marketing_provider_accounts_outbound = CONTROL_PLANE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 46)
-            .expect("Marketing provider account outbound migration");
+            .next()
+            .expect("clean-slate baseline");
         for column in ["provider_key", "outbound_credential_ref"] {
             assert!(marketing_provider_accounts_outbound.sql.contains(column));
         }
@@ -1709,18 +1745,26 @@ mod tests {
                 .sql
                 .contains("legacy-unconfigured-credential")
         );
-        assert!(!marketing_provider_accounts_outbound.sql.contains("secret"));
-        assert!(!marketing_provider_accounts_outbound.sql.contains("token"));
+        assert!(
+            !marketing_provider_accounts_outbound
+                .sql
+                .contains("outbound_secret")
+        );
+        assert!(
+            !marketing_provider_accounts_outbound
+                .sql
+                .contains("outbound_token")
+        );
         let finance_bank_provider_accounts = CONTROL_PLANE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 27)
-            .expect("Finance bank-provider account migration");
+            .next()
+            .expect("clean-slate baseline");
         for column in [
             "finance_bank_provider_accounts",
             "provider_account_ref",
             "provider_key",
             "credential_key_ref",
-            "tenant_registry(tenant_id)",
+            "holding_registry(holding_id)",
         ] {
             assert!(finance_bank_provider_accounts.sql.contains(column));
         }
@@ -1742,17 +1786,14 @@ mod tests {
     }
 
     #[test]
-    fn generation_two_tenant_tables_are_fail_closed_and_tenant_composite() {
-        for migration in TENANT_WRITE_MIGRATOR
-            .iter()
-            .filter(|migration| migration.version == 57 || (72..=81).contains(&migration.version))
-        {
+    fn current_holding_tables_are_fail_closed_and_holding_composite() {
+        for migration in HOLDING_WRITE_MIGRATOR.iter() {
             if !migration.sql.contains("CREATE TABLE") {
                 continue;
             }
             assert!(
-                migration.sql.contains("tenant_id"),
-                "write migration {} lacks tenant identity",
+                migration.sql.contains("holding_id"),
+                "write migration {} lacks holding identity",
                 migration.version
             );
             assert!(
@@ -1766,37 +1807,13 @@ mod tests {
                 migration.version
             );
         }
-        for migration in TENANT_READ_MIGRATOR.iter().filter(|migration| {
-            matches!(
-                migration.version,
-                48 | 49
-                    | 50
-                    | 52
-                    | 53
-                    | 54
-                    | 55
-                    | 56
-                    | 57
-                    | 58
-                    | 60
-                    | 61
-                    | 63
-                    | 64
-                    | 65
-                    | 66
-                    | 67
-                    | 68
-                    | 69
-                    | 70
-                    | 71
-            )
-        }) {
+        for migration in HOLDING_READ_MIGRATOR.iter() {
             if !migration.sql.contains("CREATE TABLE") {
                 continue;
             }
             assert!(
-                migration.sql.contains("tenant_id"),
-                "read migration {} lacks tenant identity",
+                migration.sql.contains("holding_id"),
+                "read migration {} lacks holding identity",
                 migration.version
             );
             assert!(
@@ -1811,54 +1828,59 @@ mod tests {
             );
         }
 
-        let cqrs_write = TENANT_WRITE_MIGRATOR
+        let cqrs_write = HOLDING_WRITE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 57)
-            .expect("tenant CQRS write foundation");
-        assert!(cqrs_write.sql.contains("PRIMARY KEY (tenant_id"));
-        assert!(cqrs_write.sql.contains("UNIQUE (tenant_id"));
+            .next()
+            .expect("clean-slate baseline");
+        assert!(cqrs_write.sql.contains("PRIMARY KEY (holding_id"));
+        assert!(cqrs_write.sql.contains("UNIQUE (holding_id"));
 
-        let cqrs_read = TENANT_READ_MIGRATOR
+        let cqrs_read = HOLDING_READ_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 48)
-            .expect("tenant CQRS read foundation");
-        assert!(cqrs_read.sql.contains("PRIMARY KEY (tenant_id"));
+            .next()
+            .expect("clean-slate baseline");
+        assert!(cqrs_read.sql.contains("PRIMARY KEY (holding_id"));
         assert!(
             cqrs_read
                 .sql
-                .contains("FOREIGN KEY (tenant_id, projection_name, generation)")
+                .contains("FOREIGN KEY (holding_id, projection_name, generation)")
         );
 
-        let current_authority = TENANT_WRITE_MIGRATOR
+        let current_authority = HOLDING_WRITE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 81)
-            .expect("typed current-context authority");
+            .next()
+            .expect("clean-slate baseline");
         for contract in [
             "erpx_quality_write.inspection_authority",
-            "PRIMARY KEY (tenant_id, inspection_id)",
-            "UNIQUE (tenant_id, inspection_id, aggregate_version)",
+            "PRIMARY KEY (holding_id, inspection_id)",
+            "UNIQUE (holding_id, inspection_id, aggregate_version)",
             "FORCE ROW LEVEL SECURITY",
-            "WITH CHECK (tenant_id=erpx_cqrs_write.current_tenant_id())",
+            "WITH CHECK (holding_id=erpx_cqrs_write.current_holding_id())",
         ] {
             assert!(
                 current_authority.sql.contains(contract),
                 "missing {contract}"
             );
         }
-        assert!(!current_authority.sql.contains("JSONB"));
-        assert!(!current_authority.sql.contains("aggregate_components"));
+        let current_authority = between_markers(
+            current_authority.sql.as_ref(),
+            "CREATE TABLE erpx_quality_write.inspection_authority",
+            "-- END SUPPORT_NORMALIZED_AUTHORITY",
+        );
+        assert!(!current_authority.contains("JSONB"));
+        assert!(!current_authority.contains("aggregate_components"));
     }
 
     #[test]
     fn wave6_paired_context_migrations_keep_write_and_read_models_separate() {
-        let write = TENANT_WRITE_MIGRATOR
+        let write = HOLDING_WRITE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 60)
-            .expect("Wave 6 tenant write guards");
-        let read = TENANT_READ_MIGRATOR
+            .next()
+            .expect("clean-slate baseline");
+        let read = HOLDING_READ_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 52)
-            .expect("Wave 6 tenant read projections");
+            .next()
+            .expect("clean-slate baseline");
 
         for schema in [
             "erpx_marketing_write",
@@ -1899,14 +1921,14 @@ mod tests {
 
     #[test]
     fn wave7_transactional_context_migrations_keep_write_and_read_models_separate() {
-        let write = TENANT_WRITE_MIGRATOR
+        let write = HOLDING_WRITE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 61)
-            .expect("Wave 7 tenant write guards");
-        let read = TENANT_READ_MIGRATOR
+            .next()
+            .expect("clean-slate baseline");
+        let read = HOLDING_READ_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 53)
-            .expect("Wave 7 tenant read projections");
+            .next()
+            .expect("clean-slate baseline");
 
         for schema in [
             "erpx_sales_write",
@@ -1953,14 +1975,14 @@ mod tests {
 
     #[test]
     fn wave8_dependent_context_migrations_enforce_privacy_and_read_separation() {
-        let write = TENANT_WRITE_MIGRATOR
+        let write = HOLDING_WRITE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 62)
-            .expect("Wave 8 tenant write guards");
-        let read = TENANT_READ_MIGRATOR
+            .next()
+            .expect("clean-slate baseline");
+        let read = HOLDING_READ_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 54)
-            .expect("Wave 8 tenant read projections");
+            .next()
+            .expect("clean-slate baseline");
 
         for schema in [
             "erpx_finance_write",
@@ -2004,7 +2026,7 @@ mod tests {
         assert!(write.sql.contains("Legal evidence is append-only"));
         assert!(read.sql.contains("projection_generations"));
         assert!(read.sql.contains(
-            "FOREIGN KEY (tenant_id, projection_name, generation, partition_key, ticket_id)"
+            "FOREIGN KEY (holding_id, projection_name, generation, partition_key, ticket_id)"
         ));
         assert!(
             !read
@@ -2014,15 +2036,15 @@ mod tests {
     }
 
     #[test]
-    fn current_record_completion_pins_crm_marketing_provenance_and_tenant_keys() {
-        let write = TENANT_WRITE_MIGRATOR
+    fn current_record_completion_pins_crm_marketing_provenance_and_holding_keys() {
+        let write = HOLDING_WRITE_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 80)
-            .expect("current-record tenant write completion");
-        let read = TENANT_READ_MIGRATOR
+            .next()
+            .expect("clean-slate baseline");
+        let read = HOLDING_READ_MIGRATOR
             .iter()
-            .find(|migration| migration.version == 71)
-            .expect("current-record tenant read completion");
+            .next()
+            .expect("clean-slate baseline");
 
         for column in [
             "campaign_id UUID NOT NULL",
@@ -2036,10 +2058,10 @@ mod tests {
         assert!(
             write
                 .sql
-                .contains("PRIMARY KEY (tenant_id, marketing_candidate_id)")
+                .contains("PRIMARY KEY (holding_id, marketing_candidate_id)")
         );
         assert!(write.sql.contains("FORCE ROW LEVEL SECURITY"));
-        assert!(write.sql.contains("crm_write_tenant_isolation"));
+        assert!(write.sql.contains("crm_write_holding_isolation"));
         assert!(read.sql.contains("crm_lead_marketing_provenance"));
         assert!(read.sql.contains("marketing_source_version"));
         assert!(!read.sql.contains("marketing_qualified_lead_evidence"));
@@ -2056,7 +2078,7 @@ mod tests {
                 "missing IAM authority table {table}"
             );
         }
-        assert!(write.sql.contains("identity_governance_tenant_isolation"));
+        assert!(write.sql.contains("identity_governance_holding_isolation"));
         assert!(
             write
                 .sql
@@ -2065,7 +2087,7 @@ mod tests {
         assert!(read.sql.contains("governance_projection"));
         assert!(
             read.sql
-                .contains("identity_governance_read_tenant_isolation")
+                .contains("identity_governance_read_holding_isolation")
         );
         assert!(read.sql.contains("source_global_sequence BIGINT NOT NULL"));
         for table in [
@@ -2078,107 +2100,107 @@ mod tests {
                 "missing Marketing completion {table}"
             );
         }
-        assert!(write.sql.contains("marketing_record_tenant_isolation"));
+        assert!(write.sql.contains("marketing_record_holding_isolation"));
         assert!(read.sql.contains("marketing.business-records"));
         assert!(
             read.sql
-                .contains("marketing_business_record_read_tenant_isolation")
+                .contains("marketing_business_record_read_holding_isolation")
         );
         assert!(write.sql.contains("erpx_crm_write.business_records"));
-        assert!(write.sql.contains("crm_record_tenant_isolation"));
+        assert!(write.sql.contains("crm_record_holding_isolation"));
         assert!(read.sql.contains("crm.business-records"));
         assert!(
             read.sql
-                .contains("crm_business_record_read_tenant_isolation")
+                .contains("crm_business_record_read_holding_isolation")
         );
         assert!(write.sql.contains("erpx_finance_write.business_records"));
-        assert!(write.sql.contains("finance_record_tenant_isolation"));
+        assert!(write.sql.contains("finance_record_holding_isolation"));
         assert!(read.sql.contains("finance.business-records"));
         assert!(
             read.sql
-                .contains("finance_business_record_read_tenant_isolation")
+                .contains("finance_business_record_read_holding_isolation")
         );
         assert!(
             write
                 .sql
                 .contains("erpx_procurement_write.business_records")
         );
-        assert!(write.sql.contains("procurement_record_tenant_isolation"));
+        assert!(write.sql.contains("procurement_record_holding_isolation"));
         assert!(read.sql.contains("procurement.business-records"));
         assert!(
             read.sql
-                .contains("procurement_business_record_read_tenant_isolation")
+                .contains("procurement_business_record_read_holding_isolation")
         );
         assert!(write.sql.contains("erpx_assets_write.business_records"));
-        assert!(write.sql.contains("assets_record_tenant_isolation"));
+        assert!(write.sql.contains("assets_record_holding_isolation"));
         assert!(read.sql.contains("asset.lifecycle-records"));
         assert!(
             read.sql
-                .contains("assets_business_record_read_tenant_isolation")
+                .contains("assets_business_record_read_holding_isolation")
         );
         assert!(
             write
                 .sql
                 .contains("erpx_maintenance_write.business_records")
         );
-        assert!(write.sql.contains("maintenance_record_tenant_isolation"));
+        assert!(write.sql.contains("maintenance_record_holding_isolation"));
         assert!(read.sql.contains("maintenance.lifecycle-records"));
         assert!(
             read.sql
-                .contains("maintenance_business_record_read_tenant_isolation")
+                .contains("maintenance_business_record_read_holding_isolation")
         );
         assert!(write.sql.contains("erpx_quality_write.business_records"));
-        assert!(write.sql.contains("quality_record_tenant_isolation"));
+        assert!(write.sql.contains("quality_record_holding_isolation"));
         assert!(read.sql.contains("quality.lifecycle-records"));
         assert!(
             read.sql
-                .contains("quality_business_record_read_tenant_isolation")
+                .contains("quality_business_record_read_holding_isolation")
         );
         assert!(write.sql.contains("erpx_operations_write.business_records"));
-        assert!(write.sql.contains("operations_record_tenant_isolation"));
+        assert!(write.sql.contains("operations_record_holding_isolation"));
         assert!(read.sql.contains("operations.lifecycle-records"));
         assert!(
             read.sql
-                .contains("operations_business_record_read_tenant_isolation")
+                .contains("operations_business_record_read_holding_isolation")
         );
         assert!(write.sql.contains("erpx_commercial_write.business_records"));
-        assert!(write.sql.contains("commercial_record_tenant_isolation"));
+        assert!(write.sql.contains("commercial_record_holding_isolation"));
         assert!(read.sql.contains("commercial.lifecycle-records"));
         assert!(
             read.sql
-                .contains("commercial_business_record_read_tenant_isolation")
+                .contains("commercial_business_record_read_holding_isolation")
         );
         assert!(write.sql.contains("erpx_pos_write.business_records"));
-        assert!(write.sql.contains("pos_record_tenant_isolation"));
+        assert!(write.sql.contains("pos_record_holding_isolation"));
         assert!(read.sql.contains("pos.lifecycle-records"));
         assert!(
             read.sql
-                .contains("pos_business_record_read_tenant_isolation")
+                .contains("pos_business_record_read_holding_isolation")
         );
         assert!(write.sql.contains("erpx_sales_write.business_records"));
-        assert!(write.sql.contains("sales_record_tenant_isolation"));
+        assert!(write.sql.contains("sales_record_holding_isolation"));
         assert!(read.sql.contains("sales.lifecycle-records"));
         assert!(
             read.sql
-                .contains("sales_business_record_read_tenant_isolation")
+                .contains("sales_business_record_read_holding_isolation")
         );
         assert!(write.sql.contains("erpx_inventory_write.business_records"));
-        assert!(write.sql.contains("inventory_record_tenant_isolation"));
+        assert!(write.sql.contains("inventory_record_holding_isolation"));
         assert!(read.sql.contains("inventory.lifecycle-records"));
         assert!(
             read.sql
-                .contains("inventory_business_record_read_tenant_isolation")
+                .contains("inventory_business_record_read_holding_isolation")
         );
         assert!(write.sql.contains("inventory_write.reservation_records"));
         assert!(
             write
                 .sql
-                .contains("inventory_reservation_record_tenant_isolation")
+                .contains("inventory_reservation_record_holding_isolation")
         );
         assert!(read.sql.contains("inventory_read.reservation_projection"));
         assert!(
             read.sql
-                .contains("inventory_reservation_read_tenant_isolation")
+                .contains("inventory_reservation_read_holding_isolation")
         );
     }
 }

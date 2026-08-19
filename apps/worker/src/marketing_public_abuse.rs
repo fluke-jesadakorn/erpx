@@ -1,6 +1,6 @@
 //! Bounded control-plane cleanup for anonymous Marketing abuse windows.
 //!
-//! This handler owns only coarse counter cleanup. It never routes a tenant
+//! This handler owns only coarse counter cleanup. It never routes a holding
 //! database, receives client identity, or persists request fingerprints.
 //! Registration is intentionally left to the worker composition root.
 

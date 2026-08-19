@@ -1,6 +1,6 @@
 //! Console-facing data-plane control RPCs and the separate mTLS agent broker.
 
-use crate::validate_controller_tenant_admin_context;
+use crate::validate_controller_holding_admin_context;
 
 use std::{
     collections::HashMap, fs, net::SocketAddr, os::unix::fs::PermissionsExt, path::PathBuf,
@@ -9,15 +9,15 @@ use std::{
 
 use chrono::{DateTime, Duration, Utc};
 use erpx_domain::{
-    access::Scope,
+    contracts::AuthorityScope as Scope,
     corporate_identity::{
         BUSINESS_UNIT_BRAND_MANAGE, BUSINESS_UNIT_BRAND_PUBLISH, BUSINESS_UNIT_BRAND_READ,
         BrandAssetKind, BrandAssetManifest, BrandAssetReference, BrandCategory, BrandDensity,
         BrandElevation, BrandFontPack, BrandLifecycle, BrandMotion, BrandNavigation, BrandPalette,
         BrandRadius, BrandScope, BrandTokenSet, CorporateIdentityProfile, HexColor,
         PLATFORM_BRAND_LOCK, PLATFORM_BRAND_MANAGE, PLATFORM_BRAND_PUBLISH, PLATFORM_BRAND_READ,
-        ResolvedCorporateIdentity, TENANT_BRAND_LOCK, TENANT_BRAND_MANAGE, TENANT_BRAND_PUBLISH,
-        TENANT_BRAND_READ,
+        ResolvedCorporateIdentity, HOLDING_BRAND_LOCK, HOLDING_BRAND_MANAGE, HOLDING_BRAND_PUBLISH,
+        HOLDING_BRAND_READ,
     },
     data_plane::{
         AgentCapability, ApprovalPolicy, BUSINESS_UNIT_CONFIGURATION_MANAGE,
@@ -25,33 +25,33 @@ use erpx_domain::{
         BusinessUnitDirectoryRoleMapping, BusinessUnitId, ConfigurationLayer,
         ConfigurationLifecycle, DataPlaneAgentBinding, DataPlaneAgentState, DesiredConfiguration,
         ObservedDataPlaneState, RootAccessApproval, RootAccessMode, RootAccessRequest,
-        SecretReference, TENANT_AGENT_ENROLL, TENANT_INFRASTRUCTURE_APPLY,
-        TENANT_INFRASTRUCTURE_APPROVE, TENANT_INFRASTRUCTURE_PROPOSE, TENANT_INFRASTRUCTURE_READ,
-        TENANT_ROOT_ACCESS_APPROVE, TENANT_ROOT_ACCESS_READ, TENANT_ROOT_ACCESS_REQUEST,
-        TENANT_ROOT_ACCESS_REVOKE, TenantDeploymentMode, TenantInfrastructureProfile,
+        SecretReference, HOLDING_AGENT_ENROLL, HOLDING_INFRASTRUCTURE_APPLY,
+        HOLDING_INFRASTRUCTURE_APPROVE, HOLDING_INFRASTRUCTURE_PROPOSE, HOLDING_INFRASTRUCTURE_READ,
+        HOLDING_ROOT_ACCESS_APPROVE, HOLDING_ROOT_ACCESS_READ, HOLDING_ROOT_ACCESS_REQUEST,
+        HOLDING_ROOT_ACCESS_REVOKE, HoldingDeploymentMode, HoldingInfrastructureProfile,
     },
 };
 use erpx_infrastructure::{
     ApprovedDesiredConfiguration, CorporateIdentityHistoryEntry, CorporateIdentityRollback,
     DataPlaneEnrollmentConsumption, DataPlaneEnrollmentIssue, PersistenceError, RootAccessGrant,
     RootAccessQueueRecord, SqlxCorporateIdentityStore, SqlxDataPlaneControlStore,
-    SqlxTenantAdministrationStore,
+    SqlxHoldingAdministrationStore,
 };
 use erpx_integration_contracts::catalog::{WORKSPACES, WorkspaceId};
-use erpx_proto::erpx::platform_administration::v2 as target;
-use erpx_proto::erpx::platform_administration::data_plane_agent::v2::data_plane_agent_service_server::{
+use erpx_proto::erpx::platform_administration as target;
+use erpx_proto::erpx::platform_administration::data_plane_agent::data_plane_agent_service_server::{
     DataPlaneAgentService, DataPlaneAgentServiceServer,
 };
 use erpx_proto::{
-    common::v2::{CommandContext, QueryContext, TenantScope as ProtoTenantScope, tenant_scope},
-    erpx::platform_administration::v2 as agent_contract,
-    erpx::platform_administration::v2::{
+    common::{CommandContext, QueryContext, AuthorityScope as ProtoHoldingScope, authority_scope},
+    erpx::platform_administration as agent_contract,
+    erpx::platform_administration::{
         ConfigurationLifecycle as ProtoConfigurationLifecycle, ControlPlaneEnvelope,
         DataPlaneAgentEnvelope, DataPlaneAgentState as ProtoDataPlaneAgentState,
         EnrollDataPlaneAgentRequest, EnrollDataPlaneAgentResponse,
         ReportDataPlaneObservationRequest, ReportDataPlaneObservationResponse,
         RootAccessCapabilityMessage, RootAccessRevocationMessage,
-        TenantDeploymentMode as ProtoDeploymentMode, data_plane_agent_envelope,
+        HoldingDeploymentMode as ProtoDeploymentMode, data_plane_agent_envelope,
     },
 };
 use prost::Message;
@@ -73,25 +73,25 @@ use crate::{
 const MAX_AGENT_MESSAGE_BYTES: usize = 1024 * 1024;
 const MAX_CONFIGURATION_JSON_BYTES: usize = 64 * 1024;
 
-async fn resolve_tenant_target(
+async fn resolve_holding_target(
     state: &AppState,
-    tenant_id: &str,
+    holding_id: &str,
     supplied_holding_id: Uuid,
     requested_scope: &Scope,
 ) -> Result<Scope, Status> {
-    let binding = SqlxTenantAdministrationStore::new(state.store.clone())
-        .customer_tenant_binding(tenant_id)
+    let binding = SqlxHoldingAdministrationStore::new(state.store.clone())
+        .customer_holding_binding(holding_id)
         .await
-        .map_err(|_| Status::unavailable("tenant target registry unavailable"))?
-        .ok_or_else(|| Status::failed_precondition("tenant target binding is incomplete"))?;
+        .map_err(|_| Status::unavailable("holding target registry unavailable"))?
+        .ok_or_else(|| Status::failed_precondition("holding target binding is incomplete"))?;
     let authoritative_scope = Scope::Holding {
-        holding_id: binding.root_holding_id,
+        holding_id: binding.canonical_holding_id,
     };
-    if supplied_holding_id != binding.root_holding_id
+    if supplied_holding_id != binding.canonical_holding_id
         || !requested_scope.contains(&authoritative_scope)
     {
         return Err(Status::permission_denied(
-            "tenant, holding, and authorization scope do not match",
+            "holding, holding, and authorization scope do not match",
         ));
     }
     Ok(authoritative_scope)
@@ -99,7 +99,7 @@ async fn resolve_tenant_target(
 
 #[derive(Debug, Clone)]
 struct AgentConnection {
-    tenant_id: String,
+    holding_id: String,
     sender: mpsc::Sender<Result<ControlPlaneEnvelope, Status>>,
 }
 
@@ -257,10 +257,10 @@ pub(crate) struct DataPlaneControlRpcImpl {
 }
 
 impl DataPlaneControlRpcImpl {
-    pub(crate) async fn get_tenant_infrastructure(
+    pub(crate) async fn get_holding_infrastructure(
         &self,
-        request: Request<target::GetTenantInfrastructureRequest>,
-    ) -> Result<Response<target::GetTenantInfrastructureResponse>, Status> {
+        request: Request<target::GetHoldingInfrastructureRequest>,
+    ) -> Result<Response<target::GetHoldingInfrastructureResponse>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let boundary = query_context(&request, request.get_ref().context.as_ref())?;
         require_actor_match(
@@ -272,30 +272,35 @@ impl DataPlaneControlRpcImpl {
         let permission = if matches!(scope, Scope::Platform) {
             erpx_domain::data_plane::PLATFORM_INFRASTRUCTURE_READ
         } else {
-            TENANT_INFRASTRUCTURE_READ
+            HOLDING_INFRASTRUCTURE_READ
         };
-        let tenant_id = validate_reference(&request.get_ref().tenant_id, "tenant_id", 128)?;
+        let holding_id = validate_reference(&request.get_ref().holding_id, "holding_id", 128)?;
         let store = SqlxDataPlaneControlStore::new(self.state.store.clone());
         let summary = store
-            .infrastructure_summary(tenant_id, Utc::now())
+            .infrastructure_summary(holding_id, Utc::now())
             .await
             .map_err(persistence_status)?;
-        let authoritative_scope =
-            resolve_tenant_target(&self.state, tenant_id, summary.root_holding_id, &scope).await?;
+        let authoritative_scope = resolve_holding_target(
+            &self.state,
+            holding_id,
+            summary.canonical_holding_id,
+            &scope,
+        )
+        .await?;
         self.state
             .auth
-            .authorize_role_for_tenant(
+            .authorize_role_for_holding(
                 &self.state.store,
                 &claims,
                 &authoritative_scope,
                 permission,
-                Some(tenant_id),
+                Some(holding_id),
             )
             .await?;
-        Ok(Response::new(target::GetTenantInfrastructureResponse {
-            infrastructure: Some(target::TenantInfrastructureReadModel {
-                tenant_id: summary.tenant_id,
-                root_holding_id: summary.root_holding_id.to_string(),
+        Ok(Response::new(target::GetHoldingInfrastructureResponse {
+            infrastructure: Some(target::HoldingInfrastructureReadModel {
+                holding_id: summary.holding_id,
+                canonical_holding_id: summary.canonical_holding_id.to_string(),
                 deployment_mode: proto_deployment_mode(summary.deployment_mode) as i32,
                 profile_version: summary.profile_version,
                 agent_id: summary
@@ -324,17 +329,17 @@ impl DataPlaneControlRpcImpl {
                 root_access_active: summary.root_access_active,
                 customer_managed_secrets: matches!(
                     summary.deployment_mode,
-                    TenantDeploymentMode::CustomerDataPlane
+                    HoldingDeploymentMode::CustomerDataPlane
                 ),
             }),
             correlation_id: boundary.correlation_id.to_string(),
         }))
     }
 
-    pub(crate) async fn save_tenant_infrastructure_profile(
+    pub(crate) async fn save_holding_infrastructure_profile(
         &self,
-        request: Request<target::SaveTenantInfrastructureProfileRequest>,
-    ) -> Result<Response<target::SaveTenantInfrastructureProfileResponse>, Status> {
+        request: Request<target::SaveHoldingInfrastructureProfileRequest>,
+    ) -> Result<Response<target::SaveHoldingInfrastructureProfileResponse>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let command = command_domain(&request, request.get_ref().context.as_ref())?;
         require_actor_match(
@@ -342,7 +347,7 @@ impl DataPlaneControlRpcImpl {
             &command.actor.principal_ref,
             "command actor must match the authenticated principal",
         )?;
-        let scope = access_scope(&command.tenant_scope);
+        let scope = access_scope(&command.active_scope);
         let profile = request
             .get_ref()
             .profile
@@ -350,7 +355,7 @@ impl DataPlaneControlRpcImpl {
             .ok_or_else(|| Status::invalid_argument("infrastructure profile is required"))?;
         let deployment_mode = domain_deployment_mode(profile.deployment_mode)?;
         if matches!(scope, Scope::Platform)
-            && matches!(deployment_mode, TenantDeploymentMode::CustomerDataPlane)
+            && matches!(deployment_mode, HoldingDeploymentMode::CustomerDataPlane)
         {
             return Err(Status::failed_precondition(
                 "ERPX Root must propose customer-hosted changes for customer approval",
@@ -359,44 +364,44 @@ impl DataPlaneControlRpcImpl {
         let permission = if matches!(scope, Scope::Platform) {
             erpx_domain::data_plane::PLATFORM_INFRASTRUCTURE_MANAGE
         } else {
-            TENANT_INFRASTRUCTURE_APPLY
+            HOLDING_INFRASTRUCTURE_APPLY
         };
-        let target_tenant = validate_reference(&profile.tenant_id, "tenant_id", 128)?;
-        let target_holding = parse_uuid(&profile.root_holding_id, "root_holding_id")?;
+        let target_holding_key = validate_reference(&profile.holding_id, "holding_id", 128)?;
+        let target_holding_id = parse_uuid(&profile.canonical_holding_id, "canonical_holding_id")?;
         let authoritative_scope =
-            resolve_tenant_target(&self.state, target_tenant, target_holding, &scope).await?;
-        validate_controller_tenant_admin_context(
+            resolve_holding_target(&self.state, target_holding_key, target_holding_id, &scope)
+                .await?;
+        validate_controller_holding_admin_context(
             &self.state,
             &request,
             &claims,
-            target_tenant,
-            target_holding,
+            target_holding_key,
+            target_holding_id,
         )
         .await?;
         self.state
             .auth
-            .authorize_role_for_tenant(
+            .authorize_role_for_holding(
                 &self.state.store,
                 &claims,
                 &authoritative_scope,
                 permission,
-                Some(target_tenant),
+                Some(target_holding_key),
             )
             .await?;
         self.state
             .auth
-            .authorize_mfa_for_tenant(
+            .authorize_mfa_for_holding(
                 &self.state.store,
                 &claims,
-                target_tenant,
+                target_holding_key,
                 command_mfa(request.get_ref().context.as_ref()),
                 command.correlation_id,
             )
             .await?;
         let profile_version = profile.profile_version;
-        let domain_profile = TenantInfrastructureProfile {
-            tenant_id: target_tenant.to_owned(),
-            holding_id: target_holding,
+        let domain_profile = HoldingInfrastructureProfile {
+            holding_id: target_holding_id,
             deployment_mode,
             write_database_ref: SecretReference::new(profile.write_database_ref.clone())
                 .map_err(|error| Status::invalid_argument(error.to_string()))?,
@@ -428,7 +433,7 @@ impl DataPlaneControlRpcImpl {
             .await
             .map_err(persistence_status)?;
         Ok(Response::new(
-            target::SaveTenantInfrastructureProfileResponse {
+            target::SaveHoldingInfrastructureProfileResponse {
                 profile_version,
                 correlation_id: command.correlation_id.to_string(),
                 awaiting_customer_approval: false,
@@ -448,28 +453,33 @@ impl DataPlaneControlRpcImpl {
             "query actor must match the authenticated principal",
         )?;
         let scope = proto_query_scope(request.get_ref().context.as_ref())?;
-        let tenant_id = validate_reference(&request.get_ref().tenant_id, "tenant_id", 128)?;
+        let holding_id = validate_reference(&request.get_ref().holding_id, "holding_id", 128)?;
         let business_unit = BusinessUnitId::parse(&request.get_ref().business_unit)
             .map_err(|error| Status::invalid_argument(error.to_string()))?;
         let store = SqlxDataPlaneControlStore::new(self.state.store.clone());
         let summary = store
-            .infrastructure_summary(tenant_id, Utc::now())
+            .infrastructure_summary(holding_id, Utc::now())
             .await
             .map_err(persistence_status)?;
-        let authoritative_scope =
-            resolve_tenant_target(&self.state, tenant_id, summary.root_holding_id, &scope).await?;
+        let authoritative_scope = resolve_holding_target(
+            &self.state,
+            holding_id,
+            summary.canonical_holding_id,
+            &scope,
+        )
+        .await?;
         self.state
             .auth
-            .authorize_role_for_tenant(
+            .authorize_role_for_holding(
                 &self.state.store,
                 &claims,
                 &authoritative_scope,
                 BUSINESS_UNIT_CONFIGURATION_READ,
-                Some(tenant_id),
+                Some(holding_id),
             )
             .await?;
         let configuration = store
-            .business_unit_configuration(tenant_id, business_unit)
+            .business_unit_configuration(holding_id, business_unit)
             .await
             .map_err(persistence_status)?;
         Ok(Response::new(
@@ -495,7 +505,7 @@ impl DataPlaneControlRpcImpl {
             &command.actor.principal_ref,
             "command actor must match the authenticated principal",
         )?;
-        let scope = access_scope(&command.tenant_scope);
+        let scope = access_scope(&command.active_scope);
         if matches!(scope, Scope::Platform) {
             return Err(Status::permission_denied(
                 "ERPX Root must use a customer-approved desired configuration",
@@ -505,41 +515,46 @@ impl DataPlaneControlRpcImpl {
             request.get_ref().configuration.as_ref().ok_or_else(|| {
                 Status::invalid_argument("business-unit configuration is required")
             })?;
-        let target_tenant = validate_reference(&input.tenant_id, "tenant_id", 128)?;
+        let target_holding = validate_reference(&input.holding_id, "holding_id", 128)?;
         let organization_scope = proto_scope(
             input
                 .organization_scope
                 .as_ref()
                 .ok_or_else(|| Status::invalid_argument("organization_scope is required"))?,
         )?;
-        let configuration_holding_id = parse_uuid(&input.root_holding_id, "root_holding_id")?;
-        let authoritative_scope =
-            resolve_tenant_target(&self.state, target_tenant, configuration_holding_id, &scope)
-                .await?;
-        validate_controller_tenant_admin_context(
+        let configuration_holding_id =
+            parse_uuid(&input.canonical_holding_id, "canonical_holding_id")?;
+        let authoritative_scope = resolve_holding_target(
+            &self.state,
+            target_holding,
+            configuration_holding_id,
+            &scope,
+        )
+        .await?;
+        validate_controller_holding_admin_context(
             &self.state,
             &request,
             &claims,
-            target_tenant,
+            target_holding,
             configuration_holding_id,
         )
         .await?;
         self.state
             .auth
-            .authorize_role_for_tenant(
+            .authorize_role_for_holding(
                 &self.state.store,
                 &claims,
                 &authoritative_scope,
                 BUSINESS_UNIT_CONFIGURATION_MANAGE,
-                Some(target_tenant),
+                Some(target_holding),
             )
             .await?;
         self.state
             .auth
-            .authorize_mfa_for_tenant(
+            .authorize_mfa_for_holding(
                 &self.state.store,
                 &claims,
-                target_tenant,
+                target_holding,
                 command_mfa(request.get_ref().context.as_ref()),
                 command.correlation_id,
             )
@@ -558,7 +573,6 @@ impl DataPlaneControlRpcImpl {
             .map_err(|error| Status::invalid_argument(error.to_string()))?;
         let at = Utc::now();
         let configuration = BusinessUnitConfiguration {
-            tenant_id: validate_reference(&input.tenant_id, "tenant_id", 128)?.to_owned(),
             holding_id: configuration_holding_id,
             business_unit,
             configuration_version: input.configuration_version,
@@ -617,40 +631,45 @@ impl DataPlaneControlRpcImpl {
             &command.actor.principal_ref,
             "command actor must match the authenticated principal",
         )?;
-        let scope = access_scope(&command.tenant_scope);
+        let scope = access_scope(&command.active_scope);
         if matches!(scope, Scope::Platform) {
             return Err(Status::permission_denied(
                 "customer approval is required before issuing an agent enrollment",
             ));
         }
-        let target_tenant = validate_reference(&request.get_ref().tenant_id, "tenant_id", 128)?;
-        let target_holding = parse_uuid(&request.get_ref().root_holding_id, "root_holding_id")?;
+        let target_holding_key =
+            validate_reference(&request.get_ref().holding_id, "holding_id", 128)?;
+        let target_holding_id = parse_uuid(
+            &request.get_ref().canonical_holding_id,
+            "canonical_holding_id",
+        )?;
         let authoritative_scope =
-            resolve_tenant_target(&self.state, target_tenant, target_holding, &scope).await?;
-        validate_controller_tenant_admin_context(
+            resolve_holding_target(&self.state, target_holding_key, target_holding_id, &scope)
+                .await?;
+        validate_controller_holding_admin_context(
             &self.state,
             &request,
             &claims,
-            target_tenant,
-            target_holding,
+            target_holding_key,
+            target_holding_id,
         )
         .await?;
         self.state
             .auth
-            .authorize_role_for_tenant(
+            .authorize_role_for_holding(
                 &self.state.store,
                 &claims,
                 &authoritative_scope,
-                TENANT_AGENT_ENROLL,
-                Some(target_tenant),
+                HOLDING_AGENT_ENROLL,
+                Some(target_holding_key),
             )
             .await?;
         self.state
             .auth
-            .authorize_mfa_for_tenant(
+            .authorize_mfa_for_holding(
                 &self.state.store,
                 &claims,
-                target_tenant,
+                target_holding_key,
                 command_mfa(request.get_ref().context.as_ref()),
                 command.correlation_id,
             )
@@ -675,8 +694,8 @@ impl DataPlaneControlRpcImpl {
             .store
             .issue_agent_enrollment(&DataPlaneEnrollmentIssue {
                 enrollment_id,
-                tenant_id: target_tenant.to_owned(),
-                root_holding_id: target_holding,
+                holding_id: target_holding_key.to_owned(),
+                canonical_holding_id: target_holding_id,
                 token_hash,
                 manifest_hash,
                 issued_by: claims.principal_ref,
@@ -705,32 +724,33 @@ impl DataPlaneControlRpcImpl {
             &command.actor.principal_ref,
             "command actor must match the authenticated principal",
         )?;
-        let scope = access_scope(&command.tenant_scope);
+        let scope = access_scope(&command.active_scope);
         let input = request
             .get_ref()
             .desired
             .as_ref()
             .ok_or_else(|| Status::invalid_argument("desired configuration is required"))?;
-        let target_tenant = validate_reference(&input.tenant_id, "tenant_id", 128)?;
-        let target_holding = parse_uuid(&input.root_holding_id, "root_holding_id")?;
+        let target_holding_key = validate_reference(&input.holding_id, "holding_id", 128)?;
+        let target_holding_id = parse_uuid(&input.canonical_holding_id, "canonical_holding_id")?;
         let authoritative_scope =
-            resolve_tenant_target(&self.state, target_tenant, target_holding, &scope).await?;
-        validate_controller_tenant_admin_context(
+            resolve_holding_target(&self.state, target_holding_key, target_holding_id, &scope)
+                .await?;
+        validate_controller_holding_admin_context(
             &self.state,
             &request,
             &claims,
-            target_tenant,
-            target_holding,
+            target_holding_key,
+            target_holding_id,
         )
         .await?;
         self.state
             .auth
-            .authorize_role_for_tenant(
+            .authorize_role_for_holding(
                 &self.state.store,
                 &claims,
                 &authoritative_scope,
-                TENANT_INFRASTRUCTURE_PROPOSE,
-                Some(target_tenant),
+                HOLDING_INFRASTRUCTURE_PROPOSE,
+                Some(target_holding_key),
             )
             .await?;
         let at = Utc::now();
@@ -738,8 +758,7 @@ impl DataPlaneControlRpcImpl {
             .map_err(|_| Status::invalid_argument("desired_state_json is invalid"))?;
         let desired = DesiredConfiguration {
             id: parse_uuid(&input.configuration_id, "configuration_id")?,
-            tenant_id: target_tenant.to_owned(),
-            holding_id: target_holding,
+            holding_id: target_holding_id,
             deployment_mode: domain_deployment_mode(input.deployment_mode)?,
             target_agent_id: optional_uuid(&input.target_agent_id, "target_agent_id")?,
             layer: parse_configuration_layer(&input.configuration_layer, &input.business_unit)?,
@@ -788,45 +807,46 @@ impl DataPlaneControlRpcImpl {
             &command.actor.principal_ref,
             "command actor must match the authenticated principal",
         )?;
-        let scope = access_scope(&command.tenant_scope);
+        let scope = access_scope(&command.active_scope);
         if matches!(scope, Scope::Platform) {
             return Err(Status::permission_denied(
                 "customer approval must use a customer holding scope",
             ));
         }
         let configuration_id = parse_uuid(&request.get_ref().configuration_id, "configuration_id")?;
-        let (target_tenant, target_holding, requester) = self
+        let (target_holding_key, target_holding_id, requester) = self
             .broker
             .store
             .desired_configuration_authorization_target(configuration_id)
             .await
             .map_err(persistence_status)?;
         let authoritative_scope =
-            resolve_tenant_target(&self.state, &target_tenant, target_holding, &scope).await?;
-        validate_controller_tenant_admin_context(
+            resolve_holding_target(&self.state, &target_holding_key, target_holding_id, &scope)
+                .await?;
+        validate_controller_holding_admin_context(
             &self.state,
             &request,
             &claims,
-            &target_tenant,
-            target_holding,
+            &target_holding_key,
+            target_holding_id,
         )
         .await?;
         self.state
             .auth
-            .authorize_role_for_tenant(
+            .authorize_role_for_holding(
                 &self.state.store,
                 &claims,
                 &authoritative_scope,
-                TENANT_INFRASTRUCTURE_APPROVE,
-                Some(&target_tenant),
+                HOLDING_INFRASTRUCTURE_APPROVE,
+                Some(&target_holding_key),
             )
             .await?;
         self.state
             .auth
-            .authorize_mfa_for_tenant(
+            .authorize_mfa_for_holding(
                 &self.state.store,
                 &claims,
-                &target_tenant,
+                &target_holding_key,
                 command_mfa(request.get_ref().context.as_ref()),
                 command.correlation_id,
             )
@@ -845,7 +865,7 @@ impl DataPlaneControlRpcImpl {
                     .authorize_local_sod_exception(
                         &self.state.store,
                         &claims,
-                        &target_tenant,
+                        &target_holding_key,
                         command.correlation_id,
                     )
                     .await?
@@ -920,7 +940,7 @@ impl DataPlaneControlRpcImpl {
             &command.actor.principal_ref,
             "command actor must match the authenticated principal",
         )?;
-        let command_scope = access_scope(&command.tenant_scope);
+        let command_scope = access_scope(&command.active_scope);
         let input = request
             .get_ref()
             .access_request
@@ -934,46 +954,46 @@ impl DataPlaneControlRpcImpl {
             .await
             .map_err(|_| Status::unauthenticated("authenticated session device unavailable"))?;
         validate_authenticated_device_ref(active_device_id, &input.device_ref)?;
-        let tenant_scope = proto_scope(
+        let active_scope = proto_scope(
             input
-                .tenant_scope
+                .active_scope
                 .as_ref()
-                .ok_or_else(|| Status::invalid_argument("tenant_scope is required"))?,
+                .ok_or_else(|| Status::invalid_argument("active_scope is required"))?,
         )?;
-        let holding_id = holding_id(&tenant_scope)?;
-        let target_tenant = validate_reference(&input.tenant_id, "tenant_id", 128)?;
-        if !command_scope.contains(&tenant_scope) {
+        let holding_id = holding_id(&active_scope)?;
+        let target_holding = validate_reference(&input.holding_id, "holding_id", 128)?;
+        if !command_scope.contains(&active_scope) {
             return Err(Status::permission_denied(
                 "Root access request scope does not match the command scope",
             ));
         }
         let authoritative_scope =
-            resolve_tenant_target(&self.state, target_tenant, holding_id, &command_scope).await?;
-        validate_controller_tenant_admin_context(
+            resolve_holding_target(&self.state, target_holding, holding_id, &command_scope).await?;
+        validate_controller_holding_admin_context(
             &self.state,
             &request,
             &claims,
-            target_tenant,
+            target_holding,
             holding_id,
         )
         .await?;
         self.state
             .auth
-            .authorize_role_for_tenant(
+            .authorize_role_for_holding(
                 &self.state.store,
                 &claims,
                 &authoritative_scope,
-                TENANT_ROOT_ACCESS_REQUEST,
-                Some(target_tenant),
+                HOLDING_ROOT_ACCESS_REQUEST,
+                Some(target_holding),
             )
             .await?;
         let domain_request = RootAccessRequest {
             id: parse_uuid(&input.request_id, "request_id")?,
             requester: claims.principal_ref,
             device_ref: validate_reference(&input.device_ref, "device_ref", 255)?.to_owned(),
-            tenant_id: target_tenant.to_owned(),
+            holding_id: target_holding.to_owned(),
             agent_id: parse_uuid(&input.agent_id, "agent_id")?,
-            tenant_scope,
+            active_scope,
             mode: parse_root_access_mode(input.mode)?,
             allowed_actions: input.allowed_actions.clone(),
             business_units: input
@@ -1012,45 +1032,46 @@ impl DataPlaneControlRpcImpl {
             &command.actor.principal_ref,
             "command actor must match the authenticated principal",
         )?;
-        let scope = access_scope(&command.tenant_scope);
+        let scope = access_scope(&command.active_scope);
         if matches!(scope, Scope::Platform) {
             return Err(Status::permission_denied(
                 "Root access approval must use a customer holding scope",
             ));
         }
         let request_id = parse_uuid(&request.get_ref().request_id, "request_id")?;
-        let (target_tenant, target_holding, requester) = self
+        let (target_holding_key, target_holding_id, requester) = self
             .broker
             .store
             .root_access_authorization_target(request_id)
             .await
             .map_err(persistence_status)?;
         let authoritative_scope =
-            resolve_tenant_target(&self.state, &target_tenant, target_holding, &scope).await?;
-        validate_controller_tenant_admin_context(
+            resolve_holding_target(&self.state, &target_holding_key, target_holding_id, &scope)
+                .await?;
+        validate_controller_holding_admin_context(
             &self.state,
             &request,
             &claims,
-            &target_tenant,
-            target_holding,
+            &target_holding_key,
+            target_holding_id,
         )
         .await?;
         self.state
             .auth
-            .authorize_role_for_tenant(
+            .authorize_role_for_holding(
                 &self.state.store,
                 &claims,
                 &authoritative_scope,
-                TENANT_ROOT_ACCESS_APPROVE,
-                Some(&target_tenant),
+                HOLDING_ROOT_ACCESS_APPROVE,
+                Some(&target_holding_key),
             )
             .await?;
         self.state
             .auth
-            .authorize_mfa_for_tenant(
+            .authorize_mfa_for_holding(
                 &self.state.store,
                 &claims,
-                &target_tenant,
+                &target_holding_key,
                 command_mfa(request.get_ref().context.as_ref()),
                 command.correlation_id,
             )
@@ -1064,7 +1085,7 @@ impl DataPlaneControlRpcImpl {
                     .authorize_local_sod_exception(
                         &self.state.store,
                         &claims,
-                        &target_tenant,
+                        &target_holding_key,
                         command.correlation_id,
                     )
                     .await?
@@ -1110,9 +1131,9 @@ impl DataPlaneControlRpcImpl {
                 one_time_capability_token: bearer.to_vec(),
                 root_principal_ref: capability.root_principal.clone(),
                 device_ref: capability.device_ref.clone(),
-                tenant_id: capability.tenant_id.clone(),
+                holding_id: capability.holding_id.clone(),
                 agent_id: capability.agent_id.to_string(),
-                tenant_scope: Some(scope_to_proto(&capability.scope)),
+                active_scope: Some(scope_to_proto(&capability.scope)),
                 allowed_actions: capability.allowed_actions.clone(),
                 business_units: capability
                     .business_units
@@ -1192,40 +1213,41 @@ impl DataPlaneControlRpcImpl {
             &command.actor.principal_ref,
             "command actor must match the authenticated principal",
         )?;
-        let scope = access_scope(&command.tenant_scope);
+        let scope = access_scope(&command.active_scope);
         let request_id = parse_uuid(&request.get_ref().request_id, "request_id")?;
-        let (target_tenant, target_holding, _) = self
+        let (target_holding_key, target_holding_id, _) = self
             .broker
             .store
             .root_access_authorization_target(request_id)
             .await
             .map_err(persistence_status)?;
         let authoritative_scope =
-            resolve_tenant_target(&self.state, &target_tenant, target_holding, &scope).await?;
-        validate_controller_tenant_admin_context(
+            resolve_holding_target(&self.state, &target_holding_key, target_holding_id, &scope)
+                .await?;
+        validate_controller_holding_admin_context(
             &self.state,
             &request,
             &claims,
-            &target_tenant,
-            target_holding,
+            &target_holding_key,
+            target_holding_id,
         )
         .await?;
         self.state
             .auth
-            .authorize_role_for_tenant(
+            .authorize_role_for_holding(
                 &self.state.store,
                 &claims,
                 &authoritative_scope,
-                TENANT_ROOT_ACCESS_REVOKE,
-                Some(&target_tenant),
+                HOLDING_ROOT_ACCESS_REVOKE,
+                Some(&target_holding_key),
             )
             .await?;
         self.state
             .auth
-            .authorize_mfa_for_tenant(
+            .authorize_mfa_for_holding(
                 &self.state.store,
                 &claims,
-                &target_tenant,
+                &target_holding_key,
                 command_mfa(request.get_ref().context.as_ref()),
                 command.correlation_id,
             )
@@ -1252,7 +1274,7 @@ impl DataPlaneControlRpcImpl {
             let mut revocation = RootAccessRevocationMessage {
                 contract_version: u32::from(erpx_domain::contracts::CONTRACT_VERSION),
                 capability_id: capability.id.to_string(),
-                tenant_id: capability.tenant_id,
+                holding_id: capability.holding_id,
                 agent_id: capability.agent_id.to_string(),
                 revoked_at: revoked_at.to_rfc3339(),
                 correlation_id: command.correlation_id.to_string(),
@@ -1292,29 +1314,34 @@ impl DataPlaneControlRpcImpl {
             "query actor must match the authenticated principal",
         )?;
         let scope = proto_query_scope(request.get_ref().context.as_ref())?;
-        let tenant_id = validate_reference(&request.get_ref().tenant_id, "tenant_id", 128)?;
+        let holding_id = validate_reference(&request.get_ref().holding_id, "holding_id", 128)?;
         let store = SqlxDataPlaneControlStore::new(self.state.store.clone());
         let summary = store
-            .infrastructure_summary(tenant_id, Utc::now())
+            .infrastructure_summary(holding_id, Utc::now())
             .await
             .map_err(persistence_status)?;
         if !scope.contains(&Scope::Holding {
-            holding_id: summary.root_holding_id,
+            holding_id: summary.canonical_holding_id,
         }) {
             return Err(Status::permission_denied(
                 "Root access queue is outside the authorized holding",
             ));
         }
-        let authoritative_scope =
-            resolve_tenant_target(&self.state, tenant_id, summary.root_holding_id, &scope).await?;
+        let authoritative_scope = resolve_holding_target(
+            &self.state,
+            holding_id,
+            summary.canonical_holding_id,
+            &scope,
+        )
+        .await?;
         self.state
             .auth
-            .authorize_role_for_tenant(
+            .authorize_role_for_holding(
                 &self.state.store,
                 &claims,
                 &authoritative_scope,
-                TENANT_ROOT_ACCESS_READ,
-                Some(tenant_id),
+                HOLDING_ROOT_ACCESS_READ,
+                Some(holding_id),
             )
             .await?;
         let page_size = match request.get_ref().page_size {
@@ -1327,7 +1354,7 @@ impl DataPlaneControlRpcImpl {
             }
         };
         let entries = store
-            .list_root_access_requests(tenant_id, request.get_ref().include_closed, page_size)
+            .list_root_access_requests(holding_id, request.get_ref().include_closed, page_size)
             .await
             .map_err(persistence_status)?;
         Ok(Response::new(target::ListRootAccessRequestsResponse {
@@ -1359,25 +1386,21 @@ impl DataPlaneControlRpcImpl {
                 .ok_or_else(|| Status::invalid_argument("brand scope is required"))?,
         )?;
         ensure_brand_scope_access(&access, &target)?;
-        let (authoritative_scope, target_tenant) =
+        let (authoritative_scope, target_holding) =
             brand_authorization_target(&self.state, &access, &target).await?;
         let permission = brand_permission(&access, &target, BrandOperation::Read);
         self.state
             .auth
-            .authorize_role_for_tenant(
+            .authorize_role_for_holding(
                 &self.state.store,
                 &claims,
                 &authoritative_scope,
                 permission,
-                target_tenant.as_deref(),
+                target_holding.as_deref(),
             )
             .await?;
         let resolved = SqlxCorporateIdentityStore::new(self.state.store.clone())
-            .resolved(
-                target.tenant_id(),
-                target.holding_id(),
-                target.business_unit(),
-            )
+            .resolved(target.holding_id(), target.business_unit())
             .await
             .map_err(persistence_status)?;
         Ok(Response::new(
@@ -1408,17 +1431,17 @@ impl DataPlaneControlRpcImpl {
                 .ok_or_else(|| Status::invalid_argument("brand scope is required"))?,
         )?;
         ensure_brand_scope_access(&access, &target)?;
-        let (authoritative_scope, target_tenant) =
+        let (authoritative_scope, target_holding) =
             brand_authorization_target(&self.state, &access, &target).await?;
         let permission = brand_permission(&access, &target, BrandOperation::Read);
         self.state
             .auth
-            .authorize_role_for_tenant(
+            .authorize_role_for_holding(
                 &self.state.store,
                 &claims,
                 &authoritative_scope,
                 permission,
-                target_tenant.as_deref(),
+                target_holding.as_deref(),
             )
             .await?;
         let draft = SqlxCorporateIdentityStore::new(self.state.store.clone())
@@ -1443,7 +1466,7 @@ impl DataPlaneControlRpcImpl {
             &command.actor.principal_ref,
             "command actor must match the authenticated principal",
         )?;
-        let access = access_scope(&command.tenant_scope);
+        let access = access_scope(&command.active_scope);
         let input = request
             .get_ref()
             .draft
@@ -1452,39 +1475,39 @@ impl DataPlaneControlRpcImpl {
         let mut draft = parse_corporate_identity_profile(input)?;
         draft.updated_by = claims.principal_ref.clone();
         ensure_brand_mutation_access(&access, &draft.scope)?;
-        let (authoritative_scope, target_tenant) =
+        let (authoritative_scope, target_holding) =
             brand_authorization_target(&self.state, &access, &draft.scope).await?;
-        if let (Some(tenant_id), Some(holding_id)) =
-            (target_tenant.as_deref(), draft.scope.holding_id())
+        if let (Some(holding_key), Some(holding_id)) =
+            (target_holding.as_deref(), draft.scope.holding_id())
         {
-            validate_controller_tenant_admin_context(
+            validate_controller_holding_admin_context(
                 &self.state,
                 &request,
                 &claims,
-                tenant_id,
+                holding_key,
                 holding_id,
             )
             .await?;
         }
         self.state
             .auth
-            .authorize_role_for_tenant(
+            .authorize_role_for_holding(
                 &self.state.store,
                 &claims,
                 &authoritative_scope,
                 brand_permission(&access, &draft.scope, BrandOperation::Manage),
-                target_tenant.as_deref(),
+                target_holding.as_deref(),
             )
             .await?;
         if !draft.locked_categories.is_empty() {
             self.state
                 .auth
-                .authorize_role_for_tenant(
+                .authorize_role_for_holding(
                     &self.state.store,
                     &claims,
                     &authoritative_scope,
                     brand_permission(&access, &draft.scope, BrandOperation::Lock),
-                    target_tenant.as_deref(),
+                    target_holding.as_deref(),
                 )
                 .await?;
         }
@@ -1515,7 +1538,7 @@ impl DataPlaneControlRpcImpl {
             &command.actor.principal_ref,
             "command actor must match the authenticated principal",
         )?;
-        let access = access_scope(&command.tenant_scope);
+        let access = access_scope(&command.active_scope);
         let profile_id = parse_uuid(&request.get_ref().profile_id, "profile_id")?;
         let store = SqlxCorporateIdentityStore::new(self.state.store.clone());
         let target = store
@@ -1523,36 +1546,37 @@ impl DataPlaneControlRpcImpl {
             .await
             .map_err(persistence_status)?;
         ensure_brand_mutation_access(&access, &target)?;
-        let (authoritative_scope, target_tenant) =
+        let (authoritative_scope, target_holding) =
             brand_authorization_target(&self.state, &access, &target).await?;
-        if let (Some(tenant_id), Some(holding_id)) = (target_tenant.as_deref(), target.holding_id())
+        if let (Some(holding_key), Some(holding_id)) =
+            (target_holding.as_deref(), target.holding_id())
         {
-            validate_controller_tenant_admin_context(
+            validate_controller_holding_admin_context(
                 &self.state,
                 &request,
                 &claims,
-                tenant_id,
+                holding_key,
                 holding_id,
             )
             .await?;
         }
         self.state
             .auth
-            .authorize_role_for_tenant(
+            .authorize_role_for_holding(
                 &self.state.store,
                 &claims,
                 &authoritative_scope,
                 brand_permission(&access, &target, BrandOperation::Publish),
-                target_tenant.as_deref(),
+                target_holding.as_deref(),
             )
             .await?;
-        if let Some(tenant_id) = target_tenant.as_deref() {
+        if let Some(holding_id) = target_holding.as_deref() {
             self.state
                 .auth
-                .authorize_mfa_for_tenant(
+                .authorize_mfa_for_holding(
                     &self.state.store,
                     &claims,
-                    tenant_id,
+                    holding_id,
                     command_mfa(request.get_ref().context.as_ref()),
                     command.correlation_id,
                 )
@@ -1593,7 +1617,7 @@ impl DataPlaneControlRpcImpl {
             &command.actor.principal_ref,
             "command actor must match the authenticated principal",
         )?;
-        let access = access_scope(&command.tenant_scope);
+        let access = access_scope(&command.active_scope);
         let profile_id = parse_uuid(&request.get_ref().profile_id, "profile_id")?;
         let store = SqlxCorporateIdentityStore::new(self.state.store.clone());
         let target = store
@@ -1601,36 +1625,37 @@ impl DataPlaneControlRpcImpl {
             .await
             .map_err(persistence_status)?;
         ensure_brand_mutation_access(&access, &target)?;
-        let (authoritative_scope, target_tenant) =
+        let (authoritative_scope, target_holding) =
             brand_authorization_target(&self.state, &access, &target).await?;
-        if let (Some(tenant_id), Some(holding_id)) = (target_tenant.as_deref(), target.holding_id())
+        if let (Some(holding_key), Some(holding_id)) =
+            (target_holding.as_deref(), target.holding_id())
         {
-            validate_controller_tenant_admin_context(
+            validate_controller_holding_admin_context(
                 &self.state,
                 &request,
                 &claims,
-                tenant_id,
+                holding_key,
                 holding_id,
             )
             .await?;
         }
         self.state
             .auth
-            .authorize_role_for_tenant(
+            .authorize_role_for_holding(
                 &self.state.store,
                 &claims,
                 &authoritative_scope,
                 brand_permission(&access, &target, BrandOperation::Publish),
-                target_tenant.as_deref(),
+                target_holding.as_deref(),
             )
             .await?;
-        if let Some(tenant_id) = target_tenant.as_deref() {
+        if let Some(holding_id) = target_holding.as_deref() {
             self.state
                 .auth
-                .authorize_mfa_for_tenant(
+                .authorize_mfa_for_holding(
                     &self.state.store,
                     &claims,
-                    tenant_id,
+                    holding_id,
                     command_mfa(request.get_ref().context.as_ref()),
                     command.correlation_id,
                 )
@@ -1679,16 +1704,16 @@ impl DataPlaneControlRpcImpl {
                 .ok_or_else(|| Status::invalid_argument("brand scope is required"))?,
         )?;
         ensure_brand_scope_access(&access, &target)?;
-        let (authoritative_scope, target_tenant) =
+        let (authoritative_scope, target_holding) =
             brand_authorization_target(&self.state, &access, &target).await?;
         self.state
             .auth
-            .authorize_role_for_tenant(
+            .authorize_role_for_holding(
                 &self.state.store,
                 &claims,
                 &authoritative_scope,
                 brand_permission(&access, &target, BrandOperation::Read),
-                target_tenant.as_deref(),
+                target_holding.as_deref(),
             )
             .await?;
         let entries = SqlxCorporateIdentityStore::new(self.state.store.clone())
@@ -1725,7 +1750,7 @@ impl DataPlaneControlRpcImpl {
         let audience = if matches!(scope, Scope::Platform) {
             "platform"
         } else {
-            "tenant"
+            "holding"
         };
         let home_route = if matches!(scope, Scope::Platform) {
             "/platform"
@@ -1770,8 +1795,7 @@ impl DataPlaneAgentService for DataPlaneBroker {
         }
         let at = Utc::now();
         let binding = DataPlaneAgentBinding {
-            tenant_id: validate_reference(&input.tenant_id, "tenant_id", 128)?.to_owned(),
-            holding_id: parse_uuid(&input.root_holding_id, "root_holding_id")?,
+            holding_id: parse_uuid(&input.canonical_holding_id, "canonical_holding_id")?,
             agent_id: parse_uuid(&input.agent_id, "agent_id")?,
             certificate_fingerprint: fingerprint,
             capabilities: input
@@ -1822,7 +1846,7 @@ impl DataPlaneAgentService for DataPlaneBroker {
         self.store
             .authenticate_agent_certificate(
                 observation.agent_id,
-                &observation.tenant_id,
+                &observation.holding_id,
                 &fingerprint,
             )
             .await
@@ -1863,7 +1887,7 @@ impl DataPlaneAgentService for DataPlaneBroker {
             .store
             .authenticate_agent_certificate(
                 observation.agent_id,
-                &observation.tenant_id,
+                &observation.holding_id,
                 &fingerprint,
             )
             .await
@@ -1877,7 +1901,7 @@ impl DataPlaneAgentService for DataPlaneBroker {
         self.connections.write().await.insert(
             binding.agent_id,
             AgentConnection {
-                tenant_id: binding.tenant_id.clone(),
+                holding_id: binding.holding_id.to_string(),
                 sender,
             },
         );
@@ -1908,7 +1932,7 @@ impl DataPlaneAgentService for DataPlaneBroker {
                         match parse_observation(&input) {
                             Ok(observation)
                                 if observation.agent_id == binding.agent_id
-                                    && observation.tenant_id == binding.tenant_id =>
+                                    && observation.holding_id == binding.holding_id.to_string() =>
                             {
                                 if let Err(error) = broker
                                     .store
@@ -1932,7 +1956,7 @@ impl DataPlaneAgentService for DataPlaneBroker {
             let removed = broker.connections.write().await.remove(&binding.agent_id);
             if removed
                 .as_ref()
-                .is_some_and(|connection| connection.tenant_id == binding.tenant_id)
+                .is_some_and(|connection| connection.holding_id == binding.holding_id.to_string())
             {
                 let _ = broker
                     .store
@@ -2025,7 +2049,7 @@ fn parse_observation(
         &input.correlation_id,
     )?;
     Ok(ObservedDataPlaneState {
-        tenant_id: validate_reference(&input.tenant_id, "tenant_id", 128)?.to_owned(),
+        holding_id: validate_reference(&input.holding_id, "holding_id", 128)?.to_owned(),
         agent_id: parse_uuid(&input.agent_id, "agent_id")?,
         observed_version: input.observed_version,
         desired_version: input.desired_version,
@@ -2051,7 +2075,7 @@ fn approved_configuration_message(
     let desired = approved.desired;
     let (configuration_layer, business_unit) = match desired.layer {
         ConfigurationLayer::Platform => ("platform".to_owned(), String::new()),
-        ConfigurationLayer::Tenant => ("tenant".to_owned(), String::new()),
+        ConfigurationLayer::Holding => ("holding".to_owned(), String::new()),
         ConfigurationLayer::BusinessUnit(unit) => {
             ("business_unit".to_owned(), unit.as_str().to_owned())
         }
@@ -2059,8 +2083,8 @@ fn approved_configuration_message(
     Ok(agent_contract::DesiredConfigurationMessage {
         contract_version: u32::from(erpx_domain::contracts::CONTRACT_VERSION),
         configuration_id: desired.id.to_string(),
-        tenant_id: desired.tenant_id,
-        root_holding_id: desired.holding_id.to_string(),
+        holding_id: desired.holding_id.to_string(),
+        canonical_holding_id: desired.holding_id.to_string(),
         target_agent_id: desired
             .target_agent_id
             .map_or_else(String::new, |id| id.to_string()),
@@ -2136,10 +2160,10 @@ fn brand_permission(
         };
     }
     match operation {
-        BrandOperation::Read => TENANT_BRAND_READ,
-        BrandOperation::Manage => TENANT_BRAND_MANAGE,
-        BrandOperation::Publish => TENANT_BRAND_PUBLISH,
-        BrandOperation::Lock => TENANT_BRAND_LOCK,
+        BrandOperation::Read => HOLDING_BRAND_READ,
+        BrandOperation::Manage => HOLDING_BRAND_MANAGE,
+        BrandOperation::Publish => HOLDING_BRAND_PUBLISH,
+        BrandOperation::Lock => HOLDING_BRAND_LOCK,
     }
 }
 
@@ -2185,37 +2209,30 @@ async fn brand_authorization_target(
             }
             Ok((Scope::Platform, None))
         }
-        BrandScope::Holding {
-            tenant_id,
-            holding_id,
+        BrandScope::Holding { holding_id } | BrandScope::BusinessUnit { holding_id, .. } => {
+            let holding_key = holding_id.to_string();
+            Ok((
+                resolve_holding_target(state, &holding_key, *holding_id, access).await?,
+                Some(holding_key),
+            ))
         }
-        | BrandScope::BusinessUnit {
-            tenant_id,
-            holding_id,
-            ..
-        } => Ok((
-            resolve_tenant_target(state, tenant_id, *holding_id, access).await?,
-            Some(tenant_id.clone()),
-        )),
     }
 }
 
 fn parse_brand_scope(input: &target::BrandScopeMessage) -> Result<BrandScope, Status> {
     let scope = match input.scope_kind.as_str() {
         "platform"
-            if input.tenant_id.is_empty()
-                && input.root_holding_id.is_empty()
+            if input.holding_id.is_empty()
+                && input.canonical_holding_id.is_empty()
                 && input.business_unit.is_empty() =>
         {
             BrandScope::Platform
         }
         "holding" if input.business_unit.is_empty() => BrandScope::Holding {
-            tenant_id: validate_reference(&input.tenant_id, "tenant_id", 128)?.to_owned(),
-            holding_id: parse_uuid(&input.root_holding_id, "root_holding_id")?,
+            holding_id: parse_uuid(&input.canonical_holding_id, "canonical_holding_id")?,
         },
         "business_unit" => BrandScope::BusinessUnit {
-            tenant_id: validate_reference(&input.tenant_id, "tenant_id", 128)?.to_owned(),
-            holding_id: parse_uuid(&input.root_holding_id, "root_holding_id")?,
+            holding_id: parse_uuid(&input.canonical_holding_id, "canonical_holding_id")?,
             business_unit: BusinessUnitId::parse(&input.business_unit)
                 .map_err(|error| Status::invalid_argument(error.to_string()))?,
         },
@@ -2473,23 +2490,19 @@ fn brand_scope_message(scope: &BrandScope) -> target::BrandScopeMessage {
             scope_kind: "platform".into(),
             ..target::BrandScopeMessage::default()
         },
-        BrandScope::Holding {
-            tenant_id,
-            holding_id,
-        } => target::BrandScopeMessage {
+        BrandScope::Holding { holding_id } => target::BrandScopeMessage {
             scope_kind: "holding".into(),
-            tenant_id: tenant_id.clone(),
-            root_holding_id: holding_id.to_string(),
+            holding_id: holding_id.to_string(),
+            canonical_holding_id: holding_id.to_string(),
             business_unit: String::new(),
         },
         BrandScope::BusinessUnit {
-            tenant_id,
             holding_id,
             business_unit,
         } => target::BrandScopeMessage {
             scope_kind: "business_unit".into(),
-            tenant_id: tenant_id.clone(),
-            root_holding_id: holding_id.to_string(),
+            holding_id: holding_id.to_string(),
+            canonical_holding_id: holding_id.to_string(),
             business_unit: business_unit.as_str().to_owned(),
         },
     }
@@ -2576,7 +2589,7 @@ fn history_entry_message(
 #[derive(Clone, Copy)]
 enum CandidateAudience {
     Platform,
-    Tenant,
+    Holding,
     Any,
 }
 
@@ -2584,7 +2597,7 @@ impl CandidateAudience {
     fn matches_role_scope(self, scope: erpx_identity::DirectoryRoleTargetScope) -> bool {
         match self {
             Self::Platform => scope == erpx_identity::DirectoryRoleTargetScope::Platform,
-            Self::Tenant => scope != erpx_identity::DirectoryRoleTargetScope::Platform,
+            Self::Holding => scope != erpx_identity::DirectoryRoleTargetScope::Platform,
             Self::Any => true,
         }
     }
@@ -2649,7 +2662,7 @@ async fn navigation_manifest_groups(
         state: &AppState,
         claims: &erpx_identity::AccessTokenClaims,
         scope: &Scope,
-        target_tenant: Option<&str>,
+        target_holding: Option<&str>,
         permission: &str,
     ) -> bool {
         if matches!(scope, Scope::Platform) {
@@ -2658,15 +2671,15 @@ async fn navigation_manifest_groups(
                 .authorize_role(&state.store, claims, scope, permission)
                 .await
                 .is_ok()
-        } else if let Some(target_tenant) = target_tenant {
+        } else if let Some(target_holding) = target_holding {
             state
                 .auth
-                .authorize_role_for_tenant(
+                .authorize_role_for_holding(
                     &state.store,
                     claims,
                     scope,
                     permission,
-                    Some(target_tenant),
+                    Some(target_holding),
                 )
                 .await
                 .is_ok()
@@ -2678,7 +2691,7 @@ async fn navigation_manifest_groups(
         state: &AppState,
         claims: &erpx_identity::AccessTokenClaims,
         scope: &Scope,
-        target_tenant: Option<&str>,
+        target_holding: Option<&str>,
         include_inaccessible: bool,
         definition: GroupDefinition,
     ) -> Option<target::NavigationManifestGroup> {
@@ -2695,10 +2708,10 @@ async fn navigation_manifest_groups(
             let mut authorized = false;
             // Audience describes the product surface and scopes canonical role hints; it is not
             // an authorization boundary. Platform-scoped roles can legitimately administer a
-            // tenant when their assignment contains the requested tenant permission, while the
-            // target-aware query or command boundary still enforces the concrete tenant.
+            // holding when their assignment contains the requested holding permission, while the
+            // target-aware query or command boundary still enforces the concrete holding.
             for permission in &candidate.permissions {
-                if allowed(state, claims, scope, target_tenant, permission).await {
+                if allowed(state, claims, scope, target_holding, permission).await {
                     authorized = true;
                     break;
                 }
@@ -2742,14 +2755,14 @@ async fn navigation_manifest_groups(
         })
     }
 
-    let target_tenant = match scope {
+    let target_holding = match scope {
         Scope::Platform => None,
         Scope::Holding { holding_id }
         | Scope::Company { holding_id, .. }
         | Scope::Branch { holding_id, .. }
         | Scope::Subtree { holding_id, .. } => {
-            SqlxTenantAdministrationStore::new(state.store.clone())
-                .tenant_id_for_root_holding(*holding_id)
+            SqlxHoldingAdministrationStore::new(state.store.clone())
+                .holding_id_for_root_holding(*holding_id)
                 .await
                 .ok()
                 .flatten()
@@ -2760,7 +2773,7 @@ async fn navigation_manifest_groups(
         state,
         claims,
         scope,
-        target_tenant.as_deref(),
+        target_holding.as_deref(),
         include_inaccessible,
         GroupDefinition {
             audience: CandidateAudience::Platform,
@@ -2773,7 +2786,7 @@ async fn navigation_manifest_groups(
                     route_id: "customer_360",
                     label: "Customer 360",
                     label_key: "nav.route.customer_360",
-                    path: "/platform/customers",
+                    path: "/platform/holdings",
                     icon: "customers",
                     permissions: vec!["platform.customer.read".into()],
                 },
@@ -2812,70 +2825,70 @@ async fn navigation_manifest_groups(
         state,
         claims,
         scope,
-        target_tenant.as_deref(),
+        target_holding.as_deref(),
         include_inaccessible,
         GroupDefinition {
-            audience: CandidateAudience::Tenant,
+            audience: CandidateAudience::Holding,
             discovery: NavigationDiscoveryPolicy::AuthorizedOnly,
-            group_id: "tenant_administration",
-            label: "Tenant Administration",
-            label_key: "nav.group.tenant_administration",
+            group_id: "holding_administration",
+            label: "Holding Administration",
+            label_key: "nav.group.holding_administration",
             candidates: vec![
                 Candidate {
-                    route_id: "tenant_organization",
+                    route_id: "holding_organization",
                     label: "Organization",
-                    label_key: "nav.route.tenant_organization",
-                    path: "/tenant/organization",
+                    label_key: "nav.route.holding_organization",
+                    path: "/holding/organization",
                     icon: "organization",
                     permissions: vec!["organization.read".into()],
                 },
                 Candidate {
-                    route_id: "tenant_branches",
+                    route_id: "holding_branches",
                     label: "Branches",
-                    label_key: "nav.route.tenant_branches",
-                    path: "/tenant/branches",
+                    label_key: "nav.route.holding_branches",
+                    path: "/holding/branches",
                     icon: "organization",
                     permissions: vec!["organization.read".into()],
                 },
                 Candidate {
-                    route_id: "tenant_identity_access",
+                    route_id: "holding_identity_access",
                     label: "Identity & Access",
-                    label_key: "nav.route.tenant_identity_access",
-                    path: "/tenant/identity-access",
+                    label_key: "nav.route.holding_identity_access",
+                    path: "/holding/identity-access",
                     icon: "directory",
-                    permissions: vec!["tenant.directory.read".into(), "security.read".into()],
+                    permissions: vec!["holding.directory.read".into(), "security.read".into()],
                 },
                 Candidate {
-                    route_id: "tenant_infrastructure",
+                    route_id: "holding_infrastructure",
                     label: "Infrastructure",
-                    label_key: "nav.route.tenant_infrastructure",
-                    path: "/tenant/infrastructure",
+                    label_key: "nav.route.holding_infrastructure",
+                    path: "/holding/infrastructure",
                     icon: "infrastructure",
-                    permissions: vec![TENANT_INFRASTRUCTURE_READ.into()],
+                    permissions: vec![HOLDING_INFRASTRUCTURE_READ.into()],
                 },
                 Candidate {
-                    route_id: "tenant_configuration",
+                    route_id: "holding_configuration",
                     label: "Configuration",
-                    label_key: "nav.route.tenant_configuration",
-                    path: "/tenant/configuration",
+                    label_key: "nav.route.holding_configuration",
+                    path: "/holding/configuration",
                     icon: "settings",
                     permissions: vec![BUSINESS_UNIT_CONFIGURATION_READ.into()],
                 },
                 Candidate {
-                    route_id: "tenant_root_access",
+                    route_id: "holding_root_access",
                     label: "Root Access",
-                    label_key: "nav.route.tenant_root_access",
-                    path: "/tenant/root-access",
+                    label_key: "nav.route.holding_root_access",
+                    path: "/holding/root-access",
                     icon: "security",
-                    permissions: vec![TENANT_ROOT_ACCESS_READ.into()],
+                    permissions: vec![HOLDING_ROOT_ACCESS_READ.into()],
                 },
                 Candidate {
-                    route_id: "tenant_corporate_identity",
+                    route_id: "holding_corporate_identity",
                     label: "Corporate Identity",
-                    label_key: "nav.route.tenant_corporate_identity",
-                    path: "/tenant/corporate-identity",
+                    label_key: "nav.route.holding_corporate_identity",
+                    path: "/holding/corporate-identity",
                     icon: "settings",
-                    permissions: vec![TENANT_BRAND_READ.into()],
+                    permissions: vec![HOLDING_BRAND_READ.into()],
                 },
                 Candidate {
                     route_id: "support",
@@ -2907,7 +2920,7 @@ async fn navigation_manifest_groups(
         state,
         claims,
         scope,
-        target_tenant.as_deref(),
+        target_holding.as_deref(),
         include_inaccessible,
         GroupDefinition {
             audience: CandidateAudience::Any,
@@ -2926,7 +2939,7 @@ async fn navigation_manifest_groups(
         state,
         claims,
         scope,
-        target_tenant.as_deref(),
+        target_holding.as_deref(),
         include_inaccessible,
         GroupDefinition {
             audience: CandidateAudience::Platform,
@@ -2936,12 +2949,12 @@ async fn navigation_manifest_groups(
             label_key: "nav.group.platform_administration",
             candidates: vec![
                 Candidate {
-                    route_id: "tenants",
-                    label: "Tenants",
-                    label_key: "nav.route.tenants",
-                    path: "/platform/tenants",
-                    icon: "tenants",
-                    permissions: vec!["platform.tenant.read".into()],
+                    route_id: "holdings",
+                    label: "Holdings",
+                    label_key: "nav.route.holdings",
+                    path: "/platform/holdings",
+                    icon: "holdings",
+                    permissions: vec!["platform.holding.read".into()],
                 },
                 Candidate {
                     route_id: "projections",
@@ -2949,7 +2962,7 @@ async fn navigation_manifest_groups(
                     label_key: "nav.route.projections",
                     path: "/platform/projections",
                     icon: "projections",
-                    permissions: vec!["platform.tenant.read".into()],
+                    permissions: vec!["platform.holding.read".into()],
                 },
                 Candidate {
                     route_id: "backups",
@@ -2957,7 +2970,7 @@ async fn navigation_manifest_groups(
                     label_key: "nav.route.backups",
                     path: "/platform/backups",
                     icon: "backups",
-                    permissions: vec!["platform.tenant.backup".into()],
+                    permissions: vec!["platform.holding.backup".into()],
                 },
                 Candidate {
                     route_id: "integrations",
@@ -2965,7 +2978,7 @@ async fn navigation_manifest_groups(
                     label_key: "nav.route.integrations",
                     path: "/platform/integrations",
                     icon: "integrations",
-                    permissions: vec!["platform.tenant.read".into()],
+                    permissions: vec!["platform.holding.read".into()],
                 },
                 Candidate {
                     route_id: "providers",
@@ -2981,7 +2994,7 @@ async fn navigation_manifest_groups(
                     label_key: "nav.route.audit",
                     path: "/platform/audit",
                     icon: "audit",
-                    permissions: vec!["platform.tenant.read".into()],
+                    permissions: vec!["platform.holding.read".into()],
                 },
                 Candidate {
                     route_id: "role_review",
@@ -3258,15 +3271,15 @@ fn navigation_action_capabilities(route_id: &str) -> &'static [&'static str] {
             "AcknowledgeMarketingProviderVerification",
             "SetMarketingProviderAccountState",
         ],
-        "tenant_organization" => &["SaveOrganizationNode", "ListOrganizationNodes"],
-        "tenant_branches" => &[
+        "holding_organization" => &["SaveOrganizationNode", "ListOrganizationNodes"],
+        "holding_branches" => &[
             "ProvisionBranch",
             "GetBranchProvisioning",
             "ListBranchProvisionings",
             "RetryBranchProvisioning",
             "SuspendBranchRoute",
         ],
-        "tenant_identity_access" => &[
+        "holding_identity_access" => &[
             "ListDirectoryConnectors",
             "SaveDirectoryConnector",
             "StartDirectoryImport",
@@ -3275,24 +3288,24 @@ fn navigation_action_capabilities(route_id: &str) -> &'static [&'static str] {
             "GetDirectoryConnectorReadiness",
             "ReconcileDirectoryConnector",
         ],
-        "tenant_infrastructure" => &[
-            "GetTenantInfrastructure",
-            "SaveTenantInfrastructureProfile",
+        "holding_infrastructure" => &[
+            "GetHoldingInfrastructure",
+            "SaveHoldingInfrastructureProfile",
             "IssueDataPlaneEnrollment",
             "ProposeDesiredConfiguration",
             "DecideDesiredConfiguration",
         ],
-        "tenant_configuration" => &[
+        "holding_configuration" => &[
             "GetBusinessUnitConfiguration",
             "SaveBusinessUnitConfiguration",
         ],
-        "tenant_root_access" => &[
+        "holding_root_access" => &[
             "RequestRootAccess",
             "DecideRootAccess",
             "RevokeRootAccess",
             "ListRootAccessRequests",
         ],
-        "tenant_corporate_identity" => &[
+        "holding_corporate_identity" => &[
             "GetResolvedCorporateIdentity",
             "GetCorporateIdentityDraft",
             "SaveCorporateIdentityDraft",
@@ -3300,18 +3313,18 @@ fn navigation_action_capabilities(route_id: &str) -> &'static [&'static str] {
             "RollbackCorporateIdentity",
             "ListCorporateIdentityHistory",
         ],
-        "tenants" => &[
-            "ListTenants",
-            "GetTenant",
-            "BeginTenantAdminContext",
-            "GetTenantAdminContext",
-            "EndTenantAdminContext",
-            "DiscoverTenantOrganizationUnits",
-            "BeginTenantProvisioning",
-            "ProvisionTenantResources",
-            "ActivateTenant",
-            "SuspendTenant",
-            "EnterTenantRecovery",
+        "holdings" => &[
+            "ListHoldings",
+            "GetHolding",
+            "BeginHoldingAdminContext",
+            "GetHoldingAdminContext",
+            "EndHoldingAdminContext",
+            "DiscoverHoldingOrganizationUnits",
+            "BeginHoldingProvisioning",
+            "ProvisionHoldingResources",
+            "ActivateHolding",
+            "SuspendHolding",
+            "EnterHoldingRecovery",
             "SaveOrganizationNode",
             "ListOrganizationNodes",
             "ProvisionBranch",
@@ -3319,8 +3332,8 @@ fn navigation_action_capabilities(route_id: &str) -> &'static [&'static str] {
             "ListBranchProvisionings",
             "RetryBranchProvisioning",
             "SuspendBranchRoute",
-            "GetTenantInfrastructure",
-            "SaveTenantInfrastructureProfile",
+            "GetHoldingInfrastructure",
+            "SaveHoldingInfrastructureProfile",
             "GetBusinessUnitConfiguration",
             "SaveBusinessUnitConfiguration",
             "IssueDataPlaneEnrollment",
@@ -3337,8 +3350,8 @@ fn navigation_action_capabilities(route_id: &str) -> &'static [&'static str] {
             "ListProjectionStatuses",
         ],
         "backups" => &[
-            "ScheduleTenantBackup",
-            "ListTenantBackupJobs",
+            "ScheduleHoldingBackup",
+            "ListHoldingBackupJobs",
             "ScheduleClusterBaseBackup",
             "ListClusterRecoveryPoints",
             "StartClusterRestoreRehearsal",
@@ -3422,18 +3435,18 @@ fn slice_hash(value: &[u8], field: &str) -> Result<[u8; 32], Status> {
         .map_err(|_| Status::invalid_argument(format!("{field} must be SHA-256")))
 }
 
-fn domain_deployment_mode(value: i32) -> Result<TenantDeploymentMode, Status> {
+fn domain_deployment_mode(value: i32) -> Result<HoldingDeploymentMode, Status> {
     match ProtoDeploymentMode::try_from(value) {
-        Ok(ProtoDeploymentMode::ErpxManaged) => Ok(TenantDeploymentMode::ErpxManaged),
-        Ok(ProtoDeploymentMode::CustomerDataPlane) => Ok(TenantDeploymentMode::CustomerDataPlane),
+        Ok(ProtoDeploymentMode::ErpxManaged) => Ok(HoldingDeploymentMode::ErpxManaged),
+        Ok(ProtoDeploymentMode::CustomerDataPlane) => Ok(HoldingDeploymentMode::CustomerDataPlane),
         _ => Err(Status::invalid_argument("deployment_mode is invalid")),
     }
 }
 
-fn proto_deployment_mode(value: TenantDeploymentMode) -> ProtoDeploymentMode {
+fn proto_deployment_mode(value: HoldingDeploymentMode) -> ProtoDeploymentMode {
     match value {
-        TenantDeploymentMode::ErpxManaged => ProtoDeploymentMode::ErpxManaged,
-        TenantDeploymentMode::CustomerDataPlane => ProtoDeploymentMode::CustomerDataPlane,
+        HoldingDeploymentMode::ErpxManaged => ProtoDeploymentMode::ErpxManaged,
+        HoldingDeploymentMode::CustomerDataPlane => ProtoDeploymentMode::CustomerDataPlane,
     }
 }
 
@@ -3467,7 +3480,7 @@ fn proto_configuration_lifecycle(value: ConfigurationLifecycle) -> ProtoConfigur
 fn parse_configuration_layer(value: &str, unit: &str) -> Result<ConfigurationLayer, Status> {
     match value {
         "platform" if unit.is_empty() => Ok(ConfigurationLayer::Platform),
-        "tenant" if unit.is_empty() => Ok(ConfigurationLayer::Tenant),
+        "holding" if unit.is_empty() => Ok(ConfigurationLayer::Holding),
         "business_unit" => BusinessUnitId::parse(unit)
             .map(ConfigurationLayer::BusinessUnit)
             .map_err(|error| Status::invalid_argument(error.to_string())),
@@ -3477,8 +3490,8 @@ fn parse_configuration_layer(value: &str, unit: &str) -> Result<ConfigurationLay
 
 fn parse_agent_capability(value: &str) -> Result<AgentCapability, Status> {
     match value {
-        "typed_tenant_queries" => Ok(AgentCapability::TypedTenantQueries),
-        "typed_tenant_commands" => Ok(AgentCapability::TypedTenantCommands),
+        "typed_holding_queries" => Ok(AgentCapability::TypedHoldingQueries),
+        "typed_holding_commands" => Ok(AgentCapability::TypedHoldingCommands),
         "directory_sync" => Ok(AgentCapability::DirectorySync),
         "projection_worker" => Ok(AgentCapability::ProjectionWorker),
         "backup" => Ok(AgentCapability::Backup),
@@ -3524,59 +3537,50 @@ fn proto_query_scope(context: Option<&QueryContext>) -> Result<Scope, Status> {
     let context = context.ok_or_else(|| Status::invalid_argument("query context is required"))?;
     proto_scope(
         context
-            .tenant_scope
+            .active_scope
             .as_ref()
-            .ok_or_else(|| Status::invalid_argument("tenant_scope is required"))?,
+            .ok_or_else(|| Status::invalid_argument("active_scope is required"))?,
     )
 }
 
-fn proto_scope(scope: &ProtoTenantScope) -> Result<Scope, Status> {
+fn proto_scope(scope: &ProtoHoldingScope) -> Result<Scope, Status> {
     match scope
         .scope
         .as_ref()
-        .ok_or_else(|| Status::invalid_argument("tenant_scope is required"))?
+        .ok_or_else(|| Status::invalid_argument("active_scope is required"))?
     {
-        tenant_scope::Scope::Platform(_) => Ok(Scope::Platform),
-        tenant_scope::Scope::Holding(scope) => Ok(Scope::Holding {
+        authority_scope::Scope::Platform(_) => Ok(Scope::Platform),
+        authority_scope::Scope::Holding(scope) => Ok(Scope::Holding {
             holding_id: parse_uuid(&scope.holding_id, "holding_id")?,
         }),
-        tenant_scope::Scope::Company(scope) => Ok(Scope::Company {
+        authority_scope::Scope::Company(scope) => Ok(Scope::Company {
             holding_id: parse_uuid(&scope.holding_id, "holding_id")?,
             company_id: parse_uuid(&scope.company_id, "company_id")?,
         }),
-        tenant_scope::Scope::Branch(scope) => Ok(Scope::Branch {
+        authority_scope::Scope::Branch(scope) => Ok(Scope::Branch {
             holding_id: parse_uuid(&scope.holding_id, "holding_id")?,
             company_id: parse_uuid(&scope.company_id, "company_id")?,
             branch_id: parse_uuid(&scope.branch_id, "branch_id")?,
         }),
-        tenant_scope::Scope::Subtree(scope) => Ok(Scope::Subtree {
+        authority_scope::Scope::Subtree(scope) => Ok(Scope::Subtree {
             holding_id: parse_uuid(&scope.holding_id, "holding_id")?,
-            company_ids: scope
-                .company_ids
-                .iter()
-                .map(|id| parse_uuid(id, "company_id"))
-                .collect::<Result<Vec<_>, _>>()?,
-            branch_ids: scope
-                .branch_ids
-                .iter()
-                .map(|id| parse_uuid(id, "branch_id"))
-                .collect::<Result<Vec<_>, _>>()?,
+            organization_node_id: parse_uuid(&scope.organization_node_id, "organization_node_id")?,
         }),
     }
 }
 
-fn scope_to_proto(scope: &Scope) -> ProtoTenantScope {
+fn scope_to_proto(scope: &Scope) -> ProtoHoldingScope {
     let scope = match scope {
-        Scope::Platform => tenant_scope::Scope::Platform(erpx_proto::common::v2::PlatformScope {}),
+        Scope::Platform => authority_scope::Scope::Platform(erpx_proto::common::PlatformScope {}),
         Scope::Holding { holding_id } => {
-            tenant_scope::Scope::Holding(erpx_proto::common::v2::HoldingScope {
+            authority_scope::Scope::Holding(erpx_proto::common::HoldingScope {
                 holding_id: holding_id.to_string(),
             })
         }
         Scope::Company {
             holding_id,
             company_id,
-        } => tenant_scope::Scope::Company(erpx_proto::common::v2::CompanyScope {
+        } => authority_scope::Scope::Company(erpx_proto::common::CompanyScope {
             holding_id: holding_id.to_string(),
             company_id: company_id.to_string(),
         }),
@@ -3584,28 +3588,26 @@ fn scope_to_proto(scope: &Scope) -> ProtoTenantScope {
             holding_id,
             company_id,
             branch_id,
-        } => tenant_scope::Scope::Branch(erpx_proto::common::v2::BranchScope {
+        } => authority_scope::Scope::Branch(erpx_proto::common::BranchScope {
             holding_id: holding_id.to_string(),
             company_id: company_id.to_string(),
             branch_id: branch_id.to_string(),
         }),
         Scope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
-        } => tenant_scope::Scope::Subtree(erpx_proto::common::v2::SubtreeScope {
+            organization_node_id,
+        } => authority_scope::Scope::Subtree(erpx_proto::common::SubtreeScope {
             holding_id: holding_id.to_string(),
-            company_ids: company_ids.iter().map(Uuid::to_string).collect(),
-            branch_ids: branch_ids.iter().map(Uuid::to_string).collect(),
+            organization_node_id: organization_node_id.to_string(),
         }),
     };
-    ProtoTenantScope { scope: Some(scope) }
+    ProtoHoldingScope { scope: Some(scope) }
 }
 
 fn holding_id(scope: &Scope) -> Result<Uuid, Status> {
     match scope {
         Scope::Platform => Err(Status::invalid_argument(
-            "Root access must use a customer tenant scope",
+            "Root access must use a customer holding scope",
         )),
         Scope::Holding { holding_id }
         | Scope::Company { holding_id, .. }
@@ -3671,8 +3673,8 @@ fn business_unit_configuration_message(
     configuration: &BusinessUnitConfiguration,
 ) -> Result<target::BusinessUnitConfigurationMessage, Status> {
     Ok(target::BusinessUnitConfigurationMessage {
-        tenant_id: configuration.tenant_id.clone(),
-        root_holding_id: configuration.holding_id.to_string(),
+        holding_id: configuration.holding_id.to_string(),
+        canonical_holding_id: configuration.holding_id.to_string(),
         business_unit: configuration.business_unit.as_str().to_owned(),
         configuration_version: configuration.configuration_version,
         active: configuration.active,
@@ -3711,9 +3713,9 @@ fn root_access_queue_entry(
             request_id: request.id.to_string(),
             requester_ref: request.requester.clone(),
             device_ref: request.device_ref.clone(),
-            tenant_id: request.tenant_id.clone(),
+            holding_id: request.holding_id.clone(),
             agent_id: request.agent_id.to_string(),
-            tenant_scope: Some(scope_to_proto(&request.tenant_scope)),
+            active_scope: Some(scope_to_proto(&request.active_scope)),
             mode: proto_root_access_mode(request.mode) as i32,
             allowed_actions: request.allowed_actions.clone(),
             business_units: request
@@ -3816,12 +3818,12 @@ mod tests {
                     "platform.directory.read",
                     "support.ticket.read",
                     "commercial.billing.read",
-                    "platform.tenant.read",
-                    "platform.tenant.backup",
+                    "platform.holding.read",
+                    "platform.holding.backup",
                     "role.assignment.review",
                     "platform.brand.read",
                     "organization.read",
-                    "tenant.directory.read",
+                    "holding.directory.read",
                     "security.read",
                 ]
                 .into_iter()
@@ -3862,9 +3864,9 @@ mod tests {
         assert!(!platform.contains(&"holding_owner".to_owned()));
 
         let identity_access = navigation_required_role_keys(
-            CandidateAudience::Tenant,
+            CandidateAudience::Holding,
             &[
-                "tenant.directory.read".to_owned(),
+                "holding.directory.read".to_owned(),
                 "security.read".to_owned(),
             ],
         );
@@ -3890,8 +3892,8 @@ mod tests {
 
         assert!(
             navigation_required_role_keys(
-                CandidateAudience::Tenant,
-                &["tenant.root-access.read".to_owned()],
+                CandidateAudience::Holding,
+                &["holding.root-access.read".to_owned()],
             )
             .is_empty()
         );

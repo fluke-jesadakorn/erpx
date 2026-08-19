@@ -1,13 +1,13 @@
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::hr::{EmploymentScope, HrError, LeaveRequest, LeaveStatus};
 use uuid::Uuid;
 
-fn context(actor: &str, scope: TenantScope, key: &str) -> CommandContext {
+fn context(actor: &str, scope: AuthorityScope, key: &str) -> CommandContext {
     CommandContext::try_new(
         key,
         ActorAttribution {
             principal_ref: actor.into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
@@ -43,10 +43,10 @@ fn leave(owner: &CommandContext, scope: EmploymentScope) -> LeaveRequest {
 #[test]
 fn leave_submission_requires_scope_authorization() {
     let scope = employment_scope();
-    let owner = context("owner", scope.tenant_scope(), "leave-owner");
+    let owner = context("owner", scope.active_scope(), "leave-owner");
     let outsider = context(
         "outsider",
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(99),
         },
@@ -63,7 +63,7 @@ fn leave_submission_requires_scope_authorization() {
 #[test]
 fn leave_version_overflow_is_rejected_without_mutation() {
     let scope = employment_scope();
-    let owner = context("owner", scope.tenant_scope(), "leave-overflow");
+    let owner = context("owner", scope.active_scope(), "leave-overflow");
     let mut request = leave(&owner, scope);
     request.version = u64::MAX;
     let before = request.clone();

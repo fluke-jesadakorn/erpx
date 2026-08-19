@@ -9,7 +9,7 @@ use erpx_brand::{
     RollbackBrand, SaveBrandDraft, SetBrandCategoryLocks,
 };
 use erpx_cqrs::{CommandEnvelope, CommandReceipt, QueryEnvelope, QueryResult};
-use erpx_proto::erpx::brand::v2 as platform;
+use erpx_proto::erpx::brand as platform;
 use erpx_ui_foundation::UiError;
 
 use crate::{features::brand::gateway::BrandProtoTransport, transport::typed_cqrs::GrpcChannel};
@@ -29,15 +29,15 @@ impl BrandGrpcTransport {
     pub(crate) fn try_new(
         channel: GrpcChannel,
         access_token: impl AsRef<str>,
-        tenant_id: impl AsRef<str>,
-        holding_ref: impl AsRef<str>,
+        holding_id: impl AsRef<str>,
+        data_profile_key: impl AsRef<str>,
     ) -> Result<Self, UiError> {
         Ok(Self {
             command: platform::brand_command_service_client::BrandCommandServiceClient::new(
                 channel.clone(),
             ),
             query: platform::brand_query_service_client::BrandQueryServiceClient::new(channel),
-            authority: RpcAuthority::tenant(access_token, tenant_id, holding_ref)?,
+            authority: RpcAuthority::holding(access_token, holding_id, data_profile_key)?,
         })
     }
 }
@@ -261,18 +261,18 @@ fn encode_scope(value: &BrandScope) -> platform::BrandTargetScope {
     let target = match value {
         BrandScope::Platform => Target::Platform(platform::BrandPlatformTarget {}),
         BrandScope::Holding {
-            tenant_id,
+            holding_id,
             holding_id,
         } => Target::Holding(platform::BrandHoldingTarget {
-            tenant_id: tenant_id.clone(),
+            holding_id: holding_id.clone(),
             holding_id: holding_id.to_string(),
         }),
         BrandScope::BusinessUnit {
-            tenant_id,
+            holding_id,
             holding_id,
             business_unit,
         } => Target::BusinessUnit(platform::BrandBusinessUnitTarget {
-            tenant_id: tenant_id.clone(),
+            holding_id: holding_id.clone(),
             holding_id: holding_id.to_string(),
             business_unit: encode_business_unit(*business_unit),
         }),
@@ -287,11 +287,11 @@ fn decode_scope(value: platform::BrandTargetScope) -> Result<BrandScope, UiError
     let scope = match value.target.ok_or_else(invalid_response)? {
         Target::Platform(_) => BrandScope::Platform,
         Target::Holding(value) => BrandScope::Holding {
-            tenant_id: value.tenant_id,
+            holding_id: value.holding_id,
             holding_id: uuid(&value.holding_id)?,
         },
         Target::BusinessUnit(value) => BrandScope::BusinessUnit {
-            tenant_id: value.tenant_id,
+            holding_id: value.holding_id,
             holding_id: uuid(&value.holding_id)?,
             business_unit: decode_business_unit(value.business_unit)?,
         },

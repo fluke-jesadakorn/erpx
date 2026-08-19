@@ -1,4 +1,4 @@
-//! Tenant-scoped Procurement and Inventory contracts.
+//! Holding-scoped Procurement and Inventory contracts.
 //!
 //! This module contains source-owned domain rules only.  It deliberately has
 //! no persistence or transport dependencies.  Quantities and costs are
@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::contracts::{CommandContext, TenantScope};
+use crate::contracts::{AuthorityScope, CommandContext};
 
 pub const SCM_CONTRACT_VERSION: u16 = 1;
 pub const MAX_SCM_TEXT_BYTES: usize = 255;
@@ -33,8 +33,8 @@ pub enum ScmError {
     InvalidScope,
     #[error("command scope {command_scope:?} does not contain record scope {record_scope:?}")]
     CommandScopeOutside {
-        command_scope: Box<TenantScope>,
-        record_scope: Box<TenantScope>,
+        command_scope: Box<AuthorityScope>,
+        record_scope: Box<AuthorityScope>,
     },
     #[error("{reference_type} scope does not contain record scope")]
     ReferenceScopeOutside { reference_type: &'static str },
@@ -103,7 +103,7 @@ pub enum ScmError {
     IssueCostMismatch,
 }
 
-/// Tenant-scoped source/read reconciliation facts for the disposable
+/// Holding-scoped source/read reconciliation facts for the disposable
 /// Procurement/Inventory projection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct ScmProjectionReconciliation {
@@ -160,7 +160,7 @@ impl ScmProjectionReconciliation {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScmReconciliationEvidence {
     pub evidence_id: Uuid,
-    pub holding_ref: String,
+    pub data_profile_key: String,
     pub after_event_id: Option<Uuid>,
     pub first_event_id: Option<Uuid>,
     pub last_event_id: Option<Uuid>,
@@ -177,7 +177,11 @@ pub struct ScmReconciliationEvidence {
 impl ScmReconciliationEvidence {
     pub fn validate(&self) -> Result<(), ScmError> {
         validate_id(self.evidence_id, "evidence_id")?;
-        bounded(&self.holding_ref, "holding_ref", MAX_SCM_TEXT_BYTES)?;
+        bounded(
+            &self.data_profile_key,
+            "data_profile_key",
+            MAX_SCM_TEXT_BYTES,
+        )?;
         if self.after_event_id.is_some_and(|id| id.is_nil())
             || self.first_event_id.is_some_and(|id| id.is_nil())
             || self.last_event_id.is_some_and(|id| id.is_nil())
@@ -303,7 +307,7 @@ pub fn validate_save_command_binding(
     kind: ScmAggregateKind,
     aggregate_command_id: Uuid,
     aggregate_idempotency_key: &str,
-    aggregate_scope: &TenantScope,
+    aggregate_scope: &AuthorityScope,
     context: &CommandContext,
 ) -> Result<(), ScmError> {
     validate_command_scope(context, aggregate_scope)?;
@@ -329,7 +333,7 @@ pub fn validate_save_command_binding(
 pub struct VendorReference {
     pub vendor_id: Uuid,
     pub vendor_reference: String,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub holding_id: Uuid,
     pub company_id: Uuid,
     pub branch_id: Option<Uuid>,
@@ -339,7 +343,7 @@ pub struct VendorReference {
 impl VendorReference {
     pub fn new(
         vendor_id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         holding_id: Uuid,
         company_id: Uuid,
         branch_id: Option<Uuid>,
@@ -384,7 +388,7 @@ impl VendorReference {
 pub struct ProductReference {
     pub product_id: Uuid,
     pub product_reference: String,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub holding_id: Uuid,
     pub company_id: Uuid,
     pub branch_id: Option<Uuid>,
@@ -418,7 +422,7 @@ impl ProductReference {
 pub struct WarehouseReference {
     pub warehouse_id: Uuid,
     pub warehouse_reference: String,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub holding_id: Uuid,
     pub company_id: Uuid,
     pub branch_id: Uuid,
@@ -454,7 +458,7 @@ pub struct Product {
     pub reference: String,
     pub idempotency_key: String,
     pub command_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub holding_id: Uuid,
     pub company_id: Uuid,
     pub branch_id: Option<Uuid>,
@@ -469,7 +473,7 @@ impl Product {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         holding_id: Uuid,
         company_id: Uuid,
         branch_id: Option<Uuid>,
@@ -537,7 +541,7 @@ pub struct Warehouse {
     pub reference: String,
     pub idempotency_key: String,
     pub command_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub holding_id: Uuid,
     pub company_id: Uuid,
     pub branch_id: Uuid,
@@ -550,7 +554,7 @@ impl Warehouse {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         holding_id: Uuid,
         company_id: Uuid,
         branch_id: Uuid,
@@ -654,7 +658,7 @@ pub struct PurchaseRequest {
     pub reference: String,
     pub idempotency_key: String,
     pub command_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub holding_id: Uuid,
     pub company_id: Uuid,
     pub branch_id: Option<Uuid>,
@@ -670,7 +674,7 @@ impl PurchaseRequest {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         holding_id: Uuid,
         company_id: Uuid,
         branch_id: Option<Uuid>,
@@ -848,7 +852,7 @@ pub struct PurchaseOrder {
     pub reference: String,
     pub idempotency_key: String,
     pub command_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub holding_id: Uuid,
     pub company_id: Uuid,
     pub branch_id: Option<Uuid>,
@@ -1132,7 +1136,7 @@ pub struct GoodsReceipt {
     pub reference: String,
     pub idempotency_key: String,
     pub command_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub holding_id: Uuid,
     pub company_id: Uuid,
     pub branch_id: Option<Uuid>,
@@ -1527,7 +1531,7 @@ pub struct StockMovement {
     pub reference: String,
     pub idempotency_key: String,
     pub command_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub holding_id: Uuid,
     pub company_id: Uuid,
     pub branch_id: Option<Uuid>,
@@ -1568,7 +1572,7 @@ impl StockMovement {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         holding_id: Uuid,
         company_id: Uuid,
         branch_id: Option<Uuid>,
@@ -1762,7 +1766,7 @@ pub struct StockTransfer {
     pub reference: String,
     pub idempotency_key: String,
     pub command_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub holding_id: Uuid,
     pub company_id: Uuid,
     pub branch_id: Option<Uuid>,
@@ -1778,7 +1782,7 @@ impl StockTransfer {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         holding_id: Uuid,
         company_id: Uuid,
         branch_id: Option<Uuid>,
@@ -1995,7 +1999,7 @@ pub struct StockReservation {
     pub reference: String,
     pub idempotency_key: String,
     pub command_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub holding_id: Uuid,
     pub company_id: Uuid,
     pub branch_id: Option<Uuid>,
@@ -2011,7 +2015,7 @@ impl StockReservation {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         holding_id: Uuid,
         company_id: Uuid,
         branch_id: Option<Uuid>,
@@ -2243,7 +2247,7 @@ impl_scm_save_validation!(StockReservation, ScmAggregateKind::StockReservation);
 
 fn validate_purchase_request_lines(
     lines: &[PurchaseRequestLine],
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     holding_id: Uuid,
     company_id: Uuid,
 ) -> Result<(), ScmError> {
@@ -2257,7 +2261,7 @@ fn validate_purchase_request_lines(
 
 fn validate_purchase_order_lines(
     lines: &[PurchaseOrderLine],
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     holding_id: Uuid,
     company_id: Uuid,
 ) -> Result<(), ScmError> {
@@ -2271,7 +2275,7 @@ fn validate_purchase_order_lines(
 
 fn validate_product_reference(
     product: &ProductReference,
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     holding_id: Uuid,
     company_id: Uuid,
 ) -> Result<(), ScmError> {
@@ -2290,8 +2294,8 @@ fn validate_product_reference(
 
 fn validate_reference_scope(
     reference_type: &'static str,
-    reference_scope: &TenantScope,
-    record_scope: &TenantScope,
+    reference_scope: &AuthorityScope,
+    record_scope: &AuthorityScope,
     record_holding: Uuid,
     record_company: Uuid,
     reference_holding: Uuid,
@@ -2416,21 +2420,21 @@ fn validate_context(context: &CommandContext) -> Result<(), ScmError> {
 
 fn validate_command_scope(
     context: &CommandContext,
-    record_scope: &TenantScope,
+    record_scope: &AuthorityScope,
 ) -> Result<(), ScmError> {
     validate_context(context)?;
-    if context.tenant_scope.contains(record_scope) {
+    if context.active_scope.contains(record_scope) {
         Ok(())
     } else {
         Err(ScmError::CommandScopeOutside {
-            command_scope: Box::new(context.tenant_scope.clone()),
+            command_scope: Box::new(context.active_scope.clone()),
             record_scope: Box::new(record_scope.clone()),
         })
     }
 }
 
 fn validate_scope_binding(
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     holding_id: Uuid,
     company_id: Uuid,
     branch_id: Option<Uuid>,
@@ -2442,14 +2446,14 @@ fn validate_scope_binding(
     }
     match (scope, branch_id) {
         (
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id: scoped_holding,
                 company_id: scoped_company,
             },
             None,
         ) if *scoped_holding == holding_id && *scoped_company == company_id => Ok(()),
         (
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id: scoped_holding,
                 company_id: scoped_company,
                 branch_id: scoped_branch,
@@ -2544,27 +2548,27 @@ mod tests {
     use super::*;
     use crate::contracts::{ActorAttribution, ActorKind};
 
-    fn company_scope() -> TenantScope {
-        TenantScope::Company {
+    fn company_scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         }
     }
 
-    fn branch_scope(branch_id: u128) -> TenantScope {
-        TenantScope::Branch {
+    fn branch_scope(branch_id: u128) -> AuthorityScope {
+        AuthorityScope::Branch {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
             branch_id: Uuid::from_u128(branch_id),
         }
     }
 
-    fn context(scope: TenantScope, key: &str) -> CommandContext {
+    fn context(scope: AuthorityScope, key: &str) -> CommandContext {
         CommandContext::try_new(
             key,
             ActorAttribution {
                 principal_ref: "scm-test-user".into(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: None,
                 represented_principal_ref: None,
                 support_capability_id: None,
@@ -2575,7 +2579,7 @@ mod tests {
         .expect("valid command context")
     }
 
-    fn vendor(scope: TenantScope) -> VendorReference {
+    fn vendor(scope: AuthorityScope) -> VendorReference {
         VendorReference::new(
             Uuid::from_u128(10),
             scope,
@@ -3309,7 +3313,7 @@ mod tests {
         };
         let evidence = ScmReconciliationEvidence {
             evidence_id: Uuid::new_v4(),
-            holding_ref: "holding-1".into(),
+            data_profile_key: "holding-1".into(),
             after_event_id: None,
             first_event_id: Some(Uuid::new_v4()),
             last_event_id: Some(Uuid::new_v4()),

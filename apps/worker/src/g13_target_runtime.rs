@@ -10,7 +10,7 @@ use erpx_infrastructure::{
 use erpx_migration::{
     LegacySourceSnapshot, MigrationPhase,
     g13::{G13CheckpointRequest, G13CheckpointState, G13EvidencePayload, G13EvidenceRequest},
-    migrate_tenant_read, migrate_tenant_write,
+    migrate_holding_read, migrate_holding_write,
 };
 use serde_json::json;
 use sqlx::{Row, postgres::PgPoolOptions};
@@ -41,7 +41,7 @@ pub struct G13TargetRuntimeHandler {
     importer: G13TargetImporter,
     proof: G13AuthorizationProof,
     run_id: Uuid,
-    holding_ref: String,
+    data_profile_key: String,
     rollback_writes_blocked: bool,
 }
 
@@ -52,7 +52,7 @@ impl G13TargetRuntimeHandler {
         let target_url = required_url("ERPX_G13_TARGET_DATABASE_URL")?;
         let read_url = required_url("ERPX_G13_TARGET_READ_DATABASE_URL")?;
         let rollback_url = required_url("ERPX_G13_ROLLBACK_DATABASE_URL")?;
-        let holding_ref = required_env("ERPX_G13_TARGET_HOLDING_REF")?;
+        let data_profile_key = required_env("ERPX_G13_TARGET_DATA_PROFILE_KEY")?;
         let run_id = required_env("ERPX_G13_RUN_ID")?
             .parse::<Uuid>()
             .map_err(|_| G13TargetRuntimeError::MissingConfiguration("ERPX_G13_RUN_ID"))?;
@@ -77,7 +77,7 @@ impl G13TargetRuntimeHandler {
             .connect(&target_url)
             .await
             .map_err(|_| G13TargetRuntimeError::DatabaseConnection)?;
-        migrate_tenant_write(&target)
+        migrate_holding_write(&target)
             .await
             .map_err(|_| G13TargetRuntimeError::SchemaMigration)?;
         let read = PgPoolOptions::new()
@@ -85,7 +85,7 @@ impl G13TargetRuntimeHandler {
             .connect(&read_url)
             .await
             .map_err(|_| G13TargetRuntimeError::DatabaseConnection)?;
-        migrate_tenant_read(&read)
+        migrate_holding_read(&read)
             .await
             .map_err(|_| G13TargetRuntimeError::SchemaMigration)?;
         let rollback = PgPoolOptions::new()
@@ -93,11 +93,11 @@ impl G13TargetRuntimeHandler {
             .connect(&rollback_url)
             .await
             .map_err(|_| G13TargetRuntimeError::DatabaseConnection)?;
-        migrate_tenant_write(&rollback)
+        migrate_holding_write(&rollback)
             .await
             .map_err(|_| G13TargetRuntimeError::SchemaMigration)?;
         let importer =
-            G13TargetImporter::new_with_read_pool(target, read, rollback, holding_ref.clone())
+            G13TargetImporter::new_with_read_pool(target, read, rollback, data_profile_key.clone())
                 .map_err(|error| G13TargetRuntimeError::Work(error.to_string()))?;
         let proof = G13AuthorizationProof {
             actor_ref,
@@ -115,7 +115,7 @@ impl G13TargetRuntimeHandler {
             importer,
             proof,
             run_id,
-            holding_ref,
+            data_profile_key,
             rollback_writes_blocked: env::var("ERPX_G13_ROLLBACK_WRITES_BLOCKED")
                 .map(|value| value.eq_ignore_ascii_case("true"))
                 .unwrap_or(false),
@@ -368,7 +368,7 @@ impl G13TargetRuntimeHandler {
                     "rows_seen": result.rows_seen,
                     "rows_applied": result.rows_applied,
                     "target_count": result.target_count,
-                    "holding_ref": self.holding_ref,
+                    "data_profile_key": self.data_profile_key,
                 }))
             }
             "project" => {
@@ -380,7 +380,7 @@ impl G13TargetRuntimeHandler {
                 let result = json!({
                     "rows_projected": result.rows_projected,
                     "projection_digest": result.projection_digest,
-                    "holding_ref": self.holding_ref,
+                    "data_profile_key": self.data_profile_key,
                 });
                 self.save_operation_checkpoint(claim, &result).await?;
                 Ok(result)
@@ -902,41 +902,43 @@ mod tests {
     fn target_database_tls_mode_is_parsed_not_substring_matched() {
         assert!(
             validate_database_url(
-                "postgresql://target:secret@erpx.example/tenant?sslmode=verify-full"
+                "postgresql://target:secret@erpx.example/holding?sslmode=verify-full"
             )
             .is_ok()
         );
         assert!(
-            validate_database_url("postgresql://target:secret@erpx.example/tenant?sslmode=require")
-                .is_err()
-        );
-        assert!(
             validate_database_url(
-                "postgresql://target:secret@erpx.example/tenant?sslmode=verify-ca"
+                "postgresql://target:secret@erpx.example/holding?sslmode=require"
             )
             .is_err()
         );
         assert!(
             validate_database_url(
-                "postgresql://target:sslmode=require@erpx.example/tenant?sslmode=disable"
+                "postgresql://target:secret@erpx.example/holding?sslmode=verify-ca"
             )
             .is_err()
         );
         assert!(
             validate_database_url(
-                "postgresql://target:secret@erpx.example/tenant?sslmode=require&sslmode=disable"
+                "postgresql://target:sslmode=require@erpx.example/holding?sslmode=disable"
             )
             .is_err()
         );
         assert!(
             validate_database_url(
-                "postgresql://target:secret@erpx.example/tenant?sslmode=require&sslmode=require"
+                "postgresql://target:secret@erpx.example/holding?sslmode=require&sslmode=disable"
             )
             .is_err()
         );
         assert!(
             validate_database_url(
-                "postgresql://target:secret@erpx.example/tenant?sslmode=require#fragment"
+                "postgresql://target:secret@erpx.example/holding?sslmode=require&sslmode=require"
+            )
+            .is_err()
+        );
+        assert!(
+            validate_database_url(
+                "postgresql://target:secret@erpx.example/holding?sslmode=require#fragment"
             )
             .is_err()
         );

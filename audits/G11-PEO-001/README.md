@@ -3,7 +3,7 @@
 ## Contract
 
 - **Owner:** main agent
-- **Dependencies:** shared tenant contracts, scope containment, and the G11
+- **Dependencies:** shared holding contracts, scope containment, and the G11
   HR/payroll requirements.
 - **Allowed paths:** `crates/domain/src/hr.rs`, its domain export, this audit,
   and plan/ledger records.
@@ -12,8 +12,8 @@
 
 ## Delivered behavior
 
-- Added bounded tenant/company/branch `EmploymentScope` with explicit
-  `TenantScope` conversion and containment checks.
+- Added bounded holding/company/branch `EmploymentScope` with explicit
+  `HoldingScope` conversion and containment checks.
 - Added versioned employee lifecycle with draft, active, leave, suspended, and
   terminal terminated states.
 - Added leave requests with bounded reasons, exact date windows, separated

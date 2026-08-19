@@ -4,14 +4,14 @@
 
 - Worker provider routes validate exact HTTPS endpoints without embedded
   credentials, query strings, fragments, or unsafe redirects.
-- Account-bound requests carry only non-secret tenant, holding, provider
+- Account-bound requests carry only non-secret holding, holding, provider
   account, and binding-version metadata. Credential bytes and verifier
   references never cross the provider request or error boundary.
 - Delivery authorization must match the dispatch ID and idempotency key; the
   idempotency key is sent both as provider request metadata and in the bounded
   envelope.
 - The account-bound wrapper re-resolves and compares the exact active
-  control-plane binding, including account, tenant/holding identity, opaque
+  control-plane binding, including account, holding/holding identity, opaque
   credential reference, and version. Changes fail closed before submission or
   reconciliation.
 - Provider response bodies are streamed under a fixed bound and mapped to

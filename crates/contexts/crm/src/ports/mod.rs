@@ -6,7 +6,7 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::{crm, marketing};
 use erpx_kernel::{
-    ActorAttribution, AggregateId, AuditContext, CommandId, CorrelationId, EventId, TenantScope,
+    ActorAttribution, AggregateId, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -73,8 +73,8 @@ pub struct CommandIdentity {
 }
 pub struct AuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
-    pub target_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
+    pub target_scope: &'a AuthorityScope,
     pub action: CrmAction,
 }
 #[async_trait]
@@ -83,7 +83,11 @@ pub trait AuthorizationPort: Send + Sync {
 }
 #[async_trait]
 pub trait EntitlementPort: Send + Sync {
-    async fn ensure_crm_enabled(&self, scope: &TenantScope, write: bool) -> Result<(), PortError>;
+    async fn ensure_crm_enabled(
+        &self,
+        scope: &AuthorityScope,
+        write: bool,
+    ) -> Result<(), PortError>;
 }
 
 /// Owner-published Marketing evidence accepted by CRM. The source version is
@@ -97,7 +101,7 @@ pub struct QualifiedLeadEvidence {
 
 pub struct QualifiedLeadResolveRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
     pub candidate: marketing::LeadCandidateRef,
 }
 
@@ -112,12 +116,12 @@ pub trait QualifiedLeadResolverPort: Send + Sync {
 pub trait WriteRepository: Send + Sync {
     async fn load_lead(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: CrmLeadId,
     ) -> Result<Option<CrmLead>, PortError>;
     async fn load_opportunity(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: OpportunityId,
     ) -> Result<Option<crate::domain::CrmOpportunity>, PortError>;
 }
@@ -128,7 +132,7 @@ pub struct CrmCommit {
     pub correlation_id: CorrelationId,
     pub causation_id: Option<EventId>,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
     pub aggregate: CrmAggregate,
@@ -176,7 +180,7 @@ pub trait CommandUnitOfWork: Send + Sync {
 pub struct CrmLeadView {
     pub id: CrmLeadId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub marketing_candidate_id: uuid::Uuid,
     pub campaign_id: uuid::Uuid,
     pub audience_member_id: uuid::Uuid,
@@ -207,7 +211,7 @@ impl From<&CrmLead> for CrmLeadView {
 pub struct OpportunityView {
     pub id: OpportunityId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub accepted_lead_id: CrmLeadId,
     pub customer_id: uuid::Uuid,
     pub name: String,
@@ -268,19 +272,19 @@ pub struct ReadProjection<T> {
 pub trait ReadRepository: Send + Sync {
     async fn get_lead(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: CrmLeadId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<CrmLeadView>>, PortError>;
     async fn get_opportunity(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: OpportunityId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<OpportunityView>>, PortError>;
     async fn list_opportunities(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         filter: &OpportunityListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<OpportunityList>, PortError>;

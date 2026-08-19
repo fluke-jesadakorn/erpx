@@ -65,14 +65,14 @@ impl Projector for InventoryProjector {
         let result = sqlx::query(
             "INSERT INTO erpx_inventory_read.stock_item_projection
                 (projection_name,generation,partition_key,stock_item_id,
-                 source_aggregate_version,source_global_sequence,tenant_scope,scope_key,
+                 source_aggregate_version,source_global_sequence,active_scope,scope_key,
                  warehouse_id,item_code,on_hand,reserved,available,reservations,state,
                  aggregate_created_at,aggregate_updated_at,projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now())
-             ON CONFLICT (tenant_id,projection_name,generation,partition_key,stock_item_id)
+             ON CONFLICT (holding_id,projection_name,generation,partition_key,stock_item_id)
              DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,
                 source_global_sequence=EXCLUDED.source_global_sequence,
-                tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,
+                active_scope=EXCLUDED.active_scope,scope_key=EXCLUDED.scope_key,
                 warehouse_id=EXCLUDED.warehouse_id,item_code=EXCLUDED.item_code,
                 on_hand=EXCLUDED.on_hand,reserved=EXCLUDED.reserved,
                 available=EXCLUDED.available,reservations=EXCLUDED.reservations,
@@ -108,7 +108,7 @@ impl Projector for InventoryProjector {
         }
         sqlx::query(
             "DELETE FROM erpx_inventory_read.reservation_projection
-             WHERE tenant_id=erpx_cqrs_read.current_tenant_id()
+             WHERE holding_id=erpx_cqrs_read.current_holding_id()
                AND projection_name=$1 AND generation=$2 AND stock_item_id=$3",
         )
         .bind(PROJECTION_NAME)
@@ -120,10 +120,10 @@ impl Projector for InventoryProjector {
         for reservation in &view.reservations {
             sqlx::query(
                 "INSERT INTO erpx_inventory_read.reservation_projection
-                    (tenant_id,projection_name,generation,partition_key,reservation_id,
-                     stock_item_id,source_aggregate_version,source_global_sequence,tenant_scope,
+                    (holding_id,projection_name,generation,partition_key,reservation_id,
+                     stock_item_id,source_aggregate_version,source_global_sequence,active_scope,
                      warehouse_id,item_code,quantity,demand_reference,reservation_status,projected_at)
-                 VALUES (erpx_cqrs_read.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,now())",
+                 VALUES (erpx_cqrs_read.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,now())",
             )
             .bind(PROJECTION_NAME)
             .bind(context.generation)
@@ -164,7 +164,7 @@ impl Projector for InventoryProjector {
         .map_err(failure)?;
         sqlx::query(
             "DELETE FROM erpx_inventory_read.reservation_projection
-             WHERE tenant_id=erpx_cqrs_read.current_tenant_id()
+             WHERE holding_id=erpx_cqrs_read.current_holding_id()
                AND projection_name=$1 AND generation=$2",
         )
         .bind(PROJECTION_NAME)
@@ -200,7 +200,7 @@ fn validate_event(
     let view = &snapshot.item;
     if view.version != event.aggregate_version
         || view.stock_item_id.as_uuid() != event.aggregate_id.as_uuid()
-        || view.scope != event.tenant_scope
+        || view.scope != event.active_scope
         || event.partition != stock_item_partition(view.stock_item_id)
         || scope_key(&view.scope).is_err()
         || view.available != view.on_hand - view.reserved
@@ -212,19 +212,19 @@ fn validate_event(
     Ok(snapshot)
 }
 
-pub(crate) fn scope_key(scope: &erpx_kernel::TenantScope) -> Result<String, ProjectionFailure> {
+pub(crate) fn scope_key(scope: &erpx_kernel::AuthorityScope) -> Result<String, ProjectionFailure> {
     match scope {
-        erpx_kernel::TenantScope::Company {
+        erpx_kernel::AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok(format!("company:{holding_id}:{company_id}")),
-        erpx_kernel::TenantScope::Branch {
+        erpx_kernel::AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         } => Ok(format!("branch:{holding_id}:{company_id}:{branch_id}")),
         _ => Err(ProjectionFailure::new(
-            "inventory requires an exact tenant scope",
+            "inventory requires an exact holding scope",
         )),
     }
 }

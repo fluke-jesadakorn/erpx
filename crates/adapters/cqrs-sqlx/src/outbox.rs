@@ -102,14 +102,14 @@ impl OutboxDeliveryStore {
         }
         let lease_millis =
             i64::try_from(lease.as_millis()).map_err(|_| CqrsSqlxError::NumericRange)?;
-        let statement = if self.pool.tenant_id().is_some() {
+        let statement = if self.pool.holding_id().is_some() {
             "WITH due AS (
-                 SELECT tenant_id, event_id
+                 SELECT holding_id, event_id
                  FROM erpx_cqrs_write.outbox_events
                  WHERE published_at IS NULL AND dead_lettered_at IS NULL
                    AND available_at <= now()
                    AND (claim_until IS NULL OR claim_until <= now())
-                   AND tenant_id = $4
+                   AND holding_id = $4
                  ORDER BY available_at ASC, global_sequence ASC
                  FOR UPDATE SKIP LOCKED
                  LIMIT $1
@@ -119,8 +119,8 @@ impl OutboxDeliveryStore {
                  claim_until = now() + ($3 * INTERVAL '1 millisecond'),
                  publish_attempts = publish_attempts + 1
              FROM due
-             WHERE event.tenant_id = due.tenant_id AND event.event_id = due.event_id
-               AND event.tenant_id = $4
+             WHERE event.holding_id = due.holding_id AND event.event_id = due.event_id
+               AND event.holding_id = $4
              RETURNING event.event_id, event.global_sequence, event.context_name,
                        event.partition_key, event.command_id, event.event_type,
                        event.event_version, event.aggregate_type, event.aggregate_id,
@@ -154,8 +154,8 @@ impl OutboxDeliveryStore {
             .bind(i64::from(limit))
             .bind(claim_token)
             .bind(lease_millis);
-        let rows = match self.pool.tenant_id() {
-            Some(tenant_id) => query.bind(tenant_id).fetch_all(&mut *transaction).await?,
+        let rows = match self.pool.holding_id() {
+            Some(holding_id) => query.bind(holding_id).fetch_all(&mut *transaction).await?,
             None => query.fetch_all(&mut *transaction).await?,
         };
         transaction.commit().await?;
@@ -173,11 +173,11 @@ impl OutboxDeliveryStore {
         if claim_token.is_nil() {
             return Err(CqrsSqlxError::InvalidInput("outbox claim token is invalid"));
         }
-        let statement = if self.pool.tenant_id().is_some() {
+        let statement = if self.pool.holding_id().is_some() {
             "UPDATE erpx_cqrs_write.outbox_events
              SET published_at = $3, claim_token = NULL, claim_until = NULL,
                  publish_error = NULL
-             WHERE event_id = $1 AND claim_token = $2 AND tenant_id = $4
+             WHERE event_id = $1 AND claim_token = $2 AND holding_id = $4
                AND published_at IS NULL AND dead_lettered_at IS NULL
              RETURNING publish_attempts"
         } else {
@@ -193,10 +193,10 @@ impl OutboxDeliveryStore {
             .bind(event_id.as_uuid())
             .bind(claim_token)
             .bind(published_at);
-        let attempt: Option<i32> = match self.pool.tenant_id() {
-            Some(tenant_id) => {
+        let attempt: Option<i32> = match self.pool.holding_id() {
+            Some(holding_id) => {
                 query
-                    .bind(tenant_id)
+                    .bind(holding_id)
                     .fetch_optional(&mut *transaction)
                     .await?
             }
@@ -223,10 +223,10 @@ impl OutboxDeliveryStore {
             return Err(CqrsSqlxError::InvalidInput("outbox claim token is invalid"));
         }
         let mut transaction = self.pool.begin().await?;
-        let statement = if self.pool.tenant_id().is_some() {
+        let statement = if self.pool.holding_id().is_some() {
             "SELECT publish_attempts
              FROM erpx_cqrs_write.outbox_events
-             WHERE event_id = $1 AND claim_token = $2 AND tenant_id = $3
+             WHERE event_id = $1 AND claim_token = $2 AND holding_id = $3
                AND published_at IS NULL AND dead_lettered_at IS NULL
              FOR UPDATE"
         } else {
@@ -239,10 +239,10 @@ impl OutboxDeliveryStore {
         let query = sqlx::query_scalar(statement)
             .bind(event_id.as_uuid())
             .bind(claim_token);
-        let attempt: Option<i32> = match self.pool.tenant_id() {
-            Some(tenant_id) => {
+        let attempt: Option<i32> = match self.pool.holding_id() {
+            Some(holding_id) => {
                 query
-                    .bind(tenant_id)
+                    .bind(holding_id)
                     .fetch_optional(&mut *transaction)
                     .await?
             }
@@ -251,11 +251,11 @@ impl OutboxDeliveryStore {
         let attempt = to_u32(attempt.ok_or(CqrsSqlxError::OutboxClaimLost)?)?;
         let message = bounded_failure(failure);
         if attempt >= policy.max_attempts {
-            let statement = if self.pool.tenant_id().is_some() {
+            let statement = if self.pool.holding_id().is_some() {
                 "UPDATE erpx_cqrs_write.outbox_events
                  SET claim_token = NULL, claim_until = NULL, publish_error = $3,
                      dead_lettered_at = $4
-                 WHERE event_id = $1 AND claim_token = $2 AND tenant_id = $5"
+                 WHERE event_id = $1 AND claim_token = $2 AND holding_id = $5"
             } else {
                 "UPDATE erpx_cqrs_write.outbox_events
                  SET claim_token = NULL, claim_until = NULL, publish_error = $3,
@@ -267,8 +267,8 @@ impl OutboxDeliveryStore {
                 .bind(claim_token)
                 .bind(message)
                 .bind(failed_at);
-            match self.pool.tenant_id() {
-                Some(tenant_id) => query.bind(tenant_id).execute(&mut *transaction).await?,
+            match self.pool.holding_id() {
+                Some(holding_id) => query.bind(holding_id).execute(&mut *transaction).await?,
                 None => query.execute(&mut *transaction).await?,
             };
             transaction.commit().await?;
@@ -281,11 +281,11 @@ impl OutboxDeliveryStore {
         let delay = chrono::Duration::from_std(policy.delay_for(attempt))
             .map_err(|_| CqrsSqlxError::NumericRange)?;
         let available_at = failed_at + delay;
-        let statement = if self.pool.tenant_id().is_some() {
+        let statement = if self.pool.holding_id().is_some() {
             "UPDATE erpx_cqrs_write.outbox_events
              SET claim_token = NULL, claim_until = NULL, publish_error = $3,
                  available_at = $4
-             WHERE event_id = $1 AND claim_token = $2 AND tenant_id = $5"
+             WHERE event_id = $1 AND claim_token = $2 AND holding_id = $5"
         } else {
             "UPDATE erpx_cqrs_write.outbox_events
              SET claim_token = NULL, claim_until = NULL, publish_error = $3,
@@ -297,8 +297,8 @@ impl OutboxDeliveryStore {
             .bind(claim_token)
             .bind(message)
             .bind(available_at);
-        match self.pool.tenant_id() {
-            Some(tenant_id) => query.bind(tenant_id).execute(&mut *transaction).await?,
+        match self.pool.holding_id() {
+            Some(holding_id) => query.bind(holding_id).execute(&mut *transaction).await?,
             None => query.execute(&mut *transaction).await?,
         };
         transaction.commit().await?;

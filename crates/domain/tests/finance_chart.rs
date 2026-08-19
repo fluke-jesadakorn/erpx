@@ -1,5 +1,5 @@
 use erpx_domain::contracts::{
-    ActorAttribution, ActorKind, AuditContext, CONTRACT_VERSION, CommandContext, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CONTRACT_VERSION, CommandContext,
 };
 use erpx_domain::finance_chart::{
     AccountCategory, AccountStatus, AccountUsageFacts, FinanceAccount, FinanceChart,
@@ -17,12 +17,12 @@ fn context(holding_id: Uuid, company_id: Uuid, key: &str, expected: Option<u64>)
         causation_id: None,
         actor: ActorAttribution {
             principal_ref: "finance-controller".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: Some(Uuid::new_v4()),
             represented_principal_ref: None,
             support_capability_id: None,
         },
-        tenant_scope: TenantScope::Company {
+        active_scope: AuthorityScope::Company {
             holding_id,
             company_id,
         },

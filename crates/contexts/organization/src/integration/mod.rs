@@ -46,7 +46,7 @@ fn fact(
             .map_err(|_| IntegrationMappingError::Code)?,
         name: DisplayName::try_new(state.name.clone())
             .map_err(|_| IntegrationMappingError::Name)?,
-        holding: organization::HoldingRef::try_from_uuid(holding_id)
+        holding: erpx_kernel::HoldingId::try_from_uuid(holding_id)
             .map_err(|_| IntegrationMappingError::HoldingIdentifier)?,
         company: company_id
             .map(|id| {

@@ -3,8 +3,8 @@ use erpx_cqrs::{
     QueryEnvelope,
 };
 use erpx_kernel::{
-    ActorAttribution, AuditContext, CommandId, CorrelationId, EventId, QueryId, ScopeError,
-    TenantScope, ValidationError,
+    ActorAttribution, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId, QueryId,
+    ScopeError, ValidationError,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -12,13 +12,13 @@ use thiserror::Error;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionContext {
     pub actor: ActorAttribution,
-    pub tenant_scope: TenantScope,
+    pub active_scope: AuthorityScope,
 }
 
 impl SessionContext {
     pub fn validate(&self) -> Result<(), RequestContextError> {
         self.actor.validate()?;
-        self.tenant_scope.validate()?;
+        self.active_scope.validate()?;
         Ok(())
     }
 }
@@ -62,7 +62,7 @@ impl RequestContextBuilder {
             correlation_id,
             causation_id,
             actor: self.session.actor.clone(),
-            tenant_scope: self.session.tenant_scope.clone(),
+            active_scope: self.session.active_scope.clone(),
             audit: self.audit.clone(),
             expected_aggregate_version,
             command,
@@ -83,7 +83,7 @@ impl RequestContextBuilder {
             query_id,
             correlation_id,
             actor: self.session.actor.clone(),
-            tenant_scope: self.session.tenant_scope.clone(),
+            active_scope: self.session.active_scope.clone(),
             audit: self.audit.clone(),
             consistency,
             query,
@@ -105,7 +105,7 @@ impl RequestContextBuilder {
 pub enum RequestContextError {
     #[error("session or audit context is invalid")]
     Validation(#[from] ValidationError),
-    #[error("tenant scope is invalid")]
+    #[error("holding scope is invalid")]
     Scope(#[from] ScopeError),
     #[error("command or query envelope is invalid")]
     Envelope(#[from] EnvelopeError),
@@ -149,12 +149,12 @@ mod tests {
             SessionContext {
                 actor: ActorAttribution {
                     principal_ref: "user:1".into(),
-                    kind: ActorKind::TenantUser,
+                    kind: ActorKind::HoldingUser,
                     session_id: None,
                     represented_principal_ref: None,
                     support_capability_id: None,
                 },
-                tenant_scope: TenantScope::Platform,
+                active_scope: AuthorityScope::Platform,
             },
             "quality inspection",
             true,
@@ -185,7 +185,7 @@ mod tests {
             )
             .unwrap();
         assert_eq!(command.actor, query.actor);
-        assert_eq!(command.tenant_scope, query.tenant_scope);
+        assert_eq!(command.active_scope, query.active_scope);
         assert_eq!(command.audit, query.audit);
     }
 
@@ -195,12 +195,12 @@ mod tests {
             SessionContext {
                 actor: ActorAttribution {
                     principal_ref: "".into(),
-                    kind: ActorKind::TenantUser,
+                    kind: ActorKind::HoldingUser,
                     session_id: None,
                     represented_principal_ref: None,
                     support_capability_id: None,
                 },
-                tenant_scope: TenantScope::Platform,
+                active_scope: AuthorityScope::Platform,
             },
             "quality inspection",
             true,

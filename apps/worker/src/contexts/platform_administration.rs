@@ -7,7 +7,7 @@ use erpx_cqrs_sqlx::{
     ProjectorContext, RebuildHandle, WritePool,
 };
 use erpx_platform_administration_sqlx::{
-    AdminContextProjector, ConnectorProjector, PlatformGovernanceRecordProjector, TenantProjector,
+    AdminContextProjector, ConnectorProjector, HoldingProjector, PlatformGovernanceRecordProjector,
 };
 use sqlx::{Postgres, Transaction};
 
@@ -19,7 +19,7 @@ pub struct PlatformAdministrationProjectionRegistration {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlatformAdministrationProjectionKind {
-    Tenants,
+    Holdings,
     Connectors,
     AdminContexts,
     GovernanceRecords,
@@ -31,7 +31,7 @@ pub struct PlatformAdministrationProjectionFactory;
 impl PlatformAdministrationProjectionFactory {
     pub fn registrations(self) -> Vec<PlatformAdministrationProjectionRegistration> {
         vec![
-            registration(&TenantProjector::new()),
+            registration(&HoldingProjector::new()),
             registration(&ConnectorProjector::new()),
             registration(&AdminContextProjector::new()),
             registration(&PlatformGovernanceRecordProjector::new()),
@@ -47,8 +47,8 @@ impl PlatformAdministrationProjectionFactory {
         let store = ProjectionStore::new(projection);
         let runner = ProjectionRunner::new(ProjectionSource::new(write), store.clone(), config)?;
         let projector = match kind {
-            PlatformAdministrationProjectionKind::Tenants => {
-                PlatformProjector::Tenant(TenantProjector::new())
+            PlatformAdministrationProjectionKind::Holdings => {
+                PlatformProjector::Holding(HoldingProjector::new())
             }
             PlatformAdministrationProjectionKind::Connectors => {
                 PlatformProjector::Connector(ConnectorProjector::new())
@@ -77,7 +77,7 @@ fn registration(projector: &dyn Projector) -> PlatformAdministrationProjectionRe
 
 #[derive(Debug, Clone)]
 enum PlatformProjector {
-    Tenant(TenantProjector),
+    Holding(HoldingProjector),
     Connector(ConnectorProjector),
     AdminContext(AdminContextProjector),
     GovernanceRecord(PlatformGovernanceRecordProjector),
@@ -87,7 +87,7 @@ enum PlatformProjector {
 impl Projector for PlatformProjector {
     fn name(&self) -> &str {
         match self {
-            Self::Tenant(value) => value.name(),
+            Self::Holding(value) => value.name(),
             Self::Connector(value) => value.name(),
             Self::AdminContext(value) => value.name(),
             Self::GovernanceRecord(value) => value.name(),
@@ -95,7 +95,7 @@ impl Projector for PlatformProjector {
     }
     fn event_types(&self) -> &[String] {
         match self {
-            Self::Tenant(value) => value.event_types(),
+            Self::Holding(value) => value.event_types(),
             Self::Connector(value) => value.event_types(),
             Self::AdminContext(value) => value.event_types(),
             Self::GovernanceRecord(value) => value.event_types(),
@@ -108,7 +108,7 @@ impl Projector for PlatformProjector {
         event: &ProjectionEvent,
     ) -> Result<(), ProjectionFailure> {
         match self {
-            Self::Tenant(value) => value.apply(transaction, context, event).await,
+            Self::Holding(value) => value.apply(transaction, context, event).await,
             Self::Connector(value) => value.apply(transaction, context, event).await,
             Self::AdminContext(value) => value.apply(transaction, context, event).await,
             Self::GovernanceRecord(value) => value.apply(transaction, context, event).await,
@@ -120,7 +120,7 @@ impl Projector for PlatformProjector {
         context: &ProjectorContext<'_>,
     ) -> Result<(), ProjectionFailure> {
         match self {
-            Self::Tenant(value) => value.reset(transaction, context).await,
+            Self::Holding(value) => value.reset(transaction, context).await,
             Self::Connector(value) => value.reset(transaction, context).await,
             Self::AdminContext(value) => value.reset(transaction, context).await,
             Self::GovernanceRecord(value) => value.reset(transaction, context).await,
@@ -173,7 +173,7 @@ mod tests {
     use super::*;
     use erpx_platform_administration_sqlx::{
         ADMIN_CONTEXT_PROJECTION, CONNECTOR_PROJECTION, GOVERNANCE_PROJECTION_NAME,
-        TENANT_PROJECTION,
+        HOLDING_PROJECTION,
     };
     #[test]
     fn registration_catalog_is_complete() {
@@ -185,7 +185,7 @@ mod tests {
         assert_eq!(
             names,
             vec![
-                TENANT_PROJECTION,
+                HOLDING_PROJECTION,
                 CONNECTOR_PROJECTION,
                 ADMIN_CONTEXT_PROJECTION,
                 GOVERNANCE_PROJECTION_NAME
@@ -202,12 +202,12 @@ mod tests {
         );
         let runtime = PlatformAdministrationProjectionFactory
             .build(
-                PlatformAdministrationProjectionKind::Tenants,
+                PlatformAdministrationProjectionKind::Holdings,
                 write,
                 projection,
                 ProjectionRunnerConfig::default(),
             )
             .unwrap();
-        assert_eq!(runtime.registration().name, TENANT_PROJECTION);
+        assert_eq!(runtime.registration().name, HOLDING_PROJECTION);
     }
 }

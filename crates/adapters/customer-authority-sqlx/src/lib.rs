@@ -23,34 +23,28 @@ pub const PROJECTION_NAME: &str = "customer_authority.customers";
 pub const SNAPSHOT_EVENT_TYPE: &str = "customer_authority.customer_snapshot";
 pub const EVENT_VERSION: u32 = 1;
 
-pub const CONTROL_WRITE_FOUNDATION_DDL: &str = include_str!(
-    "../../../migration/migrations/0075_cqrs_control_foundation_and_commercial_catalog.sql"
-);
+pub const CONTROL_WRITE_FOUNDATION_DDL: &str =
+    include_str!("../../../migration/migrations/0001_baseline.sql");
 pub const CONTROL_WRITE_CONTEXT_DDL: &str = concat!(
-    include_str!("../../../migration/migrations/0076_wave5_control_context_guards.sql"),
+    include_str!("../../../migration/migrations/0001_baseline.sql"),
     "\n",
-    include_str!("../../../migration/migrations/0082_current_normalized_authority.sql")
+    include_str!("../../../migration/migrations/0001_baseline.sql")
 );
 pub const CONTROL_WRITE_DDL: &str = concat!(
-    include_str!(
-        "../../../migration/migrations/0075_cqrs_control_foundation_and_commercial_catalog.sql"
-    ),
+    include_str!("../../../migration/migrations/0001_baseline.sql"),
     "\n",
-    include_str!("../../../migration/migrations/0076_wave5_control_context_guards.sql"),
+    include_str!("../../../migration/migrations/0001_baseline.sql"),
     "\n",
-    include_str!("../../../migration/migrations/0082_current_normalized_authority.sql")
+    include_str!("../../../migration/migrations/0001_baseline.sql")
 );
-pub const CONTROL_READ_FOUNDATION_DDL: &str = include_str!(
-    "../../../migration/migrations_read/0015_cqrs_control_foundation_and_commercial_catalog.sql"
-);
+pub const CONTROL_READ_FOUNDATION_DDL: &str =
+    include_str!("../../../migration/migrations_read/0001_baseline.sql");
 pub const CONTROL_READ_CONTEXT_DDL: &str =
-    include_str!("../../../migration/migrations_read/0016_wave5_control_context_projections.sql");
+    include_str!("../../../migration/migrations_read/0001_baseline.sql");
 pub const CONTROL_READ_DDL: &str = concat!(
-    include_str!(
-        "../../../migration/migrations_read/0015_cqrs_control_foundation_and_commercial_catalog.sql"
-    ),
+    include_str!("../../../migration/migrations_read/0001_baseline.sql"),
     "\n",
-    include_str!("../../../migration/migrations_read/0016_wave5_control_context_projections.sql")
+    include_str!("../../../migration/migrations_read/0001_baseline.sql")
 );
 pub const CONTEXT_WRITE_EVIDENCE_DDL: &str = include_str!("../ddl/write.sql");
 pub const CONTEXT_READ_EVIDENCE_DDL: &str = include_str!("../ddl/read.sql");
@@ -64,6 +58,9 @@ pub fn customer_partition(customer_id: erpx_customer_authority::CustomerId) -> S
     )
 }
 
+#[cfg(test)]
+#[path = "../../schema_test.rs"]
+mod schema_test;
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -82,7 +79,11 @@ mod tests {
     #[test]
     fn canonical_migrations_declare_control_foundation_guards_and_projections() {
         assert!(CONTROL_WRITE_FOUNDATION_DDL.contains("erpx_cqrs_write.command_receipts"));
-        assert!(!CONTROL_WRITE_FOUNDATION_DDL.contains("aggregate_snapshots"));
+        let foundation = schema_test::select_schema_statements(
+            CONTROL_WRITE_FOUNDATION_DDL,
+            &["erpx_cqrs_write"],
+        );
+        assert!(!foundation.contains("CREATE TABLE erpx_cqrs_write.aggregate_snapshots"));
         assert!(CONTROL_WRITE_CONTEXT_DDL.contains("erpx_customer_authority_write.account_guards"));
         assert!(CONTROL_WRITE_CONTEXT_DDL.contains("authority_link_guards"));
         assert!(CONTROL_READ_FOUNDATION_DDL.contains("erpx_cqrs_read.projection_generations"));

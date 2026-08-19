@@ -42,9 +42,9 @@ unconfigured and never report synthetic success.
 ## Runtime commands
 
 ```bash
-cargo xtask dev --detach  # hot-patch Web, debug-off; reuse healthy services
+cargo xtask dev --detach  # stable Dioxus hot reload, debug-off; reuse healthy services
 cargo xtask dev --detach --fresh  # full non-destructive stop/reconcile/start
-cargo xtask dev --detach --no-hot-patch  # stable Dioxus fallback
+cargo xtask dev --detach --hot-patch  # opt in to experimental Rust hot-patching
 cargo xtask dev --detach --web-debug  # enable Web debug symbols/line tables
 cargo xtask status        # report only recorded ERPX child processes
 cargo xtask stop          # stop only recorded ERPX child processes
@@ -78,13 +78,17 @@ exit. `cargo xtask status` reports the lease and retained spool/MinIO usage;
 the literal-confirmation cleanup command is the only manual purge entry point.
 
 For dev-only access over Tailscale, keep ERPX loopback-only and let Tailscale
-Serve terminate HTTPS for the Web console. Enable the development persona mode
-and set the machine's exact Tailscale FQDN; schemes, ports, paths, wildcards,
-and hostnames outside `.ts.net` are rejected:
+Serve terminate HTTPS. The Platform console has the fixed, staff-only origin
+`https://console.tailb48369.ts.net`; the public origin remains the signup and
+Holding-workspace origin. Tailnet ACLs restrict the Platform hostname, while
+ERPX RBAC still authorizes every request and never trusts Tailscale identity
+headers as application authority:
 
 ```dotenv
 ERPX_DEV_PERSONA_MODE=enabled
-ERPX_DEV_TAILSCALE_FQDN=fluke-macbook16.tailb48369.ts.net
+ERPX_DEV_TAILSCALE_FQDN=console.tailb48369.ts.net
+ERPX_PLATFORM_ORIGIN=https://console.tailb48369.ts.net
+ERPX_PUBLIC_ORIGIN=http://127.0.0.1:3004
 ```
 
 Enable MagicDNS and HTTPS certificates for the tailnet, configure the
@@ -95,16 +99,17 @@ tailscale serve --bg --https=443 http://127.0.0.1:3004
 cargo xtask dev --detach
 ```
 
-Open `https://fluke-macbook16.tailb48369.ts.net`. ERPX, its auth service, and
+Open `https://console.tailb48369.ts.net`. ERPX, its auth service, and
 gRPC remain bound to loopback; browser auth and gRPC-Web use the same-origin
 Web BFF, so ports `3004`, `50051`, and `50052` must not be exposed separately.
 
 ### Fresh-state CQRS cutover
 
-`erpx-bootstrap` is the one-shot installer for the generation-v2 target runtime. It
-creates a new control write/read pair, a UUID-tenant write/read pair, and a new
-MinIO namespace. It seeds only Platform Root, Holding Owner, the tenant/holding
-registry, canonical business units, and the neutral published brand. It never
+`erpx-bootstrap` is the one-shot installer for the clean-slate runtime. It
+creates fresh `control-write`, `control-read`, `holding-write`, and
+`holding-read` resources plus a new MinIO namespace. It seeds only Platform
+Root, Holding Owner, the Holding registry, canonical business units, and the
+neutral published brand. It never
 copies identity, RBAC, business, or object data from retained resources.
 
 The complete environment contract is documented in `.env.example`. Run
@@ -112,9 +117,8 @@ The complete environment contract is documented in `.env.example`. Run
 `erpx-bootstrap bootstrap`. A successful bootstrap writes the non-secret,
 write-once `.runtime/erpx/cutover/fresh-state.json` manifest. `cargo xtask dev
 --detach` accepts that manifest only when the matching database bootstrap
-receipt is complete, the tenant registry row is active, schema generation is
-`2`, service-catalog generation is `3`, the service range is
-`IFC-SVC-201..265`, and rollback is offline/no-merge. Fresh
+receipt is complete, the Holding registry row is active, the schema manifest
+matches all four database roles, and rollback is offline/no-merge. Fresh
 mode skips legacy database reconciliation and business-data demo
 fixtures. When `ERPX_DEV_PERSONA_MODE=enabled` is explicitly configured, the
 development runtime generates the gated controller, secret-free QA persona catalog,
@@ -146,12 +150,13 @@ topology without printing credentials. A first transition uses
 instances.
 
 Start the stack once and leave Dioxus hot reload running. Web development uses
-one monolithic WASM with Rust hot-patch and debug symbols disabled by default,
+one monolithic WASM with stable Dioxus hot reload and debug symbols disabled by default,
 and keeps its persistent session cache in `target/dx-hotpatch`. Source, RSX,
 CSS, and asset edits are left to the running Dioxus watcher; `xtask` restarts
 Web only when its environment, workspace manifests/toolchain, DX version, or
-launch mode changes. Use `--no-hot-patch` for a stable monolithic rebuild and
-`--web-debug` when runtime line tables are needed. Optional flags may appear in
+launch mode changes. Use `--hot-patch` only to opt in to experimental Rust
+hot-patching, and `--web-debug` when runtime line tables are needed. The legacy
+`--no-hot-patch` flag remains accepted. Optional flags may appear in
 any order and duplicates or unknown flags fail closed.
 
 After backend edits, run `cargo xtask dev --detach` again: healthy
@@ -265,7 +270,7 @@ cargo xtask reconfigure-local --confirm RECONFIGURE_ERPX_LOCAL
 
 The 19 integration harnesses are grouped by domain:
 
-- Infrastructure: `infra_platform`, `infra_tenant_runtime`, `infra_finance`,
+- Infrastructure: `infra_platform`, `infra_holding_runtime`, `infra_finance`,
   `infra_marketing`, `infra_operations`, `infra_people_support`, `infra_backup`,
   `infra_migration`.
 - Worker: `worker_platform`, `worker_finance_operations`, `worker_directory`.
@@ -296,7 +301,7 @@ files.
 - `crates/domain`, `crates/application`: product contracts and use cases
 - `crates/infrastructure`: SQLx repositories and provider adapters
 - `crates/identity`: native identity, MFA, and directory connectors
-- `crates/migration`: control/tenant write/read migrations
+- `crates/migration`: control/holding write/read migrations
 - `crates/proto`: public gRPC contracts and descriptor baseline
 - `crates/ui` (`erpx-ui-core`), `crates/ui-kit`, and `crates/ui-domains/*`:
   independently compiled UI core, component kit, and domain presentation models
@@ -356,5 +361,5 @@ not certified in this phase.
 
 Non-loopback database, object-store, provider, and directory endpoints must use
 certificate-validating TLS. External directory certification remains required
-only when that integration is enabled for the launch tenant. Dioxus Native
+only when that integration is enabled for the launch holding. Dioxus Native
 certification remains outside the Web production target.

@@ -7,7 +7,7 @@ use super::marketing_content_workflow::{
     MarketingContentPreviewExpiryItemRequest, MarketingContentPreviewExpiryRequest,
 };
 use async_trait::async_trait;
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_infrastructure::{PersistenceError, SqlxMarketingContentStore};
 use uuid::Uuid;
 
@@ -18,22 +18,22 @@ use super::marketing_content_workflow::{
 #[derive(Debug, Clone)]
 pub struct SqlxMarketingContentPreviewExpiryExecutor {
     store: SqlxMarketingContentStore,
-    tenant_id: String,
-    scope: TenantScope,
+    holding_id: String,
+    scope: AuthorityScope,
     actor_ref: String,
 }
 
 impl SqlxMarketingContentPreviewExpiryExecutor {
     pub fn new(
         store: SqlxMarketingContentStore,
-        tenant_id: impl Into<String>,
-        scope: TenantScope,
+        holding_id: impl Into<String>,
+        scope: AuthorityScope,
         actor_ref: impl Into<String>,
     ) -> Result<Self, MarketingContentPreviewExpiryWorkerError> {
-        let tenant_id = tenant_id.into();
+        let holding_id = holding_id.into();
         let actor_ref = actor_ref.into();
-        if tenant_id.trim().is_empty()
-            || tenant_id.len() > 255
+        if holding_id.trim().is_empty()
+            || holding_id.len() > 255
             || actor_ref.trim().is_empty()
             || actor_ref.len() > 255
         {
@@ -41,14 +41,14 @@ impl SqlxMarketingContentPreviewExpiryExecutor {
                 "preview expiry route references are invalid".into(),
             ));
         }
-        if matches!(scope, TenantScope::Platform) {
+        if matches!(scope, AuthorityScope::Platform) {
             return Err(MarketingContentPreviewExpiryWorkerError::Configuration(
-                "preview expiry requires tenant scope".into(),
+                "preview expiry requires holding scope".into(),
             ));
         }
         Ok(Self {
             store,
-            tenant_id,
+            holding_id,
             scope,
             actor_ref,
         })
@@ -56,12 +56,12 @@ impl SqlxMarketingContentPreviewExpiryExecutor {
 
     fn ensure_route(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
     ) -> Result<(), MarketingContentPreviewExpiryWorkerError> {
-        if tenant_id != self.tenant_id || holding_ref != self.store.holding_ref() {
+        if holding_id != self.holding_id || data_profile_key != self.store.data_profile_key() {
             return Err(MarketingContentPreviewExpiryWorkerError::Configuration(
-                "preview expiry route does not match the registered tenant holding".into(),
+                "preview expiry route does not match the registered holding holding".into(),
             ));
         }
         Ok(())
@@ -103,7 +103,7 @@ impl MarketingContentPreviewExpiryExecutor for SqlxMarketingContentPreviewExpiry
         request: &MarketingContentPreviewExpiryRequest,
     ) -> Result<Vec<MarketingContentPreviewExpiryCandidate>, MarketingContentPreviewExpiryWorkerError>
     {
-        self.ensure_route(&request.tenant_id, &request.holding_ref)?;
+        self.ensure_route(&request.holding_id, &request.data_profile_key)?;
         let ids = self
             .store
             .list_due_preview_ids(
@@ -126,7 +126,7 @@ impl MarketingContentPreviewExpiryExecutor for SqlxMarketingContentPreviewExpiry
         request: &MarketingContentPreviewExpiryItemRequest,
     ) -> Result<MarketingContentPreviewExpiryApplyResult, MarketingContentPreviewExpiryItemError>
     {
-        self.ensure_route(&request.tenant_id, &request.holding_ref)
+        self.ensure_route(&request.holding_id, &request.data_profile_key)
             .map_err(|_| MarketingContentPreviewExpiryItemError::Permanent)?;
         let context = self.context(&request.operation_key)?;
         let receipt = self

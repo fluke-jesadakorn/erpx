@@ -34,7 +34,7 @@ the console model. Invalid rows and inconsistent pagination fail closed.
 
 This packet is local evidence for the incident list adapter only. It does not
 claim full G4 support/incident workflow completion, durable notification
-delivery, approval containment, customer/tenant support UI, device execution,
+delivery, approval containment, customer/holding support UI, device execution,
 live reconciliation, or G4/G14 closure.
 
 No production directory activation, command-owner change, Folio write

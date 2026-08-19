@@ -1,15 +1,15 @@
 //! G11 HR/payroll worker-runtime composition.
 //!
-//! The tenant write database and its append-only outbox remain authoritative.
+//! The holding write database and its append-only outbox remain authoritative.
 //! This module only composes the existing bounded HR projection runner with
-//! the worker's authoritative tenant router.  It deliberately does not open
+//! the worker's authoritative holding router.  It deliberately does not open
 //! pools itself, persist a cursor in memory, or repair source rows from a read
 //! model.  The coordinator registers this handler after composing the router
-//! from control-plane tenant metadata.
+//! from control-plane holding metadata.
 
 use async_trait::async_trait;
 use erpx_domain::hr::HrProjectionReconciliation;
-use erpx_infrastructure::TenantDatabaseRouter;
+use erpx_infrastructure::HoldingDatabaseRouter;
 use std::{env, str::FromStr};
 use thiserror::Error;
 use uuid::Uuid;
@@ -69,35 +69,35 @@ impl FromStr for HrCompletionMode {
     }
 }
 
-/// Validated tenant-scoped runtime configuration.  Pool/database credentials
+/// Validated holding-scoped runtime configuration.  Pool/database credentials
 /// are intentionally absent; the coordinator supplies the router built from
-/// the control-plane tenant registry.
+/// the control-plane holding registry.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HrCompletionConfig {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub page_size: u32,
     pub mode: HrCompletionMode,
 }
 
 impl HrCompletionConfig {
     pub fn new(
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         page_size: u32,
         mode: HrCompletionMode,
     ) -> Result<Self, HrCompletionRuntimeError> {
         let config = Self {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
             page_size,
             mode,
         };
         // Reuse the existing HR request validator so the runtime cannot
         // silently diverge from the projection's bounds or route references.
         HrProjectionRequest::new(
-            config.tenant_id.clone(),
-            config.holding_ref.clone(),
+            config.holding_id.clone(),
+            config.data_profile_key.clone(),
             None,
             config.page_size,
         )
@@ -108,8 +108,8 @@ impl HrCompletionConfig {
     /// Read the coordinator-facing environment contract without accepting
     /// database URLs or credentials from the worker handler.
     pub fn from_env() -> Result<Self, HrCompletionRuntimeError> {
-        let tenant_id = required_env("ERPX_HR_COMPLETION_TENANT_ID")?;
-        let holding_ref = required_env("ERPX_HR_COMPLETION_HOLDING_REF")?;
+        let holding_id = required_env("ERPX_HR_COMPLETION_HOLDING_ID")?;
+        let data_profile_key = required_env("ERPX_HR_COMPLETION_DATA_PROFILE_KEY")?;
         let page_size = match env::var("ERPX_HR_COMPLETION_PAGE_SIZE") {
             Ok(value) => value.parse::<u32>().map_err(|_| {
                 HrCompletionRuntimeError::Configuration(
@@ -121,15 +121,15 @@ impl HrCompletionConfig {
         let mode = env::var("ERPX_HR_COMPLETION_MODE")
             .unwrap_or_else(|_| "reconcile_and_rebuild".into())
             .parse()?;
-        Self::new(tenant_id, holding_ref, page_size, mode)
+        Self::new(holding_id, data_profile_key, page_size, mode)
     }
 }
 
 /// A report retaining the detailed typed evidence for API/audit composition.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HrCompletionRunReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub mode: HrCompletionMode,
     pub projection: Option<HrProjectionRunReport>,
     pub rebuild: Option<HrProjectionRebuildReport>,
@@ -140,9 +140,11 @@ pub struct HrCompletionRunReport {
 impl HrCompletionRunReport {
     fn evidence_is_route_bound(&self) -> bool {
         self.projection.as_ref().is_none_or(|projection| {
-            projection.tenant_id == self.tenant_id && projection.holding_ref == self.holding_ref
+            projection.holding_id == self.holding_id
+                && projection.data_profile_key == self.data_profile_key
         }) && self.rebuild.as_ref().is_none_or(|rebuild| {
-            rebuild.tenant_id == self.tenant_id && rebuild.holding_ref == self.holding_ref
+            rebuild.holding_id == self.holding_id
+                && rebuild.data_profile_key == self.data_profile_key
         })
     }
 
@@ -190,7 +192,7 @@ impl HrCompletionRunReport {
     }
 }
 
-/// Tenant-routed HR/payroll runtime handler.  The runner performs the actual
+/// Holding-routed HR/payroll runtime handler.  The runner performs the actual
 /// write/read route acquisition for each operation and closes both routes on
 /// every success or failure path.
 #[derive(Debug, Clone)]
@@ -201,14 +203,14 @@ pub struct HrCompletionRuntimeHandler {
 
 impl HrCompletionRuntimeHandler {
     pub fn new(
-        router: TenantDatabaseRouter,
+        router: HoldingDatabaseRouter,
         config: HrCompletionConfig,
     ) -> Result<Self, HrCompletionRuntimeError> {
         // Validate again at the composition boundary: this prevents a stale
         // caller-created config from bypassing the same bounded HR contract.
         let config = HrCompletionConfig::new(
-            config.tenant_id,
-            config.holding_ref,
+            config.holding_id,
+            config.data_profile_key,
             config.page_size,
             config.mode,
         )?;
@@ -219,8 +221,8 @@ impl HrCompletionRuntimeHandler {
     }
 
     /// Coordinator convenience constructor.  Routing remains injected; this
-    /// method only reads tenant/holding/mode settings and never reads secrets.
-    pub fn from_env(router: TenantDatabaseRouter) -> Result<Self, HrCompletionRuntimeError> {
+    /// method only reads holding/holding/mode settings and never reads secrets.
+    pub fn from_env(router: HoldingDatabaseRouter) -> Result<Self, HrCompletionRuntimeError> {
         Self::new(router, HrCompletionConfig::from_env()?)
     }
 
@@ -229,8 +231,8 @@ impl HrCompletionRuntimeHandler {
     }
 
     pub async fn execute(&self) -> Result<HrCompletionRunReport, HrCompletionRuntimeError> {
-        let tenant_id = self.config.tenant_id.clone();
-        let holding_ref = self.config.holding_ref.clone();
+        let holding_id = self.config.holding_id.clone();
+        let data_profile_key = self.config.data_profile_key.clone();
 
         match self.config.mode {
             HrCompletionMode::ProjectPage => {
@@ -245,8 +247,8 @@ impl HrCompletionRuntimeHandler {
                         });
                     }
                     let request = HrProjectionRequest::new(
-                        tenant_id.clone(),
-                        holding_ref.clone(),
+                        holding_id.clone(),
+                        data_profile_key.clone(),
                         cursor.clone(),
                         self.config.page_size,
                     )
@@ -261,8 +263,8 @@ impl HrCompletionRuntimeHandler {
                     events_applied = events_applied.saturating_add(page.events_applied);
                     if !page.has_more {
                         break HrProjectionRunReport {
-                            tenant_id: page.tenant_id,
-                            holding_ref: page.holding_ref,
+                            holding_id: page.holding_id,
+                            data_profile_key: page.data_profile_key,
                             events_seen,
                             events_applied,
                             next_cursor: None,
@@ -278,12 +280,12 @@ impl HrCompletionRuntimeHandler {
                 };
                 let reconciliation = self
                     .runner
-                    .reconcile(tenant_id.clone(), holding_ref.clone())
+                    .reconcile(holding_id.clone(), data_profile_key.clone())
                     .await
                     .map_err(map_projection_error)?;
                 Ok(HrCompletionRunReport {
-                    tenant_id,
-                    holding_ref,
+                    holding_id,
+                    data_profile_key,
                     mode: self.config.mode,
                     projection: Some(projection),
                     rebuild: None,
@@ -294,12 +296,12 @@ impl HrCompletionRuntimeHandler {
             HrCompletionMode::Reconcile => {
                 let reconciliation = self
                     .runner
-                    .reconcile(tenant_id.clone(), holding_ref.clone())
+                    .reconcile(holding_id.clone(), data_profile_key.clone())
                     .await
                     .map_err(map_projection_error)?;
                 Ok(HrCompletionRunReport {
-                    tenant_id,
-                    holding_ref,
+                    holding_id,
+                    data_profile_key,
                     mode: self.config.mode,
                     projection: None,
                     rebuild: None,
@@ -311,20 +313,20 @@ impl HrCompletionRuntimeHandler {
                 let rebuild = self
                     .runner
                     .rebuild(
-                        tenant_id.clone(),
-                        holding_ref.clone(),
+                        holding_id.clone(),
+                        data_profile_key.clone(),
                         self.config.page_size,
                     )
                     .await
                     .map_err(map_projection_error)?;
                 let reconciliation = self
                     .runner
-                    .reconcile(tenant_id.clone(), holding_ref.clone())
+                    .reconcile(holding_id.clone(), data_profile_key.clone())
                     .await
                     .map_err(map_projection_error)?;
                 Ok(HrCompletionRunReport {
-                    tenant_id,
-                    holding_ref,
+                    holding_id,
+                    data_profile_key,
                     mode: self.config.mode,
                     projection: None,
                     rebuild: Some(rebuild),
@@ -335,13 +337,13 @@ impl HrCompletionRuntimeHandler {
             HrCompletionMode::ReconcileAndRebuild => {
                 let before = self
                     .runner
-                    .reconcile(tenant_id.clone(), holding_ref.clone())
+                    .reconcile(holding_id.clone(), data_profile_key.clone())
                     .await
                     .map_err(map_projection_error)?;
                 if before.reconciliation.is_consistent() {
                     return Ok(HrCompletionRunReport {
-                        tenant_id,
-                        holding_ref,
+                        holding_id,
+                        data_profile_key,
                         mode: self.config.mode,
                         projection: None,
                         rebuild: None,
@@ -353,20 +355,20 @@ impl HrCompletionRuntimeHandler {
                 let rebuild = self
                     .runner
                     .rebuild(
-                        tenant_id.clone(),
-                        holding_ref.clone(),
+                        holding_id.clone(),
+                        data_profile_key.clone(),
                         self.config.page_size,
                     )
                     .await
                     .map_err(map_projection_error)?;
                 let after = self
                     .runner
-                    .reconcile(tenant_id.clone(), holding_ref.clone())
+                    .reconcile(holding_id.clone(), data_profile_key.clone())
                     .await
                     .map_err(map_projection_error)?;
                 Ok(HrCompletionRunReport {
-                    tenant_id,
-                    holding_ref,
+                    holding_id,
+                    data_profile_key,
                     mode: self.config.mode,
                     projection: None,
                     rebuild: Some(rebuild),
@@ -464,7 +466,7 @@ mod tests {
     fn config_reuses_hr_bounds_and_reference_validation() {
         assert!(
             HrCompletionConfig::new(
-                "tenant",
+                "holding",
                 "holding",
                 HR_PROJECTION_MAX_PAGE_SIZE,
                 HrCompletionMode::Reconcile,
@@ -473,7 +475,7 @@ mod tests {
         );
         assert!(
             HrCompletionConfig::new(
-                "tenant",
+                "holding",
                 "holding",
                 HR_PROJECTION_MAX_PAGE_SIZE + 1,
                 HrCompletionMode::Reconcile,
@@ -482,7 +484,7 @@ mod tests {
         );
         assert!(
             HrCompletionConfig::new(
-                "tenant/with-secret",
+                "holding/with-secret",
                 "holding",
                 1,
                 HrCompletionMode::Reconcile,
@@ -494,8 +496,8 @@ mod tests {
     #[test]
     fn report_requires_rebuild_only_for_unhealthy_final_read_model() {
         let healthy = HrCompletionRunReport {
-            tenant_id: "tenant".into(),
-            holding_ref: "holding".into(),
+            holding_id: "holding".into(),
+            data_profile_key: "holding".into(),
             mode: HrCompletionMode::Reconcile,
             projection: None,
             rebuild: None,
@@ -516,12 +518,12 @@ mod tests {
     #[test]
     fn partial_projection_cannot_report_healthy_even_when_reconciliation_is_clean() {
         let report = HrCompletionRunReport {
-            tenant_id: "tenant".into(),
-            holding_ref: "holding".into(),
+            holding_id: "holding".into(),
+            data_profile_key: "holding".into(),
             mode: HrCompletionMode::ProjectPage,
             projection: Some(HrProjectionRunReport {
-                tenant_id: "tenant".into(),
-                holding_ref: "holding".into(),
+                holding_id: "holding".into(),
+                data_profile_key: "holding".into(),
                 events_seen: 500,
                 events_applied: 500,
                 next_cursor: None,
@@ -538,12 +540,12 @@ mod tests {
     #[test]
     fn mismatched_projection_route_cannot_report_healthy() {
         let report = HrCompletionRunReport {
-            tenant_id: "tenant".into(),
-            holding_ref: "holding".into(),
+            holding_id: "holding".into(),
+            data_profile_key: "holding".into(),
             mode: HrCompletionMode::ProjectPage,
             projection: Some(HrProjectionRunReport {
-                tenant_id: "other-tenant".into(),
-                holding_ref: "other-holding".into(),
+                holding_id: "other-holding".into(),
+                data_profile_key: "other-holding".into(),
                 events_seen: 1,
                 events_applied: 1,
                 next_cursor: None,
@@ -560,16 +562,16 @@ mod tests {
     #[test]
     fn worker_report_preserves_bounded_progress_and_health() {
         let report = HrCompletionRunReport {
-            tenant_id: "tenant".into(),
-            holding_ref: "holding".into(),
+            holding_id: "holding".into(),
+            data_profile_key: "holding".into(),
             mode: HrCompletionMode::Rebuild,
             projection: None,
             rebuild: Some(HrProjectionRebuildReport {
-                tenant_id: "tenant".into(),
-                holding_ref: "holding".into(),
+                holding_id: "holding".into(),
+                data_profile_key: "holding".into(),
                 events_replayed: 7,
                 preparation: HrProjectionRebuildPreparation {
-                    holding_ref: "holding".into(),
+                    data_profile_key: "holding".into(),
                     rows_cleared: 3,
                     checkpoints_cleared: 2,
                     receipts_cleared: 2,
@@ -593,6 +595,6 @@ mod tests {
         assert_eq!(message, "HR completion read database routing failed");
         assert!(!message.contains("postgres"));
         assert!(!message.contains("postgresql://"));
-        assert!(!message.contains("tenant"));
+        assert!(!message.contains("holding"));
     }
 }

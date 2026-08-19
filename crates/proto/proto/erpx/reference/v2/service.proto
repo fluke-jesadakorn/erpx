@@ -1,8 +1,0 @@
-syntax = "proto3";
-package erpx.reference.v2;
-import "erpx/interface/v2/reference.proto";
-service ReferenceQueryService {
-  rpc Resolve(erpx.interface.v2.ResolveReferenceRequest) returns (erpx.interface.v2.ResolveReferenceResponse);
-  rpc Search(erpx.interface.v2.SearchItemsRequest) returns (erpx.interface.v2.SearchItemsResponse);
-  rpc ListBacklinks(erpx.interface.v2.ListBacklinksRequest) returns (erpx.interface.v2.ListBacklinksResponse);
-}

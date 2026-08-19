@@ -472,7 +472,7 @@ mod android_keystore {
     const PREFERENCES_NAME: &str = "com.legacy.erpx.secure_session";
     const PREFERENCES_KEY: &str = "encrypted_session_bundle_v2";
     const LEGACY_PREFERENCES_KEY: &str = "encrypted_session_v1";
-    const KEY_ALIAS: &str = "com.legacy.erpx.session.aes_gcm.v1";
+    const KEY_ALIAS: &str = "com.legacy.erpx.session.aes_gcm";
     const BASE64_NO_WRAP: i32 = 2;
     const CIPHER_VERSION: u8 = 1;
     const MIN_GCM_IV_BYTES: usize = 12;
@@ -1443,11 +1443,11 @@ mod tests {
     #[test]
     fn target_boundary_does_not_accept_credential_bearing_return_paths() {
         assert_eq!(
-            redact_deep_link("/#/platform/customers?access_token=secret"),
+            redact_deep_link("/#/platform/holdings?access_token=secret"),
             "/"
         );
         assert_eq!(
-            redact_deep_link("/platform/customers#refresh_token=secret"),
+            redact_deep_link("/platform/holdings#refresh_token=secret"),
             "/"
         );
     }

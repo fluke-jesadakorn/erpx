@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -73,7 +73,7 @@ pub struct MarketingRecord {
     id: Uuid,
     version: u64,
     kind: MarketingRecordKind,
-    scope: TenantScope,
+    scope: AuthorityScope,
     title: String,
     status: MarketingRecordStatus,
     created_at: DateTime<Utc>,
@@ -84,7 +84,7 @@ impl MarketingRecord {
     pub fn create(
         id: Uuid,
         kind: MarketingRecordKind,
-        scope: TenantScope,
+        scope: AuthorityScope,
         title: String,
         at: DateTime<Utc>,
     ) -> Result<Self, MarketingDomainError> {
@@ -148,7 +148,7 @@ impl MarketingRecord {
     pub const fn kind(&self) -> MarketingRecordKind {
         self.kind
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn title(&self) -> &str {
@@ -196,13 +196,13 @@ const fn allowed_transition(
     )
 }
 
-fn validate_scope(scope: &TenantScope) -> Result<(), MarketingDomainError> {
+fn validate_scope(scope: &AuthorityScope) -> Result<(), MarketingDomainError> {
     scope
         .validate()
         .map_err(|_| MarketingDomainError::InvalidScope)?;
     if !matches!(
         scope,
-        TenantScope::Company { .. } | TenantScope::Branch { .. }
+        AuthorityScope::Company { .. } | AuthorityScope::Branch { .. }
     ) {
         return Err(MarketingDomainError::InvalidScope);
     }
@@ -244,7 +244,7 @@ mod tests {
 
     #[test]
     fn every_record_kind_has_a_governed_distinct_lifecycle() {
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         };

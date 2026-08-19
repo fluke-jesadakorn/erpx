@@ -2,30 +2,30 @@
 
 ## Delivered behavior
 
-Added control-read migration `0004_tenant_projection_status.sql` for a
-rebuildable, metadata-only projection of durable tenant scheduler status. The
+Added control-read migration `0004_holding_projection_status.sql` for a
+rebuildable, metadata-only projection of durable holding scheduler status. The
 table is physically separate from the control-write scheduler rows and has
-bounded opaque tenant/holding/projection/job references, closed kind/state
+bounded opaque holding/holding/projection/job references, closed kind/state
 values, bounded attempts/errors, checkpoint/version timestamps, and
 deterministic keyset indexes. It contains no job content, claim identity,
 worker identity, credentials, database URLs, or storage references.
 
-Added `TenantProjectionStatusReadRepository`, which reads only the control-read
+Added `HoldingProjectionStatusReadRepository`, which reads only the control-read
 pool, validates filters and cursor/filter binding, enforces the page limit, and
 returns the existing safe status DTO. The Platform Operations status RPC now
 uses this read-side repository rather than the control-write scheduler pool.
 
 ## Files changed
 
-- `crates/migration/migrations_read/0004_tenant_projection_status.sql`
+- `crates/migration/migrations_read/0004_holding_projection_status.sql`
 - `crates/migration/src/lib.rs`
-- `crates/infrastructure/src/tenant_projection_scheduler.rs`
+- `crates/infrastructure/src/holding_projection_scheduler.rs`
 - `crates/infrastructure/src/lib.rs`
-- `crates/infrastructure/tests/tenant_projection_status.rs`
+- `crates/infrastructure/tests/holding_projection_status.rs`
 - `apps/server/src/main.rs`
 - `audits/G6-PRV-013/README.md`
 
-No tenant migration, Folio route, environment file, or runtime service state
+No holding migration, Folio route, environment file, or runtime service state
 changed.
 
 ## Verification
@@ -36,7 +36,7 @@ From `erpx/`:
 cargo fmt --all — PASS
 cargo test -p erpx-migration — PASS: 6 tests; migration 0004 embedded and
   sensitive-column assertions passed
-cargo test -p erpx-infrastructure --test tenant_projection_status — PASS: 5 tests
+cargo test -p erpx-infrastructure --test holding_projection_status — PASS: 5 tests
 cargo check -p erpx-server — PASS
 cargo test -p erpx-server --bin erpx-server — PASS: 61 tests
 ```

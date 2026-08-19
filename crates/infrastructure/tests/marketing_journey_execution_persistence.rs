@@ -5,7 +5,7 @@
 
 use chrono::{Duration, Utc};
 use erpx_domain::{
-    contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope},
+    contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext},
     marketing::{AudienceMembership, MarketingChannel, MarketingProfile},
     marketing_crm::{
         AccountReference, ContactReference, MarketingAcquisitionReference, MarketingLeadReference,
@@ -21,16 +21,16 @@ use erpx_infrastructure::{
     MarketingJourneyExecutionFailure, PersistenceError, SqlxMarketingDeliveryStore,
     SqlxMarketingJourneyExecutionStore, SqlxMarketingJourneyStore, SqlxMarketingStore,
 };
-use erpx_migration::{migrate_tenant_read, migrate_tenant_write};
+use erpx_migration::{migrate_holding_read, migrate_holding_write};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-fn context(scope: TenantScope, key: impl Into<String>, expected: Option<u64>) -> CommandContext {
+fn context(scope: AuthorityScope, key: impl Into<String>, expected: Option<u64>) -> CommandContext {
     let mut context = CommandContext::try_new(
         key,
         ActorAttribution {
             principal_ref: "marketing-journey-execution-test".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: Some(Uuid::new_v4()),
             represented_principal_ref: None,
             support_capability_id: None,
@@ -43,7 +43,7 @@ fn context(scope: TenantScope, key: impl Into<String>, expected: Option<u64>) ->
     context
 }
 
-fn draft(scope: TenantScope, at: chrono::DateTime<Utc>) -> Journey {
+fn draft(scope: AuthorityScope, at: chrono::DateTime<Utc>) -> Journey {
     let trigger = Uuid::new_v4();
     let channel = Uuid::new_v4();
     Journey::new(
@@ -79,7 +79,7 @@ fn draft(scope: TenantScope, at: chrono::DateTime<Utc>) -> Journey {
     .expect("journey")
 }
 
-fn crm_draft(scope: TenantScope, at: chrono::DateTime<Utc>) -> Journey {
+fn crm_draft(scope: AuthorityScope, at: chrono::DateTime<Utc>) -> Journey {
     let trigger = Uuid::new_v4();
     let handoff = Uuid::new_v4();
     let source = MarketingQualifiedSource {
@@ -122,7 +122,7 @@ fn crm_draft(scope: TenantScope, at: chrono::DateTime<Utc>) -> Journey {
     .expect("CRM journey")
 }
 
-fn segment_draft(scope: TenantScope, audience_id: Uuid, at: chrono::DateTime<Utc>) -> Journey {
+fn segment_draft(scope: AuthorityScope, audience_id: Uuid, at: chrono::DateTime<Utc>) -> Journey {
     let trigger = Uuid::new_v4();
     let segment = Uuid::new_v4();
     Journey::new(
@@ -155,7 +155,7 @@ fn segment_draft(scope: TenantScope, audience_id: Uuid, at: chrono::DateTime<Utc
     .expect("segment journey")
 }
 
-fn tag_draft(scope: TenantScope, at: chrono::DateTime<Utc>) -> Journey {
+fn tag_draft(scope: AuthorityScope, at: chrono::DateTime<Utc>) -> Journey {
     let trigger = Uuid::new_v4();
     let action = Uuid::new_v4();
     Journey::new(
@@ -190,7 +190,7 @@ fn tag_draft(scope: TenantScope, at: chrono::DateTime<Utc>) -> Journey {
 }
 
 fn conversion_draft(
-    scope: TenantScope,
+    scope: AuthorityScope,
     conversion_ref: Uuid,
     at: chrono::DateTime<Utc>,
 ) -> Journey {
@@ -227,7 +227,7 @@ fn conversion_draft(
     .expect("conversion journey")
 }
 
-fn owner_notification_draft(scope: TenantScope, at: chrono::DateTime<Utc>) -> Journey {
+fn owner_notification_draft(scope: AuthorityScope, at: chrono::DateTime<Utc>) -> Journey {
     let trigger = Uuid::new_v4();
     let action = Uuid::new_v4();
     Journey::new(
@@ -300,9 +300,7 @@ async fn running_journey(store: &SqlxMarketingJourneyStore, mut journey: Journey
 
 #[test]
 fn execution_migration_has_claim_retry_and_forced_rls_contract() {
-    let sql = include_str!(
-        "../../migration/migrations_tenant_write/0045_marketing_journey_execution.sql"
-    );
+    let sql = include_str!("../../migration/migrations_holding_write/0001_baseline.sql");
     for required in [
         "marketing_journey_execution_cursors",
         "marketing_journey_execution_idempotency",
@@ -320,24 +318,24 @@ fn execution_migration_has_claim_retry_and_forced_rls_contract() {
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn execution_claim_resume_replay_and_scope_are_durable() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let pool = PgPool::connect(&url).await.expect("tenant write pool");
-    migrate_tenant_write(&pool)
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let pool = PgPool::connect(&url).await.expect("holding write pool");
+    migrate_holding_write(&pool)
         .await
-        .expect("tenant-write migrations");
+        .expect("holding-write migrations");
 
-    let holding_ref = format!("marketing-execution-{}", Uuid::new_v4());
-    let scope = TenantScope::Holding {
+    let data_profile_key = format!("marketing-execution-{}", Uuid::new_v4());
+    let scope = AuthorityScope::Holding {
         holding_id: Uuid::new_v4(),
     };
     let at = Utc::now() - Duration::minutes(2);
     let journey_store =
-        SqlxMarketingJourneyStore::new(pool.clone(), &holding_ref).expect("journey store");
+        SqlxMarketingJourneyStore::new(pool.clone(), &data_profile_key).expect("journey store");
     let mut journey = running_journey(&journey_store, draft(scope.clone(), at)).await;
-    let execution_store = SqlxMarketingJourneyExecutionStore::new(pool.clone(), &holding_ref)
+    let execution_store = SqlxMarketingJourneyExecutionStore::new(pool.clone(), &data_profile_key)
         .expect("execution store");
     let cursor = JourneyExecutionCursor::start(
         &journey,
@@ -510,28 +508,28 @@ async fn execution_claim_resume_replay_and_scope_are_durable() {
     assert_eq!(resumed.cursor_version, 3);
 
     let mut tx = pool.begin().await.expect("inspection transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tx)
         .await
         .expect("holding scope");
     let counts: (i64, i64, i64) = sqlx::query_as(
         "SELECT
-            (SELECT count(*) FROM erpx_tenant.marketing_journey_execution_cursors WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.marketing_journey_execution_idempotency WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND aggregate_type='marketing_journey_execution')",
+            (SELECT count(*) FROM erpx_holding.marketing_journey_execution_cursors WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.marketing_journey_execution_idempotency WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.outbox_events
+              WHERE data_profile_key=$1 AND aggregate_type='marketing_journey_execution')",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .fetch_one(&mut *tx)
     .await
     .expect("execution counts");
     assert_eq!(counts, (1, 3, 3));
     let cursor_version: i64 = sqlx::query_scalar(
-        "SELECT version FROM erpx_tenant.marketing_journey_execution_cursors
-          WHERE holding_ref=$1 AND run_id=$2",
+        "SELECT version FROM erpx_holding.marketing_journey_execution_cursors
+          WHERE data_profile_key=$1 AND run_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(run_id)
     .fetch_one(&mut *tx)
     .await
@@ -539,8 +537,8 @@ async fn execution_claim_resume_replay_and_scope_are_durable() {
     assert_eq!(cursor_version, 3);
     let forced: Vec<(String, bool)> = sqlx::query_as(
         "SELECT relname, relforcerowsecurity FROM pg_class WHERE oid IN (
-            'erpx_tenant.marketing_journey_execution_cursors'::regclass,
-            'erpx_tenant.marketing_journey_execution_idempotency'::regclass
+            'erpx_holding.marketing_journey_execution_cursors'::regclass,
+            'erpx_holding.marketing_journey_execution_idempotency'::regclass
           ) ORDER BY relname",
     )
     .fetch_all(&mut *tx)
@@ -564,20 +562,20 @@ async fn execution_claim_resume_replay_and_scope_are_durable() {
     );
 
     let mut cleanup = pool.begin().await.expect("cleanup transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *cleanup)
         .await
         .expect("cleanup scope");
     for table in [
-        "erpx_tenant.outbox_events",
-        "erpx_tenant.marketing_journey_execution_idempotency",
-        "erpx_tenant.marketing_journey_execution_cursors",
-        "erpx_tenant.marketing_journey_command_idempotency",
-        "erpx_tenant.marketing_journeys",
+        "erpx_holding.outbox_events",
+        "erpx_holding.marketing_journey_execution_idempotency",
+        "erpx_holding.marketing_journey_execution_cursors",
+        "erpx_holding.marketing_journey_command_idempotency",
+        "erpx_holding.marketing_journeys",
     ] {
-        sqlx::query(&format!("DELETE FROM {table} WHERE holding_ref=$1"))
-            .bind(&holding_ref)
+        sqlx::query(&format!("DELETE FROM {table} WHERE data_profile_key=$1"))
+            .bind(&data_profile_key)
             .execute(&mut *cleanup)
             .await
             .expect("cleanup row");
@@ -586,30 +584,30 @@ async fn execution_claim_resume_replay_and_scope_are_durable() {
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn journey_owner_notification_queues_projects_and_replays_exactly() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let pool = PgPool::connect(&url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    migrate_tenant_write(&pool)
+    migrate_holding_write(&pool)
         .await
-        .expect("tenant-write migrations");
-    migrate_tenant_read(&read_pool)
+        .expect("holding-write migrations");
+    migrate_holding_read(&read_pool)
         .await
-        .expect("tenant-read migrations");
+        .expect("holding-read migrations");
 
-    let holding_ref = format!("marketing-journey-owner-{}", Uuid::new_v4());
-    let scope = TenantScope::Company {
+    let data_profile_key = format!("marketing-journey-owner-{}", Uuid::new_v4());
+    let scope = AuthorityScope::Company {
         holding_id: Uuid::new_v4(),
         company_id: Uuid::new_v4(),
     };
     let profile_id = Uuid::new_v4();
     let base = Utc::now() - Duration::minutes(2);
-    let marketing =
-        SqlxMarketingStore::new(pool.clone(), read_pool.clone(), &holding_ref).expect("marketing");
+    let marketing = SqlxMarketingStore::new(pool.clone(), read_pool.clone(), &data_profile_key)
+        .expect("marketing");
     marketing
         .upsert_profile(
             &MarketingProfile::new(
@@ -628,13 +626,13 @@ async fn journey_owner_notification_queues_projects_and_replays_exactly() {
         .await
         .expect("profile persistence");
     let journey_store =
-        SqlxMarketingJourneyStore::new(pool.clone(), &holding_ref).expect("journey store");
+        SqlxMarketingJourneyStore::new(pool.clone(), &data_profile_key).expect("journey store");
     let journey = running_journey(
         &journey_store,
         owner_notification_draft(scope.clone(), base),
     )
     .await;
-    let execution_store = SqlxMarketingJourneyExecutionStore::new(pool.clone(), &holding_ref)
+    let execution_store = SqlxMarketingJourneyExecutionStore::new(pool.clone(), &data_profile_key)
         .expect("execution store");
     let cursor = JourneyExecutionCursor::start(
         &journey,
@@ -697,36 +695,36 @@ async fn journey_owner_notification_queues_projects_and_replays_exactly() {
     assert_eq!(replay.event_id, receipt.event_id);
 
     let mut verify = pool.begin().await.expect("write verification");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *verify)
         .await
         .expect("write scope");
     let notification: (Uuid, String) = sqlx::query_as(
         "SELECT notification_ref, owner_ref
-           FROM erpx_tenant.marketing_journey_owner_notifications
-          WHERE holding_ref=$1",
+           FROM erpx_holding.marketing_journey_owner_notifications
+          WHERE data_profile_key=$1",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .fetch_one(&mut *verify)
     .await
     .expect("owner notification source");
     assert_eq!(notification.1, "operations-owner");
     let events: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_tenant.outbox_events
-          WHERE holding_ref=$1 AND aggregate_type='marketing_journey_owner_notification'",
+        "SELECT count(*) FROM erpx_holding.outbox_events
+          WHERE data_profile_key=$1 AND aggregate_type='marketing_journey_owner_notification'",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .fetch_one(&mut *verify)
     .await
     .expect("owner notification event");
     assert_eq!(events, 1);
     let delivery: (Uuid, String, String) = sqlx::query_as(
         "SELECT delivery_id, state, payload->>'logical_message_ref'
-           FROM erpx_tenant.marketing_deliveries
-          WHERE holding_ref=$1",
+           FROM erpx_holding.marketing_deliveries
+          WHERE data_profile_key=$1",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .fetch_one(&mut *verify)
     .await
     .expect("owner notification delivery source");
@@ -755,7 +753,7 @@ async fn journey_owner_notification_queues_projects_and_replays_exactly() {
             .expect("project source event");
     }
     let delivery_store =
-        SqlxMarketingDeliveryStore::new(pool.clone(), read_pool.clone(), &holding_ref)
+        SqlxMarketingDeliveryStore::new(pool.clone(), read_pool.clone(), &data_profile_key)
             .expect("delivery store");
     assert_eq!(
         delivery_store
@@ -765,16 +763,16 @@ async fn journey_owner_notification_queues_projects_and_replays_exactly() {
         1
     );
     let mut read_verify = read_pool.begin().await.expect("read verification");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *read_verify)
         .await
         .expect("read scope");
     let owner_ref: String = sqlx::query_scalar(
-        "SELECT owner_ref FROM erpx_tenant.marketing_journey_owner_notification_read_rows
-          WHERE holding_ref=$1 AND notification_ref=$2",
+        "SELECT owner_ref FROM erpx_holding.marketing_journey_owner_notification_read_rows
+          WHERE data_profile_key=$1 AND notification_ref=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(notification.0)
     .fetch_one(&mut *read_verify)
     .await
@@ -802,43 +800,43 @@ async fn journey_owner_notification_queues_projects_and_replays_exactly() {
     assert_eq!(reconciliation.payload_mismatch_count, 0);
 
     let mut cleanup = read_pool.begin().await.expect("read cleanup");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *cleanup)
         .await
         .expect("read cleanup scope");
     for table in [
-        "erpx_tenant.marketing_journey_owner_notification_read_rows",
-        "erpx_tenant.marketing_delivery_read_rows",
-        "erpx_tenant.marketing_projection_checkpoints",
-        "erpx_tenant.marketing_delivery_projection_checkpoints",
+        "erpx_holding.marketing_journey_owner_notification_read_rows",
+        "erpx_holding.marketing_delivery_read_rows",
+        "erpx_holding.marketing_projection_checkpoints",
+        "erpx_holding.marketing_delivery_projection_checkpoints",
     ] {
-        sqlx::query(&format!("DELETE FROM {table} WHERE holding_ref=$1"))
-            .bind(&holding_ref)
+        sqlx::query(&format!("DELETE FROM {table} WHERE data_profile_key=$1"))
+            .bind(&data_profile_key)
             .execute(&mut *cleanup)
             .await
             .expect("read cleanup row");
     }
     cleanup.commit().await.expect("read cleanup commit");
     let mut cleanup = pool.begin().await.expect("write cleanup");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *cleanup)
         .await
         .expect("write cleanup scope");
     for table in [
-        "erpx_tenant.marketing_journey_owner_notifications",
-        "erpx_tenant.marketing_deliveries",
-        "erpx_tenant.marketing_delivery_idempotency",
-        "erpx_tenant.marketing_profiles",
-        "erpx_tenant.outbox_events",
-        "erpx_tenant.marketing_journey_execution_idempotency",
-        "erpx_tenant.marketing_journey_execution_cursors",
-        "erpx_tenant.marketing_journey_command_idempotency",
-        "erpx_tenant.marketing_journeys",
+        "erpx_holding.marketing_journey_owner_notifications",
+        "erpx_holding.marketing_deliveries",
+        "erpx_holding.marketing_delivery_idempotency",
+        "erpx_holding.marketing_profiles",
+        "erpx_holding.outbox_events",
+        "erpx_holding.marketing_journey_execution_idempotency",
+        "erpx_holding.marketing_journey_execution_cursors",
+        "erpx_holding.marketing_journey_command_idempotency",
+        "erpx_holding.marketing_journeys",
     ] {
-        sqlx::query(&format!("DELETE FROM {table} WHERE holding_ref=$1"))
-            .bind(&holding_ref)
+        sqlx::query(&format!("DELETE FROM {table} WHERE data_profile_key=$1"))
+            .bind(&data_profile_key)
             .execute(&mut *cleanup)
             .await
             .expect("write cleanup row");
@@ -847,30 +845,30 @@ async fn journey_owner_notification_queues_projects_and_replays_exactly() {
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn journey_conversion_persists_projects_and_replays_exactly() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let pool = PgPool::connect(&url).await.expect("write pool");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    migrate_tenant_write(&pool)
+    migrate_holding_write(&pool)
         .await
-        .expect("tenant-write migrations");
-    migrate_tenant_read(&read_pool)
+        .expect("holding-write migrations");
+    migrate_holding_read(&read_pool)
         .await
-        .expect("tenant-read migrations");
+        .expect("holding-read migrations");
 
-    let holding_ref = format!("marketing-journey-conversion-{}", Uuid::new_v4());
-    let scope = TenantScope::Company {
+    let data_profile_key = format!("marketing-journey-conversion-{}", Uuid::new_v4());
+    let scope = AuthorityScope::Company {
         holding_id: Uuid::new_v4(),
         company_id: Uuid::new_v4(),
     };
     let profile_id = Uuid::new_v4();
     let conversion_ref = Uuid::new_v4();
     let base = Utc::now() - Duration::minutes(2);
-    let marketing = SqlxMarketingStore::new(pool.clone(), read_pool.clone(), &holding_ref)
+    let marketing = SqlxMarketingStore::new(pool.clone(), read_pool.clone(), &data_profile_key)
         .expect("marketing store");
     marketing
         .upsert_profile(
@@ -890,13 +888,13 @@ async fn journey_conversion_persists_projects_and_replays_exactly() {
         .await
         .expect("profile persistence");
     let journey_store =
-        SqlxMarketingJourneyStore::new(pool.clone(), &holding_ref).expect("journey store");
+        SqlxMarketingJourneyStore::new(pool.clone(), &data_profile_key).expect("journey store");
     let journey = running_journey(
         &journey_store,
         conversion_draft(scope.clone(), conversion_ref, base),
     )
     .await;
-    let execution_store = SqlxMarketingJourneyExecutionStore::new(pool.clone(), &holding_ref)
+    let execution_store = SqlxMarketingJourneyExecutionStore::new(pool.clone(), &data_profile_key)
         .expect("execution store");
     let cursor = JourneyExecutionCursor::start(
         &journey,
@@ -959,27 +957,27 @@ async fn journey_conversion_persists_projects_and_replays_exactly() {
     assert_eq!(replay.event_id, receipt.event_id);
 
     let mut source_tx = pool.begin().await.expect("source transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *source_tx)
         .await
         .expect("source scope");
     let conversion_count: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_tenant.marketing_journey_conversions
-         WHERE holding_ref=$1 AND conversion_ref=$2",
+        "SELECT count(*) FROM erpx_holding.marketing_journey_conversions
+         WHERE data_profile_key=$1 AND conversion_ref=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(conversion_ref)
     .fetch_one(&mut *source_tx)
     .await
     .expect("conversion count");
     assert_eq!(conversion_count, 1);
     let conversion_events: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type='marketing_journey_conversion'
+        "SELECT count(*) FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type='marketing_journey_conversion'
            AND aggregate_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(conversion_ref)
     .fetch_one(&mut *source_tx)
     .await
@@ -1025,17 +1023,17 @@ async fn journey_conversion_persists_projects_and_replays_exactly() {
     assert_eq!(reconciliation.payload_mismatch_count, 0);
 
     let mut cleanup = read_pool.begin().await.expect("read cleanup transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *cleanup)
         .await
         .expect("cleanup scope");
     for table in [
-        "erpx_tenant.marketing_journey_conversion_read_rows",
-        "erpx_tenant.marketing_projection_checkpoints",
+        "erpx_holding.marketing_journey_conversion_read_rows",
+        "erpx_holding.marketing_projection_checkpoints",
     ] {
-        sqlx::query(&format!("DELETE FROM {table} WHERE holding_ref=$1"))
-            .bind(&holding_ref)
+        sqlx::query(&format!("DELETE FROM {table} WHERE data_profile_key=$1"))
+            .bind(&data_profile_key)
             .execute(&mut *cleanup)
             .await
             .expect("cleanup row");
@@ -1043,22 +1041,22 @@ async fn journey_conversion_persists_projects_and_replays_exactly() {
     cleanup.commit().await.expect("cleanup commit");
 
     let mut cleanup = pool.begin().await.expect("write cleanup transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *cleanup)
         .await
         .expect("write cleanup scope");
     for table in [
-        "erpx_tenant.marketing_journey_conversions",
-        "erpx_tenant.marketing_profiles",
-        "erpx_tenant.outbox_events",
-        "erpx_tenant.marketing_journey_execution_idempotency",
-        "erpx_tenant.marketing_journey_execution_cursors",
-        "erpx_tenant.marketing_journey_command_idempotency",
-        "erpx_tenant.marketing_journeys",
+        "erpx_holding.marketing_journey_conversions",
+        "erpx_holding.marketing_profiles",
+        "erpx_holding.outbox_events",
+        "erpx_holding.marketing_journey_execution_idempotency",
+        "erpx_holding.marketing_journey_execution_cursors",
+        "erpx_holding.marketing_journey_command_idempotency",
+        "erpx_holding.marketing_journeys",
     ] {
-        sqlx::query(&format!("DELETE FROM {table} WHERE holding_ref=$1"))
-            .bind(&holding_ref)
+        sqlx::query(&format!("DELETE FROM {table} WHERE data_profile_key=$1"))
+            .bind(&data_profile_key)
             .execute(&mut *cleanup)
             .await
             .expect("write cleanup row");
@@ -1067,24 +1065,24 @@ async fn journey_conversion_persists_projects_and_replays_exactly() {
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn journey_profile_tag_action_updates_authoritative_profile_and_replays_exactly() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let pool = PgPool::connect(&url).await.expect("write pool");
-    migrate_tenant_write(&pool)
+    migrate_holding_write(&pool)
         .await
-        .expect("tenant-write migrations");
+        .expect("holding-write migrations");
 
-    let holding_ref = format!("marketing-journey-tag-{}", Uuid::new_v4());
-    let scope = TenantScope::Company {
+    let data_profile_key = format!("marketing-journey-tag-{}", Uuid::new_v4());
+    let scope = AuthorityScope::Company {
         holding_id: Uuid::new_v4(),
         company_id: Uuid::new_v4(),
     };
     let profile_id = Uuid::new_v4();
     let base = Utc::now() - Duration::minutes(2);
-    let marketing =
-        SqlxMarketingStore::new(pool.clone(), pool.clone(), &holding_ref).expect("marketing store");
+    let marketing = SqlxMarketingStore::new(pool.clone(), pool.clone(), &data_profile_key)
+        .expect("marketing store");
     marketing
         .upsert_profile(
             &MarketingProfile::new(
@@ -1103,9 +1101,9 @@ async fn journey_profile_tag_action_updates_authoritative_profile_and_replays_ex
         .await
         .expect("profile persistence");
     let journey_store =
-        SqlxMarketingJourneyStore::new(pool.clone(), &holding_ref).expect("journey store");
+        SqlxMarketingJourneyStore::new(pool.clone(), &data_profile_key).expect("journey store");
     let journey = running_journey(&journey_store, tag_draft(scope.clone(), base)).await;
-    let execution_store = SqlxMarketingJourneyExecutionStore::new(pool.clone(), &holding_ref)
+    let execution_store = SqlxMarketingJourneyExecutionStore::new(pool.clone(), &data_profile_key)
         .expect("execution store");
     let cursor = JourneyExecutionCursor::start(
         &journey,
@@ -1170,37 +1168,37 @@ async fn journey_profile_tag_action_updates_authoritative_profile_and_replays_ex
     assert_eq!(replay.event_id, receipt.event_id);
 
     let mut verify = pool.begin().await.expect("verification transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *verify)
         .await
         .expect("verification scope");
     let attributes: serde_json::Value = sqlx::query_scalar(
-        "SELECT attributes FROM erpx_tenant.marketing_profiles
-         WHERE holding_ref=$1 AND profile_id=$2",
+        "SELECT attributes FROM erpx_holding.marketing_profiles
+         WHERE data_profile_key=$1 AND profile_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(profile_id)
     .fetch_one(&mut *verify)
     .await
     .expect("profile attributes");
     assert_eq!(attributes["tag:journey-qualified"], "true");
     let profile_version: i64 = sqlx::query_scalar(
-        "SELECT version FROM erpx_tenant.marketing_profiles
-         WHERE holding_ref=$1 AND profile_id=$2",
+        "SELECT version FROM erpx_holding.marketing_profiles
+         WHERE data_profile_key=$1 AND profile_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(profile_id)
     .fetch_one(&mut *verify)
     .await
     .expect("profile version");
     assert_eq!(profile_version, 2);
     let profile_events: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type='marketing_profile'
+        "SELECT count(*) FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type='marketing_profile'
            AND aggregate_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(profile_id)
     .fetch_one(&mut *verify)
     .await
@@ -1209,21 +1207,21 @@ async fn journey_profile_tag_action_updates_authoritative_profile_and_replays_ex
     verify.commit().await.expect("verification commit");
 
     let mut cleanup = pool.begin().await.expect("cleanup transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *cleanup)
         .await
         .expect("cleanup scope");
     for table in [
-        "erpx_tenant.marketing_profiles",
-        "erpx_tenant.outbox_events",
-        "erpx_tenant.marketing_journey_execution_idempotency",
-        "erpx_tenant.marketing_journey_execution_cursors",
-        "erpx_tenant.marketing_journey_command_idempotency",
-        "erpx_tenant.marketing_journeys",
+        "erpx_holding.marketing_profiles",
+        "erpx_holding.outbox_events",
+        "erpx_holding.marketing_journey_execution_idempotency",
+        "erpx_holding.marketing_journey_execution_cursors",
+        "erpx_holding.marketing_journey_command_idempotency",
+        "erpx_holding.marketing_journeys",
     ] {
-        sqlx::query(&format!("DELETE FROM {table} WHERE holding_ref=$1"))
-            .bind(&holding_ref)
+        sqlx::query(&format!("DELETE FROM {table} WHERE data_profile_key=$1"))
+            .bind(&data_profile_key)
             .execute(&mut *cleanup)
             .await
             .expect("cleanup row");
@@ -1232,25 +1230,25 @@ async fn journey_profile_tag_action_updates_authoritative_profile_and_replays_ex
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn journey_crm_handoff_commits_with_execution_and_replays_exactly() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let pool = PgPool::connect(&url).await.expect("write pool");
-    migrate_tenant_write(&pool)
+    migrate_holding_write(&pool)
         .await
-        .expect("tenant-write migrations");
+        .expect("holding-write migrations");
 
-    let holding_ref = format!("marketing-journey-crm-{}", Uuid::new_v4());
-    let scope = TenantScope::Company {
+    let data_profile_key = format!("marketing-journey-crm-{}", Uuid::new_v4());
+    let scope = AuthorityScope::Company {
         holding_id: Uuid::new_v4(),
         company_id: Uuid::new_v4(),
     };
     let base = Utc::now() - Duration::minutes(2);
     let journey_store =
-        SqlxMarketingJourneyStore::new(pool.clone(), &holding_ref).expect("journey store");
+        SqlxMarketingJourneyStore::new(pool.clone(), &data_profile_key).expect("journey store");
     let journey = running_journey(&journey_store, crm_draft(scope.clone(), base)).await;
-    let execution_store = SqlxMarketingJourneyExecutionStore::new(pool.clone(), &holding_ref)
+    let execution_store = SqlxMarketingJourneyExecutionStore::new(pool.clone(), &data_profile_key)
         .expect("execution store");
     let cursor = JourneyExecutionCursor::start(
         &journey,
@@ -1319,43 +1317,43 @@ async fn journey_crm_handoff_commits_with_execution_and_replays_exactly() {
     assert_eq!(replay.event_id, receipt.event_id);
 
     let mut verify = pool.begin().await.expect("verification transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *verify)
         .await
         .expect("verification scope");
     let handoff_count: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_tenant.crm_accepted_lead_handoffs
-         WHERE holding_ref=$1",
+        "SELECT count(*) FROM erpx_holding.crm_accepted_lead_handoffs
+         WHERE data_profile_key=$1",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .fetch_one(&mut *verify)
     .await
     .expect("CRM handoff count");
     assert_eq!(handoff_count, 1);
     let crm_event_count: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type='marketing_crm_accepted_lead_handoff'",
+        "SELECT count(*) FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type='marketing_crm_accepted_lead_handoff'",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .fetch_one(&mut *verify)
     .await
     .expect("CRM event count");
     assert_eq!(crm_event_count, 1);
     let execution_event_count: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type='marketing_journey_execution'",
+        "SELECT count(*) FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type='marketing_journey_execution'",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .fetch_one(&mut *verify)
     .await
     .expect("execution event count");
     assert_eq!(execution_event_count, 2);
     let idempotency_count: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_tenant.crm_idempotency_bindings
-         WHERE holding_ref=$1",
+        "SELECT count(*) FROM erpx_holding.crm_idempotency_bindings
+         WHERE data_profile_key=$1",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .fetch_one(&mut *verify)
     .await
     .expect("CRM idempotency count");
@@ -1363,18 +1361,18 @@ async fn journey_crm_handoff_commits_with_execution_and_replays_exactly() {
     verify.commit().await.expect("verification commit");
 
     let mut cleanup = pool.begin().await.expect("cleanup transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *cleanup)
         .await
         .expect("cleanup scope");
     for (table, trigger) in [
         (
-            "erpx_tenant.crm_idempotency_bindings",
+            "erpx_holding.crm_idempotency_bindings",
             "crm_idempotency_bindings_immutable",
         ),
         (
-            "erpx_tenant.crm_accepted_lead_handoffs",
+            "erpx_holding.crm_accepted_lead_handoffs",
             "crm_handoffs_immutable",
         ),
     ] {
@@ -1384,27 +1382,27 @@ async fn journey_crm_handoff_commits_with_execution_and_replays_exactly() {
             .expect("disable cleanup trigger");
     }
     for table in [
-        "erpx_tenant.crm_idempotency_bindings",
-        "erpx_tenant.crm_accepted_lead_handoffs",
-        "erpx_tenant.outbox_events",
-        "erpx_tenant.marketing_journey_execution_idempotency",
-        "erpx_tenant.marketing_journey_execution_cursors",
-        "erpx_tenant.marketing_journey_command_idempotency",
-        "erpx_tenant.marketing_journeys",
+        "erpx_holding.crm_idempotency_bindings",
+        "erpx_holding.crm_accepted_lead_handoffs",
+        "erpx_holding.outbox_events",
+        "erpx_holding.marketing_journey_execution_idempotency",
+        "erpx_holding.marketing_journey_execution_cursors",
+        "erpx_holding.marketing_journey_command_idempotency",
+        "erpx_holding.marketing_journeys",
     ] {
-        sqlx::query(&format!("DELETE FROM {table} WHERE holding_ref=$1"))
-            .bind(&holding_ref)
+        sqlx::query(&format!("DELETE FROM {table} WHERE data_profile_key=$1"))
+            .bind(&data_profile_key)
             .execute(&mut *cleanup)
             .await
             .expect("cleanup row");
     }
     for (table, trigger) in [
         (
-            "erpx_tenant.crm_idempotency_bindings",
+            "erpx_holding.crm_idempotency_bindings",
             "crm_idempotency_bindings_immutable",
         ),
         (
-            "erpx_tenant.crm_accepted_lead_handoffs",
+            "erpx_holding.crm_accepted_lead_handoffs",
             "crm_handoffs_immutable",
         ),
     ] {
@@ -1421,25 +1419,25 @@ async fn journey_crm_handoff_commits_with_execution_and_replays_exactly() {
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn journey_segment_change_updates_authoritative_audience_and_replays_exactly() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let pool = PgPool::connect(&url).await.expect("write pool");
-    migrate_tenant_write(&pool)
+    migrate_holding_write(&pool)
         .await
-        .expect("tenant-write migrations");
+        .expect("holding-write migrations");
 
-    let holding_ref = format!("marketing-journey-segment-{}", Uuid::new_v4());
-    let scope = TenantScope::Company {
+    let data_profile_key = format!("marketing-journey-segment-{}", Uuid::new_v4());
+    let scope = AuthorityScope::Company {
         holding_id: Uuid::new_v4(),
         company_id: Uuid::new_v4(),
     };
     let profile_id = Uuid::new_v4();
     let audience_id = Uuid::new_v4();
     let base = Utc::now() - Duration::minutes(2);
-    let marketing =
-        SqlxMarketingStore::new(pool.clone(), pool.clone(), &holding_ref).expect("marketing store");
+    let marketing = SqlxMarketingStore::new(pool.clone(), pool.clone(), &data_profile_key)
+        .expect("marketing store");
     let profile = MarketingProfile::new(
         profile_id,
         scope.clone(),
@@ -1469,13 +1467,13 @@ async fn journey_segment_change_updates_authoritative_audience_and_replays_exact
         .expect("audience persistence");
 
     let journey_store =
-        SqlxMarketingJourneyStore::new(pool.clone(), &holding_ref).expect("journey store");
+        SqlxMarketingJourneyStore::new(pool.clone(), &data_profile_key).expect("journey store");
     let journey = running_journey(
         &journey_store,
         segment_draft(scope.clone(), audience_id, base),
     )
     .await;
-    let execution_store = SqlxMarketingJourneyExecutionStore::new(pool.clone(), &holding_ref)
+    let execution_store = SqlxMarketingJourneyExecutionStore::new(pool.clone(), &data_profile_key)
         .expect("execution store");
     let cursor = JourneyExecutionCursor::start(
         &journey,
@@ -1540,16 +1538,16 @@ async fn journey_segment_change_updates_authoritative_audience_and_replays_exact
     assert_eq!(replay.event_id, receipt.event_id);
 
     let mut verify = pool.begin().await.expect("verification transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *verify)
         .await
         .expect("verification scope");
     let member_count: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_tenant.marketing_audience_memberships
-         WHERE holding_ref=$1 AND audience_id=$2 AND profile_id=$3",
+        "SELECT count(*) FROM erpx_holding.marketing_audience_memberships
+         WHERE data_profile_key=$1 AND audience_id=$2 AND profile_id=$3",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(audience_id)
     .bind(profile_id)
     .fetch_one(&mut *verify)
@@ -1557,21 +1555,21 @@ async fn journey_segment_change_updates_authoritative_audience_and_replays_exact
     .expect("membership count");
     assert_eq!(member_count, 1);
     let audience_version: i64 = sqlx::query_scalar(
-        "SELECT version FROM erpx_tenant.marketing_audiences
-         WHERE holding_ref=$1 AND audience_id=$2",
+        "SELECT version FROM erpx_holding.marketing_audiences
+         WHERE data_profile_key=$1 AND audience_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(audience_id)
     .fetch_one(&mut *verify)
     .await
     .expect("audience version");
     assert_eq!(audience_version, 2);
     let audience_events: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type='marketing_audience'
+        "SELECT count(*) FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type='marketing_audience'
            AND aggregate_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(audience_id)
     .fetch_one(&mut *verify)
     .await
@@ -1580,24 +1578,24 @@ async fn journey_segment_change_updates_authoritative_audience_and_replays_exact
     verify.commit().await.expect("verification commit");
 
     let mut cleanup = pool.begin().await.expect("cleanup transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *cleanup)
         .await
         .expect("cleanup scope");
     for table in [
-        "erpx_tenant.marketing_audience_memberships",
-        "erpx_tenant.marketing_audiences",
-        "erpx_tenant.marketing_command_idempotency",
-        "erpx_tenant.marketing_profiles",
-        "erpx_tenant.outbox_events",
-        "erpx_tenant.marketing_journey_execution_idempotency",
-        "erpx_tenant.marketing_journey_execution_cursors",
-        "erpx_tenant.marketing_journey_command_idempotency",
-        "erpx_tenant.marketing_journeys",
+        "erpx_holding.marketing_audience_memberships",
+        "erpx_holding.marketing_audiences",
+        "erpx_holding.marketing_command_idempotency",
+        "erpx_holding.marketing_profiles",
+        "erpx_holding.outbox_events",
+        "erpx_holding.marketing_journey_execution_idempotency",
+        "erpx_holding.marketing_journey_execution_cursors",
+        "erpx_holding.marketing_journey_command_idempotency",
+        "erpx_holding.marketing_journeys",
     ] {
-        sqlx::query(&format!("DELETE FROM {table} WHERE holding_ref=$1"))
-            .bind(&holding_ref)
+        sqlx::query(&format!("DELETE FROM {table} WHERE data_profile_key=$1"))
+            .bind(&data_profile_key)
             .execute(&mut *cleanup)
             .await
             .expect("cleanup row");

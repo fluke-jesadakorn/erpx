@@ -14,7 +14,7 @@ use erpx_manufacturing as manufacturing;
 use erpx_manufacturing_sqlx as manufacturing_sqlx;
 use erpx_planning as planning;
 use erpx_planning_sqlx as planning_sqlx;
-use erpx_proto::erpx::{manufacturing::v2 as manufacturing_wire, planning::v2 as planning_wire};
+use erpx_proto::erpx::{manufacturing as manufacturing_wire, planning as planning_wire};
 use prost::Message;
 use sha2::{Digest, Sha256};
 use tonic::{Request, Response, Status};
@@ -80,7 +80,7 @@ impl manufacturing::AuthorizationPort for ManufacturingAccess {
     async fn authorize(
         &self,
         actor: &manufacturing::ActorContext,
-        target_scope: &erpx_kernel::TenantScope,
+        target_scope: &erpx_kernel::AuthorityScope,
         action: manufacturing::ManufacturingAction,
     ) -> Result<manufacturing::AuthorizedManufacturingAccess, manufacturing::PortError> {
         let action_writes = !matches!(
@@ -112,7 +112,7 @@ impl planning::AuthorizationPort for PlanningAccess {
     async fn authorize(
         &self,
         actor: &planning::ActorContext,
-        target_scope: &erpx_kernel::TenantScope,
+        target_scope: &erpx_kernel::AuthorityScope,
         action: planning::PlanningAction,
     ) -> Result<planning::AuthorizedPlanningAccess, planning::PortError> {
         let action_writes = !matches!(
@@ -151,7 +151,7 @@ impl planning::RecommendationHandoffPort for RecommendationHandoffUnavailable {
 
 fn manufacturing_actor(invocation: &FutureInvocation) -> manufacturing::ActorContext {
     manufacturing::ActorContext {
-        tenant_id: invocation.tenant_id,
+        holding_id: invocation.holding_id,
         principal_id: invocation.principal_id,
         authority_scope: invocation.scope.clone(),
     }
@@ -159,7 +159,7 @@ fn manufacturing_actor(invocation: &FutureInvocation) -> manufacturing::ActorCon
 
 fn planning_actor(invocation: &FutureInvocation) -> planning::ActorContext {
     planning::ActorContext {
-        tenant_id: invocation.tenant_id,
+        holding_id: invocation.holding_id,
         principal_id: invocation.principal_id,
         authority_scope: invocation.scope.clone(),
     }
@@ -175,7 +175,7 @@ fn correlation(value: &str) -> Result<CorrelationId, Status> {
 }
 
 fn manufacturing_identity<M: Message>(
-    context: &erpx_proto::common::v2::CommandContext,
+    context: &erpx_proto::common::CommandContext,
     request: &M,
 ) -> Result<manufacturing::MutationIdentity, Status> {
     Ok(manufacturing::MutationIdentity {
@@ -187,7 +187,7 @@ fn manufacturing_identity<M: Message>(
 }
 
 fn planning_identity<M: Message>(
-    context: &erpx_proto::common::v2::CommandContext,
+    context: &erpx_proto::common::CommandContext,
     request: &M,
 ) -> Result<planning::MutationIdentity, Status> {
     Ok(planning::MutationIdentity {
@@ -255,7 +255,7 @@ fn planning_version_ref(
 
 fn ensure_scope(
     invocation: &FutureInvocation,
-    value: Option<&erpx_proto::common::v2::TenantScope>,
+    value: Option<&erpx_proto::common::AuthorityScope>,
 ) -> Result<(), Status> {
     let presented = decode_wire_scope(value)?;
     if presented != invocation.scope {
@@ -267,11 +267,11 @@ fn ensure_scope(
 }
 
 fn enforce_aggregate_version(
-    context: Option<&erpx_proto::common::v2::QueryContext>,
+    context: Option<&erpx_proto::common::QueryContext>,
     record_id: &str,
     actual_version: u64,
 ) -> Result<(), Status> {
-    use erpx_proto::common::v2::query_consistency::Requirement;
+    use erpx_proto::common::query_consistency::Requirement;
     let requirement = context
         .and_then(|context| context.consistency.as_ref())
         .and_then(|consistency| consistency.requirement.as_ref())
@@ -303,9 +303,9 @@ fn lifecycle_token(value: impl serde::Serialize) -> Result<String, Status> {
 }
 
 fn decode_wire_scope(
-    value: Option<&erpx_proto::common::v2::TenantScope>,
-) -> Result<erpx_kernel::TenantScope, Status> {
-    use erpx_proto::common::v2::tenant_scope::Scope;
+    value: Option<&erpx_proto::common::AuthorityScope>,
+) -> Result<erpx_kernel::AuthorityScope, Status> {
+    use erpx_proto::common::authority_scope::Scope;
     let scope = value
         .and_then(|value| value.scope.as_ref())
         .ok_or_else(|| Status::invalid_argument("record scope is required"))?;
@@ -313,31 +313,22 @@ fn decode_wire_scope(
         Uuid::parse_str(value).map_err(|_| Status::invalid_argument("scope identifier is invalid"))
     };
     let scope = match scope {
-        Scope::Platform(_) => erpx_kernel::TenantScope::Platform,
-        Scope::Holding(value) => erpx_kernel::TenantScope::Holding {
+        Scope::Platform(_) => erpx_kernel::AuthorityScope::Platform,
+        Scope::Holding(value) => erpx_kernel::AuthorityScope::Holding {
             holding_id: uuid(&value.holding_id)?,
         },
-        Scope::Company(value) => erpx_kernel::TenantScope::Company {
+        Scope::Company(value) => erpx_kernel::AuthorityScope::Company {
             holding_id: uuid(&value.holding_id)?,
             company_id: uuid(&value.company_id)?,
         },
-        Scope::Branch(value) => erpx_kernel::TenantScope::Branch {
+        Scope::Branch(value) => erpx_kernel::AuthorityScope::Branch {
             holding_id: uuid(&value.holding_id)?,
             company_id: uuid(&value.company_id)?,
             branch_id: uuid(&value.branch_id)?,
         },
-        Scope::Subtree(value) => erpx_kernel::TenantScope::Subtree {
+        Scope::Subtree(value) => erpx_kernel::AuthorityScope::Subtree {
             holding_id: uuid(&value.holding_id)?,
-            company_ids: value
-                .company_ids
-                .iter()
-                .map(|value| uuid(value))
-                .collect::<Result<_, _>>()?,
-            branch_ids: value
-                .branch_ids
-                .iter()
-                .map(|value| uuid(value))
-                .collect::<Result<_, _>>()?,
+            organization_node_id: uuid(&value.organization_node_id)?,
         },
     };
     scope
@@ -406,8 +397,8 @@ fn planning_status(error: planning::PlanningError) -> Status {
 async fn mutate_manufacturing_order<M, F>(
     state: &AppState,
     request: &Request<M>,
-    context: &erpx_proto::common::v2::CommandContext,
-    order_scope: Option<&erpx_proto::common::v2::TenantScope>,
+    context: &erpx_proto::common::CommandContext,
+    order_scope: Option<&erpx_proto::common::AuthorityScope>,
     order_id: &str,
     action: manufacturing::ManufacturingAction,
     event_type: &'static str,
@@ -884,8 +875,8 @@ impl manufacturing_wire::manufacturing_command_service_server::ManufacturingComm
 }
 
 fn required_command_context(
-    context: Option<&erpx_proto::common::v2::CommandContext>,
-) -> Result<&erpx_proto::common::v2::CommandContext, Status> {
+    context: Option<&erpx_proto::common::CommandContext>,
+) -> Result<&erpx_proto::common::CommandContext, Status> {
     context.ok_or_else(|| Status::invalid_argument("command context is required"))
 }
 
@@ -913,8 +904,9 @@ async fn manufacturing_order_query(
         actor: actor.clone(),
         write: false,
     };
-    let read = manufacturing_sqlx::SqlxManufacturingReadRepository::new(pool, invocation.tenant_id)
-        .map_err(|_| Status::unavailable("manufacturing read model is unavailable"))?;
+    let read =
+        manufacturing_sqlx::SqlxManufacturingReadRepository::new(pool, invocation.holding_id)
+            .map_err(|_| Status::unavailable("manufacturing read model is unavailable"))?;
     let projection = manufacturing::application::ManufacturingQueryService::new(access, read)
         .get_order(
             &actor,
@@ -963,8 +955,9 @@ async fn manufacturing_record_query(
         actor: actor.clone(),
         write: false,
     };
-    let read = manufacturing_sqlx::SqlxManufacturingReadRepository::new(pool, invocation.tenant_id)
-        .map_err(|_| Status::unavailable("manufacturing read model is unavailable"))?;
+    let read =
+        manufacturing_sqlx::SqlxManufacturingReadRepository::new(pool, invocation.holding_id)
+            .map_err(|_| Status::unavailable("manufacturing read model is unavailable"))?;
     let projection = manufacturing::application::ManufacturingQueryService::new(access, read)
         .get_record(
             &actor,
@@ -1010,7 +1003,7 @@ impl manufacturing_wire::manufacturing_query_service_server::ManufacturingQueryS
             write: false,
         };
         let read =
-            manufacturing_sqlx::SqlxManufacturingReadRepository::new(pool, invocation.tenant_id)
+            manufacturing_sqlx::SqlxManufacturingReadRepository::new(pool, invocation.holding_id)
                 .map_err(|_| Status::unavailable("manufacturing read model is unavailable"))?;
         let projection = manufacturing::application::ManufacturingQueryService::new(access, read)
             .get_specification(
@@ -1099,8 +1092,8 @@ impl manufacturing_wire::manufacturing_query_service_server::ManufacturingQueryS
 async fn mutate_planning_recommendation<M, F>(
     state: &AppState,
     request: &Request<M>,
-    context: &erpx_proto::common::v2::CommandContext,
-    scope: Option<&erpx_proto::common::v2::TenantScope>,
+    context: &erpx_proto::common::CommandContext,
+    scope: Option<&erpx_proto::common::AuthorityScope>,
     recommendation_id: &str,
     action: planning::PlanningAction,
     event_type: &'static str,
@@ -1559,7 +1552,7 @@ async fn planning_run_query(
         actor: actor.clone(),
         write: false,
     };
-    let read = planning_sqlx::SqlxPlanningReadRepository::new(pool, invocation.tenant_id)
+    let read = planning_sqlx::SqlxPlanningReadRepository::new(pool, invocation.holding_id)
         .map_err(|_| Status::unavailable("planning read model is unavailable"))?;
     let projection = planning::application::PlanningQueryService::new(access, read)
         .get_run(
@@ -1600,7 +1593,7 @@ async fn planning_plan_query(
         actor: actor.clone(),
         write: false,
     };
-    let read = planning_sqlx::SqlxPlanningReadRepository::new(pool, invocation.tenant_id)
+    let read = planning_sqlx::SqlxPlanningReadRepository::new(pool, invocation.holding_id)
         .map_err(|_| Status::unavailable("planning read model is unavailable"))?;
     let projection = planning::application::PlanningQueryService::new(access, read)
         .get_plan(
@@ -1693,7 +1686,7 @@ async fn planning_governed_record_query(
         actor: actor.clone(),
         write: false,
     };
-    let read = planning_sqlx::SqlxPlanningReadRepository::new(pool, invocation.tenant_id)
+    let read = planning_sqlx::SqlxPlanningReadRepository::new(pool, invocation.holding_id)
         .map_err(|_| Status::unavailable("planning read model is unavailable"))?;
     let projection = planning::application::PlanningQueryService::new(access, read)
         .get_record(
@@ -1774,11 +1767,11 @@ mod tests {
 
     #[test]
     fn aggregate_version_consistency_is_exact_and_fail_closed() {
-        use erpx_proto::common::v2::{
+        use erpx_proto::common::{
             AggregateVersionConsistency, QueryConsistency, query_consistency::Requirement,
         };
         let record_id = Uuid::new_v4().to_string();
-        let context = erpx_proto::common::v2::QueryContext {
+        let context = erpx_proto::common::QueryContext {
             consistency: Some(QueryConsistency {
                 requirement: Some(Requirement::AggregateVersion(AggregateVersionConsistency {
                     aggregate_type: "authorized-reference".into(),

@@ -14,7 +14,7 @@ const MAX_PERSISTED_WORKER_ERROR_BYTES: usize = 256;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EventMetadata {
-    pub tenant_scope: Option<Value>,
+    pub active_scope: Option<Value>,
     pub actor: Option<Value>,
     pub correlation_id: Option<Uuid>,
     pub causation_id: Option<Uuid>,
@@ -34,7 +34,7 @@ impl Default for EventMetadata {
 impl EventMetadata {
     fn default_without_version() -> Self {
         Self {
-            tenant_scope: None,
+            active_scope: None,
             actor: None,
             correlation_id: None,
             causation_id: None,
@@ -62,7 +62,7 @@ pub struct OutboxEnvelope {
     pub aggregate_type: String,
     pub aggregate_id: Uuid,
     pub aggregate_version: u64,
-    pub tenant_scope: Option<Value>,
+    pub active_scope: Option<Value>,
     pub actor: Option<Value>,
     pub correlation_id: Uuid,
     pub causation_id: Option<Uuid>,
@@ -152,7 +152,7 @@ impl<'a> ControlPlaneWriteTransaction<'a> {
         sqlx::query(
             "INSERT INTO erpx_control.outbox_events
                 (id, event_type, event_version, aggregate_type, aggregate_id, aggregate_version,
-                 tenant_scope, actor, correlation_id, causation_id, idempotency_key, payload,
+                 active_scope, actor, correlation_id, causation_id, idempotency_key, payload,
                  occurred_at, available_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now())",
         )
@@ -164,7 +164,7 @@ impl<'a> ControlPlaneWriteTransaction<'a> {
         .bind(&event.aggregate_type)
         .bind(event.aggregate_id)
         .bind(as_i64(event.aggregate_version, "event aggregate version")?)
-        .bind(&metadata.tenant_scope)
+        .bind(&metadata.active_scope)
         .bind(&metadata.actor)
         .bind(metadata.correlation_id.unwrap_or(event.id))
         .bind(metadata.causation_id)
@@ -1208,7 +1208,7 @@ fn outbox_from_row(row: sqlx::postgres::PgRow) -> Result<OutboxEnvelope, Persist
         aggregate_type: row.try_get("aggregate_type")?,
         aggregate_id: row.try_get("aggregate_id")?,
         aggregate_version: as_u64(row.try_get("aggregate_version")?)?,
-        tenant_scope: row.try_get("tenant_scope")?,
+        active_scope: row.try_get("active_scope")?,
         actor: row.try_get("actor")?,
         correlation_id: row.try_get("correlation_id")?,
         causation_id: row.try_get("causation_id")?,
@@ -1259,7 +1259,7 @@ mod tests {
             aggregate_type: "customer".into(),
             aggregate_id: Uuid::new_v4(),
             aggregate_version: 7,
-            tenant_scope: Some(serde_json::json!({"holding_id": "h-1"})),
+            active_scope: Some(serde_json::json!({"holding_id": "h-1"})),
             actor: Some(serde_json::json!({"principal_ref": "worker"})),
             correlation_id: Uuid::new_v4(),
             causation_id: Some(Uuid::new_v4()),

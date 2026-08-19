@@ -6,7 +6,7 @@ G13 target import recovery now restores a durable rollback snapshot when the
 target/read projections are empty or only partially restored. Source fences,
 idempotency keys, and append-only outbox replay remain authoritative, so a
 retry does not duplicate imported identities or events. The recovery path is
-bounded by tenant/holding scope and preserves the Folio bridge's read-only
+bounded by holding/holding scope and preserves the Folio bridge's read-only
 legacy ownership boundary.
 
 ## Evidence

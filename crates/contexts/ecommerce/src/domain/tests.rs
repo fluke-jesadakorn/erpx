@@ -11,8 +11,8 @@ fn record_id(n: u128) -> Uuid {
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
     Uuid::from_bytes(bytes)
 }
-fn scope() -> TenantScope {
-    TenantScope::Branch {
+fn scope() -> AuthorityScope {
+    AuthorityScope::Branch {
         holding_id: id(1),
         company_id: id(2),
         branch_id: id(3),

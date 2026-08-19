@@ -14,7 +14,7 @@ erpx_ui_kit::declare_current_workspace_feature!(
     erpx_ui_kit::CurrentFeatureKind::PointOfSale,
     "pos",
     [("pos.workspace", "/pos", "operations")],
-    "erpx-feature-pos-v2"
+    "erpx-feature-pos"
 );
 
 #[cfg(test)]
@@ -24,7 +24,7 @@ mod registration_contract_tests {
     #[test]
     fn web_and_native_share_the_authenticated_canonical_route() {
         assert_eq!(REGISTRATION.id, "pos");
-        assert_eq!(REGISTRATION.artifact_key, "erpx-feature-pos-v2");
+        assert_eq!(REGISTRATION.artifact_key, "erpx-feature-pos");
         assert!(REGISTRATION.routes.iter().all(|route| {
             route.authorization == "authenticated"
                 && route.canonical_path.starts_with('/')

@@ -34,7 +34,7 @@ pub(crate) enum BootstrapPhase {
     PrincipalSeed,
     BusinessSeed,
     OrganizationSeed,
-    TenantActivation,
+    HoldingActivation,
     ManifestPublication,
     ReceiptCompletion,
     Complete,
@@ -60,7 +60,7 @@ pub(crate) enum BootstrapFailureCategory {
     PrincipalSeed,
     BusinessSeed,
     OrganizationSeed,
-    TenantActivation,
+    HoldingActivation,
     ManifestPublication,
     ReceiptCompletion,
 }
@@ -75,7 +75,7 @@ impl BootstrapFailureCategory {
             BootstrapPhase::PrincipalSeed => Some(Self::PrincipalSeed),
             BootstrapPhase::BusinessSeed => Some(Self::BusinessSeed),
             BootstrapPhase::OrganizationSeed => Some(Self::OrganizationSeed),
-            BootstrapPhase::TenantActivation => Some(Self::TenantActivation),
+            BootstrapPhase::HoldingActivation => Some(Self::HoldingActivation),
             BootstrapPhase::ManifestPublication => Some(Self::ManifestPublication),
             BootstrapPhase::ReceiptCompletion => Some(Self::ReceiptCompletion),
             BootstrapPhase::Complete => None,
@@ -91,7 +91,7 @@ impl BootstrapFailureCategory {
             Self::PrincipalSeed => BootstrapPhase::PrincipalSeed,
             Self::BusinessSeed => BootstrapPhase::BusinessSeed,
             Self::OrganizationSeed => BootstrapPhase::OrganizationSeed,
-            Self::TenantActivation => BootstrapPhase::TenantActivation,
+            Self::HoldingActivation => BootstrapPhase::HoldingActivation,
             Self::ManifestPublication => BootstrapPhase::ManifestPublication,
             Self::ReceiptCompletion => BootstrapPhase::ReceiptCompletion,
         }
@@ -103,8 +103,8 @@ impl BootstrapFailureCategory {
 pub(crate) struct BootstrapResourceNames {
     control_write_database: String,
     control_read_database: String,
-    tenant_write_database: String,
-    tenant_read_database: String,
+    holding_write_database: String,
+    holding_read_database: String,
     object_namespace: String,
 }
 
@@ -113,8 +113,8 @@ impl BootstrapResourceNames {
         [
             &self.control_write_database,
             &self.control_read_database,
-            &self.tenant_write_database,
-            &self.tenant_read_database,
+            &self.holding_write_database,
+            &self.holding_read_database,
         ]
     }
 
@@ -122,8 +122,8 @@ impl BootstrapResourceNames {
         Self {
             control_write_database: plan.databases[0].name.clone(),
             control_read_database: plan.databases[1].name.clone(),
-            tenant_write_database: plan.databases[2].name.clone(),
-            tenant_read_database: plan.databases[3].name.clone(),
+            holding_write_database: plan.databases[2].name.clone(),
+            holding_read_database: plan.databases[3].name.clone(),
             object_namespace: plan.storage_namespace.clone(),
         }
     }
@@ -137,22 +137,22 @@ impl BootstrapResourceNames {
                 .any(|(index, name)| names[..index].contains(name))
             || self.control_write_database != format!("{prefix}_control_write")
             || self.control_read_database != format!("{prefix}_control_read")
-            || self.object_namespace != format!("{}-tenant-objects", prefix.replace('_', "-"))
+            || self.object_namespace != format!("{}-holding-objects", prefix.replace('_', "-"))
         {
             return Err(BootstrapError(
                 "bootstrap progress resource inventory is invalid",
             ));
         }
-        let tenant_write_token = self
-            .tenant_write_database
+        let holding_write_token = self
+            .holding_write_database
             .strip_prefix(&format!("{prefix}_"))
-            .and_then(|value| value.strip_suffix("_tenant_write"));
-        let tenant_read_token = self
-            .tenant_read_database
+            .and_then(|value| value.strip_suffix("_holding_write"));
+        let holding_read_token = self
+            .holding_read_database
             .strip_prefix(&format!("{prefix}_"))
-            .and_then(|value| value.strip_suffix("_tenant_read"));
-        if tenant_write_token != tenant_read_token
-            || !tenant_write_token.is_some_and(|token| {
+            .and_then(|value| value.strip_suffix("_holding_read"));
+        if holding_write_token != holding_read_token
+            || !holding_write_token.is_some_and(|token| {
                 token.len() == 12
                     && token
                         .bytes()
@@ -257,7 +257,7 @@ impl BootstrapPhase {
             Self::PrincipalSeed => "principal_seed",
             Self::BusinessSeed => "business_seed",
             Self::OrganizationSeed => "organization_seed",
-            Self::TenantActivation => "tenant_activation",
+            Self::HoldingActivation => "holding_activation",
             Self::ManifestPublication => "manifest_publication",
             Self::ReceiptCompletion => "receipt_completion",
             Self::Complete => "complete",
@@ -285,7 +285,7 @@ impl BootstrapFailureCategory {
             Self::PrincipalSeed => "principal_seed",
             Self::BusinessSeed => "business_seed",
             Self::OrganizationSeed => "organization_seed",
-            Self::TenantActivation => "tenant_activation",
+            Self::HoldingActivation => "holding_activation",
             Self::ManifestPublication => "manifest_publication",
             Self::ReceiptCompletion => "receipt_completion",
         }
@@ -671,7 +671,7 @@ mod tests {
     }
 
     fn plan() -> FreshResourcePlan {
-        FreshResourcePlan::new("next", "Tenant", "Holding")
+        FreshResourcePlan::new("next", "Holding")
     }
 
     fn at(seconds: i64) -> DateTime<Utc> {

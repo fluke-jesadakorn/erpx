@@ -79,7 +79,7 @@ mod tests {
         let aggregate = LegalAggregate::AccessEntry(
             crate::domain::AccessEntry::record(
                 crate::domain::AccessEntryId::try_from_uuid(uuid::Uuid::from_u128(1)).unwrap(),
-                erpx_kernel::TenantScope::Company {
+                erpx_kernel::AuthorityScope::Company {
                     holding_id: uuid::Uuid::from_u128(2),
                     company_id: uuid::Uuid::from_u128(3),
                 },

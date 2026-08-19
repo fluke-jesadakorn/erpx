@@ -1,8 +1,8 @@
-//! Tenant-routed Marketing read projection worker seam.
+//! Holding-routed Marketing read projection worker seam.
 //!
 //! Marketing source-event and read-projection methods are deliberately
 //! consumed through the public [`MarketingProjectionStore`] contract below.
-//! The SQLx Marketing adapter implements that contract for the tenant-routed
+//! The SQLx Marketing adapter implements that contract for the holding-routed
 //! source-event, projection, and clear APIs. Keeping the worker boundary
 //! explicit prevents this module from depending on private SQLx details.
 
@@ -10,14 +10,14 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_domain::marketing::MarketingProjectionReconciliation;
 use erpx_infrastructure::{
-    PersistenceError, ProjectionClaimRecord, ProjectionJobKind, RoutedDatabaseSide,
-    RoutedTenantDatabase, TenantDatabaseRouter,
+    HoldingDatabaseRouter, PersistenceError, ProjectionClaimRecord, ProjectionJobKind,
+    RoutedDatabaseSide, RoutedHoldingDatabase,
 };
 use sqlx::PgPool;
 use thiserror::Error;
 use uuid::Uuid;
 
-use super::{TenantProjectionExecutor, TenantProjectionExecutorError};
+use super::{HoldingProjectionExecutor, HoldingProjectionExecutorError};
 
 pub const MARKETING_PROJECTION_HANDLER_NAME: &str = "marketing_projection";
 /// Durable scheduler projection kind for the combined Marketing/CRM read model.
@@ -40,7 +40,7 @@ pub struct MarketingSourceEventCursor {
     pub aggregate_version: u64,
 }
 
-/// One immutable Marketing source event read from the tenant write database.
+/// One immutable Marketing source event read from the holding write database.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MarketingSourceEvent {
     pub event_id: Uuid,
@@ -70,7 +70,7 @@ pub struct MarketingProjectionApplication {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MarketingProjectionRebuildPreparation {
-    pub holding_ref: String,
+    pub data_profile_key: String,
     pub rows_cleared: u64,
     pub checkpoints_cleared: u64,
 }
@@ -83,11 +83,11 @@ pub struct MarketingProjectionFencedRebuild {
     events_replayed: u64,
 }
 
-/// Reconciliation evidence returned by the tenant-routed Marketing worker.
+/// Reconciliation evidence returned by the holding-routed Marketing worker.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MarketingProjectionReconciliationReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub reconciliation: MarketingProjectionReconciliation,
 }
 
@@ -152,7 +152,7 @@ impl super::SqlxMarketingProjectionStore {
             .await?;
         Ok(MarketingProjectionFencedRebuild {
             preparation: MarketingProjectionRebuildPreparation {
-                holding_ref: rebuild.preparation.holding_ref,
+                data_profile_key: rebuild.preparation.data_profile_key,
                 rows_cleared: rebuild.preparation.rows_cleared,
                 checkpoints_cleared: rebuild.preparation.checkpoints_cleared,
             },
@@ -186,7 +186,7 @@ impl MarketingProjectionReconciliationStore for super::SqlxMarketingProjectionSt
 
 /// Factory seam for opening the public Marketing SQLx adapter against routed
 /// pools. The main agent should implement this for `SqlxMarketingStore` using
-/// its public `from_pools` constructor; no worker code may construct tenant
+/// its public `from_pools` constructor; no worker code may construct holding
 /// credentials or choose database URLs itself.
 #[async_trait]
 pub trait MarketingProjectionStoreFactory: Clone + Send + Sync + 'static {
@@ -196,7 +196,7 @@ pub trait MarketingProjectionStoreFactory: Clone + Send + Sync + 'static {
         &self,
         write_pool: PgPool,
         read_pool: PgPool,
-        holding_ref: String,
+        data_profile_key: String,
     ) -> Result<Self::Store, PersistenceError>;
 }
 
@@ -218,22 +218,22 @@ impl From<PersistenceError> for MarketingProjectionWorkerError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MarketingProjectionRequest {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub cursor: Option<MarketingSourceEventCursor>,
     pub page_size: u32,
 }
 
 impl MarketingProjectionRequest {
     pub fn new(
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         cursor: Option<MarketingSourceEventCursor>,
         page_size: u32,
     ) -> Result<Self, MarketingProjectionWorkerError> {
         let request = Self {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
             cursor,
             page_size,
         };
@@ -242,8 +242,8 @@ impl MarketingProjectionRequest {
     }
 
     fn validate(&self) -> Result<(), MarketingProjectionWorkerError> {
-        validate_reference(&self.tenant_id, "tenant_id")?;
-        validate_reference(&self.holding_ref, "holding_ref")?;
+        validate_reference(&self.holding_id, "holding_id")?;
+        validate_reference(&self.data_profile_key, "data_profile_key")?;
         validate_page_size(self.page_size)?;
         if let Some(cursor) = &self.cursor {
             validate_cursor(cursor)?;
@@ -254,22 +254,22 @@ impl MarketingProjectionRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MarketingProjectionRebuildRequest {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub page_size: u32,
     pub source_version: u64,
 }
 
 impl MarketingProjectionRebuildRequest {
     pub fn new(
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         page_size: u32,
         source_version: u64,
     ) -> Result<Self, MarketingProjectionWorkerError> {
         let request = Self {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
             page_size,
             source_version,
         };
@@ -278,8 +278,8 @@ impl MarketingProjectionRebuildRequest {
     }
 
     fn validate(&self) -> Result<(), MarketingProjectionWorkerError> {
-        validate_reference(&self.tenant_id, "tenant_id")?;
-        validate_reference(&self.holding_ref, "holding_ref")?;
+        validate_reference(&self.holding_id, "holding_id")?;
+        validate_reference(&self.data_profile_key, "data_profile_key")?;
         validate_page_size(self.page_size)?;
         if self.source_version == 0 {
             return Err(MarketingProjectionWorkerError::Configuration(
@@ -292,8 +292,8 @@ impl MarketingProjectionRebuildRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MarketingProjectionRunReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub events_seen: u64,
     pub events_applied: u64,
     pub next_cursor: Option<MarketingSourceEventCursor>,
@@ -302,8 +302,8 @@ pub struct MarketingProjectionRunReport {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MarketingProjectionRebuildReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub pages_read: u64,
     pub events_replayed: u64,
     pub source_version: u64,
@@ -419,27 +419,27 @@ impl MarketingProjectionJobPayload {
 
 #[derive(Debug, Clone)]
 pub struct MarketingProjectionRunner<F> {
-    router: TenantDatabaseRouter,
+    router: HoldingDatabaseRouter,
     factory: F,
 }
 
-/// Adapter from the durable multi-tenant scheduler claim to the existing
-/// tenant-routed Marketing runner. It intentionally implements the scheduler's
+/// Adapter from the durable multi-holding scheduler claim to the existing
+/// holding-routed Marketing runner. It intentionally implements the scheduler's
 /// direct executor contract instead of the Operations/Finance replacement-read
 /// wrapper: Marketing's current runner owns its routed read model and does not
 /// expose a source high-watermark or replacement-candidate activation seam.
 #[derive(Debug, Clone)]
-pub struct MarketingTenantProjectionExecutor<F> {
+pub struct MarketingHoldingProjectionExecutor<F> {
     runner: MarketingProjectionRunner<F>,
     default_page_size: u32,
 }
 
-impl<F> MarketingTenantProjectionExecutor<F>
+impl<F> MarketingHoldingProjectionExecutor<F>
 where
     F: MarketingProjectionStoreFactory,
 {
     pub fn new(
-        router: TenantDatabaseRouter,
+        router: HoldingDatabaseRouter,
         factory: F,
         page_size: u32,
     ) -> Result<Self, MarketingProjectionWorkerError> {
@@ -456,7 +456,7 @@ where
 }
 
 #[async_trait]
-impl<F> TenantProjectionExecutor for MarketingTenantProjectionExecutor<F>
+impl<F> HoldingProjectionExecutor for MarketingHoldingProjectionExecutor<F>
 where
     F: MarketingProjectionStoreFactory,
     F::Store: MarketingProjectionFencedStore + MarketingProjectionReconciliationStore,
@@ -464,27 +464,27 @@ where
     async fn execute(
         &self,
         claim: &ProjectionClaimRecord,
-    ) -> Result<(), TenantProjectionExecutorError> {
+    ) -> Result<(), HoldingProjectionExecutorError> {
         if claim.job.projection_name != MARKETING_PROJECTION_NAME
-            || claim.job.binding.tenant_id.trim().is_empty()
-            || claim.job.binding.holding_ref.trim().is_empty()
+            || claim.job.binding.holding_id.trim().is_empty()
+            || claim.job.binding.data_profile_key.trim().is_empty()
         {
-            return Err(TenantProjectionExecutorError::Permanent);
+            return Err(HoldingProjectionExecutorError::Permanent);
         }
         let payload = MarketingProjectionJobPayload::from_claim(claim, self.default_page_size)
-            .map_err(|_| TenantProjectionExecutorError::Permanent)?;
+            .map_err(|_| HoldingProjectionExecutorError::Permanent)?;
         match claim.job.kind {
             ProjectionJobKind::Incremental => {
                 if payload.source_version.is_some() {
-                    return Err(TenantProjectionExecutorError::Permanent);
+                    return Err(HoldingProjectionExecutorError::Permanent);
                 }
                 let request = MarketingProjectionRequest::new(
-                    claim.job.binding.tenant_id.clone(),
-                    claim.job.binding.holding_ref.clone(),
+                    claim.job.binding.holding_id.clone(),
+                    claim.job.binding.data_profile_key.clone(),
                     payload.cursor,
                     payload.page_size,
                 )
-                .map_err(|_| TenantProjectionExecutorError::Permanent)?;
+                .map_err(|_| HoldingProjectionExecutorError::Permanent)?;
                 self.runner
                     // Incremental scheduler jobs are one-shot durable claims;
                     // their payload has no cursor update transaction. Drain
@@ -496,18 +496,18 @@ where
             }
             ProjectionJobKind::Rebuild => {
                 let Some(source_version) = payload.source_version else {
-                    return Err(TenantProjectionExecutorError::Permanent);
+                    return Err(HoldingProjectionExecutorError::Permanent);
                 };
                 if payload.cursor.is_some() {
-                    return Err(TenantProjectionExecutorError::Permanent);
+                    return Err(HoldingProjectionExecutorError::Permanent);
                 }
                 let request = MarketingProjectionRebuildRequest::new(
-                    claim.job.binding.tenant_id.clone(),
-                    claim.job.binding.holding_ref.clone(),
+                    claim.job.binding.holding_id.clone(),
+                    claim.job.binding.data_profile_key.clone(),
                     payload.page_size,
                     source_version,
                 )
-                .map_err(|_| TenantProjectionExecutorError::Permanent)?;
+                .map_err(|_| HoldingProjectionExecutorError::Permanent)?;
                 self.runner
                     .rebuild(request)
                     .await
@@ -522,7 +522,7 @@ impl<F> MarketingProjectionRunner<F>
 where
     F: MarketingProjectionStoreFactory,
 {
-    pub fn new(router: TenantDatabaseRouter, factory: F) -> Self {
+    pub fn new(router: HoldingDatabaseRouter, factory: F) -> Self {
         Self { router, factory }
     }
 }
@@ -539,7 +539,7 @@ where
     ) -> Result<MarketingProjectionRunReport, MarketingProjectionWorkerError> {
         request.validate()?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result = self.open_and_project_page(&request, &write, &read).await;
         close_routes(write, read).await;
@@ -570,14 +570,14 @@ where
     > {
         request.validate()?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result = match self
             .factory
             .open(
                 write.database_pool().clone(),
                 read.database_pool().clone(),
-                request.holding_ref.clone(),
+                request.data_profile_key.clone(),
             )
             .await
         {
@@ -598,16 +598,16 @@ where
                         MarketingProjectionWorkerError,
                     >((
                         MarketingProjectionRunReport {
-                            tenant_id: request.tenant_id.clone(),
-                            holding_ref: request.holding_ref.clone(),
+                            holding_id: request.holding_id.clone(),
+                            data_profile_key: request.data_profile_key.clone(),
                             events_seen,
                             events_applied,
                             next_cursor,
                             has_more: false,
                         },
                         MarketingProjectionReconciliationReport {
-                            tenant_id: request.tenant_id.clone(),
-                            holding_ref: request.holding_ref.clone(),
+                            holding_id: request.holding_id.clone(),
+                            data_profile_key: request.data_profile_key.clone(),
                             reconciliation,
                         },
                     ))
@@ -628,7 +628,7 @@ where
     ) -> Result<MarketingProjectionRebuildReport, MarketingProjectionWorkerError> {
         request.validate()?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result = self.open_and_rebuild(&request, &write, &read).await;
         close_routes(write, read).await;
@@ -638,15 +638,15 @@ where
     async fn open_and_project_page(
         &self,
         request: &MarketingProjectionRequest,
-        write: &RoutedTenantDatabase,
-        read: &RoutedTenantDatabase,
+        write: &RoutedHoldingDatabase,
+        read: &RoutedHoldingDatabase,
     ) -> Result<MarketingProjectionRunReport, MarketingProjectionWorkerError> {
         let store = self
             .factory
             .open(
                 write.database_pool().clone(),
                 read.database_pool().clone(),
-                request.holding_ref.clone(),
+                request.data_profile_key.clone(),
             )
             .await
             .map_err(|_| redacted_error("store construction"))?;
@@ -659,8 +659,8 @@ where
             .await
             .map_err(|_| redacted_error("projection page"))?;
         Ok(MarketingProjectionRunReport {
-            tenant_id: request.tenant_id.clone(),
-            holding_ref: request.holding_ref.clone(),
+            holding_id: request.holding_id.clone(),
+            data_profile_key: request.data_profile_key.clone(),
             events_seen: page.events.len() as u64,
             events_applied,
             next_cursor: page.next_cursor,
@@ -671,15 +671,15 @@ where
     async fn open_and_rebuild(
         &self,
         request: &MarketingProjectionRebuildRequest,
-        write: &RoutedTenantDatabase,
-        read: &RoutedTenantDatabase,
+        write: &RoutedHoldingDatabase,
+        read: &RoutedHoldingDatabase,
     ) -> Result<MarketingProjectionRebuildReport, MarketingProjectionWorkerError> {
         let store = self
             .factory
             .open(
                 write.database_pool().clone(),
                 read.database_pool().clone(),
-                request.holding_ref.clone(),
+                request.data_profile_key.clone(),
             )
             .await
             .map_err(|_| redacted_error("store construction"))?;
@@ -693,8 +693,8 @@ where
             .map_err(|_| redacted_error("reconciliation"))?;
         let reconciliation = require_consistent_reconciliation(reconciliation)?;
         Ok(MarketingProjectionRebuildReport {
-            tenant_id: request.tenant_id.clone(),
-            holding_ref: request.holding_ref.clone(),
+            holding_id: request.holding_id.clone(),
+            data_profile_key: request.data_profile_key.clone(),
             pages_read: rebuild.pages_read,
             events_replayed: rebuild.events_replayed,
             source_version: rebuild.source_version,
@@ -706,17 +706,18 @@ where
 
     async fn route_store(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
-    ) -> Result<(RoutedTenantDatabase, RoutedTenantDatabase), MarketingProjectionWorkerError> {
+        holding_id: &str,
+        data_profile_key: &str,
+    ) -> Result<(RoutedHoldingDatabase, RoutedHoldingDatabase), MarketingProjectionWorkerError>
+    {
         let write = self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Write)
             .await
             .map_err(|_| redacted_error("write database routing"))?;
         let read = match self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Read)
             .await
         {
             Ok(read) => read,
@@ -725,7 +726,7 @@ where
                 return Err(redacted_error("read database routing"));
             }
         };
-        if !valid_route_fence(tenant_id, holding_ref, &write, &read) {
+        if !valid_route_fence(holding_id, data_profile_key, &write, &read) {
             write.close().await;
             read.close().await;
             return Err(redacted_error("database route binding"));
@@ -743,12 +744,12 @@ where
     /// disposable read model without mutating either side.
     pub async fn reconcile(
         &self,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<MarketingProjectionReconciliationReport, MarketingProjectionWorkerError> {
-        let request = MarketingProjectionRequest::new(tenant_id, holding_ref, None, 1)?;
+        let request = MarketingProjectionRequest::new(holding_id, data_profile_key, None, 1)?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result = async {
             let store = self
@@ -756,7 +757,7 @@ where
                 .open(
                     write.database_pool().clone(),
                     read.database_pool().clone(),
-                    request.holding_ref.clone(),
+                    request.data_profile_key.clone(),
                 )
                 .await
                 .map_err(|_| redacted_error("store construction"))?;
@@ -765,8 +766,8 @@ where
                 .await
                 .map_err(|_| redacted_error("reconciliation"))?;
             Ok(MarketingProjectionReconciliationReport {
-                tenant_id: request.tenant_id.clone(),
-                holding_ref: request.holding_ref.clone(),
+                holding_id: request.holding_id.clone(),
+                data_profile_key: request.data_profile_key.clone(),
                 reconciliation,
             })
         }
@@ -921,7 +922,7 @@ fn cursor_is_after(
                     && candidate.aggregate_version > previous.aggregate_version)))
 }
 
-async fn close_routes(write: RoutedTenantDatabase, read: RoutedTenantDatabase) {
+async fn close_routes(write: RoutedHoldingDatabase, read: RoutedHoldingDatabase) {
     write.close().await;
     read.close().await;
 }
@@ -941,17 +942,17 @@ fn validate_reference(value: &str, field: &str) -> Result<(), MarketingProjectio
 }
 
 fn valid_route_fence(
-    tenant_id: &str,
-    holding_ref: &str,
-    write: &RoutedTenantDatabase,
-    read: &RoutedTenantDatabase,
+    holding_id: &str,
+    data_profile_key: &str,
+    write: &RoutedHoldingDatabase,
+    read: &RoutedHoldingDatabase,
 ) -> bool {
     write.side == RoutedDatabaseSide::Write
         && read.side == RoutedDatabaseSide::Read
-        && write.tenant_id == tenant_id
-        && read.tenant_id == tenant_id
-        && write.holding_ref == holding_ref
-        && read.holding_ref == holding_ref
+        && write.holding_id == holding_id
+        && read.holding_id == holding_id
+        && write.data_profile_key == data_profile_key
+        && read.data_profile_key == data_profile_key
         && !write.database_key.trim().is_empty()
         && !read.database_key.trim().is_empty()
         && write.database_key != read.database_key
@@ -998,13 +999,13 @@ fn redacted_error(operation: &'static str) -> MarketingProjectionWorkerError {
     MarketingProjectionWorkerError::Projection { operation }
 }
 
-fn map_runner_error(error: MarketingProjectionWorkerError) -> TenantProjectionExecutorError {
+fn map_runner_error(error: MarketingProjectionWorkerError) -> HoldingProjectionExecutorError {
     match error {
         MarketingProjectionWorkerError::Configuration(_) => {
-            TenantProjectionExecutorError::Permanent
+            HoldingProjectionExecutorError::Permanent
         }
         MarketingProjectionWorkerError::Projection { .. } => {
-            TenantProjectionExecutorError::Retryable
+            HoldingProjectionExecutorError::Retryable
         }
     }
 }
@@ -1014,8 +1015,8 @@ mod tests {
     use std::{collections::BTreeMap, env};
 
     use super::*;
-    use erpx_domain::{contracts::TenantScope, marketing::MarketingProfile};
-    use erpx_migration::{migrate_tenant_read, migrate_tenant_write};
+    use erpx_domain::{contracts::AuthorityScope, marketing::MarketingProfile};
+    use erpx_migration::{migrate_holding_read, migrate_holding_write};
     use sqlx::postgres::PgPoolOptions;
 
     fn source_event(aggregate_id: Uuid, version: u64) -> MarketingSourceEvent {
@@ -1035,12 +1036,12 @@ mod tests {
         payload: serde_json::Value,
     ) -> ProjectionClaimRecord {
         use erpx_infrastructure::{
-            ProjectionJobRecord, ProjectionLease, ProjectionPolicy, ProjectionScheduleRequest,
-            TenantHoldingBinding,
+            HoldingHoldingBinding, ProjectionJobRecord, ProjectionLease, ProjectionPolicy,
+            ProjectionScheduleRequest,
         };
 
         let now = Utc::now();
-        let binding = TenantHoldingBinding::new("tenant-1", "holding-1").expect("binding");
+        let binding = HoldingHoldingBinding::new("holding-1", "holding-1").expect("binding");
         let policy = ProjectionPolicy::new(10, 10, 3, 1, 10).expect("policy");
         let request = ProjectionScheduleRequest {
             binding,
@@ -1078,41 +1079,41 @@ mod tests {
     }
 
     #[test]
-    fn requests_enforce_bounds_and_tenant_binding() {
-        assert!(MarketingProjectionRequest::new("tenant-1", "holding-1", None, 0).is_err());
+    fn requests_enforce_bounds_and_holding_binding() {
+        assert!(MarketingProjectionRequest::new("holding-1", "holding-1", None, 0).is_err());
         assert!(
             MarketingProjectionRequest::new(
-                "tenant-1",
+                "holding-1",
                 "holding-1",
                 None,
                 MARKETING_PROJECTION_MAX_PAGE_SIZE + 1,
             )
             .is_err()
         );
-        assert!(MarketingProjectionRequest::new("tenant/1", "holding-1", None, 1).is_err());
-        assert!(MarketingProjectionRequest::new("tenant-1", "holding 1", None, 1).is_err());
+        assert!(MarketingProjectionRequest::new("holding/1", "holding-1", None, 1).is_err());
+        assert!(MarketingProjectionRequest::new("holding-1", "holding 1", None, 1).is_err());
 
         let request = MarketingProjectionRequest::new(
-            "tenant-1",
+            "holding-1",
             "holding-1",
             Some(cursor()),
             MARKETING_PROJECTION_MAX_PAGE_SIZE,
         )
         .expect("bounded Marketing projection request");
-        assert_eq!(request.tenant_id, "tenant-1");
-        assert_eq!(request.holding_ref, "holding-1");
+        assert_eq!(request.holding_id, "holding-1");
+        assert_eq!(request.data_profile_key, "holding-1");
         assert_eq!(request.page_size, MARKETING_PROJECTION_MAX_PAGE_SIZE);
     }
 
     #[test]
-    fn rebuild_requests_validate_the_same_tenant_boundary() {
-        assert!(MarketingProjectionRebuildRequest::new("tenant-1", "holding-1", 0, 1).is_err());
-        assert!(MarketingProjectionRebuildRequest::new("tenant-1", "holding/1", 1, 1).is_err());
-        assert!(MarketingProjectionRebuildRequest::new("tenant-1", "holding-1", 1, 0).is_err());
-        let request = MarketingProjectionRebuildRequest::new("tenant-1", "holding-1", 1, 7)
+    fn rebuild_requests_validate_the_same_holding_boundary() {
+        assert!(MarketingProjectionRebuildRequest::new("holding-1", "holding-1", 0, 1).is_err());
+        assert!(MarketingProjectionRebuildRequest::new("holding-1", "holding/1", 1, 1).is_err());
+        assert!(MarketingProjectionRebuildRequest::new("holding-1", "holding-1", 1, 0).is_err());
+        let request = MarketingProjectionRebuildRequest::new("holding-1", "holding-1", 1, 7)
             .expect("valid Marketing rebuild request");
-        assert_eq!(request.tenant_id, "tenant-1");
-        assert_eq!(request.holding_ref, "holding-1");
+        assert_eq!(request.holding_id, "holding-1");
+        assert_eq!(request.data_profile_key, "holding-1");
         assert_eq!(request.source_version, 7);
     }
 
@@ -1121,13 +1122,13 @@ mod tests {
         let mut invalid = cursor();
         invalid.aggregate_id = Uuid::nil();
         assert!(
-            MarketingProjectionRequest::new("tenant-1", "holding-1", Some(invalid), 1).is_err()
+            MarketingProjectionRequest::new("holding-1", "holding-1", Some(invalid), 1).is_err()
         );
 
         let mut invalid = cursor();
         invalid.aggregate_version = 0;
         assert!(
-            MarketingProjectionRequest::new("tenant-1", "holding-1", Some(invalid), 1).is_err()
+            MarketingProjectionRequest::new("holding-1", "holding-1", Some(invalid), 1).is_err()
         );
     }
 
@@ -1186,37 +1187,40 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires two disposable tenant PostgreSQL databases"]
+    #[ignore = "requires two disposable holding PostgreSQL databases"]
     async fn incremental_catch_up_drains_every_real_sqlx_source_page() {
-        let write_url = env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-            .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-        let read_url = env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-            .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+        let write_url = env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+            .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+        let read_url = env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+            .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
         assert_ne!(write_url, read_url);
         let write_pool = PgPoolOptions::new()
             .max_connections(2)
             .connect(&write_url)
             .await
-            .expect("tenant write pool");
+            .expect("holding write pool");
         let read_pool = PgPoolOptions::new()
             .max_connections(2)
             .connect(&read_url)
             .await
-            .expect("tenant read pool");
-        migrate_tenant_write(&write_pool)
+            .expect("holding read pool");
+        migrate_holding_write(&write_pool)
             .await
-            .expect("tenant write migrations");
-        migrate_tenant_read(&read_pool)
+            .expect("holding write migrations");
+        migrate_holding_read(&read_pool)
             .await
-            .expect("tenant read migrations");
+            .expect("holding read migrations");
 
-        let holding_ref = format!("marketing-worker-pages-{}", Uuid::new_v4());
-        let scope = TenantScope::Holding {
+        let data_profile_key = format!("marketing-worker-pages-{}", Uuid::new_v4());
+        let scope = AuthorityScope::Holding {
             holding_id: Uuid::new_v4(),
         };
-        let source =
-            crate::SqlxMarketingStore::from_pools(&write_pool, &read_pool, holding_ref.clone())
-                .expect("Marketing source store");
+        let source = crate::SqlxMarketingStore::from_pools(
+            &write_pool,
+            &read_pool,
+            data_profile_key.clone(),
+        )
+        .expect("Marketing source store");
         for (external_ref, email) in [
             ("worker-page-1", "worker-page-1@example.test"),
             ("worker-page-2", "worker-page-2@example.test"),
@@ -1255,9 +1259,9 @@ mod tests {
         assert_eq!(reconciliation.projected_aggregate_count, 2);
 
         let projected_count: i64 = sqlx::query_scalar(
-            "SELECT count(*) FROM erpx_tenant.marketing_profiles WHERE holding_ref=$1",
+            "SELECT count(*) FROM erpx_holding.marketing_profiles WHERE data_profile_key=$1",
         )
-        .bind(&holding_ref)
+        .bind(&data_profile_key)
         .fetch_one(&read_pool)
         .await
         .expect("projected Marketing rows");

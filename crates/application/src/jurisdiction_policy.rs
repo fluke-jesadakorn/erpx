@@ -353,7 +353,7 @@ mod tests {
             .authorize_operation(
                 &JurisdictionOperationRequest {
                     pack_version: 7,
-                    scope_key: "tenant/holding/company".into(),
+                    scope_key: "holding/holding/company".into(),
                     realm: OperationRealm::InternalWorkforce,
                     operation: JurisdictionOperation::ElectronicTaxDocument,
                     purpose: "issue governed tax document".into(),
@@ -386,7 +386,7 @@ mod tests {
         let insurance = pack(SectorScope::InsuranceBackOffice, &["TH-OIC-001"]);
         let request = |operation, realm| JurisdictionOperationRequest {
             pack_version: 7,
-            scope_key: "tenant/holding".into(),
+            scope_key: "holding/holding".into(),
             realm,
             operation,
             purpose: "risk evidence".into(),

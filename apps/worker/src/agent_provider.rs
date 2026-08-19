@@ -41,10 +41,10 @@ pub enum AgentProviderConfigurationError {
     Invalid,
 }
 
-/// Exact tenant/provider/model/use-case approval installed by composition.
+/// Exact holding/provider/model/use-case approval installed by composition.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AgentProviderApproval {
-    tenant_id: Uuid,
+    holding_id: Uuid,
     provider_ref: String,
     allowed_models: BTreeSet<String>,
     allowed_use_cases: BTreeSet<String>,
@@ -52,12 +52,12 @@ pub struct AgentProviderApproval {
 
 impl AgentProviderApproval {
     pub fn try_new(
-        tenant_id: Uuid,
+        holding_id: Uuid,
         provider_ref: String,
         allowed_models: BTreeSet<String>,
         allowed_use_cases: BTreeSet<String>,
     ) -> Result<Self, AgentProviderConfigurationError> {
-        if tenant_id.is_nil()
+        if holding_id.is_nil()
             || !safe_identifier(&provider_ref)
             || allowed_models.is_empty()
             || allowed_use_cases.is_empty()
@@ -69,15 +69,15 @@ impl AgentProviderApproval {
             return Err(AgentProviderConfigurationError::Invalid);
         }
         Ok(Self {
-            tenant_id,
+            holding_id,
             provider_ref,
             allowed_models,
             allowed_use_cases,
         })
     }
 
-    pub const fn tenant_id(&self) -> Uuid {
-        self.tenant_id
+    pub const fn holding_id(&self) -> Uuid {
+        self.holding_id
     }
 
     fn permits(&self, request: &ProviderInvocationRequest) -> bool {
@@ -262,8 +262,8 @@ impl AgentNetworkProviderConfig {
     }
 }
 
-pub trait TenantBoundAgentProviderPort: BudgetedAgentProviderPort {
-    fn tenant_id(&self) -> Uuid;
+pub trait HoldingBoundAgentProviderPort: BudgetedAgentProviderPort {
+    fn holding_id(&self) -> Uuid;
 }
 
 #[derive(Debug, Clone)]
@@ -322,23 +322,23 @@ pub enum GovernedAgentProvider {
     OpenAiCompatible(OpenAiCompatibleAgentProvider),
 }
 
-impl TenantBoundAgentProviderPort for OllamaAgentProvider {
-    fn tenant_id(&self) -> Uuid {
-        self.config.approval.tenant_id()
+impl HoldingBoundAgentProviderPort for OllamaAgentProvider {
+    fn holding_id(&self) -> Uuid {
+        self.config.approval.holding_id()
     }
 }
 
-impl TenantBoundAgentProviderPort for OpenAiCompatibleAgentProvider {
-    fn tenant_id(&self) -> Uuid {
-        self.config.approval.tenant_id()
+impl HoldingBoundAgentProviderPort for OpenAiCompatibleAgentProvider {
+    fn holding_id(&self) -> Uuid {
+        self.config.approval.holding_id()
     }
 }
 
-impl TenantBoundAgentProviderPort for GovernedAgentProvider {
-    fn tenant_id(&self) -> Uuid {
+impl HoldingBoundAgentProviderPort for GovernedAgentProvider {
+    fn holding_id(&self) -> Uuid {
         match self {
-            Self::Ollama(provider) => provider.tenant_id(),
-            Self::OpenAiCompatible(provider) => provider.tenant_id(),
+            Self::Ollama(provider) => provider.holding_id(),
+            Self::OpenAiCompatible(provider) => provider.holding_id(),
         }
     }
 }
@@ -822,7 +822,7 @@ mod tests {
         AgentDefinitionId, AgentManifest, AgentPin, AgentVersionId, PayloadManifest,
         ProviderPolicyDecision,
     };
-    use erpx_kernel::{DataClassification, RecordId, TenantScope};
+    use erpx_kernel::{AuthorityScope, DataClassification, RecordId};
 
     fn approval(provider: &str) -> AgentProviderApproval {
         AgentProviderApproval::try_new(
@@ -844,7 +844,7 @@ mod tests {
             .expect("assignment"),
             assignment_version: 2,
             attempt: 1,
-            authority_scope: TenantScope::Holding {
+            authority_scope: AuthorityScope::Holding {
                 holding_id: Uuid::from_u128(10),
             },
             lease_token: Uuid::from_u128(4),
@@ -864,7 +864,7 @@ mod tests {
                     capabilities: BTreeSet::from(["summarize".into()]),
                     tool_refs: BTreeSet::from(["record.read".into()]),
                     knowledge_scopes: BTreeSet::new(),
-                    organization_scopes: vec![TenantScope::Holding {
+                    organization_scopes: vec![AuthorityScope::Holding {
                         holding_id: Uuid::from_u128(10),
                     }],
                     maximum_classification: DataClassification::Confidential,

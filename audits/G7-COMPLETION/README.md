@@ -2,7 +2,7 @@
 
 ## Scope delivered in this packet
 
-This packet closes the Operations control-loop seam on the existing tenant
+This packet closes the Operations control-loop seam on the existing holding
 write/read model. It does not alter shared authorization, protobuf, migration
 numbering, server registration, worker registration, console shell, or Folio
 Next.js UI files. The Dioxus-facing model is kept in the Operations UI crate
@@ -18,7 +18,7 @@ Authoritative behavior now includes:
   validation using the existing `RoleAssignment` contract;
 - versioned expired-principal reassignment and due-SLA escalation through the
   existing exception lifecycle command;
-- append-only tenant outbox parity for every Operations event, with exact
+- append-only holding outbox parity for every Operations event, with exact
   event-ID replay checks and a bounded repair pass for legacy Operations rows;
 - write-stream/read-model/checkpoint reconciliation, projection freshness, and
   bounded Operations queue UI/API state.
@@ -64,7 +64,7 @@ three non-database tests and compiles three ignored PostgreSQL tests,
 ignored PostgreSQL route test, and `cargo test -p erpx-ui --lib` passes (71
 tests). `cargo check` passes for the domain, infrastructure, worker, and UI
 packages, and rustfmt check passes for every owned Rust path. The ignored
-database tests require the repository's configured disposable tenant/control
+database tests require the repository's configured disposable holding/control
 databases and remain coordinator-run evidence; no live database result is
 claimed here.
 
@@ -112,7 +112,7 @@ no production build was used.
 
 ## Coordinator continuation — authoritative Operations SQLx revalidation — 2026-07-28
 
-Fresh disposable tenant write/read PostgreSQL pairs passed the four ignored
+Fresh disposable holding write/read PostgreSQL pairs passed the four ignored
 Operations persistence tests and the two ignored authoritative completion
 tests. The persistence packet covered versioned/idempotent write/read
 boundaries, source-referenced aggregate replay, exception lifecycle, and
@@ -124,5 +124,5 @@ removed.
 This is local Operations evidence only. Full source-domain breadth, runtime
 restart/lease telemetry, Folio reconciliation, credentialed directory/vendor
 certification, measured external scale/revocation, and production approval
-remain queued. No tenant activation, command-owner switch, Folio write
+remain queued. No holding activation, command-owner switch, Folio write
 retirement, or cutover occurred.

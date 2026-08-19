@@ -38,8 +38,8 @@ fn id(value: u128) -> Uuid {
 fn at() -> chrono::DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap()
 }
-fn scope() -> TenantScope {
-    TenantScope::Company {
+fn scope() -> AuthorityScope {
+    AuthorityScope::Company {
         holding_id: id(1),
         company_id: id(2),
     }
@@ -47,7 +47,7 @@ fn scope() -> TenantScope {
 fn actor(name: &str) -> ActorAttribution {
     ActorAttribution {
         principal_ref: name.into(),
-        kind: ActorKind::TenantUser,
+        kind: ActorKind::HoldingUser,
         session_id: None,
         represented_principal_ref: None,
         support_capability_id: None,
@@ -236,7 +236,7 @@ fn command_envelope(
         correlation_id: CorrelationId::try_from_uuid(id(200 + sequence)).unwrap(),
         causation_id: None,
         actor: actor("controller"),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "finance.test".into(),
             customer_visible: false,
@@ -263,7 +263,7 @@ impl AuthorizationPort for FakeAuthorization {
 struct FakeEntitlement(bool);
 #[async_trait]
 impl EntitlementPort for FakeEntitlement {
-    async fn ensure_finance_enabled(&self, _: &TenantScope, _: bool) -> Result<(), PortError> {
+    async fn ensure_finance_enabled(&self, _: &AuthorityScope, _: bool) -> Result<(), PortError> {
         if self.0 {
             Ok(())
         } else {
@@ -284,13 +284,13 @@ struct FakeWrite {
 }
 #[async_trait]
 impl WriteRepository for FakeWrite {
-    async fn load_chart(&self, _: &TenantScope, _: ChartId) -> Result<Option<Chart>, PortError> {
+    async fn load_chart(&self, _: &AuthorityScope, _: ChartId) -> Result<Option<Chart>, PortError> {
         self.loads.fetch_add(1, Ordering::SeqCst);
         Ok(self.chart.clone())
     }
     async fn load_period(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: PeriodId,
     ) -> Result<Option<AccountingPeriod>, PortError> {
         self.loads.fetch_add(1, Ordering::SeqCst);
@@ -298,7 +298,7 @@ impl WriteRepository for FakeWrite {
     }
     async fn load_journal(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: JournalId,
     ) -> Result<Option<Journal>, PortError> {
         self.loads.fetch_add(1, Ordering::SeqCst);
@@ -306,7 +306,7 @@ impl WriteRepository for FakeWrite {
     }
     async fn load_subledger(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: SubledgerId,
     ) -> Result<Option<SubledgerItem>, PortError> {
         self.loads.fetch_add(1, Ordering::SeqCst);
@@ -314,7 +314,7 @@ impl WriteRepository for FakeWrite {
     }
     async fn load_customer_invoice(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: CustomerInvoiceId,
     ) -> Result<Option<CustomerInvoice>, PortError> {
         self.loads.fetch_add(1, Ordering::SeqCst);
@@ -322,7 +322,7 @@ impl WriteRepository for FakeWrite {
     }
     async fn load_revenue_schedule(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: RevenueScheduleId,
     ) -> Result<Option<RevenueSchedule>, PortError> {
         self.loads.fetch_add(1, Ordering::SeqCst);
@@ -549,7 +549,7 @@ struct NotReadyRead {
 impl ReadRepository for NotReadyRead {
     async fn get_chart(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: ChartId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<ChartView>>, PortError> {
@@ -566,7 +566,7 @@ impl ReadRepository for NotReadyRead {
     }
     async fn list_charts(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: &ChartListFilter,
         _: &QueryConsistency,
     ) -> Result<ReadProjection<ChartList>, PortError> {
@@ -574,7 +574,7 @@ impl ReadRepository for NotReadyRead {
     }
     async fn get_period(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: PeriodId,
         _: &QueryConsistency,
     ) -> Result<ReadProjection<Option<PeriodView>>, PortError> {
@@ -582,7 +582,7 @@ impl ReadRepository for NotReadyRead {
     }
     async fn get_journal(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: JournalId,
         _: &QueryConsistency,
     ) -> Result<ReadProjection<Option<JournalView>>, PortError> {
@@ -590,7 +590,7 @@ impl ReadRepository for NotReadyRead {
     }
     async fn list_journals(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: &JournalListFilter,
         _: &QueryConsistency,
     ) -> Result<ReadProjection<JournalList>, PortError> {
@@ -598,7 +598,7 @@ impl ReadRepository for NotReadyRead {
     }
     async fn get_subledger(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: SubledgerId,
         _: &QueryConsistency,
     ) -> Result<ReadProjection<Option<SubledgerView>>, PortError> {
@@ -606,7 +606,7 @@ impl ReadRepository for NotReadyRead {
     }
     async fn get_customer_invoice(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: CustomerInvoiceId,
         _: &QueryConsistency,
     ) -> Result<ReadProjection<Option<CustomerInvoiceView>>, PortError> {
@@ -614,7 +614,7 @@ impl ReadRepository for NotReadyRead {
     }
     async fn get_revenue_schedule(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: RevenueScheduleId,
         _: &QueryConsistency,
     ) -> Result<ReadProjection<Option<RevenueScheduleView>>, PortError> {
@@ -622,7 +622,7 @@ impl ReadRepository for NotReadyRead {
     }
     async fn list_subledger(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: &SubledgerListFilter,
         _: &QueryConsistency,
     ) -> Result<ReadProjection<SubledgerList>, PortError> {
@@ -630,7 +630,7 @@ impl ReadRepository for NotReadyRead {
     }
     async fn get_trial_balance(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: ChartId,
         _: &QueryConsistency,
     ) -> Result<ReadProjection<TrialBalanceView>, PortError> {
@@ -638,7 +638,7 @@ impl ReadRepository for NotReadyRead {
     }
     async fn list_bank_transactions(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: &BankTransactionListFilter,
         _: &QueryConsistency,
     ) -> Result<ReadProjection<BankTransactionList>, PortError> {
@@ -646,7 +646,7 @@ impl ReadRepository for NotReadyRead {
     }
     async fn get_statutory_tax_report(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: &str,
         _: &str,
         _: &QueryConsistency,
@@ -675,7 +675,7 @@ fn read_your_writes_not_ready_never_falls_back_to_write_store() {
             query_id: QueryId::try_from_uuid(id(500)).unwrap(),
             correlation_id: CorrelationId::try_from_uuid(id(501)).unwrap(),
             actor: actor("reader"),
-            tenant_scope: scope(),
+            active_scope: scope(),
             audit: AuditContext {
                 purpose: "finance.test.query".into(),
                 customer_visible: false,

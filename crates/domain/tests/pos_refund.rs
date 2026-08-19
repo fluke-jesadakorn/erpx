@@ -1,5 +1,5 @@
 use chrono::{DateTime, Duration, Utc};
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::pos::{Sale, SaleLine};
 use erpx_domain::pos_refund::{
     CompletedPosSaleFact, CompletedPosSaleReference, PosRefund, PosRefundCommandResult,
@@ -9,16 +9,16 @@ use erpx_domain::pos_refund::{
 use serde_json::to_string;
 use uuid::Uuid;
 
-fn scope(company: u128, branch: Option<u128>) -> TenantScope {
+fn scope(company: u128, branch: Option<u128>) -> AuthorityScope {
     let holding_id = Uuid::from_u128(10);
     let company_id = Uuid::from_u128(company);
     match branch {
-        Some(branch_id) => TenantScope::Branch {
+        Some(branch_id) => AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id: Uuid::from_u128(branch_id),
         },
-        None => TenantScope::Company {
+        None => AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -28,12 +28,12 @@ fn scope(company: u128, branch: Option<u128>) -> TenantScope {
 fn context(
     key: &str,
     principal: &str,
-    command_scope: TenantScope,
+    command_scope: AuthorityScope,
     expected_version: Option<u64>,
 ) -> CommandContext {
     let actor = ActorAttribution {
         principal_ref: principal.to_owned(),
-        kind: ActorKind::TenantUser,
+        kind: ActorKind::HoldingUser,
         session_id: None,
         represented_principal_ref: None,
         support_capability_id: None,

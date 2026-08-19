@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use chrono::{Duration, TimeZone, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use uuid::Uuid;
 
 use super::*;
@@ -13,9 +13,9 @@ fn at() -> chrono::DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap()
 }
 
-fn tenant() -> PlatformTenant {
-    PlatformTenant::register(
-        PlatformTenantId::try_from_uuid(id(1)).unwrap(),
+fn holding() -> PlatformHolding {
+    PlatformHolding::register(
+        PlatformHoldingId::try_from_uuid(id(1)).unwrap(),
         "ACME".into(),
         "Acme".into(),
         EnvironmentId::try_from_uuid(id(2)).unwrap(),
@@ -28,32 +28,39 @@ fn tenant() -> PlatformTenant {
 }
 
 #[test]
-fn tenant_lifecycle_rejects_unsafe_shortcut_and_retirement_from_active() {
-    let mut tenant = tenant();
-    assert_eq!(tenant.status(), TenantLifecycleState::Provisioning);
-    assert_eq!(
-        tenant.transition(TenantLifecycleAction::Suspend, at()),
-        Err(PlatformAdministrationDomainError::InvalidTenantTransition)
-    );
-    tenant
-        .transition(TenantLifecycleAction::Activate, at())
+fn holding_lifecycle_rejects_unsafe_shortcut_and_retirement_from_active() {
+    let mut holding = holding();
+    assert_eq!(holding.status(), HoldingLifecycleState::PendingSubscription);
+    holding
+        .transition(HoldingLifecycleAction::BeginProvisioning, at())
         .unwrap();
     assert_eq!(
-        tenant.transition(TenantLifecycleAction::Retire, at()),
-        Err(PlatformAdministrationDomainError::InvalidTenantTransition)
+        holding.transition(HoldingLifecycleAction::Suspend, at()),
+        Err(PlatformAdministrationDomainError::InvalidHoldingTransition)
+    );
+    holding
+        .transition(HoldingLifecycleAction::Activate, at())
+        .unwrap();
+    assert_eq!(
+        holding.transition(HoldingLifecycleAction::Retire, at()),
+        Err(PlatformAdministrationDomainError::InvalidHoldingTransition)
     );
 }
 
 #[test]
-fn tenant_transition_increments_version_and_records_fact() {
-    let mut tenant = tenant();
-    tenant.take_uncommitted_events();
-    tenant
-        .transition(TenantLifecycleAction::Activate, at())
+fn holding_transition_increments_version_and_records_fact() {
+    let mut holding = holding();
+    holding.take_uncommitted_events();
+    holding
+        .transition(HoldingLifecycleAction::BeginProvisioning, at())
         .unwrap();
-    assert_eq!(tenant.version(), 2);
+    holding.take_uncommitted_events();
+    holding
+        .transition(HoldingLifecycleAction::Activate, at())
+        .unwrap();
+    assert_eq!(holding.version(), 3);
     assert!(
-        matches!(tenant.take_uncommitted_events().as_slice(), [DomainEvent::TenantChanged { state, .. }] if state.status == TenantLifecycleState::Active)
+        matches!(holding.take_uncommitted_events().as_slice(), [DomainEvent::HoldingChanged { state, .. }] if state.status == HoldingLifecycleState::Active)
     );
 }
 
@@ -196,10 +203,10 @@ fn connector_rejects_stale_mismatched_or_replayed_readiness() {
 
 #[test]
 fn admin_context_is_holding_scoped_and_bounded_to_thirty_minutes() {
-    let result = TenantAdminContext::issue(
+    let result = HoldingAdminContext::issue(
         AdminContextId::try_from_uuid(id(20)).unwrap(),
-        PlatformTenantId::try_from_uuid(id(1)).unwrap(),
-        TenantScope::Platform,
+        PlatformHoldingId::try_from_uuid(id(1)).unwrap(),
+        AuthorityScope::Platform,
         "root".into(),
         id(21),
         id(22),
@@ -212,10 +219,10 @@ fn admin_context_is_holding_scoped_and_bounded_to_thirty_minutes() {
         PlatformAdministrationDomainError::InvalidAdminScope
     );
 
-    let too_long = TenantAdminContext::issue(
+    let too_long = HoldingAdminContext::issue(
         AdminContextId::try_from_uuid(id(20)).unwrap(),
-        PlatformTenantId::try_from_uuid(id(1)).unwrap(),
-        TenantScope::Holding { holding_id: id(4) },
+        PlatformHoldingId::try_from_uuid(id(1)).unwrap(),
+        AuthorityScope::Holding { holding_id: id(4) },
         "root".into(),
         id(21),
         id(22),
@@ -231,10 +238,10 @@ fn admin_context_is_holding_scoped_and_bounded_to_thirty_minutes() {
 
 #[test]
 fn revoked_admin_context_never_becomes_active_again() {
-    let mut context = TenantAdminContext::issue(
+    let mut context = HoldingAdminContext::issue(
         AdminContextId::try_from_uuid(id(20)).unwrap(),
-        PlatformTenantId::try_from_uuid(id(1)).unwrap(),
-        TenantScope::Holding { holding_id: id(4) },
+        PlatformHoldingId::try_from_uuid(id(1)).unwrap(),
+        AuthorityScope::Holding { holding_id: id(4) },
         "root".into(),
         id(21),
         id(22),
@@ -256,13 +263,15 @@ fn revoked_admin_context_never_becomes_active_again() {
 
 #[test]
 fn branch_pair_topology_never_falls_back_to_holding_route() {
-    let mut tenant = tenant();
-    tenant
-        .transition(TenantLifecycleAction::Activate, at())
+    let mut holding = holding();
+    holding
+        .transition(HoldingLifecycleAction::BeginProvisioning, at())
+        .unwrap();
+    holding
+        .transition(HoldingLifecycleAction::Activate, at())
         .unwrap();
     let mut routes = DataPlaneRouteCatalog::new(
-        tenant.id(),
-        tenant.root_holding_id(),
+        holding.id(),
         DataPlaneDeploymentMode::CustomerHosted,
         DataPlaneTopology::HoldingAndBranchPairs,
     )
@@ -281,8 +290,8 @@ fn branch_pair_topology_never_falls_back_to_holding_route() {
     routes
         .verify(
             DataPlaneRouteTarget::Holding,
-            ROUTING_SCHEMA_GENERATION,
-            ROUTING_SCHEMA_GENERATION,
+            ROUTING_SCHEMA_REVISION,
+            ROUTING_SCHEMA_REVISION,
             "evidence:holding-1".into(),
             at() + Duration::seconds(2),
         )
@@ -290,24 +299,23 @@ fn branch_pair_topology_never_falls_back_to_holding_route() {
     routes
         .activate(DataPlaneRouteTarget::Holding, at() + Duration::seconds(3))
         .unwrap();
-    let branch_scope = TenantScope::Branch {
-        holding_id: tenant.root_holding_id(),
+    let branch_scope = AuthorityScope::Branch {
+        holding_id: holding.canonical_holding_id(),
         company_id: id(30),
         branch_id: id(31),
     };
     assert_eq!(
-        routes.resolve(&tenant, &branch_scope),
+        routes.resolve(&holding, &branch_scope),
         Err(PlatformAdministrationDomainError::RouteUnavailable)
     );
 }
 
 #[test]
-fn route_activation_requires_generation_two_evidence_and_explicit_retry() {
-    let tenant = tenant();
+fn route_activation_requires_current_evidence_and_explicit_retry() {
+    let holding = holding();
     let branch = DataPlaneRouteTarget::Branch { branch_id: id(41) };
     let mut routes = DataPlaneRouteCatalog::new(
-        tenant.id(),
-        tenant.root_holding_id(),
+        holding.id(),
         DataPlaneDeploymentMode::ErpxManaged,
         DataPlaneTopology::HoldingAndBranchPairs,
     )
@@ -344,7 +352,7 @@ fn route_activation_requires_generation_two_evidence_and_explicit_retry() {
             "evidence:branch-legacy".into(),
             at() + Duration::seconds(2),
         ),
-        Err(PlatformAdministrationDomainError::UnsupportedRouteSchemaGeneration)
+        Err(PlatformAdministrationDomainError::UnsupportedRouteSchemaRevision)
     );
     routes
         .mark_failed(

@@ -88,8 +88,8 @@ mod tests {
         ProjectionMetadata, QueryMetadata, QueryResult,
     };
     use erpx_kernel::{
-        ActorAttribution, ActorKind, AggregateId, CommandId, CorrelationId, EventId, QueryId,
-        TenantScope,
+        ActorAttribution, ActorKind, AggregateId, AuthorityScope, CommandId, CorrelationId,
+        EventId, QueryId,
     };
 
     use super::*;
@@ -163,12 +163,12 @@ mod tests {
             SessionContext {
                 actor: ActorAttribution {
                     principal_ref: "user:1".into(),
-                    kind: ActorKind::TenantUser,
+                    kind: ActorKind::HoldingUser,
                     session_id: None,
                     represented_principal_ref: None,
                     support_capability_id: None,
                 },
-                tenant_scope: TenantScope::Platform,
+                active_scope: AuthorityScope::Platform,
             },
             "quality inspection",
             true,

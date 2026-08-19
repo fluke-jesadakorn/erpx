@@ -22,44 +22,45 @@ const _: () = assert!(WEB_ONLY);
 
 #[cfg(test)]
 const WRITE_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0076_ecommerce_talent.sql");
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 #[cfg(test)]
-const READ_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_read/0067_ecommerce_talent_projection.sql");
+const READ_DDL: &str = include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 #[cfg(test)]
 const CHANNEL_READ_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_read/0072_ecommerce_channel_projection.sql");
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 #[cfg(test)]
 const AGENT_WRITE_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0073_agent_orchestration.sql");
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 #[cfg(test)]
-const AGENT_READ_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0064_agent_orchestration_projection.sql"
-);
+const AGENT_READ_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 #[cfg(test)]
 const PROJECTS_WRITE_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0074_projects.sql");
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 #[cfg(test)]
 const PROJECTS_READ_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_read/0065_projects_projection.sql");
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 #[cfg(test)]
 const SHARED_WRITE_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0078_shared_enterprise_services.sql");
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 #[cfg(test)]
-const SHARED_READ_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0069_shared_enterprise_services_projection.sql"
-);
+const SHARED_READ_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 
 pub fn aggregate_partition(aggregate_type: &str, id: uuid::Uuid) -> String {
     format!("ecommerce.{aggregate_type}:{}", id.simple())
 }
 
 #[cfg(test)]
+#[path = "../../schema_test.rs"]
+mod schema_test;
+#[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn write_schema_is_normalized_atomic_and_tenant_bound() {
+    fn write_schema_is_normalized_atomic_and_holding_bound() {
+        let owned = schema_test::select_schema_statements(WRITE_DDL, &["erpx_ecommerce_write"]);
         for table in [
             "channels",
             "listings",
@@ -72,12 +73,12 @@ mod tests {
         ] {
             assert!(WRITE_DDL.contains(&format!("'erpx_ecommerce_write','{table}'")));
         }
-        assert!(!WRITE_DDL.contains("aggregate_guards"));
-        assert!(!WRITE_DDL.contains("state JSONB"));
+        assert!(!owned.contains("aggregate_guards"));
+        assert!(!owned.contains("state JSONB"));
         assert!(WRITE_DDL.contains("ENABLE ROW LEVEL SECURITY"));
         assert!(WRITE_DDL.contains("FORCE ROW LEVEL SECURITY"));
-        assert!(WRITE_DDL.contains("current_setting('app.tenant_id', true)"));
-        assert!(WRITE_DDL.contains("CHECK ((order_receipt IS NULL) = (order_ref IS NULL))"));
+        assert!(WRITE_DDL.contains("current_setting('app.holding_id', true)"));
+        assert!(owned.contains("CHECK ((order_receipt IS NULL) = (order_ref IS NULL))"));
     }
 
     #[test]
@@ -101,33 +102,38 @@ mod tests {
     }
 
     #[test]
-    fn every_new_tenant_table_is_explicitly_bound_and_rls_listed() {
-        for ddl in [
-            AGENT_WRITE_DDL,
-            AGENT_READ_DDL,
-            PROJECTS_WRITE_DDL,
-            PROJECTS_READ_DDL,
-            WRITE_DDL,
-            READ_DDL,
-            SHARED_WRITE_DDL,
-            SHARED_READ_DDL,
+    fn every_new_holding_table_is_explicitly_bound_and_rls_listed() {
+        for (ddl, schemas) in [
+            (AGENT_WRITE_DDL, &["erpx_agent_write"][..]),
+            (AGENT_READ_DDL, &["erpx_agent_read"][..]),
+            (PROJECTS_WRITE_DDL, &["erpx_projects_write"][..]),
+            (PROJECTS_READ_DDL, &["erpx_projects_read"][..]),
+            (WRITE_DDL, &["erpx_ecommerce_write"][..]),
+            (READ_DDL, &["erpx_ecommerce_read"][..]),
+            (SHARED_WRITE_DDL, &["erpx_shared_write"][..]),
+            (SHARED_READ_DDL, &["erpx_shared_read"][..]),
         ] {
-            let tables = ddl
+            let owned = schema_test::select_schema_statements(ddl, schemas);
+            let tables = owned
                 .lines()
                 .filter_map(|line| line.trim().strip_prefix("CREATE TABLE "))
+                .map(|line| line.strip_prefix("IF NOT EXISTS ").unwrap_or(line))
                 .filter_map(|line| line.split_whitespace().next())
                 .collect::<Vec<_>>();
-            assert!(!tables.is_empty(), "tenant schema has no tables");
+            assert!(!tables.is_empty(), "holding schema has no tables");
             for qualified in tables {
                 let table = qualified.rsplit('.').next().expect("qualified table");
                 assert!(
-                    ddl.contains(&format!("'{table}'")),
+                    ddl.contains(&format!("'{table}'"))
+                        || ddl.contains(&format!("'{qualified}'"))
+                        || ddl
+                            .contains(&format!("ALTER TABLE {qualified} FORCE ROW LEVEL SECURITY")),
                     "{qualified} is absent from the RLS protection inventory"
                 );
             }
             assert!(ddl.contains("ENABLE ROW LEVEL SECURITY"));
             assert!(ddl.contains("FORCE ROW LEVEL SECURITY"));
-            assert!(ddl.contains("current_setting('app.tenant_id', true)"));
+            assert!(ddl.contains("current_setting('app.holding_id', true)"));
         }
     }
 }

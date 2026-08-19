@@ -9,11 +9,11 @@ events, and concurrency-safe idempotent replay.
 ## Packet contract
 
 - **Owner:** main agent; Finance domain and SQLx write-side integration.
-- **Dependencies:** G0 shared command context, G1 tenant SQLx transaction/outbox
+- **Dependencies:** G0 shared command context, G1 holding SQLx transaction/outbox
   primitives, G8 chart/journal scope and holding RLS.
 - **Allowed paths:** `crates/domain/src/finance_budget.rs`, the domain module
   export, `crates/infrastructure/src/finance_budget_persistence.rs`, Finance
-  persistence helper visibility, tenant-write migration 0033, migration
+  persistence helper visibility, holding-write migration 0033, migration
   assertions, and the focused integration test.
 - **Forbidden shared paths:** Stripe/provider credentials, read-side billing
   state, Folio routes, global-read authorization, and unrelated ERP modules.
@@ -49,7 +49,7 @@ events, and concurrency-safe idempotent replay.
 - `cargo test -p erpx-migration` — PASS; 6 tests and doc tests.
 - `cargo check -p erpx-infrastructure` — PASS.
 - `cargo clippy -p erpx-infrastructure --all-targets -- -D warnings` — PASS.
-- Disposable `live_budget_persistence_enforces_version_control_and_idempotent_commitments` — PASS; fresh tenant PostgreSQL migration, lifecycle saves, approved control, exact replay, over-control rejection, and four atomic outbox events were exercised, then the database was dropped.
+- Disposable `live_budget_persistence_enforces_version_control_and_idempotent_commitments` — PASS; fresh holding PostgreSQL migration, lifecycle saves, approved control, exact replay, over-control rejection, and four atomic outbox events were exercised, then the database was dropped.
 - The same disposable test also proves changed-actual replay is a typed
   idempotency conflict and that a fabricated approved insert is rejected by
   the persistence boundary. It also closes the budget and replays the stored

@@ -1,5 +1,5 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TenantItem {
+pub struct HoldingItem {
     pub id: String,
     pub code: String,
     pub name: String,
@@ -19,7 +19,7 @@ pub struct ConnectorItem {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdminContextItem {
     pub id: String,
-    pub tenant_id: String,
+    pub holding_id: String,
     pub principal_ref: String,
     pub reason: String,
     pub status: String,
@@ -28,8 +28,8 @@ pub struct AdminContextItem {
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlatformAdministrationContent {
-    Tenant(TenantItem),
-    Tenants(Vec<TenantItem>),
+    Holding(HoldingItem),
+    Holdings(Vec<HoldingItem>),
     Connector(ConnectorItem),
     Connectors(Vec<ConnectorItem>),
     AdminContext(AdminContextItem),

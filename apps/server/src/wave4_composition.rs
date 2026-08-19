@@ -1,7 +1,7 @@
 //! Runtime composition for the Wave 4 bounded contexts.
 //!
 //! Typed transports stay storage-agnostic; this module is the only bridge from
-//! authenticated server state and tenant routing into the context handlers.
+//! authenticated server state and holding routing into the context handlers.
 
 use std::sync::Arc;
 
@@ -42,10 +42,10 @@ use erpx_identity_access::{
 use erpx_identity_access_sqlx::{
     IdentityAccessCommandAdapter, IdentityAccessReadRepository, IdentityAccessWriteRepository,
 };
-use erpx_infrastructure::{RoutedDatabaseSide, SqlxControlPlane, TenantDatabaseRouter};
+use erpx_infrastructure::{HoldingDatabaseRouter, RoutedDatabaseSide, SqlxControlPlane};
 use erpx_kernel::{
-    ActorAttribution, ActorKind, CorrelationId, ErrorCategory, ErrorContext, KernelError,
-    SessionId, SystemClock, TenantScope,
+    ActorAttribution, ActorKind, AuthorityScope, CorrelationId, ErrorCategory, ErrorContext,
+    KernelError, SessionId, SystemClock,
 };
 use erpx_organization::ports::AuthorizationRequest as OrganizationAuthorizationRequest;
 use erpx_organization::{
@@ -70,21 +70,22 @@ use sha2::Sha256;
 use crate::AppState;
 use crate::contexts::commercial_cqrs::{
     AuthenticatedCommercialRequest, CommercialAccessMode, CommercialAuthenticationError,
-    CommercialAuthenticationRequest, CommercialCommandApplication, CommercialProviderEvidence,
-    CommercialProviderVerificationToken, CommercialQueryApplication,
-    CommercialRequestAuthenticator, CommercialTenantRoute,
+    CommercialAuthenticationRequest, CommercialCommandApplication, CommercialHoldingRoute,
+    CommercialProviderEvidence, CommercialProviderVerificationToken, CommercialQueryApplication,
+    CommercialRequestAuthenticator,
 };
 use crate::contexts::identity_access::{
     AuthenticatedIdentityAccessRequest, IdentityAccessAuthenticationError,
-    IdentityAccessAuthenticationRequest, IdentityAccessCommandApplication, IdentityAccessMode,
-    IdentityAccessQueryApplication, IdentityAccessRequestAuthenticator, IdentityAccessTenantRoute,
+    IdentityAccessAuthenticationRequest, IdentityAccessCommandApplication,
+    IdentityAccessHoldingRoute, IdentityAccessMode, IdentityAccessQueryApplication,
+    IdentityAccessRequestAuthenticator,
 };
 use crate::contexts::organization_cqrs::{
     AuthenticatedOrganizationRequest, OrganizationAccessMode, OrganizationAuthenticationError,
-    OrganizationAuthenticationRequest, OrganizationCommandApplication,
-    OrganizationQueryApplication, OrganizationRequestAuthenticator, OrganizationTenantRoute,
+    OrganizationAuthenticationRequest, OrganizationCommandApplication, OrganizationHoldingRoute,
+    OrganizationQueryApplication, OrganizationRequestAuthenticator,
 };
-use crate::tenant_workspace::{PresentedTenantRoute, resolve_tenant_workspace};
+use crate::holding_workspace::{PresentedHoldingRoute, resolve_holding_workspace};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AuthorizedMode {
@@ -95,7 +96,7 @@ enum AuthorizedMode {
 #[derive(Debug, Clone)]
 struct IdentityPreauthorizedAccess {
     principal_ref: String,
-    authority_scope: TenantScope,
+    authority_scope: AuthorityScope,
     mode: AuthorizedMode,
 }
 
@@ -124,7 +125,7 @@ impl IdentityAuthorizationPort for IdentityPreauthorizedAccess {
 impl IdentityEntitlementPort for IdentityPreauthorizedAccess {
     async fn ensure_identity_access_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         write: bool,
     ) -> Result<(), IdentityPortError> {
         if write != (self.mode == AuthorizedMode::Write) || !self.authority_scope.contains(scope) {
@@ -149,17 +150,17 @@ type IdentityQueryHandler = IdentityAccessQueryHandler<
 
 #[derive(Clone)]
 pub(crate) struct IdentityServerApplication {
-    router: Option<Arc<TenantDatabaseRouter>>,
+    router: Option<Arc<HoldingDatabaseRouter>>,
 }
 
 impl IdentityServerApplication {
-    pub(crate) const fn new(router: Option<Arc<TenantDatabaseRouter>>) -> Self {
+    pub(crate) const fn new(router: Option<Arc<HoldingDatabaseRouter>>) -> Self {
         Self { router }
     }
 
     async fn execute_command<C>(
         &self,
-        route: IdentityAccessTenantRoute,
+        route: IdentityAccessHoldingRoute,
         envelope: CommandEnvelope<C>,
     ) -> Result<CommandReceipt<<IdentityCommandHandler as CommandHandler<C>>::Response>, CqrsError>
     where
@@ -168,7 +169,7 @@ impl IdentityServerApplication {
         let correlation_id = envelope.correlation_id;
         let access = IdentityPreauthorizedAccess {
             principal_ref: envelope.actor.principal_ref.clone(),
-            authority_scope: envelope.tenant_scope.clone(),
+            authority_scope: envelope.active_scope.clone(),
             mode: AuthorizedMode::Write,
         };
         let pool = self.write_pool(&route, correlation_id).await?;
@@ -185,7 +186,7 @@ impl IdentityServerApplication {
 
     async fn execute_query<Q>(
         &self,
-        route: IdentityAccessTenantRoute,
+        route: IdentityAccessHoldingRoute,
         envelope: QueryEnvelope<Q>,
     ) -> Result<QueryResult<<IdentityQueryHandler as QueryHandler<Q>>::Response>, CqrsError>
     where
@@ -194,7 +195,7 @@ impl IdentityServerApplication {
         let correlation_id = envelope.correlation_id;
         let access = IdentityPreauthorizedAccess {
             principal_ref: envelope.actor.principal_ref.clone(),
-            authority_scope: envelope.tenant_scope.clone(),
+            authority_scope: envelope.active_scope.clone(),
             mode: AuthorizedMode::Read,
         };
         let pool = self.read_pool(&route, correlation_id).await?;
@@ -214,44 +215,44 @@ impl IdentityServerApplication {
 
     async fn write_pool(
         &self,
-        route: &IdentityAccessTenantRoute,
+        route: &IdentityAccessHoldingRoute,
         correlation_id: CorrelationId,
     ) -> Result<WritePool, CqrsError> {
         let router = required_router(&self.router, correlation_id, "identity_access")?;
         let routed = router
             .route(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 RoutedDatabaseSide::Write,
             )
             .await
             .map_err(|_| context_unavailable(correlation_id, "identity_access", "write"))?;
-        WritePool::for_tenant(
+        WritePool::for_holding(
             routed.database_pool().clone(),
-            cqrs_tenant_uuid(&routed.tenant_id, correlation_id, "identity_access")?,
+            cqrs_holding_uuid(&routed.holding_id, correlation_id, "identity_access")?,
         )
-        .map_err(|_| invalid_tenant_binding(correlation_id, "identity_access"))
+        .map_err(|_| invalid_holding_binding(correlation_id, "identity_access"))
     }
 
     async fn read_pool(
         &self,
-        route: &IdentityAccessTenantRoute,
+        route: &IdentityAccessHoldingRoute,
         correlation_id: CorrelationId,
     ) -> Result<ReadPool, CqrsError> {
         let router = required_router(&self.router, correlation_id, "identity_access")?;
         let routed = router
             .route(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 RoutedDatabaseSide::Read,
             )
             .await
             .map_err(|_| context_unavailable(correlation_id, "identity_access", "read"))?;
-        ReadPool::for_tenant(
+        ReadPool::for_holding(
             routed.database_pool().clone(),
-            cqrs_tenant_uuid(&routed.tenant_id, correlation_id, "identity_access")?,
+            cqrs_holding_uuid(&routed.holding_id, correlation_id, "identity_access")?,
         )
-        .map_err(|_| invalid_tenant_binding(correlation_id, "identity_access"))
+        .map_err(|_| invalid_holding_binding(correlation_id, "identity_access"))
     }
 }
 
@@ -259,11 +260,11 @@ impl IdentityServerApplication {
 impl IdentityAccessCommandApplication for IdentityServerApplication {
     async fn create_principal(
         &self,
-        route: IdentityAccessTenantRoute,
+        route: IdentityAccessHoldingRoute,
         envelope: CommandEnvelope<CreatePrincipal>,
     ) -> Result<CommandReceipt<CreatePrincipalResult>, CqrsError> {
         ensure_route_scope(
-            &route.holding_ref,
+            &route.data_profile_key,
             &envelope.command.scope,
             envelope.correlation_id,
             "identity_access",
@@ -272,39 +273,39 @@ impl IdentityAccessCommandApplication for IdentityServerApplication {
     }
     async fn activate_principal(
         &self,
-        route: IdentityAccessTenantRoute,
+        route: IdentityAccessHoldingRoute,
         envelope: CommandEnvelope<ActivatePrincipal>,
     ) -> Result<CommandReceipt<PrincipalMutationResult>, CqrsError> {
         self.execute_command(route, envelope).await
     }
     async fn suspend_principal(
         &self,
-        route: IdentityAccessTenantRoute,
+        route: IdentityAccessHoldingRoute,
         envelope: CommandEnvelope<SuspendPrincipal>,
     ) -> Result<CommandReceipt<PrincipalMutationResult>, CqrsError> {
         self.execute_command(route, envelope).await
     }
     async fn reactivate_principal(
         &self,
-        route: IdentityAccessTenantRoute,
+        route: IdentityAccessHoldingRoute,
         envelope: CommandEnvelope<ReactivatePrincipal>,
     ) -> Result<CommandReceipt<PrincipalMutationResult>, CqrsError> {
         self.execute_command(route, envelope).await
     }
     async fn disable_principal(
         &self,
-        route: IdentityAccessTenantRoute,
+        route: IdentityAccessHoldingRoute,
         envelope: CommandEnvelope<DisablePrincipal>,
     ) -> Result<CommandReceipt<PrincipalMutationResult>, CqrsError> {
         self.execute_command(route, envelope).await
     }
     async fn assign_role(
         &self,
-        route: IdentityAccessTenantRoute,
+        route: IdentityAccessHoldingRoute,
         envelope: CommandEnvelope<AssignRole>,
     ) -> Result<CommandReceipt<PrincipalMutationResult>, CqrsError> {
         ensure_route_scope(
-            &route.holding_ref,
+            &route.data_profile_key,
             &envelope.command.scope,
             envelope.correlation_id,
             "identity_access",
@@ -313,25 +314,25 @@ impl IdentityAccessCommandApplication for IdentityServerApplication {
     }
     async fn revoke_role(
         &self,
-        route: IdentityAccessTenantRoute,
+        route: IdentityAccessHoldingRoute,
         envelope: CommandEnvelope<RevokeRole>,
     ) -> Result<CommandReceipt<PrincipalMutationResult>, CqrsError> {
         self.execute_command(route, envelope).await
     }
     async fn renew_role(
         &self,
-        route: IdentityAccessTenantRoute,
+        route: IdentityAccessHoldingRoute,
         envelope: CommandEnvelope<RenewRole>,
     ) -> Result<CommandReceipt<PrincipalMutationResult>, CqrsError> {
         self.execute_command(route, envelope).await
     }
     async fn recover_role(
         &self,
-        route: IdentityAccessTenantRoute,
+        route: IdentityAccessHoldingRoute,
         envelope: CommandEnvelope<RecoverRole>,
     ) -> Result<CommandReceipt<PrincipalMutationResult>, CqrsError> {
         ensure_route_scope(
-            &route.holding_ref,
+            &route.data_profile_key,
             &envelope.command.scope,
             envelope.correlation_id,
             "identity_access",
@@ -340,11 +341,11 @@ impl IdentityAccessCommandApplication for IdentityServerApplication {
     }
     async fn define_role(
         &self,
-        route: IdentityAccessTenantRoute,
+        route: IdentityAccessHoldingRoute,
         envelope: CommandEnvelope<DefineRole>,
     ) -> Result<CommandReceipt<DefineRoleResult>, CqrsError> {
         ensure_route_scope(
-            &route.holding_ref,
+            &route.data_profile_key,
             &envelope.command.scope,
             envelope.correlation_id,
             "identity_access",
@@ -353,7 +354,7 @@ impl IdentityAccessCommandApplication for IdentityServerApplication {
     }
     async fn set_role_permissions(
         &self,
-        route: IdentityAccessTenantRoute,
+        route: IdentityAccessHoldingRoute,
         envelope: CommandEnvelope<SetRolePermissions>,
     ) -> Result<CommandReceipt<RoleMutationResult>, CqrsError> {
         self.execute_command(route, envelope).await
@@ -364,28 +365,28 @@ impl IdentityAccessCommandApplication for IdentityServerApplication {
 impl IdentityAccessQueryApplication for IdentityServerApplication {
     async fn get_principal(
         &self,
-        route: IdentityAccessTenantRoute,
+        route: IdentityAccessHoldingRoute,
         envelope: QueryEnvelope<GetPrincipal>,
     ) -> Result<QueryResult<GetPrincipalResult>, CqrsError> {
         self.execute_query(route, envelope).await
     }
     async fn list_principals(
         &self,
-        route: IdentityAccessTenantRoute,
+        route: IdentityAccessHoldingRoute,
         envelope: QueryEnvelope<ListPrincipals>,
     ) -> Result<QueryResult<PrincipalList>, CqrsError> {
         self.execute_query(route, envelope).await
     }
     async fn get_role(
         &self,
-        route: IdentityAccessTenantRoute,
+        route: IdentityAccessHoldingRoute,
         envelope: QueryEnvelope<GetRole>,
     ) -> Result<QueryResult<GetRoleResult>, CqrsError> {
         self.execute_query(route, envelope).await
     }
     async fn list_roles(
         &self,
-        route: IdentityAccessTenantRoute,
+        route: IdentityAccessHoldingRoute,
         envelope: QueryEnvelope<ListRoles>,
     ) -> Result<QueryResult<RoleList>, CqrsError> {
         self.execute_query(route, envelope).await
@@ -415,7 +416,7 @@ impl IdentityAccessRequestAuthenticator for IdentityServerAuthenticator {
             request.transport_metadata(),
             request.presented_actor(),
             request.presented_scope(),
-            &request.presented_route().tenant_id,
+            &request.presented_route().holding_id,
             if write {
                 "identity_access.write"
             } else {
@@ -439,7 +440,7 @@ impl IdentityAccessRequestAuthenticator for IdentityServerAuthenticator {
 #[derive(Debug, Clone)]
 struct OrganizationPreauthorizedAccess {
     principal_ref: String,
-    authority_scope: TenantScope,
+    authority_scope: AuthorityScope,
     mode: AuthorizedMode,
 }
 
@@ -468,7 +469,7 @@ impl OrganizationAuthorizationPort for OrganizationPreauthorizedAccess {
 impl OrganizationEntitlementPort for OrganizationPreauthorizedAccess {
     async fn ensure_organization_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         write: bool,
     ) -> Result<(), OrganizationPortError> {
         if write != (self.mode == AuthorizedMode::Write) || !self.authority_scope.contains(scope) {
@@ -494,17 +495,17 @@ type OrganizationQueryHandlerImpl = OrganizationQueryHandler<
 
 #[derive(Clone)]
 pub(crate) struct OrganizationServerApplication {
-    router: Option<Arc<TenantDatabaseRouter>>,
+    router: Option<Arc<HoldingDatabaseRouter>>,
 }
 
 impl OrganizationServerApplication {
-    pub(crate) const fn new(router: Option<Arc<TenantDatabaseRouter>>) -> Self {
+    pub(crate) const fn new(router: Option<Arc<HoldingDatabaseRouter>>) -> Self {
         Self { router }
     }
 
     async fn execute_command<C>(
         &self,
-        route: OrganizationTenantRoute,
+        route: OrganizationHoldingRoute,
         envelope: CommandEnvelope<C>,
     ) -> Result<
         CommandReceipt<<OrganizationCommandHandlerImpl as CommandHandler<C>>::Response>,
@@ -516,23 +517,23 @@ impl OrganizationServerApplication {
         let correlation_id = envelope.correlation_id;
         let access = OrganizationPreauthorizedAccess {
             principal_ref: envelope.actor.principal_ref.clone(),
-            authority_scope: envelope.tenant_scope.clone(),
+            authority_scope: envelope.active_scope.clone(),
             mode: AuthorizedMode::Write,
         };
         let router = required_router(&self.router, correlation_id, "organization")?;
         let routed = router
             .route(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 RoutedDatabaseSide::Write,
             )
             .await
             .map_err(|_| context_unavailable(correlation_id, "organization", "write"))?;
-        let pool = WritePool::for_tenant(
+        let pool = WritePool::for_holding(
             routed.database_pool().clone(),
-            cqrs_tenant_uuid(&routed.tenant_id, correlation_id, "organization")?,
+            cqrs_holding_uuid(&routed.holding_id, correlation_id, "organization")?,
         )
-        .map_err(|_| invalid_tenant_binding(correlation_id, "organization"))?;
+        .map_err(|_| invalid_holding_binding(correlation_id, "organization"))?;
         OrganizationCommandHandler::new(
             OrganizationWriteRepository::new(pool.clone()),
             OrganizationCommandAdapter::new(pool),
@@ -547,7 +548,7 @@ impl OrganizationServerApplication {
 
     async fn execute_query<Q>(
         &self,
-        route: OrganizationTenantRoute,
+        route: OrganizationHoldingRoute,
         envelope: QueryEnvelope<Q>,
     ) -> Result<QueryResult<<OrganizationQueryHandlerImpl as QueryHandler<Q>>::Response>, CqrsError>
     where
@@ -556,23 +557,23 @@ impl OrganizationServerApplication {
         let correlation_id = envelope.correlation_id;
         let access = OrganizationPreauthorizedAccess {
             principal_ref: envelope.actor.principal_ref.clone(),
-            authority_scope: envelope.tenant_scope.clone(),
+            authority_scope: envelope.active_scope.clone(),
             mode: AuthorizedMode::Read,
         };
         let router = required_router(&self.router, correlation_id, "organization")?;
         let routed = router
             .route(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 RoutedDatabaseSide::Read,
             )
             .await
             .map_err(|_| context_unavailable(correlation_id, "organization", "read"))?;
-        let read = ReadPool::for_tenant(
+        let read = ReadPool::for_holding(
             routed.database_pool().clone(),
-            cqrs_tenant_uuid(&routed.tenant_id, correlation_id, "organization")?,
+            cqrs_holding_uuid(&routed.holding_id, correlation_id, "organization")?,
         )
-        .map_err(|_| invalid_tenant_binding(correlation_id, "organization"))?;
+        .map_err(|_| invalid_holding_binding(correlation_id, "organization"))?;
         let repository = OrganizationReadRepository::new(read).map_err(|_| {
             context_failure(
                 correlation_id,
@@ -592,13 +593,13 @@ impl OrganizationServerApplication {
 impl OrganizationCommandApplication for OrganizationServerApplication {
     async fn create(
         &self,
-        route: OrganizationTenantRoute,
+        route: OrganizationHoldingRoute,
         envelope: CommandEnvelope<CreateOrganizationNode>,
     ) -> Result<CommandReceipt<CreateOrganizationNodeResult>, CqrsError> {
         let target = envelope
             .command
             .placement
-            .tenant_scope(envelope.command.node_id)
+            .active_scope(envelope.command.node_id)
             .map_err(|_| {
                 context_failure(
                     envelope.correlation_id,
@@ -609,7 +610,7 @@ impl OrganizationCommandApplication for OrganizationServerApplication {
                 )
             })?;
         ensure_route_scope(
-            &route.holding_ref,
+            &route.data_profile_key,
             &target,
             envelope.correlation_id,
             "organization",
@@ -618,27 +619,27 @@ impl OrganizationCommandApplication for OrganizationServerApplication {
     }
     async fn rename(
         &self,
-        route: OrganizationTenantRoute,
+        route: OrganizationHoldingRoute,
         envelope: CommandEnvelope<RenameOrganizationNode>,
     ) -> Result<CommandReceipt<OrganizationMutationResult>, CqrsError> {
         self.execute_command(route, envelope).await
     }
     async fn change_code(
         &self,
-        route: OrganizationTenantRoute,
+        route: OrganizationHoldingRoute,
         envelope: CommandEnvelope<ChangeOrganizationCode>,
     ) -> Result<CommandReceipt<OrganizationMutationResult>, CqrsError> {
         self.execute_command(route, envelope).await
     }
     async fn reparent(
         &self,
-        route: OrganizationTenantRoute,
+        route: OrganizationHoldingRoute,
         envelope: CommandEnvelope<ReparentOrganizationNode>,
     ) -> Result<CommandReceipt<OrganizationMutationResult>, CqrsError> {
         let target = envelope
             .command
             .placement
-            .tenant_scope(envelope.command.node_id)
+            .active_scope(envelope.command.node_id)
             .map_err(|_| {
                 context_failure(
                     envelope.correlation_id,
@@ -649,7 +650,7 @@ impl OrganizationCommandApplication for OrganizationServerApplication {
                 )
             })?;
         ensure_route_scope(
-            &route.holding_ref,
+            &route.data_profile_key,
             &target,
             envelope.correlation_id,
             "organization",
@@ -658,21 +659,21 @@ impl OrganizationCommandApplication for OrganizationServerApplication {
     }
     async fn suspend(
         &self,
-        route: OrganizationTenantRoute,
+        route: OrganizationHoldingRoute,
         envelope: CommandEnvelope<SuspendOrganizationNode>,
     ) -> Result<CommandReceipt<OrganizationMutationResult>, CqrsError> {
         self.execute_command(route, envelope).await
     }
     async fn activate(
         &self,
-        route: OrganizationTenantRoute,
+        route: OrganizationHoldingRoute,
         envelope: CommandEnvelope<ActivateOrganizationNode>,
     ) -> Result<CommandReceipt<OrganizationMutationResult>, CqrsError> {
         self.execute_command(route, envelope).await
     }
     async fn archive(
         &self,
-        route: OrganizationTenantRoute,
+        route: OrganizationHoldingRoute,
         envelope: CommandEnvelope<ArchiveOrganizationNode>,
     ) -> Result<CommandReceipt<OrganizationMutationResult>, CqrsError> {
         self.execute_command(route, envelope).await
@@ -683,14 +684,14 @@ impl OrganizationCommandApplication for OrganizationServerApplication {
 impl OrganizationQueryApplication for OrganizationServerApplication {
     async fn get(
         &self,
-        route: OrganizationTenantRoute,
+        route: OrganizationHoldingRoute,
         envelope: QueryEnvelope<GetOrganizationNode>,
     ) -> Result<QueryResult<GetOrganizationNodeResult>, CqrsError> {
         self.execute_query(route, envelope).await
     }
     async fn list(
         &self,
-        route: OrganizationTenantRoute,
+        route: OrganizationHoldingRoute,
         envelope: QueryEnvelope<ListOrganizationNodes>,
     ) -> Result<QueryResult<NodeList>, CqrsError> {
         self.execute_query(route, envelope).await
@@ -714,11 +715,13 @@ impl OrganizationRequestAuthenticator for OrganizationServerAuthenticator {
         request: OrganizationAuthenticationRequest,
     ) -> Result<AuthenticatedOrganizationRequest, OrganizationAuthenticationError> {
         let write = request.access_mode() == OrganizationAccessMode::Write;
-        let presented_route = request.presented_route().map(|route| PresentedTenantRoute {
-            tenant_id: &route.tenant_id,
-            holding_ref: &route.holding_ref,
-        });
-        let workspace = resolve_tenant_workspace(
+        let presented_route = request
+            .presented_route()
+            .map(|route| PresentedHoldingRoute {
+                holding_id: &route.holding_id,
+                data_profile_key: &route.data_profile_key,
+            });
+        let workspace = resolve_holding_workspace(
             &self.state,
             request.presented_scope(),
             presented_route,
@@ -730,13 +733,13 @@ impl OrganizationRequestAuthenticator for OrganizationServerAuthenticator {
         let customer_id = workspace.customer_id.to_string();
         let subscription_id = workspace.subscription_id.map(|value| value.to_string());
         let actor = if write {
-            authenticate_context_for_tenant(
+            authenticate_context_for_holding(
                 &self.state,
                 request.transport_metadata(),
                 request.presented_actor(),
                 request.presented_scope(),
                 &customer_id,
-                &workspace.tenant_id,
+                &workspace.holding_id,
                 "organization.write",
                 "organization",
                 true,
@@ -752,7 +755,7 @@ impl OrganizationRequestAuthenticator for OrganizationServerAuthenticator {
                 request.presented_scope(),
                 &customer_id,
                 &["assets.read", "maintenance.read", "organization.read"],
-                Some(&workspace.tenant_id),
+                Some(&workspace.holding_id),
                 "organization",
                 false,
                 subscription_id.as_deref(),
@@ -764,9 +767,9 @@ impl OrganizationRequestAuthenticator for OrganizationServerAuthenticator {
         AuthenticatedOrganizationRequest::try_new(
             actor,
             request.presented_scope().clone(),
-            OrganizationTenantRoute {
-                tenant_id: workspace.tenant_id,
-                holding_ref: workspace.holding_ref,
+            OrganizationHoldingRoute {
+                holding_id: workspace.holding_id,
+                data_profile_key: workspace.data_profile_key,
             },
         )
     }
@@ -782,7 +785,7 @@ enum CommercialAuthorizedMode {
 #[derive(Debug, Clone)]
 struct CommercialPreauthorizedAccess {
     principal_ref: String,
-    authority_scope: TenantScope,
+    authority_scope: AuthorityScope,
     mode: CommercialAuthorizedMode,
 }
 
@@ -832,7 +835,7 @@ impl ScopeAuthorityPort for CommercialCustomerScopeAuthority {
     async fn ensure_customer_in_scope(
         &self,
         customer_id: Uuid,
-        target_scope: &TenantScope,
+        target_scope: &AuthorityScope,
     ) -> Result<(), CommercialPortError> {
         let scope = crate::quality_access_scope(target_scope);
         let allowed = self
@@ -915,7 +918,7 @@ type CommercialQueryHandlerImpl =
 #[derive(Debug, Clone, Copy)]
 enum CommercialStoragePlane {
     Control,
-    Tenant,
+    Holding,
 }
 
 #[derive(Clone)]
@@ -942,7 +945,7 @@ impl CommercialProviderKey {
 
 #[derive(Clone)]
 pub(crate) struct CommercialServerApplication {
-    router: Option<Arc<TenantDatabaseRouter>>,
+    router: Option<Arc<HoldingDatabaseRouter>>,
     control: Arc<SqlxControlPlane>,
     control_write: WritePool,
     control_read: ReadPool,
@@ -952,7 +955,7 @@ pub(crate) struct CommercialServerApplication {
 impl CommercialServerApplication {
     pub(crate) fn new(state: &AppState, provider_key: CommercialProviderKey) -> Self {
         Self {
-            router: state.tenant_router.clone(),
+            router: state.holding_router.clone(),
             control: state.store.clone(),
             control_write: WritePool::from_control_pg_pool(state.store.pools().write.clone()),
             control_read: ReadPool::from_control_pg_pool(state.store.pools().read.clone()),
@@ -960,51 +963,51 @@ impl CommercialServerApplication {
         }
     }
 
-    async fn tenant_write(
+    async fn holding_write(
         &self,
-        route: &CommercialTenantRoute,
+        route: &CommercialHoldingRoute,
         correlation_id: CorrelationId,
     ) -> Result<WritePool, CqrsError> {
         let router = required_router(&self.router, correlation_id, "commercial")?;
         let routed = router
             .route(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 RoutedDatabaseSide::Write,
             )
             .await
             .map_err(|_| context_unavailable(correlation_id, "commercial", "write"))?;
-        WritePool::for_tenant(
+        WritePool::for_holding(
             routed.database_pool().clone(),
-            cqrs_tenant_uuid(&routed.tenant_id, correlation_id, "commercial")?,
+            cqrs_holding_uuid(&routed.holding_id, correlation_id, "commercial")?,
         )
-        .map_err(|_| invalid_tenant_binding(correlation_id, "commercial"))
+        .map_err(|_| invalid_holding_binding(correlation_id, "commercial"))
     }
 
-    async fn tenant_read(
+    async fn holding_read(
         &self,
-        route: &CommercialTenantRoute,
+        route: &CommercialHoldingRoute,
         correlation_id: CorrelationId,
     ) -> Result<ReadPool, CqrsError> {
         let router = required_router(&self.router, correlation_id, "commercial")?;
         let routed = router
             .route(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 RoutedDatabaseSide::Read,
             )
             .await
             .map_err(|_| context_unavailable(correlation_id, "commercial", "read"))?;
-        ReadPool::for_tenant(
+        ReadPool::for_holding(
             routed.database_pool().clone(),
-            cqrs_tenant_uuid(&routed.tenant_id, correlation_id, "commercial")?,
+            cqrs_holding_uuid(&routed.holding_id, correlation_id, "commercial")?,
         )
-        .map_err(|_| invalid_tenant_binding(correlation_id, "commercial"))
+        .map_err(|_| invalid_holding_binding(correlation_id, "commercial"))
     }
 
     async fn execute_command<C>(
         &self,
-        route: CommercialTenantRoute,
+        route: CommercialHoldingRoute,
         envelope: CommandEnvelope<C>,
         mode: CommercialAuthorizedMode,
         plane: CommercialStoragePlane,
@@ -1016,18 +1019,18 @@ impl CommercialServerApplication {
         CommercialCommandHandlerImpl: CommandHandler<C>,
     {
         let correlation_id = envelope.correlation_id;
-        let tenant = match plane {
+        let holding = match plane {
             CommercialStoragePlane::Control => self.control_write.clone(),
-            CommercialStoragePlane::Tenant => self.tenant_write(&route, correlation_id).await?,
+            CommercialStoragePlane::Holding => self.holding_write(&route, correlation_id).await?,
         };
         let access = CommercialPreauthorizedAccess {
             principal_ref: envelope.actor.principal_ref.clone(),
-            authority_scope: envelope.tenant_scope.clone(),
+            authority_scope: envelope.active_scope.clone(),
             mode,
         };
         CommercialCommandHandler::new(
-            CommercialWriteRepository::new(self.control_write.clone(), tenant.clone()),
-            CommercialCommandAdapter::new(self.control_write.clone(), tenant),
+            CommercialWriteRepository::new(self.control_write.clone(), holding.clone()),
+            CommercialCommandAdapter::new(self.control_write.clone(), holding),
             access,
             CommercialCustomerScopeAuthority {
                 control: self.control.clone(),
@@ -1043,7 +1046,7 @@ impl CommercialServerApplication {
 
     async fn execute_query<Q>(
         &self,
-        route: CommercialTenantRoute,
+        route: CommercialHoldingRoute,
         envelope: QueryEnvelope<Q>,
         plane: CommercialStoragePlane,
     ) -> Result<QueryResult<<CommercialQueryHandlerImpl as QueryHandler<Q>>::Response>, CqrsError>
@@ -1051,17 +1054,17 @@ impl CommercialServerApplication {
         CommercialQueryHandlerImpl: QueryHandler<Q>,
     {
         let correlation_id = envelope.correlation_id;
-        let tenant = match plane {
+        let holding = match plane {
             CommercialStoragePlane::Control => self.control_read.clone(),
-            CommercialStoragePlane::Tenant => self.tenant_read(&route, correlation_id).await?,
+            CommercialStoragePlane::Holding => self.holding_read(&route, correlation_id).await?,
         };
         let access = CommercialPreauthorizedAccess {
             principal_ref: envelope.actor.principal_ref.clone(),
-            authority_scope: envelope.tenant_scope.clone(),
+            authority_scope: envelope.active_scope.clone(),
             mode: CommercialAuthorizedMode::Read,
         };
-        let repository =
-            CommercialReadRepository::new(self.control_read.clone(), tenant).map_err(|_| {
+        let repository = CommercialReadRepository::new(self.control_read.clone(), holding)
+            .map_err(|_| {
                 context_failure(
                     correlation_id,
                     "commercial.read_configuration",
@@ -1080,7 +1083,7 @@ impl CommercialServerApplication {
 impl CommercialCommandApplication for CommercialServerApplication {
     async fn create_catalog_plan(
         &self,
-        route: CommercialTenantRoute,
+        route: CommercialHoldingRoute,
         envelope: CommandEnvelope<CreateCatalogPlan>,
     ) -> Result<CommandReceipt<CommercialMutationResult>, CqrsError> {
         self.execute_command(
@@ -1093,7 +1096,7 @@ impl CommercialCommandApplication for CommercialServerApplication {
     }
     async fn publish_catalog_plan(
         &self,
-        route: CommercialTenantRoute,
+        route: CommercialHoldingRoute,
         envelope: CommandEnvelope<PublishCatalogPlan>,
     ) -> Result<CommandReceipt<CommercialMutationResult>, CqrsError> {
         self.execute_command(
@@ -1106,11 +1109,11 @@ impl CommercialCommandApplication for CommercialServerApplication {
     }
     async fn create_subscription(
         &self,
-        route: CommercialTenantRoute,
+        route: CommercialHoldingRoute,
         envelope: CommandEnvelope<CreateSubscription>,
     ) -> Result<CommandReceipt<CommercialMutationResult>, CqrsError> {
         ensure_route_scope(
-            &route.holding_ref,
+            &route.data_profile_key,
             &envelope.command.scope,
             envelope.correlation_id,
             "commercial",
@@ -1119,30 +1122,30 @@ impl CommercialCommandApplication for CommercialServerApplication {
             route,
             envelope,
             CommercialAuthorizedMode::Write,
-            CommercialStoragePlane::Tenant,
+            CommercialStoragePlane::Holding,
         )
         .await
     }
     async fn apply_billing_event(
         &self,
-        route: CommercialTenantRoute,
+        route: CommercialHoldingRoute,
         envelope: CommandEnvelope<ApplyBillingEvent>,
     ) -> Result<CommandReceipt<CommercialMutationResult>, CqrsError> {
         self.execute_command(
             route,
             envelope,
             CommercialAuthorizedMode::ProviderWrite,
-            CommercialStoragePlane::Tenant,
+            CommercialStoragePlane::Holding,
         )
         .await
     }
     async fn create_entitlement(
         &self,
-        route: CommercialTenantRoute,
+        route: CommercialHoldingRoute,
         envelope: CommandEnvelope<CreateEntitlement>,
     ) -> Result<CommandReceipt<CommercialMutationResult>, CqrsError> {
         ensure_route_scope(
-            &route.holding_ref,
+            &route.data_profile_key,
             &envelope.command.scope,
             envelope.correlation_id,
             "commercial",
@@ -1151,20 +1154,20 @@ impl CommercialCommandApplication for CommercialServerApplication {
             route,
             envelope,
             CommercialAuthorizedMode::Write,
-            CommercialStoragePlane::Tenant,
+            CommercialStoragePlane::Holding,
         )
         .await
     }
     async fn apply_entitlement_change(
         &self,
-        route: CommercialTenantRoute,
+        route: CommercialHoldingRoute,
         envelope: CommandEnvelope<ApplyEntitlementChange>,
     ) -> Result<CommandReceipt<CommercialMutationResult>, CqrsError> {
         self.execute_command(
             route,
             envelope,
             CommercialAuthorizedMode::ProviderWrite,
-            CommercialStoragePlane::Tenant,
+            CommercialStoragePlane::Holding,
         )
         .await
     }
@@ -1174,7 +1177,7 @@ impl CommercialCommandApplication for CommercialServerApplication {
 impl CommercialQueryApplication for CommercialServerApplication {
     async fn get_catalog_plan(
         &self,
-        route: CommercialTenantRoute,
+        route: CommercialHoldingRoute,
         envelope: QueryEnvelope<GetCatalogPlan>,
     ) -> Result<QueryResult<GetCatalogPlanResult>, CqrsError> {
         self.execute_query(route, envelope, CommercialStoragePlane::Control)
@@ -1182,7 +1185,7 @@ impl CommercialQueryApplication for CommercialServerApplication {
     }
     async fn list_catalog_plans(
         &self,
-        route: CommercialTenantRoute,
+        route: CommercialHoldingRoute,
         envelope: QueryEnvelope<ListCatalogPlans>,
     ) -> Result<QueryResult<Page<CatalogPlanView>>, CqrsError> {
         self.execute_query(route, envelope, CommercialStoragePlane::Control)
@@ -1190,34 +1193,34 @@ impl CommercialQueryApplication for CommercialServerApplication {
     }
     async fn get_subscription(
         &self,
-        route: CommercialTenantRoute,
+        route: CommercialHoldingRoute,
         envelope: QueryEnvelope<GetSubscription>,
     ) -> Result<QueryResult<GetSubscriptionResult>, CqrsError> {
-        self.execute_query(route, envelope, CommercialStoragePlane::Tenant)
+        self.execute_query(route, envelope, CommercialStoragePlane::Holding)
             .await
     }
     async fn list_subscriptions(
         &self,
-        route: CommercialTenantRoute,
+        route: CommercialHoldingRoute,
         envelope: QueryEnvelope<ListSubscriptions>,
     ) -> Result<QueryResult<Page<SubscriptionView>>, CqrsError> {
-        self.execute_query(route, envelope, CommercialStoragePlane::Tenant)
+        self.execute_query(route, envelope, CommercialStoragePlane::Holding)
             .await
     }
     async fn get_entitlement(
         &self,
-        route: CommercialTenantRoute,
+        route: CommercialHoldingRoute,
         envelope: QueryEnvelope<GetEntitlement>,
     ) -> Result<QueryResult<GetEntitlementResult>, CqrsError> {
-        self.execute_query(route, envelope, CommercialStoragePlane::Tenant)
+        self.execute_query(route, envelope, CommercialStoragePlane::Holding)
             .await
     }
     async fn list_entitlements(
         &self,
-        route: CommercialTenantRoute,
+        route: CommercialHoldingRoute,
         envelope: QueryEnvelope<ListEntitlements>,
     ) -> Result<QueryResult<Page<EntitlementView>>, CqrsError> {
-        self.execute_query(route, envelope, CommercialStoragePlane::Tenant)
+        self.execute_query(route, envelope, CommercialStoragePlane::Holding)
             .await
     }
 }
@@ -1252,7 +1255,7 @@ impl CommercialRequestAuthenticator for CommercialServerAuthenticator {
             request.transport_metadata(),
             request.presented_actor(),
             request.presented_scope(),
-            &request.presented_route().tenant_id,
+            &request.presented_route().holding_id,
             if write {
                 "commercial.write"
             } else {
@@ -1319,7 +1322,7 @@ impl CommercialServerAuthenticator {
             )
             .await
             .map_err(commercial_auth_error)?;
-        let customer_id = Uuid::parse_str(&request.presented_route().tenant_id)
+        let customer_id = Uuid::parse_str(&request.presented_route().holding_id)
             .map_err(|_| CommercialAuthenticationError::Denied)?;
         if !self
             .state
@@ -1501,8 +1504,8 @@ pub(crate) async fn authenticate_context(
     state: &AppState,
     metadata: &MetadataMap,
     presented_actor: &ActorAttribution,
-    presented_scope: &TenantScope,
-    tenant_id: &str,
+    presented_scope: &AuthorityScope,
+    holding_id: &str,
     permission: &'static str,
     product: &'static str,
     write: bool,
@@ -1514,7 +1517,7 @@ pub(crate) async fn authenticate_context(
         metadata,
         presented_actor,
         presented_scope,
-        tenant_id,
+        holding_id,
         &[permission],
         None,
         product,
@@ -1526,13 +1529,13 @@ pub(crate) async fn authenticate_context(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) async fn authenticate_context_for_tenant(
+pub(crate) async fn authenticate_context_for_holding(
     state: &AppState,
     metadata: &MetadataMap,
     presented_actor: &ActorAttribution,
-    presented_scope: &TenantScope,
+    presented_scope: &AuthorityScope,
     customer_id: &str,
-    authorization_tenant: &str,
+    authorization_holding: &str,
     permission: &'static str,
     product: &'static str,
     write: bool,
@@ -1546,7 +1549,7 @@ pub(crate) async fn authenticate_context_for_tenant(
         presented_scope,
         customer_id,
         &[permission],
-        Some(authorization_tenant),
+        Some(authorization_holding),
         product,
         write,
         subscription_id,
@@ -1560,10 +1563,10 @@ async fn authenticate_context_with_permissions(
     state: &AppState,
     metadata: &MetadataMap,
     presented_actor: &ActorAttribution,
-    presented_scope: &TenantScope,
-    tenant_id: &str,
+    presented_scope: &AuthorityScope,
+    holding_id: &str,
     permissions: &[&'static str],
-    authorization_tenant: Option<&str>,
+    authorization_holding: Option<&str>,
     product: &'static str,
     write: bool,
     subscription_id: Option<&str>,
@@ -1582,12 +1585,12 @@ async fn authenticate_context_with_permissions(
     for permission in permissions {
         match state
             .auth
-            .authorize_role_for_tenant(
+            .authorize_role_for_holding(
                 &state.store,
                 &claims,
                 &access_scope,
                 permission,
-                authorization_tenant,
+                authorization_holding,
             )
             .await
         {
@@ -1601,9 +1604,12 @@ async fn authenticate_context_with_permissions(
     }
     let permission = authorized_permission
         .ok_or_else(|| Status::permission_denied("active role does not authorize this read"))?;
-    let customer_id = Uuid::parse_str(crate::validate_transport_reference(tenant_id, "tenant_id")?)
-        .map_err(|_| Status::invalid_argument("tenant_id must be a UUID"))?;
-    if presented_scope != &TenantScope::Platform
+    let customer_id = Uuid::parse_str(crate::validate_transport_reference(
+        holding_id,
+        "holding_id",
+    )?)
+    .map_err(|_| Status::invalid_argument("holding_id must be a UUID"))?;
+    if presented_scope != &AuthorityScope::Platform
         && !state
             .store
             .customer_scope_contains(customer_id, &access_scope)
@@ -1611,7 +1617,7 @@ async fn authenticate_context_with_permissions(
             .map_err(|_| Status::unavailable("customer scope authority is unavailable"))?
     {
         return Err(Status::permission_denied(
-            "tenant route is outside the authorized scope",
+            "holding route is outside the authorized scope",
         ));
     }
     if write {
@@ -1622,15 +1628,15 @@ async fn authenticate_context_with_permissions(
                     .map_err(|_| Status::permission_denied("write entitlement proof is invalid"))
             })?;
         let context = legacy_command_context(&claims, presented_scope, subscription_id, product);
-        if let Some(authorization_tenant) = authorization_tenant {
+        if let Some(authorization_holding) = authorization_holding {
             state
-                .authorize_entitled_command_for_tenant(
+                .authorize_entitled_command_for_holding(
                     &claims,
                     &context,
                     customer_id,
                     product,
                     permission,
-                    authorization_tenant,
+                    authorization_holding,
                 )
                 .await?;
         } else {
@@ -1646,7 +1652,7 @@ async fn authenticate_context_with_permissions(
         .map_err(|_| Status::internal("authenticated session attribution is invalid"))?;
     Ok(ActorAttribution {
         principal_ref: claims.principal_ref,
-        kind: ActorKind::TenantUser,
+        kind: ActorKind::HoldingUser,
         session_id: Some(session_id),
         represented_principal_ref: None,
         support_capability_id: None,
@@ -1655,7 +1661,7 @@ async fn authenticate_context_with_permissions(
 
 fn legacy_command_context(
     claims: &AccessTokenClaims,
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     subscription_id: Uuid,
     product: &str,
 ) -> CommandContext {
@@ -1668,12 +1674,12 @@ fn legacy_command_context(
         causation_id: None,
         actor: LegacyActorAttribution {
             principal_ref: claims.principal_ref.clone(),
-            kind: LegacyActorKind::TenantUser,
+            kind: LegacyActorKind::HoldingUser,
             session_id: Some(claims.session_id),
             represented_principal_ref: None,
             support_capability_id: None,
         },
-        tenant_scope: crate::quality_legacy_scope(scope),
+        active_scope: crate::quality_legacy_scope(scope),
         audit: LegacyAuditContext {
             purpose: format!("authorize {product} command"),
             customer_visible: false,
@@ -1686,29 +1692,29 @@ fn legacy_command_context(
 }
 
 fn required_router<'a>(
-    router: &'a Option<Arc<TenantDatabaseRouter>>,
+    router: &'a Option<Arc<HoldingDatabaseRouter>>,
     correlation_id: CorrelationId,
     context: &'static str,
-) -> Result<&'a Arc<TenantDatabaseRouter>, CqrsError> {
+) -> Result<&'a Arc<HoldingDatabaseRouter>, CqrsError> {
     router
         .as_ref()
         .ok_or_else(|| context_unavailable(correlation_id, context, "routing"))
 }
 
 fn ensure_route_scope(
-    holding_ref: &str,
-    target: &TenantScope,
+    data_profile_key: &str,
+    target: &AuthorityScope,
     correlation_id: CorrelationId,
     context: &'static str,
 ) -> Result<(), CqrsError> {
     let holding_id = match target {
-        TenantScope::Platform => return Ok(()),
-        TenantScope::Holding { holding_id }
-        | TenantScope::Company { holding_id, .. }
-        | TenantScope::Branch { holding_id, .. }
-        | TenantScope::Subtree { holding_id, .. } => holding_id,
+        AuthorityScope::Platform => return Ok(()),
+        AuthorityScope::Holding { holding_id }
+        | AuthorityScope::Company { holding_id, .. }
+        | AuthorityScope::Branch { holding_id, .. }
+        | AuthorityScope::Subtree { holding_id, .. } => holding_id,
     };
-    if holding_ref != holding_id.to_string() {
+    if data_profile_key != holding_id.to_string() {
         return Err(context_failure(
             correlation_id,
             format!("{context}.route_scope_mismatch"),
@@ -1734,20 +1740,20 @@ fn context_unavailable(
     )
 }
 
-fn cqrs_tenant_uuid(
-    tenant_id: &str,
+fn cqrs_holding_uuid(
+    holding_id: &str,
     correlation_id: CorrelationId,
     context: &'static str,
 ) -> Result<Uuid, CqrsError> {
-    Uuid::parse_str(tenant_id).map_err(|_| invalid_tenant_binding(correlation_id, context))
+    Uuid::parse_str(holding_id).map_err(|_| invalid_holding_binding(correlation_id, context))
 }
 
-fn invalid_tenant_binding(correlation_id: CorrelationId, context: &'static str) -> CqrsError {
+fn invalid_holding_binding(correlation_id: CorrelationId, context: &'static str) -> CqrsError {
     context_failure(
         correlation_id,
-        format!("{context}.invalid_tenant_identity"),
+        format!("{context}.invalid_holding_identity"),
         ErrorCategory::Internal,
-        "The routed tenant identity is invalid.",
+        "The routed holding identity is invalid.",
         false,
     )
 }

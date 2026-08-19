@@ -16,7 +16,7 @@ pub use role::{AccessRole, AccessRoleState, PermissionKey, RoleCode, RoleId};
 pub const MAX_IDENTITY_ACCESS_TEXT_BYTES: usize = 256;
 
 use chrono::{DateTime, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -50,7 +50,7 @@ impl IdentityGovernanceRecord {
             Self::BreakGlass(value) => value.version(),
         }
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         match self {
             Self::AccessReview(value) => value.scope(),
             Self::BreakGlass(value) => value.scope(),
@@ -90,7 +90,7 @@ impl IdentityAccessAggregate {
         }
     }
 
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         match self {
             Self::Principal(value) => value.scope(),
             Self::Role(value) => value.scope(),
@@ -229,7 +229,7 @@ pub(crate) fn validate_text(
     Ok(())
 }
 
-pub(crate) fn validate_scope(scope: &TenantScope) -> Result<(), IdentityAccessDomainError> {
+pub(crate) fn validate_scope(scope: &AuthorityScope) -> Result<(), IdentityAccessDomainError> {
     scope
         .validate()
         .map_err(|_| IdentityAccessDomainError::InvalidScope)

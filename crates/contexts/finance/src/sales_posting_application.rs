@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_integration_contracts::{DimensionSet, RecordRef};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -81,7 +81,7 @@ pub enum SalesPostingCommand {
 pub struct SalesPostingCommandRequest {
     pub command_id: Uuid,
     pub idempotency_key: String,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub actor_ref: String,
     pub expected_version: u64,
     pub command: SalesPostingCommand,
@@ -122,7 +122,7 @@ pub struct SalesPostingCommandReceipt {
 pub trait SalesPostingAuthorizationPort: Send + Sync {
     async fn authorize(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         actor_ref: &str,
         command: &SalesPostingCommand,
     ) -> Result<bool, SalesPostingApplicationError>;
@@ -132,19 +132,19 @@ pub trait SalesPostingAuthorizationPort: Send + Sync {
 pub trait SalesPostingRepository: Send + Sync {
     async fn load_plan(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: AccountingPlanId,
     ) -> Result<Option<AccountingPlan>, SalesPostingApplicationError>;
 
     async fn load_packet(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: PostingPacketId,
     ) -> Result<Option<PostingPacket>, SalesPostingApplicationError>;
 
     async fn commit(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         commit: SalesPostingCommit,
     ) -> Result<SalesPostingCommandReceipt, SalesPostingApplicationError>;
 }
@@ -311,7 +311,7 @@ where
 
     async fn load_plan(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         expected_version: u64,
         id: AccountingPlanId,
     ) -> Result<AccountingPlan, SalesPostingApplicationError> {
@@ -328,7 +328,7 @@ where
 
     async fn load_packet(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         expected_version: u64,
         id: PostingPacketId,
     ) -> Result<PostingPacket, SalesPostingApplicationError> {

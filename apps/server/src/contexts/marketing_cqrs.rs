@@ -6,8 +6,8 @@ use erpx_cqrs::{
     QueryEnvelope, QueryMetadata, QueryResult, ReadYourWrites,
 };
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
-    QueryId, SessionId, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+    ErrorCategory, EventId, QueryId, SessionId,
 };
 use erpx_marketing::{
     AudienceMemberId, CampaignId, CaptureEngagement, CreateLeadCandidate, GetLeadCandidate,
@@ -15,16 +15,16 @@ use erpx_marketing::{
     ListLeadCandidates, MarketingCommand, MarketingMutationResult, MarketingQuery,
     MarketingQueryResponse, QualifyLeadCandidate, RejectLeadCandidate,
 };
-use erpx_proto::{common, erpx::marketing::v2 as platform};
+use erpx_proto::{common, erpx::marketing as platform};
 use std::sync::Arc;
 use tonic::{Request, Response, Status, metadata::MetadataMap};
 use uuid::Uuid;
 
 const MAX_ROUTE_LENGTH: usize = 255;
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MarketingTenantRoute {
-    pub tenant_id: String,
-    pub holding_ref: String,
+pub struct MarketingHoldingRoute {
+    pub holding_id: String,
+    pub data_profile_key: String,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MarketingAccessMode {
@@ -34,8 +34,8 @@ pub enum MarketingAccessMode {
 pub struct MarketingAuthenticationRequest {
     transport_metadata: MetadataMap,
     presented_actor: ActorAttribution,
-    presented_scope: TenantScope,
-    presented_route: Option<MarketingTenantRoute>,
+    presented_scope: AuthorityScope,
+    presented_route: Option<MarketingHoldingRoute>,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
     access_mode: MarketingAccessMode,
@@ -47,10 +47,10 @@ impl MarketingAuthenticationRequest {
     pub const fn presented_actor(&self) -> &ActorAttribution {
         &self.presented_actor
     }
-    pub const fn presented_scope(&self) -> &TenantScope {
+    pub const fn presented_scope(&self) -> &AuthorityScope {
         &self.presented_scope
     }
-    pub const fn presented_route(&self) -> Option<&MarketingTenantRoute> {
+    pub const fn presented_route(&self) -> Option<&MarketingHoldingRoute> {
         self.presented_route.as_ref()
     }
     pub fn subscription_id(&self) -> Option<&str> {
@@ -66,37 +66,37 @@ impl MarketingAuthenticationRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthenticatedMarketingRequest {
     actor: ActorAttribution,
-    tenant_scope: TenantScope,
-    route: MarketingTenantRoute,
+    active_scope: AuthorityScope,
+    route: MarketingHoldingRoute,
 }
 impl AuthenticatedMarketingRequest {
     pub fn try_new(
         actor: ActorAttribution,
-        tenant_scope: TenantScope,
-        route: MarketingTenantRoute,
+        active_scope: AuthorityScope,
+        route: MarketingHoldingRoute,
     ) -> Result<Self, MarketingAuthenticationError> {
         actor
             .validate()
             .map_err(|_| MarketingAuthenticationError::Internal)?;
-        tenant_scope
+        active_scope
             .validate()
             .map_err(|_| MarketingAuthenticationError::Internal)?;
         validate_route(&route).map_err(|_| MarketingAuthenticationError::Internal)?;
-        validate_legacy_uuid_route_scope(&route, &tenant_scope)
+        validate_legacy_uuid_route_scope(&route, &active_scope)
             .map_err(|_| MarketingAuthenticationError::Internal)?;
         Ok(Self {
             actor,
-            tenant_scope,
+            active_scope,
             route,
         })
     }
     pub const fn actor(&self) -> &ActorAttribution {
         &self.actor
     }
-    pub const fn tenant_scope(&self) -> &TenantScope {
-        &self.tenant_scope
+    pub const fn active_scope(&self) -> &AuthorityScope {
+        &self.active_scope
     }
-    pub const fn route(&self) -> &MarketingTenantRoute {
+    pub const fn route(&self) -> &MarketingHoldingRoute {
         &self.route
     }
 }
@@ -118,7 +118,7 @@ pub trait MarketingRequestAuthenticator: Send + Sync + 'static {
 pub trait MarketingCommandApplication: Send + Sync + 'static {
     async fn execute(
         &self,
-        route: MarketingTenantRoute,
+        route: MarketingHoldingRoute,
         command: CommandEnvelope<MarketingCommand>,
     ) -> Result<CommandReceipt<MarketingMutationResult>, CqrsError>;
 }
@@ -126,7 +126,7 @@ pub trait MarketingCommandApplication: Send + Sync + 'static {
 pub trait MarketingQueryApplication: Send + Sync + 'static {
     async fn execute(
         &self,
-        route: MarketingTenantRoute,
+        route: MarketingHoldingRoute,
         query: QueryEnvelope<MarketingQuery>,
     ) -> Result<QueryResult<MarketingQueryResponse>, CqrsError>;
 }
@@ -326,25 +326,25 @@ impl<A: MarketingQueryApplication, G: MarketingRequestAuthenticator> MarketingQu
 }
 
 struct DecodedCommand<C> {
-    route: Option<MarketingTenantRoute>,
+    route: Option<MarketingHoldingRoute>,
     envelope: CommandEnvelope<C>,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
 }
 struct DecodedQuery<Q> {
-    route: Option<MarketingTenantRoute>,
+    route: Option<MarketingHoldingRoute>,
     envelope: QueryEnvelope<Q>,
 }
 async fn authenticate_command<C, G: MarketingRequestAuthenticator>(
     auth: &G,
     transport: MetadataMap,
     decoded: DecodedCommand<C>,
-) -> Result<(MarketingTenantRoute, CommandEnvelope<C>), Status> {
+) -> Result<(MarketingHoldingRoute, CommandEnvelope<C>), Status> {
     let authenticated = auth
         .authenticate(MarketingAuthenticationRequest {
             transport_metadata: transport,
             presented_actor: decoded.envelope.actor.clone(),
-            presented_scope: decoded.envelope.tenant_scope.clone(),
+            presented_scope: decoded.envelope.active_scope.clone(),
             presented_route: decoded.route,
             subscription_id: decoded.subscription_id,
             mfa_code: decoded.mfa_code,
@@ -354,7 +354,7 @@ async fn authenticate_command<C, G: MarketingRequestAuthenticator>(
         .map_err(status_from_auth)?;
     let mut envelope = decoded.envelope;
     envelope.actor = authenticated.actor().clone();
-    envelope.tenant_scope = authenticated.tenant_scope().clone();
+    envelope.active_scope = authenticated.active_scope().clone();
     envelope
         .validate()
         .map_err(|_| Status::internal("authenticated Marketing authority is invalid"))?;
@@ -364,12 +364,12 @@ async fn authenticate_query<Q, G: MarketingRequestAuthenticator>(
     auth: &G,
     transport: MetadataMap,
     decoded: DecodedQuery<Q>,
-) -> Result<(MarketingTenantRoute, QueryEnvelope<Q>), Status> {
+) -> Result<(MarketingHoldingRoute, QueryEnvelope<Q>), Status> {
     let authenticated = auth
         .authenticate(MarketingAuthenticationRequest {
             transport_metadata: transport,
             presented_actor: decoded.envelope.actor.clone(),
-            presented_scope: decoded.envelope.tenant_scope.clone(),
+            presented_scope: decoded.envelope.active_scope.clone(),
             presented_route: decoded.route,
             subscription_id: None,
             mfa_code: None,
@@ -379,7 +379,7 @@ async fn authenticate_query<Q, G: MarketingRequestAuthenticator>(
         .map_err(status_from_auth)?;
     let mut envelope = decoded.envelope;
     envelope.actor = authenticated.actor().clone();
-    envelope.tenant_scope = authenticated.tenant_scope().clone();
+    envelope.active_scope = authenticated.active_scope().clone();
     Ok((authenticated.route().clone(), envelope))
 }
 fn decode_command<C>(
@@ -387,7 +387,7 @@ fn decode_command<C>(
     command: C,
 ) -> Result<DecodedCommand<C>, Status> {
     let metadata = metadata.ok_or_else(|| invalid("command metadata is required"))?;
-    let route = decode_route(metadata.tenant_route)?;
+    let route = decode_route(metadata.holding_route)?;
     let correlation_id = correlation(&metadata.correlation_id)?;
     let envelope = CommandEnvelope {
         contract_version: u16::try_from(metadata.contract_version)
@@ -399,10 +399,10 @@ fn decode_command<C>(
         correlation_id,
         causation_id: metadata.causation_id.as_deref().map(event_id).transpose()?,
         actor: decode_actor(metadata.actor)?,
-        tenant_scope: decode_scope(
+        active_scope: decode_scope(
             metadata
-                .tenant_scope
-                .ok_or_else(|| invalid("tenant_scope is required"))?,
+                .active_scope
+                .ok_or_else(|| invalid("active_scope is required"))?,
         )?,
         audit: decode_audit(metadata.audit)?,
         expected_aggregate_version: metadata.expected_aggregate_version,
@@ -423,7 +423,7 @@ fn decode_query<Q>(
     query: Q,
 ) -> Result<DecodedQuery<Q>, Status> {
     let metadata = metadata.ok_or_else(|| invalid("query metadata is required"))?;
-    let route = decode_route(metadata.tenant_route)?;
+    let route = decode_route(metadata.holding_route)?;
     let envelope = QueryEnvelope {
         contract_version: u16::try_from(metadata.contract_version)
             .map_err(|_| invalid("contract_version is invalid"))?,
@@ -431,10 +431,10 @@ fn decode_query<Q>(
             .map_err(|_| invalid("query_id is invalid"))?,
         correlation_id: correlation(&metadata.correlation_id)?,
         actor: decode_actor(metadata.actor)?,
-        tenant_scope: decode_scope(
+        active_scope: decode_scope(
             metadata
-                .tenant_scope
-                .ok_or_else(|| invalid("tenant_scope is required"))?,
+                .active_scope
+                .ok_or_else(|| invalid("active_scope is required"))?,
         )?,
         audit: decode_audit(metadata.audit)?,
         consistency: decode_consistency(metadata.consistency)?,
@@ -571,52 +571,52 @@ fn encode_consistency(v: &QueryConsistency) -> common::QueryConsistency {
         }),
     }
 }
-fn decode_route(v: Option<common::TenantRoute>) -> Result<Option<MarketingTenantRoute>, Status> {
+fn decode_route(v: Option<common::HoldingRoute>) -> Result<Option<MarketingHoldingRoute>, Status> {
     let Some(v) = v else {
         return Ok(None);
     };
-    let route = MarketingTenantRoute {
-        tenant_id: v.tenant_id.trim().into(),
-        holding_ref: v.holding_ref.trim().into(),
+    let route = MarketingHoldingRoute {
+        holding_id: v.holding_id.trim().into(),
+        data_profile_key: v.data_profile_key.trim().into(),
     };
     validate_route(&route)?;
     Ok(Some(route))
 }
-fn validate_route(v: &MarketingTenantRoute) -> Result<(), Status> {
-    if [&v.tenant_id, &v.holding_ref]
+fn validate_route(v: &MarketingHoldingRoute) -> Result<(), Status> {
+    if [&v.holding_id, &v.data_profile_key]
         .iter()
         .any(|v| v.is_empty() || v.len() > MAX_ROUTE_LENGTH)
     {
-        Err(invalid("tenant route is invalid"))
+        Err(invalid("holding route is invalid"))
     } else {
         Ok(())
     }
 }
 fn validate_legacy_uuid_route_scope(
-    route: &MarketingTenantRoute,
-    scope: &TenantScope,
+    route: &MarketingHoldingRoute,
+    scope: &AuthorityScope,
 ) -> Result<(), Status> {
-    let Ok(presented_holding) = Uuid::parse_str(&route.holding_ref) else {
+    let Ok(presented_holding) = Uuid::parse_str(&route.data_profile_key) else {
         return Ok(());
     };
     let holding = match scope {
-        TenantScope::Platform => return Ok(()),
-        TenantScope::Holding { holding_id }
-        | TenantScope::Company { holding_id, .. }
-        | TenantScope::Branch { holding_id, .. }
-        | TenantScope::Subtree { holding_id, .. } => holding_id,
+        AuthorityScope::Platform => return Ok(()),
+        AuthorityScope::Holding { holding_id }
+        | AuthorityScope::Company { holding_id, .. }
+        | AuthorityScope::Branch { holding_id, .. }
+        | AuthorityScope::Subtree { holding_id, .. } => holding_id,
     };
     if presented_holding == *holding {
         Ok(())
     } else {
-        Err(invalid("tenant route does not match Marketing scope"))
+        Err(invalid("holding route does not match Marketing scope"))
     }
 }
 fn decode_actor(v: Option<common::ActorAttribution>) -> Result<ActorAttribution, Status> {
     let v = v.ok_or_else(|| invalid("actor is required"))?;
     let kind = match common::ActorKind::try_from(v.kind).ok() {
         Some(common::ActorKind::PlatformUser) => ActorKind::PlatformUser,
-        Some(common::ActorKind::TenantUser) => ActorKind::TenantUser,
+        Some(common::ActorKind::HoldingUser) => ActorKind::HoldingUser,
         Some(common::ActorKind::Service) => ActorKind::Service,
         Some(common::ActorKind::SystemWorker) => ActorKind::SystemWorker,
         _ => return Err(invalid("actor kind is invalid")),
@@ -640,53 +640,44 @@ fn decode_audit(v: Option<common::AuditContext>) -> Result<AuditContext, Status>
         module: nonempty(v.module),
     })
 }
-fn decode_scope(v: common::TenantScope) -> Result<TenantScope, Status> {
-    use common::tenant_scope::Scope;
+fn decode_scope(v: common::AuthorityScope) -> Result<AuthorityScope, Status> {
+    use common::authority_scope::Scope;
     match v.scope.ok_or_else(|| invalid("scope is required"))? {
-        Scope::Platform(_) => Ok(TenantScope::Platform),
-        Scope::Holding(v) => Ok(TenantScope::Holding {
+        Scope::Platform(_) => Ok(AuthorityScope::Platform),
+        Scope::Holding(v) => Ok(AuthorityScope::Holding {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
         }),
-        Scope::Company(v) => Ok(TenantScope::Company {
+        Scope::Company(v) => Ok(AuthorityScope::Company {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
             company_id: parse_uuid(&v.company_id, "company_id")?,
         }),
-        Scope::Branch(v) => Ok(TenantScope::Branch {
+        Scope::Branch(v) => Ok(AuthorityScope::Branch {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
             company_id: parse_uuid(&v.company_id, "company_id")?,
             branch_id: parse_uuid(&v.branch_id, "branch_id")?,
         }),
-        Scope::Subtree(v) => Ok(TenantScope::Subtree {
+        Scope::Subtree(v) => Ok(AuthorityScope::Subtree {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
-            company_ids: v
-                .company_ids
-                .iter()
-                .map(|id| parse_uuid(id, "company_id"))
-                .collect::<Result<_, _>>()?,
-            branch_ids: v
-                .branch_ids
-                .iter()
-                .map(|id| parse_uuid(id, "branch_id"))
-                .collect::<Result<_, _>>()?,
+            organization_node_id: parse_uuid(&v.organization_node_id, "organization_node_id")?,
         }),
     }
 }
-fn encode_scope(v: &TenantScope) -> common::TenantScope {
-    use common::tenant_scope::Scope;
-    common::TenantScope {
+fn encode_scope(v: &AuthorityScope) -> common::AuthorityScope {
+    use common::authority_scope::Scope;
+    common::AuthorityScope {
         scope: Some(match v {
-            TenantScope::Platform => Scope::Platform(common::PlatformScope {}),
-            TenantScope::Holding { holding_id } => Scope::Holding(common::HoldingScope {
+            AuthorityScope::Platform => Scope::Platform(common::PlatformScope {}),
+            AuthorityScope::Holding { holding_id } => Scope::Holding(common::HoldingScope {
                 holding_id: holding_id.to_string(),
             }),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => Scope::Company(common::CompanyScope {
                 holding_id: holding_id.to_string(),
                 company_id: company_id.to_string(),
             }),
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -695,14 +686,12 @@ fn encode_scope(v: &TenantScope) -> common::TenantScope {
                 company_id: company_id.to_string(),
                 branch_id: branch_id.to_string(),
             }),
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Scope::Subtree(common::SubtreeScope {
                 holding_id: holding_id.to_string(),
-                company_ids: company_ids.iter().map(ToString::to_string).collect(),
-                branch_ids: branch_ids.iter().map(ToString::to_string).collect(),
+                organization_node_id: organization_node_id.to_string(),
             }),
         }),
     }
@@ -774,7 +763,7 @@ mod tests {
     fn actor() -> ActorAttribution {
         ActorAttribution {
             principal_ref: "marketing-route-test".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
@@ -786,7 +775,7 @@ mod tests {
             decode_status(encode_status(LeadCandidateStatus::Qualified)).unwrap(),
             LeadCandidateStatus::Qualified
         );
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         };
@@ -810,19 +799,19 @@ mod tests {
     #[test]
     fn authenticated_route_must_match_authority_holding() {
         let holding = Uuid::from_u128(11);
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id: holding,
             company_id: Uuid::from_u128(12),
         };
-        let matching = MarketingTenantRoute {
-            tenant_id: "tenant-a".into(),
-            holding_ref: holding.to_string(),
+        let matching = MarketingHoldingRoute {
+            holding_id: "holding-a".into(),
+            data_profile_key: holding.to_string(),
         };
         assert!(AuthenticatedMarketingRequest::try_new(actor(), scope.clone(), matching).is_ok());
 
-        let mismatched = MarketingTenantRoute {
-            tenant_id: "tenant-a".into(),
-            holding_ref: Uuid::from_u128(99).to_string(),
+        let mismatched = MarketingHoldingRoute {
+            holding_id: "holding-a".into(),
+            data_profile_key: Uuid::from_u128(99).to_string(),
         };
         assert_eq!(
             AuthenticatedMarketingRequest::try_new(actor(), scope, mismatched),
@@ -831,7 +820,7 @@ mod tests {
     }
 
     #[test]
-    fn tenant_route_may_be_omitted_for_server_resolution() {
+    fn holding_route_may_be_omitted_for_server_resolution() {
         assert_eq!(decode_route(None).expect("optional route"), None);
     }
 }

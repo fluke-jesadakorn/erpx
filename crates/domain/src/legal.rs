@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::contracts::{CommandContext, TenantScope};
+use crate::contracts::{AuthorityScope, CommandContext};
 
 pub const LEGAL_CONTRACT_VERSION: u16 = 1;
 pub const MAX_LEGAL_REFERENCE_BYTES: usize = 255;
@@ -62,7 +62,7 @@ pub enum LegalError {
     InvalidDownloadAuthorization,
 }
 
-/// Tenant-scoped source/read reconciliation facts for the disposable Legal
+/// Holding-scoped source/read reconciliation facts for the disposable Legal
 /// and document projection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct LegalProjectionReconciliation {
@@ -116,12 +116,12 @@ fn safe(value: String, field: &'static str, max: usize) -> Result<String, LegalE
 
 fn command_actor<'a>(
     context: &'a CommandContext,
-    scope: &TenantScope,
+    scope: &AuthorityScope,
 ) -> Result<&'a str, LegalError> {
     context
         .validate()
         .map_err(|error| LegalError::InvalidCommandContext(error.to_string()))?;
-    if !context.tenant_scope.contains(scope) {
+    if !context.active_scope.contains(scope) {
         return Err(LegalError::ScopeNotContained);
     }
     let actor = context.actor.principal_ref.trim();
@@ -180,14 +180,14 @@ impl LegalScope {
         Ok(())
     }
 
-    pub fn tenant_scope(&self) -> TenantScope {
+    pub fn active_scope(&self) -> AuthorityScope {
         match self.branch_id {
-            Some(branch_id) => TenantScope::Branch {
+            Some(branch_id) => AuthorityScope::Branch {
                 holding_id: self.holding_id,
                 company_id: self.company_id,
                 branch_id,
             },
-            None => TenantScope::Company {
+            None => AuthorityScope::Company {
                 holding_id: self.holding_id,
                 company_id: self.company_id,
             },
@@ -277,7 +277,7 @@ impl LegalContract {
         }
         scope.validate()?;
         validate_retention_horizon(retention_until)?;
-        let created_by = command_actor(context, &scope.tenant_scope())?.to_owned();
+        let created_by = command_actor(context, &scope.active_scope())?.to_owned();
         Ok(Self {
             id,
             reference: safe(
@@ -308,7 +308,7 @@ impl LegalContract {
         party: ContractParty,
         context: &CommandContext,
     ) -> Result<(), LegalError> {
-        command_actor(context, &self.scope.tenant_scope())?;
+        command_actor(context, &self.scope.active_scope())?;
         if self.status != ContractStatus::Draft {
             return Err(LegalError::Terminal);
         }
@@ -339,7 +339,7 @@ impl LegalContract {
     }
 
     pub fn approve(&mut self, context: &CommandContext) -> Result<(), LegalError> {
-        let approver = command_actor(context, &self.scope.tenant_scope())?.to_owned();
+        let approver = command_actor(context, &self.scope.active_scope())?.to_owned();
         if approver == self.created_by {
             return Err(LegalError::ApprovalSeparation);
         }
@@ -359,7 +359,7 @@ impl LegalContract {
         now: DateTime<Utc>,
         context: &CommandContext,
     ) -> Result<(), LegalError> {
-        command_actor(context, &self.scope.tenant_scope())?;
+        command_actor(context, &self.scope.active_scope())?;
         if now < self.retention_until && self.status == ContractStatus::Active {
             return Err(LegalError::RetentionActive);
         }
@@ -375,7 +375,7 @@ impl LegalContract {
         now: DateTime<Utc>,
         context: &CommandContext,
     ) -> Result<(), LegalError> {
-        command_actor(context, &self.scope.tenant_scope())?;
+        command_actor(context, &self.scope.active_scope())?;
         if now < self.retention_until {
             return Err(LegalError::RetentionActive);
         }
@@ -403,7 +403,7 @@ impl LegalContract {
                 to: next.as_str(),
             });
         }
-        command_actor(context, &self.scope.tenant_scope())?;
+        command_actor(context, &self.scope.active_scope())?;
         let mut candidate = self.clone();
         candidate.status = next;
         candidate.commit(context)?;
@@ -461,7 +461,7 @@ impl LegalDocument {
             });
         }
         scope.validate()?;
-        command_actor(context, &scope.tenant_scope())?;
+        command_actor(context, &scope.active_scope())?;
         Ok(Self {
             id,
             scope,
@@ -481,7 +481,7 @@ impl LegalDocument {
         if self.archived {
             return Err(LegalError::Terminal);
         }
-        let created_by = command_actor(context, &self.scope.tenant_scope())?.to_owned();
+        let created_by = command_actor(context, &self.scope.active_scope())?.to_owned();
         if self.versions.len() >= MAX_DOCUMENT_VERSIONS {
             return Err(LegalError::VersionLimit);
         }
@@ -507,7 +507,7 @@ impl LegalDocument {
     }
 
     pub fn archive(&mut self, context: &CommandContext) -> Result<(), LegalError> {
-        command_actor(context, &self.scope.tenant_scope())?;
+        command_actor(context, &self.scope.active_scope())?;
         if self.archived {
             return Err(LegalError::Terminal);
         }
@@ -556,7 +556,7 @@ impl SignedDownloadAuthorization {
             return Err(LegalError::InvalidDownloadAuthorization);
         }
         scope.validate()?;
-        let actor_ref = command_actor(context, &scope.tenant_scope())?.to_owned();
+        let actor_ref = command_actor(context, &scope.active_scope())?.to_owned();
         Ok(Self {
             document_id,
             version,
@@ -638,7 +638,7 @@ impl LegalAccessHistoryEntry {
             });
         }
         scope.validate()?;
-        let actor_ref = command_actor(context, &scope.tenant_scope())?.to_owned();
+        let actor_ref = command_actor(context, &scope.active_scope())?.to_owned();
         if observed_at > Utc::now() + MAX_LEGAL_CLOCK_SKEW {
             return Err(LegalError::ClockSkewExceeded);
         }
@@ -661,12 +661,12 @@ mod tests {
     use crate::contracts::{ActorAttribution, ActorKind};
     use chrono::Duration;
 
-    fn context(actor: &str, scope: TenantScope, key: &str) -> CommandContext {
+    fn context(actor: &str, scope: AuthorityScope, key: &str) -> CommandContext {
         CommandContext::try_new(
             key,
             ActorAttribution {
                 principal_ref: actor.into(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: None,
                 represented_principal_ref: None,
                 support_capability_id: None,
@@ -684,16 +684,16 @@ mod tests {
     #[test]
     fn contract_requires_separated_approval_and_retention_before_archive() {
         let legal_scope = scope();
-        let tenant_scope = legal_scope.tenant_scope();
-        let creator = context("creator", tenant_scope.clone(), "contract-create");
-        let reviewer = context("reviewer", tenant_scope, "contract-review");
+        let active_scope = legal_scope.active_scope();
+        let creator = context("creator", active_scope.clone(), "contract-create");
+        let reviewer = context("reviewer", active_scope, "contract-review");
         let now = Utc::now();
         let mut contract = LegalContract::new(
             Uuid::new_v4(),
             "contract-001",
             "Supplier agreement",
             legal_scope.clone(),
-            "tenant/objects/contract-001-v1",
+            "holding/objects/contract-001-v1",
             "sha256:abc",
             now + Duration::days(30),
             &creator,
@@ -728,14 +728,14 @@ mod tests {
     #[test]
     fn contract_retention_is_bounded_at_aggregate_construction() {
         let legal_scope = scope();
-        let context = context("creator", legal_scope.tenant_scope(), "retention-bound");
+        let context = context("creator", legal_scope.active_scope(), "retention-bound");
         assert_eq!(
             LegalContract::new(
                 Uuid::new_v4(),
                 "contract-retention-bound",
                 "Bounded retention",
                 legal_scope.clone(),
-                "tenant/contracts/retention-bound",
+                "holding/contracts/retention-bound",
                 "sha256:abc",
                 Utc::now() + Duration::days(36_526),
                 &context,
@@ -747,16 +747,16 @@ mod tests {
     #[test]
     fn contract_termination_is_explicit_revocation_before_retention_archive() {
         let legal_scope = scope();
-        let tenant_scope = legal_scope.tenant_scope();
-        let creator = context("creator", tenant_scope.clone(), "revoke-create");
-        let reviewer = context("reviewer", tenant_scope, "revoke-review");
+        let active_scope = legal_scope.active_scope();
+        let creator = context("creator", active_scope.clone(), "revoke-create");
+        let reviewer = context("reviewer", active_scope, "revoke-review");
         let now = Utc::now();
         let mut contract = LegalContract::new(
             Uuid::new_v4(),
             "contract-revoke-001",
             "Revocable supplier agreement",
             legal_scope,
-            "tenant/objects/contract-revoke-001-v1",
+            "holding/objects/contract-revoke-001-v1",
             "sha256:abc",
             now + Duration::days(30),
             &creator,
@@ -780,7 +780,7 @@ mod tests {
     #[test]
     fn document_versions_and_download_authorizations_are_bounded_and_expiring() {
         let legal_scope = scope();
-        let context = context("legal-admin", legal_scope.tenant_scope(), "document");
+        let context = context("legal-admin", legal_scope.active_scope(), "document");
         let mut document = LegalDocument::new(
             Uuid::new_v4(),
             legal_scope.clone(),
@@ -789,13 +789,13 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            document.add_version("tenant/docs/v1", "sha256:v1", &context),
+            document.add_version("holding/docs/v1", "sha256:v1", &context),
             Ok(1)
         );
         let authorization = SignedDownloadAuthorization::new(
             document.id,
             1,
-            "tenant/docs/v1",
+            "holding/docs/v1",
             legal_scope.clone(),
             "legal_review",
             Utc::now() + Duration::minutes(10),
@@ -817,11 +817,11 @@ mod tests {
     #[test]
     fn deserialized_download_metadata_is_revalidated_before_storage_use() {
         let legal_scope = scope();
-        let context = context("legal-admin", legal_scope.tenant_scope(), "document");
+        let context = context("legal-admin", legal_scope.active_scope(), "document");
         let mut authorization = SignedDownloadAuthorization::new(
             Uuid::new_v4(),
             1,
-            "tenant/docs/v1",
+            "holding/docs/v1",
             legal_scope,
             "legal_review",
             Utc::now() + Duration::minutes(10),
@@ -849,7 +849,7 @@ mod tests {
             SignedDownloadAuthorization::new(
                 Uuid::new_v4(),
                 1,
-                "tenant/docs/expired",
+                "holding/docs/expired",
                 authorization.scope.clone(),
                 "legal_review",
                 Utc::now() - Duration::minutes(1),
@@ -863,7 +863,7 @@ mod tests {
     #[test]
     fn access_history_rejects_cross_scope_and_sensitive_values() {
         let legal_scope = scope();
-        let context = context("admin", legal_scope.tenant_scope(), "access");
+        let context = context("admin", legal_scope.active_scope(), "access");
         assert!(
             LegalAccessHistoryEntry::new(
                 Uuid::new_v4(),
@@ -893,7 +893,7 @@ mod tests {
             SignedDownloadAuthorization::new(
                 Uuid::new_v4(),
                 1,
-                "tenant/docs/v1",
+                "holding/docs/v1",
                 other_scope,
                 "review",
                 Utc::now() + Duration::minutes(1),
@@ -919,14 +919,14 @@ mod tests {
     #[test]
     fn duplicate_contract_parties_are_rejected() {
         let legal_scope = scope();
-        let context = context("creator", legal_scope.tenant_scope(), "parties");
+        let context = context("creator", legal_scope.active_scope(), "parties");
         let party = ContractParty::new(Uuid::new_v4(), "customer").unwrap();
         let mut contract = LegalContract::new(
             Uuid::new_v4(),
             "contract",
             "Agreement",
             legal_scope,
-            "tenant/docs/contract",
+            "holding/docs/contract",
             "sha256:contract",
             Utc::now(),
             &context,
@@ -942,14 +942,14 @@ mod tests {
     #[test]
     fn failed_commands_do_not_partially_mutate_legal_aggregates() {
         let legal_scope = scope();
-        let creator = context("creator", legal_scope.tenant_scope(), "atomic-create");
-        let reviewer = context("reviewer", legal_scope.tenant_scope(), "atomic-review");
+        let creator = context("creator", legal_scope.active_scope(), "atomic-create");
+        let reviewer = context("reviewer", legal_scope.active_scope(), "atomic-review");
         let mut contract = LegalContract::new(
             Uuid::new_v4(),
             "atomic-contract",
             "Atomic contract",
             legal_scope.clone(),
-            "tenant/contracts/atomic",
+            "holding/contracts/atomic",
             "sha256:atomic",
             Utc::now() + Duration::days(30),
             &creator,
@@ -969,7 +969,7 @@ mod tests {
         assert!(
             document
                 .add_version(
-                    "tenant/token-documents/atomic-v1",
+                    "holding/token-documents/atomic-v1",
                     "sha256:atomic",
                     &creator
                 )
@@ -981,12 +981,12 @@ mod tests {
     #[test]
     fn archived_documents_are_terminal() {
         let legal_scope = scope();
-        let context = context("legal-admin", legal_scope.tenant_scope(), "archive");
+        let context = context("legal-admin", legal_scope.active_scope(), "archive");
         let mut document =
             LegalDocument::new(Uuid::new_v4(), legal_scope, "Archived document", &context)
                 .expect("document");
         document
-            .add_version("tenant/documents/archive-v1", "sha256:archive", &context)
+            .add_version("holding/documents/archive-v1", "sha256:archive", &context)
             .expect("version");
         document.archive(&context).expect("archive");
         assert_eq!(document.archive(&context), Err(LegalError::Terminal));

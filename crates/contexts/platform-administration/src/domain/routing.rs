@@ -1,16 +1,16 @@
 use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{
-    PlatformAdministrationDomainError, PlatformTenant, PlatformTenantId, TenantLifecycleState,
+    HoldingLifecycleState, PlatformAdministrationDomainError, PlatformHolding, PlatformHoldingId,
     bounded,
 };
 
-pub const ROUTING_SCHEMA_GENERATION: u32 = 2;
+pub const ROUTING_SCHEMA_REVISION: u32 = 2;
 const MAX_PROFILE_REF_BYTES: usize = 255;
 const MAX_EVIDENCE_REF_BYTES: usize = 180;
 const MAX_FAILURE_CATEGORY_BYTES: usize = 160;
@@ -92,8 +92,7 @@ impl DataPlaneRoute {
 /// pair to the holding pair when branch-pair topology is selected.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DataPlaneRouteCatalog {
-    tenant_id: PlatformTenantId,
-    holding_id: Uuid,
+    holding_id: PlatformHoldingId,
     deployment_mode: DataPlaneDeploymentMode,
     topology: DataPlaneTopology,
     version: u64,
@@ -102,18 +101,11 @@ pub struct DataPlaneRouteCatalog {
 
 impl DataPlaneRouteCatalog {
     pub fn new(
-        tenant_id: PlatformTenantId,
-        holding_id: Uuid,
+        holding_id: PlatformHoldingId,
         deployment_mode: DataPlaneDeploymentMode,
         topology: DataPlaneTopology,
     ) -> Result<Self, PlatformAdministrationDomainError> {
-        if holding_id.is_nil() {
-            return Err(PlatformAdministrationDomainError::NilIdentifier {
-                field: "holding_id",
-            });
-        }
         Ok(Self {
-            tenant_id,
             holding_id,
             deployment_mode,
             topology,
@@ -174,15 +166,15 @@ impl DataPlaneRouteCatalog {
     pub fn verify(
         &mut self,
         target: DataPlaneRouteTarget,
-        write_schema_generation: u32,
-        read_schema_generation: u32,
+        write_schema_revision: u32,
+        read_schema_revision: u32,
         evidence_ref: String,
         at: DateTime<Utc>,
     ) -> Result<(), PlatformAdministrationDomainError> {
-        if write_schema_generation != ROUTING_SCHEMA_GENERATION
-            || read_schema_generation != ROUTING_SCHEMA_GENERATION
+        if write_schema_revision != ROUTING_SCHEMA_REVISION
+            || read_schema_revision != ROUTING_SCHEMA_REVISION
         {
-            return Err(PlatformAdministrationDomainError::UnsupportedRouteSchemaGeneration);
+            return Err(PlatformAdministrationDomainError::UnsupportedRouteSchemaRevision);
         }
         let evidence_ref = opaque_ref(evidence_ref, "route_evidence_ref", MAX_EVIDENCE_REF_BYTES)?;
         let route = self.route_for_update(target, at)?;
@@ -271,26 +263,23 @@ impl DataPlaneRouteCatalog {
 
     pub fn resolve<'a>(
         &'a self,
-        tenant: &PlatformTenant,
-        scope: &TenantScope,
+        holding: &PlatformHolding,
+        scope: &AuthorityScope,
     ) -> Result<&'a DataPlaneRoute, PlatformAdministrationDomainError> {
-        if tenant.id() != self.tenant_id
-            || tenant.root_holding_id() != self.holding_id
-            || tenant.status() != TenantLifecycleState::Active
-        {
+        if holding.id() != self.holding_id || holding.status() != HoldingLifecycleState::Active {
             return Err(PlatformAdministrationDomainError::RouteUnavailable);
         }
         let target = match scope {
-            TenantScope::Holding { holding_id } | TenantScope::Company { holding_id, .. }
-                if *holding_id == self.holding_id =>
+            AuthorityScope::Holding { holding_id } | AuthorityScope::Company { holding_id, .. }
+                if *holding_id == self.holding_id.as_uuid() =>
             {
                 DataPlaneRouteTarget::Holding
             }
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 branch_id,
                 ..
-            } if *holding_id == self.holding_id => match self.topology {
+            } if *holding_id == self.holding_id.as_uuid() => match self.topology {
                 DataPlaneTopology::HoldingPair => DataPlaneRouteTarget::Holding,
                 DataPlaneTopology::HoldingAndBranchPairs => DataPlaneRouteTarget::Branch {
                     branch_id: *branch_id,
@@ -343,10 +332,7 @@ impl DataPlaneRouteCatalog {
         Ok(())
     }
 
-    pub const fn tenant_id(&self) -> PlatformTenantId {
-        self.tenant_id
-    }
-    pub const fn holding_id(&self) -> Uuid {
+    pub const fn holding_id(&self) -> PlatformHoldingId {
         self.holding_id
     }
     pub const fn deployment_mode(&self) -> DataPlaneDeploymentMode {

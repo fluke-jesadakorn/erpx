@@ -43,7 +43,7 @@ The migration owner must add these write-side tables under `erpx_identity` witho
 - `directory_revocation_sla`: `event_id` primary key, connector/external/link identity, observed time, deadline, reason, and status (`pending`, `acknowledged`, `late`).
 - `directory_reconciliation_runs`: import ID, expected/staged/canonical counts, expected/observed 32-byte digests, status (`reconciled` or `blocked`), and checked time.
 
-The adapter uses the existing `erpx_control.outbox_events` schema for durable source events. Its event writes are in the same transaction as the canonical state change. `tenant_scope` contains `{kind, holding_id, connector_id}`; `aggregate_type` is `directory_identity` or `directory_import`; `aggregate_version` is strictly positive; and `idempotency_key` is unique. No outbox payload contains bind credentials or secrets.
+The adapter uses the existing `erpx_control.outbox_events` schema for durable source events. Its event writes are in the same transaction as the canonical state change. `holding_scope` contains `{kind, holding_id, connector_id}`; `aggregate_type` is `directory_identity` or `directory_import`; `aggregate_version` is strictly positive; and `idempotency_key` is unique. No outbox payload contains bind credentials or secrets.
 
 ## Exact integration hooks
 

@@ -5,7 +5,7 @@ body { margin: 0; min-width: 0; }
 button, input { font: inherit; }
 button { cursor: pointer; }
 
-/* Canonical v2 router shell. These selectors deliberately consume the shared
+/* Canonical router shell. These selectors deliberately consume the shared
    UI-kit tokens so Web and Native keep one visual and accessibility contract. */
 .erpx-kit-root { min-height: 100vh; }
 .erpx-kit-root :where(h1, h2, h3, p) { margin-block: 0; }
@@ -73,7 +73,7 @@ button { cursor: pointer; }
   padding: clamp(28px, 6vw, 96px);
   background: var(--erpx-bg);
 }
-.auth-form-v2 {
+.auth-page-form {
   display: grid;
   width: min(100%, 460px);
   gap: 20px;
@@ -83,22 +83,22 @@ button { cursor: pointer; }
   background: var(--erpx-surface);
   box-shadow: var(--erpx-shadow-lg);
 }
-.auth-form-v2 h2 {
+.auth-page-form h2 {
   margin-top: -8px;
   font-size: clamp(30px, 3vw, 40px);
   letter-spacing: -.045em;
   line-height: 1.1;
 }
-.auth-form-v2__intro, .auth-form-v2__security {
+.auth-page-form__intro, .auth-page-form__security {
   color: var(--erpx-text-muted);
   font-size: var(--erpx-font-size-sm);
   line-height: var(--erpx-line-height-copy);
 }
-.auth-form-v2__field { display: grid; min-width: 0; gap: 8px; }
-.auth-form-v2__field > span { color: var(--erpx-text-muted); font-size: var(--erpx-font-size-sm); font-weight: 700; }
-.auth-form-v2__field input { width: 100%; min-height: var(--erpx-control-height-touch); }
-.auth-form-v2 > button { width: 100%; margin-top: 2px; }
-.auth-form-v2__security {
+.auth-page-form__field { display: grid; min-width: 0; gap: 8px; }
+.auth-page-form__field > span { color: var(--erpx-text-muted); font-size: var(--erpx-font-size-sm); font-weight: 700; }
+.auth-page-form__field input { width: 100%; min-height: var(--erpx-control-height-touch); }
+.auth-page-form > button { width: 100%; margin-top: 2px; }
+.auth-page-form__security {
   border-top: 1px solid var(--erpx-border);
   padding-top: 18px;
   font-size: var(--erpx-font-size-xs);
@@ -109,14 +109,14 @@ button { cursor: pointer; }
 .public-layout > header a { font-size: 18px; font-weight: 800; text-decoration: none; }
 .public-layout > article { max-width: 760px; margin: 0 auto; }
 
-.console-v2-shell {
+.console-shell {
   display: grid;
   grid-template-columns: 264px minmax(0, 1fr);
   min-height: 100vh;
   background: var(--erpx-bg);
   color: var(--erpx-text);
 }
-.console-v2-nav {
+.console-nav {
   position: sticky;
   top: 0;
   display: flex;
@@ -129,7 +129,7 @@ button { cursor: pointer; }
   padding: 22px 14px;
   background: var(--erpx-primary-surface);
 }
-.console-v2-nav > a, .console-v2-nav nav a {
+.console-nav > a, .console-nav nav a {
   display: flex;
   min-height: 38px;
   align-items: center;
@@ -140,16 +140,16 @@ button { cursor: pointer; }
   font-size: var(--erpx-font-size-sm);
   text-decoration: none;
 }
-.console-v2-nav > a:hover, .console-v2-nav nav a:hover,
-.console-v2-nav > a:focus-visible, .console-v2-nav nav a:focus-visible {
+.console-nav > a:hover, .console-nav nav a:hover,
+.console-nav > a:focus-visible, .console-nav nav a:focus-visible {
   border-color: var(--erpx-border-strong);
   background: var(--erpx-surface-raised);
   color: var(--erpx-text);
   outline: none;
 }
-.console-v2-nav nav { display: grid; gap: 3px; margin-top: 18px; border-top: 1px solid var(--erpx-border); padding-top: 18px; }
-.console-v2-main { min-width: 0; }
-.console-v2-header {
+.console-nav nav { display: grid; gap: 3px; margin-top: 18px; border-top: 1px solid var(--erpx-border); padding-top: 18px; }
+.console-main { min-width: 0; }
+.console-header {
   display: flex;
   min-height: 64px;
   align-items: center;
@@ -203,10 +203,10 @@ button { cursor: pointer; }
   .auth-layout__summary { max-width: 480px; }
   .auth-layout__brand::after { right: 36px; bottom: 34px; width: 46px; height: 46px; }
   .auth-layout__content { padding: 28px 18px 52px; }
-  .console-v2-shell { grid-template-columns: 1fr; }
-  .console-v2-nav { position: static; height: auto; flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--erpx-border); }
-  .console-v2-nav nav { display: flex; margin: 0 0 0 10px; border-top: 0; border-left: 1px solid var(--erpx-border); padding: 0 0 0 10px; }
-  .console-v2-nav a { flex: 0 0 auto; }
+  .console-shell { grid-template-columns: 1fr; }
+  .console-nav { position: static; height: auto; flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--erpx-border); }
+  .console-nav nav { display: flex; margin: 0 0 0 10px; border-top: 0; border-left: 1px solid var(--erpx-border); padding: 0 0 0 10px; }
+  .console-nav a { flex: 0 0 auto; }
 }
 .shell { min-height: 100vh; padding: 28px clamp(18px, 4vw, 70px) 60px; background: radial-gradient(circle at 80% 0%, #203542 0, transparent 35%), #0d1218; }
 .topbar, .intro, .toolbar, .workspace { max-width: 1380px; margin: 0 auto; }
@@ -230,9 +230,9 @@ h1, h2, h3, p { margin: 0; }
 .surface-header p { max-width: 520px; margin-top: 7px; color: #8da1b2; font-size: 12px; line-height: 1.55; }
 .route-identity { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid #315565; border-radius: 999px; padding: 7px 10px; color: #93ccd2; font-size: 11px; }
 .customer-surface > .ui-state-panel { margin-top: 18px; }
-.projection-placeholder, .tenant-route-launcher, .customer-route-unavailable { margin-top: 18px; }
+.projection-placeholder, .holding-route-launcher, .customer-route-unavailable { margin-top: 18px; }
 .projection-placeholder .ui-state-panel, .customer-route-unavailable .ui-state-panel { min-height: 250px; }
-.tenant-route-launcher { display: grid; gap: 12px; border: 1px solid var(--erpx-border, #283643); border-radius: var(--erpx-radius, 12px); padding: 16px; background: var(--erpx-surface, #111a22); }
+.holding-route-launcher { display: grid; gap: 12px; border: 1px solid var(--erpx-border, #283643); border-radius: var(--erpx-radius, 12px); padding: 16px; background: var(--erpx-surface, #111a22); }
 .auth-panel { max-width: 1380px; margin: 0 auto 14px; padding: 16px 18px; border: 1px solid #315565; border-radius: 12px; background: #132832; }
 .auth-panel-heading, .auth-session-actions { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .auth-panel-heading h3 { margin-top: 5px; font-size: 15px; }
@@ -279,10 +279,10 @@ h1, h2, h3, p { margin: 0; }
 @media (max-width: 850px) { .customer-route-tabs { width: 100%; margin-bottom: 12px; overflow-x: auto; flex-wrap: nowrap; justify-content: start; }.surface-header { flex-direction: column; }.route-identity { max-width: 100%; }.ui-shell .toolbar { flex-wrap: wrap; }.ui-shell .toolbar .searchbox { width: 100%; flex: 1 1 240px; }.ui-shell .workspace > * { min-width: 0; max-width: 100%; } }
 @media (max-width: 700px) { .auth-form { align-items: stretch; flex-direction: column; }.auth-submit { width: 100%; }.auth-panel-heading { align-items: start; flex-direction: column; } }
 @media (max-width: 850px) { .workspace { grid-template-columns: 1fr; }.detail { min-height: 400px; }.intro { align-items: start; flex-direction: column; }.metric-grid { grid-template-columns: repeat(2, 1fr); } }
-/* Three-layer tenant configuration */
-.tenant-infrastructure-heading,
-.tenant-infrastructure-summary,
-.tenant-action-row,
+/* Three-layer holding configuration */
+.holding-infrastructure-heading,
+.holding-infrastructure-summary,
+.holding-action-row,
 .business-unit-card-heading {
   display: flex;
   align-items: center;
@@ -290,28 +290,28 @@ h1, h2, h3, p { margin: 0; }
   gap: 12px;
 }
 
-.tenant-infrastructure-heading {
+.holding-infrastructure-heading {
   padding: 18px 20px;
   border: 1px solid var(--erpx-border, #29404d);
   border-radius: 14px;
   background: linear-gradient(120deg, rgb(20 39 49 / 96%), rgb(15 25 32 / 96%));
 }
 
-.tenant-infrastructure-heading h3,
-.tenant-config-surface h3 { margin: 4px 0; }
+.holding-infrastructure-heading h3,
+.holding-config-surface h3 { margin: 4px 0; }
 
-.tenant-infrastructure-heading p,
-.tenant-config-surface p { margin: 0; color: var(--erpx-text-muted, #9db0bc); }
+.holding-infrastructure-heading p,
+.holding-config-surface p { margin: 0; color: var(--erpx-text-muted, #9db0bc); }
 
-.tenant-infrastructure-summary { flex-wrap: wrap; justify-content: flex-end; }
+.holding-infrastructure-summary { flex-wrap: wrap; justify-content: flex-end; }
 .status-pill { border: 1px solid var(--erpx-border, #29404d); border-radius: 999px; padding: 5px 10px; color: #a9bcc7; font-size: 11px; }
 .status-pill.good { border-color: #2f6b57; color: #83d8b4; background: rgb(38 91 72 / 25%); }
 .status-pill.warn { border-color: #735f2f; color: #e2c575; background: rgb(99 77 29 / 25%); }
 .status-pill.bad { border-color: #7d3f44; color: #ef9da2; background: rgb(111 46 52 / 24%); }
-.tenant-security-banners { display: grid; gap: 8px; margin: 12px 0; }
-.tenant-workspace-module-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 10px 0 16px; }
-.tenant-workspace-surface { display: grid; gap: 14px; margin-top: 14px; padding: 20px; border: 1px solid var(--erpx-border, #29404d); border-radius: var(--erpx-radius, 14px); background: var(--erpx-surface, #101e26); }
-.tenant-config-surface { display: grid; gap: 16px; margin-top: 14px; padding: 20px; border: 1px solid var(--erpx-border, #29404d); border-radius: 14px; background: rgb(14 25 32 / 72%); }
+.holding-security-banners { display: grid; gap: 8px; margin: 12px 0; }
+.holding-workspace-module-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 10px 0 16px; }
+.holding-workspace-surface { display: grid; gap: 14px; margin-top: 14px; padding: 20px; border: 1px solid var(--erpx-border, #29404d); border-radius: var(--erpx-radius, 14px); background: var(--erpx-surface, #101e26); }
+.holding-config-surface { display: grid; gap: 16px; margin-top: 14px; padding: 20px; border: 1px solid var(--erpx-border, #29404d); border-radius: 14px; background: rgb(14 25 32 / 72%); }
 .infrastructure-grid { grid-template-columns: minmax(150px, .7fr) minmax(240px, 1.3fr); }
 .setup-guide { padding: 18px; border: 1px solid #365667; border-radius: 12px; background: rgb(23 45 56 / 58%); }
 .setup-guide h4 { margin-top: 0; }
@@ -351,8 +351,8 @@ h1, h2, h3, p { margin: 0; }
 .root-access-request-panel .data-table small { display: block; max-width: 34ch; margin-top: 5px; overflow-wrap: anywhere; color: var(--erpx-text-muted, #9db0bc); }
 
 @media (max-width: 920px) {
-  .tenant-infrastructure-heading { align-items: flex-start; flex-direction: column; }
-  .tenant-infrastructure-summary { justify-content: flex-start; }
+  .holding-infrastructure-heading { align-items: flex-start; flex-direction: column; }
+  .holding-infrastructure-summary { justify-content: flex-start; }
   .business-unit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .setup-guide ol { grid-template-columns: 1fr; }
   .typed-command-form .form-grid, .check-grid, .branch-queue-confirmation { grid-template-columns: 1fr; }
@@ -364,21 +364,21 @@ h1, h2, h3, p { margin: 0; }
 
 @media (max-width: 600px) {
   .business-unit-grid { grid-template-columns: 1fr; }
-  .tenant-action-row { align-items: stretch; flex-direction: column; }
+  .holding-action-row { align-items: stretch; flex-direction: column; }
 }
 
 /* Shared semantic-token bridge for route composites that remain ERPX-owned. */
 html, body { min-height: 100%; max-width: 100%; background: var(--erpx-light-bg, #f4f7f9); color: var(--erpx-light-text, #14202a); }
 .ui-shell :where(.ui-main, .ui-content, .ui-page-family, .ui-page-family > *, .toolbar, .workspace, .customer-route-tabs, .customer-surface, .customer-list, .detail) { min-width: 0; max-width: 100%; }
 .ui-shell .toolbar .searchbox { min-width: 0; }
-.ui-shell :where(.customer-list, .detail, .projection-detail, .tenant-config-surface, .customer-route-tabs, .metric, .signal, .business-unit-card, .auth-panel) {
+.ui-shell :where(.customer-list, .detail, .projection-detail, .holding-config-surface, .customer-route-tabs, .metric, .signal, .business-unit-card, .auth-panel) {
   border-color: var(--erpx-border);
   border-radius: var(--erpx-radius, 12px);
   background: var(--erpx-surface);
   color: var(--erpx-text);
   box-shadow: var(--erpx-shadow, none);
 }
-.ui-shell :where(.section-caption, .eyebrow, .projection-meta, .surface-header p, .tenant-config-surface p, .business-unit-card small, .row-main span, .metric span, .signal span, .health-line span, .muted) { color: var(--erpx-text-muted); }
+.ui-shell :where(.section-caption, .eyebrow, .projection-meta, .surface-header p, .holding-config-surface p, .business-unit-card small, .row-main span, .metric span, .signal span, .health-line span, .muted) { color: var(--erpx-text-muted); }
 .ui-shell :where(.customer-row, .route-tab) { color: var(--erpx-text); }
 .ui-shell :where(.customer-row, .section-caption, .surface-header, .detail-head, .detail-section, .detail-grid dt, .detail-grid dd, .data-table th, .data-table td) { border-color: var(--erpx-border); }
 .ui-shell :where(.customer-row:hover, .customer-row.selected, .route-tab:hover, .route-tab.active) { background: var(--erpx-primary-surface); }
@@ -388,7 +388,7 @@ html, body { min-height: 100%; max-width: 100%; background: var(--erpx-light-bg,
 .ui-shell :where(.status-pill.good, .status-banner.good) { border-color: var(--erpx-success-surface); background: var(--erpx-success-surface); }
 .ui-shell :where(.status-pill.warn, .status-banner.warn) { border-color: var(--erpx-warning-surface); background: var(--erpx-warning-surface); }
 .ui-shell :where(.status-pill.bad, .status-banner.bad) { border-color: var(--erpx-danger-surface); background: var(--erpx-danger-surface); }
-.ui-shell .tenant-infrastructure-heading { border-color: var(--erpx-border); border-radius: var(--erpx-radius, 14px); background: linear-gradient(120deg, var(--erpx-primary-surface), var(--erpx-surface)); }
+.ui-shell .holding-infrastructure-heading { border-color: var(--erpx-border); border-radius: var(--erpx-radius, 14px); background: linear-gradient(120deg, var(--erpx-primary-surface), var(--erpx-surface)); }
 .ui-shell .setup-guide { border-color: var(--erpx-border); background: var(--erpx-surface-raised); }
 .ui-shell .setup-step-number { background: var(--erpx-primary); color: var(--erpx-on-primary); }
 .ui-shell .auth-panel { border-color: var(--erpx-security); background: var(--erpx-security-surface); }
@@ -744,7 +744,7 @@ html, body { min-height: 100%; max-width: 100%; background: var(--erpx-light-bg,
 
 /* Customer-owned infrastructure governance. Scope entry stays local to the
    mounted surface; only validated holding-scoped DTOs reach the transport. */
-.tenant-governance-surface { display: grid; gap: 18px; }
+.holding-governance-surface { display: grid; gap: 18px; }
 .typed-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; min-width: 0; margin: 0; border: 1px solid var(--erpx-border); border-radius: var(--erpx-radius, 12px); padding: 16px; background: var(--erpx-surface-raised); }
 .typed-form-grid legend { padding-inline: 7px; color: var(--erpx-text-muted); font-size: 11px; font-weight: 650; }
 .typed-form-grid > label { display: grid; min-width: 0; gap: 6px; color: var(--erpx-text-muted); font-size: 11px; }
@@ -757,7 +757,7 @@ html, body { min-height: 100%; max-width: 100%; background: var(--erpx-light-bg,
 .governance-summary-grid .signal { min-width: 0; }
 .governance-summary-grid strong { overflow-wrap: anywhere; }
 .button-row { display: flex; grid-column: 1 / -1; flex-wrap: wrap; gap: 9px; }
-.tenant-governance-surface .data-table code { overflow-wrap: anywhere; font-size: 10px; }
+.holding-governance-surface .data-table code { overflow-wrap: anywhere; font-size: 10px; }
 
 /* Compatibility payload editors are deliberately closed and visually
    separated from the typed human workflow. */
@@ -1108,34 +1108,34 @@ html[data-locale="th"] :where(.customer-route-tabs, .ui-support-route-tabs, .ui-
 .ui-shell .projection-detail { display: grid; min-width: 0; gap: 14px; padding: 18px; }
 .ui-shell .projection-detail > .table-wrap { max-width: 100%; overflow-x: auto; border: 1px solid var(--erpx-border); border-radius: var(--erpx-radius, 10px); }
 .ui-shell .projection-detail > .table-wrap .data-table { width: 100%; min-width: 860px; border-collapse: collapse; }
-.ui-shell .projection-detail > .tenant-registry-table-wrap { position: relative; }
-.ui-shell .tenant-registry-table { min-width: 1120px; table-layout: auto; font-size: 12px; }
-.ui-shell .tenant-registry-table :where(th, td) { border-bottom: 1px solid var(--erpx-border); padding: 14px 16px; text-align: left; vertical-align: top; }
-.ui-shell .tenant-registry-table th { position: relative; z-index: 2; white-space: nowrap; background: var(--erpx-surface); font-size: 10px; font-weight: 700; }
-.ui-shell .tenant-registry-table tbody tr { transition: background 120ms ease; }
-.ui-shell .tenant-registry-table tbody tr:hover { background: var(--erpx-primary-surface); }
-.ui-shell .tenant-registry-table .tenant-registry-identity { position: relative; z-index: 1; min-width: 190px; background: var(--erpx-surface); box-shadow: 1px 0 0 var(--erpx-border); }
-.ui-shell .tenant-registry-table th:first-child { left: 0; z-index: 3; min-width: 190px; box-shadow: 1px 0 0 var(--erpx-border); }
-.ui-shell .tenant-registry-table tbody tr:hover .tenant-registry-identity { background: var(--erpx-primary-surface); }
-.ui-shell :where(.tenant-registry-identity, .tenant-registry-stack, .tenant-registry-plan, .tenant-registry-capacity, .tenant-registry-health) > * { display: block; }
-.ui-shell :where(.tenant-registry-identity, .tenant-registry-stack, .tenant-registry-plan, .tenant-registry-capacity, .tenant-registry-health) > * + * { margin-top: 7px; }
-.ui-shell .tenant-registry-identity [data-style="link"] { width: fit-content; max-width: 190px; min-height: 34px; padding: 7px 10px; overflow-wrap: anywhere; text-align: left; }
-.ui-shell .tenant-registry-secondary, .ui-shell .tenant-registry-stack span { color: var(--erpx-text-muted); line-height: 1.45; }
-.ui-shell .tenant-registry-nowrap, .ui-shell .tenant-registry-renewal { min-width: 130px; white-space: nowrap; }
-.ui-shell .tenant-registry-plan { min-width: 180px; }
-.ui-shell .tenant-registry-capacity { min-width: 180px; white-space: nowrap; }
-.ui-shell .tenant-registry-capacity strong { display: inline-block; min-width: 112px; color: var(--erpx-text-muted); font-size: 10px; }
-.ui-shell .tenant-registry-health { min-width: 175px; }
-.ui-shell .tenant-registry-health .status-pill { width: fit-content; }
-.ui-shell .tenant-registry-details { min-width: 0; }
-.ui-shell .tenant-registry-details > summary { width: fit-content; cursor: pointer; color: var(--erpx-link); font-size: 11px; font-weight: 650; }
-.ui-shell .tenant-registry-details[open] > summary { margin-bottom: 8px; }
-.ui-shell .tenant-registry-detail-copy { max-width: 36ch; color: var(--erpx-text-muted); font-size: 11px; line-height: 1.55; overflow-wrap: anywhere; }
-.ui-shell .tenant-registry-signals { display: grid; min-width: 250px; gap: 7px; margin: 0; }
-.ui-shell .tenant-registry-signals > div { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 8px; }
-.ui-shell .tenant-registry-signals :where(dt, dd) { margin: 0; font-size: 11px; line-height: 1.4; }
-.ui-shell .tenant-registry-signals dt { color: var(--erpx-text-muted); }
-.ui-shell .tenant-registry-signals dd { overflow-wrap: anywhere; }
+.ui-shell .projection-detail > .holding-registry-table-wrap { position: relative; }
+.ui-shell .holding-registry-table { min-width: 1120px; table-layout: auto; font-size: 12px; }
+.ui-shell .holding-registry-table :where(th, td) { border-bottom: 1px solid var(--erpx-border); padding: 14px 16px; text-align: left; vertical-align: top; }
+.ui-shell .holding-registry-table th { position: relative; z-index: 2; white-space: nowrap; background: var(--erpx-surface); font-size: 10px; font-weight: 700; }
+.ui-shell .holding-registry-table tbody tr { transition: background 120ms ease; }
+.ui-shell .holding-registry-table tbody tr:hover { background: var(--erpx-primary-surface); }
+.ui-shell .holding-registry-table .holding-registry-identity { position: relative; z-index: 1; min-width: 190px; background: var(--erpx-surface); box-shadow: 1px 0 0 var(--erpx-border); }
+.ui-shell .holding-registry-table th:first-child { left: 0; z-index: 3; min-width: 190px; box-shadow: 1px 0 0 var(--erpx-border); }
+.ui-shell .holding-registry-table tbody tr:hover .holding-registry-identity { background: var(--erpx-primary-surface); }
+.ui-shell :where(.holding-registry-identity, .holding-registry-stack, .holding-registry-plan, .holding-registry-capacity, .holding-registry-health) > * { display: block; }
+.ui-shell :where(.holding-registry-identity, .holding-registry-stack, .holding-registry-plan, .holding-registry-capacity, .holding-registry-health) > * + * { margin-top: 7px; }
+.ui-shell .holding-registry-identity [data-style="link"] { width: fit-content; max-width: 190px; min-height: 34px; padding: 7px 10px; overflow-wrap: anywhere; text-align: left; }
+.ui-shell .holding-registry-secondary, .ui-shell .holding-registry-stack span { color: var(--erpx-text-muted); line-height: 1.45; }
+.ui-shell .holding-registry-nowrap, .ui-shell .holding-registry-renewal { min-width: 130px; white-space: nowrap; }
+.ui-shell .holding-registry-plan { min-width: 180px; }
+.ui-shell .holding-registry-capacity { min-width: 180px; white-space: nowrap; }
+.ui-shell .holding-registry-capacity strong { display: inline-block; min-width: 112px; color: var(--erpx-text-muted); font-size: 10px; }
+.ui-shell .holding-registry-health { min-width: 175px; }
+.ui-shell .holding-registry-health .status-pill { width: fit-content; }
+.ui-shell .holding-registry-details { min-width: 0; }
+.ui-shell .holding-registry-details > summary { width: fit-content; cursor: pointer; color: var(--erpx-link); font-size: 11px; font-weight: 650; }
+.ui-shell .holding-registry-details[open] > summary { margin-bottom: 8px; }
+.ui-shell .holding-registry-detail-copy { max-width: 36ch; color: var(--erpx-text-muted); font-size: 11px; line-height: 1.55; overflow-wrap: anywhere; }
+.ui-shell .holding-registry-signals { display: grid; min-width: 250px; gap: 7px; margin: 0; }
+.ui-shell .holding-registry-signals > div { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 8px; }
+.ui-shell .holding-registry-signals :where(dt, dd) { margin: 0; font-size: 11px; line-height: 1.4; }
+.ui-shell .holding-registry-signals dt { color: var(--erpx-text-muted); }
+.ui-shell .holding-registry-signals dd { overflow-wrap: anywhere; }
 .ui-shell :where(.pager, .button-row) { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
 .ui-shell :where(.read-authority-note, .erpx-product-read-boundary-note, .empty-copy, .form-message) { color: var(--erpx-text-muted); font-size: 11px; line-height: 1.6; }
 

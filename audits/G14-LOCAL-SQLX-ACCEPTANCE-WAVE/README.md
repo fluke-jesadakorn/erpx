@@ -16,10 +16,10 @@ Support and attachment expiry; Customer 360 and access-audit projections;
 role review; Finance banking/import/candidate/close/journal/chart/budget/
 subledger; HR; Legal; Marketing content, CRM, delivery, provider callback,
 journey, erasure, onboarding, and abuse; Operations; POS; SCM; organization;
-tenant provisioning, replacement-readiness, registry, projection scheduler
+holding provisioning, replacement-readiness, registry, projection scheduler
 and status; G13 migration and target import; control-plane SQLx; and worker
 runtime paths. The worker and infrastructure library ignored tests were also
-run with their required tenant/control URLs after the initial missing-variable
+run with their required holding/control URLs after the initial missing-variable
 guard was corrected.
 
 The real backup/restore acceptance passed with PostgreSQL 18 `pg_dump`/

@@ -2,7 +2,7 @@
 
 ## Gap closed
 
-The server-facing `TenantProvisioner::schedule_backup_job` path already
+The server-facing `HoldingProvisioner::schedule_backup_job` path already
 persisted durable backup and restore-test work, and the existing backup worker
 already claimed that queue and refreshed the control read model. It did not,
 however, publish an outbox event or aggregate snapshot for the schedule and
@@ -12,11 +12,11 @@ job history without a replayable lifecycle event.
 ## Delivered
 
 - `crates/infrastructure/src/provisioning.rs`
-  - adds a bounded `platform.tenant_backup_job` aggregate;
+  - adds a bounded `platform.holding_backup_job` aggregate;
   - atomically persists a redacted aggregate snapshot and control-plane
     outbox event when a job is scheduled, claimed, completed, or retried/dead-
     lettered;
-  - preserves tenant/holding predicates, lease ownership, idempotency, and
+  - preserves holding/holding predicates, lease ownership, idempotency, and
     existing five-attempt bounds;
   - excludes backup references, restore-target references, candidate database
     keys, PITR metadata, and raw error text from event payloads;
@@ -57,7 +57,7 @@ frontier. No external backup service or production database was used.
 ## Rollback
 
 Disable the new event consumer/projector path and rebuild the existing backup
-read table from the authoritative `tenant_backup_jobs` rows. Reverting the
+read table from the authoritative `holding_backup_jobs` rows. Reverting the
 owned persistence/test changes leaves the queue, worker, read API, and
 append-only existing events intact; do not delete aggregate snapshots or
 outbox/audit history. The disposable acceptance databases are safe to drop;

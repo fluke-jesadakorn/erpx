@@ -65,12 +65,12 @@ contract update:
   **54,201,592 bytes WebAssembly**. Raw and compressed growth remain below 1%
   and within the 5% gate.
 - `cargo fmt --all --check`, `cargo check-fast`, `cargo test-fast`,
-  `domain_contracts`, `ui_domains`, `infra_tenant_runtime`, and the CQRS/DDD
+  `domain_contracts`, `ui_domains`, `infra_holding_runtime`, and the CQRS/DDD
   architecture scan passed.
 - The Quality SQLx acceptance target compiles and covers atomic rollback,
   stable replay, no write fallback, receipt-to-ReadYourWrites, duplicate
   projection, and shadow rebuild activation. Its live database path
-  self-skipped because the two disposable tenant test URLs were not exported
+  self-skipped because the two disposable holding test URLs were not exported
   in this shell. A bounded attempt to create two acceptance-only databases was
   rejected because the configured development role has neither `CREATEDB` nor
   superuser capability; no application database was changed. Fresh-state
@@ -113,10 +113,10 @@ tests (12 Identity & Access, 14 Organization, and 14 Commercial).
 - The approved protobuf descriptor is
   `5b24412ece62fbefee3f2686284b35780173afb5f1728bf29d39357ffa7a1710`.
 - Commercial catalog state is platform-owned in the control write/read planes;
-  holding subscriptions and entitlements remain tenant-owned. Canonical
+  holding subscriptions and entitlements remain holding-owned. Canonical
   migrations `0075`/`0015` create the control CQRS foundation and catalog
-  models, while tenant migrations `0058`/`0050` plus `0059`/`0051` create the
-  context models and remove the superseded tenant catalog tables.
+  models, while holding migrations `0058`/`0050` plus `0059`/`0051` create the
+  context models and remove the superseded holding catalog tables.
 - All four migration files executed successfully against the configured local
   PostgreSQL server inside one transaction and were rolled back. This validated
   syntax and ordering without retaining database changes.
@@ -130,7 +130,7 @@ tests (12 Identity & Access, 14 Organization, and 14 Commercial).
   cross-context dependencies in cores.
 - `cargo fmt --all --check`, `cargo check-fast`, `cargo test-fast`, and
   `cargo xtask architecture` passed. The `identity_core`,
-  `identity_acceptance`, `infra_tenant_runtime`, `worker_platform`,
+  `identity_acceptance`, `infra_holding_runtime`, `worker_platform`,
   `ui_domains`, and `domain_contracts` harnesses also passed; database-backed
   cases with explicit disposable-database requirements remained ignored.
 - Focused verification passed for all Worker targets (375 library tests plus
@@ -225,8 +225,8 @@ never the source context aggregate.
 - The direct-v1 barrier adds typed command/query services for all six contexts.
   CRM's `Discovery` opportunity stage was caught by barrier review and added to
   both transport and persistence contracts before adapters were implemented.
-- Tenant-write migration `0060` adds context guards, movement/reservation
-  uniqueness, and Maintenance's typed Assets fact inbox. Tenant-read migration
+- Holding-write migration `0060` adds context guards, movement/reservation
+  uniqueness, and Maintenance's typed Assets fact inbox. Holding-read migration
   `0052` adds generation-scoped disposable projections for all six contexts.
 - The approved barrier descriptor is
   `530757265c916b8fb68a3b50e6fca945e48d8e1f2b990104f70b91d71a9419cf`.
@@ -242,12 +242,12 @@ generation-scoped projectors, typed Server transports, Worker registrations,
 and transport-neutral Console gateways, presenters, and views.
 
 - Server composition owns pool routing and registers all 12 typed command/query
-  services. Route scope is checked against the authenticated tenant scope; the
+  services. Route scope is checked against the authenticated holding scope; the
   Marketing and CRM transports include regressions for holding-scope mismatch.
   Context transports do not construct pools or import stores.
 - Worker composition registers seven rebuildable snapshot projectors plus the
   Assets-to-Maintenance fact consumer. That consumer validates outbox metadata,
-  decodes the typed integration envelope, preserves a per-tenant cursor during
+  decodes the typed integration envelope, preserves a per-holding cursor during
   the process lifetime, and safely replays from sequence zero after restart.
   Duplicate facts are idempotent and same-version conflicts are rejected.
 - Console feature-local UI DTOs isolate presenters and views from protobuf,
@@ -276,7 +276,7 @@ and transport-neutral Console gateways, presenters, and views.
   compressed growth from Wave 5 remain below 1% and within the 5% bundle gate.
 - The approved protobuf descriptor remains
   `530757265c916b8fb68a3b50e6fca945e48d8e1f2b990104f70b91d71a9419cf`.
-  Tenant migrations `0060`/`0052` remain the canonical Wave 6 write/read
+  Holding migrations `0060`/`0052` remain the canonical Wave 6 write/read
   schema allocation.
 - A selective `cargo xtask dev --detach` restart completed successfully.
   Server, workers, UCS labs, and Dioxus are recorded healthy; Console returned
@@ -308,13 +308,13 @@ integration mappings.
   `PosCommandService`/`PosQueryService` with typed payloads and common CQRS
   metadata/receipts. Legacy generic services remain descriptor-visible only
   until Phase B completes its coordinated Server/Worker/Console cutover.
-- Tenant-write migration `0061` adds command guards for all three contexts;
-  tenant-read migration `0053` adds eight generation-scoped projections:
+- Holding-write migration `0061` adds command guards for all three contexts;
+  holding-read migration `0053` adds eight generation-scoped projections:
   Sales quotes/orders, People employees/leave/expenses/payroll runs, and POS
   sales/refunds. Both migrations executed inside PostgreSQL transactions and
   were rolled back; the read test supplied only a transactional stub for the
   shared projection-generation table because the selected validation database
-  is not the tenant read database.
+  is not the holding read database.
 - Protobuf generation, typed RPC workflow inventory, migration registry test,
   formatting, all three core targets, and the CQRS/DDD architecture scan
   passed. No core imports SQLx, Tonic, Prost, Dioxus, or another context core.
@@ -328,11 +328,11 @@ with atomic SQLx command adapters, projection-only read repositories, eight
 generation-scoped projectors, typed Server transports, Worker scheduler
 registrations, and transport-neutral Console features.
 
-- Server composition routes each authenticated tenant command to the write DB
+- Server composition routes each authenticated holding command to the write DB
   and each query to the read DB, then registers all six typed command/query
   services. Sales uses `sales.read`/`sales.write`, People & Payroll uses the
   existing `hr.read`/`hr.write` authority, and POS uses `pos.read`/`pos.write`.
-  Route holdings are bound to authenticated tenant scope before dispatch.
+  Route holdings are bound to authenticated holding scope before dispatch.
 - Worker composition registers `sales_quotes`, `sales_orders`, four
   `people_payroll_*` projections, `pos_sales`, and `pos_refunds`. Incremental
   execution and shadow rebuild/activation share the CQRS checkpoint, retry,
@@ -354,7 +354,7 @@ registrations, and transport-neutral Console features.
   database cases ignored.
 - `cargo fmt --all --check`, `cargo check-fast`, `cargo test-fast`, and
   `cargo xtask architecture` passed. The migration registry assertion for
-  tenant-write `0061` and tenant-read `0053` passed after the payroll approved/
+  holding-write `0061` and holding-read `0053` passed after the payroll approved/
   posted actor guards were corrected.
 - A Cargo fingerprint audit found that nested `xtask` invocations inherited
   the outer package's `CARGO_MANIFEST_DIR`, alternating build-script cache keys
@@ -372,7 +372,7 @@ registrations, and transport-neutral Console features.
   growth from Wave 6 is below 1% and within the 5% gate.
 - The approved protobuf descriptor remains
   `61ca5a8ec44ac8a18a6a5d21284544de4d9f0cd089729b6ddf97361bbbd0fe70`.
-  Tenant migrations `0061`/`0053` remain the canonical Wave 7 write/read schema
+  Holding migrations `0061`/`0053` remain the canonical Wave 7 write/read schema
   allocation.
 - A selective `cargo xtask dev --detach` restart rebuilt and restarted Server,
   workers, and UCS labs while reusing Dioxus hot reload. Runtime status is
@@ -409,8 +409,8 @@ mappings.
   physically distinct. No typed Support request or response contains a bearer,
   credential, or secret hash, and the requesting support agent is derived from
   authenticated command metadata.
-- Tenant-write migration `0062` adds Finance, Legal, and Support guards;
-  tenant-read migration `0054` adds fourteen generation-fenced projections.
+- Holding-write migration `0062` adds Finance, Legal, and Support guards;
+  holding-read migration `0054` adds fourteen generation-fenced projections.
   Finance and Legal evidence tables are append-only, Support capability hashes
   exist only on the write side, and Support customer/internal message
   projections are separate tables.
@@ -431,7 +431,7 @@ transport-neutral Console features.
 
 - Finance publishes and projects seven independent read models, Legal three,
   and Support four. Every Wave 8 worker claims one exact dot-qualified
-  projection name, rejects a mismatched claim before tenant routing, and uses
+  projection name, rejects a mismatched claim before holding routing, and uses
   the durable rebuild UUID as the stable generation across retries.
 - Support authorization now derives an exact action from the typed request,
   distinguishes customer-channel reads/replies from internal notes, and
@@ -452,9 +452,9 @@ transport-neutral Console features.
   across the complete forward-migration set. This prevents concurrent Server
   and multi-projector startup from interleaving later migration files.
   Projection authorization resolves opaque registry holding references through
-  the authoritative tenant summary while preserving direct UUID bindings.
+  the authoritative holding summary while preserving direct UUID bindings.
 - The development fixture is versioned `erpx-demo-v4`; its versioned role
-  assignment includes only the explicit `tenant.projection.execute` capability
+  assignment includes only the explicit `holding.projection.execute` capability
   required by the projector service principal. Existing application records
   and namespaces were not deleted or rewritten.
 - Fast-lane verification passed after runtime hardening:
@@ -491,15 +491,15 @@ contracts for the composed/orchestration wave.
   facts POS actually publishes (`sale_completed` and `refund_approved`), and
   Legal is not advertised until Legal publishes a compatible fact.
 - Customer 360 is a read-only composition of Customer, Commercial, CRM, Sales,
-  and Support facts. The control-customer and tenant-activity streams keep
+  and Support facts. The control-customer and holding-activity streams keep
   independent positions, expose both freshness states, and report seven
   unsupported legacy sections as `not_projected` instead of guessing data.
 - The CQRS SQLx foundation now has an additive multi-source runner with one
-  cursor per physical source, tenant-qualified partitions, compare-and-swap
+  cursor per physical source, holding-qualified partitions, compare-and-swap
   advancement, per-source rebuild high-watermarks, DLQ-aware activation, and
   fair page rotation. The existing single-source runner is unchanged.
-- Tenant-write migration `0063` owns Operations guards/source receipts/source
-  checkpoints; tenant-read migration `0055` owns its generation-fenced read
+- Holding-write migration `0063` owns Operations guards/source receipts/source
+  checkpoints; holding-read migration `0055` owns its generation-fenced read
   models. Control-read migration `0017` owns the composed Customer 360 tables
   and source-qualified cursors. No global outbox sequence is compared across
   databases.
@@ -522,12 +522,12 @@ focused contract tests.
   the Operations application handler; automatic detection is disabled by
   default and, when enabled, requires a configured Identity-backed manager
   chain and explicit bounded policy fields.
-- Three Operations projections and the Customer 360 control/tenant fan-in
+- Three Operations projections and the Customer 360 control/holding fan-in
   projections support durable retry, DLQ, checkpoint, restart, and rebuild
   semantics. Rebuild activation rejects unresolved failures, resumes persisted
   cursors/fences, and clears pending state only after successful activation.
 - Customer 360 control projection execution is physically separated from
-  tenant enumeration. Pre-cutover opaque tenant registry identifiers are
+  holding enumeration. Pre-cutover opaque holding registry identifiers are
   converted to stable projection UUIDs without mutating the retained registry;
   fresh UUID registry identifiers pass through unchanged.
 - The direct-v1 workflow inventory now classifies every typed Operations and
@@ -580,26 +580,26 @@ and process managers.
 
 ### Fresh-state evidence
 
-- The authoritative installation prefix is `erpxv3`, generation
-  `a2b0b92a-12b5-51ad-aa92-41065d9175d7`, tenant
+- The authoritative installation prefix is `retired-installation`, generation
+  `a2b0b92a-12b5-51ad-aa92-41065d9175d7`, holding
   `4017ec64-6620-50e2-bfdc-14d0a9b3c414`, and holding
   `c926087d-100d-52b9-b3b3-b27f0b34a1e0`.
-- Fresh resources are `erpxv3_control_write`, `erpxv3_control_read`,
-  `erpxv3_4017ec646620_tenant_write`,
-  `erpxv3_4017ec646620_tenant_read`, and the
-  `erpxv3-tenant-objects` MinIO namespace. No prior identity, RBAC, business,
+- Fresh resources are `retired-installation_control_write`, `retired-installation_control_read`,
+  `retired-installation_4017ec646620_holding_write`,
+  `retired-installation_4017ec646620_holding_read`, and the
+  `retired-holding-objects` MinIO namespace. No prior identity, RBAC, business,
   or object records were copied.
 - Bootstrap produced exactly two seed principals, two seed roles, twelve
   canonical business units, one neutral-brand guard/revision, and 22 initial
   projection jobs. Credential and progress artifacts are mode `0600`; the
   progress marker is terminal `complete`.
-- The first isolated `erpxv2` attempt failed closed before authoritative
+- The first isolated `retired-installation` attempt failed closed before authoritative
   cutover because the old reference validator rejected the namespaced holding
   owner principal. Its marker and unused credential artifact were moved to
   `.runtime/erpx/bootstrap/failed/6a36faf3-61b9-58cc-b40e-39d153606971/`;
   its partial empty resources were retained and never adopted or deleted.
 - The bootstrap now creates the customer root-scope binding and ERPX-managed
-  tenant infrastructure profile itself. The already-created `erpxv3`
+  holding infrastructure profile itself. The already-created `retired-installation`
   installation received the same two rows in one atomic reconciliation, and
   the seven route-related dead letters were requeued exactly once with an
   audit event. All 22 initial projection jobs subsequently succeeded.

@@ -1,8 +1,8 @@
-# G10-MKT-047 — durable Marketing Journey tenant-write persistence
+# G10-MKT-047 — durable Marketing Journey holding-write persistence
 
 ## Scope
 
-This packet delivers the authoritative tenant-write persistence boundary for
+This packet delivers the authoritative holding-write persistence boundary for
 the Marketing `Journey` aggregate. It adds migration `0044_marketing_journeys`,
 forced-RLS journey and idempotency tables, a lossless JSON aggregate payload
 with bounded query columns, typed create/load/transition SQLx methods, atomic
@@ -11,7 +11,7 @@ versions, and exact idempotent receipts.
 
 The domain aggregate now starts at positive version one so the initial Draft
 snapshot and `marketing.journey_created.v1` event satisfy the existing
-tenant-write positive-version contract. Lifecycle transitions remain
+holding-write positive-version contract. Lifecycle transitions remain
 optimistic and preserve the domain’s transition facts. This packet does not
 claim durable journey worker execution, consent checks at scheduling/delivery,
 provider delivery, CRM side effects, or Marketing completion.
@@ -22,7 +22,7 @@ provider delivery, CRM side effects, or Marketing completion.
   — PASS; migration contract test passed and the live test remained explicitly
   ignored by default.
 - Disposable live PostgreSQL evidence:
-  `ERPX_TEST_TENANT_WRITE_DATABASE_URL='postgresql:///postgres?host=%2Ftmp&port=5432'
+  `ERPX_TEST_HOLDING_WRITE_DATABASE_URL='postgresql:///postgres?host=%2Ftmp&port=5432'
   cargo test -p erpx-infrastructure --test marketing_journey_persistence --
   --ignored --exact journey_write_is_atomic_idempotent_versioned_and_scope_bound
   --nocapture` — PASS; create, exact replay, transition, transition replay,

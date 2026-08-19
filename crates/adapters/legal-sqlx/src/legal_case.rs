@@ -8,7 +8,7 @@ use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, ItemDescriptorDraft,
     record_policy_id,
 };
-use erpx_kernel::{AggregateId, DataClassification, EventId, RecordId, TenantScope};
+use erpx_kernel::{AggregateId, AuthorityScope, DataClassification, EventId, RecordId};
 use erpx_legal::{
     LegalCase, LegalCaseCommand, LegalCaseQueryPort, LegalCaseReceipt, LegalCaseStatus,
     LegalCaseUnitOfWork, LegalCaseView, PortError,
@@ -31,7 +31,7 @@ enum Payload {
 struct LegalCaseProjectionFact {
     case_id: Uuid,
     case_version: u64,
-    tenant_scope: TenantScope,
+    active_scope: AuthorityScope,
     case_reference: String,
     title: String,
     case_status: LegalCaseStatus,
@@ -42,7 +42,7 @@ impl From<&LegalCase> for LegalCaseProjectionFact {
         Self {
             case_id: case.id().as_uuid(),
             case_version: case.version(),
-            tenant_scope: case.scope().clone(),
+            active_scope: case.scope().clone(),
             case_reference: case.case_reference().into(),
             title: case.title().into(),
             case_status: case.status(),
@@ -75,7 +75,7 @@ impl LegalCaseReadAdapter {
 impl LegalCaseQueryPort for LegalCaseReadAdapter {
     async fn get_legal_case(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         case_id: RecordId,
     ) -> Result<Option<LegalCaseView>, PortError> {
         let mut tx = self
@@ -84,7 +84,7 @@ impl LegalCaseQueryPort for LegalCaseReadAdapter {
             .await
             .map_err(|_| PortError::Unavailable)?;
         require_active_generation(&mut tx).await?;
-        let row=sqlx::query("SELECT record.case_id,record.source_aggregate_version,record.case_reference,record.title,record.case_status,record.retention_until FROM erpx_legal_read.legal_case_projection record JOIN erpx_cqrs_read.projection_generations generation ON generation.tenant_id=record.tenant_id AND generation.projection_name=record.projection_name AND generation.generation=record.generation AND generation.status='active' WHERE record.tenant_id=erpx_cqrs_read.current_tenant_id() AND record.projection_name=$1 AND record.scope_key=$2 AND record.case_id=$3")
+        let row=sqlx::query("SELECT record.case_id,record.source_aggregate_version,record.case_reference,record.title,record.case_status,record.retention_until FROM erpx_legal_read.legal_case_projection record JOIN erpx_cqrs_read.projection_generations generation ON generation.holding_id=record.holding_id AND generation.projection_name=record.projection_name AND generation.generation=record.generation AND generation.status='active' WHERE record.holding_id=erpx_cqrs_read.current_holding_id() AND record.projection_name=$1 AND record.scope_key=$2 AND record.case_id=$3")
             .bind(PROJECTION).bind(scope_key(authority_scope)).bind(case_id.as_uuid()).fetch_optional(&mut *tx).await.map_err(|_|PortError::Unavailable)?;
         row.map(|row| {
             Ok(LegalCaseView {
@@ -114,7 +114,7 @@ impl LegalCaseQueryPort for LegalCaseReadAdapter {
     }
 }
 async fn require_active_generation(tx: &mut Transaction<'_, Postgres>) -> Result<(), PortError> {
-    let active:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM erpx_cqrs_read.projection_generations WHERE tenant_id=erpx_cqrs_read.current_tenant_id() AND projection_name=$1 AND status='active')").bind(PROJECTION).fetch_one(&mut **tx).await.map_err(|_|PortError::Unavailable)?;
+    let active:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM erpx_cqrs_read.projection_generations WHERE holding_id=erpx_cqrs_read.current_holding_id() AND projection_name=$1 AND status='active')").bind(PROJECTION).fetch_one(&mut **tx).await.map_err(|_|PortError::Unavailable)?;
     if active {
         Ok(())
     } else {
@@ -168,7 +168,7 @@ impl LegalCaseUnitOfWork for LegalCaseSqlxAdapter {
             correlation_id: c.correlation_id,
             idempotency_key: c.idempotency_key,
             request_hash: hash,
-            tenant_scope: c.record.scope().clone(),
+            active_scope: c.record.scope().clone(),
             actor: c.actor,
             audit_context: c.audit,
             aggregate_type: AGGREGATE.into(),
@@ -210,7 +210,7 @@ impl AtomicCommandGuard for Guard {
         }
         sqlx::query_scalar::<_, i64>(
             "SELECT case_version FROM erpx_legal_write.legal_cases
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND case_id=$1 FOR UPDATE",
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND case_id=$1 FOR UPDATE",
         )
         .bind(self.0.id().as_uuid())
         .fetch_optional(&mut **tx)
@@ -224,7 +224,7 @@ impl AtomicCommandGuard for Guard {
         tx: &mut Transaction<'_, Postgres>,
         c: &GuardCommandContext<'_>,
     ) -> Result<(), CqrsSqlxError> {
-        let a:Option<i64>=sqlx::query_scalar("SELECT case_version FROM erpx_legal_write.legal_cases WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND case_id=$1 FOR UPDATE").bind(self.0.id().as_uuid()).fetch_optional(&mut **tx).await?;
+        let a:Option<i64>=sqlx::query_scalar("SELECT case_version FROM erpx_legal_write.legal_cases WHERE holding_id=erpx_cqrs_write.current_holding_id() AND case_id=$1 FOR UPDATE").bind(self.0.id().as_uuid()).fetch_optional(&mut **tx).await?;
         match (c.expected_version, a) {
             (None, None) => Ok(()),
             (Some(e), Some(a)) if i64::try_from(e).ok() == Some(a) => Ok(()),
@@ -239,7 +239,7 @@ impl AtomicCommandGuard for Guard {
         if c.aggregate_version != self.0.version() {
             return Err(CqrsSqlxError::GuardRejected("legal case metadata mismatch"));
         }
-        let changed=sqlx::query("INSERT INTO erpx_legal_write.legal_cases (tenant_id,case_id,case_version,tenant_scope,scope_key,case_reference,title,related_matter_id,source_version,evidence_sha256,case_status,owner_ref,closed_by,retention_until,created_at,updated_at) VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) ON CONFLICT (tenant_id,case_id) DO UPDATE SET case_version=EXCLUDED.case_version,evidence_sha256=EXCLUDED.evidence_sha256,case_status=EXCLUDED.case_status,closed_by=EXCLUDED.closed_by,updated_at=EXCLUDED.updated_at WHERE erpx_legal_write.legal_cases.case_version+1=EXCLUDED.case_version").bind(self.0.id().as_uuid()).bind(to_i64(self.0.version())?).bind(serde_json::to_value(self.0.scope())?).bind(scope_key(self.0.scope())).bind(self.0.case_reference()).bind(self.0.title()).bind(self.0.related_matter().map(|v|v.id().as_uuid())).bind(self.0.source_version().map(to_i64).transpose()?).bind(self.0.evidence_sha256()).bind(status(self.0.status())).bind(self.0.owner_ref()).bind(self.0.closed_by()).bind(self.0.retention_until()).bind(self.0.created_at()).bind(self.0.updated_at()).execute(&mut **tx).await?.rows_affected();
+        let changed=sqlx::query("INSERT INTO erpx_legal_write.legal_cases (holding_id,case_id,case_version,active_scope,scope_key,case_reference,title,related_matter_id,source_version,evidence_sha256,case_status,owner_ref,closed_by,retention_until,created_at,updated_at) VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) ON CONFLICT (holding_id,case_id) DO UPDATE SET case_version=EXCLUDED.case_version,evidence_sha256=EXCLUDED.evidence_sha256,case_status=EXCLUDED.case_status,closed_by=EXCLUDED.closed_by,updated_at=EXCLUDED.updated_at WHERE erpx_legal_write.legal_cases.case_version+1=EXCLUDED.case_version").bind(self.0.id().as_uuid()).bind(to_i64(self.0.version())?).bind(serde_json::to_value(self.0.scope())?).bind(scope_key(self.0.scope())).bind(self.0.case_reference()).bind(self.0.title()).bind(self.0.related_matter().map(|v|v.id().as_uuid())).bind(self.0.source_version().map(to_i64).transpose()?).bind(self.0.evidence_sha256()).bind(status(self.0.status())).bind(self.0.owner_ref()).bind(self.0.closed_by()).bind(self.0.retention_until()).bind(self.0.created_at()).bind(self.0.updated_at()).execute(&mut **tx).await?.rows_affected();
         if changed != 1 {
             return Err(CqrsSqlxError::GuardRejected("legal case write conflict"));
         }
@@ -270,7 +270,7 @@ fn status(v: LegalCaseStatus) -> &'static str {
         LegalCaseStatus::Cancelled => "cancelled",
     }
 }
-fn scope_key(v: &erpx_kernel::TenantScope) -> String {
+fn scope_key(v: &erpx_kernel::AuthorityScope) -> String {
     serde_json::to_string(v).expect("scope")
 }
 fn to_i64(v: u64) -> Result<i64, CqrsSqlxError> {
@@ -340,14 +340,14 @@ impl Projector for LegalCaseProjector {
             serde_json::from_value(e.payload.clone()).map_err(pfailure)?;
         if r.case_id != e.aggregate_id.as_uuid()
             || r.case_version != e.aggregate_version
-            || r.tenant_scope != e.tenant_scope
-            || r.tenant_scope.validate().is_err()
+            || r.active_scope != e.active_scope
+            || r.active_scope.validate().is_err()
             || r.case_reference.trim().is_empty()
             || r.title.trim().is_empty()
         {
             return Err(ProjectionFailure::new("legal case metadata mismatch"));
         }
-        sqlx::query("INSERT INTO erpx_legal_read.legal_case_projection (tenant_id,projection_name,generation,partition_key,case_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,case_reference,title,case_status,retention_until,projected_at) VALUES (erpx_cqrs_read.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,case_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,title=EXCLUDED.title,case_status=EXCLUDED.case_status,retention_until=EXCLUDED.retention_until,projected_at=now() WHERE erpx_legal_read.legal_case_projection.source_aggregate_version<EXCLUDED.source_aggregate_version").bind(PROJECTION).bind(c.generation).bind(&e.partition).bind(r.case_id).bind(pi64(r.case_version)?).bind(pi64(e.global_sequence)?).bind(serde_json::to_value(&r.tenant_scope).map_err(pfailure)?).bind(scope_key(&r.tenant_scope)).bind(&r.case_reference).bind(&r.title).bind(status(r.case_status)).bind(r.retention_until).execute(&mut **tx).await.map_err(pfailure)?;
+        sqlx::query("INSERT INTO erpx_legal_read.legal_case_projection (holding_id,projection_name,generation,partition_key,case_id,source_aggregate_version,source_global_sequence,active_scope,scope_key,case_reference,title,case_status,retention_until,projected_at) VALUES (erpx_cqrs_read.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now()) ON CONFLICT (holding_id,projection_name,generation,partition_key,case_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,title=EXCLUDED.title,case_status=EXCLUDED.case_status,retention_until=EXCLUDED.retention_until,projected_at=now() WHERE erpx_legal_read.legal_case_projection.source_aggregate_version<EXCLUDED.source_aggregate_version").bind(PROJECTION).bind(c.generation).bind(&e.partition).bind(r.case_id).bind(pi64(r.case_version)?).bind(pi64(e.global_sequence)?).bind(serde_json::to_value(&r.active_scope).map_err(pfailure)?).bind(scope_key(&r.active_scope)).bind(&r.case_reference).bind(&r.title).bind(status(r.case_status)).bind(r.retention_until).execute(&mut **tx).await.map_err(pfailure)?;
         Ok(())
     }
     async fn reset(
@@ -355,7 +355,7 @@ impl Projector for LegalCaseProjector {
         tx: &mut Transaction<'_, Postgres>,
         c: &ProjectorContext<'_>,
     ) -> Result<(), ProjectionFailure> {
-        sqlx::query("DELETE FROM erpx_legal_read.legal_case_projection WHERE tenant_id=erpx_cqrs_read.current_tenant_id() AND projection_name=$1 AND generation=$2").bind(PROJECTION).bind(c.generation).execute(&mut **tx).await.map_err(pfailure)?;
+        sqlx::query("DELETE FROM erpx_legal_read.legal_case_projection WHERE holding_id=erpx_cqrs_read.current_holding_id() AND projection_name=$1 AND generation=$2").bind(PROJECTION).bind(c.generation).execute(&mut **tx).await.map_err(pfailure)?;
         Ok(())
     }
 }

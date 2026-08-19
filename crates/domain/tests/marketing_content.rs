@@ -1,15 +1,15 @@
 use std::collections::BTreeMap;
 
 use chrono::Utc;
-use erpx_domain::contracts::TenantScope;
+use erpx_domain::contracts::AuthorityScope;
 use erpx_domain::marketing_content::{
     ContentAsset, ContentAssetVersion, ContentLocale, ContentTemplate, ContentTemplateVersion,
     MarketingContentError, SeoMetadata, SocialMetadata, TemplateVariant,
 };
 use uuid::Uuid;
 
-fn scope() -> TenantScope {
-    TenantScope::Holding {
+fn scope() -> AuthorityScope {
+    AuthorityScope::Holding {
         holding_id: Uuid::from_u128(1),
     }
 }

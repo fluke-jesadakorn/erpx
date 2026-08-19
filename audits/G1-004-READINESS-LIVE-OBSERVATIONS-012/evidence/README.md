@@ -3,15 +3,15 @@
 ## Handoff
 
 Task: add production-safe, fail-closed live readiness observations for the
-worker heartbeat, tenant registry/routing, projection freshness, and
+worker heartbeat, holding registry/routing, projection freshness, and
 backup/PITR metadata. This packet does not close the G1 readiness gate.
 
 Dependencies consumed:
 
 - Existing `WorkerReadinessComposition` and fail-closed state classifiers.
-- `tenant_registry`, `tenant_database_health`, `tenant_storage_health`,
-  `tenant_projection_switches`, and `tenant_backup_runs`.
-- Existing physical tenant database provisioner/router and separate tenant
+- `holding_registry`, `holding_database_health`, `holding_storage_health`,
+  `holding_projection_switches`, and `holding_backup_runs`.
+- Existing physical holding database provisioner/router and separate holding
   write/read migrations.
 
 ## Delivered behavior
@@ -21,9 +21,9 @@ Dependencies consumed:
 - Added typed, sanitized durable metadata observations. Missing metadata is
   `not_probed`; stale, future, failed, mismatched, invalid, and non-activated
   metadata is `unavailable`.
-- Added live tenant route probing that connects to both physical databases,
+- Added live holding route probing that connects to both physical databases,
   verifies `current_database()` against the server-side route, and verifies a
-  side-specific tenant relation. Probe failures return a bounded reason code;
+  side-specific holding relation. Probe failures return a bounded reason code;
   connection details are not returned.
 - Composed durable database health with live probes. A live connection cannot
   promote missing or stale durable health to ready.
@@ -31,9 +31,9 @@ Dependencies consumed:
   unprobed and becomes ready only after a recent scheduler-owned mark; future
   and stale timestamps fail closed.
 - Added `WorkerRuntime::observe_live_readiness`, which asynchronously composes
-  heartbeat, tenant routing, projection freshness, and backup/PITR states into
+  heartbeat, holding routing, projection freshness, and backup/PITR states into
   the existing `WorkerReadinessComposition`.
-- Readiness models omit tenant database keys, storage namespaces, credential
+- Readiness models omit holding database keys, storage namespaces, credential
   key references, backup references, and persisted error text.
 
 ## Files changed
@@ -50,9 +50,9 @@ were changed by this packet.
 ## Interfaces produced
 
 - `ReadinessObservationPolicy`
-- `TenantProvisioner::observe_tenant_readiness_metadata(...)`
-- `TenantDatabaseRouter::observe_tenant_readiness(...)`
-- `RoutedTenantDatabase::probe(...)`
+- `HoldingProvisioner::observe_holding_readiness_metadata(...)`
+- `HoldingDatabaseRouter::observe_holding_readiness(...)`
+- `RoutedHoldingDatabase::probe(...)`
 - `WorkerHeartbeat::{record_at,observe}`
 - `WorkerRuntime::{heartbeat,record_heartbeat_at,observe_live_readiness}`
 - `WorkerLiveReadinessPolicy` and `WorkerLiveReadinessObservation`
@@ -64,9 +64,9 @@ was changed.
 
 Observation methods are read-only. They query only the control-plane registry,
 durable health, projection-switch, and backup metadata tables, then perform
-server-side `SELECT`/relation probes against the registered tenant write/read
+server-side `SELECT`/relation probes against the registered holding write/read
 databases. They do not return or mutate credentials, registry keys, backup
-references, or tenant data.
+references, or holding data.
 
 ## Verification
 
@@ -81,10 +81,10 @@ From `/Users/fluke/Desktop/Work/folio/erpx`:
   PostgreSQL.
 - `cargo clippy -p erpx-infrastructure -p erpx-worker --all-targets -- -D warnings` — PASS
 - Focused live integration with explicitly created disposable PostgreSQL
-  databases — PASS: 1 passed, 0 failed. The control and tenant databases were
+  databases — PASS: 1 passed, 0 failed. The control and holding databases were
   explicitly dropped afterward and verified absent.
 
-The live integration exercised physical tenant provisioning, both route
+The live integration exercised physical holding provisioning, both route
 probes, activated projection metadata, verified PITR metadata, and reference
 redaction.
 
@@ -103,8 +103,8 @@ redaction.
   composition.
 - Backup readiness is metadata freshness/verification evidence only; real
   backup execution, restore testing, and PITR scheduling remain open.
-- Projection freshness uses the durable tenant projection-switch state and
-  freshness age; tenant-specific event lag/checkpoint publication remains open.
+- Projection freshness uses the durable holding projection-switch state and
+  freshness age; holding-specific event lag/checkpoint publication remains open.
 
 ## Integration order and rollback
 
@@ -117,5 +117,5 @@ redaction.
 
 Rollback is limited to removing the new observation methods, worker heartbeat
 state/composition seam, focused tests, and this evidence file. Durable schema,
-tenant data, credentials, and Folio runtime behavior are unaffected.
+holding data, credentials, and Folio runtime behavior are unaffected.
 

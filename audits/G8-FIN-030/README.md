@@ -15,11 +15,11 @@
 - Added typed `GetFinanceCloseReview` protobuf request, bounded review/report/
   metadata response messages, and Finance RPC registration.
 - Requires an authenticated query context, explicit holding/company/branch
-  scope, `finance.read` role authorization, tenant customer-scope membership,
+  scope, `finance.read` role authorization, holding customer-scope membership,
   and matching requested holding/company identity.
 - Rejects platform, subtree, cross-company, malformed UUID/reference, and
-  missing-context requests before tenant routing.
-- Routes both physically separated tenant pools, invokes the read-only
+  missing-context requests before holding routing.
+- Routes both physically separated holding pools, invokes the read-only
   `SqlxFinanceCloseReadAdapter`, and returns typed review lifecycle metadata,
   statement/account/control summaries, and explicit missing/fresh/stale/
   unknown projection metadata. Raw JSONB, facts, command contexts, and
@@ -46,7 +46,7 @@ projection/worker, and Finance UI remain required.
 ## Remaining boundary
 
 The adapter currently reads the close snapshot through a read-only query on the
-tenant write database while checking Finance journal facts on the tenant read
+holding write database while checking Finance journal facts on the holding read
 database. A dedicated close-review read migration/projector must replace that
 temporary composition. Close UI, close workers/reconciliation, AP/AR,
 consolidation, Thai tax, statements, migration evidence, and the broader G8

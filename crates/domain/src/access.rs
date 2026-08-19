@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
+use erpx_kernel::AuthorityScope;
+
 use crate::commercial::{
     BillingState, EntitlementAllocationBook, ModuleEntitlement, authorize_module,
 };
@@ -28,192 +30,6 @@ impl RiskTier {
             Self::SupportDiagnostic => Duration::hours(8),
             Self::SupportMutation => Duration::hours(2),
             Self::Emergency => Duration::hours(1),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Scope {
-    Platform,
-    Holding {
-        holding_id: Uuid,
-    },
-    Company {
-        holding_id: Uuid,
-        company_id: Uuid,
-    },
-    Branch {
-        holding_id: Uuid,
-        company_id: Uuid,
-        branch_id: Uuid,
-    },
-    Subtree {
-        holding_id: Uuid,
-        company_ids: Vec<Uuid>,
-        branch_ids: Vec<Uuid>,
-    },
-}
-
-impl Scope {
-    /// Stable, transport-neutral representation used when a support approval
-    /// binds a typed scope to the session/capability string fields.
-    pub fn canonical_key(&self) -> String {
-        fn ids_key(ids: &[Uuid]) -> String {
-            let mut values: Vec<String> = ids.iter().map(Uuid::to_string).collect();
-            values.sort_unstable();
-            values.join(",")
-        }
-
-        match self {
-            Self::Platform => "platform".into(),
-            Self::Holding { holding_id } => format!("holding:{holding_id}"),
-            Self::Company {
-                holding_id,
-                company_id,
-            } => format!("company:{holding_id}:{company_id}"),
-            Self::Branch {
-                holding_id,
-                company_id,
-                branch_id,
-            } => format!("branch:{holding_id}:{company_id}:{branch_id}"),
-            Self::Subtree {
-                holding_id,
-                company_ids,
-                branch_ids,
-            } => format!(
-                "subtree:{holding_id}:companies={}:branches={}",
-                ids_key(company_ids),
-                ids_key(branch_ids)
-            ),
-        }
-    }
-
-    pub fn contains(&self, child: &Self) -> bool {
-        match (self, child) {
-            (Self::Platform, _) => true,
-            (Self::Holding { holding_id: parent }, Self::Holding { holding_id: child }) => {
-                parent == child
-            }
-            (
-                Self::Holding { holding_id: parent },
-                Self::Company {
-                    holding_id: child, ..
-                },
-            ) => parent == child,
-            (
-                Self::Holding { holding_id: parent },
-                Self::Branch {
-                    holding_id: child, ..
-                },
-            ) => parent == child,
-            (
-                Self::Holding { holding_id: parent },
-                Self::Subtree {
-                    holding_id: child, ..
-                },
-            ) => parent == child,
-            (
-                Self::Company {
-                    holding_id: parent_holding,
-                    company_id: parent_company,
-                },
-                Self::Company {
-                    holding_id: child_holding,
-                    company_id: child_company,
-                },
-            ) => parent_holding == child_holding && parent_company == child_company,
-            (
-                Self::Company {
-                    holding_id: parent_holding,
-                    company_id: parent_company,
-                },
-                Self::Branch {
-                    holding_id: child_holding,
-                    company_id: child_company,
-                    ..
-                },
-            ) => parent_holding == child_holding && parent_company == child_company,
-            (
-                Self::Company {
-                    holding_id: parent_holding,
-                    company_id: parent_company,
-                },
-                Self::Subtree {
-                    holding_id: child_holding,
-                    company_ids,
-                    branch_ids,
-                },
-            ) => {
-                parent_holding == child_holding
-                    && company_ids.iter().all(|id| id == parent_company)
-                    && !branch_ids.is_empty()
-            }
-            (
-                Self::Branch {
-                    holding_id: parent_holding,
-                    company_id: parent_company,
-                    branch_id: parent_branch,
-                },
-                Self::Branch {
-                    holding_id: child_holding,
-                    company_id: child_company,
-                    branch_id: child_branch,
-                },
-            ) => {
-                parent_holding == child_holding
-                    && parent_company == child_company
-                    && parent_branch == child_branch
-            }
-            (
-                Self::Subtree {
-                    holding_id: parent_holding,
-                    company_ids,
-                    branch_ids,
-                },
-                Self::Company {
-                    holding_id: child_holding,
-                    company_id,
-                },
-            ) => {
-                parent_holding == child_holding
-                    && branch_ids.is_empty()
-                    && company_ids.contains(company_id)
-            }
-            (
-                Self::Subtree {
-                    holding_id: parent_holding,
-                    company_ids,
-                    branch_ids,
-                },
-                Self::Branch {
-                    holding_id: child_holding,
-                    company_id,
-                    branch_id,
-                },
-            ) => {
-                parent_holding == child_holding
-                    && company_ids.contains(company_id)
-                    && branch_ids.contains(branch_id)
-            }
-            (
-                Self::Subtree {
-                    holding_id: parent_holding,
-                    company_ids: parent_companies,
-                    branch_ids: parent_branches,
-                },
-                Self::Subtree {
-                    holding_id: child_holding,
-                    company_ids: child_companies,
-                    branch_ids: child_branches,
-                },
-            ) => {
-                parent_holding == child_holding
-                    && child_companies
-                        .iter()
-                        .all(|id| parent_companies.contains(id))
-                    && child_branches.iter().all(|id| parent_branches.contains(id))
-            }
-            _ => false,
         }
     }
 }
@@ -263,7 +79,7 @@ pub struct EffectiveAccessRequest {
     /// row for a different principal.
     pub principal_ref: String,
     pub at: DateTime<Utc>,
-    pub requested_scope: Scope,
+    pub requested_scope: AuthorityScope,
     pub module_key: String,
     pub required_permission: String,
     pub requested_approval_minor: u64,
@@ -422,7 +238,7 @@ pub fn evaluate_effective_access_chain(
     let Some(book) = request.entitlement_book.as_ref() else {
         if matches!(
             request.requested_scope,
-            Scope::Company { .. } | Scope::Branch { .. }
+            AuthorityScope::Company { .. } | AuthorityScope::Branch { .. }
         ) {
             return Err(EffectiveAccessDenial::CommercialDenied(
                 "allocation_context_missing".into(),
@@ -432,7 +248,7 @@ pub fn evaluate_effective_access_chain(
     };
 
     let allocation_decision = match request.requested_scope {
-        Scope::Company { company_id, .. } => book.authorize(
+        AuthorityScope::Company { company_id, .. } => book.authorize(
             request.billing_state,
             company_id,
             None,
@@ -440,7 +256,7 @@ pub fn evaluate_effective_access_chain(
             request.at,
             request.is_mutation,
         ),
-        Scope::Branch {
+        AuthorityScope::Branch {
             company_id,
             branch_id,
             ..
@@ -452,9 +268,9 @@ pub fn evaluate_effective_access_chain(
             request.at,
             request.is_mutation,
         ),
-        Scope::Platform | Scope::Holding { .. } | Scope::Subtree { .. } => {
-            crate::commercial::EntitlementDecision::Allowed
-        }
+        AuthorityScope::Platform
+        | AuthorityScope::Holding { .. }
+        | AuthorityScope::Subtree { .. } => crate::commercial::EntitlementDecision::Allowed,
     };
     match allocation_decision {
         crate::commercial::EntitlementDecision::Allowed => Ok(()),
@@ -565,7 +381,7 @@ pub struct RoleAssignment {
     /// deserialized without this field.
     #[serde(default)]
     pub approval_limit_minor: u64,
-    pub scope: Scope,
+    pub scope: AuthorityScope,
     pub valid_from: DateTime<Utc>,
     pub valid_until: DateTime<Utc>,
     pub timezone: String,
@@ -931,10 +747,10 @@ impl RoleRecoveryTarget {
         }
     }
 
-    fn scope(&self) -> Scope {
+    fn scope(&self) -> AuthorityScope {
         match self {
-            Self::PlatformRoot => Scope::Platform,
-            Self::HoldingOwner { holding_id } => Scope::Holding {
+            Self::PlatformRoot => AuthorityScope::Platform,
+            Self::HoldingOwner { holding_id } => AuthorityScope::Holding {
                 holding_id: *holding_id,
             },
         }
@@ -1052,7 +868,7 @@ impl RoleRecoveryRequest {
     }
 }
 
-fn scopes_overlap(left: &Scope, right: &Scope) -> bool {
+fn scopes_overlap(left: &AuthorityScope, right: &AuthorityScope) -> bool {
     left.contains(right) || right.contains(left)
 }
 
@@ -1243,7 +1059,7 @@ mod tests {
             functional_domain: "organization".into(),
             authority_level: 1,
             approval_limit_minor: 0,
-            scope: Scope::Company {
+            scope: AuthorityScope::Company {
                 holding_id: holding,
                 company_id: company,
             },
@@ -1260,7 +1076,7 @@ mod tests {
             assignment_version: 1,
         };
         let child = RoleAssignment {
-            scope: Scope::Branch {
+            scope: AuthorityScope::Branch {
                 holding_id: holding,
                 company_id: company,
                 branch_id: branch,
@@ -1271,7 +1087,7 @@ mod tests {
         };
         assert!(child.validate_delegation(&parent).is_ok());
         let outside = RoleAssignment {
-            scope: Scope::Holding {
+            scope: AuthorityScope::Holding {
                 holding_id: holding,
             },
             ..child
@@ -1283,27 +1099,26 @@ mod tests {
     }
 
     #[test]
-    fn subtree_delegation_requires_explicit_branch_membership() {
+    fn subtree_delegation_is_local_only_for_its_root_node() {
         let holding = Uuid::new_v4();
         let company = Uuid::new_v4();
         let selected_branch = Uuid::new_v4();
         let other_branch = Uuid::new_v4();
-        let parent = Scope::Subtree {
+        let parent = AuthorityScope::Subtree {
             holding_id: holding,
-            company_ids: vec![company],
-            branch_ids: vec![selected_branch],
+            organization_node_id: selected_branch,
         };
-        assert!(parent.contains(&Scope::Branch {
+        assert!(parent.contains(&AuthorityScope::Branch {
             holding_id: holding,
             company_id: company,
             branch_id: selected_branch,
         }));
-        assert!(!parent.contains(&Scope::Branch {
+        assert!(!parent.contains(&AuthorityScope::Branch {
             holding_id: holding,
             company_id: company,
             branch_id: other_branch,
         }));
-        assert!(!parent.contains(&Scope::Company {
+        assert!(!parent.contains(&AuthorityScope::Company {
             holding_id: holding,
             company_id: company,
         }));
@@ -1320,7 +1135,7 @@ mod tests {
             functional_domain: "finance".into(),
             authority_level: 5,
             approval_limit_minor: 0,
-            scope: Scope::Platform,
+            scope: AuthorityScope::Platform,
             valid_from: from,
             valid_until: until,
             timezone: "UTC".into(),
@@ -1370,7 +1185,7 @@ mod tests {
             functional_domain: "finance".into(),
             authority_level: 2,
             approval_limit_minor: 0,
-            scope: Scope::Platform,
+            scope: AuthorityScope::Platform,
             valid_from: from,
             valid_until: until,
             timezone: "UTC".into(),
@@ -1391,7 +1206,7 @@ mod tests {
             functional_domain: "finance".into(),
             authority_level: 2,
             approval_limit_minor: 0,
-            scope: Scope::Platform,
+            scope: AuthorityScope::Platform,
             valid_from: from,
             valid_until: until,
             timezone: "UTC".into(),
@@ -1438,7 +1253,7 @@ mod tests {
             functional_domain: "platform".into(),
             authority_level: 10,
             approval_limit_minor: 0,
-            scope: Scope::Platform,
+            scope: AuthorityScope::Platform,
             valid_from: from,
             valid_until: until,
             timezone: "UTC".into(),
@@ -1474,7 +1289,7 @@ mod tests {
 
     fn evaluated_assignment(
         id: Uuid,
-        scope: Scope,
+        scope: AuthorityScope,
         from: DateTime<Utc>,
         until: DateTime<Utc>,
         parent_assignment_id: Option<Uuid>,
@@ -1502,7 +1317,7 @@ mod tests {
         }
     }
 
-    fn access_request(at: DateTime<Utc>, scope: Scope) -> EffectiveAccessRequest {
+    fn access_request(at: DateTime<Utc>, scope: AuthorityScope) -> EffectiveAccessRequest {
         EffectiveAccessRequest {
             principal_ref: "user".into(),
             at,
@@ -1534,7 +1349,7 @@ mod tests {
     fn effective_access_uses_exact_half_open_boundaries() {
         let from = Utc::now();
         let until = from + Duration::hours(1);
-        let scope = Scope::Platform;
+        let scope = AuthorityScope::Platform;
         let assignment = evaluated_assignment(Uuid::new_v4(), scope.clone(), from, until, None);
         assert!(
             evaluate_effective_access(&assignment, None, &access_request(from, scope.clone()))
@@ -1556,7 +1371,7 @@ mod tests {
         let child_until = from + Duration::hours(2);
         let parent = evaluated_assignment(
             Uuid::new_v4(),
-            Scope::Company {
+            AuthorityScope::Company {
                 holding_id: holding,
                 company_id: company,
             },
@@ -1566,7 +1381,7 @@ mod tests {
         );
         let child = evaluated_assignment(
             Uuid::new_v4(),
-            Scope::Branch {
+            AuthorityScope::Branch {
                 holding_id: holding,
                 company_id: company,
                 branch_id: branch,
@@ -1612,7 +1427,7 @@ mod tests {
     fn effective_access_checks_entitlement_billing_and_approval_limit() {
         let from = Utc::now();
         let until = from + Duration::hours(1);
-        let scope = Scope::Platform;
+        let scope = AuthorityScope::Platform;
         let assignment = evaluated_assignment(Uuid::new_v4(), scope.clone(), from, until, None);
         let mut request = access_request(from, scope);
         request.requested_approval_minor = 1_001;
@@ -1637,11 +1452,11 @@ mod tests {
         let branch_id = Uuid::new_v4();
         let from = Utc::now();
         let until = from + Duration::hours(1);
-        let company_scope = Scope::Company {
+        let company_scope = AuthorityScope::Company {
             holding_id,
             company_id,
         };
-        let branch_scope = Scope::Branch {
+        let branch_scope = AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -1699,14 +1514,14 @@ mod tests {
         let child_until = from + Duration::hours(3);
         let grandparent = evaluated_assignment(
             Uuid::new_v4(),
-            Scope::Holding { holding_id },
+            AuthorityScope::Holding { holding_id },
             from,
             grandparent_until,
             None,
         );
         let parent = evaluated_assignment(
             Uuid::new_v4(),
-            Scope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             },
@@ -1716,7 +1531,7 @@ mod tests {
         );
         let child = evaluated_assignment(
             Uuid::new_v4(),
-            Scope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -1767,7 +1582,7 @@ mod tests {
         let holding_id = Uuid::new_v4();
         let company_id = Uuid::new_v4();
         let from = Utc::now();
-        let scope = Scope::Company {
+        let scope = AuthorityScope::Company {
             holding_id,
             company_id,
         };
@@ -1789,28 +1604,29 @@ mod tests {
     #[test]
     fn canonical_scope_keys_are_stable_and_delegated_roles_fail_closed_without_parent() {
         let holding_id = Uuid::from_u128(1);
-        let company_a = Uuid::from_u128(2);
-        let company_b = Uuid::from_u128(3);
         let branch_a = Uuid::from_u128(4);
-        let branch_b = Uuid::from_u128(5);
-        let first = Scope::Subtree {
+        let first = AuthorityScope::Subtree {
             holding_id,
-            company_ids: vec![company_b, company_a],
-            branch_ids: vec![branch_b, branch_a],
+            organization_node_id: branch_a,
         };
-        let second = Scope::Subtree {
+        let second = AuthorityScope::Subtree {
             holding_id,
-            company_ids: vec![company_a, company_b],
-            branch_ids: vec![branch_a, branch_b],
+            organization_node_id: branch_a,
         };
         assert_eq!(first.canonical_key(), second.canonical_key());
 
         let from = DateTime::from_timestamp(1_700_000_000, 0).expect("fixed timestamp");
         let until = from + Duration::hours(1);
-        let parent = evaluated_assignment(Uuid::from_u128(10), Scope::Platform, from, until, None);
+        let parent = evaluated_assignment(
+            Uuid::from_u128(10),
+            AuthorityScope::Platform,
+            from,
+            until,
+            None,
+        );
         let child = evaluated_assignment(
             Uuid::from_u128(11),
-            Scope::Platform,
+            AuthorityScope::Platform,
             from,
             until,
             Some(parent.id),
@@ -1829,7 +1645,7 @@ mod tests {
         from: DateTime<Utc>,
         until: DateTime<Utc>,
         parent_assignment_id: Option<Uuid>,
-        scope: Scope,
+        scope: AuthorityScope,
     ) -> RoleAssignment {
         RoleAssignment {
             id: Uuid::from_u128(id),
@@ -1866,7 +1682,7 @@ mod tests {
             at - Duration::days(2),
             at,
             None,
-            Scope::Platform,
+            AuthorityScope::Platform,
         );
         let expiring = review_assignment(
             2,
@@ -1876,7 +1692,7 @@ mod tests {
             at,
             at + horizon,
             None,
-            Scope::Platform,
+            AuthorityScope::Platform,
         );
         let outside_horizon = review_assignment(
             3,
@@ -1886,7 +1702,7 @@ mod tests {
             at,
             at + horizon + Duration::seconds(1),
             None,
-            Scope::Platform,
+            AuthorityScope::Platform,
         );
         let inactive = review_assignment(
             4,
@@ -1896,7 +1712,7 @@ mod tests {
             at + Duration::seconds(1),
             at + Duration::days(2),
             None,
-            Scope::Platform,
+            AuthorityScope::Platform,
         );
 
         let queue = build_role_review_queue(
@@ -1954,7 +1770,7 @@ mod tests {
             at,
             at + Duration::days(1),
             Some(Uuid::from_u128(999)),
-            Scope::Platform,
+            AuthorityScope::Platform,
         );
         let excessive = review_assignment(
             11,
@@ -1964,7 +1780,7 @@ mod tests {
             at,
             at + Duration::days(366),
             None,
-            Scope::Platform,
+            AuthorityScope::Platform,
         );
         let maker = review_assignment(
             12,
@@ -1974,7 +1790,7 @@ mod tests {
             at,
             at + Duration::days(1),
             None,
-            Scope::Platform,
+            AuthorityScope::Platform,
         );
         let checker = review_assignment(
             13,
@@ -1984,7 +1800,7 @@ mod tests {
             at,
             at + Duration::days(1),
             None,
-            Scope::Platform,
+            AuthorityScope::Platform,
         );
 
         let queue = build_role_review_queue(
@@ -2053,7 +1869,7 @@ mod tests {
         );
         let recovered = request.materialize(&[], at).expect("final root recovery");
         assert_eq!(recovered.role_key, PLATFORM_ROOT_ROLE);
-        assert_eq!(recovered.scope, Scope::Platform);
+        assert_eq!(recovered.scope, AuthorityScope::Platform);
         assert_eq!(recovered.risk_tier, RiskTier::PlatformRoot);
         assert_eq!(recovered.assignment_version, 1);
         assert!(recovered.valid_until < DateTime::<Utc>::MAX_UTC);
@@ -2104,7 +1920,7 @@ mod tests {
             functional_domain: "organization".into(),
             authority_level: 100,
             approval_limit_minor: 0,
-            scope: Scope::Holding { holding_id },
+            scope: AuthorityScope::Holding { holding_id },
             valid_from: at,
             valid_until: at + Duration::days(1),
             timezone: "UTC".into(),
@@ -2130,7 +1946,7 @@ mod tests {
                 at,
             )
             .expect("expired owner permits final recovery");
-        assert_eq!(recovered.scope, Scope::Holding { holding_id });
+        assert_eq!(recovered.scope, AuthorityScope::Holding { holding_id });
         assert_eq!(recovered.role_key, HOLDING_OWNER_ROLE);
     }
 
@@ -2159,7 +1975,7 @@ mod tests {
             at,
             at + Duration::days(1),
             None,
-            Scope::Platform,
+            AuthorityScope::Platform,
         );
         let left =
             build_role_review_queue(std::slice::from_ref(&assignment), at, Duration::days(2))
@@ -2183,7 +1999,7 @@ mod tests {
             at,
             at + Duration::days(1),
             None,
-            Scope::Platform,
+            AuthorityScope::Platform,
         );
         assert_eq!(
             base.renew_with_reviewer(
@@ -2213,7 +2029,7 @@ mod tests {
         let until = at + Duration::days(1);
         let holding_id = Uuid::from_u128(50);
         let company_id = Uuid::from_u128(51);
-        let target_scope = Scope::Company {
+        let target_scope = AuthorityScope::Company {
             holding_id,
             company_id,
         };
@@ -2238,7 +2054,7 @@ mod tests {
             at,
             until,
             None,
-            Scope::Holding { holding_id },
+            AuthorityScope::Holding { holding_id },
         );
         approver.authority_level = 5;
         assert!(
@@ -2247,7 +2063,7 @@ mod tests {
         );
 
         let mut wrong_scope = approver.clone();
-        wrong_scope.scope = Scope::Company {
+        wrong_scope.scope = AuthorityScope::Company {
             holding_id,
             company_id: Uuid::from_u128(54),
         };
@@ -2285,7 +2101,7 @@ mod tests {
             at,
             until,
             None,
-            Scope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             },
@@ -2301,7 +2117,7 @@ mod tests {
             at,
             until,
             None,
-            Scope::Holding { holding_id },
+            AuthorityScope::Holding { holding_id },
         );
         parent.authority_level = 4;
         let mut approver = review_assignment(
@@ -2312,7 +2128,7 @@ mod tests {
             at,
             until,
             Some(parent.id),
-            Scope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             },
@@ -2369,7 +2185,7 @@ mod tests {
             at,
             until,
             None,
-            Scope::Platform,
+            AuthorityScope::Platform,
         );
         let approver = review_assignment(
             71,
@@ -2379,7 +2195,7 @@ mod tests {
             at,
             until,
             None,
-            Scope::Platform,
+            AuthorityScope::Platform,
         );
         assert_eq!(
             evaluate_approver_scope_intersection(&assignment, &approver, &[], at),

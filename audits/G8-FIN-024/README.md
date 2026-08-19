@@ -96,11 +96,11 @@ cannot replace either. No persistent or command-owner state was changed.
 The production composition root still needs a provider SDK adapter, exact
 control-plane route resolution from G8-FIN-022, secret-manager retrieval, and
 an explicitly authorized worker workflow that passes only validated pages into
-this coordinator. Tenant banking persistence, bank-to-GL proposal generation,
+this coordinator. Holding banking persistence, bank-to-GL proposal generation,
 journal application, reconciliation, Finance UI, and the broader G8 gates
 remain open. The next safe order is provider/credential composition, then an
 authorized worker import command that invokes this coordinator, then the
-existing tenant write boundary and independent reconciliation evidence.
+existing holding write boundary and independent reconciliation evidence.
 
 This packet does not claim G8 or ERPX completion.
 
@@ -117,7 +117,7 @@ The worker-side provider import seam now has a real SQLx control-plane source:
 - enqueue is idempotent and validates the typed request plus MFA-derived
   authorization before persistence; claim, retry, completion, and rollback
   operations are worker/source-fenced and lease-bound;
-- completion requires evidence that the authoritative tenant write count and
+- completion requires evidence that the authoritative holding write count and
   the import outbox event count reconcile exactly; the source does not infer
   completion from provider success;
 - the production worker registry remains opt-in and requires injected router,
@@ -133,24 +133,24 @@ warnings-denied Clippy also passed.
 
 Rollback is additive: remove migration 0063/0014, the source module/export,
 and the explicit registry method. Existing provider-neutral page validation,
-tenant banking persistence, and Folio remain unchanged. No command-owner
+holding banking persistence, and Folio remain unchanged. No command-owner
 switch, directory activation, Folio write retirement, or production cutover
 occurred.
 
 The provider SDK/credential-manager composition, live provider certification,
-tenant write/outbox integration under a credentialed adapter, and broader G8
+holding write/outbox integration under a credentialed adapter, and broader G8
 Finance gate remain open.
 
-## Coordinator continuation — Finance tenant SQLx isolation and worker evidence — 2026-07-28
+## Coordinator continuation — Finance holding SQLx isolation and worker evidence — 2026-07-28
 
 Fresh disposable PostgreSQL evidence passed the Finance bank-provider worker
-job acceptance 1/1 and the tenant banking persistence target 2/2. The worker
+job acceptance 1/1 and the holding banking persistence target 2/2. The worker
 test covered claim fencing, retry/reclaim, reconciliation completion, rollback
-evidence, and status-only projection. The tenant target covered idempotent
+evidence, and status-only projection. The holding target covered idempotent
 scoped bank writes, source/outbox reconciliation, typed matching, and
 read-projection rebuild/replay.
 
-The tenant acceptance fixture now gives each ignored test a unique holding
+The holding acceptance fixture now gives each ignored test a unique holding
 reference so a shared disposable database cannot contaminate source-page
 counts across tests. This is test isolation only; production scope and
 persistence behavior remain unchanged. All temporary databases were dropped.
@@ -161,7 +161,7 @@ Finance workflows remain open.
 
 The durable job read model is now exposed through the additive
 `FinanceService.GetFinanceBankProviderImportJobStatus` query. The server
-requires an authenticated explicit tenant/holding scope and `finance.read`,
+requires an authenticated explicit holding/holding scope and `finance.read`,
 checks the returned job against both opaque route references, records an audit
 event, and returns only bounded job identity, state, source-fence, attempt,
 lease, failure-class, and timestamp metadata. Request JSON, authorization
@@ -177,5 +177,5 @@ status read path; no source rows or Folio ownership state are changed.
 ## Rollback
 
 Remove the additive worker module/export and complete-facts mapper. Existing
-provider-neutral page validation, control-plane routing, and tenant banking
+provider-neutral page validation, control-plane routing, and holding banking
 persistence remain unchanged. No Folio state or runtime secret is affected.

@@ -1,4 +1,4 @@
-//! Tenant Sales quote/order projection runtimes.
+//! Holding Sales quote/order projection runtimes.
 
 use erpx_cqrs_sqlx::{
     CqrsSqlxError, ProjectionPool, ProjectionRun, ProjectionRunner, ProjectionRunnerConfig,

@@ -6,9 +6,9 @@ pub mod view;
 
 pub use gateway::{
     PlatformAdministrationGateway, PlatformAdministrationProtoTransport, admin_context_item,
-    connector_item, tenant_item,
+    connector_item, holding_item,
 };
-pub use model::{AdminContextItem, ConnectorItem, PlatformAdministrationContent, TenantItem};
+pub use model::{AdminContextItem, ConnectorItem, HoldingItem, PlatformAdministrationContent};
 pub use presenter::PlatformAdministrationPresenter;
 pub use view::{PlatformAdministrationRenderedState, render_platform_administration_state};
 erpx_ui_kit::declare_current_workspace_feature!(
@@ -16,7 +16,7 @@ erpx_ui_kit::declare_current_workspace_feature!(
     erpx_ui_kit::CurrentFeatureKind::PlatformAdministration,
     "platform-administration",
     [("platform-administration.workspace", "/platform", "platform")],
-    "erpx-feature-platform-administration-v2"
+    "erpx-feature-platform-administration"
 );
 
 #[cfg(test)]
@@ -28,13 +28,13 @@ mod registration_contract_tests {
         assert_eq!(REGISTRATION.id, "platform-administration");
         assert_eq!(
             REGISTRATION.artifact_key,
-            "erpx-feature-platform-administration-v2"
+            "erpx-feature-platform-administration"
         );
         assert!(REGISTRATION.routes.iter().all(|route| {
             route.authorization == "authenticated"
                 && route.canonical_path.starts_with('/')
                 && REGISTRATION.matches_path(route.canonical_path)
         }));
-        assert!(REGISTRATION.matches_path("/platform/tenant/record-001"));
+        assert!(REGISTRATION.matches_path("/platform/holding/record-001"));
     }
 }

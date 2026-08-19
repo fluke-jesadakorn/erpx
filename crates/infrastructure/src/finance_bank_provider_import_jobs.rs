@@ -7,7 +7,7 @@
 
 use chrono::{DateTime, NaiveDate, Utc};
 use erpx_domain::{
-    contracts::{ActorKind, CommandContext, TenantScope},
+    contracts::{ActorKind, AuthorityScope, CommandContext},
     finance::{
         FINANCE_AUTHORIZATION_CONTRACT_VERSION, FinanceAccessPath, FinanceAuthorizationDecision,
         FinanceAuthorizationOperation,
@@ -42,7 +42,7 @@ pub enum FinanceBankProviderImportError {
     MfaRequired,
 }
 
-/// Facts that bind an import to one provider account and one tenant route.
+/// Facts that bind an import to one provider account and one holding route.
 ///
 /// The serialized field names intentionally match the existing Worker
 /// contract so an upgraded Server can enqueue jobs for the current Worker.
@@ -50,8 +50,8 @@ pub enum FinanceBankProviderImportError {
 pub struct FinanceBankProviderImportRequest {
     pub provider_account_ref: String,
     pub provider_key: String,
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub credential_key: BankProviderCredentialKey,
     pub account: BankProviderAccountBinding,
     pub starts_on: NaiveDate,
@@ -65,8 +65,8 @@ impl FinanceBankProviderImportRequest {
     pub fn validate(&self) -> Result<(), FinanceBankProviderImportError> {
         if self.provider_account_ref.trim().is_empty()
             || self.provider_key.trim().is_empty()
-            || self.tenant_id.trim().is_empty()
-            || self.holding_ref.trim().is_empty()
+            || self.holding_id.trim().is_empty()
+            || self.data_profile_key.trim().is_empty()
             || self.starts_on > self.ends_on
             || self.import_id.is_nil()
             || self.account.account().provider() != self.provider_key
@@ -90,8 +90,8 @@ impl FinanceBankProviderImportRequest {
         self.context
             .validate()
             .map_err(|_| FinanceBankProviderImportError::InvalidRequest)?;
-        if matches!(self.context.tenant_scope, TenantScope::Platform)
-            || !self.context.tenant_scope.contains(self.account.scope())
+        if matches!(self.context.active_scope, AuthorityScope::Platform)
+            || !self.context.active_scope.contains(self.account.scope())
         {
             return Err(FinanceBankProviderImportError::AuthorizationDenied);
         }
@@ -148,19 +148,19 @@ impl FinanceBankProviderImportAuthorization {
         if self.actor_ref != context.actor.principal_ref
             || self.actor_ref.trim().is_empty()
             || !self.mfa_verified
-            || matches!(context.tenant_scope, TenantScope::Platform)
+            || matches!(context.active_scope, AuthorityScope::Platform)
         {
             return Err(FinanceBankProviderImportError::AuthorizationDenied);
         }
         if matches!(
             context.actor.kind,
-            ActorKind::TenantUser | ActorKind::PlatformUser
+            ActorKind::HoldingUser | ActorKind::PlatformUser
         ) && context.actor.session_id.is_none()
         {
             return Err(FinanceBankProviderImportError::AuthorizationDenied);
         }
         if let FinanceAccessPath::LocalBreakGlass { evidence_ref } = &self.access_path
-            && (context.actor.kind != ActorKind::TenantUser
+            && (context.actor.kind != ActorKind::HoldingUser
                 || context.actor.represented_principal_ref.is_some()
                 || context.actor.session_id.is_none()
                 || evidence_ref.trim().is_empty()
@@ -176,8 +176,8 @@ impl FinanceBankProviderImportAuthorization {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinanceBankProviderImportJobStatus {
     pub job_id: Uuid,
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub import_id: Uuid,
     pub state: String,
     pub source_fence: u64,
@@ -249,11 +249,11 @@ impl SqlxFinanceBankProviderImportJobSource {
         if let Some(row) = sqlx::query(
             "SELECT job_id, request_hash
              FROM erpx_control.finance_bank_provider_import_jobs
-             WHERE tenant_id=$1 AND holding_ref=$2 AND import_id=$3
+             WHERE holding_id=$1 AND data_profile_key=$2 AND import_id=$3
              FOR UPDATE",
         )
-        .bind(&request.tenant_id)
-        .bind(&request.holding_ref)
+        .bind(&request.holding_id)
+        .bind(&request.data_profile_key)
         .bind(request.import_id)
         .fetch_optional(&mut *tx)
         .await?
@@ -272,15 +272,15 @@ impl SqlxFinanceBankProviderImportJobSource {
 
         sqlx::query(
             "INSERT INTO erpx_control.finance_bank_provider_import_jobs
-                (job_id, tenant_id, holding_ref, import_id, provider_account_ref,
+                (job_id, holding_id, data_profile_key, import_id, provider_account_ref,
                  provider_key, credential_key_ref, source_fence, request,
                  authorization_facts, request_hash, state, available_at, max_attempts,
                  attempts, created_at, updated_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pending',$12,$13,0,now(),now())",
         )
         .bind(job_id)
-        .bind(&request.tenant_id)
-        .bind(&request.holding_ref)
+        .bind(&request.holding_id)
+        .bind(&request.data_profile_key)
         .bind(request.import_id)
         .bind(&request.provider_account_ref)
         .bind(&request.provider_key)
@@ -301,12 +301,12 @@ impl SqlxFinanceBankProviderImportJobSource {
             format!("finance-bank-provider-import:{job_id}").as_bytes(),
         );
         let event_key = format!("finance.bank_provider_import.queued:{job_id}");
-        let tenant_scope = serde_json::to_value(&request.context.tenant_scope)?;
+        let active_scope = serde_json::to_value(&request.context.active_scope)?;
         let actor = serde_json::to_value(&request.context.actor)?;
         let payload = json!({
             "job_id": job_id,
-            "tenant_id": request.tenant_id,
-            "holding_ref": request.holding_ref,
+            "holding_id": request.holding_id,
+            "data_profile_key": request.data_profile_key,
             "import_id": request.import_id,
             "provider_account_ref": request.provider_account_ref,
             "provider_key": request.provider_key,
@@ -315,7 +315,7 @@ impl SqlxFinanceBankProviderImportJobSource {
         sqlx::query(
             "INSERT INTO erpx_control.outbox_events
                 (id, event_type, event_version, aggregate_type, aggregate_id,
-                 aggregate_version, tenant_scope, actor, correlation_id,
+                 aggregate_version, active_scope, actor, correlation_id,
                  causation_id, idempotency_key, payload, occurred_at, available_at)
              VALUES ($1,$2,1,$3,$4,1,$5,$6,$7,$8,$9,$10,now(),$11)
              ON CONFLICT (idempotency_key) DO NOTHING",
@@ -324,7 +324,7 @@ impl SqlxFinanceBankProviderImportJobSource {
         .bind(FINANCE_BANK_PROVIDER_IMPORT_QUEUED_EVENT)
         .bind(FINANCE_BANK_PROVIDER_IMPORT_AGGREGATE)
         .bind(job_id)
-        .bind(tenant_scope)
+        .bind(active_scope)
         .bind(&actor)
         .bind(request.context.correlation_id)
         .bind(request.context.causation_id)
@@ -362,7 +362,7 @@ impl SqlxFinanceBankProviderImportJobSource {
             ));
         }
         let row = sqlx::query(
-            "SELECT job_id, tenant_id, holding_ref, import_id, state,
+            "SELECT job_id, holding_id, data_profile_key, import_id, state,
                     source_fence, attempts, max_attempts, available_at,
                     lease_until, last_failure_class, completed_at, updated_at
              FROM erpx_control.finance_bank_provider_import_job_status
@@ -376,7 +376,7 @@ impl SqlxFinanceBankProviderImportJobSource {
 
     async fn sync_status(&self, job_id: Uuid) -> Result<(), PersistenceError> {
         let row = sqlx::query(
-            "SELECT job_id, tenant_id, holding_ref, import_id, state,
+            "SELECT job_id, holding_id, data_profile_key, import_id, state,
                     source_fence, attempts, max_attempts, available_at,
                     lease_until, last_failure_class, completed_at, updated_at
              FROM erpx_control.finance_bank_provider_import_jobs
@@ -392,7 +392,7 @@ impl SqlxFinanceBankProviderImportJobSource {
         let status = status_from_row(row)?;
         sqlx::query(
             "INSERT INTO erpx_control.finance_bank_provider_import_job_status
-                (job_id, tenant_id, holding_ref, import_id, state, source_fence,
+                (job_id, holding_id, data_profile_key, import_id, state, source_fence,
                  attempts, max_attempts, available_at, lease_until,
                  last_failure_class, completed_at, updated_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
@@ -404,8 +404,8 @@ impl SqlxFinanceBankProviderImportJobSource {
                  completed_at=EXCLUDED.completed_at, updated_at=EXCLUDED.updated_at",
         )
         .bind(status.job_id)
-        .bind(&status.tenant_id)
-        .bind(&status.holding_ref)
+        .bind(&status.holding_id)
+        .bind(&status.data_profile_key)
         .bind(status.import_id)
         .bind(&status.state)
         .bind(as_i64(
@@ -434,8 +434,8 @@ fn status_from_row(
 ) -> Result<FinanceBankProviderImportJobStatus, PersistenceError> {
     Ok(FinanceBankProviderImportJobStatus {
         job_id: row.try_get("job_id")?,
-        tenant_id: row.try_get("tenant_id")?,
-        holding_ref: row.try_get("holding_ref")?,
+        holding_id: row.try_get("holding_id")?,
+        data_profile_key: row.try_get("data_profile_key")?,
         import_id: row.try_get("import_id")?,
         state: row.try_get("state")?,
         source_fence: as_u64(
@@ -481,7 +481,7 @@ mod tests {
     fn request(session_id: Option<Uuid>) -> FinanceBankProviderImportRequest {
         let holding_id = Uuid::from_u128(1);
         let company_id = Uuid::from_u128(2);
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id,
             company_id,
         };
@@ -499,7 +499,7 @@ mod tests {
             "bank-import-contract-test",
             ActorAttribution {
                 principal_ref: "finance-user".into(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id,
                 represented_principal_ref: None,
                 support_capability_id: None,
@@ -511,8 +511,8 @@ mod tests {
         FinanceBankProviderImportRequest {
             provider_account_ref: "mockbank:acct-opaque-1".into(),
             provider_key: "mockbank".into(),
-            tenant_id: "tenant-opaque-1".into(),
-            holding_ref: "holding-opaque-1".into(),
+            holding_id: "holding-opaque-1".into(),
+            data_profile_key: "holding-opaque-1".into(),
             credential_key: BankProviderCredentialKey::try_new("vault/finance/mockbank").unwrap(),
             account,
             starts_on: NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),

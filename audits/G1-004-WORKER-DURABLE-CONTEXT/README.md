@@ -5,10 +5,10 @@
 - Added control migration `0061_worker_error_context.sql`, which stores a
   bounded JSON object beside the legacy outbox `last_error` text.
 - Worker failure context now carries event version, aggregate identity and
-  version, tenant scope, actor, correlation, causation, idempotency key,
+  version, holding scope, actor, correlation, causation, idempotency key,
   worker identity, retryability, and a sanitized message.
 - The worker validates that the context still binds to the exact claimed
-  event before retry/dead-letter persistence; tenant, actor, correlation, and
+  event before retry/dead-letter persistence; holding, actor, correlation, and
   causation mismatches fail closed.
 - Scope/actor metadata containing secrets, credentials, tokens, private keys,
   raw bodies, signatures, or endpoint URLs is omitted rather than persisted.
@@ -18,13 +18,13 @@
 ## Evidence
 
 - `cargo test -p erpx-infrastructure --lib worker::tests --offline` — PASS;
-  4/4, including tenant/correlation mismatch and secret-bearing metadata
+  4/4, including holding/correlation mismatch and secret-bearing metadata
   rejection.
 - `cargo test -p erpx-infrastructure --lib outbox::tests --offline` — PASS;
   3/3.
 - `cargo check -p erpx-worker --offline` — PASS.
 - Fresh disposable control write/read SQLx acceptance for durable context —
-  PASS; 1/1. The row retained safe tenant/correlation/causation context,
+  PASS; 1/1. The row retained safe holding/correlation/causation context,
   omitted the secret-bearing actor, and persisted only the generic display
   error. Both databases were removed afterward.
 - Current-tree serialized workspace verification — PASS for every local

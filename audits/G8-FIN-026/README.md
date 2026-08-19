@@ -19,13 +19,13 @@
   identity, bounded dates/page size, and a non-nil import ID before external
   calls.
 - Resolves the exact active control-plane route using provider account,
-  provider key, tenant, holding, and credential-key reference; every returned
+  provider key, holding, holding, and credential-key reference; every returned
   route field is checked again against the requested account.
 - Resolves credentials only through the `BankProviderCredentialResolver`, then
   passes them to the provider factory as a secret-manager object. No raw
   credential is accepted in the request or persisted.
 - Runs the bounded `BankProviderImportCoordinator`, then opens physically
-  separate routed tenant write and read connections and persists the account
+  separate routed holding write and read connections and persists the account
   registration and statement import through the existing SQLx write boundary.
 - Returns only typed account/import receipts. Persistence, route, provider,
   authorization, and credential failures are mapped to fixed redacted error
@@ -53,5 +53,5 @@ UI, and the broader G8 gate remain open.
 ## Rollback
 
 Remove the additive worker workflow/module export. G8-FIN-024 pagination,
-G8-FIN-025 credential resolution, control-plane routing, tenant persistence,
+G8-FIN-025 credential resolution, control-plane routing, holding persistence,
 and Folio state remain unchanged.

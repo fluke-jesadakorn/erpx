@@ -128,7 +128,7 @@ fn source_identity(
 mod tests {
     use chrono::{TimeZone, Utc};
     use erpx_integration_contracts::IntegrationEvent;
-    use erpx_kernel::TenantScope;
+    use erpx_kernel::AuthorityScope;
     use uuid::Uuid;
 
     use super::*;
@@ -144,7 +144,7 @@ mod tests {
     #[test]
     fn only_posted_journal_is_public_and_source_owner_is_typed() {
         let at = Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap();
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id: id(1),
             company_id: id(2),
         };

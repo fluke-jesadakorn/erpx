@@ -3,10 +3,10 @@
 ## Task contract
 
 - **Objective:** wire the already-verified Marketing/CRM projection runner
-  into the production worker composition through the established tenant
+  into the production worker composition through the established holding
   projection scheduler.
 - **Dependencies:** G10-MKT-021 `SqlxMarketingStore` CRM read projection and
-  event-receipt adapter; the existing tenant projection scheduler,
+  event-receipt adapter; the existing holding projection scheduler,
   Operations/Finance composition, authorization, and claim interfaces.
 - **Allowed paths:** `apps/worker/src/marketing_projection.rs`,
   `apps/worker/src/lib.rs`, `apps/worker/src/main.rs`, focused worker tests,
@@ -14,7 +14,7 @@
 - **Forbidden paths:** domain, infrastructure, migration, protobuf, server,
   console/UI, Finance, Folio, environment, and runtime files.
 - **Database effects:** none. The packet uses existing routed pools and the
-  existing tenant write/read migrations.
+  existing holding write/read migrations.
 - **Rollback:** disable the Marketing kind selection or revert only the
   worker/audit changes; no schema or authoritative write data is affected.
 
@@ -24,13 +24,13 @@ Consumed:
 
 - `MarketingProjectionRunner` and
   `SqlxMarketingProjectionFactory`.
-- `TenantDatabaseRouter`.
-- `TenantProjectionExecutor` and the existing
-  `MultiTenantProjectionSchedulerHandler` claim/lease/authorization path.
+- `HoldingDatabaseRouter`.
+- `HoldingProjectionExecutor` and the existing
+  `MultiHoldingProjectionSchedulerHandler` claim/lease/authorization path.
 
 Produced:
 
-- `MarketingTenantProjectionExecutor`.
+- `MarketingHoldingProjectionExecutor`.
 - `MARKETING_PROJECTION_NAME` (`marketing`).
 - Explicit worker kind selection and bounded page-size configuration.
 - A worker composition helper that registers the existing scheduler with a
@@ -39,16 +39,16 @@ Produced:
 ## Delivered behavior
 
 The verified G10-MKT-021 Marketing projection runner is now selectable from
-the production worker executable through the established multi-tenant tenant
+the production worker executable through the established multi-holding holding
 projection scheduler.
 
-- `ERPX_WORKER_HANDLER=tenant_projection_scheduler` remains the worker handler.
-- `ERPX_TENANT_PROJECTION_KIND=marketing` selects the Marketing/CRM executor.
+- `ERPX_WORKER_HANDLER=holding_projection_scheduler` remains the worker handler.
+- `ERPX_HOLDING_PROJECTION_KIND=marketing` selects the Marketing/CRM executor.
 - `ERPX_MARKETING_PROJECTION_PAGE_SIZE` is parsed as an integer and bounded to
   `1..=500`; the runner default is 500.
-- The scheduler continues to provide active-tenant enumeration, authorization
+- The scheduler continues to provide active-holding enumeration, authorization
   context, claiming, lease renewal, completion, retry, and dead-letter behavior.
-- The executor uses the existing `TenantDatabaseRouter` and
+- The executor uses the existing `HoldingDatabaseRouter` and
   `MarketingProjectionRunner<SqlxMarketingProjectionFactory>`; it does not
   read credentials, construct database URLs, or create another routing path.
 - Incremental claims apply one bounded source page and preserve the existing
@@ -73,10 +73,10 @@ Marketing source, Folio, environment, or runtime files were changed.
 ## Registration and interfaces
 
 The registered handler kind remains
-`TENANT_PROJECTION_SCHEDULER_HANDLER_NAME` (`tenant_projection_scheduler`).
+`HOLDING_PROJECTION_SCHEDULER_HANDLER_NAME` (`holding_projection_scheduler`).
 The new worker composition helper registers the same
-`MultiTenantProjectionSchedulerHandler` with a direct
-`TenantProjectionExecutor`; it is not a second scheduler. The Marketing
+`MultiHoldingProjectionSchedulerHandler` with a direct
+`HoldingProjectionExecutor`; it is not a second scheduler. The Marketing
 executor validates the scheduler binding and the `marketing` projection name,
 then delegates to the already-routed Marketing runner.
 
@@ -92,10 +92,10 @@ read-database activation and source-fenced rebuilds remain open concerns.
 
 - Scheduler authorization and claim binding remain in the established control
   plane repository.
-- Active tenant enumeration still occurs on every scheduler pass.
-- The executor requires a non-empty tenant/holding binding and the exact
+- Active holding enumeration still occurs on every scheduler pass.
+- The executor requires a non-empty holding/holding binding and the exact
   Marketing projection kind before routing.
-- Tenant routes are opened only through `TenantDatabaseRouter`; no tenant
+- Holding routes are opened only through `HoldingDatabaseRouter`; no holding
   credential or database URL reaches the worker composition code.
 - Runner and persistence failures are mapped to bounded retry/permanent errors;
   error strings do not expose PostgreSQL details, credentials, or payloads.
@@ -127,7 +127,7 @@ and replacement-read projection variant.
 
 ## Rollback
 
-Stop selecting `ERPX_TENANT_PROJECTION_KIND=marketing` and continue running
+Stop selecting `ERPX_HOLDING_PROJECTION_KIND=marketing` and continue running
 Operations or Finance Banking with the unchanged scheduler. Reverting the
 worker-only files is safe because no schema or authoritative write data was
 changed. Keep already-applied migration history and disposable CRM read rows

@@ -4,7 +4,7 @@
 
 The infrastructure crate now exposes `PostgresMinioBackupAdapter`, which is a
 typed `BackupExecutor`/`RestoreExecutor` implementation behind the existing
-`TenantBackupTarget` and `TenantRestoreTestTarget` seams.
+`HoldingBackupTarget` and `HoldingRestoreTestTarget` seams.
 
 - PostgreSQL logical backups use argv-only `pg_dump`; no shell or interpolated
   shell command is used.
@@ -12,12 +12,12 @@ typed `BackupExecutor`/`RestoreExecutor` implementation behind the existing
   stderr, and transport errors are not returned in executor results, worker
   payloads, `Debug`, or adapter error text.
 - MinIO transfers use short-lived presigned requests, bounded content length
-  and streamed body size, tenant/chain/backup-key binding, checksum/size
+  and streamed body size, holding/chain/backup-key binding, checksum/size
   verification, and deterministic replay behavior.
 - Restore tests download the bounded artifact, write a private temporary file,
   invoke argv-only `pg_restore` against the distinct candidate database, then
   run an injected/default PostgreSQL schema/RLS verifier. The existing
-  `TenantProvisioner` state machine remains responsible for fenced rebuild and
+  `HoldingProvisioner` state machine remains responsible for fenced rebuild and
   read activation.
 - Missing PostgreSQL/MinIO configuration fails closed through `from_env()`.
 - Process, object, verifier, and classification seams are injectable for tests.
@@ -43,7 +43,7 @@ exists, the adapter does not mislabel a logical dump as PITR.
 
 The focused `backup_adapter` tests use fakes only; they do not connect to
 PostgreSQL or MinIO and do not mutate live or disposable databases. They cover
-configuration/debug redaction, argv separation, tenant/object binding,
+configuration/debug redaction, argv separation, holding/object binding,
 checksum and size bounds, transient/permanent classification, duplicate replay,
 and failed-restore safety. A real PostgreSQL/MinIO integration remains
 unproven by this packet.

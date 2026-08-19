@@ -67,7 +67,7 @@ where
         actor: &ActorContext,
         identity: MutationIdentity,
         course_id: CourseId,
-        scope: &erpx_kernel::TenantScope,
+        scope: &erpx_kernel::AuthorityScope,
         requested_version: Option<u64>,
         at: DateTime<Utc>,
     ) -> Result<CommitReceipt, LearningError> {
@@ -104,7 +104,7 @@ where
         &self,
         actor: &ActorContext,
         identity: MutationIdentity,
-        scope: &erpx_kernel::TenantScope,
+        scope: &erpx_kernel::AuthorityScope,
         enrollment_id: EnrollmentId,
         assignment_id: crate::AssignmentId,
         learner: erpx_integration_contracts::RecordVersionRef,
@@ -164,7 +164,7 @@ where
         actor: &ActorContext,
         identity: MutationIdentity,
         enrollment_id: EnrollmentId,
-        scope: &erpx_kernel::TenantScope,
+        scope: &erpx_kernel::AuthorityScope,
         requested_version: Option<u64>,
         action: LearningAction,
         event_type: &str,
@@ -208,7 +208,7 @@ where
         actor: &ActorContext,
         identity: MutationIdentity,
         enrollment_id: EnrollmentId,
-        scope: &erpx_kernel::TenantScope,
+        scope: &erpx_kernel::AuthorityScope,
         requested_version: Option<u64>,
         course_id: CourseId,
         course_version: u64,
@@ -318,7 +318,7 @@ where
     pub async fn get_enrollment(
         &self,
         actor: &ActorContext,
-        scope: &erpx_kernel::TenantScope,
+        scope: &erpx_kernel::AuthorityScope,
         id: EnrollmentId,
     ) -> Result<crate::ports::EnrollmentProjection, LearningError> {
         let authority = self
@@ -334,7 +334,7 @@ where
     pub async fn get_record(
         &self,
         actor: &ActorContext,
-        scope: &erpx_kernel::TenantScope,
+        scope: &erpx_kernel::AuthorityScope,
         id: uuid::Uuid,
     ) -> Result<crate::ports::LearningRecordProjection, LearningError> {
         let authority = self

@@ -6,7 +6,7 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::customer;
 use erpx_kernel::{
-    ActorAttribution, AggregateId, AuditContext, CommandId, CorrelationId, EventId, TenantScope,
+    ActorAttribution, AggregateId, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -55,7 +55,7 @@ pub enum CommandFingerprint {
         customer_id: CustomerId,
         code: CustomerCode,
         identity: CustomerIdentity,
-        primary_authority: TenantScope,
+        primary_authority: AuthorityScope,
     },
     UpdateIdentity {
         customer_id: CustomerId,
@@ -67,11 +67,11 @@ pub enum CommandFingerprint {
     },
     LinkAuthority {
         customer_id: CustomerId,
-        scope: TenantScope,
+        scope: AuthorityScope,
     },
     UnlinkAuthority {
         customer_id: CustomerId,
-        scope: TenantScope,
+        scope: AuthorityScope,
     },
     Merge {
         retired_customer_id: CustomerId,
@@ -91,8 +91,8 @@ pub struct CommandIdentity {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
-    pub target_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
+    pub target_scope: &'a AuthorityScope,
     pub action: CustomerAuthorityAction,
 }
 
@@ -105,7 +105,7 @@ pub trait AuthorizationPort: Send + Sync {
 pub trait EntitlementPort: Send + Sync {
     async fn ensure_customer_authority_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         write: bool,
     ) -> Result<(), PortError>;
 }
@@ -115,7 +115,7 @@ pub trait EntitlementPort: Send + Sync {
 pub trait WriteRepository: Send + Sync {
     async fn load(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         customer_id: CustomerId,
     ) -> Result<Option<CustomerAccount>, PortError>;
 }
@@ -135,7 +135,7 @@ pub struct CustomerAuthorityCommit {
     pub correlation_id: CorrelationId,
     pub causation_id: Option<EventId>,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
     pub merge_target: Option<MergeTargetVersion>,
@@ -195,15 +195,15 @@ pub struct CustomerAuthorityView {
     pub legal_name: Option<String>,
     pub country: String,
     pub status: CustomerStatus,
-    pub primary_authority: TenantScope,
-    pub authority_links: Vec<TenantScope>,
+    pub primary_authority: AuthorityScope,
+    pub authority_links: Vec<AuthorityScope>,
     pub merged_into: Option<CustomerId>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
 impl CustomerAuthorityView {
-    pub fn visible_under(&self, authority: &TenantScope) -> bool {
+    pub fn visible_under(&self, authority: &AuthorityScope) -> bool {
         authority.validate().is_ok()
             && self
                 .authority_links
@@ -257,14 +257,14 @@ pub struct ReadProjection<T> {
 pub trait ReadRepository: Send + Sync {
     async fn get(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         customer_id: CustomerId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<CustomerAuthorityView>>, PortError>;
 
     async fn list(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &CustomerListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<CustomerList>, PortError>;

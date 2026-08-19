@@ -1,4 +1,4 @@
-//! ERPX Console v2 composition root.
+//! ERPX Console composition root.
 //!
 //! The active UI is intentionally small: providers, one session bootstrap,
 //! Dioxus Router, and nested shells. Route state lives in each leaf component.
@@ -21,9 +21,9 @@ mod routes;
 mod server;
 
 #[cfg(any(feature = "web", feature = "server"))]
-pub use delivery::{ServerFunctionGatewayV2, session_bootstrap_v2};
+pub use delivery::{ServerFunctionGateway, session_bootstrap};
 #[cfg(feature = "native")]
-pub use native_delivery::NativeGrpcGatewayV2;
+pub use native_delivery::NativeGrpcGateway;
 pub use routes::{App, AppRoute, is_canonical_console_path};
 
 #[cfg(feature = "server")]
@@ -41,7 +41,7 @@ pub(crate) const fn is_legacy_login_path(_value: &str) -> bool {
 
 #[cfg(feature = "server")]
 pub(crate) fn validated_login_return_path(value: &str) -> Option<String> {
-    routes::is_canonical_console_path(value, erpx_delivery_contract::ClientChannelV2::Web)
+    routes::is_canonical_console_path(value, erpx_delivery_contract::ClientChannel::Web)
         .then(|| value.to_owned())
 }
 
@@ -61,7 +61,7 @@ pub(crate) fn login_redirect_location(return_to: &str) -> String {
 
 #[cfg(feature = "server")]
 pub(crate) fn console_route_http_status(path: &str) -> u16 {
-    if routes::is_canonical_console_path(path, erpx_delivery_contract::ClientChannelV2::Web) {
+    if routes::is_canonical_console_path(path, erpx_delivery_contract::ClientChannel::Web) {
         200
     } else {
         404
@@ -73,7 +73,7 @@ pub(crate) fn navigation_authorizes_console_path(
     path: &str,
     _groups: &[erpx_ui_core::NavGroup],
 ) -> bool {
-    routes::is_canonical_console_path(path, erpx_delivery_contract::ClientChannelV2::Web)
+    routes::is_canonical_console_path(path, erpx_delivery_contract::ClientChannel::Web)
 }
 
 #[cfg(feature = "server")]

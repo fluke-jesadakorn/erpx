@@ -1,18 +1,18 @@
 //! Focused source-cursor integrity evidence for the Sales outbox boundary.
 
 use chrono::Utc;
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::sales::Lead;
 use erpx_infrastructure::{SalesAggregate, SqlxSalesStore};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-fn context(scope: TenantScope, key: &str) -> CommandContext {
+fn context(scope: AuthorityScope, key: &str) -> CommandContext {
     CommandContext::try_new(
         key,
         ActorAttribution {
             principal_ref: "sales-source-cursor-test".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
@@ -24,23 +24,23 @@ fn context(scope: TenantScope, key: &str) -> CommandContext {
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn live_sales_source_page_rejects_duplicate_versions_before_cursor_advance() {
-    let Ok(write_url) = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL") else {
+    let Ok(write_url) = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL") else {
         eprintln!(
-            "G9 Sales source-cursor blocker queued: ERPX_TEST_TENANT_WRITE_DATABASE_URL is unavailable"
+            "G9 Sales source-cursor blocker queued: ERPX_TEST_HOLDING_WRITE_DATABASE_URL is unavailable"
         );
         return;
     };
     let write_pool = PgPool::connect(&write_url).await.expect("Sales write pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migration");
+        .expect("holding write migration");
 
-    let holding_ref = format!("holding-sales-cursor-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-sales-cursor-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
-    let scope = TenantScope::Company {
+    let scope = AuthorityScope::Company {
         holding_id,
         company_id,
     };
@@ -57,8 +57,12 @@ async fn live_sales_source_page_rejects_duplicate_versions_before_cursor_advance
         &context(scope, "sales/source-cursor/create"),
     )
     .expect("valid Sales lead");
-    let store = SqlxSalesStore::new(write_pool.clone(), write_pool.clone(), holding_ref.clone())
-        .expect("Sales store");
+    let store = SqlxSalesStore::new(
+        write_pool.clone(),
+        write_pool.clone(),
+        data_profile_key.clone(),
+    )
+    .expect("Sales store");
     let first = store
         .save(&SalesAggregate::Lead(lead), None)
         .await
@@ -77,21 +81,21 @@ async fn live_sales_source_page_rejects_duplicate_versions_before_cursor_advance
         .begin()
         .await
         .expect("duplicate source transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tx)
         .await
         .expect("route duplicate source transaction");
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,now())",
     )
     .bind(duplicate_event_id)
     .bind(&source_event.aggregate_type)
     .bind(source_event.aggregate_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(source_event.aggregate_version as i64)
     .bind(&source_event.event_type)
     .bind(&source_event.payload)

@@ -8,7 +8,10 @@
 use std::env;
 
 use chrono::{DateTime, Duration, Utc};
-use erpx_domain::access::{RoleAssignment, Scope, build_role_review_queue};
+use erpx_domain::{
+    access::{RoleAssignment, build_role_review_queue},
+    contracts::AuthorityScope as Scope,
+};
 use erpx_infrastructure::RoleReviewPersistence;
 use erpx_migration::g13::content_hash;
 use serde_json::Value;
@@ -303,7 +306,10 @@ fn parse_scope(value: &str) -> Result<Scope, WorkerRuntimeError> {
 #[cfg(test)]
 mod tests {
     use chrono::{Duration, Utc};
-    use erpx_domain::access::{RiskTier, RoleAssignment, Scope};
+    use erpx_domain::{
+        access::{RiskTier, RoleAssignment},
+        contracts::AuthorityScope as Scope,
+    };
     use uuid::Uuid;
 
     use super::{append_scoped_assignment, parse_scope, validate_assignment_row_binding};

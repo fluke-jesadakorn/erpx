@@ -56,10 +56,12 @@ impl SqlxMarketingProviderOnboardingStore {
             return Ok(receipt);
         }
 
-        ensure_active_holding(&mut transaction, &command.tenant_id, &command.holding_ref).await?;
+        let holding_key = command.holding_id.to_string();
+        let data_profile_key = holding_key.as_str();
+        ensure_active_holding(&mut transaction, &holding_key, data_profile_key).await?;
         let existing = sqlx::query(
-            "SELECT provider_account_id, provider_account_ref, tenant_id, holding_ref,
-                    holding_id, provider_key, channels, channel_routes, state,
+            "SELECT provider_account_id, provider_account_ref, holding_id, data_profile_key,
+                    provider_key, channels, channel_routes, state,
                     onboarding_state, version
              FROM erpx_control.marketing_provider_accounts
              WHERE provider_account_id = $1 OR provider_account_ref = $2
@@ -77,8 +79,7 @@ impl SqlxMarketingProviderOnboardingStore {
             let current_version = positive_version(row.try_get("version")?)?;
             if existing_id != command.provider_account_id
                 || existing_ref != command.provider_account_ref
-                || row.try_get::<String, _>("tenant_id")? != command.tenant_id
-                || row.try_get::<String, _>("holding_ref")? != command.holding_ref
+                || row.try_get::<String, _>("data_profile_key")? != data_profile_key
                 || existing_holding_id != command.holding_id
             {
                 return Err(PersistenceError::InvalidData(
@@ -101,7 +102,7 @@ impl SqlxMarketingProviderOnboardingStore {
                      last_verified_at = NULL, verification_reference_hash = NULL,
                      version = $8, updated_at = now()
                  WHERE provider_account_id = $1 AND version = $9
-                 RETURNING provider_account_ref, tenant_id, holding_ref, provider_key,
+                 RETURNING provider_account_ref, holding_id, data_profile_key, provider_key,
                            provider_priority, channels, state, onboarding_state, version, updated_at",
             )
             .bind(command.provider_account_id)
@@ -132,19 +133,18 @@ impl SqlxMarketingProviderOnboardingStore {
             }
             let row = sqlx::query(
                 "INSERT INTO erpx_control.marketing_provider_accounts
-                    (provider_account_id, provider_account_ref, tenant_id, holding_ref,
-                     holding_id, verifier_key_ref, state, version, provider_key,
+                    (provider_account_id, provider_account_ref, holding_id, data_profile_key,
+                     verifier_key_ref, state, version, provider_key,
                      provider_priority, outbound_credential_ref, onboarding_state,
                      channels, channel_routes)
-                 VALUES ($1, $2, $3, $4, $5, $6, 'suspended', 1, $7, $8, $9, 'pending', $10, $11)
-                 RETURNING provider_account_ref, tenant_id, holding_ref, provider_key,
+                 VALUES ($1, $2, $3, $4, $5, 'suspended', 1, $6, $7, $8, 'pending', $9, $10)
+                 RETURNING provider_account_ref, holding_id, data_profile_key, provider_key,
                            provider_priority, channels, state, onboarding_state, version, updated_at",
             )
             .bind(command.provider_account_id)
             .bind(&command.provider_account_ref)
-            .bind(&command.tenant_id)
-            .bind(&command.holding_ref)
             .bind(command.holding_id)
+            .bind(data_profile_key)
             .bind(&command.verifier_key_ref)
             .bind(&command.provider_key)
             .bind(i32::try_from(command.provider_priority).map_err(|_| {
@@ -167,8 +167,8 @@ impl SqlxMarketingProviderOnboardingStore {
             serde_json::json!({
                 "provider_account_id": command.provider_account_id,
                 "provider_account_ref": receipt.provider_account_ref,
-                "tenant_id": command.tenant_id,
-                "holding_ref": command.holding_ref,
+                "holding_id": command.holding_id,
+                "data_profile_key": data_profile_key,
                 "provider_key": receipt.provider_key,
                 "provider_priority": receipt.provider_priority,
                 "channels": receipt.channels,
@@ -208,8 +208,8 @@ impl SqlxMarketingProviderOnboardingStore {
         let row = account_for_update(
             &mut transaction,
             command.provider_account_id,
-            &command.tenant_id,
-            &command.holding_ref,
+            &command.holding_id,
+            &command.data_profile_key,
         )
         .await?;
         validate_account_holding_context(&command.context, row.try_get("holding_id")?)?;
@@ -229,7 +229,7 @@ impl SqlxMarketingProviderOnboardingStore {
              SET onboarding_state = 'verified', state = $2, last_verified_at = now(),
                  verification_reference_hash = $3, version = $4, updated_at = now()
              WHERE provider_account_id = $1 AND version = $5
-             RETURNING provider_account_ref, tenant_id, holding_ref, provider_key,
+             RETURNING provider_account_ref, holding_id, data_profile_key, provider_key,
                        provider_priority, channels, state, onboarding_state, version, updated_at",
         )
         .bind(command.provider_account_id)
@@ -253,8 +253,8 @@ impl SqlxMarketingProviderOnboardingStore {
             serde_json::json!({
                 "provider_account_id": command.provider_account_id,
                 "provider_account_ref": receipt.provider_account_ref,
-                "tenant_id": command.tenant_id,
-                "holding_ref": command.holding_ref,
+                "holding_id": command.holding_id,
+                "data_profile_key": command.data_profile_key,
                 "verification_reference_hash": verification_hash,
                 "channels": receipt.channels,
                 "state": receipt.state,
@@ -292,8 +292,8 @@ impl SqlxMarketingProviderOnboardingStore {
         let row = account_for_update(
             &mut transaction,
             command.provider_account_id,
-            &command.tenant_id,
-            &command.holding_ref,
+            &command.holding_id,
+            &command.data_profile_key,
         )
         .await?;
         validate_account_holding_context(&command.context, row.try_get("holding_id")?)?;
@@ -316,7 +316,7 @@ impl SqlxMarketingProviderOnboardingStore {
             "UPDATE erpx_control.marketing_provider_accounts
              SET state = $2, version = $3, updated_at = now()
              WHERE provider_account_id = $1 AND version = $4
-             RETURNING provider_account_ref, tenant_id, holding_ref, provider_key,
+             RETURNING provider_account_ref, holding_id, data_profile_key, provider_key,
                        provider_priority, channels, state, onboarding_state, version, updated_at",
         )
         .bind(command.provider_account_id)
@@ -339,8 +339,8 @@ impl SqlxMarketingProviderOnboardingStore {
             serde_json::json!({
                 "provider_account_id": command.provider_account_id,
                 "provider_account_ref": receipt.provider_account_ref,
-                "tenant_id": command.tenant_id,
-                "holding_ref": command.holding_ref,
+                "holding_id": command.holding_id,
+                "data_profile_key": command.data_profile_key,
                 "state": receipt.state,
                 "onboarding_state": receipt.onboarding_state,
                 "version": next_version,
@@ -356,15 +356,15 @@ impl SqlxMarketingProviderOnboardingStore {
 
 async fn ensure_active_holding(
     transaction: &mut ControlPlaneWriteTransaction<'_>,
-    tenant_id: &str,
-    holding_ref: &str,
+    holding_id: &str,
+    data_profile_key: &str,
 ) -> Result<(), PersistenceError> {
     let present = sqlx::query(
-        "SELECT 1 FROM erpx_control.tenant_registry
-         WHERE tenant_id = $1 AND holding_ref = $2 AND state = 'active'",
+        "SELECT 1 FROM erpx_control.holding_registry
+         WHERE holding_id = $1 AND data_profile_key = $2 AND state = 'active'",
     )
-    .bind(tenant_id)
-    .bind(holding_ref)
+    .bind(holding_id)
+    .bind(data_profile_key)
     .fetch_optional(&mut *transaction.tx)
     .await?
     .is_some();
@@ -372,7 +372,7 @@ async fn ensure_active_holding(
         Ok(())
     } else {
         Err(PersistenceError::InvalidData(
-            "tenant holding is not active".into(),
+            "holding holding is not active".into(),
         ))
     }
 }
@@ -380,19 +380,21 @@ async fn ensure_active_holding(
 async fn account_for_update(
     transaction: &mut ControlPlaneWriteTransaction<'_>,
     account_id: Uuid,
-    tenant_id: &str,
-    holding_ref: &str,
+    holding_id: &str,
+    data_profile_key: &str,
 ) -> Result<sqlx::postgres::PgRow, PersistenceError> {
+    let holding_id = Uuid::parse_str(holding_id)
+        .map_err(|_| PersistenceError::InvalidData("holding_id must be a UUID".into()))?;
     sqlx::query(
-        "SELECT provider_account_ref, tenant_id, holding_ref, holding_id, provider_key,
+        "SELECT provider_account_ref, holding_id, data_profile_key, provider_key,
                 channels, state, onboarding_state, version
          FROM erpx_control.marketing_provider_accounts
-         WHERE provider_account_id = $1 AND tenant_id = $2 AND holding_ref = $3
+         WHERE provider_account_id = $1 AND holding_id = $2 AND data_profile_key = $3
          FOR UPDATE",
     )
     .bind(account_id)
-    .bind(tenant_id)
-    .bind(holding_ref)
+    .bind(holding_id)
+    .bind(data_profile_key)
     .fetch_optional(&mut *transaction.tx)
     .await?
     .ok_or(PersistenceError::NotFound {
@@ -405,8 +407,8 @@ fn validate_account_holding_context(
     context: &erpx_domain::contracts::CommandContext,
     account_holding_id: Uuid,
 ) -> Result<(), PersistenceError> {
-    match &context.tenant_scope {
-        erpx_domain::contracts::TenantScope::Holding { holding_id }
+    match &context.active_scope {
+        erpx_domain::contracts::AuthorityScope::Holding { holding_id }
             if *holding_id == account_holding_id =>
         {
             Ok(())
@@ -422,8 +424,8 @@ fn validate_verification_command(
 ) -> Result<(), PersistenceError> {
     let normalized = AcknowledgeMarketingProviderVerificationCommand::new(
         command.provider_account_id,
-        command.tenant_id.clone(),
-        command.holding_ref.clone(),
+        command.holding_id.clone(),
+        command.data_profile_key.clone(),
         command.verification_reference.clone(),
         command.activate,
         command.context.clone(),
@@ -442,8 +444,8 @@ fn validate_state_command(
 ) -> Result<(), PersistenceError> {
     let normalized = SetMarketingProviderAccountStateCommand::new(
         command.provider_account_id,
-        command.tenant_id.clone(),
-        command.holding_ref.clone(),
+        command.holding_id.clone(),
+        command.data_profile_key.clone(),
         command.active,
         command.context.clone(),
     )
@@ -514,8 +516,6 @@ fn validate_configure_command(
     let normalized = ConfigureMarketingProviderAccountCommand::new(
         command.provider_account_id,
         command.provider_account_ref.clone(),
-        command.tenant_id.clone(),
-        command.holding_ref.clone(),
         command.holding_id,
         command.provider_key.clone(),
         command.provider_priority,
@@ -591,8 +591,8 @@ fn request_hash<T: Serialize>(operation: &str, command: &T) -> Result<String, Pe
 struct StoredReceipt {
     provider_account_id: Uuid,
     provider_account_ref: String,
-    tenant_id: String,
-    holding_ref: String,
+    holding_id: String,
+    data_profile_key: String,
     provider_key: String,
     #[serde(default = "default_provider_priority")]
     provider_priority: u32,
@@ -645,8 +645,8 @@ async fn replayed_receipt(
     Ok(Some(MarketingProviderAccountWriteReceipt {
         provider_account_id: stored.provider_account_id,
         provider_account_ref: stored.provider_account_ref,
-        tenant_id: stored.tenant_id,
-        holding_ref: stored.holding_ref,
+        holding_id: stored.holding_id,
+        data_profile_key: stored.data_profile_key,
         provider_key: stored.provider_key,
         provider_priority: stored.provider_priority,
         channels: stored.channels,
@@ -662,11 +662,12 @@ async fn receipt_from_row(
     account_id: Uuid,
     row: sqlx::postgres::PgRow,
 ) -> Result<MarketingProviderAccountWriteReceipt, PersistenceError> {
+    let holding_id: Uuid = row.try_get("holding_id")?;
     Ok(MarketingProviderAccountWriteReceipt {
         provider_account_id: account_id,
         provider_account_ref: row.try_get("provider_account_ref")?,
-        tenant_id: row.try_get("tenant_id")?,
-        holding_ref: row.try_get("holding_ref")?,
+        holding_id: holding_id.to_string(),
+        data_profile_key: row.try_get("data_profile_key")?,
         provider_key: row.try_get("provider_key")?,
         provider_priority: positive_priority(row.try_get("provider_priority")?)?,
         channels: row.try_get("channels")?,
@@ -703,7 +704,7 @@ async fn persist_change(
         .append_outbox_event(
             &event,
             &EventMetadata {
-                tenant_scope: Some(serde_json::to_value(&context.tenant_scope)?),
+                active_scope: Some(serde_json::to_value(&context.active_scope)?),
                 actor: Some(serde_json::to_value(&context.actor)?),
                 correlation_id: Some(context.correlation_id),
                 causation_id: context.causation_id,
@@ -715,7 +716,7 @@ async fn persist_change(
     transaction
         .append_audit_event(&AuditEvent {
             actor_ref: context.actor.principal_ref.clone(),
-            customer_account_id: Uuid::parse_str(&receipt.tenant_id).ok(),
+            customer_account_id: Uuid::parse_str(&receipt.holding_id).ok(),
             action: audit_action.into(),
             purpose: context.audit.purpose.clone(),
             correlation_id: context.correlation_id,
@@ -724,8 +725,8 @@ async fn persist_change(
     let stored = StoredReceipt {
         provider_account_id: receipt.provider_account_id,
         provider_account_ref: receipt.provider_account_ref.clone(),
-        tenant_id: receipt.tenant_id.clone(),
-        holding_ref: receipt.holding_ref.clone(),
+        holding_id: receipt.holding_id.clone(),
+        data_profile_key: receipt.data_profile_key.clone(),
         provider_key: receipt.provider_key.clone(),
         provider_priority: receipt.provider_priority,
         channels: receipt.channels.clone(),
@@ -752,7 +753,7 @@ async fn persist_change(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use erpx_domain::contracts::{ActorAttribution, ActorKind, TenantScope};
+    use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope};
 
     fn configure_command() -> ConfigureMarketingProviderAccountCommand {
         let holding_id = Uuid::new_v4();
@@ -760,20 +761,18 @@ mod tests {
             "provider-config-boundary",
             ActorAttribution {
                 principal_ref: "operator-1".into(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: None,
                 represented_principal_ref: None,
                 support_capability_id: None,
             },
-            TenantScope::Holding { holding_id },
+            AuthorityScope::Holding { holding_id },
             "provider onboarding",
         )
         .expect("valid command context");
         ConfigureMarketingProviderAccountCommand::new(
             Uuid::new_v4(),
             "provider-account-boundary",
-            "tenant-boundary",
-            "holding-boundary",
             holding_id,
             "provider-boundary",
             100,
@@ -842,18 +841,18 @@ mod tests {
             "provider-command-boundary",
             ActorAttribution {
                 principal_ref: "operator-1".into(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: None,
                 represented_principal_ref: None,
                 support_capability_id: None,
             },
-            TenantScope::Holding { holding_id },
+            AuthorityScope::Holding { holding_id },
             "provider onboarding",
         )
         .expect("valid command context");
         let mut verification = AcknowledgeMarketingProviderVerificationCommand::new(
             Uuid::new_v4(),
-            "tenant-boundary",
+            "holding-boundary",
             "holding-boundary",
             "provider-verification-1",
             true,
@@ -865,13 +864,13 @@ mod tests {
 
         let mut state = SetMarketingProviderAccountStateCommand::new(
             Uuid::new_v4(),
-            "tenant-boundary",
+            "holding-boundary",
             "holding-boundary",
             false,
             context.clone(),
         )
         .expect("valid state command");
-        state.holding_ref = "holding/boundary".into();
+        state.data_profile_key = "holding/boundary".into();
         assert!(validate_state_command(&state).is_err());
         assert!(validate_account_holding_context(&context, Uuid::new_v4()).is_err());
     }

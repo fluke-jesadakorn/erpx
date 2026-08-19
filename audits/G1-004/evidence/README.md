@@ -3,7 +3,7 @@
 The server boundary tests are in `erpx/apps/server/src/boundary.rs`.
 
 They cover mandatory context presence, actor/session attribution, contract version,
-tenant scope, query consistency, audit correlation, and pre-handler rejection.
+holding scope, query consistency, audit correlation, and pre-handler rejection.
 The disposable boot check additionally verifies SQLx migrations and the HTTP
 `/healthz`, `/readyz`, and `/metrics` endpoints on a separate server process.
 
@@ -27,5 +27,5 @@ metadata plus stable code/retry/correlation metadata. Responses also carry
 correlation/security headers, health endpoints enforce GET, a redacted request
 trace records only method, route, correlation, and latency, and identity
 readiness probes the write-side pool. Structured tracing across every
-worker/tenant path, provider/raw-body audit retention, readiness probes for
-worker/commercial/tenant state, and a complete redaction audit remain open.
+worker/holding path, provider/raw-body audit retention, readiness probes for
+worker/commercial/holding state, and a complete redaction audit remain open.

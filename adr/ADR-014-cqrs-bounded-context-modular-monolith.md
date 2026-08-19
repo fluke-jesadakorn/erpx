@@ -9,7 +9,7 @@ and customer data-plane-agent processes. Business ownership is enforced by one
 transport- and persistence-independent Rust core crate per bounded context,
 not by a network service per context.
 
-The shared kernel contains only tenant scope, actor/audit attribution, opaque
+The shared kernel contains only holding scope, actor/audit attribution, opaque
 identities, clocks, and stable error categories. Shared CQRS contracts contain
 typed command/query envelopes, command receipts, query/projection metadata,
 and handler traits. Cross-context facts are published through versioned
@@ -23,21 +23,21 @@ read databases. Queries read only those projections. Read-your-writes waits on
 a read-side event receipt or checkpoint and returns an explicit not-ready
 result when its bounded wait expires; it never falls back to a write table.
 
-The original implementation used `erpx.platform.v1`. ADR-016 completes its
+The original implementation used `erpx.platform`. ADR-016 completes its
 retirement: active packages are now context-specific `erpx.<context>.v2`
 services in `IFC-SVC-201..265`, promoted through one coordinated Server,
 Worker, Web, and Native cutover. The monolithic source is split by bounded
 context, and each context exposes separate typed command and query services.
 
-The cutover creates new control-write, control-read, tenant-write, tenant-read,
+The cutover creates new control-write, control-read, holding-write, holding-read,
 and object-storage resources and copies no ERPX application state. Bootstrap
-creates only the mandatory Root/Owner identities, tenant/holding registry,
+creates only the mandatory Root/Owner identities, holding/holding registry,
 canonical business-unit catalog, and neutral corporate identity. Existing
 resources remain offline and non-authoritative for rollback. The n8n state and
 encryption configuration under `.runtime/n8n/` are never modified or replaced.
 
 Bootstrap publishes a non-secret, write-once runtime manifest only after the
-new namespace, database migrations, restricted seed inventory, tenant
+new namespace, database migrations, restricted seed inventory, holding
 activation, and n8n fingerprint recheck succeed. The manifest is not authority
 by itself: runtime composition also verifies the matching `complete` database
 receipt and active registry row. Development/runtime reconciliation must skip

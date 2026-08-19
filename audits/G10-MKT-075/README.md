@@ -12,7 +12,7 @@ commands over the existing authoritative `MarketingContentService` RPCs:
 - verify the supplied domain proof; and
 - bind a verified domain to an exact published template revision.
 
-The client accepts only explicit tenant/holding/company/branch scope, UUID
+The client accepts only explicit holding/holding/company/branch scope, UUID
 identifiers, positive template versions, bounded RFC3339/proof text, and
 server-issued command context. The client replaces command identity,
 idempotency, correlation, actor, audit purpose, and scope through the typed
@@ -20,7 +20,7 @@ request builder. It renders only bounded receipt metadata and never displays
 preview tokens, challenge material, raw submitted form values, persistence
 payloads, or provider credentials.
 
-The server remains authoritative for entitlement/RBAC, tenant routing, domain
+The server remains authoritative for entitlement/RBAC, holding routing, domain
 and template publication state, hash-only secret persistence, SQLx
 transactions, outbox/events, idempotency, expiry worker behavior,
 reconciliation, and rollback. No browser command is treated as proof of

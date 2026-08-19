@@ -7,7 +7,7 @@ use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
     ItemDescriptorDraft, customer, identity_access, record_policy_id,
 };
-use erpx_kernel::{AggregateId, CommandId, DataClassification, EventId, TenantScope};
+use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId};
 use erpx_support::{
     BroadcastAudience, CapabilityId, CapabilityRevocationReason, CommandUnitOfWork, Incident,
     IncidentBroadcast, IncidentId, IncidentStatus, IncidentTimelineEntry, MessageAudience,
@@ -46,7 +46,7 @@ impl SupportWriteRepository {
 impl SupportWriteRepository {
     async fn load_aggregate(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         partition: &str,
         aggregate_type: &str,
         id: Uuid,
@@ -58,7 +58,7 @@ impl SupportWriteRepository {
 
 async fn load_support_relational(
     pool: &WritePool,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     aggregate_type: &str,
     id: Uuid,
 ) -> Result<Option<SupportAggregate>, PortError> {
@@ -83,7 +83,7 @@ async fn load_support_relational(
 
 async fn load_ticket_relational(
     tx: &mut Transaction<'_, Postgres>,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     id: Uuid,
 ) -> Result<Option<SupportTicket>, PortError> {
     let row = support_authorized_root(
@@ -148,7 +148,7 @@ async fn load_ticket_relational(
 
 async fn load_incident_relational(
     tx: &mut Transaction<'_, Postgres>,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     id: Uuid,
 ) -> Result<Option<Incident>, PortError> {
     let row = support_authorized_root(
@@ -209,7 +209,7 @@ async fn load_incident_relational(
 
 async fn load_session_relational(
     tx: &mut Transaction<'_, Postgres>,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     id: Uuid,
 ) -> Result<Option<SupportSession>, PortError> {
     let row = support_authorized_root(
@@ -280,7 +280,7 @@ async fn load_session_relational(
 
 async fn load_capability_relational(
     tx: &mut Transaction<'_, Postgres>,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     id: Uuid,
 ) -> Result<Option<SupportCapability>, PortError> {
     let row = support_authorized_root(
@@ -354,7 +354,7 @@ async fn load_capability_relational(
 
 async fn support_authorized_root(
     tx: &mut Transaction<'_, Postgres>,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     base: &str,
     table: &str,
     id_column: &str,
@@ -402,15 +402,15 @@ type SupportAuthorityParameters = (
 );
 
 fn support_authority_parameters(
-    authority: &TenantScope,
+    authority: &AuthorityScope,
 ) -> Result<SupportAuthorityParameters, PortError> {
     authority.validate().map_err(|_| PortError::Denied)?;
     Ok(match authority {
-        TenantScope::Platform => ("platform", None, None, None, vec![], vec![]),
-        TenantScope::Holding { holding_id } => {
+        AuthorityScope::Platform => ("platform", None, None, None, vec![], vec![]),
+        AuthorityScope::Holding { holding_id } => {
             ("holding", Some(*holding_id), None, None, vec![], vec![])
         }
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => (
@@ -421,7 +421,7 @@ fn support_authority_parameters(
             vec![],
             vec![],
         ),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -433,32 +433,31 @@ fn support_authority_parameters(
             vec![],
             vec![],
         ),
-        TenantScope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
+            organization_node_id,
         } => (
             "subtree",
             Some(*holding_id),
             None,
             None,
-            company_ids.clone(),
-            branch_ids.clone(),
+            vec![*organization_node_id],
+            Vec::new(),
         ),
     })
 }
 
-fn support_exact_scope(row: &sqlx::postgres::PgRow) -> Result<TenantScope, PortError> {
+fn support_exact_scope(row: &sqlx::postgres::PgRow) -> Result<AuthorityScope, PortError> {
     let holding_id = row.try_get("holding_id").map_err(|_| PortError::Internal)?;
     let company_id = row.try_get("company_id").map_err(|_| PortError::Internal)?;
     Ok(
         match row.try_get("branch_id").map_err(|_| PortError::Internal)? {
-            Some(branch_id) => TenantScope::Branch {
+            Some(branch_id) => AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
             },
-            None => TenantScope::Company {
+            None => AuthorityScope::Company {
                 holding_id,
                 company_id,
             },
@@ -519,7 +518,7 @@ fn parse_broadcast_audience(value: &str) -> Result<BroadcastAudience, PortError>
 fn parse_support_mode(value: &str) -> Result<SupportMode, PortError> {
     match value {
         "diagnostic_read" => Ok(SupportMode::DiagnosticRead),
-        "tenant_mutation" => Ok(SupportMode::TenantMutation),
+        "holding_mutation" => Ok(SupportMode::HoldingMutation),
         "impersonation" => Ok(SupportMode::Impersonation),
         _ => Err(PortError::Internal),
     }
@@ -550,7 +549,7 @@ fn parse_capability_revocation(value: &str) -> Result<CapabilityRevocationReason
 impl WriteRepository for SupportWriteRepository {
     async fn load_ticket(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: SupportTicketId,
     ) -> Result<Option<SupportTicket>, PortError> {
         match self
@@ -569,7 +568,7 @@ impl WriteRepository for SupportWriteRepository {
     }
     async fn load_incident(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: IncidentId,
     ) -> Result<Option<Incident>, PortError> {
         match self
@@ -588,7 +587,7 @@ impl WriteRepository for SupportWriteRepository {
     }
     async fn load_session(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: SessionId,
     ) -> Result<Option<SupportSession>, PortError> {
         match self
@@ -607,7 +606,7 @@ impl WriteRepository for SupportWriteRepository {
     }
     async fn load_capability(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: CapabilityId,
     ) -> Result<Option<SupportCapability>, PortError> {
         match self
@@ -738,7 +737,7 @@ impl CommandUnitOfWork for SupportCommandAdapter {
             correlation_id: request.correlation_id,
             idempotency_key: request.identity.idempotency_key,
             request_hash: request_hash(&request.identity.fingerprint)?,
-            tenant_scope: aggregate.scope().clone(),
+            active_scope: aggregate.scope().clone(),
             actor: request.actor,
             audit_context: request.audit,
             aggregate_type: aggregate_type.into(),
@@ -975,7 +974,7 @@ async fn apply_ticket(
     value: &SupportTicket,
 ) -> Result<(), CqrsSqlxError> {
     let (holding_id, company_id, branch_id) = support_scope_columns(value.scope())?;
-    let changed = sqlx::query("INSERT INTO erpx_support_write.ticket_authority (ticket_id,aggregate_version,scope_key,holding_id,company_id,branch_id,customer_id,customer_account_id,case_code,category,severity,description,ticket_status,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) ON CONFLICT (tenant_id,ticket_id) DO UPDATE SET aggregate_version=EXCLUDED.aggregate_version,scope_key=EXCLUDED.scope_key,holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,customer_id=EXCLUDED.customer_id,customer_account_id=EXCLUDED.customer_account_id,case_code=EXCLUDED.case_code,category=EXCLUDED.category,severity=EXCLUDED.severity,description=EXCLUDED.description,ticket_status=EXCLUDED.ticket_status,updated_at=EXCLUDED.updated_at WHERE erpx_support_write.ticket_authority.aggregate_version + 1=EXCLUDED.aggregate_version")
+    let changed = sqlx::query("INSERT INTO erpx_support_write.ticket_authority (ticket_id,aggregate_version,scope_key,holding_id,company_id,branch_id,customer_id,customer_account_id,case_code,category,severity,description,ticket_status,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) ON CONFLICT (holding_id,ticket_id) DO UPDATE SET aggregate_version=EXCLUDED.aggregate_version,scope_key=EXCLUDED.scope_key,holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,customer_id=EXCLUDED.customer_id,customer_account_id=EXCLUDED.customer_account_id,case_code=EXCLUDED.case_code,category=EXCLUDED.category,severity=EXCLUDED.severity,description=EXCLUDED.description,ticket_status=EXCLUDED.ticket_status,updated_at=EXCLUDED.updated_at WHERE erpx_support_write.ticket_authority.aggregate_version + 1=EXCLUDED.aggregate_version")
         .bind(value.id().as_uuid()).bind(to_i64(value.version())?).bind(scope_key(value.scope())?).bind(holding_id).bind(company_id).bind(branch_id)
         .bind(value.customer().as_uuid()).bind(value.customer_account().as_uuid()).bind(value.case_code()).bind(value.category()).bind(value.severity()).bind(value.description())
         .bind(ticket_status_name(value.status())).bind(value.created_at()).bind(value.updated_at()).execute(&mut **tx).await?.rows_affected();
@@ -996,7 +995,7 @@ async fn apply_incident(
     value: &Incident,
 ) -> Result<(), CqrsSqlxError> {
     let (holding_id, company_id, branch_id) = support_scope_columns(value.scope())?;
-    let changed = sqlx::query("INSERT INTO erpx_support_write.incident_authority (incident_id,aggregate_version,scope_key,holding_id,company_id,branch_id,incident_code,severity,commander_ref,incident_status,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT (tenant_id,incident_id) DO UPDATE SET aggregate_version=EXCLUDED.aggregate_version,scope_key=EXCLUDED.scope_key,holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,incident_code=EXCLUDED.incident_code,severity=EXCLUDED.severity,commander_ref=EXCLUDED.commander_ref,incident_status=EXCLUDED.incident_status,updated_at=EXCLUDED.updated_at WHERE erpx_support_write.incident_authority.aggregate_version + 1=EXCLUDED.aggregate_version")
+    let changed = sqlx::query("INSERT INTO erpx_support_write.incident_authority (incident_id,aggregate_version,scope_key,holding_id,company_id,branch_id,incident_code,severity,commander_ref,incident_status,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT (holding_id,incident_id) DO UPDATE SET aggregate_version=EXCLUDED.aggregate_version,scope_key=EXCLUDED.scope_key,holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,incident_code=EXCLUDED.incident_code,severity=EXCLUDED.severity,commander_ref=EXCLUDED.commander_ref,incident_status=EXCLUDED.incident_status,updated_at=EXCLUDED.updated_at WHERE erpx_support_write.incident_authority.aggregate_version + 1=EXCLUDED.aggregate_version")
         .bind(value.id().as_uuid()).bind(to_i64(value.version())?).bind(scope_key(value.scope())?).bind(holding_id).bind(company_id).bind(branch_id)
         .bind(value.incident_code()).bind(value.severity()).bind(value.commander_ref()).bind(incident_status_name(value.status())).bind(value.created_at()).bind(value.updated_at()).execute(&mut **tx).await?.rows_affected();
     ensure_support_root_changed(changed)?;
@@ -1042,7 +1041,7 @@ async fn apply_session(
     value: &SupportSession,
 ) -> Result<(), CqrsSqlxError> {
     let (holding_id, company_id, branch_id) = support_scope_columns(value.scope())?;
-    let changed = sqlx::query("INSERT INTO erpx_support_write.session_authority (session_id,aggregate_version,scope_key,holding_id,company_id,branch_id,ticket_id,customer_id,customer_account_id,agent_principal_id,represented_principal_id,support_mode,module,reason,session_status,requested_at,expires_at,approved_by,approved_at,revoked_at,revoked_reason) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) ON CONFLICT (tenant_id,session_id) DO UPDATE SET aggregate_version=EXCLUDED.aggregate_version,scope_key=EXCLUDED.scope_key,holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,ticket_id=EXCLUDED.ticket_id,customer_id=EXCLUDED.customer_id,customer_account_id=EXCLUDED.customer_account_id,agent_principal_id=EXCLUDED.agent_principal_id,represented_principal_id=EXCLUDED.represented_principal_id,support_mode=EXCLUDED.support_mode,module=EXCLUDED.module,reason=EXCLUDED.reason,session_status=EXCLUDED.session_status,expires_at=EXCLUDED.expires_at,approved_by=EXCLUDED.approved_by,approved_at=EXCLUDED.approved_at,revoked_at=EXCLUDED.revoked_at,revoked_reason=EXCLUDED.revoked_reason WHERE erpx_support_write.session_authority.aggregate_version + 1=EXCLUDED.aggregate_version")
+    let changed = sqlx::query("INSERT INTO erpx_support_write.session_authority (session_id,aggregate_version,scope_key,holding_id,company_id,branch_id,ticket_id,customer_id,customer_account_id,agent_principal_id,represented_principal_id,support_mode,module,reason,session_status,requested_at,expires_at,approved_by,approved_at,revoked_at,revoked_reason) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) ON CONFLICT (holding_id,session_id) DO UPDATE SET aggregate_version=EXCLUDED.aggregate_version,scope_key=EXCLUDED.scope_key,holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,ticket_id=EXCLUDED.ticket_id,customer_id=EXCLUDED.customer_id,customer_account_id=EXCLUDED.customer_account_id,agent_principal_id=EXCLUDED.agent_principal_id,represented_principal_id=EXCLUDED.represented_principal_id,support_mode=EXCLUDED.support_mode,module=EXCLUDED.module,reason=EXCLUDED.reason,session_status=EXCLUDED.session_status,expires_at=EXCLUDED.expires_at,approved_by=EXCLUDED.approved_by,approved_at=EXCLUDED.approved_at,revoked_at=EXCLUDED.revoked_at,revoked_reason=EXCLUDED.revoked_reason WHERE erpx_support_write.session_authority.aggregate_version + 1=EXCLUDED.aggregate_version")
         .bind(value.id().as_uuid()).bind(to_i64(value.version())?).bind(scope_key(value.scope())?).bind(holding_id).bind(company_id).bind(branch_id)
         .bind(value.ticket_id().as_uuid()).bind(value.customer().as_uuid()).bind(value.customer_account().as_uuid()).bind(value.agent().as_uuid()).bind(value.represented_principal().map(|id| id.as_uuid()))
         .bind(support_mode_name(value.mode())).bind(value.module()).bind(value.reason()).bind(session_status_name(value.status())).bind(value.requested_at()).bind(value.expires_at())
@@ -1068,7 +1067,7 @@ async fn apply_capability(
         .revocation()
         .map(|(reason, at)| (Some(capability_revocation_name(reason)), Some(at)))
         .unwrap_or((None, None));
-    let changed = sqlx::query("INSERT INTO erpx_support_write.capability_authority (capability_id,aggregate_version,scope_key,holding_id,company_id,branch_id,session_id,ticket_id,customer_id,customer_account_id,agent_principal_id,device_ref,support_mode,module,secret_hash_sha256,issued_at,expires_at,revocation_reason,revoked_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) ON CONFLICT (tenant_id,capability_id) DO UPDATE SET aggregate_version=EXCLUDED.aggregate_version,scope_key=EXCLUDED.scope_key,holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,session_id=EXCLUDED.session_id,ticket_id=EXCLUDED.ticket_id,customer_id=EXCLUDED.customer_id,customer_account_id=EXCLUDED.customer_account_id,agent_principal_id=EXCLUDED.agent_principal_id,device_ref=EXCLUDED.device_ref,support_mode=EXCLUDED.support_mode,module=EXCLUDED.module,secret_hash_sha256=EXCLUDED.secret_hash_sha256,expires_at=EXCLUDED.expires_at,revocation_reason=EXCLUDED.revocation_reason,revoked_at=EXCLUDED.revoked_at WHERE erpx_support_write.capability_authority.aggregate_version + 1=EXCLUDED.aggregate_version")
+    let changed = sqlx::query("INSERT INTO erpx_support_write.capability_authority (capability_id,aggregate_version,scope_key,holding_id,company_id,branch_id,session_id,ticket_id,customer_id,customer_account_id,agent_principal_id,device_ref,support_mode,module,secret_hash_sha256,issued_at,expires_at,revocation_reason,revoked_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) ON CONFLICT (holding_id,capability_id) DO UPDATE SET aggregate_version=EXCLUDED.aggregate_version,scope_key=EXCLUDED.scope_key,holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,session_id=EXCLUDED.session_id,ticket_id=EXCLUDED.ticket_id,customer_id=EXCLUDED.customer_id,customer_account_id=EXCLUDED.customer_account_id,agent_principal_id=EXCLUDED.agent_principal_id,device_ref=EXCLUDED.device_ref,support_mode=EXCLUDED.support_mode,module=EXCLUDED.module,secret_hash_sha256=EXCLUDED.secret_hash_sha256,expires_at=EXCLUDED.expires_at,revocation_reason=EXCLUDED.revocation_reason,revoked_at=EXCLUDED.revoked_at WHERE erpx_support_write.capability_authority.aggregate_version + 1=EXCLUDED.aggregate_version")
         .bind(value.id().as_uuid()).bind(to_i64(value.version())?).bind(scope_key(value.scope())?).bind(holding_id).bind(company_id).bind(branch_id)
         .bind(value.session_id().as_uuid()).bind(value.ticket_id().as_uuid()).bind(value.customer().as_uuid()).bind(value.customer_account().as_uuid()).bind(value.agent().as_uuid())
         .bind(value.device_ref()).bind(support_mode_name(value.mode())).bind(value.module()).bind(value.secret_hash_sha256().as_slice()).bind(value.issued_at()).bind(value.expires_at()).bind(reason).bind(revoked_at)
@@ -1087,13 +1086,15 @@ async fn apply_capability(
     Ok(())
 }
 
-fn support_scope_columns(scope: &TenantScope) -> Result<(Uuid, Uuid, Option<Uuid>), CqrsSqlxError> {
+fn support_scope_columns(
+    scope: &AuthorityScope,
+) -> Result<(Uuid, Uuid, Option<Uuid>), CqrsSqlxError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok((*holding_id, *company_id, None)),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -1106,7 +1107,7 @@ fn support_scope_columns(scope: &TenantScope) -> Result<(Uuid, Uuid, Option<Uuid
 
 fn support_scope_matches_row(
     row: &sqlx::postgres::PgRow,
-    scope: &TenantScope,
+    scope: &AuthorityScope,
 ) -> Result<bool, CqrsSqlxError> {
     let (holding_id, company_id, branch_id) = support_scope_columns(scope)?;
     Ok(row.try_get::<Uuid, _>("holding_id")? == holding_id
@@ -1280,7 +1281,7 @@ fn audit_action(v: &CommandFingerprint) -> &'static str {
 }
 fn request_hash(v: &CommandFingerprint) -> Result<RequestHash, PortError> {
     let mut d = Sha256::new();
-    d.update(b"erpx.support.command.v1\0");
+    d.update(b"erpx.support.command\0");
     d.update(serde_json::to_vec(v).map_err(|_| PortError::Internal)?);
     Ok(RequestHash::new(d.finalize().into()))
 }
@@ -1300,13 +1301,13 @@ fn deterministic_uuid(seed: Uuid, label: &[u8]) -> Uuid {
     b[8] = (b[8] & 0x3f) | 0x80;
     Uuid::from_bytes(b)
 }
-pub(crate) fn scope_key(scope: &TenantScope) -> Result<String, CqrsSqlxError> {
+pub(crate) fn scope_key(scope: &AuthorityScope) -> Result<String, CqrsSqlxError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok(format!("h:{holding_id}/c:{company_id}")),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,

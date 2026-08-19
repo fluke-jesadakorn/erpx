@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use erpx_legal::{
     CallbackOutcome, ESignatureProviderPort, SignatureCallbackVerifierPort, SignatureEnvelope,
     SignatureEnvelopeId, SignatureEvidencePackage, SignatureProviderEnvelope,
@@ -25,7 +25,7 @@ pub enum SignatureOrchestrationError {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignatureSubmissionAuthority {
     pub principal_ref: String,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub assignment_version: u64,
     pub valid_until: DateTime<Utc>,
     pub provider_allowed: bool,
@@ -310,8 +310,8 @@ mod tests {
     fn at() -> DateTime<Utc> {
         DateTime::from_timestamp(1_786_000_000, 0).unwrap()
     }
-    fn scope() -> TenantScope {
-        TenantScope::Company {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         }

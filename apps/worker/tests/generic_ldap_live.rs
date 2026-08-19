@@ -1130,11 +1130,11 @@ async fn run_live_child(config: LiveConfig, connector_id: Uuid) {
         .expect("apply identity schema to the Generic LDAP acceptance database");
 
     let store = SqlxDirectoryStore::new(pool.clone());
-    let holding_ref = format!("g14-generic-ldap-{}", connector_id.simple());
+    let data_profile_key = format!("g14-generic-ldap-{}", connector_id.simple());
     let connector = DirectoryConnector {
         id: connector_id,
         provider: DirectoryProvider::GenericLdap,
-        scope: DirectoryScope::Holding { holding_ref },
+        scope: DirectoryScope::Holding { data_profile_key },
         endpoint: config.endpoint.clone(),
         base_dn: config.base_dn.clone(),
         tls: DirectoryTlsPolicy {

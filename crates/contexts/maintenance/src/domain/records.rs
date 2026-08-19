@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -90,7 +90,7 @@ pub struct MaintenanceLifecycleRecord {
     id: Uuid,
     version: u64,
     kind: MaintenanceLifecycleRecordKind,
-    scope: TenantScope,
+    scope: AuthorityScope,
     title: String,
     status: MaintenanceLifecycleRecordStatus,
     created_at: DateTime<Utc>,
@@ -100,7 +100,7 @@ impl MaintenanceLifecycleRecord {
     pub fn create(
         id: Uuid,
         kind: MaintenanceLifecycleRecordKind,
-        scope: TenantScope,
+        scope: AuthorityScope,
         title: String,
         at: DateTime<Utc>,
     ) -> Result<Self, MaintenanceLifecycleRecordError> {
@@ -159,7 +159,7 @@ impl MaintenanceLifecycleRecord {
     pub const fn kind(&self) -> MaintenanceLifecycleRecordKind {
         self.kind
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn title(&self) -> &str {
@@ -197,13 +197,13 @@ const fn allowed(
             | (K::Request, S::Converted | S::Rejected, S::Closed)
     )
 }
-fn validate_scope(scope: &TenantScope) -> Result<(), MaintenanceLifecycleRecordError> {
+fn validate_scope(scope: &AuthorityScope) -> Result<(), MaintenanceLifecycleRecordError> {
     scope
         .validate()
         .map_err(|_| MaintenanceLifecycleRecordError::InvalidScope)?;
     if matches!(
         scope,
-        TenantScope::Company { .. } | TenantScope::Branch { .. }
+        AuthorityScope::Company { .. } | AuthorityScope::Branch { .. }
     ) {
         Ok(())
     } else {
@@ -225,7 +225,7 @@ mod tests {
     use chrono::TimeZone;
     #[test]
     fn inspection_and_request_are_governed_separately() {
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         };

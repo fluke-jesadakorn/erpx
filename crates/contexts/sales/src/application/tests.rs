@@ -19,8 +19,8 @@ use erpx_integration_contracts::{
     organization, sales,
 };
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
-    FixedClock, QueryId, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+    ErrorCategory, EventId, FixedClock, QueryId,
 };
 use uuid::Uuid;
 
@@ -42,8 +42,8 @@ fn at(hour: u32) -> chrono::DateTime<Utc> {
         .unwrap()
 }
 
-fn scope() -> TenantScope {
-    TenantScope::Company {
+fn scope() -> AuthorityScope {
+    AuthorityScope::Company {
         holding_id: id(1),
         company_id: id(2),
     }
@@ -52,7 +52,7 @@ fn scope() -> TenantScope {
 fn actor() -> ActorAttribution {
     ActorAttribution {
         principal_ref: "sales-test-actor".into(),
-        kind: ActorKind::TenantUser,
+        kind: ActorKind::HoldingUser,
         session_id: None,
         represented_principal_ref: None,
         support_capability_id: None,
@@ -168,7 +168,7 @@ fn command_envelope(
         correlation_id: CorrelationId::try_from_uuid(id(200 + sequence)).unwrap(),
         causation_id: None,
         actor: actor(),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "sales.test".into(),
             customer_visible: false,
@@ -200,7 +200,7 @@ struct FakeEntitlement(bool);
 impl EntitlementPort for FakeEntitlement {
     async fn ensure_sales_enabled(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _write: bool,
     ) -> Result<(), PortError> {
         if self.0 {
@@ -223,7 +223,7 @@ struct FakeWriteRepository {
 impl WriteRepository for FakeWriteRepository {
     async fn load_quote(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _quote_id: QuoteId,
     ) -> Result<Option<Quote>, PortError> {
         self.loads.fetch_add(1, Ordering::SeqCst);
@@ -232,7 +232,7 @@ impl WriteRepository for FakeWriteRepository {
 
     async fn load_order(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _sales_order_id: SalesOrderId,
     ) -> Result<Option<SalesOrder>, PortError> {
         self.loads.fetch_add(1, Ordering::SeqCst);
@@ -241,7 +241,7 @@ impl WriteRepository for FakeWriteRepository {
 
     async fn load_revenue_arrangement(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _arrangement_id: RevenueArrangementId,
     ) -> Result<Option<RevenueArrangement>, PortError> {
         self.loads.fetch_add(1, Ordering::SeqCst);
@@ -499,7 +499,7 @@ struct NotReadyRead {
 impl ReadRepository for NotReadyRead {
     async fn get_quote(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _quote_id: QuoteId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<QuoteView>>, PortError> {
@@ -517,7 +517,7 @@ impl ReadRepository for NotReadyRead {
 
     async fn get_order(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _sales_order_id: SalesOrderId,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<SalesOrderView>>, PortError> {
@@ -526,7 +526,7 @@ impl ReadRepository for NotReadyRead {
 
     async fn get_revenue_arrangement(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _arrangement_id: RevenueArrangementId,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<RevenueArrangementView>>, PortError> {
@@ -535,7 +535,7 @@ impl ReadRepository for NotReadyRead {
 
     async fn list_orders(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _filter: &SalesOrderListFilter,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<SalesOrderList>, PortError> {
@@ -562,7 +562,7 @@ fn read_your_writes_not_ready_never_falls_back_to_write_store() {
         query_id: QueryId::try_from_uuid(id(500)).unwrap(),
         correlation_id: CorrelationId::try_from_uuid(id(501)).unwrap(),
         actor: actor(),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "sales.test.query".into(),
             customer_visible: false,

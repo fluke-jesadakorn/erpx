@@ -22,7 +22,7 @@ erpx_ui_enterprise_workspaces::declare_enterprise_workspace_feature!(
     "benefits.workspace",
     "/benefits",
     "people",
-    "erpx-feature-benefits-v2"
+    "erpx-feature-benefits"
 );
 
 #[cfg(test)]

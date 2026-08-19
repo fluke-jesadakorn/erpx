@@ -66,14 +66,14 @@ impl Projector for ProcurementProjector {
         let result = sqlx::query(
             "INSERT INTO erpx_procurement_read.purchase_order_projection
                 (projection_name,generation,partition_key,purchase_order_id,
-                 source_aggregate_version,source_global_sequence,tenant_scope,scope_key,
+                 source_aggregate_version,source_global_sequence,active_scope,scope_key,
                  order_code,supplier_id,currency,order_status,lines,state,
                  aggregate_created_at,aggregate_updated_at,projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,now())
-             ON CONFLICT (tenant_id,projection_name,generation,partition_key,purchase_order_id)
+             ON CONFLICT (holding_id,projection_name,generation,partition_key,purchase_order_id)
              DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,
                 source_global_sequence=EXCLUDED.source_global_sequence,
-                tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,
+                active_scope=EXCLUDED.active_scope,scope_key=EXCLUDED.scope_key,
                 order_code=EXCLUDED.order_code,supplier_id=EXCLUDED.supplier_id,
                 currency=EXCLUDED.currency,order_status=EXCLUDED.order_status,
                 lines=EXCLUDED.lines,state=EXCLUDED.state,
@@ -151,7 +151,7 @@ fn validate_event(
     let view = &snapshot.order;
     if view.version != event.aggregate_version
         || view.purchase_order_id.as_uuid() != event.aggregate_id.as_uuid()
-        || view.scope != event.tenant_scope
+        || view.scope != event.active_scope
         || event.partition != purchase_order_partition(view.purchase_order_id)
         || scope_key(&view.scope).is_err()
     {
@@ -162,19 +162,19 @@ fn validate_event(
     Ok(snapshot)
 }
 
-pub(crate) fn scope_key(scope: &erpx_kernel::TenantScope) -> Result<String, ProjectionFailure> {
+pub(crate) fn scope_key(scope: &erpx_kernel::AuthorityScope) -> Result<String, ProjectionFailure> {
     match scope {
-        erpx_kernel::TenantScope::Company {
+        erpx_kernel::AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok(format!("company:{holding_id}:{company_id}")),
-        erpx_kernel::TenantScope::Branch {
+        erpx_kernel::AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         } => Ok(format!("branch:{holding_id}:{company_id}:{branch_id}")),
         _ => Err(ProjectionFailure::new(
-            "procurement requires an exact tenant scope",
+            "procurement requires an exact holding scope",
         )),
     }
 }

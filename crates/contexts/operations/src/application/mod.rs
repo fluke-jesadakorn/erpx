@@ -12,8 +12,8 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::identity_access;
 use erpx_kernel::{
-    ActorAttribution, AuditContext, Clock, CorrelationId, ErrorCategory, ErrorContext, EventId,
-    KernelError, TenantScope,
+    ActorAttribution, AuditContext, AuthorityScope, Clock, CorrelationId, ErrorCategory,
+    ErrorContext, EventId, KernelError,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -231,7 +231,7 @@ pub struct SourceHandlingContext {
     pub source: SourceFactMessage,
     pub position: SourcePosition,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
 }
 
@@ -339,9 +339,9 @@ where
     async fn preflight(
         &self,
         envelope: &CommandEnvelope<OperationsCommand>,
-        target_scope: &TenantScope,
+        target_scope: &AuthorityScope,
     ) -> Result<(), OperationsApplicationError> {
-        if !envelope.tenant_scope.contains(target_scope) {
+        if !envelope.active_scope.contains(target_scope) {
             return Err(OperationsApplicationError::ScopeOutsideAuthority);
         }
         let action = envelope.command.action();
@@ -352,7 +352,7 @@ where
         self.authorization
             .authorize(AuthorizationRequest {
                 actor: &envelope.actor,
-                authority_scope: &envelope.tenant_scope,
+                authority_scope: &envelope.active_scope,
                 target_scope,
                 action,
                 assignee,
@@ -408,7 +408,7 @@ where
         let at = self.clock.now();
         let existing = self
             .write
-            .load_work_queue_policy(&envelope.tenant_scope, command.policy_id)
+            .load_work_queue_policy(&envelope.active_scope, command.policy_id)
             .await
             .map_err(|error| port_to_cqrs(error, correlation))?;
         let (mut aggregate, expected_version) = if let Some(mut aggregate) = existing {
@@ -446,13 +446,13 @@ where
                     correlation,
                 ));
             }
-            self.preflight(&envelope, &envelope.tenant_scope)
+            self.preflight(&envelope, &envelope.active_scope)
                 .await
                 .map_err(|error| to_cqrs(error, correlation))?;
             (
                 WorkQueuePolicy::publish(
                     command.policy_id,
-                    envelope.tenant_scope.clone(),
+                    envelope.active_scope.clone(),
                     command.name,
                     command.allowed_sources,
                     command.escalation_after_minutes,
@@ -472,7 +472,7 @@ where
                 correlation_id: correlation,
                 causation_id: envelope.causation_id,
                 actor: envelope.actor,
-                authority_scope: envelope.tenant_scope,
+                authority_scope: envelope.active_scope,
                 audit: envelope.audit,
                 expected_version,
                 aggregate,
@@ -528,7 +528,7 @@ where
         let mut aggregate = self
             .write
             .load_exception(
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 envelope
                     .command
                     .exception_id()
@@ -613,7 +613,7 @@ where
                 correlation_id: correlation,
                 causation_id: envelope.causation_id,
                 actor: envelope.actor,
-                authority_scope: envelope.tenant_scope,
+                authority_scope: envelope.active_scope,
                 audit: envelope.audit,
                 expected_version: expected,
                 aggregate,
@@ -776,14 +776,14 @@ where
         let correlation = envelope.correlation_id;
         let action = envelope.query.action();
         self.entitlement
-            .ensure_operations_enabled(&envelope.tenant_scope, false)
+            .ensure_operations_enabled(&envelope.active_scope, false)
             .await
             .map_err(|error| port_to_cqrs(error, correlation))?;
         self.authorization
             .authorize(AuthorizationRequest {
                 actor: &envelope.actor,
-                authority_scope: &envelope.tenant_scope,
-                target_scope: &envelope.tenant_scope,
+                authority_scope: &envelope.active_scope,
+                target_scope: &envelope.active_scope,
                 action,
                 assignee: None,
                 manager: None,
@@ -796,7 +796,7 @@ where
                 let projection = self
                     .read
                     .get_exception(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         value.exception_id,
                         &envelope.consistency,
                     )
@@ -811,7 +811,7 @@ where
                 validate_filter(&value.filter).map_err(|error| to_cqrs(error, correlation))?;
                 let projection = self
                     .read
-                    .list_queue(&envelope.tenant_scope, &value.filter, &envelope.consistency)
+                    .list_queue(&envelope.active_scope, &value.filter, &envelope.consistency)
                     .await
                     .map_err(|error| port_to_cqrs(error, correlation))?;
                 (
@@ -825,7 +825,7 @@ where
                 let projection = self
                     .read
                     .list_work_queue_policies(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         &value.filter,
                         &envelope.consistency,
                     )
@@ -839,7 +839,7 @@ where
             OperationsQuery::GetSummary(_) => {
                 let projection = self
                     .read
-                    .get_summary(&envelope.tenant_scope, &envelope.consistency)
+                    .get_summary(&envelope.active_scope, &envelope.consistency)
                     .await
                     .map_err(|error| port_to_cqrs(error, correlation))?;
                 (

@@ -7,7 +7,7 @@
 use chrono::{Duration, Utc};
 use erpx_application::{PersistApprovedSupportGrantCommand, RevokeSupportGrantCommand};
 use erpx_domain::{
-    access::Scope,
+    contracts::AuthorityScope as Scope,
     support::{
         Incident, IncidentStatus, SupportCapability, SupportCapabilityBinding,
         SupportDeviceSessionBinding, SupportMode, SupportSession, SupportTicket, TicketStatus,
@@ -32,7 +32,7 @@ fn grant_fixture(
         ticket_id,
         customer_account_id,
         "support-agent-acceptance",
-        SupportMode::TenantMutation,
+        SupportMode::HoldingMutation,
         vec!["ticket.read".into()],
         scope.canonical_key(),
         "support",
@@ -59,7 +59,7 @@ fn grant_fixture(
         "device-acceptance",
         session.id,
         ticket_id,
-        SupportMode::TenantMutation,
+        SupportMode::HoldingMutation,
         vec!["ticket.read".into()],
         scope.canonical_key(),
         "support",

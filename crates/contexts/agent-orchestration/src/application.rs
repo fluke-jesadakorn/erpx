@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use erpx_kernel::{ActorAttribution, AuditContext, Clock, TenantScope};
+use erpx_kernel::{ActorAttribution, AuditContext, AuthorityScope, Clock};
 use thiserror::Error;
 
 use crate::{
@@ -18,7 +18,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct RegisterAgent {
     pub definition_id: AgentDefinitionId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub agent_principal_ref: String,
     pub business_owner_ref: String,
     pub technical_owner_ref: String,
@@ -61,7 +61,7 @@ pub struct StartAgentWork {
     pub assignment_id: AssignmentId,
     pub agent_definition_id: AgentDefinitionId,
     pub agent_version_id: AgentVersionId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub invocation: RootInvocation,
     pub budget_reservation_id: BudgetReservationId,
     pub budget_subjects: BudgetSubjects,
@@ -76,7 +76,7 @@ pub struct DelegateWork {
     pub parent_assignment_id: AssignmentId,
     pub child_agent_definition_id: AgentDefinitionId,
     pub child_agent_version_id: AgentVersionId,
-    pub child_scope: TenantScope,
+    pub child_scope: AuthorityScope,
     pub child_budget_reservation_id: BudgetReservationId,
     pub budget_subjects: BudgetSubjects,
     pub budget_request: BudgetRequest,
@@ -173,7 +173,7 @@ where
     pub async fn register_agent(
         &self,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         audit: AuditContext,
         command: RegisterAgent,
     ) -> Result<AgentDefinition, AgentOrchestrationError> {
@@ -212,7 +212,7 @@ where
     pub async fn start_work(
         &self,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         audit: AuditContext,
         command: StartAgentWork,
     ) -> Result<Assignment, AgentOrchestrationError> {
@@ -264,7 +264,7 @@ where
     pub async fn add_agent_version(
         &self,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         audit: AuditContext,
         command: AddAgentVersion,
     ) -> Result<AgentDefinition, AgentOrchestrationError> {
@@ -299,7 +299,7 @@ where
     pub async fn approve_agent_version(
         &self,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         audit: AuditContext,
         command: ApproveAgentVersion,
     ) -> Result<AgentDefinition, AgentOrchestrationError> {
@@ -338,7 +338,7 @@ where
     pub async fn suspend_agent(
         &self,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         audit: AuditContext,
         command: SuspendAgent,
     ) -> Result<AgentDefinition, AgentOrchestrationError> {
@@ -357,7 +357,7 @@ where
     pub async fn retire_agent(
         &self,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         audit: AuditContext,
         command: RetireAgent,
     ) -> Result<AgentDefinition, AgentOrchestrationError> {
@@ -376,7 +376,7 @@ where
     pub async fn delegate(
         &self,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         audit: AuditContext,
         command: DelegateWork,
     ) -> Result<Assignment, AgentOrchestrationError> {
@@ -441,7 +441,7 @@ where
     pub async fn retry(
         &self,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         audit: AuditContext,
         command: RetryWork,
     ) -> Result<Assignment, AgentOrchestrationError> {
@@ -479,7 +479,7 @@ where
     pub async fn cancel(
         &self,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         audit: AuditContext,
         command: CancelWork,
     ) -> Result<Assignment, AgentOrchestrationError> {
@@ -512,7 +512,7 @@ where
 
     async fn load_versioned(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: AssignmentId,
         expected_version: u64,
     ) -> Result<Assignment, AgentOrchestrationError> {
@@ -529,7 +529,7 @@ where
 
     async fn load_definition_versioned(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: AgentDefinitionId,
         expected_version: u64,
     ) -> Result<AgentDefinition, AgentOrchestrationError> {
@@ -548,7 +548,7 @@ where
     async fn change_agent_lifecycle(
         &self,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         audit: AuditContext,
         definition_id: AgentDefinitionId,
         expected_version: u64,
@@ -591,8 +591,8 @@ where
     async fn authorize_assignment(
         &self,
         actor: &ActorAttribution,
-        authority_scope: &TenantScope,
-        target_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         action: OrchestrationAction,
         definition_id: Option<AgentDefinitionId>,
         assignment_id: Option<AssignmentId>,
@@ -629,7 +629,7 @@ where
     async fn commit_mutation(
         &self,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         audit: AuditContext,
         expected_version: u64,
         assignment: Assignment,
@@ -650,7 +650,7 @@ where
     async fn commit_definition_mutation(
         &self,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         audit: AuditContext,
         expected_version: u64,
         idempotency_key: String,

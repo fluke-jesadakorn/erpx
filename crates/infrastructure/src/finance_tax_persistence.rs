@@ -105,7 +105,7 @@ pub struct FinanceThaiTaxProjectionApplication {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinanceThaiTaxProjectionRebuildPreparation {
-    pub holding_ref: String,
+    pub data_profile_key: String,
     pub rows_cleared: u64,
     pub checkpoints_cleared: u64,
 }
@@ -172,26 +172,26 @@ pub struct FinanceThaiTaxSourceEventPage {
 pub struct SqlxFinanceThaiTaxStore {
     write_pool: PgPool,
     read_pool: PgPool,
-    holding_ref: String,
+    data_profile_key: String,
 }
 
 impl SqlxFinanceThaiTaxStore {
     pub fn from_pools(
         write_pool: &PgPool,
         read_pool: &PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_holding_ref(&holding_ref)?;
+        let data_profile_key = data_profile_key.into();
+        validate_data_profile_key(&data_profile_key)?;
         Ok(Self {
             write_pool: write_pool.clone(),
             read_pool: read_pool.clone(),
-            holding_ref,
+            data_profile_key,
         })
     }
 
-    pub fn holding_ref(&self) -> &str {
-        &self.holding_ref
+    pub fn data_profile_key(&self) -> &str {
+        &self.data_profile_key
     }
 
     pub async fn record_fact(
@@ -202,14 +202,14 @@ impl SqlxFinanceThaiTaxStore {
             .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
         let response = serde_json::to_value(fact)?;
         let request_hash = sha256_hex(&serde_json::to_vec(fact)?);
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
         if let Some(row) = sqlx::query(
             "SELECT request_hash, response, fact_id
-               FROM erpx_tenant.finance_thai_tax_command_idempotency
-              WHERE idempotency_key=$1 AND holding_ref=$2 FOR UPDATE",
+               FROM erpx_holding.finance_thai_tax_command_idempotency
+              WHERE idempotency_key=$1 AND data_profile_key=$2 FOR UPDATE",
         )
         .bind(&fact.context.idempotency_key)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         {
@@ -228,24 +228,24 @@ impl SqlxFinanceThaiTaxStore {
             let source_exists: bool = sqlx::query_scalar(
                 "SELECT EXISTS (
                      SELECT 1
-                     FROM erpx_tenant.finance_thai_tax_facts
-                     WHERE holding_ref=$1 AND fact_id=$2
+                     FROM erpx_holding.finance_thai_tax_facts
+                     WHERE data_profile_key=$1 AND fact_id=$2
                  )",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(existing.fact_id)
             .fetch_one(&mut *tx)
             .await?;
             let outbox_event_count: i64 = sqlx::query_scalar(
                 "SELECT COUNT(*)
-                 FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1
+                 FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1
                    AND aggregate_type=$2
                    AND aggregate_id=$3
                    AND aggregate_version=1
                    AND event_type=$4",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(FINANCE_THAI_TAX_FACT_AGGREGATE)
             .bind(existing.fact_id)
             .bind(FINANCE_THAI_TAX_FACT_EVENT)
@@ -265,11 +265,11 @@ impl SqlxFinanceThaiTaxStore {
 
         let journal_row = sqlx::query(
             "SELECT payload, currency
-               FROM erpx_tenant.finance_posted_journals
-              WHERE journal_id=$1 AND holding_ref=$2",
+               FROM erpx_holding.finance_posted_journals
+              WHERE journal_id=$1 AND data_profile_key=$2",
         )
         .bind(fact.journal_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(PersistenceError::NotFound {
@@ -310,11 +310,11 @@ impl SqlxFinanceThaiTaxStore {
             ));
         }
         if sqlx::query_scalar::<_, Uuid>(
-            "SELECT fact_id FROM erpx_tenant.finance_thai_tax_facts
-              WHERE fact_id=$1 AND holding_ref=$2",
+            "SELECT fact_id FROM erpx_holding.finance_thai_tax_facts
+              WHERE fact_id=$1 AND data_profile_key=$2",
         )
         .bind(fact.fact_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         .is_some()
@@ -325,8 +325,8 @@ impl SqlxFinanceThaiTaxStore {
         }
 
         sqlx::query(
-            "INSERT INTO erpx_tenant.finance_thai_tax_facts
-                (fact_id, holding_id, company_id, journal_id, line_id, holding_ref,
+            "INSERT INTO erpx_holding.finance_thai_tax_facts
+                (fact_id, holding_id, company_id, journal_id, line_id, data_profile_key,
                  tax_date, tax_period, kind, currency, base_minor, tax_minor,
                  tax_rate_basis_points, tax_identifier, context, recorded_at, payload)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)",
@@ -336,7 +336,7 @@ impl SqlxFinanceThaiTaxStore {
         .bind(fact.company_id)
         .bind(fact.journal_id)
         .bind(fact.line_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(fact.tax_date)
         .bind(&fact.tax_period)
         .bind(fact.kind.as_str())
@@ -351,27 +351,27 @@ impl SqlxFinanceThaiTaxStore {
         .execute(&mut *tx)
         .await?;
         sqlx::query(
-            "INSERT INTO erpx_tenant.outbox_events
-                (event_id, aggregate_type, aggregate_id, holding_ref,
+            "INSERT INTO erpx_holding.outbox_events
+                (event_id, aggregate_type, aggregate_id, data_profile_key,
                  aggregate_version, event_type, payload, occurred_at)
              VALUES ($1,$2,$3,$4,1,$5,$6,$7)",
         )
         .bind(Uuid::new_v4())
         .bind(FINANCE_THAI_TAX_FACT_AGGREGATE)
         .bind(fact.fact_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(FINANCE_THAI_TAX_FACT_EVENT)
         .bind(serde_json::json!({ "fact": response }))
         .bind(fact.recorded_at)
         .execute(&mut *tx)
         .await?;
         sqlx::query(
-            "INSERT INTO erpx_tenant.finance_thai_tax_command_idempotency
-                (idempotency_key, holding_ref, request_hash, fact_id, response)
+            "INSERT INTO erpx_holding.finance_thai_tax_command_idempotency
+                (idempotency_key, data_profile_key, request_hash, fact_id, response)
              VALUES ($1,$2,$3,$4,$5)",
         )
         .bind(&fact.context.idempotency_key)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(request_hash)
         .bind(fact.fact_id)
         .bind(&response)
@@ -392,18 +392,18 @@ impl SqlxFinanceThaiTaxStore {
     ) -> Result<FinanceThaiTaxSourceEventPage, PersistenceError> {
         validate_page_size(page_size)?;
         let limit = i64::from(page_size) + 1;
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
         let rows = if let Some(cursor) = cursor {
             sqlx::query(
                 "SELECT event_id, event_type, aggregate_id, aggregate_version,
                         payload, occurred_at
-                   FROM erpx_tenant.outbox_events
-                  WHERE holding_ref=$1 AND aggregate_type=$2
+                   FROM erpx_holding.outbox_events
+                  WHERE data_profile_key=$1 AND aggregate_type=$2
                     AND (aggregate_id > $3 OR
                          (aggregate_id=$3 AND aggregate_version > $4))
                   ORDER BY aggregate_id, aggregate_version LIMIT $5",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(FINANCE_THAI_TAX_FACT_AGGREGATE)
             .bind(cursor.aggregate_id)
             .bind(i64::try_from(cursor.aggregate_version).map_err(|_| invalid("cursor"))?)
@@ -414,11 +414,11 @@ impl SqlxFinanceThaiTaxStore {
             sqlx::query(
                 "SELECT event_id, event_type, aggregate_id, aggregate_version,
                         payload, occurred_at
-                   FROM erpx_tenant.outbox_events
-                  WHERE holding_ref=$1 AND aggregate_type=$2
+                   FROM erpx_holding.outbox_events
+                  WHERE data_profile_key=$1 AND aggregate_type=$2
                   ORDER BY aggregate_id, aggregate_version LIMIT $3",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(FINANCE_THAI_TAX_FACT_AGGREGATE)
             .bind(limit)
             .fetch_all(&mut *tx)
@@ -482,7 +482,7 @@ impl SqlxFinanceThaiTaxStore {
         }
         crate::finance_persistence::verify_authoritative_source_event(
             &self.write_pool,
-            &self.holding_ref,
+            &self.data_profile_key,
             event_id,
             FINANCE_THAI_TAX_FACT_EVENT,
             FINANCE_THAI_TAX_FACT_AGGREGATE,
@@ -491,10 +491,10 @@ impl SqlxFinanceThaiTaxStore {
             payload,
         )
         .await?;
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let result = project_tax_event_in_transaction(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             event_id,
             aggregate_id,
             aggregate_version,
@@ -524,18 +524,18 @@ impl SqlxFinanceThaiTaxStore {
                 "Thai tax report requires reconciled and stable source/read state",
             ));
         }
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let rows = sqlx::query(
             "SELECT fact_id, holding_id, company_id, journal_id, line_id, tax_date,
                     tax_period, kind, currency, base_minor, tax_minor,
                     tax_rate_basis_points, tax_identifier, source_version,
                     source_event_id, recorded_at, projected_at
-               FROM erpx_tenant.finance_thai_tax_fact_read_rows
-              WHERE holding_ref=$1 AND holding_id=$2 AND company_id=$3
+               FROM erpx_holding.finance_thai_tax_fact_read_rows
+              WHERE data_profile_key=$1 AND holding_id=$2 AND company_id=$3
                 AND tax_period=$4 AND currency=$5
               ORDER BY tax_date, fact_id LIMIT $6",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(holding_id)
         .bind(company_id)
         .bind(tax_period)
@@ -606,8 +606,8 @@ impl SqlxFinanceThaiTaxStore {
     /// Reconcile the complete bounded tax source feed against the read model.
     ///
     /// This is intentionally a two-database comparison: the source sequence
-    /// is read only from the tenant-write database and the projection sequence
-    /// only from the tenant-read database. A missing, extra, reordered, or
+    /// is read only from the holding-write database and the projection sequence
+    /// only from the holding-read database. A missing, extra, reordered, or
     /// replaced source event therefore fails closed before a statutory report
     /// can be returned.
     pub async fn reconcile_projection(
@@ -615,15 +615,15 @@ impl SqlxFinanceThaiTaxStore {
     ) -> Result<FinanceThaiTaxProjectionReconciliation, PersistenceError> {
         let source_limit = i64::try_from(MAX_FINANCE_THAI_TAX_RECONCILIATION_FACTS + 1)
             .map_err(|_| invalid("Thai tax reconciliation bound"))?;
-        let mut write_tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
+        let mut write_tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
         let source_rows: Vec<(Uuid, Uuid, i64, String, Value)> = sqlx::query_as(
             "SELECT aggregate_id, event_id, aggregate_version, event_type, payload
-               FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND aggregate_type=$2
+               FROM erpx_holding.outbox_events
+              WHERE data_profile_key=$1 AND aggregate_type=$2
               ORDER BY aggregate_id, aggregate_version, event_id
               LIMIT $3",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(FINANCE_THAI_TAX_FACT_AGGREGATE)
         .bind(source_limit)
         .fetch_all(&mut *write_tx)
@@ -663,18 +663,18 @@ impl SqlxFinanceThaiTaxStore {
             }
         }
 
-        let mut read_tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut read_tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let projected_rows = sqlx::query(
             "SELECT fact_id, source_event_id, source_version,
                     holding_id, company_id, journal_id, line_id, tax_date,
                     tax_period, kind, currency, base_minor, tax_minor,
                     tax_rate_basis_points, tax_identifier, recorded_at
-               FROM erpx_tenant.finance_thai_tax_fact_read_rows
-              WHERE holding_ref=$1
+               FROM erpx_holding.finance_thai_tax_fact_read_rows
+              WHERE data_profile_key=$1
               ORDER BY fact_id, source_version, source_event_id
               LIMIT $2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(source_limit)
         .fetch_all(&mut *read_tx)
         .await?;
@@ -826,22 +826,22 @@ impl SqlxFinanceThaiTaxStore {
         currency: &str,
     ) -> Result<(Vec<ThaiTaxFact>, u64, u64), PersistenceError> {
         let limit = reconciliation_limit()?;
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
         let source_event_count = sqlx::query_scalar::<_, i64>(
             "SELECT COUNT(*)
-               FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND aggregate_type=$2",
+               FROM erpx_holding.outbox_events
+              WHERE data_profile_key=$1 AND aggregate_type=$2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(FINANCE_THAI_TAX_FACT_AGGREGATE)
         .fetch_one(&mut *tx)
         .await?;
         let source_fact_count = sqlx::query_scalar::<_, i64>(
             "SELECT COUNT(*)
-               FROM erpx_tenant.finance_thai_tax_facts
-              WHERE holding_ref=$1",
+               FROM erpx_holding.finance_thai_tax_facts
+              WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_one(&mut *tx)
         .await?;
         let rows = sqlx::query(
@@ -849,13 +849,13 @@ impl SqlxFinanceThaiTaxStore {
                     tax_date, btrim(tax_period) AS tax_period, kind,
                     btrim(currency) AS currency, base_minor, tax_minor,
                     tax_rate_basis_points, tax_identifier, recorded_at
-               FROM erpx_tenant.finance_thai_tax_facts
-              WHERE holding_ref=$1 AND holding_id=$2 AND company_id=$3
+               FROM erpx_holding.finance_thai_tax_facts
+              WHERE data_profile_key=$1 AND holding_id=$2 AND company_id=$3
                 AND btrim(tax_period)=$4 AND btrim(currency)=$5
               ORDER BY tax_date, fact_id
               LIMIT $6",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(holding_id)
         .bind(company_id)
         .bind(tax_period)
@@ -871,16 +871,16 @@ impl SqlxFinanceThaiTaxStore {
         let source_event_rows = sqlx::query(
             "SELECT o.event_id, o.aggregate_id, o.aggregate_version,
                     o.event_type, o.payload, f.payload AS source_fact_payload
-               FROM erpx_tenant.outbox_events AS o
-               JOIN erpx_tenant.finance_thai_tax_facts AS f
-                 ON f.fact_id=o.aggregate_id AND f.holding_ref=o.holding_ref
-              WHERE o.holding_ref=$1 AND o.aggregate_type=$2
+               FROM erpx_holding.outbox_events AS o
+               JOIN erpx_holding.finance_thai_tax_facts AS f
+                 ON f.fact_id=o.aggregate_id AND f.data_profile_key=o.data_profile_key
+              WHERE o.data_profile_key=$1 AND o.aggregate_type=$2
                 AND f.holding_id=$3 AND f.company_id=$4
                 AND btrim(f.tax_period)=$5 AND btrim(f.currency)=$6
               ORDER BY o.aggregate_id, o.aggregate_version, o.event_id
               LIMIT $7",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(FINANCE_THAI_TAX_FACT_AGGREGATE)
         .bind(holding_id)
         .bind(company_id)
@@ -966,19 +966,19 @@ impl SqlxFinanceThaiTaxStore {
         tax_period: &str,
         currency: &str,
     ) -> Result<Vec<ThaiTaxFact>, PersistenceError> {
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let rows = sqlx::query(
             "SELECT fact_id, holding_id, company_id, journal_id, line_id,
                     tax_date, btrim(tax_period) AS tax_period, kind,
                     btrim(currency) AS currency, base_minor, tax_minor,
                     tax_rate_basis_points, tax_identifier, recorded_at
-               FROM erpx_tenant.finance_thai_tax_fact_read_rows
-              WHERE holding_ref=$1 AND holding_id=$2 AND company_id=$3
+               FROM erpx_holding.finance_thai_tax_fact_read_rows
+              WHERE data_profile_key=$1 AND holding_id=$2 AND company_id=$3
                 AND btrim(tax_period)=$4 AND btrim(currency)=$5
               ORDER BY tax_date, fact_id
               LIMIT $6",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(holding_id)
         .bind(company_id)
         .bind(tax_period)
@@ -1002,16 +1002,16 @@ impl SqlxFinanceThaiTaxStore {
     async fn load_source_report_scopes(
         &self,
     ) -> Result<Vec<(Uuid, Uuid, String, String)>, PersistenceError> {
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
         let rows = sqlx::query(
             "SELECT DISTINCT holding_id, company_id,
                     btrim(tax_period) AS tax_period, btrim(currency) AS currency
-               FROM erpx_tenant.finance_thai_tax_facts
-              WHERE holding_ref=$1
+               FROM erpx_holding.finance_thai_tax_facts
+              WHERE data_profile_key=$1
               ORDER BY holding_id, company_id, tax_period, currency
               LIMIT $2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(
             i64::try_from(MAX_FINANCE_THAI_TAX_RECONCILIATION_REPORTS + 1)
                 .map_err(|_| invalid("Thai tax report scope bound"))?,
@@ -1039,16 +1039,16 @@ impl SqlxFinanceThaiTaxStore {
     async fn load_projected_report_scopes(
         &self,
     ) -> Result<Vec<(Uuid, Uuid, String, String)>, PersistenceError> {
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let rows = sqlx::query(
             "SELECT DISTINCT holding_id, company_id,
                     btrim(tax_period) AS tax_period, btrim(currency) AS currency
-               FROM erpx_tenant.finance_thai_tax_fact_read_rows
-              WHERE holding_ref=$1
+               FROM erpx_holding.finance_thai_tax_fact_read_rows
+              WHERE data_profile_key=$1
               ORDER BY holding_id, company_id, tax_period, currency
               LIMIT $2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(
             i64::try_from(MAX_FINANCE_THAI_TAX_RECONCILIATION_REPORTS + 1)
                 .map_err(|_| invalid("Thai tax report scope bound"))?,
@@ -1074,13 +1074,13 @@ impl SqlxFinanceThaiTaxStore {
     }
 
     async fn source_event_count(&self) -> Result<u64, PersistenceError> {
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
         let count = sqlx::query_scalar::<_, i64>(
             "SELECT COUNT(*)
-               FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND aggregate_type=$2",
+               FROM erpx_holding.outbox_events
+              WHERE data_profile_key=$1 AND aggregate_type=$2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(FINANCE_THAI_TAX_FACT_AGGREGATE)
         .fetch_one(&mut *tx)
         .await?;
@@ -1098,27 +1098,27 @@ impl SqlxFinanceThaiTaxStore {
         page_size: u32,
     ) -> Result<(FinanceThaiTaxProjectionRebuildPreparation, u64), PersistenceError> {
         validate_page_size(page_size)?;
-        let mut source_tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
-        sqlx::query("LOCK TABLE erpx_tenant.outbox_events IN SHARE MODE")
+        let mut source_tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
+        sqlx::query("LOCK TABLE erpx_holding.outbox_events IN SHARE MODE")
             .execute(&mut *source_tx)
             .await?;
         let actual_source_version =
-            tax_source_event_count_in_transaction(&mut source_tx, &self.holding_ref).await?;
+            tax_source_event_count_in_transaction(&mut source_tx, &self.data_profile_key).await?;
         if expected_source_version.is_some_and(|expected| expected != actual_source_version) {
             return Err(invalid(
                 "Thai tax source fence changed before replacement rebuild",
             ));
         }
 
-        let mut read_tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut read_tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let preparation =
-            clear_tax_projection_in_transaction(&mut read_tx, &self.holding_ref).await?;
+            clear_tax_projection_in_transaction(&mut read_tx, &self.data_profile_key).await?;
         let mut cursor = None;
         let mut events_replayed = 0_u64;
         loop {
             let page = read_tax_source_event_page_in_transaction(
                 &mut source_tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 cursor.as_ref(),
                 page_size,
             )
@@ -1138,7 +1138,7 @@ impl SqlxFinanceThaiTaxStore {
                 }
                 if project_tax_event_in_transaction(
                     &mut read_tx,
-                    &self.holding_ref,
+                    &self.data_profile_key,
                     event.event_id,
                     event.aggregate_id,
                     event.aggregate_version,
@@ -1159,7 +1159,7 @@ impl SqlxFinanceThaiTaxStore {
             }
         }
         let final_source_version =
-            tax_source_event_count_in_transaction(&mut source_tx, &self.holding_ref).await?;
+            tax_source_event_count_in_transaction(&mut source_tx, &self.data_profile_key).await?;
         if final_source_version != actual_source_version {
             return Err(invalid(
                 "Thai tax source fence changed during replacement rebuild",
@@ -1173,24 +1173,24 @@ impl SqlxFinanceThaiTaxStore {
     pub async fn clear_projection(
         &self,
     ) -> Result<FinanceThaiTaxProjectionRebuildPreparation, PersistenceError> {
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let rows_cleared = sqlx::query(
-            "DELETE FROM erpx_tenant.finance_thai_tax_fact_read_rows WHERE holding_ref=$1",
+            "DELETE FROM erpx_holding.finance_thai_tax_fact_read_rows WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .execute(&mut *tx)
         .await?
         .rows_affected();
         let checkpoints_cleared = sqlx::query(
-            "DELETE FROM erpx_tenant.finance_thai_tax_projection_checkpoints WHERE holding_ref=$1",
+            "DELETE FROM erpx_holding.finance_thai_tax_projection_checkpoints WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .execute(&mut *tx)
         .await?
         .rows_affected();
         tx.commit().await?;
         Ok(FinanceThaiTaxProjectionRebuildPreparation {
-            holding_ref: self.holding_ref.clone(),
+            data_profile_key: self.data_profile_key.clone(),
             rows_cleared,
             checkpoints_cleared,
         })
@@ -1199,7 +1199,7 @@ impl SqlxFinanceThaiTaxStore {
 
 async fn project_tax_event_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     event_id: Uuid,
     aggregate_id: Uuid,
     aggregate_version: u64,
@@ -1207,10 +1207,10 @@ async fn project_tax_event_in_transaction(
 ) -> Result<FinanceThaiTaxProjectionApplication, PersistenceError> {
     let current = sqlx::query(
         "SELECT last_event_id, source_version
-           FROM erpx_tenant.finance_thai_tax_projection_checkpoints
-          WHERE holding_ref=$1 AND fact_id=$2 FOR UPDATE",
+           FROM erpx_holding.finance_thai_tax_projection_checkpoints
+          WHERE data_profile_key=$1 AND fact_id=$2 FOR UPDATE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(fact.fact_id)
     .fetch_optional(&mut **tx)
     .await?;
@@ -1235,13 +1235,13 @@ async fn project_tax_event_in_transaction(
         return Err(invalid("Thai tax projection must start at version one"));
     }
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_thai_tax_fact_read_rows
-            (holding_ref, fact_id, holding_id, company_id, journal_id, line_id,
+        "INSERT INTO erpx_holding.finance_thai_tax_fact_read_rows
+            (data_profile_key, fact_id, holding_id, company_id, journal_id, line_id,
              tax_date, tax_period, kind, currency, base_minor, tax_minor,
              tax_rate_basis_points, tax_identifier, source_version,
              source_event_id, recorded_at, projected_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now())
-         ON CONFLICT (holding_ref, fact_id) DO UPDATE SET
+         ON CONFLICT (data_profile_key, fact_id) DO UPDATE SET
              holding_id=EXCLUDED.holding_id, company_id=EXCLUDED.company_id,
              journal_id=EXCLUDED.journal_id, line_id=EXCLUDED.line_id,
              tax_date=EXCLUDED.tax_date, tax_period=EXCLUDED.tax_period,
@@ -1252,7 +1252,7 @@ async fn project_tax_event_in_transaction(
              source_event_id=EXCLUDED.source_event_id, recorded_at=EXCLUDED.recorded_at,
              projected_at=now()",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(fact.fact_id)
     .bind(fact.holding_id)
     .bind(fact.company_id)
@@ -1272,14 +1272,14 @@ async fn project_tax_event_in_transaction(
     .execute(&mut **tx)
     .await?;
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_thai_tax_projection_checkpoints
-            (holding_ref, fact_id, last_event_id, source_version)
+        "INSERT INTO erpx_holding.finance_thai_tax_projection_checkpoints
+            (data_profile_key, fact_id, last_event_id, source_version)
          VALUES ($1,$2,$3,$4)
-         ON CONFLICT (holding_ref, fact_id) DO UPDATE SET
+         ON CONFLICT (data_profile_key, fact_id) DO UPDATE SET
              last_event_id=EXCLUDED.last_event_id,
              source_version=EXCLUDED.source_version, projected_at=now()",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(fact.fact_id)
     .bind(event_id)
     .bind(i64::try_from(aggregate_version).map_err(|_| invalid("source version"))?)
@@ -1295,14 +1295,14 @@ async fn project_tax_event_in_transaction(
 
 async fn tax_source_event_count_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<u64, PersistenceError> {
     let count = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*)
-           FROM erpx_tenant.outbox_events
-          WHERE holding_ref=$1 AND aggregate_type=$2",
+           FROM erpx_holding.outbox_events
+          WHERE data_profile_key=$1 AND aggregate_type=$2",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(FINANCE_THAI_TAX_FACT_AGGREGATE)
     .fetch_one(&mut **tx)
     .await?;
@@ -1311,7 +1311,7 @@ async fn tax_source_event_count_in_transaction(
 
 async fn read_tax_source_event_page_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     cursor: Option<&FinanceThaiTaxSourceEventCursor>,
     page_size: u32,
 ) -> Result<FinanceThaiTaxSourceEventPage, PersistenceError> {
@@ -1324,13 +1324,13 @@ async fn read_tax_source_event_page_in_transaction(
         sqlx::query(
             "SELECT event_id, event_type, aggregate_id, aggregate_version,
                     payload, occurred_at
-               FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND aggregate_type=$2
+               FROM erpx_holding.outbox_events
+              WHERE data_profile_key=$1 AND aggregate_type=$2
                 AND (aggregate_id > $3 OR
                      (aggregate_id=$3 AND aggregate_version > $4))
               ORDER BY aggregate_id, aggregate_version LIMIT $5",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(FINANCE_THAI_TAX_FACT_AGGREGATE)
         .bind(cursor.aggregate_id)
         .bind(i64::try_from(cursor.aggregate_version).map_err(|_| invalid("cursor"))?)
@@ -1341,11 +1341,11 @@ async fn read_tax_source_event_page_in_transaction(
         sqlx::query(
             "SELECT event_id, event_type, aggregate_id, aggregate_version,
                     payload, occurred_at
-               FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND aggregate_type=$2
+               FROM erpx_holding.outbox_events
+              WHERE data_profile_key=$1 AND aggregate_type=$2
               ORDER BY aggregate_id, aggregate_version LIMIT $3",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(FINANCE_THAI_TAX_FACT_AGGREGATE)
         .bind(limit)
         .fetch_all(&mut **tx)
@@ -1385,23 +1385,24 @@ async fn read_tax_source_event_page_in_transaction(
 
 async fn clear_tax_projection_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<FinanceThaiTaxProjectionRebuildPreparation, PersistenceError> {
-    let rows_cleared =
-        sqlx::query("DELETE FROM erpx_tenant.finance_thai_tax_fact_read_rows WHERE holding_ref=$1")
-            .bind(holding_ref)
-            .execute(&mut **tx)
-            .await?
-            .rows_affected();
-    let checkpoints_cleared = sqlx::query(
-        "DELETE FROM erpx_tenant.finance_thai_tax_projection_checkpoints WHERE holding_ref=$1",
+    let rows_cleared = sqlx::query(
+        "DELETE FROM erpx_holding.finance_thai_tax_fact_read_rows WHERE data_profile_key=$1",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
+    .execute(&mut **tx)
+    .await?
+    .rows_affected();
+    let checkpoints_cleared = sqlx::query(
+        "DELETE FROM erpx_holding.finance_thai_tax_projection_checkpoints WHERE data_profile_key=$1",
+    )
+    .bind(data_profile_key)
     .execute(&mut **tx)
     .await?
     .rows_affected();
     Ok(FinanceThaiTaxProjectionRebuildPreparation {
-        holding_ref: holding_ref.to_owned(),
+        data_profile_key: data_profile_key.to_owned(),
         rows_cleared,
         checkpoints_cleared,
     })
@@ -1420,15 +1421,17 @@ fn return_context() -> erpx_domain::contracts::CommandContext {
             represented_principal_ref: None,
             support_capability_id: None,
         },
-        erpx_domain::contracts::TenantScope::Platform,
+        erpx_domain::contracts::AuthorityScope::Platform,
         "finance_thai_tax_read_model",
     )
     .expect("bounded read-model context")
 }
 
-fn validate_holding_ref(value: &str) -> Result<(), PersistenceError> {
+fn validate_data_profile_key(value: &str) -> Result<(), PersistenceError> {
     if value.trim().is_empty() || value.len() > 255 || value.chars().any(char::is_control) {
-        return Err(PersistenceError::Configuration("holding_ref is invalid"));
+        return Err(PersistenceError::Configuration(
+            "data_profile_key is invalid",
+        ));
     }
     Ok(())
 }

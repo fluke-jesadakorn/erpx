@@ -3,9 +3,9 @@
 ## Objective and dependency contract
 
 Connect `/platform/backups` to the existing authenticated
-`PlatformOperationsService::ListTenantBackupJobs` read boundary. The client
-consumes the already audited tenant registry and performs a bounded fan-out of
-at most 100 tenant histories, with at most 100 rows per tenant. No new write
+`PlatformOperationsService::ListHoldingBackupJobs` read boundary. The client
+consumes the already audited holding registry and performs a bounded fan-out of
+at most 100 holding histories, with at most 100 rows per holding. No new write
 authority or database access is introduced in the Dioxus client.
 
 ## Delivered
@@ -13,7 +13,7 @@ authority or database access is introduced in the Dioxus client.
 - WebAssembly gRPC-Web and native Tonic adapters carry the access token,
   authenticated actor/session metadata, platform query context, and bounded
   request size.
-- The display model allow-lists tenant/job identity, kind, state, availability,
+- The display model allow-lists holding/job identity, kind, state, availability,
   attempt counters, verification state, error-presence state, and timestamps.
 - Backup object references, restore targets, physical database keys,
   credentials, and raw error text are not represented by the client model or

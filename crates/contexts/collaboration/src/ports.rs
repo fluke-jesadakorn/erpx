@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_integration_contracts::StableRecordRef;
-use erpx_kernel::{CommandId, CorrelationId, PrincipalId, RecordId, TenantId, TenantScope};
+use erpx_kernel::{AuthorityScope, CommandId, CorrelationId, HoldingId, PrincipalId, RecordId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -31,9 +31,9 @@ pub enum PortError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ActorContext {
-    pub tenant_id: TenantId,
+    pub holding_id: HoldingId,
     pub principal: PrincipalRef,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub external_portal: Option<crate::domain::ExternalPortal>,
 }
 
@@ -72,10 +72,10 @@ pub enum CollaborationAction {
 /// snapshot or projection lookup. It contains opaque identifiers only.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorizedThreadAccess {
-    tenant_id: TenantId,
+    holding_id: HoldingId,
     thread_id: ThreadId,
     anchor_record_id: RecordId,
-    authority_scope: TenantScope,
+    authority_scope: AuthorityScope,
     actor: PrincipalRef,
     external_portal: Option<crate::domain::ExternalPortal>,
     action: CollaborationAction,
@@ -84,17 +84,17 @@ pub struct AuthorizedThreadAccess {
 impl AuthorizedThreadAccess {
     #[allow(clippy::too_many_arguments)]
     pub fn try_from_authorization(
-        tenant_id: TenantId,
+        holding_id: HoldingId,
         thread_id: ThreadId,
         anchor_record_id: RecordId,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         actor: PrincipalRef,
         external_portal: Option<crate::domain::ExternalPortal>,
         action: CollaborationAction,
     ) -> Result<Self, PortError> {
         authority_scope.validate().map_err(|_| PortError::Denied)?;
         Ok(Self {
-            tenant_id,
+            holding_id,
             thread_id,
             anchor_record_id,
             authority_scope,
@@ -104,8 +104,8 @@ impl AuthorizedThreadAccess {
         })
     }
 
-    pub const fn tenant_id(&self) -> TenantId {
-        self.tenant_id
+    pub const fn holding_id(&self) -> HoldingId {
+        self.holding_id
     }
     pub const fn thread_id(&self) -> ThreadId {
         self.thread_id
@@ -113,7 +113,7 @@ impl AuthorizedThreadAccess {
     pub const fn anchor_record_id(&self) -> RecordId {
         self.anchor_record_id
     }
-    pub const fn authority_scope(&self) -> &TenantScope {
+    pub const fn authority_scope(&self) -> &AuthorityScope {
         &self.authority_scope
     }
     pub const fn actor(&self) -> PrincipalRef {
@@ -131,32 +131,32 @@ impl AuthorizedThreadAccess {
 /// construct one by inspecting protected rows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorizedSearchAccess {
-    tenant_id: TenantId,
-    authority_scope: TenantScope,
+    holding_id: HoldingId,
+    authority_scope: AuthorityScope,
     actor: PrincipalRef,
     external_portal: Option<crate::domain::ExternalPortal>,
 }
 
 impl AuthorizedSearchAccess {
     pub fn try_from_authorization(
-        tenant_id: TenantId,
-        authority_scope: TenantScope,
+        holding_id: HoldingId,
+        authority_scope: AuthorityScope,
         actor: PrincipalRef,
         external_portal: Option<crate::domain::ExternalPortal>,
     ) -> Result<Self, PortError> {
         authority_scope.validate().map_err(|_| PortError::Denied)?;
         Ok(Self {
-            tenant_id,
+            holding_id,
             authority_scope,
             actor,
             external_portal,
         })
     }
 
-    pub const fn tenant_id(&self) -> TenantId {
-        self.tenant_id
+    pub const fn holding_id(&self) -> HoldingId {
+        self.holding_id
     }
-    pub const fn authority_scope(&self) -> &TenantScope {
+    pub const fn authority_scope(&self) -> &AuthorityScope {
         &self.authority_scope
     }
     pub const fn actor(&self) -> PrincipalRef {
@@ -274,7 +274,7 @@ pub trait ThreadWriteRepository: Send + Sync {
     async fn load(&self, access: &AuthorizedThreadAccess) -> Result<Option<Thread>, PortError>;
 
     /// Snapshot, revisions, events, opaque inbox facts, audit, and idempotency
-    /// receipt must commit atomically in the anchor tenant data plane.
+    /// receipt must commit atomically in the anchor holding data plane.
     async fn commit(
         &self,
         access: &AuthorizedThreadAccess,
@@ -442,7 +442,7 @@ pub trait ThreadReadRepository: Send + Sync {
     async fn inbox_after(
         &self,
         actor: PrincipalId,
-        tenant_id: TenantId,
+        holding_id: HoldingId,
         cursor: u64,
         limit: u16,
     ) -> Result<Vec<OpaqueInboxFact>, PortError>;

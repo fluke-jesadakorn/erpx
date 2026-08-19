@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_cqrs::{IdempotencyKey, QueryConsistency};
-use erpx_kernel::{ActorAttribution, AuditContext, CommandId, CorrelationId, TenantScope};
+use erpx_kernel::{ActorAttribution, AuditContext, AuthorityScope, CommandId, CorrelationId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -22,7 +22,7 @@ pub enum MaintenanceLifecycleRecordAction {
 pub enum MaintenanceLifecycleRecordCommand {
     Create {
         kind: MaintenanceLifecycleRecordKind,
-        scope: TenantScope,
+        scope: AuthorityScope,
         title: String,
     },
     Transition {
@@ -52,15 +52,15 @@ pub struct MaintenanceLifecycleRecordCommandRequest {
     pub identity: MaintenanceLifecycleRecordCommandIdentity,
     pub correlation_id: CorrelationId,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
 }
 
 pub struct MaintenanceLifecycleRecordAuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
-    pub target_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
+    pub target_scope: &'a AuthorityScope,
     pub action: MaintenanceLifecycleRecordAction,
     pub kind: MaintenanceLifecycleRecordKind,
 }
@@ -77,7 +77,7 @@ pub trait MaintenanceLifecycleRecordAuthorizationPort: Send + Sync {
 pub trait MaintenanceLifecycleRecordWriteRepository: Send + Sync {
     async fn load_maintenance_lifecycle_record(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         record_id: Uuid,
     ) -> Result<Option<MaintenanceLifecycleRecord>, super::PortError>;
 }
@@ -115,7 +115,7 @@ pub trait MaintenanceLifecycleRecordUnitOfWork: Send + Sync {
 pub trait MaintenanceLifecycleRecordReadRepository: Send + Sync {
     async fn get_maintenance_lifecycle_record(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         record_id: Uuid,
         consistency: &QueryConsistency,
     ) -> Result<super::ReadProjection<Option<MaintenanceLifecycleRecord>>, super::PortError>;

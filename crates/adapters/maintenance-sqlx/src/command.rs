@@ -7,7 +7,7 @@ use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
     IntegrationEventEnvelope, ItemDescriptorDraft, assets, record_policy_id,
 };
-use erpx_kernel::{AggregateId, CommandId, DataClassification, EventId, TenantScope};
+use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId};
 use erpx_maintenance::{
     AssetFactPort, CommandFingerprint, CommandIdentity, CommandUnitOfWork, MaintenanceCommit,
     MaintenanceRequest, MaintenanceStoredCommit, PortError, WorkOrder, WorkOrderId, WorkOrderState,
@@ -39,7 +39,7 @@ impl MaintenanceWriteRepository {
 impl WriteRepository for MaintenanceWriteRepository {
     async fn load(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         work_order_id: WorkOrderId,
     ) -> Result<Option<WorkOrder>, PortError> {
         let authority = AuthoritySqlScope::try_from_scope(authority_scope)?;
@@ -50,7 +50,7 @@ impl WriteRepository for MaintenanceWriteRepository {
                     asset_code,asset_name,asset_location_id,asset_condition,title,
                     work_order_status,scheduled_for,started_at,completed_at,created_at,updated_at
              FROM erpx_maintenance_write.work_order_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND work_order_id=$1{AUTHORITY_FILTER}"
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND work_order_id=$1{AUTHORITY_FILTER}"
         );
         let row = sqlx::query(&query)
             .bind(work_order_id.as_uuid())
@@ -73,7 +73,7 @@ impl WriteRepository for MaintenanceWriteRepository {
         let downtime_rows = sqlx::query(
             "SELECT downtime_id,started_at,ended_at,reason
              FROM erpx_maintenance_write.downtime_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND work_order_id=$1
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND work_order_id=$1
              ORDER BY started_at,downtime_id",
         )
         .bind(work_order_id.as_uuid())
@@ -172,10 +172,10 @@ struct AuthoritySqlScope {
 }
 
 impl AuthoritySqlScope {
-    fn try_from_scope(scope: &TenantScope) -> Result<Self, PortError> {
+    fn try_from_scope(scope: &AuthorityScope) -> Result<Self, PortError> {
         scope.validate().map_err(|_| PortError::Denied)?;
         Ok(match scope {
-            TenantScope::Platform => Self {
+            AuthorityScope::Platform => Self {
                 mode: "platform",
                 holding_id: None,
                 company_id: None,
@@ -183,7 +183,7 @@ impl AuthoritySqlScope {
                 company_ids: vec![],
                 branch_ids: vec![],
             },
-            TenantScope::Holding { holding_id } => Self {
+            AuthorityScope::Holding { holding_id } => Self {
                 mode: "holding",
                 holding_id: Some(*holding_id),
                 company_id: None,
@@ -191,7 +191,7 @@ impl AuthoritySqlScope {
                 company_ids: vec![],
                 branch_ids: vec![],
             },
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => Self {
@@ -202,7 +202,7 @@ impl AuthoritySqlScope {
                 company_ids: vec![],
                 branch_ids: vec![],
             },
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -214,17 +214,16 @@ impl AuthoritySqlScope {
                 company_ids: vec![],
                 branch_ids: vec![],
             },
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Self {
                 mode: "subtree",
                 holding_id: Some(*holding_id),
                 company_id: None,
                 branch_id: None,
-                company_ids: company_ids.clone(),
-                branch_ids: branch_ids.clone(),
+                company_ids: vec![*organization_node_id],
+                branch_ids: Vec::new(),
             },
         })
     }
@@ -298,7 +297,7 @@ impl MaintenanceAssetFactInbox {
         }
         let result = sqlx::query(
             "INSERT INTO erpx_maintenance_write.asset_fact_inbox
-                (asset_id,source_aggregate_version,source_event_id,tenant_scope,
+                (asset_id,source_aggregate_version,source_event_id,active_scope,
                  asset_code,asset_name,location_id,asset_condition,occurred_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
              ON CONFLICT (asset_id,source_aggregate_version) DO NOTHING",
@@ -306,7 +305,7 @@ impl MaintenanceAssetFactInbox {
         .bind(fact.asset.as_uuid())
         .bind(to_i64_port(envelope.aggregate_version())?)
         .bind(envelope.event_id().as_uuid())
-        .bind(serde_json::to_value(envelope.tenant_scope()).map_err(|_| PortError::Internal)?)
+        .bind(serde_json::to_value(envelope.active_scope()).map_err(|_| PortError::Internal)?)
         .bind(fact.asset_code.as_str())
         .bind(fact.name.as_str())
         .bind(fact.location.as_uuid())
@@ -330,7 +329,7 @@ impl MaintenanceAssetFactInbox {
         }
 
         let row = sqlx::query(
-            "SELECT source_event_id,tenant_scope,asset_code,asset_name,location_id,
+            "SELECT source_event_id,active_scope,asset_code,asset_name,location_id,
                     asset_condition,occurred_at
              FROM erpx_maintenance_write.asset_fact_inbox
              WHERE asset_id=$1 AND source_aggregate_version=$2",
@@ -344,8 +343,8 @@ impl MaintenanceAssetFactInbox {
         let source_event_id: Uuid = row
             .try_get("source_event_id")
             .map_err(|_| PortError::Internal)?;
-        let tenant_scope: serde_json::Value = row
-            .try_get("tenant_scope")
+        let active_scope: serde_json::Value = row
+            .try_get("active_scope")
             .map_err(|_| PortError::Internal)?;
         let asset_code: String = row.try_get("asset_code").map_err(|_| PortError::Internal)?;
         let asset_name: String = row.try_get("asset_name").map_err(|_| PortError::Internal)?;
@@ -359,8 +358,8 @@ impl MaintenanceAssetFactInbox {
             .try_get("occurred_at")
             .map_err(|_| PortError::Internal)?;
         let exact_replay = source_event_id == envelope.event_id().as_uuid()
-            && tenant_scope
-                == serde_json::to_value(envelope.tenant_scope())
+            && active_scope
+                == serde_json::to_value(envelope.active_scope())
                     .map_err(|_| PortError::Internal)?
             && asset_code == fact.asset_code.as_str()
             && asset_name == fact.name.as_str()
@@ -469,7 +468,7 @@ impl CommandUnitOfWork for MaintenanceCommandAdapter {
             correlation_id: request.correlation_id,
             idempotency_key: request.identity.idempotency_key,
             request_hash: request_hash(&request.identity.fingerprint)?,
-            tenant_scope: aggregate.scope().clone(),
+            active_scope: aggregate.scope().clone(),
             actor: request.actor,
             audit_context: request.audit,
             aggregate_type: AGGREGATE_TYPE.into(),
@@ -535,7 +534,7 @@ impl AtomicCommandGuard for WorkOrderAtomicGuard {
         validate_guard_context(&self.aggregate, context)?;
         let value: Option<i64> = sqlx::query_scalar(
             "SELECT aggregate_version FROM erpx_maintenance_write.work_order_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND work_order_id=$1
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND work_order_id=$1
              FOR UPDATE",
         )
         .bind(self.aggregate.id().as_uuid())
@@ -560,7 +559,7 @@ impl AtomicCommandGuard for WorkOrderAtomicGuard {
             }
         }
         let fact = sqlx::query(
-            "SELECT asset_code,asset_name,location_id,asset_condition,tenant_scope
+            "SELECT asset_code,asset_name,location_id,asset_condition,active_scope
              FROM erpx_maintenance_write.asset_fact_inbox
              WHERE asset_id=$1 AND source_aggregate_version=$2 FOR SHARE",
         )
@@ -570,15 +569,15 @@ impl AtomicCommandGuard for WorkOrderAtomicGuard {
         .await?
         .ok_or(CqrsSqlxError::GuardRejected("Assets fact is not ready"))?;
         let stored = decode_asset_fact_store(self.aggregate.asset_fact().asset, &fact)?;
-        let tenant_scope: TenantScope = serde_json::from_value(fact.try_get("tenant_scope")?)?;
-        if stored != *self.aggregate.asset_fact() || tenant_scope != *self.aggregate.scope() {
+        let active_scope: AuthorityScope = serde_json::from_value(fact.try_get("active_scope")?)?;
+        if stored != *self.aggregate.asset_fact() || active_scope != *self.aggregate.scope() {
             return Err(CqrsSqlxError::GuardRejected(
                 "Assets fact changed or belongs to another scope",
             ));
         }
         let downtime_rows = sqlx::query(
             "SELECT downtime_id FROM erpx_maintenance_write.downtime_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND work_order_id=$1
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND work_order_id=$1
              FOR UPDATE",
         )
         .bind(self.aggregate.id().as_uuid())
@@ -618,13 +617,13 @@ impl AtomicCommandGuard for WorkOrderAtomicGuard {
         let (holding_id, company_id, branch_id) = exact_scope_ids(self.aggregate.scope())?;
         let result = sqlx::query(
             "INSERT INTO erpx_maintenance_write.work_order_authority
-                (tenant_id,work_order_id,aggregate_version,work_order_code,holding_id,company_id,
+                (holding_id,work_order_id,aggregate_version,work_order_code,holding_id,company_id,
                  branch_id,source_event_id,source_aggregate_version,asset_id,request_code,
                  asset_code,asset_name,asset_location_id,asset_condition,title,work_order_status,
                  scheduled_for,started_at,completed_at,created_at,updated_at)
-             VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
+             VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
                      $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
-             ON CONFLICT (tenant_id,work_order_id) DO UPDATE SET
+             ON CONFLICT (holding_id,work_order_id) DO UPDATE SET
                 aggregate_version=EXCLUDED.aggregate_version,
                 work_order_code=EXCLUDED.work_order_code,holding_id=EXCLUDED.holding_id,
                 company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,
@@ -638,8 +637,8 @@ impl AtomicCommandGuard for WorkOrderAtomicGuard {
                 scheduled_for=EXCLUDED.scheduled_for,started_at=EXCLUDED.started_at,
                 completed_at=EXCLUDED.completed_at,created_at=EXCLUDED.created_at,
                 updated_at=EXCLUDED.updated_at
-             WHERE erpx_maintenance_write.work_order_authority.tenant_id=
-                       erpx_cqrs_write.current_tenant_id()
+             WHERE erpx_maintenance_write.work_order_authority.holding_id=
+                       erpx_cqrs_write.current_holding_id()
                AND erpx_maintenance_write.work_order_authority.aggregate_version + 1=
                        EXCLUDED.aggregate_version",
         )
@@ -673,10 +672,10 @@ impl AtomicCommandGuard for WorkOrderAtomicGuard {
         for downtime in self.aggregate.downtime() {
             let result = sqlx::query(
                 "INSERT INTO erpx_maintenance_write.downtime_authority
-                    (tenant_id,work_order_id,downtime_id,started_at,ended_at,reason,
+                    (holding_id,work_order_id,downtime_id,started_at,ended_at,reason,
                      work_order_aggregate_version)
-                 VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6)
-                 ON CONFLICT (tenant_id,work_order_id,downtime_id) DO UPDATE SET
+                 VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6)
+                 ON CONFLICT (holding_id,work_order_id,downtime_id) DO UPDATE SET
                     work_order_aggregate_version=EXCLUDED.work_order_aggregate_version
                  WHERE erpx_maintenance_write.downtime_authority.started_at=EXCLUDED.started_at
                    AND erpx_maintenance_write.downtime_authority.ended_at=EXCLUDED.ended_at
@@ -779,17 +778,17 @@ fn parse_work_order_status(value: &str) -> Result<WorkOrderStatus, PortError> {
     }
 }
 
-fn exact_scope_from_row(row: &sqlx::postgres::PgRow) -> Result<TenantScope, PortError> {
+fn exact_scope_from_row(row: &sqlx::postgres::PgRow) -> Result<AuthorityScope, PortError> {
     let holding_id = row.try_get("holding_id").map_err(|_| PortError::Internal)?;
     let company_id = row.try_get("company_id").map_err(|_| PortError::Internal)?;
     let branch_id: Option<Uuid> = row.try_get("branch_id").map_err(|_| PortError::Internal)?;
     let scope = match branch_id {
-        Some(branch_id) => TenantScope::Branch {
+        Some(branch_id) => AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         },
-        None => TenantScope::Company {
+        None => AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -798,13 +797,13 @@ fn exact_scope_from_row(row: &sqlx::postgres::PgRow) -> Result<TenantScope, Port
     Ok(scope)
 }
 
-fn exact_scope_ids(scope: &TenantScope) -> Result<(Uuid, Uuid, Option<Uuid>), CqrsSqlxError> {
+fn exact_scope_ids(scope: &AuthorityScope) -> Result<(Uuid, Uuid, Option<Uuid>), CqrsSqlxError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok((*holding_id, *company_id, None)),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,

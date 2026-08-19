@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use chrono::{Duration, Utc};
 use erpx_domain::{
-    contracts::TenantScope,
+    contracts::AuthorityScope,
     marketing::{
         ConsentRecord, ConsentState, MarketingChannel, MarketingProfile, MarketingPurpose,
     },
@@ -16,37 +16,38 @@ use erpx_domain::{
     marketing_delivery::{ChannelDispatchRecord, DeliveryDispatch, ProviderResult, RetryPolicy},
 };
 use erpx_infrastructure::{SqlxMarketingDeliveryStore, SqlxMarketingStore};
-use erpx_migration::{migrate_tenant_read, migrate_tenant_write};
+use erpx_migration::{migrate_holding_read, migrate_holding_write};
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
 #[tokio::test]
-#[ignore = "requires two disposable tenant PostgreSQL databases; URLs are never printed"]
+#[ignore = "requires two disposable holding PostgreSQL databases; URLs are never printed"]
 async fn queued_delivery_provider_acceptance_callback_and_projection_state_are_atomic() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     assert_ne!(write_url, read_url);
     let write_pool = PgPool::connect(&write_url)
         .await
-        .expect("tenant write pool");
-    let read_pool = PgPool::connect(&read_url).await.expect("tenant read pool");
-    migrate_tenant_write(&write_pool)
+        .expect("holding write pool");
+    let read_pool = PgPool::connect(&read_url).await.expect("holding read pool");
+    migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migrations");
-    migrate_tenant_read(&read_pool)
+        .expect("holding write migrations");
+    migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migrations");
+        .expect("holding read migrations");
 
     let holding_id = Uuid::new_v4();
-    let holding_ref = format!("marketing-flow-{holding_id}");
-    let scope = TenantScope::Holding { holding_id };
+    let data_profile_key = format!("marketing-flow-{holding_id}");
+    let scope = AuthorityScope::Holding { holding_id };
     let profile_id = Uuid::new_v4();
     let campaign_id = Uuid::new_v4();
     let base = Utc::now() - Duration::minutes(2);
-    let marketing = SqlxMarketingStore::new(write_pool.clone(), read_pool.clone(), &holding_ref)
-        .expect("marketing store");
+    let marketing =
+        SqlxMarketingStore::new(write_pool.clone(), read_pool.clone(), &data_profile_key)
+            .expect("marketing store");
     let profile = MarketingProfile::new(
         profile_id,
         scope.clone(),
@@ -103,7 +104,7 @@ async fn queued_delivery_provider_acceptance_callback_and_projection_state_are_a
     .expect("dispatch");
     let delivery_id = dispatch.id;
     let delivery_store =
-        SqlxMarketingDeliveryStore::new(write_pool.clone(), read_pool.clone(), &holding_ref)
+        SqlxMarketingDeliveryStore::new(write_pool.clone(), read_pool.clone(), &data_profile_key)
             .expect("delivery store");
     delivery_store.enqueue(&dispatch).await.expect("enqueue");
 
@@ -141,13 +142,8 @@ async fn queued_delivery_provider_acceptance_callback_and_projection_state_are_a
     );
 
     let received_at = Utc::now();
-    let binding = MarketingProviderCallbackBinding::new(
-        "provider-account-flow",
-        "tenant-provider-flow",
-        holding_id,
-        scope,
-    )
-    .expect("callback binding");
+    let binding = MarketingProviderCallbackBinding::new("provider-account-flow", holding_id, scope)
+        .expect("callback binding");
     let callback_request = MarketingProviderCallbackRequest::new(
         binding.clone(),
         delivery_id,
@@ -179,16 +175,16 @@ async fn queued_delivery_provider_acceptance_callback_and_projection_state_are_a
     );
 
     let mut verify_tx = write_pool.begin().await.expect("verification transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *verify_tx)
         .await
         .expect("verification scope");
     let row = sqlx::query(
-        "SELECT state, version FROM erpx_tenant.marketing_deliveries
-         WHERE holding_ref=$1 AND delivery_id=$2",
+        "SELECT state, version FROM erpx_holding.marketing_deliveries
+         WHERE data_profile_key=$1 AND delivery_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(delivery_id)
     .fetch_one(&mut *verify_tx)
     .await
@@ -197,10 +193,10 @@ async fn queued_delivery_provider_acceptance_callback_and_projection_state_are_a
     assert_eq!(row.get::<i64, _>("version"), 4);
     assert_eq!(
         sqlx::query_scalar::<_, i64>(
-            "SELECT count(*) FROM erpx_tenant.marketing_provider_callback_inbox
-             WHERE holding_ref=$1 AND delivery_id=$2",
+            "SELECT count(*) FROM erpx_holding.marketing_provider_callback_inbox
+             WHERE data_profile_key=$1 AND delivery_id=$2",
         )
-        .bind(&holding_ref)
+        .bind(&data_profile_key)
         .bind(delivery_id)
         .fetch_one(&mut *verify_tx)
         .await
@@ -209,11 +205,11 @@ async fn queued_delivery_provider_acceptance_callback_and_projection_state_are_a
     );
     assert_eq!(
         sqlx::query_scalar::<_, String>(
-            "SELECT event_type FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND aggregate_id=$2
+            "SELECT event_type FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND aggregate_id=$2
              ORDER BY occurred_at DESC LIMIT 1",
         )
-        .bind(&holding_ref)
+        .bind(&data_profile_key)
         .bind(delivery_id)
         .fetch_one(&mut *verify_tx)
         .await
@@ -222,12 +218,12 @@ async fn queued_delivery_provider_acceptance_callback_and_projection_state_are_a
     );
     assert_eq!(
         sqlx::query_scalar::<_, i64>(
-            "SELECT count(*) FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND aggregate_id=$2
+            "SELECT count(*) FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND aggregate_id=$2
                AND aggregate_version=3
                AND event_type='marketing.delivery_provider_accepted.v1'",
         )
-        .bind(&holding_ref)
+        .bind(&data_profile_key)
         .bind(delivery_id)
         .fetch_one(&mut *verify_tx)
         .await
@@ -236,10 +232,10 @@ async fn queued_delivery_provider_acceptance_callback_and_projection_state_are_a
     );
     assert_eq!(
         sqlx::query_scalar::<_, i64>(
-            "SELECT count(*) FROM erpx_tenant.marketing_deliveries
-             WHERE holding_ref=$1 AND delivery_id=$2 AND version=4",
+            "SELECT count(*) FROM erpx_holding.marketing_deliveries
+             WHERE data_profile_key=$1 AND delivery_id=$2 AND version=4",
         )
-        .bind(&holding_ref)
+        .bind(&data_profile_key)
         .bind(delivery_id)
         .fetch_one(&mut *verify_tx)
         .await
@@ -249,34 +245,34 @@ async fn queued_delivery_provider_acceptance_callback_and_projection_state_are_a
     verify_tx.rollback().await.expect("verification rollback");
 
     let mut cleanup = write_pool.begin().await.expect("cleanup transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *cleanup)
         .await
         .expect("cleanup scope");
     sqlx::query(
-        "ALTER TABLE erpx_tenant.marketing_consents DISABLE TRIGGER marketing_consent_append_only",
+        "ALTER TABLE erpx_holding.marketing_consents DISABLE TRIGGER marketing_consent_append_only",
     )
     .execute(&mut *cleanup)
     .await
     .expect("disable consent trigger");
     for table in [
-        "erpx_tenant.marketing_provider_callback_inbox",
-        "erpx_tenant.outbox_events",
-        "erpx_tenant.marketing_delivery_idempotency",
-        "erpx_tenant.marketing_deliveries",
-        "erpx_tenant.marketing_command_idempotency",
-        "erpx_tenant.marketing_consents",
-        "erpx_tenant.marketing_profiles",
+        "erpx_holding.marketing_provider_callback_inbox",
+        "erpx_holding.outbox_events",
+        "erpx_holding.marketing_delivery_idempotency",
+        "erpx_holding.marketing_deliveries",
+        "erpx_holding.marketing_command_idempotency",
+        "erpx_holding.marketing_consents",
+        "erpx_holding.marketing_profiles",
     ] {
-        sqlx::query(&format!("DELETE FROM {table} WHERE holding_ref=$1"))
-            .bind(&holding_ref)
+        sqlx::query(&format!("DELETE FROM {table} WHERE data_profile_key=$1"))
+            .bind(&data_profile_key)
             .execute(&mut *cleanup)
             .await
             .expect("cleanup row");
     }
     sqlx::query(
-        "ALTER TABLE erpx_tenant.marketing_consents ENABLE TRIGGER marketing_consent_append_only",
+        "ALTER TABLE erpx_holding.marketing_consents ENABLE TRIGGER marketing_consent_append_only",
     )
     .execute(&mut *cleanup)
     .await

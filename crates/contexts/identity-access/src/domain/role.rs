@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use uuid::Uuid;
 
@@ -90,7 +90,7 @@ canonical_key!(PermissionKey, "permission");
 pub struct AccessRole {
     id: RoleId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     code: RoleCode,
     display_name: String,
     risk_tier: RiskTier,
@@ -105,7 +105,7 @@ pub struct AccessRole {
 pub struct AccessRoleState {
     pub id: RoleId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub code: RoleCode,
     pub display_name: String,
     pub risk_tier: RiskTier,
@@ -139,7 +139,7 @@ impl AccessRole {
     #[allow(clippy::too_many_arguments)]
     pub fn define(
         id: RoleId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         code: RoleCode,
         display_name: String,
         risk_tier: RiskTier,
@@ -200,7 +200,7 @@ impl AccessRole {
         self.version
     }
 
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
 
@@ -272,7 +272,7 @@ mod tests {
     fn role_definition_requires_canonical_unique_permissions() {
         let role = AccessRole::define(
             RoleId::try_from_uuid(id(1)).unwrap(),
-            TenantScope::Platform,
+            AuthorityScope::Platform,
             RoleCode::try_new("platform.admin").unwrap(),
             "Platform administrator".into(),
             RiskTier::Administrator,
@@ -293,7 +293,7 @@ mod tests {
     fn rejected_permission_update_preserves_role() {
         let mut role = AccessRole::define(
             RoleId::try_from_uuid(id(1)).unwrap(),
-            TenantScope::Platform,
+            AuthorityScope::Platform,
             RoleCode::try_new("security.reviewer").unwrap(),
             "Security reviewer".into(),
             RiskTier::High,

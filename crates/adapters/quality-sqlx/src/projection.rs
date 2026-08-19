@@ -69,18 +69,18 @@ impl Projector for QualityInspectionProjector {
             "INSERT INTO erpx_quality_read.inspection_projection
                 (projection_name, generation, partition_key, inspection_id,
                  source_aggregate_version, source_global_sequence, reference,
-                 tenant_scope, holding_id, company_id, branch_id, inspection_kind,
+                 active_scope, holding_id, company_id, branch_id, inspection_kind,
                  product_id, lot_reference, quantity, passed_quantity, failed_quantity,
                  inspection_status, disposition_note, aggregate_created_at,
                  aggregate_updated_at, state, projected_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
                      $13, $14, CAST($15 AS NUMERIC), CAST($16 AS NUMERIC),
                      CAST($17 AS NUMERIC), $18, $19, $20, $21, $22, now())
-             ON CONFLICT (tenant_id,projection_name, generation, partition_key, inspection_id)
+             ON CONFLICT (holding_id,projection_name, generation, partition_key, inspection_id)
              DO UPDATE SET source_aggregate_version = EXCLUDED.source_aggregate_version,
                            source_global_sequence = EXCLUDED.source_global_sequence,
                            reference = EXCLUDED.reference,
-                           tenant_scope = EXCLUDED.tenant_scope,
+                           active_scope = EXCLUDED.active_scope,
                            holding_id = EXCLUDED.holding_id,
                            company_id = EXCLUDED.company_id,
                            branch_id = EXCLUDED.branch_id,
@@ -174,7 +174,7 @@ fn validate_event(
     let view = &snapshot.inspection;
     if view.version != event.aggregate_version
         || view.inspection_id.as_uuid() != event.aggregate_id.as_uuid()
-        || view.scope != event.tenant_scope
+        || view.scope != event.active_scope
         || event.partition != inspection_partition(view.inspection_id)
         || scope_ids(view).is_err()
     {
@@ -189,17 +189,17 @@ fn scope_ids(
     view: &InspectionView,
 ) -> Result<(uuid::Uuid, uuid::Uuid, Option<uuid::Uuid>), ProjectionFailure> {
     match &view.scope {
-        erpx_kernel::TenantScope::Company {
+        erpx_kernel::AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok((*holding_id, *company_id, None)),
-        erpx_kernel::TenantScope::Branch {
+        erpx_kernel::AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         } => Ok((*holding_id, *company_id, Some(*branch_id))),
         _ => Err(ProjectionFailure::new(
-            "quality snapshot uses a non-exact tenant scope",
+            "quality snapshot uses a non-exact holding scope",
         )),
     }
 }

@@ -3,20 +3,20 @@
 //! This module is deliberately registration-ready rather than registered. The
 //! worker composition root owns registration and is outside this packet's file
 //! ownership. The adapter therefore exposes a narrow, auditable API that can
-//! be composed by that root without duplicating tenant routing or projection
+//! be composed by that root without duplicating holding routing or projection
 //! behavior.
 //!
 //! The adapter reuses the existing Finance subledger reconciliation runner,
-//! Finance close projection runner, and tenant-routed subledger projector. It
+//! Finance close projection runner, and holding-routed subledger projector. It
 //! never accepts a database URL or pool from a caller. Every operation is
-//! bound to an authorization proof and a tenant/holding pair before a runner
+//! bound to an authorization proof and a holding/holding pair before a runner
 //! is invoked.
 
 use chrono::{DateTime, Duration, Utc};
 use erpx_domain::finance_subledgers::FinanceSubledgerReconciliationReport;
 use erpx_infrastructure::{
-    ProjectionClaimRecord, ProjectionJobKind, ProjectionJobState, ProjectionSchedulerAuthorization,
-    TenantDatabaseRouter, TenantProjectionSchedulerError,
+    HoldingDatabaseRouter, HoldingProjectionSchedulerError, ProjectionClaimRecord,
+    ProjectionJobKind, ProjectionJobState, ProjectionSchedulerAuthorization,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -24,10 +24,10 @@ use uuid::Uuid;
 
 use crate::{
     FinanceCloseProjectionRequest, FinanceCloseProjectionRunReport, FinanceCloseProjectionRunner,
-    FinanceCloseProjectionWorkerError, FinanceSubledgerProjectionWorkerError,
-    FinanceSubledgerReconciliationRequest, FinanceSubledgerReconciliationRunner,
-    FinanceSubledgerReconciliationWorkerError, FinanceSubledgerTenantProjectionExecutor,
-    TenantProjectionExecutor, TenantProjectionExecutorError,
+    FinanceCloseProjectionWorkerError, FinanceSubledgerHoldingProjectionExecutor,
+    FinanceSubledgerProjectionWorkerError, FinanceSubledgerReconciliationRequest,
+    FinanceSubledgerReconciliationRunner, FinanceSubledgerReconciliationWorkerError,
+    HoldingProjectionExecutor, HoldingProjectionExecutorError,
 };
 
 /// The maximum lifetime of a completion authorization proof.
@@ -70,11 +70,11 @@ impl FinanceCompletionOperation {
 ///
 /// The adapter does not resolve roles, accept bearer credentials, or fall
 /// back to local authorization. `permission`, scope, lifetime, and MFA are
-/// checked locally before the existing tenant-routed runners are called.
+/// checked locally before the existing holding-routed runners are called.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FinanceCompletionAuthorizationProof {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub operation: FinanceCompletionOperation,
     pub permission: String,
     pub actor_ref: String,
@@ -88,8 +88,8 @@ pub struct FinanceCompletionAuthorizationProof {
 impl FinanceCompletionAuthorizationProof {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         operation: FinanceCompletionOperation,
         actor_ref: impl Into<String>,
         purpose: impl Into<String>,
@@ -99,8 +99,8 @@ impl FinanceCompletionAuthorizationProof {
         mfa_verified: bool,
     ) -> Result<Self, FinanceCompletionRuntimeError> {
         let proof = Self {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
             operation,
             permission: operation.permission().into(),
             actor_ref: actor_ref.into(),
@@ -115,8 +115,8 @@ impl FinanceCompletionAuthorizationProof {
     }
 
     fn validate_shape(&self) -> Result<(), FinanceCompletionRuntimeError> {
-        validate_reference(&self.tenant_id, "tenant_id")?;
-        validate_reference(&self.holding_ref, "holding_ref")?;
+        validate_reference(&self.holding_id, "holding_id")?;
+        validate_reference(&self.data_profile_key, "data_profile_key")?;
         validate_text(&self.actor_ref, "actor_ref", 255)?;
         validate_text(&self.purpose, "purpose", 128)?;
         if self.correlation_id.is_nil() {
@@ -145,20 +145,20 @@ impl FinanceCompletionAuthorizationProof {
         Ok(())
     }
 
-    /// Verify the proof against an operation and exact tenant/holding scope,
+    /// Verify the proof against an operation and exact holding/holding scope,
     /// then produce the existing scheduler authorization handoff.
     pub fn authorize(
         &self,
         operation: FinanceCompletionOperation,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         at: DateTime<Utc>,
     ) -> Result<ProjectionSchedulerAuthorization, FinanceCompletionRuntimeError> {
         self.validate_shape()?;
         if self.operation != operation
             || self.permission != operation.permission()
-            || self.tenant_id != tenant_id
-            || self.holding_ref != holding_ref
+            || self.holding_id != holding_id
+            || self.data_profile_key != data_profile_key
         {
             return Err(FinanceCompletionRuntimeError::Authorization(
                 "authorization proof is outside the requested finance scope".into(),
@@ -180,8 +180,8 @@ impl FinanceCompletionAuthorizationProof {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FinanceCompletionRequest {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub reconciliation_max_rows: u32,
     pub page_size: u32,
     pub max_projection_pages: u32,
@@ -189,14 +189,14 @@ pub struct FinanceCompletionRequest {
 
 impl FinanceCompletionRequest {
     pub fn new(
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         reconciliation_max_rows: u32,
         page_size: u32,
     ) -> Result<Self, FinanceCompletionRuntimeError> {
         let request = Self {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
             reconciliation_max_rows,
             page_size,
             max_projection_pages: FINANCE_COMPLETION_MAX_PROJECTION_PAGES,
@@ -206,8 +206,8 @@ impl FinanceCompletionRequest {
     }
 
     fn validate(&self) -> Result<(), FinanceCompletionRuntimeError> {
-        validate_reference(&self.tenant_id, "tenant_id")?;
-        validate_reference(&self.holding_ref, "holding_ref")?;
+        validate_reference(&self.holding_id, "holding_id")?;
+        validate_reference(&self.data_profile_key, "data_profile_key")?;
         if !(1..=FINANCE_COMPLETION_MAX_RECONCILIATION_ROWS).contains(&self.reconciliation_max_rows)
         {
             return Err(FinanceCompletionRuntimeError::Configuration(
@@ -239,8 +239,8 @@ impl FinanceCompletionRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FinanceCompletionReconciliationMetrics {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub source_aggregate_count: u64,
     pub read_row_count: u64,
     pub source_event_high_watermark: u64,
@@ -264,8 +264,8 @@ impl FinanceCompletionReconciliationMetrics {
         let healthy = subledger.is_reconciled();
         let issue_count = u32::try_from(subledger.issues.len()).unwrap_or(u32::MAX);
         Self {
-            tenant_id: request.tenant_id.clone(),
-            holding_ref: request.holding_ref.clone(),
+            holding_id: request.holding_id.clone(),
+            data_profile_key: request.data_profile_key.clone(),
             source_aggregate_count: subledger.source_aggregate_count,
             read_row_count: subledger.read_row_count,
             source_event_high_watermark: subledger.source_event_high_watermark,
@@ -301,8 +301,8 @@ impl CloseProjectionAccumulator {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FinanceCompletionRollbackMetrics {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub close_events_replayed: u64,
     pub close_rows_cleared: u64,
     pub close_checkpoints_cleared: u64,
@@ -313,8 +313,8 @@ pub struct FinanceCompletionRollbackMetrics {
 
 impl FinanceCompletionRollbackMetrics {
     fn from_close_report(
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         report: &crate::FinanceCloseProjectionRebuildReport,
     ) -> Self {
         let cap = FINANCE_COMPLETION_MAX_ROLLBACK_METRIC;
@@ -322,8 +322,8 @@ impl FinanceCompletionRollbackMetrics {
         let rows_cleared = report.preparation.rows_cleared.min(cap);
         let checkpoints_cleared = report.preparation.checkpoints_cleared.min(cap);
         Self {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
             close_events_replayed: events_replayed,
             close_rows_cleared: rows_cleared,
             close_checkpoints_cleared: checkpoints_cleared,
@@ -358,7 +358,7 @@ pub enum FinanceCompletionRuntimeError {
 
 /// Runtime composition for the G8 completion pass.
 ///
-/// The router is the only source of tenant database handles. The existing
+/// The router is the only source of holding database handles. The existing
 /// runners retain ownership of SQLx persistence, outbox/read-model behavior,
 /// and projection fencing. This type only validates the request/proof and
 /// translates their bounded reports into safe operational metrics.
@@ -366,11 +366,11 @@ pub enum FinanceCompletionRuntimeError {
 pub struct FinanceCompletionRuntimeAdapter {
     close_projection: FinanceCloseProjectionRunner,
     subledger_reconciliation: FinanceSubledgerReconciliationRunner,
-    router: TenantDatabaseRouter,
+    router: HoldingDatabaseRouter,
 }
 
 impl FinanceCompletionRuntimeAdapter {
-    pub fn new(router: TenantDatabaseRouter) -> Self {
+    pub fn new(router: HoldingDatabaseRouter) -> Self {
         Self {
             close_projection: FinanceCloseProjectionRunner::new(router.clone()),
             subledger_reconciliation: FinanceSubledgerReconciliationRunner::new(router.clone()),
@@ -391,14 +391,14 @@ impl FinanceCompletionRuntimeAdapter {
         request.validate()?;
         proof.authorize(
             FinanceCompletionOperation::Reconcile,
-            &request.tenant_id,
-            &request.holding_ref,
+            &request.holding_id,
+            &request.data_profile_key,
             at,
         )?;
 
         let subledger_request = FinanceSubledgerReconciliationRequest::new(
-            request.tenant_id.clone(),
-            request.holding_ref.clone(),
+            request.holding_id.clone(),
+            request.data_profile_key.clone(),
             request.reconciliation_max_rows,
         )
         .map_err(map_subledger_request_error)?;
@@ -417,8 +417,8 @@ impl FinanceCompletionRuntimeAdapter {
                 ));
             }
             let close_request = FinanceCloseProjectionRequest::new(
-                request.tenant_id.clone(),
-                request.holding_ref.clone(),
+                request.holding_id.clone(),
+                request.data_profile_key.clone(),
                 cursor,
                 request.page_size,
             )
@@ -447,7 +447,7 @@ impl FinanceCompletionRuntimeAdapter {
 
     /// Rebuild the existing Finance close read projection under a source
     /// fence. This is the rollback path for the disposable read model; it
-    /// never rewinds authoritative tenant-write aggregates.
+    /// never rewinds authoritative holding-write aggregates.
     pub async fn rollback_close_projection(
         &self,
         request: FinanceCompletionRequest,
@@ -458,8 +458,8 @@ impl FinanceCompletionRuntimeAdapter {
         request.validate()?;
         proof.authorize(
             FinanceCompletionOperation::Rollback,
-            &request.tenant_id,
-            &request.holding_ref,
+            &request.holding_id,
+            &request.data_profile_key,
             at,
         )?;
         if source_version == Some(0) {
@@ -472,8 +472,8 @@ impl FinanceCompletionRuntimeAdapter {
             Some(source_version) => {
                 self.close_projection
                     .rebuild_with_source_fence(
-                        request.tenant_id.clone(),
-                        request.holding_ref.clone(),
+                        request.holding_id.clone(),
+                        request.data_profile_key.clone(),
                         request.page_size,
                         source_version,
                     )
@@ -482,8 +482,8 @@ impl FinanceCompletionRuntimeAdapter {
             None => {
                 self.close_projection
                     .rebuild(
-                        request.tenant_id.clone(),
-                        request.holding_ref.clone(),
+                        request.holding_id.clone(),
+                        request.data_profile_key.clone(),
                         request.page_size,
                     )
                     .await
@@ -492,16 +492,16 @@ impl FinanceCompletionRuntimeAdapter {
         .map_err(map_close_projection_error)?;
 
         Ok(FinanceCompletionRollbackMetrics::from_close_report(
-            &request.tenant_id,
-            &request.holding_ref,
+            &request.holding_id,
+            &request.data_profile_key,
             &report,
         ))
     }
 
     /// Execute an already-authorized, already-claimed subledger rebuild job.
-    /// Claim ownership and tenant routing remain enforced by the existing
-    /// tenant-routed projector; this adapter rejects a claim from another
-    /// tenant, a non-rebuild job, an inactive lease, or the wrong projection.
+    /// Claim ownership and holding routing remain enforced by the existing
+    /// holding-routed projector; this adapter rejects a claim from another
+    /// holding, a non-rebuild job, an inactive lease, or the wrong projection.
     pub async fn rollback_subledger_projection(
         &self,
         request: FinanceCompletionRequest,
@@ -512,14 +512,14 @@ impl FinanceCompletionRuntimeAdapter {
         request.validate()?;
         proof.authorize(
             FinanceCompletionOperation::Rollback,
-            &request.tenant_id,
-            &request.holding_ref,
+            &request.holding_id,
+            &request.data_profile_key,
             at,
         )?;
         validate_subledger_claim(claim, &request, at)?;
 
         let projector =
-            FinanceSubledgerTenantProjectionExecutor::new(self.router.clone(), request.page_size)
+            FinanceSubledgerHoldingProjectionExecutor::new(self.router.clone(), request.page_size)
                 .map_err(map_subledger_projection_error)?;
         projector
             .execute(claim)
@@ -527,8 +527,8 @@ impl FinanceCompletionRuntimeAdapter {
             .map_err(map_projection_executor_error)?;
 
         Ok(FinanceCompletionRollbackMetrics {
-            tenant_id: request.tenant_id,
-            holding_ref: request.holding_ref,
+            holding_id: request.holding_id,
+            data_profile_key: request.data_profile_key,
             close_events_replayed: 0,
             close_rows_cleared: 0,
             close_checkpoints_cleared: 0,
@@ -559,11 +559,11 @@ fn validate_subledger_claim(
             "claim projection does not match Finance subledger".into(),
         ));
     }
-    if claim.job.binding.tenant_id != request.tenant_id
-        || claim.job.binding.holding_ref != request.holding_ref
+    if claim.job.binding.holding_id != request.holding_id
+        || claim.job.binding.data_profile_key != request.data_profile_key
     {
         return Err(FinanceCompletionRuntimeError::InvalidProjectionClaim(
-            "claim tenant/holding does not match request".into(),
+            "claim holding/holding does not match request".into(),
         ));
     }
     if claim.lease.claim_id.is_nil()
@@ -620,10 +620,10 @@ fn validate_text(
 }
 
 fn map_scheduler_authorization_error(
-    error: TenantProjectionSchedulerError,
+    error: HoldingProjectionSchedulerError,
 ) -> FinanceCompletionRuntimeError {
     FinanceCompletionRuntimeError::Authorization(match error {
-        TenantProjectionSchedulerError::InvalidRequest(message) => message,
+        HoldingProjectionSchedulerError::InvalidRequest(message) => message,
         _ => "scheduler authorization is invalid".into(),
     })
 }
@@ -682,14 +682,14 @@ fn map_subledger_projection_error(
 }
 
 fn map_projection_executor_error(
-    error: TenantProjectionExecutorError,
+    error: HoldingProjectionExecutorError,
 ) -> FinanceCompletionRuntimeError {
     match error {
-        TenantProjectionExecutorError::Retryable => FinanceCompletionRuntimeError::Retryable,
-        TenantProjectionExecutorError::CandidateSourceMoved => {
+        HoldingProjectionExecutorError::Retryable => FinanceCompletionRuntimeError::Retryable,
+        HoldingProjectionExecutorError::CandidateSourceMoved => {
             FinanceCompletionRuntimeError::CandidateSourceMoved
         }
-        TenantProjectionExecutorError::Permanent => FinanceCompletionRuntimeError::Permanent,
+        HoldingProjectionExecutorError::Permanent => FinanceCompletionRuntimeError::Permanent,
     }
 }
 
@@ -703,7 +703,7 @@ mod tests {
     };
 
     fn request() -> FinanceCompletionRequest {
-        FinanceCompletionRequest::new("tenant-1", "holding-1", 100, 50).expect("request")
+        FinanceCompletionRequest::new("holding-1", "holding-1", 100, 50).expect("request")
     }
 
     fn proof(
@@ -713,7 +713,7 @@ mod tests {
         expires_at: DateTime<Utc>,
     ) -> FinanceCompletionAuthorizationProof {
         FinanceCompletionAuthorizationProof::new(
-            "tenant-1",
+            "holding-1",
             "holding-1",
             operation,
             "worker/finance-completion",
@@ -728,11 +728,11 @@ mod tests {
 
     #[test]
     fn request_bounds_are_enforced() {
-        assert!(FinanceCompletionRequest::new("tenant/1", "holding-1", 1, 1).is_err());
-        assert!(FinanceCompletionRequest::new("tenant-1", "holding-1", 0, 1).is_err());
+        assert!(FinanceCompletionRequest::new("holding/1", "holding-1", 1, 1).is_err());
+        assert!(FinanceCompletionRequest::new("holding-1", "holding-1", 0, 1).is_err());
         assert!(
             FinanceCompletionRequest::new(
-                "tenant-1",
+                "holding-1",
                 "holding-1",
                 FINANCE_COMPLETION_MAX_RECONCILIATION_ROWS + 1,
                 1,
@@ -741,7 +741,7 @@ mod tests {
         );
         assert!(
             FinanceCompletionRequest::new(
-                "tenant-1",
+                "holding-1",
                 "holding-1",
                 1,
                 FINANCE_COMPLETION_MAX_PAGE_SIZE + 1,
@@ -764,7 +764,7 @@ mod tests {
             reconcile
                 .authorize(
                     FinanceCompletionOperation::Reconcile,
-                    "tenant-1",
+                    "holding-1",
                     "holding-1",
                     issued + Duration::seconds(1),
                 )
@@ -774,7 +774,7 @@ mod tests {
             reconcile
                 .authorize(
                     FinanceCompletionOperation::Reconcile,
-                    "tenant-2",
+                    "holding-2",
                     "holding-1",
                     issued + Duration::seconds(1),
                 )
@@ -782,7 +782,7 @@ mod tests {
         );
         assert!(
             FinanceCompletionAuthorizationProof::new(
-                "tenant-1",
+                "holding-1",
                 "holding-1",
                 FinanceCompletionOperation::Rollback,
                 "worker/finance-completion",
@@ -801,7 +801,7 @@ mod tests {
         let issued = Utc.timestamp_opt(1_000, 0).single().expect("time");
         assert!(
             FinanceCompletionAuthorizationProof::new(
-                "tenant-1",
+                "holding-1",
                 "holding-1",
                 FinanceCompletionOperation::Reconcile,
                 "worker",
@@ -823,7 +823,7 @@ mod tests {
             proof
                 .authorize(
                     FinanceCompletionOperation::Reconcile,
-                    "tenant-1",
+                    "holding-1",
                     "holding-1",
                     issued + Duration::seconds(60),
                 )
@@ -834,17 +834,17 @@ mod tests {
     #[test]
     fn rollback_metrics_are_capped_without_exposing_payloads() {
         let report = crate::FinanceCloseProjectionRebuildReport {
-            tenant_id: "tenant-1".into(),
-            holding_ref: "holding-1".into(),
+            holding_id: "holding-1".into(),
+            data_profile_key: "holding-1".into(),
             events_replayed: FINANCE_COMPLETION_MAX_ROLLBACK_METRIC + 7,
             preparation: FinanceCloseProjectionRebuildPreparation {
-                holding_ref: "holding-1".into(),
+                data_profile_key: "holding-1".into(),
                 rows_cleared: FINANCE_COMPLETION_MAX_ROLLBACK_METRIC + 1,
                 checkpoints_cleared: 2,
             },
         };
         let metrics =
-            FinanceCompletionRollbackMetrics::from_close_report("tenant-1", "holding-1", &report);
+            FinanceCompletionRollbackMetrics::from_close_report("holding-1", "holding-1", &report);
         assert_eq!(
             metrics.close_events_replayed,
             FINANCE_COMPLETION_MAX_ROLLBACK_METRIC
@@ -864,7 +864,7 @@ mod tests {
     #[test]
     fn subledger_claim_must_be_rebuild_and_scope_bound() {
         let now = Utc::now();
-        let binding = erpx_infrastructure::TenantHoldingBinding::new("tenant-1", "holding-1")
+        let binding = erpx_infrastructure::HoldingHoldingBinding::new("holding-1", "holding-1")
             .expect("binding");
         let policy = ProjectionPolicy::new(50, 50, 3, 1, 10).expect("policy");
         let schedule = ProjectionScheduleRequest {
@@ -889,14 +889,14 @@ mod tests {
         };
         assert!(validate_subledger_claim(&claim, &request(), now).is_ok());
         let wrong_scope =
-            FinanceCompletionRequest::new("tenant-2", "holding-1", 100, 50).expect("wrong scope");
+            FinanceCompletionRequest::new("holding-2", "holding-1", 100, 50).expect("wrong scope");
         assert!(validate_subledger_claim(&claim, &wrong_scope, now).is_err());
     }
 
     #[test]
     fn subledger_claim_rejects_replays_and_stale_lease_ownership() {
         let now = Utc::now();
-        let binding = erpx_infrastructure::TenantHoldingBinding::new("tenant-1", "holding-1")
+        let binding = erpx_infrastructure::HoldingHoldingBinding::new("holding-1", "holding-1")
             .expect("binding");
         let policy = ProjectionPolicy::new(50, 50, 3, 1, 10).expect("policy");
         let schedule = ProjectionScheduleRequest {
@@ -935,15 +935,15 @@ mod tests {
     #[test]
     fn projection_executor_failures_preserve_retry_and_source_fence_outcomes() {
         assert_eq!(
-            map_projection_executor_error(TenantProjectionExecutorError::Retryable),
+            map_projection_executor_error(HoldingProjectionExecutorError::Retryable),
             FinanceCompletionRuntimeError::Retryable
         );
         assert_eq!(
-            map_projection_executor_error(TenantProjectionExecutorError::CandidateSourceMoved),
+            map_projection_executor_error(HoldingProjectionExecutorError::CandidateSourceMoved),
             FinanceCompletionRuntimeError::CandidateSourceMoved
         );
         assert_eq!(
-            map_projection_executor_error(TenantProjectionExecutorError::Permanent),
+            map_projection_executor_error(HoldingProjectionExecutorError::Permanent),
             FinanceCompletionRuntimeError::Permanent
         );
     }

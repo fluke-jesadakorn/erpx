@@ -29,7 +29,7 @@ The owned modules cover:
   append-only role revocation, TLS-only transport posture, fresh MFA for
   high-risk access, a five-minute revocation budget, and local break-glass-only
   fallback.
-- Platform Operations areas for tenants, projections, backups, integrations,
+- Platform Operations areas for holdings, projections, backups, integrations,
   audit, and settings.
 - Operations, Finance, Sales, Procurement, Inventory, Maintenance, Support,
   Marketing/CRM, HR/Payroll, POS, and Legal context snapshots, all explicitly

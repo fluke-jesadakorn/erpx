@@ -1,6 +1,6 @@
 use chrono::{DateTime, Duration, Utc};
 use erpx_integration_contracts::CurrencyCode;
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -33,7 +33,7 @@ pub enum BillingSignal {
 pub struct Subscription {
     id: SubscriptionId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     holding_id: Uuid,
     customer_id: Uuid,
     plan_id: CatalogPlanId,
@@ -53,7 +53,7 @@ pub struct Subscription {
 pub struct SubscriptionState {
     pub id: SubscriptionId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub customer_id: Uuid,
     pub plan_id: CatalogPlanId,
     pub status: SubscriptionStatus,
@@ -107,7 +107,7 @@ impl Subscription {
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: SubscriptionId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         customer_id: Uuid,
         plan_id: CatalogPlanId,
         amount_minor: i64,
@@ -229,7 +229,7 @@ impl Subscription {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn holding_id(&self) -> Uuid {

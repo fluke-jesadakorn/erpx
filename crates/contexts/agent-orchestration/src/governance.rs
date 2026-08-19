@@ -1,6 +1,6 @@
 use crate::AgentDomainError;
 use chrono::{DateTime, Utc};
-use erpx_kernel::{RecordId, TenantScope};
+use erpx_kernel::{AuthorityScope, RecordId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -39,7 +39,7 @@ pub enum AgentGovernanceStatus {
 pub struct AgentGovernanceRecord {
     id: Uuid,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     kind: AgentGovernanceRecordKind,
     subject_record_id: RecordId,
     policy_digest: String,
@@ -49,7 +49,7 @@ pub struct AgentGovernanceRecord {
 impl AgentGovernanceRecord {
     pub fn propose(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         kind: AgentGovernanceRecordKind,
         subject_record_id: RecordId,
         policy_digest: impl Into<String>,
@@ -133,7 +133,7 @@ impl AgentGovernanceRecord {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn kind(&self) -> AgentGovernanceRecordKind {
@@ -156,8 +156,8 @@ impl AgentGovernanceRecord {
 mod tests {
     use super::*;
 
-    fn scope() -> TenantScope {
-        TenantScope::Holding {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Holding {
             holding_id: Uuid::new_v4(),
         }
     }

@@ -1,24 +1,24 @@
-# G10-MKT-068 — Multi-tenant Marketing delivery execution
+# G10-MKT-068 — Multi-holding Marketing delivery execution
 
 ## Delivered behavior
 
-The Marketing delivery worker no longer requires one tenant, holding, or
+The Marketing delivery worker no longer requires one holding, holding, or
 provider account from environment variables. Its executable handler enumerates
-active tenant/holding registrations through the control-plane registry, lists
+active holding/holding registrations through the control-plane registry, lists
 active outbound provider accounts from authoritative control-plane state, and
 processes a globally bounded batch across those bindings.
 
-Each account pass routes a separate tenant write/read pair, constructs the
+Each account pass routes a separate holding write/read pair, constructs the
 existing account-bound provider with the shared credential resolver, and runs
 the existing durable delivery source. Claim UUIDs, lease ownership, consent
 and suppression checks, retry scheduling, idempotency, permanent failure, and
-dead-letter state therefore remain tenant-write authoritative. Persistence and
-runtime failures are mapped to generic worker errors without exposing tenant,
+dead-letter state therefore remain holding-write authoritative. Persistence and
+runtime failures are mapped to generic worker errors without exposing holding,
 database, account, credential, or provider details.
 
 The control-plane account listing is bounded to 100 active accounts per
 holding, ordered deterministically, and rejects an over-limit result. The
-multi-tenant pass is bounded to 1,000 active holdings and a global delivery
+multi-holding pass is bounded to 1,000 active holdings and a global delivery
 batch per worker pass.
 
 ## Evidence
@@ -45,10 +45,10 @@ batch per worker pass.
 
 ## Scope and remaining work
 
-This packet removes environment-only tenant/account selection and composes the
-durable per-tenant delivery source across active bindings. A separate
+This packet removes environment-only holding/account selection and composes the
+durable per-holding delivery source across active bindings. A separate
 control-plane scheduler job/lease/DLQ for the Marketing delivery handler,
 vendor-native provider reconciliation, channel onboarding, live external
 provider evidence, and the broader Marketing/ERP and migration gates remain
-open. No disposable multi-tenant delivery database run or external provider
+open. No disposable multi-holding delivery database run or external provider
 call is claimed by this packet.

@@ -1,8 +1,8 @@
-# G6-PRV-026 — Authenticated tenant lifecycle transitions
+# G6-PRV-026 — Authenticated holding lifecycle transitions
 
 ## Delivered
 
-- `TenantProvisioner::transition_tenant_state` serializes registry and
+- `HoldingProvisioner::transition_holding_state` serializes registry and
   provisioning state under one control-write transaction and rejects
   inconsistent or unsupported transitions.
 - Activation is allowed only from provisioning, recovery, or suspended state
@@ -12,10 +12,10 @@
 - Suspension is an active-to-suspended terminal command for the current
   operational session; recovery is allowed from active or suspended state.
 - Full, suspended, and recovery states are reflected in the registry used by
-  tenant routing and backup-worker claims. Only active tenants receive new
-  backup work; suspended and recovery tenants wait until activation completes.
-- Platform Operations exposes authenticated `ActivateTenant`, `SuspendTenant`,
-  and `EnterTenantRecovery` commands with actor binding, platform scope,
+  holding routing and backup-worker claims. Only active holdings receive new
+  backup work; suspended and recovery holdings wait until activation completes.
+- Platform Operations exposes authenticated `ActivateHolding`, `SuspendHolding`,
+  and `EnterHoldingRecovery` commands with actor binding, platform scope,
   dedicated permissions, safe receipts, and audit records.
 
 ## Verification

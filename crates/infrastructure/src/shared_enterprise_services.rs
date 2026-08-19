@@ -11,7 +11,7 @@ use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, ItemDescriptorDraft,
     record_policy_id,
 };
-use erpx_kernel::{DataClassification, TenantId, TenantScope};
+use erpx_kernel::{AuthorityScope, DataClassification, HoldingId};
 use erpx_legal::{
     LegalDocumentId, SignatureEnvelope, SignatureEnvelopeId, SignatureOrder, SignatureRecipient,
     SignatureStatus,
@@ -40,32 +40,32 @@ pub enum SharedProjectionRead {
 pub struct SqlxSharedEnterpriseServiceStore {
     write: PgPool,
     read: Option<PgPool>,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
 }
 
 impl SqlxSharedEnterpriseServiceStore {
-    /// Creates an immutable tenant-bound write capability. Every transaction
-    /// verifies this tenant before touching shared or CQRS authority tables.
-    pub const fn new(write: PgPool, tenant_id: TenantId) -> Self {
+    /// Creates an immutable holding-bound write capability. Every transaction
+    /// verifies this holding before touching shared or CQRS authority tables.
+    pub const fn new(write: PgPool, holding_id: HoldingId) -> Self {
         Self {
             write,
             read: None,
-            tenant_id,
+            holding_id,
         }
     }
 
-    /// Adds the tenant read plane without changing the bound tenant authority.
-    pub const fn with_read_pool(write: PgPool, read: PgPool, tenant_id: TenantId) -> Self {
+    /// Adds the holding read plane without changing the bound holding authority.
+    pub const fn with_read_pool(write: PgPool, read: PgPool, holding_id: HoldingId) -> Self {
         Self {
             write,
             read: Some(read),
-            tenant_id,
+            holding_id,
         }
     }
 
     async fn begin_write(&self) -> Result<Transaction<'_, Postgres>, sqlx::Error> {
         let mut transaction = self.write.begin().await?;
-        set_tenant(&mut transaction, self.tenant_id).await?;
+        set_holding(&mut transaction, self.holding_id).await?;
         Ok(transaction)
     }
 
@@ -74,7 +74,7 @@ impl SqlxSharedEnterpriseServiceStore {
             sqlx::Error::Protocol("shared read-plane capability is not configured".into())
         })?;
         let mut transaction = pool.begin().await?;
-        set_tenant(&mut transaction, self.tenant_id).await?;
+        set_holding(&mut transaction, self.holding_id).await?;
         Ok(transaction)
     }
 
@@ -91,16 +91,16 @@ impl SqlxSharedEnterpriseServiceStore {
             "SELECT active.generation, projection.state
              FROM erpx_cqrs_read.projection_generations active
              LEFT JOIN erpx_shared_read.notification_projection projection
-               ON projection.tenant_id = active.tenant_id
+               ON projection.holding_id = active.holding_id
               AND projection.projection_name = active.projection_name
               AND projection.generation = active.generation
               AND projection.partition_key = $3
               AND projection.notification_id = $4
-             WHERE active.tenant_id = $1
+             WHERE active.holding_id = $1
                AND active.projection_name = $2
                AND active.status = 'active'",
         )
-        .bind(self.tenant_id.as_uuid())
+        .bind(self.holding_id.as_uuid())
         .bind(NOTIFICATION_PROJECTION)
         .bind(partition_key)
         .bind(notification_id)
@@ -122,14 +122,14 @@ impl SqlxSharedEnterpriseServiceStore {
     ) -> Result<Option<Notification>, sqlx::Error> {
         let mut transaction = self.begin_write().await?;
         let row = sqlx::query(
-            "SELECT notification_id, tenant_scope, source_id, source_record_ref,
+            "SELECT notification_id, active_scope, source_id, source_record_ref,
                     recipient_ref, classification, preview, inbox_state,
                     mandatory_policy_version, aggregate_version, delivery_version,
                     created_at, updated_at
              FROM erpx_shared_write.notifications
-             WHERE tenant_id = $1 AND notification_id = $2",
+             WHERE holding_id = $1 AND notification_id = $2",
         )
-        .bind(self.tenant_id.as_uuid())
+        .bind(self.holding_id.as_uuid())
         .bind(notification_id)
         .fetch_optional(&mut *transaction)
         .await?;
@@ -143,10 +143,10 @@ impl SqlxSharedEnterpriseServiceStore {
                     delivery_status, provider_message_ref, last_provider_sequence,
                     attempt_count, last_error_code
              FROM erpx_shared_write.notification_delivery_attempts
-             WHERE tenant_id = $1 AND notification_id = $2
+             WHERE holding_id = $1 AND notification_id = $2
              ORDER BY delivery_version, channel, recipient_ref",
         )
-        .bind(self.tenant_id.as_uuid())
+        .bind(self.holding_id.as_uuid())
         .bind(notification_id)
         .fetch_all(&mut *transaction)
         .await?;
@@ -158,11 +158,11 @@ impl SqlxSharedEnterpriseServiceStore {
             let callback_ids = sqlx::query_scalar::<_, String>(
                 "SELECT callback_id
                  FROM erpx_shared_write.notification_delivery_callbacks
-                 WHERE tenant_id=$1 AND notification_id=$2 AND recipient_ref=$3
+                 WHERE holding_id=$1 AND notification_id=$2 AND recipient_ref=$3
                    AND channel=$4 AND delivery_version=$5
                  ORDER BY callback_ordinal",
             )
-            .bind(self.tenant_id.as_uuid())
+            .bind(self.holding_id.as_uuid())
             .bind(notification_id)
             .bind(&recipient_ref)
             .bind(&channel)
@@ -192,7 +192,7 @@ impl SqlxSharedEnterpriseServiceStore {
             notification_id: row.try_get("notification_id")?,
             version: positive_u64(row.try_get("aggregate_version")?)?,
             delivery_version: positive_u64(row.try_get("delivery_version")?)?,
-            scope: serde_json::from_value(row.try_get("tenant_scope")?)
+            scope: serde_json::from_value(row.try_get("active_scope")?)
                 .map_err(|error| protocol(error.to_string()))?,
             source_id: row.try_get("source_id")?,
             source_record_ref: row.try_get("source_record_ref")?,
@@ -228,7 +228,7 @@ impl SqlxSharedEnterpriseServiceStore {
         let mut transaction = self.begin_write().await?;
         match reserve_command(
             &mut transaction,
-            self.tenant_id,
+            self.holding_id,
             &partition_key,
             &identity,
             &request_hash,
@@ -246,14 +246,14 @@ impl SqlxSharedEnterpriseServiceStore {
         let changed = if expected_version == 0 {
             sqlx::query(
                 "INSERT INTO erpx_shared_write.notifications
-                    (tenant_id,notification_id,scope_key,tenant_scope,source_id,
+                    (holding_id,notification_id,scope_key,active_scope,source_id,
                      source_record_ref,recipient_ref,classification,preview,inbox_state,
                      mandatory_policy_version,aggregate_version,delivery_version,
                      evidence_sha256,created_at,updated_at)
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
-                 ON CONFLICT (tenant_id, notification_id) DO NOTHING",
+                 ON CONFLICT (holding_id, notification_id) DO NOTHING",
             )
-            .bind(self.tenant_id.as_uuid())
+            .bind(self.holding_id.as_uuid())
             .bind(notification.notification_id)
             .bind(&partition_key)
             .bind(&scope)
@@ -278,12 +278,12 @@ impl SqlxSharedEnterpriseServiceStore {
                  SET preview=$9, inbox_state=$10,
                      mandatory_policy_version=$11, aggregate_version=$12,
                      delivery_version=$13, evidence_sha256=$14, updated_at=$15
-                 WHERE tenant_id=$1 AND notification_id=$2 AND scope_key=$3
-                   AND tenant_scope=$4 AND source_id=$5 AND source_record_ref=$6
+                 WHERE holding_id=$1 AND notification_id=$2 AND scope_key=$3
+                   AND active_scope=$4 AND source_id=$5 AND source_record_ref=$6
                    AND recipient_ref=$7 AND classification=$8 AND created_at=$16
                    AND aggregate_version=$17",
             )
-            .bind(self.tenant_id.as_uuid())
+            .bind(self.holding_id.as_uuid())
             .bind(notification.notification_id)
             .bind(&partition_key)
             .bind(&scope)
@@ -311,11 +311,11 @@ impl SqlxSharedEnterpriseServiceStore {
         for attempt in &notification.attempts {
             let attempt_changed = sqlx::query(
                 "INSERT INTO erpx_shared_write.notification_delivery_attempts
-                    (tenant_id,notification_id,recipient_ref,channel,delivery_version,
+                    (holding_id,notification_id,recipient_ref,channel,delivery_version,
                      dedupe_key,delivery_status,provider_message_ref,last_provider_sequence,
                      attempt_count,last_error_code,updated_at)
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-                 ON CONFLICT (tenant_id,notification_id,recipient_ref,channel,delivery_version)
+                 ON CONFLICT (holding_id,notification_id,recipient_ref,channel,delivery_version)
                  DO UPDATE SET delivery_status=EXCLUDED.delivery_status,
                     provider_message_ref=EXCLUDED.provider_message_ref,
                     last_provider_sequence=EXCLUDED.last_provider_sequence,
@@ -325,7 +325,7 @@ impl SqlxSharedEnterpriseServiceStore {
                  WHERE erpx_shared_write.notification_delivery_attempts.dedupe_key
                        = EXCLUDED.dedupe_key",
             )
-            .bind(self.tenant_id.as_uuid())
+            .bind(self.holding_id.as_uuid())
             .bind(notification.notification_id)
             .bind(&notification.recipient_ref)
             .bind(notification_channel_name(attempt.channel))
@@ -346,13 +346,13 @@ impl SqlxSharedEnterpriseServiceStore {
             for (index, callback_id) in attempt.processed_callback_ids.iter().enumerate() {
                 sqlx::query(
                     "INSERT INTO erpx_shared_write.notification_delivery_callbacks
-                        (tenant_id,notification_id,recipient_ref,channel,delivery_version,
+                        (holding_id,notification_id,recipient_ref,channel,delivery_version,
                          callback_id,callback_ordinal,processed_at)
                      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-                     ON CONFLICT (tenant_id,notification_id,recipient_ref,channel,
+                     ON CONFLICT (holding_id,notification_id,recipient_ref,channel,
                                   delivery_version,callback_id) DO NOTHING",
                 )
-                .bind(self.tenant_id.as_uuid())
+                .bind(self.holding_id.as_uuid())
                 .bind(notification.notification_id)
                 .bind(&notification.recipient_ref)
                 .bind(notification_channel_name(attempt.channel))
@@ -366,10 +366,10 @@ impl SqlxSharedEnterpriseServiceStore {
             let callback_count: i64 = sqlx::query_scalar(
                 "SELECT count(*)
                  FROM erpx_shared_write.notification_delivery_callbacks
-                 WHERE tenant_id=$1 AND notification_id=$2 AND recipient_ref=$3
+                 WHERE holding_id=$1 AND notification_id=$2 AND recipient_ref=$3
                    AND channel=$4 AND delivery_version=$5",
             )
-            .bind(self.tenant_id.as_uuid())
+            .bind(self.holding_id.as_uuid())
             .bind(notification.notification_id)
             .bind(&notification.recipient_ref)
             .bind(notification_channel_name(attempt.channel))
@@ -382,9 +382,9 @@ impl SqlxSharedEnterpriseServiceStore {
         }
         let attempt_count: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM erpx_shared_write.notification_delivery_attempts
-             WHERE tenant_id=$1 AND notification_id=$2",
+             WHERE holding_id=$1 AND notification_id=$2",
         )
-        .bind(self.tenant_id.as_uuid())
+        .bind(self.holding_id.as_uuid())
         .bind(notification.notification_id)
         .fetch_one(&mut *transaction)
         .await?;
@@ -393,7 +393,7 @@ impl SqlxSharedEnterpriseServiceStore {
         }
         finalize_command(
             &mut transaction,
-            self.tenant_id,
+            self.holding_id,
             &partition_key,
             &scope,
             &identity,
@@ -413,17 +413,17 @@ impl SqlxSharedEnterpriseServiceStore {
     ) -> Result<Option<SignatureEnvelope>, sqlx::Error> {
         let mut transaction = self.begin_write().await?;
         let row = sqlx::query(
-            "SELECT envelope_id, tenant_scope, document_id, document_version,
+            "SELECT envelope_id, active_scope, document_id, document_version,
                     document_sha256, provider_key, provider_policy_version,
                     signature_order, retention_until, envelope_status,
                     provider_envelope_ref, last_provider_sequence, evidence_sha256,
                     created_by, cancelled_by, aggregate_version, created_at, updated_at
              FROM erpx_shared_write.signature_envelopes
-             WHERE tenant_id=$1
+             WHERE holding_id=$1
                AND ($2::uuid IS NULL OR envelope_id=$2)
                AND ($3::text IS NULL OR provider_envelope_ref=$3)",
         )
-        .bind(self.tenant_id.as_uuid())
+        .bind(self.holding_id.as_uuid())
         .bind(envelope_id)
         .bind(provider_envelope_ref)
         .fetch_optional(&mut *transaction)
@@ -437,10 +437,10 @@ impl SqlxSharedEnterpriseServiceStore {
             "SELECT recipient_id, recipient_order, subject_realm, principal_ref,
                     external_subject_ref, access_grant_sha256, access_expires_at, signed_at
              FROM erpx_shared_write.signature_recipients
-             WHERE tenant_id=$1 AND envelope_id=$2
+             WHERE holding_id=$1 AND envelope_id=$2
              ORDER BY recipient_order, recipient_id",
         )
-        .bind(self.tenant_id.as_uuid())
+        .bind(self.holding_id.as_uuid())
         .bind(envelope_id)
         .fetch_all(&mut *transaction)
         .await?;
@@ -471,17 +471,17 @@ impl SqlxSharedEnterpriseServiceStore {
         let processed_provider_events = sqlx::query_scalar::<_, String>(
             "SELECT provider_event_id
              FROM erpx_shared_write.signature_provider_events
-             WHERE tenant_id=$1 AND envelope_id=$2
+             WHERE holding_id=$1 AND envelope_id=$2
              ORDER BY event_ordinal",
         )
-        .bind(self.tenant_id.as_uuid())
+        .bind(self.holding_id.as_uuid())
         .bind(envelope_id)
         .fetch_all(&mut *transaction)
         .await?;
         let value = serde_json::json!({
             "id": envelope_id,
             "version": positive_u64(row.try_get("aggregate_version")?)?,
-            "scope": row.try_get::<serde_json::Value, _>("tenant_scope")?,
+            "scope": row.try_get::<serde_json::Value, _>("active_scope")?,
             "document_id": row.try_get::<Uuid, _>("document_id")?,
             "document_version": positive_u64(row.try_get("document_version")?)?,
             "document_sha256": row.try_get::<String, _>("document_sha256")?,
@@ -532,7 +532,7 @@ impl SqlxSharedEnterpriseServiceStore {
         let mut transaction = self.begin_write().await?;
         match reserve_command(
             &mut transaction,
-            self.tenant_id,
+            self.holding_id,
             &partition_key,
             &identity,
             &request_hash,
@@ -549,15 +549,15 @@ impl SqlxSharedEnterpriseServiceStore {
         let changed = if expected_version == 0 {
             sqlx::query(
                 "INSERT INTO erpx_shared_write.signature_envelopes
-                    (tenant_id,envelope_id,scope_key,tenant_scope,document_id,document_version,
+                    (holding_id,envelope_id,scope_key,active_scope,document_id,document_version,
                      document_sha256,provider_key,provider_policy_version,signature_order,
                      retention_until,envelope_status,provider_envelope_ref,last_provider_sequence,
                      evidence_sha256,mutation_evidence_sha256,created_by,cancelled_by,
                      aggregate_version,created_at,updated_at)
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
-                 ON CONFLICT (tenant_id, envelope_id) DO NOTHING",
+                 ON CONFLICT (holding_id, envelope_id) DO NOTHING",
             )
-            .bind(self.tenant_id.as_uuid())
+            .bind(self.holding_id.as_uuid())
             .bind(record.id.as_uuid())
             .bind(&partition_key)
             .bind(&scope)
@@ -588,14 +588,14 @@ impl SqlxSharedEnterpriseServiceStore {
                      evidence_sha256=$7, mutation_evidence_sha256=$8,
                      cancelled_by=$9, envelope_status=$10, aggregate_version=$11,
                      updated_at=$12
-                 WHERE tenant_id=$1 AND envelope_id=$2 AND scope_key=$3
-                   AND tenant_scope=$4 AND aggregate_version=$13
+                 WHERE holding_id=$1 AND envelope_id=$2 AND scope_key=$3
+                   AND active_scope=$4 AND aggregate_version=$13
                    AND document_id=$14 AND document_version=$15
                    AND document_sha256=$16 AND provider_key=$17
                    AND provider_policy_version=$18 AND signature_order=$19
                    AND retention_until=$20 AND created_by=$21 AND created_at=$22",
             )
-            .bind(self.tenant_id.as_uuid())
+            .bind(self.holding_id.as_uuid())
             .bind(record.id.as_uuid())
             .bind(&partition_key)
             .bind(&scope)
@@ -644,11 +644,11 @@ impl SqlxSharedEnterpriseServiceStore {
             };
             let recipient_changed = sqlx::query(
                 "INSERT INTO erpx_shared_write.signature_recipients
-                    (tenant_id,envelope_id,recipient_id,recipient_order,subject_realm,
+                    (holding_id,envelope_id,recipient_id,recipient_order,subject_realm,
                      principal_ref,external_subject_ref,access_grant_sha256,
                      access_expires_at,signed_at)
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-                 ON CONFLICT (tenant_id,envelope_id,recipient_id)
+                 ON CONFLICT (holding_id,envelope_id,recipient_id)
                  DO UPDATE SET signed_at=EXCLUDED.signed_at
                  WHERE erpx_shared_write.signature_recipients.recipient_order
                            = EXCLUDED.recipient_order
@@ -666,7 +666,7 @@ impl SqlxSharedEnterpriseServiceStore {
                         OR erpx_shared_write.signature_recipients.signed_at
                            IS NOT DISTINCT FROM EXCLUDED.signed_at)",
             )
-            .bind(self.tenant_id.as_uuid())
+            .bind(self.holding_id.as_uuid())
             .bind(record.id.as_uuid())
             .bind(recipient.id.as_uuid())
             .bind(i32::from(recipient.order))
@@ -685,9 +685,9 @@ impl SqlxSharedEnterpriseServiceStore {
         }
         let recipient_count: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM erpx_shared_write.signature_recipients
-             WHERE tenant_id=$1 AND envelope_id=$2",
+             WHERE holding_id=$1 AND envelope_id=$2",
         )
-        .bind(self.tenant_id.as_uuid())
+        .bind(self.holding_id.as_uuid())
         .bind(record.id.as_uuid())
         .fetch_one(&mut *transaction)
         .await?;
@@ -698,9 +698,9 @@ impl SqlxSharedEnterpriseServiceStore {
         let stored_events = sqlx::query_scalar::<_, String>(
             "SELECT provider_event_id
              FROM erpx_shared_write.signature_provider_events
-             WHERE tenant_id=$1 AND envelope_id=$2 ORDER BY event_ordinal",
+             WHERE holding_id=$1 AND envelope_id=$2 ORDER BY event_ordinal",
         )
-        .bind(self.tenant_id.as_uuid())
+        .bind(self.holding_id.as_uuid())
         .bind(record.id.as_uuid())
         .fetch_all(&mut *transaction)
         .await?;
@@ -712,11 +712,11 @@ impl SqlxSharedEnterpriseServiceStore {
         for (index, event_id) in record.processed_provider_events.iter().enumerate() {
             sqlx::query(
                 "INSERT INTO erpx_shared_write.signature_provider_events
-                    (tenant_id,envelope_id,provider_event_id,event_ordinal,processed_at)
+                    (holding_id,envelope_id,provider_event_id,event_ordinal,processed_at)
                  VALUES ($1,$2,$3,$4,$5)
-                 ON CONFLICT (tenant_id,envelope_id,provider_event_id) DO NOTHING",
+                 ON CONFLICT (holding_id,envelope_id,provider_event_id) DO NOTHING",
             )
-            .bind(self.tenant_id.as_uuid())
+            .bind(self.holding_id.as_uuid())
             .bind(record.id.as_uuid())
             .bind(event_id)
             .bind(positive_i32(index + 1)?)
@@ -726,7 +726,7 @@ impl SqlxSharedEnterpriseServiceStore {
         }
         finalize_command(
             &mut transaction,
-            self.tenant_id,
+            self.holding_id,
             &partition_key,
             &scope,
             &identity,
@@ -737,7 +737,7 @@ impl SqlxSharedEnterpriseServiceStore {
         .await?;
         append_signature_owner_facts(
             &mut transaction,
-            self.tenant_id,
+            self.holding_id,
             &partition_key,
             &scope,
             &identity,
@@ -756,7 +756,7 @@ impl SqlxSharedEnterpriseServiceStore {
 struct SignatureProjectionFact<'a> {
     envelope_id: Uuid,
     envelope_version: u64,
-    tenant_scope: &'a TenantScope,
+    active_scope: &'a AuthorityScope,
     document_id: Uuid,
     document_version: u64,
     envelope_status: &'static str,
@@ -766,9 +766,9 @@ struct SignatureProjectionFact<'a> {
 #[allow(clippy::too_many_arguments)]
 async fn append_signature_owner_facts(
     transaction: &mut Transaction<'_, Postgres>,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
     partition_key: &str,
-    tenant_scope: &serde_json::Value,
+    active_scope: &serde_json::Value,
     identity: &MutationIdentity,
     envelope: &SignatureEnvelope,
     status: SignatureStatus,
@@ -794,7 +794,7 @@ async fn append_signature_owner_facts(
     let projection = SignatureProjectionFact {
         envelope_id: envelope.id().as_uuid(),
         envelope_version: envelope.version(),
-        tenant_scope: envelope.scope(),
+        active_scope: envelope.scope(),
         document_id: envelope.document_id().as_uuid(),
         document_version: envelope.document_version(),
         envelope_status: signature_status_name(status),
@@ -814,15 +814,15 @@ async fn append_signature_owner_facts(
     ] {
         sqlx::query(
             "INSERT INTO erpx_cqrs_write.outbox_events
-                (tenant_id,event_id,context_name,partition_key,command_id,event_type,event_version,
-                 aggregate_type,aggregate_id,aggregate_version,tenant_scope,actor,correlation_id,
+                (holding_id,event_id,context_name,partition_key,command_id,event_type,event_version,
+                 aggregate_type,aggregate_id,aggregate_version,active_scope,actor,correlation_id,
                  causation_id,payload,occurred_at,available_at)
              VALUES ($1,$2,'legal',$3,$4,$5,$6,'signature_envelope',$7,$8,$9,$10,$11,NULL,$12,$13,$13)",
         )
-        .bind(tenant_id.as_uuid()).bind(event_id).bind(partition_key).bind(identity.command_id)
+        .bind(holding_id.as_uuid()).bind(event_id).bind(partition_key).bind(identity.command_id)
         .bind(event_type).bind(i32::try_from(ITEM_DIRECTORY_FACT_VERSION).map_err(|_| PersistError::Invalid)?)
         .bind(identity.aggregate_id).bind(i64_from_u64(identity.aggregate_version)?)
-        .bind(tenant_scope).bind(&actor).bind(identity.correlation_id).bind(payload).bind(occurred_at)
+        .bind(active_scope).bind(&actor).bind(identity.correlation_id).bind(payload).bind(occurred_at)
         .execute(&mut **transaction).await?;
     }
     Ok(())
@@ -959,19 +959,19 @@ impl MutationIdentity {
 
 async fn reserve_command(
     transaction: &mut Transaction<'_, Postgres>,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
     partition_key: &str,
     identity: &MutationIdentity,
     request_hash: &[u8],
 ) -> Result<MutationDisposition, PersistError> {
     let inserted = sqlx::query(
         "INSERT INTO erpx_cqrs_write.command_receipts
-            (tenant_id,context_name,partition_key,idempotency_key,command_id,
+            (holding_id,context_name,partition_key,idempotency_key,command_id,
              request_hash,correlation_id,status,created_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,'reserved',clock_timestamp())
-         ON CONFLICT (tenant_id,context_name,partition_key,idempotency_key) DO NOTHING",
+         ON CONFLICT (holding_id,context_name,partition_key,idempotency_key) DO NOTHING",
     )
-    .bind(tenant_id.as_uuid())
+    .bind(holding_id.as_uuid())
     .bind(identity.context_name)
     .bind(partition_key)
     .bind(&identity.idempotency_key)
@@ -987,9 +987,9 @@ async fn reserve_command(
     let row = sqlx::query(
         "SELECT request_hash,status
          FROM erpx_cqrs_write.command_receipts
-         WHERE tenant_id=$1 AND context_name=$2 AND partition_key=$3 AND idempotency_key=$4",
+         WHERE holding_id=$1 AND context_name=$2 AND partition_key=$3 AND idempotency_key=$4",
     )
-    .bind(tenant_id.as_uuid())
+    .bind(holding_id.as_uuid())
     .bind(identity.context_name)
     .bind(partition_key)
     .bind(&identity.idempotency_key)
@@ -1022,9 +1022,9 @@ fn classify_receipt(
 #[allow(clippy::too_many_arguments)]
 async fn finalize_command(
     transaction: &mut Transaction<'_, Postgres>,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
     partition_key: &str,
-    tenant_scope: &serde_json::Value,
+    active_scope: &serde_json::Value,
     identity: &MutationIdentity,
     evidence_sha256: &str,
     lifecycle_state: &str,
@@ -1036,18 +1036,18 @@ async fn finalize_command(
     });
     sqlx::query(
         "INSERT INTO erpx_cqrs_write.audit_log
-            (tenant_id,audit_id,context_name,partition_key,command_id,correlation_id,
-             tenant_scope,actor,audit_context,action,aggregate_type,aggregate_id,
+            (holding_id,audit_id,context_name,partition_key,command_id,correlation_id,
+             active_scope,actor,audit_context,action,aggregate_type,aggregate_id,
              aggregate_version,details,occurred_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'save',$10,$11,$12,$13,$14)",
     )
-    .bind(tenant_id.as_uuid())
+    .bind(holding_id.as_uuid())
     .bind(identity.audit_id)
     .bind(identity.context_name)
     .bind(partition_key)
     .bind(identity.command_id)
     .bind(identity.correlation_id)
-    .bind(tenant_scope)
+    .bind(active_scope)
     .bind(&actor)
     .bind(serde_json::json!({"authority": "shared-enterprise-service"}))
     .bind(identity.aggregate_type)
@@ -1062,12 +1062,12 @@ async fn finalize_command(
     // signatory subject, document content, or provider callback body.
     sqlx::query(
         "INSERT INTO erpx_cqrs_write.outbox_events
-            (tenant_id,event_id,context_name,partition_key,command_id,event_type,
-             event_version,aggregate_type,aggregate_id,aggregate_version,tenant_scope,
+            (holding_id,event_id,context_name,partition_key,command_id,event_type,
+             event_version,aggregate_type,aggregate_id,aggregate_version,active_scope,
              actor,correlation_id,causation_id,payload,occurred_at,available_at)
          VALUES ($1,$2,$3,$4,$5,$6,1,$7,$8,$9,$10,$11,$12,NULL,$13,$14,$14)",
     )
-    .bind(tenant_id.as_uuid())
+    .bind(holding_id.as_uuid())
     .bind(identity.event_id)
     .bind(identity.context_name)
     .bind(partition_key)
@@ -1076,7 +1076,7 @@ async fn finalize_command(
     .bind(identity.aggregate_type)
     .bind(identity.aggregate_id)
     .bind(i64_from_u64(identity.aggregate_version)?)
-    .bind(tenant_scope)
+    .bind(active_scope)
     .bind(&actor)
     .bind(identity.correlation_id)
     .bind(serde_json::json!({
@@ -1092,10 +1092,10 @@ async fn finalize_command(
     let completed = sqlx::query(
         "UPDATE erpx_cqrs_write.command_receipts
          SET status='completed', receipt=$5, completed_at=$6
-         WHERE tenant_id=$1 AND context_name=$2 AND partition_key=$3
+         WHERE holding_id=$1 AND context_name=$2 AND partition_key=$3
            AND idempotency_key=$4 AND status='reserved'",
     )
-    .bind(tenant_id.as_uuid())
+    .bind(holding_id.as_uuid())
     .bind(identity.context_name)
     .bind(partition_key)
     .bind(&identity.idempotency_key)
@@ -1118,7 +1118,7 @@ async fn finalize_command(
 struct SignatureEnvelopeRecord {
     id: SignatureEnvelopeId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     document_id: LegalDocumentId,
     document_version: u64,
     document_sha256: String,
@@ -1138,21 +1138,21 @@ struct SignatureEnvelopeRecord {
     updated_at: DateTime<Utc>,
 }
 
-async fn set_tenant(
+async fn set_holding(
     transaction: &mut Transaction<'_, Postgres>,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
 ) -> Result<(), sqlx::Error> {
-    let expected = tenant_id.to_string();
-    let bound: String = sqlx::query_scalar("SELECT set_config('app.tenant_id',$1,true)")
+    let expected = holding_id.to_string();
+    let bound: String = sqlx::query_scalar("SELECT set_config('app.holding_id',$1,true)")
         .bind(&expected)
         .fetch_one(&mut **transaction)
         .await?;
     let verified: Option<String> =
-        sqlx::query_scalar("SELECT nullif(current_setting('app.tenant_id',true),'')")
+        sqlx::query_scalar("SELECT nullif(current_setting('app.holding_id',true),'')")
             .fetch_one(&mut **transaction)
             .await?;
     if bound != expected || verified.as_deref() != Some(expected.as_str()) {
-        return Err(protocol("tenant RLS binding could not be verified"));
+        return Err(protocol("holding RLS binding could not be verified"));
     }
     Ok(())
 }
@@ -1165,20 +1165,20 @@ fn exact_next_version(expected: u64, actual: u64) -> Result<u64, PersistError> {
     Ok(next)
 }
 
-fn scope_key(scope: &TenantScope) -> String {
+fn scope_key(scope: &AuthorityScope) -> String {
     match scope {
-        TenantScope::Platform => "platform".into(),
-        TenantScope::Holding { holding_id } => format!("h:{holding_id}"),
-        TenantScope::Company {
+        AuthorityScope::Platform => "platform".into(),
+        AuthorityScope::Holding { holding_id } => format!("h:{holding_id}"),
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => format!("h:{holding_id}/c:{company_id}"),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         } => format!("h:{holding_id}/c:{company_id}/b:{branch_id}"),
-        TenantScope::Subtree { .. } => serde_json::to_string(scope).expect("serializable scope"),
+        AuthorityScope::Subtree { .. } => serde_json::to_string(scope).expect("serializable scope"),
     }
 }
 
@@ -1344,18 +1344,20 @@ fn signature_status_name(value: SignatureStatus) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::schema_test;
 
     #[test]
-    fn shared_authority_is_normalized_tenant_composite_and_force_rls_complete() {
-        let write = include_str!(
-            "../../migration/migrations_tenant_write/0078_shared_enterprise_services.sql"
+    fn shared_authority_is_normalized_holding_composite_and_force_rls_complete() {
+        let write = schema_test::select_schema_statements(
+            include_str!("../../migration/migrations_holding_write/0001_baseline.sql"),
+            &["erpx_shared_write"],
         );
-        let read = include_str!(
-            "../../migration/migrations_tenant_read/0069_shared_enterprise_services_projection.sql"
+        let read = schema_test::select_schema_statements(
+            include_str!("../../migration/migrations_holding_read/0001_baseline.sql"),
+            &["erpx_shared_read"],
         );
         assert!(!write.contains("service_artifacts"));
         assert!(!write.contains("payload JSONB"));
-        let normalized_write = write.split_whitespace().collect::<Vec<_>>().join(" ");
         for table in [
             "approval_sessions",
             "approval_decisions",
@@ -1372,35 +1374,33 @@ mod tests {
         ] {
             assert!(write.contains(&format!("CREATE TABLE erpx_shared_write.{table}")));
             assert!(write.contains(&format!("'{table}'")));
-            let definition = normalized_write
-                .split(&format!("CREATE TABLE erpx_shared_write.{table}"))
-                .nth(1)
-                .expect("table definition")
-                .split("CREATE TABLE")
-                .next()
-                .expect("bounded table definition");
+            let definition = schema_test::table_definition(
+                include_str!("../../migration/migrations_holding_write/0001_baseline.sql"),
+                &format!("erpx_shared_write.{table}"),
+            )
+            .expect("bounded table definition");
             assert!(
-                definition.contains("PRIMARY KEY (tenant_id"),
-                "{table} primary authority is not tenant-composite"
+                definition.contains("PRIMARY KEY (holding_id"),
+                "{table} primary authority is not holding-composite"
             );
             for unique in definition.match_indices("UNIQUE (") {
                 assert!(
-                    definition[unique.0..].starts_with("UNIQUE (tenant_id"),
-                    "{table} contains a non-tenant unique authority"
+                    definition[unique.0..].starts_with("UNIQUE (holding_id"),
+                    "{table} contains a non-holding unique authority"
                 );
             }
             for foreign_key in definition.match_indices("FOREIGN KEY (") {
                 assert!(
-                    definition[foreign_key.0..].starts_with("FOREIGN KEY (tenant_id"),
-                    "{table} contains a cross-tenant foreign key"
+                    definition[foreign_key.0..].starts_with("FOREIGN KEY (holding_id"),
+                    "{table} contains a cross-holding foreign key"
                 );
             }
         }
-        assert!(write.contains("FOREIGN KEY (tenant_id, session_id)"));
-        assert!(write.contains("FOREIGN KEY (tenant_id, notification_id)"));
-        assert!(write.contains("FOREIGN KEY (tenant_id, envelope_id)"));
+        assert!(write.contains("FOREIGN KEY (holding_id, session_id)"));
+        assert!(write.contains("FOREIGN KEY (holding_id, notification_id)"));
+        assert!(write.contains("FOREIGN KEY (holding_id, envelope_id)"));
         assert!(write.contains("FORCE ROW LEVEL SECURITY"));
-        assert!(read.contains("FOREIGN KEY (tenant_id, projection_name, generation)"));
+        assert!(read.contains("FOREIGN KEY (holding_id, projection_name, generation)"));
         assert!(read.contains("FORCE ROW LEVEL SECURITY"));
         let normalized_read = read.split_whitespace().collect::<Vec<_>>().join(" ");
         for table in [
@@ -1417,8 +1417,8 @@ mod tests {
                 .split("CREATE TABLE")
                 .next()
                 .expect("bounded read table definition");
-            assert!(definition.contains("PRIMARY KEY (tenant_id"));
-            assert!(definition.contains("FOREIGN KEY (tenant_id, projection_name, generation)"));
+            assert!(definition.contains("PRIMARY KEY (holding_id"));
+            assert!(definition.contains("FOREIGN KEY (holding_id, projection_name, generation)"));
         }
     }
 
@@ -1436,11 +1436,11 @@ mod tests {
     }
 
     #[test]
-    fn every_service_transaction_verifies_exact_tenant_and_active_generation() {
+    fn every_service_transaction_verifies_exact_holding_and_active_generation() {
         let source = include_str!("shared_enterprise_services.rs");
-        assert!(source.contains("SELECT set_config('app.tenant_id',$1,true)"));
-        assert!(source.contains("current_setting('app.tenant_id',true)"));
-        assert!(source.contains("active.tenant_id = $1"));
+        assert!(source.contains("SELECT set_config('app.holding_id',$1,true)"));
+        assert!(source.contains("current_setting('app.holding_id',true)"));
+        assert!(source.contains("active.holding_id = $1"));
         assert!(source.contains("active.status = 'active'"));
         let candidate_fallback = ["status IN ('active',", "'building')"].concat();
         assert!(!source.contains(&candidate_fallback));
@@ -1476,7 +1476,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn opt_in_disposable_postgres_denies_missing_and_wrong_tenant() {
+    async fn opt_in_disposable_postgres_denies_missing_and_wrong_holding() {
         let Ok(url) = std::env::var("ERPX_DISPOSABLE_SHARED_WRITE_DATABASE_URL") else {
             return;
         };
@@ -1484,49 +1484,49 @@ mod tests {
             .await
             .expect("disposable write database");
         assert_disposable_database(&pool).await;
-        let tenant_a = Uuid::new_v4();
-        let tenant_b = Uuid::new_v4();
+        let holding_a = Uuid::new_v4();
+        let holding_b = Uuid::new_v4();
         let notification_id = Uuid::new_v4();
         let mut transaction = pool.begin().await.expect("transaction");
-        bind_uuid(&mut transaction, tenant_a).await;
+        bind_uuid(&mut transaction, holding_a).await;
         sqlx::query(
             "INSERT INTO erpx_shared_write.notifications
-                (tenant_id,notification_id,scope_key,tenant_scope,source_id,
+                (holding_id,notification_id,scope_key,active_scope,source_id,
                  source_record_ref,recipient_ref,classification,preview,inbox_state,
                  aggregate_version,delivery_version,evidence_sha256,created_at,updated_at)
              VALUES ($1,$2,'test', '{}'::jsonb,'test','reference:item:test','test',
                      'internal',NULL,'unread',1,1,$3,clock_timestamp(),clock_timestamp())",
         )
-        .bind(tenant_a)
+        .bind(holding_a)
         .bind(notification_id)
         .bind(format!("sha256:{}", "a".repeat(64)))
         .execute(&mut *transaction)
         .await
-        .expect("insert tenant A notification");
+        .expect("insert holding A notification");
 
-        bind_uuid(&mut transaction, tenant_b).await;
+        bind_uuid(&mut transaction, holding_b).await;
         let wrong_count: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM erpx_shared_write.notifications
-             WHERE tenant_id=$1 AND notification_id=$2",
+             WHERE holding_id=$1 AND notification_id=$2",
         )
-        .bind(tenant_a)
+        .bind(holding_a)
         .bind(notification_id)
         .fetch_one(&mut *transaction)
         .await
-        .expect("wrong tenant query");
+        .expect("wrong holding query");
         assert_eq!(wrong_count, 0);
 
-        let _: String = sqlx::query_scalar("SELECT set_config('app.tenant_id','',true)")
+        let _: String = sqlx::query_scalar("SELECT set_config('app.holding_id','',true)")
             .fetch_one(&mut *transaction)
             .await
-            .expect("clear tenant");
+            .expect("clear holding");
         let missing_count: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM erpx_shared_write.notifications WHERE notification_id=$1",
         )
         .bind(notification_id)
         .fetch_one(&mut *transaction)
         .await
-        .expect("missing tenant query");
+        .expect("missing holding query");
         assert_eq!(missing_count, 0);
         transaction.rollback().await.expect("rollback only");
     }
@@ -1540,21 +1540,21 @@ mod tests {
             .await
             .expect("disposable read database");
         assert_disposable_database(&pool).await;
-        let tenant_id = Uuid::new_v4();
+        let holding_id = Uuid::new_v4();
         let building = Uuid::new_v4();
         let active = Uuid::new_v4();
         let notification_id = Uuid::new_v4();
         let mut transaction = pool.begin().await.expect("transaction");
-        bind_uuid(&mut transaction, tenant_id).await;
+        bind_uuid(&mut transaction, holding_id).await;
         for (generation, status) in [(building, "building"), (active, "active")] {
             sqlx::query(
                 "INSERT INTO erpx_cqrs_read.projection_generations
-                    (tenant_id,projection_name,generation,status,source_sequence,created_at,
+                    (holding_id,projection_name,generation,status,source_sequence,created_at,
                      activated_at)
                  VALUES ($1,'shared.notifications',$2,$3,1,clock_timestamp(),
                          CASE WHEN $3='active' THEN clock_timestamp() ELSE NULL END)",
             )
-            .bind(tenant_id)
+            .bind(holding_id)
             .bind(generation)
             .bind(status)
             .execute(&mut *transaction)
@@ -1562,13 +1562,13 @@ mod tests {
             .expect("insert generation");
             sqlx::query(
                 "INSERT INTO erpx_shared_read.notification_projection
-                    (tenant_id,projection_name,generation,partition_key,notification_id,
+                    (holding_id,projection_name,generation,partition_key,notification_id,
                      recipient_ref,scope_key,inbox_state,source_aggregate_version,
                      source_global_sequence,state,projected_at)
                  VALUES ($1,'shared.notifications',$2,'test',$3,'recipient','test','unread',
                          1,1,jsonb_build_object('source',$4),clock_timestamp())",
             )
-            .bind(tenant_id)
+            .bind(holding_id)
             .bind(generation)
             .bind(notification_id)
             .bind(status)
@@ -1580,15 +1580,15 @@ mod tests {
             "SELECT projection.state->>'source'
              FROM erpx_cqrs_read.projection_generations active_generation
              JOIN erpx_shared_read.notification_projection projection
-               ON projection.tenant_id=active_generation.tenant_id
+               ON projection.holding_id=active_generation.holding_id
               AND projection.projection_name=active_generation.projection_name
               AND projection.generation=active_generation.generation
-             WHERE active_generation.tenant_id=$1
+             WHERE active_generation.holding_id=$1
                AND active_generation.projection_name='shared.notifications'
                AND active_generation.status='active'
                AND projection.partition_key='test' AND projection.notification_id=$2",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(notification_id)
         .fetch_one(&mut *transaction)
         .await
@@ -1608,13 +1608,13 @@ mod tests {
         );
     }
 
-    async fn bind_uuid(transaction: &mut Transaction<'_, Postgres>, tenant_id: Uuid) {
-        let expected = tenant_id.to_string();
-        let actual: String = sqlx::query_scalar("SELECT set_config('app.tenant_id',$1,true)")
+    async fn bind_uuid(transaction: &mut Transaction<'_, Postgres>, holding_id: Uuid) {
+        let expected = holding_id.to_string();
+        let actual: String = sqlx::query_scalar("SELECT set_config('app.holding_id',$1,true)")
             .bind(&expected)
             .fetch_one(&mut **transaction)
             .await
-            .expect("tenant binding");
+            .expect("holding binding");
         assert_eq!(actual, expected);
     }
 }

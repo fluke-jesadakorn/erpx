@@ -7,7 +7,7 @@ use erpx_integration_contracts::{
     BoundedContext, ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
     ItemDescriptorDraft, RecordRef, record_policy_id,
 };
-use erpx_kernel::{AggregateId, CommandId, DataClassification, EventId, TenantScope};
+use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId};
 use erpx_legal::{
     AccessEntry, AccessEntryId, CommandUnitOfWork, ContractParty, ContractStatus, DocumentVersion,
     LegalAggregate, LegalCommit, LegalContract, LegalContractId, LegalDocument, LegalDocumentId,
@@ -40,7 +40,7 @@ impl LegalWriteRepository {
 
     async fn load_aggregate(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         partition: &str,
         aggregate_type: &str,
         id: Uuid,
@@ -52,7 +52,7 @@ impl LegalWriteRepository {
 
 async fn load_legal_relational(
     pool: &WritePool,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     aggregate_type: &str,
     id: Uuid,
 ) -> Result<Option<LegalAggregate>, PortError> {
@@ -78,7 +78,7 @@ async fn load_legal_relational(
 
 async fn load_contract_relational(
     tx: &mut Transaction<'_, Postgres>,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     id: Uuid,
 ) -> Result<Option<LegalContract>, PortError> {
     let row = authorized_root(
@@ -139,7 +139,7 @@ async fn load_contract_relational(
 
 async fn load_document_relational(
     tx: &mut Transaction<'_, Postgres>,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     id: Uuid,
 ) -> Result<Option<LegalDocument>, PortError> {
     let row = authorized_root(
@@ -198,7 +198,7 @@ async fn load_document_relational(
 
 async fn load_access_relational(
     tx: &mut Transaction<'_, Postgres>,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     id: Uuid,
 ) -> Result<Option<AccessEntry>, PortError> {
     let row = authorized_root(
@@ -235,7 +235,7 @@ async fn load_access_relational(
 
 async fn load_matter_relational(
     tx: &mut Transaction<'_, Postgres>,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     id: Uuid,
 ) -> Result<Option<LegalMatter>, PortError> {
     let row = authorized_root(
@@ -345,7 +345,7 @@ async fn load_matter_relational(
 impl WriteRepository for LegalWriteRepository {
     async fn load_contract(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: LegalContractId,
     ) -> Result<Option<LegalContract>, PortError> {
         match self
@@ -365,7 +365,7 @@ impl WriteRepository for LegalWriteRepository {
 
     async fn load_document(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: LegalDocumentId,
     ) -> Result<Option<LegalDocument>, PortError> {
         match self
@@ -385,7 +385,7 @@ impl WriteRepository for LegalWriteRepository {
 
     async fn load_matter(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: LegalMatterId,
     ) -> Result<Option<LegalMatter>, PortError> {
         match self
@@ -495,7 +495,7 @@ impl CommandUnitOfWork for LegalCommandAdapter {
             correlation_id: request.correlation_id,
             idempotency_key: request.identity.idempotency_key,
             request_hash: request_hash(&request.identity.fingerprint)?,
-            tenant_scope: aggregate.scope().clone(),
+            active_scope: aggregate.scope().clone(),
             actor: request.actor,
             audit_context: request.audit,
             aggregate_type: aggregate_type.into(),
@@ -784,16 +784,16 @@ impl AtomicCommandGuard for LegalAtomicGuard {
                         .map_err(|_| CqrsSqlxError::InvalidInput("Legal hold record is invalid"))?
                         .ok_or(CqrsSqlxError::InvalidInput("Legal hold record is missing"))?;
                     sqlx::query("INSERT INTO erpx_legal_write.legal_hold_records
-                        (tenant_id,legal_hold_id,matter_id,source_matter_version,tenant_scope,
+                        (holding_id,legal_hold_id,matter_id,source_matter_version,active_scope,
                          scope_key,hold_active,reason,placed_by,placed_at,released_by,released_at,
                          changed_at)
-                        VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-                        ON CONFLICT (tenant_id,legal_hold_id) DO UPDATE SET
+                        VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+                        ON CONFLICT (holding_id,legal_hold_id) DO UPDATE SET
                          source_matter_version=EXCLUDED.source_matter_version,
                          hold_active=EXCLUDED.hold_active,released_by=EXCLUDED.released_by,
                          released_at=EXCLUDED.released_at,changed_at=EXCLUDED.changed_at
-                        WHERE erpx_legal_write.legal_hold_records.tenant_id
-                              = erpx_cqrs_write.current_tenant_id()
+                        WHERE erpx_legal_write.legal_hold_records.holding_id
+                              = erpx_cqrs_write.current_holding_id()
                           AND erpx_legal_write.legal_hold_records.source_matter_version + 1
                               = EXCLUDED.source_matter_version")
                         .bind(hold_ref.id().as_uuid()).bind(value.id().as_uuid()).bind(version)
@@ -1022,7 +1022,7 @@ fn bounded_context_name(
 
 async fn authorized_root(
     tx: &mut Transaction<'_, Postgres>,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     base_sql: &str,
     table: &str,
     id_column: &str,
@@ -1076,14 +1076,14 @@ type AuthorityParameters = (
     Vec<Uuid>,
 );
 
-fn authority_parameters(scope: &TenantScope) -> Result<AuthorityParameters, PortError> {
+fn authority_parameters(scope: &AuthorityScope) -> Result<AuthorityParameters, PortError> {
     scope.validate().map_err(|_| PortError::Denied)?;
     Ok(match scope {
-        TenantScope::Platform => ("platform", None, None, None, vec![], vec![]),
-        TenantScope::Holding { holding_id } => {
+        AuthorityScope::Platform => ("platform", None, None, None, vec![], vec![]),
+        AuthorityScope::Holding { holding_id } => {
             ("holding", Some(*holding_id), None, None, vec![], vec![])
         }
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => (
@@ -1094,7 +1094,7 @@ fn authority_parameters(scope: &TenantScope) -> Result<AuthorityParameters, Port
             vec![],
             vec![],
         ),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -1106,22 +1106,21 @@ fn authority_parameters(scope: &TenantScope) -> Result<AuthorityParameters, Port
             vec![],
             vec![],
         ),
-        TenantScope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
+            organization_node_id,
         } => (
             "subtree",
             Some(*holding_id),
             None,
             None,
-            company_ids.clone(),
-            branch_ids.clone(),
+            vec![*organization_node_id],
+            Vec::new(),
         ),
     })
 }
 
-fn exact_scope(row: &sqlx::postgres::PgRow) -> Result<TenantScope, PortError> {
+fn exact_scope(row: &sqlx::postgres::PgRow) -> Result<AuthorityScope, PortError> {
     exact_scope_named(
         row.try_get("holding_id").map_err(|_| PortError::Internal)?,
         row.try_get("company_id").map_err(|_| PortError::Internal)?,
@@ -1133,14 +1132,14 @@ fn exact_scope_named(
     holding_id: Uuid,
     company_id: Uuid,
     branch_id: Option<Uuid>,
-) -> Result<TenantScope, PortError> {
+) -> Result<AuthorityScope, PortError> {
     let scope = match branch_id {
-        Some(branch_id) => TenantScope::Branch {
+        Some(branch_id) => AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         },
-        None => TenantScope::Company {
+        None => AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -1149,13 +1148,13 @@ fn exact_scope_named(
     Ok(scope)
 }
 
-fn exact_scope_ids(scope: &TenantScope) -> Result<(Uuid, Uuid, Option<Uuid>), CqrsSqlxError> {
+fn exact_scope_ids(scope: &AuthorityScope) -> Result<(Uuid, Uuid, Option<Uuid>), CqrsSqlxError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok((*holding_id, *company_id, None)),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -1169,7 +1168,7 @@ async fn write_exact_scope(
     table: &str,
     id_column: &str,
     id: Uuid,
-    scope: &TenantScope,
+    scope: &AuthorityScope,
 ) -> Result<(), CqrsSqlxError> {
     let (holding_id, company_id, branch_id) = exact_scope_ids(scope)?;
     let sql =
@@ -1212,7 +1211,7 @@ async fn write_link_scope_columns(
     tx: &mut Transaction<'_, Postgres>,
     matter_id: Uuid,
     ordinal: usize,
-    scope: &TenantScope,
+    scope: &AuthorityScope,
 ) -> Result<(), CqrsSqlxError> {
     let (holding_id, company_id, branch_id) = exact_scope_ids(scope)?;
     let changed = sqlx::query(
@@ -1311,7 +1310,7 @@ fn parse_bounded_context(value: &str) -> Result<BoundedContext, PortError> {
 }
 fn request_hash(value: &CommandFingerprint) -> Result<RequestHash, PortError> {
     let mut digest = Sha256::new();
-    digest.update(b"erpx.legal.command.v1\0");
+    digest.update(b"erpx.legal.command\0");
     digest.update(serde_json::to_vec(value).map_err(|_| PortError::Internal)?);
     Ok(RequestHash::new(digest.finalize().into()))
 }
@@ -1331,13 +1330,13 @@ fn deterministic_uuid(seed: Uuid, label: &[u8]) -> Uuid {
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
     Uuid::from_bytes(bytes)
 }
-pub(crate) fn scope_key(scope: &TenantScope) -> Result<String, CqrsSqlxError> {
+pub(crate) fn scope_key(scope: &AuthorityScope) -> Result<String, CqrsSqlxError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok(format!("h:{holding_id}/c:{company_id}")),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,

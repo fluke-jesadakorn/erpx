@@ -9,7 +9,7 @@ downtime aggregation, and the explicit Operations capacity-impact handoff.
 ## Delivered behavior
 
 - `AssetScope` maps a holding/company/optional branch to the existing
-  `TenantScope` and fails closed when a command scope does not contain it.
+  `HoldingScope` and fails closed when a command scope does not contain it.
 - `Asset` has deterministic `AST-<uuid>` references and command idempotency,
   optimistic aggregate versions, closed lifecycle transitions, custody and
   location history, and authenticated actor/command attribution on transfers
@@ -70,7 +70,7 @@ crate test and clippy results above do not claim those pending tests.
 
 ## Unfinished work
 
-- SQLx repositories, tenant migrations, read projections, workers, transports,
+- SQLx repositories, holding migrations, read projections, workers, transports,
   UI, accounting journal handoff, depreciation schedules, and migration data
   tooling remain outside this domain-only packet.
 - Asset status synchronization with maintenance work orders remains an
@@ -79,7 +79,7 @@ crate test and clippy results above do not claim those pending tests.
 ## Security concerns
 
 - Every command requires a valid `CommandContext`, non-empty actor reference,
-  and containing tenant scope; transfer checks both source and destination.
+  and containing holding scope; transfer checks both source and destination.
 - Secret or credential fields are not modeled.
 - Persistence must enforce the same scope, version, and idempotency checks
   transactionally and must preserve custody/audit history immutably.

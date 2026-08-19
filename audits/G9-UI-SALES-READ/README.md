@@ -3,15 +3,15 @@
 ## Scope
 
 The Dioxus `/sales` product route now consumes the existing
-`SalesService::GetSalesAggregate` read boundary. It requires explicit tenant,
+`SalesService::GetSalesAggregate` read boundary. It requires explicit holding,
 holding route, holding UUID, aggregate type, and aggregate UUID inputs. The
-console never infers a holding or renders a platform-scope response as tenant
+console never infers a holding or renders a platform-scope response as holding
 data.
 
 ## Authoritative path
 
 - The client sends an authenticated, audited holding-scoped `QueryContext`.
-- The server owns `sales.read` authorization, tenant read routing, immutable
+- The server owns `sales.read` authorization, holding read routing, immutable
   source/read persistence, outbox/projector/reconciliation behavior, and
   missing-row semantics.
 - The adapter validates response aggregate identity, correlation identity,

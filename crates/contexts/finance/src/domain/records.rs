@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -86,7 +86,7 @@ pub struct FinanceRecord {
     id: Uuid,
     version: u64,
     kind: FinanceRecordKind,
-    scope: TenantScope,
+    scope: AuthorityScope,
     title: String,
     status: FinanceRecordStatus,
     created_at: DateTime<Utc>,
@@ -96,7 +96,7 @@ impl FinanceRecord {
     pub fn create(
         id: Uuid,
         kind: FinanceRecordKind,
-        scope: TenantScope,
+        scope: AuthorityScope,
         title: String,
         at: DateTime<Utc>,
     ) -> Result<Self, FinanceRecordError> {
@@ -155,7 +155,7 @@ impl FinanceRecord {
     pub const fn kind(&self) -> FinanceRecordKind {
         self.kind
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn title(&self) -> &str {
@@ -200,13 +200,13 @@ const fn allowed(
             | (K::Reconciliation, S::Matched, S::Open | S::Closed)
     )
 }
-fn validate_scope(scope: &TenantScope) -> Result<(), FinanceRecordError> {
+fn validate_scope(scope: &AuthorityScope) -> Result<(), FinanceRecordError> {
     scope
         .validate()
         .map_err(|_| FinanceRecordError::InvalidScope)?;
     if matches!(
         scope,
-        TenantScope::Company { .. } | TenantScope::Branch { .. }
+        AuthorityScope::Company { .. } | AuthorityScope::Branch { .. }
     ) {
         Ok(())
     } else {
@@ -228,7 +228,7 @@ mod tests {
     use chrono::TimeZone;
     #[test]
     fn payment_and_reconciliation_are_governed_separately() {
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         };

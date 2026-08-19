@@ -1,10 +1,10 @@
 use chrono::{Duration, Utc};
 use erpx_infrastructure::{
-    ControlPlaneDatabaseConfig, ControlPlanePools, MAX_TENANT_BACKUP_RETENTION_AGE_SECONDS,
-    MAX_TENANT_BACKUP_RETENTION_ATTEMPTS, MAX_TENANT_BACKUP_RETENTION_ROWS,
-    MIN_TENANT_BACKUP_RETENTION_AGE_SECONDS, SqlxControlPlane, SqlxTenantStoreRegistry,
-    TenantBackupInventoryObservation, TenantBackupRetentionRequest, TenantStoreRegistration,
-    validate_tenant_backup_retention_request_at,
+    ControlPlaneDatabaseConfig, ControlPlanePools, HoldingBackupInventoryObservation,
+    HoldingBackupRetentionRequest, HoldingStoreRegistration,
+    MAX_HOLDING_BACKUP_RETENTION_AGE_SECONDS, MAX_HOLDING_BACKUP_RETENTION_ATTEMPTS,
+    MAX_HOLDING_BACKUP_RETENTION_ROWS, MIN_HOLDING_BACKUP_RETENTION_AGE_SECONDS, SqlxControlPlane,
+    SqlxHoldingStoreRegistry, validate_holding_backup_retention_request_at,
 };
 use erpx_migration::{migrate_control_plane, migrate_control_read};
 use std::sync::Arc;
@@ -13,37 +13,37 @@ use uuid::Uuid;
 #[test]
 fn retention_request_has_strict_bounds_and_exact_cutoff_boundary() {
     let now = Utc::now();
-    let request = TenantBackupRetentionRequest {
-        tenant_id: "tenant-fixture".into(),
-        holding_ref: "holding-fixture".into(),
-        cutoff_at: now - Duration::seconds(MIN_TENANT_BACKUP_RETENTION_AGE_SECONDS),
-        max_rows: MAX_TENANT_BACKUP_RETENTION_ROWS,
+    let request = HoldingBackupRetentionRequest {
+        holding_id: "holding-fixture".into(),
+        data_profile_key: "holding-fixture".into(),
+        cutoff_at: now - Duration::seconds(MIN_HOLDING_BACKUP_RETENTION_AGE_SECONDS),
+        max_rows: MAX_HOLDING_BACKUP_RETENTION_ROWS,
         dry_run: true,
         idempotency_key: "retention-fixture-1".into(),
-        max_attempts: MAX_TENANT_BACKUP_RETENTION_ATTEMPTS,
+        max_attempts: MAX_HOLDING_BACKUP_RETENTION_ATTEMPTS,
     };
-    assert!(validate_tenant_backup_retention_request_at(&request, now).is_ok());
+    assert!(validate_holding_backup_retention_request_at(&request, now).is_ok());
 
     let mut too_new = request.clone();
     too_new.cutoff_at += Duration::nanoseconds(1);
-    assert!(validate_tenant_backup_retention_request_at(&too_new, now).is_err());
+    assert!(validate_holding_backup_retention_request_at(&too_new, now).is_err());
 
     let mut too_old = request.clone();
-    too_old.cutoff_at = now - Duration::seconds(MAX_TENANT_BACKUP_RETENTION_AGE_SECONDS + 1);
-    assert!(validate_tenant_backup_retention_request_at(&too_old, now).is_err());
+    too_old.cutoff_at = now - Duration::seconds(MAX_HOLDING_BACKUP_RETENTION_AGE_SECONDS + 1);
+    assert!(validate_holding_backup_retention_request_at(&too_old, now).is_err());
 
     let mut too_many = request.clone();
-    too_many.max_rows = MAX_TENANT_BACKUP_RETENTION_ROWS + 1;
-    assert!(validate_tenant_backup_retention_request_at(&too_many, now).is_err());
+    too_many.max_rows = MAX_HOLDING_BACKUP_RETENTION_ROWS + 1;
+    assert!(validate_holding_backup_retention_request_at(&too_many, now).is_err());
 
     let mut no_attempts = request;
     no_attempts.max_attempts = 0;
-    assert!(validate_tenant_backup_retention_request_at(&no_attempts, now).is_err());
+    assert!(validate_holding_backup_retention_request_at(&no_attempts, now).is_err());
 }
 
 #[tokio::test]
 #[ignore = "requires two disposable control PostgreSQL databases"]
-async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
+async fn retention_sqlx_flow_binds_holding_holding_and_replays_idempotently() {
     let config = ControlPlaneDatabaseConfig {
         write_url: std::env::var("ERPX_TEST_CONTROL_WRITE_DATABASE_URL")
             .expect("ERPX_TEST_CONTROL_WRITE_DATABASE_URL is required"),
@@ -60,14 +60,14 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
         .await
         .expect("control read migration");
     let store = Arc::new(SqlxControlPlane::new(pools));
-    let registry = SqlxTenantStoreRegistry::new(Arc::clone(&store));
+    let registry = SqlxHoldingStoreRegistry::new(Arc::clone(&store));
     let suffix = Uuid::new_v4().simple().to_string();
-    let tenant_id = format!("tenant-retention-{suffix}");
-    let holding_ref = format!("holding-retention-{suffix}");
+    let holding_id = format!("holding-retention-{suffix}");
+    let data_profile_key = format!("holding-retention-{suffix}");
     registry
-        .register(TenantStoreRegistration {
-            tenant_id: tenant_id.clone(),
-            holding_ref: holding_ref.clone(),
+        .register(HoldingStoreRegistration {
+            holding_id: holding_id.clone(),
+            data_profile_key: data_profile_key.clone(),
             write_database_key: format!("retention-write-{suffix}"),
             read_database_key: format!("retention-read-{suffix}"),
             storage_namespace: format!("retention-storage-{suffix}"),
@@ -77,7 +77,7 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
             registry_version: 1,
         })
         .await
-        .expect("register retention tenant");
+        .expect("register retention holding");
 
     let now = Utc::now();
     let old = now - Duration::days(3);
@@ -86,15 +86,15 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
         let job_id = Uuid::new_v4();
         let run_id = Uuid::new_v4();
         sqlx::query(
-            "INSERT INTO erpx_control.tenant_backup_jobs
-                (id, tenant_id, holding_ref, kind, backup_ref, state, available_at,
+            "INSERT INTO erpx_control.holding_backup_jobs
+                (id, holding_id, data_profile_key, kind, backup_ref, state, available_at,
                  attempts, max_attempts, verified, request_hash, idempotency_key,
                  created_at, updated_at)
              VALUES ($1, $2, $3, 'full', $4, $5, $6, 1, 1, TRUE, $7, $8, $6, $6)",
         )
         .bind(job_id)
-        .bind(&tenant_id)
-        .bind(&holding_ref)
+        .bind(&holding_id)
+        .bind(&data_profile_key)
         .bind(format!("object-ref-{suffix}-{index}"))
         .bind(if index == 2 { "pending" } else { "completed" })
         .bind(updated_at)
@@ -104,19 +104,19 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
         .await
         .expect("insert retention fixture job");
         sqlx::query(
-            "INSERT INTO erpx_control.tenant_backup_runs
-                (id, tenant_id, kind, status, backup_ref, started_at, completed_at, verified)
+            "INSERT INTO erpx_control.holding_backup_runs
+                (id, holding_id, kind, status, backup_ref, started_at, completed_at, verified)
              VALUES ($1, $2, 'full', 'completed', $3, $4, $4, TRUE)",
         )
         .bind(run_id)
-        .bind(&tenant_id)
+        .bind(&holding_id)
         .bind(format!("run-ref-{suffix}-{index}"))
         .bind(updated_at)
         .execute(&store.pools().write)
         .await
         .expect("insert retention fixture run");
         sqlx::query(
-            "INSERT INTO erpx_control.tenant_backup_job_runs (job_id, attempt, run_id)
+            "INSERT INTO erpx_control.holding_backup_job_runs (job_id, attempt, run_id)
              VALUES ($1, 1, $2)",
         )
         .bind(job_id)
@@ -127,9 +127,9 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
     }
 
     let cutoff_at = now - Duration::days(2);
-    let dry_request = TenantBackupRetentionRequest {
-        tenant_id: tenant_id.clone(),
-        holding_ref: holding_ref.clone(),
+    let dry_request = HoldingBackupRetentionRequest {
+        holding_id: holding_id.clone(),
+        data_profile_key: data_profile_key.clone(),
         cutoff_at,
         max_rows: 1,
         dry_run: true,
@@ -147,8 +147,8 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
     assert!(duplicate.duplicate);
     let dry_claim = store
         .claim_backup_retention(
-            &tenant_id,
-            &holding_ref,
+            &holding_id,
+            &data_profile_key,
             dry_receipt.id,
             Uuid::new_v4(),
             Duration::seconds(30),
@@ -171,7 +171,7 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
         store
             .record_backup_inventory_report(
                 &dry_claim,
-                TenantBackupInventoryObservation {
+                HoldingBackupInventoryObservation {
                     expected_objects: 2,
                     observed_objects: 1,
                     missing_objects: 0,
@@ -187,7 +187,7 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
         store
             .record_backup_inventory_report(
                 &dry_claim,
-                TenantBackupInventoryObservation {
+                HoldingBackupInventoryObservation {
                     expected_objects: 1,
                     observed_objects: 1,
                     missing_objects: 0,
@@ -203,7 +203,7 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
     let inventory = store
         .record_backup_inventory_report(
             &dry_claim,
-            TenantBackupInventoryObservation {
+            HoldingBackupInventoryObservation {
                 expected_objects: 2,
                 observed_objects: 2,
                 missing_objects: 0,
@@ -216,9 +216,9 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
         .expect("record matched inventory report");
     assert_eq!(inventory.state, "matched");
     let before: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM erpx_control.tenant_backup_jobs WHERE tenant_id = $1",
+        "SELECT COUNT(*) FROM erpx_control.holding_backup_jobs WHERE holding_id = $1",
     )
-    .bind(&tenant_id)
+    .bind(&holding_id)
     .fetch_one(&store.pools().write)
     .await
     .expect("count before dry-run");
@@ -229,9 +229,9 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
     assert_eq!(dry_report.jobs_selected, 1);
     assert_eq!(dry_report.jobs_deleted, 0);
     let after: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM erpx_control.tenant_backup_jobs WHERE tenant_id = $1",
+        "SELECT COUNT(*) FROM erpx_control.holding_backup_jobs WHERE holding_id = $1",
     )
-    .bind(&tenant_id)
+    .bind(&holding_id)
     .fetch_one(&store.pools().write)
     .await
     .expect("count after dry-run");
@@ -246,9 +246,9 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
     );
 
     let cleanup = store
-        .schedule_backup_retention(TenantBackupRetentionRequest {
-            tenant_id: tenant_id.clone(),
-            holding_ref: holding_ref.clone(),
+        .schedule_backup_retention(HoldingBackupRetentionRequest {
+            holding_id: holding_id.clone(),
+            data_profile_key: data_profile_key.clone(),
             cutoff_at,
             max_rows: 1,
             dry_run: false,
@@ -259,8 +259,8 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
         .expect("schedule cleanup");
     let claim = store
         .claim_backup_retention(
-            &tenant_id,
-            &holding_ref,
+            &holding_id,
+            &data_profile_key,
             cleanup.id,
             Uuid::new_v4(),
             Duration::seconds(30),
@@ -272,7 +272,7 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
     store
         .record_backup_inventory_report(
             &claim,
-            TenantBackupInventoryObservation {
+            HoldingBackupInventoryObservation {
                 expected_objects: 2,
                 observed_objects: 2,
                 missing_objects: 0,
@@ -284,7 +284,7 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
         .await
         .expect("record cleanup inventory evidence");
     sqlx::query(
-        "UPDATE erpx_control.tenant_backup_inventory_reports
+        "UPDATE erpx_control.holding_backup_inventory_reports
          SET error_present = TRUE
          WHERE retention_action_id = $1",
     )
@@ -294,7 +294,7 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
     .expect("tamper cleanup inventory evidence");
     assert!(store.complete_backup_retention(&claim).await.is_err());
     sqlx::query(
-        "UPDATE erpx_control.tenant_backup_inventory_reports
+        "UPDATE erpx_control.holding_backup_inventory_reports
          SET error_present = FALSE
          WHERE retention_action_id = $1",
     )
@@ -323,7 +323,7 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
         2
     );
     let inventory_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM erpx_control.tenant_backup_inventory_reports
+        "SELECT COUNT(*) FROM erpx_control.holding_backup_inventory_reports
          WHERE retention_action_id = $1",
     )
     .bind(dry_claim.id)
@@ -332,7 +332,7 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
     .expect("read projected inventory report");
     assert_eq!(inventory_count, 1);
     let reports = store
-        .list_backup_retention_reports(&tenant_id, &holding_ref, 10)
+        .list_backup_retention_reports(&holding_id, &data_profile_key, 10)
         .await
         .expect("read retention reports");
     assert_eq!(reports.len(), 2);
@@ -340,9 +340,9 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
     assert!(!format!("{reports:?}").contains("object-ref-"));
 
     let retry_action = store
-        .schedule_backup_retention(TenantBackupRetentionRequest {
-            tenant_id: tenant_id.clone(),
-            holding_ref: holding_ref.clone(),
+        .schedule_backup_retention(HoldingBackupRetentionRequest {
+            holding_id: holding_id.clone(),
+            data_profile_key: data_profile_key.clone(),
             cutoff_at,
             max_rows: 1,
             dry_run: true,
@@ -353,8 +353,8 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
         .expect("schedule retry action");
     let retry_claim = store
         .claim_backup_retention(
-            &tenant_id,
-            &holding_ref,
+            &holding_id,
+            &data_profile_key,
             retry_action.id,
             Uuid::new_v4(),
             Duration::seconds(30),
@@ -370,8 +370,8 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
     );
     let retry_claim = store
         .claim_backup_retention(
-            &tenant_id,
-            &holding_ref,
+            &holding_id,
+            &data_profile_key,
             retry_action.id,
             Uuid::new_v4(),
             Duration::seconds(30),
@@ -388,8 +388,8 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
     assert!(
         store
             .claim_backup_retention(
-                &tenant_id,
-                &holding_ref,
+                &holding_id,
+                &data_profile_key,
                 retry_action.id,
                 Uuid::new_v4(),
                 Duration::seconds(30),
@@ -402,8 +402,8 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
     let forged_id = Uuid::new_v4();
     let forged_at = Utc::now();
     sqlx::query(
-        "INSERT INTO erpx_control.tenant_backup_retention_actions
-            (id, tenant_id, holding_ref, cutoff_at, max_rows, dry_run, state,
+        "INSERT INTO erpx_control.holding_backup_retention_actions
+            (id, holding_id, data_profile_key, cutoff_at, max_rows, dry_run, state,
              attempts, max_attempts, jobs_selected, jobs_deleted, runs_deleted,
              object_refs_released, remaining_eligible, error_present,
              request_hash, idempotency_key, created_at, updated_at, completed_at)
@@ -411,8 +411,8 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
                  FALSE, $5, $6, $7, $7, NULL)",
     )
     .bind(forged_id)
-    .bind(&tenant_id)
-    .bind(&holding_ref)
+    .bind(&holding_id)
+    .bind(&data_profile_key)
     .bind(cutoff_at)
     .bind("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc")
     .bind(format!("retention-forged-{suffix}"))
@@ -424,8 +424,8 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
     let stale_id = Uuid::new_v4();
     let stale_now = Utc::now();
     sqlx::query(
-        "INSERT INTO erpx_control.tenant_backup_retention_actions
-            (id, tenant_id, holding_ref, cutoff_at, max_rows, dry_run, state,
+        "INSERT INTO erpx_control.holding_backup_retention_actions
+            (id, holding_id, data_profile_key, cutoff_at, max_rows, dry_run, state,
              attempts, max_attempts, jobs_selected, jobs_deleted, runs_deleted,
              object_refs_released, remaining_eligible, error_present,
              created_at, updated_at, completed_at)
@@ -433,8 +433,8 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
                  FALSE, $5, $5, $5)",
     )
     .bind(stale_id)
-    .bind(&tenant_id)
-    .bind(&holding_ref)
+    .bind(&holding_id)
+    .bind(&data_profile_key)
     .bind(cutoff_at)
     .bind(stale_now)
     .execute(&store.pools().read)
@@ -442,7 +442,7 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
     .expect("insert stale retention read row");
     assert!(store.project_backup_retention_to_read(1).await.is_err());
     let stale_after_rejected_projection: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM erpx_control.tenant_backup_retention_actions WHERE id = $1",
+        "SELECT COUNT(*) FROM erpx_control.holding_backup_retention_actions WHERE id = $1",
     )
     .bind(stale_id)
     .fetch_one(&store.pools().read)
@@ -450,7 +450,7 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
     .expect("check read rollback after rejected retention projection");
     assert_eq!(stale_after_rejected_projection, 1);
     sqlx::query(
-        "UPDATE erpx_control.tenant_backup_retention_actions
+        "UPDATE erpx_control.holding_backup_retention_actions
          SET completed_at = $2 WHERE id = $1",
     )
     .bind(forged_id)
@@ -464,18 +464,18 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
         .expect("rebuild paged retention projection");
     assert_eq!(projected, 4);
     let source_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM erpx_control.tenant_backup_retention_actions")
+        sqlx::query_scalar("SELECT COUNT(*) FROM erpx_control.holding_backup_retention_actions")
             .fetch_one(&store.pools().write)
             .await
             .expect("count retention source rows");
     let read_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM erpx_control.tenant_backup_retention_actions")
+        sqlx::query_scalar("SELECT COUNT(*) FROM erpx_control.holding_backup_retention_actions")
             .fetch_one(&store.pools().read)
             .await
             .expect("count retention read rows");
     assert_eq!(read_count, source_count);
     let stale_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM erpx_control.tenant_backup_retention_actions WHERE id = $1",
+        "SELECT COUNT(*) FROM erpx_control.holding_backup_retention_actions WHERE id = $1",
     )
     .bind(stale_id)
     .fetch_one(&store.pools().read)
@@ -484,9 +484,9 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
     assert_eq!(stale_count, 0);
 
     let wrong_holding = store
-        .schedule_backup_retention(TenantBackupRetentionRequest {
-            tenant_id: tenant_id.clone(),
-            holding_ref: "wrong-holding".into(),
+        .schedule_backup_retention(HoldingBackupRetentionRequest {
+            holding_id: holding_id.clone(),
+            data_profile_key: "wrong-holding".into(),
             cutoff_at,
             max_rows: 1,
             dry_run: true,
@@ -496,13 +496,13 @@ async fn retention_sqlx_flow_binds_tenant_holding_and_replays_idempotently() {
         .await;
     assert!(wrong_holding.is_err());
     let direct_wrong_binding = sqlx::query(
-        "INSERT INTO erpx_control.tenant_backup_retention_actions
-            (id, tenant_id, holding_ref, cutoff_at, max_rows, dry_run, state,
+        "INSERT INTO erpx_control.holding_backup_retention_actions
+            (id, holding_id, data_profile_key, cutoff_at, max_rows, dry_run, state,
              attempts, max_attempts, request_hash, idempotency_key)
          VALUES ($1, $2, 'wrong-holding', $3, 1, TRUE, 'pending', 0, 1, $4, $5)",
     )
     .bind(Uuid::new_v4())
-    .bind(&tenant_id)
+    .bind(&holding_id)
     .bind(cutoff_at)
     .bind("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
     .bind(format!("retention-direct-wrong-{suffix}"))
@@ -532,14 +532,14 @@ async fn retention_expired_claim_is_reclaimed_and_stale_worker_is_fenced() {
         .await
         .expect("control read migration");
     let store = Arc::new(SqlxControlPlane::new(pools));
-    let registry = SqlxTenantStoreRegistry::new(Arc::clone(&store));
+    let registry = SqlxHoldingStoreRegistry::new(Arc::clone(&store));
     let suffix = Uuid::new_v4().simple().to_string();
-    let tenant_id = format!("tenant-retention-lease-{suffix}");
-    let holding_ref = format!("holding-retention-lease-{suffix}");
+    let holding_id = format!("holding-retention-lease-{suffix}");
+    let data_profile_key = format!("holding-retention-lease-{suffix}");
     registry
-        .register(TenantStoreRegistration {
-            tenant_id: tenant_id.clone(),
-            holding_ref: holding_ref.clone(),
+        .register(HoldingStoreRegistration {
+            holding_id: holding_id.clone(),
+            data_profile_key: data_profile_key.clone(),
             write_database_key: format!("retention-lease-write-{suffix}"),
             read_database_key: format!("retention-lease-read-{suffix}"),
             storage_namespace: format!("retention-lease-storage-{suffix}"),
@@ -549,12 +549,12 @@ async fn retention_expired_claim_is_reclaimed_and_stale_worker_is_fenced() {
             registry_version: 1,
         })
         .await
-        .expect("register retention lease tenant");
+        .expect("register retention lease holding");
 
     let action = store
-        .schedule_backup_retention(TenantBackupRetentionRequest {
-            tenant_id: tenant_id.clone(),
-            holding_ref: holding_ref.clone(),
+        .schedule_backup_retention(HoldingBackupRetentionRequest {
+            holding_id: holding_id.clone(),
+            data_profile_key: data_profile_key.clone(),
             cutoff_at: Utc::now() - Duration::days(2),
             max_rows: 1,
             dry_run: true,
@@ -566,8 +566,8 @@ async fn retention_expired_claim_is_reclaimed_and_stale_worker_is_fenced() {
     let crashed_worker = Uuid::new_v4();
     let first_claim = store
         .claim_backup_retention(
-            &tenant_id,
-            &holding_ref,
+            &holding_id,
+            &data_profile_key,
             action.id,
             crashed_worker,
             Duration::seconds(30),
@@ -580,18 +580,18 @@ async fn retention_expired_claim_is_reclaimed_and_stale_worker_is_fenced() {
     // Model a process crash without sleeping: the database clock is the
     // authoritative lease clock used by every retention mutation.
     sqlx::query(
-        "UPDATE erpx_control.tenant_backup_retention_actions
+        "UPDATE erpx_control.holding_backup_retention_actions
          SET lease_until = clock_timestamp() - interval '1 second'
-         WHERE id = $1 AND tenant_id = $2 AND holding_ref = $3",
+         WHERE id = $1 AND holding_id = $2 AND data_profile_key = $3",
     )
     .bind(action.id)
-    .bind(&tenant_id)
-    .bind(&holding_ref)
+    .bind(&holding_id)
+    .bind(&data_profile_key)
     .execute(&store.pools().write)
     .await
     .expect("expire crashed worker lease");
 
-    let stale_inventory = TenantBackupInventoryObservation {
+    let stale_inventory = HoldingBackupInventoryObservation {
         expected_objects: 0,
         observed_objects: 0,
         missing_objects: 0,
@@ -642,8 +642,8 @@ async fn retention_expired_claim_is_reclaimed_and_stale_worker_is_fenced() {
     let restarted_worker = Uuid::new_v4();
     let reclaimed_claim = store
         .claim_backup_retention(
-            &tenant_id,
-            &holding_ref,
+            &holding_id,
+            &data_profile_key,
             action.id,
             restarted_worker,
             Duration::seconds(30),
@@ -669,16 +669,16 @@ async fn retention_expired_claim_is_reclaimed_and_stale_worker_is_fenced() {
 
     // Keep this ignored acceptance isolated when multiple retention tests use
     // the same disposable control databases in one serial invocation.
-    sqlx::query("DELETE FROM erpx_control.tenant_backup_retention_actions WHERE id = $1")
+    sqlx::query("DELETE FROM erpx_control.holding_backup_retention_actions WHERE id = $1")
         .bind(action.id)
         .execute(&store.pools().write)
         .await
         .expect("remove retention lease fixture action");
-    sqlx::query("DELETE FROM erpx_control.tenant_registry WHERE tenant_id = $1")
-        .bind(&tenant_id)
+    sqlx::query("DELETE FROM erpx_control.holding_registry WHERE holding_id = $1")
+        .bind(&holding_id)
         .execute(&store.pools().write)
         .await
-        .expect("remove retention lease fixture tenant");
+        .expect("remove retention lease fixture holding");
 
     store.pools().write.close().await;
     store.pools().read.close().await;

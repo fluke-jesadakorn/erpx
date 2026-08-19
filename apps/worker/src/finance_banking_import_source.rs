@@ -2,7 +2,7 @@
 //!
 //! Provider credentials and provider payloads never enter this source. The job stores only the
 //! validated request envelope, authorization decision, route fence, and bounded worker evidence.
-//! The tenant store remains authoritative for imported facts; this control-plane source owns
+//! The holding store remains authoritative for imported facts; this control-plane source owns
 //! scheduling, claim fencing, retries, and durable reconciliation/rollback evidence.
 
 use chrono::{DateTime, Duration, Utc};
@@ -28,8 +28,8 @@ const FINANCE_BANK_PROVIDER_IMPORT_AGGREGATE: &str = "finance_bank_provider_impo
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinanceBankProviderImportJobStatus {
     pub job_id: Uuid,
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub import_id: Uuid,
     pub state: String,
     pub source_fence: u64,
@@ -96,11 +96,11 @@ impl SqlxFinanceBankProviderImportJobSource {
         if let Some(row) = sqlx::query(
             "SELECT job_id, request_hash
              FROM erpx_control.finance_bank_provider_import_jobs
-             WHERE tenant_id=$1 AND holding_ref=$2 AND import_id=$3
+             WHERE holding_id=$1 AND data_profile_key=$2 AND import_id=$3
              FOR UPDATE",
         )
-        .bind(&request.tenant_id)
-        .bind(&request.holding_ref)
+        .bind(&request.holding_id)
+        .bind(&request.data_profile_key)
         .bind(request.import_id)
         .fetch_optional(&mut *tx)
         .await?
@@ -118,15 +118,15 @@ impl SqlxFinanceBankProviderImportJobSource {
         }
         sqlx::query(
             "INSERT INTO erpx_control.finance_bank_provider_import_jobs
-                (job_id, tenant_id, holding_ref, import_id, provider_account_ref,
+                (job_id, holding_id, data_profile_key, import_id, provider_account_ref,
                  provider_key, credential_key_ref, source_fence, request,
                  authorization_facts, request_hash, state, available_at, max_attempts,
                  attempts, created_at, updated_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pending',$12,$13,0,now(),now())",
         )
         .bind(job_id)
-        .bind(&request.tenant_id)
-        .bind(&request.holding_ref)
+        .bind(&request.holding_id)
+        .bind(&request.data_profile_key)
         .bind(request.import_id)
         .bind(&request.provider_account_ref)
         .bind(&request.provider_key)
@@ -151,12 +151,12 @@ impl SqlxFinanceBankProviderImportJobSource {
             format!("finance-bank-provider-import:{job_id}").as_bytes(),
         );
         let event_key = format!("finance.bank_provider_import.queued:{job_id}");
-        let tenant_scope = serde_json::to_value(&request.context.tenant_scope)?;
+        let active_scope = serde_json::to_value(&request.context.active_scope)?;
         let actor = serde_json::to_value(&request.context.actor)?;
         let payload = json!({
             "job_id": job_id,
-            "tenant_id": request.tenant_id,
-            "holding_ref": request.holding_ref,
+            "holding_id": request.holding_id,
+            "data_profile_key": request.data_profile_key,
             "import_id": request.import_id,
             "provider_account_ref": request.provider_account_ref,
             "provider_key": request.provider_key,
@@ -165,7 +165,7 @@ impl SqlxFinanceBankProviderImportJobSource {
         sqlx::query(
             "INSERT INTO erpx_control.outbox_events
                 (id, event_type, event_version, aggregate_type, aggregate_id,
-                 aggregate_version, tenant_scope, actor, correlation_id,
+                 aggregate_version, active_scope, actor, correlation_id,
                  causation_id, idempotency_key, payload, occurred_at, available_at)
              VALUES ($1,$2,1,$3,$4,1,$5,$6,$7,$8,$9,$10,now(),$11)
              ON CONFLICT (idempotency_key) DO NOTHING",
@@ -174,7 +174,7 @@ impl SqlxFinanceBankProviderImportJobSource {
         .bind(FINANCE_BANK_PROVIDER_IMPORT_QUEUED_EVENT)
         .bind(FINANCE_BANK_PROVIDER_IMPORT_AGGREGATE)
         .bind(job_id)
-        .bind(tenant_scope)
+        .bind(active_scope)
         .bind(&actor)
         .bind(request.context.correlation_id)
         .bind(request.context.causation_id)
@@ -212,7 +212,7 @@ impl SqlxFinanceBankProviderImportJobSource {
             ));
         }
         let row = sqlx::query(
-            "SELECT job_id, tenant_id, holding_ref, import_id, state,
+            "SELECT job_id, holding_id, data_profile_key, import_id, state,
                     source_fence, attempts, max_attempts, available_at,
                     lease_until, last_failure_class, completed_at, updated_at
              FROM erpx_control.finance_bank_provider_import_job_status
@@ -226,7 +226,7 @@ impl SqlxFinanceBankProviderImportJobSource {
 
     async fn sync_status(&self, job_id: Uuid) -> Result<(), PersistenceError> {
         let row = sqlx::query(
-            "SELECT job_id, tenant_id, holding_ref, import_id, state,
+            "SELECT job_id, holding_id, data_profile_key, import_id, state,
                     source_fence, attempts, max_attempts, available_at,
                     lease_until, last_failure_class, completed_at, updated_at
              FROM erpx_control.finance_bank_provider_import_jobs
@@ -242,7 +242,7 @@ impl SqlxFinanceBankProviderImportJobSource {
         let status = status_from_row(row)?;
         sqlx::query(
             "INSERT INTO erpx_control.finance_bank_provider_import_job_status
-                (job_id, tenant_id, holding_ref, import_id, state, source_fence,
+                (job_id, holding_id, data_profile_key, import_id, state, source_fence,
                  attempts, max_attempts, available_at, lease_until,
                  last_failure_class, completed_at, updated_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
@@ -254,8 +254,8 @@ impl SqlxFinanceBankProviderImportJobSource {
                  completed_at=EXCLUDED.completed_at, updated_at=EXCLUDED.updated_at",
         )
         .bind(status.job_id)
-        .bind(&status.tenant_id)
-        .bind(&status.holding_ref)
+        .bind(&status.holding_id)
+        .bind(&status.data_profile_key)
         .bind(status.import_id)
         .bind(&status.state)
         .bind(as_i64(
@@ -288,7 +288,7 @@ impl SqlxFinanceBankProviderImportJobSource {
             "SELECT c.job_id, j.import_id, j.source_fence, j.state,
                     c.source_fence AS claim_source_fence,
                     j.current_claim_id, j.worker_id, j.lease_until,
-                    j.tenant_id, j.holding_ref, j.request
+                    j.holding_id, j.data_profile_key, j.request
              FROM erpx_control.finance_bank_provider_import_job_claims c
              JOIN erpx_control.finance_bank_provider_import_jobs j ON j.job_id=c.job_id
              WHERE c.claim_id=$1 AND c.worker_id=$2
@@ -404,7 +404,7 @@ impl FinanceBankProviderImportJobSource for SqlxFinanceBankProviderImportJobSour
         }
         let mut tx = self.write_pool.begin().await?;
         let rows = sqlx::query(
-            "SELECT job_id, tenant_id, holding_ref, import_id,
+            "SELECT job_id, holding_id, data_profile_key, import_id,
                     provider_account_ref, provider_key, credential_key_ref,
                     source_fence, request, authorization_facts, attempts,
                     max_attempts, current_claim_id
@@ -455,15 +455,15 @@ impl FinanceBankProviderImportJobSource for SqlxFinanceBankProviderImportJobSour
                 serde_json::from_value(row.try_get("request")?)?;
             let authorization: FinanceBankProviderImportAuthorization =
                 serde_json::from_value(row.try_get("authorization_facts")?)?;
-            let job_tenant_id: String = row.try_get("tenant_id")?;
-            let job_holding_ref: String = row.try_get("holding_ref")?;
+            let job_holding_id: String = row.try_get("holding_id")?;
+            let job_data_profile_key: String = row.try_get("data_profile_key")?;
             let job_provider_account_ref: String = row.try_get("provider_account_ref")?;
             let job_provider_key: String = row.try_get("provider_key")?;
             let job_credential_key_ref: String = row.try_get("credential_key_ref")?;
             validate_claim_request_binding(
                 &request,
-                &job_tenant_id,
-                &job_holding_ref,
+                &job_holding_id,
+                &job_data_profile_key,
                 row.try_get("import_id")?,
                 &job_provider_account_ref,
                 &job_provider_key,
@@ -742,8 +742,8 @@ fn ensure_active_claim(
 
 fn validate_claim_request_binding(
     request: &FinanceBankProviderImportRequest,
-    tenant_id: &str,
-    holding_ref: &str,
+    holding_id: &str,
+    data_profile_key: &str,
     import_id: Uuid,
     provider_account_ref: &str,
     provider_key: &str,
@@ -752,8 +752,8 @@ fn validate_claim_request_binding(
     request
         .validate()
         .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
-    if request.tenant_id != tenant_id
-        || request.holding_ref != holding_ref
+    if request.holding_id != holding_id
+        || request.data_profile_key != data_profile_key
         || request.import_id != import_id
         || request.provider_account_ref != provider_account_ref
         || request.provider_key != provider_key
@@ -817,8 +817,8 @@ fn status_from_row(
 ) -> Result<FinanceBankProviderImportJobStatus, PersistenceError> {
     Ok(FinanceBankProviderImportJobStatus {
         job_id: row.try_get("job_id")?,
-        tenant_id: row.try_get("tenant_id")?,
-        holding_ref: row.try_get("holding_ref")?,
+        holding_id: row.try_get("holding_id")?,
+        data_profile_key: row.try_get("data_profile_key")?,
         import_id: row.try_get("import_id")?,
         state: row.try_get("state")?,
         source_fence: as_u64(

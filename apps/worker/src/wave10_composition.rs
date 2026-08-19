@@ -1,22 +1,22 @@
-//! Trusted tenant-router composition for future enterprise projections.
+//! Trusted holding-router composition for future enterprise projections.
 
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionPool, ProjectionRun, ProjectionRunnerConfig, WritePool};
 use erpx_infrastructure::{
-    ProjectionClaimRecord, ProjectionJobKind, RoutedDatabaseSide, TenantDatabaseRouter,
+    HoldingDatabaseRouter, ProjectionClaimRecord, ProjectionJobKind, RoutedDatabaseSide,
 };
 use erpx_worker::{
-    FutureEnterpriseProjectionKind, FutureEnterpriseProjectionRuntime, TenantProjectionExecutor,
-    TenantProjectionExecutorError,
+    FutureEnterpriseProjectionKind, FutureEnterpriseProjectionRuntime, HoldingProjectionExecutor,
+    HoldingProjectionExecutorError,
 };
 
 #[derive(Debug, Clone)]
 pub struct Wave10ProjectionExecutor {
-    router: TenantDatabaseRouter,
+    router: HoldingDatabaseRouter,
     kind: FutureEnterpriseProjectionKind,
 }
 impl Wave10ProjectionExecutor {
-    pub const fn new(router: TenantDatabaseRouter, kind: FutureEnterpriseProjectionKind) -> Self {
+    pub const fn new(router: HoldingDatabaseRouter, kind: FutureEnterpriseProjectionKind) -> Self {
         Self { router, kind }
     }
     fn projection_name(&self) -> &'static str {
@@ -65,28 +65,28 @@ impl Wave10ProjectionExecutor {
     }
     async fn runtime(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         page_size: u32,
-    ) -> Result<FutureEnterpriseProjectionRuntime, TenantProjectionExecutorError> {
+    ) -> Result<FutureEnterpriseProjectionRuntime, HoldingProjectionExecutorError> {
         let write = self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Write)
             .await
-            .map_err(|_| TenantProjectionExecutorError::Retryable)?;
+            .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
         let read = self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Read)
             .await
-            .map_err(|_| TenantProjectionExecutorError::Retryable)?;
-        let tenant_id = crate::cqrs_tenant_uuid(tenant_id)?;
+            .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
+        let holding_id = crate::cqrs_holding_uuid(holding_id)?;
         FutureEnterpriseProjectionRuntime::new(
-            WritePool::for_tenant(write.database_pool().clone(), tenant_id)
+            WritePool::for_holding(write.database_pool().clone(), holding_id)
                 .map_err(crate::map_cqrs_projection_error)?,
-            ProjectionPool::for_tenant(read.database_pool().clone(), tenant_id)
+            ProjectionPool::for_holding(read.database_pool().clone(), holding_id)
                 .map_err(crate::map_cqrs_projection_error)?,
-            erpx_kernel::TenantId::try_from_uuid(tenant_id)
-                .map_err(|_| TenantProjectionExecutorError::Permanent)?,
+            erpx_kernel::HoldingId::try_from_uuid(holding_id)
+                .map_err(|_| HoldingProjectionExecutorError::Permanent)?,
             ProjectionRunnerConfig {
                 page_size,
                 ..ProjectionRunnerConfig::default()
@@ -97,14 +97,14 @@ impl Wave10ProjectionExecutor {
 }
 
 #[async_trait]
-impl TenantProjectionExecutor for Wave10ProjectionExecutor {
+impl HoldingProjectionExecutor for Wave10ProjectionExecutor {
     fn projection_name_filter(&self) -> Option<&str> {
         Some(self.projection_name())
     }
     async fn execute(
         &self,
         claim: &ProjectionClaimRecord,
-    ) -> Result<(), TenantProjectionExecutorError> {
+    ) -> Result<(), HoldingProjectionExecutorError> {
         if claim.job.projection_name != self.projection_name()
             || claim.job.payload.get("after").is_some()
             || claim.job.payload.get("cursor").is_some()
@@ -112,13 +112,13 @@ impl TenantProjectionExecutor for Wave10ProjectionExecutor {
             || claim.job.payload.get("source_version").is_some()
             || claim.job.payload.get("generation").is_some()
         {
-            return Err(TenantProjectionExecutorError::Permanent);
+            return Err(HoldingProjectionExecutorError::Permanent);
         }
         let page_size = crate::projection_page_size(&claim.job.payload, 500)?;
         let runtime = self
             .runtime(
-                &claim.job.binding.tenant_id,
-                &claim.job.binding.holding_ref,
+                &claim.job.binding.holding_id,
+                &claim.job.binding.data_profile_key,
                 page_size,
             )
             .await?;
@@ -134,7 +134,7 @@ impl TenantProjectionExecutor for Wave10ProjectionExecutor {
                     .job
                     .rebuild_id
                     .filter(|v| !v.is_nil())
-                    .ok_or(TenantProjectionExecutorError::Permanent)?;
+                    .ok_or(HoldingProjectionExecutorError::Permanent)?;
                 let handle = runtime
                     .begin_or_resume_rebuild(self.kind, generation)
                     .await
@@ -160,9 +160,9 @@ impl TenantProjectionExecutor for Wave10ProjectionExecutor {
         }
     }
 }
-fn validate(run: ProjectionRun) -> Result<(), TenantProjectionExecutorError> {
+fn validate(run: ProjectionRun) -> Result<(), HoldingProjectionExecutorError> {
     if run.retry_scheduled || run.dead_lettered != 0 {
-        return Err(TenantProjectionExecutorError::Retryable);
+        return Err(HoldingProjectionExecutorError::Retryable);
     }
     Ok(())
 }

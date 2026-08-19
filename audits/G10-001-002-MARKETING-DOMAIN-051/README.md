@@ -2,7 +2,7 @@
 
 ## Delivered
 
-The pure domain boundary now validates tenant-bound marketable profiles,
+The pure domain boundary now validates holding-bound marketable profiles,
 deterministic deduplication keys, purpose/channel/jurisdiction/policy-version
 consent, pending double-opt-in and revocation, active suppression, bounded
 audience membership, campaign lifecycle transitions, and send-time delivery
@@ -24,7 +24,7 @@ reconciliation remain open. This is not a complete Marketing/CRM module.
 
 ## Security and rollback
 
-Suppression and consent are evaluated at delivery time, tenant scope is checked
+Suppression and consent are evaluated at delivery time, holding scope is checked
 before campaign delivery, and duplicate idempotency keys cannot send a second
 message. The domain stores no credentials or provider tokens. Rollback is a
 source-only revert until marketing persistence migrations are introduced.

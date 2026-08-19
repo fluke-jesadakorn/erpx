@@ -87,10 +87,10 @@ impl Projector for CommerceChannelProjector {
         changed(
             sqlx::query(
                 "INSERT INTO erpx_ecommerce_read.channel_projection
-                 (projection_name,generation,partition_key,channel_id,scope_key,tenant_scope,
+                 (projection_name,generation,partition_key,channel_id,scope_key,active_scope,
                   channel_code,channel_status,source_aggregate_version,source_global_sequence,projected_at)
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,clock_timestamp())
-                 ON CONFLICT (tenant_id,projection_name,generation,partition_key,channel_id)
+                 ON CONFLICT (holding_id,projection_name,generation,partition_key,channel_id)
                  DO UPDATE SET channel_code=EXCLUDED.channel_code,
                    channel_status=EXCLUDED.channel_status,
                    source_aggregate_version=EXCLUDED.source_aggregate_version,
@@ -147,7 +147,7 @@ impl Projector for CommerceListingProjector {
             ));
         };
         metadata(&CommerceAggregate::Listing(listing.clone()), event)?;
-        changed(sqlx::query("INSERT INTO erpx_ecommerce_read.listing_projection (projection_name,generation,partition_key,listing_id,scope_key,tenant_scope,channel_id,listing_status,price_minor,currency,available,source_aggregate_version,source_global_sequence,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,clock_timestamp()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,listing_id) DO UPDATE SET listing_status=EXCLUDED.listing_status,price_minor=EXCLUDED.price_minor,currency=EXCLUDED.currency,available=EXCLUDED.available,source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,projected_at=clock_timestamp() WHERE erpx_ecommerce_read.listing_projection.source_aggregate_version<EXCLUDED.source_aggregate_version").bind(LISTING_PROJECTION).bind(ctx.generation).bind(&event.partition).bind(listing.id().as_uuid()).bind(scope_key(listing.scope())?).bind(serde_json::to_value(listing.scope()).map_err(failure)?).bind(listing.channel_id().as_uuid()).bind(enum_name(listing.status())?).bind(listing.price().minor_units()).bind(listing.price().currency().as_str()).bind(listing.available()).bind(i64v(event.aggregate_version)?).bind(i64v(event.global_sequence)?).execute(&mut **tx).await.map_err(failure)?,"commerce listing snapshot version did not advance")
+        changed(sqlx::query("INSERT INTO erpx_ecommerce_read.listing_projection (projection_name,generation,partition_key,listing_id,scope_key,active_scope,channel_id,listing_status,price_minor,currency,available,source_aggregate_version,source_global_sequence,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,clock_timestamp()) ON CONFLICT (holding_id,projection_name,generation,partition_key,listing_id) DO UPDATE SET listing_status=EXCLUDED.listing_status,price_minor=EXCLUDED.price_minor,currency=EXCLUDED.currency,available=EXCLUDED.available,source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,projected_at=clock_timestamp() WHERE erpx_ecommerce_read.listing_projection.source_aggregate_version<EXCLUDED.source_aggregate_version").bind(LISTING_PROJECTION).bind(ctx.generation).bind(&event.partition).bind(listing.id().as_uuid()).bind(scope_key(listing.scope())?).bind(serde_json::to_value(listing.scope()).map_err(failure)?).bind(listing.channel_id().as_uuid()).bind(enum_name(listing.status())?).bind(listing.price().minor_units()).bind(listing.price().currency().as_str()).bind(listing.available()).bind(i64v(event.aggregate_version)?).bind(i64v(event.global_sequence)?).execute(&mut **tx).await.map_err(failure)?,"commerce listing snapshot version did not advance")
     }
     async fn reset(
         &self,
@@ -206,7 +206,7 @@ impl Projector for CommerceJourneyProjector {
             }
         };
         let aggregate = &snapshot.aggregate;
-        changed(sqlx::query("INSERT INTO erpx_ecommerce_read.journey_projection (projection_name,generation,partition_key,record_id,record_type,scope_key,tenant_scope,owner_realm,owner_principal_id,lifecycle_status,order_ref,source_aggregate_version,source_global_sequence,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,clock_timestamp()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,record_id) DO UPDATE SET lifecycle_status=EXCLUDED.lifecycle_status,order_ref=EXCLUDED.order_ref,source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,projected_at=clock_timestamp() WHERE erpx_ecommerce_read.journey_projection.source_aggregate_version<EXCLUDED.source_aggregate_version").bind(JOURNEY_PROJECTION).bind(ctx.generation).bind(&event.partition).bind(aggregate.id_uuid()).bind(variant(aggregate.aggregate_type())?).bind(scope_key(aggregate.scope())?).bind(serde_json::to_value(aggregate.scope()).map_err(failure)?).bind(enum_name(owner.realm)?).bind(owner.principal_id).bind(status).bind(order_ref).bind(i64v(event.aggregate_version)?).bind(i64v(event.global_sequence)?).execute(&mut **tx).await.map_err(failure)?,"commerce journey snapshot version did not advance")
+        changed(sqlx::query("INSERT INTO erpx_ecommerce_read.journey_projection (projection_name,generation,partition_key,record_id,record_type,scope_key,active_scope,owner_realm,owner_principal_id,lifecycle_status,order_ref,source_aggregate_version,source_global_sequence,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,clock_timestamp()) ON CONFLICT (holding_id,projection_name,generation,partition_key,record_id) DO UPDATE SET lifecycle_status=EXCLUDED.lifecycle_status,order_ref=EXCLUDED.order_ref,source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,projected_at=clock_timestamp() WHERE erpx_ecommerce_read.journey_projection.source_aggregate_version<EXCLUDED.source_aggregate_version").bind(JOURNEY_PROJECTION).bind(ctx.generation).bind(&event.partition).bind(aggregate.id_uuid()).bind(variant(aggregate.aggregate_type())?).bind(scope_key(aggregate.scope())?).bind(serde_json::to_value(aggregate.scope()).map_err(failure)?).bind(enum_name(owner.realm)?).bind(owner.principal_id).bind(status).bind(order_ref).bind(i64v(event.aggregate_version)?).bind(i64v(event.global_sequence)?).execute(&mut **tx).await.map_err(failure)?,"commerce journey snapshot version did not advance")
     }
     async fn reset(
         &self,
@@ -237,7 +237,7 @@ fn validate(
 fn metadata(a: &CommerceAggregate, e: &ProjectionEvent) -> Result<(), ProjectionFailure> {
     if a.id_uuid() != e.aggregate_id.as_uuid()
         || a.version() != e.aggregate_version
-        || a.scope() != &e.tenant_scope
+        || a.scope() != &e.active_scope
         || crate::aggregate_partition(a.aggregate_type(), a.id_uuid()) != e.partition
     {
         return Err(ProjectionFailure::new(
@@ -266,13 +266,13 @@ fn changed(r: sqlx::postgres::PgQueryResult, m: &str) -> Result<(), ProjectionFa
     }
     Ok(())
 }
-fn scope_key(s: &erpx_kernel::TenantScope) -> Result<String, ProjectionFailure> {
+fn scope_key(s: &erpx_kernel::AuthorityScope) -> Result<String, ProjectionFailure> {
     match s {
-        erpx_kernel::TenantScope::Company {
+        erpx_kernel::AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok(format!("h:{holding_id}/c:{company_id}")),
-        erpx_kernel::TenantScope::Branch {
+        erpx_kernel::AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,

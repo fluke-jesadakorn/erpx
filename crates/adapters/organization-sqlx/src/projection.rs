@@ -65,18 +65,18 @@ impl Projector for OrganizationNodeProjector {
             "INSERT INTO erpx_organization_read.node_projection
                 (projection_name, generation, partition_key, node_id,
                  source_aggregate_version, source_global_sequence, node_kind,
-                 node_status, parent_node_id, tenant_scope, scope_key, placement,
+                 node_status, parent_node_id, active_scope, scope_key, placement,
                  node_code, display_name, state, aggregate_created_at,
                  aggregate_updated_at, projected_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
                      $13, $14, $15, $16, $17, now())
-             ON CONFLICT (tenant_id,projection_name, generation, partition_key, node_id)
+             ON CONFLICT (holding_id,projection_name, generation, partition_key, node_id)
              DO UPDATE SET source_aggregate_version = EXCLUDED.source_aggregate_version,
                            source_global_sequence = EXCLUDED.source_global_sequence,
                            node_kind = EXCLUDED.node_kind,
                            node_status = EXCLUDED.node_status,
                            parent_node_id = EXCLUDED.parent_node_id,
-                           tenant_scope = EXCLUDED.tenant_scope,
+                           active_scope = EXCLUDED.active_scope,
                            scope_key = EXCLUDED.scope_key,
                            placement = EXCLUDED.placement,
                            node_code = EXCLUDED.node_code,
@@ -158,9 +158,9 @@ fn validate_event(
     let view = &snapshot.node;
     if view.version != event.aggregate_version
         || view.node_id.as_uuid() != event.aggregate_id.as_uuid()
-        || view.scope != event.tenant_scope
+        || view.scope != event.active_scope
         || event.partition != node_partition(view.node_id)
-        || view.placement.tenant_scope(view.node_id).ok().as_ref() != Some(&view.scope)
+        || view.placement.active_scope(view.node_id).ok().as_ref() != Some(&view.scope)
     {
         return Err(ProjectionFailure::new(
             "organization snapshot metadata does not match its outbox envelope",
@@ -169,23 +169,23 @@ fn validate_event(
     Ok(snapshot)
 }
 
-pub(crate) fn scope_key(scope: &erpx_kernel::TenantScope) -> Result<String, ProjectionFailure> {
+pub(crate) fn scope_key(scope: &erpx_kernel::AuthorityScope) -> Result<String, ProjectionFailure> {
     scope
         .validate()
         .map_err(|_| ProjectionFailure::new("organization scope is invalid"))?;
     Ok(match scope {
-        erpx_kernel::TenantScope::Platform => "platform".into(),
-        erpx_kernel::TenantScope::Holding { holding_id } => format!("h:{holding_id}"),
-        erpx_kernel::TenantScope::Company {
+        erpx_kernel::AuthorityScope::Platform => "platform".into(),
+        erpx_kernel::AuthorityScope::Holding { holding_id } => format!("h:{holding_id}"),
+        erpx_kernel::AuthorityScope::Company {
             holding_id,
             company_id,
         } => format!("h:{holding_id}/c:{company_id}"),
-        erpx_kernel::TenantScope::Branch {
+        erpx_kernel::AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         } => format!("h:{holding_id}/c:{company_id}/b:{branch_id}"),
-        erpx_kernel::TenantScope::Subtree { .. } => {
+        erpx_kernel::AuthorityScope::Subtree { .. } => {
             return Err(ProjectionFailure::new(
                 "organization nodes cannot own a subtree scope",
             ));

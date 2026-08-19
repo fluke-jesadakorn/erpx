@@ -7,5 +7,6 @@ license.workspace = true
 [dependencies]
 erpx-domain.workspace = true
 erpx-ui-core.workspace = true
+uuid.workspace = true
 [lints]
 workspace = true

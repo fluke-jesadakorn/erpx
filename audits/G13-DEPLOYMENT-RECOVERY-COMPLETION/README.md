@@ -19,7 +19,7 @@ The executable test reads the authoritative implementation surfaces. It does
 not use mocks, a schema-only fixture, or a fake database.
 
 1. **Migration and protobuf compatibility seams.** It checks the embedded
-   control/read/tenant migrator roots, idempotency/outbox/projection-receipt
+   control/read/holding migrator roots, idempotency/outbox/projection-receipt
    tables, ordered G13 phases, read-only source extraction, versioned protobuf
    packages, the actual `tonic-prost-build` inputs, generated-code inclusion,
    and reserved wire-compatibility fields.
@@ -32,7 +32,7 @@ not use mocks, a schema-only fixture, or a fake database.
    migrator remains dry-run/read-only and contains no cutover command, that
    rollback rehearsal and Folio-retention phases remain explicit, and that the
    Folio ERPX platform page remains permission-gated and schema-aware. The
-   Folio control-plane migration message explicitly preserves tenant business
+   Folio control-plane migration message explicitly preserves holding business
    records.
 4. **Runtime blocker queue.** It reports missing database references and
    whether port 3004 is reachable. It also reports the absence of disposable
@@ -52,7 +52,7 @@ green structural test is not a green G13 gate.
 
 | Acceptance requirement | Current evidence | Status |
 | --- | --- | --- |
-| Authoritative migration set | `CONTROL_*_MIGRATOR` and tenant migrators are embedded from their real SQL directories; control SQL has idempotency, outbox, checkpoints, and projection receipts | PASS — contract |
+| Authoritative migration set | `CONTROL_*_MIGRATOR` and holding migrators are embedded from their real SQL directories; control SQL has idempotency, outbox, checkpoints, and projection receipts | PASS — contract |
 | Protobuf compatibility | Versioned `.proto` packages, build inputs, generated inclusion, and reserved fields are checked; no prior descriptor baseline is checked in | PARTIAL — source/build contract only |
 | Worker restart and idempotency | Real registry, lease, claim, retry/DLQ, receipt/idempotency, heartbeat, and graceful Ctrl-C seams are checked | PASS — contract; live restart open |
 | Rollback evidence | Ordered `RollbackRehearsed` phase and read-only dry-run plan are checked | PARTIAL — no disposable target restore/compensation rehearsal |
@@ -66,7 +66,7 @@ The coordinator must run these against disposable, isolated source/target and
 rollback resources, then attach the resulting redacted evidence to the
 cohort record:
 
-- apply every authoritative control/read/tenant migration set twice and prove
+- apply every authoritative control/read/holding migration set twice and prove
   the second run is a no-op with compatible checksums/versions;
 - generate a protobuf descriptor set from the checked-in versioned inputs and
   compare it with the last approved descriptor baseline, including removed or

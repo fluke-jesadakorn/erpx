@@ -7,7 +7,7 @@
 
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
-use erpx_domain::access::{RoleExpiryNotificationKind, Scope};
+use erpx_domain::{access::RoleExpiryNotificationKind, contracts::AuthorityScope as Scope};
 use erpx_infrastructure::{
     ClaimedRoleExpiryNotification, RoleReviewPersistence, RoleReviewPersistenceError,
 };

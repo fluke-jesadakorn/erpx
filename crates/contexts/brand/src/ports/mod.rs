@@ -8,8 +8,8 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::{StableRecordRef, brand};
 use erpx_kernel::{
-    ActorAttribution, AggregateId, AuditContext, CommandId, CorrelationId, EventId, RecordId,
-    TenantScope,
+    ActorAttribution, AggregateId, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
+    RecordId,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -57,7 +57,7 @@ impl BrandAction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
     pub target: &'a BrandScope,
     pub action: BrandAction,
 }
@@ -71,8 +71,11 @@ pub trait AuthorizationPort: Send + Sync {
 
 #[async_trait]
 pub trait EntitlementPort: Send + Sync {
-    async fn ensure_brand_enabled(&self, scope: &TenantScope, write: bool)
-    -> Result<(), PortError>;
+    async fn ensure_brand_enabled(
+        &self,
+        scope: &AuthorityScope,
+        write: bool,
+    ) -> Result<(), PortError>;
 }
 
 /// Authoritative parent lookup used by command handlers. Callers never supply
@@ -129,13 +132,13 @@ pub struct CommandIdentity {
 pub trait WriteRepository: Send + Sync {
     async fn load(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         profile_id: BrandProfileId,
     ) -> Result<Option<BrandProfile>, PortError>;
 
     async fn load_archived_revision(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         profile_id: BrandProfileId,
         revision: u64,
     ) -> Result<Option<ArchivedBrandRevision>, PortError>;
@@ -147,7 +150,7 @@ pub struct BrandCommit {
     pub correlation_id: CorrelationId,
     pub causation_id: Option<EventId>,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub reason: String,
     pub expected_version: Option<u64>,
@@ -294,21 +297,21 @@ pub struct ReadProjection<T> {
 pub trait ReadRepository: Send + Sync {
     async fn get_draft(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         scope: &BrandScope,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<BrandProfileView>>, PortError>;
 
     async fn get_resolved(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         scope: &BrandScope,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<ResolvedBrandView>>, PortError>;
 
     async fn list_history(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         scope: &BrandScope,
         page_size: u16,
         cursor: Option<&str>,
@@ -323,7 +326,7 @@ pub trait ReadRepository: Send + Sync {
 pub trait DerivedRecordReadRepository: Send + Sync {
     async fn get_asset(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         target_scope: &BrandScope,
         record_id: RecordId,
         consistency: &QueryConsistency,
@@ -331,7 +334,7 @@ pub trait DerivedRecordReadRepository: Send + Sync {
 
     async fn get_publication(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         target_scope: &BrandScope,
         record_id: RecordId,
         consistency: &QueryConsistency,

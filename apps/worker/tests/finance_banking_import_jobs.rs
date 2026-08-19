@@ -1,6 +1,6 @@
 use chrono::{Duration, NaiveDate, Utc};
 use erpx_domain::{
-    contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope},
+    contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext},
     finance::{FinanceAccessPath, FinanceAuthorizationOperation, FinanceAuthorizationRequest},
 };
 use erpx_infrastructure::{
@@ -28,7 +28,7 @@ fn test_config() -> ControlPlaneDatabaseConfig {
 fn build_request(suffix: &str) -> FinanceBankProviderImportRequest {
     let holding_id = Uuid::from_u128(1);
     let company_id = Uuid::from_u128(2);
-    let scope = TenantScope::Company {
+    let scope = AuthorityScope::Company {
         holding_id,
         company_id,
     };
@@ -46,7 +46,7 @@ fn build_request(suffix: &str) -> FinanceBankProviderImportRequest {
         format!("finance-bank-import-{suffix}"),
         ActorAttribution {
             principal_ref: "finance-fixture-user".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: Some(Uuid::from_u128(5)),
             represented_principal_ref: None,
             support_capability_id: None,
@@ -58,8 +58,8 @@ fn build_request(suffix: &str) -> FinanceBankProviderImportRequest {
     FinanceBankProviderImportRequest {
         provider_account_ref: "fixturebank:account-opaque-1".into(),
         provider_key: "fixturebank".into(),
-        tenant_id: format!("tenant-finance-bank-{suffix}"),
-        holding_ref: format!("holding-finance-bank-{suffix}"),
+        holding_id: format!("holding-finance-bank-{suffix}"),
+        data_profile_key: format!("holding-finance-bank-{suffix}"),
         credential_key: BankProviderCredentialKey::try_new("vault/fixture/finance-bank")
             .expect("credential key"),
         account,
@@ -87,19 +87,19 @@ fn build_authorization(
         .expect("authorization handoff")
 }
 
-async fn register_tenant(control: &SqlxControlPlane, request: &FinanceBankProviderImportRequest) {
+async fn register_holding(control: &SqlxControlPlane, request: &FinanceBankProviderImportRequest) {
     sqlx::query(
-        "INSERT INTO erpx_control.tenant_registry
-            (tenant_id, holding_ref, write_database_key, read_database_key,
+        "INSERT INTO erpx_control.holding_registry
+            (holding_id, data_profile_key, write_database_key, read_database_key,
              storage_namespace, credential_key_ref, backup_chain_ref, state, registry_version)
          VALUES ($1,$2,'fixture-write','fixture-read','fixture-storage',
                  'fixture-credential','fixture-backup','active',1)",
     )
-    .bind(&request.tenant_id)
-    .bind(&request.holding_ref)
+    .bind(&request.holding_id)
+    .bind(&request.data_profile_key)
     .execute(&control.pools().write)
     .await
-    .expect("tenant registry fixture");
+    .expect("holding registry fixture");
 }
 
 #[tokio::test]
@@ -118,7 +118,7 @@ async fn bank_import_jobs_persist_claim_fence_retry_reconciliation_and_read_stat
     let source = SqlxFinanceBankProviderImportJobSource::new(&control);
     let request = build_request(&Uuid::new_v4().to_string());
     let authorization = build_authorization(&request);
-    register_tenant(&control, &request).await;
+    register_holding(&control, &request).await;
 
     let available_at = Utc::now() - Duration::seconds(1);
     let job_id = source
@@ -271,7 +271,7 @@ async fn bank_import_jobs_persist_claim_fence_retry_reconciliation_and_read_stat
 
     let terminal_request = build_request(&Uuid::new_v4().to_string());
     let terminal_authorization = build_authorization(&terminal_request);
-    register_tenant(&control, &terminal_request).await;
+    register_holding(&control, &terminal_request).await;
     let terminal_job_id = source
         .enqueue(
             &terminal_request,

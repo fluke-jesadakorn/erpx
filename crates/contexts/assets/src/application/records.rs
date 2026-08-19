@@ -136,8 +136,8 @@ mod tests {
     use chrono::{TimeZone, Utc};
     use erpx_cqrs::IdempotencyKey;
     use erpx_kernel::{
-        ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, FixedClock,
-        TenantScope,
+        ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+        FixedClock,
     };
     use uuid::Uuid;
 
@@ -152,8 +152,8 @@ mod tests {
             .single()
             .unwrap()
     }
-    fn scope() -> TenantScope {
-        TenantScope::Company {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         }
@@ -173,7 +173,7 @@ mod tests {
             correlation_id: CorrelationId::try_from_uuid(Uuid::from_u128(12)).unwrap(),
             actor: ActorAttribution {
                 principal_ref: "sales:user:1".into(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: None,
                 represented_principal_ref: None,
                 support_capability_id: None,
@@ -194,7 +194,7 @@ mod tests {
     impl AssetLifecycleRecordWriteRepository for Repo {
         async fn load_asset_lifecycle_record(
             &self,
-            _: &TenantScope,
+            _: &AuthorityScope,
             _: Uuid,
         ) -> Result<Option<AssetLifecycleRecord>, PortError> {
             Ok(None)

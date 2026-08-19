@@ -5,7 +5,7 @@
 `erpx/crates/domain/src/procurement_inventory.rs` provides a transport- and
 persistence-free Procurement/Inventory contract slice with:
 
-- validated company/branch tenant scope and command-scope containment;
+- validated company/branch holding scope and command-scope containment;
 - deterministic references and namespaced idempotency keys for command-owned
   Products, Warehouses, Purchase Requests, Purchase Orders, Goods Receipts,
   Stock Movements, Stock Transfers, and Stock Reservations;
@@ -32,8 +32,8 @@ worker, or UI files were changed.
 ## Contracts consumed
 
 - `crate::contracts::CommandContext`
-- `crate::contracts::TenantScope`
-- Existing `CommandContext::validate` and `TenantScope::contains` behavior.
+- `crate::contracts::HoldingScope`
+- Existing `CommandContext::validate` and `HoldingScope::contains` behavior.
 
 ## Contracts produced
 
@@ -76,7 +76,7 @@ or end-to-end Procure-to-Pay integration. Those remain separate packets.
 
 The domain fails closed for invalid scopes, cross-company references, expired
 or terminal lifecycle reuse, over-receipt, over-reservation, and insufficient
-available stock. It carries no credentials, payment instruments, or tenant
+available stock. It carries no credentials, payment instruments, or holding
 connection details. Persistence and transport must still enforce authoritative
 authorization, idempotency uniqueness, optimistic concurrency, and audit
 attribution.

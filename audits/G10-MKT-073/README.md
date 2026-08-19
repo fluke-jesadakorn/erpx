@@ -2,11 +2,11 @@
 
 ## Delivered
 
-- Added a channel-filtered tenant delivery-store constructor.
+- Added a channel-filtered holding delivery-store constructor.
 - Applied the provider account's normalized channel capability list directly
   in the authoritative `claim_due` SQL before `FOR UPDATE SKIP LOCKED` leases
   are created.
-- Wired the multi-tenant worker runtime to build each account source with its
+- Wired the multi-holding worker runtime to build each account source with its
   control-plane channel set.
 - Preserved the unfiltered repository constructor for explicitly composed
   single-source tests and non-provider callers; production multi-account
@@ -16,7 +16,7 @@
 ## Evidence
 
 - Infrastructure channel-filter unit coverage: 3 passed.
-- Disposable two-database tenant proof: 1 passed. Fresh tenant migrations
+- Disposable two-database holding proof: 1 passed. Fresh holding migrations
   seeded queued email and SMS dispatches plus valid consent; an email-scoped
   source claimed only email, and an SMS-scoped source claimed only SMS.
 - `cargo fmt --all --check`: passed.

@@ -9,7 +9,7 @@
   active, and expired states.
 - Requires a non-empty double-opt-in proof for granted consent and fails
   closed for pending or invalid consent.
-- Derives a deterministic, tenant-scoped delivery idempotency key from the
+- Derives a deterministic, holding-scoped delivery idempotency key from the
   profile, campaign, purpose, channel, logical message reference, and
   template revision.
 - Adds a registry that rejects a deterministic key being bound to another
@@ -65,7 +65,7 @@ Run from `erpx/`:
   cancellation jobs, webhook verification, delivery callbacks, and channel
   observability remain outside this packet.
 - Provider-specific rate limits, templates, journey orchestration, campaign
-  policy, Finance attribution, and tenant routing remain open.
+  policy, Finance attribution, and holding routing remain open.
 
 ## Security concerns
 
@@ -79,7 +79,7 @@ Run from `erpx/`:
 - Consent and suppression must be rechecked immediately before every attempt,
   and an active suppression must cancel queued work before provider dispatch.
 - A provider-accepted result is not a delivery claim; only an authenticated,
-  tenant-scoped callback may transition to delivered.
+  holding-scoped callback may transition to delivered.
 
 ## Integration order
 

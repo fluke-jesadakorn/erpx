@@ -6,7 +6,7 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::organization;
 use erpx_kernel::{
-    ActorAttribution, AggregateId, AuditContext, CommandId, CorrelationId, EventId, TenantScope,
+    ActorAttribution, AggregateId, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -88,8 +88,8 @@ pub struct CommandIdentity {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
-    pub target_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
+    pub target_scope: &'a AuthorityScope,
     pub action: OrganizationAction,
 }
 
@@ -102,7 +102,7 @@ pub trait AuthorizationPort: Send + Sync {
 pub trait EntitlementPort: Send + Sync {
     async fn ensure_organization_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         write: bool,
     ) -> Result<(), PortError>;
 }
@@ -114,14 +114,14 @@ pub trait EntitlementPort: Send + Sync {
 pub trait HierarchyPort: Send + Sync {
     async fn validate_placement(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         node_id: OrganizationNodeId,
         placement: &OrganizationPlacement,
     ) -> Result<(), PortError>;
 
     async fn ensure_can_archive(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         node_id: OrganizationNodeId,
     ) -> Result<(), PortError>;
 }
@@ -131,7 +131,7 @@ pub trait HierarchyPort: Send + Sync {
 pub trait WriteRepository: Send + Sync {
     async fn load(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         node_id: OrganizationNodeId,
     ) -> Result<Option<OrganizationNode>, PortError>;
 }
@@ -152,7 +152,7 @@ pub struct OrganizationCommit {
     pub correlation_id: CorrelationId,
     pub causation_id: Option<EventId>,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
     pub hierarchy_guard: Option<HierarchyGuard>,
@@ -212,7 +212,7 @@ pub struct NodeView {
     pub kind: OrganizationNodeKind,
     pub placement: OrganizationPlacement,
     pub parent_id: Option<OrganizationNodeId>,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub status: OrganizationNodeStatus,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -263,14 +263,14 @@ pub struct ReadProjection<T> {
 pub trait ReadRepository: Send + Sync {
     async fn get(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         node_id: OrganizationNodeId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<NodeView>>, PortError>;
 
     async fn list(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &NodeListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<NodeList>, PortError>;

@@ -3,23 +3,23 @@
 ## Scope
 
 This packet wires the existing authoritative Operations read boundary into the
-Dioxus console for `/operations`. It is deliberately bounded to a tenant and
+Dioxus console for `/operations`. It is deliberately bounded to a holding and
 holding read scope selected by the operator; the console never guesses a
 holding from platform metadata and never renders a platform-scope result as a
-tenant result.
+holding result.
 
 ## Authoritative path
 
 - `OperationsService::GetOperationsSummary` reads the persisted Operations
-  summary through the server tenant router and requires `operations.read`.
+  summary through the server holding router and requires `operations.read`.
 - `OperationsService::ListOperationsExceptions` reads the persisted active
   exception projection with a bounded page size and the same scope/role
   checks.
-- The existing Operations aggregate, tenant outbox, worker projector, read
+- The existing Operations aggregate, holding outbox, worker projector, read
   model, reconciliation, and exception command path remain server-owned. The
   console does not introduce a cache, fixture, local fallback, or mutation
   path.
-- Each request carries an authenticated session, tenant holding query scope,
+- Each request carries an authenticated session, holding holding query scope,
   actor metadata, and an audited Operations purpose. Server categorical errors
   are mapped to safe UI states without transport/backend details.
 

@@ -122,7 +122,7 @@ impl SqlxSalesFinanceInbox {
             "INSERT INTO erpx_finance_write.sales_fact_checkpoints
                 (consumer_name,last_global_sequence,last_source_event_id,updated_at)
              VALUES ($1,$2,$3,now())
-             ON CONFLICT (tenant_id,consumer_name) DO UPDATE SET
+             ON CONFLICT (holding_id,consumer_name) DO UPDATE SET
                 last_global_sequence=EXCLUDED.last_global_sequence,
                 last_source_event_id=EXCLUDED.last_source_event_id,
                 updated_at=EXCLUDED.updated_at",
@@ -240,11 +240,10 @@ mod tests {
         assert!(source.contains("FOR UPDATE"));
         assert!(source.contains("handoff_payload"));
         assert!(source.contains("retryable_failure"));
-        let ddl = include_str!(
-            "../../../crates/migration/migrations_tenant_write/0083_sales_finance_ai_approval_slice.sql"
-        );
+        let ddl =
+            include_str!("../../../crates/migration/migrations_holding_write/0001_baseline.sql");
         assert!(ddl.contains("sales_fact_checkpoints"));
         assert!(ddl.contains("handoff_payload JSONB NOT NULL"));
-        assert!(ddl.contains("UNIQUE (tenant_id, source_event_id)"));
+        assert!(ddl.contains("UNIQUE (holding_id, source_event_id)"));
     }
 }

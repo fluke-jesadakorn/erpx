@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use erpx_kernel::{AggregateId, CorrelationId, EventId, TenantScope};
+use erpx_kernel::{AggregateId, AuthorityScope, CorrelationId, EventId};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use crate::{BoundedText, ContractValidationError};
@@ -50,7 +50,7 @@ pub struct IntegrationEventEnvelope<E> {
     event_id: EventId,
     event_type: EventType,
     event_version: u16,
-    tenant_scope: TenantScope,
+    active_scope: AuthorityScope,
     aggregate_kind: AggregateKind,
     aggregate_id: AggregateId,
     aggregate_version: u64,
@@ -64,7 +64,7 @@ impl<E: IntegrationEvent> IntegrationEventEnvelope<E> {
     #[allow(clippy::too_many_arguments)]
     pub fn try_new(
         event_id: EventId,
-        tenant_scope: TenantScope,
+        active_scope: AuthorityScope,
         aggregate_kind: AggregateKind,
         aggregate_id: AggregateId,
         aggregate_version: u64,
@@ -79,7 +79,7 @@ impl<E: IntegrationEvent> IntegrationEventEnvelope<E> {
             event_id,
             event_type,
             event_version: payload.schema_version(),
-            tenant_scope,
+            active_scope,
             aggregate_kind,
             aggregate_id,
             aggregate_version,
@@ -115,9 +115,9 @@ impl<E: IntegrationEvent> IntegrationEventEnvelope<E> {
         {
             return Err(ContractValidationError::NilIdentifier);
         }
-        self.tenant_scope
+        self.active_scope
             .validate()
-            .map_err(|_| ContractValidationError::InvalidTenantScope)?;
+            .map_err(|_| ContractValidationError::InvalidHoldingScope)?;
         if self.occurred_at.timestamp() < 0 {
             return Err(ContractValidationError::InvalidTimestamp);
         }
@@ -140,8 +140,8 @@ impl<E: IntegrationEvent> IntegrationEventEnvelope<E> {
         self.event_version
     }
 
-    pub const fn tenant_scope(&self) -> &TenantScope {
-        &self.tenant_scope
+    pub const fn active_scope(&self) -> &AuthorityScope {
+        &self.active_scope
     }
 
     pub fn aggregate_kind(&self) -> &str {

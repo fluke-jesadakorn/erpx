@@ -161,7 +161,7 @@ fn fact(state: &SalesOrderFactState) -> Result<sales::SalesOrderFact, Integratio
 mod tests {
     use chrono::{TimeZone, Utc};
     use erpx_integration_contracts::{CurrencyCode, IntegrationEvent, MoneyAmount, crm, customer};
-    use erpx_kernel::TenantScope;
+    use erpx_kernel::AuthorityScope;
     use uuid::Uuid;
 
     use super::*;
@@ -172,7 +172,7 @@ mod tests {
     #[test]
     fn quote_is_private_and_confirmed_order_publishes_typed_fact() {
         let at = Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap();
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         };

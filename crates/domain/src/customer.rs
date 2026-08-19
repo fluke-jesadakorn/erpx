@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::access::Scope;
+use crate::contracts::AuthorityScope;
 
 fn default_customer_status() -> CustomerStatus {
     CustomerStatus::Prospect
@@ -389,7 +389,7 @@ pub struct Customer360Projection {
 }
 
 /// A rebuildable projection record used to populate the write-side customer
-/// scope authority. It contains only organization identifiers and no tenant
+/// scope authority. It contains only organization identifiers and no holding
 /// credentials, storage keys, or secrets.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CustomerScopeBindingProjection {
@@ -594,7 +594,7 @@ pub struct CustomerNote {
     pub id: Uuid,
     pub customer_id: Uuid,
     pub author_ref: String,
-    pub scope: Scope,
+    pub scope: AuthorityScope,
     pub created_at: DateTime<Utc>,
     pub body: String,
 }
@@ -622,7 +622,7 @@ impl CustomerNote {
         id: Uuid,
         customer_id: Uuid,
         author_ref: impl Into<String>,
-        scope: Scope,
+        scope: AuthorityScope,
         created_at: DateTime<Utc>,
         body: impl Into<String>,
     ) -> Result<Self, CustomerNoteError> {
@@ -686,29 +686,23 @@ impl CustomerNote {
     }
 }
 
-fn valid_customer_note_scope(scope: &Scope) -> bool {
+fn valid_customer_note_scope(scope: &AuthorityScope) -> bool {
     match scope {
-        Scope::Platform => true,
-        Scope::Holding { holding_id } => !holding_id.is_nil(),
-        Scope::Company {
+        AuthorityScope::Platform => true,
+        AuthorityScope::Holding { holding_id } => !holding_id.is_nil(),
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => !holding_id.is_nil() && !company_id.is_nil(),
-        Scope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         } => !holding_id.is_nil() && !company_id.is_nil() && !branch_id.is_nil(),
-        Scope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
-        } => {
-            !holding_id.is_nil()
-                && (!company_ids.is_empty() || !branch_ids.is_empty())
-                && company_ids.iter().all(|id| !id.is_nil())
-                && branch_ids.iter().all(|id| !id.is_nil())
-        }
+            organization_node_id,
+        } => !holding_id.is_nil() && !organization_node_id.is_nil(),
     }
 }
 
@@ -769,7 +763,7 @@ pub struct CustomerGlobalReadContext {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Customer360DetailReadContext {
     pub customer_id: Uuid,
-    pub scope: Scope,
+    pub scope: AuthorityScope,
     pub global_read: CustomerGlobalReadContext,
 }
 
@@ -830,61 +824,16 @@ impl Customer360DetailReadContext {
         bindings: &[CustomerScopeBindingProjection],
     ) -> Result<(), CustomerDetailReadError> {
         self.validate()?;
-        if matches!(self.scope, Scope::Platform) {
+        if matches!(self.scope, AuthorityScope::Platform) {
             return Ok(());
         }
         let bindings: Vec<_> = bindings
             .iter()
             .filter(|binding| binding.customer_id == self.customer_id)
             .collect();
-        let authorized = match &self.scope {
-            Scope::Subtree {
-                holding_id,
-                company_ids,
-                branch_ids,
-            } => {
-                if company_ids.is_empty() && branch_ids.is_empty() {
-                    false
-                } else if branch_ids.is_empty()
-                    && bindings.iter().any(|binding| {
-                        binding
-                            .as_scope()
-                            .is_some_and(|scope| scope.contains(&self.scope))
-                    })
-                {
-                    true
-                } else {
-                    company_ids.iter().all(|company_id| {
-                        bindings.iter().any(|binding| {
-                            binding.as_scope().is_some_and(|scope| {
-                                scope.contains(&Scope::Company {
-                                    holding_id: *holding_id,
-                                    company_id: *company_id,
-                                })
-                            })
-                        })
-                    }) && branch_ids.iter().all(|branch_id| {
-                        bindings.iter().any(|binding| {
-                            binding.company_id.is_some()
-                                && binding.branch_id.is_some()
-                                && (company_ids.is_empty()
-                                    || company_ids
-                                        .contains(&binding.company_id.unwrap_or_default()))
-                                && binding.as_scope().is_some_and(|scope| {
-                                    scope.contains(&Scope::Branch {
-                                        holding_id: *holding_id,
-                                        company_id: binding.company_id.unwrap_or_default(),
-                                        branch_id: *branch_id,
-                                    })
-                                })
-                        })
-                    })
-                }
-            }
-            _ => bindings
-                .iter()
-                .any(|binding| binding.allows_scope(&self.scope)),
-        };
+        let authorized = bindings
+            .iter()
+            .any(|binding| binding.allows_scope(&self.scope));
         if authorized {
             Ok(())
         } else {
@@ -1023,47 +972,14 @@ fn present_detail_section<T>(data: T, metadata: &CustomerReadMetadata) -> Custom
 }
 
 impl CustomerScopeBindingProjection {
-    fn allows_scope(&self, requested: &Scope) -> bool {
+    fn allows_scope(&self, requested: &AuthorityScope) -> bool {
         let Some(bound_scope) = self.as_scope() else {
             return false;
         };
-        match requested {
-            Scope::Subtree {
-                holding_id,
-                company_ids,
-                branch_ids,
-            } => {
-                if branch_ids.is_empty() && bound_scope.contains(requested) {
-                    return true;
-                }
-                if company_ids.is_empty() && branch_ids.is_empty() {
-                    return false;
-                }
-                (company_ids.is_empty()
-                    || company_ids.iter().all(|company_id| {
-                        bound_scope.contains(&Scope::Company {
-                            holding_id: *holding_id,
-                            company_id: *company_id,
-                        })
-                    }))
-                    && (branch_ids.is_empty()
-                        || branch_ids.iter().all(|branch_id| {
-                            self.company_id.is_some()
-                                && self.branch_id.is_some()
-                                && (company_ids.is_empty()
-                                    || company_ids.contains(&self.company_id.unwrap_or_default()))
-                                && bound_scope.contains(&Scope::Branch {
-                                    holding_id: *holding_id,
-                                    company_id: self.company_id.unwrap_or_default(),
-                                    branch_id: *branch_id,
-                                })
-                        }))
-            }
-            _ => bound_scope.contains(requested),
-        }
+        bound_scope.contains(requested)
     }
 
-    fn as_scope(&self) -> Option<Scope> {
+    fn as_scope(&self) -> Option<AuthorityScope> {
         if self.customer_id.is_nil()
             || self.holding_id.is_nil()
             || self.company_id.is_some_and(|id| id.is_nil())
@@ -1073,14 +989,14 @@ impl CustomerScopeBindingProjection {
             return None;
         }
         Some(match (self.company_id, self.branch_id) {
-            (None, None) => Scope::Holding {
+            (None, None) => AuthorityScope::Holding {
                 holding_id: self.holding_id,
             },
-            (Some(company_id), None) => Scope::Company {
+            (Some(company_id), None) => AuthorityScope::Company {
                 holding_id: self.holding_id,
                 company_id,
             },
-            (Some(company_id), Some(branch_id)) => Scope::Branch {
+            (Some(company_id), Some(branch_id)) => AuthorityScope::Branch {
                 holding_id: self.holding_id,
                 company_id,
                 branch_id,
@@ -2195,7 +2111,7 @@ mod enriched_projection_tests {
         let company_id = Uuid::from_u128(0x7201);
         let context = Customer360DetailReadContext {
             customer_id,
-            scope: Scope::Company {
+            scope: AuthorityScope::Company {
                 holding_id,
                 company_id,
             },
@@ -2248,10 +2164,9 @@ mod enriched_projection_tests {
         let foreign_branch = Uuid::from_u128(0x7a05);
         let context = Customer360DetailReadContext {
             customer_id,
-            scope: Scope::Subtree {
+            scope: AuthorityScope::Subtree {
                 holding_id,
-                company_ids: vec![requested_company],
-                branch_ids: vec![foreign_branch],
+                organization_node_id: foreign_branch,
             },
             global_read: CustomerGlobalReadContext {
                 actor: GlobalReadActor {
@@ -2291,7 +2206,7 @@ mod enriched_projection_tests {
         let now = Utc::now();
         let context = Customer360DetailReadContext {
             customer_id,
-            scope: Scope::Platform,
+            scope: AuthorityScope::Platform,
             global_read: CustomerGlobalReadContext {
                 actor: GlobalReadActor {
                     principal_ref: "platform-root".into(),
@@ -2411,14 +2326,14 @@ mod enriched_projection_tests {
             Uuid::from_u128(0x7601),
             Uuid::from_u128(0x7602),
             "customer-success",
-            Scope::Platform,
+            AuthorityScope::Platform,
             Utc::now(),
             "safe note",
         )
         .expect("valid note");
         assert!(note.validate().is_ok());
 
-        note.scope = Scope::Holding {
+        note.scope = AuthorityScope::Holding {
             holding_id: Uuid::nil(),
         };
         assert_eq!(note.validate(), Err(CustomerNoteError::InvalidScope));

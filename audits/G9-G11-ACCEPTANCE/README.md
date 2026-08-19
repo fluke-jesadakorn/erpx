@@ -14,7 +14,7 @@ transport, worker-composition, and console read-surface evidence for the previou
 missing Sales, SCM/Procurement–Inventory, and Asset/Maintenance seams. That evidence
 is not live SQLx, vendor, device, rollback, or production acceptance evidence.
 
-No disposable tenant database pair, product-vendor credential, payment/acquirer
+No disposable holding database pair, product-vendor credential, payment/acquirer
 device harness, or product-specific external endpoint was configured for this audit.
 The live PostgreSQL/reconciliation and vendor/device gates therefore remain queued.
 No production database, customer directory, external vendor, Folio write path,
@@ -31,9 +31,9 @@ Commands run from `erpx/`:
 | `cargo test -p erpx-migrator --test g11_asset_maintenance_acceptance -- --nocapture` | **PASS** — 4 passed, 0 failed; authoritative source/read reconciliation, forged-event rejection, coordinator transport, worker registration, and explicit live-DB blocker reporting passed |
 | `rustfmt --edition 2021 --check apps/migrator/tests/g11_asset_maintenance_acceptance.rs` | **PASS** |
 | `cargo fmt --all --check` | **PASS** |
-| `ERPX_TEST_TENANT_WRITE_DATABASE_URL` | **unset** |
-| `ERPX_TEST_TENANT_READ_DATABASE_URL` | **unset** |
-| `ERPX_TEST_TENANT_DATABASE_URL_TEMPLATE` | **unset** |
+| `ERPX_TEST_HOLDING_WRITE_DATABASE_URL` | **unset** |
+| `ERPX_TEST_HOLDING_READ_DATABASE_URL` | **unset** |
+| `ERPX_TEST_HOLDING_DATABASE_URL_TEMPLATE` | **unset** |
 | `ERPX_TEST_ADMIN_DATABASE_URL` | **unset** |
 | Product vendor/device references | **unavailable** — no live vendor or device certification environment was supplied |
 
@@ -51,12 +51,12 @@ required acceptance artifact is still absent.
 
 | Gate/context | Code evidence | Live SQL/reconciliation evidence | Vendor/device and rollback evidence | Status |
 |---|---|---|---|---|
-| G9 Sales | `apps/migrator/tests/g11_sales_transport_acceptance.rs` records 3 passing focused checks for Sales source/read safety, protobuf/server save/get parity, authorization and write/read routing, worker/server registration, and the Folio bridge. `crates/domain/src/sales.rs` and `crates/infrastructure/src/sales_persistence.rs` provide scoped lifecycle facts, source/outbox persistence, read-event paging, projection/checkpoints, mismatch reporting, and disposable clearing. `crates/proto/proto/erpx/platform/v1/platform.proto` contains `SalesService` and typed save/get messages; `apps/server/src/main.rs` contains `SalesRpcImpl` and server registration; `apps/worker/src/main.rs` contains `ProductProjectionExecutor::Sales` and the `sales` scheduler branch; `apps/console/src/product_completion.rs` contains the read-only Sales context surface contract. | No disposable write/read database pair or live Sales write/project/reconcile/rebuild run was supplied. The packet explicitly queues missing `ERPX_TEST_TENANT_WRITE_DATABASE_URL`, `ERPX_TEST_TENANT_READ_DATABASE_URL`, and `ERPX_TEST_TENANT_DATABASE_URL_TEMPLATE` references. | `ERPX_G11_SALES_VENDOR_ENDPOINT` is not configured; no Sales vendor certification packet exists. `clear_projection` and rebuild are code seams only; no executed rollback/replay evidence. | **code-partial / blocked-live** |
-| G9 SCM / Procurement & Inventory | `crates/domain/src/procurement_inventory.rs` and `crates/infrastructure/src/scm_persistence.rs` provide scoped aggregates, source outbox, reads, receipts/checkpoints, reconciliation, and clearing. `platform.proto` now contains `ScmService` and typed save/get messages; `apps/server/src/main.rs` contains `ScmRpcImpl` and registration. `apps/worker/src/main.rs` contains `ProductProjectionExecutor::Scm` and the `scm` scheduler branch. `product_completion.rs` contains read-only Procurement and Inventory context surfaces. | `crates/infrastructure/tests/scm_persistence.rs::live_scm_write_outbox_projection_scoped_read_and_reconciliation` is ignored and requires disposable tenant databases. It was not run because the required URLs were unset. | No live supplier/ERP vendor endpoint or certification packet. The ignored source contains clear/replay steps, but no executed rollback evidence. | **code-partial / blocked-live** |
+| G9 Sales | `apps/migrator/tests/g11_sales_transport_acceptance.rs` records 3 passing focused checks for Sales source/read safety, protobuf/server save/get parity, authorization and write/read routing, worker/server registration, and the Folio bridge. `crates/domain/src/sales.rs` and `crates/infrastructure/src/sales_persistence.rs` provide scoped lifecycle facts, source/outbox persistence, read-event paging, projection/checkpoints, mismatch reporting, and disposable clearing. `crates/proto/proto/erpx/platform/v1/platform.proto` contains `SalesService` and typed save/get messages; `apps/server/src/main.rs` contains `SalesRpcImpl` and server registration; `apps/worker/src/main.rs` contains `ProductProjectionExecutor::Sales` and the `sales` scheduler branch; `apps/console/src/product_completion.rs` contains the read-only Sales context surface contract. | No disposable write/read database pair or live Sales write/project/reconcile/rebuild run was supplied. The packet explicitly queues missing `ERPX_TEST_HOLDING_WRITE_DATABASE_URL`, `ERPX_TEST_HOLDING_READ_DATABASE_URL`, and `ERPX_TEST_HOLDING_DATABASE_URL_TEMPLATE` references. | `ERPX_G11_SALES_VENDOR_ENDPOINT` is not configured; no Sales vendor certification packet exists. `clear_projection` and rebuild are code seams only; no executed rollback/replay evidence. | **code-partial / blocked-live** |
+| G9 SCM / Procurement & Inventory | `crates/domain/src/procurement_inventory.rs` and `crates/infrastructure/src/scm_persistence.rs` provide scoped aggregates, source outbox, reads, receipts/checkpoints, reconciliation, and clearing. `platform.proto` now contains `ScmService` and typed save/get messages; `apps/server/src/main.rs` contains `ScmRpcImpl` and registration. `apps/worker/src/main.rs` contains `ProductProjectionExecutor::Scm` and the `scm` scheduler branch. `product_completion.rs` contains read-only Procurement and Inventory context surfaces. | `crates/infrastructure/tests/scm_persistence.rs::live_scm_write_outbox_projection_scoped_read_and_reconciliation` is ignored and requires disposable holding databases. It was not run because the required URLs were unset. | No live supplier/ERP vendor endpoint or certification packet. The ignored source contains clear/replay steps, but no executed rollback evidence. | **code-partial / blocked-live** |
 | G9 POS | `crates/domain/src/pos.rs`, `pos_persistence.rs`, and `pos_projection.rs` provide normalized sale persistence/projection, receipts, checkpoints, scoped reads, reconciliation, and clearing. `PosService` and typed save/list RPCs exist. `apps/worker/src/main.rs` contains `ProductProjectionExecutor::Pos` and the `pos` scheduler branch. The console read-only product surface includes Point of Sale. | `pos_persistence::live_pos_write_is_normalized_scoped_and_idempotent` and `pos_projection_read::live_pos_read_projection_is_scope_bound_bounded_and_cursor_stable` are ignored and were not run; no live reconciliation/rebuild result exists. | No live acquirer/payment-provider or POS-device certification. Projection clear/replay is not live evidence. | **code-partial / blocked-live** |
-| G10 Marketing / CRM | Marketing/CRM domain and SQLx persistence provide source writes, outbox, read projection, receipts/checkpoints, reconciliation, and clearing. Existing CRM/Marketing RPCs and read-only console surfaces remain present. `apps/worker/src/main.rs` includes the direct `marketing` projection branch in addition to auxiliary delivery/journey/content/privacy handlers. | Marketing CRM, read projection, provider-flow, onboarding, and erasure tests are ignored and require disposable tenant/control databases; no live pair was supplied. | Existing provider-flow material uses test boundaries and synthetic callback/provider values; it is not live vendor certification. No live rollback/rebuild rehearsal. | **code-partial / blocked-live** |
-| G11 Asset / Maintenance | `crates/domain/src/asset_maintenance.rs` and `crates/infrastructure/src/asset_maintenance_persistence.rs` provide source state, outbox, read projection, reconciliation, and disposable clearing. `platform.proto` now contains `AssetMaintenanceService` and typed save/get messages; `apps/server/src/main.rs` contains `AssetMaintenanceRpcImpl` and registration. `apps/worker/src/main.rs` contains `ProductProjectionExecutor::AssetMaintenance` and the `asset_maintenance` scheduler branch. `product_completion.rs` contains the read-only Maintenance context surface contract. `apps/migrator/tests/g11_asset_maintenance_acceptance.rs` now provides the focused source/read, forged-event, transport, worker, and blocker verifier; its run passed 4/4. | The focused verifier explicitly reports `ERPX_TEST_TENANT_WRITE_DATABASE_URL`, `ERPX_TEST_TENANT_READ_DATABASE_URL`, `ERPX_TEST_TENANT_DATABASE_URL_TEMPLATE`, and `ERPX_TEST_ADMIN_DATABASE_URL` as unset. No live Asset/Maintenance PostgreSQL write/read/project/reconcile/rebuild result is claimed. | No maintenance/asset vendor, fleet, machine, or device certification packet. No live rollback/replay evidence. | **code-partial / blocked-live** |
-| G11 HR / Payroll | `crates/domain/src/hr.rs`, `hr_persistence.rs`, and `hr_projection.rs` provide source/read separation, outbox projection, receipts/checkpoints, reconciliation, and clearing. `HrService` save/list RPCs exist. `apps/worker/src/main.rs` contains the `hr` scheduler branch and the registered HR completion handler. The console product read surface includes HR/Payroll. | `hr_payroll_projection::live_hr_write_projection_and_read_are_idempotent_and_separate` is ignored and requires two disposable tenant databases; it was not run. | No live payroll-provider certification or rollback/replay rehearsal. | **code-partial / blocked-live** |
+| G10 Marketing / CRM | Marketing/CRM domain and SQLx persistence provide source writes, outbox, read projection, receipts/checkpoints, reconciliation, and clearing. Existing CRM/Marketing RPCs and read-only console surfaces remain present. `apps/worker/src/main.rs` includes the direct `marketing` projection branch in addition to auxiliary delivery/journey/content/privacy handlers. | Marketing CRM, read projection, provider-flow, onboarding, and erasure tests are ignored and require disposable holding/control databases; no live pair was supplied. | Existing provider-flow material uses test boundaries and synthetic callback/provider values; it is not live vendor certification. No live rollback/rebuild rehearsal. | **code-partial / blocked-live** |
+| G11 Asset / Maintenance | `crates/domain/src/asset_maintenance.rs` and `crates/infrastructure/src/asset_maintenance_persistence.rs` provide source state, outbox, read projection, reconciliation, and disposable clearing. `platform.proto` now contains `AssetMaintenanceService` and typed save/get messages; `apps/server/src/main.rs` contains `AssetMaintenanceRpcImpl` and registration. `apps/worker/src/main.rs` contains `ProductProjectionExecutor::AssetMaintenance` and the `asset_maintenance` scheduler branch. `product_completion.rs` contains the read-only Maintenance context surface contract. `apps/migrator/tests/g11_asset_maintenance_acceptance.rs` now provides the focused source/read, forged-event, transport, worker, and blocker verifier; its run passed 4/4. | The focused verifier explicitly reports `ERPX_TEST_HOLDING_WRITE_DATABASE_URL`, `ERPX_TEST_HOLDING_READ_DATABASE_URL`, `ERPX_TEST_HOLDING_DATABASE_URL_TEMPLATE`, and `ERPX_TEST_ADMIN_DATABASE_URL` as unset. No live Asset/Maintenance PostgreSQL write/read/project/reconcile/rebuild result is claimed. | No maintenance/asset vendor, fleet, machine, or device certification packet. No live rollback/replay evidence. | **code-partial / blocked-live** |
+| G11 HR / Payroll | `crates/domain/src/hr.rs`, `hr_persistence.rs`, and `hr_projection.rs` provide source/read separation, outbox projection, receipts/checkpoints, reconciliation, and clearing. `HrService` save/list RPCs exist. `apps/worker/src/main.rs` contains the `hr` scheduler branch and the registered HR completion handler. The console product read surface includes HR/Payroll. | `hr_payroll_projection::live_hr_write_projection_and_read_are_idempotent_and_separate` is ignored and requires two disposable holding databases; it was not run. | No live payroll-provider certification or rollback/replay rehearsal. | **code-partial / blocked-live** |
 | G11 Legal / Documents | `crates/domain/src/legal.rs`, `legal_persistence.rs`, and `legal_projection.rs` provide scoped source state, outbox/read projection, retention, reconciliation, receipts/checkpoints, and clearing. `LegalService` save/record/list RPCs exist. `apps/worker/src/main.rs` contains the `legal_documents` scheduler branch. The console product read surface includes Legal. | Ignored Legal write, retention, and projection tests require a disposable database pair; no live execution was available. | No live object-storage/MinIO or document-provider acceptance. Rebuild/clear remains unexecuted rollback evidence. | **code-partial / blocked-live** |
 
 ## Console and directory read-surface evidence
@@ -108,7 +108,7 @@ The executable composition root now covers the product projection kinds
 `sales`, `scm`, `asset_maintenance`, `legal_documents`, `pos`, and `hr`, plus
 the direct `marketing` projection branch. The focused verifier checks the
 projection kinds plus executor/runner registration markers. Scheduler/claim/retry behavior,
-tenant routing, idempotency under restart, and dead-letter handling still need
+holding routing, idempotency under restart, and dead-letter handling still need
 runtime evidence against disposable databases.
 
 ### Vendor and device evidence
@@ -133,7 +133,7 @@ Folio-write retirement.
 
 To close this audit, provide without mocks:
 
-1. disposable, physically distinct tenant write/read PostgreSQL URLs (and
+1. disposable, physically distinct holding write/read PostgreSQL URLs (and
    control write/read URLs where provider onboarding requires them);
 2. live executions of every ignored target above, plus equivalent Sales and
    Asset/Maintenance scenarios, proving atomic source/outbox persistence, scoped
@@ -170,7 +170,7 @@ was changed.
 ## Coordinator revalidation — disjoint G9–G11 SQLx packet — 2026-07-28
 
 The coordinator reran the following ignored acceptance targets in parallel,
-each with its own disposable tenant write/read PostgreSQL pair, then removed
+each with its own disposable holding write/read PostgreSQL pair, then removed
 the pair with an explicit cleanup trap:
 
 - Sales persistence: 2/2 passed;
@@ -190,7 +190,7 @@ source rows were deleted and no Folio or ERPX production owner changed.
 ## Coordinator continuation — G9 Sales lifecycle transition — 2026-07-28
 
 The Sales transport now has a typed `TransitionSalesAggregate` command. It is
-explicitly tenant/holding scoped, role-authorized with `sales.write`, bound to
+explicitly holding/holding scoped, role-authorized with `sales.write`, bound to
 the caller's expected source version, and limited to domain lifecycle actions.
 The writer loads authoritative write state, invokes the domain transition, and
 persists the source/snapshot/shared outbox/idempotency receipt through the
@@ -224,7 +224,7 @@ worker/vendor/device, and production acceptance.
 `HrService.TransitionHrEmployee` now carries the EmployeeRecord lifecycle
 through authenticated `hr.write` authorization, explicit company/branch
 containment, optimistic source versions, typed domain validation, audit, and
-atomic tenant-write source/outbox/idempotency persistence. The HR console
+atomic holding-write source/outbox/idempotency persistence. The HR console
 surface sends only bounded employee identity/status inputs and reloads the
 authorized read projection after a receipt.
 
@@ -236,13 +236,13 @@ acceptance remain open; no activation or cutover occurred.
 ## Coordinator continuation — G9 SCM bounded list read — 2026-07-28
 
 Procurement and Inventory now expose a bounded, read-only SCM aggregate list
-over the existing tenant read projection. `SqlxScmStore::list_for_scope`
+over the existing holding read projection. `SqlxScmStore::list_for_scope`
 uses the separate read pool, explicit holding/company/optional-branch scope,
 checkpoint identity/version validation, typed aggregate decoding, reference
 validation, and keyset pagination over projected timestamp, aggregate type, and
 aggregate UUID. The `ListScmAggregates` RPC adds authenticated `scm.read`
 authorization, product entitlement and caller-scope containment, customer
-scope, tenant read routing, opaque cursor bounds, audit publication, and safe
+scope, holding read routing, opaque cursor bounds, audit publication, and safe
 typed row mapping. The Dioxus Procurement and Inventory surfaces submit an
 explicit scope and render only validated projection facts with pagination and
 read-only/error states.
@@ -261,12 +261,12 @@ write ownership, directory activation, or cutover changed.
 ## Coordinator continuation — G11 Asset/Maintenance bounded list read — 2026-07-28
 
 Asset and Maintenance now expose a bounded read list over the existing
-tenant-read projection. `SqlxAssetMaintenanceStore::list_for_scope` validates
+holding-read projection. `SqlxAssetMaintenanceStore::list_for_scope` validates
 the separate read-side checkpoint, aggregate identity/version, typed company
 and branch columns, generated reference, and asset custody-history projection;
 it keyset-paginates by projected timestamp, allowlisted aggregate type, and
 aggregate UUID. The typed RPC enforces explicit product scope containment,
-`asset_maintenance.read`, customer scope, tenant read routing, bounded opaque
+`asset_maintenance.read`, customer scope, holding read routing, bounded opaque
 cursors, audit publication, and safe row mapping. The Maintenance console
 route renders explicit-scope loading/empty/error states and a read-only table
 for assets and work orders.

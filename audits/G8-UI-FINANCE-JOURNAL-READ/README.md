@@ -5,7 +5,7 @@
 This packet connects the existing Finance `ListPostedJournals`,
 `ListFinanceSubledgerReadRows`, `ListFinanceBankingReadRows`, and
 `GetFinanceCloseReview` RPCs to the Dioxus `/finance` product route. The route
-requires an explicit opaque tenant reference, holding route reference, and
+requires an explicit opaque holding reference, holding route reference, and
 UUID holding scope; close review additionally requires company and period
 UUIDs. It never infers a holding from platform data and never uses a
 platform-scope query as a Finance read.
@@ -14,7 +14,7 @@ platform-scope query as a Finance read.
 
 - The console sends an authenticated, audited holding-scoped `QueryContext` to
   `FinanceService::ListPostedJournals`.
-- The server performs `finance.read` authorization, tenant write/read routing,
+- The server performs `finance.read` authorization, holding write/read routing,
   bounded pagination, and reads immutable posted-journal persistence. Existing
   Finance SQLx event/outbox/projector/reconciliation behavior remains the
   source of truth.

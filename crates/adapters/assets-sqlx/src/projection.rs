@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use erpx_assets::{AssetStatus, AssetView};
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
 use erpx_integration_contracts::{ItemDescriptorDraft, assets};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
 
@@ -65,14 +65,14 @@ impl Projector for AssetProjector {
         let result = sqlx::query(
             "INSERT INTO erpx_assets_read.asset_projection
                 (projection_name,generation,partition_key,asset_id,
-                 source_aggregate_version,source_global_sequence,tenant_scope,
+                 source_aggregate_version,source_global_sequence,active_scope,
                  scope_key,asset_code,asset_name,location_id,asset_status,
                  asset_condition,state,aggregate_created_at,aggregate_updated_at,projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,now())
-             ON CONFLICT (tenant_id,projection_name,generation,partition_key,asset_id)
+             ON CONFLICT (holding_id,projection_name,generation,partition_key,asset_id)
              DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,
                 source_global_sequence=EXCLUDED.source_global_sequence,
-                tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,
+                active_scope=EXCLUDED.active_scope,scope_key=EXCLUDED.scope_key,
                 asset_code=EXCLUDED.asset_code,asset_name=EXCLUDED.asset_name,
                 location_id=EXCLUDED.location_id,asset_status=EXCLUDED.asset_status,
                 asset_condition=EXCLUDED.asset_condition,state=EXCLUDED.state,
@@ -87,8 +87,8 @@ impl Projector for AssetProjector {
         .bind(view.asset_id.as_uuid())
         .bind(to_i64(view.version)?)
         .bind(to_i64(event.global_sequence)?)
-        .bind(serde_json::to_value(view.scope.tenant_scope()).map_err(projection_failure)?)
-        .bind(scope_key(view.scope.tenant_scope())?)
+        .bind(serde_json::to_value(view.scope.active_scope()).map_err(projection_failure)?)
+        .bind(scope_key(view.scope.active_scope())?)
         .bind(&view.code)
         .bind(&view.name)
         .bind(view.location_id)
@@ -150,9 +150,9 @@ fn validate_event(
     let view = &snapshot.asset;
     if view.version != event.aggregate_version
         || view.asset_id.as_uuid() != event.aggregate_id.as_uuid()
-        || view.scope.tenant_scope() != &event.tenant_scope
+        || view.scope.active_scope() != &event.active_scope
         || event.partition != asset_partition(view.asset_id)
-        || scope_key(view.scope.tenant_scope()).is_err()
+        || scope_key(view.scope.active_scope()).is_err()
     {
         return Err(ProjectionFailure::new(
             "Assets snapshot metadata does not match its envelope",
@@ -161,13 +161,13 @@ fn validate_event(
     Ok(snapshot)
 }
 
-pub(crate) fn scope_key(scope: &TenantScope) -> Result<String, ProjectionFailure> {
+pub(crate) fn scope_key(scope: &AuthorityScope) -> Result<String, ProjectionFailure> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok(format!("holding:{holding_id}/company:{company_id}")),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -221,7 +221,7 @@ mod tests {
 
     #[test]
     fn scope_key_is_exact_and_stable() {
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id: uuid::Uuid::from_u128(1),
             company_id: uuid::Uuid::from_u128(2),
         };

@@ -12,19 +12,19 @@ use erpx_crm::{
 };
 use erpx_integration_contracts::{ReferenceCode, customer, marketing};
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
-    QueryId, SessionId, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+    ErrorCategory, EventId, QueryId, SessionId,
 };
-use erpx_proto::{common, erpx::crm::v2 as platform};
+use erpx_proto::{common, erpx::crm as platform};
 use std::sync::Arc;
 use tonic::{Request, Response, Status, metadata::MetadataMap};
 use uuid::Uuid;
 
 const MAX_ROUTE_LENGTH: usize = 255;
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CrmTenantRoute {
-    pub tenant_id: String,
-    pub holding_ref: String,
+pub struct CrmHoldingRoute {
+    pub holding_id: String,
+    pub data_profile_key: String,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CrmAccessMode {
@@ -34,8 +34,8 @@ pub enum CrmAccessMode {
 pub struct CrmAuthenticationRequest {
     transport_metadata: MetadataMap,
     presented_actor: ActorAttribution,
-    presented_scope: TenantScope,
-    presented_route: Option<CrmTenantRoute>,
+    presented_scope: AuthorityScope,
+    presented_route: Option<CrmHoldingRoute>,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
     access_mode: CrmAccessMode,
@@ -47,10 +47,10 @@ impl CrmAuthenticationRequest {
     pub const fn presented_actor(&self) -> &ActorAttribution {
         &self.presented_actor
     }
-    pub const fn presented_scope(&self) -> &TenantScope {
+    pub const fn presented_scope(&self) -> &AuthorityScope {
         &self.presented_scope
     }
-    pub const fn presented_route(&self) -> Option<&CrmTenantRoute> {
+    pub const fn presented_route(&self) -> Option<&CrmHoldingRoute> {
         self.presented_route.as_ref()
     }
     pub fn subscription_id(&self) -> Option<&str> {
@@ -66,14 +66,14 @@ impl CrmAuthenticationRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthenticatedCrmRequest {
     actor: ActorAttribution,
-    scope: TenantScope,
-    route: CrmTenantRoute,
+    scope: AuthorityScope,
+    route: CrmHoldingRoute,
 }
 impl AuthenticatedCrmRequest {
     pub fn try_new(
         actor: ActorAttribution,
-        scope: TenantScope,
-        route: CrmTenantRoute,
+        scope: AuthorityScope,
+        route: CrmHoldingRoute,
     ) -> Result<Self, CrmAuthenticationError> {
         actor
             .validate()
@@ -93,10 +93,10 @@ impl AuthenticatedCrmRequest {
     pub const fn actor(&self) -> &ActorAttribution {
         &self.actor
     }
-    pub const fn tenant_scope(&self) -> &TenantScope {
+    pub const fn active_scope(&self) -> &AuthorityScope {
         &self.scope
     }
-    pub const fn route(&self) -> &CrmTenantRoute {
+    pub const fn route(&self) -> &CrmHoldingRoute {
         &self.route
     }
 }
@@ -118,7 +118,7 @@ pub trait CrmRequestAuthenticator: Send + Sync + 'static {
 pub trait CrmCommandApplication: Send + Sync + 'static {
     async fn execute(
         &self,
-        route: CrmTenantRoute,
+        route: CrmHoldingRoute,
         command: CommandEnvelope<CrmCommand>,
     ) -> Result<CommandReceipt<CrmMutationResult>, CqrsError>;
 }
@@ -126,7 +126,7 @@ pub trait CrmCommandApplication: Send + Sync + 'static {
 pub trait CrmQueryApplication: Send + Sync + 'static {
     async fn execute(
         &self,
-        route: CrmTenantRoute,
+        route: CrmHoldingRoute,
         query: QueryEnvelope<CrmQuery>,
     ) -> Result<QueryResult<CrmQueryResponse>, CqrsError>;
 }
@@ -371,25 +371,25 @@ impl<A: CrmQueryApplication, G: CrmRequestAuthenticator> CrmQueryRpc<A, G> {
 }
 
 struct DecodedCommand<C> {
-    route: Option<CrmTenantRoute>,
+    route: Option<CrmHoldingRoute>,
     envelope: CommandEnvelope<C>,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
 }
 struct DecodedQuery<Q> {
-    route: Option<CrmTenantRoute>,
+    route: Option<CrmHoldingRoute>,
     envelope: QueryEnvelope<Q>,
 }
 async fn authenticate_command<C, G: CrmRequestAuthenticator>(
     auth: &G,
     transport: MetadataMap,
     decoded: DecodedCommand<C>,
-) -> Result<(CrmTenantRoute, CommandEnvelope<C>), Status> {
+) -> Result<(CrmHoldingRoute, CommandEnvelope<C>), Status> {
     let authenticated = auth
         .authenticate(CrmAuthenticationRequest {
             transport_metadata: transport,
             presented_actor: decoded.envelope.actor.clone(),
-            presented_scope: decoded.envelope.tenant_scope.clone(),
+            presented_scope: decoded.envelope.active_scope.clone(),
             presented_route: decoded.route,
             subscription_id: decoded.subscription_id,
             mfa_code: decoded.mfa_code,
@@ -399,19 +399,19 @@ async fn authenticate_command<C, G: CrmRequestAuthenticator>(
         .map_err(status_from_auth)?;
     let mut envelope = decoded.envelope;
     envelope.actor = authenticated.actor().clone();
-    envelope.tenant_scope = authenticated.tenant_scope().clone();
+    envelope.active_scope = authenticated.active_scope().clone();
     Ok((authenticated.route().clone(), envelope))
 }
 async fn authenticate_query<Q, G: CrmRequestAuthenticator>(
     auth: &G,
     transport: MetadataMap,
     decoded: DecodedQuery<Q>,
-) -> Result<(CrmTenantRoute, QueryEnvelope<Q>), Status> {
+) -> Result<(CrmHoldingRoute, QueryEnvelope<Q>), Status> {
     let authenticated = auth
         .authenticate(CrmAuthenticationRequest {
             transport_metadata: transport,
             presented_actor: decoded.envelope.actor.clone(),
-            presented_scope: decoded.envelope.tenant_scope.clone(),
+            presented_scope: decoded.envelope.active_scope.clone(),
             presented_route: decoded.route,
             subscription_id: None,
             mfa_code: None,
@@ -421,7 +421,7 @@ async fn authenticate_query<Q, G: CrmRequestAuthenticator>(
         .map_err(status_from_auth)?;
     let mut envelope = decoded.envelope;
     envelope.actor = authenticated.actor().clone();
-    envelope.tenant_scope = authenticated.tenant_scope().clone();
+    envelope.active_scope = authenticated.active_scope().clone();
     Ok((authenticated.route().clone(), envelope))
 }
 fn decode_command<C>(
@@ -429,7 +429,7 @@ fn decode_command<C>(
     command: C,
 ) -> Result<DecodedCommand<C>, Status> {
     let metadata = metadata.ok_or_else(|| invalid("command metadata is required"))?;
-    let route = decode_route(metadata.tenant_route)?;
+    let route = decode_route(metadata.holding_route)?;
     let correlation_id = correlation(&metadata.correlation_id)?;
     let envelope = CommandEnvelope {
         contract_version: u16::try_from(metadata.contract_version)
@@ -441,10 +441,10 @@ fn decode_command<C>(
         correlation_id,
         causation_id: metadata.causation_id.as_deref().map(event_id).transpose()?,
         actor: decode_actor(metadata.actor)?,
-        tenant_scope: decode_scope(
+        active_scope: decode_scope(
             metadata
-                .tenant_scope
-                .ok_or_else(|| invalid("tenant_scope is required"))?,
+                .active_scope
+                .ok_or_else(|| invalid("active_scope is required"))?,
         )?,
         audit: decode_audit(metadata.audit)?,
         expected_aggregate_version: metadata.expected_aggregate_version,
@@ -465,7 +465,7 @@ fn decode_query<Q>(
     query: Q,
 ) -> Result<DecodedQuery<Q>, Status> {
     let metadata = metadata.ok_or_else(|| invalid("query metadata is required"))?;
-    let route = decode_route(metadata.tenant_route)?;
+    let route = decode_route(metadata.holding_route)?;
     let envelope = QueryEnvelope {
         contract_version: u16::try_from(metadata.contract_version)
             .map_err(|_| invalid("contract version is invalid"))?,
@@ -473,10 +473,10 @@ fn decode_query<Q>(
             .map_err(|_| invalid("query_id is invalid"))?,
         correlation_id: correlation(&metadata.correlation_id)?,
         actor: decode_actor(metadata.actor)?,
-        tenant_scope: decode_scope(
+        active_scope: decode_scope(
             metadata
-                .tenant_scope
-                .ok_or_else(|| invalid("tenant_scope is required"))?,
+                .active_scope
+                .ok_or_else(|| invalid("active_scope is required"))?,
         )?,
         audit: decode_audit(metadata.audit)?,
         consistency: decode_consistency(metadata.consistency)?,
@@ -635,52 +635,52 @@ fn encode_consistency(v: &QueryConsistency) -> common::QueryConsistency {
         }),
     }
 }
-fn decode_route(v: Option<common::TenantRoute>) -> Result<Option<CrmTenantRoute>, Status> {
+fn decode_route(v: Option<common::HoldingRoute>) -> Result<Option<CrmHoldingRoute>, Status> {
     let Some(v) = v else {
         return Ok(None);
     };
-    let route = CrmTenantRoute {
-        tenant_id: v.tenant_id.trim().into(),
-        holding_ref: v.holding_ref.trim().into(),
+    let route = CrmHoldingRoute {
+        holding_id: v.holding_id.trim().into(),
+        data_profile_key: v.data_profile_key.trim().into(),
     };
     validate_route(&route)?;
     Ok(Some(route))
 }
-fn validate_route(v: &CrmTenantRoute) -> Result<(), Status> {
-    if [&v.tenant_id, &v.holding_ref]
+fn validate_route(v: &CrmHoldingRoute) -> Result<(), Status> {
+    if [&v.holding_id, &v.data_profile_key]
         .iter()
         .any(|v| v.is_empty() || v.len() > MAX_ROUTE_LENGTH)
     {
-        Err(invalid("tenant route is invalid"))
+        Err(invalid("holding route is invalid"))
     } else {
         Ok(())
     }
 }
 fn validate_legacy_uuid_route_scope(
-    route: &CrmTenantRoute,
-    scope: &TenantScope,
+    route: &CrmHoldingRoute,
+    scope: &AuthorityScope,
 ) -> Result<(), Status> {
-    let Ok(presented_holding) = Uuid::parse_str(&route.holding_ref) else {
+    let Ok(presented_holding) = Uuid::parse_str(&route.data_profile_key) else {
         return Ok(());
     };
     let holding = match scope {
-        TenantScope::Platform => return Ok(()),
-        TenantScope::Holding { holding_id }
-        | TenantScope::Company { holding_id, .. }
-        | TenantScope::Branch { holding_id, .. }
-        | TenantScope::Subtree { holding_id, .. } => holding_id,
+        AuthorityScope::Platform => return Ok(()),
+        AuthorityScope::Holding { holding_id }
+        | AuthorityScope::Company { holding_id, .. }
+        | AuthorityScope::Branch { holding_id, .. }
+        | AuthorityScope::Subtree { holding_id, .. } => holding_id,
     };
     if presented_holding == *holding {
         Ok(())
     } else {
-        Err(invalid("tenant route does not match CRM scope"))
+        Err(invalid("holding route does not match CRM scope"))
     }
 }
 fn decode_actor(v: Option<common::ActorAttribution>) -> Result<ActorAttribution, Status> {
     let v = v.ok_or_else(|| invalid("actor is required"))?;
     let kind = match common::ActorKind::try_from(v.kind).ok() {
         Some(common::ActorKind::PlatformUser) => ActorKind::PlatformUser,
-        Some(common::ActorKind::TenantUser) => ActorKind::TenantUser,
+        Some(common::ActorKind::HoldingUser) => ActorKind::HoldingUser,
         Some(common::ActorKind::Service) => ActorKind::Service,
         Some(common::ActorKind::SystemWorker) => ActorKind::SystemWorker,
         _ => return Err(invalid("actor kind is invalid")),
@@ -704,53 +704,44 @@ fn decode_audit(v: Option<common::AuditContext>) -> Result<AuditContext, Status>
         module: nonempty(v.module),
     })
 }
-fn decode_scope(v: common::TenantScope) -> Result<TenantScope, Status> {
-    use common::tenant_scope::Scope;
+fn decode_scope(v: common::AuthorityScope) -> Result<AuthorityScope, Status> {
+    use common::authority_scope::Scope;
     match v.scope.ok_or_else(|| invalid("scope is required"))? {
-        Scope::Platform(_) => Ok(TenantScope::Platform),
-        Scope::Holding(v) => Ok(TenantScope::Holding {
+        Scope::Platform(_) => Ok(AuthorityScope::Platform),
+        Scope::Holding(v) => Ok(AuthorityScope::Holding {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
         }),
-        Scope::Company(v) => Ok(TenantScope::Company {
+        Scope::Company(v) => Ok(AuthorityScope::Company {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
             company_id: parse_uuid(&v.company_id, "company_id")?,
         }),
-        Scope::Branch(v) => Ok(TenantScope::Branch {
+        Scope::Branch(v) => Ok(AuthorityScope::Branch {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
             company_id: parse_uuid(&v.company_id, "company_id")?,
             branch_id: parse_uuid(&v.branch_id, "branch_id")?,
         }),
-        Scope::Subtree(v) => Ok(TenantScope::Subtree {
+        Scope::Subtree(v) => Ok(AuthorityScope::Subtree {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
-            company_ids: v
-                .company_ids
-                .iter()
-                .map(|id| parse_uuid(id, "company_id"))
-                .collect::<Result<_, _>>()?,
-            branch_ids: v
-                .branch_ids
-                .iter()
-                .map(|id| parse_uuid(id, "branch_id"))
-                .collect::<Result<_, _>>()?,
+            organization_node_id: parse_uuid(&v.organization_node_id, "organization_node_id")?,
         }),
     }
 }
-fn encode_scope(v: &TenantScope) -> common::TenantScope {
-    use common::tenant_scope::Scope;
-    common::TenantScope {
+fn encode_scope(v: &AuthorityScope) -> common::AuthorityScope {
+    use common::authority_scope::Scope;
+    common::AuthorityScope {
         scope: Some(match v {
-            TenantScope::Platform => Scope::Platform(common::PlatformScope {}),
-            TenantScope::Holding { holding_id } => Scope::Holding(common::HoldingScope {
+            AuthorityScope::Platform => Scope::Platform(common::PlatformScope {}),
+            AuthorityScope::Holding { holding_id } => Scope::Holding(common::HoldingScope {
                 holding_id: holding_id.to_string(),
             }),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => Scope::Company(common::CompanyScope {
                 holding_id: holding_id.to_string(),
                 company_id: company_id.to_string(),
             }),
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -759,14 +750,12 @@ fn encode_scope(v: &TenantScope) -> common::TenantScope {
                 company_id: company_id.to_string(),
                 branch_id: branch_id.to_string(),
             }),
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Scope::Subtree(common::SubtreeScope {
                 holding_id: holding_id.to_string(),
-                company_ids: company_ids.iter().map(ToString::to_string).collect(),
-                branch_ids: branch_ids.iter().map(ToString::to_string).collect(),
+                organization_node_id: organization_node_id.to_string(),
             }),
         }),
     }
@@ -834,7 +823,7 @@ mod tests {
     fn actor() -> ActorAttribution {
         ActorAttribution {
             principal_ref: "crm-route-test".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
@@ -865,20 +854,20 @@ mod tests {
     #[test]
     fn authenticated_route_must_match_authority_holding() {
         let holding = Uuid::from_u128(21);
-        let scope = TenantScope::Branch {
+        let scope = AuthorityScope::Branch {
             holding_id: holding,
             company_id: Uuid::from_u128(22),
             branch_id: Uuid::from_u128(23),
         };
-        let matching = CrmTenantRoute {
-            tenant_id: "tenant-a".into(),
-            holding_ref: holding.to_string(),
+        let matching = CrmHoldingRoute {
+            holding_id: "holding-a".into(),
+            data_profile_key: holding.to_string(),
         };
         assert!(AuthenticatedCrmRequest::try_new(actor(), scope.clone(), matching).is_ok());
 
-        let mismatched = CrmTenantRoute {
-            tenant_id: "tenant-a".into(),
-            holding_ref: Uuid::from_u128(98).to_string(),
+        let mismatched = CrmHoldingRoute {
+            holding_id: "holding-a".into(),
+            data_profile_key: Uuid::from_u128(98).to_string(),
         };
         assert_eq!(
             AuthenticatedCrmRequest::try_new(actor(), scope, mismatched),
@@ -887,7 +876,7 @@ mod tests {
     }
 
     #[test]
-    fn tenant_route_may_be_omitted_for_server_resolution() {
+    fn holding_route_may_be_omitted_for_server_resolution() {
         assert_eq!(decode_route(None).expect("optional route"), None);
     }
 }

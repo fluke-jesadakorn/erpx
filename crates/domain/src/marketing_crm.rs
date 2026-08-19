@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::contracts::{CONTRACT_VERSION, CommandContext, TenantScope};
+use crate::contracts::{AuthorityScope, CONTRACT_VERSION, CommandContext};
 
 pub const MARKETING_CRM_CONTRACT_VERSION: u16 = 1;
 pub const MAX_OPAQUE_ID_BYTES: usize = 128;
@@ -39,7 +39,7 @@ pub enum MarketingCrmError {
     #[error("{field} reference scope does not contain the CRM record scope")]
     ReferenceOutsideScope { field: &'static str },
     #[error("related references do not belong to the same holding and company")]
-    CrossTenantReference,
+    CrossDataProfileReference,
     #[error("command context is invalid: {0}")]
     InvalidCommandContext(String),
     #[error("{aggregate_type} lifecycle transition is not allowed: {from} -> {to}")]
@@ -92,7 +92,7 @@ impl OpaqueId {
     }
 }
 
-/// Every reference carries its tenant scope. References are intentionally
+/// Every reference carries its holding scope. References are intentionally
 /// typed below so a CRM account cannot be passed where a Marketing source is
 /// expected.
 macro_rules! scoped_reference {
@@ -100,13 +100,13 @@ macro_rules! scoped_reference {
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
         pub struct $name {
             pub id: OpaqueId,
-            pub scope: TenantScope,
+            pub scope: AuthorityScope,
         }
 
         impl $name {
             pub fn new(
                 id: impl Into<String>,
-                scope: TenantScope,
+                scope: AuthorityScope,
             ) -> Result<Self, MarketingCrmError> {
                 let value = Self {
                     id: OpaqueId::new(id)?,
@@ -125,7 +125,7 @@ macro_rules! scoped_reference {
                 &self.id
             }
 
-            pub fn scope(&self) -> &TenantScope {
+            pub fn scope(&self) -> &AuthorityScope {
                 &self.scope
             }
         }
@@ -151,14 +151,17 @@ pub struct MarketingQualifiedSource {
 }
 
 impl MarketingQualifiedSource {
-    pub fn validate_for_scope(&self, record_scope: &TenantScope) -> Result<(), MarketingCrmError> {
+    pub fn validate_for_scope(
+        &self,
+        record_scope: &AuthorityScope,
+    ) -> Result<(), MarketingCrmError> {
         self.lead.validate()?;
         self.acquisition.validate()?;
         self.qualification.validate()?;
         validate_reference_scope(&self.lead.scope, record_scope, "marketing_lead")?;
         validate_reference_scope(&self.acquisition.scope, record_scope, "acquisition")?;
         validate_reference_scope(&self.qualification.scope, record_scope, "qualification")?;
-        ensure_same_tenant(&[
+        ensure_same_holding(&[
             &self.lead.scope,
             &self.acquisition.scope,
             &self.qualification.scope,
@@ -174,7 +177,7 @@ pub struct AcceptedLeadHandoff {
     pub reference: String,
     pub idempotency_key: String,
     pub command_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub source: MarketingQualifiedSource,
     pub account: AccountReference,
     pub contact: ContactReference,
@@ -185,7 +188,7 @@ impl AcceptedLeadHandoff {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         source: MarketingQualifiedSource,
         account: AccountReference,
         contact: ContactReference,
@@ -222,14 +225,14 @@ impl AcceptedLeadHandoff {
         self.contact.validate()?;
         validate_reference_scope(&self.account.scope, &self.scope, "account")?;
         validate_reference_scope(&self.contact.scope, &self.scope, "contact")?;
-        ensure_same_tenant(&[&self.scope, &self.account.scope, &self.contact.scope])?;
+        ensure_same_holding(&[&self.scope, &self.account.scope, &self.contact.scope])?;
         Ok(())
     }
 
     pub fn validate_for_command(&self, context: &CommandContext) -> Result<(), MarketingCrmError> {
         validate_context(context)?;
-        if matches!(context.tenant_scope, TenantScope::Platform)
-            || !context.tenant_scope.contains(&self.scope)
+        if matches!(context.active_scope, AuthorityScope::Platform)
+            || !context.active_scope.contains(&self.scope)
         {
             return Err(MarketingCrmError::CommandScopeOutside);
         }
@@ -299,7 +302,7 @@ pub struct AttributionTouch {
     pub touch_id: OpaqueId,
     pub source_id: OpaqueId,
     pub campaign_id: Option<OpaqueId>,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub occurred_at: DateTime<Utc>,
     pub cost_minor: i64,
     pub weight_bps: Option<u16>,
@@ -311,7 +314,7 @@ impl AttributionTouch {
         touch_id: impl Into<String>,
         source_id: impl Into<String>,
         campaign_id: Option<String>,
-        scope: TenantScope,
+        scope: AuthorityScope,
         occurred_at: DateTime<Utc>,
         cost_minor: i64,
         weight_bps: Option<u16>,
@@ -365,14 +368,14 @@ impl AttributionTouch {
 /// only a slice and must create a new value for a new attribution revision.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AttributionInputs {
-    scope: TenantScope,
+    scope: AuthorityScope,
     touches: Vec<AttributionTouch>,
     total_cost_minor: i64,
 }
 
 impl AttributionInputs {
     pub fn new(
-        scope: TenantScope,
+        scope: AuthorityScope,
         mut touches: Vec<AttributionTouch>,
     ) -> Result<Self, MarketingCrmError> {
         validate_non_platform_scope(&scope)?;
@@ -424,7 +427,7 @@ impl AttributionInputs {
         Ok(())
     }
 
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
 
@@ -436,7 +439,10 @@ impl AttributionInputs {
         self.total_cost_minor
     }
 
-    pub fn validate_for_scope(&self, record_scope: &TenantScope) -> Result<(), MarketingCrmError> {
+    pub fn validate_for_scope(
+        &self,
+        record_scope: &AuthorityScope,
+    ) -> Result<(), MarketingCrmError> {
         self.validate()?;
         validate_reference_scope(&self.scope, record_scope, "attribution")?;
         for touch in &self.touches {
@@ -576,7 +582,7 @@ pub struct CrmOpportunity {
     pub reference: String,
     pub idempotency_key: String,
     pub command_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub accepted_lead: AcceptedLeadReference,
     pub account: AccountReference,
     pub contact: ContactReference,
@@ -639,7 +645,7 @@ impl CrmOpportunity {
         validate_reference_scope(&self.accepted_lead.scope, &self.scope, "accepted_lead")?;
         validate_reference_scope(&self.account.scope, &self.scope, "account")?;
         validate_reference_scope(&self.contact.scope, &self.scope, "contact")?;
-        ensure_same_tenant(&[
+        ensure_same_holding(&[
             &self.scope,
             &self.accepted_lead.scope,
             &self.account.scope,
@@ -691,8 +697,8 @@ impl CrmOpportunity {
     pub fn validate_for_command(&self, context: &CommandContext) -> Result<(), MarketingCrmError> {
         self.validate()?;
         validate_context(context)?;
-        if matches!(context.tenant_scope, TenantScope::Platform)
-            || !context.tenant_scope.contains(&self.scope)
+        if matches!(context.active_scope, AuthorityScope::Platform)
+            || !context.active_scope.contains(&self.scope)
         {
             return Err(MarketingCrmError::CommandScopeOutside);
         }
@@ -716,7 +722,7 @@ pub enum IdempotencyRegistration {
 
 /// Pure write-side duplicate/conflict detection. Persistence should enforce
 /// the same two-way binding with a unique idempotency key and unique aggregate
-/// reference in the tenant write database.
+/// reference in the holding write database.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct IdempotencyBindings {
     by_key: BTreeMap<String, String>,
@@ -821,13 +827,13 @@ fn validate_context(context: &CommandContext) -> Result<(), MarketingCrmError> {
     )
 }
 
-fn validate_non_platform_scope(scope: &TenantScope) -> Result<(), MarketingCrmError> {
+fn validate_non_platform_scope(scope: &AuthorityScope) -> Result<(), MarketingCrmError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } if !holding_id.is_nil() && !company_id.is_nil() => Ok(()),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -837,8 +843,8 @@ fn validate_non_platform_scope(scope: &TenantScope) -> Result<(), MarketingCrmEr
 }
 
 fn validate_reference_scope(
-    reference_scope: &TenantScope,
-    record_scope: &TenantScope,
+    reference_scope: &AuthorityScope,
+    record_scope: &AuthorityScope,
     field: &'static str,
 ) -> Result<(), MarketingCrmError> {
     validate_non_platform_scope(reference_scope)?;
@@ -849,7 +855,7 @@ fn validate_reference_scope(
     Ok(())
 }
 
-fn ensure_same_tenant(scopes: &[&TenantScope]) -> Result<(), MarketingCrmError> {
+fn ensure_same_holding(scopes: &[&AuthorityScope]) -> Result<(), MarketingCrmError> {
     let Some(first) = scopes.first() else {
         return Ok(());
     };
@@ -857,19 +863,19 @@ fn ensure_same_tenant(scopes: &[&TenantScope]) -> Result<(), MarketingCrmError> 
     for scope in scopes.iter().skip(1) {
         let (actual_holding, actual_company) = scope_company(scope)?;
         if actual_holding != holding_id || actual_company != company_id {
-            return Err(MarketingCrmError::CrossTenantReference);
+            return Err(MarketingCrmError::CrossDataProfileReference);
         }
     }
     Ok(())
 }
 
-fn scope_company(scope: &TenantScope) -> Result<(Uuid, Uuid), MarketingCrmError> {
+fn scope_company(scope: &AuthorityScope) -> Result<(Uuid, Uuid), MarketingCrmError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         }
-        | TenantScope::Branch {
+        | AuthorityScope::Branch {
             holding_id,
             company_id,
             ..
@@ -968,21 +974,21 @@ mod tests {
         )
     }
 
-    fn scope(holding_id: Uuid, company_id: Uuid, branch_id: Option<Uuid>) -> TenantScope {
+    fn scope(holding_id: Uuid, company_id: Uuid, branch_id: Option<Uuid>) -> AuthorityScope {
         match branch_id {
-            Some(branch_id) => TenantScope::Branch {
+            Some(branch_id) => AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
             },
-            None => TenantScope::Company {
+            None => AuthorityScope::Company {
                 holding_id,
                 company_id,
             },
         }
     }
 
-    fn context(record_scope: TenantScope, key: &str) -> CommandContext {
+    fn context(record_scope: AuthorityScope, key: &str) -> CommandContext {
         let command_id = Uuid::new_v4();
         let correlation_id = Uuid::new_v4();
         CommandContext {
@@ -993,12 +999,12 @@ mod tests {
             causation_id: None,
             actor: ActorAttribution {
                 principal_ref: "crm-agent".to_owned(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: Some(Uuid::new_v4()),
                 represented_principal_ref: None,
                 support_capability_id: None,
             },
-            tenant_scope: record_scope,
+            active_scope: record_scope,
             audit: AuditContext {
                 purpose: "crm-test".to_owned(),
                 customer_visible: false,
@@ -1010,7 +1016,7 @@ mod tests {
         }
     }
 
-    fn source(record_scope: &TenantScope) -> MarketingQualifiedSource {
+    fn source(record_scope: &AuthorityScope) -> MarketingQualifiedSource {
         MarketingQualifiedSource {
             lead: MarketingLeadReference::new("mkt-lead-1", record_scope.clone()).unwrap(),
             acquisition: MarketingAcquisitionReference::new(
@@ -1026,7 +1032,7 @@ mod tests {
         }
     }
 
-    fn handoff(record_scope: TenantScope, key: &str) -> AcceptedLeadHandoff {
+    fn handoff(record_scope: AuthorityScope, key: &str) -> AcceptedLeadHandoff {
         AcceptedLeadHandoff::new(
             Uuid::new_v4(),
             record_scope.clone(),
@@ -1040,10 +1046,10 @@ mod tests {
     }
 
     #[test]
-    fn scope_isolation_rejects_platform_and_cross_tenant_references() {
+    fn scope_isolation_rejects_platform_and_cross_data_profile_references() {
         let (holding, company, branch, other_holding) = ids();
         assert!(matches!(
-            AccountReference::new("account", TenantScope::Platform),
+            AccountReference::new("account", AuthorityScope::Platform),
             Err(MarketingCrmError::InvalidScope)
         ));
 
@@ -1073,7 +1079,7 @@ mod tests {
         assert!(matches!(
             result,
             Err(MarketingCrmError::ReferenceOutsideScope { field: "account" })
-                | Err(MarketingCrmError::CrossTenantReference)
+                | Err(MarketingCrmError::CrossDataProfileReference)
         ));
     }
 

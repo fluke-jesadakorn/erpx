@@ -20,9 +20,9 @@ pub const DEVELOPMENT_FRESH_PROFILE: &str = "local-fresh-state";
 pub const DEVELOPMENT_PERSONA_MODE: &str = "enabled";
 pub const DEVELOPMENT_CLUSTER_MARKER: &str = "local-ucs-lab";
 pub const DEVELOPMENT_CONTROLLER_PRINCIPAL: &str = "local:dev-controller";
-pub const DEVELOPMENT_CONTROLLER_ROLE: &str = "development_restricted_tenant_full_admin";
-pub const DEVELOPMENT_CONTROLLER_ROLE_PROFILE: &str = "restricted_tenant_full_admin";
-pub const DEVELOPMENT_CONTROLLER_TARGET_TENANT: &str = "demo-tenant-restricted";
+pub const DEVELOPMENT_CONTROLLER_ROLE: &str = "development_restricted_holding_full_admin";
+pub const DEVELOPMENT_CONTROLLER_ROLE_PROFILE: &str = "restricted_holding_full_admin";
+pub const DEVELOPMENT_CONTROLLER_TARGET_HOLDING: &str = "4017ec64-6620-50e2-bfdc-14d0a9b3c414";
 pub const DEVELOPMENT_MFA_BYPASS_PERMISSION: &str = "development.mfa.bypass";
 pub const DEVELOPMENT_SOD_BYPASS_PERMISSION: &str = "development.sod.self-approve";
 pub const DEVELOPMENT_CONTEXT_HEADER: &str = "x-erpx-dev-persona-context";
@@ -30,38 +30,38 @@ pub const DEVELOPMENT_CONTEXT_LIFETIME: Duration = Duration::days(30);
 
 pub const DEVELOPMENT_CONTROLLER_READ_PERMISSIONS: [&str; 10] = [
     "platform.customer.read",
-    "platform.tenant.read",
+    "platform.holding.read",
     "platform.infrastructure.read",
-    "tenant.infrastructure.read",
-    "tenant.directory.read",
-    "tenant.brand.read",
+    "holding.infrastructure.read",
+    "holding.directory.read",
+    "holding.brand.read",
     "business-unit.configuration.read",
     "organization.read",
-    "tenant.root-access.read",
-    "platform.tenant.history.read",
+    "holding.root-access.read",
+    "platform.holding.history.read",
 ];
 
 pub const DEVELOPMENT_CONTROLLER_MUTATION_PERMISSIONS: [&str; 22] = [
-    "platform.tenant.enter",
-    "platform.tenant.provision",
-    "platform.tenant.backup",
-    "platform.tenant.suspend",
-    "platform.tenant.recovery",
+    "platform.holding.enter",
+    "platform.holding.provision",
+    "platform.holding.backup",
+    "platform.holding.suspend",
+    "platform.holding.recovery",
     "platform.infrastructure.manage",
-    "tenant.infrastructure.propose",
-    "tenant.infrastructure.approve",
-    "tenant.infrastructure.apply",
-    "tenant.agent.enroll",
-    "tenant.agent.rotate",
-    "tenant.root-access.request",
-    "tenant.root-access.approve",
-    "tenant.root-access.revoke",
+    "holding.infrastructure.propose",
+    "holding.infrastructure.approve",
+    "holding.infrastructure.apply",
+    "holding.agent.enroll",
+    "holding.agent.rotate",
+    "holding.root-access.request",
+    "holding.root-access.approve",
+    "holding.root-access.revoke",
     "business-unit.configuration.manage",
-    "tenant.directory.manage",
-    "tenant.directory.activate",
-    "tenant.brand.manage",
-    "tenant.brand.publish",
-    "tenant.brand.lock",
+    "holding.directory.manage",
+    "holding.directory.activate",
+    "holding.brand.manage",
+    "holding.brand.publish",
+    "holding.brand.lock",
     "organization.admin",
     "branch.infrastructure.provision",
 ];
@@ -136,7 +136,7 @@ pub enum DevelopmentAccessError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DevelopmentControllerRoleConfig {
-    pub target_tenant: String,
+    pub target_holding: String,
     pub mfa_bypass: bool,
     pub sod_bypass: bool,
 }
@@ -152,7 +152,7 @@ pub fn development_controller_role_config_from_env(
 ) -> Result<Option<DevelopmentControllerRoleConfig>, DevelopmentAccessError> {
     const KEYS: [&str; 4] = [
         "ERPX_DEV_CONTROLLER_ROLE_PROFILE",
-        "ERPX_DEV_CONTROLLER_TARGET_TENANT",
+        "ERPX_DEV_CONTROLLER_TARGET_HOLDING",
         "ERPX_DEV_CONTROLLER_MFA_BYPASS",
         "ERPX_DEV_CONTROLLER_SOD_BYPASS",
     ];
@@ -171,7 +171,7 @@ pub fn development_controller_role_config_from_env(
             )));
         }
     }
-    let target_tenant = environment
+    let target_holding = environment
         .get(KEYS[1])
         .filter(|value| !value.trim().is_empty())
         .ok_or_else(|| {
@@ -181,20 +181,20 @@ pub fn development_controller_role_config_from_env(
         .get("ERPX_DEVELOPMENT_PROFILE")
         .map(String::as_str)
     {
-        Some(DEVELOPMENT_PROFILE) if target_tenant == DEVELOPMENT_CONTROLLER_TARGET_TENANT => {}
+        Some(DEVELOPMENT_PROFILE) if target_holding == DEVELOPMENT_CONTROLLER_TARGET_HOLDING => {}
         Some(DEVELOPMENT_FRESH_PROFILE)
-            if Uuid::parse_str(target_tenant).is_ok_and(|value| {
-                !value.is_nil() && value.to_string().as_str() == target_tenant.as_str()
+            if Uuid::parse_str(target_holding).is_ok_and(|value| {
+                !value.is_nil() && value.to_string().as_str() == target_holding.as_str()
             }) => {}
         Some(DEVELOPMENT_PROFILE) => {
             return Err(DevelopmentAccessError::InvalidConfiguration(format!(
                 "{} must be exactly {}",
-                KEYS[1], DEVELOPMENT_CONTROLLER_TARGET_TENANT
+                KEYS[1], DEVELOPMENT_CONTROLLER_TARGET_HOLDING
             )));
         }
         Some(DEVELOPMENT_FRESH_PROFILE) => {
             return Err(DevelopmentAccessError::InvalidConfiguration(format!(
-                "{} must be a canonical non-nil tenant UUID",
+                "{} must be a canonical non-nil holding UUID",
                 KEYS[1]
             )));
         }
@@ -202,7 +202,7 @@ pub fn development_controller_role_config_from_env(
     }
     require_development_gates(debug_build, http_addr, database_urls, environment)?;
     Ok(Some(DevelopmentControllerRoleConfig {
-        target_tenant: target_tenant.clone(),
+        target_holding: target_holding.clone(),
         mfa_bypass: true,
         sod_bypass: true,
     }))
@@ -347,10 +347,10 @@ pub const PLATFORM_DIRECTORY_ROLES: [&str; 8] = [
     "platform_operations_administrator",
     "platform_auditor",
     "platform_role_reviewer",
-    "platform_tenant_administrator",
+    "platform_holding_administrator",
 ];
 
-pub const TENANT_ADMINISTRATION_ROLES: [&str; 5] = [
+pub const HOLDING_ADMINISTRATION_ROLES: [&str; 5] = [
     "holding_owner",
     "holding_admin",
     "company_admin",
@@ -375,8 +375,8 @@ pub fn permission_catalog() -> Vec<PermissionCatalogEntry> {
                 "platform.customer.read",
                 "platform.customer.access_audit.read",
                 "platform.customer.notes.write",
-                "platform.tenant.read",
-                "platform.tenant.enter",
+                "platform.holding.read",
+                "platform.holding.enter",
             ][..],
             "platform_directory_administrator" => &[
                 "platform.directory.read",
@@ -385,7 +385,7 @@ pub fn permission_catalog() -> Vec<PermissionCatalogEntry> {
             ],
             "platform_support_agent" => &[
                 "platform.customer.read",
-                "platform.tenant.read",
+                "platform.holding.read",
                 "support.diagnostics.read",
                 "support.incident.create",
                 "support.incident.read",
@@ -401,7 +401,7 @@ pub fn permission_catalog() -> Vec<PermissionCatalogEntry> {
             ],
             "platform_billing_administrator" => &[
                 "platform.customer.read",
-                "platform.tenant.read",
+                "platform.holding.read",
                 "commercial.billing.read",
                 "commercial.billing.manage",
                 "commercial.billing.grace.extend",
@@ -409,9 +409,9 @@ pub fn permission_catalog() -> Vec<PermissionCatalogEntry> {
                 "commercial.entitlement.activate",
             ],
             "platform_operations_administrator" => &[
-                "platform.tenant.read",
-                "platform.tenant.enter",
-                "platform.tenant.backup",
+                "platform.holding.read",
+                "platform.holding.enter",
+                "platform.holding.backup",
                 "platform.projection.rebuild",
                 "platform.outbox.replay",
                 "platform.infrastructure.read",
@@ -425,7 +425,7 @@ pub fn permission_catalog() -> Vec<PermissionCatalogEntry> {
             "platform_auditor" => &[
                 "platform.customer.read",
                 "platform.customer.access_audit.read",
-                "platform.tenant.read",
+                "platform.holding.read",
                 "platform.directory.read",
                 "commercial.billing.read",
                 "role.assignment.review",
@@ -433,24 +433,24 @@ pub fn permission_catalog() -> Vec<PermissionCatalogEntry> {
                 "support.ticket.read",
             ],
             "platform_role_reviewer" => &[
-                "platform.tenant.read",
+                "platform.holding.read",
                 "role.assignment.read",
                 "role.assignment.review",
                 "role.assignment.approve",
                 "role.assignment.renew",
                 "role.assignment.recover",
             ],
-            "platform_tenant_administrator" => &[
+            "platform_holding_administrator" => &[
                 "platform.customer.read",
-                "platform.tenant.read",
-                "platform.tenant.enter",
-                "platform.tenant.provision",
-                "platform.tenant.backup",
-                "platform.tenant.suspend",
-                "platform.tenant.recovery",
+                "platform.holding.read",
+                "platform.holding.enter",
+                "platform.holding.provision",
+                "platform.holding.backup",
+                "platform.holding.suspend",
+                "platform.holding.recovery",
                 "platform.infrastructure.read",
                 "business-unit.configuration.read",
-                "tenant.root-access.request",
+                "holding.root-access.request",
             ],
             _ => unreachable!("the platform role catalog is closed"),
         };
@@ -541,7 +541,7 @@ pub struct DevelopmentPersona {
     pub persona_key: String,
     pub principal_ref: String,
     pub directory_username: String,
-    pub tenant_id: Option<String>,
+    pub holding_id: Option<String>,
     pub organization_scope: String,
     pub role_key: String,
     pub feature: String,
@@ -601,7 +601,7 @@ pub fn context_expiry(issued_at: DateTime<Utc>) -> DateTime<Utc> {
     issued_at + DEVELOPMENT_CONTEXT_LIFETIME
 }
 
-pub fn demo_personas(tenant_id: &str, entitled_units: &[&str]) -> Vec<DevelopmentPersona> {
+pub fn demo_personas(holding_id: &str, entitled_units: &[&str]) -> Vec<DevelopmentPersona> {
     let catalog = permission_catalog();
     let mut personas = Vec::with_capacity(65 + 4);
     for entry in catalog
@@ -613,12 +613,12 @@ pub fn demo_personas(tenant_id: &str, entitled_units: &[&str]) -> Vec<Developmen
             .split_once('_')
             .map_or_else(|| "platform".to_owned(), |(unit, _)| unit.to_owned());
         let entitled = feature == "platform" || entitled_units.contains(&feature.as_str());
-        let key = format!("{tenant_id}:{}", entry.role_key);
+        let key = format!("{holding_id}:{}", entry.role_key);
         personas.push(DevelopmentPersona {
             persona_key: key.clone(),
-            principal_ref: format!("dev:{tenant_id}:{}", entry.role_key),
-            directory_username: format!("{}@{tenant_id}.ucs.test", entry.role_key),
-            tenant_id: Some(tenant_id.into()),
+            principal_ref: format!("dev:{holding_id}:{}", entry.role_key),
+            directory_username: format!("{}@{holding_id}.ucs.test", entry.role_key),
+            holding_id: Some(holding_id.into()),
             organization_scope: match entry.target_scope {
                 DirectoryRoleTargetScope::Platform => "platform".into(),
                 DirectoryRoleTargetScope::Holding => "holding".into(),
@@ -636,10 +636,10 @@ pub fn demo_personas(tenant_id: &str, entitled_units: &[&str]) -> Vec<Developmen
         });
     }
     personas.extend([
-        persona_fixture(tenant_id, "limited", "finance_viewer", false),
-        persona_fixture(tenant_id, "multi-role", "operations_operator", true),
-        persona_fixture(tenant_id, "collision", "finance_operator", true),
-        persona_fixture(tenant_id, "deny-wins", "finance_operator", false),
+        persona_fixture(holding_id, "limited", "finance_viewer", false),
+        persona_fixture(holding_id, "multi-role", "operations_operator", true),
+        persona_fixture(holding_id, "collision", "finance_operator", true),
+        persona_fixture(holding_id, "deny-wins", "finance_operator", false),
     ]);
     personas
 }
@@ -652,7 +652,7 @@ pub fn platform_personas() -> Vec<DevelopmentPersona> {
             persona_key: format!("platform:{}", entry.role_key),
             principal_ref: format!("dev:platform:{}", entry.role_key),
             directory_username: format!("{}@platform.ucs.test", entry.role_key),
-            tenant_id: None,
+            holding_id: None,
             organization_scope: "platform".into(),
             feature: "platform".into(),
             role_key: entry.role_key,
@@ -786,14 +786,14 @@ impl SqlxIdentityStore {
         for persona in personas {
             sqlx::query(
                 "INSERT INTO erpx_identity.development_persona_manifests
-                    (persona_key, principal_ref, directory_username, tenant_id,
+                    (persona_key, principal_ref, directory_username, holding_id,
                      organization_scope, role_key, feature, permissions, entitled,
                      directory_enabled, requires_totp_for_high_risk, manifest_version, updated_at)
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,1,$12)
                  ON CONFLICT (persona_key) DO UPDATE SET
                     principal_ref=EXCLUDED.principal_ref,
                     directory_username=EXCLUDED.directory_username,
-                    tenant_id=EXCLUDED.tenant_id,
+                    holding_id=EXCLUDED.holding_id,
                     organization_scope=EXCLUDED.organization_scope,
                     role_key=EXCLUDED.role_key,
                     feature=EXCLUDED.feature,
@@ -807,7 +807,7 @@ impl SqlxIdentityStore {
             .bind(&persona.persona_key)
             .bind(&persona.principal_ref)
             .bind(&persona.directory_username)
-            .bind(&persona.tenant_id)
+            .bind(&persona.holding_id)
             .bind(&persona.organization_scope)
             .bind(&persona.role_key)
             .bind(&persona.feature)
@@ -825,17 +825,17 @@ impl SqlxIdentityStore {
 
     pub async fn list_development_personas(
         &self,
-        tenant_id: Option<&str>,
+        holding_id: Option<&str>,
     ) -> Result<Vec<DevelopmentPersona>, IdentityStoreError> {
         let rows = sqlx::query(
-            "SELECT persona_key, principal_ref, directory_username, tenant_id,
+            "SELECT persona_key, principal_ref, directory_username, holding_id,
                     organization_scope, role_key, feature, permissions, entitled,
                     directory_enabled, requires_totp_for_high_risk
              FROM erpx_identity.development_persona_manifests
-             WHERE ($1::text IS NULL OR tenant_id = $1)
-             ORDER BY tenant_id NULLS FIRST, persona_key",
+             WHERE ($1::text IS NULL OR holding_id = $1)
+             ORDER BY holding_id NULLS FIRST, persona_key",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .fetch_all(self.pool())
         .await?;
         rows.into_iter().map(persona_from_row).collect()
@@ -875,7 +875,7 @@ impl SqlxIdentityStore {
         let expires_at = context_expiry(now);
         let mut transaction = self.pool().begin().await?;
         let row = sqlx::query(
-            "SELECT persona_key, principal_ref, directory_username, tenant_id,
+            "SELECT persona_key, principal_ref, directory_username, holding_id,
                     organization_scope, role_key, feature, permissions, entitled,
                     directory_enabled, requires_totp_for_high_risk
              FROM erpx_identity.development_persona_manifests
@@ -899,7 +899,7 @@ impl SqlxIdentityStore {
         sqlx::query(
             "INSERT INTO erpx_identity.development_persona_contexts
                 (id, token_hash, controller_principal_ref, controller_session_id,
-                 controller_device_id, persona_key, role_assignment_ref, tenant_id,
+                 controller_device_id, persona_key, role_assignment_ref, holding_id,
                  organization_scope, feature, reason, correlation_id, issued_at, expires_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)",
         )
@@ -910,7 +910,7 @@ impl SqlxIdentityStore {
         .bind(device_id)
         .bind(&persona.persona_key)
         .bind(&persona.role_key)
-        .bind(&persona.tenant_id)
+        .bind(&persona.holding_id)
         .bind(&persona.organization_scope)
         .bind(&persona.feature)
         .bind(reason)
@@ -951,7 +951,7 @@ impl SqlxIdentityStore {
     ) -> Result<Option<DevelopmentPersonaContext>, IdentityStoreError> {
         let row = sqlx::query(
             "SELECT c.id, c.controller_principal_ref, c.controller_session_id,
-                    c.controller_device_id, c.persona_key, c.tenant_id,
+                    c.controller_device_id, c.persona_key, c.holding_id,
                     c.organization_scope, c.feature, c.reason, c.correlation_id,
                     c.issued_at, c.expires_at, c.revoked_at,
                     p.principal_ref, p.directory_username, p.role_key,
@@ -984,7 +984,7 @@ impl SqlxIdentityStore {
         }
         let row = sqlx::query(
             "SELECT c.id, c.controller_principal_ref, c.controller_session_id,
-                    c.controller_device_id, c.persona_key, c.tenant_id,
+                    c.controller_device_id, c.persona_key, c.holding_id,
                     c.organization_scope, c.feature, c.reason, c.correlation_id,
                     c.issued_at, c.expires_at, c.revoked_at,
                     p.principal_ref, p.directory_username, p.role_key,
@@ -1023,7 +1023,7 @@ impl SqlxIdentityStore {
         let mut transaction = self.pool().begin().await?;
         let row = sqlx::query(
             "SELECT c.id, c.controller_principal_ref, c.controller_session_id,
-                    c.controller_device_id, c.persona_key, c.tenant_id,
+                    c.controller_device_id, c.persona_key, c.holding_id,
                     c.organization_scope, c.feature, c.reason, c.correlation_id,
                     c.issued_at, c.expires_at, c.revoked_at,
                     p.principal_ref, p.directory_username, p.role_key,
@@ -1093,7 +1093,7 @@ fn persona_from_row(row: sqlx::postgres::PgRow) -> Result<DevelopmentPersona, Id
         persona_key: row.try_get("persona_key")?,
         principal_ref: row.try_get("principal_ref")?,
         directory_username: row.try_get("directory_username")?,
-        tenant_id: row.try_get("tenant_id")?,
+        holding_id: row.try_get("holding_id")?,
         organization_scope: row.try_get("organization_scope")?,
         role_key: row.try_get("role_key")?,
         feature: row.try_get("feature")?,
@@ -1111,7 +1111,7 @@ fn context_from_row(
         persona_key: row.try_get("persona_key")?,
         principal_ref: row.try_get("principal_ref")?,
         directory_username: row.try_get("directory_username")?,
-        tenant_id: row.try_get("tenant_id")?,
+        holding_id: row.try_get("holding_id")?,
         organization_scope: row.try_get("organization_scope")?,
         role_key: row.try_get("role_key")?,
         feature: row.try_get("feature")?,
@@ -1146,7 +1146,7 @@ async fn append_development_audit(
     sqlx::query(
         "INSERT INTO erpx_identity.development_audit
             (id, controller_principal_ref, persona_principal_ref, persona_key,
-             role_key, tenant_id, organization_scope, feature, correlation_id,
+             role_key, holding_id, organization_scope, feature, correlation_id,
              outcome, recorded_at, details)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",
     )
@@ -1155,7 +1155,7 @@ async fn append_development_audit(
     .bind(&persona.principal_ref)
     .bind(&persona.persona_key)
     .bind(&persona.role_key)
-    .bind(&persona.tenant_id)
+    .bind(&persona.holding_id)
     .bind(&persona.organization_scope)
     .bind(&persona.feature)
     .bind(correlation_id)
@@ -1168,17 +1168,17 @@ async fn append_development_audit(
 }
 
 fn persona_fixture(
-    tenant_id: &str,
+    holding_id: &str,
     key: &str,
     role_key: &str,
     entitled: bool,
 ) -> DevelopmentPersona {
     let feature = role_key.split('_').next().unwrap_or("operations");
     DevelopmentPersona {
-        persona_key: format!("{tenant_id}:{key}"),
-        principal_ref: format!("dev:{tenant_id}:{key}"),
-        directory_username: format!("{key}@{tenant_id}.ucs.test"),
-        tenant_id: Some(tenant_id.into()),
+        persona_key: format!("{holding_id}:{key}"),
+        principal_ref: format!("dev:{holding_id}:{key}"),
+        directory_username: format!("{key}@{holding_id}.ucs.test"),
+        holding_id: Some(holding_id.into()),
         organization_scope: "branch:all".into(),
         role_key: role_key.into(),
         feature: feature.into(),
@@ -1228,7 +1228,7 @@ mod tests {
         assert_ne!(token.as_bytes(), context_token_hash(&token).as_slice());
         let catalog = permission_catalog();
         assert_eq!(catalog.len(), 73);
-        assert_eq!(demo_personas("demo-tenant", &BUSINESS_UNITS).len(), 69);
+        assert_eq!(demo_personas("demo-holding", &BUSINESS_UNITS).len(), 69);
         assert!(
             catalog
                 .iter()
@@ -1241,8 +1241,8 @@ mod tests {
             .expect("platform customer operations role");
         for permission in [
             "platform.customer.read",
-            "platform.tenant.read",
-            "platform.tenant.enter",
+            "platform.holding.read",
+            "platform.holding.enter",
         ] {
             assert!(
                 customer_operations
@@ -1262,11 +1262,11 @@ mod tests {
             ("ERPX_DEVELOPMENT_CLUSTER", "local-ucs-lab"),
             (
                 "ERPX_DEV_CONTROLLER_ROLE_PROFILE",
-                "restricted_tenant_full_admin",
+                "restricted_holding_full_admin",
             ),
             (
-                "ERPX_DEV_CONTROLLER_TARGET_TENANT",
-                "demo-tenant-restricted",
+                "ERPX_DEV_CONTROLLER_TARGET_HOLDING",
+                DEVELOPMENT_CONTROLLER_TARGET_HOLDING,
             ),
             ("ERPX_DEV_CONTROLLER_MFA_BYPASS", "enabled"),
             ("ERPX_DEV_CONTROLLER_SOD_BYPASS", "enabled"),
@@ -1280,17 +1280,17 @@ mod tests {
         )
         .expect("valid controller environment")
         .expect("enabled controller role");
-        assert_eq!(config.target_tenant, DEVELOPMENT_CONTROLLER_TARGET_TENANT);
+        assert_eq!(config.target_holding, DEVELOPMENT_CONTROLLER_TARGET_HOLDING);
 
-        let fresh_tenant = "4017ec64-6620-50e2-bfdc-14d0a9b3c414";
+        let fresh_holding = "4017ec64-6620-50e2-bfdc-14d0a9b3c414";
         let mut fresh_environment = environment.clone();
         fresh_environment.insert(
             "ERPX_DEVELOPMENT_PROFILE".into(),
             DEVELOPMENT_FRESH_PROFILE.into(),
         );
         fresh_environment.insert(
-            "ERPX_DEV_CONTROLLER_TARGET_TENANT".into(),
-            fresh_tenant.into(),
+            "ERPX_DEV_CONTROLLER_TARGET_HOLDING".into(),
+            fresh_holding.into(),
         );
         let fresh_config = development_controller_role_config_from_env(
             true,
@@ -1300,10 +1300,10 @@ mod tests {
         )
         .expect("valid fresh controller environment")
         .expect("enabled fresh controller role");
-        assert_eq!(fresh_config.target_tenant, fresh_tenant);
+        assert_eq!(fresh_config.target_holding, fresh_holding);
         fresh_environment.insert(
-            "ERPX_DEV_CONTROLLER_TARGET_TENANT".into(),
-            "demo-tenant-restricted".into(),
+            "ERPX_DEV_CONTROLLER_TARGET_HOLDING".into(),
+            "demo-holding-restricted".into(),
         );
         assert!(
             development_controller_role_config_from_env(

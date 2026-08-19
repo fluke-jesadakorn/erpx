@@ -10,7 +10,7 @@ Both gates remain partial and must not be marked complete.
 Directly evidenced primitives include ticket lifecycle, support capability
 hash-only storage and bounded revocation seams, the domain support intersection
 evaluator, incident lifecycle and authenticated safe list/detail transport,
-Operations aggregate contracts, tenant write/read persistence, RLS, event
+Operations aggregate contracts, holding write/read persistence, RLS, event
 idempotency/checkpoints, and bounded exception persistence.
 
 Missing or partial requirements include customer approval scope containment,

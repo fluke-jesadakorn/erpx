@@ -2,26 +2,26 @@ use async_trait::async_trait;
 use erpx_agent_orchestration::{
     AgentDefinition, AgentDefinitionId, AgentDefinitionRepository, PortError,
 };
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::{normalized, tenant::TenantBoundPool};
+use crate::{holding::HoldingBoundPool, normalized};
 
 #[derive(Debug, Clone)]
 pub struct SqlxAgentRegistry {
-    database: TenantBoundPool,
+    database: HoldingBoundPool,
 }
 
 impl SqlxAgentRegistry {
-    pub fn try_new(pool: PgPool, tenant_id: Uuid) -> Result<Self, PortError> {
+    pub fn try_new(pool: PgPool, holding_id: Uuid) -> Result<Self, PortError> {
         Ok(Self {
-            database: TenantBoundPool::try_new(pool, tenant_id)?,
+            database: HoldingBoundPool::try_new(pool, holding_id)?,
         })
     }
 
-    pub const fn tenant_id(&self) -> Uuid {
-        self.database.tenant_id()
+    pub const fn holding_id(&self) -> Uuid {
+        self.database.holding_id()
     }
 }
 
@@ -29,12 +29,12 @@ impl SqlxAgentRegistry {
 impl AgentDefinitionRepository for SqlxAgentRegistry {
     async fn load_definition(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: AgentDefinitionId,
     ) -> Result<Option<AgentDefinition>, PortError> {
         let mut transaction = self.database.begin().await?;
         let definition =
-            normalized::load_definition(&mut transaction, self.tenant_id(), id).await?;
+            normalized::load_definition(&mut transaction, self.holding_id(), id).await?;
         transaction
             .commit()
             .await

@@ -5,7 +5,7 @@ use erpx_cqrs::{
     QueryConsistency,
 };
 use erpx_kernel::{
-    ActorAttribution, AggregateId, AuditContext, CommandId, CorrelationId, EventId, TenantScope,
+    ActorAttribution, AggregateId, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -35,8 +35,8 @@ pub enum ProjectAction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
-    pub target_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
+    pub target_scope: &'a AuthorityScope,
     pub action: ProjectAction,
 }
 
@@ -49,7 +49,7 @@ pub trait AuthorizationPort: Send + Sync {
 pub trait EntitlementPort: Send + Sync {
     async fn ensure_projects_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         write: bool,
     ) -> Result<(), PortError>;
 }
@@ -58,22 +58,22 @@ pub trait EntitlementPort: Send + Sync {
 pub trait WriteRepository: Send + Sync {
     async fn load_project(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: ProjectId,
     ) -> Result<Option<Project>, PortError>;
     async fn load_workflow(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: WorkflowTemplateId,
     ) -> Result<Option<WorkflowTemplate>, PortError>;
     async fn load_dependency(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: DependencyId,
     ) -> Result<Option<DependencyAgreement>, PortError>;
     async fn load_handoff(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: HandoffId,
     ) -> Result<Option<ProjectHandoff>, PortError>;
 }
@@ -151,7 +151,7 @@ pub struct ProjectsCommit {
     pub correlation_id: CorrelationId,
     pub causation_id: Option<EventId>,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
     pub aggregate: ProjectsAggregate,
@@ -259,26 +259,26 @@ pub struct ReadProjection<T> {
 pub trait ReadRepository: Send + Sync {
     async fn get_project(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: ProjectId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<ProjectView>>, PortError>;
     async fn get_graph(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: ProjectId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<ProjectGraphView>>, PortError>;
     async fn get_record(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: uuid::Uuid,
         kind: ProjectRecordKind,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<ProjectRecordView>>, PortError>;
     async fn list_projects(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         filter: &ProjectListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<ProjectList>, PortError>;

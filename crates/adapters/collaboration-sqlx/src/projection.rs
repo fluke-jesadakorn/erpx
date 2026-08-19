@@ -5,7 +5,7 @@ use erpx_collaboration::{
     Thread, ThreadId, ThreadProjection,
 };
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
-use erpx_kernel::{CommandId, CorrelationId, TenantId, TenantScope};
+use erpx_kernel::{AuthorityScope, CommandId, CorrelationId, HoldingId};
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
@@ -19,10 +19,10 @@ const AGGREGATE_TYPE: &str = "thread";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CollaborationThreadProjectionFact {
-    pub tenant_id: TenantId,
+    pub holding_id: HoldingId,
     pub thread_id: ThreadId,
     pub aggregate_version: u64,
-    pub visibility_scope: TenantScope,
+    pub visibility_scope: AuthorityScope,
     pub audience: Audience,
     pub projection: ThreadProjection,
     pub source_event_cursor: u64,
@@ -31,26 +31,26 @@ pub struct CollaborationThreadProjectionFact {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CollaborationStreamProjectionFact {
-    pub tenant_id: TenantId,
+    pub holding_id: HoldingId,
     pub thread_id: ThreadId,
     pub aggregate_version: u64,
-    pub visibility_scope: TenantScope,
+    pub visibility_scope: AuthorityScope,
     pub events: Vec<CollaborationStreamEvent>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CollaborationInboxProjectionFact {
-    pub tenant_id: TenantId,
+    pub holding_id: HoldingId,
     pub thread_id: ThreadId,
     pub aggregate_version: u64,
-    pub visibility_scope: TenantScope,
+    pub visibility_scope: AuthorityScope,
     pub facts: Vec<OpaqueInboxFact>,
 }
 
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn append_projection_facts(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
     command_id: CommandId,
     correlation_id: CorrelationId,
     actor: serde_json::Value,
@@ -59,17 +59,17 @@ pub(super) async fn append_projection_facts(
     stream_events: Vec<CollaborationStreamEvent>,
     inbox_facts: &[OpaqueInboxFact],
 ) -> Result<(), PortError> {
-    if tenant_id != thread.policy().tenant_id()
+    if holding_id != thread.policy().holding_id()
         || last_event_cursor == 0
         || stream_events.is_empty()
         || stream_events.iter().any(|event| {
-            event.tenant_id != tenant_id
+            event.holding_id != holding_id
                 || event.thread_id != thread.id()
                 || event.cursor == 0
                 || event.aggregate_version == 0
         })
         || inbox_facts.iter().any(|fact| {
-            fact.tenant_id != tenant_id
+            fact.holding_id != holding_id
                 || fact.thread_id != thread.id()
                 || fact.anchor_record_id != thread.anchor().record().id()
         })
@@ -79,7 +79,7 @@ pub(super) async fn append_projection_facts(
 
     let scope = thread.policy().visibility_scope().clone();
     let thread_fact = CollaborationThreadProjectionFact {
-        tenant_id,
+        holding_id,
         thread_id: thread.id(),
         aggregate_version: thread.version(),
         visibility_scope: scope.clone(),
@@ -90,7 +90,7 @@ pub(super) async fn append_projection_facts(
     };
     append_fact(
         tx,
-        tenant_id,
+        holding_id,
         command_id,
         correlation_id,
         actor.clone(),
@@ -104,7 +104,7 @@ pub(super) async fn append_projection_facts(
     .await?;
 
     let stream_fact = CollaborationStreamProjectionFact {
-        tenant_id,
+        holding_id,
         thread_id: thread.id(),
         aggregate_version: thread.version(),
         visibility_scope: scope.clone(),
@@ -112,7 +112,7 @@ pub(super) async fn append_projection_facts(
     };
     append_fact(
         tx,
-        tenant_id,
+        holding_id,
         command_id,
         correlation_id,
         actor.clone(),
@@ -127,7 +127,7 @@ pub(super) async fn append_projection_facts(
 
     if !inbox_facts.is_empty() {
         let inbox_fact = CollaborationInboxProjectionFact {
-            tenant_id,
+            holding_id,
             thread_id: thread.id(),
             aggregate_version: thread.version(),
             visibility_scope: scope.clone(),
@@ -135,7 +135,7 @@ pub(super) async fn append_projection_facts(
         };
         append_fact(
             tx,
-            tenant_id,
+            holding_id,
             command_id,
             correlation_id,
             actor,
@@ -154,13 +154,13 @@ pub(super) async fn append_projection_facts(
 #[allow(clippy::too_many_arguments)]
 async fn append_fact<T: Serialize>(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
     command_id: CommandId,
     correlation_id: CorrelationId,
     actor: serde_json::Value,
     thread_id: ThreadId,
     aggregate_version: u64,
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     event_type: &str,
     payload: &T,
     occurred_at: DateTime<Utc>,
@@ -171,10 +171,10 @@ async fn append_fact<T: Serialize>(
     );
     sqlx::query(
         "INSERT INTO erpx_cqrs_write.outbox_events \
-         (tenant_id,event_id,context_name,partition_key,command_id,event_type,event_version,aggregate_type,aggregate_id,aggregate_version,tenant_scope,actor,correlation_id,causation_id,payload,occurred_at,available_at) \
+         (holding_id,event_id,context_name,partition_key,command_id,event_type,event_version,aggregate_type,aggregate_id,aggregate_version,active_scope,actor,correlation_id,causation_id,payload,occurred_at,available_at) \
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NULL,$14,$15,$15)",
     )
-    .bind(tenant_id.as_uuid())
+    .bind(holding_id.as_uuid())
     .bind(event_id)
     .bind(CONTEXT_NAME)
     .bind(partition(thread_id))
@@ -197,14 +197,14 @@ async fn append_fact<T: Serialize>(
 
 #[derive(Debug, Clone)]
 pub struct CollaborationThreadProjector {
-    tenant_id: TenantId,
+    holding_id: HoldingId,
     events: Vec<String>,
 }
 
 impl CollaborationThreadProjector {
-    pub fn new(tenant_id: TenantId) -> Self {
+    pub fn new(holding_id: HoldingId) -> Self {
         Self {
-            tenant_id,
+            holding_id,
             events: vec![THREAD_PROJECTION_FACT_EVENT.into()],
         }
     }
@@ -226,14 +226,14 @@ impl Projector for CollaborationThreadProjector {
         context: &ProjectorContext<'_>,
         event: &ProjectionEvent,
     ) -> Result<(), ProjectionFailure> {
-        set_tenant(tx, self.tenant_id).await?;
+        set_holding(tx, self.holding_id).await?;
         let fact: CollaborationThreadProjectionFact = decode(event, THREAD_PROJECTION_FACT_EVENT)?;
         validate_envelope(
             event,
             context,
             THREAD_PROJECTION,
-            self.tenant_id,
-            fact.tenant_id,
+            self.holding_id,
+            fact.holding_id,
             fact.thread_id,
             fact.aggregate_version,
             &fact.visibility_scope,
@@ -261,15 +261,15 @@ impl Projector for CollaborationThreadProjector {
             .join("\n");
         sqlx::query(
             "INSERT INTO erpx_collaboration_read.thread_projection \
-             (tenant_id,projection_name,generation,thread_id,anchor_record_id,visibility_scope,audience,projection,search_text,source_event_cursor,updated_at) \
+             (holding_id,projection_name,generation,thread_id,anchor_record_id,visibility_scope,audience,projection,search_text,source_event_cursor,updated_at) \
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) \
-             ON CONFLICT (tenant_id,projection_name,generation,thread_id) DO UPDATE SET \
+             ON CONFLICT (holding_id,projection_name,generation,thread_id) DO UPDATE SET \
               anchor_record_id=EXCLUDED.anchor_record_id,visibility_scope=EXCLUDED.visibility_scope, \
               audience=EXCLUDED.audience,projection=EXCLUDED.projection,search_text=EXCLUDED.search_text, \
               source_event_cursor=EXCLUDED.source_event_cursor,updated_at=EXCLUDED.updated_at \
              WHERE erpx_collaboration_read.thread_projection.source_event_cursor < EXCLUDED.source_event_cursor",
         )
-        .bind(self.tenant_id.as_uuid())
+        .bind(self.holding_id.as_uuid())
         .bind(THREAD_PROJECTION)
         .bind(context.generation)
         .bind(fact.thread_id.as_uuid())
@@ -291,20 +291,20 @@ impl Projector for CollaborationThreadProjector {
         tx: &mut Transaction<'_, Postgres>,
         context: &ProjectorContext<'_>,
     ) -> Result<(), ProjectionFailure> {
-        reset(tx, context, self.tenant_id, "thread_projection").await
+        reset(tx, context, self.holding_id, "thread_projection").await
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct CollaborationStreamProjector {
-    tenant_id: TenantId,
+    holding_id: HoldingId,
     events: Vec<String>,
 }
 
 impl CollaborationStreamProjector {
-    pub fn new(tenant_id: TenantId) -> Self {
+    pub fn new(holding_id: HoldingId) -> Self {
         Self {
-            tenant_id,
+            holding_id,
             events: vec![STREAM_PROJECTION_FACT_EVENT.into()],
         }
     }
@@ -326,14 +326,14 @@ impl Projector for CollaborationStreamProjector {
         context: &ProjectorContext<'_>,
         event: &ProjectionEvent,
     ) -> Result<(), ProjectionFailure> {
-        set_tenant(tx, self.tenant_id).await?;
+        set_holding(tx, self.holding_id).await?;
         let fact: CollaborationStreamProjectionFact = decode(event, STREAM_PROJECTION_FACT_EVENT)?;
         validate_envelope(
             event,
             context,
             STREAM_PROJECTION,
-            self.tenant_id,
-            fact.tenant_id,
+            self.holding_id,
+            fact.holding_id,
             fact.thread_id,
             fact.aggregate_version,
             &fact.visibility_scope,
@@ -342,7 +342,7 @@ impl Projector for CollaborationStreamProjector {
             return Err(failure("empty collaboration stream projection fact"));
         }
         for value in fact.events {
-            if value.tenant_id != self.tenant_id
+            if value.holding_id != self.holding_id
                 || value.thread_id != fact.thread_id
                 || value.cursor == 0
                 || value.aggregate_version == 0
@@ -351,10 +351,10 @@ impl Projector for CollaborationStreamProjector {
             }
             let inserted = sqlx::query(
                 "INSERT INTO erpx_collaboration_read.stream_projection \
-                 (tenant_id,projection_name,generation,thread_id,event_cursor,aggregate_version,event_kind,occurred_at) \
+                 (holding_id,projection_name,generation,thread_id,event_cursor,aggregate_version,event_kind,occurred_at) \
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING",
             )
-            .bind(self.tenant_id.as_uuid())
+            .bind(self.holding_id.as_uuid())
             .bind(STREAM_PROJECTION)
             .bind(context.generation)
             .bind(value.thread_id.as_uuid())
@@ -369,10 +369,10 @@ impl Projector for CollaborationStreamProjector {
             if inserted == 0 {
                 let exact: bool = sqlx::query_scalar(
                     "SELECT EXISTS (SELECT 1 FROM erpx_collaboration_read.stream_projection \
-                     WHERE tenant_id=$1 AND projection_name=$2 AND generation=$3 AND thread_id=$4 \
+                     WHERE holding_id=$1 AND projection_name=$2 AND generation=$3 AND thread_id=$4 \
                      AND event_cursor=$5 AND aggregate_version=$6 AND event_kind=$7 AND occurred_at=$8)",
                 )
-                .bind(self.tenant_id.as_uuid())
+                .bind(self.holding_id.as_uuid())
                 .bind(STREAM_PROJECTION)
                 .bind(context.generation)
                 .bind(value.thread_id.as_uuid())
@@ -396,20 +396,20 @@ impl Projector for CollaborationStreamProjector {
         tx: &mut Transaction<'_, Postgres>,
         context: &ProjectorContext<'_>,
     ) -> Result<(), ProjectionFailure> {
-        reset(tx, context, self.tenant_id, "stream_projection").await
+        reset(tx, context, self.holding_id, "stream_projection").await
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct CollaborationInboxProjector {
-    tenant_id: TenantId,
+    holding_id: HoldingId,
     events: Vec<String>,
 }
 
 impl CollaborationInboxProjector {
-    pub fn new(tenant_id: TenantId) -> Self {
+    pub fn new(holding_id: HoldingId) -> Self {
         Self {
-            tenant_id,
+            holding_id,
             events: vec![INBOX_PROJECTION_FACT_EVENT.into()],
         }
     }
@@ -431,14 +431,14 @@ impl Projector for CollaborationInboxProjector {
         context: &ProjectorContext<'_>,
         event: &ProjectionEvent,
     ) -> Result<(), ProjectionFailure> {
-        set_tenant(tx, self.tenant_id).await?;
+        set_holding(tx, self.holding_id).await?;
         let fact: CollaborationInboxProjectionFact = decode(event, INBOX_PROJECTION_FACT_EVENT)?;
         validate_envelope(
             event,
             context,
             INBOX_PROJECTION,
-            self.tenant_id,
-            fact.tenant_id,
+            self.holding_id,
+            fact.holding_id,
             fact.thread_id,
             fact.aggregate_version,
             &fact.visibility_scope,
@@ -447,16 +447,16 @@ impl Projector for CollaborationInboxProjector {
             return Err(failure("empty collaboration inbox projection fact"));
         }
         for value in fact.facts {
-            if value.tenant_id != self.tenant_id || value.thread_id != fact.thread_id {
+            if value.holding_id != self.holding_id || value.thread_id != fact.thread_id {
                 return Err(failure("invalid collaboration inbox fact"));
             }
             let inserted = sqlx::query(
                 "INSERT INTO erpx_collaboration_read.opaque_mention_inbox_projection \
-                 (event_id,tenant_id,projection_name,generation,recipient_principal_id,thread_id,mention_event_id,anchor_record_id,created_at) \
+                 (event_id,holding_id,projection_name,generation,recipient_principal_id,thread_id,mention_event_id,anchor_record_id,created_at) \
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT DO NOTHING",
             )
             .bind(value.event_id)
-            .bind(self.tenant_id.as_uuid())
+            .bind(self.holding_id.as_uuid())
             .bind(INBOX_PROJECTION)
             .bind(context.generation)
             .bind(value.recipient_principal_id.as_uuid())
@@ -471,12 +471,12 @@ impl Projector for CollaborationInboxProjector {
             if inserted == 0 {
                 let exact: bool = sqlx::query_scalar(
                     "SELECT EXISTS (SELECT 1 FROM erpx_collaboration_read.opaque_mention_inbox_projection \
-                     WHERE event_id=$1 AND tenant_id=$2 AND projection_name=$3 AND generation=$4 \
+                     WHERE event_id=$1 AND holding_id=$2 AND projection_name=$3 AND generation=$4 \
                      AND recipient_principal_id=$5 AND thread_id=$6 AND mention_event_id=$7 \
                      AND anchor_record_id=$8 AND created_at=$9)",
                 )
                 .bind(value.event_id)
-                .bind(self.tenant_id.as_uuid())
+                .bind(self.holding_id.as_uuid())
                 .bind(INBOX_PROJECTION)
                 .bind(context.generation)
                 .bind(value.recipient_principal_id.as_uuid())
@@ -503,7 +503,7 @@ impl Projector for CollaborationInboxProjector {
         reset(
             tx,
             context,
-            self.tenant_id,
+            self.holding_id,
             "opaque_mention_inbox_projection",
         )
         .await
@@ -529,17 +529,17 @@ fn validate_envelope(
     event: &ProjectionEvent,
     context: &ProjectorContext<'_>,
     projection: &str,
-    expected_tenant: TenantId,
-    fact_tenant: TenantId,
+    expected_holding: HoldingId,
+    fact_holding: HoldingId,
     thread_id: ThreadId,
     aggregate_version: u64,
-    visibility_scope: &TenantScope,
+    visibility_scope: &AuthorityScope,
 ) -> Result<(), ProjectionFailure> {
     if context.projection != projection
-        || fact_tenant != expected_tenant
+        || fact_holding != expected_holding
         || event.aggregate_id.as_uuid() != thread_id.as_uuid()
         || event.aggregate_version != aggregate_version
-        || &event.tenant_scope != visibility_scope
+        || &event.active_scope != visibility_scope
         || event.partition != partition(thread_id)
     {
         return Err(failure("collaboration projection envelope mismatch"));
@@ -551,18 +551,18 @@ fn partition(thread_id: ThreadId) -> String {
     format!("collaboration.thread:{}", thread_id.as_uuid().simple())
 }
 
-async fn set_tenant(
+async fn set_holding(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
 ) -> Result<(), ProjectionFailure> {
-    let expected = tenant_id.as_uuid().to_string();
-    let actual: String = sqlx::query_scalar("SELECT set_config('app.tenant_id', $1, true)")
+    let expected = holding_id.as_uuid().to_string();
+    let actual: String = sqlx::query_scalar("SELECT set_config('app.holding_id', $1, true)")
         .bind(&expected)
         .fetch_one(&mut **tx)
         .await
         .map_err(map_failure)?;
     if actual != expected {
-        return Err(failure("collaboration projection tenant binding mismatch"));
+        return Err(failure("collaboration projection holding binding mismatch"));
     }
     Ok(())
 }
@@ -570,15 +570,15 @@ async fn set_tenant(
 async fn reset(
     tx: &mut Transaction<'_, Postgres>,
     context: &ProjectorContext<'_>,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
     table: &str,
 ) -> Result<(), ProjectionFailure> {
-    set_tenant(tx, tenant_id).await?;
+    set_holding(tx, holding_id).await?;
     let statement = format!(
-        "DELETE FROM erpx_collaboration_read.{table} WHERE tenant_id=$1 AND projection_name=$2 AND generation=$3"
+        "DELETE FROM erpx_collaboration_read.{table} WHERE holding_id=$1 AND projection_name=$2 AND generation=$3"
     );
     sqlx::query(&statement)
-        .bind(tenant_id.as_uuid())
+        .bind(holding_id.as_uuid())
         .bind(context.projection)
         .bind(context.generation)
         .execute(&mut **tx)
@@ -599,22 +599,22 @@ fn failure(message: impl Into<String>) -> ProjectionFailure {
 mod tests {
     use super::*;
 
-    fn tenant_id() -> TenantId {
-        TenantId::try_from_uuid(Uuid::from_u128(1)).unwrap()
+    fn holding_id() -> HoldingId {
+        HoldingId::try_from_uuid(Uuid::from_u128(1)).unwrap()
     }
 
     #[test]
     fn all_three_projection_streams_are_typed_and_rebuildable() {
         assert_eq!(
-            CollaborationThreadProjector::new(tenant_id()).event_types(),
+            CollaborationThreadProjector::new(holding_id()).event_types(),
             &[THREAD_PROJECTION_FACT_EVENT.to_owned()]
         );
         assert_eq!(
-            CollaborationStreamProjector::new(tenant_id()).event_types(),
+            CollaborationStreamProjector::new(holding_id()).event_types(),
             &[STREAM_PROJECTION_FACT_EVENT.to_owned()]
         );
         assert_eq!(
-            CollaborationInboxProjector::new(tenant_id()).event_types(),
+            CollaborationInboxProjector::new(holding_id()).event_types(),
             &[INBOX_PROJECTION_FACT_EVENT.to_owned()]
         );
         let source = include_str!("projection.rs");

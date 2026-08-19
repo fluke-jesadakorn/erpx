@@ -2,7 +2,7 @@
 //!
 //! The agent resolves secrets inside the customer network and accepts only a
 //! closed set of typed operations. It does not expose SQL, shell, database
-//! credentials, directory bind credentials, or tenant-to-tenant routing.
+//! credentials, directory bind credentials, or holding-to-holding routing.
 
 use std::{
     collections::{BTreeSet, HashMap, VecDeque},
@@ -15,13 +15,12 @@ use std::{
 
 use chrono::{DateTime, Utc};
 use erpx_domain::{
-    access::Scope,
-    contracts::CONTRACT_VERSION,
+    contracts::{AuthorityScope as Scope, CONTRACT_VERSION},
     data_plane::{AgentCapability, BusinessUnitId, SecretReference},
 };
 use erpx_proto::{
-    common::v2::{TenantScope as ProtoTenantScope, tenant_scope},
-    erpx::platform_administration::v2::{
+    common::{AuthorityScope as ProtoHoldingScope, authority_scope},
+    erpx::platform_administration::{
         DesiredConfigurationMessage, RootAccessCapabilityMessage, RootAccessRevocationMessage,
         TypedDataPlaneCommand,
     },
@@ -39,7 +38,7 @@ use zeroize::Zeroizing;
 const MAX_LOCAL_SECRET_BYTES: u64 = 256 * 1024;
 const MAX_DESIRED_STATE_BYTES: usize = 64 * 1024;
 const MAX_RECENT_COMMAND_IDS: usize = 4_096;
-pub const REQUIRED_SCHEMA_GENERATION: &str = "2";
+pub const REQUIRED_SCHEMA_REVISION: &str = "2";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LocalReadinessObservation {
@@ -76,10 +75,10 @@ impl LocalReadinessObservation {
         }
         if self.write_healthy
             && self.read_healthy
-            && (self.write_schema_version != REQUIRED_SCHEMA_GENERATION
-                || self.read_schema_version != REQUIRED_SCHEMA_GENERATION)
+            && (self.write_schema_version != REQUIRED_SCHEMA_REVISION
+                || self.read_schema_version != REQUIRED_SCHEMA_REVISION)
         {
-            return Err(AgentError::UnsupportedSchemaGeneration);
+            return Err(AgentError::UnsupportedSchemaRevision);
         }
         Ok(())
     }
@@ -87,8 +86,8 @@ impl LocalReadinessObservation {
     pub fn is_healthy(&self) -> bool {
         self.write_healthy
             && self.read_healthy
-            && self.write_schema_version == REQUIRED_SCHEMA_GENERATION
-            && self.read_schema_version == REQUIRED_SCHEMA_GENERATION
+            && self.write_schema_version == REQUIRED_SCHEMA_REVISION
+            && self.read_schema_version == REQUIRED_SCHEMA_REVISION
             && self.storage_healthy
             && self.directory_ready
             && self.projections_healthy
@@ -143,8 +142,8 @@ impl LocalDataPlaneRuntime {
         let value = serde_json::json!({
             "contract_version": desired.contract_version,
             "configuration_id": configuration_id,
-            "tenant_id": desired.tenant_id,
-            "root_holding_id": desired.root_holding_id,
+            "holding_id": desired.holding_id,
+            "canonical_holding_id": desired.canonical_holding_id,
             "target_agent_id": desired.target_agent_id,
             "configuration_layer": desired.configuration_layer,
             "business_unit": desired.business_unit,
@@ -175,9 +174,9 @@ impl LocalDataPlaneRuntime {
     ) -> Result<(), AgentError> {
         let command_id = parse_uuid(&command.command_id)?;
         let payload = validate_desired_json(&command.payload_json)?;
-        let tenant_scope = proto_scope(
+        let active_scope = proto_scope(
             command
-                .tenant_scope
+                .active_scope
                 .as_ref()
                 .ok_or(AgentError::BindingMismatch)?,
         )?;
@@ -192,12 +191,12 @@ impl LocalDataPlaneRuntime {
         let value = serde_json::json!({
             "contract_version": command.contract_version,
             "command_id": command_id,
-            "tenant_id": command.tenant_id,
+            "holding_id": command.holding_id,
             "agent_id": command.agent_id,
             "operation": operation.as_str(),
             "payload": payload,
             "correlation_id": command.correlation_id,
-            "tenant_scope": tenant_scope,
+            "active_scope": active_scope,
             "audit": audit,
             "expires_at": command.expires_at,
             "device_ref": command.device_ref,
@@ -306,7 +305,7 @@ pub enum AgentError {
     SigningKeyMismatch,
     #[error("message contract version is unsupported")]
     UnsupportedContract,
-    #[error("message tenant or agent binding is invalid")]
+    #[error("message holding or agent binding is invalid")]
     BindingMismatch,
     #[error("message is expired")]
     Expired,
@@ -322,15 +321,14 @@ pub enum AgentError {
     InvalidDesiredState,
     #[error("local worker readiness evidence is invalid")]
     InvalidLocalReadiness,
-    #[error("local worker schema generation is unsupported")]
-    UnsupportedSchemaGeneration,
+    #[error("local worker schema revision is unsupported")]
+    UnsupportedSchemaRevision,
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }
 
 #[derive(Debug, Clone)]
 pub struct AgentIdentity {
-    pub tenant_id: String,
     pub holding_id: Uuid,
     pub agent_id: Uuid,
     pub capabilities: BTreeSet<AgentCapability>,
@@ -338,12 +336,7 @@ pub struct AgentIdentity {
 
 impl AgentIdentity {
     pub fn validate(&self) -> Result<(), AgentError> {
-        if self.tenant_id.trim().is_empty()
-            || self.tenant_id.len() > 128
-            || self.holding_id.is_nil()
-            || self.agent_id.is_nil()
-            || self.capabilities.is_empty()
-        {
+        if self.holding_id.is_nil() || self.agent_id.is_nil() || self.capabilities.is_empty() {
             return Err(AgentError::Configuration("agent identity is incomplete"));
         }
         Ok(())
@@ -489,8 +482,8 @@ pub enum TypedAgentOperation {
     VerifyRestore,
     SynchronizeDirectory,
     RebuildProjection,
-    TypedTenantQuery,
-    TypedTenantCommand,
+    TypedHoldingQuery,
+    TypedHoldingCommand,
 }
 
 impl TypedAgentOperation {
@@ -503,8 +496,8 @@ impl TypedAgentOperation {
             "restore.verify" => Ok(Self::VerifyRestore),
             "directory.synchronize" => Ok(Self::SynchronizeDirectory),
             "projection.rebuild" => Ok(Self::RebuildProjection),
-            "tenant.query.typed" => Ok(Self::TypedTenantQuery),
-            "tenant.command.typed" => Ok(Self::TypedTenantCommand),
+            "holding.query.typed" => Ok(Self::TypedHoldingQuery),
+            "holding.command.typed" => Ok(Self::TypedHoldingCommand),
             // Generic SQL and shell strings necessarily land here.
             _ => Err(AgentError::UnsupportedOperation),
         }
@@ -519,8 +512,8 @@ impl TypedAgentOperation {
             Self::VerifyRestore => AgentCapability::Restore,
             Self::SynchronizeDirectory => AgentCapability::DirectorySync,
             Self::RebuildProjection => AgentCapability::ProjectionWorker,
-            Self::TypedTenantQuery => AgentCapability::TypedTenantQueries,
-            Self::TypedTenantCommand => AgentCapability::TypedTenantCommands,
+            Self::TypedHoldingQuery => AgentCapability::TypedHoldingQueries,
+            Self::TypedHoldingCommand => AgentCapability::TypedHoldingCommands,
         }
     }
 
@@ -533,8 +526,8 @@ impl TypedAgentOperation {
             Self::VerifyRestore => "restore.verify",
             Self::SynchronizeDirectory => "directory.synchronize",
             Self::RebuildProjection => "projection.rebuild",
-            Self::TypedTenantQuery => "tenant.query.typed",
-            Self::TypedTenantCommand => "tenant.command.typed",
+            Self::TypedHoldingQuery => "holding.query.typed",
+            Self::TypedHoldingCommand => "holding.command.typed",
         }
     }
 }
@@ -582,7 +575,7 @@ impl AgentMessageGuard {
         self.observed_version
     }
 
-    /// Verify signature, tenant binding, expiry, capabilities, and strict
+    /// Verify signature, holding binding, expiry, capabilities, and strict
     /// desired-version ordering before local reconciliation begins.
     pub fn admit_desired(
         &self,
@@ -591,9 +584,9 @@ impl AgentMessageGuard {
     ) -> Result<Value, AgentError> {
         self.verifier.verify_desired(desired)?;
         validate_contract(desired.contract_version)?;
-        if desired.tenant_id != self.identity.tenant_id
+        if desired.holding_id != self.identity.holding_id.to_string()
             || desired.target_agent_id != self.identity.agent_id.to_string()
-            || desired.root_holding_id != self.identity.holding_id.to_string()
+            || desired.canonical_holding_id != self.identity.holding_id.to_string()
         {
             return Err(AgentError::BindingMismatch);
         }
@@ -629,7 +622,7 @@ impl AgentMessageGuard {
     ) -> Result<TypedAgentOperation, AgentError> {
         self.verifier.verify_command(command)?;
         validate_contract(command.contract_version)?;
-        if command.tenant_id != self.identity.tenant_id
+        if command.holding_id != self.identity.holding_id.to_string()
             || command.agent_id != self.identity.agent_id.to_string()
         {
             return Err(AgentError::BindingMismatch);
@@ -668,7 +661,7 @@ impl AgentMessageGuard {
     ) -> Result<Uuid, AgentError> {
         self.verifier.verify_root_capability(capability)?;
         validate_contract(capability.contract_version)?;
-        if capability.tenant_id != self.identity.tenant_id
+        if capability.holding_id != self.identity.holding_id.to_string()
             || capability.agent_id != self.identity.agent_id.to_string()
             || capability.one_time_capability_token.is_empty()
             || capability.one_time_capability_token.len() > 128
@@ -689,7 +682,7 @@ impl AgentMessageGuard {
         }
         let scope = proto_scope(
             capability
-                .tenant_scope
+                .active_scope
                 .as_ref()
                 .ok_or(AgentError::BindingMismatch)?,
         )?;
@@ -738,7 +731,7 @@ impl AgentMessageGuard {
     ) -> Result<(), AgentError> {
         self.verifier.verify_root_revocation(revocation)?;
         validate_contract(revocation.contract_version)?;
-        if revocation.tenant_id != self.identity.tenant_id
+        if revocation.holding_id != self.identity.holding_id.to_string()
             || revocation.agent_id != self.identity.agent_id.to_string()
             || parse_time(&revocation.revoked_at)? > at
         {
@@ -774,7 +767,7 @@ impl AgentMessageGuard {
         }
         let requested_scope = proto_scope(
             command
-                .tenant_scope
+                .active_scope
                 .as_ref()
                 .ok_or(AgentError::BindingMismatch)?,
         )?;
@@ -816,33 +809,24 @@ fn parse_time(value: &str) -> Result<DateTime<Utc>, AgentError> {
         .map_err(|_| AgentError::Expired)
 }
 
-fn proto_scope(scope: &ProtoTenantScope) -> Result<Scope, AgentError> {
+fn proto_scope(scope: &ProtoHoldingScope) -> Result<Scope, AgentError> {
     match scope.scope.as_ref().ok_or(AgentError::BindingMismatch)? {
-        tenant_scope::Scope::Platform(_) => Err(AgentError::BindingMismatch),
-        tenant_scope::Scope::Holding(scope) => Ok(Scope::Holding {
+        authority_scope::Scope::Platform(_) => Err(AgentError::BindingMismatch),
+        authority_scope::Scope::Holding(scope) => Ok(Scope::Holding {
             holding_id: parse_uuid(&scope.holding_id)?,
         }),
-        tenant_scope::Scope::Company(scope) => Ok(Scope::Company {
+        authority_scope::Scope::Company(scope) => Ok(Scope::Company {
             holding_id: parse_uuid(&scope.holding_id)?,
             company_id: parse_uuid(&scope.company_id)?,
         }),
-        tenant_scope::Scope::Branch(scope) => Ok(Scope::Branch {
+        authority_scope::Scope::Branch(scope) => Ok(Scope::Branch {
             holding_id: parse_uuid(&scope.holding_id)?,
             company_id: parse_uuid(&scope.company_id)?,
             branch_id: parse_uuid(&scope.branch_id)?,
         }),
-        tenant_scope::Scope::Subtree(scope) => Ok(Scope::Subtree {
+        authority_scope::Scope::Subtree(scope) => Ok(Scope::Subtree {
             holding_id: parse_uuid(&scope.holding_id)?,
-            company_ids: scope
-                .company_ids
-                .iter()
-                .map(|id| parse_uuid(id))
-                .collect::<Result<Vec<_>, _>>()?,
-            branch_ids: scope
-                .branch_ids
-                .iter()
-                .map(|id| parse_uuid(id))
-                .collect::<Result<Vec<_>, _>>()?,
+            organization_node_id: parse_uuid(&scope.organization_node_id)?,
         }),
     }
 }
@@ -921,8 +905,8 @@ fn inspect_desired_json(value: &Value) -> Result<(), AgentError> {
 
 pub fn parse_agent_capability(value: &str) -> Result<AgentCapability, AgentError> {
     match value {
-        "typed_tenant_queries" => Ok(AgentCapability::TypedTenantQueries),
-        "typed_tenant_commands" => Ok(AgentCapability::TypedTenantCommands),
+        "typed_holding_queries" => Ok(AgentCapability::TypedHoldingQueries),
+        "typed_holding_commands" => Ok(AgentCapability::TypedHoldingCommands),
         "directory_sync" => Ok(AgentCapability::DirectorySync),
         "projection_worker" => Ok(AgentCapability::ProjectionWorker),
         "backup" => Ok(AgentCapability::Backup),
@@ -967,7 +951,7 @@ mod tests {
     #[test]
     fn desired_json_rejects_credential_material() {
         assert!(validate_desired_json(br#"{"password":"no"}"#).is_err());
-        assert!(validate_desired_json(br#"{"database":"postgres://u:p@db/tenant"}"#).is_err());
+        assert!(validate_desired_json(br#"{"database":"postgres://u:p@db/holding"}"#).is_err());
         assert!(validate_desired_json(br#"{"projection":{"lag":30}}"#).is_ok());
     }
 
@@ -986,15 +970,15 @@ mod tests {
         let command = TypedDataPlaneCommand {
             contract_version: u32::from(CONTRACT_VERSION),
             command_id: command_id.to_string(),
-            tenant_id: "tenant-1".into(),
+            holding_id: "holding-1".into(),
             agent_id: Uuid::new_v4().to_string(),
             command_type: "backup.run".into(),
             payload_json: br#"{"backup_profile_ref":"customer-secret:erpx/backup"}"#.to_vec(),
             correlation_id: Uuid::new_v4().to_string(),
             actor: None,
-            tenant_scope: Some(ProtoTenantScope {
-                scope: Some(tenant_scope::Scope::Holding(
-                    erpx_proto::common::v2::HoldingScope {
+            active_scope: Some(ProtoHoldingScope {
+                scope: Some(authority_scope::Scope::Holding(
+                    erpx_proto::common::HoldingScope {
                         holding_id: Uuid::new_v4().to_string(),
                     },
                 )),
@@ -1023,8 +1007,8 @@ mod tests {
         let (root, runtime) = test_runtime();
         let observation = LocalReadinessObservation {
             observed_version: 1,
-            write_schema_version: REQUIRED_SCHEMA_GENERATION.into(),
-            read_schema_version: REQUIRED_SCHEMA_GENERATION.into(),
+            write_schema_version: REQUIRED_SCHEMA_REVISION.into(),
+            read_schema_version: REQUIRED_SCHEMA_REVISION.into(),
             write_healthy: true,
             read_healthy: true,
             storage_healthy: true,
@@ -1049,7 +1033,7 @@ mod tests {
     }
 
     #[test]
-    fn healthy_readiness_fails_closed_on_another_schema_generation() {
+    fn healthy_readiness_fails_closed_on_another_schema_revision() {
         let observation = LocalReadinessObservation {
             observed_version: 1,
             write_schema_version: "1".into(),
@@ -1064,7 +1048,7 @@ mod tests {
         };
         assert_eq!(
             observation.validate().unwrap_err().to_string(),
-            "local worker schema generation is unsupported"
+            "local worker schema revision is unsupported"
         );
         assert!(!observation.is_healthy());
     }

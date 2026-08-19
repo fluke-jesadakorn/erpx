@@ -9,10 +9,10 @@ pub use owned_records::{
     Customer360OwnedRecordProjector, Customer360OwnedRecordReadAdapter,
     Customer360RecordSqlxAdapter,
 };
-pub use projection::{ControlCustomerProjector, TenantActivityProjector};
+pub use projection::{ControlCustomerProjector, HoldingActivityProjector};
 pub use read::Customer360ReadRepository;
 
-pub use erpx_customer_360::{CONTROL_CUSTOMERS_PROJECTION_NAME, TENANT_ACTIVITY_PROJECTION_NAME};
+pub use erpx_customer_360::{CONTROL_CUSTOMERS_PROJECTION_NAME, HOLDING_ACTIVITY_PROJECTION_NAME};
 
 pub const CONTROL_PROFILE_EVENT: &str = "customer.profile_changed";
 pub const SUBSCRIPTION_EVENT: &str = "commercial.subscription_changed";
@@ -21,8 +21,7 @@ pub const SALES_ORDER_EVENT: &str = "sales.order_changed";
 pub const SUPPORT_CASE_EVENT: &str = "support.case_changed";
 pub const EVENT_VERSION: u32 = 1;
 
-pub const READ_DDL: &str =
-    include_str!("../../../migration/migrations_read/0017_customer360_composed_projections.sql");
+pub const READ_DDL: &str = include_str!("../../../migration/migrations_read/0001_baseline.sql");
 
 pub fn control_partition(customer: erpx_integration_contracts::customer::CustomerRef) -> String {
     format!(
@@ -41,7 +40,7 @@ mod tests {
     #[test]
     fn frozen_schema_and_projection_names_are_source_qualified() {
         assert!(READ_DDL.contains(CONTROL_CUSTOMERS_PROJECTION_NAME));
-        assert!(READ_DDL.contains(TENANT_ACTIVITY_PROJECTION_NAME));
+        assert!(READ_DDL.contains(HOLDING_ACTIVITY_PROJECTION_NAME));
         assert!(READ_DDL.contains("projection_source_checkpoints"));
         assert!(READ_DDL.contains("source_key"));
         assert!(READ_DDL.contains("customer_profile_projection"));
@@ -63,6 +62,6 @@ mod tests {
         assert!(!source.contains(concat!("Write", "Pool")));
         assert!(!source.contains(concat!("aggregate_", "snapshots")));
         assert!(source.contains("customer_profile_projection"));
-        assert!(source.contains("tenant_activity"));
+        assert!(source.contains("holding_activity"));
     }
 }

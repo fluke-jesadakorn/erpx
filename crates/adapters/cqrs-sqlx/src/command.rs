@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use erpx_cqrs::{AggregateVersion, CommandReceipt, EventPosition, IdempotencyKey};
 use erpx_kernel::{
-    ActorAttribution, AggregateId, AuditContext, CommandId, CorrelationId, EventId, TenantScope,
+    ActorAttribution, AggregateId, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
 };
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
@@ -60,7 +60,7 @@ pub struct AtomicCommand<R, E> {
     pub correlation_id: CorrelationId,
     pub idempotency_key: IdempotencyKey,
     pub request_hash: RequestHash,
-    pub tenant_scope: TenantScope,
+    pub active_scope: AuthorityScope,
     pub actor: ActorAttribution,
     pub audit_context: AuditContext,
     pub aggregate_type: String,
@@ -173,11 +173,11 @@ impl CommandStore {
         validate_text(context, MAX_CONTEXT_LENGTH)?;
         validate_text(partition, MAX_PARTITION_LENGTH)?;
         let mut transaction = self.pool.begin().await?;
-        let statement = if self.pool.tenant_id().is_some() {
+        let statement = if self.pool.holding_id().is_some() {
             "SELECT command_id, request_hash, status, receipt
              FROM erpx_cqrs_write.command_receipts
              WHERE context_name = $1 AND partition_key = $2 AND idempotency_key = $3
-               AND tenant_id = $4"
+               AND holding_id = $4"
         } else {
             "SELECT command_id, request_hash, status, receipt
              FROM erpx_cqrs_write.command_receipts
@@ -187,10 +187,10 @@ impl CommandStore {
             .bind(context)
             .bind(partition)
             .bind(idempotency_key.as_str());
-        let row = match self.pool.tenant_id() {
-            Some(tenant_id) => {
+        let row = match self.pool.holding_id() {
+            Some(holding_id) => {
                 query
-                    .bind(tenant_id)
+                    .bind(holding_id)
                     .fetch_optional(&mut *transaction)
                     .await?
             }
@@ -239,10 +239,10 @@ impl CommandStore {
     {
         validate_command(&command)?;
         let mut transaction = self.pool.begin().await?;
-        let tenant_id = self.pool.tenant_id();
-        let reservation = reserve_receipt(&mut transaction, tenant_id, &command).await?;
+        let holding_id = self.pool.holding_id();
+        let reservation = reserve_receipt(&mut transaction, holding_id, &command).await?;
         if !reservation {
-            let receipt = load_replay_receipt(&mut transaction, tenant_id, &command).await?;
+            let receipt = load_replay_receipt(&mut transaction, holding_id, &command).await?;
             transaction.commit().await?;
             return Ok(AtomicCommandOutcome::Replayed(receipt));
         }
@@ -278,7 +278,7 @@ impl CommandStore {
             correlation_id,
             idempotency_key,
             request_hash: _,
-            tenant_scope,
+            active_scope,
             actor,
             audit_context,
             aggregate_type,
@@ -306,12 +306,12 @@ impl CommandStore {
             positions.push(
                 append_outbox(
                     &mut transaction,
-                    tenant_id,
+                    holding_id,
                     &context,
                     &partition,
                     command_id,
                     correlation_id,
-                    &tenant_scope,
+                    &active_scope,
                     &actor,
                     &aggregate_type,
                     aggregate_id,
@@ -323,12 +323,12 @@ impl CommandStore {
         }
         persist_audit(
             &mut transaction,
-            tenant_id,
+            holding_id,
             &context,
             &partition,
             command_id,
             correlation_id,
-            &tenant_scope,
+            &active_scope,
             &actor,
             &audit_context,
             &aggregate_type,
@@ -355,7 +355,7 @@ impl CommandStore {
         };
         complete_receipt(
             &mut transaction,
-            tenant_id,
+            holding_id,
             &context,
             &partition,
             idempotency_key.as_str(),
@@ -377,9 +377,9 @@ fn validate_command<R, E>(command: &AtomicCommand<R, E>) -> Result<(), CqrsSqlxE
         return Err(CqrsSqlxError::InvalidInput("audit id must not be nil"));
     }
     command
-        .tenant_scope
+        .active_scope
         .validate()
-        .map_err(|_| CqrsSqlxError::InvalidInput("tenant scope is invalid"))?;
+        .map_err(|_| CqrsSqlxError::InvalidInput("holding scope is invalid"))?;
     command
         .actor
         .validate()
@@ -416,13 +416,13 @@ fn validate_text(value: &str, maximum: usize) -> Result<(), CqrsSqlxError> {
 
 async fn reserve_receipt<R, E>(
     transaction: &mut Transaction<'_, Postgres>,
-    tenant_id: Option<Uuid>,
+    holding_id: Option<Uuid>,
     command: &AtomicCommand<R, E>,
 ) -> Result<bool, CqrsSqlxError> {
-    let statement = if tenant_id.is_some() {
+    let statement = if holding_id.is_some() {
         "INSERT INTO erpx_cqrs_write.command_receipts
             (context_name, partition_key, idempotency_key, command_id, request_hash,
-             correlation_id, status, created_at, tenant_id)
+             correlation_id, status, created_at, holding_id)
          VALUES ($1, $2, $3, $4, $5, $6, 'reserved', now(), $7)
          ON CONFLICT DO NOTHING"
     } else {
@@ -439,19 +439,19 @@ async fn reserve_receipt<R, E>(
         .bind(command.command_id.as_uuid())
         .bind(command.request_hash.as_bytes().as_slice())
         .bind(command.correlation_id.as_uuid());
-    let inserted = match tenant_id {
-        Some(tenant_id) => query.bind(tenant_id).execute(&mut **transaction).await?,
+    let inserted = match holding_id {
+        Some(holding_id) => query.bind(holding_id).execute(&mut **transaction).await?,
         None => query.execute(&mut **transaction).await?,
     };
     if inserted.rows_affected() == 1 {
         return Ok(true);
     }
 
-    let statement = if tenant_id.is_some() {
+    let statement = if holding_id.is_some() {
         "SELECT command_id, request_hash, receipt
          FROM erpx_cqrs_write.command_receipts
          WHERE context_name = $1 AND partition_key = $2 AND idempotency_key = $3
-           AND tenant_id = $4 FOR UPDATE"
+           AND holding_id = $4 FOR UPDATE"
     } else {
         "SELECT command_id, request_hash, receipt
          FROM erpx_cqrs_write.command_receipts
@@ -462,10 +462,10 @@ async fn reserve_receipt<R, E>(
         .bind(&command.context)
         .bind(&command.partition)
         .bind(command.idempotency_key.as_str());
-    let by_key = match tenant_id {
-        Some(tenant_id) => {
+    let by_key = match holding_id {
+        Some(holding_id) => {
             query
-                .bind(tenant_id)
+                .bind(holding_id)
                 .fetch_optional(&mut **transaction)
                 .await?
         }
@@ -493,17 +493,17 @@ async fn reserve_receipt<R, E>(
 
 async fn load_replay_receipt<R, E>(
     transaction: &mut Transaction<'_, Postgres>,
-    tenant_id: Option<Uuid>,
+    holding_id: Option<Uuid>,
     command: &AtomicCommand<R, E>,
 ) -> Result<CommandReceipt<R>, CqrsSqlxError>
 where
     R: DeserializeOwned,
 {
-    let statement = if tenant_id.is_some() {
+    let statement = if holding_id.is_some() {
         "SELECT receipt
          FROM erpx_cqrs_write.command_receipts
          WHERE context_name = $1 AND partition_key = $2 AND idempotency_key = $3
-           AND tenant_id = $4"
+           AND holding_id = $4"
     } else {
         "SELECT receipt
          FROM erpx_cqrs_write.command_receipts
@@ -513,8 +513,8 @@ where
         .bind(&command.context)
         .bind(&command.partition)
         .bind(command.idempotency_key.as_str());
-    let value: Value = match tenant_id {
-        Some(tenant_id) => query.bind(tenant_id).fetch_one(&mut **transaction).await?,
+    let value: Value = match holding_id {
+        Some(holding_id) => query.bind(holding_id).fetch_one(&mut **transaction).await?,
         None => query.fetch_one(&mut **transaction).await?,
     };
     let mut receipt: CommandReceipt<R> = serde_json::from_value(value)?;
@@ -525,12 +525,12 @@ where
 #[allow(clippy::too_many_arguments)]
 async fn append_outbox<E: Serialize>(
     transaction: &mut Transaction<'_, Postgres>,
-    tenant_id: Option<Uuid>,
+    holding_id: Option<Uuid>,
     context: &str,
     partition: &str,
     command_id: CommandId,
     correlation_id: CorrelationId,
-    tenant_scope: &TenantScope,
+    active_scope: &AuthorityScope,
     actor: &ActorAttribution,
     aggregate_type: &str,
     aggregate_id: AggregateId,
@@ -538,19 +538,19 @@ async fn append_outbox<E: Serialize>(
     event: OutboxEventWrite<E>,
 ) -> Result<EventPosition, CqrsSqlxError> {
     let payload = serde_json::to_value(event.payload)?;
-    let tenant_scope = serde_json::to_value(tenant_scope)?;
+    let active_scope = serde_json::to_value(active_scope)?;
     let actor = serde_json::to_value(actor)?;
-    let statement = if tenant_id.is_some() {
+    let statement = if holding_id.is_some() {
         "INSERT INTO erpx_cqrs_write.outbox_events
             (event_id, context_name, partition_key, command_id, event_type, event_version,
-             aggregate_type, aggregate_id, aggregate_version, tenant_scope, actor,
-             correlation_id, causation_id, payload, occurred_at, available_at, tenant_id)
+             aggregate_type, aggregate_id, aggregate_version, active_scope, actor,
+             correlation_id, causation_id, payload, occurred_at, available_at, holding_id)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now(), $16)
          RETURNING global_sequence"
     } else {
         "INSERT INTO erpx_cqrs_write.outbox_events
             (event_id, context_name, partition_key, command_id, event_type, event_version,
-             aggregate_type, aggregate_id, aggregate_version, tenant_scope, actor,
+             aggregate_type, aggregate_id, aggregate_version, active_scope, actor,
              correlation_id, causation_id, payload, occurred_at, available_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now())
          RETURNING global_sequence"
@@ -565,14 +565,14 @@ async fn append_outbox<E: Serialize>(
         .bind(aggregate_type)
         .bind(aggregate_id.as_uuid())
         .bind(to_i64(aggregate_version)?)
-        .bind(tenant_scope)
+        .bind(active_scope)
         .bind(actor)
         .bind(correlation_id.as_uuid())
         .bind(event.causation_id.map(EventId::as_uuid))
         .bind(payload)
         .bind(event.occurred_at);
-    let global_sequence: i64 = match tenant_id {
-        Some(tenant_id) => query.bind(tenant_id).fetch_one(&mut **transaction).await?,
+    let global_sequence: i64 = match holding_id {
+        Some(holding_id) => query.bind(holding_id).fetch_one(&mut **transaction).await?,
         None => query.fetch_one(&mut **transaction).await?,
     };
     Ok(EventPosition {
@@ -584,12 +584,12 @@ async fn append_outbox<E: Serialize>(
 #[allow(clippy::too_many_arguments)]
 async fn persist_audit(
     transaction: &mut Transaction<'_, Postgres>,
-    tenant_id: Option<Uuid>,
+    holding_id: Option<Uuid>,
     context: &str,
     partition: &str,
     command_id: CommandId,
     correlation_id: CorrelationId,
-    tenant_scope: &TenantScope,
+    active_scope: &AuthorityScope,
     actor: &ActorAttribution,
     audit_context: &AuditContext,
     aggregate_type: &str,
@@ -597,16 +597,16 @@ async fn persist_audit(
     aggregate_version: u64,
     audit: AuditWrite,
 ) -> Result<(), CqrsSqlxError> {
-    let statement = if tenant_id.is_some() {
+    let statement = if holding_id.is_some() {
         "INSERT INTO erpx_cqrs_write.audit_log
             (audit_id, context_name, partition_key, command_id, correlation_id,
-             tenant_scope, actor, audit_context, action, aggregate_type,
-             aggregate_id, aggregate_version, details, occurred_at, tenant_id)
+             active_scope, actor, audit_context, action, aggregate_type,
+             aggregate_id, aggregate_version, details, occurred_at, holding_id)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)"
     } else {
         "INSERT INTO erpx_cqrs_write.audit_log
             (audit_id, context_name, partition_key, command_id, correlation_id,
-             tenant_scope, actor, audit_context, action, aggregate_type,
+             active_scope, actor, audit_context, action, aggregate_type,
              aggregate_id, aggregate_version, details, occurred_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)"
     };
@@ -616,7 +616,7 @@ async fn persist_audit(
         .bind(partition)
         .bind(command_id.as_uuid())
         .bind(correlation_id.as_uuid())
-        .bind(serde_json::to_value(tenant_scope)?)
+        .bind(serde_json::to_value(active_scope)?)
         .bind(serde_json::to_value(actor)?)
         .bind(serde_json::to_value(audit_context)?)
         .bind(audit.action)
@@ -625,8 +625,8 @@ async fn persist_audit(
         .bind(to_i64(aggregate_version)?)
         .bind(audit.details)
         .bind(audit.occurred_at);
-    match tenant_id {
-        Some(tenant_id) => query.bind(tenant_id).execute(&mut **transaction).await?,
+    match holding_id {
+        Some(holding_id) => query.bind(holding_id).execute(&mut **transaction).await?,
         None => query.execute(&mut **transaction).await?,
     };
     Ok(())
@@ -634,18 +634,18 @@ async fn persist_audit(
 
 async fn complete_receipt<R: Serialize>(
     transaction: &mut Transaction<'_, Postgres>,
-    tenant_id: Option<Uuid>,
+    holding_id: Option<Uuid>,
     context: &str,
     partition: &str,
     idempotency_key: &str,
     receipt: &CommandReceipt<R>,
     completed_at: DateTime<Utc>,
 ) -> Result<(), CqrsSqlxError> {
-    let statement = if tenant_id.is_some() {
+    let statement = if holding_id.is_some() {
         "UPDATE erpx_cqrs_write.command_receipts
          SET status = 'completed', receipt = $4, completed_at = $5
          WHERE context_name = $1 AND partition_key = $2 AND idempotency_key = $3
-           AND status = 'reserved' AND tenant_id = $6"
+           AND status = 'reserved' AND holding_id = $6"
     } else {
         "UPDATE erpx_cqrs_write.command_receipts
          SET status = 'completed', receipt = $4, completed_at = $5
@@ -658,8 +658,8 @@ async fn complete_receipt<R: Serialize>(
         .bind(idempotency_key)
         .bind(serde_json::to_value(receipt)?)
         .bind(completed_at);
-    let updated = match tenant_id {
-        Some(tenant_id) => query.bind(tenant_id).execute(&mut **transaction).await?,
+    let updated = match holding_id {
+        Some(holding_id) => query.bind(holding_id).execute(&mut **transaction).await?,
         None => query.execute(&mut **transaction).await?,
     };
     if updated.rows_affected() != 1 {

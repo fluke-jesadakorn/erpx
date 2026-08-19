@@ -6,7 +6,7 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::{finance, procurement, sales};
 use erpx_kernel::{
-    ActorAttribution, AggregateId, AuditContext, CommandId, CorrelationId, EventId, TenantScope,
+    ActorAttribution, AggregateId, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -85,8 +85,8 @@ impl FinanceAction {
 
 pub struct AuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
-    pub target_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
+    pub target_scope: &'a AuthorityScope,
     pub action: FinanceAction,
 }
 
@@ -99,7 +99,7 @@ pub trait AuthorizationPort: Send + Sync {
 pub trait EntitlementPort: Send + Sync {
     async fn ensure_finance_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         write: bool,
     ) -> Result<(), PortError>;
 }
@@ -109,7 +109,7 @@ pub trait EntitlementPort: Send + Sync {
 pub enum CommandFingerprint {
     CreateChart {
         chart_id: ChartId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         code: String,
         name: String,
         currency: String,
@@ -126,7 +126,7 @@ pub enum CommandFingerprint {
     },
     CreatePeriod {
         period_id: PeriodId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         code: String,
         starts_on: NaiveDate,
         ends_on: NaiveDate,
@@ -142,7 +142,7 @@ pub enum CommandFingerprint {
     },
     CreateJournal {
         journal_id: JournalId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         chart_id: ChartId,
         period_id: PeriodId,
         journal_code: String,
@@ -159,7 +159,7 @@ pub enum CommandFingerprint {
     },
     CreateCustomerInvoice {
         invoice_id: CustomerInvoiceId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         invoice_code: String,
         source: erpx_integration_contracts::RecordRef,
         fact: sales::BillingEligibilityFact,
@@ -173,7 +173,7 @@ pub enum CommandFingerprint {
     },
     CreateRevenueSchedule {
         schedule_id: RevenueScheduleId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         source: erpx_integration_contracts::RecordRef,
         fact: sales::RevenueArrangementFact,
     },
@@ -184,12 +184,12 @@ pub enum CommandFingerprint {
     },
     CreateReceivableFromInvoice {
         subledger_id: SubledgerId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         fact: finance::CustomerInvoicePostedFact,
     },
     CreatePayableFromProcurement {
         subledger_id: SubledgerId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         fact: procurement::ReleasedPurchaseOrderFact,
     },
     ApplySubledgerSettlement {
@@ -209,32 +209,32 @@ pub struct CommandIdentity {
 pub trait WriteRepository: Send + Sync {
     async fn load_chart(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: ChartId,
     ) -> Result<Option<Chart>, PortError>;
     async fn load_period(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: PeriodId,
     ) -> Result<Option<AccountingPeriod>, PortError>;
     async fn load_journal(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: JournalId,
     ) -> Result<Option<Journal>, PortError>;
     async fn load_subledger(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: SubledgerId,
     ) -> Result<Option<SubledgerItem>, PortError>;
     async fn load_customer_invoice(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: CustomerInvoiceId,
     ) -> Result<Option<CustomerInvoice>, PortError>;
     async fn load_revenue_schedule(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: RevenueScheduleId,
     ) -> Result<Option<RevenueSchedule>, PortError>;
 }
@@ -245,7 +245,7 @@ pub struct FinanceCommit {
     pub correlation_id: CorrelationId,
     pub causation_id: Option<EventId>,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
     /// Immutable reference aggregates that the adapter must fence in the same
@@ -307,7 +307,7 @@ pub trait CommandUnitOfWork: Send + Sync {
 pub struct ChartView {
     pub chart_id: ChartId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub code: String,
     pub name: String,
     pub currency: String,
@@ -349,7 +349,7 @@ impl From<&Chart> for ChartView {
 pub struct PeriodView {
     pub period_id: PeriodId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub code: String,
     pub starts_on: NaiveDate,
     pub ends_on: NaiveDate,
@@ -382,7 +382,7 @@ impl From<&AccountingPeriod> for PeriodView {
 pub struct JournalView {
     pub journal_id: JournalId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub chart_id: ChartId,
     pub period_id: PeriodId,
     pub journal_code: String,
@@ -427,7 +427,7 @@ impl From<&Journal> for JournalView {
 pub struct SubledgerView {
     pub subledger_id: SubledgerId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub kind: SubledgerKind,
     pub document_code: String,
     pub source_reference: String,
@@ -462,7 +462,7 @@ impl From<&SubledgerItem> for SubledgerView {
 pub struct CustomerInvoiceView {
     pub invoice_id: CustomerInvoiceId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub invoice_code: String,
     pub source: erpx_integration_contracts::RecordRef,
     pub billing: sales::BillingEligibilityFact,
@@ -503,7 +503,7 @@ impl From<&CustomerInvoice> for CustomerInvoiceView {
 pub struct RevenueScheduleView {
     pub schedule_id: RevenueScheduleId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub arrangement_source: erpx_integration_contracts::RecordRef,
     pub last_source: erpx_integration_contracts::RecordRef,
     pub arrangement: sales::RevenueArrangementFact,
@@ -575,7 +575,7 @@ pub struct TrialBalanceLine {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TrialBalanceView {
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub chart_id: ChartId,
     pub currency: String,
     pub lines: Vec<TrialBalanceLine>,
@@ -585,7 +585,7 @@ pub struct TrialBalanceView {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BankTransactionView {
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub journal_id: JournalId,
     pub fact: crate::domain::BankTransactionFact,
 }
@@ -606,14 +606,14 @@ pub struct BankTransactionList {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StatutoryTaxFactView {
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub journal_id: JournalId,
     pub fact: crate::domain::StatutoryTaxFact,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StatutoryTaxReport {
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub tax_period: String,
     pub currency: String,
     pub facts: Vec<StatutoryTaxFactView>,
@@ -633,73 +633,73 @@ pub struct ReadProjection<T> {
 pub trait ReadRepository: Send + Sync {
     async fn get_chart(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: ChartId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<ChartView>>, PortError>;
     async fn list_charts(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         filter: &ChartListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<ChartList>, PortError>;
     async fn get_period(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: PeriodId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<PeriodView>>, PortError>;
     async fn get_journal(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: JournalId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<JournalView>>, PortError>;
     async fn list_journals(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         filter: &JournalListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<JournalList>, PortError>;
     async fn get_subledger(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: SubledgerId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<SubledgerView>>, PortError>;
     async fn get_customer_invoice(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: CustomerInvoiceId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<CustomerInvoiceView>>, PortError>;
     async fn get_revenue_schedule(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: RevenueScheduleId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<RevenueScheduleView>>, PortError>;
     async fn list_subledger(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         filter: &SubledgerListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<SubledgerList>, PortError>;
     async fn get_trial_balance(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         chart_id: ChartId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<TrialBalanceView>, PortError>;
     async fn list_bank_transactions(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         filter: &BankTransactionListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<BankTransactionList>, PortError>;
     async fn get_statutory_tax_report(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         tax_period: &str,
         currency: &str,
         consistency: &QueryConsistency,

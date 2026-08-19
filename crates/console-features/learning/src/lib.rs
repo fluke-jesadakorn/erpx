@@ -22,7 +22,7 @@ erpx_ui_enterprise_workspaces::declare_enterprise_workspace_feature!(
     "learning.workspace",
     "/learning",
     "people",
-    "erpx-feature-learning-v2"
+    "erpx-feature-learning"
 );
 
 #[cfg(test)]

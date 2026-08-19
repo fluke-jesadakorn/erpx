@@ -11,8 +11,8 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::{BoundedContext, identity_access, operations};
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
-    QueryId, SessionId, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+    ErrorCategory, EventId, QueryId, SessionId,
 };
 use erpx_operations::{
     AcknowledgeException, CloseException, DecideApproval, EscalateException, ExceptionId,
@@ -22,7 +22,7 @@ use erpx_operations::{
     QueueFilter, ReassignException, ResolveException, WorkQueuePolicyId, WorkQueuePolicyListFilter,
     WorkQueuePolicyStatus, WorkQueuePolicyView,
 };
-use erpx_proto::{common, erpx::operations::v2 as platform};
+use erpx_proto::{common, erpx::operations as platform};
 use platform::{
     operations_command_service_server::OperationsCommandService,
     operations_query_service_server::OperationsQueryService,
@@ -34,9 +34,9 @@ const MAX_ROUTE_LENGTH: usize = 255;
 const MAX_SECURITY_INPUT_LENGTH: usize = 512;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OperationsTenantRoute {
-    pub tenant_id: String,
-    pub holding_ref: String,
+pub struct OperationsHoldingRoute {
+    pub holding_id: String,
+    pub data_profile_key: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -50,8 +50,8 @@ pub enum OperationsAccessMode {
 pub struct OperationsAuthenticationRequest {
     transport_metadata: MetadataMap,
     presented_actor: ActorAttribution,
-    presented_scope: TenantScope,
-    presented_route: OperationsTenantRoute,
+    presented_scope: AuthorityScope,
+    presented_route: OperationsHoldingRoute,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
     access_mode: OperationsAccessMode,
@@ -65,10 +65,10 @@ impl OperationsAuthenticationRequest {
     pub const fn presented_actor(&self) -> &ActorAttribution {
         &self.presented_actor
     }
-    pub const fn presented_scope(&self) -> &TenantScope {
+    pub const fn presented_scope(&self) -> &AuthorityScope {
         &self.presented_scope
     }
-    pub const fn presented_route(&self) -> &OperationsTenantRoute {
+    pub const fn presented_route(&self) -> &OperationsHoldingRoute {
         &self.presented_route
     }
     pub fn subscription_id(&self) -> Option<&str> {
@@ -88,39 +88,39 @@ impl OperationsAuthenticationRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthenticatedOperationsRequest {
     actor: ActorAttribution,
-    tenant_scope: TenantScope,
-    tenant_route: OperationsTenantRoute,
+    active_scope: AuthorityScope,
+    holding_route: OperationsHoldingRoute,
 }
 
 impl AuthenticatedOperationsRequest {
     pub fn try_new(
         actor: ActorAttribution,
-        tenant_scope: TenantScope,
-        tenant_route: OperationsTenantRoute,
+        active_scope: AuthorityScope,
+        holding_route: OperationsHoldingRoute,
     ) -> Result<Self, OperationsAuthenticationError> {
         actor
             .validate()
             .map_err(|_| OperationsAuthenticationError::Internal)?;
-        tenant_scope
+        active_scope
             .validate()
             .map_err(|_| OperationsAuthenticationError::Internal)?;
-        validate_route(&tenant_route).map_err(|_| OperationsAuthenticationError::Internal)?;
-        validate_route_scope(&tenant_route, &tenant_scope)
+        validate_route(&holding_route).map_err(|_| OperationsAuthenticationError::Internal)?;
+        validate_route_scope(&holding_route, &active_scope)
             .map_err(|_| OperationsAuthenticationError::Internal)?;
         Ok(Self {
             actor,
-            tenant_scope,
-            tenant_route,
+            active_scope,
+            holding_route,
         })
     }
     pub const fn actor(&self) -> &ActorAttribution {
         &self.actor
     }
-    pub const fn tenant_scope(&self) -> &TenantScope {
-        &self.tenant_scope
+    pub const fn active_scope(&self) -> &AuthorityScope {
+        &self.active_scope
     }
-    pub const fn tenant_route(&self) -> &OperationsTenantRoute {
-        &self.tenant_route
+    pub const fn holding_route(&self) -> &OperationsHoldingRoute {
+        &self.holding_route
     }
 }
 
@@ -144,7 +144,7 @@ pub trait OperationsRequestAuthenticator: Send + Sync + 'static {
 pub trait OperationsCommandApplication: Send + Sync + 'static {
     async fn execute(
         &self,
-        route: OperationsTenantRoute,
+        route: OperationsHoldingRoute,
         command: CommandEnvelope<OperationsCommand>,
     ) -> Result<CommandReceipt<OperationsMutationResult>, CqrsError>;
 }
@@ -153,7 +153,7 @@ pub trait OperationsCommandApplication: Send + Sync + 'static {
 pub trait OperationsQueryApplication: Send + Sync + 'static {
     async fn execute(
         &self,
-        route: OperationsTenantRoute,
+        route: OperationsHoldingRoute,
         query: QueryEnvelope<OperationsQuery>,
     ) -> Result<QueryResult<OperationsQueryResponse>, CqrsError>;
 }
@@ -532,14 +532,14 @@ impl<A: OperationsQueryApplication, G: OperationsRequestAuthenticator> Operation
 }
 
 struct DecodedCommand<C> {
-    route: OperationsTenantRoute,
+    route: OperationsHoldingRoute,
     envelope: CommandEnvelope<C>,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
     action: OperationsAction,
 }
 struct DecodedQuery<Q> {
-    route: OperationsTenantRoute,
+    route: OperationsHoldingRoute,
     envelope: QueryEnvelope<Q>,
     action: OperationsAction,
 }
@@ -548,12 +548,12 @@ async fn authenticate_command<C, G: OperationsRequestAuthenticator>(
     authenticator: &G,
     transport: MetadataMap,
     decoded: DecodedCommand<C>,
-) -> Result<(OperationsTenantRoute, CommandEnvelope<C>), Status> {
+) -> Result<(OperationsHoldingRoute, CommandEnvelope<C>), Status> {
     let authenticated = authenticator
         .authenticate(OperationsAuthenticationRequest {
             transport_metadata: transport,
             presented_actor: decoded.envelope.actor.clone(),
-            presented_scope: decoded.envelope.tenant_scope.clone(),
+            presented_scope: decoded.envelope.active_scope.clone(),
             presented_route: decoded.route,
             subscription_id: decoded.subscription_id,
             mfa_code: decoded.mfa_code,
@@ -564,23 +564,23 @@ async fn authenticate_command<C, G: OperationsRequestAuthenticator>(
         .map_err(status_from_authentication)?;
     let mut envelope = decoded.envelope;
     envelope.actor = authenticated.actor().clone();
-    envelope.tenant_scope = authenticated.tenant_scope().clone();
+    envelope.active_scope = authenticated.active_scope().clone();
     envelope
         .validate()
         .map_err(|_| Status::internal("authenticated Operations authority is invalid"))?;
-    Ok((authenticated.tenant_route().clone(), envelope))
+    Ok((authenticated.holding_route().clone(), envelope))
 }
 
 async fn authenticate_query<Q, G: OperationsRequestAuthenticator>(
     authenticator: &G,
     transport: MetadataMap,
     decoded: DecodedQuery<Q>,
-) -> Result<(OperationsTenantRoute, QueryEnvelope<Q>), Status> {
+) -> Result<(OperationsHoldingRoute, QueryEnvelope<Q>), Status> {
     let authenticated = authenticator
         .authenticate(OperationsAuthenticationRequest {
             transport_metadata: transport,
             presented_actor: decoded.envelope.actor.clone(),
-            presented_scope: decoded.envelope.tenant_scope.clone(),
+            presented_scope: decoded.envelope.active_scope.clone(),
             presented_route: decoded.route,
             subscription_id: None,
             mfa_code: None,
@@ -591,11 +591,11 @@ async fn authenticate_query<Q, G: OperationsRequestAuthenticator>(
         .map_err(status_from_authentication)?;
     let mut envelope = decoded.envelope;
     envelope.actor = authenticated.actor().clone();
-    envelope.tenant_scope = authenticated.tenant_scope().clone();
+    envelope.active_scope = authenticated.active_scope().clone();
     envelope
         .validate()
         .map_err(|_| Status::internal("authenticated Operations authority is invalid"))?;
-    Ok((authenticated.tenant_route().clone(), envelope))
+    Ok((authenticated.holding_route().clone(), envelope))
 }
 
 fn decode_command<C>(
@@ -604,7 +604,7 @@ fn decode_command<C>(
     command: C,
 ) -> Result<DecodedCommand<C>, Status> {
     let metadata = metadata.ok_or_else(|| invalid("command metadata is required"))?;
-    let route = decode_route(metadata.tenant_route)?;
+    let route = decode_route(metadata.holding_route)?;
     let correlation_id = correlation(&metadata.correlation_id)?;
     let envelope = CommandEnvelope {
         contract_version: u16::try_from(metadata.contract_version)
@@ -616,10 +616,10 @@ fn decode_command<C>(
         correlation_id,
         causation_id: metadata.causation_id.as_deref().map(event_id).transpose()?,
         actor: decode_actor(metadata.actor)?,
-        tenant_scope: decode_scope(
+        active_scope: decode_scope(
             metadata
-                .tenant_scope
-                .ok_or_else(|| invalid("tenant_scope is required"))?,
+                .active_scope
+                .ok_or_else(|| invalid("active_scope is required"))?,
         )?,
         audit: decode_audit(metadata.audit, correlation_id)?,
         expected_aggregate_version: metadata.expected_aggregate_version,
@@ -628,7 +628,7 @@ fn decode_command<C>(
     envelope
         .validate()
         .map_err(|_| invalid("command metadata is invalid"))?;
-    validate_route_scope(&route, &envelope.tenant_scope)?;
+    validate_route_scope(&route, &envelope.active_scope)?;
     Ok(DecodedCommand {
         route,
         envelope,
@@ -644,7 +644,7 @@ fn decode_query<Q>(
     query: Q,
 ) -> Result<DecodedQuery<Q>, Status> {
     let metadata = metadata.ok_or_else(|| invalid("query metadata is required"))?;
-    let route = decode_route(metadata.tenant_route)?;
+    let route = decode_route(metadata.holding_route)?;
     let correlation_id = correlation(&metadata.correlation_id)?;
     let envelope = QueryEnvelope {
         contract_version: u16::try_from(metadata.contract_version)
@@ -653,10 +653,10 @@ fn decode_query<Q>(
             .map_err(|_| invalid("query_id is invalid"))?,
         correlation_id,
         actor: decode_actor(metadata.actor)?,
-        tenant_scope: decode_scope(
+        active_scope: decode_scope(
             metadata
-                .tenant_scope
-                .ok_or_else(|| invalid("tenant_scope is required"))?,
+                .active_scope
+                .ok_or_else(|| invalid("active_scope is required"))?,
         )?,
         audit: decode_audit(metadata.audit, correlation_id)?,
         consistency: decode_consistency(metadata.consistency)?,
@@ -665,7 +665,7 @@ fn decode_query<Q>(
     envelope
         .validate()
         .map_err(|_| invalid("query metadata is invalid"))?;
-    validate_route_scope(&route, &envelope.tenant_scope)?;
+    validate_route_scope(&route, &envelope.active_scope)?;
     Ok(DecodedQuery {
         route,
         envelope,
@@ -673,17 +673,17 @@ fn decode_query<Q>(
     })
 }
 
-fn decode_route(value: Option<common::TenantRoute>) -> Result<OperationsTenantRoute, Status> {
-    let value = value.ok_or_else(|| invalid("tenant route is required"))?;
-    let route = OperationsTenantRoute {
-        tenant_id: value.tenant_id.trim().into(),
-        holding_ref: value.holding_ref.trim().into(),
+fn decode_route(value: Option<common::HoldingRoute>) -> Result<OperationsHoldingRoute, Status> {
+    let value = value.ok_or_else(|| invalid("holding route is required"))?;
+    let route = OperationsHoldingRoute {
+        holding_id: value.holding_id.trim().into(),
+        data_profile_key: value.data_profile_key.trim().into(),
     };
     validate_route(&route)?;
     Ok(route)
 }
-fn validate_route(route: &OperationsTenantRoute) -> Result<(), Status> {
-    if [&route.tenant_id, &route.holding_ref]
+fn validate_route(route: &OperationsHoldingRoute) -> Result<(), Status> {
+    if [&route.holding_id, &route.data_profile_key]
         .into_iter()
         .any(|value| {
             value.is_empty()
@@ -691,23 +691,26 @@ fn validate_route(route: &OperationsTenantRoute) -> Result<(), Status> {
                 || value.chars().any(char::is_control)
         })
     {
-        Err(invalid("tenant route is invalid"))
+        Err(invalid("holding route is invalid"))
     } else {
         Ok(())
     }
 }
-fn validate_route_scope(route: &OperationsTenantRoute, scope: &TenantScope) -> Result<(), Status> {
+fn validate_route_scope(
+    route: &OperationsHoldingRoute,
+    scope: &AuthorityScope,
+) -> Result<(), Status> {
     let holding = match scope {
-        TenantScope::Platform => return Ok(()),
-        TenantScope::Holding { holding_id }
-        | TenantScope::Company { holding_id, .. }
-        | TenantScope::Branch { holding_id, .. }
-        | TenantScope::Subtree { holding_id, .. } => holding_id,
+        AuthorityScope::Platform => return Ok(()),
+        AuthorityScope::Holding { holding_id }
+        | AuthorityScope::Company { holding_id, .. }
+        | AuthorityScope::Branch { holding_id, .. }
+        | AuthorityScope::Subtree { holding_id, .. } => holding_id,
     };
-    if parse_uuid(&route.holding_ref, "holding_ref")? == *holding {
+    if parse_uuid(&route.data_profile_key, "data_profile_key")? == *holding {
         Ok(())
     } else {
-        Err(invalid("tenant route does not match tenant scope"))
+        Err(invalid("holding route does not match holding scope"))
     }
 }
 
@@ -715,7 +718,7 @@ fn decode_actor(value: Option<common::ActorAttribution>) -> Result<ActorAttribut
     let value = value.ok_or_else(|| invalid("actor is required"))?;
     let kind = match common::ActorKind::try_from(value.kind).ok() {
         Some(common::ActorKind::PlatformUser) => ActorKind::PlatformUser,
-        Some(common::ActorKind::TenantUser) => ActorKind::TenantUser,
+        Some(common::ActorKind::HoldingUser) => ActorKind::HoldingUser,
         Some(common::ActorKind::Service) => ActorKind::Service,
         Some(common::ActorKind::SystemWorker) => ActorKind::SystemWorker,
         _ => return Err(invalid("actor kind is invalid")),
@@ -750,37 +753,28 @@ fn decode_audit(
         module: nonempty(value.module),
     })
 }
-fn decode_scope(value: common::TenantScope) -> Result<TenantScope, Status> {
-    use common::tenant_scope::Scope;
+fn decode_scope(value: common::AuthorityScope) -> Result<AuthorityScope, Status> {
+    use common::authority_scope::Scope;
     match value
         .scope
-        .ok_or_else(|| invalid("tenant scope is empty"))?
+        .ok_or_else(|| invalid("holding scope is empty"))?
     {
-        Scope::Platform(_) => Ok(TenantScope::Platform),
-        Scope::Holding(v) => Ok(TenantScope::Holding {
+        Scope::Platform(_) => Ok(AuthorityScope::Platform),
+        Scope::Holding(v) => Ok(AuthorityScope::Holding {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
         }),
-        Scope::Company(v) => Ok(TenantScope::Company {
+        Scope::Company(v) => Ok(AuthorityScope::Company {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
             company_id: parse_uuid(&v.company_id, "company_id")?,
         }),
-        Scope::Branch(v) => Ok(TenantScope::Branch {
+        Scope::Branch(v) => Ok(AuthorityScope::Branch {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
             company_id: parse_uuid(&v.company_id, "company_id")?,
             branch_id: parse_uuid(&v.branch_id, "branch_id")?,
         }),
-        Scope::Subtree(v) => Ok(TenantScope::Subtree {
+        Scope::Subtree(v) => Ok(AuthorityScope::Subtree {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
-            company_ids: v
-                .company_ids
-                .iter()
-                .map(|value| parse_uuid(value, "company_id"))
-                .collect::<Result<_, _>>()?,
-            branch_ids: v
-                .branch_ids
-                .iter()
-                .map(|value| parse_uuid(value, "branch_id"))
-                .collect::<Result<_, _>>()?,
+            organization_node_id: parse_uuid(&v.organization_node_id, "organization_node_id")?,
         }),
     }
 }
@@ -1023,22 +1017,22 @@ fn encode_consistency(value: &QueryConsistency) -> common::QueryConsistency {
         }),
     }
 }
-fn encode_scope(value: &TenantScope) -> common::TenantScope {
-    use common::tenant_scope::Scope;
-    common::TenantScope {
+fn encode_scope(value: &AuthorityScope) -> common::AuthorityScope {
+    use common::authority_scope::Scope;
+    common::AuthorityScope {
         scope: Some(match value {
-            TenantScope::Platform => Scope::Platform(common::PlatformScope {}),
-            TenantScope::Holding { holding_id } => Scope::Holding(common::HoldingScope {
+            AuthorityScope::Platform => Scope::Platform(common::PlatformScope {}),
+            AuthorityScope::Holding { holding_id } => Scope::Holding(common::HoldingScope {
                 holding_id: holding_id.to_string(),
             }),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => Scope::Company(common::CompanyScope {
                 holding_id: holding_id.to_string(),
                 company_id: company_id.to_string(),
             }),
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -1047,14 +1041,12 @@ fn encode_scope(value: &TenantScope) -> common::TenantScope {
                 company_id: company_id.to_string(),
                 branch_id: branch_id.to_string(),
             }),
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Scope::Subtree(common::SubtreeScope {
                 holding_id: holding_id.to_string(),
-                company_ids: company_ids.iter().map(ToString::to_string).collect(),
-                branch_ids: branch_ids.iter().map(ToString::to_string).collect(),
+                organization_node_id: organization_node_id.to_string(),
             }),
         }),
     }

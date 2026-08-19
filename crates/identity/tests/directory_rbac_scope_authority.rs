@@ -84,7 +84,7 @@ async fn mapping_write_rejects_forged_connector_scope_without_side_effects() {
     let now = at();
     sqlx::query(
         "INSERT INTO erpx_identity.directory_connectors
-            (id, provider, vendor, scope_key, scope_kind, scope_id, holding_ref,
+            (id, provider, vendor, scope_key, scope_kind, scope_id, data_profile_key,
              endpoint, base_dn, tls_mode, security, page_size, max_in_flight_pages,
              ca_certificate_sha256, server_name, minimum_tls_version, feed_kind,
              credential_ref, enabled, max_import_users, revision, created_at, updated_at)
@@ -190,7 +190,7 @@ async fn role_facts_reconstruct_effective_roles_from_durable_outbox_and_facts() 
     let now = at();
     sqlx::query(
         "INSERT INTO erpx_identity.directory_connectors
-            (id, provider, vendor, scope_key, scope_kind, scope_id, holding_ref,
+            (id, provider, vendor, scope_key, scope_kind, scope_id, data_profile_key,
              endpoint, base_dn, tls_mode, security, page_size, max_in_flight_pages,
              ca_certificate_sha256, server_name, minimum_tls_version, feed_kind,
              credential_ref, enabled, max_import_users, revision, created_at, updated_at)
@@ -319,7 +319,7 @@ async fn durable_projection_keeps_a_role_when_one_of_two_group_grants_is_revoked
     let now = at();
     sqlx::query(
         "INSERT INTO erpx_identity.directory_connectors
-            (id, provider, vendor, scope_key, scope_kind, scope_id, holding_ref,
+            (id, provider, vendor, scope_key, scope_kind, scope_id, data_profile_key,
              endpoint, base_dn, tls_mode, security, page_size, max_in_flight_pages,
              ca_certificate_sha256, server_name, minimum_tls_version, feed_kind,
              credential_ref, enabled, max_import_users, revision, created_at, updated_at)
@@ -479,7 +479,7 @@ async fn authorization_rejects_a_requested_holding_different_from_the_authorized
     let authorized_scope = format!("holding:{authorized_holding}");
     sqlx::query(
         "INSERT INTO erpx_identity.directory_connectors
-            (id, provider, vendor, scope_key, scope_kind, scope_id, holding_ref,
+            (id, provider, vendor, scope_key, scope_kind, scope_id, data_profile_key,
              endpoint, base_dn, tls_mode, security, page_size, max_in_flight_pages,
              ca_certificate_sha256, server_name, minimum_tls_version, feed_kind,
              credential_ref, enabled, max_import_users, revision, lifecycle,

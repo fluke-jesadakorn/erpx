@@ -11,8 +11,8 @@ use erpx_cqrs::{
     QueryHandler, ReadYourWrites,
 };
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
-    FixedClock, QueryId, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+    ErrorCategory, EventId, FixedClock, QueryId,
 };
 use uuid::Uuid;
 
@@ -25,8 +25,8 @@ fn id(v: u128) -> Uuid {
 fn at() -> chrono::DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap()
 }
-fn scope() -> TenantScope {
-    TenantScope::Company {
+fn scope() -> AuthorityScope {
+    AuthorityScope::Company {
         holding_id: id(1),
         company_id: id(2),
     }
@@ -34,7 +34,7 @@ fn scope() -> TenantScope {
 fn actor() -> ActorAttribution {
     ActorAttribution {
         principal_ref: "marketing-test".into(),
-        kind: ActorKind::TenantUser,
+        kind: ActorKind::HoldingUser,
         session_id: None,
         represented_principal_ref: None,
         support_capability_id: None,
@@ -48,7 +48,7 @@ fn envelope(command: MarketingCommand, expected: Option<u64>) -> CommandEnvelope
         correlation_id: CorrelationId::try_from_uuid(id(11)).unwrap(),
         causation_id: None,
         actor: actor(),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "test".into(),
             customer_visible: false,
@@ -89,7 +89,7 @@ impl AuthorizationPort for Auth {
 struct Entitlement;
 #[async_trait]
 impl EntitlementPort for Entitlement {
-    async fn ensure_marketing_enabled(&self, _: &TenantScope, _: bool) -> Result<(), PortError> {
+    async fn ensure_marketing_enabled(&self, _: &AuthorityScope, _: bool) -> Result<(), PortError> {
         Ok(())
     }
 }
@@ -101,7 +101,7 @@ struct Write {
 impl WriteRepository for Write {
     async fn load_lead(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: LeadCandidateId,
     ) -> Result<Option<LeadCandidate>, PortError> {
         Ok(Some(self.value.clone()))
@@ -109,7 +109,7 @@ impl WriteRepository for Write {
 
     async fn load_budget(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: CampaignBudgetId,
     ) -> Result<Option<CampaignBudget>, PortError> {
         Ok(None)
@@ -191,7 +191,7 @@ struct NotReadyRead;
 impl ReadRepository for NotReadyRead {
     async fn get_lead(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: LeadCandidateId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<LeadCandidateView>>, PortError> {
@@ -207,7 +207,7 @@ impl ReadRepository for NotReadyRead {
     }
     async fn list_leads(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: &LeadCandidateListFilter,
         _: &QueryConsistency,
     ) -> Result<ReadProjection<LeadCandidateList>, PortError> {
@@ -226,7 +226,7 @@ impl ReadRepository for NotReadyRead {
 
     async fn get_budget(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: CampaignBudgetId,
         _: &QueryConsistency,
     ) -> Result<ReadProjection<Option<CampaignBudgetView>>, PortError> {
@@ -252,7 +252,7 @@ async fn read_your_writes_not_ready_is_never_served_from_write_state() {
         query_id: QueryId::try_from_uuid(id(31)).unwrap(),
         correlation_id: CorrelationId::try_from_uuid(id(32)).unwrap(),
         actor: actor(),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "test".into(),
             customer_visible: false,
@@ -260,7 +260,7 @@ async fn read_your_writes_not_ready_is_never_served_from_write_state() {
         },
         consistency: QueryConsistency::ReadYourWrites(ReadYourWrites {
             projection: "marketing.leads".into(),
-            partition: "tenant-1".into(),
+            partition: "holding-1".into(),
             target,
             timeout_millis: 100,
         }),

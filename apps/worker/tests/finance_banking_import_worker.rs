@@ -1,5 +1,5 @@
 use chrono::NaiveDate;
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_infrastructure::{
     BankProviderAccountBinding, BankProviderAccountRef, BankProviderCredentialKey,
     BankProviderError, PersistenceError,
@@ -7,7 +7,7 @@ use erpx_infrastructure::{
 use erpx_worker::{FinanceBankProviderImportError, FinanceBankProviderImportRequest};
 use uuid::Uuid;
 
-fn request(scope: TenantScope) -> FinanceBankProviderImportRequest {
+fn request(scope: AuthorityScope) -> FinanceBankProviderImportRequest {
     let holding = Uuid::from_u128(1);
     let company = Uuid::from_u128(2);
     let account = BankProviderAccountBinding::try_new(
@@ -24,7 +24,7 @@ fn request(scope: TenantScope) -> FinanceBankProviderImportRequest {
         "bank-import-integration-test",
         ActorAttribution {
             principal_ref: "finance-user".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: Some(Uuid::from_u128(5)),
             represented_principal_ref: None,
             support_capability_id: None,
@@ -36,8 +36,8 @@ fn request(scope: TenantScope) -> FinanceBankProviderImportRequest {
     FinanceBankProviderImportRequest {
         provider_account_ref: "mockbank:acct-opaque-1".into(),
         provider_key: "mockbank".into(),
-        tenant_id: "tenant-opaque-1".into(),
-        holding_ref: "holding-opaque-1".into(),
+        holding_id: "holding-opaque-1".into(),
+        data_profile_key: "holding-opaque-1".into(),
         credential_key: BankProviderCredentialKey::try_new("vault/finance/mockbank")
             .expect("credential key"),
         account,
@@ -51,17 +51,17 @@ fn request(scope: TenantScope) -> FinanceBankProviderImportRequest {
 
 #[test]
 fn request_validation_preserves_exact_account_scope_and_rejects_platform_scope() {
-    let tenant_request = request(TenantScope::Company {
+    let holding_request = request(AuthorityScope::Company {
         holding_id: Uuid::from_u128(1),
         company_id: Uuid::from_u128(2),
     });
-    assert!(tenant_request.validate().is_ok());
+    assert!(holding_request.validate().is_ok());
 
-    let mut platform_request = request(TenantScope::Company {
+    let mut platform_request = request(AuthorityScope::Company {
         holding_id: Uuid::from_u128(1),
         company_id: Uuid::from_u128(2),
     });
-    platform_request.context.tenant_scope = TenantScope::Platform;
+    platform_request.context.active_scope = AuthorityScope::Platform;
     assert_eq!(
         platform_request.validate(),
         Err(FinanceBankProviderImportError::AuthorizationDenied)

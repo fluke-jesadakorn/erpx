@@ -1,0 +1,346 @@
+syntax = "proto3";
+
+package erpx.operations;
+
+import "erpx/common/context.proto";
+
+message GetOperationsSummaryRequest {
+  string holding_id = 2;
+  erpx.common.QueryContext context = 3;
+}
+message OperationsSourceCount {
+  string source_domain = 1;
+  uint64 reference_count = 2;
+}
+message OperationsSummary {
+  string holding_id = 2;
+  string projection_name = 3;
+  uint64 read_row_count = 4;
+  uint64 exception_count = 5;
+  uint64 projection_checkpoint_count = 6;
+  uint64 event_count = 7;
+  uint64 source_reference_count = 8;
+  repeated OperationsSourceCount source_counts = 9;
+  string latest_event_at = 10;
+}
+message GetOperationsSummaryResponse {
+  OperationsSummary summary = 1;
+  string correlation_id = 2;
+}
+message ListOperationsExceptionsRequest {
+  string holding_id = 2;
+  uint32 page_size = 3;
+  string after_cursor = 4;
+  erpx.common.QueryContext context = 5;
+}
+message OperationsException {
+  string exception_id = 1;
+  string category = 2;
+  string severity = 3;
+  string status = 4;
+  string assigned_to = 5;
+  string manager_ref = 6;
+  string due_at = 7;
+  uint64 aggregate_version = 8;
+  string updated_at = 9;
+}
+message ListOperationsExceptionsResponse {
+  repeated OperationsException exceptions = 1;
+  bool has_more = 2;
+  string next_cursor = 3;
+  string correlation_id = 4;
+}
+message CreateOperationsExceptionFromSourceRequest {
+  string holding_id = 2;
+  string exception_id = 3;
+  string source_domain = 4;
+  string source_type = 5;
+  string source_id = 6;
+  string source_event_id = 7;
+  uint64 source_version = 8;
+  string event_type = 9;
+  uint32 event_version = 10;
+  string occurred_at = 11;
+  string category = 12;
+  string severity = 13;
+  bytes payload_json = 14;
+  erpx.common.CommandContext context = 15;
+}
+message CreateOperationsExceptionFromSourceResponse {
+  string exception_id = 1;
+  string source_event_id = 2;
+  uint64 aggregate_version = 3;
+  string event_id = 4;
+  bool applied = 5;
+  string correlation_id = 6;
+}
+message TransitionOperationsExceptionRequest {
+  string holding_id = 2;
+  string exception_id = 3;
+  string action = 4;
+  string assignee = 5;
+  string manager = 6;
+  string sla_policy_ref = 7;
+  string sla_due_at = 8;
+  uint32 sla_escalation_after_minutes = 9;
+  erpx.common.CommandContext context = 10;
+  string mfa_code = 11;
+}
+message TransitionOperationsExceptionResponse {
+  string exception_id = 1;
+  string from_status = 2;
+  string to_status = 3;
+  uint64 aggregate_version = 4;
+  string event_id = 5;
+  bool applied = 6;
+  string correlation_id = 7;
+}
+
+message PublishOperationsWorkQueuePolicyRequest {
+  string holding_id = 2;
+  string policy_id = 3;
+  string name = 4;
+  repeated string allowed_domains = 5;
+  uint32 escalation_after_minutes = 6;
+  erpx.common.CommandContext context = 7;
+}
+message PublishOperationsWorkQueuePolicyResponse {
+  string policy_id = 1;
+  string status = 2;
+  uint64 aggregate_version = 3;
+  string event_id = 4;
+  bool applied = 5;
+  string correlation_id = 6;
+}
+message ListOperationsWorkQueuePoliciesRequest {
+  string holding_id = 2;
+  uint32 page_size = 3;
+  string after_cursor = 4;
+  erpx.common.QueryContext context = 5;
+}
+message OperationsWorkQueuePolicy {
+  string policy_id = 1;
+  string name = 2;
+  repeated string allowed_domains = 3;
+  uint32 escalation_after_minutes = 4;
+  string status = 5;
+  uint64 aggregate_version = 6;
+  string updated_at = 7;
+}
+message ListOperationsWorkQueuePoliciesResponse {
+  repeated OperationsWorkQueuePolicy policies = 1;
+  bool has_more = 2;
+  string next_cursor = 3;
+  string correlation_id = 4;
+}
+
+
+// Typed Operations CQRS authority. Source facts are consumed only by the
+// worker process manager and deliberately have no public RPC.
+enum OperationsExceptionStatus {
+  OPERATIONS_EXCEPTION_STATUS_UNSPECIFIED = 0;
+  OPERATIONS_EXCEPTION_STATUS_ASSIGNED = 1;
+  OPERATIONS_EXCEPTION_STATUS_ACKNOWLEDGED = 2;
+  OPERATIONS_EXCEPTION_STATUS_ESCALATED = 3;
+  OPERATIONS_EXCEPTION_STATUS_RESOLVED = 4;
+  OPERATIONS_EXCEPTION_STATUS_CLOSED = 5;
+}
+
+enum OperationsSourceContext {
+  OPERATIONS_SOURCE_CONTEXT_UNSPECIFIED = 0;
+  OPERATIONS_SOURCE_CONTEXT_COMMERCIAL = 1;
+  OPERATIONS_SOURCE_CONTEXT_CUSTOMER = 2;
+  OPERATIONS_SOURCE_CONTEXT_MARKETING = 3;
+  OPERATIONS_SOURCE_CONTEXT_CRM = 4;
+  OPERATIONS_SOURCE_CONTEXT_PROCUREMENT = 5;
+  OPERATIONS_SOURCE_CONTEXT_INVENTORY = 6;
+  OPERATIONS_SOURCE_CONTEXT_ASSETS = 7;
+  OPERATIONS_SOURCE_CONTEXT_MAINTENANCE = 8;
+  OPERATIONS_SOURCE_CONTEXT_QUALITY = 9;
+  OPERATIONS_SOURCE_CONTEXT_SALES = 10;
+  OPERATIONS_SOURCE_CONTEXT_PEOPLE_PAYROLL = 11;
+  OPERATIONS_SOURCE_CONTEXT_POS = 12;
+  OPERATIONS_SOURCE_CONTEXT_FINANCE = 13;
+  OPERATIONS_SOURCE_CONTEXT_SUPPORT = 14;
+}
+
+enum OperationsWorkQueuePolicyStatus {
+  OPERATIONS_WORK_QUEUE_POLICY_STATUS_UNSPECIFIED = 0;
+  OPERATIONS_WORK_QUEUE_POLICY_STATUS_ACTIVE = 1;
+  OPERATIONS_WORK_QUEUE_POLICY_STATUS_PAUSED = 2;
+  OPERATIONS_WORK_QUEUE_POLICY_STATUS_RETIRED = 3;
+}
+
+enum OperationsApprovalDecision {
+  OPERATIONS_APPROVAL_DECISION_UNSPECIFIED = 0;
+  OPERATIONS_APPROVAL_DECISION_APPROVED = 1;
+  OPERATIONS_APPROVAL_DECISION_REJECTED = 2;
+  OPERATIONS_APPROVAL_DECISION_CANCELLED = 3;
+}
+
+message OperationsSourceReference {
+  OperationsSourceContext context = 1;
+  string event_id = 2;
+  string event_type = 3;
+  string aggregate_type = 4;
+  string aggregate_id = 5;
+  uint64 aggregate_version = 6;
+  string occurred_at = 7;
+  string correlation_id = 8;
+}
+
+message OperationsExceptionRecord {
+  string exception_id = 1;
+  uint64 aggregate_version = 2;
+  string reference = 3;
+  erpx.common.AuthorityScope scope = 4;
+  OperationsSourceReference source = 5;
+  string policy_ref = 6;
+  string category = 7;
+  string severity = 8;
+  string assignee_id = 9;
+  string manager_id = 10;
+  string due_at = 11;
+  uint32 escalation_after_minutes = 12;
+  OperationsExceptionStatus status = 13;
+  string created_at = 14;
+  string updated_at = 15;
+}
+
+message ReassignOperationsExceptionRequest {
+  erpx.common.CommandRequestMetadata metadata = 1;
+  string exception_id = 2;
+  string assignee_id = 3;
+  string manager_id = 4;
+}
+message AcknowledgeOperationsExceptionRequest {
+  erpx.common.CommandRequestMetadata metadata = 1;
+  string exception_id = 2;
+}
+message EscalateOperationsExceptionRequest {
+  erpx.common.CommandRequestMetadata metadata = 1;
+  string exception_id = 2;
+  string manager_id = 3;
+}
+message DecideOperationsApprovalRequest {
+  erpx.common.CommandRequestMetadata metadata = 1;
+  string exception_id = 2;
+  OperationsApprovalDecision decision = 3;
+  string reason_code = 4;
+}
+message ResolveOperationsExceptionRequest {
+  erpx.common.CommandRequestMetadata metadata = 1;
+  string exception_id = 2;
+}
+message CloseOperationsExceptionRequest {
+  erpx.common.CommandRequestMetadata metadata = 1;
+  string exception_id = 2;
+}
+message OperationsExceptionMutationResponse {
+  erpx.common.CommandReceipt receipt = 1;
+  OperationsExceptionRecord exception = 2;
+}
+
+message OperationsWorkQueuePolicyRecord {
+  string policy_id = 1;
+  uint64 aggregate_version = 2;
+  erpx.common.AuthorityScope scope = 3;
+  string name = 4;
+  repeated OperationsSourceContext allowed_sources = 5;
+  uint32 escalation_after_minutes = 6;
+  OperationsWorkQueuePolicyStatus status = 7;
+  string created_at = 8;
+  string updated_at = 9;
+}
+message PublishOperationsWorkQueuePolicyCqrsRequest {
+  erpx.common.CommandRequestMetadata metadata = 1;
+  string policy_id = 2;
+  string name = 3;
+  repeated OperationsSourceContext allowed_sources = 4;
+  uint32 escalation_after_minutes = 5;
+}
+message PublishOperationsWorkQueuePolicyCqrsResponse {
+  erpx.common.CommandReceipt receipt = 1;
+  OperationsWorkQueuePolicyRecord policy = 2;
+}
+
+message GetOperationsExceptionRequest {
+  erpx.common.QueryRequestMetadata metadata = 1;
+  string exception_id = 2;
+}
+message GetOperationsExceptionResponse {
+  optional OperationsExceptionRecord exception = 1;
+  erpx.common.QueryMetadata metadata = 2;
+}
+message ListOperationsExceptionQueueRequest {
+  erpx.common.QueryRequestMetadata metadata = 1;
+  repeated OperationsExceptionStatus statuses = 2;
+  optional OperationsSourceContext source_context = 3;
+  optional string assignee_id = 4;
+  optional string due_before = 5;
+  uint32 page_size = 6;
+  optional string cursor = 7;
+}
+message ListOperationsExceptionQueueResponse {
+  repeated OperationsExceptionRecord exceptions = 1;
+  optional string next_cursor = 2;
+  erpx.common.QueryMetadata metadata = 3;
+}
+message ListOperationsWorkQueuePoliciesCqrsRequest {
+  erpx.common.QueryRequestMetadata metadata = 1;
+  uint32 page_size = 2;
+  optional string cursor = 3;
+}
+message ListOperationsWorkQueuePoliciesCqrsResponse {
+  repeated OperationsWorkQueuePolicyRecord policies = 1;
+  optional string next_cursor = 2;
+  erpx.common.QueryMetadata metadata = 3;
+}
+message OperationsSourceReferenceCount {
+  OperationsSourceContext source_context = 1;
+  uint64 reference_count = 2;
+}
+message OperationsSummaryRecord {
+  uint64 read_row_count = 1;
+  uint64 exception_count = 2;
+  uint64 work_queue_policy_count = 3;
+  uint64 event_count = 4;
+  uint64 source_reference_count = 5;
+  repeated OperationsSourceReferenceCount source_counts = 6;
+  optional string latest_event_at = 7;
+}
+message GetOperationsSummaryCqrsRequest {
+  erpx.common.QueryRequestMetadata metadata = 1;
+}
+message GetOperationsSummaryCqrsResponse {
+  OperationsSummaryRecord summary = 1;
+  erpx.common.QueryMetadata metadata = 2;
+}
+
+service OperationsCommandService {
+  rpc ReassignException(ReassignOperationsExceptionRequest)
+      returns (OperationsExceptionMutationResponse);
+  rpc AcknowledgeException(AcknowledgeOperationsExceptionRequest)
+      returns (OperationsExceptionMutationResponse);
+  rpc EscalateException(EscalateOperationsExceptionRequest)
+      returns (OperationsExceptionMutationResponse);
+  rpc DecideApproval(DecideOperationsApprovalRequest)
+      returns (OperationsExceptionMutationResponse);
+  rpc ResolveException(ResolveOperationsExceptionRequest)
+      returns (OperationsExceptionMutationResponse);
+  rpc CloseException(CloseOperationsExceptionRequest)
+      returns (OperationsExceptionMutationResponse);
+  rpc PublishWorkQueuePolicy(PublishOperationsWorkQueuePolicyCqrsRequest)
+      returns (PublishOperationsWorkQueuePolicyCqrsResponse);
+}
+
+service OperationsQueryService {
+  rpc GetException(GetOperationsExceptionRequest)
+      returns (GetOperationsExceptionResponse);
+  rpc ListExceptionQueue(ListOperationsExceptionQueueRequest)
+      returns (ListOperationsExceptionQueueResponse);
+  rpc ListWorkQueuePolicies(ListOperationsWorkQueuePoliciesCqrsRequest)
+      returns (ListOperationsWorkQueuePoliciesCqrsResponse);
+  rpc GetSummary(GetOperationsSummaryCqrsRequest)
+      returns (GetOperationsSummaryCqrsResponse);
+}

@@ -77,7 +77,7 @@ where
         actor: &ActorContext,
         identity: MutationIdentity,
         order_id: ProductionOrderId,
-        target_scope: &erpx_kernel::TenantScope,
+        target_scope: &erpx_kernel::AuthorityScope,
         specification_id: SpecificationId,
         specification_version: u64,
         planned_output: erpx_integration_contracts::Quantity,
@@ -133,7 +133,7 @@ where
         actor: &ActorContext,
         identity: MutationIdentity,
         order_id: ProductionOrderId,
-        target_scope: &erpx_kernel::TenantScope,
+        target_scope: &erpx_kernel::AuthorityScope,
         requested_version: Option<u64>,
         action: ManufacturingAction,
         event_type: &str,
@@ -182,7 +182,7 @@ where
         identity: MutationIdentity,
         correlation_id: erpx_kernel::CorrelationId,
         record_id: uuid::Uuid,
-        target_scope: &erpx_kernel::TenantScope,
+        target_scope: &erpx_kernel::AuthorityScope,
         event_type: &str,
         change: F,
     ) -> Result<CommitReceipt, ManufacturingError>
@@ -276,7 +276,7 @@ where
     pub async fn get_order(
         &self,
         actor: &ActorContext,
-        scope: &erpx_kernel::TenantScope,
+        scope: &erpx_kernel::AuthorityScope,
         id: ProductionOrderId,
     ) -> Result<crate::ports::ManufacturingOrderProjection, ManufacturingError> {
         let authority = self
@@ -292,7 +292,7 @@ where
     pub async fn get_specification(
         &self,
         actor: &ActorContext,
-        scope: &erpx_kernel::TenantScope,
+        scope: &erpx_kernel::AuthorityScope,
         id: SpecificationId,
     ) -> Result<crate::ports::ManufacturingSpecificationProjection, ManufacturingError> {
         let authority = self
@@ -308,7 +308,7 @@ where
     pub async fn get_record(
         &self,
         actor: &ActorContext,
-        scope: &erpx_kernel::TenantScope,
+        scope: &erpx_kernel::AuthorityScope,
         id: uuid::Uuid,
     ) -> Result<crate::ports::ManufacturingRecordProjection, ManufacturingError> {
         let authority = self

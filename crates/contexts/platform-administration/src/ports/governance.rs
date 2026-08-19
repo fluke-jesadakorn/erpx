@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_cqrs::{IdempotencyKey, ProjectionMetadata, QueryConsistency};
-use erpx_kernel::{ActorAttribution, AuditContext, CommandId, CorrelationId, TenantScope};
+use erpx_kernel::{ActorAttribution, AuditContext, AuthorityScope, CommandId, CorrelationId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -22,7 +22,7 @@ pub enum PlatformGovernanceRecordAction {
 pub enum PlatformGovernanceRecordCommand {
     Create {
         kind: PlatformGovernanceRecordKind,
-        scope: TenantScope,
+        scope: AuthorityScope,
         title: String,
         subject_ref: String,
     },
@@ -54,15 +54,15 @@ pub struct PlatformGovernanceRecordCommandRequest {
     pub identity: PlatformGovernanceRecordCommandIdentity,
     pub correlation_id: CorrelationId,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
 }
 
 pub struct PlatformGovernanceRecordAuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
-    pub target_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
+    pub target_scope: &'a AuthorityScope,
     pub action: PlatformGovernanceRecordAction,
     pub kind: PlatformGovernanceRecordKind,
 }
@@ -79,7 +79,7 @@ pub trait PlatformGovernanceRecordAuthorizationPort: Send + Sync {
 pub trait PlatformGovernanceRecordWriteRepository: Send + Sync {
     async fn load_platform_governance_record(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         record_id: Uuid,
     ) -> Result<Option<PlatformGovernanceRecord>, PortError>;
 }
@@ -123,7 +123,7 @@ pub struct GovernanceReadProjection<T> {
 pub trait PlatformGovernanceRecordReadRepository: Send + Sync {
     async fn get_platform_governance_record(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         record_id: Uuid,
         consistency: &QueryConsistency,
     ) -> Result<GovernanceReadProjection<Option<PlatformGovernanceRecord>>, PortError>;
@@ -134,8 +134,8 @@ pub struct PlatformGovernanceRecordQuery {
     pub record_id: Uuid,
     pub expected_kind: PlatformGovernanceRecordKind,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
-    pub target_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
+    pub target_scope: AuthorityScope,
     pub consistency: QueryConsistency,
 }
 

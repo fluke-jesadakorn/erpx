@@ -14,7 +14,7 @@ The HTTP callback handler resolves the reference through an injected
 keeps resolved bytes inside a zeroizing container whose scope ends immediately
 after HMAC verification. Resolver failures are mapped to a generic
 configuration response. The provider-account binding remains authoritative in
-the control plane, and tenant routing occurs only after signature verification.
+the control plane, and holding routing occurs only after signature verification.
 
 The host-native pilot composition supports `env:NAME` through
 `EnvMarketingCallbackSecretResolver`. `secret://`, `sm://`, `vault://`, and

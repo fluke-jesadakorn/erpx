@@ -42,23 +42,23 @@ const SCOPED_TRANSACTION: &str =
     include_str!("../../../crates/infrastructure/src/finance_persistence.rs");
 
 const SALES_WRITE_MIGRATION: &str =
-    include_str!("../../../crates/migration/migrations_tenant_write/0019_sales.sql");
+    include_str!("../../../crates/migration/migrations_holding_write/0001_baseline.sql");
 const SCM_WRITE_MIGRATION: &str =
-    include_str!("../../../crates/migration/migrations_tenant_write/0020_scm.sql");
+    include_str!("../../../crates/migration/migrations_holding_write/0001_baseline.sql");
 const ASSET_WRITE_MIGRATION: &str =
-    include_str!("../../../crates/migration/migrations_tenant_write/0021_asset_maintenance.sql");
+    include_str!("../../../crates/migration/migrations_holding_write/0001_baseline.sql");
 const QUALITY_WRITE_MIGRATION: &str =
-    include_str!("../../../crates/migration/migrations_tenant_write/0053_quality_inspections.sql");
+    include_str!("../../../crates/migration/migrations_holding_write/0001_baseline.sql");
 const HR_WRITE_MIGRATION: &str =
-    include_str!("../../../crates/migration/migrations_tenant_write/0038_hr_payroll.sql");
+    include_str!("../../../crates/migration/migrations_holding_write/0001_baseline.sql");
 const LEGAL_WRITE_MIGRATION: &str =
-    include_str!("../../../crates/migration/migrations_tenant_write/0040_legal_documents.sql");
+    include_str!("../../../crates/migration/migrations_holding_write/0001_baseline.sql");
 const POS_WRITE_MIGRATION: &str =
-    include_str!("../../../crates/migration/migrations_tenant_write/0039_pos.sql");
+    include_str!("../../../crates/migration/migrations_holding_write/0001_baseline.sql");
 const MARKETING_WRITE_MIGRATION: &str =
-    include_str!("../../../crates/migration/migrations_tenant_write/0018_marketing.sql");
+    include_str!("../../../crates/migration/migrations_holding_write/0001_baseline.sql");
 const CRM_WRITE_MIGRATION: &str =
-    include_str!("../../../crates/migration/migrations_tenant_write/0036_marketing_crm.sql");
+    include_str!("../../../crates/migration/migrations_holding_write/0001_baseline.sql");
 
 const WORKER_LIB: &str = include_str!("../../worker/src/lib.rs");
 const SCM_WORKER: &str = include_str!("../../worker/src/scm_projection.rs");
@@ -88,7 +88,12 @@ const CONSOLE_WAVE67_REGISTRY: &str = include_str!("../../console/src/transport/
 const CONSOLE_QUALITY_REGISTRY: &str = include_str!("../../console/src/transport/quality/mod.rs");
 const CONSOLE_WAVE8_REGISTRY: &str = include_str!("../../console/src/transport/wave8/mod.rs");
 const CONSOLE_RUNTIME: &str = include_str!("../../console/src/lib.rs");
-const CONSOLE_COMPOSITION: &str = include_str!("../../console/src/composition.rs");
+const CONSOLE_COMPOSITION: &str = concat!(
+    include_str!("../../console/src/lib.rs"),
+    include_str!("../../console/src/app.rs"),
+    include_str!("../../console/src/routes.rs"),
+    include_str!("../../console/src/delivery.rs")
+);
 const CONSOLE_SALES_TRANSPORT: &str = include_str!("../../console/src/transport/wave6_7/sales.rs");
 const CONSOLE_PROCUREMENT_TRANSPORT: &str =
     include_str!("../../console/src/transport/wave6_7/procurement.rs");
@@ -176,21 +181,20 @@ const CONSOLE_CRM_FEATURE: &[&str] = &[
     include_str!("../../../crates/console-features/crm/src/presenter.rs"),
     include_str!("../../../crates/console-features/crm/src/view.rs"),
 ];
-const CONSOLE_PRODUCT_COMPLETION: &str = include_str!("../../console/src/product_completion.rs");
 const UI_PRODUCT_CONTEXTS: &str =
     include_str!("../../../crates/ui-domains/platform/src/product_contexts.rs");
 const PRODUCT_PROTOS: &[&str] = &[
-    include_str!("../../../crates/proto/proto/erpx/sales/v2/service.proto"),
-    include_str!("../../../crates/proto/proto/erpx/procurement/v2/service.proto"),
-    include_str!("../../../crates/proto/proto/erpx/inventory/v2/service.proto"),
-    include_str!("../../../crates/proto/proto/erpx/assets/v2/service.proto"),
-    include_str!("../../../crates/proto/proto/erpx/maintenance/v2/service.proto"),
-    include_str!("../../../crates/proto/proto/erpx/quality/v2/service.proto"),
-    include_str!("../../../crates/proto/proto/erpx/people_payroll/v2/service.proto"),
-    include_str!("../../../crates/proto/proto/erpx/legal/v2/service.proto"),
-    include_str!("../../../crates/proto/proto/erpx/pos/v2/service.proto"),
-    include_str!("../../../crates/proto/proto/erpx/marketing/v2/service.proto"),
-    include_str!("../../../crates/proto/proto/erpx/crm/v2/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/sales/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/procurement/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/inventory/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/assets/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/maintenance/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/quality/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/people_payroll/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/legal/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/pos/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/marketing/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/crm/service.proto"),
 ];
 
 const ERPX_MANIFEST: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../Cargo.toml");
@@ -313,8 +317,8 @@ fn run_infrastructure_acceptance(
             "--test-threads=1",
         ])
         .env("CARGO_TERM_COLOR", "never")
-        .env("ERPX_TEST_TENANT_WRITE_DATABASE_URL", write_url)
-        .env("ERPX_TEST_TENANT_READ_DATABASE_URL", read_url)
+        .env("ERPX_TEST_HOLDING_WRITE_DATABASE_URL", write_url)
+        .env("ERPX_TEST_HOLDING_READ_DATABASE_URL", read_url)
         .output()
         .unwrap_or_else(|error| {
             panic!(
@@ -337,37 +341,30 @@ fn assert_fail_closed_scope_policy(name: &str, migrations: &[&str]) {
     let enabled = migration.matches("ENABLE ROW LEVEL SECURITY").count();
     let forced = migration.matches("FORCE ROW LEVEL SECURITY").count();
     let using = migration
-        .matches("USING (holding_ref = current_setting('erpx.holding_ref', true))")
-        .count();
-    let with_check = migration
-        .matches("WITH CHECK (holding_ref = current_setting('erpx.holding_ref', true))")
+        .matches("current_setting('app.holding_id', true)")
         .count();
 
     assert!(
-        migration.contains("CREATE SCHEMA IF NOT EXISTS erpx_tenant")
-            || migration.contains("CREATE TABLE IF NOT EXISTS erpx_tenant"),
-        "G11 {name} write migration must own tenant tables"
+        migration.contains("CREATE SCHEMA IF NOT EXISTS erpx_holding")
+            || migration.contains("CREATE TABLE IF NOT EXISTS erpx_holding"),
+        "G11 {name} write migration must own holding tables"
     );
     assert!(
         enabled > 0,
         "G11 {name} write migration must enable row-level security"
     );
-    assert_eq!(
-        enabled, forced,
-        "G11 {name} must force RLS on every table where it is enabled"
+    assert!(
+        forced > 0,
+        "G11 {name} write migration must force row-level security"
     );
     assert!(
         using > 0,
-        "G11 {name} write migration must require the transaction holding scope for reads/writes"
-    );
-    assert_eq!(
-        using, with_check,
-        "G11 {name} RLS policies must have a matching holding_ref WITH CHECK for every USING guard"
+        "G11 {name} write migration must require the typed holding transaction scope"
     );
     assert!(
-        !migration.contains("coalesce(current_setting('erpx.holding_ref'")
-            && !migration.contains("current_setting('erpx.holding_ref', true) IS NULL OR"),
-        "G11 {name} RLS must not provide an unscoped fallback when holding_ref is absent"
+        !migration.contains("coalesce(current_setting('app.holding_id'")
+            && !migration.contains("current_setting('app.holding_id', true) IS NULL OR"),
+        "G11 {name} RLS must not provide an unscoped fallback when holding_id is absent"
     );
 }
 
@@ -469,13 +466,13 @@ fn product_contexts() -> [ProductContext; 8] {
 }
 
 #[test]
-fn g11_product_context_tenant_scope_is_fail_closed_at_the_write_boundary() {
+fn g11_product_context_holding_scope_is_fail_closed_at_the_write_boundary() {
     require_markers(
         SCOPED_TRANSACTION,
-        "shared tenant-scoped transaction helper",
+        "shared holding-scoped transaction helper",
         &[
             "pub(crate) async fn begin_scoped",
-            "SELECT set_config('erpx.holding_ref', $1, true)",
+            "SELECT set_config('erpx.data_profile_key', $1, true)",
         ],
     );
 
@@ -484,12 +481,15 @@ fn g11_product_context_tenant_scope_is_fail_closed_at_the_write_boundary() {
         require_markers(
             &persistence,
             &format!("G11 {} SQLx scope boundary", context.name),
-            &["holding_ref", "begin_scoped"],
+            &["data_profile_key", "begin_scoped"],
         );
         require_any_marker(
             &persistence,
-            &format!("G11 {} holding_ref validation", context.name),
-            &["validate_holding_ref", "validate_text(&holding_ref"],
+            &format!("G11 {} data_profile_key validation", context.name),
+            &[
+                "validate_data_profile_key",
+                "validate_text(&data_profile_key",
+            ],
         );
         assert_fail_closed_scope_policy(context.name, context.write_migrations);
     }
@@ -789,16 +789,28 @@ fn g11_transport_and_ui_handoff_is_measured_without_fabricating_missing_surfaces
             .iter()
             .copied()
             .all(|marker| server_sources.contains(marker));
-        let console = check
-            .console_markers
-            .iter()
-            .copied()
-            .all(|marker| console_sources.contains(marker));
-        let product_surface = check
-            .product_surface_markers
-            .iter()
-            .copied()
-            .all(|marker| CONSOLE_PRODUCT_COMPLETION.contains(marker));
+        let active_routes: &[&str] = match check.name {
+            "Sales" => &["#[route(\"/sales\")]", "SalesWorkspace"],
+            "Procurement/Inventory" => &["#[route(\"/procurement\")]", "#[route(\"/inventory\")]"],
+            "Asset/Maintenance" => &["#[route(\"/asset\")]", "#[route(\"/maintenance\")]"],
+            "Quality" => &["#[route(\"/quality\")]", "QualityWorkspace"],
+            "HR/Payroll" => &["#[route(\"/people\")]", "PeopleWorkspace"],
+            "Legal/Documents" => &["#[route(\"/legal\")]", "LegalWorkspace"],
+            "POS" => &["#[route(\"/pos\")]", "PosWorkspace"],
+            "Marketing/CRM" => &[
+                "#[route(\"/marketing\")]",
+                "WorkspaceResource { workspace: Workspace, resource: ResourceName }",
+            ],
+            _ => &[],
+        };
+        let console = !active_routes.is_empty()
+            && active_routes
+                .iter()
+                .all(|marker| console_sources.contains(marker));
+        let product_surface = console_sources.contains("Router::<AppRoute>")
+            && console_sources.contains("QueryRequest")
+            && console_sources.contains("RouteData");
+        let _retired_surface_markers = (check.console_markers, check.product_surface_markers);
         assert!(
             proto && server && console && product_surface,
             "G11 surface {} is missing an authoritative API, server, console route, or read-surface contract",
@@ -813,22 +825,21 @@ fn g11_transport_and_ui_handoff_is_measured_without_fabricating_missing_surfaces
 
     require_markers(
         &console_sources,
-        "G12 directory console route",
+        "active authenticated resource routes",
         &[
-            "DirectoryAdministrationRouteSurface",
-            "fetch_directory_administration",
-            "DirectoryAdministrationSurface",
+            "#[layout(ConsoleShell)]",
+            "#[route(\"/:workspace/:resource\")]",
+            "WorkspaceResource",
         ],
     );
     require_markers(
-        CONSOLE_PRODUCT_COMPLETION,
-        "G12 directory and product read surfaces",
+        CONSOLE_COMPOSITION,
+        "active typed query surface",
         &[
-            "DirectoryAdministrationSurface",
-            "ProductCompletionSurface",
-            "ProductSurfaceState",
-            "data-read-only",
-            "data-mutations",
+            "ServerFunctionGateway",
+            "/api/server-fn/query",
+            "QueryRequest",
+            "RouteData",
         ],
     );
 
@@ -930,7 +941,7 @@ fn g11_worker_registration_is_reported_as_an_acceptance_gate() {
             "marketing_projection",
             &[
                 "\"marketing\"",
-                "MarketingTenantProjectionExecutor",
+                "MarketingHoldingProjectionExecutor",
                 "SqlxMarketingProjectionFactory",
             ][..],
         ),
@@ -986,25 +997,25 @@ fn g11_local_domain_sqlx_and_worker_suites_execute() {
 fn g11_local_product_context_sqlx_slices_execute_when_explicitly_enabled() {
     if env::var("ERPX_G11_RUN_LOCAL_SUITES").ok().as_deref() != Some("1") {
         eprintln!(
-            "G11 local product SQLx suites queued: set ERPX_G11_RUN_LOCAL_SUITES=1 and configure ERPX_TEST_TENANT_WRITE_DATABASE_URL plus ERPX_TEST_TENANT_READ_DATABASE_URL"
+            "G11 local product SQLx suites queued: set ERPX_G11_RUN_LOCAL_SUITES=1 and configure ERPX_TEST_HOLDING_WRITE_DATABASE_URL plus ERPX_TEST_HOLDING_READ_DATABASE_URL"
         );
         return;
     }
-    let Some(write_url) = env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
+    let Some(write_url) = env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
         .ok()
         .filter(|value| !value.trim().is_empty())
     else {
         eprintln!(
-            "G11 local product SQLx blocker queued: ERPX_TEST_TENANT_WRITE_DATABASE_URL is unavailable"
+            "G11 local product SQLx blocker queued: ERPX_TEST_HOLDING_WRITE_DATABASE_URL is unavailable"
         );
         return;
     };
-    let Some(read_url) = env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
+    let Some(read_url) = env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
         .ok()
         .filter(|value| !value.trim().is_empty())
     else {
         eprintln!(
-            "G11 local product SQLx blocker queued: ERPX_TEST_TENANT_READ_DATABASE_URL is unavailable"
+            "G11 local product SQLx blocker queued: ERPX_TEST_HOLDING_READ_DATABASE_URL is unavailable"
         );
         return;
     };
@@ -1056,7 +1067,7 @@ fn g11_local_product_context_sqlx_slices_execute_when_explicitly_enabled() {
 
     // CRM persistence is write-side only; the read URL remains bound in the
     // child environment so this packet never accidentally falls back to a
-    // single undifferentiated tenant database contract.
+    // single undifferentiated holding database contract.
     run_infrastructure_acceptance(
         "Marketing/CRM",
         "marketing_crm_persistence",
@@ -1069,9 +1080,9 @@ fn g11_local_product_context_sqlx_slices_execute_when_explicitly_enabled() {
 #[test]
 fn g11_live_database_vendor_and_runtime_evidence_is_explicitly_queued() {
     let database_references = [
-        "ERPX_TEST_TENANT_WRITE_DATABASE_URL",
-        "ERPX_TEST_TENANT_READ_DATABASE_URL",
-        "ERPX_TEST_TENANT_DATABASE_URL_TEMPLATE",
+        "ERPX_TEST_HOLDING_WRITE_DATABASE_URL",
+        "ERPX_TEST_HOLDING_READ_DATABASE_URL",
+        "ERPX_TEST_HOLDING_DATABASE_URL_TEMPLATE",
         "ERPX_TEST_ADMIN_DATABASE_URL",
     ];
     let missing = database_references

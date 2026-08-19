@@ -1,11 +1,11 @@
-# G6-PRV-005-059 — Tenant projection scheduling and claiming
+# G6-PRV-005-059 — Holding projection scheduling and claiming
 
 ## Delivered behavior
 
-This isolated packet adds a durable control-plane contract for tenant-routed
+This isolated packet adds a durable control-plane contract for holding-routed
 projection work:
 
-- Typed tenant/holding binding, incremental and rebuild jobs, policy, lease,
+- Typed holding/holding binding, incremental and rebuild jobs, policy, lease,
   claim, retry, stale-reclaim, dead-letter, and rebuild records.
 - Bounded page size, batch size, retry attempts, lease duration, and
   exponential backoff. Invalid values fail closed.
@@ -21,13 +21,13 @@ projection work:
   scope, active lease, and non-terminal state.
 - Error text is bounded and redacted before persistence.
 - The repository includes a server-side route verification hook for the
-  existing `TenantDatabaseRouter`; tenant credentials do not enter the
+  existing `HoldingDatabaseRouter`; holding credentials do not enter the
   scheduler contract.
 
 ## Files changed
 
-- `erpx/crates/infrastructure/src/tenant_projection_scheduler.rs`
-- `erpx/crates/migration/migrations/0025_tenant_projection_scheduler.sql`
+- `erpx/crates/infrastructure/src/holding_projection_scheduler.rs`
+- `erpx/crates/migration/migrations/0025_holding_projection_scheduler.sql`
 - `erpx/audits/G6-PRV-005-059/README.md`
 
 No shared exports, migration composition roots, application code, worker code,
@@ -38,14 +38,14 @@ changed.
 
 The additive migration creates:
 
-- `erpx_control.tenant_projection_jobs`
-- `erpx_control.tenant_projection_claim_batches`
-- `erpx_control.tenant_projection_claims`
-- `erpx_control.tenant_projection_rebuilds`
+- `erpx_control.holding_projection_jobs`
+- `erpx_control.holding_projection_claim_batches`
+- `erpx_control.holding_projection_claims`
+- `erpx_control.holding_projection_rebuilds`
 
 The schema enforces bounded numeric policies, valid state values, scope fields,
 claim uniqueness, active-job claim uniqueness, lease ordering, and rebuild
-state/kind consistency. It is control-plane coordination state only; tenant
+state/kind consistency. It is control-plane coordination state only; holding
 write/read aggregate and projection tables remain physically separate.
 
 ## Tests and exact results
@@ -54,7 +54,7 @@ Pure tests were authored in the new module for:
 
 - fail-closed state transitions;
 - exact lease expiry boundary;
-- tenant/holding binding isolation;
+- holding/holding binding isolation;
 - page, batch, attempt, and backoff bounds;
 - stale lease reclaim;
 - terminal dead-letter state and redaction;
@@ -64,10 +64,10 @@ Pure tests were authored in the new module for:
 Verification run for this isolated packet:
 
 ```text
-rustfmt --edition 2024 --check erpx/crates/infrastructure/src/tenant_projection_scheduler.rs
+rustfmt --edition 2024 --check erpx/crates/infrastructure/src/holding_projection_scheduler.rs
 PASS
 
-git diff --check -- erpx/crates/infrastructure/src/tenant_projection_scheduler.rs erpx/crates/migration/migrations/0025_tenant_projection_scheduler.sql
+git diff --check -- erpx/crates/infrastructure/src/holding_projection_scheduler.rs erpx/crates/migration/migrations/0025_holding_projection_scheduler.sql
 PASS
 ```
 
@@ -80,22 +80,22 @@ completion claim is made for those deferred checks.
 ## Unfinished work
 
 - Main integration must register the module and export the selected public
-  types without exposing tenant pools or credentials.
+  types without exposing holding pools or credentials.
 - Main integration must add migration 0025 to the migration verification
   assertions and run clean/upgrade migration tests.
-- The composition root must route claims to each tenant's write/read pools,
+- The composition root must route claims to each holding's write/read pools,
   invoke projection handlers, and independently verify projector checkpoints.
 - SQL repository tests require a disposable PostgreSQL database after the
   migration is wired. This packet contains pure tests only.
 - Rebuild execution still belongs to the worker/projector integration packet;
   the main integration now supplies a typed worker scheduler/executor seam,
-  but production multi-tenant projector composition remains open.
+  but production multi-holding projector composition remains open.
 
 ## Security concerns
 
 - Main integration must require authoritative platform authorization before
   scheduling, claiming, replaying, or rebuilding jobs.
-- `tenant_id` and `holding_ref` must be resolved through the control-plane
+- `holding_id` and `data_profile_key` must be resolved through the control-plane
   registry/router; caller-provided strings alone are not authorization.
 - Claim keys must be generated as request idempotency keys and must not contain
   secrets or bearer tokens.
@@ -106,11 +106,11 @@ completion claim is made for those deferred checks.
 
 ## Integration order
 
-1. Add `mod tenant_projection_scheduler` and the intentionally selected
+1. Add `mod holding_projection_scheduler` and the intentionally selected
    re-exports in the infrastructure composition root.
 2. Add migration 0025 to migration verification and run clean/upgrade tests.
 3. Construct the repository from the control-plane write pool.
-4. Verify the tenant route and holding binding before opening tenant write/read
+4. Verify the holding route and holding binding before opening holding write/read
    pools for each claimed job.
 5. Wire the worker's bounded claim loop, lease renewal, projector completion,
    retry, stale reclaim, dead-letter inspection, and rebuild handler.
@@ -122,5 +122,5 @@ completion claim is made for those deferred checks.
 Before integration, remove only the three files listed above. After migration
 application, rollback must use the repository's normal migration/retention
 procedure; do not drop scheduler tables while jobs are active. No existing
-aggregate, outbox, checkpoint, tenant database, or Folio source data is
+aggregate, outbox, checkpoint, holding database, or Folio source data is
 modified by this packet.

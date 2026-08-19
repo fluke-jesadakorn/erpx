@@ -486,14 +486,14 @@ mod tests {
     fn authority_routes_are_explicit_and_platform_root_routes_are_compatible() {
         assert_eq!(routed_operation("/healthz"), Some(("platform", "/healthz")));
         assert_eq!(
-            routed_operation("/authorities/demo-tenant/udm/auth"),
-            Some(("demo-tenant", "/udm/auth"))
+            routed_operation("/authorities/demo-holding/udm/auth"),
+            Some(("demo-holding", "/udm/auth"))
         );
         assert_eq!(
-            routed_operation("/authorities/demo-tenant/udm/provisioning"),
-            Some(("demo-tenant", "/udm/provisioning"))
+            routed_operation("/authorities/demo-holding/udm/provisioning"),
+            Some(("demo-holding", "/udm/provisioning"))
         );
-        assert_eq!(routed_operation("/authorities/demo-tenant/unknown"), None);
+        assert_eq!(routed_operation("/authorities/demo-holding/unknown"), None);
         assert_eq!(routed_operation("/authorities//healthz"), None);
     }
 

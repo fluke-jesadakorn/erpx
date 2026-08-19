@@ -12,7 +12,7 @@ use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
     ItemDescriptorDraft, RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
 };
-use erpx_kernel::{AggregateId, CommandId, DataClassification, EventId, RecordId, TenantScope};
+use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId, RecordId};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use sqlx::{Postgres, Row, Transaction};
@@ -44,10 +44,10 @@ struct AuthoritySqlScope {
     branch_ids: Vec<Uuid>,
 }
 impl AuthoritySqlScope {
-    fn try_from_scope(scope: &TenantScope) -> Result<Self, PortError> {
+    fn try_from_scope(scope: &AuthorityScope) -> Result<Self, PortError> {
         scope.validate().map_err(|_| PortError::Denied)?;
         Ok(match scope {
-            TenantScope::Platform => Self {
+            AuthorityScope::Platform => Self {
                 mode: "platform",
                 holding_id: None,
                 company_id: None,
@@ -55,7 +55,7 @@ impl AuthoritySqlScope {
                 company_ids: vec![],
                 branch_ids: vec![],
             },
-            TenantScope::Holding { holding_id } => Self {
+            AuthorityScope::Holding { holding_id } => Self {
                 mode: "holding",
                 holding_id: Some(*holding_id),
                 company_id: None,
@@ -63,7 +63,7 @@ impl AuthoritySqlScope {
                 company_ids: vec![],
                 branch_ids: vec![],
             },
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => Self {
@@ -74,7 +74,7 @@ impl AuthoritySqlScope {
                 company_ids: vec![],
                 branch_ids: vec![],
             },
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -86,17 +86,16 @@ impl AuthoritySqlScope {
                 company_ids: vec![],
                 branch_ids: vec![],
             },
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Self {
                 mode: "subtree",
                 holding_id: Some(*holding_id),
                 company_id: None,
                 branch_id: None,
-                company_ids: company_ids.clone(),
-                branch_ids: branch_ids.clone(),
+                company_ids: vec![*organization_node_id],
+                branch_ids: Vec::new(),
             },
         })
     }
@@ -112,7 +111,7 @@ const AUTHORITY_FILTER: &str = "
 impl WriteRepository for CrmWriteRepository {
     async fn load_lead(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: CrmLeadId,
     ) -> Result<Option<CrmLead>, PortError> {
         let authority = AuthoritySqlScope::try_from_scope(scope)?;
@@ -122,7 +121,7 @@ impl WriteRepository for CrmWriteRepository {
                     campaign_id,audience_member_id,marketing_source_version,customer_id,source,
                     qualification_score_basis_points,accepted_at
              FROM erpx_crm_write.lead_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND lead_id=$1{AUTHORITY_FILTER}"
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND lead_id=$1{AUTHORITY_FILTER}"
         );
         let row = sqlx::query(&query)
             .bind(id.as_uuid())
@@ -180,7 +179,7 @@ impl WriteRepository for CrmWriteRepository {
     }
     async fn load_opportunity(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: OpportunityId,
     ) -> Result<Option<CrmOpportunity>, PortError> {
         let authority = AuthoritySqlScope::try_from_scope(scope)?;
@@ -191,7 +190,7 @@ impl WriteRepository for CrmWriteRepository {
                     account_id,owner_ref,pipeline_category,probability_basis_points,
                     expected_close_on,originating_campaign_id,created_at,updated_at
              FROM erpx_crm_write.opportunity_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND opportunity_id=$1{AUTHORITY_FILTER}"
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND opportunity_id=$1{AUTHORITY_FILTER}"
         );
         let row = sqlx::query(&query)
             .bind(id.as_uuid())
@@ -366,7 +365,7 @@ impl CommandUnitOfWork for CrmCommandAdapter {
             correlation_id: request.correlation_id,
             idempotency_key: request.identity.idempotency_key,
             request_hash: request_hash(&request.identity.fingerprint)?,
-            tenant_scope: aggregate.scope().clone(),
+            active_scope: aggregate.scope().clone(),
             actor: request.actor,
             audit_context: request.audit,
             aggregate_type: kind.into(),
@@ -447,7 +446,7 @@ impl AtomicCommandGuard for CrmAtomicGuard {
         };
         let sql = format!(
             "SELECT aggregate_version FROM erpx_crm_write.{table}
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND {}=$1 FOR UPDATE",
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND {}=$1 FOR UPDATE",
             if table == "lead_authority" {
                 "lead_id"
             } else {
@@ -469,7 +468,7 @@ impl AtomicCommandGuard for CrmAtomicGuard {
         validate_guard_context(&self.aggregate, context)?;
         match &self.aggregate {
             CrmAggregate::Lead(lead) => {
-                let row=sqlx::query("SELECT lead_id,aggregate_version FROM erpx_crm_write.lead_authority WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND (lead_id=$1 OR marketing_candidate_id=$2) ORDER BY lead_id FOR UPDATE").bind(lead.id().as_uuid()).bind(lead.marketing_candidate_id()).fetch_optional(&mut **transaction).await?;
+                let row=sqlx::query("SELECT lead_id,aggregate_version FROM erpx_crm_write.lead_authority WHERE holding_id=erpx_cqrs_write.current_holding_id() AND (lead_id=$1 OR marketing_candidate_id=$2) ORDER BY lead_id FOR UPDATE").bind(lead.id().as_uuid()).bind(lead.marketing_candidate_id()).fetch_optional(&mut **transaction).await?;
                 match (context.expected_version, row) {
                     (None, Some(row)) => {
                         let existing: Uuid = row.try_get("lead_id")?;
@@ -488,7 +487,7 @@ impl AtomicCommandGuard for CrmAtomicGuard {
                 }
             }
             CrmAggregate::Opportunity(opportunity) => {
-                let current:Option<i64>=sqlx::query_scalar("SELECT aggregate_version FROM erpx_crm_write.opportunity_authority WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND opportunity_id=$1 FOR UPDATE").bind(opportunity.id().as_uuid()).fetch_optional(&mut **transaction).await?;
+                let current:Option<i64>=sqlx::query_scalar("SELECT aggregate_version FROM erpx_crm_write.opportunity_authority WHERE holding_id=erpx_cqrs_write.current_holding_id() AND opportunity_id=$1 FOR UPDATE").bind(opportunity.id().as_uuid()).fetch_optional(&mut **transaction).await?;
                 match (context.expected_version, current) {
                     (None, Some(_)) => {
                         return Err(CqrsSqlxError::GuardRejected(
@@ -502,7 +501,7 @@ impl AtomicCommandGuard for CrmAtomicGuard {
                     }
                     _ => {}
                 }
-                let lead=sqlx::query("SELECT scope_key,customer_id FROM erpx_crm_write.lead_authority WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND lead_id=$1 FOR SHARE").bind(opportunity.accepted_lead_id().as_uuid()).fetch_optional(&mut **transaction).await?;
+                let lead=sqlx::query("SELECT scope_key,customer_id FROM erpx_crm_write.lead_authority WHERE holding_id=erpx_cqrs_write.current_holding_id() AND lead_id=$1 FOR SHARE").bind(opportunity.accepted_lead_id().as_uuid()).fetch_optional(&mut **transaction).await?;
                 let Some(lead) = lead else {
                     return Err(CqrsSqlxError::GuardRejected(
                         "accepted CRM lead guard is missing",
@@ -539,7 +538,7 @@ impl AtomicCommandGuard for CrmAtomicGuard {
         match &self.aggregate {
             CrmAggregate::Lead(lead) => {
                 let (holding_id, company_id, branch_id) = exact_scope_columns(lead.scope())?;
-                let result=sqlx::query("INSERT INTO erpx_crm_write.lead_authority (tenant_id,lead_id,aggregate_version,scope_key,holding_id,company_id,branch_id,marketing_candidate_id,campaign_id,audience_member_id,marketing_source_version,customer_id,source,qualification_score_basis_points,accepted_at) VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ON CONFLICT (tenant_id,lead_id) DO UPDATE SET aggregate_version=EXCLUDED.aggregate_version,scope_key=EXCLUDED.scope_key,holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,marketing_candidate_id=EXCLUDED.marketing_candidate_id,campaign_id=EXCLUDED.campaign_id,audience_member_id=EXCLUDED.audience_member_id,marketing_source_version=EXCLUDED.marketing_source_version,customer_id=EXCLUDED.customer_id,source=EXCLUDED.source,qualification_score_basis_points=EXCLUDED.qualification_score_basis_points,accepted_at=EXCLUDED.accepted_at WHERE erpx_crm_write.lead_authority.tenant_id=erpx_cqrs_write.current_tenant_id() AND erpx_crm_write.lead_authority.aggregate_version + 1=EXCLUDED.aggregate_version").bind(lead.id().as_uuid()).bind(to_i64(context.aggregate_version)?).bind(scope_key(lead.scope())?).bind(holding_id).bind(company_id).bind(branch_id).bind(lead.marketing_candidate_id()).bind(lead.campaign_id()).bind(lead.audience_member_id()).bind(to_i64(lead.marketing_source_version())?).bind(lead.customer_id()).bind(lead.source()).bind(i32::from(lead.qualification_score_basis_points())).bind(lead.accepted_at()).execute(&mut **transaction).await?;
+                let result=sqlx::query("INSERT INTO erpx_crm_write.lead_authority (holding_id,lead_id,aggregate_version,scope_key,holding_id,company_id,branch_id,marketing_candidate_id,campaign_id,audience_member_id,marketing_source_version,customer_id,source,qualification_score_basis_points,accepted_at) VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ON CONFLICT (holding_id,lead_id) DO UPDATE SET aggregate_version=EXCLUDED.aggregate_version,scope_key=EXCLUDED.scope_key,holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,marketing_candidate_id=EXCLUDED.marketing_candidate_id,campaign_id=EXCLUDED.campaign_id,audience_member_id=EXCLUDED.audience_member_id,marketing_source_version=EXCLUDED.marketing_source_version,customer_id=EXCLUDED.customer_id,source=EXCLUDED.source,qualification_score_basis_points=EXCLUDED.qualification_score_basis_points,accepted_at=EXCLUDED.accepted_at WHERE erpx_crm_write.lead_authority.holding_id=erpx_cqrs_write.current_holding_id() AND erpx_crm_write.lead_authority.aggregate_version + 1=EXCLUDED.aggregate_version").bind(lead.id().as_uuid()).bind(to_i64(context.aggregate_version)?).bind(scope_key(lead.scope())?).bind(holding_id).bind(company_id).bind(branch_id).bind(lead.marketing_candidate_id()).bind(lead.campaign_id()).bind(lead.audience_member_id()).bind(to_i64(lead.marketing_source_version())?).bind(lead.customer_id()).bind(lead.source()).bind(i32::from(lead.qualification_score_basis_points())).bind(lead.accepted_at()).execute(&mut **transaction).await?;
                 ensure_one(
                     result.rows_affected(),
                     "CRM lead normalized version mismatch",
@@ -547,7 +546,7 @@ impl AtomicCommandGuard for CrmAtomicGuard {
             }
             CrmAggregate::Opportunity(value) => {
                 let (holding_id, company_id, branch_id) = exact_scope_columns(value.scope())?;
-                let result=sqlx::query("INSERT INTO erpx_crm_write.opportunity_authority (tenant_id,opportunity_id,aggregate_version,scope_key,holding_id,company_id,branch_id,accepted_lead_id,customer_id,opportunity_name,expected_value_minor,currency,opportunity_stage,account_id,owner_ref,pipeline_category,probability_basis_points,expected_close_on,originating_campaign_id,created_at,updated_at) VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) ON CONFLICT (tenant_id,opportunity_id) DO UPDATE SET aggregate_version=EXCLUDED.aggregate_version,scope_key=EXCLUDED.scope_key,holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,accepted_lead_id=EXCLUDED.accepted_lead_id,customer_id=EXCLUDED.customer_id,opportunity_name=EXCLUDED.opportunity_name,expected_value_minor=EXCLUDED.expected_value_minor,currency=EXCLUDED.currency,opportunity_stage=EXCLUDED.opportunity_stage,account_id=EXCLUDED.account_id,owner_ref=EXCLUDED.owner_ref,pipeline_category=EXCLUDED.pipeline_category,probability_basis_points=EXCLUDED.probability_basis_points,expected_close_on=EXCLUDED.expected_close_on,originating_campaign_id=EXCLUDED.originating_campaign_id,created_at=EXCLUDED.created_at,updated_at=EXCLUDED.updated_at WHERE erpx_crm_write.opportunity_authority.tenant_id=erpx_cqrs_write.current_tenant_id() AND erpx_crm_write.opportunity_authority.aggregate_version + 1=EXCLUDED.aggregate_version").bind(value.id().as_uuid()).bind(to_i64(context.aggregate_version)?).bind(scope_key(value.scope())?).bind(holding_id).bind(company_id).bind(branch_id).bind(value.accepted_lead_id().as_uuid()).bind(value.customer_id()).bind(value.name()).bind(value.expected_value_minor()).bind(value.currency()).bind(stage_name(value.stage())).bind(value.account().map(|v|v.as_uuid())).bind(value.owner()).bind(value.pipeline_category().map(pipeline_category_name)).bind(value.probability_basis_points().map(i32::from)).bind(value.expected_close_on()).bind(value.originating_campaign().map(|v|v.as_uuid())).bind(value.created_at()).bind(value.updated_at()).execute(&mut **transaction).await?;
+                let result=sqlx::query("INSERT INTO erpx_crm_write.opportunity_authority (holding_id,opportunity_id,aggregate_version,scope_key,holding_id,company_id,branch_id,accepted_lead_id,customer_id,opportunity_name,expected_value_minor,currency,opportunity_stage,account_id,owner_ref,pipeline_category,probability_basis_points,expected_close_on,originating_campaign_id,created_at,updated_at) VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) ON CONFLICT (holding_id,opportunity_id) DO UPDATE SET aggregate_version=EXCLUDED.aggregate_version,scope_key=EXCLUDED.scope_key,holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,accepted_lead_id=EXCLUDED.accepted_lead_id,customer_id=EXCLUDED.customer_id,opportunity_name=EXCLUDED.opportunity_name,expected_value_minor=EXCLUDED.expected_value_minor,currency=EXCLUDED.currency,opportunity_stage=EXCLUDED.opportunity_stage,account_id=EXCLUDED.account_id,owner_ref=EXCLUDED.owner_ref,pipeline_category=EXCLUDED.pipeline_category,probability_basis_points=EXCLUDED.probability_basis_points,expected_close_on=EXCLUDED.expected_close_on,originating_campaign_id=EXCLUDED.originating_campaign_id,created_at=EXCLUDED.created_at,updated_at=EXCLUDED.updated_at WHERE erpx_crm_write.opportunity_authority.holding_id=erpx_cqrs_write.current_holding_id() AND erpx_crm_write.opportunity_authority.aggregate_version + 1=EXCLUDED.aggregate_version").bind(value.id().as_uuid()).bind(to_i64(context.aggregate_version)?).bind(scope_key(value.scope())?).bind(holding_id).bind(company_id).bind(branch_id).bind(value.accepted_lead_id().as_uuid()).bind(value.customer_id()).bind(value.name()).bind(value.expected_value_minor()).bind(value.currency()).bind(stage_name(value.stage())).bind(value.account().map(|v|v.as_uuid())).bind(value.owner()).bind(value.pipeline_category().map(pipeline_category_name)).bind(value.probability_basis_points().map(i32::from)).bind(value.expected_close_on()).bind(value.originating_campaign().map(|v|v.as_uuid())).bind(value.created_at()).bind(value.updated_at()).execute(&mut **transaction).await?;
                 ensure_one(
                     result.rows_affected(),
                     "CRM opportunity normalized version mismatch",
@@ -625,7 +624,7 @@ fn audit_action(value: &CommandFingerprint) -> &'static str {
 }
 fn request_hash(value: &CommandFingerprint) -> Result<RequestHash, PortError> {
     let mut digest = Sha256::new();
-    digest.update(b"erpx.crm.command.v1\0");
+    digest.update(b"erpx.crm.command\0");
     digest.update(serde_json::to_vec(value).map_err(|_| PortError::Internal)?);
     Ok(RequestHash::new(digest.finalize().into()))
 }
@@ -645,13 +644,13 @@ fn deterministic_uuid(seed: Uuid, label: &[u8]) -> Uuid {
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
     Uuid::from_bytes(bytes)
 }
-pub(crate) fn scope_key(scope: &TenantScope) -> Result<String, CqrsSqlxError> {
+pub(crate) fn scope_key(scope: &AuthorityScope) -> Result<String, CqrsSqlxError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok(format!("h:{holding_id}/c:{company_id}")),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -668,13 +667,15 @@ fn from_i64(value: i64) -> Result<u64, PortError> {
 fn from_i64_store(value: i64) -> Result<u64, CqrsSqlxError> {
     u64::try_from(value).map_err(|_| CqrsSqlxError::NumericRange)
 }
-fn exact_scope_columns(scope: &TenantScope) -> Result<(Uuid, Uuid, Option<Uuid>), CqrsSqlxError> {
+fn exact_scope_columns(
+    scope: &AuthorityScope,
+) -> Result<(Uuid, Uuid, Option<Uuid>), CqrsSqlxError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok((*holding_id, *company_id, None)),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -682,16 +683,16 @@ fn exact_scope_columns(scope: &TenantScope) -> Result<(Uuid, Uuid, Option<Uuid>)
         _ => Err(CqrsSqlxError::InvalidInput("CRM scope must be exact")),
     }
 }
-fn scope_from_row(row: &sqlx::postgres::PgRow) -> Result<TenantScope, PortError> {
+fn scope_from_row(row: &sqlx::postgres::PgRow) -> Result<AuthorityScope, PortError> {
     let holding_id = row.try_get("holding_id").map_err(|_| PortError::Internal)?;
     let company_id = row.try_get("company_id").map_err(|_| PortError::Internal)?;
     let branch_id: Option<Uuid> = row.try_get("branch_id").map_err(|_| PortError::Internal)?;
     Ok(branch_id.map_or(
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },
-        |branch_id| TenantScope::Branch {
+        |branch_id| AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,

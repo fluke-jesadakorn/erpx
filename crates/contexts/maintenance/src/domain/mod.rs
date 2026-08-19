@@ -11,7 +11,7 @@ use erpx_integration_contracts::{
     catalog::ContextId,
     reference::{RecordTypeId, ReferenceValidationError},
 };
-use erpx_kernel::{EventId, RecordId, TenantScope};
+use erpx_kernel::{AuthorityScope, EventId, RecordId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -201,7 +201,7 @@ pub struct WorkOrder {
     id: WorkOrderId,
     version: u64,
     code: String,
-    scope: TenantScope,
+    scope: AuthorityScope,
     request: MaintenanceRequest,
     asset_fact: assets::AssetConditionFact,
     title: String,
@@ -221,7 +221,7 @@ pub struct WorkOrderState {
     pub id: WorkOrderId,
     pub version: u64,
     pub code: String,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub request: MaintenanceRequest,
     pub asset_fact: assets::AssetConditionFact,
     pub title: String,
@@ -259,7 +259,7 @@ impl WorkOrder {
 
     pub fn open(
         id: WorkOrderId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         request: MaintenanceRequest,
         asset_fact: assets::AssetConditionFact,
         title: impl Into<String>,
@@ -532,7 +532,7 @@ impl WorkOrder {
     pub fn code(&self) -> &str {
         &self.code
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn request(&self) -> &MaintenanceRequest {
@@ -579,10 +579,10 @@ impl WorkOrder {
     }
 }
 
-fn validate_scope(scope: &TenantScope) -> Result<(), MaintenanceDomainError> {
+fn validate_scope(scope: &AuthorityScope) -> Result<(), MaintenanceDomainError> {
     if !matches!(
         scope,
-        TenantScope::Company { .. } | TenantScope::Branch { .. }
+        AuthorityScope::Company { .. } | AuthorityScope::Branch { .. }
     ) || scope.validate().is_err()
     {
         Err(MaintenanceDomainError::InvalidScope)

@@ -6,7 +6,7 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::{customer, identity_access, support};
 use erpx_kernel::{
-    ActorAttribution, AggregateId, AuditContext, CommandId, CorrelationId, EventId, TenantScope,
+    ActorAttribution, AggregateId, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -79,8 +79,8 @@ impl SupportAction {
 
 pub struct AuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
-    pub target_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
+    pub target_scope: &'a AuthorityScope,
     pub action: SupportAction,
     /// Capability issuance and use are denied unless the adapter rechecks the
     /// current Identity session/device state. This is never satisfied from a
@@ -99,7 +99,7 @@ pub trait AuthorizationPort: Send + Sync {
 pub trait EntitlementPort: Send + Sync {
     async fn ensure_support_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         write: bool,
     ) -> Result<(), PortError>;
 }
@@ -132,7 +132,7 @@ pub enum CommandFingerprint {
         represented_principal: Option<identity_access::PrincipalRef>,
         mode: SupportMode,
         permissions: Vec<String>,
-        scope: TenantScope,
+        scope: AuthorityScope,
         module: String,
         reason: String,
         duration_seconds: i64,
@@ -186,22 +186,22 @@ pub struct CommandIdentity {
 pub trait WriteRepository: Send + Sync {
     async fn load_ticket(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: SupportTicketId,
     ) -> Result<Option<SupportTicket>, PortError>;
     async fn load_incident(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: IncidentId,
     ) -> Result<Option<Incident>, PortError>;
     async fn load_session(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: SessionId,
     ) -> Result<Option<SupportSession>, PortError>;
     async fn load_capability(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: CapabilityId,
     ) -> Result<Option<SupportCapability>, PortError>;
 }
@@ -219,7 +219,7 @@ pub struct SupportCommit {
     pub correlation_id: CorrelationId,
     pub causation_id: Option<EventId>,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
     /// A create derived from another aggregate (session from ticket,
@@ -314,7 +314,7 @@ pub struct InternalTicketMessageView {
 pub struct SupportTicketView {
     pub ticket_id: SupportTicketId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub customer: customer::CustomerRef,
     pub customer_account: customer::CustomerAccountRef,
     pub case_code: String,
@@ -407,7 +407,7 @@ pub struct SupportTicketList {
 pub struct IncidentView {
     pub incident_id: IncidentId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub incident_code: String,
     pub severity: String,
     pub commander_ref: String,
@@ -456,7 +456,7 @@ pub struct IncidentList {
 pub struct SupportSessionView {
     pub session_id: SessionId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub ticket_id: SupportTicketId,
     pub customer: customer::CustomerRef,
     pub customer_account: customer::CustomerAccountRef,
@@ -513,7 +513,7 @@ pub struct SupportCapabilityView {
     pub device_ref: String,
     pub mode: SupportMode,
     pub permissions: Vec<String>,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub module: String,
     pub issued_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
@@ -566,38 +566,38 @@ pub struct ReadProjection<T> {
 pub trait ReadRepository: Send + Sync {
     async fn get_ticket(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: SupportTicketId,
         audience: TicketReadAudience,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<SupportTicketView>>, PortError>;
     async fn list_tickets(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &SupportTicketListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<SupportTicketList>, PortError>;
     async fn get_incident(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: IncidentId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<IncidentView>>, PortError>;
     async fn list_incidents(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &IncidentListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<IncidentList>, PortError>;
     async fn get_session(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: SessionId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<SupportSessionView>>, PortError>;
     async fn get_capability(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: CapabilityId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<SupportCapabilityView>>, PortError>;

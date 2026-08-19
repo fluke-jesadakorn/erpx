@@ -12,5 +12,5 @@ erpx_ui_kit::declare_current_workspace_feature!(
     erpx_ui_kit::CurrentFeatureKind::Brand,
     "brand",
     [("brand.workspace", "/brand", "platform")],
-    "erpx-feature-brand-v2"
+    "erpx-feature-brand"
 );

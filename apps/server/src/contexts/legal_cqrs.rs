@@ -6,8 +6,8 @@ use erpx_cqrs::{
     QueryEnvelope, QueryMetadata, QueryResult, ReadYourWrites,
 };
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
-    QueryId, SessionId, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+    ErrorCategory, EventId, QueryId, SessionId,
 };
 use erpx_legal::ports::{
     AccessEntryView, AccessHistoryFilter, ContractListFilter, ContractView, DocumentListFilter,
@@ -20,7 +20,7 @@ use erpx_legal::{
     LegalQueryResponse, ListAccessHistory, ListContracts, ListDocuments, RecordDocumentAccess,
     TransitionContract,
 };
-use erpx_proto::{common, erpx::legal::v2 as platform};
+use erpx_proto::{common, erpx::legal as platform};
 use platform::{
     legal_command_service_server::LegalCommandService,
     legal_query_service_server::LegalQueryService,
@@ -31,9 +31,9 @@ use uuid::Uuid;
 const MAX_ROUTE_LENGTH: usize = 255;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LegalTenantRoute {
-    pub tenant_id: String,
-    pub holding_ref: String,
+pub struct LegalHoldingRoute {
+    pub holding_id: String,
+    pub data_profile_key: String,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LegalAccessMode {
@@ -43,8 +43,8 @@ pub enum LegalAccessMode {
 pub struct LegalAuthenticationRequest {
     transport_metadata: MetadataMap,
     presented_actor: ActorAttribution,
-    presented_scope: TenantScope,
-    presented_route: LegalTenantRoute,
+    presented_scope: AuthorityScope,
+    presented_route: LegalHoldingRoute,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
     access_mode: LegalAccessMode,
@@ -56,10 +56,10 @@ impl LegalAuthenticationRequest {
     pub const fn presented_actor(&self) -> &ActorAttribution {
         &self.presented_actor
     }
-    pub const fn presented_scope(&self) -> &TenantScope {
+    pub const fn presented_scope(&self) -> &AuthorityScope {
         &self.presented_scope
     }
-    pub const fn presented_route(&self) -> &LegalTenantRoute {
+    pub const fn presented_route(&self) -> &LegalHoldingRoute {
         &self.presented_route
     }
     pub fn subscription_id(&self) -> Option<&str> {
@@ -75,37 +75,37 @@ impl LegalAuthenticationRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthenticatedLegalRequest {
     actor: ActorAttribution,
-    tenant_scope: TenantScope,
-    route: LegalTenantRoute,
+    active_scope: AuthorityScope,
+    route: LegalHoldingRoute,
 }
 impl AuthenticatedLegalRequest {
     pub fn try_new(
         actor: ActorAttribution,
-        tenant_scope: TenantScope,
-        route: LegalTenantRoute,
+        active_scope: AuthorityScope,
+        route: LegalHoldingRoute,
     ) -> Result<Self, LegalAuthenticationError> {
         actor
             .validate()
             .map_err(|_| LegalAuthenticationError::Internal)?;
-        tenant_scope
+        active_scope
             .validate()
             .map_err(|_| LegalAuthenticationError::Internal)?;
         validate_route(&route).map_err(|_| LegalAuthenticationError::Internal)?;
-        validate_route_scope(&route, &tenant_scope)
+        validate_route_scope(&route, &active_scope)
             .map_err(|_| LegalAuthenticationError::Internal)?;
         Ok(Self {
             actor,
-            tenant_scope,
+            active_scope,
             route,
         })
     }
     pub const fn actor(&self) -> &ActorAttribution {
         &self.actor
     }
-    pub const fn tenant_scope(&self) -> &TenantScope {
-        &self.tenant_scope
+    pub const fn active_scope(&self) -> &AuthorityScope {
+        &self.active_scope
     }
-    pub const fn route(&self) -> &LegalTenantRoute {
+    pub const fn route(&self) -> &LegalHoldingRoute {
         &self.route
     }
 }
@@ -127,7 +127,7 @@ pub trait LegalRequestAuthenticator: Send + Sync + 'static {
 pub trait LegalCommandApplication: Send + Sync + 'static {
     async fn execute(
         &self,
-        route: LegalTenantRoute,
+        route: LegalHoldingRoute,
         command: CommandEnvelope<LegalCommand>,
     ) -> Result<CommandReceipt<LegalMutationResult>, CqrsError>;
 }
@@ -135,7 +135,7 @@ pub trait LegalCommandApplication: Send + Sync + 'static {
 pub trait LegalQueryApplication: Send + Sync + 'static {
     async fn execute(
         &self,
-        route: LegalTenantRoute,
+        route: LegalHoldingRoute,
         query: QueryEnvelope<LegalQuery>,
     ) -> Result<QueryResult<LegalQueryResponse>, CqrsError>;
 }
@@ -521,25 +521,25 @@ fn access_mutation(
 }
 
 struct DecodedCommand<C> {
-    route: LegalTenantRoute,
+    route: LegalHoldingRoute,
     envelope: CommandEnvelope<C>,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
 }
 struct DecodedQuery<Q> {
-    route: LegalTenantRoute,
+    route: LegalHoldingRoute,
     envelope: QueryEnvelope<Q>,
 }
 async fn authenticate_command<C, G: LegalRequestAuthenticator>(
     auth: &G,
     transport: MetadataMap,
     decoded: DecodedCommand<C>,
-) -> Result<(LegalTenantRoute, CommandEnvelope<C>), Status> {
+) -> Result<(LegalHoldingRoute, CommandEnvelope<C>), Status> {
     let authenticated = auth
         .authenticate(LegalAuthenticationRequest {
             transport_metadata: transport,
             presented_actor: decoded.envelope.actor.clone(),
-            presented_scope: decoded.envelope.tenant_scope.clone(),
+            presented_scope: decoded.envelope.active_scope.clone(),
             presented_route: decoded.route,
             subscription_id: decoded.subscription_id,
             mfa_code: decoded.mfa_code,
@@ -549,7 +549,7 @@ async fn authenticate_command<C, G: LegalRequestAuthenticator>(
         .map_err(status_from_auth)?;
     let mut envelope = decoded.envelope;
     envelope.actor = authenticated.actor().clone();
-    envelope.tenant_scope = authenticated.tenant_scope().clone();
+    envelope.active_scope = authenticated.active_scope().clone();
     envelope
         .validate()
         .map_err(|_| Status::internal("authenticated Legal authority is invalid"))?;
@@ -559,12 +559,12 @@ async fn authenticate_query<Q, G: LegalRequestAuthenticator>(
     auth: &G,
     transport: MetadataMap,
     decoded: DecodedQuery<Q>,
-) -> Result<(LegalTenantRoute, QueryEnvelope<Q>), Status> {
+) -> Result<(LegalHoldingRoute, QueryEnvelope<Q>), Status> {
     let authenticated = auth
         .authenticate(LegalAuthenticationRequest {
             transport_metadata: transport,
             presented_actor: decoded.envelope.actor.clone(),
-            presented_scope: decoded.envelope.tenant_scope.clone(),
+            presented_scope: decoded.envelope.active_scope.clone(),
             presented_route: decoded.route,
             subscription_id: None,
             mfa_code: None,
@@ -574,7 +574,7 @@ async fn authenticate_query<Q, G: LegalRequestAuthenticator>(
         .map_err(status_from_auth)?;
     let mut envelope = decoded.envelope;
     envelope.actor = authenticated.actor().clone();
-    envelope.tenant_scope = authenticated.tenant_scope().clone();
+    envelope.active_scope = authenticated.active_scope().clone();
     envelope
         .validate()
         .map_err(|_| Status::internal("authenticated Legal authority is invalid"))?;
@@ -585,7 +585,7 @@ fn decode_command<C>(
     command: C,
 ) -> Result<DecodedCommand<C>, Status> {
     let m = metadata.ok_or_else(|| invalid("command metadata is required"))?;
-    let route = decode_route(m.tenant_route)?;
+    let route = decode_route(m.holding_route)?;
     let envelope = CommandEnvelope {
         contract_version: u16::try_from(m.contract_version)
             .map_err(|_| invalid("contract_version is invalid"))?,
@@ -596,9 +596,9 @@ fn decode_command<C>(
         correlation_id: correlation(&m.correlation_id)?,
         causation_id: m.causation_id.as_deref().map(event_id).transpose()?,
         actor: decode_actor(m.actor)?,
-        tenant_scope: decode_scope(
-            m.tenant_scope
-                .ok_or_else(|| invalid("tenant_scope is required"))?,
+        active_scope: decode_scope(
+            m.active_scope
+                .ok_or_else(|| invalid("active_scope is required"))?,
         )?,
         audit: decode_audit(m.audit)?,
         expected_aggregate_version: m.expected_aggregate_version,
@@ -619,7 +619,7 @@ fn decode_query<Q>(
     query: Q,
 ) -> Result<DecodedQuery<Q>, Status> {
     let m = metadata.ok_or_else(|| invalid("query metadata is required"))?;
-    let route = decode_route(m.tenant_route)?;
+    let route = decode_route(m.holding_route)?;
     let envelope = QueryEnvelope {
         contract_version: u16::try_from(m.contract_version)
             .map_err(|_| invalid("contract_version is invalid"))?,
@@ -627,9 +627,9 @@ fn decode_query<Q>(
             .map_err(|_| invalid("query_id is invalid"))?,
         correlation_id: correlation(&m.correlation_id)?,
         actor: decode_actor(m.actor)?,
-        tenant_scope: decode_scope(
-            m.tenant_scope
-                .ok_or_else(|| invalid("tenant_scope is required"))?,
+        active_scope: decode_scope(
+            m.active_scope
+                .ok_or_else(|| invalid("active_scope is required"))?,
         )?,
         audit: decode_audit(m.audit)?,
         consistency: decode_consistency(m.consistency)?,
@@ -848,44 +848,44 @@ fn encode_consistency(v: &QueryConsistency) -> common::QueryConsistency {
         }),
     }
 }
-fn decode_route(v: Option<common::TenantRoute>) -> Result<LegalTenantRoute, Status> {
-    let v = v.ok_or_else(|| invalid("tenant route is required"))?;
-    let route = LegalTenantRoute {
-        tenant_id: v.tenant_id.trim().into(),
-        holding_ref: v.holding_ref.trim().into(),
+fn decode_route(v: Option<common::HoldingRoute>) -> Result<LegalHoldingRoute, Status> {
+    let v = v.ok_or_else(|| invalid("holding route is required"))?;
+    let route = LegalHoldingRoute {
+        holding_id: v.holding_id.trim().into(),
+        data_profile_key: v.data_profile_key.trim().into(),
     };
     validate_route(&route)?;
     Ok(route)
 }
-fn validate_route(v: &LegalTenantRoute) -> Result<(), Status> {
-    if [&v.tenant_id, &v.holding_ref]
+fn validate_route(v: &LegalHoldingRoute) -> Result<(), Status> {
+    if [&v.holding_id, &v.data_profile_key]
         .iter()
         .any(|x| x.is_empty() || x.len() > MAX_ROUTE_LENGTH)
     {
-        Err(invalid("tenant route is invalid"))
+        Err(invalid("holding route is invalid"))
     } else {
         Ok(())
     }
 }
-fn validate_route_scope(route: &LegalTenantRoute, scope: &TenantScope) -> Result<(), Status> {
+fn validate_route_scope(route: &LegalHoldingRoute, scope: &AuthorityScope) -> Result<(), Status> {
     let holding = match scope {
-        TenantScope::Platform => return Ok(()),
-        TenantScope::Holding { holding_id }
-        | TenantScope::Company { holding_id, .. }
-        | TenantScope::Branch { holding_id, .. }
-        | TenantScope::Subtree { holding_id, .. } => holding_id,
+        AuthorityScope::Platform => return Ok(()),
+        AuthorityScope::Holding { holding_id }
+        | AuthorityScope::Company { holding_id, .. }
+        | AuthorityScope::Branch { holding_id, .. }
+        | AuthorityScope::Subtree { holding_id, .. } => holding_id,
     };
-    if parse_uuid(&route.holding_ref, "holding_ref")? == *holding {
+    if parse_uuid(&route.data_profile_key, "data_profile_key")? == *holding {
         Ok(())
     } else {
-        Err(invalid("tenant route does not match Legal scope"))
+        Err(invalid("holding route does not match Legal scope"))
     }
 }
 fn decode_actor(v: Option<common::ActorAttribution>) -> Result<ActorAttribution, Status> {
     let v = v.ok_or_else(|| invalid("actor is required"))?;
     let kind = match common::ActorKind::try_from(v.kind).ok() {
         Some(common::ActorKind::PlatformUser) => ActorKind::PlatformUser,
-        Some(common::ActorKind::TenantUser) => ActorKind::TenantUser,
+        Some(common::ActorKind::HoldingUser) => ActorKind::HoldingUser,
         Some(common::ActorKind::Service) => ActorKind::Service,
         Some(common::ActorKind::SystemWorker) => ActorKind::SystemWorker,
         _ => return Err(invalid("actor kind is invalid")),
@@ -909,53 +909,44 @@ fn decode_audit(v: Option<common::AuditContext>) -> Result<AuditContext, Status>
         module: nonempty(v.module),
     })
 }
-fn decode_scope(v: common::TenantScope) -> Result<TenantScope, Status> {
-    use common::tenant_scope::Scope;
+fn decode_scope(v: common::AuthorityScope) -> Result<AuthorityScope, Status> {
+    use common::authority_scope::Scope;
     match v.scope.ok_or_else(|| invalid("scope is required"))? {
-        Scope::Platform(_) => Ok(TenantScope::Platform),
-        Scope::Holding(v) => Ok(TenantScope::Holding {
+        Scope::Platform(_) => Ok(AuthorityScope::Platform),
+        Scope::Holding(v) => Ok(AuthorityScope::Holding {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
         }),
-        Scope::Company(v) => Ok(TenantScope::Company {
+        Scope::Company(v) => Ok(AuthorityScope::Company {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
             company_id: parse_uuid(&v.company_id, "company_id")?,
         }),
-        Scope::Branch(v) => Ok(TenantScope::Branch {
+        Scope::Branch(v) => Ok(AuthorityScope::Branch {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
             company_id: parse_uuid(&v.company_id, "company_id")?,
             branch_id: parse_uuid(&v.branch_id, "branch_id")?,
         }),
-        Scope::Subtree(v) => Ok(TenantScope::Subtree {
+        Scope::Subtree(v) => Ok(AuthorityScope::Subtree {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
-            company_ids: v
-                .company_ids
-                .iter()
-                .map(|x| parse_uuid(x, "company_id"))
-                .collect::<Result<_, _>>()?,
-            branch_ids: v
-                .branch_ids
-                .iter()
-                .map(|x| parse_uuid(x, "branch_id"))
-                .collect::<Result<_, _>>()?,
+            organization_node_id: parse_uuid(&v.organization_node_id, "organization_node_id")?,
         }),
     }
 }
-fn encode_scope(v: &TenantScope) -> common::TenantScope {
-    use common::tenant_scope::Scope;
-    common::TenantScope {
+fn encode_scope(v: &AuthorityScope) -> common::AuthorityScope {
+    use common::authority_scope::Scope;
+    common::AuthorityScope {
         scope: Some(match v {
-            TenantScope::Platform => Scope::Platform(common::PlatformScope {}),
-            TenantScope::Holding { holding_id } => Scope::Holding(common::HoldingScope {
+            AuthorityScope::Platform => Scope::Platform(common::PlatformScope {}),
+            AuthorityScope::Holding { holding_id } => Scope::Holding(common::HoldingScope {
                 holding_id: holding_id.to_string(),
             }),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => Scope::Company(common::CompanyScope {
                 holding_id: holding_id.to_string(),
                 company_id: company_id.to_string(),
             }),
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -964,14 +955,12 @@ fn encode_scope(v: &TenantScope) -> common::TenantScope {
                 company_id: company_id.to_string(),
                 branch_id: branch_id.to_string(),
             }),
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Scope::Subtree(common::SubtreeScope {
                 holding_id: holding_id.to_string(),
-                company_ids: company_ids.iter().map(ToString::to_string).collect(),
-                branch_ids: branch_ids.iter().map(ToString::to_string).collect(),
+                organization_node_id: organization_node_id.to_string(),
             }),
         }),
     }
@@ -1041,7 +1030,7 @@ mod tests {
     fn actor() -> ActorAttribution {
         ActorAttribution {
             principal_ref: "legal-route-test".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
@@ -1053,7 +1042,7 @@ mod tests {
             decode_status(encode_status(ContractStatus::Archived)).unwrap(),
             ContractStatus::Archived
         );
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         };
@@ -1076,7 +1065,7 @@ mod tests {
     #[test]
     fn authenticated_route_must_match_holding() {
         let holding = Uuid::from_u128(11);
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id: holding,
             company_id: Uuid::from_u128(12),
         };
@@ -1084,9 +1073,9 @@ mod tests {
             AuthenticatedLegalRequest::try_new(
                 actor(),
                 scope.clone(),
-                LegalTenantRoute {
-                    tenant_id: "tenant-a".into(),
-                    holding_ref: holding.to_string()
+                LegalHoldingRoute {
+                    holding_id: "holding-a".into(),
+                    data_profile_key: holding.to_string()
                 }
             )
             .is_ok()
@@ -1095,9 +1084,9 @@ mod tests {
             AuthenticatedLegalRequest::try_new(
                 actor(),
                 scope,
-                LegalTenantRoute {
-                    tenant_id: "tenant-a".into(),
-                    holding_ref: Uuid::from_u128(99).to_string()
+                LegalHoldingRoute {
+                    holding_id: "holding-a".into(),
+                    data_profile_key: Uuid::from_u128(99).to_string()
                 }
             ),
             Err(LegalAuthenticationError::Internal)

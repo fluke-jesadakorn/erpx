@@ -20,7 +20,7 @@ not a second handler registration.
 2. binds the pass's immutable worker UUID to the current worker UUID;
 3. requires an explicit holding scope;
 4. validates the outer `Reconcile` authorization proof, MFA, validity window,
-   and local-only break-glass rules before opening a tenant route;
+   and local-only break-glass rules before opening a holding route;
 5. validates nested reassignment/escalation proofs against the same principal,
    holding, and pass timestamp;
 6. delegates authoritative writes, outbox repair, projection, and SQLx

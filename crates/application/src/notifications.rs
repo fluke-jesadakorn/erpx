@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use erpx_kernel::{DataClassification, TenantScope};
+use erpx_kernel::{AuthorityScope, DataClassification};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -87,7 +87,7 @@ pub struct Notification {
     pub notification_id: Uuid,
     pub version: u64,
     pub delivery_version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub source_id: String,
     pub source_record_ref: String,
     pub recipient_ref: String,
@@ -104,7 +104,7 @@ impl Notification {
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         notification_id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         source_id: String,
         source_record_ref: String,
         recipient_ref: String,
@@ -391,8 +391,8 @@ mod tests {
     fn at() -> DateTime<Utc> {
         DateTime::from_timestamp(1_786_000_000, 0).unwrap()
     }
-    fn scope() -> TenantScope {
-        TenantScope::Company {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         }

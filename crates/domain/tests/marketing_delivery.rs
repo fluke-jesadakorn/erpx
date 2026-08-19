@@ -1,6 +1,6 @@
 use chrono::{DateTime, Duration, Utc};
 use erpx_domain::{
-    contracts::TenantScope,
+    contracts::AuthorityScope,
     marketing::{MarketingChannel, MarketingPurpose},
     marketing_delivery::{
         ChannelDispatchRecord, ConsentRecheckDecision, DeliveryDispatch, DeliveryRecheckDecision,
@@ -10,8 +10,8 @@ use erpx_domain::{
 };
 use uuid::Uuid;
 
-fn scope() -> TenantScope {
-    TenantScope::Holding {
+fn scope() -> AuthorityScope {
+    AuthorityScope::Holding {
         holding_id: Uuid::from_u128(1),
     }
 }

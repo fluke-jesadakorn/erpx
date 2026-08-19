@@ -14,12 +14,12 @@ use std::{collections::BTreeSet, sync::Arc};
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use erpx_domain::platform_completion::{
-    BackupControlCommand, ConnectorControl, ConnectorControlCommand, PlatformAuthorizationProof,
+    BackupControlCommand, ConnectorControl, ConnectorControlCommand, HoldingBinding,
+    HoldingLifecycleCommand, HoldingLifecycleState, PlatformAuthorizationProof,
     PlatformCompletionError, PlatformConnectorKind, PlatformConnectorScope, PlatformConnectorState,
     PlatformReconciliationReport, ReconciliationCommand, ReconciliationState,
-    ReplacementActivationProof, ReplacementReadCommand, ReplacementReadState, TenantBinding,
-    TenantLifecycleCommand, TenantLifecycleState, stable_platform_aggregate_id,
-    validate_lifecycle_transition,
+    ReplacementActivationProof, ReplacementReadCommand, ReplacementReadState,
+    stable_platform_aggregate_id, validate_lifecycle_transition,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -30,7 +30,7 @@ use uuid::Uuid;
 
 use crate::{OutboxEnvelope, PersistenceError, ProjectionHandler, SqlxControlPlane, WorkerError};
 
-pub const PLATFORM_TENANT_LIFECYCLE_AGGREGATE: &str = "platform.tenant_lifecycle";
+pub const PLATFORM_HOLDING_LIFECYCLE_AGGREGATE: &str = "platform.holding_lifecycle";
 pub const PLATFORM_BACKUP_AGGREGATE: &str = "platform.backup";
 pub const PLATFORM_REPLACEMENT_READ_AGGREGATE: &str = "platform.replacement_read";
 pub const PLATFORM_RECONCILIATION_AGGREGATE: &str = "platform.reconciliation";
@@ -100,9 +100,9 @@ pub struct PlatformCommandReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PlatformTenantLifecycleReceipt {
-    pub tenant_id: String,
-    pub state: TenantLifecycleState,
+pub struct PlatformHoldingLifecycleReceipt {
+    pub holding_id: String,
+    pub state: HoldingLifecycleState,
     pub registry_version: u64,
     pub command: PlatformCommandReceipt,
 }
@@ -110,7 +110,7 @@ pub struct PlatformTenantLifecycleReceipt {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlatformBackupJobReceipt {
     pub id: Uuid,
-    pub tenant_id: String,
+    pub holding_id: String,
     pub kind: String,
     pub state: String,
     pub available_at: DateTime<Utc>,
@@ -121,7 +121,7 @@ pub struct PlatformBackupJobReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlatformReplacementReadReceipt {
-    pub tenant_id: String,
+    pub holding_id: String,
     pub projection_name: String,
     pub state: ReplacementReadState,
     pub source_version: u64,
@@ -134,8 +134,8 @@ pub struct PlatformConnectorReadModel {
     pub connector_id: Uuid,
     pub kind: String,
     pub scope: String,
-    pub tenant_id: Option<String>,
-    pub holding_ref: Option<String>,
+    pub holding_id: Option<String>,
+    pub data_profile_key: Option<String>,
     pub provider_key: String,
     pub credential_bound: bool,
     pub configuration_digest: String,
@@ -147,8 +147,8 @@ pub struct PlatformConnectorReadModel {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlatformLifecycleReadModel {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub state: String,
     pub registry_version: u64,
     pub updated_at: DateTime<Utc>,
@@ -156,8 +156,8 @@ pub struct PlatformLifecycleReadModel {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlatformReplacementReadModel {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub projection_name: String,
     pub state: String,
     pub source_version: u64,
@@ -183,21 +183,21 @@ impl PlatformControlStore {
     /// rows and publish the event consumed by the worker projector.
     pub async fn transition_lifecycle(
         &self,
-        command: &TenantLifecycleCommand,
+        command: &HoldingLifecycleCommand,
         proof: &PlatformAuthorizationProof,
-    ) -> Result<PlatformTenantLifecycleReceipt, PlatformPersistenceError> {
+    ) -> Result<PlatformHoldingLifecycleReceipt, PlatformPersistenceError> {
         command.validate(proof)?;
-        let request_hash = request_hash(command, "tenant_lifecycle")?;
+        let request_hash = request_hash(command, "holding_lifecycle")?;
         let aggregate_id =
-            stable_platform_aggregate_id("tenant-lifecycle", &command.binding.tenant_id);
+            stable_platform_aggregate_id("holding-lifecycle", &command.binding.holding_id);
         let mut tx = self.control.pools().write.begin().await?;
         if let Some(replayed) =
             existing_event(&mut tx, &command.idempotency_key, &request_hash).await?
         {
-            let state = read_lifecycle_state(&mut tx, &command.binding.tenant_id).await?;
+            let state = read_lifecycle_state(&mut tx, &command.binding.holding_id).await?;
             tx.commit().await?;
-            return Ok(PlatformTenantLifecycleReceipt {
-                tenant_id: command.binding.tenant_id.clone(),
+            return Ok(PlatformHoldingLifecycleReceipt {
+                holding_id: command.binding.holding_id.clone(),
                 state,
                 registry_version: replayed.registry_version.unwrap_or_default(),
                 command: replayed.receipt,
@@ -205,29 +205,29 @@ impl PlatformControlStore {
         }
 
         let row = sqlx::query(
-            "SELECT r.holding_ref, r.write_database_key, r.read_database_key,
+            "SELECT r.data_profile_key, r.write_database_key, r.read_database_key,
                     r.storage_namespace, r.state AS registry_state, r.registry_version,
                     p.state AS provisioning_state
-             FROM erpx_control.tenant_registry r
-             INNER JOIN erpx_control.tenant_provisioning p ON p.tenant_id = r.tenant_id
-             WHERE r.tenant_id = $1 AND r.holding_ref = $2
+             FROM erpx_control.holding_registry r
+             INNER JOIN erpx_control.holding_provisioning p ON p.holding_id = r.holding_id
+             WHERE r.holding_id = $1 AND r.data_profile_key = $2
              FOR UPDATE OF r, p",
         )
-        .bind(&command.binding.tenant_id)
-        .bind(&command.binding.holding_ref)
+        .bind(&command.binding.holding_id)
+        .bind(&command.binding.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(PlatformPersistenceError::NotFound)?;
-        let registry_state: TenantLifecycleState = row
+        let registry_state: HoldingLifecycleState = row
             .try_get::<String, _>("registry_state")?
             .parse()
             .map_err(|_| {
-                PlatformPersistenceError::Invalid("tenant lifecycle state is invalid".into())
+                PlatformPersistenceError::Invalid("holding lifecycle state is invalid".into())
             })?;
         let provisioning_state: String = row.try_get("provisioning_state")?;
         if provisioning_state != registry_state.as_str() {
             return Err(PlatformPersistenceError::Invalid(
-                "tenant lifecycle state is inconsistent".into(),
+                "holding lifecycle state is inconsistent".into(),
             ));
         }
         if let Some(expected) = command.expected_registry_version
@@ -236,25 +236,25 @@ impl PlatformControlStore {
             return Err(PlatformPersistenceError::Conflict);
         }
         let target = validate_lifecycle_transition(registry_state, command.action)?;
-        if target == TenantLifecycleState::Active {
+        if target == HoldingLifecycleState::Active {
             let health_not_older_than =
                 command.at - Duration::seconds(PLATFORM_MAX_RECONCILIATION_AGE_SECONDS);
             let healthy: bool = sqlx::query_scalar(
                 "SELECT (
-                    EXISTS (SELECT 1 FROM erpx_control.tenant_database_health
-                            WHERE tenant_id = $1 AND side = 'write'
+                    EXISTS (SELECT 1 FROM erpx_control.holding_database_health
+                            WHERE holding_id = $1 AND side = 'write'
                               AND database_key = $4 AND reachable
                               AND checked_at >= $2 AND checked_at <= $3)
-                    AND EXISTS (SELECT 1 FROM erpx_control.tenant_database_health
-                            WHERE tenant_id = $1 AND side = 'read'
+                    AND EXISTS (SELECT 1 FROM erpx_control.holding_database_health
+                            WHERE holding_id = $1 AND side = 'read'
                               AND database_key = $5 AND reachable
                               AND checked_at >= $2 AND checked_at <= $3)
-                    AND EXISTS (SELECT 1 FROM erpx_control.tenant_storage_health
-                            WHERE tenant_id = $1 AND storage_namespace = $6 AND reachable
+                    AND EXISTS (SELECT 1 FROM erpx_control.holding_storage_health
+                            WHERE holding_id = $1 AND storage_namespace = $6 AND reachable
                               AND checked_at >= $2 AND checked_at <= $3)
                  )",
             )
-            .bind(&command.binding.tenant_id)
+            .bind(&command.binding.holding_id)
             .bind(health_not_older_than)
             .bind(command.at)
             .bind(row.try_get::<String, _>("write_database_key")?)
@@ -264,23 +264,23 @@ impl PlatformControlStore {
             .await?;
             if !healthy {
                 return Err(PlatformPersistenceError::Invalid(
-                    "tenant databases and storage must be healthy before activation".into(),
+                    "holding databases and storage must be healthy before activation".into(),
                 ));
             }
         }
 
         let old_registry_version: i64 = row.try_get("registry_version")?;
         let new_registry_version = old_registry_version.checked_add(1).ok_or_else(|| {
-            PlatformPersistenceError::Invalid("tenant registry version overflow".into())
+            PlatformPersistenceError::Invalid("holding registry version overflow".into())
         })?;
         let provisioning_update = sqlx::query(
-            "UPDATE erpx_control.tenant_provisioning
+            "UPDATE erpx_control.holding_provisioning
              SET state = $3, version = version + 1,
                  last_error = CASE WHEN $3 = 'active' THEN NULL ELSE last_error END,
                  updated_at = $4
-             WHERE tenant_id = $1 AND state = $2",
+             WHERE holding_id = $1 AND state = $2",
         )
-        .bind(&command.binding.tenant_id)
+        .bind(&command.binding.holding_id)
         .bind(registry_state.as_str())
         .bind(target.as_str())
         .bind(command.at)
@@ -290,14 +290,14 @@ impl PlatformControlStore {
             return Err(PlatformPersistenceError::Conflict);
         }
         let aggregate_version: i64 = sqlx::query_scalar(
-            "UPDATE erpx_control.tenant_registry
+            "UPDATE erpx_control.holding_registry
              SET state = $3, registry_version = $4,
                  lifecycle_aggregate_version = COALESCE(lifecycle_aggregate_version, 0) + 1,
                  updated_at = $5
-             WHERE tenant_id = $1 AND state = $2 AND registry_version = $6
+             WHERE holding_id = $1 AND state = $2 AND registry_version = $6
              RETURNING lifecycle_aggregate_version",
         )
-        .bind(&command.binding.tenant_id)
+        .bind(&command.binding.holding_id)
         .bind(registry_state.as_str())
         .bind(target.as_str())
         .bind(new_registry_version)
@@ -308,19 +308,19 @@ impl PlatformControlStore {
         .ok_or(PlatformPersistenceError::Conflict)?;
 
         let read_model = json!({
-            "tenant_id": command.binding.tenant_id,
-            "holding_ref": command.binding.holding_ref,
+            "holding_id": command.binding.holding_id,
+            "data_profile_key": command.binding.data_profile_key,
             "state": target.as_str(),
             "registry_version": new_registry_version,
             "updated_at": command.at,
         });
-        let aggregate_version = positive_u64(aggregate_version, "tenant lifecycle version")?;
+        let aggregate_version = positive_u64(aggregate_version, "holding lifecycle version")?;
         let event_id = append_event(
             &mut tx,
-            PLATFORM_TENANT_LIFECYCLE_AGGREGATE,
+            PLATFORM_HOLDING_LIFECYCLE_AGGREGATE,
             aggregate_id,
             aggregate_version,
-            "platform.tenant.lifecycle.changed",
+            "platform.holding.lifecycle.changed",
             Some(&command.binding),
             &command.actor_ref,
             command.correlation_id,
@@ -331,11 +331,11 @@ impl PlatformControlStore {
         )
         .await?;
         tx.commit().await?;
-        Ok(PlatformTenantLifecycleReceipt {
-            tenant_id: command.binding.tenant_id.clone(),
+        Ok(PlatformHoldingLifecycleReceipt {
+            holding_id: command.binding.holding_id.clone(),
             state: target,
             registry_version: u64::try_from(new_registry_version).map_err(|_| {
-                PlatformPersistenceError::Invalid("tenant registry version is invalid".into())
+                PlatformPersistenceError::Invalid("holding registry version is invalid".into())
             })?,
             command: PlatformCommandReceipt {
                 aggregate_id,
@@ -349,15 +349,15 @@ impl PlatformControlStore {
     /// Reconcile the registry, provisioning, health, replacement, backup, and
     /// connector facts from the write side. The report itself is an immutable
     /// event and the latest report is rebuildable by the projector.
-    pub async fn reconcile_tenant(
+    pub async fn reconcile_holding(
         &self,
         command: &ReconciliationCommand,
         proof: &PlatformAuthorizationProof,
     ) -> Result<PlatformReconciliationReport, PlatformPersistenceError> {
         command.validate(proof)?;
-        let request_hash = request_hash(command, "tenant_reconciliation")?;
+        let request_hash = request_hash(command, "holding_reconciliation")?;
         let aggregate_id =
-            stable_platform_aggregate_id("tenant-reconciliation", &command.binding.tenant_id);
+            stable_platform_aggregate_id("holding-reconciliation", &command.binding.holding_id);
         let mut tx = self.control.pools().write.begin().await?;
         if let Some(replayed) =
             existing_event(&mut tx, &command.idempotency_key, &request_hash).await?
@@ -370,13 +370,13 @@ impl PlatformControlStore {
         let row = sqlx::query(
             "SELECT r.state AS registry_state, p.state AS provisioning_state,
                     r.write_database_key, r.read_database_key, r.storage_namespace
-             FROM erpx_control.tenant_registry r
-             LEFT JOIN erpx_control.tenant_provisioning p ON p.tenant_id = r.tenant_id
-             WHERE r.tenant_id = $1 AND r.holding_ref = $2
+             FROM erpx_control.holding_registry r
+             LEFT JOIN erpx_control.holding_provisioning p ON p.holding_id = r.holding_id
+             WHERE r.holding_id = $1 AND r.data_profile_key = $2
              FOR SHARE",
         )
-        .bind(&command.binding.tenant_id)
-        .bind(&command.binding.holding_ref)
+        .bind(&command.binding.holding_id)
+        .bind(&command.binding.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(PlatformPersistenceError::NotFound)?;
@@ -385,63 +385,63 @@ impl PlatformControlStore {
         let health_not_older_than =
             command.at - Duration::seconds(PLATFORM_MAX_RECONCILIATION_AGE_SECONDS);
         let write_healthy: bool = sqlx::query_scalar(
-            "SELECT EXISTS (SELECT 1 FROM erpx_control.tenant_database_health
-                            WHERE tenant_id = $1 AND side = 'write'
+            "SELECT EXISTS (SELECT 1 FROM erpx_control.holding_database_health
+                            WHERE holding_id = $1 AND side = 'write'
                               AND database_key = $4 AND reachable
                               AND checked_at >= $2 AND checked_at <= $3)",
         )
-        .bind(&command.binding.tenant_id)
+        .bind(&command.binding.holding_id)
         .bind(health_not_older_than)
         .bind(command.at)
         .bind(row.try_get::<String, _>("write_database_key")?)
         .fetch_one(&mut *tx)
         .await?;
         let read_healthy: bool = sqlx::query_scalar(
-            "SELECT EXISTS (SELECT 1 FROM erpx_control.tenant_database_health
-                            WHERE tenant_id = $1 AND side = 'read'
+            "SELECT EXISTS (SELECT 1 FROM erpx_control.holding_database_health
+                            WHERE holding_id = $1 AND side = 'read'
                               AND database_key = $4 AND reachable
                               AND checked_at >= $2 AND checked_at <= $3)",
         )
-        .bind(&command.binding.tenant_id)
+        .bind(&command.binding.holding_id)
         .bind(health_not_older_than)
         .bind(command.at)
         .bind(row.try_get::<String, _>("read_database_key")?)
         .fetch_one(&mut *tx)
         .await?;
         let storage_healthy: bool = sqlx::query_scalar(
-            "SELECT EXISTS (SELECT 1 FROM erpx_control.tenant_storage_health
-                            WHERE tenant_id = $1 AND storage_namespace = $4 AND reachable
+            "SELECT EXISTS (SELECT 1 FROM erpx_control.holding_storage_health
+                            WHERE holding_id = $1 AND storage_namespace = $4 AND reachable
                               AND checked_at >= $2 AND checked_at <= $3)",
         )
-        .bind(&command.binding.tenant_id)
+        .bind(&command.binding.holding_id)
         .bind(health_not_older_than)
         .bind(command.at)
         .bind(row.try_get::<String, _>("storage_namespace")?)
         .fetch_one(&mut *tx)
         .await?;
         let replacement_state: Option<String> = sqlx::query_scalar(
-            "SELECT state FROM erpx_control.tenant_projection_switches
-             WHERE tenant_id = $1",
+            "SELECT state FROM erpx_control.holding_projection_switches
+             WHERE holding_id = $1",
         )
-        .bind(&command.binding.tenant_id)
+        .bind(&command.binding.holding_id)
         .fetch_optional(&mut *tx)
         .await?;
         let latest_backup_verified: bool = sqlx::query_scalar(
             "SELECT COALESCE((
-                SELECT verified FROM erpx_control.tenant_backup_runs
-                WHERE tenant_id = $1 AND status = 'completed'
+                SELECT verified FROM erpx_control.holding_backup_runs
+                WHERE holding_id = $1 AND status = 'completed'
                 ORDER BY completed_at DESC NULLS LAST, id DESC LIMIT 1
              ), FALSE)",
         )
-        .bind(&command.binding.tenant_id)
+        .bind(&command.binding.holding_id)
         .fetch_one(&mut *tx)
         .await?;
         let connector_count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*)
              FROM erpx_platform_completion_write.connector_authority
-             WHERE tenant_id = $1",
+             WHERE holding_id = $1",
         )
-        .bind(&command.binding.tenant_id)
+        .bind(&command.binding.holding_id)
         .fetch_one(&mut *tx)
         .await?;
 
@@ -450,7 +450,7 @@ impl PlatformControlStore {
             drift_codes.insert("lifecycle_state_mismatch".into());
         }
         if registry_state == "active" && (!write_healthy || !read_healthy || !storage_healthy) {
-            drift_codes.insert("active_tenant_not_healthy".into());
+            drift_codes.insert("active_holding_not_healthy".into());
         }
         if replacement_state.as_deref() == Some("failed") {
             drift_codes.insert("replacement_read_failed".into());
@@ -492,7 +492,7 @@ impl PlatformControlStore {
             PLATFORM_RECONCILIATION_AGGREGATE,
             aggregate_id,
             aggregate_version,
-            "platform.tenant.reconciled",
+            "platform.holding.reconciled",
             Some(&command.binding),
             &command.actor_ref,
             command.correlation_id,
@@ -520,20 +520,20 @@ impl PlatformControlStore {
         let mut tx = self.control.pools().write.begin().await?;
         if let Some(row) = sqlx::query(
             "SELECT id, kind, state, available_at, max_attempts
-             FROM erpx_control.tenant_backup_jobs
-             WHERE tenant_id = $1 AND idempotency_key = $2
+             FROM erpx_control.holding_backup_jobs
+             WHERE holding_id = $1 AND idempotency_key = $2
              FOR UPDATE",
         )
-        .bind(&command.binding.tenant_id)
+        .bind(&command.binding.holding_id)
         .bind(&command.idempotency_key)
         .fetch_optional(&mut *tx)
         .await?
         {
             let stored_hash: String = sqlx::query_scalar(
-                "SELECT request_hash FROM erpx_control.tenant_backup_jobs
-                 WHERE tenant_id = $1 AND idempotency_key = $2",
+                "SELECT request_hash FROM erpx_control.holding_backup_jobs
+                 WHERE holding_id = $1 AND idempotency_key = $2",
             )
-            .bind(&command.binding.tenant_id)
+            .bind(&command.binding.holding_id)
             .bind(&command.idempotency_key)
             .fetch_one(&mut *tx)
             .await?;
@@ -550,7 +550,7 @@ impl PlatformControlStore {
             tx.commit().await?;
             return Ok(PlatformBackupJobReceipt {
                 id: job_id,
-                tenant_id: command.binding.tenant_id.clone(),
+                holding_id: command.binding.holding_id.clone(),
                 kind: row.try_get("kind")?,
                 state: row.try_get("state")?,
                 available_at: row.try_get("available_at")?,
@@ -567,27 +567,27 @@ impl PlatformControlStore {
             });
         }
         let registry_state: Option<String> = sqlx::query_scalar(
-            "SELECT state FROM erpx_control.tenant_registry
-             WHERE tenant_id = $1 AND holding_ref = $2",
+            "SELECT state FROM erpx_control.holding_registry
+             WHERE holding_id = $1 AND data_profile_key = $2",
         )
-        .bind(&command.binding.tenant_id)
-        .bind(&command.binding.holding_ref)
+        .bind(&command.binding.holding_id)
+        .bind(&command.binding.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?;
         if !matches!(registry_state.as_deref(), Some("active" | "recovery")) {
             return Err(PlatformPersistenceError::Invalid(
-                "tenant is not in a backup-capable state".into(),
+                "holding is not in a backup-capable state".into(),
             ));
         }
         let provisioning_state: Option<String> = sqlx::query_scalar(
-            "SELECT state FROM erpx_control.tenant_provisioning WHERE tenant_id = $1",
+            "SELECT state FROM erpx_control.holding_provisioning WHERE holding_id = $1",
         )
-        .bind(&command.binding.tenant_id)
+        .bind(&command.binding.holding_id)
         .fetch_optional(&mut *tx)
         .await?;
         if provisioning_state != registry_state {
             return Err(PlatformPersistenceError::Invalid(
-                "tenant provisioning state is inconsistent".into(),
+                "holding provisioning state is inconsistent".into(),
             ));
         }
         let job_id = Uuid::new_v4();
@@ -601,15 +601,15 @@ impl PlatformControlStore {
             .map(serde_json::to_value)
             .transpose()?;
         sqlx::query(
-            "INSERT INTO erpx_control.tenant_backup_jobs
-                (id, tenant_id, holding_ref, kind, backup_ref, restore_target_ref,
+            "INSERT INTO erpx_control.holding_backup_jobs
+                (id, holding_id, data_profile_key, kind, backup_ref, restore_target_ref,
                  candidate_read_database_key, source_version, source_projection,
                  pitr_recovery_point, state, available_at, max_attempts, request_hash, idempotency_key)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', $11, $12, $13, $14)",
         )
         .bind(job_id)
-        .bind(&command.binding.tenant_id)
-        .bind(&command.binding.holding_ref)
+        .bind(&command.binding.holding_id)
+        .bind(&command.binding.data_profile_key)
         .bind(command.kind.as_str())
         .bind(&command.backup_ref)
         .bind(&command.restore_target_ref)
@@ -625,8 +625,8 @@ impl PlatformControlStore {
         .await?;
         let read_model = json!({
             "job_id": job_id,
-            "tenant_id": command.binding.tenant_id,
-            "holding_ref": command.binding.holding_ref,
+            "holding_id": command.binding.holding_id,
+            "data_profile_key": command.binding.data_profile_key,
             "kind": command.kind.as_str(),
             "state": "pending",
             "available_at": command.available_at,
@@ -655,7 +655,7 @@ impl PlatformControlStore {
         tx.commit().await?;
         Ok(PlatformBackupJobReceipt {
             id: job_id,
-            tenant_id: command.binding.tenant_id.clone(),
+            holding_id: command.binding.holding_id.clone(),
             kind: command.kind.as_str().into(),
             state: "pending".into(),
             available_at: command.available_at,
@@ -681,7 +681,7 @@ impl PlatformControlStore {
         let request_hash = request_hash(command, "replacement_read_start")?;
         let aggregate_id = stable_platform_aggregate_id(
             "replacement-read",
-            &format!("{}:{}", command.binding.tenant_id, command.projection_name),
+            &format!("{}:{}", command.binding.holding_id, command.projection_name),
         );
         let mut tx = self.control.pools().write.begin().await?;
         if let Some(replayed) =
@@ -692,7 +692,7 @@ impl PlatformControlStore {
             })?;
             tx.commit().await?;
             return Ok(PlatformReplacementReadReceipt {
-                tenant_id: command.binding.tenant_id.clone(),
+                holding_id: command.binding.holding_id.clone(),
                 projection_name: command.projection_name.clone(),
                 state: ReplacementReadState::Rebuilding,
                 source_version: command.source_version,
@@ -706,18 +706,18 @@ impl PlatformControlStore {
             .await?;
         let registry = sqlx::query(
             "SELECT state, write_database_key, read_database_key
-             FROM erpx_control.tenant_registry
-             WHERE tenant_id = $1 AND holding_ref = $2
+             FROM erpx_control.holding_registry
+             WHERE holding_id = $1 AND data_profile_key = $2
              FOR UPDATE",
         )
-        .bind(&command.binding.tenant_id)
-        .bind(&command.binding.holding_ref)
+        .bind(&command.binding.holding_id)
+        .bind(&command.binding.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(PlatformPersistenceError::NotFound)?;
         if registry.try_get::<String, _>("state")? != "active" {
             return Err(PlatformPersistenceError::Invalid(
-                "replacement read requires an active tenant".into(),
+                "replacement read requires an active holding".into(),
             ));
         }
         let write_key: String = registry.try_get("write_database_key")?;
@@ -731,15 +731,15 @@ impl PlatformControlStore {
         }
         let candidate_owned: bool = sqlx::query_scalar(
             "SELECT EXISTS (
-                 SELECT 1 FROM erpx_control.tenant_registry
-                 WHERE tenant_id <> $1
+                 SELECT 1 FROM erpx_control.holding_registry
+                 WHERE holding_id <> $1
                    AND (write_database_key = $2 OR read_database_key = $2)
              ) OR EXISTS (
-                 SELECT 1 FROM erpx_control.tenant_projection_switches
-                 WHERE tenant_id <> $1 AND candidate_read_database_key = $2
+                 SELECT 1 FROM erpx_control.holding_projection_switches
+                 WHERE holding_id <> $1 AND candidate_read_database_key = $2
              )",
         )
-        .bind(&command.binding.tenant_id)
+        .bind(&command.binding.holding_id)
         .bind(&command.candidate_read_database_key)
         .fetch_one(&mut *tx)
         .await?;
@@ -747,20 +747,20 @@ impl PlatformControlStore {
             return Err(PlatformPersistenceError::Conflict);
         }
         let switch = sqlx::query(
-            "INSERT INTO erpx_control.tenant_projection_switches
-                (tenant_id, current_read_database_key, candidate_read_database_key,
+            "INSERT INTO erpx_control.holding_projection_switches
+                (holding_id, current_read_database_key, candidate_read_database_key,
                  state, source_version, version, aggregate_version)
              VALUES ($1, $2, $3, 'rebuilding', $4, 1, 1)
-             ON CONFLICT (tenant_id) DO UPDATE SET
+             ON CONFLICT (holding_id) DO UPDATE SET
                 candidate_read_database_key = EXCLUDED.candidate_read_database_key,
                 state = 'rebuilding', source_version = EXCLUDED.source_version,
-                version = erpx_control.tenant_projection_switches.version + 1,
-                aggregate_version = erpx_control.tenant_projection_switches.aggregate_version + 1,
+                version = erpx_control.holding_projection_switches.version + 1,
+                aggregate_version = erpx_control.holding_projection_switches.aggregate_version + 1,
                 last_error = NULL, updated_at = now()
-             WHERE erpx_control.tenant_projection_switches.state IN ('ready', 'activated', 'failed')
+             WHERE erpx_control.holding_projection_switches.state IN ('ready', 'activated', 'failed')
              RETURNING version, aggregate_version",
         )
-        .bind(&command.binding.tenant_id)
+        .bind(&command.binding.holding_id)
         .bind(&current_key)
         .bind(&command.candidate_read_database_key)
         .bind(checked_i64(
@@ -800,7 +800,7 @@ impl PlatformControlStore {
         .await?;
         tx.commit().await?;
         Ok(PlatformReplacementReadReceipt {
-            tenant_id: command.binding.tenant_id.clone(),
+            holding_id: command.binding.holding_id.clone(),
             projection_name: command.projection_name.clone(),
             state: ReplacementReadState::Rebuilding,
             source_version: command.source_version,
@@ -854,11 +854,14 @@ impl PlatformControlStore {
     ) -> Result<PlatformReplacementReadReceipt, PlatformPersistenceError> {
         command.validate_transition(proof, true)?;
         activation.validate(command.source_version)?;
-        validate_source_fence_reference(&activation.fence_reference, &command.binding.holding_ref)?;
+        validate_source_fence_reference(
+            &activation.fence_reference,
+            &command.binding.data_profile_key,
+        )?;
         let request_hash = request_hash(&(command, activation), "replacement_read_activate")?;
         let aggregate_id = stable_platform_aggregate_id(
             "replacement-read",
-            &format!("{}:{}", command.binding.tenant_id, command.projection_name),
+            &format!("{}:{}", command.binding.holding_id, command.projection_name),
         );
         let mut tx = self.control.pools().write.begin().await?;
         if let Some(replayed) =
@@ -867,7 +870,7 @@ impl PlatformControlStore {
             let generation = command.generation.unwrap_or_default();
             tx.commit().await?;
             return Ok(PlatformReplacementReadReceipt {
-                tenant_id: command.binding.tenant_id.clone(),
+                holding_id: command.binding.holding_id.clone(),
                 projection_name: command.projection_name.clone(),
                 state: ReplacementReadState::Activated,
                 source_version: command.source_version,
@@ -877,12 +880,12 @@ impl PlatformControlStore {
         }
         let binding_matches: bool = sqlx::query_scalar(
             "SELECT EXISTS (
-                 SELECT 1 FROM erpx_control.tenant_registry
-                 WHERE tenant_id = $1 AND holding_ref = $2 AND state = 'active'
+                 SELECT 1 FROM erpx_control.holding_registry
+                 WHERE holding_id = $1 AND data_profile_key = $2 AND state = 'active'
              )",
         )
-        .bind(&command.binding.tenant_id)
-        .bind(&command.binding.holding_ref)
+        .bind(&command.binding.holding_id)
+        .bind(&command.binding.data_profile_key)
         .fetch_one(&mut *tx)
         .await?;
         if !binding_matches {
@@ -894,15 +897,15 @@ impl PlatformControlStore {
         let switch = sqlx::query(
             "SELECT s.current_read_database_key, s.candidate_read_database_key,
                     s.source_version
-             FROM erpx_control.tenant_projection_switches s
-             INNER JOIN erpx_control.tenant_registry r
-               ON r.tenant_id = s.tenant_id AND r.holding_ref = $3
-             WHERE s.tenant_id = $1 AND s.state = 'ready' AND s.version = $2
+             FROM erpx_control.holding_projection_switches s
+             INNER JOIN erpx_control.holding_registry r
+               ON r.holding_id = s.holding_id AND r.data_profile_key = $3
+             WHERE s.holding_id = $1 AND s.state = 'ready' AND s.version = $2
                FOR UPDATE",
         )
-        .bind(&command.binding.tenant_id)
+        .bind(&command.binding.holding_id)
         .bind(checked_i64(generation, "replacement generation")?)
-        .bind(&command.binding.holding_ref)
+        .bind(&command.binding.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(PlatformPersistenceError::Conflict)?;
@@ -913,11 +916,11 @@ impl PlatformControlStore {
             return Err(PlatformPersistenceError::Conflict);
         }
         let registry_update = sqlx::query(
-            "UPDATE erpx_control.tenant_registry
+            "UPDATE erpx_control.holding_registry
              SET read_database_key = $2, registry_version = registry_version + 1, updated_at = $3
-             WHERE tenant_id = $1 AND state = 'active' AND read_database_key = $4",
+             WHERE holding_id = $1 AND state = 'active' AND read_database_key = $4",
         )
-        .bind(&command.binding.tenant_id)
+        .bind(&command.binding.holding_id)
         .bind(&candidate)
         .bind(command.at)
         .bind(&current)
@@ -927,17 +930,17 @@ impl PlatformControlStore {
             return Err(PlatformPersistenceError::Conflict);
         }
         let aggregate_version: i64 = sqlx::query_scalar(
-            "UPDATE erpx_control.tenant_projection_switches
+            "UPDATE erpx_control.holding_projection_switches
              SET current_read_database_key = candidate_read_database_key,
                  candidate_read_database_key = current_read_database_key,
                  state = 'activated', version = version + 1,
                  aggregate_version = aggregate_version + 1,
                  activated_at = $3, updated_at = $3
-             WHERE tenant_id = $1 AND state = 'ready' AND version = $2
+             WHERE holding_id = $1 AND state = 'ready' AND version = $2
                AND candidate_read_database_key = $4
              RETURNING aggregate_version",
         )
-        .bind(&command.binding.tenant_id)
+        .bind(&command.binding.holding_id)
         .bind(checked_i64(generation, "replacement generation")?)
         .bind(command.at)
         .bind(&candidate)
@@ -970,7 +973,7 @@ impl PlatformControlStore {
         .await?;
         tx.commit().await?;
         Ok(PlatformReplacementReadReceipt {
-            tenant_id: command.binding.tenant_id.clone(),
+            holding_id: command.binding.holding_id.clone(),
             projection_name: command.projection_name.clone(),
             state: ReplacementReadState::Activated,
             source_version: command.source_version,
@@ -996,7 +999,7 @@ impl PlatformControlStore {
         )?;
         let aggregate_id = stable_platform_aggregate_id(
             "replacement-read",
-            &format!("{}:{}", command.binding.tenant_id, command.projection_name),
+            &format!("{}:{}", command.binding.holding_id, command.projection_name),
         );
         let mut tx = self.control.pools().write.begin().await?;
         if let Some(replayed) =
@@ -1005,7 +1008,7 @@ impl PlatformControlStore {
             let generation = command.generation.unwrap_or_default();
             tx.commit().await?;
             return Ok(PlatformReplacementReadReceipt {
-                tenant_id: command.binding.tenant_id.clone(),
+                holding_id: command.binding.holding_id.clone(),
                 projection_name: command.projection_name.clone(),
                 state: target,
                 source_version: command.source_version,
@@ -1015,12 +1018,12 @@ impl PlatformControlStore {
         }
         let binding_matches: bool = sqlx::query_scalar(
             "SELECT EXISTS (
-                 SELECT 1 FROM erpx_control.tenant_registry
-                 WHERE tenant_id = $1 AND holding_ref = $2 AND state = 'active'
+                 SELECT 1 FROM erpx_control.holding_registry
+                 WHERE holding_id = $1 AND data_profile_key = $2 AND state = 'active'
              )",
         )
-        .bind(&command.binding.tenant_id)
-        .bind(&command.binding.holding_ref)
+        .bind(&command.binding.holding_id)
+        .bind(&command.binding.data_profile_key)
         .fetch_one(&mut *tx)
         .await?;
         if !binding_matches {
@@ -1032,14 +1035,14 @@ impl PlatformControlStore {
         let error = reason_code.unwrap_or("");
         let aggregate_version: Option<i64> = if target == ReplacementReadState::Failed {
             sqlx::query_scalar(
-                "UPDATE erpx_control.tenant_projection_switches
+                "UPDATE erpx_control.holding_projection_switches
                  SET state = $3, aggregate_version = aggregate_version + 1,
                      last_error = NULLIF($4, ''), updated_at = $5
-                 WHERE tenant_id = $1 AND state IN ('rebuilding', 'ready') AND version = $2
+                 WHERE holding_id = $1 AND state IN ('rebuilding', 'ready') AND version = $2
                    AND source_version = $6
                  RETURNING aggregate_version",
             )
-            .bind(&command.binding.tenant_id)
+            .bind(&command.binding.holding_id)
             .bind(checked_i64(generation, "replacement generation")?)
             .bind(target.as_str())
             .bind(error)
@@ -1052,14 +1055,14 @@ impl PlatformControlStore {
             .await?
         } else {
             sqlx::query_scalar(
-                "UPDATE erpx_control.tenant_projection_switches
+                "UPDATE erpx_control.holding_projection_switches
                  SET state = $4, aggregate_version = aggregate_version + 1,
                      last_error = NULLIF($5, ''), updated_at = $6
-                 WHERE tenant_id = $1 AND state = $3 AND version = $2
+                 WHERE holding_id = $1 AND state = $3 AND version = $2
                    AND source_version = $7
                  RETURNING aggregate_version",
             )
-            .bind(&command.binding.tenant_id)
+            .bind(&command.binding.holding_id)
             .bind(checked_i64(generation, "replacement generation")?)
             .bind("rebuilding")
             .bind(target.as_str())
@@ -1105,7 +1108,7 @@ impl PlatformControlStore {
         .await?;
         tx.commit().await?;
         Ok(PlatformReplacementReadReceipt {
-            tenant_id: command.binding.tenant_id.clone(),
+            holding_id: command.binding.holding_id.clone(),
             projection_name: command.projection_name.clone(),
             state: target,
             source_version: command.source_version,
@@ -1140,12 +1143,12 @@ impl PlatformControlStore {
         if let Some(binding) = command.control.scope.binding() {
             let binding_exists: bool = sqlx::query_scalar(
                 "SELECT EXISTS (
-                     SELECT 1 FROM erpx_control.tenant_registry
-                     WHERE tenant_id = $1 AND holding_ref = $2
+                     SELECT 1 FROM erpx_control.holding_registry
+                     WHERE holding_id = $1 AND data_profile_key = $2
                  )",
             )
-            .bind(&binding.tenant_id)
-            .bind(&binding.holding_ref)
+            .bind(&binding.holding_id)
+            .bind(&binding.data_profile_key)
             .fetch_one(&mut *tx)
             .await?;
             if !binding_exists {
@@ -1226,21 +1229,21 @@ impl PlatformControlStore {
 
     pub async fn read_reconciliation(
         &self,
-        binding: &TenantBinding,
+        binding: &HoldingBinding,
     ) -> Result<Option<PlatformReconciliationReport>, PlatformPersistenceError> {
-        TenantBinding::new(binding.tenant_id.clone(), binding.holding_ref.clone())?;
+        HoldingBinding::new(binding.holding_id.clone(), binding.data_profile_key.clone())?;
         let aggregate_id =
-            stable_platform_aggregate_id("tenant-reconciliation", &binding.tenant_id);
+            stable_platform_aggregate_id("holding-reconciliation", &binding.holding_id);
         let payload: Option<Value> = sqlx::query_scalar(
             "SELECT payload FROM erpx_control.platform_completion_read_model
              WHERE projection_name = $1 AND aggregate_type = $2 AND aggregate_id = $3
-               AND tenant_id = $4 AND holding_ref = $5",
+               AND holding_id = $4 AND data_profile_key = $5",
         )
         .bind(PLATFORM_COMPLETION_PROJECTION)
         .bind(PLATFORM_RECONCILIATION_AGGREGATE)
         .bind(aggregate_id)
-        .bind(&binding.tenant_id)
-        .bind(&binding.holding_ref)
+        .bind(&binding.holding_id)
+        .bind(&binding.data_profile_key)
         .fetch_optional(&self.control.pools().read)
         .await
         .map_err(|_| PlatformPersistenceError::ReadModelNotRegistered)?;
@@ -1319,8 +1322,8 @@ fn validate_read_model_version(
 
 #[derive(Debug, Clone, Copy)]
 struct ReadModelReplayContext<'a> {
-    tenant_id: Option<&'a str>,
-    holding_ref: Option<&'a str>,
+    holding_id: Option<&'a str>,
+    data_profile_key: Option<&'a str>,
     payload: &'a Value,
     updated_at: DateTime<Utc>,
 }
@@ -1329,8 +1332,8 @@ fn validate_idempotent_read_model_replay(
     current: ReadModelReplayContext<'_>,
     incoming: ReadModelReplayContext<'_>,
 ) -> Result<(), PlatformPersistenceError> {
-    if current.tenant_id != incoming.tenant_id
-        || current.holding_ref != incoming.holding_ref
+    if current.holding_id != incoming.holding_id
+        || current.data_profile_key != incoming.data_profile_key
         || current.payload != incoming.payload
         || current.updated_at != incoming.updated_at
     {
@@ -1365,7 +1368,7 @@ impl PlatformReadModelWriter for SqlxPlatformReadModelWriter {
         if projection_name != PLATFORM_COMPLETION_PROJECTION
             || !matches!(
                 aggregate_type,
-                PLATFORM_TENANT_LIFECYCLE_AGGREGATE
+                PLATFORM_HOLDING_LIFECYCLE_AGGREGATE
                     | PLATFORM_BACKUP_AGGREGATE
                     | PLATFORM_REPLACEMENT_READ_AGGREGATE
                     | PLATFORM_RECONCILIATION_AGGREGATE
@@ -1377,7 +1380,8 @@ impl PlatformReadModelWriter for SqlxPlatformReadModelWriter {
                 "platform read model payload is invalid".into(),
             ));
         }
-        let (tenant_id, holding_ref) = read_model_scope(aggregate_type, aggregate_id, &payload)?;
+        let (holding_id, data_profile_key) =
+            read_model_scope(aggregate_type, aggregate_id, &payload)?;
         let incoming_version = i64::try_from(aggregate_version).map_err(|_| {
             PlatformPersistenceError::Invalid("platform aggregate version is invalid".into())
         })?;
@@ -1387,7 +1391,7 @@ impl PlatformReadModelWriter for SqlxPlatformReadModelWriter {
             .await
             .map_err(|_| PlatformPersistenceError::ReadModelNotRegistered)?;
         let current_row = sqlx::query(
-            "SELECT aggregate_version, tenant_id, holding_ref, payload, updated_at
+            "SELECT aggregate_version, holding_id, data_profile_key, payload, updated_at
              FROM erpx_control.platform_completion_read_model
              WHERE projection_name = $1 AND aggregate_type = $2 AND aggregate_id = $3
              FOR UPDATE",
@@ -1412,11 +1416,11 @@ impl PlatformReadModelWriter for SqlxPlatformReadModelWriter {
                     "platform read model replay row disappeared".into(),
                 )
             })?;
-            let current_tenant: Option<String> = current_row
-                .try_get("tenant_id")
+            let current_holding: Option<String> = current_row
+                .try_get("holding_id")
                 .map_err(|_| PlatformPersistenceError::ReadModelNotRegistered)?;
-            let current_holding_ref: Option<String> = current_row
-                .try_get("holding_ref")
+            let current_data_profile_key: Option<String> = current_row
+                .try_get("data_profile_key")
                 .map_err(|_| PlatformPersistenceError::ReadModelNotRegistered)?;
             let current_payload: Value = current_row
                 .try_get("payload")
@@ -1426,14 +1430,14 @@ impl PlatformReadModelWriter for SqlxPlatformReadModelWriter {
                 .map_err(|_| PlatformPersistenceError::ReadModelNotRegistered)?;
             validate_idempotent_read_model_replay(
                 ReadModelReplayContext {
-                    tenant_id: current_tenant.as_deref(),
-                    holding_ref: current_holding_ref.as_deref(),
+                    holding_id: current_holding.as_deref(),
+                    data_profile_key: current_data_profile_key.as_deref(),
                     payload: &current_payload,
                     updated_at: current_updated_at,
                 },
                 ReadModelReplayContext {
-                    tenant_id: tenant_id.as_deref(),
-                    holding_ref: holding_ref.as_deref(),
+                    holding_id: holding_id.as_deref(),
+                    data_profile_key: data_profile_key.as_deref(),
                     payload: &payload,
                     updated_at,
                 },
@@ -1447,12 +1451,12 @@ impl PlatformReadModelWriter for SqlxPlatformReadModelWriter {
         sqlx::query(
             "INSERT INTO erpx_control.platform_completion_read_model
                 (projection_name, aggregate_type, aggregate_id, aggregate_version,
-                 tenant_id, holding_ref, payload, updated_at)
+                 holding_id, data_profile_key, payload, updated_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
              ON CONFLICT (projection_name, aggregate_type, aggregate_id) DO UPDATE SET
                 aggregate_version = EXCLUDED.aggregate_version,
-                tenant_id = EXCLUDED.tenant_id,
-                holding_ref = EXCLUDED.holding_ref,
+                holding_id = EXCLUDED.holding_id,
+                data_profile_key = EXCLUDED.data_profile_key,
                 payload = EXCLUDED.payload,
                 updated_at = EXCLUDED.updated_at
              WHERE erpx_control.platform_completion_read_model.aggregate_version
@@ -1462,8 +1466,8 @@ impl PlatformReadModelWriter for SqlxPlatformReadModelWriter {
         .bind(aggregate_type)
         .bind(aggregate_id)
         .bind(incoming_version)
-        .bind(tenant_id)
-        .bind(holding_ref)
+        .bind(holding_id)
+        .bind(data_profile_key)
         .bind(payload)
         .bind(updated_at)
         .execute(&mut *transaction)
@@ -1480,27 +1484,27 @@ impl PlatformReadModelWriter for SqlxPlatformReadModelWriter {
 /// Extract the SQL scope from the typed read-model payload. Reconciliation
 /// reports intentionally keep their binding nested so that the payload can be
 /// deserialized back into [`PlatformReconciliationReport`]. The read-model
-/// columns still need that binding materialized for bounded tenant/holding
-/// queries, and the aggregate ID must agree with the report's tenant identity.
+/// columns still need that binding materialized for bounded holding/holding
+/// queries, and the aggregate ID must agree with the report's holding identity.
 fn read_model_scope(
     aggregate_type: &str,
     aggregate_id: Uuid,
     payload: &Value,
 ) -> Result<(Option<String>, Option<String>), PlatformPersistenceError> {
-    if aggregate_type == PLATFORM_TENANT_LIFECYCLE_AGGREGATE {
-        let tenant_id = required_scope_string(payload, "tenant_id")?;
-        if stable_platform_aggregate_id("tenant-lifecycle", &tenant_id) != aggregate_id {
+    if aggregate_type == PLATFORM_HOLDING_LIFECYCLE_AGGREGATE {
+        let holding_id = required_scope_string(payload, "holding_id")?;
+        if stable_platform_aggregate_id("holding-lifecycle", &holding_id) != aggregate_id {
             return Err(PlatformPersistenceError::Invalid(
-                "tenant lifecycle read model identity does not match aggregate".into(),
+                "holding lifecycle read model identity does not match aggregate".into(),
             ));
         }
         return Ok((
-            Some(tenant_id),
-            // Lifecycle commands are always issued against a tenant binding.
-            // Persisting a tenant lifecycle row without its holding scope
+            Some(holding_id),
+            // Lifecycle commands are always issued against a holding binding.
+            // Persisting a holding lifecycle row without its holding scope
             // would make the disposable read model appear platform-wide and
             // would defeat bounded holding reads after a rebuild.
-            Some(required_scope_string(payload, "holding_ref")?),
+            Some(required_scope_string(payload, "data_profile_key")?),
         ));
     }
 
@@ -1520,17 +1524,17 @@ fn read_model_scope(
             ));
         }
         return Ok((
-            Some(required_scope_string(payload, "tenant_id")?),
-            Some(required_scope_string(payload, "holding_ref")?),
+            Some(required_scope_string(payload, "holding_id")?),
+            Some(required_scope_string(payload, "data_profile_key")?),
         ));
     }
 
     if aggregate_type == PLATFORM_REPLACEMENT_READ_AGGREGATE {
-        let tenant_id = required_scope_string(payload, "tenant_id")?;
+        let holding_id = required_scope_string(payload, "holding_id")?;
         let projection_name = required_scope_string(payload, "projection_name")?;
         let expected = stable_platform_aggregate_id(
             "replacement-read",
-            &format!("{tenant_id}:{projection_name}"),
+            &format!("{holding_id}:{projection_name}"),
         );
         if expected != aggregate_id {
             return Err(PlatformPersistenceError::Invalid(
@@ -1538,8 +1542,8 @@ fn read_model_scope(
             ));
         }
         return Ok((
-            Some(tenant_id),
-            Some(required_scope_string(payload, "holding_ref")?),
+            Some(holding_id),
+            Some(required_scope_string(payload, "data_profile_key")?),
         ));
     }
 
@@ -1575,23 +1579,25 @@ fn read_model_scope(
             ));
         }
         return match connector.scope.as_str() {
-            "platform" if connector.tenant_id.is_none() && connector.holding_ref.is_none() => {
+            "platform"
+                if connector.holding_id.is_none() && connector.data_profile_key.is_none() =>
+            {
                 Ok((None, None))
             }
             "holding" => {
-                let tenant_id = connector.tenant_id.ok_or_else(|| {
-                    PlatformPersistenceError::Invalid(
-                        "holding connector read model tenant scope is missing".into(),
-                    )
-                })?;
-                let holding_ref = connector.holding_ref.ok_or_else(|| {
+                let holding_id = connector.holding_id.ok_or_else(|| {
                     PlatformPersistenceError::Invalid(
                         "holding connector read model holding scope is missing".into(),
                     )
                 })?;
-                let binding = TenantBinding::new(tenant_id, holding_ref)
+                let data_profile_key = connector.data_profile_key.ok_or_else(|| {
+                    PlatformPersistenceError::Invalid(
+                        "holding connector read model holding scope is missing".into(),
+                    )
+                })?;
+                let binding = HoldingBinding::new(holding_id, data_profile_key)
                     .map_err(PlatformPersistenceError::from)?;
-                Ok((Some(binding.tenant_id), Some(binding.holding_ref)))
+                Ok((Some(binding.holding_id), Some(binding.data_profile_key)))
             }
             _ => Err(PlatformPersistenceError::Invalid(
                 "connector read model scope is invalid".into(),
@@ -1606,19 +1612,19 @@ fn read_model_scope(
             )
         })?;
     report.validate().map_err(PlatformPersistenceError::from)?;
-    let binding = TenantBinding::new(
-        report.binding.tenant_id.clone(),
-        report.binding.holding_ref.clone(),
+    let binding = HoldingBinding::new(
+        report.binding.holding_id.clone(),
+        report.binding.data_profile_key.clone(),
     )
     .map_err(PlatformPersistenceError::from)?;
     let expected_aggregate_id =
-        stable_platform_aggregate_id("tenant-reconciliation", &binding.tenant_id);
+        stable_platform_aggregate_id("holding-reconciliation", &binding.holding_id);
     if expected_aggregate_id != aggregate_id {
         return Err(PlatformPersistenceError::Invalid(
-            "reconciliation read model tenant identity does not match aggregate".into(),
+            "reconciliation read model holding identity does not match aggregate".into(),
         ));
     }
-    Ok((Some(binding.tenant_id), Some(binding.holding_ref)))
+    Ok((Some(binding.holding_id), Some(binding.data_profile_key)))
 }
 
 fn required_scope_string(
@@ -1652,7 +1658,7 @@ impl ProjectionHandler for PlatformCompletionProjector {
         projection_name == PLATFORM_COMPLETION_PROJECTION
             && matches!(
                 event.aggregate_type.as_str(),
-                PLATFORM_TENANT_LIFECYCLE_AGGREGATE
+                PLATFORM_HOLDING_LIFECYCLE_AGGREGATE
                     | PLATFORM_BACKUP_AGGREGATE
                     | PLATFORM_REPLACEMENT_READ_AGGREGATE
                     | PLATFORM_RECONCILIATION_AGGREGATE
@@ -1777,28 +1783,28 @@ async fn load_connector_authority(
     connector_id: Uuid,
     requested_scope: &PlatformConnectorScope,
 ) -> Result<Option<StoredConnectorAuthority>, PlatformPersistenceError> {
-    let (scope_kind, tenant_id, holding_ref) = match requested_scope {
+    let (scope_kind, holding_id, data_profile_key) = match requested_scope {
         PlatformConnectorScope::Platform => ("platform", None, None),
         PlatformConnectorScope::Holding(binding) => (
             "holding",
-            Some(binding.tenant_id.as_str()),
-            Some(binding.holding_ref.as_str()),
+            Some(binding.holding_id.as_str()),
+            Some(binding.data_profile_key.as_str()),
         ),
     };
     let row = sqlx::query(
         "SELECT aggregate_version, connector_version, connector_kind, scope_kind,
-                tenant_id, holding_ref, provider_key, credential_ref,
+                holding_id, data_profile_key, provider_key, credential_ref,
                 configuration_digest, connector_state, updated_at
          FROM erpx_platform_completion_write.connector_authority
          WHERE connector_id = $1 AND scope_kind = $2
-           AND tenant_id IS NOT DISTINCT FROM $3
-           AND holding_ref IS NOT DISTINCT FROM $4
+           AND holding_id IS NOT DISTINCT FROM $3
+           AND data_profile_key IS NOT DISTINCT FROM $4
          FOR UPDATE",
     )
     .bind(connector_id)
     .bind(scope_kind)
-    .bind(tenant_id)
-    .bind(holding_ref)
+    .bind(holding_id)
+    .bind(data_profile_key)
     .fetch_optional(&mut **tx)
     .await?;
     let Some(row) = row else { return Ok(None) };
@@ -1812,9 +1818,9 @@ async fn load_connector_authority(
     .await?;
     let scope = match row.try_get::<String, _>("scope_kind")?.as_str() {
         "platform" => PlatformConnectorScope::Platform,
-        "holding" => PlatformConnectorScope::Holding(TenantBinding::new(
-            row.try_get::<String, _>("tenant_id")?,
-            row.try_get::<String, _>("holding_ref")?,
+        "holding" => PlatformConnectorScope::Holding(HoldingBinding::new(
+            row.try_get::<String, _>("holding_id")?,
+            row.try_get::<String, _>("data_profile_key")?,
         )?),
         _ => {
             return Err(PlatformPersistenceError::Invalid(
@@ -1855,18 +1861,18 @@ async fn persist_connector_authority(
     if control.version != next {
         return Err(PlatformPersistenceError::Conflict);
     }
-    let (scope_kind, tenant_id, holding_ref) = match &control.scope {
+    let (scope_kind, holding_id, data_profile_key) = match &control.scope {
         PlatformConnectorScope::Platform => ("platform", None, None),
         PlatformConnectorScope::Holding(binding) => (
             "holding",
-            Some(binding.tenant_id.as_str()),
-            Some(binding.holding_ref.as_str()),
+            Some(binding.holding_id.as_str()),
+            Some(binding.data_profile_key.as_str()),
         ),
     };
     let persisted: Option<i64> = sqlx::query_scalar(
         "INSERT INTO erpx_platform_completion_write.connector_authority
             (connector_id, aggregate_version, connector_version, connector_kind,
-             scope_kind, tenant_id, holding_ref, provider_key, credential_ref,
+             scope_kind, holding_id, data_profile_key, provider_key, credential_ref,
              configuration_digest, connector_state, updated_at)
          VALUES ($1,$2,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
          ON CONFLICT (connector_id) DO UPDATE SET
@@ -1874,8 +1880,8 @@ async fn persist_connector_authority(
             connector_version=EXCLUDED.connector_version,
             connector_kind=EXCLUDED.connector_kind,
             scope_kind=EXCLUDED.scope_kind,
-            tenant_id=EXCLUDED.tenant_id,
-            holding_ref=EXCLUDED.holding_ref,
+            holding_id=EXCLUDED.holding_id,
+            data_profile_key=EXCLUDED.data_profile_key,
             provider_key=EXCLUDED.provider_key,
             credential_ref=EXCLUDED.credential_ref,
             configuration_digest=EXCLUDED.configuration_digest,
@@ -1884,16 +1890,16 @@ async fn persist_connector_authority(
          WHERE erpx_platform_completion_write.connector_authority.aggregate_version=$12
            AND erpx_platform_completion_write.connector_authority.connector_version=$12
            AND erpx_platform_completion_write.connector_authority.scope_kind=EXCLUDED.scope_kind
-           AND erpx_platform_completion_write.connector_authority.tenant_id IS NOT DISTINCT FROM EXCLUDED.tenant_id
-           AND erpx_platform_completion_write.connector_authority.holding_ref IS NOT DISTINCT FROM EXCLUDED.holding_ref
+           AND erpx_platform_completion_write.connector_authority.holding_id IS NOT DISTINCT FROM EXCLUDED.holding_id
+           AND erpx_platform_completion_write.connector_authority.data_profile_key IS NOT DISTINCT FROM EXCLUDED.data_profile_key
          RETURNING aggregate_version",
     )
     .bind(control.connector_id)
     .bind(checked_i64(next, "connector version")?)
     .bind(control.kind.as_str())
     .bind(scope_kind)
-    .bind(tenant_id)
-    .bind(holding_ref)
+    .bind(holding_id)
+    .bind(data_profile_key)
     .bind(&control.provider_key)
     .bind(&control.credential_ref)
     .bind(&control.configuration_digest)
@@ -1947,7 +1953,7 @@ async fn persist_reconciliation_authority(
     })?;
     let persisted: Option<i64> = sqlx::query_scalar(
         "INSERT INTO erpx_platform_completion_write.reconciliation_authority
-            (aggregate_id,aggregate_version,report_id,tenant_id,holding_ref,
+            (aggregate_id,aggregate_version,report_id,holding_id,data_profile_key,
              observed_at,reconciliation_state,registry_state,provisioning_state,
              write_healthy,read_healthy,storage_healthy,replacement_read_state,
              latest_backup_verified,connector_count,updated_at)
@@ -1966,16 +1972,16 @@ async fn persist_reconciliation_authority(
             latest_backup_verified=EXCLUDED.latest_backup_verified,
             connector_count=EXCLUDED.connector_count,
             updated_at=EXCLUDED.updated_at
-         WHERE erpx_platform_completion_write.reconciliation_authority.tenant_id=EXCLUDED.tenant_id
-           AND erpx_platform_completion_write.reconciliation_authority.holding_ref=EXCLUDED.holding_ref
+         WHERE erpx_platform_completion_write.reconciliation_authority.holding_id=EXCLUDED.holding_id
+           AND erpx_platform_completion_write.reconciliation_authority.data_profile_key=EXCLUDED.data_profile_key
            AND erpx_platform_completion_write.reconciliation_authority.aggregate_version=$16
          RETURNING aggregate_version",
     )
     .bind(aggregate_id)
     .bind(checked_i64(next, "reconciliation version")?)
     .bind(report.report_id)
-    .bind(&report.binding.tenant_id)
-    .bind(&report.binding.holding_ref)
+    .bind(&report.binding.holding_id)
+    .bind(&report.binding.data_profile_key)
     .bind(report.observed_at)
     .bind(report.state.as_str())
     .bind(&report.registry_state)
@@ -2017,7 +2023,7 @@ async fn append_event(
     aggregate_id: Uuid,
     aggregate_version: u64,
     event_type: &str,
-    binding: Option<&TenantBinding>,
+    binding: Option<&HoldingBinding>,
     actor_ref: &str,
     correlation_id: Uuid,
     idempotency_key: &str,
@@ -2029,14 +2035,14 @@ async fn append_event(
     let payload = json!({"request_hash": request_hash, "read_model": read_model});
     let scope = binding.map(|binding| {
         json!({
-            "tenant_id": binding.tenant_id,
-            "holding_ref": binding.holding_ref,
+            "holding_id": binding.holding_id,
+            "data_profile_key": binding.data_profile_key,
         })
     });
     sqlx::query(
         "INSERT INTO erpx_control.outbox_events
             (id, event_type, event_version, aggregate_type, aggregate_id,
-             aggregate_version, tenant_scope, actor, correlation_id, idempotency_key,
+             aggregate_version, active_scope, actor, correlation_id, idempotency_key,
              payload, occurred_at, available_at)
          VALUES ($1, $2, 1, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)",
     )
@@ -2099,9 +2105,9 @@ fn checked_i64(value: u64, field: &str) -> Result<i64, PlatformPersistenceError>
 
 fn validate_source_fence_reference(
     fence_reference: &str,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<(), PlatformPersistenceError> {
-    let expected = format!("{SOURCE_REBUILD_LOCK_PREFIX}{holding_ref}");
+    let expected = format!("{SOURCE_REBUILD_LOCK_PREFIX}{data_profile_key}");
     if fence_reference != expected {
         return Err(PlatformPersistenceError::Invalid(
             "source fence reference is invalid".into(),
@@ -2113,8 +2119,8 @@ fn validate_source_fence_reference(
 fn backup_request_hash(command: &BackupControlCommand) -> Result<String, PlatformPersistenceError> {
     request_hash(
         &json!({
-            "tenant_id": command.binding.tenant_id,
-            "holding_ref": command.binding.holding_ref,
+            "holding_id": command.binding.holding_id,
+            "data_profile_key": command.binding.data_profile_key,
             "kind": command.kind.as_str(),
             "backup_ref": command.backup_ref,
             "restore_target_ref": command.restore_target_ref,
@@ -2170,20 +2176,20 @@ fn connector_read_model(
     control: &ConnectorControl,
 ) -> Result<PlatformConnectorReadModel, PlatformPersistenceError> {
     control.validate()?;
-    let (scope, tenant_id, holding_ref) = match &control.scope {
+    let (scope, holding_id, data_profile_key) = match &control.scope {
         PlatformConnectorScope::Platform => ("platform".into(), None, None),
         PlatformConnectorScope::Holding(binding) => (
             "holding".into(),
-            Some(binding.tenant_id.clone()),
-            Some(binding.holding_ref.clone()),
+            Some(binding.holding_id.clone()),
+            Some(binding.data_profile_key.clone()),
         ),
     };
     Ok(PlatformConnectorReadModel {
         connector_id: control.connector_id,
         kind: control.kind.as_str().into(),
         scope,
-        tenant_id,
-        holding_ref,
+        holding_id,
+        data_profile_key,
         provider_key: control.provider_key.clone(),
         credential_bound: true,
         configuration_digest: control.configuration_digest.clone(),
@@ -2195,7 +2201,7 @@ fn connector_read_model(
 }
 
 fn replacement_read_model(
-    binding: &TenantBinding,
+    binding: &HoldingBinding,
     projection_name: &str,
     state: ReplacementReadState,
     source_version: u64,
@@ -2203,8 +2209,8 @@ fn replacement_read_model(
     updated_at: DateTime<Utc>,
 ) -> Value {
     json!({
-        "tenant_id": binding.tenant_id,
-        "holding_ref": binding.holding_ref,
+        "holding_id": binding.holding_id,
+        "data_profile_key": binding.data_profile_key,
         "projection_name": projection_name,
         "state": state.as_str(),
         "source_version": source_version,
@@ -2215,35 +2221,40 @@ fn replacement_read_model(
 
 async fn read_lifecycle_state(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: &str,
-) -> Result<TenantLifecycleState, PlatformPersistenceError> {
+    holding_id: &str,
+) -> Result<HoldingLifecycleState, PlatformPersistenceError> {
     let state: String =
-        sqlx::query_scalar("SELECT state FROM erpx_control.tenant_registry WHERE tenant_id = $1")
-            .bind(tenant_id)
+        sqlx::query_scalar("SELECT state FROM erpx_control.holding_registry WHERE holding_id = $1")
+            .bind(holding_id)
             .fetch_one(&mut **tx)
             .await?;
     state
         .parse()
-        .map_err(|_| PlatformPersistenceError::Invalid("tenant lifecycle state is invalid".into()))
+        .map_err(|_| PlatformPersistenceError::Invalid("holding lifecycle state is invalid".into()))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::schema_test;
     use chrono::Duration;
 
     const NORMALIZED_CONTROL_DDL: &str =
-        include_str!("../../migration/migrations/0082_current_normalized_authority.sql");
+        include_str!("../../migration/migrations/0001_baseline.sql");
 
     #[test]
     fn active_platform_completion_authority_is_typed_and_snapshot_free() {
         let source = include_str!("platform_completion.rs");
+        let owned = schema_test::select_schema_statements(
+            NORMALIZED_CONTROL_DDL,
+            &["erpx_platform_completion_write"],
+        );
         assert!(!source.contains(concat!("aggregate_", "snapshots")));
         assert!(!source.contains(concat!("upsert_", "snapshot")));
         for contract in [
             "lifecycle_aggregate_version",
-            "tenant_backup_jobs",
-            "tenant_projection_switches",
+            "holding_backup_jobs",
+            "holding_projection_switches",
             "reconciliation_authority",
             "reconciliation_drift_codes",
             "connector_authority",
@@ -2254,7 +2265,7 @@ mod tests {
                 "missing typed authority contract: {contract}"
             );
         }
-        assert!(!NORMALIZED_CONTROL_DDL.contains("JSONB"));
+        assert!(!owned.contains("JSONB"));
         assert!(source.contains("persist_reconciliation_authority"));
         assert!(source.contains("load_connector_authority"));
         assert!(source.contains("persist_connector_authority"));
@@ -2313,7 +2324,7 @@ mod tests {
         };
         let mut payload =
             serde_json::to_value(connector_read_model(&control).expect("model")).expect("payload");
-        payload["tenant_id"] = json!("tenant-a");
+        payload["holding_id"] = json!("holding-a");
 
         assert!(matches!(
             read_model_scope(PLATFORM_CONNECTOR_AGGREGATE, control.connector_id, &payload),
@@ -2321,7 +2332,7 @@ mod tests {
                 if message.contains("scope")
         ));
 
-        payload["tenant_id"] = Value::Null;
+        payload["holding_id"] = Value::Null;
         payload["configuration_digest"] = json!("not-a-digest");
         assert!(matches!(
             read_model_scope(PLATFORM_CONNECTOR_AGGREGATE, control.connector_id, &payload),
@@ -2332,7 +2343,7 @@ mod tests {
 
     #[test]
     fn replacement_payload_does_not_contain_candidate_database_key() {
-        let binding = TenantBinding::new("tenant-a", "holding-a").expect("binding");
+        let binding = HoldingBinding::new("holding-a", "holding-a").expect("binding");
         let payload = replacement_read_model(
             &binding,
             "operations_read_model",
@@ -2349,8 +2360,8 @@ mod tests {
         let at = Utc::now();
         let proof = PlatformAuthorizationProof {
             principal_ref: "platform-admin".into(),
-            permission: "platform.tenant.backup".into(),
-            scope: erpx_domain::access::Scope::Platform,
+            permission: "platform.holding.backup".into(),
+            scope: erpx_domain::contracts::AuthorityScope::Platform,
             valid_from: at - Duration::minutes(1),
             valid_until: at + Duration::minutes(4),
             mfa_verified: true,
@@ -2358,7 +2369,7 @@ mod tests {
             break_glass_ticket_ref: None,
         };
         let command = BackupControlCommand {
-            binding: TenantBinding::new("tenant-a", "holding-a").expect("binding"),
+            binding: HoldingBinding::new("holding-a", "holding-a").expect("binding"),
             kind: erpx_domain::platform_completion::PlatformBackupKind::Pitr,
             backup_ref: "backup-a".into(),
             restore_target_ref: None,
@@ -2381,26 +2392,26 @@ mod tests {
 
     #[test]
     fn read_model_scope_rejects_cross_aggregate_identity() {
-        let tenant_id = "tenant-a";
-        let holding_ref = "holding-a";
+        let holding_id = "holding-a";
+        let data_profile_key = "holding-a";
         let backup_id = Uuid::new_v4();
         let cases = [
             (
-                PLATFORM_TENANT_LIFECYCLE_AGGREGATE,
-                stable_platform_aggregate_id("tenant-lifecycle", tenant_id),
-                json!({"tenant_id": tenant_id, "holding_ref": holding_ref}),
+                PLATFORM_HOLDING_LIFECYCLE_AGGREGATE,
+                stable_platform_aggregate_id("holding-lifecycle", holding_id),
+                json!({"holding_id": holding_id, "data_profile_key": data_profile_key}),
             ),
             (
                 PLATFORM_BACKUP_AGGREGATE,
                 backup_id,
-                json!({"job_id": backup_id, "tenant_id": tenant_id, "holding_ref": holding_ref}),
+                json!({"job_id": backup_id, "holding_id": holding_id, "data_profile_key": data_profile_key}),
             ),
             (
                 PLATFORM_REPLACEMENT_READ_AGGREGATE,
-                stable_platform_aggregate_id("replacement-read", "tenant-a:operations"),
+                stable_platform_aggregate_id("replacement-read", "holding-a:operations"),
                 json!({
-                    "tenant_id": tenant_id,
-                    "holding_ref": holding_ref,
+                    "holding_id": holding_id,
+                    "data_profile_key": data_profile_key,
                     "projection_name": "operations"
                 }),
             ),
@@ -2413,22 +2424,22 @@ mod tests {
 
     #[test]
     fn lifecycle_read_model_scope_requires_the_authoritative_holding_binding() {
-        let tenant_id = "tenant-a";
-        let aggregate_id = stable_platform_aggregate_id("tenant-lifecycle", tenant_id);
+        let holding_id = "holding-a";
+        let aggregate_id = stable_platform_aggregate_id("holding-lifecycle", holding_id);
         let missing_holding = json!({
-            "tenant_id": tenant_id,
+            "holding_id": holding_id,
             "state": "active",
             "registry_version": 2,
         });
 
         assert!(matches!(
             read_model_scope(
-                PLATFORM_TENANT_LIFECYCLE_AGGREGATE,
+                PLATFORM_HOLDING_LIFECYCLE_AGGREGATE,
                 aggregate_id,
                 &missing_holding,
             ),
             Err(PlatformPersistenceError::Invalid(message))
-                if message.contains("holding_ref")
+                if message.contains("data_profile_key")
         ));
     }
 
@@ -2437,31 +2448,31 @@ mod tests {
         let job_id = Uuid::new_v4();
         let missing_holding = json!({
             "job_id": job_id,
-            "tenant_id": "tenant-a",
+            "holding_id": "holding-a",
         });
 
         assert!(matches!(
             read_model_scope(PLATFORM_BACKUP_AGGREGATE, job_id, &missing_holding),
             Err(PlatformPersistenceError::Invalid(message))
-                if message.contains("holding_ref")
+                if message.contains("data_profile_key")
         ));
     }
 
     #[test]
     fn same_version_read_model_replay_requires_exact_identity() {
         let at = Utc::now();
-        let payload = json!({"tenant_id": "tenant-a", "holding_ref": "holding-a"});
+        let payload = json!({"holding_id": "holding-a", "data_profile_key": "holding-a"});
         assert!(
             validate_idempotent_read_model_replay(
                 ReadModelReplayContext {
-                    tenant_id: Some("tenant-a"),
-                    holding_ref: Some("holding-a"),
+                    holding_id: Some("holding-a"),
+                    data_profile_key: Some("holding-a"),
                     payload: &payload,
                     updated_at: at,
                 },
                 ReadModelReplayContext {
-                    tenant_id: Some("tenant-a"),
-                    holding_ref: Some("holding-a"),
+                    holding_id: Some("holding-a"),
+                    data_profile_key: Some("holding-a"),
                     payload: &payload,
                     updated_at: at,
                 },
@@ -2469,18 +2480,18 @@ mod tests {
             .is_ok()
         );
 
-        let changed_payload = json!({"tenant_id": "tenant-a", "holding_ref": "holding-b"});
+        let changed_payload = json!({"holding_id": "holding-a", "data_profile_key": "holding-b"});
         assert_eq!(
             validate_idempotent_read_model_replay(
                 ReadModelReplayContext {
-                    tenant_id: Some("tenant-a"),
-                    holding_ref: Some("holding-a"),
+                    holding_id: Some("holding-a"),
+                    data_profile_key: Some("holding-a"),
                     payload: &payload,
                     updated_at: at,
                 },
                 ReadModelReplayContext {
-                    tenant_id: Some("tenant-a"),
-                    holding_ref: Some("holding-a"),
+                    holding_id: Some("holding-a"),
+                    data_profile_key: Some("holding-a"),
                     payload: &changed_payload,
                     updated_at: at,
                 },
@@ -2490,14 +2501,14 @@ mod tests {
         assert_eq!(
             validate_idempotent_read_model_replay(
                 ReadModelReplayContext {
-                    tenant_id: Some("tenant-a"),
-                    holding_ref: Some("holding-a"),
+                    holding_id: Some("holding-a"),
+                    data_profile_key: Some("holding-a"),
                     payload: &payload,
                     updated_at: at,
                 },
                 ReadModelReplayContext {
-                    tenant_id: Some("tenant-b"),
-                    holding_ref: Some("holding-b"),
+                    holding_id: Some("holding-b"),
+                    data_profile_key: Some("holding-b"),
                     payload: &payload,
                     updated_at: at,
                 },
@@ -2507,14 +2518,14 @@ mod tests {
         assert_eq!(
             validate_idempotent_read_model_replay(
                 ReadModelReplayContext {
-                    tenant_id: Some("tenant-a"),
-                    holding_ref: Some("holding-a"),
+                    holding_id: Some("holding-a"),
+                    data_profile_key: Some("holding-a"),
                     payload: &payload,
                     updated_at: at,
                 },
                 ReadModelReplayContext {
-                    tenant_id: Some("tenant-a"),
-                    holding_ref: Some("holding-a"),
+                    holding_id: Some("holding-a"),
+                    data_profile_key: Some("holding-a"),
                     payload: &payload,
                     updated_at: at + Duration::seconds(1),
                 },

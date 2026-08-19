@@ -34,8 +34,8 @@ fn at() -> chrono::DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap()
 }
 
-fn scope() -> TenantScope {
-    TenantScope::Company {
+fn scope() -> AuthorityScope {
+    AuthorityScope::Company {
         holding_id: id(1),
         company_id: id(2),
     }
@@ -44,7 +44,7 @@ fn scope() -> TenantScope {
 fn actor() -> ActorAttribution {
     ActorAttribution {
         principal_ref: "procurement-test".into(),
-        kind: ActorKind::TenantUser,
+        kind: ActorKind::HoldingUser,
         session_id: None,
         represented_principal_ref: None,
         support_capability_id: None,
@@ -97,7 +97,7 @@ fn command_envelope<C>(sequence: u128, expected: Option<u64>, command: C) -> Com
         correlation_id: CorrelationId::try_from_uuid(id(200 + sequence)).unwrap(),
         causation_id: None,
         actor: actor(),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "procurement.test".into(),
             customer_visible: false,
@@ -129,7 +129,7 @@ struct FakeEntitlement(bool);
 impl EntitlementPort for FakeEntitlement {
     async fn ensure_procurement_enabled(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _write: bool,
     ) -> Result<(), PortError> {
         if self.0 {
@@ -147,7 +147,7 @@ struct FakeWrite(Arc<Mutex<Option<PurchaseOrder>>>);
 impl WriteRepository for FakeWrite {
     async fn load(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _purchase_order_id: PurchaseOrderId,
     ) -> Result<Option<PurchaseOrder>, PortError> {
         Ok(self.0.lock().unwrap().clone())
@@ -280,7 +280,7 @@ struct NotReadyRead(Arc<AtomicUsize>);
 impl ReadRepository for NotReadyRead {
     async fn get(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _purchase_order_id: PurchaseOrderId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<PurchaseOrderView>>, PortError> {
@@ -298,7 +298,7 @@ impl ReadRepository for NotReadyRead {
 
     async fn list(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _filter: &PurchaseOrderListFilter,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<PurchaseOrderList>, PortError> {
@@ -323,7 +323,7 @@ fn read_your_writes_not_ready_is_returned_without_write_fallback() {
         query_id: QueryId::try_from_uuid(id(300)).unwrap(),
         correlation_id: CorrelationId::try_from_uuid(id(301)).unwrap(),
         actor: actor(),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "procurement.test.query".into(),
             customer_visible: false,

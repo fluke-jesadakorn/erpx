@@ -74,7 +74,7 @@ after the run.
 
 - Detail repository methods issue `SELECT payload, updated_at` only through
   `ControlPlanePools.read`; they do not query or mutate the control write pool,
-  tenant databases, scope bindings, support records, or audit records.
+  holding databases, scope bindings, support records, or audit records.
 - No authorization decision is made in the read port. Authorization and global
   read auditing remain transport/application responsibilities.
 - The payload's embedded customer ID must match the read row key, failing

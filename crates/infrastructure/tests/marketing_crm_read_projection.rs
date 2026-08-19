@@ -2,23 +2,23 @@
 //! adapter's CRM extension (G10-MKT-021).
 
 use chrono::{Duration, Utc};
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::marketing_crm::{
     AcceptedLeadHandoff, AccountReference, AttributionInputs, AttributionModel, AttributionTouch,
     ContactReference, CrmOpportunity, MarketingAcquisitionReference, MarketingLeadReference,
     MarketingQualificationReference, MarketingQualifiedSource, OpportunityStatus,
 };
 use erpx_infrastructure::{SqlxMarketingCrmStore, SqlxMarketingStore};
-use erpx_migration::{migrate_tenant_read, migrate_tenant_write};
+use erpx_migration::{migrate_holding_read, migrate_holding_write};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-fn context(scope: TenantScope, key: &str) -> CommandContext {
+fn context(scope: AuthorityScope, key: &str) -> CommandContext {
     CommandContext::try_new(
         key,
         ActorAttribution {
             principal_ref: "projection-test".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
@@ -29,7 +29,7 @@ fn context(scope: TenantScope, key: &str) -> CommandContext {
     .expect("context")
 }
 
-fn handoff(scope: TenantScope) -> (AcceptedLeadHandoff, CommandContext) {
+fn handoff(scope: AuthorityScope) -> (AcceptedLeadHandoff, CommandContext) {
     let command = context(scope.clone(), "crm-read-handoff");
     let handoff = AcceptedLeadHandoff::new(
         Uuid::new_v4(),
@@ -57,32 +57,32 @@ fn handoff(scope: TenantScope) -> (AcceptedLeadHandoff, CommandContext) {
 }
 
 #[tokio::test]
-#[ignore = "requires two disposable tenant PostgreSQL databases"]
+#[ignore = "requires two disposable holding PostgreSQL databases"]
 async fn crm_events_are_allow_listed_idempotent_rebuildable_and_rls_scoped() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     assert_ne!(write_url, read_url);
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    migrate_tenant_write(&write_pool)
+    migrate_holding_write(&write_pool)
         .await
         .expect("write migrations");
-    migrate_tenant_read(&read_pool)
+    migrate_holding_read(&read_pool)
         .await
         .expect("read migrations");
 
-    let holding_ref = format!("holding-crm-read-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-crm-read-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
-    let scope = TenantScope::Company {
+    let scope = AuthorityScope::Company {
         holding_id,
         company_id,
     };
     let (handoff, handoff_context) = handoff(scope.clone());
     let write_store =
-        SqlxMarketingCrmStore::new(write_pool.clone(), &holding_ref).expect("CRM write store");
+        SqlxMarketingCrmStore::new(write_pool.clone(), &data_profile_key).expect("CRM write store");
     write_store
         .save_handoff(&handoff, &handoff_context, None)
         .await
@@ -145,7 +145,7 @@ async fn crm_events_are_allow_listed_idempotent_rebuildable_and_rls_scoped() {
         .await
         .expect("persist attribution");
 
-    let store = SqlxMarketingStore::from_pools(&write_pool, &read_pool, &holding_ref)
+    let store = SqlxMarketingStore::from_pools(&write_pool, &read_pool, &data_profile_key)
         .expect("marketing projection store");
     let page = store
         .read_source_event_page(None, 10)
@@ -243,7 +243,7 @@ async fn crm_events_are_allow_listed_idempotent_rebuildable_and_rls_scoped() {
         5_000
     );
 
-    let other_company_scope = TenantScope::Company {
+    let other_company_scope = AuthorityScope::Company {
         holding_id,
         company_id: Uuid::new_v4(),
     };
@@ -257,56 +257,56 @@ async fn crm_events_are_allow_listed_idempotent_rebuildable_and_rls_scoped() {
     );
 
     let mut tx = read_pool.begin().await.expect("verification transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tx)
         .await
         .expect("holding scope");
     let projected: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_tenant.crm_accepted_lead_handoff_read_rows
-         WHERE holding_ref=$1 AND handoff_id=$2",
+        "SELECT count(*) FROM erpx_holding.crm_accepted_lead_handoff_read_rows
+         WHERE data_profile_key=$1 AND handoff_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(handoff.id)
     .fetch_one(&mut *tx)
     .await
     .expect("projected handoff");
     assert_eq!(projected, 1);
     let projected_status: String = sqlx::query_scalar(
-        "SELECT status FROM erpx_tenant.crm_opportunity_read_rows
-         WHERE holding_ref=$1 AND opportunity_id=$2",
+        "SELECT status FROM erpx_holding.crm_opportunity_read_rows
+         WHERE data_profile_key=$1 AND opportunity_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(opportunity.id)
     .fetch_one(&mut *tx)
     .await
     .expect("projected opportunity");
     assert_eq!(projected_status, "qualified");
     let projected_revenue: i64 = sqlx::query_scalar(
-        "SELECT total_revenue_minor FROM erpx_tenant.crm_attribution_read_rows
-         WHERE holding_ref=$1 AND opportunity_id=$2 AND model='linear'",
+        "SELECT total_revenue_minor FROM erpx_holding.crm_attribution_read_rows
+         WHERE data_profile_key=$1 AND opportunity_id=$2 AND model='linear'",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(opportunity.id)
     .fetch_one(&mut *tx)
     .await
     .expect("projected attribution");
     assert_eq!(projected_revenue, 5_000);
     let receipt: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_tenant.crm_projection_event_receipts
-         WHERE holding_ref=$1 AND event_id=$2",
+        "SELECT count(*) FROM erpx_holding.crm_projection_event_receipts
+         WHERE data_profile_key=$1 AND event_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(page.events[0].event_id)
     .fetch_one(&mut *tx)
     .await
     .expect("projection receipt");
     assert_eq!(receipt, 1);
     let receipt_total: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_tenant.crm_projection_event_receipts
-         WHERE holding_ref=$1",
+        "SELECT count(*) FROM erpx_holding.crm_projection_event_receipts
+         WHERE data_profile_key=$1",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .fetch_one(&mut *tx)
     .await
     .expect("all projection receipts");
@@ -316,7 +316,7 @@ async fn crm_events_are_allow_listed_idempotent_rebuildable_and_rls_scoped() {
     let forced_tables: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM pg_class c
          JOIN pg_namespace n ON n.oid=c.relnamespace
-         WHERE n.nspname='erpx_tenant'
+         WHERE n.nspname='erpx_holding'
            AND c.relname IN (
              'crm_accepted_lead_handoff_read_rows',
              'crm_opportunity_read_rows',
@@ -330,8 +330,8 @@ async fn crm_events_are_allow_listed_idempotent_rebuildable_and_rls_scoped() {
     assert_eq!(forced_tables, 4);
     let policy_count: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM pg_policies
-         WHERE schemaname='erpx_tenant'
-           AND policyname LIKE 'tenant_scope_crm_%'",
+         WHERE schemaname='erpx_holding'
+           AND policyname LIKE 'holding_scope_crm_%'",
     )
     .fetch_one(&read_pool)
     .await
@@ -375,17 +375,17 @@ async fn crm_events_are_allow_listed_idempotent_rebuildable_and_rls_scoped() {
     // the CRM opportunity is current, but its disposable payload no longer
     // matches the immutable aggregate carried by the authoritative outbox.
     let mut read_tamper = read_pool.begin().await.expect("read tamper transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *read_tamper)
         .await
         .expect("read tamper scope");
     sqlx::query(
-        "UPDATE erpx_tenant.crm_opportunity_read_rows
+        "UPDATE erpx_holding.crm_opportunity_read_rows
          SET payload=jsonb_set(payload, '{name}', '\"tampered\"'::jsonb, true)
-         WHERE holding_ref=$1 AND opportunity_id=$2",
+         WHERE data_profile_key=$1 AND opportunity_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(opportunity.id)
     .execute(&mut *read_tamper)
     .await
@@ -414,16 +414,16 @@ async fn crm_events_are_allow_listed_idempotent_rebuildable_and_rls_scoped() {
     // the read model still has opportunity version two, while the authoritative
     // source has lost its version-one event. Reconciliation must fail closed.
     let mut source_tamper = write_pool.begin().await.expect("source tamper transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *source_tamper)
         .await
         .expect("source tamper scope");
     sqlx::query(
-        "DELETE FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND event_id=$2",
+        "DELETE FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND event_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(opportunity_events[0].event_id)
     .execute(&mut *source_tamper)
     .await

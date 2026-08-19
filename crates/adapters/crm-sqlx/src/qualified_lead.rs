@@ -5,7 +5,7 @@ use erpx_crm::{
     PortError, QualifiedLeadEvidence, QualifiedLeadResolveRequest, QualifiedLeadResolverPort,
 };
 use erpx_integration_contracts::{ReferenceCode, customer, marketing};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -16,7 +16,7 @@ use crate::command::scope_key;
 /// request or CRM command body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MarketingQualifiedLeadEnvelope {
-    pub tenant_scope: TenantScope,
+    pub active_scope: AuthorityScope,
     pub source_event_id: Uuid,
     pub source_version: u64,
     pub source_global_sequence: u64,
@@ -47,13 +47,13 @@ impl SqlxQualifiedLeadResolver {
         let candidate_id = envelope.fact.candidate.as_uuid();
         let applied = sqlx::query(
             "INSERT INTO erpx_crm_write.marketing_qualified_lead_evidence
-                (tenant_id,tenant_scope,scope_key,marketing_candidate_id,campaign_id,
+                (holding_id,active_scope,scope_key,marketing_candidate_id,campaign_id,
                  audience_member_id,customer_id,source_code,
                  qualification_score_basis_points,marketing_source_version,
                  source_event_id,source_global_sequence,source_occurred_at)
-             VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-             ON CONFLICT (tenant_id,marketing_candidate_id) DO UPDATE SET
-                tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,
+             VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+             ON CONFLICT (holding_id,marketing_candidate_id) DO UPDATE SET
+                active_scope=EXCLUDED.active_scope,scope_key=EXCLUDED.scope_key,
                 campaign_id=EXCLUDED.campaign_id,
                 audience_member_id=EXCLUDED.audience_member_id,
                 customer_id=EXCLUDED.customer_id,source_code=EXCLUDED.source_code,
@@ -62,14 +62,14 @@ impl SqlxQualifiedLeadResolver {
                 source_event_id=EXCLUDED.source_event_id,
                 source_global_sequence=EXCLUDED.source_global_sequence,
                 source_occurred_at=EXCLUDED.source_occurred_at,recorded_at=now()
-             WHERE erpx_crm_write.marketing_qualified_lead_evidence.tenant_id
-                    = erpx_cqrs_write.current_tenant_id()
+             WHERE erpx_crm_write.marketing_qualified_lead_evidence.holding_id
+                    = erpx_cqrs_write.current_holding_id()
                AND erpx_crm_write.marketing_qualified_lead_evidence.marketing_source_version
                     < EXCLUDED.marketing_source_version
              RETURNING marketing_source_version",
         )
-        .bind(serde_json::to_value(&envelope.tenant_scope).map_err(|_| PortError::Internal)?)
-        .bind(scope_key(&envelope.tenant_scope).map_err(|_| PortError::Denied)?)
+        .bind(serde_json::to_value(&envelope.active_scope).map_err(|_| PortError::Internal)?)
+        .bind(scope_key(&envelope.active_scope).map_err(|_| PortError::Denied)?)
         .bind(candidate_id)
         .bind(envelope.fact.campaign.as_uuid())
         .bind(envelope.fact.audience_member.as_uuid())
@@ -93,7 +93,7 @@ impl SqlxQualifiedLeadResolver {
                     qualification_score_basis_points,marketing_source_version,
                     source_event_id,source_global_sequence
              FROM erpx_crm_write.marketing_qualified_lead_evidence
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id()
+             WHERE holding_id=erpx_cqrs_write.current_holding_id()
                AND marketing_candidate_id=$1 FOR UPDATE",
         )
         .bind(candidate_id)
@@ -141,10 +141,10 @@ impl QualifiedLeadResolverPort for SqlxQualifiedLeadResolver {
         }
         let mut transaction = self.pool.begin().await.map_err(map_database)?;
         let row = sqlx::query(
-            "SELECT tenant_scope,campaign_id,audience_member_id,customer_id,source_code,
+            "SELECT active_scope,campaign_id,audience_member_id,customer_id,source_code,
                     qualification_score_basis_points,marketing_source_version
              FROM erpx_crm_write.marketing_qualified_lead_evidence
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id()
+             WHERE holding_id=erpx_cqrs_write.current_holding_id()
                AND marketing_candidate_id=$1",
         )
         .bind(request.candidate.as_uuid())
@@ -153,8 +153,8 @@ impl QualifiedLeadResolverPort for SqlxQualifiedLeadResolver {
         .map_err(map_database)?;
         transaction.commit().await.map_err(map_database)?;
         let row = row.ok_or(PortError::NotFound)?;
-        let scope: TenantScope =
-            serde_json::from_value(row.get("tenant_scope")).map_err(|_| PortError::Internal)?;
+        let scope: AuthorityScope =
+            serde_json::from_value(row.get("active_scope")).map_err(|_| PortError::Internal)?;
         if !request.authority_scope.contains(&scope) {
             return Err(PortError::Denied);
         }
@@ -189,7 +189,7 @@ impl QualifiedLeadResolverPort for SqlxQualifiedLeadResolver {
 
 fn validate_envelope(value: &MarketingQualifiedLeadEnvelope) -> Result<(), PortError> {
     value
-        .tenant_scope
+        .active_scope
         .validate()
         .map_err(|_| PortError::Denied)?;
     if value.source_event_id.is_nil()
@@ -217,9 +217,9 @@ fn map_database(_error: impl std::fmt::Display) -> PortError {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn source_contract_is_tenant_bound_and_never_reads_marketing_tables() {
+    fn source_contract_is_holding_bound_and_never_reads_marketing_tables() {
         let source = include_str!("qualified_lead.rs");
-        assert!(source.contains("tenant_id=erpx_cqrs_write.current_tenant_id()"));
+        assert!(source.contains("holding_id=erpx_cqrs_write.current_holding_id()"));
         assert!(source.contains("marketing_source_version"));
         assert!(source.contains("source_event_id"));
         assert!(!source.contains(&["erpx_marketing", "write"].join("_")));

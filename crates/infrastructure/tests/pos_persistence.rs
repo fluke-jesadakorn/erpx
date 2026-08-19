@@ -1,7 +1,7 @@
 //! Disposable end-to-end evidence for the normalized POS write boundary.
 
 use chrono::Utc;
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::pos::{Payment, PaymentMethod, Sale, SaleLine, SaleStatus};
 use erpx_infrastructure::{SqlxPosPersistence, SqlxPosProjectionStore};
 use sqlx::PgPool;
@@ -16,12 +16,12 @@ fn command_context_with_key(holding_id: Uuid, company_id: Uuid, key: &str) -> Co
         key,
         ActorAttribution {
             principal_ref: "pos-operator".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
         },
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -31,16 +31,16 @@ fn command_context_with_key(holding_id: Uuid, company_id: Uuid, key: &str) -> Co
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn live_pos_write_is_normalized_scoped_and_idempotent() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let pool = PgPool::connect(&url).await.expect("write pool");
-    erpx_migration::migrate_tenant_write(&pool)
+    erpx_migration::migrate_holding_write(&pool)
         .await
-        .expect("tenant write migration");
+        .expect("holding write migration");
 
-    let holding_ref = format!("holding-pos-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-pos-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let line = SaleLine::new(
@@ -54,7 +54,7 @@ async fn live_pos_write_is_normalized_scoped_and_idempotent() {
     .expect("sale line");
     let sale = Sale::new(
         Uuid::new_v4(),
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -64,7 +64,7 @@ async fn live_pos_write_is_normalized_scoped_and_idempotent() {
         &command_context(holding_id, company_id),
     )
     .expect("sale");
-    let store = SqlxPosPersistence::new(pool.clone(), &holding_ref).expect("POS store");
+    let store = SqlxPosPersistence::new(pool.clone(), &data_profile_key).expect("POS store");
     let first = store.save_sale(&sale, None).await.expect("first sale");
     assert_eq!(first.version, 1);
     assert!(!first.replayed);
@@ -102,19 +102,19 @@ async fn live_pos_write_is_normalized_scoped_and_idempotent() {
     );
 
     let mut tx = pool.begin().await.expect("inspection transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tx)
         .await
         .expect("holding scope");
     let counts: (i64, i64, i64, i64) = sqlx::query_as(
         "SELECT
-            (SELECT count(*) FROM erpx_tenant.pos_sales WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.pos_sale_lines WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.pos_sale_payments WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.outbox_events WHERE holding_ref=$1 AND aggregate_type='pos_sale')",
+            (SELECT count(*) FROM erpx_holding.pos_sales WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.pos_sale_lines WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.pos_sale_payments WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.outbox_events WHERE data_profile_key=$1 AND aggregate_type='pos_sale')",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .fetch_one(&mut *tx)
     .await
     .expect("normalized counts");
@@ -122,21 +122,21 @@ async fn live_pos_write_is_normalized_scoped_and_idempotent() {
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn live_pos_replay_rejects_orphaned_outbox_event() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let pool = PgPool::connect(&url).await.expect("write pool");
-    erpx_migration::migrate_tenant_write(&pool)
+    erpx_migration::migrate_holding_write(&pool)
         .await
-        .expect("tenant write migration");
+        .expect("holding write migration");
 
-    let holding_ref = format!("holding-pos-replay-integrity-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-pos-replay-integrity-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let sale = Sale::new(
         Uuid::new_v4(),
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -156,17 +156,17 @@ async fn live_pos_replay_rejects_orphaned_outbox_event() {
         &command_context(holding_id, company_id),
     )
     .expect("sale");
-    let store = SqlxPosPersistence::new(pool.clone(), &holding_ref).expect("POS store");
+    let store = SqlxPosPersistence::new(pool.clone(), &data_profile_key).expect("POS store");
     let first = store.save_sale(&sale, None).await.expect("first sale");
 
     let mut tx = pool.begin().await.expect("integrity transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tx)
         .await
         .expect("holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.outbox_events
+        "UPDATE erpx_holding.outbox_events
          SET occurred_at=occurred_at + INTERVAL '1 second'
          WHERE event_id=$1",
     )
@@ -181,12 +181,12 @@ async fn live_pos_replay_rejects_orphaned_outbox_event() {
     );
 
     let mut restore = pool.begin().await.expect("timestamp repair transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *restore)
         .await
         .expect("holding scope for timestamp repair");
-    sqlx::query("UPDATE erpx_tenant.outbox_events SET occurred_at=$1 WHERE event_id=$2")
+    sqlx::query("UPDATE erpx_holding.outbox_events SET occurred_at=$1 WHERE event_id=$2")
         .bind(
             sale.command_history
                 .last()
@@ -201,12 +201,12 @@ async fn live_pos_replay_rejects_orphaned_outbox_event() {
     restore.commit().await.expect("commit timestamp repair");
 
     let mut tx = pool.begin().await.expect("integrity transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tx)
         .await
         .expect("holding scope");
-    sqlx::query("DELETE FROM erpx_tenant.outbox_events WHERE event_id=$1")
+    sqlx::query("DELETE FROM erpx_holding.outbox_events WHERE event_id=$1")
         .bind(first.event_id)
         .execute(&mut *tx)
         .await
@@ -221,16 +221,16 @@ async fn live_pos_replay_rejects_orphaned_outbox_event() {
     assert!(!error.to_string().contains(&sale.reference));
 
     let mut inspection = pool.begin().await.expect("inspection transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *inspection)
         .await
         .expect("holding scope");
     let outbox_count: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_id=$2",
+        "SELECT count(*) FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(sale.id)
     .fetch_one(&mut *inspection)
     .await
@@ -239,21 +239,21 @@ async fn live_pos_replay_rejects_orphaned_outbox_event() {
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn live_pos_version_advance_rejects_missing_prior_outbox_and_rolls_back() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let pool = PgPool::connect(&url).await.expect("write pool");
-    erpx_migration::migrate_tenant_write(&pool)
+    erpx_migration::migrate_holding_write(&pool)
         .await
-        .expect("tenant write migration");
+        .expect("holding write migration");
 
-    let holding_ref = format!("holding-pos-history-gap-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-pos-history-gap-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let sale = Sale::new(
         Uuid::new_v4(),
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -273,16 +273,16 @@ async fn live_pos_version_advance_rejects_missing_prior_outbox_and_rolls_back() 
         &command_context(holding_id, company_id),
     )
     .expect("sale");
-    let store = SqlxPosPersistence::new(pool.clone(), &holding_ref).expect("POS store");
+    let store = SqlxPosPersistence::new(pool.clone(), &data_profile_key).expect("POS store");
     let first = store.save_sale(&sale, None).await.expect("first sale");
 
     let mut tx = pool.begin().await.expect("history-gap transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tx)
         .await
         .expect("holding scope");
-    sqlx::query("DELETE FROM erpx_tenant.outbox_events WHERE event_id=$1")
+    sqlx::query("DELETE FROM erpx_holding.outbox_events WHERE event_id=$1")
         .bind(first.event_id)
         .execute(&mut *tx)
         .await
@@ -307,29 +307,29 @@ async fn live_pos_version_advance_rejects_missing_prior_outbox_and_rolls_back() 
     assert!(!error.to_string().contains(&next_sale.reference));
 
     let mut inspection = pool.begin().await.expect("inspection transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *inspection)
         .await
         .expect("holding scope");
     let source: (i64, String, i64) = sqlx::query_as(
         "SELECT version, status,
-                (SELECT count(*) FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1 AND aggregate_id=$2)
-         FROM erpx_tenant.pos_sales
-         WHERE holding_ref=$1 AND sale_id=$2",
+                (SELECT count(*) FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1 AND aggregate_id=$2)
+         FROM erpx_holding.pos_sales
+         WHERE data_profile_key=$1 AND sale_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(sale.id)
     .fetch_one(&mut *inspection)
     .await
     .expect("source rollback state");
     assert_eq!(source, (1, "draft".into(), 0));
     let idempotency_count: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_tenant.pos_command_idempotency
-         WHERE holding_ref=$1 AND aggregate_id=$2",
+        "SELECT count(*) FROM erpx_holding.pos_command_idempotency
+         WHERE data_profile_key=$1 AND aggregate_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(sale.id)
     .fetch_one(&mut *inspection)
     .await
@@ -338,21 +338,21 @@ async fn live_pos_version_advance_rejects_missing_prior_outbox_and_rolls_back() 
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn live_pos_payment_facts_are_append_only_and_immutable() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let pool = PgPool::connect(&url).await.expect("write pool");
-    erpx_migration::migrate_tenant_write(&pool)
+    erpx_migration::migrate_holding_write(&pool)
         .await
-        .expect("tenant write migration");
+        .expect("holding write migration");
 
-    let holding_ref = format!("holding-pos-payment-source-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-pos-payment-source-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let sale = Sale::new(
         Uuid::new_v4(),
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -372,7 +372,7 @@ async fn live_pos_payment_facts_are_append_only_and_immutable() {
         &command_context(holding_id, company_id),
     )
     .expect("sale");
-    let store = SqlxPosPersistence::new(pool.clone(), &holding_ref).expect("POS store");
+    let store = SqlxPosPersistence::new(pool.clone(), &data_profile_key).expect("POS store");
     let created = store.save_sale(&sale, None).await.expect("create sale");
 
     let mut sale = sale;
@@ -460,21 +460,21 @@ async fn live_pos_payment_facts_are_append_only_and_immutable() {
     );
 
     let mut inspection = pool.begin().await.expect("inspection transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *inspection)
         .await
         .expect("holding scope");
     let source: (i64, String, i64, i64) = sqlx::query_as(
         "SELECT version, status,
-                (SELECT count(*) FROM erpx_tenant.pos_sale_payments
-                 WHERE holding_ref=$1 AND sale_id=$2),
-                (SELECT count(*) FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1 AND aggregate_id=$2)
-         FROM erpx_tenant.pos_sales
-         WHERE holding_ref=$1 AND sale_id=$2",
+                (SELECT count(*) FROM erpx_holding.pos_sale_payments
+                 WHERE data_profile_key=$1 AND sale_id=$2),
+                (SELECT count(*) FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1 AND aggregate_id=$2)
+         FROM erpx_holding.pos_sales
+         WHERE data_profile_key=$1 AND sale_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(sale.id)
     .fetch_one(&mut *inspection)
     .await
@@ -483,27 +483,27 @@ async fn live_pos_payment_facts_are_append_only_and_immutable() {
 }
 
 #[tokio::test]
-#[ignore = "requires two disposable tenant PostgreSQL databases"]
+#[ignore = "requires two disposable holding PostgreSQL databases"]
 async fn live_pos_projection_rejects_forged_source_payload_before_read_write() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migration");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding write migration");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migration");
+        .expect("holding read migration");
 
-    let holding_ref = format!("holding-pos-projection-integrity-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-pos-projection-integrity-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let sale = Sale::new(
         Uuid::new_v4(),
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -523,13 +523,13 @@ async fn live_pos_projection_rejects_forged_source_payload_before_read_write() {
         &command_context(holding_id, company_id),
     )
     .expect("sale");
-    SqlxPosPersistence::new(write_pool.clone(), &holding_ref)
+    SqlxPosPersistence::new(write_pool.clone(), &data_profile_key)
         .expect("source store")
         .save_sale(&sale, None)
         .await
         .expect("source write");
 
-    let projection = SqlxPosProjectionStore::from_pools(&write_pool, &read_pool, &holding_ref)
+    let projection = SqlxPosProjectionStore::from_pools(&write_pool, &read_pool, &data_profile_key)
         .expect("projection store");
     let page = projection
         .read_source_event_page(None, 10)
@@ -558,18 +558,18 @@ async fn live_pos_projection_rejects_forged_source_payload_before_read_write() {
     assert!(healthy.is_consistent());
 
     let mut source_tamper = write_pool.begin().await.expect("source tamper transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *source_tamper)
         .await
         .expect("source holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.pos_sales
+        "UPDATE erpx_holding.pos_sales
          SET reference=$1
-         WHERE holding_ref=$2 AND sale_id=$3",
+         WHERE data_profile_key=$2 AND sale_id=$3",
     )
     .bind("POS-SOURCE-TAMPERED")
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(sale.id)
     .execute(&mut *source_tamper)
     .await
@@ -585,18 +585,18 @@ async fn live_pos_projection_rejects_forged_source_payload_before_read_write() {
     );
 
     let mut source_repair = write_pool.begin().await.expect("source repair transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *source_repair)
         .await
         .expect("source repair holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.pos_sales
+        "UPDATE erpx_holding.pos_sales
          SET reference=$1
-         WHERE holding_ref=$2 AND sale_id=$3",
+         WHERE data_profile_key=$2 AND sale_id=$3",
     )
     .bind(&sale.reference)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(sale.id)
     .execute(&mut *source_repair)
     .await
@@ -615,18 +615,18 @@ async fn live_pos_projection_rejects_forged_source_payload_before_read_write() {
         .begin()
         .await
         .expect("checkpoint tamper transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tamper)
         .await
         .expect("read holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.pos_projection_checkpoints
+        "UPDATE erpx_holding.pos_projection_checkpoints
          SET last_event_id=$1
-         WHERE holding_ref=$2 AND projection_name=$3 AND aggregate_id=$4",
+         WHERE data_profile_key=$2 AND projection_name=$3 AND aggregate_id=$4",
     )
     .bind(forged_checkpoint_event_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(erpx_infrastructure::POS_PROJECTION_NAME)
     .bind(sale.id)
     .execute(&mut *tamper)
@@ -645,18 +645,18 @@ async fn live_pos_projection_rejects_forged_source_payload_before_read_write() {
         .begin()
         .await
         .expect("checkpoint repair transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *repair)
         .await
         .expect("read holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.pos_projection_checkpoints
+        "UPDATE erpx_holding.pos_projection_checkpoints
          SET last_event_id=$1
-         WHERE holding_ref=$2 AND projection_name=$3 AND aggregate_id=$4",
+         WHERE data_profile_key=$2 AND projection_name=$3 AND aggregate_id=$4",
     )
     .bind(page.events[0].event_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(erpx_infrastructure::POS_PROJECTION_NAME)
     .bind(sale.id)
     .execute(&mut *repair)
@@ -675,18 +675,18 @@ async fn live_pos_projection_rejects_forged_source_payload_before_read_write() {
         .begin()
         .await
         .expect("read-row tamper transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *read_tamper)
         .await
         .expect("read-row holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.pos_sale_read_rows
+        "UPDATE erpx_holding.pos_sale_read_rows
          SET source_event_id=$1
-         WHERE holding_ref=$2 AND sale_id=$3",
+         WHERE data_profile_key=$2 AND sale_id=$3",
     )
     .bind(forged_read_event_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(sale.id)
     .execute(&mut *read_tamper)
     .await
@@ -704,18 +704,18 @@ async fn live_pos_projection_rejects_forged_source_payload_before_read_write() {
         .begin()
         .await
         .expect("read-row repair transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *read_repair)
         .await
         .expect("read-row repair holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.pos_sale_read_rows
+        "UPDATE erpx_holding.pos_sale_read_rows
          SET source_event_id=$1
-         WHERE holding_ref=$2 AND sale_id=$3",
+         WHERE data_profile_key=$2 AND sale_id=$3",
     )
     .bind(page.events[0].event_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(sale.id)
     .execute(&mut *read_repair)
     .await
@@ -727,18 +727,18 @@ async fn live_pos_projection_rejects_forged_source_payload_before_read_write() {
         .begin()
         .await
         .expect("read scope tamper transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *scope_tamper)
         .await
         .expect("read scope tamper holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.pos_sale_read_rows
+        "UPDATE erpx_holding.pos_sale_read_rows
          SET holding_id=$1
-         WHERE holding_ref=$2 AND sale_id=$3",
+         WHERE data_profile_key=$2 AND sale_id=$3",
     )
     .bind(forged_holding_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(sale.id)
     .execute(&mut *scope_tamper)
     .await
@@ -757,18 +757,18 @@ async fn live_pos_projection_rejects_forged_source_payload_before_read_write() {
         .begin()
         .await
         .expect("read scope repair transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *scope_repair)
         .await
         .expect("read scope repair holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.pos_sale_read_rows
+        "UPDATE erpx_holding.pos_sale_read_rows
          SET holding_id=$1
-         WHERE holding_ref=$2 AND sale_id=$3",
+         WHERE data_profile_key=$2 AND sale_id=$3",
     )
     .bind(holding_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(sale.id)
     .execute(&mut *scope_repair)
     .await
@@ -788,22 +788,22 @@ async fn live_pos_projection_rejects_forged_source_payload_before_read_write() {
 }
 
 #[tokio::test]
-#[ignore = "requires two disposable tenant PostgreSQL databases"]
+#[ignore = "requires two disposable holding PostgreSQL databases"]
 async fn live_pos_payment_reconciliation_rejects_read_drift() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migration");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding write migration");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migration");
+        .expect("holding read migration");
 
-    let holding_ref = format!("holding-pos-payment-reconcile-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-pos-payment-reconcile-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let created_at = Utc::now();
@@ -818,7 +818,7 @@ async fn live_pos_payment_reconciliation_rejects_read_drift() {
     .expect("sale line");
     let mut sale = Sale::new(
         Uuid::new_v4(),
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -828,7 +828,8 @@ async fn live_pos_payment_reconciliation_rejects_read_drift() {
         &command_context(holding_id, company_id),
     )
     .expect("sale");
-    let source = SqlxPosPersistence::new(write_pool.clone(), &holding_ref).expect("source store");
+    let source =
+        SqlxPosPersistence::new(write_pool.clone(), &data_profile_key).expect("source store");
     let created = source.save_sale(&sale, None).await.expect("create sale");
 
     let mut open_context = command_context_with_key(holding_id, company_id, "pos-payment-open");
@@ -855,7 +856,7 @@ async fn live_pos_payment_reconciliation_rejects_read_drift() {
         .expect("payment source event");
     assert_eq!(paid.version, 3);
 
-    let projection = SqlxPosProjectionStore::from_pools(&write_pool, &read_pool, &holding_ref)
+    let projection = SqlxPosProjectionStore::from_pools(&write_pool, &read_pool, &data_profile_key)
         .expect("projection store");
     let page = projection
         .read_source_event_page(None, 10)
@@ -880,17 +881,17 @@ async fn live_pos_payment_reconciliation_rejects_read_drift() {
     );
 
     let mut tamper = read_pool.begin().await.expect("payment tamper transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tamper)
         .await
         .expect("read holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.pos_sale_payment_read_rows
+        "UPDATE erpx_holding.pos_sale_payment_read_rows
          SET amount_minor=989
-         WHERE holding_ref=$1 AND sale_id=$2",
+         WHERE data_profile_key=$1 AND sale_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(sale.id)
     .execute(&mut *tamper)
     .await
@@ -903,17 +904,17 @@ async fn live_pos_payment_reconciliation_rejects_read_drift() {
     assert!(drift.to_string().contains("paid total"));
 
     let mut repair = read_pool.begin().await.expect("payment repair transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *repair)
         .await
         .expect("read repair holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.pos_sale_payment_read_rows
+        "UPDATE erpx_holding.pos_sale_payment_read_rows
          SET amount_minor=990
-         WHERE holding_ref=$1 AND sale_id=$2",
+         WHERE data_profile_key=$1 AND sale_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(sale.id)
     .execute(&mut *repair)
     .await
@@ -933,18 +934,18 @@ async fn live_pos_payment_reconciliation_rejects_read_drift() {
         .begin()
         .await
         .expect("payment identity tamper transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *identity_tamper)
         .await
         .expect("read identity holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.pos_sale_payment_read_rows
+        "UPDATE erpx_holding.pos_sale_payment_read_rows
          SET source_event_id=$1
-         WHERE holding_ref=$2 AND sale_id=$3",
+         WHERE data_profile_key=$2 AND sale_id=$3",
     )
     .bind(forged_event_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(sale.id)
     .execute(&mut *identity_tamper)
     .await
@@ -963,18 +964,18 @@ async fn live_pos_payment_reconciliation_rejects_read_drift() {
         .begin()
         .await
         .expect("payment identity repair transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *identity_repair)
         .await
         .expect("read identity repair holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.pos_sale_payment_read_rows
+        "UPDATE erpx_holding.pos_sale_payment_read_rows
          SET source_event_id=$1
-         WHERE holding_ref=$2 AND sale_id=$3",
+         WHERE data_profile_key=$2 AND sale_id=$3",
     )
     .bind(page.events[2].event_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(sale.id)
     .execute(&mut *identity_repair)
     .await
@@ -993,27 +994,27 @@ async fn live_pos_payment_reconciliation_rejects_read_drift() {
 }
 
 #[tokio::test]
-#[ignore = "requires two disposable tenant PostgreSQL databases"]
+#[ignore = "requires two disposable holding PostgreSQL databases"]
 async fn live_pos_projection_rebuild_rolls_back_after_late_source_failure() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migration");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding write migration");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migration");
+        .expect("holding read migration");
 
-    let holding_ref = format!("holding-pos-rebuild-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-pos-rebuild-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let mut sale = Sale::new(
         Uuid::new_v4(),
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -1033,7 +1034,8 @@ async fn live_pos_projection_rebuild_rolls_back_after_late_source_failure() {
         &command_context(holding_id, company_id),
     )
     .expect("sale");
-    let source = SqlxPosPersistence::new(write_pool.clone(), &holding_ref).expect("source store");
+    let source =
+        SqlxPosPersistence::new(write_pool.clone(), &data_profile_key).expect("source store");
     let created = source.save_sale(&sale, None).await.expect("source write");
     let mut open_context = command_context_with_key(holding_id, company_id, "pos-rebuild-open");
     open_context.expected_aggregate_version = Some(created.version);
@@ -1044,7 +1046,7 @@ async fn live_pos_projection_rebuild_rolls_back_after_late_source_failure() {
         .await
         .expect("second source write");
 
-    let projection = SqlxPosProjectionStore::from_pools(&write_pool, &read_pool, &holding_ref)
+    let projection = SqlxPosProjectionStore::from_pools(&write_pool, &read_pool, &data_profile_key)
         .expect("projection store");
     let page = projection
         .read_source_event_page(None, 10)
@@ -1059,22 +1061,22 @@ async fn live_pos_projection_rebuild_rolls_back_after_late_source_failure() {
     }
 
     let mut tamper = write_pool.begin().await.expect("source tamper transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tamper)
         .await
         .expect("source holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.outbox_events
+        "UPDATE erpx_holding.outbox_events
          SET payload=$1
-         WHERE holding_ref=$2 AND event_id=$3",
+         WHERE data_profile_key=$2 AND event_id=$3",
     )
     .bind(serde_json::json!({
         "aggregate_type": "pos_sale",
         "version": 2,
         "aggregate": {}
     }))
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(page.events[1].event_id)
     .execute(&mut *tamper)
     .await
@@ -1092,17 +1094,17 @@ async fn live_pos_projection_rebuild_rolls_back_after_late_source_failure() {
         .begin()
         .await
         .expect("read inspection transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *inspection)
         .await
         .expect("read holding scope");
     let rows: (i64, i64) = sqlx::query_as(
         "SELECT count(*), COALESCE(max(source_version), 0)
-         FROM erpx_tenant.pos_sale_read_rows
-         WHERE holding_ref=$1 AND sale_id=$2",
+         FROM erpx_holding.pos_sale_read_rows
+         WHERE data_profile_key=$1 AND sale_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(sale.id)
     .fetch_one(&mut *inspection)
     .await
@@ -1115,18 +1117,18 @@ async fn live_pos_projection_rebuild_rolls_back_after_late_source_failure() {
 
     drop(inspection);
     let mut repair = write_pool.begin().await.expect("source repair transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *repair)
         .await
         .expect("source repair scope");
     sqlx::query(
-        "UPDATE erpx_tenant.outbox_events
+        "UPDATE erpx_holding.outbox_events
          SET payload=$1
-         WHERE holding_ref=$2 AND event_id=$3",
+         WHERE data_profile_key=$2 AND event_id=$3",
     )
     .bind(&page.events[1].payload)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(page.events[1].event_id)
     .execute(&mut *repair)
     .await
@@ -1147,21 +1149,21 @@ async fn live_pos_projection_rebuild_rolls_back_after_late_source_failure() {
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn live_pos_source_watermark_rejects_duplicate_aggregate_version() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let pool = PgPool::connect(&url).await.expect("write pool");
-    erpx_migration::migrate_tenant_write(&pool)
+    erpx_migration::migrate_holding_write(&pool)
         .await
-        .expect("tenant write migration");
+        .expect("holding write migration");
 
-    let holding_ref = format!("holding-pos-duplicate-version-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-pos-duplicate-version-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let sale = Sale::new(
         Uuid::new_v4(),
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -1181,14 +1183,14 @@ async fn live_pos_source_watermark_rejects_duplicate_aggregate_version() {
         &command_context(holding_id, company_id),
     )
     .expect("sale");
-    SqlxPosPersistence::new(pool.clone(), &holding_ref)
+    SqlxPosPersistence::new(pool.clone(), &data_profile_key)
         .expect("source store")
         .save_sale(&sale, None)
         .await
         .expect("source write");
 
-    let projection =
-        SqlxPosProjectionStore::from_pools(&pool, &pool, &holding_ref).expect("projection store");
+    let projection = SqlxPosProjectionStore::from_pools(&pool, &pool, &data_profile_key)
+        .expect("projection store");
     let source_page = projection
         .read_source_event_page(None, 10)
         .await
@@ -1196,20 +1198,20 @@ async fn live_pos_source_watermark_rejects_duplicate_aggregate_version() {
     let source_event = &source_page.events[0];
 
     let mut tamper = pool.begin().await.expect("duplicate source transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tamper)
         .await
         .expect("duplicate source scope");
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at)
          VALUES ($1,'pos_sale',$2,$3,$4,$5,$6,$7)",
     )
     .bind(Uuid::new_v4())
     .bind(source_event.aggregate_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(i64::try_from(source_event.aggregate_version).expect("source version"))
     .bind(&source_event.event_type)
     .bind(&source_event.payload)
@@ -1230,21 +1232,21 @@ async fn live_pos_source_watermark_rejects_duplicate_aggregate_version() {
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn live_pos_scope_is_immutable_across_source_versions() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let pool = PgPool::connect(&url).await.expect("write pool");
-    erpx_migration::migrate_tenant_write(&pool)
+    erpx_migration::migrate_holding_write(&pool)
         .await
-        .expect("tenant write migration");
+        .expect("holding write migration");
 
-    let holding_ref = format!("holding-pos-scope-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-pos-scope-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let sale = Sale::new(
         Uuid::new_v4(),
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -1264,12 +1266,12 @@ async fn live_pos_scope_is_immutable_across_source_versions() {
         &command_context(holding_id, company_id),
     )
     .expect("sale");
-    let store = SqlxPosPersistence::new(pool, &holding_ref).expect("POS store");
+    let store = SqlxPosPersistence::new(pool, &data_profile_key).expect("POS store");
     store.save_sale(&sale, None).await.expect("source create");
 
     let forged_holding_id = Uuid::new_v4();
     let forged_company_id = Uuid::new_v4();
-    let forged_scope = TenantScope::Company {
+    let forged_scope = AuthorityScope::Company {
         holding_id: forged_holding_id,
         company_id: forged_company_id,
     };
@@ -1283,7 +1285,7 @@ async fn live_pos_scope_is_immutable_across_source_versions() {
     forged.holding_id = forged_holding_id;
     forged.company_id = forged_company_id;
     for command in &mut forged.command_history {
-        command.event.tenant_scope = forged_scope.clone();
+        command.event.active_scope = forged_scope.clone();
     }
 
     let error = store

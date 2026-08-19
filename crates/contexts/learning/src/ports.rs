@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use erpx_kernel::{CommandId, CorrelationId, PrincipalId, TenantId, TenantScope};
+use erpx_kernel::{AuthorityScope, CommandId, CorrelationId, HoldingId, PrincipalId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -8,9 +8,9 @@ use crate::{Course, CourseId, Enrollment, EnrollmentId, LearningCompletionFact};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ActorContext {
-    pub tenant_id: TenantId,
+    pub holding_id: HoldingId,
     pub principal_id: PrincipalId,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LearningAction {
@@ -25,7 +25,7 @@ pub enum LearningAction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorizedLearningAccess {
     pub actor: ActorContext,
-    pub target_scope: TenantScope,
+    pub target_scope: AuthorityScope,
     pub action: LearningAction,
 }
 
@@ -34,7 +34,7 @@ pub trait AuthorizationPort: Send + Sync {
     async fn authorize(
         &self,
         actor: &ActorContext,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         action: LearningAction,
     ) -> Result<AuthorizedLearningAccess, PortError>;
 }
@@ -85,7 +85,7 @@ impl LearningAggregate {
             Self::Record(value) => value.version(),
         }
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         match self {
             Self::Course(value) => value.scope(),
             Self::Enrollment(value) => value.scope(),

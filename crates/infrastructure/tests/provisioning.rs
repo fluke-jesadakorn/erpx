@@ -5,12 +5,11 @@ use chrono::{Duration, Utc};
 use erpx_infrastructure::{
     BackupExecutionRequest, BackupExecutionResult, BackupExecutor, BackupExecutorError,
     BackupRunKind, ControlPlaneDatabaseConfig, ControlPlanePoolSettings, ControlPlanePools,
-    DatabaseSide, PersistenceError, PhysicalTenantDatabases, RestoreExecutor,
-    RestoreTestExecutionRequest, RestoreTestExecutionResult, RestoreTestOutcome,
-    RoutedDatabaseSide, SqlxTenantStoreRegistry, TenantBackupRun, TenantBackupTarget,
-    TenantDatabaseHealth, TenantDatabaseProvisioner, TenantDatabaseProvisioningConfig,
-    TenantDatabaseRouter, TenantProvisioner, TenantRestoreTestTarget, TenantStoreRegistration,
-    tenant_holding_scope_id,
+    DatabaseSide, HoldingBackupRun, HoldingBackupTarget, HoldingDatabaseHealth,
+    HoldingDatabaseProvisioner, HoldingDatabaseProvisioningConfig, HoldingDatabaseRouter,
+    HoldingProvisioner, HoldingRestoreTestTarget, HoldingStoreRegistration, PersistenceError,
+    PhysicalHoldingDatabases, RestoreExecutor, RestoreTestExecutionRequest,
+    RestoreTestExecutionResult, RestoreTestOutcome, RoutedDatabaseSide, SqlxHoldingStoreRegistry,
 };
 use erpx_migration::{migrate_control_plane, migrate_control_read};
 use serde_json::json;
@@ -77,12 +76,12 @@ impl DeterministicBackupExecutor {
 
     async fn execute(
         self,
-        registration: TenantStoreRegistration,
-        run: TenantBackupRun,
+        registration: HoldingStoreRegistration,
+        run: HoldingBackupRun,
         candidate_read_database_key: Option<String>,
         source_version: Option<u64>,
     ) -> Result<(bool, bool), PersistenceError> {
-        assert_eq!(registration.tenant_id, run.tenant_id);
+        assert_eq!(registration.holding_id, run.holding_id);
         assert!(!registration.write_database_key.is_empty());
         assert!(!registration.read_database_key.is_empty());
         if candidate_read_database_key.is_some() {
@@ -130,18 +129,18 @@ async fn provisioning_gates_activation_and_rejects_metadata_only_read_switch() {
         .expect("read migration");
 
     let store = Arc::new(erpx_infrastructure::SqlxControlPlane::new(pools));
-    let provisioner = TenantProvisioner::new(store.clone());
-    let registry = SqlxTenantStoreRegistry::new(store.clone());
-    let tenant_id = "tenant-provisioning-fixture";
+    let provisioner = HoldingProvisioner::new(store.clone());
+    let registry = SqlxHoldingStoreRegistry::new(store.clone());
+    let holding_id = "holding-provisioning-fixture";
     provisioner
-        .begin(TenantStoreRegistration {
-            tenant_id: tenant_id.into(),
-            holding_ref: "holding-provisioning-fixture".into(),
-            write_database_key: "tenant-write-fixture".into(),
-            read_database_key: "tenant-read-fixture".into(),
-            storage_namespace: "tenant-storage-fixture".into(),
-            credential_key_ref: "tenant-key-fixture".into(),
-            backup_chain_ref: "tenant-backup-fixture".into(),
+        .begin(HoldingStoreRegistration {
+            holding_id: holding_id.into(),
+            data_profile_key: "holding-provisioning-fixture".into(),
+            write_database_key: "holding-write-fixture".into(),
+            read_database_key: "holding-read-fixture".into(),
+            storage_namespace: "holding-storage-fixture".into(),
+            credential_key_ref: "holding-key-fixture".into(),
+            backup_chain_ref: "holding-backup-fixture".into(),
             state: "provisioning".into(),
             registry_version: 1,
         })
@@ -150,17 +149,17 @@ async fn provisioning_gates_activation_and_rejects_metadata_only_read_switch() {
 
     let checked_at = Utc::now();
     assert!(
-        provisioner.activate(tenant_id).await.is_err(),
+        provisioner.activate(holding_id).await.is_err(),
         "activation must require all health checks"
     );
     for side in [DatabaseSide::Write, DatabaseSide::Read] {
         provisioner
-            .record_database_health(&TenantDatabaseHealth {
-                tenant_id: tenant_id.into(),
+            .record_database_health(&HoldingDatabaseHealth {
+                holding_id: holding_id.into(),
                 side,
                 database_key: match side {
-                    DatabaseSide::Write => "tenant-write-fixture",
-                    DatabaseSide::Read => "tenant-read-fixture",
+                    DatabaseSide::Write => "holding-write-fixture",
+                    DatabaseSide::Read => "holding-read-fixture",
                 }
                 .into(),
                 schema_version: "2026-07-24.0007".into(),
@@ -171,19 +170,19 @@ async fn provisioning_gates_activation_and_rejects_metadata_only_read_switch() {
             .await
             .expect("database health");
     }
-    let tenant_database_provisioner = TenantDatabaseProvisioner::new(
+    let holding_database_provisioner = HoldingDatabaseProvisioner::new(
         store.clone(),
-        TenantDatabaseProvisioningConfig {
+        HoldingDatabaseProvisioningConfig {
             admin_database_url: "postgres://localhost/postgres?sslmode=verify-full".into(),
             database_url_template: "postgres://localhost/{database}?sslmode=verify-full".into(),
         },
     )
-    .expect("tenant database provisioner");
+    .expect("holding database provisioner");
     let object_store_calls = Arc::new(tokio::sync::Mutex::new(Vec::new()));
     let failing_object_store = DeterministicObjectStore::failing(object_store_calls.clone());
     assert!(
-        tenant_database_provisioner
-            .provision_storage_namespace(tenant_id, move |namespace| {
+        holding_database_provisioner
+            .provision_storage_namespace(holding_id, move |namespace| {
                 let object_store = failing_object_store.clone();
                 async move { object_store.ensure_namespace(namespace).await }
             })
@@ -191,12 +190,12 @@ async fn provisioning_gates_activation_and_rejects_metadata_only_read_switch() {
             .is_err()
     );
     assert!(
-        provisioner.activate(tenant_id).await.is_err(),
+        provisioner.activate(holding_id).await.is_err(),
         "activation must remain blocked after failed namespace verification"
     );
     let successful_object_store = DeterministicObjectStore::successful(object_store_calls.clone());
-    let storage_health = tenant_database_provisioner
-        .provision_storage_namespace(tenant_id, move |namespace| {
+    let storage_health = holding_database_provisioner
+        .provision_storage_namespace(holding_id, move |namespace| {
             let object_store = successful_object_store.clone();
             async move { object_store.ensure_namespace(namespace).await }
         })
@@ -205,17 +204,17 @@ async fn provisioning_gates_activation_and_rejects_metadata_only_read_switch() {
     assert!(storage_health.reachable);
     assert_eq!(
         object_store_calls.lock().await.as_slice(),
-        ["tenant-storage-fixture", "tenant-storage-fixture"]
+        ["holding-storage-fixture", "holding-storage-fixture"]
     );
     let stale_checked_at = checked_at - Duration::minutes(6);
     for side in [DatabaseSide::Write, DatabaseSide::Read] {
         provisioner
-            .record_database_health(&TenantDatabaseHealth {
-                tenant_id: tenant_id.into(),
+            .record_database_health(&HoldingDatabaseHealth {
+                holding_id: holding_id.into(),
                 side,
                 database_key: match side {
-                    DatabaseSide::Write => "tenant-write-fixture",
-                    DatabaseSide::Read => "tenant-read-fixture",
+                    DatabaseSide::Write => "holding-write-fixture",
+                    DatabaseSide::Read => "holding-read-fixture",
                 }
                 .into(),
                 schema_version: "2026-07-24.0007".into(),
@@ -227,17 +226,17 @@ async fn provisioning_gates_activation_and_rejects_metadata_only_read_switch() {
             .expect("record stale database health");
     }
     assert!(
-        provisioner.activate(tenant_id).await.is_err(),
+        provisioner.activate(holding_id).await.is_err(),
         "activation must reject stale dependency probes"
     );
     for side in [DatabaseSide::Write, DatabaseSide::Read] {
         provisioner
-            .record_database_health(&TenantDatabaseHealth {
-                tenant_id: tenant_id.into(),
+            .record_database_health(&HoldingDatabaseHealth {
+                holding_id: holding_id.into(),
                 side,
                 database_key: match side {
-                    DatabaseSide::Write => "tenant-write-fixture",
-                    DatabaseSide::Read => "tenant-read-fixture",
+                    DatabaseSide::Write => "holding-write-fixture",
+                    DatabaseSide::Read => "holding-read-fixture",
                 }
                 .into(),
                 schema_version: "2026-07-24.0007".into(),
@@ -248,13 +247,13 @@ async fn provisioning_gates_activation_and_rejects_metadata_only_read_switch() {
             .await
             .expect("record current database health");
     }
-    provisioner.activate(tenant_id).await.expect("activation");
+    provisioner.activate(holding_id).await.expect("activation");
     assert_eq!(
         registry
-            .get(tenant_id)
+            .get(holding_id)
             .await
             .expect("registry read")
-            .expect("tenant")
+            .expect("holding")
             .state,
         "active"
     );
@@ -263,9 +262,9 @@ async fn provisioning_gates_activation_and_rejects_metadata_only_read_switch() {
     assert!(
         provisioner
             .execute_backup(
-                TenantBackupRun {
+                HoldingBackupRun {
                     id: failed_backup_id,
-                    tenant_id: tenant_id.into(),
+                    holding_id: holding_id.into(),
                     kind: "pitr".into(),
                     status: "started".into(),
                     backup_ref: "backup-pitr-fixture".into(),
@@ -293,7 +292,7 @@ async fn provisioning_gates_activation_and_rejects_metadata_only_read_switch() {
             .is_err()
     );
     let failed_backup: (String, bool, Option<String>) = sqlx::query_as(
-        "SELECT status, verified, error FROM erpx_control.tenant_backup_runs WHERE id = $1",
+        "SELECT status, verified, error FROM erpx_control.holding_backup_runs WHERE id = $1",
     )
     .bind(failed_backup_id)
     .fetch_one(&store.pools().write)
@@ -305,9 +304,9 @@ async fn provisioning_gates_activation_and_rejects_metadata_only_read_switch() {
 
     let full_backup = provisioner
         .execute_backup(
-            TenantBackupRun {
+            HoldingBackupRun {
                 id: Uuid::new_v4(),
-                tenant_id: tenant_id.into(),
+                holding_id: holding_id.into(),
                 kind: "full".into(),
                 status: "started".into(),
                 backup_ref: "backup-full-fixture".into(),
@@ -333,9 +332,9 @@ async fn provisioning_gates_activation_and_rejects_metadata_only_read_switch() {
     assert!(
         provisioner
             .execute_restore_test_with_read_replacement(
-                TenantBackupRun {
+                HoldingBackupRun {
                     id: failed_restore_id,
-                    tenant_id: tenant_id.into(),
+                    holding_id: holding_id.into(),
                     kind: "restore_test".into(),
                     status: "started".into(),
                     backup_ref: "backup-full-fixture".into(),
@@ -346,7 +345,7 @@ async fn provisioning_gates_activation_and_rejects_metadata_only_read_switch() {
                     verified: false,
                     error: None,
                 },
-                "tenant-read-replacement-failed",
+                "holding-read-replacement-failed",
                 42,
                 |registration, run, candidate, source_version| async move {
                     DeterministicBackupExecutor::successful(false, false)
@@ -358,7 +357,7 @@ async fn provisioning_gates_activation_and_rejects_metadata_only_read_switch() {
             .is_err()
     );
     let failed_restore: (String, bool, Option<String>) = sqlx::query_as(
-        "SELECT status, verified, error FROM erpx_control.tenant_backup_runs WHERE id = $1",
+        "SELECT status, verified, error FROM erpx_control.holding_backup_runs WHERE id = $1",
     )
     .bind(failed_restore_id)
     .fetch_one(&store.pools().write)
@@ -371,9 +370,9 @@ async fn provisioning_gates_activation_and_rejects_metadata_only_read_switch() {
         Some("restore test was not verified")
     );
     let failed_switch_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM erpx_control.tenant_projection_switches WHERE tenant_id = $1",
+        "SELECT COUNT(*) FROM erpx_control.holding_projection_switches WHERE holding_id = $1",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .fetch_one(&store.pools().write)
     .await
     .expect("failed restore must not create a switch");
@@ -381,9 +380,9 @@ async fn provisioning_gates_activation_and_rejects_metadata_only_read_switch() {
 
     let rejected_restore = provisioner
         .execute_restore_test_with_read_replacement(
-            TenantBackupRun {
+            HoldingBackupRun {
                 id: Uuid::new_v4(),
-                tenant_id: tenant_id.into(),
+                holding_id: holding_id.into(),
                 kind: "restore_test".into(),
                 status: "started".into(),
                 backup_ref: "backup-full-fixture".into(),
@@ -394,7 +393,7 @@ async fn provisioning_gates_activation_and_rejects_metadata_only_read_switch() {
                 verified: false,
                 error: None,
             },
-            "tenant-read-replacement",
+            "holding-read-replacement",
             42,
             |registration, run, candidate, source_version| async move {
                 DeterministicBackupExecutor::successful(true, true)
@@ -406,7 +405,7 @@ async fn provisioning_gates_activation_and_rejects_metadata_only_read_switch() {
     assert!(rejected_restore.is_err());
     let rejected_restore_state: (String, bool, Option<String>) = sqlx::query_as(
         "SELECT status, verified, error
-         FROM erpx_control.tenant_backup_runs
+         FROM erpx_control.holding_backup_runs
          WHERE restore_target_ref = 'restore-test-fixture'
          ORDER BY started_at DESC
          LIMIT 1",
@@ -422,18 +421,18 @@ async fn provisioning_gates_activation_and_rejects_metadata_only_read_switch() {
     );
     assert_eq!(
         registry
-            .get(tenant_id)
+            .get(holding_id)
             .await
             .expect("registry read")
-            .expect("tenant")
+            .expect("holding")
             .read_database_key,
-        "tenant-read-fixture"
+        "holding-read-fixture"
     );
 }
 
 #[tokio::test]
-#[ignore = "requires disposable control and tenant PostgreSQL databases"]
-async fn physical_provisioning_creates_separate_rls_backed_tenant_databases() {
+#[ignore = "requires disposable control and holding PostgreSQL databases"]
+async fn physical_provisioning_creates_separate_rls_backed_holding_databases() {
     let config = test_config();
     assert_ne!(config.write_url, config.read_url);
     let pools = ControlPlanePools::connect(&config)
@@ -446,26 +445,26 @@ async fn physical_provisioning_creates_separate_rls_backed_tenant_databases() {
         .await
         .expect("read migration");
     let store = Arc::new(erpx_infrastructure::SqlxControlPlane::new(pools));
-    let provisioner = TenantProvisioner::new(store.clone());
-    let registry = SqlxTenantStoreRegistry::new(store.clone());
-    let tenant_id = "11111111-1111-4111-8111-111111111111";
+    let provisioner = HoldingProvisioner::new(store.clone());
+    let registry = SqlxHoldingStoreRegistry::new(store.clone());
+    let holding_id = "11111111-1111-4111-8111-111111111111";
     // Keep the historical defaults for compatibility, but allow isolated
     // acceptance runs to supply fresh names instead of colliding with a
     // pre-existing developer fixture. The override is test-only and never
     // changes production provisioning behavior.
-    let write_key = std::env::var("ERPX_TEST_PHYSICAL_TENANT_WRITE_KEY")
-        .unwrap_or_else(|_| "erpx_tenant_w_20260724".into());
-    let read_key = std::env::var("ERPX_TEST_PHYSICAL_TENANT_READ_KEY")
-        .unwrap_or_else(|_| "erpx_tenant_r_20260724".into());
+    let write_key = std::env::var("ERPX_TEST_PHYSICAL_HOLDING_WRITE_KEY")
+        .unwrap_or_else(|_| "erpx_holding_w_20260724".into());
+    let read_key = std::env::var("ERPX_TEST_PHYSICAL_HOLDING_READ_KEY")
+        .unwrap_or_else(|_| "erpx_holding_r_20260724".into());
     provisioner
-        .begin(TenantStoreRegistration {
-            tenant_id: tenant_id.into(),
-            holding_ref: "holding-physical-fixture".into(),
+        .begin(HoldingStoreRegistration {
+            holding_id: holding_id.into(),
+            data_profile_key: "holding-physical-fixture".into(),
             write_database_key: write_key.clone(),
             read_database_key: read_key.clone(),
-            storage_namespace: "tenant-storage-physical".into(),
-            credential_key_ref: "tenant-key-physical".into(),
-            backup_chain_ref: "tenant-backup-physical".into(),
+            storage_namespace: "holding-storage-physical".into(),
+            credential_key_ref: "holding-key-physical".into(),
+            backup_chain_ref: "holding-backup-physical".into(),
             state: "provisioning".into(),
             registry_version: 1,
         })
@@ -474,19 +473,19 @@ async fn physical_provisioning_creates_separate_rls_backed_tenant_databases() {
 
     let admin_database_url = std::env::var("ERPX_TEST_ADMIN_DATABASE_URL")
         .unwrap_or_else(|_| "postgres://localhost/postgres?sslmode=verify-full".into());
-    let database_url_template = std::env::var("ERPX_TEST_TENANT_DATABASE_URL_TEMPLATE")
+    let database_url_template = std::env::var("ERPX_TEST_HOLDING_DATABASE_URL_TEMPLATE")
         .unwrap_or_else(|_| "postgres://localhost/{database}?sslmode=verify-full".into());
-    let physical = TenantDatabaseProvisioner::new(
+    let physical = HoldingDatabaseProvisioner::new(
         store.clone(),
-        TenantDatabaseProvisioningConfig {
+        HoldingDatabaseProvisioningConfig {
             admin_database_url,
             database_url_template: database_url_template.clone(),
         },
     )
     .expect("physical provisioning config")
-    .provision_databases(tenant_id)
+    .provision_databases(holding_id)
     .await
-    .expect("physical tenant databases");
+    .expect("physical holding databases");
     assert_eq!(physical.write_database_key, write_key);
     assert_eq!(physical.read_database_key, read_key);
 
@@ -496,12 +495,12 @@ async fn physical_provisioning_creates_separate_rls_backed_tenant_databases() {
         .max_connections(2)
         .connect(&write_url)
         .await
-        .expect("tenant write pool");
+        .expect("holding write pool");
     let read_pool = sqlx::postgres::PgPoolOptions::new()
         .max_connections(2)
         .connect(&read_url)
         .await
-        .expect("tenant read pool");
+        .expect("holding read pool");
     let (write_rls, write_force): (bool, bool) = sqlx::query_as(
         "SELECT c.relrowsecurity, c.relforcerowsecurity
          FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -512,13 +511,13 @@ async fn physical_provisioning_creates_separate_rls_backed_tenant_databases() {
     .expect("write RLS metadata");
     assert!(write_rls && write_force);
     let read_table: Option<String> =
-        sqlx::query_scalar("SELECT to_regclass('erpx_tenant.customer_summary')::text")
+        sqlx::query_scalar("SELECT to_regclass('erpx_holding.customer_summary')::text")
             .fetch_one(&read_pool)
             .await
             .expect("read projection table");
-    assert_eq!(read_table.as_deref(), Some("erpx_tenant.customer_summary"));
+    assert_eq!(read_table.as_deref(), Some("erpx_holding.customer_summary"));
     let write_outbox: Option<String> =
-        sqlx::query_scalar("SELECT to_regclass('erpx_tenant.outbox_events')::text")
+        sqlx::query_scalar("SELECT to_regclass('erpx_holding.outbox_events')::text")
             .fetch_one(&read_pool)
             .await
             .expect("read-side source table isolation");
@@ -528,46 +527,46 @@ async fn physical_provisioning_creates_separate_rls_backed_tenant_databases() {
 
     let object_store_calls = Arc::new(tokio::sync::Mutex::new(Vec::new()));
     let object_store = DeterministicObjectStore::successful(object_store_calls);
-    let tenant_database_provisioner = TenantDatabaseProvisioner::new(
+    let holding_database_provisioner = HoldingDatabaseProvisioner::new(
         store.clone(),
-        TenantDatabaseProvisioningConfig {
+        HoldingDatabaseProvisioningConfig {
             admin_database_url: "postgres://localhost/postgres?sslmode=verify-full".into(),
             database_url_template: "postgres://localhost/{database}?sslmode=verify-full".into(),
         },
     )
-    .expect("tenant database provisioner");
-    tenant_database_provisioner
-        .provision_storage_namespace(tenant_id, move |namespace| {
+    .expect("holding database provisioner");
+    holding_database_provisioner
+        .provision_storage_namespace(holding_id, move |namespace| {
             let object_store = object_store.clone();
             async move { object_store.ensure_namespace(namespace).await }
         })
         .await
         .expect("storage health");
     provisioner
-        .activate(tenant_id)
+        .activate(holding_id)
         .await
-        .expect("activate tenant");
-    let router = TenantDatabaseRouter::new(
+        .expect("activate holding");
+    let router = HoldingDatabaseRouter::new(
         store.clone(),
-        TenantDatabaseProvisioningConfig {
+        HoldingDatabaseProvisioningConfig {
             admin_database_url: "postgres://localhost/postgres?sslmode=verify-full".into(),
             database_url_template: database_url_template.clone(),
         },
     )
-    .expect("tenant router config");
+    .expect("holding router config");
     let routed_write = router
         .route(
-            tenant_id,
+            holding_id,
             "holding-physical-fixture",
             RoutedDatabaseSide::Write,
         )
         .await
-        .expect("route tenant write database");
+        .expect("route holding write database");
     let mut scoped_write = routed_write
         .begin_scoped()
         .await
         .expect("scoped write transaction");
-    let scoped_ref: String = sqlx::query_scalar("SELECT current_setting('erpx.holding_ref')")
+    let scoped_ref: String = sqlx::query_scalar("SELECT current_setting('erpx.data_profile_key')")
         .fetch_one(&mut *scoped_write)
         .await
         .expect("holding RLS setting");
@@ -591,17 +590,17 @@ async fn physical_provisioning_creates_separate_rls_backed_tenant_databases() {
     scoped_write.commit().await.expect("commit scoped write");
     assert!(
         router
-            .route(tenant_id, "wrong-holding", RoutedDatabaseSide::Write)
+            .route(holding_id, "wrong-holding", RoutedDatabaseSide::Write)
             .await
             .is_err()
     );
     routed_write.close().await;
     assert_eq!(
         registry
-            .get(tenant_id)
+            .get(holding_id)
             .await
             .expect("registry")
-            .expect("tenant")
+            .expect("holding")
             .state,
         "active"
     );
@@ -649,10 +648,10 @@ impl RestoreExecutor for TypedRestoreFake {
     }
 }
 
-fn typed_run(tenant_id: &str, backup_ref: &str) -> TenantBackupRun {
-    TenantBackupRun {
+fn typed_run(holding_id: &str, backup_ref: &str) -> HoldingBackupRun {
+    HoldingBackupRun {
         id: Uuid::from_u128(9001),
-        tenant_id: tenant_id.into(),
+        holding_id: holding_id.into(),
         kind: "restore_test".into(),
         status: "started".into(),
         backup_ref: backup_ref.into(),
@@ -666,12 +665,12 @@ fn typed_run(tenant_id: &str, backup_ref: &str) -> TenantBackupRun {
 }
 
 #[tokio::test]
-async fn typed_backup_restore_fakes_are_tenant_bound_and_fail_closed() {
-    let run_a = typed_run("tenant-a", "backup-a");
-    let databases_a =
-        PhysicalTenantDatabases::new("tenant-a", "write-a", "read-a").expect("tenant-a databases");
-    let target_a = TenantBackupTarget::for_run(databases_a.clone(), "chain-a", &run_a)
-        .expect("tenant-a backup target");
+async fn typed_backup_restore_fakes_are_holding_bound_and_fail_closed() {
+    let run_a = typed_run("holding-a", "backup-a");
+    let databases_a = PhysicalHoldingDatabases::new("holding-a", "write-a", "read-a")
+        .expect("holding-a databases");
+    let target_a = HoldingBackupTarget::for_run(databases_a.clone(), "chain-a", &run_a)
+        .expect("holding-a backup target");
     let backup_request = BackupExecutionRequest::new(target_a.clone(), BackupRunKind::Pitr);
     let backup_fake = TypedBackupFake {
         error: None,
@@ -688,24 +687,24 @@ async fn typed_backup_restore_fakes_are_tenant_bound_and_fail_closed() {
             .verified()
     );
 
-    let run_b = typed_run("tenant-b", "backup-b");
-    let databases_b =
-        PhysicalTenantDatabases::new("tenant-b", "write-b", "read-b").expect("tenant-b databases");
-    let target_b = TenantBackupTarget::for_run(databases_b, "chain-b", &run_b)
-        .expect("tenant-b backup target");
-    let wrong_tenant_result = BackupExecutionResult::for_target(&target_b, true);
+    let run_b = typed_run("holding-b", "backup-b");
+    let databases_b = PhysicalHoldingDatabases::new("holding-b", "write-b", "read-b")
+        .expect("holding-b databases");
+    let target_b = HoldingBackupTarget::for_run(databases_b, "chain-b", &run_b)
+        .expect("holding-b backup target");
+    let wrong_holding_result = BackupExecutionResult::for_target(&target_b, true);
     assert!(
         backup_request
-            .validate_result(&wrong_tenant_result)
+            .validate_result(&wrong_holding_result)
             .is_err()
     );
 
     let replacement_a = databases_a
         .replacement_read_database("read-a-replacement")
-        .expect("tenant-a replacement");
+        .expect("holding-a replacement");
     let restore_target =
-        TenantRestoreTestTarget::new(target_a, "restore-target-a", replacement_a, 42)
-            .expect("tenant-a restore target");
+        HoldingRestoreTestTarget::new(target_a, "restore-target-a", replacement_a, 42)
+            .expect("holding-a restore target");
     let restore_request = RestoreTestExecutionRequest::new(restore_target);
 
     for outcome in [RestoreTestOutcome::Failed, RestoreTestOutcome::Expired] {
@@ -727,13 +726,13 @@ async fn typed_backup_restore_fakes_are_tenant_bound_and_fail_closed() {
 
 #[test]
 fn typed_provisioning_debug_and_targets_do_not_expose_urls_or_credentials() {
-    let run = typed_run("tenant-safe", "backup-safe");
-    let databases =
-        PhysicalTenantDatabases::new("tenant-safe", "write-safe", "read-safe").expect("databases");
-    let target = TenantBackupTarget::for_run(databases, "chain-safe", &run).expect("target");
+    let run = typed_run("holding-safe", "backup-safe");
+    let databases = PhysicalHoldingDatabases::new("holding-safe", "write-safe", "read-safe")
+        .expect("databases");
+    let target = HoldingBackupTarget::for_run(databases, "chain-safe", &run).expect("target");
     let debug = format!(
         "{:?} {:?} {:?}",
-        TenantDatabaseProvisioningConfig {
+        HoldingDatabaseProvisioningConfig {
             admin_database_url: "postgres://user:secret@host/postgres".into(),
             database_url_template: "postgres://user:secret@host/{database}".into(),
         },
@@ -747,7 +746,7 @@ fn typed_provisioning_debug_and_targets_do_not_expose_urls_or_credentials() {
 
 #[tokio::test]
 #[ignore = "requires two disposable PostgreSQL databases"]
-async fn owner_seed_registration_is_tenant_bound_and_idempotent() {
+async fn owner_seed_registration_is_holding_bound_and_idempotent() {
     let config = test_config();
     assert_ne!(config.write_url, config.read_url);
     let pools = ControlPlanePools::connect_with_settings(
@@ -767,55 +766,48 @@ async fn owner_seed_registration_is_tenant_bound_and_idempotent() {
         .await
         .expect("read migration");
     let store = Arc::new(erpx_infrastructure::SqlxControlPlane::new(pools));
-    let provisioner = TenantProvisioner::new(store.clone());
+    let provisioner = HoldingProvisioner::new(store.clone());
+    let holding_id = "00000000-0000-4000-8000-000000000902";
     provisioner
-        .begin(TenantStoreRegistration {
-            tenant_id: "tenant-owner-seed".into(),
-            holding_ref: "holding-owner-seed".into(),
-            write_database_key: "tenant-owner-write".into(),
-            read_database_key: "tenant-owner-read".into(),
-            storage_namespace: "tenant-owner-storage".into(),
-            credential_key_ref: "tenant-owner-key".into(),
-            backup_chain_ref: "tenant-owner-chain".into(),
+        .begin(HoldingStoreRegistration {
+            holding_id: holding_id.into(),
+            data_profile_key: "holding-owner-seed".into(),
+            write_database_key: "holding-owner-write".into(),
+            read_database_key: "holding-owner-read".into(),
+            storage_namespace: "holding-owner-storage".into(),
+            credential_key_ref: "holding-owner-key".into(),
+            backup_chain_ref: "holding-owner-chain".into(),
             state: "provisioning".into(),
             registry_version: 1,
         })
         .await
         .expect("begin provisioning");
     let first = provisioner
-        .register_owner_seed(
-            "tenant-owner-seed",
-            "owner-principal",
-            "independent-approver",
-        )
+        .register_owner_seed(holding_id, "owner-principal", "independent-approver")
         .await
         .expect("register owner seed");
     let replay = provisioner
-        .register_owner_seed(
-            "tenant-owner-seed",
-            "owner-principal",
-            "independent-approver",
-        )
+        .register_owner_seed(holding_id, "owner-principal", "independent-approver")
         .await
         .expect("replay owner seed");
     assert_eq!(first, replay);
     assert_eq!(first.state, "pending");
     assert!(
         provisioner
-            .register_owner_seed("tenant-owner-seed", "other-owner", "independent-approver")
+            .register_owner_seed(holding_id, "other-owner", "independent-approver")
             .await
             .is_err(),
         "immutable owner identity cannot be changed on replay"
     );
     let loaded = provisioner
-        .get_owner_seed("tenant-owner-seed")
+        .get_owner_seed(holding_id)
         .await
         .expect("load owner seed")
         .expect("owner seed");
-    assert_eq!(loaded.holding_ref, "holding-owner-seed");
+    assert_eq!(loaded.data_profile_key, "holding-owner-seed");
     assert_eq!(loaded.principal_ref, "owner-principal");
     let read_table: Option<String> =
-        sqlx::query_scalar("SELECT to_regclass('erpx_control.tenant_owner_seeds')::text")
+        sqlx::query_scalar("SELECT to_regclass('erpx_control.holding_owner_seeds')::text")
             .fetch_one(&store.pools().read)
             .await
             .expect("read isolation query");
@@ -823,13 +815,13 @@ async fn owner_seed_registration_is_tenant_bound_and_idempotent() {
 }
 
 #[tokio::test]
-#[ignore = "requires two control and two disposable tenant PostgreSQL databases"]
-async fn tenant_organization_bootstrap_is_write_authoritative_and_read_projected() {
+#[ignore = "requires two control and two disposable holding PostgreSQL databases"]
+async fn holding_organization_bootstrap_is_write_authoritative_and_read_projected() {
     let config = test_config();
     let admin_url = std::env::var("ERPX_TEST_ADMIN_DATABASE_URL")
         .expect("ERPX_TEST_ADMIN_DATABASE_URL is required");
-    let tenant_template = std::env::var("ERPX_TEST_TENANT_DATABASE_URL_TEMPLATE")
-        .expect("ERPX_TEST_TENANT_DATABASE_URL_TEMPLATE is required");
+    let holding_template = std::env::var("ERPX_TEST_HOLDING_DATABASE_URL_TEMPLATE")
+        .expect("ERPX_TEST_HOLDING_DATABASE_URL_TEMPLATE is required");
     let pools = ControlPlanePools::connect_with_settings(
         &config,
         ControlPlanePoolSettings {
@@ -847,53 +839,53 @@ async fn tenant_organization_bootstrap_is_write_authoritative_and_read_projected
         .await
         .expect("read migration");
     let store = Arc::new(erpx_infrastructure::SqlxControlPlane::new(pools));
-    let tenant_id = "00000000-0000-0000-0000-000000000901";
-    let holding_ref = "holding-organization-bootstrap";
-    let write_key = std::env::var("ERPX_TEST_ORGANIZATION_TENANT_WRITE_KEY")
-        .unwrap_or_else(|_| "tenant-organization-write".into());
-    let read_key = std::env::var("ERPX_TEST_ORGANIZATION_TENANT_READ_KEY")
-        .unwrap_or_else(|_| "tenant-organization-read".into());
-    let provisioner = TenantProvisioner::new(store.clone());
+    let holding_key = "00000000-0000-0000-0000-000000000901";
+    let data_profile_key = "holding-organization-bootstrap";
+    let write_key = std::env::var("ERPX_TEST_ORGANIZATION_HOLDING_WRITE_KEY")
+        .unwrap_or_else(|_| "holding-organization-write".into());
+    let read_key = std::env::var("ERPX_TEST_ORGANIZATION_HOLDING_READ_KEY")
+        .unwrap_or_else(|_| "holding-organization-read".into());
+    let provisioner = HoldingProvisioner::new(store.clone());
     provisioner
-        .begin(TenantStoreRegistration {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+        .begin(HoldingStoreRegistration {
+            holding_id: holding_key.into(),
+            data_profile_key: data_profile_key.into(),
             write_database_key: write_key.clone(),
             read_database_key: read_key.clone(),
-            storage_namespace: "tenant-organization-storage".into(),
-            credential_key_ref: "tenant-organization-key".into(),
-            backup_chain_ref: "tenant-organization-chain".into(),
+            storage_namespace: "holding-organization-storage".into(),
+            credential_key_ref: "holding-organization-key".into(),
+            backup_chain_ref: "holding-organization-chain".into(),
             state: "provisioning".into(),
             registry_version: 1,
         })
         .await
         .expect("begin provisioning");
-    let physical = TenantDatabaseProvisioner::new(
+    let physical = HoldingDatabaseProvisioner::new(
         store.clone(),
-        TenantDatabaseProvisioningConfig {
+        HoldingDatabaseProvisioningConfig {
             admin_database_url: admin_url,
-            database_url_template: tenant_template.clone(),
+            database_url_template: holding_template.clone(),
         },
     )
-    .expect("tenant provisioner")
-    .provision_databases(tenant_id)
+    .expect("holding provisioner")
+    .provision_databases(holding_key)
     .await
-    .expect("tenant databases");
-    let holding_id = tenant_holding_scope_id(holding_ref);
-    let tenant_provisioner = TenantDatabaseProvisioner::new(
+    .expect("holding databases");
+    let holding_id = Uuid::parse_str(holding_key).expect("canonical holding UUID");
+    let holding_provisioner = HoldingDatabaseProvisioner::new(
         store.clone(),
-        TenantDatabaseProvisioningConfig {
+        HoldingDatabaseProvisioningConfig {
             admin_database_url: std::env::var("ERPX_TEST_ADMIN_DATABASE_URL").expect("admin URL"),
-            database_url_template: tenant_template.clone(),
+            database_url_template: holding_template.clone(),
         },
     )
-    .expect("tenant provisioner");
-    let first = tenant_provisioner
-        .initialize_tenant_organization(tenant_id, holding_id, "owner-organization")
+    .expect("holding provisioner");
+    let first = holding_provisioner
+        .initialize_holding_organization(holding_key, holding_id, "owner-organization")
         .await
         .expect("organization bootstrap");
-    let replay = tenant_provisioner
-        .initialize_tenant_organization(tenant_id, holding_id, "owner-organization")
+    let replay = holding_provisioner
+        .initialize_holding_organization(holding_key, holding_id, "owner-organization")
         .await
         .expect("organization replay");
     assert_eq!(first, replay);
@@ -901,17 +893,17 @@ async fn tenant_organization_bootstrap_is_write_authoritative_and_read_projected
 
     let write_pool = PgPoolOptions::new()
         .max_connections(2)
-        .connect(&tenant_template.replace("{database}", &physical.write_database_key))
+        .connect(&holding_template.replace("{database}", &physical.write_database_key))
         .await
         .expect("write pool");
     let read_pool = PgPoolOptions::new()
         .max_connections(2)
-        .connect(&tenant_template.replace("{database}", &physical.read_database_key))
+        .connect(&holding_template.replace("{database}", &physical.read_database_key))
         .await
         .expect("read pool");
     let mut write_transaction = write_pool.begin().await.expect("write transaction");
-    sqlx::query("SELECT set_config('app.tenant_id', $1, true)")
-        .bind(tenant_id)
+    sqlx::query("SELECT set_config('app.holding_id', $1, true)")
+        .bind(holding_id.to_string())
         .execute(&mut *write_transaction)
         .await
         .expect("write scope");
@@ -929,8 +921,8 @@ async fn tenant_organization_bootstrap_is_write_authoritative_and_read_projected
     assert!(write_counts.2 >= 1);
     write_transaction.rollback().await.expect("write rollback");
     let mut read_transaction = read_pool.begin().await.expect("read transaction");
-    sqlx::query("SELECT set_config('app.tenant_id', $1, true)")
-        .bind(tenant_id)
+    sqlx::query("SELECT set_config('app.holding_id', $1, true)")
+        .bind(holding_id.to_string())
         .execute(&mut *read_transaction)
         .await
         .expect("read scope");

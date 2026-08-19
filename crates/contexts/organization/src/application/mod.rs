@@ -4,8 +4,8 @@ use erpx_cqrs::{
     QueryMetadata, QueryResult,
 };
 use erpx_kernel::{
-    ActorAttribution, AuditContext, Clock, CorrelationId, ErrorCategory, ErrorContext, EventId,
-    KernelError, TenantScope,
+    ActorAttribution, AuditContext, AuthorityScope, Clock, CorrelationId, ErrorCategory,
+    ErrorContext, EventId, KernelError,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -154,7 +154,7 @@ struct ExistingCommand {
     correlation_id: CorrelationId,
     causation_id: Option<EventId>,
     actor: ActorAttribution,
-    authority_scope: TenantScope,
+    authority_scope: AuthorityScope,
     audit: AuditContext,
     expected_version: Option<u64>,
     identity: CommandIdentity,
@@ -175,8 +175,8 @@ where
     async fn preflight(
         &self,
         actor: &ActorAttribution,
-        authority_scope: &TenantScope,
-        target_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         action: OrganizationAction,
     ) -> Result<(), OrganizationApplicationError> {
         if !authority_scope.contains(target_scope) {
@@ -260,7 +260,7 @@ where
             HierarchyCheck::None => None,
             HierarchyCheck::Placement(placement) => {
                 let target_scope = placement
-                    .tenant_scope(command.node_id)
+                    .active_scope(command.node_id)
                     .map_err(|error| to_cqrs(error.into(), command.correlation_id))?;
                 self.preflight(
                     &command.actor,
@@ -337,7 +337,7 @@ macro_rules! existing_handler {
                     correlation_id: envelope.correlation_id,
                     causation_id: envelope.causation_id,
                     actor: envelope.actor,
-                    authority_scope: envelope.tenant_scope,
+                    authority_scope: envelope.active_scope,
                     audit: envelope.audit,
                     expected_version: envelope.expected_aggregate_version,
                     identity: CommandIdentity {
@@ -401,7 +401,7 @@ where
         {
             self.preflight(
                 &envelope.actor,
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 stored.aggregate.scope(),
                 OrganizationAction::Create,
             )
@@ -421,18 +421,18 @@ where
         }
         let target_scope = command
             .placement
-            .tenant_scope(command.node_id)
+            .active_scope(command.node_id)
             .map_err(|error| to_cqrs(error.into(), correlation_id))?;
         self.preflight(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             &target_scope,
             OrganizationAction::Create,
         )
         .await
         .map_err(|error| to_cqrs(error, correlation_id))?;
         self.hierarchy
-            .validate_placement(&envelope.tenant_scope, command.node_id, &command.placement)
+            .validate_placement(&envelope.active_scope, command.node_id, &command.placement)
             .await
             .map_err(|error| to_cqrs(error.into(), correlation_id))?;
         let hierarchy_guard = HierarchyGuard::Placement(command.placement.clone());
@@ -458,7 +458,7 @@ where
                 correlation_id,
                 causation_id: envelope.causation_id,
                 actor: envelope.actor,
-                authority_scope: envelope.tenant_scope,
+                authority_scope: envelope.active_scope,
                 audit: envelope.audit,
                 expected_version: None,
                 hierarchy_guard: Some(hierarchy_guard),
@@ -561,7 +561,7 @@ where
     async fn authorize_query(
         &self,
         actor: &ActorAttribution,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         action: OrganizationAction,
     ) -> Result<(), PortError> {
         self.entitlement
@@ -594,7 +594,7 @@ where
         envelope.validate()?;
         self.authorize_query(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             OrganizationAction::View,
         )
         .await
@@ -602,7 +602,7 @@ where
         let projection = self
             .read_repository
             .get(
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 envelope.query.node_id,
                 &envelope.consistency,
             )
@@ -611,7 +611,7 @@ where
         if projection
             .value
             .as_ref()
-            .is_some_and(|view| !envelope.tenant_scope.contains(&view.scope))
+            .is_some_and(|view| !envelope.active_scope.contains(&view.scope))
         {
             return Err(to_cqrs(
                 OrganizationApplicationError::ScopeOutsideAuthority,
@@ -653,7 +653,7 @@ where
         }
         self.authorize_query(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             OrganizationAction::List,
         )
         .await
@@ -661,7 +661,7 @@ where
         let projection = self
             .read_repository
             .list(
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 &envelope.query.filter,
                 &envelope.consistency,
             )
@@ -671,7 +671,7 @@ where
             .value
             .nodes
             .iter()
-            .any(|view| !envelope.tenant_scope.contains(&view.scope))
+            .any(|view| !envelope.active_scope.contains(&view.scope))
         {
             return Err(to_cqrs(
                 OrganizationApplicationError::ScopeOutsideAuthority,

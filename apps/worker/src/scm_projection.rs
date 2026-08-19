@@ -1,14 +1,14 @@
-//! Tenant-routed Procurement and Inventory read projection worker seam.
+//! Holding-routed Procurement and Inventory read projection worker seam.
 //!
 //! SCM owns the source aggregates and source outbox. This module only routes
-//! the tenant write/read databases, applies bounded source-event pages to the
+//! the holding write/read databases, applies bounded source-event pages to the
 //! replaceable SCM read projection, and rebuilds that projection from source
 //! events. It never writes Operations or Finance source tables.
 
 use erpx_domain::procurement_inventory::ScmProjectionReconciliation;
 use erpx_infrastructure::{
-    MAX_SCM_READ_PAGE_SIZE, PersistenceError, RoutedDatabaseSide, RoutedTenantDatabase,
-    ScmProjectionRebuildPreparation, ScmSourceEventCursor, SqlxScmStore, TenantDatabaseRouter,
+    HoldingDatabaseRouter, MAX_SCM_READ_PAGE_SIZE, PersistenceError, RoutedDatabaseSide,
+    RoutedHoldingDatabase, ScmProjectionRebuildPreparation, ScmSourceEventCursor, SqlxScmStore,
 };
 use thiserror::Error;
 
@@ -39,21 +39,21 @@ impl From<PersistenceError> for ScmProjectionWorkerError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScmProjectionPageRequest {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub page_size: u32,
     pub cursor: Option<ScmSourceEventCursor>,
 }
 
 impl ScmProjectionPageRequest {
     pub fn new(
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         page_size: u32,
     ) -> Result<Self, ScmProjectionWorkerError> {
         let request = Self {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
             page_size,
             cursor: None,
         };
@@ -63,7 +63,7 @@ impl ScmProjectionPageRequest {
 
     /// Continue a bounded page from the last source event returned by a
     /// previous run. The cursor is a serialized, holding-bound total-order
-    /// source key; callers cannot use it to change tenant routing or bypass
+    /// source key; callers cannot use it to change holding routing or bypass
     /// projection validation.
     pub fn with_cursor(
         mut self,
@@ -75,14 +75,14 @@ impl ScmProjectionPageRequest {
     }
 
     fn validate(&self) -> Result<(), ScmProjectionWorkerError> {
-        validate_reference(&self.tenant_id, "tenant_id")?;
-        validate_reference(&self.holding_ref, "holding_ref")?;
+        validate_reference(&self.holding_id, "holding_id")?;
+        validate_reference(&self.data_profile_key, "data_profile_key")?;
         validate_page_size(self.page_size)?;
         if let Some(cursor) = &self.cursor {
-            validate_reference(&cursor.holding_ref, "cursor.holding_ref")?;
-            if cursor.holding_ref != self.holding_ref {
+            validate_reference(&cursor.data_profile_key, "cursor.data_profile_key")?;
+            if cursor.data_profile_key != self.data_profile_key {
                 return Err(ScmProjectionWorkerError::Configuration(
-                    "SCM cursor.holding_ref does not match holding_ref".into(),
+                    "SCM cursor.data_profile_key does not match data_profile_key".into(),
                 ));
             }
             validate_reference(&cursor.aggregate_type, "cursor.aggregate_type")?;
@@ -108,20 +108,20 @@ impl ScmProjectionPageRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScmProjectionRebuildRequest {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub page_size: u32,
 }
 
 impl ScmProjectionRebuildRequest {
     pub fn new(
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         page_size: u32,
     ) -> Result<Self, ScmProjectionWorkerError> {
         let request = Self {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
             page_size,
         };
         request.validate()?;
@@ -129,16 +129,16 @@ impl ScmProjectionRebuildRequest {
     }
 
     fn validate(&self) -> Result<(), ScmProjectionWorkerError> {
-        validate_reference(&self.tenant_id, "tenant_id")?;
-        validate_reference(&self.holding_ref, "holding_ref")?;
+        validate_reference(&self.holding_id, "holding_id")?;
+        validate_reference(&self.data_profile_key, "data_profile_key")?;
         validate_page_size(self.page_size)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScmProjectionPageReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub events_seen: u64,
     pub events_applied: u64,
     pub next_cursor: Option<ScmSourceEventCursor>,
@@ -147,8 +147,8 @@ pub struct ScmProjectionPageReport {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScmProjectionRebuildReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub pages_read: u64,
     pub events_replayed: u64,
     pub preparation: ScmProjectionRebuildPreparation,
@@ -156,12 +156,12 @@ pub struct ScmProjectionRebuildReport {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScmProjectionReconciliationReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub reconciliation: ScmProjectionReconciliation,
 }
 
-/// Routes one tenant and applies one bounded source-event page.
+/// Routes one holding and applies one bounded source-event page.
 ///
 /// `SqlxScmStore::project_event` is the idempotency boundary: already applied
 /// versions are reported as no-ops and aggregate version gaps fail closed.
@@ -171,11 +171,11 @@ pub struct ScmProjectionReconciliationReport {
 /// inferred cursor internally for their complete-run contracts.
 #[derive(Debug, Clone)]
 pub struct ScmProjectionRunner {
-    router: TenantDatabaseRouter,
+    router: HoldingDatabaseRouter,
 }
 
 impl ScmProjectionRunner {
-    pub fn new(router: TenantDatabaseRouter) -> Self {
+    pub fn new(router: HoldingDatabaseRouter) -> Self {
         Self { router }
     }
 
@@ -185,12 +185,12 @@ impl ScmProjectionRunner {
     ) -> Result<ScmProjectionPageReport, ScmProjectionWorkerError> {
         request.validate()?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result = match SqlxScmStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            request.holding_ref.clone(),
+            request.data_profile_key.clone(),
         ) {
             Ok(store) => async {
                 let page = store
@@ -200,7 +200,7 @@ impl ScmProjectionRunner {
                     .events
                     .iter()
                     .map(|event| ScmSourceEventCursor {
-                        holding_ref: request.holding_ref.clone(),
+                        data_profile_key: request.data_profile_key.clone(),
                         aggregate_type: event.aggregate_type.clone(),
                         aggregate_id: event.aggregate_id,
                         aggregate_version: event.aggregate_version,
@@ -208,7 +208,7 @@ impl ScmProjectionRunner {
                     })
                     .collect::<Vec<_>>();
                 validate_source_page(
-                    &request.holding_ref,
+                    &request.data_profile_key,
                     request.cursor.as_ref(),
                     request.page_size,
                     &event_cursors,
@@ -231,8 +231,8 @@ impl ScmProjectionRunner {
                     }
                 }
                 Ok::<ScmProjectionPageReport, PersistenceError>(ScmProjectionPageReport {
-                    tenant_id: request.tenant_id.clone(),
-                    holding_ref: request.holding_ref.clone(),
+                    holding_id: request.holding_id.clone(),
+                    data_profile_key: request.data_profile_key.clone(),
                     events_seen: page.events.len() as u64,
                     events_applied,
                     next_cursor: page.next_cursor,
@@ -256,12 +256,12 @@ impl ScmProjectionRunner {
     ) -> Result<ScmProjectionPageReport, ScmProjectionWorkerError> {
         request.validate()?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result = match SqlxScmStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            request.holding_ref.clone(),
+            request.data_profile_key.clone(),
         ) {
             Ok(store) => self
                 .apply_all_pages(&store, &request)
@@ -286,13 +286,13 @@ impl ScmProjectionRunner {
     > {
         request.validate()?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result =
             match SqlxScmStore::from_pools(
                 write.database_pool(),
                 read.database_pool(),
-                request.holding_ref.clone(),
+                request.data_profile_key.clone(),
             ) {
                 Ok(store) => async {
                     let projection = self.apply_all_pages(&store, &request).await?;
@@ -305,8 +305,8 @@ impl ScmProjectionRunner {
                     >((
                         projection,
                         ScmProjectionReconciliationReport {
-                            tenant_id: request.tenant_id.clone(),
-                            holding_ref: request.holding_ref.clone(),
+                            holding_id: request.holding_id.clone(),
+                            data_profile_key: request.data_profile_key.clone(),
                             reconciliation,
                         },
                     ))
@@ -327,20 +327,20 @@ impl ScmProjectionRunner {
     ) -> Result<ScmProjectionRebuildReport, ScmProjectionWorkerError> {
         request.validate()?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result = match SqlxScmStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            request.holding_ref.clone(),
+            request.data_profile_key.clone(),
         ) {
             Ok(store) => async {
                 let (preparation, events_replayed, pages_read) = store
                     .rebuild_projection_with_source_fence(None, request.page_size)
                     .await?;
                 let reconciliation_request = ScmProjectionPageRequest {
-                    tenant_id: request.tenant_id.clone(),
-                    holding_ref: request.holding_ref.clone(),
+                    holding_id: request.holding_id.clone(),
+                    data_profile_key: request.data_profile_key.clone(),
                     page_size: request.page_size,
                     cursor: None,
                 };
@@ -349,8 +349,8 @@ impl ScmProjectionRunner {
                         .await?,
                 )?;
                 Ok::<ScmProjectionRebuildReport, PersistenceError>(ScmProjectionRebuildReport {
-                    tenant_id: request.tenant_id.clone(),
-                    holding_ref: request.holding_ref.clone(),
+                    holding_id: request.holding_id.clone(),
+                    data_profile_key: request.data_profile_key.clone(),
                     pages_read,
                     events_replayed,
                     preparation,
@@ -367,28 +367,31 @@ impl ScmProjectionRunner {
     /// Reconcile authoritative SCM source events with the disposable read
     /// model without mutating source aggregates or read rows. Each bounded
     /// page's immutable reconciliation evidence is persisted through the
-    /// existing tenant-scoped evidence boundary.
+    /// existing holding-scoped evidence boundary.
     pub async fn reconcile(
         &self,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<ScmProjectionReconciliationReport, ScmProjectionWorkerError> {
-        let request =
-            ScmProjectionPageRequest::new(tenant_id, holding_ref, SCM_PROJECTION_MAX_PAGE_SIZE)?;
+        let request = ScmProjectionPageRequest::new(
+            holding_id,
+            data_profile_key,
+            SCM_PROJECTION_MAX_PAGE_SIZE,
+        )?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result = match SqlxScmStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            request.holding_ref.clone(),
+            request.data_profile_key.clone(),
         ) {
             Ok(store) => self
                 .reconcile_store_bounded(&store, &request)
                 .await
                 .map(|reconciliation| ScmProjectionReconciliationReport {
-                    tenant_id: request.tenant_id.clone(),
-                    holding_ref: request.holding_ref.clone(),
+                    holding_id: request.holding_id.clone(),
+                    data_profile_key: request.data_profile_key.clone(),
                     reconciliation,
                 })
                 .map_err(|_| redacted_error("reconciliation")),
@@ -421,7 +424,7 @@ impl ScmProjectionRunner {
                 .events
                 .iter()
                 .map(|event| ScmSourceEventCursor {
-                    holding_ref: request.holding_ref.clone(),
+                    data_profile_key: request.data_profile_key.clone(),
                     aggregate_type: event.aggregate_type.clone(),
                     aggregate_id: event.aggregate_id,
                     aggregate_version: event.aggregate_version,
@@ -429,7 +432,7 @@ impl ScmProjectionRunner {
                 })
                 .collect::<Vec<_>>();
             validate_source_page(
-                &request.holding_ref,
+                &request.data_profile_key,
                 cursor.as_ref(),
                 request.page_size,
                 &event_cursors,
@@ -453,8 +456,8 @@ impl ScmProjectionRunner {
             }
             if !page.has_more {
                 return Ok(ScmProjectionPageReport {
-                    tenant_id: request.tenant_id.clone(),
-                    holding_ref: request.holding_ref.clone(),
+                    holding_id: request.holding_id.clone(),
+                    data_profile_key: request.data_profile_key.clone(),
                     events_seen,
                     events_applied,
                     next_cursor: None,
@@ -498,17 +501,17 @@ impl ScmProjectionRunner {
 
     async fn route_store(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
-    ) -> Result<(RoutedTenantDatabase, RoutedTenantDatabase), ScmProjectionWorkerError> {
+        holding_id: &str,
+        data_profile_key: &str,
+    ) -> Result<(RoutedHoldingDatabase, RoutedHoldingDatabase), ScmProjectionWorkerError> {
         let write = self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Write)
             .await
             .map_err(|_| redacted_error("write database routing"))?;
         let read = match self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Read)
             .await
         {
             Ok(read) => read,
@@ -519,10 +522,10 @@ impl ScmProjectionRunner {
         };
         if write.side != RoutedDatabaseSide::Write
             || read.side != RoutedDatabaseSide::Read
-            || write.tenant_id != tenant_id
-            || read.tenant_id != tenant_id
-            || write.holding_ref != holding_ref
-            || read.holding_ref != holding_ref
+            || write.holding_id != holding_id
+            || read.holding_id != holding_id
+            || write.data_profile_key != data_profile_key
+            || read.data_profile_key != data_profile_key
             || !database_routes_are_isolated(&write.database_key, &read.database_key)
         {
             write.close().await;
@@ -533,7 +536,7 @@ impl ScmProjectionRunner {
     }
 }
 
-async fn close_routes(write: RoutedTenantDatabase, read: RoutedTenantDatabase) {
+async fn close_routes(write: RoutedHoldingDatabase, read: RoutedHoldingDatabase) {
     write.close().await;
     read.close().await;
 }
@@ -584,7 +587,7 @@ fn is_valid_database_key(value: &str) -> bool {
 }
 
 fn validate_source_page(
-    holding_ref: &str,
+    data_profile_key: &str,
     previous_cursor: Option<&ScmSourceEventCursor>,
     page_size: u32,
     event_cursors: &[ScmSourceEventCursor],
@@ -603,7 +606,7 @@ fn validate_source_page(
     }
     let mut previous = previous_cursor;
     for current in event_cursors {
-        if current.holding_ref != holding_ref
+        if current.data_profile_key != data_profile_key
             || previous.is_some_and(|previous| !scm_cursor_is_after(current, previous))
         {
             return Err(PersistenceError::InvalidData(
@@ -661,29 +664,29 @@ mod tests {
     use uuid::Uuid;
 
     #[test]
-    fn page_requests_enforce_bounds_and_tenant_binding() {
-        assert!(ScmProjectionPageRequest::new("tenant-1", "holding-1", 0).is_err());
+    fn page_requests_enforce_bounds_and_holding_binding() {
+        assert!(ScmProjectionPageRequest::new("holding-1", "holding-1", 0).is_err());
         assert!(
             ScmProjectionPageRequest::new(
-                "tenant-1",
+                "holding-1",
                 "holding-1",
                 SCM_PROJECTION_MAX_PAGE_SIZE + 1,
             )
             .is_err()
         );
-        assert!(ScmProjectionPageRequest::new("tenant/1", "holding-1", 1).is_err());
-        assert!(ScmProjectionPageRequest::new("tenant-1", "holding 1", 1).is_err());
+        assert!(ScmProjectionPageRequest::new("holding/1", "holding-1", 1).is_err());
+        assert!(ScmProjectionPageRequest::new("holding-1", "holding 1", 1).is_err());
 
         let request =
-            ScmProjectionPageRequest::new("tenant-1", "holding-1", SCM_PROJECTION_MAX_PAGE_SIZE)
+            ScmProjectionPageRequest::new("holding-1", "holding-1", SCM_PROJECTION_MAX_PAGE_SIZE)
                 .expect("bounded SCM projection request");
-        assert_eq!(request.tenant_id, "tenant-1");
-        assert_eq!(request.holding_ref, "holding-1");
+        assert_eq!(request.holding_id, "holding-1");
+        assert_eq!(request.data_profile_key, "holding-1");
         assert_eq!(request.page_size, SCM_PROJECTION_MAX_PAGE_SIZE);
         assert!(request.cursor.is_none());
 
         let cursor = ScmSourceEventCursor {
-            holding_ref: "holding-1".into(),
+            data_profile_key: "holding-1".into(),
             aggregate_type: "product".into(),
             aggregate_id: Uuid::new_v4(),
             aggregate_version: 1,
@@ -694,10 +697,10 @@ mod tests {
             .expect("valid SCM continuation cursor");
         assert_eq!(continued.cursor, Some(cursor.clone()));
         assert!(
-            ScmProjectionPageRequest::new("tenant-1", "holding-1", 1)
+            ScmProjectionPageRequest::new("holding-1", "holding-1", 1)
                 .expect("valid request")
                 .with_cursor(Some(ScmSourceEventCursor {
-                    holding_ref: "holding-1".into(),
+                    data_profile_key: "holding-1".into(),
                     aggregate_type: "product".into(),
                     aggregate_id: Uuid::nil(),
                     aggregate_version: 1,
@@ -706,10 +709,10 @@ mod tests {
                 .is_err()
         );
         assert!(
-            ScmProjectionPageRequest::new("tenant-1", "holding-1", 1)
+            ScmProjectionPageRequest::new("holding-1", "holding-1", 1)
                 .expect("valid request")
                 .with_cursor(Some(ScmSourceEventCursor {
-                    holding_ref: "holding-1".into(),
+                    data_profile_key: "holding-1".into(),
                     aggregate_type: "product".into(),
                     aggregate_id: cursor.aggregate_id,
                     aggregate_version: 0,
@@ -718,10 +721,10 @@ mod tests {
                 .is_err()
         );
         assert!(
-            ScmProjectionPageRequest::new("tenant-1", "holding-1", 1)
+            ScmProjectionPageRequest::new("holding-1", "holding-1", 1)
                 .expect("valid request")
                 .with_cursor(Some(ScmSourceEventCursor {
-                    holding_ref: "holding-2".into(),
+                    data_profile_key: "holding-2".into(),
                     aggregate_type: "product".into(),
                     aggregate_id: cursor.aggregate_id,
                     aggregate_version: 1,
@@ -730,10 +733,10 @@ mod tests {
                 .is_err()
         );
         assert!(
-            ScmProjectionPageRequest::new("tenant-1", "holding-1", 1)
+            ScmProjectionPageRequest::new("holding-1", "holding-1", 1)
                 .expect("valid request")
                 .with_cursor(Some(ScmSourceEventCursor {
-                    holding_ref: "holding-1".into(),
+                    data_profile_key: "holding-1".into(),
                     aggregate_type: "product".into(),
                     aggregate_id: cursor.aggregate_id,
                     aggregate_version: 1,
@@ -744,13 +747,13 @@ mod tests {
     }
 
     #[test]
-    fn rebuild_requests_validate_the_same_tenant_boundary() {
-        assert!(ScmProjectionRebuildRequest::new("tenant-1", "holding-1", 0).is_err());
-        assert!(ScmProjectionRebuildRequest::new("tenant-1", "holding/1", 1).is_err());
-        let request = ScmProjectionRebuildRequest::new("tenant-1", "holding-1", 1)
+    fn rebuild_requests_validate_the_same_holding_boundary() {
+        assert!(ScmProjectionRebuildRequest::new("holding-1", "holding-1", 0).is_err());
+        assert!(ScmProjectionRebuildRequest::new("holding-1", "holding/1", 1).is_err());
+        let request = ScmProjectionRebuildRequest::new("holding-1", "holding-1", 1)
             .expect("valid SCM rebuild request");
-        assert_eq!(request.tenant_id, "tenant-1");
-        assert_eq!(request.holding_ref, "holding-1");
+        assert_eq!(request.holding_id, "holding-1");
+        assert_eq!(request.data_profile_key, "holding-1");
     }
 
     #[test]
@@ -764,7 +767,7 @@ mod tests {
     #[test]
     fn continuation_cursor_round_trip_preserves_holding_and_event_tie_breaker() {
         let cursor = ScmSourceEventCursor {
-            holding_ref: "holding-1".into(),
+            data_profile_key: "holding-1".into(),
             aggregate_type: "product".into(),
             aggregate_id: Uuid::from_u128(11),
             aggregate_version: 7,
@@ -779,7 +782,7 @@ mod tests {
     #[test]
     fn source_pages_require_bounded_strict_continuation() {
         let first = ScmSourceEventCursor {
-            holding_ref: "holding-1".into(),
+            data_profile_key: "holding-1".into(),
             aggregate_type: "product".into(),
             aggregate_id: Uuid::from_u128(21),
             aggregate_version: 1,

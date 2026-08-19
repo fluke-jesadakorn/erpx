@@ -14,7 +14,7 @@ use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, ItemDescriptorDraft,
     record_policy_id,
 };
-use erpx_kernel::{AggregateId, DataClassification, EventId, RecordId, TenantScope};
+use erpx_kernel::{AggregateId, AuthorityScope, DataClassification, EventId, RecordId};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::{Postgres, Row, Transaction};
@@ -37,7 +37,7 @@ struct CustomerAuthorityProjectionFact {
     record_id: Uuid,
     record_kind: CustomerAuthorityRecordKind,
     record_version: u64,
-    tenant_scope: TenantScope,
+    active_scope: AuthorityScope,
     customer_id: Uuid,
     record_status: CustomerAuthorityRecordStatus,
     valid_until: chrono::DateTime<chrono::Utc>,
@@ -49,7 +49,7 @@ impl From<&CustomerAuthorityRecord> for CustomerAuthorityProjectionFact {
             record_id: record.id().as_uuid(),
             record_kind: record.kind(),
             record_version: record.version(),
-            tenant_scope: record.scope().clone(),
+            active_scope: record.scope().clone(),
             customer_id: record.customer_id().as_uuid(),
             record_status: record.status(),
             valid_until: record.valid_until(),
@@ -84,7 +84,7 @@ impl CustomerAuthorityRecordReadAdapter {
 impl CustomerAuthorityRecordQueryPort for CustomerAuthorityRecordReadAdapter {
     async fn get_record(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         record_id: RecordId,
     ) -> Result<Option<CustomerAuthorityRecordView>, PortError> {
         let mut tx = self
@@ -98,11 +98,11 @@ impl CustomerAuthorityRecordQueryPort for CustomerAuthorityRecordReadAdapter {
                     record.customer_id, record.record_status, record.valid_until
              FROM erpx_customer_authority_read.business_authority_projection record
              JOIN erpx_cqrs_read.projection_generations generation
-               ON generation.tenant_id=record.tenant_id
+               ON generation.holding_id=record.holding_id
               AND generation.projection_name=record.projection_name
               AND generation.generation=record.generation
               AND generation.status='active'
-             WHERE record.tenant_id=erpx_cqrs_read.current_tenant_id()
+             WHERE record.holding_id=erpx_cqrs_read.current_holding_id()
                AND record.projection_name=$1 AND record.scope_key=$2 AND record.record_id=$3",
         )
         .bind(PROJECTION)
@@ -149,7 +149,7 @@ async fn require_active_generation(
 ) -> Result<(), PortError> {
     let active: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM erpx_cqrs_read.projection_generations
-         WHERE tenant_id=erpx_cqrs_read.current_tenant_id()
+         WHERE holding_id=erpx_cqrs_read.current_holding_id()
            AND projection_name=$1 AND status='active')",
     )
     .bind(projection)
@@ -228,15 +228,15 @@ impl Projector for CustomerAuthorityRecordProjector {
             serde_json::from_value(event.payload.clone()).map_err(failure)?;
         if record.record_id != event.aggregate_id.as_uuid()
             || record.record_version != event.aggregate_version
-            || record.tenant_scope != event.tenant_scope
-            || record.tenant_scope.validate().is_err()
+            || record.active_scope != event.active_scope
+            || record.active_scope.validate().is_err()
         {
             return Err(ProjectionFailure::new(
                 "customer authority record metadata mismatch",
             ));
         }
-        sqlx::query("INSERT INTO erpx_customer_authority_read.business_authority_projection (tenant_id,projection_name,generation,partition_key,record_id,record_kind,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,customer_id,record_status,valid_until,projected_at) VALUES (erpx_cqrs_read.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,record_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,record_status=EXCLUDED.record_status,valid_until=EXCLUDED.valid_until,projected_at=now() WHERE erpx_customer_authority_read.business_authority_projection.source_aggregate_version<EXCLUDED.source_aggregate_version")
-            .bind(PROJECTION).bind(context.generation).bind(&event.partition).bind(record.record_id).bind(kind(record.record_kind)).bind(projection_i64(record.record_version)?).bind(projection_i64(event.global_sequence)?).bind(serde_json::to_value(&record.tenant_scope).map_err(failure)?).bind(scope_key(&record.tenant_scope)).bind(record.customer_id).bind(status(record.record_status)).bind(record.valid_until).execute(&mut **tx).await.map_err(failure)?;
+        sqlx::query("INSERT INTO erpx_customer_authority_read.business_authority_projection (holding_id,projection_name,generation,partition_key,record_id,record_kind,source_aggregate_version,source_global_sequence,active_scope,scope_key,customer_id,record_status,valid_until,projected_at) VALUES (erpx_cqrs_read.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now()) ON CONFLICT (holding_id,projection_name,generation,partition_key,record_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,record_status=EXCLUDED.record_status,valid_until=EXCLUDED.valid_until,projected_at=now() WHERE erpx_customer_authority_read.business_authority_projection.source_aggregate_version<EXCLUDED.source_aggregate_version")
+            .bind(PROJECTION).bind(context.generation).bind(&event.partition).bind(record.record_id).bind(kind(record.record_kind)).bind(projection_i64(record.record_version)?).bind(projection_i64(event.global_sequence)?).bind(serde_json::to_value(&record.active_scope).map_err(failure)?).bind(scope_key(&record.active_scope)).bind(record.customer_id).bind(status(record.record_status)).bind(record.valid_until).execute(&mut **tx).await.map_err(failure)?;
         Ok(())
     }
     async fn reset(
@@ -244,7 +244,7 @@ impl Projector for CustomerAuthorityRecordProjector {
         tx: &mut Transaction<'_, Postgres>,
         context: &ProjectorContext<'_>,
     ) -> Result<(), ProjectionFailure> {
-        sqlx::query("DELETE FROM erpx_customer_authority_read.business_authority_projection WHERE tenant_id=erpx_cqrs_read.current_tenant_id() AND projection_name=$1 AND generation=$2").bind(PROJECTION).bind(context.generation).execute(&mut **tx).await.map_err(failure)?;
+        sqlx::query("DELETE FROM erpx_customer_authority_read.business_authority_projection WHERE holding_id=erpx_cqrs_read.current_holding_id() AND projection_name=$1 AND generation=$2").bind(PROJECTION).bind(context.generation).execute(&mut **tx).await.map_err(failure)?;
         Ok(())
     }
 }
@@ -309,7 +309,7 @@ impl CustomerAuthorityRecordUnitOfWork for CustomerAuthorityRecordSqlxAdapter {
             correlation_id: command.correlation_id,
             idempotency_key: command.idempotency_key,
             request_hash: hash,
-            tenant_scope: command.record.scope().clone(),
+            active_scope: command.record.scope().clone(),
             actor: command.actor,
             audit_context: command.audit,
             aggregate_type: AGGREGATE.into(),
@@ -351,7 +351,7 @@ impl AtomicCommandGuard for RecordGuard {
         let current: Option<i64> = sqlx::query_scalar(
             "SELECT record_version
              FROM erpx_customer_authority_write.business_authority_records
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND record_id=$1
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND record_id=$1
              FOR UPDATE",
         )
         .bind(self.0.id().as_uuid())
@@ -367,7 +367,7 @@ impl AtomicCommandGuard for RecordGuard {
         tx: &mut Transaction<'_, Postgres>,
         context: &GuardCommandContext<'_>,
     ) -> Result<(), CqrsSqlxError> {
-        let current: Option<i64> = sqlx::query_scalar("SELECT record_version FROM erpx_customer_authority_write.business_authority_records WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND record_id=$1 FOR UPDATE")
+        let current: Option<i64> = sqlx::query_scalar("SELECT record_version FROM erpx_customer_authority_write.business_authority_records WHERE holding_id=erpx_cqrs_write.current_holding_id() AND record_id=$1 FOR UPDATE")
             .bind(self.0.id().as_uuid()).fetch_optional(&mut **tx).await?;
         match (context.expected_version, current) {
             (None, None) => Ok(()),
@@ -391,10 +391,10 @@ impl AtomicCommandGuard for RecordGuard {
         }
         let support_case = self.0.support_case().map(|v| v.id().as_uuid());
         let changed = sqlx::query("INSERT INTO erpx_customer_authority_write.business_authority_records
-            (tenant_id,record_id,record_kind,record_version,customer_id,customer_account_id,support_case_id,
-             tenant_scope,scope_key,evidence_sha256,record_status,valid_until,created_by,revoked_by,created_at,updated_at)
-            VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-            ON CONFLICT (tenant_id,record_id) DO UPDATE SET record_version=EXCLUDED.record_version,
+            (holding_id,record_id,record_kind,record_version,customer_id,customer_account_id,support_case_id,
+             active_scope,scope_key,evidence_sha256,record_status,valid_until,created_by,revoked_by,created_at,updated_at)
+            VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+            ON CONFLICT (holding_id,record_id) DO UPDATE SET record_version=EXCLUDED.record_version,
              evidence_sha256=EXCLUDED.evidence_sha256,record_status=EXCLUDED.record_status,
              revoked_by=EXCLUDED.revoked_by,updated_at=EXCLUDED.updated_at
             WHERE erpx_customer_authority_write.business_authority_records.record_version + 1=EXCLUDED.record_version")
@@ -445,7 +445,7 @@ fn status(v: CustomerAuthorityRecordStatus) -> &'static str {
         CustomerAuthorityRecordStatus::Expired => "expired",
     }
 }
-fn scope_key(scope: &erpx_kernel::TenantScope) -> String {
+fn scope_key(scope: &erpx_kernel::AuthorityScope) -> String {
     serde_json::to_string(scope).expect("scope")
 }
 fn request_hash(value: &impl Serialize) -> Result<RequestHash, PortError> {
@@ -484,7 +484,7 @@ fn map_error(error: CqrsSqlxError) -> PortError {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn normalized_uow_is_atomic_and_tenant_exact() {
+    fn normalized_uow_is_atomic_and_holding_exact() {
         let s = include_str!("authority_records.rs");
         assert!(s.contains("commit_normalized"));
         assert!(s.contains("business_authority_records"));

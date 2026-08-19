@@ -83,7 +83,7 @@ fn fact(
 mod tests {
     use chrono::{TimeZone, Utc};
     use erpx_integration_contracts::IntegrationEvent;
-    use erpx_kernel::TenantScope;
+    use erpx_kernel::AuthorityScope;
     use uuid::Uuid;
 
     use super::*;
@@ -95,7 +95,7 @@ mod tests {
     fn only_released_and_cancelled_states_cross_the_context_boundary() {
         let mut order = PurchaseOrder::create(
             PurchaseOrderId::try_from_uuid(Uuid::from_u128(1)).unwrap(),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id: Uuid::from_u128(2),
                 company_id: Uuid::from_u128(3),
             },

@@ -11,7 +11,7 @@ It covers generic LDAP, on-premises Microsoft Active Directory Domain
 Services, and Univention Corporate Server connector metadata and bind policy.
 The same contract supports platform and holding connector scopes. Provider
 identity keys are fixed to generic LDAP `entryUUID`, AD DS `objectGUID`, or
-UCS `entryUUID`; the resulting `erpx:directory-link:v1:<connector>:<provider>:<uuid>`
+UCS `entryUUID`; the resulting `erpx:directory-link:<connector>:<provider>:<uuid>`
 reference is immutable and contains no mutable DN, username, display name, or
 email.
 

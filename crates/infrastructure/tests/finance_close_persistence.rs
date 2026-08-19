@@ -4,7 +4,7 @@
 //! close-write path, and closed-review/evidence database immutability defense.
 
 use chrono::{NaiveDate, Utc};
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::finance::{
     Account, AccountKind, AccountingPeriod, ChartOfAccounts, JournalEntry, JournalLine,
     PeriodStatus,
@@ -23,12 +23,12 @@ fn command_context(holding_id: Uuid, company_id: Uuid, actor: &str) -> CommandCo
         format!("finance-close-{actor}"),
         ActorAttribution {
             principal_ref: actor.to_owned(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
         },
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -38,34 +38,34 @@ fn command_context(holding_id: Uuid, company_id: Uuid, actor: &str) -> CommandCo
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn live_finance_close_review_schema_is_scoped_and_closed_rows_are_immutable() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let pool = PgPool::connect(&url).await.expect("write pool");
-    erpx_migration::migrate_tenant_write(&pool)
+    erpx_migration::migrate_holding_write(&pool)
         .await
-        .expect("tenant write migration");
+        .expect("holding write migration");
 
-    let holding_ref = format!("holding-close-schema-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-close-schema-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let period_id = Uuid::new_v4();
     let closed_target_period_id = Uuid::new_v4();
     let mut tx = pool.begin().await.expect("transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tx)
         .await
-        .expect("tenant scope");
+        .expect("holding scope");
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_close_control_evidence
-            (holding_ref, holding_id, company_id, period_id, control_code,
+        "INSERT INTO erpx_holding.finance_close_control_evidence
+            (data_profile_key, holding_id, company_id, period_id, control_code,
              source_type, source_aggregate_id, evidence_ref, resolved,
              observed_at, payload)
          VALUES ($1,$2,$3,$4,'bank_reconciliation','test_source',$5,$6,true,now(),'{}')",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(holding_id)
     .bind(company_id)
     .bind(period_id)
@@ -75,12 +75,12 @@ async fn live_finance_close_review_schema_is_scoped_and_closed_rows_are_immutabl
     .await
     .expect("seed control evidence");
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_close_reviews
-            (holding_ref, holding_id, company_id, period_id, status, version,
+        "INSERT INTO erpx_holding.finance_close_reviews
+            (data_profile_key, holding_id, company_id, period_id, status, version,
              idempotency_key, opened_by, payload)
          VALUES ($1,$2,$3,$4,'closed',1,$5,'closer',$6)",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(holding_id)
     .bind(company_id)
     .bind(period_id)
@@ -90,12 +90,12 @@ async fn live_finance_close_review_schema_is_scoped_and_closed_rows_are_immutabl
     .await
     .expect("seed closed review");
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_close_reviews
-            (holding_ref, holding_id, company_id, period_id, status, version,
+        "INSERT INTO erpx_holding.finance_close_reviews
+            (data_profile_key, holding_id, company_id, period_id, status, version,
              idempotency_key, opened_by, payload)
          VALUES ($1,$2,$3,$4,'closed',1,$5,'closer',$6)",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(holding_id)
     .bind(company_id)
     .bind(closed_target_period_id)
@@ -105,19 +105,19 @@ async fn live_finance_close_review_schema_is_scoped_and_closed_rows_are_immutabl
     .await
     .expect("seed closed target review");
     let update = sqlx::query(
-        "UPDATE erpx_tenant.finance_close_reviews
-         SET payload='{}'::jsonb WHERE holding_ref=$1 AND period_id=$2",
+        "UPDATE erpx_holding.finance_close_reviews
+         SET payload='{}'::jsonb WHERE data_profile_key=$1 AND period_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(period_id)
     .execute(&mut *tx)
     .await;
     assert!(update.is_err(), "closed review input must be immutable");
     let evidence_update = sqlx::query(
-        "UPDATE erpx_tenant.finance_close_control_evidence
-         SET resolved=false WHERE holding_ref=$1 AND period_id=$2",
+        "UPDATE erpx_holding.finance_close_control_evidence
+         SET resolved=false WHERE data_profile_key=$1 AND period_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(period_id)
     .execute(&mut *tx)
     .await;
@@ -126,10 +126,10 @@ async fn live_finance_close_review_schema_is_scoped_and_closed_rows_are_immutabl
         "close control evidence must be immutable after close"
     );
     let moved_evidence = sqlx::query(
-        "UPDATE erpx_tenant.finance_close_control_evidence
-         SET period_id=$3 WHERE holding_ref=$1 AND period_id=$2",
+        "UPDATE erpx_holding.finance_close_control_evidence
+         SET period_id=$3 WHERE data_profile_key=$1 AND period_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(period_id)
     .bind(closed_target_period_id)
     .execute(&mut *tx)
@@ -143,7 +143,7 @@ async fn live_finance_close_review_schema_is_scoped_and_closed_rows_are_immutabl
     let forced: bool = sqlx::query_scalar(
         "SELECT relforcerowsecurity
          FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-         WHERE n.nspname='erpx_tenant' AND c.relname='finance_close_reviews'",
+         WHERE n.nspname='erpx_holding' AND c.relname='finance_close_reviews'",
     )
     .fetch_one(&pool)
     .await
@@ -152,7 +152,7 @@ async fn live_finance_close_review_schema_is_scoped_and_closed_rows_are_immutabl
     let evidence_forced: bool = sqlx::query_scalar(
         "SELECT relforcerowsecurity
          FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-         WHERE n.nspname='erpx_tenant' AND c.relname='finance_close_control_evidence'",
+         WHERE n.nspname='erpx_holding' AND c.relname='finance_close_control_evidence'",
     )
     .fetch_one(&pool)
     .await
@@ -161,16 +161,16 @@ async fn live_finance_close_review_schema_is_scoped_and_closed_rows_are_immutabl
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn live_finance_close_persistence_requires_authoritative_facts_and_controls() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let pool = PgPool::connect(&url).await.expect("write pool");
-    erpx_migration::migrate_tenant_write(&pool)
+    erpx_migration::migrate_holding_write(&pool)
         .await
-        .expect("tenant write migration");
+        .expect("holding write migration");
 
-    let holding_ref = format!("holding-close-authority-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-close-authority-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let period_id = Uuid::new_v4();
@@ -241,28 +241,28 @@ async fn live_finance_close_persistence_requires_authoritative_facts_and_control
     let posted_payload = serde_json::to_value(&posted).expect("posted payload");
 
     let mut tx = pool.begin().await.expect("seed transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tx)
         .await
-        .expect("tenant scope");
+        .expect("holding scope");
     let period_payload = serde_json::to_value(&period).expect("period payload");
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_periods
-            (period_id, holding_id, company_id, holding_ref, status, version, payload)
+        "INSERT INTO erpx_holding.finance_periods
+            (period_id, holding_id, company_id, data_profile_key, status, version, payload)
          VALUES ($1,$2,$3,$4,'locked',1,$5)",
     )
     .bind(period_id)
     .bind(holding_id)
     .bind(company_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(&period_payload)
     .execute(&mut *tx)
     .await
     .expect("seed authoritative period");
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_posted_journals
-            (journal_id, holding_id, company_id, period_id, holding_ref, version,
+        "INSERT INTO erpx_holding.finance_posted_journals
+            (journal_id, holding_id, company_id, period_id, data_profile_key, version,
              idempotency_key, posted_at, currency, total_minor, payload)
          VALUES ($1,$2,$3,$4,$5,1,$6,$7,'USD',100,$8)",
     )
@@ -270,7 +270,7 @@ async fn live_finance_close_persistence_requires_authoritative_facts_and_control
     .bind(holding_id)
     .bind(company_id)
     .bind(period_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(posted.idempotency_key())
     .bind(posted.posted_at())
     .bind(&posted_payload)
@@ -279,7 +279,7 @@ async fn live_finance_close_persistence_requires_authoritative_facts_and_control
     .expect("seed posted journal");
     tx.commit().await.expect("commit seed");
 
-    let evidence_store = SqlxFinanceCloseControlEvidenceStore::new(pool.clone(), &holding_ref)
+    let evidence_store = SqlxFinanceCloseControlEvidenceStore::new(pool.clone(), &data_profile_key)
         .expect("control evidence store");
     evidence_store
         .publish(
@@ -301,7 +301,7 @@ async fn live_finance_close_persistence_requires_authoritative_facts_and_control
         .await
         .expect("publish authoritative control");
 
-    let store = erpx_infrastructure::SqlxFinanceCloseStore::new(pool.clone(), &holding_ref)
+    let store = erpx_infrastructure::SqlxFinanceCloseStore::new(pool.clone(), &data_profile_key)
         .expect("close store");
     let mut fabricated_period = period.clone();
     fabricated_period.label = "fabricated-period".into();
@@ -372,18 +372,18 @@ async fn live_finance_close_persistence_requires_authoritative_facts_and_control
     // source-owned outbox event before changing the review snapshot or
     // appending its outbox event.
     let mut tamper_tx = pool.begin().await.expect("tamper transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tamper_tx)
         .await
-        .expect("tamper tenant scope");
+        .expect("tamper holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.finance_close_control_evidence
+        "UPDATE erpx_holding.finance_close_control_evidence
          SET source_aggregate_id=$5
-         WHERE holding_ref=$1 AND holding_id=$2 AND company_id=$3 AND period_id=$4
+         WHERE data_profile_key=$1 AND holding_id=$2 AND company_id=$3 AND period_id=$4
            AND control_code='bank_reconciliation'",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(holding_id)
     .bind(company_id)
     .bind(period_id)
@@ -405,19 +405,19 @@ async fn live_finance_close_persistence_requires_authoritative_facts_and_control
     );
 
     let mut verify_tx = pool.begin().await.expect("verification transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *verify_tx)
         .await
-        .expect("verification tenant scope");
+        .expect("verification holding scope");
     let (stored_version, review_outbox_count): (i64, i64) = sqlx::query_as(
         "SELECT
-             (SELECT version FROM erpx_tenant.finance_close_reviews
-              WHERE holding_ref=$1 AND period_id=$2),
-             (SELECT COUNT(*) FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND aggregate_type='finance_close_review')",
+             (SELECT version FROM erpx_holding.finance_close_reviews
+              WHERE data_profile_key=$1 AND period_id=$2),
+             (SELECT COUNT(*) FROM erpx_holding.outbox_events
+              WHERE data_profile_key=$1 AND aggregate_type='finance_close_review')",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(period_id)
     .fetch_one(&mut *verify_tx)
     .await
@@ -427,18 +427,18 @@ async fn live_finance_close_persistence_requires_authoritative_facts_and_control
     verify_tx.rollback().await.expect("rollback verification");
 
     let mut restore_tx = pool.begin().await.expect("restore transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *restore_tx)
         .await
-        .expect("restore tenant scope");
+        .expect("restore holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.finance_close_control_evidence
+        "UPDATE erpx_holding.finance_close_control_evidence
          SET source_aggregate_id=$5
-         WHERE holding_ref=$1 AND holding_id=$2 AND company_id=$3 AND period_id=$4
+         WHERE data_profile_key=$1 AND holding_id=$2 AND company_id=$3 AND period_id=$4
            AND control_code='bank_reconciliation'",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(holding_id)
     .bind(company_id)
     .bind(period_id)
@@ -471,22 +471,22 @@ async fn live_finance_close_persistence_requires_authoritative_facts_and_control
     )
     .expect("synthetic period");
     let mut synthetic_seed = pool.begin().await.expect("synthetic period transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *synthetic_seed)
         .await
-        .expect("synthetic tenant scope");
+        .expect("synthetic holding scope");
     let synthetic_period_payload =
         serde_json::to_value(&synthetic_period).expect("synthetic period payload");
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_periods
-            (period_id, holding_id, company_id, holding_ref, status, version, payload)
+        "INSERT INTO erpx_holding.finance_periods
+            (period_id, holding_id, company_id, data_profile_key, status, version, payload)
          VALUES ($1,$2,$3,$4,'open',1,$5)",
     )
     .bind(synthetic_period.id)
     .bind(holding_id)
     .bind(company_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(&synthetic_period_payload)
     .execute(&mut *synthetic_seed)
     .await

@@ -8,7 +8,7 @@ use erpx_organization::{
     OrganizationPlacement, RenameOrganizationNode, ReparentOrganizationNode,
     SuspendOrganizationNode,
 };
-use erpx_proto::erpx::organization::v2 as platform;
+use erpx_proto::erpx::organization as platform;
 use erpx_ui_foundation::UiError;
 
 use crate::{
@@ -49,8 +49,8 @@ impl OrganizationGrpcTransport {
     pub(crate) fn try_new(
         channel: GrpcChannel,
         access_token: impl AsRef<str>,
-        tenant_id: impl AsRef<str>,
-        holding_ref: impl AsRef<str>,
+        holding_id: impl AsRef<str>,
+        data_profile_key: impl AsRef<str>,
     ) -> Result<Self, UiError> {
         Ok(Self {
             command:
@@ -60,7 +60,7 @@ impl OrganizationGrpcTransport {
             query: platform::organization_query_service_client::OrganizationQueryServiceClient::new(
                 channel,
             ),
-            authority: RpcAuthority::tenant(access_token, tenant_id, holding_ref)?,
+            authority: RpcAuthority::holding(access_token, holding_id, data_profile_key)?,
         })
     }
 }
@@ -282,8 +282,8 @@ impl OrganizationProtoTransport for OrganizationGrpcTransport {
 fn encode_placement(
     value: &OrganizationPlacement,
     node_id: OrganizationNodeId,
-) -> platform::OrganizationPlacementV1 {
-    use platform::organization_placement_v1::Placement;
+) -> platform::OrganizationPlacement {
+    use platform::organization_placement::Placement;
     let placement = match value {
         OrganizationPlacement::Holding => {
             Placement::Holding(platform::OrganizationHoldingPlacement {})
@@ -329,15 +329,15 @@ fn encode_placement(
             team_id: node_id.as_uuid().to_string(),
         }),
     };
-    platform::OrganizationPlacementV1 {
+    platform::OrganizationPlacement {
         placement: Some(placement),
     }
 }
 
 fn decode_placement(
-    value: platform::OrganizationPlacementV1,
+    value: platform::OrganizationPlacement,
 ) -> Result<OrganizationPlacement, UiError> {
-    use platform::organization_placement_v1::Placement;
+    use platform::organization_placement::Placement;
     Ok(match value.placement.ok_or_else(invalid_response)? {
         Placement::Holding(_) => OrganizationPlacement::Holding,
         Placement::Company(value) => OrganizationPlacement::Company {
@@ -397,44 +397,42 @@ fn decode_node(value: platform::OrganizationNodeRecord) -> Result<NodeView, UiEr
 
 fn encode_kind(value: OrganizationNodeKind) -> i32 {
     match value {
-        OrganizationNodeKind::Holding => platform::OrganizationNodeKindV1::Holding as i32,
-        OrganizationNodeKind::Company => platform::OrganizationNodeKindV1::Company as i32,
-        OrganizationNodeKind::Headquarters => platform::OrganizationNodeKindV1::Headquarters as i32,
-        OrganizationNodeKind::Branch => platform::OrganizationNodeKindV1::Branch as i32,
-        OrganizationNodeKind::Department => platform::OrganizationNodeKindV1::Department as i32,
-        OrganizationNodeKind::Team => platform::OrganizationNodeKindV1::Team as i32,
+        OrganizationNodeKind::Holding => platform::OrganizationNodeKind::Holding as i32,
+        OrganizationNodeKind::Company => platform::OrganizationNodeKind::Company as i32,
+        OrganizationNodeKind::Headquarters => platform::OrganizationNodeKind::Headquarters as i32,
+        OrganizationNodeKind::Branch => platform::OrganizationNodeKind::Branch as i32,
+        OrganizationNodeKind::Department => platform::OrganizationNodeKind::Department as i32,
+        OrganizationNodeKind::Team => platform::OrganizationNodeKind::Team as i32,
     }
 }
 
 fn decode_kind(value: i32) -> Result<OrganizationNodeKind, UiError> {
-    match platform::OrganizationNodeKindV1::try_from(value).ok() {
-        Some(platform::OrganizationNodeKindV1::Holding) => Ok(OrganizationNodeKind::Holding),
-        Some(platform::OrganizationNodeKindV1::Company) => Ok(OrganizationNodeKind::Company),
-        Some(platform::OrganizationNodeKindV1::Headquarters) => {
+    match platform::OrganizationNodeKind::try_from(value).ok() {
+        Some(platform::OrganizationNodeKind::Holding) => Ok(OrganizationNodeKind::Holding),
+        Some(platform::OrganizationNodeKind::Company) => Ok(OrganizationNodeKind::Company),
+        Some(platform::OrganizationNodeKind::Headquarters) => {
             Ok(OrganizationNodeKind::Headquarters)
         }
-        Some(platform::OrganizationNodeKindV1::Branch) => Ok(OrganizationNodeKind::Branch),
-        Some(platform::OrganizationNodeKindV1::Department) => Ok(OrganizationNodeKind::Department),
-        Some(platform::OrganizationNodeKindV1::Team) => Ok(OrganizationNodeKind::Team),
+        Some(platform::OrganizationNodeKind::Branch) => Ok(OrganizationNodeKind::Branch),
+        Some(platform::OrganizationNodeKind::Department) => Ok(OrganizationNodeKind::Department),
+        Some(platform::OrganizationNodeKind::Team) => Ok(OrganizationNodeKind::Team),
         _ => Err(invalid_response()),
     }
 }
 
 fn encode_status(value: OrganizationNodeStatus) -> i32 {
     match value {
-        OrganizationNodeStatus::Active => platform::OrganizationNodeStatusV1::Active as i32,
-        OrganizationNodeStatus::Suspended => platform::OrganizationNodeStatusV1::Suspended as i32,
-        OrganizationNodeStatus::Archived => platform::OrganizationNodeStatusV1::Archived as i32,
+        OrganizationNodeStatus::Active => platform::OrganizationNodeStatus::Active as i32,
+        OrganizationNodeStatus::Suspended => platform::OrganizationNodeStatus::Suspended as i32,
+        OrganizationNodeStatus::Archived => platform::OrganizationNodeStatus::Archived as i32,
     }
 }
 
 fn decode_status(value: i32) -> Result<OrganizationNodeStatus, UiError> {
-    match platform::OrganizationNodeStatusV1::try_from(value).ok() {
-        Some(platform::OrganizationNodeStatusV1::Active) => Ok(OrganizationNodeStatus::Active),
-        Some(platform::OrganizationNodeStatusV1::Suspended) => {
-            Ok(OrganizationNodeStatus::Suspended)
-        }
-        Some(platform::OrganizationNodeStatusV1::Archived) => Ok(OrganizationNodeStatus::Archived),
+    match platform::OrganizationNodeStatus::try_from(value).ok() {
+        Some(platform::OrganizationNodeStatus::Active) => Ok(OrganizationNodeStatus::Active),
+        Some(platform::OrganizationNodeStatus::Suspended) => Ok(OrganizationNodeStatus::Suspended),
+        Some(platform::OrganizationNodeStatus::Archived) => Ok(OrganizationNodeStatus::Archived),
         _ => Err(invalid_response()),
     }
 }

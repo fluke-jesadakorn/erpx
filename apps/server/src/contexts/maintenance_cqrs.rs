@@ -12,8 +12,8 @@ use erpx_integration_contracts::{
     AggregateKind, DisplayName, IntegrationEventEnvelope, ReferenceCode, assets,
 };
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AggregateId, AuditContext, CommandId, CorrelationId,
-    ErrorCategory, EventId, QueryId, SessionId, TenantScope,
+    ActorAttribution, ActorKind, AggregateId, AuditContext, AuthorityScope, CommandId,
+    CorrelationId, ErrorCategory, EventId, QueryId, SessionId,
 };
 use erpx_maintenance::{
     BlockWorkOrder, CancelWorkOrder, CompleteWorkOrder, Downtime, GetWorkOrder, GetWorkOrderResult,
@@ -21,8 +21,8 @@ use erpx_maintenance::{
     ResumeWorkOrder, ScheduleWorkOrder, StartWorkOrder, WorkOrderId, WorkOrderList,
     WorkOrderListFilter, WorkOrderStatus, WorkOrderView,
 };
-use erpx_proto::erpx::assets::v2::AssetCondition as ProtoAssetCondition;
-use erpx_proto::{common, erpx::maintenance::v2 as platform};
+use erpx_proto::erpx::assets::AssetCondition as ProtoAssetCondition;
+use erpx_proto::{common, erpx::maintenance as platform};
 use tonic::{Request, Response, Status, metadata::MetadataMap};
 use uuid::Uuid;
 
@@ -32,9 +32,9 @@ use platform::maintenance_query_service_server::MaintenanceQueryService;
 const MAX_ROUTE_LENGTH: usize = 255;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MaintenanceTenantRoute {
-    pub tenant_id: String,
-    pub holding_ref: String,
+pub struct MaintenanceHoldingRoute {
+    pub holding_id: String,
+    pub data_profile_key: String,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MaintenanceAccessMode {
@@ -45,8 +45,8 @@ pub enum MaintenanceAccessMode {
 pub struct MaintenanceAuthenticationRequest {
     transport_metadata: MetadataMap,
     presented_actor: ActorAttribution,
-    presented_scope: TenantScope,
-    presented_route: Option<MaintenanceTenantRoute>,
+    presented_scope: AuthorityScope,
+    presented_route: Option<MaintenanceHoldingRoute>,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
     access_mode: MaintenanceAccessMode,
@@ -58,10 +58,10 @@ impl MaintenanceAuthenticationRequest {
     pub const fn presented_actor(&self) -> &ActorAttribution {
         &self.presented_actor
     }
-    pub const fn presented_scope(&self) -> &TenantScope {
+    pub const fn presented_scope(&self) -> &AuthorityScope {
         &self.presented_scope
     }
-    pub const fn presented_route(&self) -> Option<&MaintenanceTenantRoute> {
+    pub const fn presented_route(&self) -> Option<&MaintenanceHoldingRoute> {
         self.presented_route.as_ref()
     }
     pub fn subscription_id(&self) -> Option<&str> {
@@ -78,35 +78,35 @@ impl MaintenanceAuthenticationRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthenticatedMaintenanceRequest {
     actor: ActorAttribution,
-    tenant_scope: TenantScope,
-    route: MaintenanceTenantRoute,
+    active_scope: AuthorityScope,
+    route: MaintenanceHoldingRoute,
 }
 impl AuthenticatedMaintenanceRequest {
     pub fn try_new(
         actor: ActorAttribution,
-        tenant_scope: TenantScope,
-        route: MaintenanceTenantRoute,
+        active_scope: AuthorityScope,
+        route: MaintenanceHoldingRoute,
     ) -> Result<Self, MaintenanceAuthenticationError> {
         actor
             .validate()
             .map_err(|_| MaintenanceAuthenticationError::Internal)?;
-        tenant_scope
+        active_scope
             .validate()
             .map_err(|_| MaintenanceAuthenticationError::Internal)?;
         validate_route(&route).map_err(|_| MaintenanceAuthenticationError::Internal)?;
         Ok(Self {
             actor,
-            tenant_scope,
+            active_scope,
             route,
         })
     }
     pub const fn actor(&self) -> &ActorAttribution {
         &self.actor
     }
-    pub const fn tenant_scope(&self) -> &TenantScope {
-        &self.tenant_scope
+    pub const fn active_scope(&self) -> &AuthorityScope {
+        &self.active_scope
     }
-    pub const fn route(&self) -> &MaintenanceTenantRoute {
+    pub const fn route(&self) -> &MaintenanceHoldingRoute {
         &self.route
     }
 }
@@ -129,42 +129,42 @@ pub trait MaintenanceRequestAuthenticator: Send + Sync + 'static {
 pub trait MaintenanceCommandApplication: Send + Sync + 'static {
     async fn open(
         &self,
-        route: MaintenanceTenantRoute,
+        route: MaintenanceHoldingRoute,
         value: CommandEnvelope<OpenWorkOrder>,
     ) -> Result<CommandReceipt<OpenWorkOrderResult>, CqrsError>;
     async fn schedule(
         &self,
-        route: MaintenanceTenantRoute,
+        route: MaintenanceHoldingRoute,
         value: CommandEnvelope<ScheduleWorkOrder>,
     ) -> Result<CommandReceipt<MaintenanceMutationResult>, CqrsError>;
     async fn start(
         &self,
-        route: MaintenanceTenantRoute,
+        route: MaintenanceHoldingRoute,
         value: CommandEnvelope<StartWorkOrder>,
     ) -> Result<CommandReceipt<MaintenanceMutationResult>, CqrsError>;
     async fn block(
         &self,
-        route: MaintenanceTenantRoute,
+        route: MaintenanceHoldingRoute,
         value: CommandEnvelope<BlockWorkOrder>,
     ) -> Result<CommandReceipt<MaintenanceMutationResult>, CqrsError>;
     async fn resume(
         &self,
-        route: MaintenanceTenantRoute,
+        route: MaintenanceHoldingRoute,
         value: CommandEnvelope<ResumeWorkOrder>,
     ) -> Result<CommandReceipt<MaintenanceMutationResult>, CqrsError>;
     async fn complete(
         &self,
-        route: MaintenanceTenantRoute,
+        route: MaintenanceHoldingRoute,
         value: CommandEnvelope<CompleteWorkOrder>,
     ) -> Result<CommandReceipt<MaintenanceMutationResult>, CqrsError>;
     async fn cancel(
         &self,
-        route: MaintenanceTenantRoute,
+        route: MaintenanceHoldingRoute,
         value: CommandEnvelope<CancelWorkOrder>,
     ) -> Result<CommandReceipt<MaintenanceMutationResult>, CqrsError>;
     async fn record_downtime(
         &self,
-        route: MaintenanceTenantRoute,
+        route: MaintenanceHoldingRoute,
         value: CommandEnvelope<RecordDowntime>,
     ) -> Result<CommandReceipt<MaintenanceMutationResult>, CqrsError>;
 }
@@ -172,12 +172,12 @@ pub trait MaintenanceCommandApplication: Send + Sync + 'static {
 pub trait MaintenanceQueryApplication: Send + Sync + 'static {
     async fn get(
         &self,
-        route: MaintenanceTenantRoute,
+        route: MaintenanceHoldingRoute,
         value: QueryEnvelope<GetWorkOrder>,
     ) -> Result<QueryResult<GetWorkOrderResult>, CqrsError>;
     async fn list(
         &self,
-        route: MaintenanceTenantRoute,
+        route: MaintenanceHoldingRoute,
         value: QueryEnvelope<ListWorkOrders>,
     ) -> Result<QueryResult<WorkOrderList>, CqrsError>;
 }
@@ -481,8 +481,8 @@ fn decode_asset_request(
     IntegrationEventEnvelope::try_new(
         event_id(&v.event_id)?,
         decode_scope(
-            v.tenant_scope
-                .ok_or_else(|| invalid("source tenant scope is required"))?,
+            v.active_scope
+                .ok_or_else(|| invalid("source holding scope is required"))?,
         )?,
         AggregateKind::try_new("asset").map_err(|_| invalid("aggregate kind is invalid"))?,
         AggregateId::try_from_uuid(aggregate_id).map_err(|_| invalid("aggregate_id is invalid"))?,
@@ -508,25 +508,25 @@ fn decode_downtime(v: platform::DowntimeRecord) -> Result<Downtime, Status> {
 }
 
 struct DecodedCommand<C> {
-    route: Option<MaintenanceTenantRoute>,
+    route: Option<MaintenanceHoldingRoute>,
     envelope: CommandEnvelope<C>,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
 }
 struct DecodedQuery<Q> {
-    route: Option<MaintenanceTenantRoute>,
+    route: Option<MaintenanceHoldingRoute>,
     envelope: QueryEnvelope<Q>,
 }
 async fn authenticate_command<C, G: MaintenanceRequestAuthenticator>(
     auth: &G,
     transport: MetadataMap,
     decoded: DecodedCommand<C>,
-) -> Result<(MaintenanceTenantRoute, CommandEnvelope<C>), Status> {
+) -> Result<(MaintenanceHoldingRoute, CommandEnvelope<C>), Status> {
     let value = auth
         .authenticate(MaintenanceAuthenticationRequest {
             transport_metadata: transport,
             presented_actor: decoded.envelope.actor.clone(),
-            presented_scope: decoded.envelope.tenant_scope.clone(),
+            presented_scope: decoded.envelope.active_scope.clone(),
             presented_route: decoded.route,
             subscription_id: decoded.subscription_id,
             mfa_code: decoded.mfa_code,
@@ -536,7 +536,7 @@ async fn authenticate_command<C, G: MaintenanceRequestAuthenticator>(
         .map_err(status_from_auth)?;
     let mut envelope = decoded.envelope;
     envelope.actor = value.actor().clone();
-    envelope.tenant_scope = value.tenant_scope().clone();
+    envelope.active_scope = value.active_scope().clone();
     envelope
         .validate()
         .map_err(|_| Status::internal("authenticated Maintenance authority is invalid"))?;
@@ -546,12 +546,12 @@ async fn authenticate_query<Q, G: MaintenanceRequestAuthenticator>(
     auth: &G,
     transport: MetadataMap,
     decoded: DecodedQuery<Q>,
-) -> Result<(MaintenanceTenantRoute, QueryEnvelope<Q>), Status> {
+) -> Result<(MaintenanceHoldingRoute, QueryEnvelope<Q>), Status> {
     let value = auth
         .authenticate(MaintenanceAuthenticationRequest {
             transport_metadata: transport,
             presented_actor: decoded.envelope.actor.clone(),
-            presented_scope: decoded.envelope.tenant_scope.clone(),
+            presented_scope: decoded.envelope.active_scope.clone(),
             presented_route: decoded.route,
             subscription_id: None,
             mfa_code: None,
@@ -561,7 +561,7 @@ async fn authenticate_query<Q, G: MaintenanceRequestAuthenticator>(
         .map_err(status_from_auth)?;
     let mut envelope = decoded.envelope;
     envelope.actor = value.actor().clone();
-    envelope.tenant_scope = value.tenant_scope().clone();
+    envelope.active_scope = value.active_scope().clone();
     envelope
         .validate()
         .map_err(|_| Status::internal("authenticated Maintenance authority is invalid"))?;
@@ -572,7 +572,7 @@ fn decode_command<C>(
     command: C,
 ) -> Result<DecodedCommand<C>, Status> {
     let metadata = metadata.ok_or_else(|| invalid("command metadata is required"))?;
-    let route = decode_route(metadata.tenant_route)?;
+    let route = decode_route(metadata.holding_route)?;
     let envelope = CommandEnvelope {
         contract_version: u16::try_from(metadata.contract_version)
             .map_err(|_| invalid("contract_version is invalid"))?,
@@ -583,10 +583,10 @@ fn decode_command<C>(
         correlation_id: correlation(&metadata.correlation_id)?,
         causation_id: metadata.causation_id.as_deref().map(event_id).transpose()?,
         actor: decode_actor(metadata.actor)?,
-        tenant_scope: decode_scope(
+        active_scope: decode_scope(
             metadata
-                .tenant_scope
-                .ok_or_else(|| invalid("tenant scope is required"))?,
+                .active_scope
+                .ok_or_else(|| invalid("holding scope is required"))?,
         )?,
         audit: decode_audit(metadata.audit)?,
         expected_aggregate_version: metadata.expected_aggregate_version,
@@ -607,7 +607,7 @@ fn decode_query<Q>(
     query: Q,
 ) -> Result<DecodedQuery<Q>, Status> {
     let metadata = metadata.ok_or_else(|| invalid("query metadata is required"))?;
-    let route = decode_route(metadata.tenant_route)?;
+    let route = decode_route(metadata.holding_route)?;
     let envelope = QueryEnvelope {
         contract_version: u16::try_from(metadata.contract_version)
             .map_err(|_| invalid("contract_version is invalid"))?,
@@ -615,10 +615,10 @@ fn decode_query<Q>(
             .map_err(|_| invalid("query_id is invalid"))?,
         correlation_id: correlation(&metadata.correlation_id)?,
         actor: decode_actor(metadata.actor)?,
-        tenant_scope: decode_scope(
+        active_scope: decode_scope(
             metadata
-                .tenant_scope
-                .ok_or_else(|| invalid("tenant scope is required"))?,
+                .active_scope
+                .ok_or_else(|| invalid("holding scope is required"))?,
         )?,
         audit: decode_audit(metadata.audit)?,
         consistency: decode_consistency(metadata.consistency)?,
@@ -788,23 +788,25 @@ fn encode_consistency(v: &QueryConsistency) -> common::QueryConsistency {
         }),
     }
 }
-fn decode_route(v: Option<common::TenantRoute>) -> Result<Option<MaintenanceTenantRoute>, Status> {
+fn decode_route(
+    v: Option<common::HoldingRoute>,
+) -> Result<Option<MaintenanceHoldingRoute>, Status> {
     let Some(v) = v else {
         return Ok(None);
     };
-    let route = MaintenanceTenantRoute {
-        tenant_id: v.tenant_id.trim().into(),
-        holding_ref: v.holding_ref.trim().into(),
+    let route = MaintenanceHoldingRoute {
+        holding_id: v.holding_id.trim().into(),
+        data_profile_key: v.data_profile_key.trim().into(),
     };
     validate_route(&route)?;
     Ok(Some(route))
 }
-fn validate_route(v: &MaintenanceTenantRoute) -> Result<(), Status> {
-    if [&v.tenant_id, &v.holding_ref]
+fn validate_route(v: &MaintenanceHoldingRoute) -> Result<(), Status> {
+    if [&v.holding_id, &v.data_profile_key]
         .iter()
         .any(|v| v.is_empty() || v.len() > MAX_ROUTE_LENGTH)
     {
-        Err(invalid("tenant route is invalid"))
+        Err(invalid("holding route is invalid"))
     } else {
         Ok(())
     }
@@ -813,7 +815,7 @@ fn decode_actor(v: Option<common::ActorAttribution>) -> Result<ActorAttribution,
     let v = v.ok_or_else(|| invalid("actor is required"))?;
     let kind = match common::ActorKind::try_from(v.kind).ok() {
         Some(common::ActorKind::PlatformUser) => ActorKind::PlatformUser,
-        Some(common::ActorKind::TenantUser) => ActorKind::TenantUser,
+        Some(common::ActorKind::HoldingUser) => ActorKind::HoldingUser,
         Some(common::ActorKind::Service) => ActorKind::Service,
         Some(common::ActorKind::SystemWorker) => ActorKind::SystemWorker,
         _ => return Err(invalid("actor kind is invalid")),
@@ -837,53 +839,44 @@ fn decode_audit(v: Option<common::AuditContext>) -> Result<AuditContext, Status>
         module: nonempty(v.module),
     })
 }
-fn decode_scope(v: common::TenantScope) -> Result<TenantScope, Status> {
-    use common::tenant_scope::Scope;
+fn decode_scope(v: common::AuthorityScope) -> Result<AuthorityScope, Status> {
+    use common::authority_scope::Scope;
     match v.scope.ok_or_else(|| invalid("scope is required"))? {
-        Scope::Platform(_) => Ok(TenantScope::Platform),
-        Scope::Holding(v) => Ok(TenantScope::Holding {
+        Scope::Platform(_) => Ok(AuthorityScope::Platform),
+        Scope::Holding(v) => Ok(AuthorityScope::Holding {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
         }),
-        Scope::Company(v) => Ok(TenantScope::Company {
+        Scope::Company(v) => Ok(AuthorityScope::Company {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
             company_id: parse_uuid(&v.company_id, "company_id")?,
         }),
-        Scope::Branch(v) => Ok(TenantScope::Branch {
+        Scope::Branch(v) => Ok(AuthorityScope::Branch {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
             company_id: parse_uuid(&v.company_id, "company_id")?,
             branch_id: parse_uuid(&v.branch_id, "branch_id")?,
         }),
-        Scope::Subtree(v) => Ok(TenantScope::Subtree {
+        Scope::Subtree(v) => Ok(AuthorityScope::Subtree {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
-            company_ids: v
-                .company_ids
-                .iter()
-                .map(|v| parse_uuid(v, "company_id"))
-                .collect::<Result<_, _>>()?,
-            branch_ids: v
-                .branch_ids
-                .iter()
-                .map(|v| parse_uuid(v, "branch_id"))
-                .collect::<Result<_, _>>()?,
+            organization_node_id: parse_uuid(&v.organization_node_id, "organization_node_id")?,
         }),
     }
 }
-fn encode_scope(v: &TenantScope) -> common::TenantScope {
-    use common::tenant_scope::Scope;
-    common::TenantScope {
+fn encode_scope(v: &AuthorityScope) -> common::AuthorityScope {
+    use common::authority_scope::Scope;
+    common::AuthorityScope {
         scope: Some(match v {
-            TenantScope::Platform => Scope::Platform(common::PlatformScope {}),
-            TenantScope::Holding { holding_id } => Scope::Holding(common::HoldingScope {
+            AuthorityScope::Platform => Scope::Platform(common::PlatformScope {}),
+            AuthorityScope::Holding { holding_id } => Scope::Holding(common::HoldingScope {
                 holding_id: holding_id.to_string(),
             }),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => Scope::Company(common::CompanyScope {
                 holding_id: holding_id.to_string(),
                 company_id: company_id.to_string(),
             }),
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -892,14 +885,12 @@ fn encode_scope(v: &TenantScope) -> common::TenantScope {
                 company_id: company_id.to_string(),
                 branch_id: branch_id.to_string(),
             }),
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Scope::Subtree(common::SubtreeScope {
                 holding_id: holding_id.to_string(),
-                company_ids: company_ids.iter().map(ToString::to_string).collect(),
-                branch_ids: branch_ids.iter().map(ToString::to_string).collect(),
+                organization_node_id: organization_node_id.to_string(),
             }),
         }),
     }
@@ -978,7 +969,7 @@ mod tests {
             decode_status(encode_status(WorkOrderStatus::Blocked)).unwrap(),
             WorkOrderStatus::Blocked
         );
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         };

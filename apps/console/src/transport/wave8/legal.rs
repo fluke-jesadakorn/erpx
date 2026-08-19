@@ -8,7 +8,7 @@ use erpx_legal::{
         AccessEntryView, AccessHistoryList, ContractList, ContractView, DocumentList, DocumentView,
     },
 };
-use erpx_proto::erpx::legal::v2 as wire;
+use erpx_proto::erpx::legal as wire;
 use erpx_ui_foundation::UiError;
 
 use crate::{features::legal::LegalProtoTransport, transport::typed_cqrs::GrpcChannel};

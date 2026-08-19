@@ -10,22 +10,22 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 #[tokio::test]
-#[ignore = "requires two disposable tenant PostgreSQL databases"]
+#[ignore = "requires two disposable holding PostgreSQL databases"]
 async fn live_hr_write_projection_and_read_are_idempotent_and_separate() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migration");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding write migration");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migration");
+        .expect("holding read migration");
 
-    let holding_ref = format!("holding-hr-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-hr-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let employee_id = Uuid::new_v4();
@@ -43,7 +43,7 @@ async fn live_hr_write_projection_and_read_are_idempotent_and_separate() {
         last_idempotency_key: "hr-employee-1".into(),
     };
 
-    let write = SqlxHrPersistence::new(write_pool.clone(), &holding_ref).expect("write store");
+    let write = SqlxHrPersistence::new(write_pool.clone(), &data_profile_key).expect("write store");
     let first = write
         .save_employee(&employee, None)
         .await
@@ -62,7 +62,7 @@ async fn live_hr_write_projection_and_read_are_idempotent_and_separate() {
         }
     );
 
-    let projector = SqlxHrProjectionStore::from_pools(&write_pool, &read_pool, &holding_ref)
+    let projector = SqlxHrProjectionStore::from_pools(&write_pool, &read_pool, &data_profile_key)
         .expect("projector");
     let page = projector
         .read_source_event_page(None, 10)
@@ -93,18 +93,18 @@ async fn live_hr_write_projection_and_read_are_idempotent_and_separate() {
     assert!(healthy.is_consistent());
 
     let mut payload_tamper = read_pool.begin().await.expect("payload tamper transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *payload_tamper)
         .await
         .expect("read holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.hr_employee_read_rows
+        "UPDATE erpx_holding.hr_employee_read_rows
          SET display_name=$1
-         WHERE holding_ref=$2 AND employee_id=$3",
+         WHERE data_profile_key=$2 AND employee_id=$3",
     )
     .bind("Tampered projected employee")
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(employee_id)
     .execute(&mut *payload_tamper)
     .await
@@ -122,18 +122,18 @@ async fn live_hr_write_projection_and_read_are_idempotent_and_separate() {
     assert!(!payload_drifted.is_consistent());
 
     let mut payload_repair = read_pool.begin().await.expect("payload repair transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *payload_repair)
         .await
         .expect("read holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.hr_employee_read_rows
+        "UPDATE erpx_holding.hr_employee_read_rows
          SET display_name=$1
-         WHERE holding_ref=$2 AND employee_id=$3",
+         WHERE data_profile_key=$2 AND employee_id=$3",
     )
     .bind(&employee.display_name)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(employee_id)
     .execute(&mut *payload_repair)
     .await
@@ -151,18 +151,18 @@ async fn live_hr_write_projection_and_read_are_idempotent_and_separate() {
 
     let forged_company_id = Uuid::new_v4();
     let mut scope_tamper = read_pool.begin().await.expect("scope tamper transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *scope_tamper)
         .await
         .expect("read holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.hr_employee_read_rows
+        "UPDATE erpx_holding.hr_employee_read_rows
          SET company_id=$1
-         WHERE holding_ref=$2 AND employee_id=$3",
+         WHERE data_profile_key=$2 AND employee_id=$3",
     )
     .bind(forged_company_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(employee_id)
     .execute(&mut *scope_tamper)
     .await
@@ -177,18 +177,18 @@ async fn live_hr_write_projection_and_read_are_idempotent_and_separate() {
     assert!(!scope_drifted.is_consistent());
 
     let mut scope_repair = read_pool.begin().await.expect("scope repair transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *scope_repair)
         .await
         .expect("read holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.hr_employee_read_rows
+        "UPDATE erpx_holding.hr_employee_read_rows
          SET company_id=$1
-         WHERE holding_ref=$2 AND employee_id=$3",
+         WHERE data_profile_key=$2 AND employee_id=$3",
     )
     .bind(company_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(employee_id)
     .execute(&mut *scope_repair)
     .await
@@ -206,19 +206,19 @@ async fn live_hr_write_projection_and_read_are_idempotent_and_separate() {
         .begin()
         .await
         .expect("checkpoint tamper transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tamper)
         .await
         .expect("read holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.hr_projection_checkpoints
+        "UPDATE erpx_holding.hr_projection_checkpoints
          SET last_event_id=$1
-         WHERE holding_ref=$2 AND projection_name=$3
+         WHERE data_profile_key=$2 AND projection_name=$3
            AND aggregate_type='hr_employee' AND aggregate_id=$4",
     )
     .bind(forged_checkpoint_event_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(erpx_infrastructure::HR_PROJECTION_NAME)
     .bind(employee_id)
     .execute(&mut *tamper)
@@ -237,19 +237,19 @@ async fn live_hr_write_projection_and_read_are_idempotent_and_separate() {
         .begin()
         .await
         .expect("checkpoint repair transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *repair)
         .await
         .expect("read holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.hr_projection_checkpoints
+        "UPDATE erpx_holding.hr_projection_checkpoints
          SET last_event_id=$1
-         WHERE holding_ref=$2 AND projection_name=$3
+         WHERE data_profile_key=$2 AND projection_name=$3
            AND aggregate_type='hr_employee' AND aggregate_id=$4",
     )
     .bind(page.events[0].event_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(erpx_infrastructure::HR_PROJECTION_NAME)
     .bind(employee_id)
     .execute(&mut *repair)
@@ -263,7 +263,7 @@ async fn live_hr_write_projection_and_read_are_idempotent_and_separate() {
         .expect("repaired HR reconciliation");
     assert!(repaired.is_consistent());
 
-    let read = SqlxHrReadStore::new(read_pool, &holding_ref).expect("read store");
+    let read = SqlxHrReadStore::new(read_pool, &data_profile_key).expect("read store");
     let employees = read
         .list_employees(
             HrReadScope {

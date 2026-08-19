@@ -1,4 +1,4 @@
-//! Tenant-bound authority evidence projection and finite grant reconciliation.
+//! Holding-bound authority evidence projection and finite grant reconciliation.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -9,10 +9,10 @@ use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionPool, WritePool};
 use erpx_integration_contracts::{
     AUTHORITY_EVIDENCE_EVENT_TYPE, AUTHORITY_EVIDENCE_VERSION, AuthorityEvidenceFact,
     AuthorityPrincipalKind, AuthorityRealm, AuthoritySharingDirection, AuthoritySharingStatus,
-    EffectiveGrantRevoked, ItemDescriptor, ItemDirectoryFact, RecordPolicyPrincipalKind,
-    RecordPolicyRealm, RecordVersionRef, StableRecordRef, TenantItemDirectoryFact, record_policy,
+    EffectiveGrantRevoked, HoldingItemDirectoryFact, ItemDescriptor, ItemDirectoryFact,
+    RecordPolicyPrincipalKind, RecordPolicyRealm, RecordVersionRef, StableRecordRef, record_policy,
 };
-use erpx_kernel::{DataClassification, PrincipalId, RecordId, TenantId, TenantScope};
+use erpx_kernel::{AuthorityScope, DataClassification, HoldingId, PrincipalId, RecordId};
 use sqlx::Row;
 use thiserror::Error;
 use uuid::Uuid;
@@ -25,20 +25,20 @@ use crate::{
 pub const MAX_AUTHORITY_RECONCILIATION_ROWS: i64 = 10_000;
 
 #[derive(Debug, Clone)]
-pub struct TenantAuthorityEvidenceProjection {
-    tenant_id: TenantId,
+pub struct HoldingAuthorityEvidenceProjection {
+    holding_id: HoldingId,
     pool: ProjectionPool,
     authority_write: WritePool,
 }
 
-impl TenantAuthorityEvidenceProjection {
+impl HoldingAuthorityEvidenceProjection {
     pub const fn new(
-        tenant_id: TenantId,
+        holding_id: HoldingId,
         pool: ProjectionPool,
         authority_write: WritePool,
     ) -> Self {
         Self {
-            tenant_id,
+            holding_id,
             pool,
             authority_write,
         }
@@ -51,20 +51,20 @@ impl TenantAuthorityEvidenceProjection {
             AuthorityEvidenceFact::Principal(value) => {
                 sqlx::query(
                     "INSERT INTO erpx_authority_read.principals
-                        (tenant_id,principal_id,principal_kind,realm,principal_scope,active,
+                        (holding_id,principal_id,principal_kind,realm,principal_scope,active,
                          principal_version,source_event_position,changed_at,projected_at)
                      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,now())
-                     ON CONFLICT (tenant_id,principal_id) DO UPDATE SET
+                     ON CONFLICT (holding_id,principal_id) DO UPDATE SET
                         principal_kind=EXCLUDED.principal_kind,realm=EXCLUDED.realm,
                         principal_scope=EXCLUDED.principal_scope,active=EXCLUDED.active,
                         principal_version=EXCLUDED.principal_version,
                         source_event_position=EXCLUDED.source_event_position,
                         changed_at=EXCLUDED.changed_at,projected_at=now()
-                     WHERE erpx_authority_read.principals.tenant_id=$1
+                     WHERE erpx_authority_read.principals.holding_id=$1
                        AND erpx_authority_read.principals.source_event_position
                            < EXCLUDED.source_event_position",
                 )
-                .bind(self.tenant_id.as_uuid())
+                .bind(self.holding_id.as_uuid())
                 .bind(value.principal_id.as_uuid())
                 .bind(principal_kind_name(value.principal_kind))
                 .bind(realm_name(value.realm))
@@ -84,11 +84,11 @@ impl TenantAuthorityEvidenceProjection {
                     .collect::<Vec<_>>();
                 sqlx::query(
                     "DELETE FROM erpx_authority_read.assignments
-                     WHERE tenant_id=$1 AND principal_id=$2
+                     WHERE holding_id=$1 AND principal_id=$2
                        AND NOT (assignment_id=ANY($3))
                        AND source_event_position < $4",
                 )
-                .bind(self.tenant_id.as_uuid())
+                .bind(self.holding_id.as_uuid())
                 .bind(value.principal_id.as_uuid())
                 .bind(&assignment_ids)
                 .bind(to_i64(event.global_sequence)?)
@@ -98,23 +98,23 @@ impl TenantAuthorityEvidenceProjection {
                 for assignment in value.assignments {
                     sqlx::query(
                         "INSERT INTO erpx_authority_read.assignments
-                            (tenant_id,assignment_id,principal_id,role_id,assignment_scope,
+                            (holding_id,assignment_id,principal_id,role_id,assignment_scope,
                              assignment_version,valid_from,valid_until,revoked_at,
                              source_event_position,changed_at,projected_at)
                          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,now())
-                         ON CONFLICT (tenant_id,assignment_id) DO UPDATE SET
+                         ON CONFLICT (holding_id,assignment_id) DO UPDATE SET
                             role_id=EXCLUDED.role_id,assignment_scope=EXCLUDED.assignment_scope,
                             assignment_version=EXCLUDED.assignment_version,
                             valid_from=EXCLUDED.valid_from,valid_until=EXCLUDED.valid_until,
                             revoked_at=EXCLUDED.revoked_at,
                             source_event_position=EXCLUDED.source_event_position,
                             changed_at=EXCLUDED.changed_at,projected_at=now()
-                         WHERE erpx_authority_read.assignments.tenant_id=$1
+                         WHERE erpx_authority_read.assignments.holding_id=$1
                            AND erpx_authority_read.assignments.principal_id=EXCLUDED.principal_id
                            AND erpx_authority_read.assignments.source_event_position
                                < EXCLUDED.source_event_position",
                     )
-                    .bind(self.tenant_id.as_uuid())
+                    .bind(self.holding_id.as_uuid())
                     .bind(assignment.assignment_id)
                     .bind(value.principal_id.as_uuid())
                     .bind(assignment.role_id)
@@ -137,11 +137,11 @@ impl TenantAuthorityEvidenceProjection {
                     .collect::<Vec<_>>();
                 sqlx::query(
                     "DELETE FROM erpx_authority_read.group_memberships
-                     WHERE tenant_id=$1 AND group_id=$2
+                     WHERE holding_id=$1 AND group_id=$2
                        AND NOT (member_principal_id=ANY($3))
                        AND source_event_position < $4",
                 )
-                .bind(self.tenant_id.as_uuid())
+                .bind(self.holding_id.as_uuid())
                 .bind(value.principal_id.as_uuid())
                 .bind(&member_ids)
                 .bind(to_i64(event.global_sequence)?)
@@ -151,11 +151,11 @@ impl TenantAuthorityEvidenceProjection {
                 for membership in value.group_memberships {
                     sqlx::query(
                         "INSERT INTO erpx_authority_read.group_memberships
-                            (tenant_id,group_id,member_principal_id,group_kind,group_version,
+                            (holding_id,group_id,member_principal_id,group_kind,group_version,
                              membership_version,membership_scope,valid_from,valid_until,revoked_at,
                              source_event_position,changed_at,projected_at)
                          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now())
-                         ON CONFLICT (tenant_id,group_id,member_principal_id) DO UPDATE SET
+                         ON CONFLICT (holding_id,group_id,member_principal_id) DO UPDATE SET
                             group_kind=EXCLUDED.group_kind,
                             group_version=EXCLUDED.group_version,
                             membership_version=EXCLUDED.membership_version,
@@ -164,12 +164,12 @@ impl TenantAuthorityEvidenceProjection {
                             revoked_at=EXCLUDED.revoked_at,
                             source_event_position=EXCLUDED.source_event_position,
                             changed_at=EXCLUDED.changed_at,projected_at=now()
-                         WHERE erpx_authority_read.group_memberships.tenant_id=$1
+                         WHERE erpx_authority_read.group_memberships.holding_id=$1
                            AND erpx_authority_read.group_memberships.group_id=EXCLUDED.group_id
                            AND erpx_authority_read.group_memberships.source_event_position
                                < EXCLUDED.source_event_position",
                     )
-                    .bind(self.tenant_id.as_uuid())
+                    .bind(self.holding_id.as_uuid())
                     .bind(membership.group_id.as_uuid())
                     .bind(membership.member_id.as_uuid())
                     .bind(principal_kind_name(membership.group_kind))
@@ -189,21 +189,21 @@ impl TenantAuthorityEvidenceProjection {
             AuthorityEvidenceFact::Role(value) => {
                 sqlx::query(
                     "INSERT INTO erpx_authority_read.roles
-                        (tenant_id,role_id,role_scope,role_version,permissions,
+                        (holding_id,role_id,role_scope,role_version,permissions,
                          classification_ceiling,active,source_event_position,changed_at,projected_at)
                      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,now())
-                     ON CONFLICT (tenant_id,role_id) DO UPDATE SET
+                     ON CONFLICT (holding_id,role_id) DO UPDATE SET
                         role_scope=EXCLUDED.role_scope,role_version=EXCLUDED.role_version,
                         permissions=EXCLUDED.permissions,
                         classification_ceiling=EXCLUDED.classification_ceiling,
                         active=EXCLUDED.active,
                         source_event_position=EXCLUDED.source_event_position,
                         changed_at=EXCLUDED.changed_at,projected_at=now()
-                     WHERE erpx_authority_read.roles.tenant_id=$1
+                     WHERE erpx_authority_read.roles.holding_id=$1
                        AND erpx_authority_read.roles.source_event_position
                            < EXCLUDED.source_event_position",
                 )
-                .bind(self.tenant_id.as_uuid())
+                .bind(self.holding_id.as_uuid())
                 .bind(value.role_id)
                 .bind(scope_json(&value.scope)?)
                 .bind(to_i64(value.role_version)?)
@@ -219,11 +219,11 @@ impl TenantAuthorityEvidenceProjection {
             AuthorityEvidenceFact::GroupMembership(value) => {
                 sqlx::query(
                     "INSERT INTO erpx_authority_read.group_memberships
-                        (tenant_id,group_id,member_principal_id,group_kind,group_version,
+                        (holding_id,group_id,member_principal_id,group_kind,group_version,
                          membership_version,membership_scope,valid_from,valid_until,revoked_at,
                          source_event_position,changed_at,projected_at)
                      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now())
-                     ON CONFLICT (tenant_id,group_id,member_principal_id) DO UPDATE SET
+                     ON CONFLICT (holding_id,group_id,member_principal_id) DO UPDATE SET
                         group_kind=EXCLUDED.group_kind,group_version=EXCLUDED.group_version,
                         membership_version=EXCLUDED.membership_version,
                         membership_scope=EXCLUDED.membership_scope,
@@ -231,11 +231,11 @@ impl TenantAuthorityEvidenceProjection {
                         revoked_at=EXCLUDED.revoked_at,
                         source_event_position=EXCLUDED.source_event_position,
                         changed_at=EXCLUDED.changed_at,projected_at=now()
-                     WHERE erpx_authority_read.group_memberships.tenant_id=$1
+                     WHERE erpx_authority_read.group_memberships.holding_id=$1
                        AND erpx_authority_read.group_memberships.source_event_position
                            < EXCLUDED.source_event_position",
                 )
-                .bind(self.tenant_id.as_uuid())
+                .bind(self.holding_id.as_uuid())
                 .bind(value.group_id.as_uuid())
                 .bind(value.member_id.as_uuid())
                 .bind(principal_kind_name(value.group_kind))
@@ -254,12 +254,12 @@ impl TenantAuthorityEvidenceProjection {
             AuthorityEvidenceFact::OrganizationSharing(value) => {
                 sqlx::query(
                     "INSERT INTO erpx_authority_read.organization_sharing_agreements
-                        (tenant_id,sharing_agreement_id,agreement_version,source_scope,
+                        (holding_id,sharing_agreement_id,agreement_version,source_scope,
                          target_scope,direction,permits_open_record,source_approved,
                          target_approved,valid_from,valid_until,revoked_at,sharing_status,
                          source_event_position,changed_at,projected_at)
                      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,now())
-                     ON CONFLICT (tenant_id,sharing_agreement_id) DO UPDATE SET
+                     ON CONFLICT (holding_id,sharing_agreement_id) DO UPDATE SET
                         agreement_version=EXCLUDED.agreement_version,
                         source_scope=EXCLUDED.source_scope,target_scope=EXCLUDED.target_scope,
                         direction=EXCLUDED.direction,
@@ -270,11 +270,11 @@ impl TenantAuthorityEvidenceProjection {
                         revoked_at=EXCLUDED.revoked_at,sharing_status=EXCLUDED.sharing_status,
                         source_event_position=EXCLUDED.source_event_position,
                         changed_at=EXCLUDED.changed_at,projected_at=now()
-                     WHERE erpx_authority_read.organization_sharing_agreements.tenant_id=$1
+                     WHERE erpx_authority_read.organization_sharing_agreements.holding_id=$1
                        AND erpx_authority_read.organization_sharing_agreements.source_event_position
                            < EXCLUDED.source_event_position",
                 )
-                .bind(self.tenant_id.as_uuid())
+                .bind(self.holding_id.as_uuid())
                 .bind(value.sharing_agreement_id)
                 .bind(to_i64(value.agreement_version)?)
                 .bind(scope_json(&value.source_scope)?)
@@ -296,14 +296,14 @@ impl TenantAuthorityEvidenceProjection {
             AuthorityEvidenceFact::CustomerPortalBinding(value) => {
                 sqlx::query(
                     "INSERT INTO erpx_authority_read.customer_portal_principal_bindings
-                        (tenant_id,binding_id,binding_version,customer_record_id,
+                        (holding_id,binding_id,binding_version,customer_record_id,
                          customer_record_version,portal_principal_id,principal_kind,portal_realm,
                          binding_scope,verified_identity_digest,verified_identity_version,
                          permitted_use_cases,valid_from,valid_until,proposed_by,approved_by,
                          ended_at,binding_status,source_event_position,changed_at,projected_at)
                      VALUES ($1,$2,$3,$4,$5,$6,$7,'customer_portal',$8,$9,$10,$11,$12,$13,
                              $14,$15,$16,$17,$18,$19,now())
-                     ON CONFLICT (tenant_id,binding_id) DO UPDATE SET
+                     ON CONFLICT (holding_id,binding_id) DO UPDATE SET
                         binding_version=EXCLUDED.binding_version,
                         customer_record_id=EXCLUDED.customer_record_id,
                         customer_record_version=EXCLUDED.customer_record_version,
@@ -318,11 +318,11 @@ impl TenantAuthorityEvidenceProjection {
                         binding_status=EXCLUDED.binding_status,
                         source_event_position=EXCLUDED.source_event_position,
                         changed_at=EXCLUDED.changed_at,projected_at=now()
-                     WHERE erpx_authority_read.customer_portal_principal_bindings.tenant_id=$1
+                     WHERE erpx_authority_read.customer_portal_principal_bindings.holding_id=$1
                        AND erpx_authority_read.customer_portal_principal_bindings.source_event_position
                            < EXCLUDED.source_event_position",
                 )
-                .bind(self.tenant_id.as_uuid())
+                .bind(self.holding_id.as_uuid())
                 .bind(value.binding_id)
                 .bind(to_i64(value.binding_version)?)
                 .bind(value.customer.record().id().as_uuid())
@@ -367,10 +367,10 @@ impl TenantAuthorityEvidenceProjection {
         let mut transaction = self.pool.begin().await.map_err(database)?;
         let descriptor_rows = sqlx::query(
             "SELECT descriptor FROM erpx_collaboration_read.item_directory_descriptors
-             WHERE tenant_id=$1 AND tombstoned_at IS NULL
+             WHERE holding_id=$1 AND tombstoned_at IS NULL
              ORDER BY record_id LIMIT $2",
         )
-        .bind(self.tenant_id.as_uuid())
+        .bind(self.holding_id.as_uuid())
         .bind(MAX_AUTHORITY_RECONCILIATION_ROWS + 1)
         .fetch_all(&mut *transaction)
         .await
@@ -381,13 +381,13 @@ impl TenantAuthorityEvidenceProjection {
                     a.revoked_at,r.role_version,r.permissions,r.classification_ceiling
              FROM erpx_authority_read.principals p
              JOIN erpx_authority_read.assignments a
-               ON a.tenant_id=p.tenant_id AND a.principal_id=p.principal_id
+               ON a.holding_id=p.holding_id AND a.principal_id=p.principal_id
              JOIN erpx_authority_read.roles r
-               ON r.tenant_id=a.tenant_id AND r.role_id=a.role_id
-             WHERE p.tenant_id=$1 AND p.active AND r.active
+               ON r.holding_id=a.holding_id AND r.role_id=a.role_id
+             WHERE p.holding_id=$1 AND p.active AND r.active
              ORDER BY p.principal_id,a.assignment_id LIMIT $2",
         )
-        .bind(self.tenant_id.as_uuid())
+        .bind(self.holding_id.as_uuid())
         .bind(MAX_AUTHORITY_RECONCILIATION_ROWS + 1)
         .fetch_all(&mut *transaction)
         .await
@@ -402,20 +402,20 @@ impl TenantAuthorityEvidenceProjection {
                     gm.revoked_at AS membership_revoked_at
              FROM erpx_authority_read.group_memberships gm
              JOIN erpx_authority_read.principals group_principal
-               ON group_principal.tenant_id=gm.tenant_id
+               ON group_principal.holding_id=gm.holding_id
               AND group_principal.principal_id=gm.group_id
              JOIN erpx_authority_read.principals member
-               ON member.tenant_id=gm.tenant_id
+               ON member.holding_id=gm.holding_id
               AND member.principal_id=gm.member_principal_id
              JOIN erpx_authority_read.assignments a
-               ON a.tenant_id=gm.tenant_id AND a.principal_id=gm.group_id
+               ON a.holding_id=gm.holding_id AND a.principal_id=gm.group_id
              JOIN erpx_authority_read.roles r
-               ON r.tenant_id=a.tenant_id AND r.role_id=a.role_id
-             WHERE gm.tenant_id=$1 AND group_principal.active AND member.active AND r.active
+               ON r.holding_id=a.holding_id AND r.role_id=a.role_id
+             WHERE gm.holding_id=$1 AND group_principal.active AND member.active AND r.active
                AND gm.group_kind='human_group'
              ORDER BY member.principal_id,gm.group_id,a.assignment_id LIMIT $2",
         )
-        .bind(self.tenant_id.as_uuid())
+        .bind(self.holding_id.as_uuid())
         .bind(MAX_AUTHORITY_RECONCILIATION_ROWS + 1)
         .fetch_all(&mut *transaction)
         .await
@@ -425,9 +425,9 @@ impl TenantAuthorityEvidenceProjection {
                     permits_open_record,source_approved,target_approved,valid_from,valid_until,
                     revoked_at,sharing_status
              FROM erpx_authority_read.organization_sharing_agreements
-             WHERE tenant_id=$1 ORDER BY sharing_agreement_id LIMIT $2",
+             WHERE holding_id=$1 ORDER BY sharing_agreement_id LIMIT $2",
         )
-        .bind(self.tenant_id.as_uuid())
+        .bind(self.holding_id.as_uuid())
         .bind(MAX_AUTHORITY_RECONCILIATION_ROWS + 1)
         .fetch_all(&mut *transaction)
         .await
@@ -435,9 +435,9 @@ impl TenantAuthorityEvidenceProjection {
         let grant_rows = sqlx::query(
             "SELECT record_id,principal_id,authorization_policy_id,policy_version
              FROM erpx_collaboration_read.item_directory_effective_grants
-             WHERE tenant_id=$1 ORDER BY record_id,principal_id LIMIT $2",
+             WHERE holding_id=$1 ORDER BY record_id,principal_id LIMIT $2",
         )
-        .bind(self.tenant_id.as_uuid())
+        .bind(self.holding_id.as_uuid())
         .bind(MAX_AUTHORITY_RECONCILIATION_ROWS + 1)
         .fetch_all(&mut *transaction)
         .await
@@ -448,9 +448,9 @@ impl TenantAuthorityEvidenceProjection {
                     verified_identity_version,permitted_use_cases,valid_from,valid_until,
                     proposed_by,approved_by,ended_at,binding_status
              FROM erpx_authority_read.customer_portal_principal_bindings
-             WHERE tenant_id=$1 ORDER BY binding_id LIMIT $2",
+             WHERE holding_id=$1 ORDER BY binding_id LIMIT $2",
         )
-        .bind(self.tenant_id.as_uuid())
+        .bind(self.holding_id.as_uuid())
         .bind(MAX_AUTHORITY_RECONCILIATION_ROWS + 1)
         .fetch_all(&mut *transaction)
         .await
@@ -464,21 +464,21 @@ impl TenantAuthorityEvidenceProjection {
                         a.audience_document,'thread'::text AS record_kind
                  FROM erpx_collaboration.threads t
                  JOIN erpx_collaboration.thread_audiences a
-                   ON a.tenant_id=t.tenant_id AND a.thread_id=t.thread_id
-                 WHERE t.tenant_id=$1
+                   ON a.holding_id=t.holding_id AND a.thread_id=t.thread_id
+                 WHERE t.holding_id=$1
                  UNION ALL
                  SELECT e.entity_id AS record_id,t.anchor_record_id,
                         a.audience_document,e.entity_kind AS record_kind
                  FROM erpx_collaboration.thread_entities e
                  JOIN erpx_collaboration.threads t
-                   ON t.tenant_id=e.tenant_id AND t.thread_id=e.thread_id
+                   ON t.holding_id=e.holding_id AND t.thread_id=e.thread_id
                  JOIN erpx_collaboration.thread_audiences a
-                   ON a.tenant_id=e.tenant_id AND a.thread_id=e.thread_id
-                 WHERE e.tenant_id=$1
+                   ON a.holding_id=e.holding_id AND a.thread_id=e.thread_id
+                 WHERE e.holding_id=$1
                    AND e.entity_kind IN ('moderation_case','promotion')
                  ORDER BY record_id LIMIT $2",
             )
-            .bind(self.tenant_id.as_uuid())
+            .bind(self.holding_id.as_uuid())
             .bind(MAX_AUTHORITY_RECONCILIATION_ROWS + 1)
             .fetch_all(&mut *transaction)
             .await
@@ -486,29 +486,29 @@ impl TenantAuthorityEvidenceProjection {
             let external_owner_rows = sqlx::query(
                 "SELECT cart_id AS record_id,'commerce.cart'::text AS record_type,
                         owner_principal_id,owner_realm
-                 FROM erpx_ecommerce_write.carts WHERE tenant_id=$1
+                 FROM erpx_ecommerce_write.carts WHERE holding_id=$1
                  UNION ALL
                  SELECT checkout_id,'commerce.order',owner_principal_id,owner_realm
-                 FROM erpx_ecommerce_write.checkouts WHERE tenant_id=$1
+                 FROM erpx_ecommerce_write.checkouts WHERE holding_id=$1
                  UNION ALL
                  SELECT return_id,'commerce.return',owner_principal_id,owner_realm
-                 FROM erpx_ecommerce_write.returns WHERE tenant_id=$1
+                 FROM erpx_ecommerce_write.returns WHERE holding_id=$1
                  UNION ALL
                  SELECT candidate_id,'talent.candidate',candidate_principal_id,'candidate'
-                 FROM erpx_talent_write.candidates WHERE tenant_id=$1
+                 FROM erpx_talent_write.candidates WHERE holding_id=$1
                  UNION ALL
                  SELECT application_id,'talent.application',candidate_principal_id,'candidate'
-                 FROM erpx_talent_write.applications WHERE tenant_id=$1
+                 FROM erpx_talent_write.applications WHERE holding_id=$1
                  UNION ALL
                  SELECT offer_id,'talent.offer',candidate_principal_id,'candidate'
-                 FROM erpx_talent_write.offers WHERE tenant_id=$1
+                 FROM erpx_talent_write.offers WHERE holding_id=$1
                  UNION ALL
                  SELECT record_id,'talent.interview',candidate_principal_id,'candidate'
                  FROM erpx_talent_write.governed_records
-                 WHERE tenant_id=$1 AND record_kind='talent_interview'
+                 WHERE holding_id=$1 AND record_kind='talent_interview'
                  ORDER BY record_id LIMIT $2",
             )
-            .bind(self.tenant_id.as_uuid())
+            .bind(self.holding_id.as_uuid())
             .bind(MAX_AUTHORITY_RECONCILIATION_ROWS + 1)
             .fetch_all(&mut *transaction)
             .await
@@ -516,7 +516,7 @@ impl TenantAuthorityEvidenceProjection {
             let field_service_rows = sqlx::query(
                 "SELECT agreement_id AS record_id,'field-service.agreement'::text AS record_type,
                         customer_ref,NULL::jsonb AS subject_ref
-                 FROM erpx_field_service_write.agreements WHERE tenant_id=$1
+                 FROM erpx_field_service_write.agreements WHERE holding_id=$1
                  UNION ALL
                  SELECT record_id,
                         CASE record_kind
@@ -525,10 +525,10 @@ impl TenantAuthorityEvidenceProjection {
                         END,
                         NULL::jsonb,subject_ref
                  FROM erpx_field_service_write.governed_records
-                 WHERE tenant_id=$1 AND record_kind IN ('request','visit')
+                 WHERE holding_id=$1 AND record_kind IN ('request','visit')
                  ORDER BY record_id LIMIT $2",
             )
-            .bind(self.tenant_id.as_uuid())
+            .bind(self.holding_id.as_uuid())
             .bind(MAX_AUTHORITY_RECONCILIATION_ROWS + 1)
             .fetch_all(&mut *transaction)
             .await
@@ -809,7 +809,7 @@ impl TenantAuthorityEvidenceProjection {
         let changed_count = changed.len();
         let revoked_count = revoked.len();
         for fact in changed.into_iter().chain(revoked) {
-            let publication = TenantItemDirectoryFact::try_new(self.tenant_id, fact)
+            let publication = HoldingItemDirectoryFact::try_new(self.holding_id, fact)
                 .map_err(|_| AuthorityProjectionError::MalformedEvidence)?;
             directory
                 .apply_fact(&publication, now)
@@ -835,8 +835,8 @@ struct Candidate {
 struct SharingEvidence {
     id: Uuid,
     version: u64,
-    source_scope: TenantScope,
-    target_scope: TenantScope,
+    source_scope: AuthorityScope,
+    target_scope: AuthorityScope,
     direction: String,
     permits_open_record: bool,
     source_approved: bool,
@@ -893,7 +893,7 @@ struct PortalBindingEvidence {
     customer: RecordVersionRef,
     principal_id: PrincipalId,
     principal_kind: RecordPolicyPrincipalKind,
-    scope: TenantScope,
+    scope: AuthorityScope,
     verified_identity_digest: String,
     verified_identity_version: u64,
     permits_field_service: bool,
@@ -1273,7 +1273,7 @@ fn sharing_from_row(
 
 fn organization_evidence(
     descriptor: &ItemDescriptor,
-    actor_scope: &TenantScope,
+    actor_scope: &AuthorityScope,
     published_to_descendants: bool,
     sharing: &[SharingEvidence],
     now: DateTime<Utc>,
@@ -1391,7 +1391,7 @@ pub enum AuthorityProjectionError {
     Unavailable,
 }
 
-fn scope_json(scope: &TenantScope) -> Result<serde_json::Value, AuthorityProjectionError> {
+fn scope_json(scope: &AuthorityScope) -> Result<serde_json::Value, AuthorityProjectionError> {
     serde_json::to_value(scope).map_err(|_| AuthorityProjectionError::MalformedEvidence)
 }
 
@@ -1537,12 +1537,12 @@ mod tests {
             realm: AuthorityRealm::InternalWorkforce,
             active: true,
             principal_version: 2,
-            scope: TenantScope::Holding { holding_id: id() },
+            scope: AuthorityScope::Holding { holding_id: id() },
             assignments: vec![AuthorityAssignmentEvidence {
                 assignment_id: id(),
                 role_id: id(),
                 assignment_version: 2,
-                scope: TenantScope::Holding { holding_id: id() },
+                scope: AuthorityScope::Holding { holding_id: id() },
                 valid_from: now,
                 valid_until: now + Duration::minutes(5),
                 revoked_at: None,
@@ -1561,7 +1561,7 @@ mod tests {
             aggregate_type: "access_principal".into(),
             aggregate_id: AggregateId::try_from_uuid(principal.as_uuid()).unwrap(),
             aggregate_version: 2,
-            tenant_scope: TenantScope::Platform,
+            active_scope: AuthorityScope::Platform,
             actor: ActorAttribution {
                 principal_ref: "worker:test".into(),
                 kind: ActorKind::SystemWorker,
@@ -1583,13 +1583,13 @@ mod tests {
     }
 
     #[test]
-    fn production_queries_are_tenant_exact_and_never_infer_group_or_sibling_grants() {
+    fn production_queries_are_holding_exact_and_never_infer_group_or_sibling_grants() {
         let source = include_str!("item_directory_authority.rs");
         let source = source
             .split("#[cfg(test)]")
             .next()
             .expect("production source precedes tests");
-        assert!(source.contains("WHERE tenant_id=$1"));
+        assert!(source.contains("WHERE holding_id=$1"));
         assert!(source.contains("gm.group_kind='human_group'"));
         assert!(!source.contains("gm.group_kind IN ('human_group','agent_pool')"));
         assert!(source.contains("source_approved"));
@@ -1603,7 +1603,7 @@ mod tests {
         let evidence = CollaborationAuthorityEvidence {
             anchor_record_id: RecordId::try_from_uuid(id()).unwrap(),
             audience: Audience::Internal {
-                scope: TenantScope::Holding { holding_id: id() },
+                scope: AuthorityScope::Holding { holding_id: id() },
                 principals: vec![CollaborationPrincipalRef::new(
                     included,
                     PrincipalKind::Human,
@@ -1688,7 +1688,7 @@ mod tests {
         context: ContextId,
         record_type: &str,
         record_id: RecordId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         version: u64,
     ) -> ItemDescriptor {
         let record = StableRecordRef::try_new(
@@ -1713,7 +1713,7 @@ mod tests {
     #[test]
     fn field_service_portal_grant_requires_exact_binding_customer_version_and_ttl() {
         let now = Utc::now();
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id: id(),
             company_id: id(),
         };
@@ -1900,7 +1900,7 @@ mod tests {
 
     #[test]
     fn field_service_customer_chain_rejects_cycle_and_unversioned_customer_subject() {
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id: id(),
             company_id: id(),
         };

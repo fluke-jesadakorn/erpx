@@ -22,7 +22,7 @@ erpx_ui_enterprise_workspaces::declare_enterprise_workspace_feature!(
     "ecommerce.workspace",
     "/commerce",
     "customer",
-    "erpx-feature-ecommerce-v2"
+    "erpx-feature-ecommerce"
 );
 
 #[cfg(test)]

@@ -17,7 +17,7 @@ use erpx_finance::{
         SubledgerView, TrialBalanceLine, TrialBalanceView,
     },
 };
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -115,7 +115,7 @@ impl FinanceReadRepository {
 impl ReadRepository for FinanceReadRepository {
     async fn get_chart(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: ChartId,
         c: &QueryConsistency,
     ) -> Result<ReadProjection<Option<ChartView>>, PortError> {
@@ -140,7 +140,7 @@ impl ReadRepository for FinanceReadRepository {
     }
     async fn list_charts(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         f: &ChartListFilter,
         c: &QueryConsistency,
     ) -> Result<ReadProjection<ChartList>, PortError> {
@@ -180,10 +180,10 @@ impl ReadRepository for FinanceReadRepository {
                 && f.company_id.is_none_or(|company_id| {
                     matches!(
                         &v.scope,
-                        TenantScope::Company {
+                        AuthorityScope::Company {
                             company_id: candidate,
                             ..
-                        } | TenantScope::Branch {
+                        } | AuthorityScope::Branch {
                             company_id: candidate,
                             ..
                         } if *candidate == company_id
@@ -201,7 +201,7 @@ impl ReadRepository for FinanceReadRepository {
     }
     async fn get_period(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: erpx_finance::PeriodId,
         c: &QueryConsistency,
     ) -> Result<ReadProjection<Option<PeriodView>>, PortError> {
@@ -219,7 +219,7 @@ impl ReadRepository for FinanceReadRepository {
     }
     async fn get_journal(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: JournalId,
         c: &QueryConsistency,
     ) -> Result<ReadProjection<Option<JournalView>>, PortError> {
@@ -244,7 +244,7 @@ impl ReadRepository for FinanceReadRepository {
     }
     async fn list_journals(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         f: &JournalListFilter,
         c: &QueryConsistency,
     ) -> Result<ReadProjection<JournalList>, PortError> {
@@ -269,7 +269,7 @@ impl ReadRepository for FinanceReadRepository {
     }
     async fn get_subledger(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: SubledgerId,
         c: &QueryConsistency,
     ) -> Result<ReadProjection<Option<SubledgerView>>, PortError> {
@@ -287,7 +287,7 @@ impl ReadRepository for FinanceReadRepository {
     }
     async fn get_customer_invoice(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: CustomerInvoiceId,
         c: &QueryConsistency,
     ) -> Result<ReadProjection<Option<CustomerInvoiceView>>, PortError> {
@@ -317,7 +317,7 @@ impl ReadRepository for FinanceReadRepository {
     }
     async fn get_revenue_schedule(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: RevenueScheduleId,
         c: &QueryConsistency,
     ) -> Result<ReadProjection<Option<RevenueScheduleView>>, PortError> {
@@ -347,7 +347,7 @@ impl ReadRepository for FinanceReadRepository {
     }
     async fn list_subledger(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         f: &SubledgerListFilter,
         c: &QueryConsistency,
     ) -> Result<ReadProjection<SubledgerList>, PortError> {
@@ -384,22 +384,22 @@ impl ReadRepository for FinanceReadRepository {
     }
     async fn get_trial_balance(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         chart: ChartId,
         c: &QueryConsistency,
     ) -> Result<ReadProjection<TrialBalanceView>, PortError> {
         let cp = self
             .checkpoint(TRIAL_BALANCE_PROJECTION, "finance.journal:", c, None)
             .await?;
-        let rows=sqlx::query("SELECT tenant_scope,currency,account_id,account_code,account_name,debit_minor,credit_minor,net_minor FROM erpx_finance_read.trial_balance_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND projection.chart_id=$2 ORDER BY account_code,account_id").bind(TRIAL_BALANCE_PROJECTION).bind(chart.as_uuid()).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
+        let rows=sqlx::query("SELECT active_scope,currency,account_id,account_code,account_name,debit_minor,credit_minor,net_minor FROM erpx_finance_read.trial_balance_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND projection.chart_id=$2 ORDER BY account_code,account_id").bind(TRIAL_BALANCE_PROJECTION).bind(chart.as_uuid()).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let mut line_totals = std::collections::BTreeMap::new();
         let mut projected_scope = None;
         let mut currency = None;
         let mut debit = 0i64;
         let mut credit = 0i64;
         for row in rows {
-            let s: TenantScope = serde_json::from_value(
-                row.try_get("tenant_scope")
+            let s: AuthorityScope = serde_json::from_value(
+                row.try_get("active_scope")
                     .map_err(|_| PortError::Internal)?,
             )
             .map_err(|_| PortError::Internal)?;
@@ -464,7 +464,7 @@ impl ReadRepository for FinanceReadRepository {
     }
     async fn list_bank_transactions(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         f: &BankTransactionListFilter,
         c: &QueryConsistency,
     ) -> Result<ReadProjection<BankTransactionList>, PortError> {
@@ -472,11 +472,11 @@ impl ReadRepository for FinanceReadRepository {
             .checkpoint(BANK_TRANSACTION_PROJECTION, "finance.journal:", c, None)
             .await?;
         let cursor = f.cursor.as_deref().map(decode_bank_cursor).transpose()?;
-        let rows=sqlx::query("SELECT tenant_scope,journal_id,import_id,transaction_id,reference,posted_on,amount_minor,currency FROM erpx_finance_read.bank_transaction_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND ($2::date IS NULL OR posted_on >= $2) AND ($3::date IS NULL OR posted_on <= $3) AND ($4::date IS NULL OR (posted_on,transaction_id)<($4,$5)) ORDER BY posted_on DESC,transaction_id DESC LIMIT $6").bind(BANK_TRANSACTION_PROJECTION).bind(f.posted_from).bind(f.posted_through).bind(cursor.as_ref().map(|x|x.0)).bind(cursor.as_ref().map(|x|x.1)).bind(scan(f.page_size)).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
+        let rows=sqlx::query("SELECT active_scope,journal_id,import_id,transaction_id,reference,posted_on,amount_minor,currency FROM erpx_finance_read.bank_transaction_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND ($2::date IS NULL OR posted_on >= $2) AND ($3::date IS NULL OR posted_on <= $3) AND ($4::date IS NULL OR (posted_on,transaction_id)<($4,$5)) ORDER BY posted_on DESC,transaction_id DESC LIMIT $6").bind(BANK_TRANSACTION_PROJECTION).bind(f.posted_from).bind(f.posted_through).bind(cursor.as_ref().map(|x|x.0)).bind(cursor.as_ref().map(|x|x.1)).bind(scan(f.page_size)).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let mut values = Vec::new();
         for row in rows {
-            let s: TenantScope = serde_json::from_value(
-                row.try_get("tenant_scope")
+            let s: AuthorityScope = serde_json::from_value(
+                row.try_get("active_scope")
                     .map_err(|_| PortError::Internal)?,
             )
             .map_err(|_| PortError::Internal)?;
@@ -516,7 +516,7 @@ impl ReadRepository for FinanceReadRepository {
     }
     async fn get_statutory_tax_report(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         period: &str,
         currency: &str,
         c: &QueryConsistency,
@@ -524,14 +524,14 @@ impl ReadRepository for FinanceReadRepository {
         let cp = self
             .checkpoint(STATUTORY_TAX_PROJECTION, "finance.journal:", c, None)
             .await?;
-        let rows=sqlx::query("SELECT tenant_scope,journal_id,tax_fact_id,reference,tax_date,tax_period,tax_kind,currency,base_minor,tax_minor,tax_rate_basis_points,tax_identifier FROM erpx_finance_read.statutory_tax_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND tax_period=$2 AND currency=$3 ORDER BY tax_date,tax_fact_id").bind(STATUTORY_TAX_PROJECTION).bind(period).bind(currency).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
+        let rows=sqlx::query("SELECT active_scope,journal_id,tax_fact_id,reference,tax_date,tax_period,tax_kind,currency,base_minor,tax_minor,tax_rate_basis_points,tax_identifier FROM erpx_finance_read.statutory_tax_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND tax_period=$2 AND currency=$3 ORDER BY tax_date,tax_fact_id").bind(STATUTORY_TAX_PROJECTION).bind(period).bind(currency).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let mut facts = Vec::new();
         let mut output = 0i64;
         let mut input = 0i64;
         let mut withholding = 0i64;
         for row in rows {
-            let s: TenantScope = serde_json::from_value(
-                row.try_get("tenant_scope")
+            let s: AuthorityScope = serde_json::from_value(
+                row.try_get("active_scope")
                     .map_err(|_| PortError::Internal)?,
             )
             .map_err(|_| PortError::Internal)?;
@@ -631,7 +631,7 @@ impl FinanceReadRepository {
         row.map(decode_state).transpose()
     }
 }
-fn scope_option<T: ScopeView>(scope: &TenantScope, v: &Option<T>) -> Result<(), PortError> {
+fn scope_option<T: ScopeView>(scope: &AuthorityScope, v: &Option<T>) -> Result<(), PortError> {
     if v.as_ref().is_some_and(|x| !scope.contains(x.scope())) {
         Err(PortError::Denied)
     } else {
@@ -639,35 +639,35 @@ fn scope_option<T: ScopeView>(scope: &TenantScope, v: &Option<T>) -> Result<(), 
     }
 }
 trait ScopeView {
-    fn scope(&self) -> &TenantScope;
+    fn scope(&self) -> &AuthorityScope;
 }
 impl ScopeView for ChartView {
-    fn scope(&self) -> &TenantScope {
+    fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
 }
 impl ScopeView for PeriodView {
-    fn scope(&self) -> &TenantScope {
+    fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
 }
 impl ScopeView for JournalView {
-    fn scope(&self) -> &TenantScope {
+    fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
 }
 impl ScopeView for SubledgerView {
-    fn scope(&self) -> &TenantScope {
+    fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
 }
 impl ScopeView for CustomerInvoiceView {
-    fn scope(&self) -> &TenantScope {
+    fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
 }
 impl ScopeView for RevenueScheduleView {
-    fn scope(&self) -> &TenantScope {
+    fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
 }

@@ -5,7 +5,7 @@
 use chrono::Utc;
 use erpx_application::{MarketingContentWritePort, SubmitPublishedFormCommand};
 use erpx_domain::{
-    contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope},
+    contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext},
     marketing_content::{
         ContentForm, ContentLocale, ContentTemplate, ContentTemplateRef, ContentTemplateVersion,
         CustomDomain, FormField, FormFieldKind, LocalizedText, PreviewGrant, SeoMetadata,
@@ -16,19 +16,19 @@ use erpx_infrastructure::{
     MAX_MARKETING_CONTENT_READ_PAGE_SIZE, SqlxMarketingContentStore,
     SqlxMarketingContentWriteAdapter,
 };
-use erpx_migration::{migrate_tenant_read, migrate_tenant_write};
+use erpx_migration::{migrate_holding_read, migrate_holding_write};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 use std::collections::BTreeMap;
 use uuid::Uuid;
 
-fn context(scope: TenantScope, key: &str, expected: Option<u64>) -> CommandContext {
+fn context(scope: AuthorityScope, key: &str, expected: Option<u64>) -> CommandContext {
     let mut context = CommandContext::try_new(
         key,
         ActorAttribution {
             principal_ref: "marketing-content-test".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: Some(Uuid::new_v4()),
             represented_principal_ref: None,
             support_capability_id: None,
@@ -41,7 +41,7 @@ fn context(scope: TenantScope, key: &str, expected: Option<u64>) -> CommandConte
     context
 }
 
-fn template(scope: TenantScope) -> ContentTemplate {
+fn template(scope: AuthorityScope) -> ContentTemplate {
     let id = Uuid::new_v4();
     let mut variants = BTreeMap::new();
     variants.insert(
@@ -73,14 +73,19 @@ fn template(scope: TenantScope) -> ContentTemplate {
 
 #[test]
 fn migration_defines_content_write_read_and_forced_rls_contracts() {
-    let write = include_str!("../../migration/migrations_tenant_write/0047_marketing_content.sql");
-    let read = include_str!("../../migration/migrations_tenant_read/0036_marketing_content.sql");
-    let workflow_read =
-        include_str!("../../migration/migrations_tenant_read/0037_marketing_content_workflow.sql");
-    let write_privacy =
-        include_str!("../../migration/migrations_tenant_write/0048_marketing_content_privacy.sql");
-    let read_privacy =
-        include_str!("../../migration/migrations_tenant_read/0038_marketing_content_privacy.sql");
+    let write = include_str!("../../migration/migrations_holding_write/0001_baseline.sql");
+    let read = include_str!("../../migration/migrations_holding_read/0001_baseline.sql");
+    let content_write = write
+        .split_inclusive(';')
+        .filter(|statement| statement.contains("marketing_content_"))
+        .collect::<String>();
+    let content_read = read
+        .split_inclusive(';')
+        .filter(|statement| statement.contains("marketing_content_"))
+        .collect::<String>();
+    let workflow_read = include_str!("../../migration/migrations_holding_read/0001_baseline.sql");
+    let write_privacy = include_str!("../../migration/migrations_holding_write/0001_baseline.sql");
+    let read_privacy = include_str!("../../migration/migrations_holding_read/0001_baseline.sql");
     for required in [
         "marketing_content_assets",
         "marketing_content_template_versions",
@@ -117,10 +122,10 @@ fn migration_defines_content_write_read_and_forced_rls_contracts() {
             "missing workflow read contract: {required}"
         );
     }
-    assert!(!workflow_read.contains("token_hash"));
-    assert!(!workflow_read.contains("verification_hash"));
-    assert!(!write.contains("credential"));
-    assert!(!write.contains("password"));
+    assert!(!content_read.contains("token_hash"));
+    assert!(!content_read.contains("verification_hash"));
+    assert!(!content_write.contains("credential"));
+    assert!(!content_write.contains("password"));
     for required in ["retention_until", "redacted_at", "retention"] {
         assert!(
             write_privacy.contains(required),
@@ -134,28 +139,29 @@ fn migration_defines_content_write_read_and_forced_rls_contracts() {
 }
 
 #[tokio::test]
-#[ignore = "requires disposable tenant PostgreSQL write and read databases"]
+#[ignore = "requires disposable holding PostgreSQL write and read databases"]
 async fn content_lifecycle_is_atomic_idempotent_versioned_and_rebuildable() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    migrate_tenant_write(&write_pool)
+    migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migrations");
-    migrate_tenant_read(&read_pool)
+        .expect("holding write migrations");
+    migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migrations");
+        .expect("holding read migrations");
 
-    let holding_ref = format!("marketing-content-{}", Uuid::new_v4());
-    let scope = TenantScope::Holding {
+    let data_profile_key = format!("marketing-content-{}", Uuid::new_v4());
+    let scope = AuthorityScope::Holding {
         holding_id: Uuid::new_v4(),
     };
     let mut content = template(scope.clone());
-    let store = SqlxMarketingContentStore::new(write_pool.clone(), read_pool.clone(), &holding_ref)
-        .expect("content store");
+    let store =
+        SqlxMarketingContentStore::new(write_pool.clone(), read_pool.clone(), &data_profile_key)
+            .expect("content store");
 
     let create_context = context(scope.clone(), "create", None);
     let created = store
@@ -341,17 +347,17 @@ async fn content_lifecycle_is_atomic_idempotent_versioned_and_rebuildable() {
     // Make the disposable submission due, then prove the source mutation is
     // irreversible and represented by a non-sensitive append-only event.
     let mut due = write_pool.begin().await.expect("privacy due transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *due)
         .await
         .expect("privacy due scope");
     sqlx::query(
-        "UPDATE erpx_tenant.marketing_content_form_submissions
+        "UPDATE erpx_holding.marketing_content_form_submissions
             SET retention_until=received_at + INTERVAL '1 millisecond'
-          WHERE holding_ref=$1 AND submission_id=$2",
+          WHERE data_profile_key=$1 AND submission_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(submission.aggregate_id)
     .execute(&mut *due)
     .await
@@ -379,17 +385,17 @@ async fn content_lifecycle_is_atomic_idempotent_versioned_and_rebuildable() {
     assert_eq!(privacy_replay.redacted, 0);
 
     let mut privacy_source = write_pool.begin().await.expect("privacy source inspection");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *privacy_source)
         .await
         .expect("privacy source scope");
     let (source_values, source_redacted): (Value, Option<chrono::DateTime<Utc>>) = sqlx::query_as(
         "SELECT values_json, redacted_at
-           FROM erpx_tenant.marketing_content_form_submissions
-          WHERE holding_ref=$1 AND submission_id=$2",
+           FROM erpx_holding.marketing_content_form_submissions
+          WHERE data_profile_key=$1 AND submission_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(submission.aggregate_id)
     .fetch_one(&mut *privacy_source)
     .await
@@ -397,11 +403,11 @@ async fn content_lifecycle_is_atomic_idempotent_versioned_and_rebuildable() {
     assert_eq!(source_values, json!({}));
     assert!(source_redacted.is_some());
     let redaction_payload: Value = sqlx::query_scalar(
-        "SELECT payload FROM erpx_tenant.outbox_events
-          WHERE holding_ref=$1 AND aggregate_id=$2
+        "SELECT payload FROM erpx_holding.outbox_events
+          WHERE data_profile_key=$1 AND aggregate_id=$2
             AND event_type='marketing.content_form_submission_redacted.v1'",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(submission.aggregate_id)
     .fetch_one(&mut *privacy_source)
     .await
@@ -520,17 +526,17 @@ async fn content_lifecycle_is_atomic_idempotent_versioned_and_rebuildable() {
         (1, 1, 1)
     );
     let mut privacy_read_inspection = read_pool.begin().await.expect("privacy read inspection");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *privacy_read_inspection)
         .await
         .expect("privacy read scope");
     let (read_values, read_redacted): (Value, Option<chrono::DateTime<Utc>>) = sqlx::query_as(
         "SELECT values_json, redacted_at
-           FROM erpx_tenant.marketing_content_submission_read_rows
-          WHERE holding_ref=$1 AND submission_id=$2",
+           FROM erpx_holding.marketing_content_submission_read_rows
+          WHERE data_profile_key=$1 AND submission_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(submission.aggregate_id)
     .fetch_one(&mut *privacy_read_inspection)
     .await
@@ -550,32 +556,32 @@ async fn content_lifecycle_is_atomic_idempotent_versioned_and_rebuildable() {
     );
 
     let mut inspection = write_pool.begin().await.expect("inspection");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *inspection)
         .await
         .expect("write scope");
     let counts: (i64, i64, i64, i64, i64, i64, i64, i64) = sqlx::query_as(
         "SELECT
-            (SELECT count(*) FROM erpx_tenant.marketing_content_templates WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.marketing_content_template_versions WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.marketing_content_command_idempotency WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.outbox_events WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.marketing_content_previews WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.marketing_content_form_submissions WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.marketing_content_domains WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.marketing_content_domain_bindings WHERE holding_ref=$1)",
+            (SELECT count(*) FROM erpx_holding.marketing_content_templates WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.marketing_content_template_versions WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.marketing_content_command_idempotency WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.outbox_events WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.marketing_content_previews WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.marketing_content_form_submissions WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.marketing_content_domains WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.marketing_content_domain_bindings WHERE data_profile_key=$1)",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .fetch_one(&mut *inspection)
     .await
     .expect("write counts");
     assert_eq!(counts, (1, 1, 14, 14, 1, 1, 1, 1));
     let stored_hash: String = sqlx::query_scalar(
-        "SELECT token_hash FROM erpx_tenant.marketing_content_previews
-          WHERE holding_ref=$1 AND preview_id=$2",
+        "SELECT token_hash FROM erpx_holding.marketing_content_previews
+          WHERE data_profile_key=$1 AND preview_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(preview.id)
     .fetch_one(&mut *inspection)
     .await
@@ -583,9 +589,9 @@ async fn content_lifecycle_is_atomic_idempotent_versioned_and_rebuildable() {
     assert_eq!(stored_hash, token_hash);
     let forced: Vec<(String, bool)> = sqlx::query_as(
         "SELECT relname, relforcerowsecurity FROM pg_class
-          WHERE oid IN ('erpx_tenant.marketing_content_templates'::regclass,
-                        'erpx_tenant.marketing_content_template_versions'::regclass,
-                        'erpx_tenant.marketing_content_command_idempotency'::regclass)
+          WHERE oid IN ('erpx_holding.marketing_content_templates'::regclass,
+                        'erpx_holding.marketing_content_template_versions'::regclass,
+                        'erpx_holding.marketing_content_command_idempotency'::regclass)
           ORDER BY relname",
     )
     .fetch_all(&mut *inspection)
@@ -596,18 +602,18 @@ async fn content_lifecycle_is_atomic_idempotent_versioned_and_rebuildable() {
     inspection.commit().await.expect("inspection commit");
 
     let mut read_inspection = read_pool.begin().await.expect("read inspection");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *read_inspection)
         .await
         .expect("read scope");
     let read_counts: (i64, i64, i64) = sqlx::query_as(
         "SELECT
-            (SELECT count(*) FROM erpx_tenant.marketing_content_read_rows WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.marketing_content_projection_checkpoints WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.marketing_content_projection_event_receipts WHERE holding_ref=$1)",
+            (SELECT count(*) FROM erpx_holding.marketing_content_read_rows WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.marketing_content_projection_checkpoints WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.marketing_content_projection_event_receipts WHERE data_profile_key=$1)",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .fetch_one(&mut *read_inspection)
     .await
     .expect("read counts");
@@ -617,20 +623,20 @@ async fn content_lifecycle_is_atomic_idempotent_versioned_and_rebuildable() {
         .await
         .expect("read inspection commit");
     let mut workflow_read_inspection = read_pool.begin().await.expect("workflow read inspection");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *workflow_read_inspection)
         .await
         .expect("workflow read scope");
     let workflow_read_counts: (i64, i64, i64, i64, i64) = sqlx::query_as(
         "SELECT
-            (SELECT count(*) FROM erpx_tenant.marketing_content_preview_read_rows WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.marketing_content_submission_read_rows WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.marketing_content_domain_read_rows WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.marketing_content_workflow_projection_checkpoints WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.marketing_content_workflow_projection_event_receipts WHERE holding_ref=$1)",
+            (SELECT count(*) FROM erpx_holding.marketing_content_preview_read_rows WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.marketing_content_submission_read_rows WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.marketing_content_domain_read_rows WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.marketing_content_workflow_projection_checkpoints WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.marketing_content_workflow_projection_event_receipts WHERE data_profile_key=$1)",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .fetch_one(&mut *workflow_read_inspection)
     .await
     .expect("workflow read counts");
@@ -655,121 +661,133 @@ async fn content_lifecycle_is_atomic_idempotent_versioned_and_rebuildable() {
     );
 
     let mut cleanup = write_pool.begin().await.expect("cleanup");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *cleanup)
         .await
         .expect("cleanup scope");
-    sqlx::query("DELETE FROM erpx_tenant.outbox_events WHERE holding_ref=$1")
-        .bind(&holding_ref)
+    sqlx::query("DELETE FROM erpx_holding.outbox_events WHERE data_profile_key=$1")
+        .bind(&data_profile_key)
         .execute(&mut *cleanup)
         .await
         .expect("cleanup outbox");
     sqlx::query(
-        "DELETE FROM erpx_tenant.marketing_content_command_idempotency WHERE holding_ref=$1",
+        "DELETE FROM erpx_holding.marketing_content_command_idempotency WHERE data_profile_key=$1",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .execute(&mut *cleanup)
     .await
     .expect("cleanup idempotency");
-    sqlx::query("DELETE FROM erpx_tenant.marketing_content_domain_bindings WHERE holding_ref=$1")
-        .bind(&holding_ref)
-        .execute(&mut *cleanup)
-        .await
-        .expect("cleanup domain bindings");
-    sqlx::query("DELETE FROM erpx_tenant.marketing_content_previews WHERE holding_ref=$1")
-        .bind(&holding_ref)
+    sqlx::query(
+        "DELETE FROM erpx_holding.marketing_content_domain_bindings WHERE data_profile_key=$1",
+    )
+    .bind(&data_profile_key)
+    .execute(&mut *cleanup)
+    .await
+    .expect("cleanup domain bindings");
+    sqlx::query("DELETE FROM erpx_holding.marketing_content_previews WHERE data_profile_key=$1")
+        .bind(&data_profile_key)
         .execute(&mut *cleanup)
         .await
         .expect("cleanup previews");
-    sqlx::query("DELETE FROM erpx_tenant.marketing_content_form_submissions WHERE holding_ref=$1")
-        .bind(&holding_ref)
-        .execute(&mut *cleanup)
-        .await
-        .expect("cleanup submissions");
-    sqlx::query("ALTER TABLE erpx_tenant.marketing_content_template_versions DISABLE TRIGGER USER")
-        .execute(&mut *cleanup)
-        .await
-        .expect("disable append-only trigger");
-    sqlx::query("DELETE FROM erpx_tenant.marketing_content_template_versions WHERE holding_ref=$1")
-        .bind(&holding_ref)
-        .execute(&mut *cleanup)
-        .await
-        .expect("cleanup versions");
-    sqlx::query("ALTER TABLE erpx_tenant.marketing_content_template_versions ENABLE TRIGGER USER")
+    sqlx::query(
+        "DELETE FROM erpx_holding.marketing_content_form_submissions WHERE data_profile_key=$1",
+    )
+    .bind(&data_profile_key)
+    .execute(&mut *cleanup)
+    .await
+    .expect("cleanup submissions");
+    sqlx::query(
+        "ALTER TABLE erpx_holding.marketing_content_template_versions DISABLE TRIGGER USER",
+    )
+    .execute(&mut *cleanup)
+    .await
+    .expect("disable append-only trigger");
+    sqlx::query(
+        "DELETE FROM erpx_holding.marketing_content_template_versions WHERE data_profile_key=$1",
+    )
+    .bind(&data_profile_key)
+    .execute(&mut *cleanup)
+    .await
+    .expect("cleanup versions");
+    sqlx::query("ALTER TABLE erpx_holding.marketing_content_template_versions ENABLE TRIGGER USER")
         .execute(&mut *cleanup)
         .await
         .expect("restore append-only trigger");
-    sqlx::query("DELETE FROM erpx_tenant.marketing_content_templates WHERE holding_ref=$1")
-        .bind(&holding_ref)
+    sqlx::query("DELETE FROM erpx_holding.marketing_content_templates WHERE data_profile_key=$1")
+        .bind(&data_profile_key)
         .execute(&mut *cleanup)
         .await
         .expect("cleanup templates");
-    sqlx::query("DELETE FROM erpx_tenant.marketing_content_forms WHERE holding_ref=$1")
-        .bind(&holding_ref)
+    sqlx::query("DELETE FROM erpx_holding.marketing_content_forms WHERE data_profile_key=$1")
+        .bind(&data_profile_key)
         .execute(&mut *cleanup)
         .await
         .expect("cleanup forms");
-    sqlx::query("DELETE FROM erpx_tenant.marketing_content_domains WHERE holding_ref=$1")
-        .bind(&holding_ref)
+    sqlx::query("DELETE FROM erpx_holding.marketing_content_domains WHERE data_profile_key=$1")
+        .bind(&data_profile_key)
         .execute(&mut *cleanup)
         .await
         .expect("cleanup domains");
     cleanup.commit().await.expect("cleanup commit");
 
     let mut read_cleanup = read_pool.begin().await.expect("read cleanup");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *read_cleanup)
         .await
         .expect("read cleanup scope");
     sqlx::query(
-        "DELETE FROM erpx_tenant.marketing_content_projection_event_receipts WHERE holding_ref=$1",
+        "DELETE FROM erpx_holding.marketing_content_projection_event_receipts WHERE data_profile_key=$1",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .execute(&mut *read_cleanup)
     .await
     .expect("cleanup read receipts");
     sqlx::query(
-        "DELETE FROM erpx_tenant.marketing_content_workflow_projection_event_receipts WHERE holding_ref=$1",
+        "DELETE FROM erpx_holding.marketing_content_workflow_projection_event_receipts WHERE data_profile_key=$1",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .execute(&mut *read_cleanup)
     .await
     .expect("cleanup workflow read receipts");
     sqlx::query(
-        "DELETE FROM erpx_tenant.marketing_content_workflow_projection_checkpoints WHERE holding_ref=$1",
+        "DELETE FROM erpx_holding.marketing_content_workflow_projection_checkpoints WHERE data_profile_key=$1",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .execute(&mut *read_cleanup)
     .await
     .expect("cleanup workflow read checkpoints");
-    sqlx::query("DELETE FROM erpx_tenant.marketing_content_preview_read_rows WHERE holding_ref=$1")
-        .bind(&holding_ref)
-        .execute(&mut *read_cleanup)
-        .await
-        .expect("cleanup workflow preview rows");
     sqlx::query(
-        "DELETE FROM erpx_tenant.marketing_content_submission_read_rows WHERE holding_ref=$1",
+        "DELETE FROM erpx_holding.marketing_content_preview_read_rows WHERE data_profile_key=$1",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
+    .execute(&mut *read_cleanup)
+    .await
+    .expect("cleanup workflow preview rows");
+    sqlx::query(
+        "DELETE FROM erpx_holding.marketing_content_submission_read_rows WHERE data_profile_key=$1",
+    )
+    .bind(&data_profile_key)
     .execute(&mut *read_cleanup)
     .await
     .expect("cleanup workflow submission rows");
-    sqlx::query("DELETE FROM erpx_tenant.marketing_content_domain_read_rows WHERE holding_ref=$1")
-        .bind(&holding_ref)
-        .execute(&mut *read_cleanup)
-        .await
-        .expect("cleanup workflow domain rows");
     sqlx::query(
-        "DELETE FROM erpx_tenant.marketing_content_projection_checkpoints WHERE holding_ref=$1",
+        "DELETE FROM erpx_holding.marketing_content_domain_read_rows WHERE data_profile_key=$1",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
+    .execute(&mut *read_cleanup)
+    .await
+    .expect("cleanup workflow domain rows");
+    sqlx::query(
+        "DELETE FROM erpx_holding.marketing_content_projection_checkpoints WHERE data_profile_key=$1",
+    )
+    .bind(&data_profile_key)
     .execute(&mut *read_cleanup)
     .await
     .expect("cleanup read checkpoints");
-    sqlx::query("DELETE FROM erpx_tenant.marketing_content_read_rows WHERE holding_ref=$1")
-        .bind(&holding_ref)
+    sqlx::query("DELETE FROM erpx_holding.marketing_content_read_rows WHERE data_profile_key=$1")
+        .bind(&data_profile_key)
         .execute(&mut *read_cleanup)
         .await
         .expect("cleanup read rows");

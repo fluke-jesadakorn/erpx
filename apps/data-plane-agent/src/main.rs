@@ -8,15 +8,15 @@ use erpx_data_plane_agent::{
     LocalDataPlaneRuntime, LocalReadinessObservation, parse_agent_capability,
 };
 use erpx_domain::{contracts::CONTRACT_VERSION, data_plane::AgentCapability};
+use erpx_proto::erpx::platform_administration::data_plane_agent::data_plane_agent_service_client::DataPlaneAgentServiceClient;
 use erpx_proto::{
-    common::v2::{ActorAttribution, ActorKind, AuditContext},
-    erpx::platform_administration::v2::{
+    common::{ActorAttribution, ActorKind, AuditContext},
+    erpx::platform_administration::{
         ControlPlaneEnvelope, DataPlaneAgentEnvelope, DataPlaneCommandResult,
         DataPlaneObservationMessage, EnrollDataPlaneAgentRequest, control_plane_envelope,
         data_plane_agent_envelope,
     },
 };
-use erpx_proto::erpx::platform_administration::data_plane_agent::v2::data_plane_agent_service_client::DataPlaneAgentServiceClient;
 use sha2::Digest;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
@@ -62,7 +62,6 @@ impl AgentProcessConfig {
             ));
         }
         let identity = AgentIdentity {
-            tenant_id: required_env("ERPX_AGENT_TENANT_ID")?,
             holding_id: parse_uuid_env("ERPX_AGENT_HOLDING_ID")?,
             agent_id: parse_uuid_env("ERPX_AGENT_ID")?,
             capabilities,
@@ -132,8 +131,8 @@ async fn enroll_once(config: &AgentProcessConfig) -> Result<(), Box<dyn std::err
             one_time_bootstrap_token: token,
             signed_installation_manifest: manifest,
             agent_id: config.identity.agent_id.to_string(),
-            tenant_id: config.identity.tenant_id.clone(),
-            root_holding_id: config.identity.holding_id.to_string(),
+            holding_id: config.identity.holding_id.to_string(),
+            canonical_holding_id: config.identity.holding_id.to_string(),
             certificate_fingerprint: certificate_fingerprint(&config.client_certificate)?,
             capabilities: config
                 .identity
@@ -190,7 +189,7 @@ async fn connect_once(
         .await?
         .into_inner();
     tracing::info!(
-        tenant_id = %config.identity.tenant_id,
+        holding_id = %config.identity.holding_id,
         agent_id = %config.identity.agent_id,
         "customer data-plane outbound mTLS channel connected"
     );
@@ -262,7 +261,7 @@ fn observation_envelope(
             DataPlaneObservationMessage {
                 contract_version: u32::from(CONTRACT_VERSION),
                 request_id: Uuid::new_v4().to_string(),
-                tenant_id: config.identity.tenant_id.clone(),
+                holding_id: config.identity.holding_id.to_string(),
                 agent_id: config.identity.agent_id.to_string(),
                 observed_version: guard.observed_version(),
                 desired_version: readiness.observed_version.max(guard.observed_version()),
@@ -332,14 +331,14 @@ fn refresh_local_readiness(
 }
 
 fn command_accepted_envelope(
-    command: &erpx_proto::erpx::platform_administration::v2::TypedDataPlaneCommand,
+    command: &erpx_proto::erpx::platform_administration::TypedDataPlaneCommand,
 ) -> DataPlaneAgentEnvelope {
     DataPlaneAgentEnvelope {
         payload: Some(data_plane_agent_envelope::Payload::CommandResult(
             DataPlaneCommandResult {
                 contract_version: u32::from(CONTRACT_VERSION),
                 command_id: command.command_id.clone(),
-                tenant_id: command.tenant_id.clone(),
+                holding_id: command.holding_id.clone(),
                 agent_id: command.agent_id.clone(),
                 result_type: "accepted".into(),
                 redacted_payload_json: b"{}".to_vec(),

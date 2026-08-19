@@ -1,23 +1,23 @@
 # G10-MKT-055 Marketing content workflow persistence
 
-This packet closes the tenant-write workflow persistence slice for Marketing
+This packet closes the holding-write workflow persistence slice for Marketing
 content. It does not claim public HTTP/gRPC submission transport, preview
 serving, DNS/HTTP verification adapters, expiry workers, read projections for
 workflow facts, Dioxus/SSR, or the wider G10 gate.
 
 ## Integrated behavior
 
-- Preview grants require a valid tenant-scoped template reference whose
+- Preview grants require a valid holding-scoped template reference whose
   revision is the authoritative published version.
 - Preview issue and revoke commands persist only a bounded SHA-256 token hash,
-  use tenant-scoped idempotency, and append attributed outbox events.
+  use holding-scoped idempotency, and append attributed outbox events.
 - Published form submissions re-read the authoritative form snapshot under a
   scoped transaction, validate required/unknown/bounded fields, persist the
-  submission values in tenant-write state, and append an event whose payload
+  submission values in holding-write state, and append an event whose payload
   omits submitted values.
 - Domain verification stores only a SHA-256 challenge hash, activates a domain
   only after an exact proof-hash match, and clears the hash on success.
-- Domain binding requires the verified active domain, exact tenant scope, and
+- Domain binding requires the verified active domain, exact holding scope, and
   the currently published template revision; replacement is atomic and
   idempotent.
 - Workflow commands share the existing advisory lock, request-hash conflict,

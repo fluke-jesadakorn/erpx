@@ -9,7 +9,7 @@
 - Customer-visible reads use `SupportTicket::customer_visible_view`, whose
   message type has no internal-note field. Internal notes remain write-side
   aggregate data only.
-- Assignment commands require the actor `TenantScope` to contain the assigned
+- Assignment commands require the actor `HoldingScope` to contain the assigned
   scope. Assignment references, message bodies, escalation levels/reasons, and
   SLA horizon are bounded.
 - Closed tickets reject all metadata/lifecycle mutations. Recurrence remains a

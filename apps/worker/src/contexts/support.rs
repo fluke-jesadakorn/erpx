@@ -1,4 +1,4 @@
-//! Tenant Support projection runtimes.
+//! Holding Support projection runtimes.
 
 use erpx_cqrs_sqlx::{
     CqrsSqlxError, ProjectionPool, ProjectionRun, ProjectionRunner, ProjectionRunnerConfig,

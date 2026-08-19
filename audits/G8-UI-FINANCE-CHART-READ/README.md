@@ -3,8 +3,8 @@
 ## Scope
 
 The Dioxus /finance route now exposes the existing authenticated
-FinanceService::ListFinanceCharts projection for an explicit tenant,
-holding, and company UUID. This is a read-only adapter over the routed tenant
+FinanceService::ListFinanceCharts projection for an explicit holding,
+holding, and company UUID. This is a read-only adapter over the routed holding
 read database; it does not infer company scope, reconstruct a chart from
 client data, or introduce a chart mutation path.
 
@@ -13,7 +13,7 @@ client data, or introduce a chart mutation path.
 - The console sends an authenticated/audited QueryContext and an explicit
   company-contained holding scope to the server.
 - The existing server performs finance.read authorization, customer scope
-  containment, tenant-read routing, bounded keyset pagination, and SQLx
+  containment, holding-read routing, bounded keyset pagination, and SQLx
   projection access. Existing Finance source events, outbox, projector,
   reconciliation, and rollback behavior remain authoritative.
 - The client retains only chart/account identifiers, safe account labels,
@@ -26,7 +26,7 @@ client data, or introduce a chart mutation path.
 
 ## Fail-closed boundary
 
-FinanceChartScope rejects invalid tenant/holding/company references.
+FinanceChartScope rejects invalid holding/holding/company references.
 FinanceChartReadModel::from_wire rejects oversized pages, missing or
 contradictory cursors, invalid chart/holding/company/account identities,
 scope escapes, unsafe/unbounded labels, unknown categories, unknown normal

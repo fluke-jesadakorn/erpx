@@ -2,7 +2,7 @@ use chrono::{Duration, TimeZone, Utc};
 use erpx_integration_contracts::{
     DisplayName, ReferenceCode, customer, identity_access, organization,
 };
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use uuid::Uuid;
 
 use super::*;
@@ -14,8 +14,8 @@ fn id(value: u128) -> Uuid {
 fn at() -> DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap()
 }
-fn scope() -> TenantScope {
-    TenantScope::Company {
+fn scope() -> AuthorityScope {
+    AuthorityScope::Company {
         holding_id: id(1),
         company_id: id(2),
     }
@@ -63,7 +63,7 @@ fn approved_session(mode: SupportMode) -> SupportSession {
         principal(32),
         represented,
         mode,
-        vec!["tenant.read".into(), "tenant.write".into()],
+        vec!["holding.read".into(), "holding.write".into()],
         scope(),
         "support".into(),
         "customer approved investigation".into(),
@@ -95,7 +95,7 @@ fn ticket_requires_eligible_customer_and_owning_company_scope() {
         ),
         Err(SupportDomainError::CustomerUnavailable)
     ));
-    let foreign = TenantScope::Company {
+    let foreign = AuthorityScope::Company {
         holding_id: id(1),
         company_id: id(99),
     };
@@ -190,7 +190,7 @@ fn impersonation_requires_a_represented_principal_and_distinct_approver() {
         principal(32),
         None,
         SupportMode::Impersonation,
-        vec!["tenant.read".into()],
+        vec!["holding.read".into()],
         scope(),
         "support".into(),
         "reason".into(),
@@ -207,7 +207,7 @@ fn impersonation_requires_a_represented_principal_and_distinct_approver() {
         principal(32),
         Some(principal(31)),
         SupportMode::Impersonation,
-        vec!["tenant.read".into()],
+        vec!["holding.read".into()],
         scope(),
         "support".into(),
         "reason".into(),
@@ -223,7 +223,7 @@ fn impersonation_requires_a_represented_principal_and_distinct_approver() {
 
 #[test]
 fn high_risk_capability_requires_current_mfa_sod_and_contained_scope() {
-    let session = approved_session(SupportMode::TenantMutation);
+    let session = approved_session(SupportMode::HoldingMutation);
     let base = CapabilityEvidence {
         device_ref: "device-1".into(),
         mfa_verified_at: Some(at()),
@@ -269,7 +269,7 @@ fn high_risk_capability_requires_current_mfa_sod_and_contained_scope() {
 #[test]
 fn support_access_never_expands_or_narrows_the_customer_approved_scope() {
     let ticket = access_requested_ticket();
-    let branch = TenantScope::Branch {
+    let branch = AuthorityScope::Branch {
         holding_id: id(1),
         company_id: id(2),
         branch_id: id(3),
@@ -281,7 +281,7 @@ fn support_access_never_expands_or_narrows_the_customer_approved_scope() {
             principal(32),
             None,
             SupportMode::DiagnosticRead,
-            vec!["tenant.read".into()],
+            vec!["holding.read".into()],
             branch.clone(),
             "support".into(),
             "customer approved investigation".into(),
@@ -309,7 +309,7 @@ fn support_access_never_expands_or_narrows_the_customer_approved_scope() {
     assert!(matches!(
         capability.authorize(
             &session,
-            "tenant.read",
+            "holding.read",
             &branch,
             &evidence,
             at() + Duration::minutes(3),
@@ -338,7 +338,7 @@ fn revoked_or_expired_capability_never_authorizes() {
     capability
         .authorize(
             &session,
-            "tenant.read",
+            "holding.read",
             &scope(),
             &evidence,
             at() + Duration::minutes(3),
@@ -353,7 +353,7 @@ fn revoked_or_expired_capability_never_authorizes() {
     assert!(matches!(
         capability.authorize(
             &session,
-            "tenant.read",
+            "holding.read",
             &scope(),
             &evidence,
             at() + Duration::minutes(4)
@@ -363,7 +363,7 @@ fn revoked_or_expired_capability_never_authorizes() {
     assert!(matches!(
         capability.authorize(
             &session,
-            "tenant.read",
+            "holding.read",
             &scope(),
             &evidence,
             session.expires_at()

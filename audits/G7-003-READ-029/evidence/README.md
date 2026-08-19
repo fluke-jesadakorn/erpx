@@ -6,7 +6,7 @@
 maximum page size of 500 and an exclusive aggregate/version cursor. It validates
 the routed holding and returns deterministic ordering with `has_more` and a
 resume cursor. Projection rebuild preparation clears only the selected
-projection and holding from the tenant read database; write-side events,
+projection and holding from the holding read database; write-side events,
 snapshots, and other projections are untouched.
 
 ## Independent verification

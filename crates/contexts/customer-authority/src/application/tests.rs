@@ -15,8 +15,8 @@ use erpx_cqrs::{
     QueryEnvelope, QueryHandler, ReadYourWrites,
 };
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
-    FixedClock, QueryId, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+    ErrorCategory, EventId, FixedClock, QueryId,
 };
 use uuid::Uuid;
 
@@ -36,8 +36,8 @@ fn at() -> chrono::DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap()
 }
 
-fn company() -> TenantScope {
-    TenantScope::Company {
+fn company() -> AuthorityScope {
+    AuthorityScope::Company {
         holding_id: id(1),
         company_id: id(2),
     }
@@ -57,7 +57,7 @@ fn account(customer_id: u128, code: &str) -> CustomerAccount {
     account_in_scope(customer_id, code, company())
 }
 
-fn account_in_scope(customer_id: u128, code: &str, scope: TenantScope) -> CustomerAccount {
+fn account_in_scope(customer_id: u128, code: &str, scope: AuthorityScope) -> CustomerAccount {
     let mut value = CustomerAccount::create(
         CustomerId::try_from_uuid(id(customer_id)).unwrap(),
         CustomerCode::try_new(code).unwrap(),
@@ -79,7 +79,7 @@ fn account_in_scope(customer_id: u128, code: &str, scope: TenantScope) -> Custom
 
 fn command_envelope<C>(
     sequence: u128,
-    scope: TenantScope,
+    scope: AuthorityScope,
     expected: Option<u64>,
     command: C,
 ) -> CommandEnvelope<C> {
@@ -90,7 +90,7 @@ fn command_envelope<C>(
         correlation_id: CorrelationId::try_from_uuid(id(200 + sequence)).unwrap(),
         causation_id: None,
         actor: actor(),
-        tenant_scope: scope,
+        active_scope: scope,
         audit: AuditContext {
             purpose: "customer_authority.test".into(),
             customer_visible: true,
@@ -101,13 +101,13 @@ fn command_envelope<C>(
     }
 }
 
-fn query_envelope<Q>(sequence: u128, scope: TenantScope, query: Q) -> QueryEnvelope<Q> {
+fn query_envelope<Q>(sequence: u128, scope: AuthorityScope, query: Q) -> QueryEnvelope<Q> {
     QueryEnvelope {
         contract_version: CONTRACT_VERSION,
         query_id: QueryId::try_from_uuid(id(300 + sequence)).unwrap(),
         correlation_id: CorrelationId::try_from_uuid(id(400 + sequence)).unwrap(),
         actor: actor(),
-        tenant_scope: scope,
+        active_scope: scope,
         audit: AuditContext {
             purpose: "customer_authority.test.query".into(),
             customer_visible: true,
@@ -141,7 +141,7 @@ struct FakeEntitlement {
 impl EntitlementPort for FakeEntitlement {
     async fn ensure_customer_authority_enabled(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _write: bool,
     ) -> Result<(), PortError> {
         self.allow.then_some(()).ok_or(PortError::EntitlementDenied)
@@ -158,7 +158,7 @@ struct FakeWriteRepository {
 impl WriteRepository for FakeWriteRepository {
     async fn load(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         customer_id: CustomerId,
     ) -> Result<Option<CustomerAccount>, PortError> {
         self.loads.fetch_add(1, Ordering::SeqCst);
@@ -232,7 +232,7 @@ struct FakeReadRepository {
 impl ReadRepository for FakeReadRepository {
     async fn get(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _customer_id: CustomerId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<CustomerAuthorityView>>, PortError> {
@@ -256,7 +256,7 @@ impl ReadRepository for FakeReadRepository {
 
     async fn list(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _filter: &CustomerListFilter,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<CustomerList>, PortError> {
@@ -317,7 +317,7 @@ fn stable_idempotency_replays_without_loading_write_store() {
     let (handler, unit_of_work, loads) = command_handler(vec![aggregate], true);
     let envelope = command_envelope(
         1,
-        TenantScope::Platform,
+        AuthorityScope::Platform,
         Some(1),
         ChangeCustomerStatus {
             customer_id: CustomerId::try_from_uuid(id(10)).unwrap(),
@@ -338,7 +338,7 @@ fn changed_payload_under_same_identity_conflicts() {
     let (handler, _unit_of_work, _loads) = command_handler(vec![aggregate], true);
     let first = command_envelope(
         2,
-        TenantScope::Platform,
+        AuthorityScope::Platform,
         Some(1),
         ChangeCustomerStatus {
             customer_id: CustomerId::try_from_uuid(id(10)).unwrap(),
@@ -358,7 +358,7 @@ fn mutations_require_expected_version_and_contained_scope() {
     let (handler, _unit_of_work, _loads) = command_handler(vec![aggregate], true);
     let missing_version = command_envelope(
         3,
-        TenantScope::Platform,
+        AuthorityScope::Platform,
         None,
         ChangeCustomerStatus {
             customer_id: CustomerId::try_from_uuid(id(10)).unwrap(),
@@ -372,7 +372,7 @@ fn mutations_require_expected_version_and_contained_scope() {
         ErrorCategory::Invalid
     );
 
-    let unrelated_scope = TenantScope::Company {
+    let unrelated_scope = AuthorityScope::Company {
         holding_id: id(91),
         company_id: id(92),
     };
@@ -398,7 +398,7 @@ fn merge_carries_survivor_version_into_atomic_guard() {
     let (handler, unit_of_work, _loads) = command_handler(vec![retired, survivor], true);
     let receipt = block_on(handler.handle(command_envelope(
         5,
-        TenantScope::Platform,
+        AuthorityScope::Platform,
         Some(1),
         MergeCustomer {
             retired_customer_id: CustomerId::try_from_uuid(id(10)).unwrap(),
@@ -425,7 +425,7 @@ fn merge_rejects_cross_company_target_even_for_platform_authority() {
     let survivor = account_in_scope(
         11,
         "CUS-11",
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id: id(1),
             company_id: id(99),
         },
@@ -433,7 +433,7 @@ fn merge_rejects_cross_company_target_even_for_platform_authority() {
     let (handler, unit_of_work, _loads) = command_handler(vec![retired, survivor], true);
     let error = block_on(handler.handle(command_envelope(
         51,
-        TenantScope::Platform,
+        AuthorityScope::Platform,
         Some(1),
         MergeCustomer {
             retired_customer_id: CustomerId::try_from_uuid(id(10)).unwrap(),
@@ -486,7 +486,7 @@ fn queries_use_only_access_safe_read_projection() {
     );
     let result = block_on(handler.handle(query_envelope(
         6,
-        TenantScope::Platform,
+        AuthorityScope::Platform,
         GetCustomer {
             customer_id: CustomerId::try_from_uuid(id(10)).unwrap(),
         },
@@ -515,7 +515,7 @@ fn read_your_writes_not_ready_never_falls_back_to_write_store() {
     );
     let mut envelope = query_envelope(
         7,
-        TenantScope::Platform,
+        AuthorityScope::Platform,
         GetCustomer {
             customer_id: CustomerId::try_from_uuid(id(10)).unwrap(),
         },

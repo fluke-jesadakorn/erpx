@@ -12,5 +12,5 @@ erpx_ui_kit::declare_current_workspace_feature!(
     erpx_ui_kit::CurrentFeatureKind::Marketing,
     "marketing",
     [("marketing.workspace", "/marketing", "customer")],
-    "erpx-feature-marketing-v2"
+    "erpx-feature-marketing"
 );

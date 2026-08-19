@@ -1,7 +1,7 @@
 //! Shared, route-agnostic Dioxus UI foundations for ERPX clients.
 //!
 //! This crate owns presentation primitives and client-local interaction state. It does not
-//! know about authentication tokens, ERPX protobuf messages, tenant data, or server-side
+//! know about authentication tokens, ERPX protobuf messages, holding data, or server-side
 //! authorization. Applications provide those concerns at their boundary.
 
 use std::{collections::BTreeSet, fmt, sync::Arc};
@@ -43,10 +43,11 @@ pub use navigation::{
     localized_navigation_requirement, localized_role_label, normalize_path,
 };
 pub use routes::{
-    CustomerId, CustomerView, ImpersonationMetadata, InvalidCustomerId, MAX_CUSTOMER_ID_BYTES,
-    PLATFORM_CUSTOMER_360_ROUTES, PlatformRoute, ReadOnlyMetadata, RouteAuthRequirement,
-    RouteDefinition, RouteId, RouteParseError, RouteRegistry, RouteState, SafeSessionMetadata,
-    ScopeKind, ScopeOption, SupportAccessMetadata, normalize_deep_link, redact_deep_link,
+    CustomerId, CustomerView, HoldingId, ImpersonationMetadata, InvalidCustomerId,
+    InvalidHoldingId, MAX_CUSTOMER_ID_BYTES, MAX_HOLDING_ID_BYTES, PLATFORM_HOLDING_ROUTES,
+    PlatformHoldingView, PlatformRoute, ReadOnlyMetadata, RouteAuthRequirement, RouteDefinition,
+    RouteId, RouteParseError, RouteRegistry, RouteState, SafeSessionMetadata, ScopeKind,
+    ScopeOption, SupportAccessMetadata, normalize_deep_link, redact_deep_link,
 };
 pub use session_target::{
     ClientTarget, SecureSessionSupport, TargetSecureSessionAdapter, TargetSessionDescriptor,

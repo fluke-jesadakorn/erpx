@@ -6,7 +6,7 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::procurement;
 use erpx_kernel::{
-    ActorAttribution, AggregateId, AuditContext, CommandId, CorrelationId, EventId, TenantScope,
+    ActorAttribution, AggregateId, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -34,8 +34,8 @@ impl ProcurementAction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
-    pub target_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
+    pub target_scope: &'a AuthorityScope,
     pub action: ProcurementAction,
 }
 
@@ -48,7 +48,7 @@ pub trait AuthorizationPort: Send + Sync {
 pub trait EntitlementPort: Send + Sync {
     async fn ensure_procurement_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         write: bool,
     ) -> Result<(), PortError>;
 }
@@ -58,7 +58,7 @@ pub trait EntitlementPort: Send + Sync {
 pub enum CommandFingerprint {
     CreateOrder {
         purchase_order_id: PurchaseOrderId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         order_code: String,
         supplier_id: SupplierId,
         currency: String,
@@ -85,7 +85,7 @@ pub struct CommandIdentity {
 pub trait WriteRepository: Send + Sync {
     async fn load(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         purchase_order_id: PurchaseOrderId,
     ) -> Result<Option<PurchaseOrder>, PortError>;
 }
@@ -96,7 +96,7 @@ pub struct ProcurementCommit {
     pub correlation_id: CorrelationId,
     pub causation_id: Option<EventId>,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
     pub aggregate: PurchaseOrder,
@@ -150,7 +150,7 @@ pub trait CommandUnitOfWork: Send + Sync {
 pub struct PurchaseOrderView {
     pub purchase_order_id: PurchaseOrderId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub order_code: String,
     pub supplier_id: SupplierId,
     pub currency: String,
@@ -203,14 +203,14 @@ pub struct ReadProjection<T> {
 pub trait ReadRepository: Send + Sync {
     async fn get(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         purchase_order_id: PurchaseOrderId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<PurchaseOrderView>>, PortError>;
 
     async fn list(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &PurchaseOrderListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<PurchaseOrderList>, PortError>;

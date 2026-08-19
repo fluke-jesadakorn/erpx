@@ -1,4 +1,4 @@
-# G7-OPS-006 — Tenant-routed Operations projector
+# G7-OPS-006 — Holding-routed Operations projector
 
 ## Scope
 
@@ -8,7 +8,7 @@ Operations read projector. It does not claim the G7 product gate.
 ## Delivered behavior
 
 - `OperationsProjectionRunner` reads immutable Operations events from the
-  routed tenant write database and applies them to the routed read database.
+  routed holding write database and applies them to the routed read database.
 - The scheduler executor decodes a closed allow-list of the 17 Operations
   aggregate types and validates event identity, contract version, holding,
   scope, aggregate version, and projection name before writing.
@@ -16,10 +16,10 @@ Operations read projector. It does not claim the G7 product gate.
   checkpoints; exact replays are no-ops and gaps fail closed.
 - Incremental and rebuild jobs use bounded pages and explicit read-projection
   cleanup. Routed pools are closed on every success and failure path.
-- Worker-facing errors are redacted and do not include payloads, tenant
+- Worker-facing errors are redacted and do not include payloads, holding
   credentials, database URLs, or aggregate state.
-- `apps/worker/src/main.rs` registers the multi-tenant scheduler only when the
-  exact handler name is selected, and requires validated server-side tenant
+- `apps/worker/src/main.rs` registers the multi-holding scheduler only when the
+  exact handler name is selected, and requires validated server-side holding
   routing configuration plus scheduler authorization.
 
 ## Changed files
@@ -37,18 +37,18 @@ Operations read projector. It does not claim the G7 product gate.
 - `cargo test --workspace` — PASS; documented disposable-database tests
   remain ignored by default.
 - Disposable four-database PostgreSQL run of
-  `operations_projector_executes_through_active_tenant_route` — PASS: 1
-  passed. It seeded an Operations event in the tenant write database,
+  `operations_projector_executes_through_active_holding_route` — PASS: 1
+  passed. It seeded an Operations event in the holding write database,
   projected through the active control-plane route, verified exact replay as a
   no-op, and rebuilt the read projection. All four databases were removed
   afterward.
 - Dioxus web and desktop checks — PASS.
-- `TenantDatabaseProvisioningConfig::from_values` unit coverage rejects zero
+- `HoldingDatabaseProvisioningConfig::from_values` unit coverage rejects zero
   or repeated `{database}` template tokens.
 
 ## Security review
 
-The scheduler resolves active tenant bindings from the control-plane registry,
+The scheduler resolves active holding bindings from the control-plane registry,
 then routes server-side pools. The Operations executor is restricted to the
 Operations read projection and fails closed on unknown aggregate types or
 identity mismatches. No credentials cross the worker/client boundary.
@@ -61,6 +61,6 @@ replacement-read activation evidence, and all other ERPX gates remain open.
 
 ## Rollback
 
-Unset `ERPX_WORKER_HANDLER=tenant_projection_scheduler` to keep the scheduler
+Unset `ERPX_WORKER_HANDLER=holding_projection_scheduler` to keep the scheduler
 unselected, or revert this packet only after stopping the worker. Folio and
-tenant write databases are unaffected by the projector registration.
+holding write databases are unaffected by the projector registration.

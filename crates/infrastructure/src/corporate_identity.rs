@@ -105,14 +105,14 @@ impl SqlxCorporateIdentityStore {
             None if expected_version == 0 => {
                 sqlx::query(
                     "INSERT INTO erpx_control.corporate_identity_profiles
-                        (profile_id, scope_key, scope_kind, tenant_id, root_holding_id,
+                        (profile_id, scope_key, scope_kind, holding_id, canonical_holding_id,
                          business_unit, current_draft_version, created_at, updated_at)
                      VALUES ($1, $2, $3, $4, $5, $6, 0, $7, $7)",
                 )
                 .bind(profile.profile_id)
                 .bind(&scope.scope_key)
                 .bind(scope.scope_kind)
-                .bind(scope.tenant_id)
+                .bind(scope.holding_id.map(|id| id.to_string()))
                 .bind(scope.holding_id)
                 .bind(scope.business_unit)
                 .bind(at)
@@ -210,7 +210,7 @@ impl SqlxCorporateIdentityStore {
         }
         let mut tx = self.control.pools.write.begin().await?;
         let profile_row = sqlx::query(
-            "SELECT scope_kind, tenant_id, root_holding_id, business_unit,
+            "SELECT scope_kind, holding_id, canonical_holding_id, business_unit,
                     current_draft_version, current_published_version, suspended_at
              FROM erpx_control.corporate_identity_profiles
              WHERE profile_id = $1
@@ -328,7 +328,7 @@ impl SqlxCorporateIdentityStore {
         }
         let mut tx = self.control.pools.write.begin().await?;
         let row = sqlx::query(
-            "SELECT scope_kind, tenant_id, root_holding_id, business_unit,
+            "SELECT scope_kind, holding_id, canonical_holding_id, business_unit,
                     current_draft_version, current_published_version, suspended_at
              FROM erpx_control.corporate_identity_profiles
              WHERE profile_id = $1 FOR UPDATE",
@@ -445,7 +445,7 @@ impl SqlxCorporateIdentityStore {
             ));
         }
         let row = sqlx::query(
-            "SELECT scope_kind, tenant_id, root_holding_id, business_unit
+            "SELECT scope_kind, holding_id, canonical_holding_id, business_unit
              FROM erpx_control.corporate_identity_profiles
              WHERE profile_id = $1",
         )
@@ -461,7 +461,6 @@ impl SqlxCorporateIdentityStore {
 
     pub async fn resolved(
         &self,
-        tenant_id: Option<&str>,
         holding_id: Option<Uuid>,
         business_unit: Option<erpx_domain::data_plane::BusinessUnitId>,
     ) -> Result<ResolvedCorporateIdentity, PersistenceError> {
@@ -469,24 +468,17 @@ impl SqlxCorporateIdentityStore {
             .published_for_scope(&BrandScope::Platform)
             .await?
             .unwrap_or_else(CorporateIdentityProfile::neutral_platform);
-        let holding_scope =
-            tenant_id
-                .zip(holding_id)
-                .map(|(tenant_id, holding_id)| BrandScope::Holding {
-                    tenant_id: tenant_id.to_owned(),
-                    holding_id,
-                });
+        let holding_scope = holding_id.map(|holding_id| BrandScope::Holding { holding_id });
         let holding = match holding_scope.as_ref() {
             Some(scope) => self.published_for_scope(scope).await?,
             None => None,
         };
-        let unit_scope = tenant_id.zip(holding_id).zip(business_unit).map(
-            |((tenant_id, holding_id), business_unit)| BrandScope::BusinessUnit {
-                tenant_id: tenant_id.to_owned(),
+        let unit_scope = holding_id
+            .zip(business_unit)
+            .map(|(holding_id, business_unit)| BrandScope::BusinessUnit {
                 holding_id,
                 business_unit,
-            },
-        );
+            });
         let unit = match unit_scope.as_ref() {
             Some(scope) => self.published_for_scope(scope).await?,
             None => None,
@@ -501,7 +493,7 @@ impl SqlxCorporateIdentityStore {
     ) -> Result<Option<ResolvedCorporateIdentity>, PersistenceError> {
         let hostname = normalize_hostname(hostname)?;
         let row = sqlx::query(
-            "SELECT profile.tenant_id, profile.root_holding_id
+            "SELECT profile.holding_id, profile.canonical_holding_id
              FROM erpx_control.corporate_identity_domains domain_binding
              JOIN erpx_control.corporate_identity_profiles profile
                ON profile.profile_id = domain_binding.profile_id
@@ -515,11 +507,8 @@ impl SqlxCorporateIdentityStore {
         .fetch_optional(&self.control.pools.write)
         .await?;
         let Some(row) = row else { return Ok(None) };
-        let tenant_id: String = row.try_get("tenant_id")?;
-        let holding_id: Uuid = row.try_get("root_holding_id")?;
-        self.resolved(Some(&tenant_id), Some(holding_id), None)
-            .await
-            .map(Some)
+        let holding_id: Uuid = row.try_get("canonical_holding_id")?;
+        self.resolved(Some(holding_id), None).await.map(Some)
     }
 
     pub async fn bind_verified_domain(
@@ -581,7 +570,7 @@ impl SqlxCorporateIdentityStore {
                     version.overridden_categories, version.locked_categories,
                     version.updated_by, version.reason, version.correlation_id,
                     version.created_at, version.published_at, version.archived_at,
-                    profile.scope_kind, profile.tenant_id, profile.root_holding_id,
+                    profile.scope_kind, profile.holding_id, profile.canonical_holding_id,
                     profile.business_unit
              FROM erpx_control.corporate_identity_profiles profile
              JOIN erpx_control.corporate_identity_versions version
@@ -625,41 +614,33 @@ impl SqlxCorporateIdentityStore {
     }
 }
 
-struct ScopeParts<'a> {
+struct ScopeParts {
     scope_key: String,
     scope_kind: &'static str,
-    tenant_id: Option<&'a str>,
     holding_id: Option<Uuid>,
     business_unit: Option<&'static str>,
 }
 
-fn scope_parts(scope: &BrandScope) -> ScopeParts<'_> {
+fn scope_parts(scope: &BrandScope) -> ScopeParts {
     match scope {
         BrandScope::Platform => ScopeParts {
             scope_key: scope.canonical_key(),
             scope_kind: "platform",
-            tenant_id: None,
             holding_id: None,
             business_unit: None,
         },
-        BrandScope::Holding {
-            tenant_id,
-            holding_id,
-        } => ScopeParts {
+        BrandScope::Holding { holding_id } => ScopeParts {
             scope_key: scope.canonical_key(),
             scope_kind: "holding",
-            tenant_id: Some(tenant_id),
             holding_id: Some(*holding_id),
             business_unit: None,
         },
         BrandScope::BusinessUnit {
-            tenant_id,
             holding_id,
             business_unit,
         } => ScopeParts {
             scope_key: scope.canonical_key(),
             scope_kind: "business_unit",
-            tenant_id: Some(tenant_id),
             holding_id: Some(*holding_id),
             business_unit: Some(business_unit.as_str()),
         },
@@ -716,12 +697,7 @@ async fn load_parent_published(
     let parent_scope_key = match child_scope {
         BrandScope::Platform => return Ok(None),
         BrandScope::Holding { .. } => "platform".to_owned(),
-        BrandScope::BusinessUnit {
-            tenant_id,
-            holding_id,
-            ..
-        } => BrandScope::Holding {
-            tenant_id: tenant_id.clone(),
+        BrandScope::BusinessUnit { holding_id, .. } => BrandScope::Holding {
             holding_id: *holding_id,
         }
         .canonical_key(),
@@ -753,8 +729,8 @@ async fn load_version(
                 version.parent_published_version, version.display_name,
                 version.short_name, version.tokens, version.assets,
                 version.overridden_categories, version.locked_categories,
-                version.updated_by, profile.scope_kind, profile.tenant_id,
-                profile.root_holding_id, profile.business_unit
+                version.updated_by, profile.scope_kind, profile.holding_id,
+                profile.canonical_holding_id, profile.business_unit
          FROM erpx_control.corporate_identity_versions version
          JOIN erpx_control.corporate_identity_profiles profile
            ON profile.profile_id = version.profile_id
@@ -781,8 +757,8 @@ async fn load_version_from_pool(
                 version.parent_published_version, version.display_name,
                 version.short_name, version.tokens, version.assets,
                 version.overridden_categories, version.locked_categories,
-                version.updated_by, profile.scope_kind, profile.tenant_id,
-                profile.root_holding_id, profile.business_unit
+                version.updated_by, profile.scope_kind, profile.holding_id,
+                profile.canonical_holding_id, profile.business_unit
          FROM erpx_control.corporate_identity_versions version
          JOIN erpx_control.corporate_identity_profiles profile
            ON profile.profile_id = version.profile_id
@@ -835,12 +811,10 @@ fn decode_scope(row: &sqlx::postgres::PgRow) -> Result<BrandScope, PersistenceEr
     match row.try_get::<String, _>("scope_kind")?.as_str() {
         "platform" => Ok(BrandScope::Platform),
         "holding" => Ok(BrandScope::Holding {
-            tenant_id: row.try_get("tenant_id")?,
-            holding_id: row.try_get("root_holding_id")?,
+            holding_id: row.try_get("canonical_holding_id")?,
         }),
         "business_unit" => Ok(BrandScope::BusinessUnit {
-            tenant_id: row.try_get("tenant_id")?,
-            holding_id: row.try_get("root_holding_id")?,
+            holding_id: row.try_get("canonical_holding_id")?,
             business_unit: erpx_domain::data_plane::BusinessUnitId::parse(
                 &row.try_get::<String, _>("business_unit")?,
             )
@@ -892,9 +866,9 @@ async fn append_event(
         "contains_executable_css": false,
         "contains_secret_values": false,
     });
-    let tenant_scope = profile.scope.tenant_id().map(|tenant_id| {
+    let active_scope = profile.scope.holding_id().map(|holding_id| {
         json!({
-            "tenant_id": tenant_id,
+            "holding_id": holding_id,
             "holding_id": profile.scope.holding_id(),
             "business_unit": profile.scope.business_unit().map(|unit| unit.as_str()),
         })
@@ -902,7 +876,7 @@ async fn append_event(
     sqlx::query(
         "INSERT INTO erpx_control.outbox_events
             (id, event_type, event_version, aggregate_type, aggregate_id,
-             aggregate_version, tenant_scope, actor, correlation_id,
+             aggregate_version, active_scope, actor, correlation_id,
              idempotency_key, payload, occurred_at)
          VALUES ($1, $2, 1, 'corporate_identity', $3, $4, $5, $6, $7, $8, $9, $10)",
     )
@@ -910,7 +884,7 @@ async fn append_event(
     .bind(event_type)
     .bind(profile.profile_id)
     .bind(checked_i64(profile.version)?)
-    .bind(tenant_scope)
+    .bind(active_scope)
     .bind(json!({"principal_ref": profile.updated_by}))
     .bind(correlation_id)
     .bind(format!(
@@ -1040,7 +1014,6 @@ mod tests {
         let platform = scope_parts(&BrandScope::Platform);
         assert_eq!(platform.scope_key, "platform");
         let unit_scope = BrandScope::BusinessUnit {
-            tenant_id: "tenant-a".into(),
             holding_id,
             business_unit: erpx_domain::data_plane::BusinessUnitId::Finance,
         };

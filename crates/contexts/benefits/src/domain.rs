@@ -1,6 +1,6 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use erpx_integration_contracts::{CurrencyCode, MoneyAmount, RecordVersionRef};
-use erpx_kernel::{CorrelationId, TenantScope};
+use erpx_kernel::{AuthorityScope, CorrelationId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -55,7 +55,7 @@ pub struct ContributionRule {
 pub struct BenefitPlan {
     id: BenefitPlanId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     name: String,
     currency: CurrencyCode,
     eligibility_class: String,
@@ -69,7 +69,7 @@ impl BenefitPlan {
     #[allow(clippy::too_many_arguments)]
     pub fn draft(
         id: BenefitPlanId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         name: impl Into<String>,
         currency: CurrencyCode,
         eligibility_class: impl Into<String>,
@@ -134,7 +134,7 @@ impl BenefitPlan {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn status(&self) -> PlanStatus {
@@ -258,7 +258,7 @@ pub enum BenefitEnrollmentStatus {
 pub struct BenefitEnrollment {
     id: BenefitEnrollmentId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     plan: BenefitPlanRef,
     window: EnrollmentWindowId,
     employee: RecordVersionRef,
@@ -276,7 +276,7 @@ impl BenefitEnrollment {
     #[allow(clippy::too_many_arguments)]
     pub fn open(
         id: BenefitEnrollmentId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         plan: &BenefitPlan,
         window: &EnrollmentWindow,
         employee: RecordVersionRef,
@@ -509,7 +509,7 @@ impl BenefitEnrollment {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn status(&self) -> BenefitEnrollmentStatus {

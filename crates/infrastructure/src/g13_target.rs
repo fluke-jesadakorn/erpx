@@ -2,7 +2,7 @@
 //!
 //! The Legacy bridge stores only bounded, PII-free source evidence. This
 //! adapter consumes that evidence through an immutable source fence and writes
-//! a tenant-scoped import ledger plus target outbox events. It is deliberately
+//! a holding-scoped import ledger plus target outbox events. It is deliberately
 //! independent from command ownership: importing and rehearsing rollback do
 //! not advance a migration phase or activate customer traffic.
 
@@ -116,7 +116,7 @@ pub struct G13TargetImporter {
     target: PgPool,
     read: PgPool,
     rollback: PgPool,
-    holding_ref: String,
+    data_profile_key: String,
     read_projection_enabled: bool,
 }
 
@@ -124,17 +124,17 @@ impl G13TargetImporter {
     pub fn new(
         target: PgPool,
         rollback: PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, G13TargetImportError> {
-        let holding_ref = holding_ref.into();
-        if holding_ref.trim().is_empty() || holding_ref.len() > 200 {
-            return Err(G13TargetImportError::InvalidReference("holding_ref"));
+        let data_profile_key = data_profile_key.into();
+        if data_profile_key.trim().is_empty() || data_profile_key.len() > 200 {
+            return Err(G13TargetImportError::InvalidReference("data_profile_key"));
         }
         Ok(Self {
             read: target.clone(),
             target,
             rollback,
-            holding_ref,
+            data_profile_key,
             read_projection_enabled: false,
         })
     }
@@ -146,17 +146,17 @@ impl G13TargetImporter {
         target: PgPool,
         read: PgPool,
         rollback: PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, G13TargetImportError> {
-        let holding_ref = holding_ref.into();
-        if holding_ref.trim().is_empty() || holding_ref.len() > 200 {
-            return Err(G13TargetImportError::InvalidReference("holding_ref"));
+        let data_profile_key = data_profile_key.into();
+        if data_profile_key.trim().is_empty() || data_profile_key.len() > 200 {
+            return Err(G13TargetImportError::InvalidReference("data_profile_key"));
         }
         Ok(Self {
             target,
             read,
             rollback,
-            holding_ref,
+            data_profile_key,
             read_projection_enabled: true,
         })
     }
@@ -244,7 +244,7 @@ impl G13TargetImporter {
             return Err(G13TargetImportError::IncompleteSourceSnapshot);
         }
         let mut tx = self.target.begin().await.map_err(db)?;
-        set_holding(&mut tx, &self.holding_ref).await?;
+        set_holding(&mut tx, &self.data_profile_key).await?;
         let mut rows_applied = 0_u64;
         for (source_key, target_id) in &mapping {
             let payload = json!({
@@ -255,14 +255,14 @@ impl G13TargetImporter {
                 "source_contract_hash": source_fence,
             });
             let inserted = sqlx::query(
-                "INSERT INTO erpx_tenant.g13_migration_import_rows
-                    (holding_ref, run_id, source_contract_hash, source_fence,
+                "INSERT INTO erpx_holding.g13_migration_import_rows
+                    (data_profile_key, run_id, source_contract_hash, source_fence,
                      source_kind, source_key, target_id, payload)
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-                 ON CONFLICT (holding_ref, run_id, source_kind, source_key)
+                 ON CONFLICT (data_profile_key, run_id, source_kind, source_key)
                  DO NOTHING",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(run_id)
             .bind(source_fence)
             .bind(source_fence)
@@ -277,10 +277,10 @@ impl G13TargetImporter {
             if inserted == 0 {
                 let existing = sqlx::query(
                     "SELECT source_contract_hash, source_fence, target_id, payload
-                     FROM erpx_tenant.g13_migration_import_rows
-                     WHERE holding_ref=$1 AND run_id=$2 AND source_kind=$3 AND source_key=$4",
+                     FROM erpx_holding.g13_migration_import_rows
+                     WHERE data_profile_key=$1 AND run_id=$2 AND source_kind=$3 AND source_key=$4",
                 )
-                .bind(&self.holding_ref)
+                .bind(&self.data_profile_key)
                 .bind(run_id)
                 .bind(source_kind)
                 .bind(source_key)
@@ -307,10 +307,10 @@ impl G13TargetImporter {
                 format!("g13-{event_type}:{run_id}:{source_kind}:{source_key}").as_bytes(),
             );
             sqlx::query(
-                "INSERT INTO erpx_tenant.outbox_events
-                    (event_id, aggregate_type, aggregate_id, holding_ref,
+                "INSERT INTO erpx_holding.outbox_events
+                    (event_id, aggregate_type, aggregate_id, data_profile_key,
                      aggregate_version, event_type, payload, occurred_at,
-                     contract_version, event_version, tenant_scope, actor,
+                     contract_version, event_version, active_scope, actor,
                      correlation_id, causation_id, idempotency_key)
                  VALUES ($1,$2,$3,$4,1,$5,$6,now(),1,1,$7,$8,$9,NULL,$10)
                  ON CONFLICT (event_id) DO NOTHING",
@@ -318,10 +318,10 @@ impl G13TargetImporter {
             .bind(event_id)
             .bind(IMPORT_AGGREGATE_TYPE)
             .bind(target_id)
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(event_type)
             .bind(&payload)
-            .bind(json!({ "holding_ref": self.holding_ref }))
+            .bind(json!({ "data_profile_key": self.data_profile_key }))
             .bind(json!({ "kind": "system", "principal_ref": "system:g13-target" }))
             .bind(Uuid::new_v5(
                 &Uuid::NAMESPACE_URL,
@@ -336,17 +336,17 @@ impl G13TargetImporter {
                 event_id,
                 IMPORT_AGGREGATE_TYPE,
                 *target_id,
-                &self.holding_ref,
+                &self.data_profile_key,
                 event_type,
                 &payload,
             )
             .await?;
         }
         let target_count: i64 = sqlx::query_scalar(
-            "SELECT count(*) FROM erpx_tenant.g13_migration_import_rows
-             WHERE holding_ref=$1 AND run_id=$2 AND source_kind=$3",
+            "SELECT count(*) FROM erpx_holding.g13_migration_import_rows
+             WHERE data_profile_key=$1 AND run_id=$2 AND source_kind=$3",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(run_id)
         .bind(source_kind)
         .fetch_one(&mut *tx)
@@ -355,7 +355,7 @@ impl G13TargetImporter {
         if let Some((write_fence_ref, validated_at)) = operation_evidence {
             append_operation_event_in_transaction(
                 &mut tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 FINAL_DELTA_EVENT_TYPE,
                 IMPORT_AGGREGATE_TYPE,
                 operation_id("final-delta", run_id, source_kind, source_fence),
@@ -442,7 +442,7 @@ impl G13TargetImporter {
         let matched = result.matched();
         append_operation_event(
             &self.target,
-            &self.holding_ref,
+            &self.data_profile_key,
             SHADOW_REPLAY_EVENT_TYPE,
             SHADOW_REPLAY_AGGREGATE_TYPE,
             operation_id("shadow-replay", run_id, source_kind, source_fence),
@@ -479,12 +479,12 @@ impl G13TargetImporter {
         }
         let rows = self.load_target_rows(run_id).await?;
         let mut tx = self.read.begin().await.map_err(db)?;
-        set_holding(&mut tx, &self.holding_ref).await?;
+        set_holding(&mut tx, &self.data_profile_key).await?;
         sqlx::query(
-            "DELETE FROM erpx_tenant.g13_migration_import_read_rows
-             WHERE holding_ref=$1 AND run_id=$2",
+            "DELETE FROM erpx_holding.g13_migration_import_read_rows
+             WHERE data_profile_key=$1 AND run_id=$2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(run_id)
         .execute(&mut *tx)
         .await
@@ -496,12 +496,12 @@ impl G13TargetImporter {
                     .map_err(|_| G13TargetImportError::Serialization)?,
             );
             sqlx::query(
-                "INSERT INTO erpx_tenant.g13_migration_import_read_rows
-                    (holding_ref, run_id, source_kind, source_key_hash, target_id,
+                "INSERT INTO erpx_holding.g13_migration_import_read_rows
+                    (data_profile_key, run_id, source_kind, source_key_hash, target_id,
                      source_contract_hash, source_fence, payload_hash, projected_at)
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,now())",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(run_id)
             .bind(&row.source_kind)
             .bind(source_key_hash)
@@ -517,7 +517,7 @@ impl G13TargetImporter {
         let projection_digest = digest_rows(&rows)?;
         append_operation_event(
             &self.target,
-            &self.holding_ref,
+            &self.data_profile_key,
             READ_PROJECTION_EVENT_TYPE,
             READ_PROJECTION_AGGREGATE_TYPE,
             operation_id("read-projection", run_id, "all", &projection_digest),
@@ -559,16 +559,16 @@ impl G13TargetImporter {
         // checked before either target or read rows can be removed, and every
         // retained row must carry the exact immutable source fence.
         let mut rollback_tx = self.rollback.begin().await.map_err(db)?;
-        set_holding(&mut rollback_tx, &self.holding_ref).await?;
+        set_holding(&mut rollback_tx, &self.data_profile_key).await?;
         let rollback_counts = sqlx::query(
             "SELECT count(*) AS total,
                     count(*) FILTER (
                         WHERE source_contract_hash=$3 AND source_fence=$3
                     ) AS fenced
-             FROM erpx_tenant.g13_migration_rollback_rows
-             WHERE holding_ref=$1 AND run_id=$2",
+             FROM erpx_holding.g13_migration_rollback_rows
+             WHERE data_profile_key=$1 AND run_id=$2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(run_id)
         .bind(source_fence)
         .fetch_one(&mut *rollback_tx)
@@ -582,16 +582,16 @@ impl G13TargetImporter {
         }
 
         let mut target_tx = self.target.begin().await.map_err(db)?;
-        set_holding(&mut target_tx, &self.holding_ref).await?;
+        set_holding(&mut target_tx, &self.data_profile_key).await?;
         let target_counts = sqlx::query(
             "SELECT count(*) AS total,
                     count(*) FILTER (
                         WHERE source_contract_hash=$3 AND source_fence=$3
                     ) AS fenced
-             FROM erpx_tenant.g13_migration_import_rows
-             WHERE holding_ref=$1 AND run_id=$2",
+             FROM erpx_holding.g13_migration_import_rows
+             WHERE data_profile_key=$1 AND run_id=$2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(run_id)
         .bind(source_fence)
         .fetch_one(&mut *target_tx)
@@ -605,7 +605,7 @@ impl G13TargetImporter {
             format!("g13-event:{RETENTION_EVENT_TYPE}:{retention_aggregate_id}").as_bytes(),
         );
         let existing_retention_payload: Option<Value> =
-            sqlx::query_scalar("SELECT payload FROM erpx_tenant.outbox_events WHERE event_id=$1")
+            sqlx::query_scalar("SELECT payload FROM erpx_holding.outbox_events WHERE event_id=$1")
                 .bind(retention_event_id)
                 .fetch_optional(&mut *target_tx)
                 .await
@@ -625,12 +625,12 @@ impl G13TargetImporter {
             return Err(G13TargetImportError::RollbackFenceRequired);
         }
         let target_deleted = sqlx::query(
-            "DELETE FROM erpx_tenant.g13_migration_import_rows
-             WHERE holding_ref=$1 AND run_id=$2
+            "DELETE FROM erpx_holding.g13_migration_import_rows
+             WHERE data_profile_key=$1 AND run_id=$2
                AND source_contract_hash=$3 AND source_fence=$3
                AND imported_at <= $4",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(run_id)
         .bind(source_fence)
         .bind(retention_until)
@@ -651,7 +651,7 @@ impl G13TargetImporter {
         });
         append_operation_event_in_transaction(
             &mut target_tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             RETENTION_EVENT_TYPE,
             RETENTION_AGGREGATE_TYPE,
             retention_aggregate_id,
@@ -661,13 +661,13 @@ impl G13TargetImporter {
         target_tx.commit().await.map_err(db)?;
 
         let mut read_tx = self.read.begin().await.map_err(db)?;
-        set_holding(&mut read_tx, &self.holding_ref).await?;
+        set_holding(&mut read_tx, &self.data_profile_key).await?;
         let read_deleted = sqlx::query(
-            "DELETE FROM erpx_tenant.g13_migration_import_read_rows
-             WHERE holding_ref=$1 AND run_id=$2 AND source_fence=$3
+            "DELETE FROM erpx_holding.g13_migration_import_read_rows
+             WHERE data_profile_key=$1 AND run_id=$2 AND source_fence=$3
                AND projected_at <= $4",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(run_id)
         .bind(source_fence)
         .bind(retention_until)
@@ -677,11 +677,11 @@ impl G13TargetImporter {
         .rows_affected();
         let read_remaining: i64 = sqlx::query_scalar(
             "SELECT count(*)
-             FROM erpx_tenant.g13_migration_import_read_rows
-             WHERE holding_ref=$1 AND run_id=$2 AND source_fence=$3
+             FROM erpx_holding.g13_migration_import_read_rows
+             WHERE data_profile_key=$1 AND run_id=$2 AND source_fence=$3
                AND projected_at <= $4",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(run_id)
         .bind(source_fence)
         .bind(retention_until)
@@ -799,7 +799,7 @@ impl G13TargetImporter {
         let event_fence = format!("{source_snapshot_digest}:{target_identity_digest}");
         append_operation_event(
             &self.target,
-            &self.holding_ref,
+            &self.data_profile_key,
             RECONCILIATION_EVENT_TYPE,
             RECONCILIATION_AGGREGATE_TYPE,
             operation_id("reconcile", run_id, "all", &event_fence),
@@ -878,17 +878,17 @@ impl G13TargetImporter {
             }
 
             let mut rollback_tx = self.rollback.begin().await.map_err(db)?;
-            set_holding(&mut rollback_tx, &self.holding_ref).await?;
+            set_holding(&mut rollback_tx, &self.data_profile_key).await?;
             for row in &target_rows {
                 sqlx::query(
-                    "INSERT INTO erpx_tenant.g13_migration_rollback_rows
-                        (holding_ref, run_id, source_contract_hash, source_fence,
+                    "INSERT INTO erpx_holding.g13_migration_rollback_rows
+                        (data_profile_key, run_id, source_contract_hash, source_fence,
                          source_kind, source_key, target_id, payload)
                      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-                     ON CONFLICT (holding_ref, run_id, source_kind, source_key)
+                     ON CONFLICT (data_profile_key, run_id, source_kind, source_key)
                      DO NOTHING",
                 )
-                .bind(&self.holding_ref)
+                .bind(&self.data_profile_key)
                 .bind(run_id)
                 .bind(&row.source_contract_hash)
                 .bind(&row.source_fence)
@@ -909,12 +909,12 @@ impl G13TargetImporter {
             .map_err(|_| G13TargetImportError::InvalidReference("row count"))?;
 
         let mut target_tx = self.target.begin().await.map_err(db)?;
-        set_holding(&mut target_tx, &self.holding_ref).await?;
+        set_holding(&mut target_tx, &self.data_profile_key).await?;
         sqlx::query(
-            "DELETE FROM erpx_tenant.g13_migration_import_rows
-             WHERE holding_ref=$1 AND run_id=$2",
+            "DELETE FROM erpx_holding.g13_migration_import_rows
+             WHERE data_profile_key=$1 AND run_id=$2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(run_id)
         .execute(&mut *target_tx)
         .await
@@ -922,14 +922,14 @@ impl G13TargetImporter {
         let mut outbox_events_replayed = 0_u64;
         for row in &rows {
             sqlx::query(
-                "INSERT INTO erpx_tenant.g13_migration_import_rows
-                    (holding_ref, run_id, source_contract_hash, source_fence,
+                "INSERT INTO erpx_holding.g13_migration_import_rows
+                    (data_profile_key, run_id, source_contract_hash, source_fence,
                      source_kind, source_key, target_id, payload)
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-                 ON CONFLICT (holding_ref, run_id, source_kind, source_key)
+                 ON CONFLICT (data_profile_key, run_id, source_kind, source_key)
                  DO NOTHING",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(run_id)
             .bind(&row.source_contract_hash)
             .bind(&row.source_fence)
@@ -949,10 +949,10 @@ impl G13TargetImporter {
                 .as_bytes(),
             );
             let inserted = sqlx::query(
-                "INSERT INTO erpx_tenant.outbox_events
-                    (event_id, aggregate_type, aggregate_id, holding_ref,
+                "INSERT INTO erpx_holding.outbox_events
+                    (event_id, aggregate_type, aggregate_id, data_profile_key,
                      aggregate_version, event_type, payload, occurred_at,
-                     contract_version, event_version, tenant_scope, actor,
+                     contract_version, event_version, active_scope, actor,
                      correlation_id, causation_id, idempotency_key)
                  VALUES ($1,$2,$3,$4,1,$5,$6,now(),1,1,$7,$8,$9,NULL,$10)
                  ON CONFLICT (event_id) DO NOTHING",
@@ -960,7 +960,7 @@ impl G13TargetImporter {
             .bind(event_id)
             .bind(IMPORT_AGGREGATE_TYPE)
             .bind(row.target_id)
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(ROLLBACK_REPLAY_EVENT_TYPE)
             .bind(json!({
                 "run_id": run_id,
@@ -968,7 +968,7 @@ impl G13TargetImporter {
                 "source_key": row.source_key,
                 "target_id": row.target_id,
             }))
-            .bind(json!({ "holding_ref": self.holding_ref }))
+            .bind(json!({ "data_profile_key": self.data_profile_key }))
             .bind(json!({ "kind": "system", "principal_ref": "system:g13-target" }))
             .bind(Uuid::new_v5(
                 &Uuid::NAMESPACE_URL,
@@ -982,15 +982,15 @@ impl G13TargetImporter {
             if inserted == 0 {
                 let event_is_valid: bool = sqlx::query_scalar(
                     "SELECT EXISTS(
-                         SELECT 1 FROM erpx_tenant.outbox_events
+                         SELECT 1 FROM erpx_holding.outbox_events
                          WHERE event_id=$1 AND aggregate_type=$2 AND aggregate_id=$3
-                           AND holding_ref=$4 AND event_type=$5
+                           AND data_profile_key=$4 AND event_type=$5
                      )",
                 )
                 .bind(event_id)
                 .bind(IMPORT_AGGREGATE_TYPE)
                 .bind(row.target_id)
-                .bind(&self.holding_ref)
+                .bind(&self.data_profile_key)
                 .bind(ROLLBACK_REPLAY_EVENT_TYPE)
                 .fetch_one(&mut *target_tx)
                 .await
@@ -1028,15 +1028,15 @@ impl G13TargetImporter {
         run_id: Uuid,
     ) -> Result<Vec<G13ImportRow>, G13TargetImportError> {
         let mut tx = self.target.begin().await.map_err(db)?;
-        set_holding(&mut tx, &self.holding_ref).await?;
+        set_holding(&mut tx, &self.data_profile_key).await?;
         let rows = sqlx::query(
             "SELECT source_contract_hash, source_fence, source_kind,
                     source_key, target_id, payload
-             FROM erpx_tenant.g13_migration_import_rows
-             WHERE holding_ref=$1 AND run_id=$2
+             FROM erpx_holding.g13_migration_import_rows
+             WHERE data_profile_key=$1 AND run_id=$2
              ORDER BY source_kind, source_key",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(run_id)
         .fetch_all(&mut *tx)
         .await
@@ -1062,15 +1062,15 @@ impl G13TargetImporter {
         run_id: Uuid,
     ) -> Result<Vec<G13ImportRow>, G13TargetImportError> {
         let mut tx = self.rollback.begin().await.map_err(db)?;
-        set_holding(&mut tx, &self.holding_ref).await?;
+        set_holding(&mut tx, &self.data_profile_key).await?;
         let rows = sqlx::query(
             "SELECT source_contract_hash, source_fence, source_kind,
                     source_key, target_id, payload
-             FROM erpx_tenant.g13_migration_rollback_rows
-             WHERE holding_ref=$1 AND run_id=$2
+             FROM erpx_holding.g13_migration_rollback_rows
+             WHERE data_profile_key=$1 AND run_id=$2
              ORDER BY source_kind, source_key",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(run_id)
         .fetch_all(&mut *tx)
         .await
@@ -1142,10 +1142,10 @@ fn validate_loaded_row(run_id: Uuid, row: &G13ImportRow) -> Result<(), G13Target
 
 async fn set_holding(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<(), G13TargetImportError> {
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(data_profile_key)
         .execute(&mut **tx)
         .await
         .map_err(db)?;
@@ -1238,17 +1238,17 @@ fn operation_id(kind: &str, run_id: Uuid, source_kind: &str, source_fence: &str)
 
 async fn append_operation_event(
     pool: &PgPool,
-    holding_ref: &str,
+    data_profile_key: &str,
     event_type: &str,
     aggregate_type: &str,
     aggregate_id: Uuid,
     payload: Value,
 ) -> Result<(), G13TargetImportError> {
     let mut tx = pool.begin().await.map_err(db)?;
-    set_holding(&mut tx, holding_ref).await?;
+    set_holding(&mut tx, data_profile_key).await?;
     append_operation_event_in_transaction(
         &mut tx,
-        holding_ref,
+        data_profile_key,
         event_type,
         aggregate_type,
         aggregate_id,
@@ -1260,7 +1260,7 @@ async fn append_operation_event(
 
 async fn append_operation_event_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     event_type: &str,
     aggregate_type: &str,
     aggregate_id: Uuid,
@@ -1271,10 +1271,10 @@ async fn append_operation_event_in_transaction(
         format!("g13-event:{event_type}:{aggregate_id}").as_bytes(),
     );
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at,
-             contract_version, event_version, tenant_scope, actor,
+             contract_version, event_version, active_scope, actor,
              correlation_id, causation_id, idempotency_key)
          VALUES ($1,$2,$3,$4,1,$5,$6,now(),1,1,$7,$8,$9,NULL,$10)
          ON CONFLICT (event_id) DO NOTHING",
@@ -1282,10 +1282,10 @@ async fn append_operation_event_in_transaction(
     .bind(event_id)
     .bind(aggregate_type)
     .bind(aggregate_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(event_type)
     .bind(&payload)
-    .bind(json!({ "holding_ref": holding_ref }))
+    .bind(json!({ "data_profile_key": data_profile_key }))
     .bind(json!({ "kind": "system", "principal_ref": "system:g13-target" }))
     .bind(Uuid::new_v5(
         &Uuid::NAMESPACE_URL,
@@ -1300,7 +1300,7 @@ async fn append_operation_event_in_transaction(
         event_id,
         aggregate_type,
         aggregate_id,
-        holding_ref,
+        data_profile_key,
         event_type,
         &payload,
     )
@@ -1312,22 +1312,22 @@ async fn ensure_outbox_event_matches(
     event_id: Uuid,
     aggregate_type: &str,
     aggregate_id: Uuid,
-    holding_ref: &str,
+    data_profile_key: &str,
     event_type: &str,
     payload: &Value,
 ) -> Result<(), G13TargetImportError> {
     let stored = sqlx::query(
-        "SELECT aggregate_type, aggregate_id, holding_ref, aggregate_version,
+        "SELECT aggregate_type, aggregate_id, data_profile_key, aggregate_version,
                 event_type, payload, contract_version, event_version,
-                tenant_scope, actor, correlation_id, causation_id, idempotency_key
-         FROM erpx_tenant.outbox_events
+                active_scope, actor, correlation_id, causation_id, idempotency_key
+         FROM erpx_holding.outbox_events
          WHERE event_id=$1",
     )
     .bind(event_id)
     .fetch_one(&mut **tx)
     .await
     .map_err(db)?;
-    let expected_tenant_scope = json!({ "holding_ref": holding_ref });
+    let expected_holding_scope = json!({ "data_profile_key": data_profile_key });
     let expected_actor = json!({ "kind": "system", "principal_ref": "system:g13-target" });
     let expected_correlation = Uuid::new_v5(
         &Uuid::NAMESPACE_URL,
@@ -1336,7 +1336,10 @@ async fn ensure_outbox_event_matches(
     let expected_idempotency_key = format!("g13:{event_type}:{event_id}");
     let matches = stored.try_get::<String, _>("aggregate_type").map_err(db)? == aggregate_type
         && stored.try_get::<Uuid, _>("aggregate_id").map_err(db)? == aggregate_id
-        && stored.try_get::<String, _>("holding_ref").map_err(db)? == holding_ref
+        && stored
+            .try_get::<String, _>("data_profile_key")
+            .map_err(db)?
+            == data_profile_key
         && stored.try_get::<i64, _>("aggregate_version").map_err(db)? == 1
         && stored.try_get::<String, _>("event_type").map_err(db)? == event_type
         && stored.try_get::<Value, _>("payload").map_err(db)? == *payload
@@ -1349,9 +1352,9 @@ async fn ensure_outbox_event_matches(
             .map_err(db)?
             == Some(1)
         && stored
-            .try_get::<Option<Value>, _>("tenant_scope")
+            .try_get::<Option<Value>, _>("active_scope")
             .map_err(db)?
-            == Some(expected_tenant_scope)
+            == Some(expected_holding_scope)
         && stored.try_get::<Option<Value>, _>("actor").map_err(db)? == Some(expected_actor)
         && stored
             .try_get::<Option<Uuid>, _>("correlation_id")

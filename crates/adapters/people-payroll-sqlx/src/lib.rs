@@ -29,24 +29,19 @@ pub const EXPENSE_SNAPSHOT_EVENT: &str = "people_payroll.expense_claim_snapshot"
 pub const PAYROLL_SNAPSHOT_EVENT: &str = "people_payroll.payroll_run_snapshot";
 pub const EVENT_VERSION: u32 = 1;
 #[cfg(test)]
-const WRITE_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_write/0061_wave7_transactional_context_guards.sql"
-);
+const WRITE_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 #[cfg(test)]
-const READ_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0053_wave7_transactional_context_projections.sql"
-);
+const READ_DDL: &str = include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 #[cfg(test)]
 const COMPLETION_WRITE_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0080_current_record_completion.sql");
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 #[cfg(test)]
-const COMPLETION_READ_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0071_current_record_completion_projection.sql"
-);
+const COMPLETION_READ_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 #[cfg(test)]
-const NORMALIZED_AUTHORITY_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_write/0081_current_normalized_authority.sql"
-);
+const NORMALIZED_AUTHORITY_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 
 pub fn employee_partition(id: erpx_people_payroll::EmployeeId) -> String {
     format!("people_payroll.employee:{}", id.as_uuid().simple())
@@ -84,7 +79,7 @@ mod tests {
     }
 
     #[test]
-    fn completion_records_are_normalized_tenant_bound_and_rebuildable() {
+    fn completion_records_are_normalized_holding_bound_and_rebuildable() {
         for table in ["employment_records", "payslip_records"] {
             assert!(COMPLETION_WRITE_DDL.contains(table));
         }
@@ -93,7 +88,7 @@ mod tests {
         }
         assert!(COMPLETION_WRITE_DDL.contains("FORCE ROW LEVEL SECURITY"));
         assert!(COMPLETION_READ_DDL.contains("FORCE ROW LEVEL SECURITY"));
-        assert!(COMPLETION_READ_DDL.contains("(tenant_id,projection_name,generation)"));
+        assert!(COMPLETION_READ_DDL.contains("(holding_id,projection_name,generation)"));
         assert!(!COMPLETION_WRITE_DDL.contains("employment_snapshot"));
         assert!(!COMPLETION_WRITE_DDL.contains("payslip_snapshot"));
     }

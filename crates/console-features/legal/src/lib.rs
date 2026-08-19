@@ -15,5 +15,5 @@ erpx_ui_kit::declare_current_workspace_feature!(
     erpx_ui_kit::CurrentFeatureKind::Legal,
     "legal",
     [("legal.workspace", "/legal", "governance")],
-    "erpx-feature-legal-v2"
+    "erpx-feature-legal"
 );

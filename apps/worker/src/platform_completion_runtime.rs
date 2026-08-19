@@ -22,18 +22,18 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use erpx_domain::{
-    access::Scope,
+    contracts::AuthorityScope as Scope,
     platform_completion::{
-        BackupControlCommand, ConnectorControlCommand, PlatformAuthorizationProof,
-        PlatformCompletionError, PlatformReconciliationReport, ReconciliationCommand,
-        ReplacementActivationProof, ReplacementReadCommand, TenantLifecycleCommand,
+        BackupControlCommand, ConnectorControlCommand, HoldingLifecycleCommand,
+        PlatformAuthorizationProof, PlatformCompletionError, PlatformReconciliationReport,
+        ReconciliationCommand, ReplacementActivationProof, ReplacementReadCommand,
     },
 };
 use erpx_infrastructure::{
     MAX_OUTBOX_CLAIM_BATCH_SIZE, OutboxEnvelope, OutboxHandler, OutboxWorker,
     PlatformBackupJobReceipt, PlatformCommandReceipt, PlatformCompletionProjector,
-    PlatformConnectorReadModel, PlatformControlStore, PlatformPersistenceError,
-    PlatformReplacementReadReceipt, PlatformTenantLifecycleReceipt, ProjectionHandler,
+    PlatformConnectorReadModel, PlatformControlStore, PlatformHoldingLifecycleReceipt,
+    PlatformPersistenceError, PlatformReplacementReadReceipt, ProjectionHandler,
     ProjectionRebuildReport, RetryPolicy, SqlxControlPlane, SqlxPlatformReadModelWriter,
     WorkerError,
 };
@@ -44,16 +44,16 @@ use uuid::Uuid;
 use crate::{NamedWorkerHandler, WorkerHandlerReport, WorkerRuntimeError};
 
 pub const PLATFORM_COMPLETION_RUNTIME_HANDLER_NAME: &str = "platform_completion_runtime";
-pub const PLATFORM_COMPLETION_READ_PERMISSION: &str = "platform.tenant.read";
+pub const PLATFORM_COMPLETION_READ_PERMISSION: &str = "platform.holding.read";
 pub const PLATFORM_COMPLETION_MAX_BATCH_SIZE: u32 = MAX_OUTBOX_CLAIM_BATCH_SIZE;
 
 const PLATFORM_CONNECTOR_MUTATION_PERMISSION: &str = "platform.connector.manage";
-const PLATFORM_BACKUP_PERMISSION: &str = "platform.tenant.backup";
-const PLATFORM_RECONCILIATION_PERMISSION: &str = "platform.tenant.reconcile";
+const PLATFORM_BACKUP_PERMISSION: &str = "platform.holding.backup";
+const PLATFORM_RECONCILIATION_PERMISSION: &str = "platform.holding.reconcile";
 const PLATFORM_PROJECTION_PERMISSION: &str = "platform.projection.rebuild";
-const PLATFORM_LIFECYCLE_PROVISION_PERMISSION: &str = "platform.tenant.provision";
-const PLATFORM_LIFECYCLE_SUSPEND_PERMISSION: &str = "platform.tenant.suspend";
-const PLATFORM_LIFECYCLE_RECOVERY_PERMISSION: &str = "platform.tenant.recovery";
+const PLATFORM_LIFECYCLE_PROVISION_PERMISSION: &str = "platform.holding.provision";
+const PLATFORM_LIFECYCLE_SUSPEND_PERMISSION: &str = "platform.holding.suspend";
+const PLATFORM_LIFECYCLE_RECOVERY_PERMISSION: &str = "platform.holding.recovery";
 
 /// Errors deliberately expose no database URL, SQL, credential, or provider
 /// response.  The source is retained for tracing at the coordinator boundary,
@@ -158,17 +158,17 @@ impl PlatformCompletionRuntimeAdapter {
 
     pub async fn transition_lifecycle(
         &self,
-        command: &TenantLifecycleCommand,
+        command: &HoldingLifecycleCommand,
         proof: &PlatformAuthorizationProof,
-    ) -> Result<PlatformTenantLifecycleReceipt, PlatformCompletionRuntimeError> {
+    ) -> Result<PlatformHoldingLifecycleReceipt, PlatformCompletionRuntimeError> {
         let permission = match command.action {
-            erpx_domain::platform_completion::TenantLifecycleAction::Activate => {
+            erpx_domain::platform_completion::HoldingLifecycleAction::Activate => {
                 PLATFORM_LIFECYCLE_PROVISION_PERMISSION
             }
-            erpx_domain::platform_completion::TenantLifecycleAction::Suspend => {
+            erpx_domain::platform_completion::HoldingLifecycleAction::Suspend => {
                 PLATFORM_LIFECYCLE_SUSPEND_PERMISSION
             }
-            erpx_domain::platform_completion::TenantLifecycleAction::EnterRecovery => {
+            erpx_domain::platform_completion::HoldingLifecycleAction::EnterRecovery => {
                 PLATFORM_LIFECYCLE_RECOVERY_PERMISSION
             }
         };
@@ -186,7 +186,7 @@ impl PlatformCompletionRuntimeAdapter {
             .map_err(Into::into)
     }
 
-    pub async fn reconcile_tenant(
+    pub async fn reconcile_holding(
         &self,
         command: &ReconciliationCommand,
         proof: &PlatformAuthorizationProof,
@@ -200,7 +200,7 @@ impl PlatformCompletionRuntimeAdapter {
             command.at,
         )?;
         self.persistence
-            .reconcile_tenant(command, proof)
+            .reconcile_holding(command, proof)
             .await
             .map_err(Into::into)
     }
@@ -337,7 +337,7 @@ impl PlatformCompletionRuntimeAdapter {
 
     pub async fn read_reconciliation(
         &self,
-        binding: &erpx_domain::platform_completion::TenantBinding,
+        binding: &erpx_domain::platform_completion::HoldingBinding,
         authorization: &PlatformReadAuthorization,
     ) -> Result<Option<PlatformReconciliationReport>, PlatformCompletionRuntimeError> {
         authorization.validate(&binding.scope())?;
@@ -435,7 +435,7 @@ struct PlatformCompletionOutboxHandler {
 }
 
 const PLATFORM_COMPLETION_AGGREGATE_TYPES: &[&str] = &[
-    erpx_infrastructure::PLATFORM_TENANT_LIFECYCLE_AGGREGATE,
+    erpx_infrastructure::PLATFORM_HOLDING_LIFECYCLE_AGGREGATE,
     erpx_infrastructure::PLATFORM_BACKUP_AGGREGATE,
     erpx_infrastructure::PLATFORM_REPLACEMENT_READ_AGGREGATE,
     erpx_infrastructure::PLATFORM_RECONCILIATION_AGGREGATE,
@@ -528,30 +528,30 @@ fn validate_worker_identity(
 
 fn validate_platform_event_scope(event: &OutboxEnvelope, read_model: &Value) -> Result<(), String> {
     let scope_source = read_model.get("binding").unwrap_or(read_model);
-    let tenant_present = scope_source.get("tenant_id").is_some();
-    let holding_present = scope_source.get("holding_ref").is_some();
-    if read_model.get("binding").is_some() && !tenant_present && !holding_present {
+    let holding_id_present = scope_source.get("holding_id").is_some();
+    let data_profile_present = scope_source.get("data_profile_key").is_some();
+    if read_model.get("binding").is_some() && !(holding_id_present && data_profile_present) {
         return Err("platform event read model binding scope is missing".into());
     }
-    if !tenant_present && !holding_present {
-        if event.tenant_scope.is_some() {
-            return Err("platform event tenant scope is not bound to the read model".into());
+    if !holding_id_present && !data_profile_present {
+        if event.active_scope.is_some() {
+            return Err("platform event holding scope is not bound to the read model".into());
         }
         return Ok(());
     }
 
-    let tenant_id = scope_string(scope_source, "tenant_id")?;
-    let holding_ref = scope_string(scope_source, "holding_ref")?;
-    let expected_scope = match (tenant_id, holding_ref) {
-        (Some(tenant_id), Some(holding_ref)) => Some(serde_json::json!({
-            "tenant_id": tenant_id,
-            "holding_ref": holding_ref,
+    let holding_id = scope_string(scope_source, "holding_id")?;
+    let data_profile_key = scope_string(scope_source, "data_profile_key")?;
+    let expected_scope = match (holding_id, data_profile_key) {
+        (Some(holding_id), Some(data_profile_key)) => Some(serde_json::json!({
+            "holding_id": holding_id,
+            "data_profile_key": data_profile_key,
         })),
-        (None, None) if tenant_present && holding_present => None,
+        (None, None) => None,
         _ => return Err("platform event read model scope is incomplete".into()),
     };
-    if event.tenant_scope != expected_scope {
-        return Err("platform event tenant scope does not match the read model".into());
+    if event.active_scope != expected_scope {
+        return Err("platform event holding scope does not match the read model".into());
     }
     Ok(())
 }
@@ -585,7 +585,7 @@ fn contains_forbidden_projection_key(value: &Value) -> bool {
 mod tests {
     use super::*;
     use chrono::Duration;
-    use erpx_domain::platform_completion::TenantBinding;
+    use erpx_domain::platform_completion::HoldingBinding;
     use serde_json::json;
 
     fn proof(permission: &str, scope: Scope, at: DateTime<Utc>) -> PlatformAuthorizationProof {
@@ -609,7 +609,7 @@ mod tests {
             aggregate_type: erpx_infrastructure::PLATFORM_CONNECTOR_AGGREGATE.into(),
             aggregate_id: Uuid::new_v4(),
             aggregate_version: 1,
-            tenant_scope: None,
+            active_scope: None,
             actor: Some(json!({"principal_ref": "principal:test"})),
             correlation_id: Uuid::new_v4(),
             causation_id: None,
@@ -766,44 +766,44 @@ mod tests {
         let mut event = envelope(json!({
             "request_hash": "cc".repeat(32),
             "read_model": {
-                "tenant_id": "tenant-1",
-                "holding_ref": "holding-1",
+                "holding_id": "holding-1",
+                "data_profile_key": "holding-1",
                 "state": "active"
             }
         }));
-        event.tenant_scope = Some(json!({
-            "tenant_id": "tenant-1",
-            "holding_ref": "holding-1"
+        event.active_scope = Some(json!({
+            "holding_id": "holding-1",
+            "data_profile_key": "holding-1"
         }));
         assert!(validate_platform_event(&event).is_ok());
 
-        event.tenant_scope = Some(json!({
-            "tenant_id": "tenant-2",
-            "holding_ref": "holding-1"
+        event.active_scope = Some(json!({
+            "holding_id": "holding-2",
+            "data_profile_key": "holding-1"
         }));
         assert!(validate_platform_event(&event).is_err());
 
-        event.tenant_scope = None;
+        event.active_scope = None;
         assert!(validate_platform_event(&event).is_err());
     }
 
     #[test]
-    fn platform_event_gate_rejects_a_partial_tenant_holding_binding() {
+    fn platform_event_gate_rejects_a_partial_holding_holding_binding() {
         let mut event = envelope(json!({
             "request_hash": "dd".repeat(32),
             "read_model": {
-                "tenant_id": "tenant-1",
+                "holding_id": "holding-1",
                 "state": "active"
             }
         }));
-        event.tenant_scope = Some(json!({"tenant_id": "tenant-1"}));
+        event.active_scope = Some(json!({"holding_id": "holding-1"}));
         assert!(validate_platform_event(&event).is_err());
 
         event.payload["read_model"] = json!({
-            "holding_ref": "holding-1",
+            "data_profile_key": "holding-1",
             "state": "active"
         });
-        event.tenant_scope = Some(json!({"holding_ref": "holding-1"}));
+        event.active_scope = Some(json!({"data_profile_key": "holding-1"}));
         assert!(validate_platform_event(&event).is_err());
     }
 
@@ -822,7 +822,7 @@ mod tests {
             PLATFORM_COMPLETION_RUNTIME_HANDLER_NAME,
             "platform_completion_runtime"
         );
-        let binding = TenantBinding::new("tenant-1", "holding-1").expect("bounded binding");
+        let binding = HoldingBinding::new("holding-1", "holding-1").expect("bounded binding");
         assert!(matches!(binding.scope(), Scope::Holding { .. }));
     }
 

@@ -1,7 +1,7 @@
 //! Disposable acceptance evidence for the CRM source-event history fence.
 
 use chrono::{Duration, Utc};
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::marketing_crm::{
     AcceptedLeadHandoff, AccountReference, AttributionInputs, AttributionTouch, ContactReference,
     CrmOpportunity, MarketingAcquisitionReference, MarketingLeadReference,
@@ -11,12 +11,12 @@ use erpx_infrastructure::SqlxMarketingCrmStore;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-fn context(scope: TenantScope, key: &str) -> CommandContext {
+fn context(scope: AuthorityScope, key: &str) -> CommandContext {
     CommandContext::try_new(
         key,
         ActorAttribution {
             principal_ref: "crm-source-fence-test".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
@@ -27,7 +27,7 @@ fn context(scope: TenantScope, key: &str) -> CommandContext {
     .expect("command context")
 }
 
-fn handoff(scope: TenantScope, context: &CommandContext) -> AcceptedLeadHandoff {
+fn handoff(scope: AuthorityScope, context: &CommandContext) -> AcceptedLeadHandoff {
     AcceptedLeadHandoff::new(
         Uuid::new_v4(),
         scope.clone(),
@@ -54,23 +54,23 @@ fn handoff(scope: TenantScope, context: &CommandContext) -> AcceptedLeadHandoff 
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn crm_update_rolls_back_when_prior_source_event_is_missing() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required for this ignored test");
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required for this ignored test");
     let pool = PgPool::connect(&url).await.expect("write pool");
-    erpx_migration::migrate_tenant_write(&pool)
+    erpx_migration::migrate_holding_write(&pool)
         .await
-        .expect("tenant write migration");
+        .expect("holding write migration");
 
-    let holding_ref = format!("crm-source-fence-{}", Uuid::new_v4());
-    let scope = TenantScope::Company {
+    let data_profile_key = format!("crm-source-fence-{}", Uuid::new_v4());
+    let scope = AuthorityScope::Company {
         holding_id: Uuid::new_v4(),
         company_id: Uuid::new_v4(),
     };
     let handoff_context = context(scope.clone(), "crm-source-fence-handoff");
     let handoff = handoff(scope.clone(), &handoff_context);
-    let store = SqlxMarketingCrmStore::new(pool.clone(), &holding_ref).expect("CRM store");
+    let store = SqlxMarketingCrmStore::new(pool.clone(), &data_profile_key).expect("CRM store");
     store
         .save_handoff(&handoff, &handoff_context, None)
         .await
@@ -112,17 +112,17 @@ async fn crm_update_rolls_back_when_prior_source_event_is_missing() {
         .expect("persist opportunity");
 
     let mut source_tamper = pool.begin().await.expect("source tamper transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *source_tamper)
         .await
         .expect("source tamper scope");
     sqlx::query(
-        "DELETE FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type='marketing_crm_opportunity'
+        "DELETE FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type='marketing_crm_opportunity'
            AND aggregate_id=$2 AND aggregate_version=1",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(opportunity.id)
     .execute(&mut *source_tamper)
     .await
@@ -148,16 +148,16 @@ async fn crm_update_rolls_back_when_prior_source_event_is_missing() {
     );
 
     let mut verify = pool.begin().await.expect("verification transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *verify)
         .await
         .expect("verification scope");
     let row = sqlx::query(
-        "SELECT version, status FROM erpx_tenant.crm_opportunities
-         WHERE holding_ref=$1 AND opportunity_id=$2",
+        "SELECT version, status FROM erpx_holding.crm_opportunities
+         WHERE data_profile_key=$1 AND opportunity_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(opportunity.id)
     .fetch_one(&mut *verify)
     .await
@@ -166,11 +166,11 @@ async fn crm_update_rolls_back_when_prior_source_event_is_missing() {
     assert_eq!(row.get::<String, _>("status"), "draft");
     assert_eq!(
         sqlx::query_scalar::<_, i64>(
-            "SELECT count(*) FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND aggregate_type='marketing_crm_opportunity'
+            "SELECT count(*) FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND aggregate_type='marketing_crm_opportunity'
                AND aggregate_id=$2",
         )
-        .bind(&holding_ref)
+        .bind(&data_profile_key)
         .bind(opportunity.id)
         .fetch_one(&mut *verify)
         .await

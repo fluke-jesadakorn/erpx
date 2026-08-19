@@ -1,4 +1,4 @@
-//! Tenant-read Legal/document projection and typed read adapter.
+//! Holding-read Legal/document projection and typed read adapter.
 //!
 //! The write database is read only at the source boundary.  The projection
 //! writes only the rebuildable read database and accepts only the complete
@@ -8,7 +8,7 @@
 
 use chrono::{DateTime, Duration, Utc};
 use erpx_domain::contracts::{
-    ActorAttribution, ActorKind, CONTRACT_VERSION, EventEnvelope, TenantScope,
+    ActorAttribution, ActorKind, AuthorityScope, CONTRACT_VERSION, EventEnvelope,
 };
 use erpx_domain::legal::{
     ContractStatus, LegalProjectionReconciliation, MAX_DOCUMENT_VERSIONS, MAX_LEGAL_PARTIES,
@@ -52,7 +52,7 @@ pub struct LegalSourceEventCursor {
 }
 
 /// The persisted event metadata retained by the normalized read rows.  The
-/// tenant scope itself is validated as a typed `TenantScope` at ingestion;
+/// holding scope itself is validated as a typed `AuthorityScope` at ingestion;
 /// read rows retain only the already-normalized holding/company/branch scope.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalSourceMetadata {
@@ -75,7 +75,7 @@ pub struct LegalSourceEvent {
     pub aggregate_id: Uuid,
     pub aggregate_version: u64,
     pub occurred_at: DateTime<Utc>,
-    pub tenant_scope: TenantScope,
+    pub active_scope: AuthorityScope,
     pub actor: ActorAttribution,
     pub correlation_id: Uuid,
     pub causation_id: Option<Uuid>,
@@ -101,7 +101,7 @@ pub struct LegalProjectionApplication {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalProjectionRebuildPreparation {
-    pub holding_ref: String,
+    pub data_profile_key: String,
     pub rows_cleared: u64,
     pub checkpoints_cleared: u64,
     pub receipts_cleared: u64,
@@ -271,40 +271,44 @@ pub struct LegalAccessHistoryReadPage {
 pub struct SqlxLegalProjectionStore {
     write_pool: PgPool,
     read_pool: PgPool,
-    holding_ref: String,
+    data_profile_key: String,
 }
 
 impl SqlxLegalProjectionStore {
     pub fn from_pools(
         write_pool: &PgPool,
         read_pool: &PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_holding_ref(&holding_ref)?;
+        let data_profile_key = data_profile_key.into();
+        validate_data_profile_key(&data_profile_key)?;
         Ok(Self {
             write_pool: write_pool.clone(),
             read_pool: read_pool.clone(),
-            holding_ref,
+            data_profile_key,
         })
     }
 
-    pub fn holding_ref(&self) -> &str {
-        &self.holding_ref
+    pub fn data_profile_key(&self) -> &str {
+        &self.data_profile_key
     }
 
     /// Read only the complete shared envelope and closed typed Legal events
-    /// from the authoritative tenant-write outbox.  Legacy rows with a NULL
+    /// from the authoritative holding-write outbox.  Legacy rows with a NULL
     /// envelope field or an untyped payload fail closed.
     pub async fn read_source_event_page(
         &self,
         cursor: Option<&LegalSourceEventCursor>,
         page_size: u32,
     ) -> Result<LegalSourceEventPage, PersistenceError> {
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
-        let page =
-            read_source_event_page_in_transaction(&mut tx, &self.holding_ref, cursor, page_size)
-                .await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
+        let page = read_source_event_page_in_transaction(
+            &mut tx,
+            &self.data_profile_key,
+            cursor,
+            page_size,
+        )
+        .await?;
         tx.commit().await?;
         Ok(page)
     }
@@ -313,8 +317,9 @@ impl SqlxLegalProjectionStore {
     /// This is a preflight bound for replacement projection work and is not a
     /// read-model authority.
     pub async fn source_event_high_watermark(&self) -> Result<u64, PersistenceError> {
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
-        let count = source_event_high_watermark_in_transaction(&mut tx, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
+        let count =
+            source_event_high_watermark_in_transaction(&mut tx, &self.data_profile_key).await?;
         tx.commit().await?;
         Ok(count)
     }
@@ -344,7 +349,7 @@ impl SqlxLegalProjectionStore {
                 ));
             }
         }
-        let mut source_tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
+        let mut source_tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
         let source_rows = sqlx::query(
             "SELECT events.aggregate_type, events.aggregate_id,
                     MIN(events.aggregate_version) AS first_version,
@@ -352,17 +357,17 @@ impl SqlxLegalProjectionStore {
                     COUNT(*) AS event_count,
                     COUNT(DISTINCT events.aggregate_version) AS distinct_event_version_count,
                     (SELECT latest.event_id
-                     FROM erpx_tenant.outbox_events AS latest
-                     WHERE latest.holding_ref=$1
+                     FROM erpx_holding.outbox_events AS latest
+                     WHERE latest.data_profile_key=$1
                        AND latest.aggregate_type=events.aggregate_type
                        AND latest.aggregate_id=events.aggregate_id
                      ORDER BY latest.aggregate_version DESC, latest.event_id DESC
                      LIMIT 1) AS latest_event_id
-             FROM erpx_tenant.outbox_events AS events
-             WHERE events.holding_ref=$1 AND events.aggregate_type = ANY($2)
+             FROM erpx_holding.outbox_events AS events
+             WHERE events.data_profile_key=$1 AND events.aggregate_type = ANY($2)
              GROUP BY events.aggregate_type, events.aggregate_id",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(LEGAL_AGGREGATES)
         .fetch_all(&mut *source_tx)
         .await?;
@@ -373,13 +378,13 @@ impl SqlxLegalProjectionStore {
                     retention.retention_until AS stored_retention_until,
                     retention.retention_state,
                     retention.contract_version AS stored_contract_version
-             FROM erpx_tenant.legal_contracts AS contracts
-             LEFT JOIN erpx_tenant.legal_contract_retention AS retention
-               ON retention.holding_ref=contracts.holding_ref
+             FROM erpx_holding.legal_contracts AS contracts
+             LEFT JOIN erpx_holding.legal_contract_retention AS retention
+               ON retention.data_profile_key=contracts.data_profile_key
               AND retention.contract_id=contracts.contract_id
-             WHERE contracts.holding_ref=$1",
+             WHERE contracts.data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_all(&mut *source_tx)
         .await?;
         source_tx.commit().await?;
@@ -416,13 +421,13 @@ impl SqlxLegalProjectionStore {
             );
         }
 
-        let mut read_tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut read_tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let read_rows = sqlx::query(
             "SELECT aggregate_type, aggregate_id, source_version, last_event_id
-             FROM erpx_tenant.legal_projection_checkpoints
-             WHERE holding_ref=$1 AND projection_name=$2",
+             FROM erpx_holding.legal_projection_checkpoints
+             WHERE data_profile_key=$1 AND projection_name=$2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(LEGAL_PROJECTION_NAME)
         .fetch_all(&mut *read_tx)
         .await?;
@@ -441,18 +446,18 @@ impl SqlxLegalProjectionStore {
 
         let read_model_rows = sqlx::query(
             "SELECT 'legal_contract'::TEXT AS aggregate_type, contract_id AS aggregate_id
-             FROM erpx_tenant.legal_contract_read_rows
-             WHERE holding_ref=$1
+             FROM erpx_holding.legal_contract_read_rows
+             WHERE data_profile_key=$1
              UNION ALL
              SELECT 'legal_document'::TEXT AS aggregate_type, document_id AS aggregate_id
-             FROM erpx_tenant.legal_document_read_rows
-             WHERE holding_ref=$1
+             FROM erpx_holding.legal_document_read_rows
+             WHERE data_profile_key=$1
              UNION ALL
              SELECT 'legal_access_history'::TEXT AS aggregate_type, entry_id AS aggregate_id
-             FROM erpx_tenant.legal_access_history_read_rows
-             WHERE holding_ref=$1",
+             FROM erpx_holding.legal_access_history_read_rows
+             WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_all(&mut *read_tx)
         .await?;
         let read_models = read_model_rows
@@ -467,10 +472,10 @@ impl SqlxLegalProjectionStore {
 
         let retention_read_rows = sqlx::query(
             "SELECT contract_id, retention_until, retention_state, contract_version
-             FROM erpx_tenant.legal_contract_retention_read_rows
-             WHERE holding_ref=$1",
+             FROM erpx_holding.legal_contract_retention_read_rows
+             WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_all(&mut *read_tx)
         .await?;
         read_tx.commit().await?;
@@ -609,7 +614,7 @@ impl SqlxLegalProjectionStore {
     ) -> Result<LegalProjectionApplication, PersistenceError> {
         validate_source_event(event)?;
         self.verify_authoritative_source_event(event).await?;
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let application = self.project_event_in_transaction(&mut tx, event).await?;
         tx.commit().await?;
         Ok(application)
@@ -626,26 +631,28 @@ impl SqlxLegalProjectionStore {
         page_size: u32,
     ) -> Result<(LegalProjectionRebuildPreparation, u64), PersistenceError> {
         validate_source_page_size(page_size)?;
-        let mut source_tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
-        sqlx::query("LOCK TABLE erpx_tenant.outbox_events IN SHARE MODE")
+        let mut source_tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
+        sqlx::query("LOCK TABLE erpx_holding.outbox_events IN SHARE MODE")
             .execute(&mut *source_tx)
             .await?;
         let source_event_count =
-            source_event_high_watermark_in_transaction(&mut source_tx, &self.holding_ref).await?;
+            source_event_high_watermark_in_transaction(&mut source_tx, &self.data_profile_key)
+                .await?;
         if expected_source_event_count.is_some_and(|expected| expected != source_event_count) {
             return Err(invalid(
                 "Legal source fence changed before replacement rebuild",
             ));
         }
 
-        let mut read_tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
-        let preparation = clear_projection_in_transaction(&mut read_tx, &self.holding_ref).await?;
+        let mut read_tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
+        let preparation =
+            clear_projection_in_transaction(&mut read_tx, &self.data_profile_key).await?;
         let mut cursor = None;
         let mut events_replayed = 0_u64;
         loop {
             let page = read_source_event_page_in_transaction(
                 &mut source_tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 cursor.as_ref(),
                 page_size,
             )
@@ -653,7 +660,7 @@ impl SqlxLegalProjectionStore {
             for event in &page.events {
                 verify_authoritative_source_event_in_transaction(
                     &mut source_tx,
-                    &self.holding_ref,
+                    &self.data_profile_key,
                     event,
                 )
                 .await?;
@@ -676,7 +683,8 @@ impl SqlxLegalProjectionStore {
             }
         }
         let final_source_event_count =
-            source_event_high_watermark_in_transaction(&mut source_tx, &self.holding_ref).await?;
+            source_event_high_watermark_in_transaction(&mut source_tx, &self.data_profile_key)
+                .await?;
         if final_source_event_count != source_event_count {
             return Err(invalid(
                 "Legal source fence changed during replacement rebuild",
@@ -704,16 +712,16 @@ impl SqlxLegalProjectionStore {
         }
         self.validate_checkpoint(tx, event).await?;
         let inserted = sqlx::query(
-            "INSERT INTO erpx_tenant.legal_projection_event_receipts
-                (holding_ref, projection_name, event_id, aggregate_type,
+            "INSERT INTO erpx_holding.legal_projection_event_receipts
+                (data_profile_key, projection_name, event_id, aggregate_type,
                  aggregate_id, aggregate_version, event_type,
                  source_contract_version, source_event_version, source_actor_ref,
                  source_actor_kind, source_correlation_id, source_causation_id,
                  source_idempotency_key)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-             ON CONFLICT (holding_ref, projection_name, event_id) DO NOTHING",
+             ON CONFLICT (data_profile_key, projection_name, event_id) DO NOTHING",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(LEGAL_PROJECTION_NAME)
         .bind(event.event_id)
         .bind(event.aggregate_type.as_str())
@@ -741,29 +749,29 @@ impl SqlxLegalProjectionStore {
 
         match event.payload.clone() {
             LegalOutboxPayload::ContractSaved(contract) => {
-                project_contract(tx, &self.holding_ref, event, &contract).await?
+                project_contract(tx, &self.data_profile_key, event, &contract).await?
             }
             LegalOutboxPayload::DocumentSaved(document) => {
-                project_document(tx, &self.holding_ref, event, &document).await?
+                project_document(tx, &self.data_profile_key, event, &document).await?
             }
             LegalOutboxPayload::AccessRecorded(access) => {
-                validate_access_source_document(&self.write_pool, &self.holding_ref, &access)
+                validate_access_source_document(&self.write_pool, &self.data_profile_key, &access)
                     .await?;
-                project_access(tx, &self.holding_ref, event, &access).await?
+                project_access(tx, &self.data_profile_key, event, &access).await?
             }
         }
         let (holding_id, company_id, branch_id) = event_scope(event)?;
         sqlx::query(
-            "INSERT INTO erpx_tenant.legal_projection_checkpoints
-                (holding_ref, projection_name, aggregate_type, aggregate_id,
+            "INSERT INTO erpx_holding.legal_projection_checkpoints
+                (data_profile_key, projection_name, aggregate_type, aggregate_id,
                  holding_id, company_id, branch_id, last_event_id, source_version)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-             ON CONFLICT (holding_ref, projection_name, aggregate_type, aggregate_id)
+             ON CONFLICT (data_profile_key, projection_name, aggregate_type, aggregate_id)
              DO UPDATE SET holding_id=EXCLUDED.holding_id, company_id=EXCLUDED.company_id,
                  branch_id=EXCLUDED.branch_id, last_event_id=EXCLUDED.last_event_id,
                  source_version=EXCLUDED.source_version, projected_at=now()",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(LEGAL_PROJECTION_NAME)
         .bind(event.aggregate_type.as_str())
         .bind(event.aggregate_id)
@@ -786,8 +794,8 @@ impl SqlxLegalProjectionStore {
     pub async fn clear_projection(
         &self,
     ) -> Result<LegalProjectionRebuildPreparation, PersistenceError> {
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
-        let preparation = clear_projection_in_transaction(&mut tx, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
+        let preparation = clear_projection_in_transaction(&mut tx, &self.data_profile_key).await?;
         tx.commit().await?;
         Ok(preparation)
     }
@@ -802,11 +810,11 @@ impl SqlxLegalProjectionStore {
                     source_contract_version, source_event_version, source_actor_ref,
                     source_actor_kind, source_correlation_id, source_causation_id,
                     source_idempotency_key
-             FROM erpx_tenant.legal_projection_event_receipts
-             WHERE holding_ref=$1 AND projection_name=$2 AND event_id=$3
+             FROM erpx_holding.legal_projection_event_receipts
+             WHERE data_profile_key=$1 AND projection_name=$2 AND event_id=$3
              FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(LEGAL_PROJECTION_NAME)
         .bind(event.event_id)
         .fetch_optional(&mut **tx)
@@ -838,12 +846,12 @@ impl SqlxLegalProjectionStore {
     ) -> Result<(), PersistenceError> {
         let row = sqlx::query(
             "SELECT source_version, last_event_id
-             FROM erpx_tenant.legal_projection_checkpoints
-             WHERE holding_ref=$1 AND projection_name=$2
+             FROM erpx_holding.legal_projection_checkpoints
+             WHERE data_profile_key=$1 AND projection_name=$2
                AND aggregate_type=$3 AND aggregate_id=$4
              FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(LEGAL_PROJECTION_NAME)
         .bind(event.aggregate_type.as_str())
         .bind(event.aggregate_id)
@@ -878,8 +886,9 @@ impl SqlxLegalProjectionStore {
         &self,
         event: &LegalSourceEvent,
     ) -> Result<(), PersistenceError> {
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
-        verify_authoritative_source_event_in_transaction(&mut tx, &self.holding_ref, event).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
+        verify_authoritative_source_event_in_transaction(&mut tx, &self.data_profile_key, event)
+            .await?;
         tx.commit().await?;
         Ok(())
     }
@@ -887,7 +896,7 @@ impl SqlxLegalProjectionStore {
 
 async fn clear_projection_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<LegalProjectionRebuildPreparation, PersistenceError> {
     let mut rows_cleared = 0_u64;
     for table in [
@@ -901,28 +910,30 @@ async fn clear_projection_in_transaction(
     ] {
         rows_cleared = rows_cleared.saturating_add(
             sqlx::query(&format!(
-                "DELETE FROM erpx_tenant.{table} WHERE holding_ref=$1"
+                "DELETE FROM erpx_holding.{table} WHERE data_profile_key=$1"
             ))
-            .bind(holding_ref)
+            .bind(data_profile_key)
             .execute(&mut **tx)
             .await?
             .rows_affected(),
         );
     }
-    let checkpoints_cleared =
-        sqlx::query("DELETE FROM erpx_tenant.legal_projection_checkpoints WHERE holding_ref=$1")
-            .bind(holding_ref)
-            .execute(&mut **tx)
-            .await?
-            .rows_affected();
-    let receipts_cleared =
-        sqlx::query("DELETE FROM erpx_tenant.legal_projection_event_receipts WHERE holding_ref=$1")
-            .bind(holding_ref)
-            .execute(&mut **tx)
-            .await?
-            .rows_affected();
+    let checkpoints_cleared = sqlx::query(
+        "DELETE FROM erpx_holding.legal_projection_checkpoints WHERE data_profile_key=$1",
+    )
+    .bind(data_profile_key)
+    .execute(&mut **tx)
+    .await?
+    .rows_affected();
+    let receipts_cleared = sqlx::query(
+        "DELETE FROM erpx_holding.legal_projection_event_receipts WHERE data_profile_key=$1",
+    )
+    .bind(data_profile_key)
+    .execute(&mut **tx)
+    .await?
+    .rows_affected();
     Ok(LegalProjectionRebuildPreparation {
-        holding_ref: holding_ref.into(),
+        data_profile_key: data_profile_key.into(),
         rows_cleared,
         checkpoints_cleared,
         receipts_cleared,
@@ -931,7 +942,7 @@ async fn clear_projection_in_transaction(
 
 async fn read_source_event_page_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     cursor: Option<&LegalSourceEventCursor>,
     page_size: u32,
 ) -> Result<LegalSourceEventPage, PersistenceError> {
@@ -944,10 +955,10 @@ async fn read_source_event_page_in_transaction(
         sqlx::query(
             "SELECT event_id, event_type, aggregate_type, aggregate_id,
                     aggregate_version, occurred_at, contract_version,
-                    event_version, tenant_scope, actor, correlation_id,
+                    event_version, active_scope, actor, correlation_id,
                     causation_id, idempotency_key, payload
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND aggregate_type = ANY($2)
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND aggregate_type = ANY($2)
                AND (aggregate_type > $3
                     OR (aggregate_type=$3 AND aggregate_id > $4)
                     OR (aggregate_type=$3 AND aggregate_id=$4
@@ -955,7 +966,7 @@ async fn read_source_event_page_in_transaction(
              ORDER BY aggregate_type, aggregate_id, aggregate_version, event_id
              LIMIT $6",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(LEGAL_AGGREGATES)
         .bind(&cursor.aggregate_type)
         .bind(cursor.aggregate_id)
@@ -970,14 +981,14 @@ async fn read_source_event_page_in_transaction(
         sqlx::query(
             "SELECT event_id, event_type, aggregate_type, aggregate_id,
                     aggregate_version, occurred_at, contract_version,
-                    event_version, tenant_scope, actor, correlation_id,
+                    event_version, active_scope, actor, correlation_id,
                     causation_id, idempotency_key, payload
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND aggregate_type = ANY($2)
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND aggregate_type = ANY($2)
              ORDER BY aggregate_type, aggregate_id, aggregate_version, event_id
              LIMIT $3",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(LEGAL_AGGREGATES)
         .bind(limit)
         .fetch_all(&mut **tx)
@@ -1009,14 +1020,14 @@ async fn read_source_event_page_in_transaction(
 
 async fn source_event_high_watermark_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<u64, PersistenceError> {
     let count: i64 = sqlx::query_scalar(
         "SELECT count(*)
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type = ANY($2)",
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type = ANY($2)",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(LEGAL_AGGREGATES)
     .fetch_one(&mut **tx)
     .await?;
@@ -1029,19 +1040,19 @@ async fn source_event_high_watermark_in_transaction(
 
 async fn verify_authoritative_source_event_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     event: &LegalSourceEvent,
 ) -> Result<(), PersistenceError> {
     let row = sqlx::query(
         "SELECT event_type, aggregate_type, aggregate_id, aggregate_version,
-                occurred_at, contract_version, event_version, tenant_scope,
+                occurred_at, contract_version, event_version, active_scope,
                 actor, correlation_id, causation_id, idempotency_key, payload
-         FROM erpx_tenant.outbox_events
-         WHERE event_id=$1 AND holding_ref=$2
+         FROM erpx_holding.outbox_events
+         WHERE event_id=$1 AND data_profile_key=$2
          FOR SHARE",
     )
     .bind(event.event_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_optional(&mut **tx)
     .await?;
     let Some(row) = row else {
@@ -1054,7 +1065,7 @@ async fn verify_authoritative_source_event_in_transaction(
     let source_occurred_at: DateTime<Utc> = row.try_get("occurred_at")?;
     let source_contract_version: Option<i32> = row.try_get("contract_version")?;
     let source_event_version: Option<i32> = row.try_get("event_version")?;
-    let source_tenant_scope: Option<Value> = row.try_get("tenant_scope")?;
+    let source_holding_scope: Option<Value> = row.try_get("active_scope")?;
     let source_actor: Option<Value> = row.try_get("actor")?;
     let source_correlation_id: Option<Uuid> = row.try_get("correlation_id")?;
     let source_causation_id: Option<Uuid> = row.try_get("causation_id")?;
@@ -1067,7 +1078,7 @@ async fn verify_authoritative_source_event_in_transaction(
         || source_occurred_at != event.occurred_at
         || source_contract_version != Some(i32::from(event.contract_version))
         || source_event_version != Some(i32::from(event.event_version))
-        || source_tenant_scope != Some(serde_json::to_value(&event.tenant_scope)?)
+        || source_holding_scope != Some(serde_json::to_value(&event.active_scope)?)
         || source_actor != Some(serde_json::to_value(&event.actor)?)
         || source_correlation_id != Some(event.correlation_id)
         || source_causation_id != event.causation_id
@@ -1085,20 +1096,20 @@ async fn verify_authoritative_source_event_in_transaction(
 pub struct SqlxLegalReadStore {
     read_pool: PgPool,
     source_pool: Option<PgPool>,
-    holding_ref: String,
+    data_profile_key: String,
 }
 
 impl SqlxLegalReadStore {
     pub fn new(
         read_pool: PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_holding_ref(&holding_ref)?;
+        let data_profile_key = data_profile_key.into();
+        validate_data_profile_key(&data_profile_key)?;
         Ok(Self {
             read_pool,
             source_pool: None,
-            holding_ref,
+            data_profile_key,
         })
     }
 
@@ -1108,14 +1119,14 @@ impl SqlxLegalReadStore {
     pub fn from_pools(
         read_pool: &PgPool,
         source_pool: &PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_holding_ref(&holding_ref)?;
+        let data_profile_key = data_profile_key.into();
+        validate_data_profile_key(&data_profile_key)?;
         Ok(Self {
             read_pool: read_pool.clone(),
             source_pool: Some(source_pool.clone()),
-            holding_ref,
+            data_profile_key,
         })
     }
 
@@ -1130,7 +1141,7 @@ impl SqlxLegalReadStore {
         if before.is_some_and(|cursor| cursor.contract_id.is_nil()) {
             return Err(invalid("Legal contract read cursor is invalid"));
         }
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let rows = sqlx::query(
             "SELECT contract_id, holding_id, company_id, branch_id, reference, title,
                     object_ref, content_sha256, retention_until, status, created_by,
@@ -1138,13 +1149,13 @@ impl SqlxLegalReadStore {
                     source_contract_version, source_event_version, source_actor_ref,
                     source_actor_kind, source_correlation_id, source_causation_id,
                     source_idempotency_key, projected_at
-             FROM erpx_tenant.legal_contract_read_rows
-             WHERE holding_ref=$1 AND holding_id=$2 AND company_id=$3
+             FROM erpx_holding.legal_contract_read_rows
+             WHERE data_profile_key=$1 AND holding_id=$2 AND company_id=$3
                AND ($4::UUID IS NULL OR branch_id=$4)
                AND ($5::UUID IS NULL OR contract_id < $5)
              ORDER BY contract_id DESC LIMIT $6",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(scope.holding_id)
         .bind(scope.company_id)
         .bind(scope.branch_id)
@@ -1158,10 +1169,10 @@ impl SqlxLegalReadStore {
         let selected = rows.into_iter().take(page_len).collect::<Vec<_>>();
         let mut result = Vec::with_capacity(selected.len());
         for row in selected {
-            result.push(load_contract_row(&mut tx, &self.holding_ref, row).await?);
+            result.push(load_contract_row(&mut tx, &self.data_profile_key, row).await?);
         }
         let freshness =
-            read_freshness(&mut tx, &self.holding_ref, self.source_pool.as_ref()).await?;
+            read_freshness(&mut tx, &self.data_profile_key, self.source_pool.as_ref()).await?;
         tx.commit().await?;
         let next_cursor = if has_more {
             result.last().map(|row| LegalContractReadCursor {
@@ -1189,20 +1200,20 @@ impl SqlxLegalReadStore {
         if before.is_some_and(|cursor| cursor.document_id.is_nil()) {
             return Err(invalid("Legal document read cursor is invalid"));
         }
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let rows = sqlx::query(
             "SELECT document_id, holding_id, company_id, branch_id, title,
                     current_version, archived, source_version, source_event_id,
                     source_contract_version, source_event_version, source_actor_ref,
                     source_actor_kind, source_correlation_id, source_causation_id,
                     source_idempotency_key, projected_at
-             FROM erpx_tenant.legal_document_read_rows
-             WHERE holding_ref=$1 AND holding_id=$2 AND company_id=$3
+             FROM erpx_holding.legal_document_read_rows
+             WHERE data_profile_key=$1 AND holding_id=$2 AND company_id=$3
                AND ($4::UUID IS NULL OR branch_id=$4)
                AND ($5::UUID IS NULL OR document_id < $5)
              ORDER BY document_id DESC LIMIT $6",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(scope.holding_id)
         .bind(scope.company_id)
         .bind(scope.branch_id)
@@ -1216,10 +1227,10 @@ impl SqlxLegalReadStore {
         let selected = rows.into_iter().take(page_len).collect::<Vec<_>>();
         let mut result = Vec::with_capacity(selected.len());
         for row in selected {
-            result.push(load_document_row(&mut tx, &self.holding_ref, row).await?);
+            result.push(load_document_row(&mut tx, &self.data_profile_key, row).await?);
         }
         let freshness =
-            read_freshness(&mut tx, &self.holding_ref, self.source_pool.as_ref()).await?;
+            read_freshness(&mut tx, &self.data_profile_key, self.source_pool.as_ref()).await?;
         tx.commit().await?;
         let next_cursor = if has_more {
             result.last().map(|row| LegalDocumentReadCursor {
@@ -1251,7 +1262,7 @@ impl SqlxLegalReadStore {
         if before.is_some_and(|cursor| cursor.entry_id.is_nil()) {
             return Err(invalid("Legal access read cursor is invalid"));
         }
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let rows = sqlx::query(
             "SELECT entry_id, document_id, holding_id, company_id, branch_id,
                     document_version, actor_ref, action, purpose, observed_at,
@@ -1259,14 +1270,14 @@ impl SqlxLegalReadStore {
                     source_event_version, source_actor_ref, source_actor_kind,
                     source_correlation_id, source_causation_id, source_idempotency_key,
                     projected_at
-             FROM erpx_tenant.legal_access_history_read_rows
-             WHERE holding_ref=$1 AND holding_id=$2 AND company_id=$3
+             FROM erpx_holding.legal_access_history_read_rows
+             WHERE data_profile_key=$1 AND holding_id=$2 AND company_id=$3
                AND ($4::UUID IS NULL OR branch_id=$4)
                AND ($5::UUID IS NULL OR document_id=$5)
                AND ($6::TIMESTAMPTZ IS NULL OR (observed_at, entry_id) < ($6, $7))
              ORDER BY observed_at DESC, entry_id DESC LIMIT $8",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(scope.holding_id)
         .bind(scope.company_id)
         .bind(scope.branch_id)
@@ -1282,11 +1293,11 @@ impl SqlxLegalReadStore {
         let mut result = Vec::with_capacity(page_len.min(rows.len()));
         for row in rows.into_iter().take(page_len) {
             let row = decode_access_read_row(row)?;
-            validate_access_read_row(&mut tx, &self.holding_ref, &row).await?;
+            validate_access_read_row(&mut tx, &self.data_profile_key, &row).await?;
             result.push(row);
         }
         let freshness =
-            read_freshness(&mut tx, &self.holding_ref, self.source_pool.as_ref()).await?;
+            read_freshness(&mut tx, &self.data_profile_key, self.source_pool.as_ref()).await?;
         tx.commit().await?;
         let next_cursor = if has_more {
             result.last().map(|row| LegalAccessReadCursor {
@@ -1321,18 +1332,18 @@ struct LegalSourceWatermark {
 
 async fn read_freshness(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     source_pool: Option<&PgPool>,
 ) -> Result<LegalReadFreshness, PersistenceError> {
     let row = sqlx::query(
         "SELECT aggregate_type, aggregate_id, last_event_id, projected_at, source_version
-         FROM erpx_tenant.legal_projection_checkpoints
-         WHERE holding_ref=$1 AND projection_name=$2
+         FROM erpx_holding.legal_projection_checkpoints
+         WHERE data_profile_key=$1 AND projection_name=$2
          ORDER BY aggregate_type DESC, aggregate_id DESC, source_version DESC,
                   last_event_id DESC
          LIMIT 1",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(LEGAL_PROJECTION_NAME)
     .fetch_optional(&mut **tx)
     .await?;
@@ -1368,10 +1379,10 @@ async fn read_freshness(
         .unwrap_or(0);
     let projected_event_count: i64 = sqlx::query_scalar(
         "SELECT count(*)
-         FROM erpx_tenant.legal_projection_event_receipts
-         WHERE holding_ref=$1 AND projection_name=$2",
+         FROM erpx_holding.legal_projection_event_receipts
+         WHERE data_profile_key=$1 AND projection_name=$2",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(LEGAL_PROJECTION_NAME)
     .fetch_one(&mut **tx)
     .await?;
@@ -1386,7 +1397,7 @@ async fn read_freshness(
             stale: true,
         });
     };
-    let source_watermark = read_source_watermark(source_pool, holding_ref).await?;
+    let source_watermark = read_source_watermark(source_pool, data_profile_key).await?;
     let watermark_matches = source_watermark.event_count == projected_event_count
         && source_watermark.latest.as_ref() == projected_latest.as_ref();
     Ok(LegalReadFreshness {
@@ -1403,27 +1414,27 @@ async fn read_freshness(
 
 async fn read_source_watermark(
     source_pool: &PgPool,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<LegalSourceWatermark, PersistenceError> {
-    let mut tx = begin_scoped(source_pool, holding_ref).await?;
+    let mut tx = begin_scoped(source_pool, data_profile_key).await?;
     let event_count: i64 = sqlx::query_scalar(
         "SELECT count(*)
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type = ANY($2)",
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type = ANY($2)",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(LEGAL_AGGREGATES)
     .fetch_one(&mut *tx)
     .await?;
     let latest = sqlx::query(
         "SELECT aggregate_type, aggregate_id, aggregate_version, event_id
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type = ANY($2)
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type = ANY($2)
          ORDER BY aggregate_type DESC, aggregate_id DESC, aggregate_version DESC,
                   event_id DESC
          LIMIT 1",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(LEGAL_AGGREGATES)
     .fetch_optional(&mut *tx)
     .await?
@@ -1452,7 +1463,7 @@ async fn read_source_watermark(
 
 async fn project_contract(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     event: &LegalSourceEvent,
     contract: &LegalContractEvent,
 ) -> Result<(), PersistenceError> {
@@ -1463,7 +1474,7 @@ async fn project_contract(
         "legal_contract_read_rows",
         "contract_id",
         contract.contract_id,
-        holding_ref,
+        data_profile_key,
         contract.holding_id,
         contract.company_id,
         contract.branch_id,
@@ -1471,14 +1482,14 @@ async fn project_contract(
     )
     .await?;
     sqlx::query(
-        "INSERT INTO erpx_tenant.legal_contract_read_rows
-            (holding_ref, contract_id, holding_id, company_id, branch_id, reference,
+        "INSERT INTO erpx_holding.legal_contract_read_rows
+            (data_profile_key, contract_id, holding_id, company_id, branch_id, reference,
              title, object_ref, content_sha256, retention_until, status, created_by,
              approved_by, source_version, source_event_id, source_contract_version,
              source_event_version, source_actor_ref, source_actor_kind,
              source_correlation_id, source_causation_id, source_idempotency_key)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
-         ON CONFLICT (holding_ref, contract_id) DO UPDATE SET
+         ON CONFLICT (data_profile_key, contract_id) DO UPDATE SET
              holding_id=EXCLUDED.holding_id, company_id=EXCLUDED.company_id,
              branch_id=EXCLUDED.branch_id, reference=EXCLUDED.reference,
              title=EXCLUDED.title, object_ref=EXCLUDED.object_ref,
@@ -1493,7 +1504,7 @@ async fn project_contract(
              source_causation_id=EXCLUDED.source_causation_id,
              source_idempotency_key=EXCLUDED.source_idempotency_key, projected_at=now()",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(contract.contract_id)
     .bind(contract.holding_id)
     .bind(contract.company_id)
@@ -1519,23 +1530,23 @@ async fn project_contract(
     .await?;
 
     sqlx::query(
-        "DELETE FROM erpx_tenant.legal_contract_party_read_rows
-         WHERE holding_ref=$1 AND contract_id=$2",
+        "DELETE FROM erpx_holding.legal_contract_party_read_rows
+         WHERE data_profile_key=$1 AND contract_id=$2",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(contract.contract_id)
     .execute(&mut **tx)
     .await?;
     for party in &contract.parties {
         sqlx::query(
-            "INSERT INTO erpx_tenant.legal_contract_party_read_rows
-                (holding_ref, contract_id, holding_id, party_id, party_role,
+            "INSERT INTO erpx_holding.legal_contract_party_read_rows
+                (data_profile_key, contract_id, holding_id, party_id, party_role,
                  source_version, source_event_id, source_contract_version,
                  source_event_version, source_actor_ref, source_actor_kind,
                  source_correlation_id, source_causation_id, source_idempotency_key)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(contract.contract_id)
         .bind(contract.holding_id)
         .bind(party.party_id)
@@ -1554,15 +1565,15 @@ async fn project_contract(
     }
     if let Some(approved_by) = &contract.approved_by {
         let inserted = sqlx::query(
-            "INSERT INTO erpx_tenant.legal_contract_approval_read_rows
-                (holding_ref, contract_id, holding_id, approved_by, approved_at,
+            "INSERT INTO erpx_holding.legal_contract_approval_read_rows
+                (data_profile_key, contract_id, holding_id, approved_by, approved_at,
                  contract_version, source_event_id, source_contract_version,
                  source_event_version, source_actor_ref, source_actor_kind,
                  source_correlation_id, source_causation_id, source_idempotency_key)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-             ON CONFLICT (holding_ref, contract_id) DO NOTHING",
+             ON CONFLICT (data_profile_key, contract_id) DO NOTHING",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(contract.contract_id)
         .bind(contract.holding_id)
         .bind(approved_by)
@@ -1581,10 +1592,10 @@ async fn project_contract(
         if inserted.rows_affected() == 0 {
             let row = sqlx::query(
                 "SELECT holding_id, approved_by
-                 FROM erpx_tenant.legal_contract_approval_read_rows
-                 WHERE holding_ref=$1 AND contract_id=$2",
+                 FROM erpx_holding.legal_contract_approval_read_rows
+                 WHERE data_profile_key=$1 AND contract_id=$2",
             )
-            .bind(holding_ref)
+            .bind(data_profile_key)
             .bind(contract.contract_id)
             .fetch_optional(&mut **tx)
             .await?
@@ -1598,11 +1609,11 @@ async fn project_contract(
     } else {
         let approval_exists: bool = sqlx::query_scalar(
             "SELECT EXISTS(
-                 SELECT 1 FROM erpx_tenant.legal_contract_approval_read_rows
-                 WHERE holding_ref=$1 AND contract_id=$2
+                 SELECT 1 FROM erpx_holding.legal_contract_approval_read_rows
+                 WHERE data_profile_key=$1 AND contract_id=$2
              )",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(contract.contract_id)
         .fetch_one(&mut **tx)
         .await?;
@@ -1611,13 +1622,13 @@ async fn project_contract(
         }
     }
     sqlx::query(
-        "INSERT INTO erpx_tenant.legal_contract_retention_read_rows
-            (holding_ref, contract_id, holding_id, retention_until, retention_state,
+        "INSERT INTO erpx_holding.legal_contract_retention_read_rows
+            (data_profile_key, contract_id, holding_id, retention_until, retention_state,
              contract_version, source_event_id, source_contract_version,
              source_event_version, source_actor_ref, source_actor_kind,
              source_correlation_id, source_causation_id, source_idempotency_key)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-         ON CONFLICT (holding_ref, contract_id) DO UPDATE SET
+         ON CONFLICT (data_profile_key, contract_id) DO UPDATE SET
              holding_id=EXCLUDED.holding_id, retention_until=EXCLUDED.retention_until,
              retention_state=EXCLUDED.retention_state, contract_version=EXCLUDED.contract_version,
              source_event_id=EXCLUDED.source_event_id,
@@ -1628,7 +1639,7 @@ async fn project_contract(
              source_causation_id=EXCLUDED.source_causation_id,
              source_idempotency_key=EXCLUDED.source_idempotency_key, projected_at=now()",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(contract.contract_id)
     .bind(contract.holding_id)
     .bind(contract.retention_until)
@@ -1649,7 +1660,7 @@ async fn project_contract(
 
 async fn project_document(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     event: &LegalSourceEvent,
     document: &LegalDocumentEvent,
 ) -> Result<(), PersistenceError> {
@@ -1660,7 +1671,7 @@ async fn project_document(
         "legal_document_read_rows",
         "document_id",
         document.document_id,
-        holding_ref,
+        data_profile_key,
         document.holding_id,
         document.company_id,
         document.branch_id,
@@ -1668,14 +1679,14 @@ async fn project_document(
     )
     .await?;
     sqlx::query(
-        "INSERT INTO erpx_tenant.legal_document_read_rows
-            (holding_ref, document_id, holding_id, company_id, branch_id, title,
+        "INSERT INTO erpx_holding.legal_document_read_rows
+            (data_profile_key, document_id, holding_id, company_id, branch_id, title,
              current_version, archived, source_version, source_event_id,
              source_contract_version, source_event_version, source_actor_ref,
              source_actor_kind, source_correlation_id, source_causation_id,
              source_idempotency_key)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
-         ON CONFLICT (holding_ref, document_id) DO UPDATE SET
+         ON CONFLICT (data_profile_key, document_id) DO UPDATE SET
              holding_id=EXCLUDED.holding_id, company_id=EXCLUDED.company_id,
              branch_id=EXCLUDED.branch_id, title=EXCLUDED.title,
              current_version=EXCLUDED.current_version, archived=EXCLUDED.archived,
@@ -1687,7 +1698,7 @@ async fn project_document(
              source_causation_id=EXCLUDED.source_causation_id,
              source_idempotency_key=EXCLUDED.source_idempotency_key, projected_at=now()",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(document.document_id)
     .bind(document.holding_id)
     .bind(document.company_id)
@@ -1709,16 +1720,16 @@ async fn project_document(
 
     for version in &document.versions {
         sqlx::query(
-            "INSERT INTO erpx_tenant.legal_document_version_read_rows
-                (holding_ref, document_id, holding_id, version, object_ref,
+            "INSERT INTO erpx_holding.legal_document_version_read_rows
+                (data_profile_key, document_id, holding_id, version, object_ref,
                  content_sha256, created_at, created_by, source_version,
                  source_event_id, source_contract_version, source_event_version,
                  source_actor_ref, source_actor_kind, source_correlation_id,
                  source_causation_id, source_idempotency_key)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
-             ON CONFLICT (holding_ref, document_id, version) DO NOTHING",
+             ON CONFLICT (data_profile_key, document_id, version) DO NOTHING",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(document.document_id)
         .bind(document.holding_id)
         .bind(as_i64(version.version, "Legal document version")?)
@@ -1739,10 +1750,10 @@ async fn project_document(
         .await?;
         let row = sqlx::query(
             "SELECT holding_id, object_ref, content_sha256, created_at, created_by
-             FROM erpx_tenant.legal_document_version_read_rows
-             WHERE holding_ref=$1 AND document_id=$2 AND version=$3",
+             FROM erpx_holding.legal_document_version_read_rows
+             WHERE data_profile_key=$1 AND document_id=$2 AND version=$3",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(document.document_id)
         .bind(as_i64(version.version, "Legal document version")?)
         .fetch_one(&mut **tx)
@@ -1761,23 +1772,23 @@ async fn project_document(
 
 async fn project_access(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     event: &LegalSourceEvent,
     access: &LegalAccessHistoryEvent,
 ) -> Result<(), PersistenceError> {
     validate_access_payload(event, access)?;
     let source = event_source(event);
     sqlx::query(
-        "INSERT INTO erpx_tenant.legal_access_history_read_rows
-            (holding_ref, entry_id, document_id, holding_id, company_id, branch_id,
+        "INSERT INTO erpx_holding.legal_access_history_read_rows
+            (data_profile_key, entry_id, document_id, holding_id, company_id, branch_id,
              document_version, actor_ref, action, purpose, observed_at,
              source_version, source_event_id, source_contract_version,
              source_event_version, source_actor_ref, source_actor_kind,
              source_correlation_id, source_causation_id, source_idempotency_key)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
-         ON CONFLICT (holding_ref, entry_id) DO NOTHING",
+         ON CONFLICT (data_profile_key, entry_id) DO NOTHING",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(access.entry_id)
     .bind(access.document_id)
     .bind(access.holding_id)
@@ -1802,10 +1813,10 @@ async fn project_access(
     let row = sqlx::query(
         "SELECT document_id, holding_id, company_id, branch_id, document_version,
                 actor_ref, action, purpose, observed_at
-         FROM erpx_tenant.legal_access_history_read_rows
-         WHERE holding_ref=$1 AND entry_id=$2",
+         FROM erpx_holding.legal_access_history_read_rows
+         WHERE data_profile_key=$1 AND entry_id=$2",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(access.entry_id)
     .fetch_one(&mut **tx)
     .await?;
@@ -1831,16 +1842,16 @@ async fn project_access(
 /// present in the disposable read model.
 async fn validate_access_source_document(
     write_pool: &PgPool,
-    holding_ref: &str,
+    data_profile_key: &str,
     access: &LegalAccessHistoryEvent,
 ) -> Result<(), PersistenceError> {
-    let mut source_tx = begin_scoped(write_pool, holding_ref).await?;
+    let mut source_tx = begin_scoped(write_pool, data_profile_key).await?;
     let document = sqlx::query(
         "SELECT holding_id, company_id, branch_id, current_version
-         FROM erpx_tenant.legal_documents
-         WHERE holding_ref=$1 AND document_id=$2 FOR SHARE",
+         FROM erpx_holding.legal_documents
+         WHERE data_profile_key=$1 AND document_id=$2 FOR SHARE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(access.document_id)
     .fetch_optional(&mut *source_tx)
     .await?
@@ -1860,11 +1871,11 @@ async fn validate_access_source_document(
     }
     let version_exists: bool = sqlx::query_scalar(
         "SELECT EXISTS(
-             SELECT 1 FROM erpx_tenant.legal_document_versions
-             WHERE holding_ref=$1 AND document_id=$2 AND version=$3
+             SELECT 1 FROM erpx_holding.legal_document_versions
+             WHERE data_profile_key=$1 AND document_id=$2 AND version=$3
          )",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(access.document_id)
     .bind(as_i64(
         access.version,
@@ -1896,7 +1907,7 @@ async fn validate_existing_scope(
     table: &str,
     id_column: &str,
     aggregate_id: Uuid,
-    holding_ref: &str,
+    data_profile_key: &str,
     holding_id: Uuid,
     company_id: Uuid,
     branch_id: Option<Uuid>,
@@ -1904,11 +1915,11 @@ async fn validate_existing_scope(
 ) -> Result<(), PersistenceError> {
     let query = format!(
         "SELECT holding_id, company_id, branch_id
-         FROM erpx_tenant.{table}
-         WHERE holding_ref=$1 AND {id_column}=$2 FOR SHARE"
+         FROM erpx_holding.{table}
+         WHERE data_profile_key=$1 AND {id_column}=$2 FOR SHARE"
     );
     let row = sqlx::query(&query)
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(aggregate_id)
         .fetch_optional(&mut **tx)
         .await?;
@@ -1924,7 +1935,7 @@ async fn validate_existing_scope(
 
 async fn validate_access_read_row(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     access: &LegalAccessHistoryReadRow,
 ) -> Result<(), PersistenceError> {
     validate_uuid(access.entry_id, "Legal access read entry ID")?;
@@ -1944,10 +1955,10 @@ async fn validate_access_read_row(
     }
     let document = sqlx::query(
         "SELECT holding_id, company_id, branch_id, current_version
-         FROM erpx_tenant.legal_document_read_rows
-         WHERE holding_ref=$1 AND document_id=$2",
+         FROM erpx_holding.legal_document_read_rows
+         WHERE data_profile_key=$1 AND document_id=$2",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(access.document_id)
     .fetch_optional(&mut **tx)
     .await?
@@ -1965,11 +1976,11 @@ async fn validate_access_read_row(
     }
     let version_exists: bool = sqlx::query_scalar(
         "SELECT EXISTS(
-             SELECT 1 FROM erpx_tenant.legal_document_version_read_rows
-             WHERE holding_ref=$1 AND document_id=$2 AND version=$3
+             SELECT 1 FROM erpx_holding.legal_document_version_read_rows
+             WHERE data_profile_key=$1 AND document_id=$2 AND version=$3
          )",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(access.document_id)
     .bind(as_i64(
         access.document_version,
@@ -1985,7 +1996,7 @@ async fn validate_access_read_row(
 
 async fn load_contract_row(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     row: sqlx::postgres::PgRow,
 ) -> Result<LegalContractReadRow, PersistenceError> {
     let contract_id: Uuid = row.try_get("contract_id")?;
@@ -2009,11 +2020,11 @@ async fn load_contract_row(
                 source_contract_version, source_event_version, source_actor_ref,
                 source_actor_kind, source_correlation_id, source_causation_id,
                 source_idempotency_key, projected_at
-         FROM erpx_tenant.legal_contract_party_read_rows
-         WHERE holding_ref=$1 AND contract_id=$2
+         FROM erpx_holding.legal_contract_party_read_rows
+         WHERE data_profile_key=$1 AND contract_id=$2
          ORDER BY party_id LIMIT $3",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(contract_id)
     .bind(i64::from(MAX_LEGAL_READ_CHILD_ROWS) + 1)
     .fetch_all(&mut **tx)
@@ -2040,10 +2051,10 @@ async fn load_contract_row(
                 source_contract_version, source_event_version, source_actor_ref,
                 source_actor_kind, source_correlation_id, source_causation_id,
                 source_idempotency_key, projected_at
-         FROM erpx_tenant.legal_contract_approval_read_rows
-         WHERE holding_ref=$1 AND contract_id=$2",
+         FROM erpx_holding.legal_contract_approval_read_rows
+         WHERE data_profile_key=$1 AND contract_id=$2",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(contract_id)
     .fetch_optional(&mut **tx)
     .await?
@@ -2071,10 +2082,10 @@ async fn load_contract_row(
                 source_contract_version, source_event_version, source_actor_ref,
                 source_actor_kind, source_correlation_id, source_causation_id,
                 source_idempotency_key, projected_at
-         FROM erpx_tenant.legal_contract_retention_read_rows
-         WHERE holding_ref=$1 AND contract_id=$2",
+         FROM erpx_holding.legal_contract_retention_read_rows
+         WHERE data_profile_key=$1 AND contract_id=$2",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(contract_id)
     .fetch_one(&mut **tx)
     .await
@@ -2114,7 +2125,7 @@ async fn load_contract_row(
 
 async fn load_document_row(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     row: sqlx::postgres::PgRow,
 ) -> Result<LegalDocumentReadRow, PersistenceError> {
     let document_id: Uuid = row.try_get("document_id")?;
@@ -2146,11 +2157,11 @@ async fn load_document_row(
                 source_event_version, source_actor_ref, source_actor_kind,
                 source_correlation_id, source_causation_id, source_idempotency_key,
                 projected_at
-         FROM erpx_tenant.legal_document_version_read_rows
-         WHERE holding_ref=$1 AND document_id=$2
+         FROM erpx_holding.legal_document_version_read_rows
+         WHERE data_profile_key=$1 AND document_id=$2
          ORDER BY version LIMIT $3",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(document_id)
     .bind(i64::from(MAX_DOCUMENT_VERSIONS as u32) + 1)
     .fetch_all(&mut **tx)
@@ -2207,10 +2218,10 @@ fn decode_source_event(row: sqlx::postgres::PgRow) -> Result<LegalSourceEvent, P
     let contract_version =
         required_positive_u16(row.try_get("contract_version")?, "contract version")?;
     let event_version = required_positive_u16(row.try_get("event_version")?, "event version")?;
-    let tenant_value: Value = row.try_get("tenant_scope")?;
+    let holding_value: Value = row.try_get("active_scope")?;
     let actor_value: Value = row.try_get("actor")?;
-    let tenant_scope: TenantScope = serde_json::from_value(tenant_value)
-        .map_err(|_| invalid("Legal source tenant scope is missing or malformed"))?;
+    let active_scope: AuthorityScope = serde_json::from_value(holding_value)
+        .map_err(|_| invalid("Legal source holding scope is missing or malformed"))?;
     let actor: ActorAttribution = serde_json::from_value(actor_value)
         .map_err(|_| invalid("Legal source actor attribution is missing or malformed"))?;
     let correlation_id: Uuid = row.try_get("correlation_id")?;
@@ -2232,7 +2243,7 @@ fn decode_source_event(row: sqlx::postgres::PgRow) -> Result<LegalSourceEvent, P
         aggregate_id,
         aggregate_version: as_u64(row.try_get("aggregate_version")?, "Legal source version")?,
         occurred_at: row.try_get("occurred_at")?,
-        tenant_scope,
+        active_scope,
         actor,
         correlation_id,
         causation_id,
@@ -2258,7 +2269,7 @@ fn validate_source_event(event: &LegalSourceEvent) -> Result<(), PersistenceErro
         aggregate_type: event.aggregate_type.as_str().into(),
         aggregate_id: event.aggregate_id,
         aggregate_version: event.aggregate_version,
-        tenant_scope: event.tenant_scope.clone(),
+        active_scope: event.active_scope.clone(),
         actor: event.actor.clone(),
         correlation_id: event.correlation_id,
         causation_id: event.causation_id,
@@ -2295,7 +2306,7 @@ fn validate_envelope(
             .idempotency_key
             .as_deref()
             .is_none_or(|key| key.is_empty())
-        || matches!(envelope.tenant_scope, TenantScope::Platform)
+        || matches!(envelope.active_scope, AuthorityScope::Platform)
         || envelope.actor.principal_ref.trim().is_empty()
         || envelope.actor.principal_ref.len() > 255
         || envelope.actor.principal_ref.chars().any(char::is_control)
@@ -2318,7 +2329,7 @@ fn validate_envelope(
             LegalEventType::ContractSaved,
             LegalOutboxPayload::ContractSaved(value),
         ) if envelope.aggregate_id == value.contract_id => validate_scope_containment(
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             value.holding_id,
             value.company_id,
             value.branch_id,
@@ -2328,7 +2339,7 @@ fn validate_envelope(
             LegalEventType::DocumentSaved,
             LegalOutboxPayload::DocumentSaved(value),
         ) if envelope.aggregate_id == value.document_id => validate_scope_containment(
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             value.holding_id,
             value.company_id,
             value.branch_id,
@@ -2344,7 +2355,7 @@ fn validate_envelope(
                 ))
             } else {
                 validate_scope_containment(
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
                     value.holding_id,
                     value.company_id,
                     value.branch_id,
@@ -2362,7 +2373,7 @@ fn validate_contract_payload(
     contract: &LegalContractEvent,
 ) -> Result<(), PersistenceError> {
     validate_scope_containment(
-        &event.tenant_scope,
+        &event.active_scope,
         contract.holding_id,
         contract.company_id,
         contract.branch_id,
@@ -2448,7 +2459,7 @@ fn validate_document_payload(
     document: &LegalDocumentEvent,
 ) -> Result<(), PersistenceError> {
     validate_scope_containment(
-        &event.tenant_scope,
+        &event.active_scope,
         document.holding_id,
         document.company_id,
         document.branch_id,
@@ -2487,7 +2498,7 @@ fn validate_access_payload(
     access: &LegalAccessHistoryEvent,
 ) -> Result<(), PersistenceError> {
     validate_scope_containment(
-        &event.tenant_scope,
+        &event.active_scope,
         access.holding_id,
         access.company_id,
         access.branch_id,
@@ -2514,25 +2525,25 @@ fn validate_access_payload(
 }
 
 fn validate_scope_containment(
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     holding_id: Uuid,
     company_id: Uuid,
     branch_id: Option<Uuid>,
 ) -> Result<(), PersistenceError> {
     let record_scope = match branch_id {
-        Some(branch_id) => TenantScope::Branch {
+        Some(branch_id) => AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         },
-        None => TenantScope::Company {
+        None => AuthorityScope::Company {
             holding_id,
             company_id,
         },
     };
     if !scope.contains(&record_scope) {
         return Err(invalid(
-            "Legal event tenant scope does not contain record scope",
+            "Legal event holding scope does not contain record scope",
         ));
     }
     Ok(())
@@ -2793,7 +2804,7 @@ fn decode_access_read_row(
 fn parse_actor_kind(value: &str) -> Result<ActorKind, PersistenceError> {
     match value {
         "platform_user" => Ok(ActorKind::PlatformUser),
-        "tenant_user" => Ok(ActorKind::TenantUser),
+        "holding_user" => Ok(ActorKind::HoldingUser),
         "service" => Ok(ActorKind::Service),
         "system_worker" => Ok(ActorKind::SystemWorker),
         _ => Err(invalid("Legal read actor kind is invalid")),
@@ -2803,7 +2814,7 @@ fn parse_actor_kind(value: &str) -> Result<ActorKind, PersistenceError> {
 fn actor_kind_name(value: &ActorKind) -> &'static str {
     match value {
         ActorKind::PlatformUser => "platform_user",
-        ActorKind::TenantUser => "tenant_user",
+        ActorKind::HoldingUser => "holding_user",
         ActorKind::Service => "service",
         ActorKind::SystemWorker => "system_worker",
     }
@@ -2857,7 +2868,7 @@ fn source_history_is_contiguous(
         && event_count == latest_version
 }
 
-fn validate_holding_ref(value: &str) -> Result<(), PersistenceError> {
+fn validate_data_profile_key(value: &str) -> Result<(), PersistenceError> {
     if value.trim().is_empty() || value.len() > 255 || value.chars().any(char::is_control) {
         return Err(PersistenceError::Configuration(
             "holding reference must be bounded and non-empty",
@@ -2976,7 +2987,7 @@ mod tests {
         );
         assert!(
             validate_scope_containment(
-                &TenantScope::Company {
+                &AuthorityScope::Company {
                     holding_id: Uuid::new_v4(),
                     company_id: Uuid::new_v4(),
                 },
@@ -3010,13 +3021,13 @@ mod tests {
             aggregate_id: Uuid::from_u128(32),
             aggregate_version: 1,
             occurred_at: Utc::now(),
-            tenant_scope: TenantScope::Company {
+            active_scope: AuthorityScope::Company {
                 holding_id: Uuid::from_u128(33),
                 company_id: Uuid::from_u128(34),
             },
             actor: ActorAttribution {
                 principal_ref: "source-actor".into(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: Some(Uuid::from_u128(35)),
                 represented_principal_ref: None,
                 support_capability_id: None,
@@ -3079,12 +3090,12 @@ mod tests {
         let company_id = Uuid::from_u128(62);
         let actor = ActorAttribution {
             principal_ref: "creator".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: Some(Uuid::from_u128(63)),
             represented_principal_ref: None,
             support_capability_id: None,
         };
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id,
             company_id,
         };
@@ -3098,7 +3109,7 @@ mod tests {
             aggregate_id: Uuid::from_u128(66),
             aggregate_version: 1,
             occurred_at: Utc::now(),
-            tenant_scope: scope,
+            active_scope: scope,
             actor,
             correlation_id: Uuid::from_u128(67),
             causation_id: None,

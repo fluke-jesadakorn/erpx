@@ -24,31 +24,23 @@ pub const LEAD_SNAPSHOT_EVENT_TYPE: &str = "marketing.lead_candidate_snapshot";
 pub const BUDGET_SNAPSHOT_EVENT_TYPE: &str = "marketing.campaign_budget_snapshot";
 pub const EVENT_VERSION: u32 = 1;
 pub const WRITE_DDL: &str = concat!(
-    include_str!("../../../migration/migrations_tenant_write/0060_wave6_paired_context_guards.sql"),
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql"),
     "\n",
-    include_str!("../../../migration/migrations_tenant_write/0080_current_record_completion.sql"),
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql"),
     "\n",
-    include_str!(
-        "../../../migration/migrations_tenant_write/0081_current_normalized_authority.sql"
-    )
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql")
 );
 pub const READ_DDL: &str = concat!(
-    include_str!(
-        "../../../migration/migrations_tenant_read/0052_wave6_paired_context_projections.sql"
-    ),
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql"),
     "\n",
-    include_str!(
-        "../../../migration/migrations_tenant_read/0071_current_record_completion_projection.sql"
-    )
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql")
 );
 #[cfg(test)]
-pub const BUDGET_WRITE_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_write/0069_marketing_campaign_budget_guards.sql"
-);
+pub const BUDGET_WRITE_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 #[cfg(test)]
-pub const BUDGET_READ_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0061_marketing_campaign_budget_projection.sql"
-);
+pub const BUDGET_READ_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 
 pub fn lead_partition(id: erpx_marketing::LeadCandidateId) -> String {
     format!("marketing.lead:{}", id.as_uuid().simple())

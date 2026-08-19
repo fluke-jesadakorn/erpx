@@ -6,10 +6,10 @@
   protobuf contract.
 - Added authenticated server transport for `assign`, `reassign`,
   `acknowledge`, `escalate`, and `resolve`.
-- Required a tenant-scoped command context, matching authenticated actor,
-  positive expected aggregate version, active tenant route, and
+- Required a holding-scoped command context, matching authenticated actor,
+  positive expected aggregate version, active holding route, and
   `operations.exception.manage` authorization.
-- Loaded the exception from the routed tenant write database and checked that
+- Loaded the exception from the routed holding write database and checked that
   its persisted scope is contained by the caller scope before constructing the
   command.
 - Obtained half-open validity windows for actor, assignee, and manager from the
@@ -31,7 +31,7 @@
 - `cargo test -p erpx-server --all-targets` — PASS; 81 passed and one
   disposable owner-seed test remained ignored without database URLs.
 - Current disposable PostgreSQL
-  `exception_lifecycle_is_atomic_versioned_idempotent_and_tenant_bound` —
+  `exception_lifecycle_is_atomic_versioned_idempotent_and_holding_bound` —
   PASS; 1 passed, with the temporary database removed after the run.
 - Full post-integration wave — PASS: workspace clippy/tests, Dioxus
   web/desktop checks, Folio lint/typecheck, `git diff --check`, PostgreSQL
@@ -58,8 +58,8 @@ The persistent ERPX goal remains active.
 
 Added `SqlxOperationsStore::read_source_outbox_event_page`, a bounded,
 holding-routed source feed for the Operations detection scheduler. It reads
-only non-Operations tenant outbox rows, requires the shared envelope's
-tenant-scope, actor, event-version, correlation, identity, and timestamp
+only non-Operations holding outbox rows, requires the shared envelope's
+holding-scope, actor, event-version, correlation, identity, and timestamp
 fields, and maps only the closed Sales, Procurement, Inventory, Finance,
 Maintenance, Support, and Integrations domain set. Unknown prefixes and legacy
 rows without authoritative metadata fail closed. The adapter returns immutable
@@ -77,7 +77,7 @@ remain open.
 
 Against fresh disposable PostgreSQL databases, the ignored worker acceptance
 test `source_reconciliation_is_authoritative_and_scope_isolated` passed. It
-inserted a complete source-owned tenant outbox envelope, verified that the
+inserted a complete source-owned holding outbox envelope, verified that the
 Operations reconciliation cursor inspected exactly one in-scope event, and
 verified that a same-shaped event routed to another holding was counted as a
 source-scope violation and made the report unhealthy. The test databases were
@@ -93,11 +93,11 @@ vendor feed.
 The registered Operations completion worker now has an explicit bounded
 detection scheduler. It accepts a coordinator-supplied policy rule set and
 current authorization/assignee/manager-chain proof, pages the source-owned
-tenant outbox, matches only explicitly named source domains and source types,
+holding outbox, matches only explicitly named source domains and source types,
 fails closed on scope escape or queue/page exhaustion, and derives stable
 exception/correlation/idempotency identities for replay. It never resolves
 roles or invents an assignee locally. Scheduled requests then use the existing
-SQLx aggregate, append-only Operations event, tenant outbox, projector, and
+SQLx aggregate, append-only Operations event, holding outbox, projector, and
 read-model path.
 
 The scheduler acceptance test against fresh disposable PostgreSQL write/read
@@ -148,16 +148,16 @@ closed with the exact Generic LDAP, AD DS/DirSync, and UCS references.
 
 ## Coordinator continuation — transactional SLA notification delivery — 2026-07-28
 
-Escalation now enqueues a bounded tenant-scoped SLA notification in the same
+Escalation now enqueues a bounded holding-scoped SLA notification in the same
 SQLx transaction as the append-only Operations lifecycle event, aggregate
-snapshot, and tenant outbox row. The notification inbox has forced RLS,
+snapshot, and holding outbox row. The notification inbox has forced RLS,
 deterministic keys, expiry, worker claim tokens and leases, exact-worker
 acknowledgement, retry release, and terminal delivered/expired states. Its
 payload is allow-listed exception metadata; no provider credentials or message
 body crosses the boundary.
 
 The registered `operations_sla_notifications` worker claims due rows, emits a
-deterministic `operations.sla_notification_delivered.v1` tenant-outbox handoff,
+deterministic `operations.sla_notification_delivered.v1` holding-outbox handoff,
 and acknowledges only the exact claim. Provider delivery remains an injected
 downstream boundary; an unavailable provider cannot be reported as delivered.
 
@@ -184,7 +184,7 @@ valid delivery handoff leaves the final Operations reconciliation healthy.
 The existing projection rebuild rollback remains read-side-only: it clears
 the disposable Operations read rows/checkpoints (including the detection
 cursor) and replays immutable Operations events; it does not delete the
-notification inbox or tenant outbox handoff.
+notification inbox or holding outbox handoff.
 
 Verification for this continuation: owned-file rustfmt check passed; Folio
 `bun run lint` exited 0 with four pre-existing warnings in

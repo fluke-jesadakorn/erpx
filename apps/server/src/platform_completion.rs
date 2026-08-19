@@ -11,16 +11,16 @@
 use std::sync::Arc;
 
 use chrono::{DateTime, Duration, Utc};
-use erpx_domain::access::Scope;
+use erpx_domain::contracts::AuthorityScope as Scope;
 use erpx_domain::platform_completion::{
-    BackupControlCommand, ConnectorControlCommand, PlatformAuthorizationProof,
-    PlatformReconciliationReport, ReconciliationCommand, ReplacementActivationProof,
-    ReplacementReadCommand, TenantBinding, TenantLifecycleCommand,
+    BackupControlCommand, ConnectorControlCommand, HoldingBinding, HoldingLifecycleCommand,
+    PlatformAuthorizationProof, PlatformReconciliationReport, ReconciliationCommand,
+    ReplacementActivationProof, ReplacementReadCommand,
 };
 use erpx_infrastructure::{
     PlatformBackupJobReceipt, PlatformCommandReceipt, PlatformConnectorReadModel,
-    PlatformControlStore, PlatformPersistenceError, PlatformReplacementReadReceipt,
-    PlatformTenantLifecycleReceipt,
+    PlatformControlStore, PlatformHoldingLifecycleReceipt, PlatformPersistenceError,
+    PlatformReplacementReadReceipt,
 };
 use serde::{Deserialize, Serialize};
 use tonic::{Response, Status};
@@ -38,7 +38,7 @@ impl PlatformCompletionApi {
     pub async fn transition_lifecycle(
         &self,
         request: PlatformLifecycleApiRequest,
-    ) -> Result<Response<PlatformTenantLifecycleReceipt>, Status> {
+    ) -> Result<Response<PlatformHoldingLifecycleReceipt>, Status> {
         let receipt = self
             .store
             .transition_lifecycle(&request.command, &request.proof)
@@ -47,13 +47,13 @@ impl PlatformCompletionApi {
         Ok(Response::new(receipt))
     }
 
-    pub async fn reconcile_tenant(
+    pub async fn reconcile_holding(
         &self,
         request: PlatformReconciliationApiRequest,
     ) -> Result<Response<PlatformReconciliationReport>, Status> {
         let report = self
             .store
-            .reconcile_tenant(&request.command, &request.proof)
+            .reconcile_holding(&request.command, &request.proof)
             .await
             .map_err(status_for_platform_error)?;
         Ok(Response::new(report))
@@ -167,7 +167,7 @@ impl PlatformCompletionApi {
 
     pub async fn read_reconciliation(
         &self,
-        binding: &TenantBinding,
+        binding: &HoldingBinding,
         authorization: PlatformReadAuthorization,
     ) -> Result<Response<Option<PlatformReconciliationReport>>, Status> {
         validate_platform_read_proof(&authorization)?;
@@ -181,7 +181,7 @@ impl PlatformCompletionApi {
 
     pub async fn read_reconciliation_ui(
         &self,
-        binding: &TenantBinding,
+        binding: &HoldingBinding,
         authorization: PlatformReadAuthorization,
     ) -> Result<Response<Option<PlatformReconciliationUiResponse>>, Status> {
         validate_platform_read_proof(&authorization)?;
@@ -198,7 +198,7 @@ impl PlatformCompletionApi {
 
 #[derive(Debug, Clone)]
 pub struct PlatformLifecycleApiRequest {
-    pub command: TenantLifecycleCommand,
+    pub command: HoldingLifecycleCommand,
     pub proof: PlatformAuthorizationProof,
 }
 
@@ -272,8 +272,8 @@ impl From<PlatformConnectorReadModel> for PlatformConnectorHealthResponse {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlatformReconciliationUiResponse {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub state: String,
     pub observed_at: String,
     pub stale: bool,
@@ -285,8 +285,8 @@ impl PlatformReconciliationUiResponse {
     fn from_report(report: PlatformReconciliationReport, at: DateTime<Utc>) -> Self {
         let stale = report.observed_at < at - Duration::minutes(5);
         Self {
-            tenant_id: report.binding.tenant_id,
-            holding_ref: report.binding.holding_ref,
+            holding_id: report.binding.holding_id,
+            data_profile_key: report.binding.data_profile_key,
             state: report.state.as_str().into(),
             observed_at: report.observed_at.to_rfc3339(),
             stale,
@@ -320,7 +320,7 @@ fn validate_platform_read_proof(authorization: &PlatformReadAuthorization) -> Re
         .validate(
             &authorization.actor_ref,
             &Scope::Platform,
-            "platform.tenant.read",
+            "platform.holding.read",
             false,
             authorization.at,
         )
@@ -360,8 +360,8 @@ mod tests {
             connector_id: uuid::Uuid::new_v4(),
             kind: "active_directory".into(),
             scope: "platform".into(),
-            tenant_id: None,
-            holding_ref: None,
+            holding_id: None,
+            data_profile_key: None,
             provider_key: "ad-primary".into(),
             credential_bound: true,
             configuration_digest: "00".repeat(32),

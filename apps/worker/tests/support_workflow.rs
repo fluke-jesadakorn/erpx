@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use chrono::{Duration, Utc};
 use erpx_domain::{
-    access::Scope,
+    contracts::AuthorityScope as Scope,
     support::{
         SupportCapability, SupportCapabilityBinding, SupportDeviceSessionBinding, SupportMode,
         SupportSession, SupportTicket, TicketStatus,

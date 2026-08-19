@@ -9,7 +9,7 @@ identity, currency, read-only state, chart source version, projection
 timestamp/freshness, and the request correlation ID.
 
 The request is bounded by a 2 MiB chart snapshot and requires an explicit
-tenant, holding reference, holding ID, company ID, chart ID, and query
+holding, holding reference, holding ID, company ID, chart ID, and query
 context. The supplied legacy `ChartOfAccounts` snapshot is validated and
 cross-checked account-for-account against the authoritative Finance chart read
 projection before the existing `SqlxFinanceStore::trial_balance` calculation
@@ -24,7 +24,7 @@ or journal payload is returned.
 - The requested company must be contained by the caller scope.
 - The caller must hold `finance.read` in that scope and the customer scope
   registry must contain the requested scope.
-- The tenant router is used with `RoutedDatabaseSide::Read` only. The existing
+- The holding router is used with `RoutedDatabaseSide::Read` only. The existing
   trial-balance store receives the read pool for both constructor pools and
   performs no write operation.
 - A redacted `finance.trial_balance.read` audit event records the actor,

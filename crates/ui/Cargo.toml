@@ -12,6 +12,7 @@ erpx-console-transport-core.workspace = true
 erpx-domain.workspace = true
 erpx-integration-contracts.workspace = true
 serde.workspace = true
+uuid.workspace = true
 
 [features]
 default = []

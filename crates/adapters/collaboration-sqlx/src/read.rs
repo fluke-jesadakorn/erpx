@@ -4,7 +4,7 @@ use erpx_collaboration::{
     PortError, ThreadId, ThreadIdPage, ThreadProjection, ThreadReadRepository, ThreadSearchPage,
     ThreadSearchRequest,
 };
-use erpx_kernel::{PrincipalId, RecordId, TenantId};
+use erpx_kernel::{HoldingId, PrincipalId, RecordId};
 use sqlx::{PgPool, Postgres, Row, Transaction};
 
 use crate::{INBOX_PROJECTION, STREAM_PROJECTION, THREAD_PROJECTION};
@@ -27,17 +27,17 @@ impl ThreadReadRepository for SqlxThreadReadRepository {
         access: &AuthorizedThreadAccess,
     ) -> Result<Option<ThreadProjection>, PortError> {
         let mut tx = self.pool.begin().await.map_err(map_database_error)?;
-        set_tenant(&mut tx, access.tenant_id()).await?;
+        set_holding(&mut tx, access.holding_id()).await?;
         let generation =
-            require_active_generation(&mut tx, access.tenant_id(), THREAD_PROJECTION).await?;
+            require_active_generation(&mut tx, access.holding_id(), THREAD_PROJECTION).await?;
         let (actor_realm, actor_portal) = audience_realm(access.external_portal());
         let row = sqlx::query(
             "SELECT anchor_record_id, projection FROM erpx_collaboration_read.thread_projection \
-             WHERE tenant_id=$1 AND projection_name=$2 AND generation=$3 AND thread_id=$4 \
+             WHERE holding_id=$1 AND projection_name=$2 AND generation=$3 AND thread_id=$4 \
              AND erpx_collaboration_read.scope_contains($5, visibility_scope) \
              AND erpx_collaboration_read.audience_allows(audience, $6, $5, $7, $8)",
         )
-        .bind(access.tenant_id().as_uuid())
+        .bind(access.holding_id().as_uuid())
         .bind(THREAD_PROJECTION)
         .bind(generation)
         .bind(access.thread_id().as_uuid())
@@ -82,23 +82,23 @@ impl ThreadReadRepository for SqlxThreadReadRepository {
             return Err(PortError::InvalidState);
         }
         let mut tx = self.pool.begin().await.map_err(map_database_error)?;
-        set_tenant(&mut tx, access.tenant_id()).await?;
+        set_holding(&mut tx, access.holding_id()).await?;
         let generation =
-            require_active_generation(&mut tx, access.tenant_id(), THREAD_PROJECTION).await?;
+            require_active_generation(&mut tx, access.holding_id(), THREAD_PROJECTION).await?;
         let (actor_realm, actor_portal) = audience_realm(access.external_portal());
         // Audience and hierarchy authorization are intentionally evaluated
         // before the full-text predicate in both source and SQL order.
         let rows = sqlx::query(
             "SELECT projection, count(*) OVER() AS authorized_count \
              FROM erpx_collaboration_read.thread_projection \
-             WHERE tenant_id=$1 AND projection_name=$2 AND generation=$3 \
+             WHERE holding_id=$1 AND projection_name=$2 AND generation=$3 \
              AND erpx_collaboration_read.scope_contains($4, visibility_scope) \
              AND erpx_collaboration_read.audience_allows(audience, $5, $4, $6, $7) \
              AND search_vector @@ websearch_to_tsquery('simple', $8) \
              ORDER BY updated_at DESC, thread_id \
              LIMIT $9 OFFSET $10",
         )
-        .bind(access.tenant_id().as_uuid())
+        .bind(access.holding_id().as_uuid())
         .bind(THREAD_PROJECTION)
         .bind(generation)
         .bind(serde_json::to_value(access.authority_scope()).map_err(|_| PortError::InvalidState)?)
@@ -161,21 +161,21 @@ impl ThreadReadRepository for SqlxThreadReadRepository {
             return Err(PortError::InvalidState);
         }
         let mut tx = self.pool.begin().await.map_err(map_database_error)?;
-        set_tenant(&mut tx, access.tenant_id()).await?;
+        set_holding(&mut tx, access.holding_id()).await?;
         let generation =
-            require_active_generation(&mut tx, access.tenant_id(), THREAD_PROJECTION).await?;
+            require_active_generation(&mut tx, access.holding_id(), THREAD_PROJECTION).await?;
         let (actor_realm, actor_portal) = audience_realm(access.external_portal());
         // Only opaque IDs cross this candidate query. Comment projections are
         // loaded later, after the application authorizes each exact thread.
         let rows = sqlx::query(
             "SELECT thread_id, count(*) OVER() AS authorized_count \
              FROM erpx_collaboration_read.thread_projection \
-             WHERE tenant_id=$1 AND projection_name=$2 AND generation=$3 AND anchor_record_id=$4 \
+             WHERE holding_id=$1 AND projection_name=$2 AND generation=$3 AND anchor_record_id=$4 \
              AND erpx_collaboration_read.scope_contains($5, visibility_scope) \
              AND erpx_collaboration_read.audience_allows(audience, $6, $5, $7, $8) \
              ORDER BY updated_at DESC, thread_id LIMIT $9 OFFSET $10",
         )
-        .bind(access.tenant_id().as_uuid())
+        .bind(access.holding_id().as_uuid())
         .bind(THREAD_PROJECTION)
         .bind(generation)
         .bind(record_id.as_uuid())
@@ -225,17 +225,17 @@ impl ThreadReadRepository for SqlxThreadReadRepository {
         limit: u16,
     ) -> Result<Vec<CollaborationStreamEvent>, PortError> {
         let mut tx = self.pool.begin().await.map_err(map_database_error)?;
-        set_tenant(&mut tx, access.tenant_id()).await?;
+        set_holding(&mut tx, access.holding_id()).await?;
         let generation =
-            require_active_generation(&mut tx, access.tenant_id(), STREAM_PROJECTION).await?;
+            require_active_generation(&mut tx, access.holding_id(), STREAM_PROJECTION).await?;
         let rows = sqlx::query(
             "SELECT event_cursor, aggregate_version, event_kind, occurred_at \
              FROM erpx_collaboration_read.stream_projection \
-             WHERE tenant_id=$1 AND projection_name=$2 AND generation=$3 \
+             WHERE holding_id=$1 AND projection_name=$2 AND generation=$3 \
              AND thread_id=$4 AND event_cursor>$5 \
              ORDER BY event_cursor LIMIT $6",
         )
-        .bind(access.tenant_id().as_uuid())
+        .bind(access.holding_id().as_uuid())
         .bind(STREAM_PROJECTION)
         .bind(generation)
         .bind(access.thread_id().as_uuid())
@@ -255,7 +255,7 @@ impl ThreadReadRepository for SqlxThreadReadRepository {
                             .map_err(|_| PortError::Internal)?,
                     )
                     .map_err(|_| PortError::Internal)?,
-                    tenant_id: access.tenant_id(),
+                    holding_id: access.holding_id(),
                     thread_id: access.thread_id(),
                     aggregate_version: u64::try_from(
                         row.try_get::<i64, _>("aggregate_version")
@@ -274,21 +274,21 @@ impl ThreadReadRepository for SqlxThreadReadRepository {
     async fn inbox_after(
         &self,
         actor: PrincipalId,
-        tenant_id: TenantId,
+        holding_id: HoldingId,
         cursor: u64,
         limit: u16,
     ) -> Result<Vec<OpaqueInboxFact>, PortError> {
         let mut tx = self.pool.begin().await.map_err(map_database_error)?;
-        set_tenant(&mut tx, tenant_id).await?;
-        let generation = require_active_generation(&mut tx, tenant_id, INBOX_PROJECTION).await?;
+        set_holding(&mut tx, holding_id).await?;
+        let generation = require_active_generation(&mut tx, holding_id, INBOX_PROJECTION).await?;
         let rows = sqlx::query(
             "SELECT inbox_cursor, event_id, thread_id, mention_event_id, anchor_record_id, created_at \
              FROM erpx_collaboration_read.opaque_mention_inbox_projection \
-             WHERE tenant_id=$1 AND projection_name=$2 AND generation=$3 \
+             WHERE holding_id=$1 AND projection_name=$2 AND generation=$3 \
              AND recipient_principal_id=$4 AND inbox_cursor>$5 \
              ORDER BY inbox_cursor LIMIT $6",
         )
-        .bind(tenant_id.as_uuid())
+        .bind(holding_id.as_uuid())
         .bind(INBOX_PROJECTION)
         .bind(generation)
         .bind(actor.as_uuid())
@@ -302,7 +302,7 @@ impl ThreadReadRepository for SqlxThreadReadRepository {
             .map(|row| {
                 Ok(OpaqueInboxFact {
                     event_id: row.try_get("event_id").map_err(|_| PortError::Internal)?,
-                    tenant_id,
+                    holding_id,
                     thread_id: erpx_collaboration::ThreadId::try_from_uuid(
                         row.try_get("thread_id").map_err(|_| PortError::Internal)?,
                     )
@@ -342,13 +342,13 @@ const fn audience_realm(
     }
 }
 
-async fn set_tenant(
+async fn set_holding(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
 ) -> Result<(), PortError> {
-    let expected = tenant_id.to_string();
-    let bound = sqlx::query_scalar::<_, String>("SELECT set_config('app.tenant_id', $1, true)")
-        .bind(tenant_id.to_string())
+    let expected = holding_id.to_string();
+    let bound = sqlx::query_scalar::<_, String>("SELECT set_config('app.holding_id', $1, true)")
+        .bind(holding_id.to_string())
         .fetch_one(&mut **tx)
         .await
         .map_err(map_database_error)?;
@@ -357,14 +357,14 @@ async fn set_tenant(
 
 async fn require_active_generation(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
     projection: &str,
 ) -> Result<uuid::Uuid, PortError> {
     sqlx::query_scalar(
         "SELECT generation FROM erpx_cqrs_read.projection_generations \
-         WHERE tenant_id=$1 AND projection_name=$2 AND status='active'",
+         WHERE holding_id=$1 AND projection_name=$2 AND status='active'",
     )
-    .bind(tenant_id.as_uuid())
+    .bind(holding_id.as_uuid())
     .bind(projection)
     .fetch_optional(&mut **tx)
     .await

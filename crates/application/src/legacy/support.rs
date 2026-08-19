@@ -180,7 +180,7 @@ where
             .ok_or(ApplicationError::NotFound)?;
         let event_type = command.event_type();
         let action = command.audit_action();
-        ticket.apply_command(command, &context.tenant_scope, self.clock.now())?;
+        ticket.apply_command(command, &context.active_scope, self.clock.now())?;
         let aggregate_version = next_command_version(context)?;
         execute_support_command(
             &self.commands,
@@ -240,7 +240,7 @@ where
         context: &CommandContext,
         ticket_id: Uuid,
         assignee_ref: impl Into<String>,
-        assignment_scope: erpx_domain::contracts::TenantScope,
+        assignment_scope: erpx_domain::contracts::AuthorityScope,
     ) -> Result<SupportTicket, ApplicationError> {
         let assignment = SupportTicketAssignment::new(
             assignee_ref,
@@ -306,7 +306,7 @@ where
         module: &str,
         reason: &str,
         duration: Duration,
-        represented_tenant_user: Option<String>,
+        represented_holding_user: Option<String>,
     ) -> Result<SupportSession, ApplicationError> {
         let ticket = self
             .store
@@ -329,7 +329,7 @@ where
             reason,
             self.clock.now(),
             duration,
-            represented_tenant_user,
+            represented_holding_user,
         )?;
         execute_support_command(
             &self.commands,
@@ -427,7 +427,7 @@ fn stable_support_ticket_id(
     predecessor_id: Option<Uuid>,
 ) -> Uuid {
     let mut digest = Sha256::new();
-    digest.update(b"erpx.support.ticket.aggregate.v1");
+    digest.update(b"erpx.support.ticket.aggregate");
     digest.update([0]);
     digest.update(kind.as_bytes());
     digest.update([0]);
@@ -509,8 +509,8 @@ where
             expected_aggregate_version: context.expected_aggregate_version,
             event,
             event_version: 1,
-            tenant_scope: Some(
-                serde_json::to_value(&context.tenant_scope)
+            active_scope: Some(
+                serde_json::to_value(&context.active_scope)
                     .map_err(|error| ApplicationError::Repository(error.to_string()))?,
             ),
             actor: Some(
@@ -571,7 +571,7 @@ where
         module: &str,
         reason: &str,
         duration: Duration,
-        represented_tenant_user: Option<String>,
+        represented_holding_user: Option<String>,
     ) -> Result<SupportSession, ApplicationError> {
         let ticket = self
             .store
@@ -594,7 +594,7 @@ where
             reason,
             self.clock.now(),
             duration,
-            represented_tenant_user,
+            represented_holding_user,
         )?;
         self.store.create_session(session.clone()).await?;
         self.audit
@@ -676,7 +676,7 @@ where
 #[cfg(test)]
 mod command_replay_tests {
     use super::*;
-    use erpx_domain::contracts::{ActorAttribution, ActorKind, TenantScope};
+    use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope};
     use std::collections::HashMap;
     use std::sync::Mutex;
 
@@ -779,7 +779,7 @@ mod command_replay_tests {
                 represented_principal_ref: None,
                 support_capability_id: None,
             },
-            TenantScope::Holding { holding_id },
+            AuthorityScope::Holding { holding_id },
             "reopen recurring support issue",
         )
         .expect("context");

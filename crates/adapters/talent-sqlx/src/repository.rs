@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_cqrs_sqlx::ReadPool;
-use erpx_kernel::{TenantId, TenantScope};
+use erpx_kernel::{AuthorityScope, HoldingId};
 use erpx_talent::{
     AggregateRepository, TalentAggregate, TalentCommit, TalentCommitReceipt, TalentPortError,
     TalentProjection, TalentReadRepository, TalentRealm,
@@ -22,13 +22,13 @@ impl SqlxTalentWriteRepository {
 #[derive(Debug, Clone)]
 pub struct SqlxTalentReadRepository {
     pool: ReadPool,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
 }
 impl SqlxTalentReadRepository {
-    pub fn new(pool: PgPool, tenant_id: TenantId) -> Result<Self, TalentPortError> {
-        let pool = ReadPool::for_tenant(pool, tenant_id.as_uuid())
+    pub fn new(pool: PgPool, holding_id: HoldingId) -> Result<Self, TalentPortError> {
+        let pool = ReadPool::for_holding(pool, holding_id.as_uuid())
             .map_err(|_| TalentPortError::Unavailable)?;
-        Ok(Self { pool, tenant_id })
+        Ok(Self { pool, holding_id })
     }
 }
 
@@ -36,15 +36,15 @@ impl SqlxTalentReadRepository {
 impl AggregateRepository for SqlxTalentWriteRepository {
     async fn replay(
         &self,
-        tenant_id: TenantId,
+        holding_id: HoldingId,
         identity: &erpx_talent::MutationIdentity,
         aggregate_type: &str,
         aggregate_id: Uuid,
     ) -> Result<Option<TalentCommitReceipt>, TalentPortError> {
         identity.validate()?;
         let mut tx = self.pool.begin().await.map_err(map)?;
-        set_tenant(&mut tx, tenant_id).await?;
-        let receipt = lookup_receipt(&mut tx, tenant_id, &identity.idempotency_key).await?;
+        set_holding(&mut tx, holding_id).await?;
+        let receipt = lookup_receipt(&mut tx, holding_id, &identity.idempotency_key).await?;
         let Some((stored_command_id, request_digest, stored_type, stored_id, receipt)) = receipt
         else {
             tx.commit().await.map_err(map)?;
@@ -63,19 +63,19 @@ impl AggregateRepository for SqlxTalentWriteRepository {
 
     async fn load(
         &self,
-        tenant_id: TenantId,
-        authority: &TenantScope,
+        holding_id: HoldingId,
+        authority: &AuthorityScope,
         realm: TalentRealm,
         aggregate_type: &str,
         id: Uuid,
     ) -> Result<Option<TalentAggregate>, TalentPortError> {
         let mut tx = self.pool.begin().await.map_err(map)?;
-        set_tenant(&mut tx, tenant_id).await?;
+        set_holding(&mut tx, holding_id).await?;
         let document: Option<serde_json::Value> = sqlx::query_scalar(
             "SELECT aggregate_document FROM erpx_talent_write.aggregate_rehydration
-             WHERE tenant_id=$1 AND aggregate_type=$2 AND aggregate_id=$3",
+             WHERE holding_id=$1 AND aggregate_type=$2 AND aggregate_id=$3",
         )
-        .bind(tenant_id.as_uuid())
+        .bind(holding_id.as_uuid())
         .bind(aggregate_type)
         .bind(id)
         .fetch_optional(&mut *tx)
@@ -105,7 +105,7 @@ impl AggregateRepository for SqlxTalentWriteRepository {
         {
             return Err(TalentPortError::Invalid);
         }
-        let tenant = command.actor.tenant_id;
+        let holding = command.actor.holding_id;
         let kind = command.aggregate.aggregate_type();
         let id = command.aggregate.id_uuid();
         let version = command.aggregate.version();
@@ -117,12 +117,12 @@ impl AggregateRepository for SqlxTalentWriteRepository {
             return Err(TalentPortError::RealmMismatch);
         }
         let mut tx = self.pool.begin().await.map_err(map)?;
-        set_tenant(&mut tx, tenant).await?;
-        if let Some(receipt) = replay_command(&mut tx, tenant, &command).await? {
+        set_holding(&mut tx, holding).await?;
+        if let Some(receipt) = replay_command(&mut tx, holding, &command).await? {
             tx.commit().await.map_err(map)?;
             return Ok(receipt);
         }
-        let current = lock_version(&mut tx, tenant, kind, id).await?;
+        let current = lock_version(&mut tx, holding, kind, id).await?;
         match (command.expected_version, current) {
             (None, None) if version == 1 => {}
             (Some(expected), Some(actual))
@@ -138,7 +138,7 @@ impl AggregateRepository for SqlxTalentWriteRepository {
         let projection_payload =
             serde_json::to_value(&command.aggregate).map_err(|_| TalentPortError::Invalid)?;
         sqlx::query("SELECT erpx_talent_write.persist_normalized($1,$2,$3,$4,$5,$6)")
-            .bind(tenant.as_uuid())
+            .bind(holding.as_uuid())
             .bind(kind)
             .bind(id)
             .bind(scope_key(command.aggregate.scope())?)
@@ -153,10 +153,10 @@ impl AggregateRepository for SqlxTalentWriteRepository {
         let action = enum_name(command.action)?;
         let realm = enum_name(command.actor.principal.realm)?;
         sqlx::query("INSERT INTO erpx_talent_write.audit_log
-            (tenant_id,audit_id,command_id,actor_principal_id,actor_realm,action,aggregate_type,aggregate_id,
+            (holding_id,audit_id,command_id,actor_principal_id,actor_realm,action,aggregate_type,aggregate_id,
              aggregate_version,scope_key,correlation_id,evidence_digest,occurred_at)
             VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)")
-            .bind(tenant.as_uuid()).bind(derived_id(command.identity.command_id.as_uuid(),b"audit"))
+            .bind(holding.as_uuid()).bind(derived_id(command.identity.command_id.as_uuid(),b"audit"))
             .bind(command.identity.command_id.as_uuid()).bind(command.actor.principal.principal_id).bind(realm).bind(action)
             .bind(kind).bind(id).bind(to_i64(version)?).bind(scope_key(command.aggregate.scope())?)
             .bind(command.identity.correlation_id.as_uuid()).bind(&command.identity.request_digest)
@@ -165,15 +165,15 @@ impl AggregateRepository for SqlxTalentWriteRepository {
             TalentRealm::Candidate => crate::CANDIDATE_SNAPSHOT_EVENT,
             TalentRealm::Workforce => crate::WORKFORCE_SNAPSHOT_EVENT,
         };
-        let actor = serde_json::json!({"principal_ref":format!("principal:{}",command.actor.principal.principal_id),"kind":"tenant_user","session_id":null,"represented_principal_ref":null,"support_capability_id":null});
+        let actor = serde_json::json!({"principal_ref":format!("principal:{}",command.actor.principal.principal_id),"kind":"holding_user","session_id":null,"represented_principal_ref":null,"support_capability_id":null});
         let projection_event_id = derived_id(command.identity.command_id.as_uuid(), b"projection");
-        let global_sequence: i64 = sqlx::query_scalar("INSERT INTO erpx_cqrs_write.outbox_events (tenant_id,event_id,context_name,partition_key,command_id,event_type,event_version,aggregate_type,aggregate_id,aggregate_version,tenant_scope,actor,correlation_id,causation_id,payload,occurred_at,available_at) VALUES ($1,$2,'talent',$3,$4,$5,1,$6,$7,$8,$9,$10,$11,NULL,$12,$13,$13) RETURNING global_sequence")
-            .bind(tenant.as_uuid()).bind(projection_event_id).bind(crate::aggregate_partition(kind,id)).bind(command.identity.command_id.as_uuid()).bind(projection_event).bind(kind).bind(id).bind(to_i64(version)?).bind(serde_json::to_value(command.aggregate.scope()).map_err(|_|TalentPortError::Invalid)?).bind(actor).bind(command.identity.correlation_id.as_uuid()).bind(serde_json::json!({"aggregate":projection_payload})).bind(command.aggregate.updated_at()).fetch_one(&mut *tx).await.map_err(map)?;
+        let global_sequence: i64 = sqlx::query_scalar("INSERT INTO erpx_cqrs_write.outbox_events (holding_id,event_id,context_name,partition_key,command_id,event_type,event_version,aggregate_type,aggregate_id,aggregate_version,active_scope,actor,correlation_id,causation_id,payload,occurred_at,available_at) VALUES ($1,$2,'talent',$3,$4,$5,1,$6,$7,$8,$9,$10,$11,NULL,$12,$13,$13) RETURNING global_sequence")
+            .bind(holding.as_uuid()).bind(projection_event_id).bind(crate::aggregate_partition(kind,id)).bind(command.identity.command_id.as_uuid()).bind(projection_event).bind(kind).bind(id).bind(to_i64(version)?).bind(serde_json::to_value(command.aggregate.scope()).map_err(|_|TalentPortError::Invalid)?).bind(actor).bind(command.identity.correlation_id.as_uuid()).bind(serde_json::json!({"aggregate":projection_payload})).bind(command.aggregate.updated_at()).fetch_one(&mut *tx).await.map_err(map)?;
         if let Some(draft) = crate::directory::talent_directory_draft(&command.aggregate)? {
-            let actor = serde_json::json!({"principal_ref":format!("principal:{}",command.actor.principal.principal_id),"kind":"tenant_user","session_id":null,"represented_principal_ref":null,"support_capability_id":null});
+            let actor = serde_json::json!({"principal_ref":format!("principal:{}",command.actor.principal.principal_id),"kind":"holding_user","session_id":null,"represented_principal_ref":null,"support_capability_id":null});
             crate::directory::append_directory_draft(
                 &mut tx,
-                tenant,
+                holding,
                 command.identity.command_id,
                 command.identity.correlation_id,
                 actor,
@@ -183,16 +183,16 @@ impl AggregateRepository for SqlxTalentWriteRepository {
             .await?;
         }
         sqlx::query("INSERT INTO erpx_talent_write.outbox
-            (tenant_id,event_id,aggregate_type,aggregate_id,aggregate_version,event_type,correlation_id,payload,occurred_at)
+            (holding_id,event_id,aggregate_type,aggregate_id,aggregate_version,event_type,correlation_id,payload,occurred_at)
             VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)")
-            .bind(tenant.as_uuid()).bind(derived_id(command.identity.command_id.as_uuid(),b"event"))
+            .bind(holding.as_uuid()).bind(derived_id(command.identity.command_id.as_uuid(),b"event"))
             .bind(kind).bind(id).bind(to_i64(version)?).bind(&command.event_type)
             .bind(command.identity.correlation_id.as_uuid()).bind(command.event_payload)
             .bind(command.aggregate.updated_at()).execute(&mut *tx).await.map_err(map)?;
         let committed_at:DateTime<Utc>=sqlx::query_scalar("INSERT INTO erpx_talent_write.command_receipts
-            (tenant_id,idempotency_key,command_id,request_digest,aggregate_type,aggregate_id,aggregate_version)
+            (holding_id,idempotency_key,command_id,request_digest,aggregate_type,aggregate_id,aggregate_version)
             VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING committed_at")
-            .bind(tenant.as_uuid()).bind(command.identity.idempotency_key).bind(command.identity.command_id.as_uuid())
+            .bind(holding.as_uuid()).bind(command.identity.idempotency_key).bind(command.identity.command_id.as_uuid())
             .bind(command.identity.request_digest).bind(kind).bind(id).bind(to_i64(version)?)
             .fetch_one(&mut *tx).await.map_err(map)?;
         tx.commit().await.map_err(map)?;
@@ -212,12 +212,12 @@ impl AggregateRepository for SqlxTalentWriteRepository {
 impl TalentReadRepository for SqlxTalentReadRepository {
     async fn get(
         &self,
-        tenant_id: TenantId,
+        holding_id: HoldingId,
         realm: TalentRealm,
         aggregate_type: &str,
         id: Uuid,
     ) -> Result<Option<TalentProjection>, TalentPortError> {
-        if tenant_id != self.tenant_id {
+        if holding_id != self.holding_id {
             return Err(TalentPortError::Denied);
         }
         let mut tx = self
@@ -229,22 +229,22 @@ impl TalentReadRepository for SqlxTalentReadRepository {
             TalentRealm::Candidate => crate::CANDIDATE_PROJECTION,
             TalentRealm::Workforce => crate::WORKFORCE_PROJECTION,
         };
-        let generation:Option<Uuid>=sqlx::query_scalar("SELECT generation FROM erpx_cqrs_read.projection_generations WHERE tenant_id=$1 AND projection_name=$2 AND status='active'").bind(self.tenant_id.as_uuid()).bind(projection_name).fetch_optional(&mut *tx).await.map_err(map)?;
+        let generation:Option<Uuid>=sqlx::query_scalar("SELECT generation FROM erpx_cqrs_read.projection_generations WHERE holding_id=$1 AND projection_name=$2 AND status='active'").bind(self.holding_id.as_uuid()).bind(projection_name).fetch_optional(&mut *tx).await.map_err(map)?;
         let generation = generation.ok_or(TalentPortError::Unavailable)?;
         let row=match realm{
-            TalentRealm::Candidate=>sqlx::query("SELECT tenant_scope,authority_realm,candidate_principal_id,lifecycle_status,
+            TalentRealm::Candidate=>sqlx::query("SELECT active_scope,authority_realm,candidate_principal_id,lifecycle_status,
                 source_aggregate_version,source_global_sequence,projected_at,generation,c.global_sequence AS checkpoint_position,
-                EXISTS(SELECT 1 FROM erpx_cqrs_read.projection_failures f WHERE f.tenant_id=p.tenant_id AND f.projection_name=p.projection_name AND f.generation=p.generation AND f.partition_key=p.partition_key) AS has_failure
-                FROM erpx_talent_read.candidate_projection p LEFT JOIN erpx_cqrs_read.projection_checkpoints c ON c.tenant_id=p.tenant_id AND c.projection_name=p.projection_name AND c.generation=p.generation AND c.partition_key=p.partition_key
-                WHERE p.tenant_id=$1 AND p.projection_name=$2 AND p.generation=$3 AND record_id=$4 AND record_type=$5")
-                .bind(self.tenant_id.as_uuid()).bind(projection_name).bind(generation).bind(id).bind(variant(aggregate_type)?)
+                EXISTS(SELECT 1 FROM erpx_cqrs_read.projection_failures f WHERE f.holding_id=p.holding_id AND f.projection_name=p.projection_name AND f.generation=p.generation AND f.partition_key=p.partition_key) AS has_failure
+                FROM erpx_talent_read.candidate_projection p LEFT JOIN erpx_cqrs_read.projection_checkpoints c ON c.holding_id=p.holding_id AND c.projection_name=p.projection_name AND c.generation=p.generation AND c.partition_key=p.partition_key
+                WHERE p.holding_id=$1 AND p.projection_name=$2 AND p.generation=$3 AND record_id=$4 AND record_type=$5")
+                .bind(self.holding_id.as_uuid()).bind(projection_name).bind(generation).bind(id).bind(variant(aggregate_type)?)
                 .fetch_optional(&mut *tx).await.map_err(map)?,
-            TalentRealm::Workforce=>sqlx::query("SELECT tenant_scope,authority_realm,NULL::uuid candidate_principal_id,lifecycle_status,
+            TalentRealm::Workforce=>sqlx::query("SELECT active_scope,authority_realm,NULL::uuid candidate_principal_id,lifecycle_status,
                 source_aggregate_version,source_global_sequence,projected_at,generation,c.global_sequence AS checkpoint_position,
-                EXISTS(SELECT 1 FROM erpx_cqrs_read.projection_failures f WHERE f.tenant_id=p.tenant_id AND f.projection_name=p.projection_name AND f.generation=p.generation AND f.partition_key=p.partition_key) AS has_failure
-                FROM erpx_talent_read.workforce_projection p LEFT JOIN erpx_cqrs_read.projection_checkpoints c ON c.tenant_id=p.tenant_id AND c.projection_name=p.projection_name AND c.generation=p.generation AND c.partition_key=p.partition_key
-                WHERE p.tenant_id=$1 AND p.projection_name=$2 AND p.generation=$3 AND record_id=$4 AND record_type=$5")
-                .bind(self.tenant_id.as_uuid()).bind(projection_name).bind(generation).bind(id).bind(variant(aggregate_type)?)
+                EXISTS(SELECT 1 FROM erpx_cqrs_read.projection_failures f WHERE f.holding_id=p.holding_id AND f.projection_name=p.projection_name AND f.generation=p.generation AND f.partition_key=p.partition_key) AS has_failure
+                FROM erpx_talent_read.workforce_projection p LEFT JOIN erpx_cqrs_read.projection_checkpoints c ON c.holding_id=p.holding_id AND c.projection_name=p.projection_name AND c.generation=p.generation AND c.partition_key=p.partition_key
+                WHERE p.holding_id=$1 AND p.projection_name=$2 AND p.generation=$3 AND record_id=$4 AND record_type=$5")
+                .bind(self.holding_id.as_uuid()).bind(projection_name).bind(generation).bind(id).bind(variant(aggregate_type)?)
                 .fetch_optional(&mut *tx).await.map_err(map)?,
         };
         tx.commit().await.map_err(map)?;
@@ -268,12 +268,12 @@ impl TalentReadRepository for SqlxTalentReadRepository {
     }
 }
 
-async fn set_tenant(
+async fn set_holding(
     tx: &mut Transaction<'_, Postgres>,
-    tenant: TenantId,
+    holding: HoldingId,
 ) -> Result<(), TalentPortError> {
-    sqlx::query("SELECT set_config('app.tenant_id',$1,true)")
-        .bind(tenant.to_string())
+    sqlx::query("SELECT set_config('app.holding_id',$1,true)")
+        .bind(holding.to_string())
         .execute(&mut **tx)
         .await
         .map_err(map)?;
@@ -281,12 +281,12 @@ async fn set_tenant(
 }
 async fn replay_command(
     tx: &mut Transaction<'_, Postgres>,
-    tenant: TenantId,
+    holding: HoldingId,
     command: &TalentCommit,
 ) -> Result<Option<TalentCommitReceipt>, TalentPortError> {
     let row=sqlx::query("SELECT command_id,request_digest,aggregate_type,aggregate_id,aggregate_version,committed_at
-        FROM erpx_talent_write.command_receipts WHERE tenant_id=$1 AND idempotency_key=$2 FOR UPDATE")
-        .bind(tenant.as_uuid()).bind(&command.identity.idempotency_key).fetch_optional(&mut **tx).await.map_err(map)?;
+        FROM erpx_talent_write.command_receipts WHERE holding_id=$1 AND idempotency_key=$2 FOR UPDATE")
+        .bind(holding.as_uuid()).bind(&command.identity.idempotency_key).fetch_optional(&mut **tx).await.map_err(map)?;
     let Some(row) = row else { return Ok(None) };
     let stored: i64 = row
         .try_get("aggregate_version")
@@ -304,9 +304,9 @@ async fn replay_command(
     let event_id = derived_id(command.identity.command_id.as_uuid(), b"projection");
     let global_sequence: i64 = sqlx::query_scalar(
         "SELECT global_sequence FROM erpx_cqrs_write.outbox_events
-         WHERE tenant_id=$1 AND event_id=$2",
+         WHERE holding_id=$1 AND event_id=$2",
     )
-    .bind(tenant.as_uuid())
+    .bind(holding.as_uuid())
     .bind(event_id)
     .fetch_optional(&mut **tx)
     .await
@@ -326,15 +326,15 @@ async fn replay_command(
 
 async fn lookup_receipt(
     tx: &mut Transaction<'_, Postgres>,
-    tenant: TenantId,
+    holding: HoldingId,
     idempotency_key: &str,
 ) -> Result<Option<(Uuid, String, String, Uuid, TalentCommitReceipt)>, TalentPortError> {
     let row = sqlx::query(
         "SELECT command_id,request_digest,aggregate_type,aggregate_id,aggregate_version,committed_at
          FROM erpx_talent_write.command_receipts
-         WHERE tenant_id=$1 AND idempotency_key=$2 FOR UPDATE",
+         WHERE holding_id=$1 AND idempotency_key=$2 FOR UPDATE",
     )
-    .bind(tenant.as_uuid())
+    .bind(holding.as_uuid())
     .bind(idempotency_key)
     .fetch_optional(&mut **tx)
     .await
@@ -360,9 +360,9 @@ async fn lookup_receipt(
     let event_id = derived_id(command_id, b"projection");
     let global_sequence: i64 = sqlx::query_scalar(
         "SELECT global_sequence FROM erpx_cqrs_write.outbox_events
-         WHERE tenant_id=$1 AND event_id=$2",
+         WHERE holding_id=$1 AND event_id=$2",
     )
-    .bind(tenant.as_uuid())
+    .bind(holding.as_uuid())
     .bind(event_id)
     .fetch_optional(&mut **tx)
     .await
@@ -389,16 +389,16 @@ async fn lookup_receipt(
 }
 async fn lock_version(
     tx: &mut Transaction<'_, Postgres>,
-    tenant: TenantId,
+    holding: HoldingId,
     kind: &str,
     id: Uuid,
 ) -> Result<Option<u64>, TalentPortError> {
     let (table, column) = table(kind)?;
     let query = format!(
-        "SELECT aggregate_version FROM erpx_talent_write.{table} WHERE tenant_id=$1 AND {column}=$2 FOR UPDATE"
+        "SELECT aggregate_version FROM erpx_talent_write.{table} WHERE holding_id=$1 AND {column}=$2 FOR UPDATE"
     );
     let value: Option<i64> = sqlx::query_scalar(&query)
-        .bind(tenant.as_uuid())
+        .bind(holding.as_uuid())
         .bind(id)
         .fetch_optional(&mut **tx)
         .await
@@ -435,13 +435,13 @@ fn variant(kind: &str) -> Result<&'static str, TalentPortError> {
         _ => Err(TalentPortError::Invalid),
     }
 }
-fn scope_key(scope: &TenantScope) -> Result<String, TalentPortError> {
+fn scope_key(scope: &AuthorityScope) -> Result<String, TalentPortError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok(format!("h:{holding_id}/c:{company_id}")),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -473,7 +473,7 @@ fn projection(
         aggregate_type: kind.into(),
         aggregate_id: id,
         scope: serde_json::from_value(
-            row.try_get("tenant_scope")
+            row.try_get("active_scope")
                 .map_err(|_| TalentPortError::Internal)?,
         )
         .map_err(|_| TalentPortError::Internal)?,
@@ -519,10 +519,10 @@ fn map(_: sqlx::Error) -> TalentPortError {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn command_path_is_tenant_bound_atomic_and_normalized() {
+    fn command_path_is_holding_bound_atomic_and_normalized() {
         let source = include_str!("repository.rs");
         for marker in [
-            "set_config('app.tenant_id'",
+            "set_config('app.holding_id'",
             "FOR UPDATE",
             "audit_log",
             "command_receipts",

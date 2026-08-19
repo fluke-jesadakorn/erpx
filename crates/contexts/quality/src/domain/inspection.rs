@@ -4,7 +4,7 @@ use erpx_integration_contracts::{
     catalog::ContextId,
     reference::{RecordTypeId, ReferenceValidationError},
 };
-use erpx_kernel::{RecordId, TenantScope};
+use erpx_kernel::{AuthorityScope, RecordId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -114,7 +114,7 @@ pub struct QualityInspection {
     id: InspectionId,
     version: u64,
     reference: String,
-    scope: TenantScope,
+    scope: AuthorityScope,
     holding_id: Uuid,
     company_id: Uuid,
     branch_id: Option<Uuid>,
@@ -140,7 +140,7 @@ pub struct QualityInspectionState {
     pub id: InspectionId,
     pub version: u64,
     pub reference: String,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub kind: InspectionKind,
     pub product_id: Uuid,
     pub lot_reference: Option<String>,
@@ -183,7 +183,7 @@ impl QualityInspection {
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: InspectionId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         kind: InspectionKind,
         product_id: Uuid,
         lot_reference: Option<String>,
@@ -402,7 +402,7 @@ impl QualityInspection {
         &self.reference
     }
 
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
 
@@ -477,7 +477,7 @@ impl QualityInspection {
 pub(crate) enum DomainEvent {
     Created {
         inspection_id: InspectionId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         product_id: Uuid,
         reference: String,
         at: DateTime<Utc>,
@@ -514,23 +514,25 @@ pub fn deterministic_reference(id: InspectionId) -> String {
     )
 }
 
-fn exact_scope_ids(scope: &TenantScope) -> Result<(Uuid, Uuid, Option<Uuid>), QualityDomainError> {
+fn exact_scope_ids(
+    scope: &AuthorityScope,
+) -> Result<(Uuid, Uuid, Option<Uuid>), QualityDomainError> {
     scope
         .validate()
         .map_err(|_| QualityDomainError::InvalidScope)?;
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok((*holding_id, *company_id, None)),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         } => Ok((*holding_id, *company_id, Some(*branch_id))),
-        TenantScope::Platform | TenantScope::Holding { .. } | TenantScope::Subtree { .. } => {
-            Err(QualityDomainError::InvalidScope)
-        }
+        AuthorityScope::Platform
+        | AuthorityScope::Holding { .. }
+        | AuthorityScope::Subtree { .. } => Err(QualityDomainError::InvalidScope),
     }
 }
 
@@ -585,8 +587,8 @@ mod tests {
             .unwrap()
     }
 
-    fn scope() -> TenantScope {
-        TenantScope::Company {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: id(1),
             company_id: id(2),
         }
@@ -617,7 +619,7 @@ mod tests {
 
         let invalid = QualityInspection::create(
             InspectionId::try_from_uuid(id(5)).unwrap(),
-            TenantScope::Holding { holding_id: id(1) },
+            AuthorityScope::Holding { holding_id: id(1) },
             InspectionKind::Incoming,
             id(4),
             None,

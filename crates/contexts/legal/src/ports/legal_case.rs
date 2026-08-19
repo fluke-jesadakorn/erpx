@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_cqrs::IdempotencyKey;
 use erpx_kernel::{
-    ActorAttribution, AuditContext, CommandId, CorrelationId, RecordId, TenantScope,
+    ActorAttribution, AuditContext, AuthorityScope, CommandId, CorrelationId, RecordId,
 };
 use serde::{Deserialize, Serialize};
 
@@ -22,7 +22,7 @@ pub struct LegalCaseView {
 pub trait LegalCaseQueryPort: Send + Sync {
     async fn get_legal_case(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         case_id: RecordId,
     ) -> Result<Option<LegalCaseView>, PortError>;
 }
@@ -34,7 +34,7 @@ pub struct LegalCaseCommand {
     pub expected_version: Option<u64>,
     pub actor: ActorAttribution,
     pub audit: AuditContext,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub record: LegalCase,
 }
 #[derive(Debug, Clone, PartialEq, Eq)]

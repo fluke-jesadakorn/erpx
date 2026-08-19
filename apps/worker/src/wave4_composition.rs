@@ -3,11 +3,11 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionPool, ProjectionRunnerConfig, WritePool};
 use erpx_infrastructure::{
-    ProjectionClaimRecord, ProjectionJobKind, RoutedDatabaseSide, SqlxControlPlane,
-    TenantDatabaseRouter,
+    HoldingDatabaseRouter, ProjectionClaimRecord, ProjectionJobKind, RoutedDatabaseSide,
+    SqlxControlPlane,
 };
 use erpx_worker::{
-    NamedWorkerHandler, TenantProjectionExecutor, TenantProjectionExecutorError,
+    HoldingProjectionExecutor, HoldingProjectionExecutorError, NamedWorkerHandler,
     WorkerHandlerReport, WorkerRuntimeError,
 };
 use std::sync::Arc;
@@ -33,15 +33,15 @@ pub enum IdentityAccessProjectionKind {
 pub enum Wave4ProjectionExecutor {
     Commercial {
         control: Arc<SqlxControlPlane>,
-        router: TenantDatabaseRouter,
+        router: HoldingDatabaseRouter,
         kind: CommercialProjectionKind,
     },
     IdentityAccess {
-        router: TenantDatabaseRouter,
+        router: HoldingDatabaseRouter,
         kind: IdentityAccessProjectionKind,
     },
     Organization {
-        router: TenantDatabaseRouter,
+        router: HoldingDatabaseRouter,
         kind: OrganizationProjectionKind,
     },
 }
@@ -85,7 +85,7 @@ impl Wave4ProjectionExecutor {
 
     pub fn commercial(
         control: Arc<SqlxControlPlane>,
-        router: TenantDatabaseRouter,
+        router: HoldingDatabaseRouter,
         kind: CommercialProjectionKind,
     ) -> Self {
         debug_assert!(kind != CommercialProjectionKind::CatalogPlans);
@@ -104,7 +104,7 @@ impl Wave4ProjectionExecutor {
     }
 
     pub fn identity_access(
-        router: TenantDatabaseRouter,
+        router: HoldingDatabaseRouter,
         kind: IdentityAccessProjectionKind,
     ) -> Self {
         for registration in IdentityAccessProjectionFactory.registrations() {
@@ -117,7 +117,7 @@ impl Wave4ProjectionExecutor {
         Self::IdentityAccess { router, kind }
     }
 
-    pub fn organization(router: TenantDatabaseRouter, kind: OrganizationProjectionKind) -> Self {
+    pub fn organization(router: HoldingDatabaseRouter, kind: OrganizationProjectionKind) -> Self {
         for registration in OrganizationProjectionFactory.registrations() {
             tracing::info!(
                 projection = %registration.name,
@@ -129,12 +129,12 @@ impl Wave4ProjectionExecutor {
     }
 
     async fn identity_runtime(
-        router: &TenantDatabaseRouter,
-        tenant_id: &str,
-        holding_ref: &str,
+        router: &HoldingDatabaseRouter,
+        holding_id: &str,
+        data_profile_key: &str,
         page_size: u32,
-    ) -> Result<IdentityAccessProjectionRuntime, TenantProjectionExecutorError> {
-        let (write, read) = route_pools(router, tenant_id, holding_ref).await?;
+    ) -> Result<IdentityAccessProjectionRuntime, HoldingProjectionExecutorError> {
+        let (write, read) = route_pools(router, holding_id, data_profile_key).await?;
         let runtime = IdentityAccessProjectionFactory
             .build(
                 write,
@@ -153,12 +153,12 @@ impl Wave4ProjectionExecutor {
     }
 
     async fn organization_runtime(
-        router: &TenantDatabaseRouter,
-        tenant_id: &str,
-        holding_ref: &str,
+        router: &HoldingDatabaseRouter,
+        holding_id: &str,
+        data_profile_key: &str,
         page_size: u32,
-    ) -> Result<OrganizationProjectionRuntime, TenantProjectionExecutorError> {
-        let (write, read) = route_pools(router, tenant_id, holding_ref).await?;
+    ) -> Result<OrganizationProjectionRuntime, HoldingProjectionExecutorError> {
+        let (write, read) = route_pools(router, holding_id, data_profile_key).await?;
         let runtime = OrganizationProjectionFactory
             .build(
                 write,
@@ -178,18 +178,19 @@ impl Wave4ProjectionExecutor {
 
     async fn commercial_runtime(
         control: &Arc<SqlxControlPlane>,
-        router: &TenantDatabaseRouter,
-        tenant_id: &str,
-        holding_ref: &str,
+        router: &HoldingDatabaseRouter,
+        holding_id: &str,
+        data_profile_key: &str,
         page_size: u32,
-    ) -> Result<CommercialProjectionRuntime, TenantProjectionExecutorError> {
-        let (tenant_write, tenant_read) = route_pools(router, tenant_id, holding_ref).await?;
+    ) -> Result<CommercialProjectionRuntime, HoldingProjectionExecutorError> {
+        let (holding_write, holding_read) =
+            route_pools(router, holding_id, data_profile_key).await?;
         let runtime = CommercialProjectionFactory
             .build(
                 WritePool::from_control_pg_pool(control.pools().write.clone()),
                 ProjectionPool::from_control_pg_pool(control.pools().read.clone()),
-                tenant_write,
-                tenant_read,
+                holding_write,
+                holding_read,
                 ProjectionRunnerConfig {
                     page_size,
                     ..ProjectionRunnerConfig::default()
@@ -205,24 +206,24 @@ impl Wave4ProjectionExecutor {
 
     async fn incremental(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         page_size: u32,
-    ) -> Result<(), TenantProjectionExecutorError> {
+    ) -> Result<(), HoldingProjectionExecutorError> {
         let run = match self {
             Self::Commercial {
                 control,
                 router,
                 kind,
             } => {
-                Self::commercial_runtime(control, router, tenant_id, holding_ref, page_size)
+                Self::commercial_runtime(control, router, holding_id, data_profile_key, page_size)
                     .await?
                     .run_once(*kind)
                     .await
             }
             Self::IdentityAccess { router, kind } => {
                 let runtime =
-                    Self::identity_runtime(router, tenant_id, holding_ref, page_size).await?;
+                    Self::identity_runtime(router, holding_id, data_profile_key, page_size).await?;
                 match kind {
                     IdentityAccessProjectionKind::Principals => runtime.run_principals_once().await,
                     IdentityAccessProjectionKind::Roles => runtime.run_roles_once().await,
@@ -230,7 +231,7 @@ impl Wave4ProjectionExecutor {
                 }
             }
             Self::Organization { router, kind } => {
-                Self::organization_runtime(router, tenant_id, holding_ref, page_size)
+                Self::organization_runtime(router, holding_id, data_profile_key, page_size)
                     .await?
                     .run_once(*kind)
                     .await
@@ -238,26 +239,31 @@ impl Wave4ProjectionExecutor {
         }
         .map_err(crate::map_cqrs_projection_error)?;
         if run.retry_scheduled || run.dead_lettered != 0 {
-            return Err(TenantProjectionExecutorError::Retryable);
+            return Err(HoldingProjectionExecutorError::Retryable);
         }
         Ok(())
     }
 
     async fn rebuild(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         page_size: u32,
-    ) -> Result<(), TenantProjectionExecutorError> {
+    ) -> Result<(), HoldingProjectionExecutorError> {
         match self {
             Self::Commercial {
                 control,
                 router,
                 kind,
             } => {
-                let runtime =
-                    Self::commercial_runtime(control, router, tenant_id, holding_ref, page_size)
-                        .await?;
+                let runtime = Self::commercial_runtime(
+                    control,
+                    router,
+                    holding_id,
+                    data_profile_key,
+                    page_size,
+                )
+                .await?;
                 let handle = runtime
                     .begin_rebuild(*kind)
                     .await
@@ -269,7 +275,7 @@ impl Wave4ProjectionExecutor {
                         .await
                         .map_err(crate::map_cqrs_projection_error)?;
                     if run.retry_scheduled || run.dead_lettered != 0 {
-                        return Err(TenantProjectionExecutorError::Retryable);
+                        return Err(HoldingProjectionExecutorError::Retryable);
                     }
                     cursor = run.cursor;
                     if run.fetched < page_size {
@@ -283,7 +289,7 @@ impl Wave4ProjectionExecutor {
             }
             Self::IdentityAccess { router, kind } => {
                 let runtime =
-                    Self::identity_runtime(router, tenant_id, holding_ref, page_size).await?;
+                    Self::identity_runtime(router, holding_id, data_profile_key, page_size).await?;
                 let handle = match kind {
                     IdentityAccessProjectionKind::Principals => {
                         runtime.begin_principal_rebuild().await
@@ -302,7 +308,8 @@ impl Wave4ProjectionExecutor {
             }
             Self::Organization { router, kind } => {
                 let runtime =
-                    Self::organization_runtime(router, tenant_id, holding_ref, page_size).await?;
+                    Self::organization_runtime(router, holding_id, data_profile_key, page_size)
+                        .await?;
                 let handle = runtime
                     .begin_rebuild(*kind)
                     .await
@@ -314,7 +321,7 @@ impl Wave4ProjectionExecutor {
                         .await
                         .map_err(crate::map_cqrs_projection_error)?;
                     if run.retry_scheduled || run.dead_lettered != 0 {
-                        return Err(TenantProjectionExecutorError::Retryable);
+                        return Err(HoldingProjectionExecutorError::Retryable);
                     }
                     cursor = run.cursor;
                     if run.fetched < page_size {
@@ -384,7 +391,7 @@ impl NamedWorkerHandler for CommercialCatalogProjectionHandler {
 }
 
 #[async_trait]
-impl TenantProjectionExecutor for Wave4ProjectionExecutor {
+impl HoldingProjectionExecutor for Wave4ProjectionExecutor {
     fn projection_name_filter(&self) -> Option<&str> {
         Some(self.projection_name())
     }
@@ -392,29 +399,29 @@ impl TenantProjectionExecutor for Wave4ProjectionExecutor {
     async fn execute(
         &self,
         claim: &ProjectionClaimRecord,
-    ) -> Result<(), TenantProjectionExecutorError> {
+    ) -> Result<(), HoldingProjectionExecutorError> {
         if claim.job.payload.get("candidate_database_ref").is_some()
             || claim.job.payload.get("source_version").is_some()
             || claim.job.payload.get("generation").is_some()
             || claim.job.payload.get("after").is_some()
             || claim.job.payload.get("cursor").is_some()
         {
-            return Err(TenantProjectionExecutorError::Permanent);
+            return Err(HoldingProjectionExecutorError::Permanent);
         }
         let page_size = crate::projection_page_size(&claim.job.payload, 500)?;
         match claim.job.kind {
             ProjectionJobKind::Incremental => {
                 self.incremental(
-                    &claim.job.binding.tenant_id,
-                    &claim.job.binding.holding_ref,
+                    &claim.job.binding.holding_id,
+                    &claim.job.binding.data_profile_key,
                     page_size,
                 )
                 .await
             }
             ProjectionJobKind::Rebuild => {
                 self.rebuild(
-                    &claim.job.binding.tenant_id,
-                    &claim.job.binding.holding_ref,
+                    &claim.job.binding.holding_id,
+                    &claim.job.binding.data_profile_key,
                     page_size,
                 )
                 .await
@@ -424,23 +431,23 @@ impl TenantProjectionExecutor for Wave4ProjectionExecutor {
 }
 
 async fn route_pools(
-    router: &TenantDatabaseRouter,
-    tenant_id: &str,
-    holding_ref: &str,
-) -> Result<(WritePool, ProjectionPool), TenantProjectionExecutorError> {
+    router: &HoldingDatabaseRouter,
+    holding_id: &str,
+    data_profile_key: &str,
+) -> Result<(WritePool, ProjectionPool), HoldingProjectionExecutorError> {
     let write = router
-        .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
+        .route(holding_id, data_profile_key, RoutedDatabaseSide::Write)
         .await
-        .map_err(|_| TenantProjectionExecutorError::Retryable)?;
+        .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
     let read = router
-        .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
+        .route(holding_id, data_profile_key, RoutedDatabaseSide::Read)
         .await
-        .map_err(|_| TenantProjectionExecutorError::Retryable)?;
-    let tenant_id = crate::cqrs_tenant_uuid(tenant_id)?;
+        .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
+    let holding_id = crate::cqrs_holding_uuid(holding_id)?;
     Ok((
-        WritePool::for_tenant(write.database_pool().clone(), tenant_id)
+        WritePool::for_holding(write.database_pool().clone(), holding_id)
             .map_err(crate::map_cqrs_projection_error)?,
-        ProjectionPool::for_tenant(read.database_pool().clone(), tenant_id)
+        ProjectionPool::for_holding(read.database_pool().clone(), holding_id)
             .map_err(crate::map_cqrs_projection_error)?,
     ))
 }
@@ -449,7 +456,7 @@ async fn run_identity_rebuild(
     runtime: &IdentityAccessProjectionRuntime,
     handle: &erpx_cqrs_sqlx::RebuildHandle,
     page_size: u32,
-) -> Result<(), TenantProjectionExecutorError> {
+) -> Result<(), HoldingProjectionExecutorError> {
     let mut cursor = 0;
     loop {
         let run = runtime
@@ -457,7 +464,7 @@ async fn run_identity_rebuild(
             .await
             .map_err(crate::map_cqrs_projection_error)?;
         if run.retry_scheduled || run.dead_lettered != 0 {
-            return Err(TenantProjectionExecutorError::Retryable);
+            return Err(HoldingProjectionExecutorError::Retryable);
         }
         cursor = run.cursor;
         if run.fetched < page_size {

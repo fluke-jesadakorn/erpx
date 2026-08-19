@@ -20,7 +20,7 @@
   exported as a public raw-domain escape hatch and the persisted JSONB is
   never returned.
 - `SqlxFinanceCloseReadAdapter` composes an already-routed
-  `SqlxFinanceCloseStore` with the existing tenant Finance read pool and
+  `SqlxFinanceCloseStore` with the existing holding Finance read pool and
   performs no data writes.
 - DTOs preserve holding/company/period identity, explicit `open`/`review`/
   `closed` status, version, idempotency key, and bounded actor metadata.
@@ -41,7 +41,7 @@
 - The adapter reads the authoritative close row through the existing close
   store until a later packet supplies a dedicated close-review read
   projection. Report freshness uses the existing
-  `finance_posted_journals` tenant read projection and forced-RLS scope.
+  `finance_posted_journals` holding read projection and forced-RLS scope.
 - The infrastructure public export adds the typed adapter, DTOs, metadata,
   status/error enums, and report bounds.
 
@@ -59,7 +59,7 @@
 
 ## Security and unfinished work
 
-- No tenant credentials, raw JSONB, payment data, command contexts, or
+- No holding credentials, raw JSONB, payment data, command contexts, or
   secrets enter the DTO boundary. Storage references remain internal to the
   already-routed adapter.
 - Authenticated scope/entitlement enforcement, global-read audit records,
@@ -72,7 +72,7 @@
 ## Integration order and rollback
 
 1. Compose the adapter into an authenticated server query after applying the
-   existing tenant/scope/entitlement and global-read audit boundaries.
+   existing holding/scope/entitlement and global-read audit boundaries.
 2. Add a later migration and worker projection for close-review rows, then
    replace the temporary authoritative-row read without changing DTOs.
 3. Add database-backed transport and end-to-end evidence before any Finance

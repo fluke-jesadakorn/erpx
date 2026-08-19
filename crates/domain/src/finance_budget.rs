@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::contracts::{CommandContext, TenantScope};
+use crate::contracts::{AuthorityScope, CommandContext};
 
 pub const FINANCE_BUDGET_CONTRACT_VERSION: u16 = 1;
 
@@ -173,11 +173,14 @@ impl FinanceBudget {
         self.context
             .validate()
             .map_err(|error| BudgetError::InvalidCommandContext(error.to_string()))?;
-        if matches!(self.context.tenant_scope, TenantScope::Platform)
-            || !self.context.tenant_scope.contains(&TenantScope::Company {
-                holding_id: self.holding_id,
-                company_id: self.company_id,
-            })
+        if matches!(self.context.active_scope, AuthorityScope::Platform)
+            || !self
+                .context
+                .active_scope
+                .contains(&AuthorityScope::Company {
+                    holding_id: self.holding_id,
+                    company_id: self.company_id,
+                })
         {
             return Err(BudgetError::ScopeOutsideCompany);
         }
@@ -353,8 +356,8 @@ impl FinanceBudget {
             .validate()
             .map_err(|error| BudgetError::InvalidCommandContext(error.to_string()))?;
         if context.actor.principal_ref.trim().is_empty()
-            || matches!(context.tenant_scope, TenantScope::Platform)
-            || !context.tenant_scope.contains(&TenantScope::Company {
+            || matches!(context.active_scope, AuthorityScope::Platform)
+            || !context.active_scope.contains(&AuthorityScope::Company {
                 holding_id: self.holding_id,
                 company_id: self.company_id,
             })
@@ -387,12 +390,12 @@ mod tests {
             format!("budget-{principal}"),
             ActorAttribution {
                 principal_ref: principal.into(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: None,
                 represented_principal_ref: None,
                 support_capability_id: None,
             },
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             },
@@ -437,7 +440,7 @@ mod tests {
     }
 
     #[test]
-    fn control_check_is_tenant_bound_and_exact_at_limit() {
+    fn control_check_is_holding_bound_and_exact_at_limit() {
         let (mut plan, account_id, company_id) = budget();
         let holding_id = plan.holding_id;
         plan.submit(&context("creator", holding_id, company_id))
@@ -490,7 +493,7 @@ mod tests {
                         represented_principal_ref: None,
                         support_capability_id: None,
                     },
-                    TenantScope::Platform,
+                    AuthorityScope::Platform,
                     "finance budget",
                 )
                 .expect("context"),

@@ -115,7 +115,7 @@ async fn apply_profile(
     let result = sqlx::query(
         "INSERT INTO erpx_brand_read.profile_projection
             (projection_name,generation,partition_key,profile_id,
-             source_aggregate_version,source_global_sequence,tenant_scope,
+             source_aggregate_version,source_global_sequence,active_scope,
              scope_key,draft_revision,published_revision,state,
              aggregate_created_at,aggregate_updated_at,projected_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,now())
@@ -123,7 +123,7 @@ async fn apply_profile(
          DO UPDATE SET
             source_aggregate_version=EXCLUDED.source_aggregate_version,
             source_global_sequence=EXCLUDED.source_global_sequence,
-            tenant_scope=EXCLUDED.tenant_scope,
+            active_scope=EXCLUDED.active_scope,
             scope_key=EXCLUDED.scope_key,
             draft_revision=EXCLUDED.draft_revision,
             published_revision=EXCLUDED.published_revision,
@@ -372,18 +372,14 @@ fn affected_targets(profiles: &[BrandProfileView], changed: &BrandScope) -> Vec<
         .iter()
         .filter(|profile| match changed {
             BrandScope::Platform => true,
-            BrandScope::Holding {
-                tenant_id,
-                holding_id,
-            } => {
+            BrandScope::Holding { holding_id } => {
                 profile.scope == *changed
                     || matches!(
                         &profile.scope,
                         BrandScope::BusinessUnit {
-                            tenant_id: child_tenant,
                             holding_id: child_holding,
                             ..
-                        } if child_tenant == tenant_id && child_holding == holding_id
+                        } if child_holding == holding_id
                     )
             }
             BrandScope::BusinessUnit { .. } => profile.scope == *changed,
@@ -422,13 +418,8 @@ fn resolve_view(
             };
             apply_layer(&mut resolved, target, holding);
         }
-        BrandScope::BusinessUnit {
-            tenant_id,
-            holding_id,
-            ..
-        } => {
+        BrandScope::BusinessUnit { holding_id, .. } => {
             let holding_scope = BrandScope::Holding {
-                tenant_id: tenant_id.clone(),
                 holding_id: *holding_id,
             };
             let Some(holding) = find_published(profiles, &holding_scope) else {
@@ -560,7 +551,7 @@ fn validate_event(
     let scope = view.scope.authority_scope().map_err(projection_failure)?;
     if view.aggregate_version != event.aggregate_version
         || view.profile_id.as_uuid() != event.aggregate_id.as_uuid()
-        || scope != event.tenant_scope
+        || scope != event.active_scope
         || event.partition != profile_partition(view.profile_id)
         || snapshot.reason.trim().is_empty()
     {
@@ -639,7 +630,6 @@ mod tests {
     fn resolved_partitions_are_stable_and_scope_specific() {
         let platform = resolved_partition(&BrandScope::Platform);
         let holding = resolved_partition(&BrandScope::Holding {
-            tenant_id: "tenant-acme".into(),
             holding_id: uuid::Uuid::from_u128(1),
         });
         assert!(platform.starts_with("brand.resolved:"));
@@ -649,7 +639,6 @@ mod tests {
     #[test]
     fn affected_targets_include_descendants_but_not_siblings() {
         let changed = BrandScope::Holding {
-            tenant_id: "tenant-a".into(),
             holding_id: uuid::Uuid::from_u128(1),
         };
         let profiles = vec![BrandProfileView {
@@ -657,7 +646,6 @@ mod tests {
                 .unwrap(),
             aggregate_version: 1,
             scope: BrandScope::BusinessUnit {
-                tenant_id: "tenant-a".into(),
                 holding_id: uuid::Uuid::from_u128(1),
                 business_unit: erpx_brand::BusinessUnitKey::Finance,
             },

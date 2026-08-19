@@ -10,10 +10,10 @@ use erpx_cqrs::{
 use erpx_cqrs_sqlx::{ReadPool, WritePool};
 use erpx_customer_360 as customer_360;
 use erpx_customer_360_sqlx::Customer360ReadRepository;
-use erpx_infrastructure::{RoutedDatabaseSide, SqlxControlPlane, TenantDatabaseRouter};
+use erpx_infrastructure::{HoldingDatabaseRouter, RoutedDatabaseSide, SqlxControlPlane};
 use erpx_kernel::{
-    ActorAttribution, ActorKind, CorrelationId, ErrorCategory, ErrorContext, KernelError,
-    SessionId, SystemClock, TenantScope,
+    ActorAttribution, ActorKind, AuthorityScope, CorrelationId, ErrorCategory, ErrorContext,
+    KernelError, SessionId, SystemClock,
 };
 use erpx_operations as operations;
 use erpx_operations_sqlx::{
@@ -31,8 +31,8 @@ use crate::contexts::{
     },
     operations_cqrs::{
         AuthenticatedOperationsRequest, OperationsAccessMode, OperationsAuthenticationError,
-        OperationsAuthenticationRequest, OperationsCommandApplication, OperationsQueryApplication,
-        OperationsRequestAuthenticator, OperationsTenantRoute,
+        OperationsAuthenticationRequest, OperationsCommandApplication, OperationsHoldingRoute,
+        OperationsQueryApplication, OperationsRequestAuthenticator,
     },
 };
 use crate::wave4_composition::authenticate_context;
@@ -46,7 +46,7 @@ enum AccessMode {
 #[derive(Clone)]
 struct PreauthorizedAccess {
     principal_ref: String,
-    authority_scope: TenantScope,
+    authority_scope: AuthorityScope,
     mode: AccessMode,
     control: Arc<SqlxControlPlane>,
 }
@@ -55,8 +55,8 @@ impl PreauthorizedAccess {
     fn permits(
         &self,
         actor: &ActorAttribution,
-        authority_scope: &TenantScope,
-        target_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         write: bool,
     ) -> bool {
         actor.principal_ref == self.principal_ref
@@ -89,7 +89,7 @@ impl operations::AuthorizationPort for PreauthorizedAccess {
 impl operations::EntitlementPort for PreauthorizedAccess {
     async fn ensure_operations_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         write: bool,
     ) -> Result<(), operations::PortError> {
         if self.authority_scope.contains(scope) && write == (self.mode == AccessMode::Write) {
@@ -104,7 +104,7 @@ impl operations::EntitlementPort for PreauthorizedAccess {
 impl operations::AssignmentPort for PreauthorizedAccess {
     async fn resolve_assignment(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         assignee: erpx_integration_contracts::identity_access::PrincipalRef,
         manager: erpx_integration_contracts::identity_access::PrincipalRef,
         at: chrono::DateTime<chrono::Utc>,
@@ -190,7 +190,7 @@ impl customer_360::AuthorizationPort for PreauthorizedAccess {
 
 #[derive(Clone)]
 pub(crate) struct Wave9Application {
-    router: Option<Arc<TenantDatabaseRouter>>,
+    router: Option<Arc<HoldingDatabaseRouter>>,
     control: Arc<SqlxControlPlane>,
     control_read: ReadPool,
 }
@@ -198,15 +198,15 @@ pub(crate) struct Wave9Application {
 impl Wave9Application {
     pub(crate) fn new(state: &AppState) -> Self {
         Self {
-            router: state.tenant_router.clone(),
+            router: state.holding_router.clone(),
             control: state.store.clone(),
             control_read: ReadPool::from_control_pg_pool(state.store.pools().read.clone()),
         }
     }
 
-    async fn tenant_pool(
+    async fn holding_pool(
         &self,
-        route: &OperationsTenantRoute,
+        route: &OperationsHoldingRoute,
         side: RoutedDatabaseSide,
         correlation_id: CorrelationId,
     ) -> Result<sqlx::PgPool, CqrsError> {
@@ -215,12 +215,12 @@ impl Wave9Application {
                 correlation_id,
                 "operations.routing_unavailable",
                 ErrorCategory::Unavailable,
-                "Operations tenant routing is unavailable.",
+                "Operations holding routing is unavailable.",
                 true,
             )
         })?;
         router
-            .route(&route.tenant_id, &route.holding_ref, side)
+            .route(&route.holding_id, &route.data_profile_key, side)
             .await
             .map(|routed| routed.database_pool().clone())
             .map_err(|_| {
@@ -237,7 +237,7 @@ impl Wave9Application {
     fn access(
         &self,
         actor: &ActorAttribution,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         mode: AccessMode,
     ) -> PreauthorizedAccess {
         PreauthorizedAccess {
@@ -253,18 +253,19 @@ impl Wave9Application {
 impl OperationsCommandApplication for Wave9Application {
     async fn execute(
         &self,
-        route: OperationsTenantRoute,
+        route: OperationsHoldingRoute,
         envelope: CommandEnvelope<operations::OperationsCommand>,
     ) -> Result<CommandReceipt<operations::OperationsMutationResult>, CqrsError> {
         let pool = self
-            .tenant_pool(&route, RoutedDatabaseSide::Write, envelope.correlation_id)
+            .holding_pool(&route, RoutedDatabaseSide::Write, envelope.correlation_id)
             .await?;
-        let tenant_id = cqrs_tenant_uuid(&route.tenant_id, envelope.correlation_id, "operations")?;
-        let write = WritePool::for_tenant(pool, tenant_id)
-            .map_err(|_| invalid_tenant_binding(envelope.correlation_id, "operations"))?;
+        let holding_id =
+            cqrs_holding_uuid(&route.holding_id, envelope.correlation_id, "operations")?;
+        let write = WritePool::for_holding(pool, holding_id)
+            .map_err(|_| invalid_holding_binding(envelope.correlation_id, "operations"))?;
         let repository = OperationsWriteRepository::new(write.clone());
         let unit_of_work = OperationsCommandAdapter::new(write);
-        let access = self.access(&envelope.actor, &envelope.tenant_scope, AccessMode::Write);
+        let access = self.access(&envelope.actor, &envelope.active_scope, AccessMode::Write);
         operations::OperationsCommandHandler::new(
             repository,
             unit_of_work.clone(),
@@ -283,15 +284,16 @@ impl OperationsCommandApplication for Wave9Application {
 impl OperationsQueryApplication for Wave9Application {
     async fn execute(
         &self,
-        route: OperationsTenantRoute,
+        route: OperationsHoldingRoute,
         envelope: QueryEnvelope<operations::OperationsQuery>,
     ) -> Result<QueryResult<operations::OperationsQueryResponse>, CqrsError> {
         let pool = self
-            .tenant_pool(&route, RoutedDatabaseSide::Read, envelope.correlation_id)
+            .holding_pool(&route, RoutedDatabaseSide::Read, envelope.correlation_id)
             .await?;
-        let tenant_id = cqrs_tenant_uuid(&route.tenant_id, envelope.correlation_id, "operations")?;
-        let read_pool = ReadPool::for_tenant(pool, tenant_id)
-            .map_err(|_| invalid_tenant_binding(envelope.correlation_id, "operations"))?;
+        let holding_id =
+            cqrs_holding_uuid(&route.holding_id, envelope.correlation_id, "operations")?;
+        let read_pool = ReadPool::for_holding(pool, holding_id)
+            .map_err(|_| invalid_holding_binding(envelope.correlation_id, "operations"))?;
         let read = OperationsReadRepository::new(read_pool).map_err(|_| {
             failure(
                 envelope.correlation_id,
@@ -301,7 +303,7 @@ impl OperationsQueryApplication for Wave9Application {
                 false,
             )
         })?;
-        let access = self.access(&envelope.actor, &envelope.tenant_scope, AccessMode::Read);
+        let access = self.access(&envelope.actor, &envelope.active_scope, AccessMode::Read);
         operations::OperationsQueryHandler::new(read, access.clone(), access)
             .handle(envelope)
             .await
@@ -315,7 +317,7 @@ impl Customer360QueryApplication for Wave9Application {
         route: Customer360Route,
         envelope: QueryEnvelope<customer_360::GetCustomer360>,
     ) -> Result<QueryResult<customer_360::GetCustomer360Result>, CqrsError> {
-        let read = Customer360ReadRepository::new(self.control_read.clone(), route.tenant_id)
+        let read = Customer360ReadRepository::new(self.control_read.clone(), route.holding_id)
             .map_err(|_| {
                 failure(
                     envelope.correlation_id,
@@ -325,7 +327,7 @@ impl Customer360QueryApplication for Wave9Application {
                     false,
                 )
             })?;
-        let access = self.access(&envelope.actor, &envelope.tenant_scope, AccessMode::Read);
+        let access = self.access(&envelope.actor, &envelope.active_scope, AccessMode::Read);
         customer_360::Customer360QueryHandler::new(read, access)
             .handle(envelope)
             .await
@@ -379,7 +381,7 @@ impl OperationsRequestAuthenticator for Wave9ServerAuthenticator {
             request.transport_metadata(),
             request.presented_actor(),
             request.presented_scope(),
-            &request.presented_route().tenant_id,
+            &request.presented_route().holding_id,
             permission,
             "operations",
             write,
@@ -430,17 +432,17 @@ impl Customer360RequestAuthenticator for Wave9ServerAuthenticator {
             )
             .await
             .map_err(map_customer_auth)?;
-        if request.presented_scope() != &TenantScope::Platform
-            && request.presented_route().tenant_id.is_none()
+        if request.presented_scope() != &AuthorityScope::Platform
+            && request.presented_route().holding_id.is_none()
         {
             return Err(Customer360AuthenticationError::Denied);
         }
-        if let Some(tenant_id) = request.presented_route().tenant_id
-            && request.presented_scope() != &TenantScope::Platform
+        if let Some(holding_id) = request.presented_route().holding_id
+            && request.presented_scope() != &AuthorityScope::Platform
             && !self
                 .state
                 .store
-                .customer_scope_contains(tenant_id, &access_scope)
+                .customer_scope_contains(holding_id, &access_scope)
                 .await
                 .map_err(|_| Customer360AuthenticationError::Unavailable)?
         {
@@ -451,7 +453,7 @@ impl Customer360RequestAuthenticator for Wave9ServerAuthenticator {
         AuthenticatedCustomer360Request::try_new(
             ActorAttribution {
                 principal_ref: claims.principal_ref,
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: Some(session_id),
                 represented_principal_ref: None,
                 support_capability_id: None,
@@ -488,24 +490,24 @@ fn map_customer_auth(status: Status) -> Customer360AuthenticationError {
     }
 }
 
-fn cqrs_tenant_uuid(
-    tenant_id: &str,
+fn cqrs_holding_uuid(
+    holding_id: &str,
     correlation_id: CorrelationId,
     context: &'static str,
 ) -> Result<Uuid, CqrsError> {
-    Uuid::parse_str(tenant_id).map_err(|_| invalid_tenant_binding(correlation_id, context))
+    Uuid::parse_str(holding_id).map_err(|_| invalid_holding_binding(correlation_id, context))
 }
 
-fn invalid_tenant_binding(correlation_id: CorrelationId, context: &'static str) -> CqrsError {
+fn invalid_holding_binding(correlation_id: CorrelationId, context: &'static str) -> CqrsError {
     let code = match context {
-        "operations" => "operations.invalid_tenant_identity",
-        _ => "context.invalid_tenant_identity",
+        "operations" => "operations.invalid_holding_identity",
+        _ => "context.invalid_holding_identity",
     };
     failure(
         correlation_id,
         code,
         ErrorCategory::Internal,
-        "The routed tenant identity is invalid.",
+        "The routed holding identity is invalid.",
         false,
     )
 }

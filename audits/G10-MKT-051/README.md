@@ -10,14 +10,14 @@ Delivered behavior:
 - control-plane migration `0046_marketing_provider_accounts_outbound.sql`
   stores only `provider_key` and an opaque `outbound_credential_ref`, with
   legacy rows explicitly marked unconfigured;
-- active outbound resolution matches provider account, tenant, and holding;
-- active callback resolution derives tenant and holding from the provider
+- active outbound resolution matches provider account, holding, and holding;
+- active callback resolution derives holding and holding from the provider
   account identifier alone;
 - the worker requires `ERPX_MARKETING_DELIVERY_PROVIDER_ACCOUNT_REF`, resolves
   the active account before registration, and re-resolves account/version/
   provider/credential identity before each provider submission;
-- callback ingress loads the delivery from the tenant write database and uses
-  its stored scope, rather than company/branch/tenant/holding callback
+- callback ingress loads the delivery from the holding write database and uses
+  its stored scope, rather than company/branch/holding/holding callback
   headers;
 - callback scope must belong to the provider account holding before the
   existing exact provider-reference and inbox/outbox transaction runs;

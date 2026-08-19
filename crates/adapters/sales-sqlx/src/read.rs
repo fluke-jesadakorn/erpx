@@ -6,7 +6,7 @@ use erpx_cqrs::{
 use erpx_cqrs_sqlx::{
     CqrsSqlxError, ReadPool, ReadSideStore, SqlxProjectionWaiter, WaitError, WaiterConfig,
 };
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use erpx_sales::{
     PortError, QuoteId, QuoteView, ReadRepository, RevenueArrangementId, RevenueArrangementView,
     SalesOrderId, SalesOrderList, SalesOrderListFilter, SalesOrderView, ports::ReadProjection,
@@ -129,7 +129,7 @@ impl SalesReadRepository {
 impl ReadRepository for SalesReadRepository {
     async fn get_quote(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         quote_id: QuoteId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<QuoteView>>, PortError> {
@@ -177,7 +177,7 @@ impl ReadRepository for SalesReadRepository {
 
     async fn get_order(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         sales_order_id: SalesOrderId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<SalesOrderView>>, PortError> {
@@ -225,7 +225,7 @@ impl ReadRepository for SalesReadRepository {
 
     async fn get_revenue_arrangement(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         arrangement_id: RevenueArrangementId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<RevenueArrangementView>>, PortError> {
@@ -274,7 +274,7 @@ impl ReadRepository for SalesReadRepository {
 
     async fn list_orders(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &SalesOrderListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<SalesOrderList>, PortError> {

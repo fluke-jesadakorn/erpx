@@ -41,7 +41,7 @@ impl From<AssetView> for AssetItem {
             version: value.version,
             code: value.code,
             name: value.name,
-            scope: format!("{:?}", value.scope.tenant_scope()),
+            scope: format!("{:?}", value.scope.active_scope()),
             location_id: value.location_id.to_string(),
             status: match value.status {
                 AssetStatus::Draft => "draft",

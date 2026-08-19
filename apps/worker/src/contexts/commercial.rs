@@ -42,8 +42,8 @@ impl CommercialProjectionFactory {
         self,
         control_write: WritePool,
         control_projection: ProjectionPool,
-        tenant_write: WritePool,
-        tenant_projection: ProjectionPool,
+        holding_write: WritePool,
+        holding_projection: ProjectionPool,
         config: ProjectionRunnerConfig,
     ) -> Result<CommercialProjectionRuntime, CqrsSqlxError> {
         let control_store = ProjectionStore::new(control_projection);
@@ -52,10 +52,10 @@ impl CommercialProjectionFactory {
             control_store.clone(),
             config,
         )?;
-        let tenant_store = ProjectionStore::new(tenant_projection);
-        let tenant_runner = ProjectionRunner::new(
-            ProjectionSource::new(tenant_write),
-            tenant_store.clone(),
+        let holding_store = ProjectionStore::new(holding_projection);
+        let holding_runner = ProjectionRunner::new(
+            ProjectionSource::new(holding_write),
+            holding_store.clone(),
             config,
         )?;
         Ok(CommercialProjectionRuntime {
@@ -65,8 +65,8 @@ impl CommercialProjectionFactory {
             lifecycle_records: CommercialLifecycleRecordProjector::new(),
             control_runner,
             control_store,
-            tenant_runner,
-            tenant_store,
+            holding_runner,
+            holding_store,
         })
     }
 
@@ -88,8 +88,8 @@ pub struct CommercialProjectionRuntime {
     lifecycle_records: CommercialLifecycleRecordProjector,
     control_runner: ProjectionRunner,
     control_store: ProjectionStore,
-    tenant_runner: ProjectionRunner,
-    tenant_store: ProjectionStore,
+    holding_runner: ProjectionRunner,
+    holding_store: ProjectionStore,
 }
 
 impl CommercialProjectionRuntime {
@@ -106,13 +106,15 @@ impl CommercialProjectionRuntime {
                 self.control_runner.run_active(&self.catalog).await
             }
             CommercialProjectionKind::Subscriptions => {
-                self.tenant_runner.run_active(&self.subscriptions).await
+                self.holding_runner.run_active(&self.subscriptions).await
             }
             CommercialProjectionKind::Entitlements => {
-                self.tenant_runner.run_active(&self.entitlements).await
+                self.holding_runner.run_active(&self.entitlements).await
             }
             CommercialProjectionKind::LifecycleRecords => {
-                self.tenant_runner.run_active(&self.lifecycle_records).await
+                self.holding_runner
+                    .run_active(&self.lifecycle_records)
+                    .await
             }
         }
     }
@@ -126,13 +128,13 @@ impl CommercialProjectionRuntime {
                 self.control_store.begin_rebuild(&self.catalog).await
             }
             CommercialProjectionKind::Subscriptions => {
-                self.tenant_store.begin_rebuild(&self.subscriptions).await
+                self.holding_store.begin_rebuild(&self.subscriptions).await
             }
             CommercialProjectionKind::Entitlements => {
-                self.tenant_store.begin_rebuild(&self.entitlements).await
+                self.holding_store.begin_rebuild(&self.entitlements).await
             }
             CommercialProjectionKind::LifecycleRecords => {
-                self.tenant_store
+                self.holding_store
                     .begin_rebuild(&self.lifecycle_records)
                     .await
             }
@@ -152,17 +154,17 @@ impl CommercialProjectionRuntime {
                     .await
             }
             CommercialProjectionKind::Subscriptions => {
-                self.tenant_runner
+                self.holding_runner
                     .run_rebuild(&self.subscriptions, handle, after_sequence)
                     .await
             }
             CommercialProjectionKind::Entitlements => {
-                self.tenant_runner
+                self.holding_runner
                     .run_rebuild(&self.entitlements, handle, after_sequence)
                     .await
             }
             CommercialProjectionKind::LifecycleRecords => {
-                self.tenant_runner
+                self.holding_runner
                     .run_rebuild(&self.lifecycle_records, handle, after_sequence)
                     .await
             }
@@ -192,7 +194,7 @@ impl CommercialProjectionRuntime {
             CommercialProjectionKind::Subscriptions
             | CommercialProjectionKind::Entitlements
             | CommercialProjectionKind::LifecycleRecords => {
-                self.tenant_store.activate_rebuild(handle).await
+                self.holding_store.activate_rebuild(handle).await
             }
         }
     }
@@ -252,23 +254,24 @@ mod tests {
                 sqlx::PgPool::connect_lazy("postgres://localhost/commercial_control_read").unwrap(),
             ),
             WritePool::from_control_pg_pool(
-                sqlx::PgPool::connect_lazy("postgres://localhost/commercial_tenant_write").unwrap(),
+                sqlx::PgPool::connect_lazy("postgres://localhost/commercial_holding_write")
+                    .unwrap(),
             ),
             ProjectionPool::from_control_pg_pool(
-                sqlx::PgPool::connect_lazy("postgres://localhost/commercial_tenant_read").unwrap(),
+                sqlx::PgPool::connect_lazy("postgres://localhost/commercial_holding_read").unwrap(),
             ),
         )
     }
 
     #[tokio::test]
     async fn factory_builds_without_connecting() {
-        let (control_write, control_projection, tenant_write, tenant_projection) = lazy_pools();
+        let (control_write, control_projection, holding_write, holding_projection) = lazy_pools();
         let runtime = CommercialProjectionFactory
             .build(
                 control_write,
                 control_projection,
-                tenant_write,
-                tenant_projection,
+                holding_write,
+                holding_projection,
                 ProjectionRunnerConfig::default(),
             )
             .unwrap();
@@ -280,12 +283,12 @@ mod tests {
 
     #[tokio::test]
     async fn invalid_configuration_fails_before_runtime_access() {
-        let (control_write, control_projection, tenant_write, tenant_projection) = lazy_pools();
+        let (control_write, control_projection, holding_write, holding_projection) = lazy_pools();
         let result = CommercialProjectionFactory.build(
             control_write,
             control_projection,
-            tenant_write,
-            tenant_projection,
+            holding_write,
+            holding_projection,
             ProjectionRunnerConfig {
                 page_size: u32::MAX,
                 retry: RetryPolicy {
@@ -300,13 +303,13 @@ mod tests {
 
     #[tokio::test]
     async fn cross_projector_rebuild_handle_fails_closed() {
-        let (control_write, control_projection, tenant_write, tenant_projection) = lazy_pools();
+        let (control_write, control_projection, holding_write, holding_projection) = lazy_pools();
         let runtime = CommercialProjectionFactory
             .build(
                 control_write,
                 control_projection,
-                tenant_write,
-                tenant_projection,
+                holding_write,
+                holding_projection,
                 ProjectionRunnerConfig::default(),
             )
             .unwrap();

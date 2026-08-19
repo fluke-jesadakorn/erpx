@@ -6,7 +6,7 @@ use erpx_cqrs::{
 use erpx_cqrs_sqlx::{
     CqrsSqlxError, ReadPool, ReadSideStore, SqlxProjectionWaiter, WaitError, WaiterConfig,
 };
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use erpx_organization::{
     NodeList, NodeListFilter, NodeView, OrganizationNodeId, PortError, ReadProjection,
     ReadRepository,
@@ -131,7 +131,7 @@ impl OrganizationReadRepository {
 impl ReadRepository for OrganizationReadRepository {
     async fn get(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         node_id: OrganizationNodeId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<NodeView>>, PortError> {
@@ -182,7 +182,7 @@ impl ReadRepository for OrganizationReadRepository {
 
     async fn list(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &NodeListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<NodeList>, PortError> {
@@ -265,15 +265,15 @@ struct ScopeFilter {
 }
 
 impl ScopeFilter {
-    fn from_scope(scope: &TenantScope) -> Result<Self, PortError> {
+    fn from_scope(scope: &AuthorityScope) -> Result<Self, PortError> {
         scope.validate().map_err(|_| PortError::Denied)?;
         Ok(match scope {
-            TenantScope::Platform => Self {
+            AuthorityScope::Platform => Self {
                 platform: true,
                 exact: Vec::new(),
                 prefixes: Vec::new(),
             },
-            TenantScope::Holding { holding_id } => {
+            AuthorityScope::Holding { holding_id } => {
                 let key = format!("h:{holding_id}");
                 Self {
                     platform: false,
@@ -281,7 +281,7 @@ impl ScopeFilter {
                     prefixes: vec![format!("{key}/%")],
                 }
             }
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => {
@@ -292,7 +292,7 @@ impl ScopeFilter {
                     prefixes: vec![format!("{key}/%")],
                 }
             }
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -301,30 +301,15 @@ impl ScopeFilter {
                 exact: vec![format!("h:{holding_id}/c:{company_id}/b:{branch_id}")],
                 prefixes: Vec::new(),
             },
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => {
-                let exact = if branch_ids.is_empty() {
-                    company_ids
-                        .iter()
-                        .map(|company| format!("h:{holding_id}/c:{company}"))
-                        .collect()
-                } else {
-                    company_ids
-                        .iter()
-                        .flat_map(|company| {
-                            branch_ids
-                                .iter()
-                                .map(move |branch| format!("h:{holding_id}/c:{company}/b:{branch}"))
-                        })
-                        .collect()
-                };
+                let root = format!("h:{holding_id}/c:{organization_node_id}");
                 Self {
                     platform: false,
-                    exact,
-                    prefixes: Vec::new(),
+                    exact: vec![root.clone()],
+                    prefixes: vec![format!("{root}/%")],
                 }
             }
         })
@@ -391,21 +376,20 @@ mod tests {
 
     #[test]
     fn subtree_filter_preserves_kernel_containment_semantics() {
-        let companies_only = ScopeFilter::from_scope(&TenantScope::Subtree {
+        let companies_only = ScopeFilter::from_scope(&AuthorityScope::Subtree {
             holding_id: Uuid::from_u128(1),
-            company_ids: vec![Uuid::from_u128(2)],
-            branch_ids: Vec::new(),
+            organization_node_id: Uuid::from_u128(2),
         })
         .unwrap();
         assert_eq!(companies_only.exact.len(), 1);
         assert!(companies_only.exact[0].contains("/c:"));
 
-        let branches = ScopeFilter::from_scope(&TenantScope::Subtree {
+        let branches = ScopeFilter::from_scope(&AuthorityScope::Subtree {
             holding_id: Uuid::from_u128(1),
-            company_ids: vec![Uuid::from_u128(2)],
-            branch_ids: vec![Uuid::from_u128(3)],
+            organization_node_id: Uuid::from_u128(3),
         })
         .unwrap();
-        assert!(branches.exact[0].contains("/b:"));
+        assert!(branches.exact[0].contains("/c:"));
+        assert_eq!(branches.prefixes.len(), 1);
     }
 }

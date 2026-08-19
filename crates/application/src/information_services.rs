@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_integration_contracts::{StableRecordRef, catalog::ContextId};
-use erpx_kernel::{DataClassification, TenantScope};
+use erpx_kernel::{AuthorityScope, DataClassification};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -40,7 +40,7 @@ pub enum ReferenceLifecycle {
 pub struct ReferenceDescriptor {
     pub record: StableRecordRef,
     pub owner: ContextId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub stable_code: String,
     pub labels: BTreeMap<String, String>,
     pub classification: DataClassification,
@@ -156,7 +156,7 @@ pub struct ExportManifest {
     pub definition_id: Uuid,
     pub definition_version: u64,
     pub parameters_sha256: String,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub source_positions: BTreeMap<String, u64>,
     pub freshness_cutoff: DateTime<Utc>,
     pub generated_at: DateTime<Utc>,
@@ -173,7 +173,7 @@ impl ExportManifest {
         export_id: Uuid,
         definition: &ReportDefinition,
         parameters_sha256: String,
-        scope: TenantScope,
+        scope: AuthorityScope,
         source_positions: BTreeMap<String, u64>,
         freshness_cutoff: DateTime<Utc>,
         generated_at: DateTime<Utc>,
@@ -308,7 +308,7 @@ pub enum ImportStatus {
 pub struct ImportBatch {
     pub batch_id: Uuid,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub template_id: Uuid,
     pub template_version: u64,
     pub template_sha256: String,
@@ -327,7 +327,7 @@ impl ImportBatch {
     #[allow(clippy::too_many_arguments)]
     pub fn upload(
         batch_id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         template: &ImportTemplate,
         file_sha256: String,
         classification: DataClassification,
@@ -483,7 +483,7 @@ pub trait ImportCommandPort: Send + Sync {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SearchRequest {
     pub principal_ref: String,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub purpose: String,
     pub query: String,
     pub query_sha256: String,
@@ -582,7 +582,7 @@ pub struct ControlledExtension {
     pub version: u64,
     pub kind: ExtensionKind,
     pub owner_ref: String,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub purpose: String,
     pub affected_context: ContextId,
     pub fields: Vec<ExtensionField>,
@@ -667,8 +667,8 @@ mod tests {
     fn at() -> DateTime<Utc> {
         DateTime::from_timestamp(1_786_000_000, 0).unwrap()
     }
-    fn scope() -> TenantScope {
-        TenantScope::Company {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         }

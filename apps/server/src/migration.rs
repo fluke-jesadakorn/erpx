@@ -14,7 +14,7 @@ use erpx_migration::{
     MigrationPhase,
     g13::{G13StartRunRequest, G13TransitionRequest, phase_from_wire},
 };
-use erpx_proto::erpx::platform_administration::v2::{
+use erpx_proto::erpx::platform_administration::{
     AdvanceMigrationPhaseRequest, AdvanceMigrationPhaseResponse, BeginMigrationRunRequest,
     BeginMigrationRunResponse, ListMigrationStatusesRequest, ListMigrationStatusesResponse,
     MigrationStatus, QueueMigrationWorkRequest, QueueMigrationWorkResponse,
@@ -157,7 +157,7 @@ impl MigrationRpcImpl {
             let claims = self.state.auth.authorize(&request).await?;
             let input = request.get_ref();
             let context = crate::command_domain(&request, input.context.as_ref())?;
-            let scope = crate::access_scope(&context.tenant_scope);
+            let scope = crate::access_scope(&context.active_scope);
             crate::require_platform_scope(&scope)?;
             crate::require_actor_match(
                 &claims.principal_ref,
@@ -267,7 +267,7 @@ impl MigrationRpcImpl {
             let claims = self.state.auth.authorize(&request).await?;
             let input = request.get_ref();
             let context = crate::command_domain(&request, input.context.as_ref())?;
-            let scope = crate::access_scope(&context.tenant_scope);
+            let scope = crate::access_scope(&context.active_scope);
             crate::require_platform_scope(&scope)?;
             crate::require_actor_match(
                 &claims.principal_ref,
@@ -357,7 +357,7 @@ impl MigrationRpcImpl {
             let claims = self.state.auth.authorize(&request).await?;
             let input = request.get_ref();
             let context = crate::command_domain(&request, input.context.as_ref())?;
-            let scope = crate::access_scope(&context.tenant_scope);
+            let scope = crate::access_scope(&context.active_scope);
             crate::require_platform_scope(&scope)?;
             crate::require_actor_match(
                 &claims.principal_ref,

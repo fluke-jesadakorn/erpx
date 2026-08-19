@@ -1,4 +1,4 @@
-//! Runtime composition for the Wave 8 dependent tenant bounded contexts.
+//! Runtime composition for the Wave 8 dependent holding bounded contexts.
 
 use async_trait::async_trait;
 use chrono::{Duration, Utc};
@@ -11,14 +11,14 @@ use erpx_customer_authority::{
     CustomerId, CustomerStatus as AuthorityCustomerStatus, ReadRepository as CustomerReadRepository,
 };
 use erpx_customer_authority_sqlx::CustomerAuthorityReadRepository;
-use erpx_domain::access::Scope;
+use erpx_domain::contracts::AuthorityScope as Scope;
 use erpx_finance as finance;
 use erpx_finance_sqlx as finance_sqlx;
 use erpx_infrastructure::RoutedDatabaseSide;
 use erpx_integration_contracts::{DisplayName, ReferenceCode, customer, organization};
 use erpx_kernel::{
-    ActorAttribution, CorrelationId, ErrorCategory, ErrorContext, KernelError, SystemClock,
-    TenantScope,
+    ActorAttribution, AuthorityScope, CorrelationId, ErrorCategory, ErrorContext, KernelError,
+    SystemClock,
 };
 use erpx_legal as legal;
 use erpx_legal_sqlx as legal_sqlx;
@@ -34,20 +34,20 @@ use crate::AppState;
 use crate::contexts::{
     finance_cqrs::{
         AuthenticatedFinanceRequest, FinanceAccessMode, FinanceAuthenticationError,
-        FinanceAuthenticationRequest, FinanceCommandApplication, FinanceQueryApplication,
-        FinanceRequestAuthenticator, FinanceTenantRoute,
+        FinanceAuthenticationRequest, FinanceCommandApplication, FinanceHoldingRoute,
+        FinanceQueryApplication, FinanceRequestAuthenticator,
     },
     legal_cqrs::{
         AuthenticatedLegalRequest, LegalAccessMode, LegalAuthenticationError,
-        LegalAuthenticationRequest, LegalCommandApplication, LegalQueryApplication,
-        LegalRequestAuthenticator, LegalTenantRoute,
+        LegalAuthenticationRequest, LegalCommandApplication, LegalHoldingRoute,
+        LegalQueryApplication, LegalRequestAuthenticator,
     },
     support_cqrs::{
         AuthenticatedSupportRequest, SecureCapabilityIssueMaterial, SupportAccessMode,
         SupportAuthenticationError, SupportAuthenticationRequest,
         SupportCapabilityAuthorityResolver, SupportCapabilityDeliverySecret,
-        SupportCommandApplication, SupportCustomerFactResolver, SupportQueryApplication,
-        SupportRequestAuthenticator, SupportTenantRoute,
+        SupportCommandApplication, SupportCustomerFactResolver, SupportHoldingRoute,
+        SupportQueryApplication, SupportRequestAuthenticator,
     },
 };
 use crate::wave4_composition::authenticate_context;
@@ -61,7 +61,7 @@ enum AccessMode {
 #[derive(Debug, Clone)]
 struct PreauthorizedAccess {
     principal_ref: String,
-    authority_scope: TenantScope,
+    authority_scope: AuthorityScope,
     mode: AccessMode,
 }
 
@@ -69,8 +69,8 @@ impl PreauthorizedAccess {
     fn permits(
         &self,
         actor: &ActorAttribution,
-        authority_scope: &TenantScope,
-        target_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         write: bool,
     ) -> bool {
         actor.principal_ref == self.principal_ref
@@ -79,7 +79,7 @@ impl PreauthorizedAccess {
             && write == (self.mode == AccessMode::Write)
     }
 
-    fn entitled(&self, scope: &TenantScope, write: bool) -> bool {
+    fn entitled(&self, scope: &AuthorityScope, write: bool) -> bool {
         self.authority_scope.contains(scope) && write == (self.mode == AccessMode::Write)
     }
 }
@@ -107,7 +107,7 @@ impl finance::AuthorizationPort for PreauthorizedAccess {
 impl finance::EntitlementPort for PreauthorizedAccess {
     async fn ensure_finance_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         write: bool,
     ) -> Result<(), finance::PortError> {
         if self.entitled(scope, write) {
@@ -141,7 +141,7 @@ impl legal::AuthorizationPort for PreauthorizedAccess {
 impl legal::EntitlementPort for PreauthorizedAccess {
     async fn ensure_legal_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         write: bool,
     ) -> Result<(), legal::PortError> {
         if self.entitled(scope, write) {
@@ -188,7 +188,7 @@ impl support::AuthorizationPort for PreauthorizedAccess {
 impl support::EntitlementPort for PreauthorizedAccess {
     async fn ensure_support_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         write: bool,
     ) -> Result<(), support::PortError> {
         if self.entitled(scope, write) {
@@ -200,12 +200,12 @@ impl support::EntitlementPort for PreauthorizedAccess {
 }
 
 #[derive(Clone)]
-pub(crate) struct Wave8TenantApplication {
+pub(crate) struct Wave8HoldingApplication {
     state: AppState,
     capability_secret_key: std::sync::Arc<Vec<u8>>,
 }
 
-impl Wave8TenantApplication {
+impl Wave8HoldingApplication {
     pub(crate) fn new(state: AppState) -> Result<Self, &'static str> {
         let key = std::env::var("ERPX_SUPPORT_CAPABILITY_ESCROW_KEY")
             .map_err(|_| "ERPX_SUPPORT_CAPABILITY_ESCROW_KEY is required")?;
@@ -220,7 +220,7 @@ impl Wave8TenantApplication {
 
     fn derive_capability_secret(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         command_id: erpx_kernel::CommandId,
         capability_id: support::CapabilityId,
         principal_ref: &str,
@@ -229,7 +229,7 @@ impl Wave8TenantApplication {
         let mut mac = Hmac::<Sha256>::new_from_slice(self.capability_secret_key.as_slice())
             .map_err(|_| Status::internal("Support capability escrow is unavailable"))?;
         for value in [
-            tenant_id.as_bytes(),
+            holding_id.as_bytes(),
             command_id.as_uuid().as_bytes(),
             capability_id.as_uuid().as_bytes(),
             principal_ref.as_bytes(),
@@ -245,63 +245,69 @@ impl Wave8TenantApplication {
 
     async fn write_pool(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         correlation_id: CorrelationId,
         context: &'static str,
     ) -> Result<WritePool, CqrsError> {
         let pool = self
             .route_pool(
-                tenant_id,
-                holding_ref,
+                holding_id,
+                data_profile_key,
                 RoutedDatabaseSide::Write,
                 correlation_id,
                 context,
             )
             .await?;
-        WritePool::for_tenant(pool, cqrs_tenant_uuid(tenant_id, correlation_id, context)?)
-            .map_err(|_| invalid_tenant_binding(correlation_id, context))
+        WritePool::for_holding(
+            pool,
+            cqrs_holding_uuid(holding_id, correlation_id, context)?,
+        )
+        .map_err(|_| invalid_holding_binding(correlation_id, context))
     }
 
     async fn read_pool(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         correlation_id: CorrelationId,
         context: &'static str,
     ) -> Result<ReadPool, CqrsError> {
         let pool = self
             .route_pool(
-                tenant_id,
-                holding_ref,
+                holding_id,
+                data_profile_key,
                 RoutedDatabaseSide::Read,
                 correlation_id,
                 context,
             )
             .await?;
-        ReadPool::for_tenant(pool, cqrs_tenant_uuid(tenant_id, correlation_id, context)?)
-            .map_err(|_| invalid_tenant_binding(correlation_id, context))
+        ReadPool::for_holding(
+            pool,
+            cqrs_holding_uuid(holding_id, correlation_id, context)?,
+        )
+        .map_err(|_| invalid_holding_binding(correlation_id, context))
     }
 
     async fn route_pool(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         side: RoutedDatabaseSide,
         correlation_id: CorrelationId,
         context: &'static str,
     ) -> Result<sqlx::PgPool, CqrsError> {
-        let router = self.state.tenant_router.as_ref().ok_or_else(|| {
+        let router = self.state.holding_router.as_ref().ok_or_else(|| {
             context_failure(
                 correlation_id,
                 format!("{context}.routing_unavailable"),
                 ErrorCategory::Unavailable,
-                "Tenant database routing is unavailable.",
+                "Holding database routing is unavailable.",
                 true,
             )
         })?;
         let routed = router
-            .route(tenant_id, holding_ref, side)
+            .route(holding_id, data_profile_key, side)
             .await
             .map_err(|_| {
                 context_failure(
@@ -317,7 +323,7 @@ impl Wave8TenantApplication {
 
     fn access(
         actor: &ActorAttribution,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         mode: AccessMode,
     ) -> PreauthorizedAccess {
         PreauthorizedAccess {
@@ -329,21 +335,21 @@ impl Wave8TenantApplication {
 }
 
 #[async_trait]
-impl FinanceCommandApplication for Wave8TenantApplication {
+impl FinanceCommandApplication for Wave8HoldingApplication {
     async fn execute(
         &self,
-        route: FinanceTenantRoute,
+        route: FinanceHoldingRoute,
         envelope: CommandEnvelope<finance::FinanceCommand>,
     ) -> Result<CommandReceipt<finance::FinanceMutationResult>, CqrsError> {
         let pool = self
             .write_pool(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 envelope.correlation_id,
                 "finance",
             )
             .await?;
-        let access = Self::access(&envelope.actor, &envelope.tenant_scope, AccessMode::Write);
+        let access = Self::access(&envelope.actor, &envelope.active_scope, AccessMode::Write);
         finance::FinanceCommandHandler::new(
             finance_sqlx::FinanceWriteRepository::new(pool.clone()),
             finance_sqlx::FinanceCommandAdapter::new(pool),
@@ -357,23 +363,23 @@ impl FinanceCommandApplication for Wave8TenantApplication {
 }
 
 #[async_trait]
-impl FinanceQueryApplication for Wave8TenantApplication {
+impl FinanceQueryApplication for Wave8HoldingApplication {
     async fn execute(
         &self,
-        route: FinanceTenantRoute,
+        route: FinanceHoldingRoute,
         envelope: QueryEnvelope<finance::FinanceQuery>,
     ) -> Result<QueryResult<finance::FinanceQueryResponse>, CqrsError> {
         let pool = self
             .read_pool(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 envelope.correlation_id,
                 "finance",
             )
             .await?;
         let read = finance_sqlx::FinanceReadRepository::new(pool)
             .map_err(|_| storage_configuration_error(envelope.correlation_id, "finance"))?;
-        let access = Self::access(&envelope.actor, &envelope.tenant_scope, AccessMode::Read);
+        let access = Self::access(&envelope.actor, &envelope.active_scope, AccessMode::Read);
         finance::FinanceQueryHandler::new(read, access.clone(), access)
             .handle(envelope)
             .await
@@ -381,21 +387,21 @@ impl FinanceQueryApplication for Wave8TenantApplication {
 }
 
 #[async_trait]
-impl LegalCommandApplication for Wave8TenantApplication {
+impl LegalCommandApplication for Wave8HoldingApplication {
     async fn execute(
         &self,
-        route: LegalTenantRoute,
+        route: LegalHoldingRoute,
         envelope: CommandEnvelope<legal::LegalCommand>,
     ) -> Result<CommandReceipt<legal::LegalMutationResult>, CqrsError> {
         let pool = self
             .write_pool(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 envelope.correlation_id,
                 "legal",
             )
             .await?;
-        let access = Self::access(&envelope.actor, &envelope.tenant_scope, AccessMode::Write);
+        let access = Self::access(&envelope.actor, &envelope.active_scope, AccessMode::Write);
         legal::LegalCommandHandler::new(
             legal_sqlx::LegalWriteRepository::new(pool.clone()),
             legal_sqlx::LegalCommandAdapter::new(pool),
@@ -409,23 +415,23 @@ impl LegalCommandApplication for Wave8TenantApplication {
 }
 
 #[async_trait]
-impl LegalQueryApplication for Wave8TenantApplication {
+impl LegalQueryApplication for Wave8HoldingApplication {
     async fn execute(
         &self,
-        route: LegalTenantRoute,
+        route: LegalHoldingRoute,
         envelope: QueryEnvelope<legal::LegalQuery>,
     ) -> Result<QueryResult<legal::LegalQueryResponse>, CqrsError> {
         let pool = self
             .read_pool(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 envelope.correlation_id,
                 "legal",
             )
             .await?;
         let read = legal_sqlx::LegalReadRepository::new(pool)
             .map_err(|_| storage_configuration_error(envelope.correlation_id, "legal"))?;
-        let access = Self::access(&envelope.actor, &envelope.tenant_scope, AccessMode::Read);
+        let access = Self::access(&envelope.actor, &envelope.active_scope, AccessMode::Read);
         legal::LegalQueryHandler::new(read, access.clone(), access)
             .handle(envelope)
             .await
@@ -433,21 +439,21 @@ impl LegalQueryApplication for Wave8TenantApplication {
 }
 
 #[async_trait]
-impl SupportCommandApplication for Wave8TenantApplication {
+impl SupportCommandApplication for Wave8HoldingApplication {
     async fn execute(
         &self,
-        route: SupportTenantRoute,
+        route: SupportHoldingRoute,
         envelope: CommandEnvelope<support::SupportCommand>,
     ) -> Result<CommandReceipt<support::SupportMutationResult>, CqrsError> {
         let pool = self
             .write_pool(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 envelope.correlation_id,
                 "support",
             )
             .await?;
-        let access = Self::access(&envelope.actor, &envelope.tenant_scope, AccessMode::Write);
+        let access = Self::access(&envelope.actor, &envelope.active_scope, AccessMode::Write);
         support::SupportCommandHandler::new(
             support_sqlx::SupportWriteRepository::new(pool.clone()),
             support_sqlx::SupportCommandAdapter::new(pool),
@@ -461,10 +467,10 @@ impl SupportCommandApplication for Wave8TenantApplication {
 }
 
 #[async_trait]
-impl SupportQueryApplication for Wave8TenantApplication {
+impl SupportQueryApplication for Wave8HoldingApplication {
     async fn execute(
         &self,
-        route: SupportTenantRoute,
+        route: SupportHoldingRoute,
         envelope: QueryEnvelope<support::SupportQuery>,
     ) -> Result<QueryResult<support::SupportQueryResponse>, CqrsError> {
         let customer_channel = matches!(
@@ -480,7 +486,7 @@ impl SupportQueryApplication for Wave8TenantApplication {
             })
         );
         let customer_id = customer_channel
-            .then(|| Uuid::parse_str(&route.tenant_id))
+            .then(|| Uuid::parse_str(&route.holding_id))
             .transpose()
             .map_err(|_| {
                 context_failure(
@@ -493,15 +499,15 @@ impl SupportQueryApplication for Wave8TenantApplication {
             })?;
         let pool = self
             .read_pool(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 envelope.correlation_id,
                 "support",
             )
             .await?;
         let read = support_sqlx::SupportReadRepository::new(pool)
             .map_err(|_| storage_configuration_error(envelope.correlation_id, "support"))?;
-        let access = Self::access(&envelope.actor, &envelope.tenant_scope, AccessMode::Read);
+        let access = Self::access(&envelope.actor, &envelope.active_scope, AccessMode::Read);
         let result = support::SupportQueryHandler::new(read, access.clone(), access)
             .handle(envelope)
             .await?;
@@ -525,7 +531,7 @@ impl SupportQueryApplication for Wave8TenantApplication {
                     result.metadata.correlation_id,
                     "support.customer_ticket_scope_denied",
                     ErrorCategory::Denied,
-                    "customer Support record is outside the authenticated tenant",
+                    "customer Support record is outside the authenticated holding",
                     false,
                 ));
             }
@@ -535,11 +541,11 @@ impl SupportQueryApplication for Wave8TenantApplication {
 }
 
 #[async_trait]
-impl SupportCustomerFactResolver for Wave8TenantApplication {
+impl SupportCustomerFactResolver for Wave8HoldingApplication {
     async fn resolve_customer(
         &self,
-        route: &SupportTenantRoute,
-        authority: &TenantScope,
+        route: &SupportHoldingRoute,
+        authority: &AuthorityScope,
         customer_id: Uuid,
         account_id: Uuid,
     ) -> Result<customer::CustomerProfileFact, Status> {
@@ -550,8 +556,8 @@ impl SupportCustomerFactResolver for Wave8TenantApplication {
         }
         let pool = self
             .read_pool(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 fresh_correlation_id()?,
                 "customer_authority",
             )
@@ -569,9 +575,8 @@ impl SupportCustomerFactResolver for Wave8TenantApplication {
             .value
             .ok_or_else(|| Status::not_found("customer was not found"))?;
         let owning_company_id = match view.primary_authority {
-            TenantScope::Company { company_id, .. } | TenantScope::Branch { company_id, .. } => {
-                company_id
-            }
+            AuthorityScope::Company { company_id, .. }
+            | AuthorityScope::Branch { company_id, .. } => company_id,
             _ => {
                 return Err(Status::failed_precondition(
                     "customer owning company is unavailable",
@@ -602,12 +607,12 @@ impl SupportCustomerFactResolver for Wave8TenantApplication {
 }
 
 #[async_trait]
-impl SupportCapabilityAuthorityResolver for Wave8TenantApplication {
+impl SupportCapabilityAuthorityResolver for Wave8HoldingApplication {
     async fn resolve_issue_material(
         &self,
-        route: &SupportTenantRoute,
+        route: &SupportHoldingRoute,
         actor: &ActorAttribution,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         command_id: erpx_kernel::CommandId,
         capability_id: support::CapabilityId,
         session_id: support::SessionId,
@@ -629,8 +634,8 @@ impl SupportCapabilityAuthorityResolver for Wave8TenantApplication {
 
         let write_pool = self
             .write_pool(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 fresh_correlation_id()?,
                 "support",
             )
@@ -673,7 +678,7 @@ impl SupportCapabilityAuthorityResolver for Wave8TenantApplication {
         }
 
         let delivery_secret = self.derive_capability_secret(
-            &route.tenant_id,
+            &route.holding_id,
             command_id,
             capability_id,
             &actor.principal_ref,
@@ -735,20 +740,20 @@ impl Wave8ServerAuthenticator {
         }
         let router = self
             .state
-            .tenant_router
+            .holding_router
             .as_ref()
             .ok_or(SupportAuthenticationError::Unavailable)?;
         let routed = router
             .route(
-                &request.presented_route().tenant_id,
-                &request.presented_route().holding_ref,
+                &request.presented_route().holding_id,
+                &request.presented_route().data_profile_key,
                 RoutedDatabaseSide::Write,
             )
             .await
             .map_err(|_| SupportAuthenticationError::Unavailable)?;
-        let tenant_id = Uuid::parse_str(&routed.tenant_id)
+        let holding_id = Uuid::parse_str(&routed.holding_id)
             .map_err(|_| SupportAuthenticationError::Unavailable)?;
-        let pool = WritePool::for_tenant(routed.database_pool().clone(), tenant_id)
+        let pool = WritePool::for_holding(routed.database_pool().clone(), holding_id)
             .map_err(|_| SupportAuthenticationError::Unavailable)?;
         let repository = support_sqlx::SupportWriteRepository::new(pool);
         let capability = support::WriteRepository::load_capability(
@@ -840,8 +845,8 @@ impl Wave8ServerAuthenticator {
         &self,
         metadata: &tonic::metadata::MetadataMap,
         actor: &ActorAttribution,
-        scope: &TenantScope,
-        tenant_id: &str,
+        scope: &AuthorityScope,
+        holding_id: &str,
         subscription_id: Option<&str>,
         mfa_code: Option<&str>,
         mode: AccessMode,
@@ -853,7 +858,7 @@ impl Wave8ServerAuthenticator {
             metadata,
             actor,
             scope,
-            tenant_id,
+            holding_id,
             if write {
                 write_permission(context)
             } else {
@@ -883,7 +888,7 @@ macro_rules! authenticator {
                         request.transport_metadata(),
                         request.presented_actor(),
                         request.presented_scope(),
-                        &request.presented_route().tenant_id,
+                        &request.presented_route().holding_id,
                         request.subscription_id(),
                         request.mfa_code(),
                         mode,
@@ -941,7 +946,7 @@ impl SupportRequestAuthenticator for Wave8ServerAuthenticator {
             request.transport_metadata(),
             request.presented_actor(),
             request.presented_scope(),
-            &request.presented_route().tenant_id,
+            &request.presented_route().holding_id,
             support_permission(action),
             "support",
             action.requires_write_entitlement(),
@@ -1084,20 +1089,20 @@ fn storage_configuration_error(correlation_id: CorrelationId, context: &'static 
     )
 }
 
-fn cqrs_tenant_uuid(
-    tenant_id: &str,
+fn cqrs_holding_uuid(
+    holding_id: &str,
     correlation_id: CorrelationId,
     context: &'static str,
 ) -> Result<Uuid, CqrsError> {
-    Uuid::parse_str(tenant_id).map_err(|_| invalid_tenant_binding(correlation_id, context))
+    Uuid::parse_str(holding_id).map_err(|_| invalid_holding_binding(correlation_id, context))
 }
 
-fn invalid_tenant_binding(correlation_id: CorrelationId, context: &'static str) -> CqrsError {
+fn invalid_holding_binding(correlation_id: CorrelationId, context: &'static str) -> CqrsError {
     context_failure(
         correlation_id,
-        format!("{context}.invalid_tenant_identity"),
+        format!("{context}.invalid_holding_identity"),
         ErrorCategory::Internal,
-        "The routed tenant identity is invalid.",
+        "The routed holding identity is invalid.",
         false,
     )
 }
@@ -1124,8 +1129,8 @@ mod tests {
     use super::*;
     use erpx_kernel::{ActorKind, SessionId};
 
-    fn scope() -> TenantScope {
-        TenantScope::Company {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         }
@@ -1134,7 +1139,7 @@ mod tests {
     fn actor() -> ActorAttribution {
         ActorAttribution {
             principal_ref: Uuid::from_u128(3).to_string(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: Some(SessionId::try_from_uuid(Uuid::from_u128(4)).unwrap()),
             represented_principal_ref: None,
             support_capability_id: None,

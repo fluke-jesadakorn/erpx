@@ -1,6 +1,6 @@
 //! Worker composition for the production-oriented PostgreSQL/MinIO backup
 //! adapter. Durable state and replacement-read activation remain owned by
-//! `TenantDatabaseProvisioner`.
+//! `HoldingDatabaseProvisioner`.
 
 use std::{env, sync::Arc};
 
@@ -8,19 +8,19 @@ use async_trait::async_trait;
 use chrono::{Duration, Utc};
 use erpx_infrastructure::{
     BackupAdapterError, BackupExecutionRequest, BackupExecutionResult, BackupExecutor,
-    BackupExecutorError, DatabaseSide, MAX_TENANT_BACKUP_JOB_ATTEMPTS,
-    MAX_TENANT_BACKUP_JOB_LEASE_SECONDS, MAX_TENANT_BACKUP_JOB_PAGE_SIZE,
-    MAX_TENANT_BACKUP_JOB_PROJECTION_BATCH_SIZE, MIN_TENANT_BACKUP_JOB_LEASE_SECONDS,
-    PitrBackupAdapter, PitrBackupTarget, PitrRestoreTargetResolver, PostgresMinioBackupAdapter,
-    RestoreExecutor, RestoreTestExecutionRequest, RestoreTestExecutionResult, SqlxControlPlane,
-    TenantBackupJobClaim, TenantBackupRun, TenantDatabaseProvisioner,
-    TenantDatabaseProvisioningConfig, TenantDatabaseRouter, TenantProvisioner,
-    TenantReadDatabaseReplacement, TenantSourceProjection,
+    BackupExecutorError, DatabaseSide, HoldingBackupJobClaim, HoldingBackupRun,
+    HoldingDatabaseProvisioner, HoldingDatabaseProvisioningConfig, HoldingDatabaseRouter,
+    HoldingProvisioner, HoldingReadDatabaseReplacement, HoldingSourceProjection,
+    MAX_HOLDING_BACKUP_JOB_ATTEMPTS, MAX_HOLDING_BACKUP_JOB_LEASE_SECONDS,
+    MAX_HOLDING_BACKUP_JOB_PAGE_SIZE, MAX_HOLDING_BACKUP_JOB_PROJECTION_BATCH_SIZE,
+    MIN_HOLDING_BACKUP_JOB_LEASE_SECONDS, PitrBackupAdapter, PitrBackupTarget,
+    PitrRestoreTargetResolver, PostgresMinioBackupAdapter, RestoreExecutor,
+    RestoreTestExecutionRequest, RestoreTestExecutionResult, SqlxControlPlane,
 };
 
 use crate::{NamedWorkerHandler, WorkerHandlerReport, WorkerRuntimeError};
 
-pub const TENANT_BACKUP_HANDLER_NAME: &str = "tenant_backup";
+pub const HOLDING_BACKUP_HANDLER_NAME: &str = "holding_backup";
 pub const BACKUP_EXTERNAL_CREDENTIALS_BLOCKER_CODE: &str =
     "backup_external_credentials_unavailable";
 const BACKUP_CLAIM_INVALID_CODE: &str = "backup_claim_invalid";
@@ -64,9 +64,9 @@ impl BackupRuntime {
     /// adapter.
     pub async fn execute_backup(
         &self,
-        provisioner: &TenantProvisioner,
-        run: TenantBackupRun,
-    ) -> Result<TenantBackupRun, erpx_infrastructure::PersistenceError> {
+        provisioner: &HoldingProvisioner,
+        run: HoldingBackupRun,
+    ) -> Result<HoldingBackupRun, erpx_infrastructure::PersistenceError> {
         validate_backup_run_for_execution(&run)?;
         if run.kind == "pitr" {
             let Some(pitr_adapter) = self.pitr_adapter.as_ref() else {
@@ -100,11 +100,11 @@ impl BackupRuntime {
     /// reached. Durable workers must use the routed method below.
     pub async fn execute_restore_test(
         &self,
-        _provisioner: &TenantProvisioner,
-        _run: TenantBackupRun,
-        _replacement: TenantReadDatabaseReplacement,
+        _provisioner: &HoldingProvisioner,
+        _run: HoldingBackupRun,
+        _replacement: HoldingReadDatabaseReplacement,
         _source_version: u64,
-    ) -> Result<TenantBackupRun, erpx_infrastructure::PersistenceError> {
+    ) -> Result<HoldingBackupRun, erpx_infrastructure::PersistenceError> {
         Err(erpx_infrastructure::PersistenceError::InvalidData(
             "worker restore tests require the holding-scoped routed replacement path".into(),
         ))
@@ -112,7 +112,7 @@ impl BackupRuntime {
 
     /// Run the real physical PITR restore and target-evidence verification
     /// against an explicitly resolved isolated target. This method never
-    /// prepares, activates, or routes a tenant read replacement; credentialed
+    /// prepares, activates, or routes a holding read replacement; credentialed
     /// acceptance can call it once the resolver and target are supplied.
     /// Physical PITR remains fail-closed until those production credentials and
     /// the approved external restore rehearsal are present.
@@ -142,8 +142,8 @@ impl BackupRuntime {
 }
 
 /// Worker-facing composition for physical PostgreSQL PITR.  The durable
-/// backup run remains owned by `TenantProvisioner`; this adapter only binds a
-/// persisted recovery point and tenant registry target to the real
+/// backup run remains owned by `HoldingProvisioner`; this adapter only binds a
+/// persisted recovery point and holding registry target to the real
 /// `pg_basebackup`/WAL/object-store implementation.
 #[derive(Debug, Clone)]
 struct PitrBackupRuntime {
@@ -189,13 +189,13 @@ impl BackupExecutor for PitrBackupRuntime {
         };
         // PITR must use the registry-owned namespace carried by the target.
         // Falling back to the process-wide adapter namespace would allow a
-        // legacy or malformed target to read/write another tenant's object
+        // legacy or malformed target to read/write another holding's object
         // prefix. The normal provisioner path always binds this field through
-        // `TenantBackupTarget::for_run_in_namespace`; missing evidence is a
+        // `HoldingBackupTarget::for_run_in_namespace`; missing evidence is a
         // hard execution failure.
-        let storage_namespace = require_tenant_storage_namespace(target.storage_namespace())?;
+        let storage_namespace = require_holding_storage_namespace(target.storage_namespace())?;
         let pitr_target = PitrBackupTarget::new(
-            target.tenant_id(),
+            target.holding_id(),
             source_database_key,
             storage_namespace,
             target.backup_chain_ref(),
@@ -211,7 +211,7 @@ impl BackupExecutor for PitrBackupRuntime {
     }
 }
 
-fn require_tenant_storage_namespace(
+fn require_holding_storage_namespace(
     storage_namespace: Option<&str>,
 ) -> Result<&str, BackupExecutorError> {
     storage_namespace.ok_or(BackupExecutorError::Failed)
@@ -279,52 +279,52 @@ impl RestoreExecutor for BackupRuntime {
 /// Claims, run history, retry state, and dead letters live in the control
 /// write database; this handler owns no production in-memory queue.
 #[derive(Clone)]
-pub struct TenantBackupJobRuntimeHandler {
-    provisioner: TenantProvisioner,
-    database_provisioner: TenantDatabaseProvisioner,
-    router: TenantDatabaseRouter,
+pub struct HoldingBackupJobRuntimeHandler {
+    provisioner: HoldingProvisioner,
+    database_provisioner: HoldingDatabaseProvisioner,
+    router: HoldingDatabaseRouter,
     runtime: Option<BackupRuntime>,
     batch_size: u32,
     lease: Duration,
 }
 
-impl TenantBackupJobRuntimeHandler {
+impl HoldingBackupJobRuntimeHandler {
     pub fn from_env(
         control: Arc<SqlxControlPlane>,
         batch_size: u32,
         lease: Duration,
     ) -> Result<Self, WorkerRuntimeError> {
-        if batch_size == 0 || batch_size > MAX_TENANT_BACKUP_JOB_PAGE_SIZE {
+        if batch_size == 0 || batch_size > MAX_HOLDING_BACKUP_JOB_PAGE_SIZE {
             return Err(WorkerRuntimeError::Configuration(
-                "tenant backup batch size is outside its bound".into(),
+                "holding backup batch size is outside its bound".into(),
             ));
         }
-        if !(MIN_TENANT_BACKUP_JOB_LEASE_SECONDS..=MAX_TENANT_BACKUP_JOB_LEASE_SECONDS)
+        if !(MIN_HOLDING_BACKUP_JOB_LEASE_SECONDS..=MAX_HOLDING_BACKUP_JOB_LEASE_SECONDS)
             .contains(&lease.num_seconds())
         {
             return Err(WorkerRuntimeError::Configuration(
-                "tenant backup lease is outside its bound".into(),
+                "holding backup lease is outside its bound".into(),
             ));
         }
-        let config = TenantDatabaseProvisioningConfig::from_env()?;
-        let database_provisioner = TenantDatabaseProvisioner::new(Arc::clone(&control), config)?;
-        let router = TenantDatabaseRouter::new(
+        let config = HoldingDatabaseProvisioningConfig::from_env()?;
+        let database_provisioner = HoldingDatabaseProvisioner::new(Arc::clone(&control), config)?;
+        let router = HoldingDatabaseRouter::new(
             Arc::clone(&control),
-            TenantDatabaseProvisioningConfig::from_env()?,
+            HoldingDatabaseProvisioningConfig::from_env()?,
         )?;
         let runtime = match BackupRuntime::from_env() {
             Ok(runtime) => Some(runtime),
             Err(error) => {
                 tracing::warn!(
                     blocker = BACKUP_EXTERNAL_CREDENTIALS_BLOCKER_CODE,
-                    "tenant backup certification blocker queued; native external backup credentials are unavailable"
+                    "holding backup certification blocker queued; native external backup credentials are unavailable"
                 );
-                tracing::debug!(?error, "tenant backup adapter is disabled");
+                tracing::debug!(?error, "holding backup adapter is disabled");
                 None
             }
         };
         Ok(Self {
-            provisioner: TenantProvisioner::new(control),
+            provisioner: HoldingProvisioner::new(control),
             database_provisioner,
             router,
             runtime,
@@ -334,23 +334,23 @@ impl TenantBackupJobRuntimeHandler {
     }
 
     pub fn from_parts(
-        provisioner: TenantProvisioner,
-        database_provisioner: TenantDatabaseProvisioner,
-        router: TenantDatabaseRouter,
+        provisioner: HoldingProvisioner,
+        database_provisioner: HoldingDatabaseProvisioner,
+        router: HoldingDatabaseRouter,
         runtime: BackupRuntime,
         batch_size: u32,
         lease: Duration,
     ) -> Result<Self, WorkerRuntimeError> {
-        if batch_size == 0 || batch_size > MAX_TENANT_BACKUP_JOB_PAGE_SIZE {
+        if batch_size == 0 || batch_size > MAX_HOLDING_BACKUP_JOB_PAGE_SIZE {
             return Err(WorkerRuntimeError::Configuration(
-                "tenant backup batch size is outside its bound".into(),
+                "holding backup batch size is outside its bound".into(),
             ));
         }
-        if !(MIN_TENANT_BACKUP_JOB_LEASE_SECONDS..=MAX_TENANT_BACKUP_JOB_LEASE_SECONDS)
+        if !(MIN_HOLDING_BACKUP_JOB_LEASE_SECONDS..=MAX_HOLDING_BACKUP_JOB_LEASE_SECONDS)
             .contains(&lease.num_seconds())
         {
             return Err(WorkerRuntimeError::Configuration(
-                "tenant backup lease is outside its bound".into(),
+                "holding backup lease is outside its bound".into(),
             ));
         }
         Ok(Self {
@@ -367,22 +367,22 @@ impl TenantBackupJobRuntimeHandler {
     /// run/dead-letter evidence while the native external backup credentials
     /// are unavailable. No external operation is attempted in this mode.
     pub fn from_parts_without_external_adapter(
-        provisioner: TenantProvisioner,
-        database_provisioner: TenantDatabaseProvisioner,
-        router: TenantDatabaseRouter,
+        provisioner: HoldingProvisioner,
+        database_provisioner: HoldingDatabaseProvisioner,
+        router: HoldingDatabaseRouter,
         batch_size: u32,
         lease: Duration,
     ) -> Result<Self, WorkerRuntimeError> {
-        if batch_size == 0 || batch_size > MAX_TENANT_BACKUP_JOB_PAGE_SIZE {
+        if batch_size == 0 || batch_size > MAX_HOLDING_BACKUP_JOB_PAGE_SIZE {
             return Err(WorkerRuntimeError::Configuration(
-                "tenant backup batch size is outside its bound".into(),
+                "holding backup batch size is outside its bound".into(),
             ));
         }
-        if !(MIN_TENANT_BACKUP_JOB_LEASE_SECONDS..=MAX_TENANT_BACKUP_JOB_LEASE_SECONDS)
+        if !(MIN_HOLDING_BACKUP_JOB_LEASE_SECONDS..=MAX_HOLDING_BACKUP_JOB_LEASE_SECONDS)
             .contains(&lease.num_seconds())
         {
             return Err(WorkerRuntimeError::Configuration(
-                "tenant backup lease is outside its bound".into(),
+                "holding backup lease is outside its bound".into(),
             ));
         }
         Ok(Self {
@@ -397,7 +397,7 @@ impl TenantBackupJobRuntimeHandler {
 
     async fn execute_claim(
         &self,
-        claim: &TenantBackupJobClaim,
+        claim: &HoldingBackupJobClaim,
     ) -> Result<(), erpx_infrastructure::PersistenceError> {
         if validate_backup_claim_for_execution(claim).is_err() {
             // A claim is created with a durable started run. If the worker's
@@ -414,11 +414,11 @@ impl TenantBackupJobRuntimeHandler {
         }
         if let Err(error) = self
             .provisioner
-            .validate_active_backup_job_binding(&claim.tenant_id, &claim.holding_ref)
+            .validate_active_backup_job_binding(&claim.holding_id, &claim.data_profile_key)
             .await
         {
             self.provisioner
-                .record_failed_backup_run(claim.run.clone(), "tenant_binding_invalid")
+                .record_failed_backup_run(claim.run.clone(), "holding_binding_invalid")
                 .await?;
             return Err(error);
         }
@@ -440,7 +440,7 @@ impl TenantBackupJobRuntimeHandler {
                 let (candidate, source_version, source_projection) = restore_claim_inputs(claim)?;
                 if let Err(error) = self
                     .database_provisioner
-                    .provision_restore_test_candidate_database(&claim.tenant_id, candidate)
+                    .provision_restore_test_candidate_database(&claim.holding_id, candidate)
                     .await
                 {
                     self.provisioner
@@ -456,7 +456,7 @@ impl TenantBackupJobRuntimeHandler {
                     .execute_restore_test_with_routed_read_replacement_executor(
                         &self.router,
                         claim.run.clone(),
-                        &claim.holding_ref,
+                        &claim.data_profile_key,
                         candidate,
                         source_projection,
                         source_version,
@@ -493,7 +493,7 @@ impl TenantBackupJobRuntimeHandler {
     /// fail-closed and become durable dead-letter evidence at the job seam.
     async fn fail_closed_restore(
         &self,
-        claim: &TenantBackupJobClaim,
+        claim: &HoldingBackupJobClaim,
         original_error: erpx_infrastructure::PersistenceError,
     ) -> erpx_infrastructure::PersistenceError {
         let candidate = claim
@@ -503,8 +503,8 @@ impl TenantBackupJobRuntimeHandler {
         let routed = match self
             .router
             .route(
-                &claim.tenant_id,
-                &claim.holding_ref,
+                &claim.holding_id,
+                &claim.data_profile_key,
                 erpx_infrastructure::RoutedDatabaseSide::Read,
             )
             .await
@@ -529,9 +529,9 @@ impl TenantBackupJobRuntimeHandler {
 }
 
 #[async_trait]
-impl NamedWorkerHandler for TenantBackupJobRuntimeHandler {
+impl NamedWorkerHandler for HoldingBackupJobRuntimeHandler {
     fn name(&self) -> &str {
-        TENANT_BACKUP_HANDLER_NAME
+        HOLDING_BACKUP_HANDLER_NAME
     }
 
     async fn run_once(
@@ -540,7 +540,7 @@ impl NamedWorkerHandler for TenantBackupJobRuntimeHandler {
     ) -> Result<WorkerHandlerReport, WorkerRuntimeError> {
         let now = Utc::now();
         self.provisioner
-            .project_backup_jobs_to_read(MAX_TENANT_BACKUP_JOB_PROJECTION_BATCH_SIZE)
+            .project_backup_jobs_to_read(MAX_HOLDING_BACKUP_JOB_PROJECTION_BATCH_SIZE)
             .await?;
         let claims = self
             .provisioner
@@ -609,12 +609,12 @@ fn classify_backup_failure(error: &erpx_infrastructure::PersistenceError) -> (&'
     }
 }
 
-fn source_projection(value: &str) -> Option<TenantSourceProjection> {
+fn source_projection(value: &str) -> Option<HoldingSourceProjection> {
     match value {
-        "operations" => Some(TenantSourceProjection::Operations),
-        "finance_banking" => Some(TenantSourceProjection::FinanceBanking),
-        "finance_subledger" => Some(TenantSourceProjection::FinanceSubledger),
-        "finance_close" => Some(TenantSourceProjection::FinanceClose),
+        "operations" => Some(HoldingSourceProjection::Operations),
+        "finance_banking" => Some(HoldingSourceProjection::FinanceBanking),
+        "finance_subledger" => Some(HoldingSourceProjection::FinanceSubledger),
+        "finance_close" => Some(HoldingSourceProjection::FinanceClose),
         _ => None,
     }
 }
@@ -636,10 +636,10 @@ fn validate_opaque_ref(value: &str) -> bool {
 }
 
 fn validate_backup_run_for_execution(
-    run: &TenantBackupRun,
+    run: &HoldingBackupRun,
 ) -> Result<(), erpx_infrastructure::PersistenceError> {
     if run.id.is_nil()
-        || !validate_opaque_ref(&run.tenant_id)
+        || !validate_opaque_ref(&run.holding_id)
         || !validate_opaque_ref(&run.backup_ref)
         || run.status != "started"
         || run.completed_at.is_some()
@@ -658,22 +658,22 @@ fn validate_backup_run_for_execution(
 }
 
 fn validate_backup_claim_for_execution(
-    claim: &TenantBackupJobClaim,
+    claim: &HoldingBackupJobClaim,
 ) -> Result<(), erpx_infrastructure::PersistenceError> {
     if claim.id.is_nil()
         || claim.claim_id.is_nil()
         || claim.worker_id.is_nil()
         || claim.run.id.is_nil()
         || claim.attempt == 0
-        || claim.attempt > MAX_TENANT_BACKUP_JOB_ATTEMPTS
+        || claim.attempt > MAX_HOLDING_BACKUP_JOB_ATTEMPTS
     {
         return Err(erpx_infrastructure::PersistenceError::InvalidData(
             "backup job claim identifiers are required".into(),
         ));
     }
-    if !validate_opaque_ref(&claim.tenant_id)
-        || !validate_opaque_ref(&claim.holding_ref)
-        || claim.run.tenant_id != claim.tenant_id
+    if !validate_opaque_ref(&claim.holding_id)
+        || !validate_opaque_ref(&claim.data_profile_key)
+        || claim.run.holding_id != claim.holding_id
         || claim.run.kind != claim.kind
         || claim.run.status != "started"
         || claim.run.completed_at.is_some()
@@ -772,8 +772,8 @@ fn validate_backup_claim_for_execution(
 }
 
 fn restore_claim_inputs(
-    claim: &TenantBackupJobClaim,
-) -> Result<(&str, u64, TenantSourceProjection), erpx_infrastructure::PersistenceError> {
+    claim: &HoldingBackupJobClaim,
+) -> Result<(&str, u64, HoldingSourceProjection), erpx_infrastructure::PersistenceError> {
     let candidate = claim
         .candidate_read_database_key
         .as_deref()
@@ -796,8 +796,8 @@ fn restore_claim_inputs(
 }
 
 fn validate_restore_activation_evidence(
-    claim: &TenantBackupJobClaim,
-    activation: &erpx_infrastructure::TenantRestoreTestActivation,
+    claim: &HoldingBackupJobClaim,
+    activation: &erpx_infrastructure::HoldingRestoreTestActivation,
 ) -> Result<(), erpx_infrastructure::PersistenceError> {
     let candidate = claim
         .candidate_read_database_key
@@ -814,7 +814,7 @@ fn validate_restore_activation_evidence(
     })?;
     let run = &activation.run;
     if run.id != claim.run.id
-        || run.tenant_id != claim.tenant_id
+        || run.holding_id != claim.holding_id
         || run.kind != "restore_test"
         || run.backup_ref != claim.run.backup_ref
         || run.restore_target_ref != claim.run.restore_target_ref
@@ -839,16 +839,16 @@ fn validate_restore_activation_evidence(
 mod tests {
     use super::{
         BACKUP_CLAIM_INVALID_CODE, BACKUP_CLAIM_INVALID_ERROR,
-        BACKUP_EXTERNAL_CREDENTIALS_BLOCKER_CODE, TENANT_BACKUP_HANDLER_NAME,
-        classify_backup_failure, require_tenant_storage_namespace, source_projection,
+        BACKUP_EXTERNAL_CREDENTIALS_BLOCKER_CODE, HOLDING_BACKUP_HANDLER_NAME,
+        classify_backup_failure, require_holding_storage_namespace, source_projection,
         validate_backup_claim_for_execution, validate_backup_run_for_execution,
         validate_database_key, validate_restore_activation_evidence,
     };
     use chrono::Utc;
     use erpx_domain::platform_completion::PitrRecoveryPoint;
     use erpx_infrastructure::{
-        BackupExecutorError, PersistenceError, TenantBackupJobClaim, TenantBackupRun,
-        TenantRestoreTestActivation,
+        BackupExecutorError, HoldingBackupJobClaim, HoldingBackupRun, HoldingRestoreTestActivation,
+        PersistenceError,
     };
     use uuid::Uuid;
 
@@ -882,31 +882,31 @@ mod tests {
             )),
             (BACKUP_CLAIM_INVALID_CODE, false)
         );
-        assert_eq!(TENANT_BACKUP_HANDLER_NAME, "tenant_backup");
+        assert_eq!(HOLDING_BACKUP_HANDLER_NAME, "holding_backup");
     }
 
     #[test]
     fn pitr_requires_registry_owned_storage_namespace() {
         assert_eq!(
-            require_tenant_storage_namespace(Some("tenant-storage-a")),
-            Ok("tenant-storage-a")
+            require_holding_storage_namespace(Some("holding-storage-a")),
+            Ok("holding-storage-a")
         );
         assert_eq!(
-            require_tenant_storage_namespace(None),
+            require_holding_storage_namespace(None),
             Err(BackupExecutorError::Failed)
         );
     }
 
     #[test]
     fn malformed_claim_is_not_allowed_to_retry_without_a_run_receipt() {
-        let mut claim = TenantBackupJobClaim {
+        let mut claim = HoldingBackupJobClaim {
             id: Uuid::new_v4(),
-            tenant_id: "tenant-a".into(),
-            holding_ref: "holding-a".into(),
+            holding_id: "holding-a".into(),
+            data_profile_key: "holding-a".into(),
             kind: "full".into(),
-            run: TenantBackupRun {
+            run: HoldingBackupRun {
                 id: Uuid::new_v4(),
-                tenant_id: "tenant-a".into(),
+                holding_id: "holding-a".into(),
                 kind: "full".into(),
                 status: "started".into(),
                 backup_ref: "backup-a".into(),
@@ -937,14 +937,14 @@ mod tests {
 
     #[test]
     fn restore_claim_validation_rejects_missing_or_unsafe_restore_inputs() {
-        let mut claim = TenantBackupJobClaim {
+        let mut claim = HoldingBackupJobClaim {
             id: Uuid::new_v4(),
-            tenant_id: "tenant-a".into(),
-            holding_ref: "holding-a".into(),
+            holding_id: "holding-a".into(),
+            data_profile_key: "holding-a".into(),
             kind: "restore_test".into(),
-            run: TenantBackupRun {
+            run: HoldingBackupRun {
                 id: Uuid::new_v4(),
-                tenant_id: "tenant-a".into(),
+                holding_id: "holding-a".into(),
                 kind: "restore_test".into(),
                 status: "started".into(),
                 backup_ref: "backup-a".into(),
@@ -983,14 +983,14 @@ mod tests {
 
     #[test]
     fn restore_claim_validation_is_fail_closed_for_full_and_stale_runs() {
-        let mut claim = TenantBackupJobClaim {
+        let mut claim = HoldingBackupJobClaim {
             id: Uuid::new_v4(),
-            tenant_id: "tenant-a".into(),
-            holding_ref: "holding-a".into(),
+            holding_id: "holding-a".into(),
+            data_profile_key: "holding-a".into(),
             kind: "full".into(),
-            run: TenantBackupRun {
+            run: HoldingBackupRun {
                 id: Uuid::new_v4(),
-                tenant_id: "tenant-a".into(),
+                holding_id: "holding-a".into(),
                 kind: "full".into(),
                 status: "started".into(),
                 backup_ref: "backup-a".into(),
@@ -1029,9 +1029,9 @@ mod tests {
 
     #[test]
     fn backup_run_boundary_rejects_metadata_only_or_malformed_execution() {
-        let mut run = TenantBackupRun {
+        let mut run = HoldingBackupRun {
             id: Uuid::new_v4(),
-            tenant_id: "tenant-a".into(),
+            holding_id: "holding-a".into(),
             kind: "full".into(),
             status: "started".into(),
             backup_ref: "backup-a".into(),
@@ -1056,14 +1056,14 @@ mod tests {
 
     #[test]
     fn restore_activation_evidence_binds_run_candidate_generation_and_watermark() {
-        let claim = TenantBackupJobClaim {
+        let claim = HoldingBackupJobClaim {
             id: Uuid::new_v4(),
-            tenant_id: "tenant-a".into(),
-            holding_ref: "holding-a".into(),
+            holding_id: "holding-a".into(),
+            data_profile_key: "holding-a".into(),
             kind: "restore_test".into(),
-            run: TenantBackupRun {
+            run: HoldingBackupRun {
                 id: Uuid::new_v4(),
-                tenant_id: "tenant-a".into(),
+                holding_id: "holding-a".into(),
                 kind: "restore_test".into(),
                 status: "started".into(),
                 backup_ref: "backup-a".into(),
@@ -1081,8 +1081,8 @@ mod tests {
             claim_id: Uuid::new_v4(),
             worker_id: Uuid::new_v4(),
         };
-        let activation = TenantRestoreTestActivation {
-            run: TenantBackupRun {
+        let activation = HoldingRestoreTestActivation {
+            run: HoldingBackupRun {
                 status: "completed".into(),
                 completed_at: Some(Utc::now()),
                 verified: true,

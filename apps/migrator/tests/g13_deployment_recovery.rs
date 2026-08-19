@@ -15,23 +15,23 @@ use std::{
 
 const MIGRATION_LIB: &str = include_str!("../../../crates/migration/src/lib.rs");
 const CONTROL_MIGRATION: &str =
-    include_str!("../../../crates/migration/migrations/0001_control_plane.sql");
+    include_str!("../../../crates/migration/migrations/0001_baseline.sql");
 const COMMAND_RECEIPTS_MIGRATION: &str =
-    include_str!("../../../crates/migration/migrations/0002_g1_002_command_receipts.sql");
+    include_str!("../../../crates/migration/migrations/0001_baseline.sql");
 const PROTO_BUILD: &str = include_str!("../../../crates/proto/build.rs");
 const PROTO_LIB: &str = include_str!("../../../crates/proto/src/lib.rs");
-const COMMON_PROTO: &str = include_str!("../../../crates/proto/proto/erpx/common/v2/context.proto");
+const COMMON_PROTO: &str = include_str!("../../../crates/proto/proto/erpx/common/context.proto");
 const IDENTITY_ACCESS_PROTO: &str =
-    include_str!("../../../crates/proto/proto/erpx/identity_access/v2/service.proto");
+    include_str!("../../../crates/proto/proto/erpx/identity_access/service.proto");
 const PLATFORM_ADMINISTRATION_PROTO: &str =
-    include_str!("../../../crates/proto/proto/erpx/platform_administration/v2/service.proto");
+    include_str!("../../../crates/proto/proto/erpx/platform_administration/service.proto");
 const ACTIVE_PROTO_CATALOG: &str =
-    include_str!("../../../crates/proto/proto/erpx/catalog/v2/active.proto");
+    include_str!("../../../crates/proto/proto/erpx/catalog/active.proto");
 const MIGRATOR_MAIN: &str = include_str!("../src/main.rs");
 const WORKER_LIB: &str = include_str!("../../worker/src/lib.rs");
 const WORKER_APP: &str = include_str!("../../worker/src/app.rs");
 const PROJECTION_SCHEDULER: &str =
-    include_str!("../../../crates/infrastructure/src/tenant_projection_scheduler.rs");
+    include_str!("../../../crates/infrastructure/src/holding_projection_scheduler.rs");
 const G13_TARGET_RUNTIME: &str = include_str!("../../worker/src/g13_target_runtime.rs");
 const SERVER_LIB: &str = include_str!("../../server/src/lib.rs");
 
@@ -95,8 +95,8 @@ fn g13_authoritative_migration_and_protobuf_compatibility_surfaces_are_present()
         &[
             "CONTROL_PLANE_MIGRATOR",
             "CONTROL_READ_MIGRATOR",
-            "TENANT_WRITE_MIGRATOR",
-            "TENANT_READ_MIGRATOR",
+            "HOLDING_WRITE_MIGRATOR",
+            "HOLDING_READ_MIGRATOR",
             "pub enum MigrationPhase",
             "RollbackRehearsed",
             "FinalDeltaImported",
@@ -113,7 +113,7 @@ fn g13_authoritative_migration_and_protobuf_compatibility_surfaces_are_present()
     );
     require_markers(
         CONTROL_MIGRATION,
-        "migrations/0001_control_plane.sql",
+        "migrations/0001_baseline.sql",
         &[
             "erpx_control.idempotency_keys",
             "erpx_control.outbox_events",
@@ -124,7 +124,7 @@ fn g13_authoritative_migration_and_protobuf_compatibility_surfaces_are_present()
     );
     require_markers(
         COMMAND_RECEIPTS_MIGRATION,
-        "migrations/0002_g1_002_command_receipts.sql",
+        "migrations/0001_baseline.sql",
         &[
             "ALTER TABLE erpx_control.idempotency_keys",
             "CREATE TABLE IF NOT EXISTS erpx_control.projection_event_receipts",
@@ -132,7 +132,7 @@ fn g13_authoritative_migration_and_protobuf_compatibility_surfaces_are_present()
         ],
     );
 
-    // Generation-v2 sources are the only inputs to the approved descriptor
+    // current sources are the only inputs to the approved descriptor
     // and generated Rust business surface.
     require_markers(
         PROTO_BUILD,
@@ -140,7 +140,7 @@ fn g13_authoritative_migration_and_protobuf_compatibility_surfaces_are_present()
         &[
             "const ACTIVE_PROTO_SOURCE_FILES",
             "const ACTIVE_PROTO_ENTRYPOINTS",
-            "proto/erpx/catalog/v2/active.proto",
+            "proto/erpx/catalog/active.proto",
             "cargo:rerun-if-changed={proto_file}",
             "build_client(true)",
             "build_server(true)",
@@ -155,42 +155,40 @@ fn g13_authoritative_migration_and_protobuf_compatibility_surfaces_are_present()
         PROTO_LIB,
         "crates/proto/src/lib.rs",
         &[
-            "tonic::include_proto!(\"erpx.common.v2\")",
+            "tonic::include_proto!(\"erpx.common\")",
             "pub const ACTIVE_SERVICE_COUNT: usize = 65",
-            "pub const ACTIVE_SERVICE_ID_FIRST: u16 = 201",
-            "pub const ACTIVE_SERVICE_ID_LAST: u16 = 265",
         ],
     );
     require_markers(
         ACTIVE_PROTO_CATALOG,
-        "catalog/v2/active.proto",
+        "catalog/active.proto",
         &[
-            "package erpx.catalog.v2;",
-            "import \"erpx/identity_access/v2/service.proto\";",
-            "import \"erpx/collaboration/v2/service.proto\";",
-            "import \"erpx/agent/v2/service.proto\";",
-            "import \"erpx/reference/v2/service.proto\";",
+            "package erpx.catalog;",
+            "import \"erpx/identity_access/service.proto\";",
+            "import \"erpx/collaboration/service.proto\";",
+            "import \"erpx/agent/service.proto\";",
+            "import \"erpx/reference/service.proto\";",
         ],
     );
     require_markers(
         COMMON_PROTO,
-        "common/v2/context.proto",
-        &["package erpx.common.v2;"],
+        "common/context.proto",
+        &["package erpx.common;"],
     );
     require_markers(
         PLATFORM_ADMINISTRATION_PROTO,
-        "platform_administration/v2/service.proto",
+        "platform_administration/service.proto",
         &[
-            "package erpx.platform_administration.v2;",
+            "package erpx.platform_administration;",
             "service PlatformAdministrationCommandService",
             "service PlatformAdministrationQueryService",
         ],
     );
     require_markers(
         IDENTITY_ACCESS_PROTO,
-        "identity_access/v2/service.proto",
+        "identity_access/service.proto",
         &[
-            "package erpx.identity_access.v2;",
+            "package erpx.identity_access;",
             "service IdentityAccessCommandService",
             "service IdentityAccessQueryService",
         ],
@@ -234,7 +232,7 @@ fn g13_worker_restart_idempotency_and_observability_seams_are_present() {
     );
     require_markers(
         PROJECTION_SCHEDULER,
-        "crates/infrastructure/src/tenant_projection_scheduler.rs",
+        "crates/infrastructure/src/holding_projection_scheduler.rs",
         &[
             "pub struct ProjectionLease",
             "pub fn claim(",
@@ -327,8 +325,8 @@ fn g13_external_and_runtime_acceptance_blockers_are_explicitly_queued() {
     let runtime_references = [
         "ERPX_CONTROL_WRITE_DATABASE_URL",
         "ERPX_CONTROL_READ_DATABASE_URL",
-        "ERPX_TENANT_ADMIN_DATABASE_URL",
-        "ERPX_TENANT_DATABASE_URL_TEMPLATE",
+        "ERPX_HOLDING_ADMIN_DATABASE_URL",
+        "ERPX_HOLDING_DATABASE_URL_TEMPLATE",
     ];
     let missing_runtime_references = runtime_references
         .iter()

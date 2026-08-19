@@ -13,7 +13,7 @@ use thiserror::Error;
 use uuid::Uuid;
 use zeroize::Zeroizing;
 
-pub const WEB_SESSION_COOKIE_NAME: &str = "erpx_web_session_v2";
+pub const WEB_SESSION_COOKIE_NAME: &str = "erpx_web_session";
 pub const MAX_WEB_SESSION_ACCOUNTS: usize = 5;
 pub const WEB_SESSION_SELECTOR_BYTES: usize = 32;
 const MAX_TOKEN_BYTES: usize = 16 * 1024;
@@ -398,7 +398,7 @@ mod tests {
         account.development_context_token = Some(SensitiveToken::new("context-token").unwrap());
         account.development_active_role = Some(SafeActiveRole {
             source: "local".into(),
-            selection_id: "demo-tenant:finance_operator".into(),
+            selection_id: "demo-holding:finance_operator".into(),
             role_key: Some("finance_operator".into()),
             scope_key: Some("branch:all".into()),
         });

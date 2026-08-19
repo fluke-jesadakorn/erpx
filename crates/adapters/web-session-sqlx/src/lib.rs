@@ -131,7 +131,7 @@ impl fmt::Debug for WebSessionCipher {
 }
 
 fn token_aad(bundle_id: Uuid, session_id: Uuid, kind: &'static str, key_reference: &str) -> String {
-    format!("erpx-web-session-v1/{bundle_id}/{session_id}/{kind}/{key_reference}")
+    format!("erpx-web-session/{bundle_id}/{session_id}/{kind}/{key_reference}")
 }
 
 struct EncryptedToken {

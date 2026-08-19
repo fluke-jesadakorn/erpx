@@ -9,7 +9,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_domain::{
-    access::Scope,
+    contracts::AuthorityScope as Scope,
     support::{
         SupportCapability, SupportDeviceSessionBinding, SupportError, SupportMode, SupportSession,
     },
@@ -199,12 +199,12 @@ where
 }
 
 pub const SUPPORT_WORKFLOW_HIGH_RISK_MODES: &[SupportMode] =
-    &[SupportMode::TenantMutation, SupportMode::Impersonation];
+    &[SupportMode::HoldingMutation, SupportMode::Impersonation];
 
 #[cfg(test)]
 mod tests {
     use chrono::Duration;
-    use erpx_domain::access::Scope;
+    use erpx_domain::contracts::AuthorityScope as Scope;
 
     use super::*;
 
@@ -223,7 +223,7 @@ mod tests {
             ticket_id,
             customer_id,
             "support-agent-1",
-            SupportMode::TenantMutation,
+            SupportMode::HoldingMutation,
             vec!["ticket.read".into()],
             scope.canonical_key(),
             "support",
@@ -251,7 +251,7 @@ mod tests {
             "device-1",
             session.id,
             ticket_id,
-            SupportMode::TenantMutation,
+            SupportMode::HoldingMutation,
             vec!["ticket.read".into()],
             scope.canonical_key(),
             "support",

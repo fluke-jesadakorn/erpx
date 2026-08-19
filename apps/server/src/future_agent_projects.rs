@@ -22,8 +22,8 @@ use erpx_cqrs_sqlx::{ReadPool, WritePool};
 use erpx_infrastructure::RoutedDatabaseSide;
 use erpx_integration_contracts::{StableRecordRef, catalog::ContextId, reference::RecordTypeId};
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, EventId, QueryId,
-    RecordId, SessionId, SystemClock, TenantId, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
+    HoldingId, QueryId, RecordId, SessionId, SystemClock,
 };
 use erpx_projects::{
     AddProjectNodeInput, AttachmentRef, ChangeHandoff, ChangeProjectNode,
@@ -38,7 +38,7 @@ use erpx_projects::{AuthorizationPort as _, ReadRepository as _};
 use erpx_projects_sqlx::{ProjectsCommandAdapter, ProjectsReadRepository, ProjectsWriteRepository};
 use erpx_proto::{
     common,
-    erpx::{agent::v2 as agent, projects::v2 as projects},
+    erpx::{agent, projects},
 };
 use tonic::{Request, Response, Status, metadata::MetadataMap};
 use uuid::Uuid;
@@ -52,8 +52,8 @@ use projects::{
     projects_query_service_server::ProjectsQueryService,
 };
 
-use crate::tenant_workspace::resolve_tenant_workspace;
-use crate::wave4_composition::authenticate_context_for_tenant;
+use crate::holding_workspace::resolve_holding_workspace;
+use crate::wave4_composition::authenticate_context_for_holding;
 use crate::{AppState, require_actor_match};
 
 const MAX_SECURITY_INPUT_LENGTH: usize = 512;
@@ -81,30 +81,30 @@ pub enum FutureAccessMode {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FutureTenantRoute {
-    tenant_id: String,
-    holding_ref: String,
+pub struct FutureHoldingRoute {
+    holding_id: String,
+    data_profile_key: String,
 }
 
-impl FutureTenantRoute {
+impl FutureHoldingRoute {
     pub fn try_new(
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, FutureAuthenticationError> {
         let route = Self {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
         };
         validate_route(&route).map_err(|_| FutureAuthenticationError::Internal)?;
         Ok(route)
     }
 
-    pub fn tenant_id(&self) -> &str {
-        &self.tenant_id
+    pub fn holding_id(&self) -> &str {
+        &self.holding_id
     }
 
-    pub fn holding_ref(&self) -> &str {
-        &self.holding_ref
+    pub fn data_profile_key(&self) -> &str {
+        &self.data_profile_key
     }
 }
 
@@ -113,7 +113,7 @@ impl FutureTenantRoute {
 pub struct FutureAuthenticationRequest {
     transport_metadata: MetadataMap,
     presented_actor: ActorAttribution,
-    presented_scope: TenantScope,
+    presented_scope: AuthorityScope,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
     owner_context: FutureOwnerContext,
@@ -123,28 +123,28 @@ pub struct FutureAuthenticationRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthenticatedFutureRequest {
     actor: ActorAttribution,
-    tenant_scope: TenantScope,
-    tenant_route: FutureTenantRoute,
+    active_scope: AuthorityScope,
+    holding_route: FutureHoldingRoute,
 }
 
 impl AuthenticatedFutureRequest {
     pub fn try_new(
         actor: ActorAttribution,
-        tenant_scope: TenantScope,
-        tenant_route: FutureTenantRoute,
+        active_scope: AuthorityScope,
+        holding_route: FutureHoldingRoute,
     ) -> Result<Self, FutureAuthenticationError> {
         actor
             .validate()
             .map_err(|_| FutureAuthenticationError::Internal)?;
-        tenant_scope
+        active_scope
             .validate()
             .map_err(|_| FutureAuthenticationError::Internal)?;
-        validate_route_scope(&tenant_route, &tenant_scope)
+        validate_route_scope(&holding_route, &active_scope)
             .map_err(|_| FutureAuthenticationError::Internal)?;
         Ok(Self {
             actor,
-            tenant_scope,
-            tenant_route,
+            active_scope,
+            holding_route,
         })
     }
 }
@@ -159,7 +159,7 @@ pub enum FutureAuthenticationError {
 
 #[async_trait]
 pub trait FutureAgentProjectsAuthenticator: Send + Sync + 'static {
-    /// Resolves the canonical actor, session authority, and physical tenant
+    /// Resolves the canonical actor, session authority, and physical holding
     /// route. Presented protobuf scope is only an authentication hint.
     async fn authenticate(
         &self,
@@ -171,56 +171,56 @@ pub trait FutureAgentProjectsAuthenticator: Send + Sync + 'static {
 pub trait ProjectsCommandApplication: Send + Sync + 'static {
     async fn create_project(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         context: ProjectsApplicationCommandContext,
         command: CreateProject,
     ) -> Result<CommandReceipt<ProjectsAggregate>, ProjectApplicationError>;
 
     async fn transition_project(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         context: ProjectsApplicationCommandContext,
         command: TransitionProject,
     ) -> Result<CommandReceipt<ProjectsAggregate>, ProjectApplicationError>;
 
     async fn add_node(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         context: ProjectsApplicationCommandContext,
         command: AddProjectNodeInput,
     ) -> Result<CommandReceipt<ProjectsAggregate>, ProjectApplicationError>;
 
     async fn change_node(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         context: ProjectsApplicationCommandContext,
         command: ChangeProjectNode,
     ) -> Result<CommandReceipt<ProjectsAggregate>, ProjectApplicationError>;
 
     async fn propose_dependency(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         context: ProjectsApplicationCommandContext,
         command: ProposeDependency,
     ) -> Result<CommandReceipt<ProjectsAggregate>, ProjectApplicationError>;
 
     async fn decide_dependency(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         context: ProjectsApplicationCommandContext,
         command: DecideDependency,
     ) -> Result<CommandReceipt<ProjectsAggregate>, ProjectApplicationError>;
 
     async fn propose_handoff(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         context: ProjectsApplicationCommandContext,
         command: ProposeHandoff,
     ) -> Result<CommandReceipt<ProjectsAggregate>, ProjectApplicationError>;
 
     async fn change_handoff(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         context: ProjectsApplicationCommandContext,
         command: ChangeHandoff,
     ) -> Result<CommandReceipt<ProjectsAggregate>, ProjectApplicationError>;
@@ -232,27 +232,27 @@ pub trait ProjectsQueryApplication: Send + Sync + 'static {
     /// Projects read repository with the canonical authority scope.
     async fn get_project(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         consistency: QueryConsistency,
         project_id: ProjectId,
     ) -> Result<ReadProjection<Option<ProjectView>>, erpx_projects::PortError>;
 
     async fn get_project_graph(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         consistency: QueryConsistency,
         project_id: ProjectId,
     ) -> Result<ReadProjection<Option<ProjectGraphView>>, erpx_projects::PortError>;
 
     async fn get_project_record(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         consistency: QueryConsistency,
         record_id: Uuid,
         record_kind: ProjectRecordKind,
@@ -261,9 +261,9 @@ pub trait ProjectsQueryApplication: Send + Sync + 'static {
     /// Implementations must authorize `ProjectAction::List` before lookup.
     async fn list_projects(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         consistency: QueryConsistency,
         filter: ProjectListFilter,
     ) -> Result<ReadProjection<ProjectList>, erpx_projects::PortError>;
@@ -275,9 +275,9 @@ pub trait AgentQueryApplication: Send + Sync + 'static {
     /// authorization using the canonical authenticated actor and scope.
     async fn routing_summary(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         id: PoolRoutingDecisionId,
     ) -> Result<Option<PoolRoutingSummary>, AgentPortError>;
 
@@ -285,9 +285,9 @@ pub trait AgentQueryApplication: Send + Sync + 'static {
     /// authorization using the canonical authenticated actor and scope.
     async fn invocation_summary(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         id: ProviderInvocationId,
     ) -> Result<Option<InvocationEvidenceSummary>, AgentPortError>;
 }
@@ -355,7 +355,7 @@ where
         let receipt = self
             .application
             .change_handoff(
-                authenticated.tenant_route,
+                authenticated.holding_route,
                 authenticated.projects_context,
                 ChangeHandoff {
                     handoff_id: handoff_id(&input.handoff_id)?,
@@ -408,7 +408,7 @@ impl FutureAgentProjectsAuthenticator for AppStateFutureAuthenticator {
         let mut transport = Request::new(());
         *transport.metadata_mut() = request.transport_metadata;
         // Token/session authentication is deliberately the first protected
-        // operation. Tenant routing and owner-context authorization follow it.
+        // operation. Holding routing and owner-context authorization follow it.
         let claims = self
             .state
             .auth
@@ -421,7 +421,7 @@ impl FutureAgentProjectsAuthenticator for AppStateFutureAuthenticator {
             "future-context actor must match the authenticated principal",
         )
         .map_err(map_future_auth_status)?;
-        let workspace = resolve_tenant_workspace(
+        let workspace = resolve_holding_workspace(
             &self.state,
             &request.presented_scope,
             None,
@@ -435,7 +435,7 @@ impl FutureAgentProjectsAuthenticator for AppStateFutureAuthenticator {
         let presented_actor = ActorAttribution {
             principal_ref: claims.principal_ref,
             kind: match claims.principal_kind {
-                erpx_identity::AuthenticatedPrincipalKind::Human => ActorKind::TenantUser,
+                erpx_identity::AuthenticatedPrincipalKind::Human => ActorKind::HoldingUser,
                 erpx_identity::AuthenticatedPrincipalKind::Agent
                 | erpx_identity::AuthenticatedPrincipalKind::Service => ActorKind::Service,
             },
@@ -463,13 +463,13 @@ impl FutureAgentProjectsAuthenticator for AppStateFutureAuthenticator {
         {
             return Err(FutureAuthenticationError::Denied);
         }
-        let actor = authenticate_context_for_tenant(
+        let actor = authenticate_context_for_holding(
             &self.state,
             transport.metadata(),
             &presented_actor,
             &request.presented_scope,
             &workspace.customer_id.to_string(),
-            &workspace.tenant_id,
+            &workspace.holding_id,
             permission,
             product,
             request.access_mode == FutureAccessMode::Write,
@@ -478,7 +478,7 @@ impl FutureAgentProjectsAuthenticator for AppStateFutureAuthenticator {
         )
         .await
         .map_err(map_future_auth_status)?;
-        let route = FutureTenantRoute::try_new(workspace.tenant_id, workspace.holding_ref)?;
+        let route = FutureHoldingRoute::try_new(workspace.holding_id, workspace.data_profile_key)?;
         AuthenticatedFutureRequest::try_new(actor, request.presented_scope, route)
     }
 }
@@ -499,7 +499,7 @@ fn map_future_auth_status(status: Status) -> FutureAuthenticationError {
 #[derive(Debug, Clone)]
 struct ProjectsBoundaryAccess {
     actor: ActorAttribution,
-    authority_scope: TenantScope,
+    authority_scope: AuthorityScope,
     write: bool,
 }
 
@@ -528,7 +528,7 @@ impl erpx_projects::AuthorizationPort for ProjectsBoundaryAccess {
 impl erpx_projects::EntitlementPort for ProjectsBoundaryAccess {
     async fn ensure_projects_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         write: bool,
     ) -> Result<(), erpx_projects::PortError> {
         if write != self.write || !self.authority_scope.contains(scope) {
@@ -561,7 +561,7 @@ impl erpx_projects::DependencyGraphPort for SqlxProjectsDependencyGraph {
                  SELECT d.source_project_id,d.target_project_id
                  FROM erpx_projects_read.dependency_projection d
                  JOIN erpx_cqrs_read.projection_generations g
-                   ON g.tenant_id=d.tenant_id AND g.projection_name=d.projection_name
+                   ON g.holding_id=d.holding_id AND g.projection_name=d.projection_name
                   AND g.generation=d.generation AND g.status='active'
                  WHERE d.dependency_status='accepted'
              ), reachable(project_id) AS (
@@ -605,17 +605,17 @@ impl AppStateProjectsApplication {
 
     async fn command_service(
         &self,
-        route: &FutureTenantRoute,
+        route: &FutureHoldingRoute,
         context: &ProjectsApplicationCommandContext,
     ) -> Result<ConcreteProjectsCommandService, ProjectApplicationError> {
-        let tenant_uuid = parse_route_tenant(route)?;
+        let holding_uuid = parse_route_holding(route)?;
         let write_pool = self.route(route, RoutedDatabaseSide::Write).await?;
         let read_pool = self.route(route, RoutedDatabaseSide::Read).await?;
-        let write = WritePool::for_tenant(write_pool, tenant_uuid)
+        let write = WritePool::for_holding(write_pool, holding_uuid)
             .map_err(|_| erpx_projects::PortError::Unavailable)?;
-        let read = ReadPool::for_tenant(read_pool, tenant_uuid)
+        let read = ReadPool::for_holding(read_pool, holding_uuid)
             .map_err(|_| erpx_projects::PortError::Unavailable)?;
-        let tenant_id = TenantId::try_from_uuid(tenant_uuid)
+        let holding_id = HoldingId::try_from_uuid(holding_uuid)
             .map_err(|_| erpx_projects::PortError::Unavailable)?;
         let access = ProjectsBoundaryAccess {
             actor: context.actor.clone(),
@@ -624,7 +624,7 @@ impl AppStateProjectsApplication {
         };
         Ok(erpx_projects::ProjectsCommandService::new(
             ProjectsWriteRepository::new(write.clone()),
-            ProjectsCommandAdapter::new(write, tenant_id),
+            ProjectsCommandAdapter::new(write, holding_id),
             access.clone(),
             access,
             SqlxProjectsDependencyGraph { pool: read },
@@ -634,31 +634,31 @@ impl AppStateProjectsApplication {
 
     async fn route(
         &self,
-        route: &FutureTenantRoute,
+        route: &FutureHoldingRoute,
         side: RoutedDatabaseSide,
     ) -> Result<sqlx::PgPool, ProjectApplicationError> {
         let router = self
             .state
-            .tenant_router
+            .holding_router
             .as_ref()
             .ok_or(erpx_projects::PortError::Unavailable)?;
         router
-            .route(route.tenant_id(), route.holding_ref(), side)
+            .route(route.holding_id(), route.data_profile_key(), side)
             .await
             .map(|value| value.database_pool().clone())
             .map_err(|_| erpx_projects::PortError::Unavailable.into())
     }
 }
 
-fn parse_route_tenant(route: &FutureTenantRoute) -> Result<Uuid, ProjectApplicationError> {
-    Uuid::parse_str(route.tenant_id()).map_err(|_| erpx_projects::PortError::Unavailable.into())
+fn parse_route_holding(route: &FutureHoldingRoute) -> Result<Uuid, ProjectApplicationError> {
+    Uuid::parse_str(route.holding_id()).map_err(|_| erpx_projects::PortError::Unavailable.into())
 }
 
 #[async_trait]
 impl ProjectsCommandApplication for AppStateProjectsApplication {
     async fn create_project(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         context: ProjectsApplicationCommandContext,
         command: CreateProject,
     ) -> Result<CommandReceipt<ProjectsAggregate>, ProjectApplicationError> {
@@ -670,7 +670,7 @@ impl ProjectsCommandApplication for AppStateProjectsApplication {
 
     async fn transition_project(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         context: ProjectsApplicationCommandContext,
         command: TransitionProject,
     ) -> Result<CommandReceipt<ProjectsAggregate>, ProjectApplicationError> {
@@ -682,7 +682,7 @@ impl ProjectsCommandApplication for AppStateProjectsApplication {
 
     async fn add_node(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         context: ProjectsApplicationCommandContext,
         command: AddProjectNodeInput,
     ) -> Result<CommandReceipt<ProjectsAggregate>, ProjectApplicationError> {
@@ -694,7 +694,7 @@ impl ProjectsCommandApplication for AppStateProjectsApplication {
 
     async fn change_node(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         context: ProjectsApplicationCommandContext,
         command: ChangeProjectNode,
     ) -> Result<CommandReceipt<ProjectsAggregate>, ProjectApplicationError> {
@@ -706,7 +706,7 @@ impl ProjectsCommandApplication for AppStateProjectsApplication {
 
     async fn propose_dependency(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         context: ProjectsApplicationCommandContext,
         command: ProposeDependency,
     ) -> Result<CommandReceipt<ProjectsAggregate>, ProjectApplicationError> {
@@ -718,7 +718,7 @@ impl ProjectsCommandApplication for AppStateProjectsApplication {
 
     async fn decide_dependency(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         context: ProjectsApplicationCommandContext,
         command: DecideDependency,
     ) -> Result<CommandReceipt<ProjectsAggregate>, ProjectApplicationError> {
@@ -730,7 +730,7 @@ impl ProjectsCommandApplication for AppStateProjectsApplication {
 
     async fn propose_handoff(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         context: ProjectsApplicationCommandContext,
         command: ProposeHandoff,
     ) -> Result<CommandReceipt<ProjectsAggregate>, ProjectApplicationError> {
@@ -742,7 +742,7 @@ impl ProjectsCommandApplication for AppStateProjectsApplication {
 
     async fn change_handoff(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         context: ProjectsApplicationCommandContext,
         command: ChangeHandoff,
     ) -> Result<CommandReceipt<ProjectsAggregate>, ProjectApplicationError> {
@@ -757,9 +757,9 @@ impl ProjectsCommandApplication for AppStateProjectsApplication {
 impl ProjectsQueryApplication for AppStateProjectsApplication {
     async fn get_project(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         consistency: QueryConsistency,
         project_id: ProjectId,
     ) -> Result<ReadProjection<Option<ProjectView>>, erpx_projects::PortError> {
@@ -784,9 +784,9 @@ impl ProjectsQueryApplication for AppStateProjectsApplication {
 
     async fn get_project_graph(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         consistency: QueryConsistency,
         project_id: ProjectId,
     ) -> Result<ReadProjection<Option<ProjectGraphView>>, erpx_projects::PortError> {
@@ -811,9 +811,9 @@ impl ProjectsQueryApplication for AppStateProjectsApplication {
 
     async fn get_project_record(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         consistency: QueryConsistency,
         record_id: Uuid,
         record_kind: ProjectRecordKind,
@@ -839,9 +839,9 @@ impl ProjectsQueryApplication for AppStateProjectsApplication {
 
     async fn list_projects(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         consistency: QueryConsistency,
         filter: ProjectListFilter,
     ) -> Result<ReadProjection<ProjectList>, erpx_projects::PortError> {
@@ -868,25 +868,25 @@ impl ProjectsQueryApplication for AppStateProjectsApplication {
 impl AppStateProjectsApplication {
     async fn read_repository(
         &self,
-        route: &FutureTenantRoute,
+        route: &FutureHoldingRoute,
     ) -> Result<ProjectsReadRepository, erpx_projects::PortError> {
-        let tenant_id = Uuid::parse_str(route.tenant_id())
+        let holding_id = Uuid::parse_str(route.holding_id())
             .map_err(|_| erpx_projects::PortError::Unavailable)?;
         let pool = self
             .state
-            .tenant_router
+            .holding_router
             .as_ref()
             .ok_or(erpx_projects::PortError::Unavailable)?
             .route(
-                route.tenant_id(),
-                route.holding_ref(),
+                route.holding_id(),
+                route.data_profile_key(),
                 RoutedDatabaseSide::Read,
             )
             .await
             .map_err(|_| erpx_projects::PortError::Unavailable)?
             .database_pool()
             .clone();
-        let pool = ReadPool::for_tenant(pool, tenant_id)
+        let pool = ReadPool::for_holding(pool, holding_id)
             .map_err(|_| erpx_projects::PortError::Unavailable)?;
         ProjectsReadRepository::new(pool).map_err(|_| erpx_projects::PortError::Unavailable)
     }
@@ -904,25 +904,25 @@ impl AppStateAgentQueryApplication {
 
     async fn query(
         &self,
-        route: &FutureTenantRoute,
+        route: &FutureHoldingRoute,
     ) -> Result<SqlxAgentExperienceQuery, AgentPortError> {
-        let tenant_id =
-            Uuid::parse_str(route.tenant_id()).map_err(|_| AgentPortError::Persistence)?;
+        let holding_id =
+            Uuid::parse_str(route.holding_id()).map_err(|_| AgentPortError::Persistence)?;
         let pool = self
             .state
-            .tenant_router
+            .holding_router
             .as_ref()
             .ok_or(AgentPortError::Persistence)?
             .route(
-                route.tenant_id(),
-                route.holding_ref(),
+                route.holding_id(),
+                route.data_profile_key(),
                 RoutedDatabaseSide::Read,
             )
             .await
             .map_err(|_| AgentPortError::Persistence)?
             .database_pool()
             .clone();
-        SqlxAgentExperienceQuery::try_new(pool, tenant_id)
+        SqlxAgentExperienceQuery::try_new(pool, holding_id)
     }
 }
 
@@ -930,9 +930,9 @@ impl AppStateAgentQueryApplication {
 impl AgentQueryApplication for AppStateAgentQueryApplication {
     async fn routing_summary(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         id: PoolRoutingDecisionId,
     ) -> Result<Option<PoolRoutingSummary>, AgentPortError> {
         actor.validate().map_err(|_| AgentPortError::Denied)?;
@@ -944,9 +944,9 @@ impl AgentQueryApplication for AppStateAgentQueryApplication {
 
     async fn invocation_summary(
         &self,
-        route: FutureTenantRoute,
+        route: FutureHoldingRoute,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         id: ProviderInvocationId,
     ) -> Result<Option<InvocationEvidenceSummary>, AgentPortError> {
         actor.validate().map_err(|_| AgentPortError::Denied)?;
@@ -1207,9 +1207,9 @@ where
         let summary = self
             .application
             .routing_summary(
-                authenticated.tenant_route,
+                authenticated.holding_route,
                 authenticated.actor,
-                authenticated.tenant_scope,
+                authenticated.active_scope,
                 id,
             )
             .await
@@ -1243,9 +1243,9 @@ where
         let summary = self
             .application
             .invocation_summary(
-                authenticated.tenant_route,
+                authenticated.holding_route,
                 authenticated.actor,
-                authenticated.tenant_scope,
+                authenticated.active_scope,
                 id,
             )
             .await
@@ -1311,7 +1311,7 @@ where
         .await?;
         let command = CreateProject {
             project_id: project_id(&input.project_id)?,
-            scope: decode_target_scope(input.scope, &authenticated.tenant_scope)?,
+            scope: decode_target_scope(input.scope, &authenticated.active_scope)?,
             code: input.code,
             name: input.name,
             class: decode_project_class(input.project_class)?,
@@ -1322,7 +1322,7 @@ where
         let receipt = self
             .application
             .create_project(
-                authenticated.tenant_route,
+                authenticated.holding_route,
                 authenticated.projects_context,
                 command,
             )
@@ -1348,12 +1348,12 @@ where
             dependency_id: dependency_id(&input.dependency_id)?,
             source: decode_dependency_endpoint(
                 input.source,
-                &authenticated.tenant_scope,
+                &authenticated.active_scope,
                 "source",
             )?,
             target: decode_dependency_endpoint(
                 input.target,
-                &authenticated.tenant_scope,
+                &authenticated.active_scope,
                 "target",
             )?,
             kind: decode_dependency_kind(input.kind)?,
@@ -1362,7 +1362,7 @@ where
         let receipt = self
             .application
             .propose_dependency(
-                authenticated.tenant_route,
+                authenticated.holding_route,
                 authenticated.projects_context,
                 command,
             )
@@ -1388,7 +1388,7 @@ where
             handoff_id: handoff_id(&input.handoff_id)?,
             project_id: project_id(&input.project_id)?,
             item_id: project_node_id(&input.node_id)?,
-            scope: decode_target_scope(input.scope, &authenticated.tenant_scope)?,
+            scope: decode_target_scope(input.scope, &authenticated.active_scope)?,
             kind: decode_handoff_kind(input.kind)?,
             payload_digest: input.payload_digest,
             owner_id: parse_uuid(&input.owner_principal_id, "owner_principal_id")?,
@@ -1396,7 +1396,7 @@ where
         let receipt = self
             .application
             .propose_handoff(
-                authenticated.tenant_route,
+                authenticated.holding_route,
                 authenticated.projects_context,
                 command,
             )
@@ -1430,7 +1430,7 @@ where
         let receipt = self
             .application
             .transition_project(
-                authenticated.tenant_route,
+                authenticated.holding_route,
                 authenticated.projects_context,
                 TransitionProject {
                     project_id: project_id(&input.project_id)?,
@@ -1465,7 +1465,7 @@ where
         let receipt = self
             .application
             .add_node(
-                authenticated.tenant_route,
+                authenticated.holding_route,
                 authenticated.projects_context,
                 AddProjectNodeInput {
                     project_id: project_id(&input.project_id)?,
@@ -1513,7 +1513,7 @@ where
         let receipt = self
             .application
             .change_node(
-                authenticated.tenant_route,
+                authenticated.holding_route,
                 authenticated.projects_context,
                 ChangeProjectNode {
                     project_id: project_id(&input.project_id)?,
@@ -1548,7 +1548,7 @@ where
         let receipt = self
             .application
             .change_node(
-                authenticated.tenant_route,
+                authenticated.holding_route,
                 authenticated.projects_context,
                 ChangeProjectNode {
                     project_id: project_id(&input.project_id)?,
@@ -1590,7 +1590,7 @@ where
         let receipt = self
             .application
             .change_node(
-                authenticated.tenant_route,
+                authenticated.holding_route,
                 authenticated.projects_context,
                 ChangeProjectNode {
                     project_id: project_id(&input.project_id)?,
@@ -1619,7 +1619,7 @@ where
         let receipt = self
             .application
             .change_node(
-                authenticated.tenant_route,
+                authenticated.holding_route,
                 authenticated.projects_context,
                 ChangeProjectNode {
                     project_id: project_id(&input.project_id)?,
@@ -1672,7 +1672,7 @@ where
         let receipt = self
             .application
             .decide_dependency(
-                authenticated.tenant_route,
+                authenticated.holding_route,
                 authenticated.projects_context,
                 DecideDependency {
                     dependency_id: dependency_id(&input.dependency_id)?,
@@ -1700,7 +1700,7 @@ where
         let receipt = self
             .application
             .decide_dependency(
-                authenticated.tenant_route,
+                authenticated.holding_route,
                 authenticated.projects_context,
                 DecideDependency {
                     dependency_id: dependency_id(&input.dependency_id)?,
@@ -1730,7 +1730,7 @@ where
         let receipt = self
             .application
             .decide_dependency(
-                authenticated.tenant_route,
+                authenticated.holding_route,
                 authenticated.projects_context,
                 DecideDependency {
                     dependency_id: dependency_id(&input.dependency_id)?,
@@ -1764,7 +1764,7 @@ where
         let receipt = self
             .application
             .change_handoff(
-                authenticated.tenant_route,
+                authenticated.holding_route,
                 authenticated.projects_context,
                 ChangeHandoff {
                     handoff_id: handoff_id(&input.handoff_id)?,
@@ -1828,9 +1828,9 @@ where
         let result = self
             .application
             .get_project(
-                authenticated.tenant_route,
+                authenticated.holding_route,
                 authenticated.actor,
-                authenticated.tenant_scope,
+                authenticated.active_scope,
                 authenticated.consistency,
                 project_id(&input.project_id)?,
             )
@@ -1861,9 +1861,9 @@ where
         let result = self
             .application
             .get_project_graph(
-                authenticated.tenant_route,
+                authenticated.holding_route,
                 authenticated.actor,
-                authenticated.tenant_scope,
+                authenticated.active_scope,
                 authenticated.consistency,
                 project_id(&input.project_id)?,
             )
@@ -1902,9 +1902,9 @@ where
         let result = self
             .application
             .get_project_record(
-                authenticated.tenant_route,
+                authenticated.holding_route,
                 authenticated.actor,
-                authenticated.tenant_scope,
+                authenticated.active_scope,
                 authenticated.consistency,
                 record_id,
                 record_kind,
@@ -1937,9 +1937,9 @@ where
         let result = self
             .application
             .list_projects(
-                authenticated.tenant_route,
+                authenticated.holding_route,
                 authenticated.actor,
-                authenticated.tenant_scope,
+                authenticated.active_scope,
                 authenticated.consistency,
                 ProjectListFilter {
                     page_size,
@@ -1957,15 +1957,15 @@ where
 }
 
 struct AuthenticatedCommand {
-    tenant_route: FutureTenantRoute,
-    tenant_scope: TenantScope,
+    holding_route: FutureHoldingRoute,
+    active_scope: AuthorityScope,
     projects_context: ProjectsApplicationCommandContext,
 }
 
 struct AuthenticatedQuery {
-    tenant_route: FutureTenantRoute,
+    holding_route: FutureHoldingRoute,
     actor: ActorAttribution,
-    tenant_scope: TenantScope,
+    active_scope: AuthorityScope,
     consistency: QueryConsistency,
 }
 
@@ -1979,9 +1979,9 @@ async fn authenticate_command<G: FutureAgentProjectsAuthenticator>(
     let presented_actor = decode_actor(context.actor.clone())?;
     let presented_scope = decode_scope(
         context
-            .tenant_scope
+            .active_scope
             .clone()
-            .ok_or_else(|| invalid("tenant_scope is required"))?,
+            .ok_or_else(|| invalid("active_scope is required"))?,
     )?;
     let subscription_id = normalize_security_input(context.subscription_id.clone())?;
     let mfa_code = normalize_security_input(context.mfa_code.clone())?;
@@ -1998,12 +1998,12 @@ async fn authenticate_command<G: FutureAgentProjectsAuthenticator>(
         .await
         .map_err(|error| status_from_authentication(error, owner_context))?;
     let canonical_actor = authenticated.actor.clone();
-    let canonical_scope = authenticated.tenant_scope.clone();
+    let canonical_scope = authenticated.active_scope.clone();
     let projects_context =
         decode_projects_command_context(context, canonical_actor, canonical_scope.clone())?;
     Ok(AuthenticatedCommand {
-        tenant_route: authenticated.tenant_route,
-        tenant_scope: canonical_scope,
+        holding_route: authenticated.holding_route,
+        active_scope: canonical_scope,
         projects_context,
     })
 }
@@ -2018,9 +2018,9 @@ async fn authenticate_query<G: FutureAgentProjectsAuthenticator>(
     let presented_actor = decode_actor(context.actor.clone())?;
     let presented_scope = decode_scope(
         context
-            .tenant_scope
+            .active_scope
             .clone()
-            .ok_or_else(|| invalid("tenant_scope is required"))?,
+            .ok_or_else(|| invalid("active_scope is required"))?,
     )?;
     let authenticated = authenticator
         .authenticate(FutureAuthenticationRequest {
@@ -2036,9 +2036,9 @@ async fn authenticate_query<G: FutureAgentProjectsAuthenticator>(
         .map_err(|error| status_from_authentication(error, owner_context))?;
     validate_query_context(&context)?;
     Ok(AuthenticatedQuery {
-        tenant_route: authenticated.tenant_route,
+        holding_route: authenticated.holding_route,
         actor: authenticated.actor,
-        tenant_scope: authenticated.tenant_scope,
+        active_scope: authenticated.active_scope,
         consistency: decode_consistency(context.consistency)?,
     })
 }
@@ -2046,7 +2046,7 @@ async fn authenticate_query<G: FutureAgentProjectsAuthenticator>(
 fn decode_projects_command_context(
     context: common::CommandContext,
     actor: ActorAttribution,
-    authority_scope: TenantScope,
+    authority_scope: AuthorityScope,
 ) -> Result<ProjectsApplicationCommandContext, Status> {
     validate_contract_version(context.contract_version)?;
     let correlation_id = correlation_id(&context.correlation_id)?;
@@ -2089,7 +2089,7 @@ fn decode_actor(actor: Option<common::ActorAttribution>) -> Result<ActorAttribut
     let actor = actor.ok_or_else(|| invalid("actor is required"))?;
     let kind = match common::ActorKind::try_from(actor.kind).ok() {
         Some(common::ActorKind::PlatformUser) => ActorKind::PlatformUser,
-        Some(common::ActorKind::TenantUser) => ActorKind::TenantUser,
+        Some(common::ActorKind::HoldingUser) => ActorKind::HoldingUser,
         Some(common::ActorKind::Service) => ActorKind::Service,
         Some(common::ActorKind::SystemWorker) => ActorKind::SystemWorker,
         _ => return Err(invalid("actor kind is invalid")),
@@ -2126,45 +2126,36 @@ fn decode_audit(
     })
 }
 
-fn decode_scope(scope: common::TenantScope) -> Result<TenantScope, Status> {
-    use common::tenant_scope::Scope;
+fn decode_scope(scope: common::AuthorityScope) -> Result<AuthorityScope, Status> {
+    use common::authority_scope::Scope;
     match scope
         .scope
-        .ok_or_else(|| invalid("tenant scope is empty"))?
+        .ok_or_else(|| invalid("holding scope is empty"))?
     {
-        Scope::Platform(_) => Ok(TenantScope::Platform),
-        Scope::Holding(value) => Ok(TenantScope::Holding {
+        Scope::Platform(_) => Ok(AuthorityScope::Platform),
+        Scope::Holding(value) => Ok(AuthorityScope::Holding {
             holding_id: parse_uuid(&value.holding_id, "holding_id")?,
         }),
-        Scope::Company(value) => Ok(TenantScope::Company {
+        Scope::Company(value) => Ok(AuthorityScope::Company {
             holding_id: parse_uuid(&value.holding_id, "holding_id")?,
             company_id: parse_uuid(&value.company_id, "company_id")?,
         }),
-        Scope::Branch(value) => Ok(TenantScope::Branch {
+        Scope::Branch(value) => Ok(AuthorityScope::Branch {
             holding_id: parse_uuid(&value.holding_id, "holding_id")?,
             company_id: parse_uuid(&value.company_id, "company_id")?,
             branch_id: parse_uuid(&value.branch_id, "branch_id")?,
         }),
-        Scope::Subtree(value) => Ok(TenantScope::Subtree {
+        Scope::Subtree(value) => Ok(AuthorityScope::Subtree {
             holding_id: parse_uuid(&value.holding_id, "holding_id")?,
-            company_ids: value
-                .company_ids
-                .iter()
-                .map(|value| parse_uuid(value, "company_id"))
-                .collect::<Result<_, _>>()?,
-            branch_ids: value
-                .branch_ids
-                .iter()
-                .map(|value| parse_uuid(value, "branch_id"))
-                .collect::<Result<_, _>>()?,
+            organization_node_id: parse_uuid(&value.organization_node_id, "organization_node_id")?,
         }),
     }
 }
 
 fn decode_target_scope(
-    scope: Option<common::TenantScope>,
-    authority_scope: &TenantScope,
-) -> Result<TenantScope, Status> {
+    scope: Option<common::AuthorityScope>,
+    authority_scope: &AuthorityScope,
+) -> Result<AuthorityScope, Status> {
     let scope = decode_scope(scope.ok_or_else(|| invalid("target scope is required"))?)?;
     if authority_scope.contains(&scope) {
         Ok(scope)
@@ -2205,7 +2196,7 @@ fn decode_consistency(
 
 fn decode_dependency_endpoint(
     endpoint: Option<projects::ProjectDependencyEndpoint>,
-    authority_scope: &TenantScope,
+    authority_scope: &AuthorityScope,
     label: &'static str,
 ) -> Result<DependencyEndpoint, Status> {
     let endpoint = endpoint.ok_or_else(|| invalid("dependency endpoint is required"))?;
@@ -2522,21 +2513,21 @@ fn encode_projection_metadata(metadata: &ProjectionMetadata) -> common::Projecti
     }
 }
 
-fn encode_scope(scope: &TenantScope) -> common::TenantScope {
-    use common::tenant_scope::Scope;
+fn encode_scope(scope: &AuthorityScope) -> common::AuthorityScope {
+    use common::authority_scope::Scope;
     let scope = match scope {
-        TenantScope::Platform => Scope::Platform(common::PlatformScope {}),
-        TenantScope::Holding { holding_id } => Scope::Holding(common::HoldingScope {
+        AuthorityScope::Platform => Scope::Platform(common::PlatformScope {}),
+        AuthorityScope::Holding { holding_id } => Scope::Holding(common::HoldingScope {
             holding_id: holding_id.to_string(),
         }),
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Scope::Company(common::CompanyScope {
             holding_id: holding_id.to_string(),
             company_id: company_id.to_string(),
         }),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -2545,17 +2536,15 @@ fn encode_scope(scope: &TenantScope) -> common::TenantScope {
             company_id: company_id.to_string(),
             branch_id: branch_id.to_string(),
         }),
-        TenantScope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
+            organization_node_id,
         } => Scope::Subtree(common::SubtreeScope {
             holding_id: holding_id.to_string(),
-            company_ids: company_ids.iter().map(ToString::to_string).collect(),
-            branch_ids: branch_ids.iter().map(ToString::to_string).collect(),
+            organization_node_id: organization_node_id.to_string(),
         }),
     };
-    common::TenantScope { scope: Some(scope) }
+    common::AuthorityScope { scope: Some(scope) }
 }
 
 fn project_id(value: &str) -> Result<ProjectId, Status> {
@@ -2624,28 +2613,28 @@ fn normalize_security_input(value: String) -> Result<Option<String>, Status> {
     }
 }
 
-fn validate_route(route: &FutureTenantRoute) -> Result<(), Status> {
-    for value in [&route.tenant_id, &route.holding_ref] {
+fn validate_route(route: &FutureHoldingRoute) -> Result<(), Status> {
+    for value in [&route.holding_id, &route.data_profile_key] {
         if value.trim().is_empty() || value.len() > MAX_ROUTE_LENGTH {
-            return Err(invalid("tenant route is invalid"));
+            return Err(invalid("holding route is invalid"));
         }
     }
     Ok(())
 }
 
-fn validate_route_scope(route: &FutureTenantRoute, scope: &TenantScope) -> Result<(), Status> {
+fn validate_route_scope(route: &FutureHoldingRoute, scope: &AuthorityScope) -> Result<(), Status> {
     let expected_holding = match scope {
-        TenantScope::Platform => return Ok(()),
-        TenantScope::Holding { holding_id }
-        | TenantScope::Company { holding_id, .. }
-        | TenantScope::Branch { holding_id, .. }
-        | TenantScope::Subtree { holding_id, .. } => holding_id,
+        AuthorityScope::Platform => return Ok(()),
+        AuthorityScope::Holding { holding_id }
+        | AuthorityScope::Company { holding_id, .. }
+        | AuthorityScope::Branch { holding_id, .. }
+        | AuthorityScope::Subtree { holding_id, .. } => holding_id,
     };
-    let route_holding = parse_uuid(&route.holding_ref, "tenant route holding_ref")?;
+    let route_holding = parse_uuid(&route.data_profile_key, "holding route data_profile_key")?;
     if &route_holding == expected_holding {
         Ok(())
     } else {
-        Err(invalid("tenant route does not match authenticated scope"))
+        Err(invalid("holding route does not match authenticated scope"))
     }
 }
 

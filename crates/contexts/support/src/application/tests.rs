@@ -8,8 +8,8 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::{DisplayName, ReferenceCode, customer, organization};
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, EventId, FixedClock,
-    QueryId, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
+    FixedClock, QueryId,
 };
 use uuid::Uuid;
 
@@ -28,8 +28,8 @@ fn id(value: u128) -> Uuid {
 fn at() -> chrono::DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap()
 }
-fn scope() -> TenantScope {
-    TenantScope::Company {
+fn scope() -> AuthorityScope {
+    AuthorityScope::Company {
         holding_id: id(1),
         company_id: id(2),
     }
@@ -61,7 +61,7 @@ fn envelope(principal: &str, correlation: u128) -> CommandEnvelope<SupportComman
         correlation_id: CorrelationId::try_from_uuid(id(correlation)).unwrap(),
         causation_id: None,
         actor: actor(principal),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "support.test".into(),
             customer_visible: false,
@@ -85,28 +85,28 @@ struct FakeWrite;
 impl WriteRepository for FakeWrite {
     async fn load_ticket(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: SupportTicketId,
     ) -> Result<Option<SupportTicket>, PortError> {
         Ok(None)
     }
     async fn load_incident(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: IncidentId,
     ) -> Result<Option<Incident>, PortError> {
         Ok(None)
     }
     async fn load_session(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: SessionId,
     ) -> Result<Option<SupportSession>, PortError> {
         Ok(None)
     }
     async fn load_capability(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: CapabilityId,
     ) -> Result<Option<SupportCapability>, PortError> {
         Ok(None)
@@ -124,7 +124,7 @@ impl AuthorizationPort for Allow {
 }
 #[async_trait]
 impl EntitlementPort for Allow {
-    async fn ensure_support_enabled(&self, _: &TenantScope, _: bool) -> Result<(), PortError> {
+    async fn ensure_support_enabled(&self, _: &AuthorityScope, _: bool) -> Result<(), PortError> {
         Ok(())
     }
 }
@@ -268,7 +268,7 @@ struct NotReadyRead;
 fn not_ready<T>() -> Result<T, PortError> {
     Err(PortError::NotReady(ProjectionNotReady {
         projection: "support_tickets".into(),
-        partition: "tenant-1".into(),
+        partition: "holding-1".into(),
         target: ProjectionTarget {
             event_id: EventId::try_from_uuid(id(300)).unwrap(),
             global_sequence: 42,
@@ -281,7 +281,7 @@ fn not_ready<T>() -> Result<T, PortError> {
 impl ReadRepository for NotReadyRead {
     async fn get_ticket(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: SupportTicketId,
         _: TicketReadAudience,
         _: &QueryConsistency,
@@ -290,7 +290,7 @@ impl ReadRepository for NotReadyRead {
     }
     async fn list_tickets(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: &SupportTicketListFilter,
         _: &QueryConsistency,
     ) -> Result<crate::ports::ReadProjection<SupportTicketList>, PortError> {
@@ -298,7 +298,7 @@ impl ReadRepository for NotReadyRead {
     }
     async fn get_incident(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: IncidentId,
         _: &QueryConsistency,
     ) -> Result<crate::ports::ReadProjection<Option<IncidentView>>, PortError> {
@@ -306,7 +306,7 @@ impl ReadRepository for NotReadyRead {
     }
     async fn list_incidents(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: &IncidentListFilter,
         _: &QueryConsistency,
     ) -> Result<crate::ports::ReadProjection<IncidentList>, PortError> {
@@ -314,7 +314,7 @@ impl ReadRepository for NotReadyRead {
     }
     async fn get_session(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: SessionId,
         _: &QueryConsistency,
     ) -> Result<crate::ports::ReadProjection<Option<SupportSessionView>>, PortError> {
@@ -322,7 +322,7 @@ impl ReadRepository for NotReadyRead {
     }
     async fn get_capability(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: CapabilityId,
         _: &QueryConsistency,
     ) -> Result<crate::ports::ReadProjection<Option<SupportCapabilityView>>, PortError> {
@@ -334,7 +334,7 @@ impl ReadRepository for NotReadyRead {
 async fn read_your_writes_not_ready_is_returned_without_write_store_fallback() {
     let consistency = QueryConsistency::ReadYourWrites(ReadYourWrites {
         projection: "support_tickets".into(),
-        partition: "tenant-1".into(),
+        partition: "holding-1".into(),
         target: ProjectionTarget {
             event_id: EventId::try_from_uuid(id(300)).unwrap(),
             global_sequence: 42,
@@ -346,7 +346,7 @@ async fn read_your_writes_not_ready_is_returned_without_write_store_fallback() {
         query_id: QueryId::try_from_uuid(id(400)).unwrap(),
         correlation_id: CorrelationId::try_from_uuid(id(401)).unwrap(),
         actor: actor("customer-user"),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "support.read".into(),
             customer_visible: true,

@@ -22,7 +22,7 @@ erpx_ui_enterprise_workspaces::declare_enterprise_workspace_feature!(
     "field-service.workspace",
     "/field-service",
     "operations",
-    "erpx-feature-field-service-v2"
+    "erpx-feature-field-service"
 );
 
 #[cfg(test)]

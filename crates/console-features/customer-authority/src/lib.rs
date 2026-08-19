@@ -12,5 +12,5 @@ erpx_ui_kit::declare_current_workspace_feature!(
     erpx_ui_kit::CurrentFeatureKind::CustomerAuthority,
     "customer-authority",
     [("customer-authority.workspace", "/customer", "customer")],
-    "erpx-feature-customer-authority-v2"
+    "erpx-feature-customer-authority"
 );

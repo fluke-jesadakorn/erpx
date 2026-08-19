@@ -5,8 +5,8 @@ use std::time::Duration;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_kernel::{
-    ActorAttribution, AggregateId, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
-    KernelError, QueryId, TenantScope, ValidationError, validate_bounded_text,
+    ActorAttribution, AggregateId, AuditContext, AuthorityScope, CommandId, CorrelationId,
+    ErrorCategory, EventId, KernelError, QueryId, ValidationError, validate_bounded_text,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -41,7 +41,7 @@ pub struct CommandEnvelope<C> {
     pub correlation_id: CorrelationId,
     pub causation_id: Option<EventId>,
     pub actor: ActorAttribution,
-    pub tenant_scope: TenantScope,
+    pub active_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_aggregate_version: Option<u64>,
     pub command: C,
@@ -55,7 +55,7 @@ impl<C> CommandEnvelope<C> {
             ));
         }
         self.actor.validate()?;
-        self.tenant_scope.validate()?;
+        self.active_scope.validate()?;
         self.audit.validate()?;
         Ok(())
     }
@@ -67,7 +67,7 @@ pub struct QueryEnvelope<Q> {
     pub query_id: QueryId,
     pub correlation_id: CorrelationId,
     pub actor: ActorAttribution,
-    pub tenant_scope: TenantScope,
+    pub active_scope: AuthorityScope,
     pub audit: AuditContext,
     pub consistency: QueryConsistency,
     pub query: Q,
@@ -81,7 +81,7 @@ impl<Q> QueryEnvelope<Q> {
             ));
         }
         self.actor.validate()?;
-        self.tenant_scope.validate()?;
+        self.active_scope.validate()?;
         self.audit.validate()?;
         self.consistency.validate()?;
         Ok(())
@@ -94,7 +94,7 @@ pub enum EnvelopeError {
     UnsupportedContractVersion(u16),
     #[error(transparent)]
     Validation(#[from] ValidationError),
-    #[error("tenant scope is invalid")]
+    #[error("holding scope is invalid")]
     Scope,
     #[error("read-your-writes timeout exceeds the bounded maximum")]
     WaitTooLong,

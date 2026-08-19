@@ -33,19 +33,19 @@ use erpx_customer_authority_sqlx::{
     CustomerAuthorityWriteRepository,
 };
 use erpx_kernel::{
-    ActorAttribution, ActorKind, CorrelationId, ErrorCategory, ErrorContext, KernelError,
-    SessionId, SystemClock, TenantScope,
+    ActorAttribution, ActorKind, AuthorityScope, CorrelationId, ErrorCategory, ErrorContext,
+    KernelError, SessionId, SystemClock,
 };
 use erpx_platform_administration::ports::AuthorizationRequest as PlatformAuthorizationRequest;
 use erpx_platform_administration::{
     AuthorizationGrant, AuthorizationPort as PlatformAuthorizationPort, ConnectorView,
     EntitlementPort as PlatformEntitlementPort, GetAdminContext, GetAdminContextResult,
-    GetConnector, GetConnectorResult, GetPlatformTenant, GetPlatformTenantResult,
-    IssueTenantAdminContext, ListConnectors, ListPlatformTenants, Page,
-    PlatformAdministrationCommandHandler, PlatformAdministrationMutationResult,
-    PlatformAdministrationQueryHandler, PlatformTenantId, PortError as PlatformPortError,
-    RegisterConnector, RegisterPlatformTenant, RevokeTenantAdminContext, TenantAuthorityPort,
-    TenantView, TransitionConnector, TransitionPlatformTenant,
+    GetConnector, GetConnectorResult, GetPlatformHolding, GetPlatformHoldingResult,
+    HoldingAuthorityPort, HoldingView, IssueHoldingAdminContext, ListConnectors,
+    ListPlatformHoldings, Page, PlatformAdministrationCommandHandler,
+    PlatformAdministrationMutationResult, PlatformAdministrationQueryHandler, PlatformHoldingId,
+    PortError as PlatformPortError, RegisterConnector, RegisterPlatformHolding,
+    RevokeHoldingAdminContext, TransitionConnector, TransitionPlatformHolding,
 };
 use erpx_platform_administration_sqlx::{
     PlatformAdministrationCommandAdapter, PlatformAdministrationReadRepository,
@@ -58,8 +58,8 @@ use uuid::Uuid;
 use crate::contexts::{
     brand_cqrs::{
         AuthenticatedBrandRequest, BrandAccessMode, BrandAuthenticationError,
-        BrandAuthenticationRequest, BrandCommandApplication, BrandQueryApplication,
-        BrandRequestAuthenticator, BrandTenantRoute,
+        BrandAuthenticationRequest, BrandCommandApplication, BrandHoldingRoute,
+        BrandQueryApplication, BrandRequestAuthenticator,
     },
     customer_authority_cqrs::{
         AuthenticatedCustomerAuthorityRequest, CustomerAuthorityAccessMode,
@@ -86,7 +86,7 @@ enum AccessMode {
 #[derive(Debug, Clone)]
 struct PlatformPreauthorizedAccess {
     principal_ref: String,
-    authority_scope: TenantScope,
+    authority_scope: AuthorityScope,
     mode: AccessMode,
     mfa_verified: bool,
 }
@@ -129,17 +129,17 @@ impl PlatformEntitlementPort for PlatformPreauthorizedAccess {
 }
 
 #[derive(Debug, Clone)]
-struct PlatformTenantAuthority {
+struct PlatformHoldingAuthority {
     pool: PgPool,
 }
 
 #[async_trait]
-impl TenantAuthorityPort for PlatformTenantAuthority {
+impl HoldingAuthorityPort for PlatformHoldingAuthority {
     async fn ensure_binding_available(
         &self,
         customer_id: Uuid,
-        root_holding_id: Uuid,
-        holding_ref: &str,
+        canonical_holding_id: Uuid,
+        data_profile_key: &str,
     ) -> Result<(), PlatformPortError> {
         let customer_exists: bool = sqlx::query_scalar(
             "SELECT EXISTS (SELECT 1 FROM erpx_control.customers WHERE id = $1)",
@@ -153,13 +153,13 @@ impl TenantAuthorityPort for PlatformTenantAuthority {
         }
         let occupied: bool = sqlx::query_scalar(
             "SELECT EXISTS (
-                 SELECT 1 FROM erpx_platform_administration_write.tenant_guards
-                  WHERE customer_id = $1 OR root_holding_id = $2 OR holding_ref = $3
+                 SELECT 1 FROM erpx_platform_administration_write.holding_guards
+                  WHERE customer_id = $1 OR canonical_holding_id = $2 OR data_profile_key = $3
              )",
         )
         .bind(customer_id)
-        .bind(root_holding_id)
-        .bind(holding_ref)
+        .bind(canonical_holding_id)
+        .bind(data_profile_key)
         .fetch_one(&self.pool)
         .await
         .map_err(|_| PlatformPortError::Unavailable)?;
@@ -169,28 +169,28 @@ impl TenantAuthorityPort for PlatformTenantAuthority {
         Ok(())
     }
 
-    async fn ensure_tenant_scope(
+    async fn ensure_holding_scope(
         &self,
-        tenant_id: PlatformTenantId,
-        target_scope: &TenantScope,
+        holding_id: PlatformHoldingId,
+        target_scope: &AuthorityScope,
     ) -> Result<(), PlatformPortError> {
-        if target_scope == &TenantScope::Platform {
+        if target_scope == &AuthorityScope::Platform {
             return Ok(());
         }
-        let root_holding_id: Option<Uuid> = sqlx::query(
-            "SELECT root_holding_id
-               FROM erpx_platform_administration_write.tenant_guards
-              WHERE tenant_id = $1",
+        let canonical_holding_id: Option<Uuid> = sqlx::query(
+            "SELECT canonical_holding_id
+               FROM erpx_platform_administration_write.holding_guards
+              WHERE holding_id = $1",
         )
-        .bind(tenant_id.as_uuid())
+        .bind(holding_id.as_uuid())
         .fetch_optional(&self.pool)
         .await
         .map_err(|_| PlatformPortError::Unavailable)?
-        .map(|row| row.try_get("root_holding_id"))
+        .map(|row| row.try_get("canonical_holding_id"))
         .transpose()
         .map_err(|_| PlatformPortError::Internal)?;
         let requested_holding = scope_holding_id(target_scope).ok_or(PlatformPortError::Denied)?;
-        match root_holding_id {
+        match canonical_holding_id {
             Some(authoritative) if authoritative == requested_holding => Ok(()),
             Some(_) => Err(PlatformPortError::Denied),
             None => Err(PlatformPortError::NotFound),
@@ -203,7 +203,7 @@ type PlatformCommandHandler = PlatformAdministrationCommandHandler<
     PlatformAdministrationCommandAdapter,
     PlatformPreauthorizedAccess,
     PlatformPreauthorizedAccess,
-    PlatformTenantAuthority,
+    PlatformHoldingAuthority,
     SystemClock,
 >;
 type PlatformQueryHandler = PlatformAdministrationQueryHandler<
@@ -216,7 +216,7 @@ type PlatformQueryHandler = PlatformAdministrationQueryHandler<
 pub(crate) struct PlatformAdministrationServerApplication {
     write: WritePool,
     read: ReadPool,
-    tenant_authority: PlatformTenantAuthority,
+    holding_authority: PlatformHoldingAuthority,
 }
 
 impl PlatformAdministrationServerApplication {
@@ -224,7 +224,7 @@ impl PlatformAdministrationServerApplication {
         Self {
             write: WritePool::from_control_pg_pool(state.store.pools().write.clone()),
             read: ReadPool::from_control_pg_pool(state.store.pools().read.clone()),
-            tenant_authority: PlatformTenantAuthority {
+            holding_authority: PlatformHoldingAuthority {
                 pool: state.store.pools().write.clone(),
             },
         }
@@ -239,7 +239,7 @@ impl PlatformAdministrationServerApplication {
     {
         let access = PlatformPreauthorizedAccess {
             principal_ref: envelope.actor.principal_ref.clone(),
-            authority_scope: envelope.tenant_scope.clone(),
+            authority_scope: envelope.active_scope.clone(),
             mode: AccessMode::Write,
             mfa_verified: true,
         };
@@ -248,7 +248,7 @@ impl PlatformAdministrationServerApplication {
             PlatformAdministrationCommandAdapter::new(self.write.clone()),
             access.clone(),
             access,
-            self.tenant_authority.clone(),
+            self.holding_authority.clone(),
             SystemClock,
         )
         .handle(envelope)
@@ -265,7 +265,7 @@ impl PlatformAdministrationServerApplication {
         let correlation_id = envelope.correlation_id;
         let access = PlatformPreauthorizedAccess {
             principal_ref: envelope.actor.principal_ref.clone(),
-            authority_scope: envelope.tenant_scope.clone(),
+            authority_scope: envelope.active_scope.clone(),
             mode: AccessMode::Read,
             mfa_verified: false,
         };
@@ -284,15 +284,15 @@ impl PlatformAdministrationServerApplication {
 
 #[async_trait]
 impl PlatformAdministrationCommandApplication for PlatformAdministrationServerApplication {
-    async fn register_tenant(
+    async fn register_holding(
         &self,
-        command: CommandEnvelope<RegisterPlatformTenant>,
+        command: CommandEnvelope<RegisterPlatformHolding>,
     ) -> Result<CommandReceipt<PlatformAdministrationMutationResult>, CqrsError> {
         self.command(command).await
     }
-    async fn transition_tenant(
+    async fn transition_holding(
         &self,
-        command: CommandEnvelope<TransitionPlatformTenant>,
+        command: CommandEnvelope<TransitionPlatformHolding>,
     ) -> Result<CommandReceipt<PlatformAdministrationMutationResult>, CqrsError> {
         self.command(command).await
     }
@@ -310,13 +310,13 @@ impl PlatformAdministrationCommandApplication for PlatformAdministrationServerAp
     }
     async fn issue_admin_context(
         &self,
-        command: CommandEnvelope<IssueTenantAdminContext>,
+        command: CommandEnvelope<IssueHoldingAdminContext>,
     ) -> Result<CommandReceipt<PlatformAdministrationMutationResult>, CqrsError> {
         self.command(command).await
     }
     async fn revoke_admin_context(
         &self,
-        command: CommandEnvelope<RevokeTenantAdminContext>,
+        command: CommandEnvelope<RevokeHoldingAdminContext>,
     ) -> Result<CommandReceipt<PlatformAdministrationMutationResult>, CqrsError> {
         self.command(command).await
     }
@@ -324,16 +324,16 @@ impl PlatformAdministrationCommandApplication for PlatformAdministrationServerAp
 
 #[async_trait]
 impl PlatformAdministrationQueryApplication for PlatformAdministrationServerApplication {
-    async fn get_tenant(
+    async fn get_holding(
         &self,
-        query: QueryEnvelope<GetPlatformTenant>,
-    ) -> Result<QueryResult<GetPlatformTenantResult>, CqrsError> {
+        query: QueryEnvelope<GetPlatformHolding>,
+    ) -> Result<QueryResult<GetPlatformHoldingResult>, CqrsError> {
         self.query(query).await
     }
-    async fn list_tenants(
+    async fn list_holdings(
         &self,
-        query: QueryEnvelope<ListPlatformTenants>,
-    ) -> Result<QueryResult<Page<TenantView>>, CqrsError> {
+        query: QueryEnvelope<ListPlatformHoldings>,
+    ) -> Result<QueryResult<Page<HoldingView>>, CqrsError> {
         self.query(query).await
     }
     async fn get_connector(
@@ -374,7 +374,7 @@ impl PlatformAdministrationRequestAuthenticator for PlatformAdministrationServer
         request: PlatformAdministrationAuthenticationRequest,
     ) -> Result<AuthenticatedPlatformAdministrationRequest, PlatformAdministrationAuthenticationError>
     {
-        if request.presented_scope() != &TenantScope::Platform {
+        if request.presented_scope() != &AuthorityScope::Platform {
             return Err(PlatformAdministrationAuthenticationError::Denied);
         }
         let write = request.access_mode() == PlatformAdministrationAccessMode::Write;
@@ -416,10 +416,10 @@ impl PlatformAdministrationRequestAuthenticator for PlatformAdministrationServer
                 .await
                 .map_err(platform_authentication_error)?;
         }
-        // Platform operations use the platform entitlement, not a tenant
+        // Platform operations use the platform entitlement, not a holding
         // subscription proof. Reading the field here also makes the policy
         // explicit for typed clients that send one.
-        let _tenant_subscription_proof = request.subscription_id();
+        let _holding_subscription_proof = request.subscription_id();
         AuthenticatedPlatformAdministrationRequest::try_new(
             authenticated_actor(&claims)?,
             request.presented_scope().clone(),
@@ -430,7 +430,7 @@ impl PlatformAdministrationRequestAuthenticator for PlatformAdministrationServer
 #[derive(Debug, Clone)]
 struct BrandPreauthorizedAccess {
     principal_ref: String,
-    authority_scope: TenantScope,
+    authority_scope: AuthorityScope,
     mode: AccessMode,
 }
 
@@ -463,7 +463,7 @@ impl BrandAuthorizationPort for BrandPreauthorizedAccess {
 impl BrandEntitlementPort for BrandPreauthorizedAccess {
     async fn ensure_brand_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         write: bool,
     ) -> Result<(), BrandPortError> {
         if write != (self.mode == AccessMode::Write) || !self.authority_scope.contains(scope) {
@@ -502,7 +502,7 @@ impl BrandServerApplication {
 
     async fn command<C>(
         &self,
-        _route: BrandTenantRoute,
+        _route: BrandHoldingRoute,
         envelope: CommandEnvelope<C>,
     ) -> Result<CommandReceipt<<BrandCommand as CommandHandler<C>>::Response>, CqrsError>
     where
@@ -510,7 +510,7 @@ impl BrandServerApplication {
     {
         let access = BrandPreauthorizedAccess {
             principal_ref: envelope.actor.principal_ref.clone(),
-            authority_scope: envelope.tenant_scope.clone(),
+            authority_scope: envelope.active_scope.clone(),
             mode: AccessMode::Write,
         };
         BrandCommandHandler::new(
@@ -527,7 +527,7 @@ impl BrandServerApplication {
 
     async fn query<Q>(
         &self,
-        _route: BrandTenantRoute,
+        _route: BrandHoldingRoute,
         envelope: QueryEnvelope<Q>,
     ) -> Result<QueryResult<<BrandQuery as QueryHandler<Q>>::Response>, CqrsError>
     where
@@ -536,7 +536,7 @@ impl BrandServerApplication {
         let correlation_id = envelope.correlation_id;
         let access = BrandPreauthorizedAccess {
             principal_ref: envelope.actor.principal_ref.clone(),
-            authority_scope: envelope.tenant_scope.clone(),
+            authority_scope: envelope.active_scope.clone(),
             mode: AccessMode::Read,
         };
         let read = BrandReadRepository::new(self.read.clone()).map_err(|_| {
@@ -556,35 +556,35 @@ impl BrandServerApplication {
 impl BrandCommandApplication for BrandServerApplication {
     async fn create_draft(
         &self,
-        route: BrandTenantRoute,
+        route: BrandHoldingRoute,
         command: CommandEnvelope<CreateBrandDraft>,
     ) -> Result<CommandReceipt<CreateBrandDraftResult>, CqrsError> {
         self.command(route, command).await
     }
     async fn save_draft(
         &self,
-        route: BrandTenantRoute,
+        route: BrandHoldingRoute,
         command: CommandEnvelope<SaveBrandDraft>,
     ) -> Result<CommandReceipt<BrandMutationResult>, CqrsError> {
         self.command(route, command).await
     }
     async fn publish_draft(
         &self,
-        route: BrandTenantRoute,
+        route: BrandHoldingRoute,
         command: CommandEnvelope<PublishBrandDraft>,
     ) -> Result<CommandReceipt<BrandMutationResult>, CqrsError> {
         self.command(route, command).await
     }
     async fn rollback(
         &self,
-        route: BrandTenantRoute,
+        route: BrandHoldingRoute,
         command: CommandEnvelope<RollbackBrand>,
     ) -> Result<CommandReceipt<BrandMutationResult>, CqrsError> {
         self.command(route, command).await
     }
     async fn set_category_locks(
         &self,
-        route: BrandTenantRoute,
+        route: BrandHoldingRoute,
         command: CommandEnvelope<SetBrandCategoryLocks>,
     ) -> Result<CommandReceipt<BrandMutationResult>, CqrsError> {
         self.command(route, command).await
@@ -595,21 +595,21 @@ impl BrandCommandApplication for BrandServerApplication {
 impl BrandQueryApplication for BrandServerApplication {
     async fn get_draft(
         &self,
-        route: BrandTenantRoute,
+        route: BrandHoldingRoute,
         query: QueryEnvelope<GetBrandDraft>,
     ) -> Result<QueryResult<GetBrandDraftResult>, CqrsError> {
         self.query(route, query).await
     }
     async fn get_resolved(
         &self,
-        route: BrandTenantRoute,
+        route: BrandHoldingRoute,
         query: QueryEnvelope<GetResolvedBrand>,
     ) -> Result<QueryResult<GetResolvedBrandResult>, CqrsError> {
         self.query(route, query).await
     }
     async fn list_history(
         &self,
-        route: BrandTenantRoute,
+        route: BrandHoldingRoute,
         query: QueryEnvelope<ListBrandHistory>,
     ) -> Result<QueryResult<BrandHistory>, CqrsError> {
         self.query(route, query).await
@@ -642,7 +642,7 @@ impl BrandRequestAuthenticator for BrandServerAuthenticator {
             request.transport_metadata(),
             request.presented_actor(),
             request.presented_scope(),
-            &request.presented_route().tenant_id,
+            &request.presented_route().holding_id,
             if write { "brand.write" } else { "brand.read" },
             "brand",
             write,
@@ -662,7 +662,7 @@ impl BrandRequestAuthenticator for BrandServerAuthenticator {
 #[derive(Debug, Clone)]
 struct CustomerPreauthorizedAccess {
     principal_ref: String,
-    authority_scope: TenantScope,
+    authority_scope: AuthorityScope,
     mode: AccessMode,
 }
 
@@ -691,7 +691,7 @@ impl CustomerAuthorizationPort for CustomerPreauthorizedAccess {
 impl CustomerEntitlementPort for CustomerPreauthorizedAccess {
     async fn ensure_customer_authority_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         write: bool,
     ) -> Result<(), CustomerPortError> {
         if write != (self.mode == AccessMode::Write) || !self.authority_scope.contains(scope) {
@@ -738,7 +738,7 @@ impl CustomerAuthorityServerApplication {
     {
         let access = CustomerPreauthorizedAccess {
             principal_ref: envelope.actor.principal_ref.clone(),
-            authority_scope: envelope.tenant_scope.clone(),
+            authority_scope: envelope.active_scope.clone(),
             mode: AccessMode::Write,
         };
         CustomerAuthorityCommandHandler::new(
@@ -763,7 +763,7 @@ impl CustomerAuthorityServerApplication {
         let correlation_id = envelope.correlation_id;
         let access = CustomerPreauthorizedAccess {
             principal_ref: envelope.actor.principal_ref.clone(),
-            authority_scope: envelope.tenant_scope.clone(),
+            authority_scope: envelope.active_scope.clone(),
             mode: AccessMode::Read,
         };
         let read = CustomerAuthorityReadRepository::new(self.read.clone()).map_err(|_| {
@@ -854,9 +854,9 @@ impl CustomerAuthorityServerAuthenticator {
     }
 }
 
-fn customer_authority_permission(scope: &TenantScope, write: bool) -> &'static str {
+fn customer_authority_permission(scope: &AuthorityScope, write: bool) -> &'static str {
     match (scope, write) {
-        (TenantScope::Platform, false) => "platform.customer.read",
+        (AuthorityScope::Platform, false) => "platform.customer.read",
         (_, false) => "customer_authority.read",
         (_, true) => "customer_authority.write",
     }
@@ -874,7 +874,7 @@ impl CustomerAuthorityRequestAuthenticator for CustomerAuthorityServerAuthentica
             request.transport_metadata(),
             request.presented_actor(),
             request.presented_scope(),
-            &request.presented_route().tenant_id,
+            &request.presented_route().holding_id,
             customer_authority_permission(request.presented_scope(), write),
             "customer_authority",
             write,
@@ -898,20 +898,20 @@ fn authenticated_actor(
         .map_err(|_| PlatformAdministrationAuthenticationError::Internal)?;
     Ok(ActorAttribution {
         principal_ref: claims.principal_ref.clone(),
-        kind: ActorKind::TenantUser,
+        kind: ActorKind::HoldingUser,
         session_id: Some(session_id),
         represented_principal_ref: None,
         support_capability_id: None,
     })
 }
 
-fn scope_holding_id(scope: &TenantScope) -> Option<Uuid> {
+fn scope_holding_id(scope: &AuthorityScope) -> Option<Uuid> {
     match scope {
-        TenantScope::Platform => None,
-        TenantScope::Holding { holding_id }
-        | TenantScope::Company { holding_id, .. }
-        | TenantScope::Branch { holding_id, .. }
-        | TenantScope::Subtree { holding_id, .. } => Some(*holding_id),
+        AuthorityScope::Platform => None,
+        AuthorityScope::Holding { holding_id }
+        | AuthorityScope::Company { holding_id, .. }
+        | AuthorityScope::Branch { holding_id, .. }
+        | AuthorityScope::Subtree { holding_id, .. } => Some(*holding_id),
     }
 }
 
@@ -977,16 +977,16 @@ mod tests {
     fn control_context_scope_policy_is_explicit() {
         let holding_id = Uuid::from_u128(42);
         assert_eq!(
-            scope_holding_id(&TenantScope::Holding { holding_id }),
+            scope_holding_id(&AuthorityScope::Holding { holding_id }),
             Some(holding_id)
         );
-        assert_eq!(scope_holding_id(&TenantScope::Platform), None);
+        assert_eq!(scope_holding_id(&AuthorityScope::Platform), None);
         assert_eq!(
-            customer_authority_permission(&TenantScope::Platform, false),
+            customer_authority_permission(&AuthorityScope::Platform, false),
             "platform.customer.read"
         );
         assert_eq!(
-            customer_authority_permission(&TenantScope::Holding { holding_id }, false),
+            customer_authority_permission(&AuthorityScope::Holding { holding_id }, false),
             "customer_authority.read"
         );
     }
@@ -995,7 +995,7 @@ mod tests {
     async fn preauthorized_ports_fail_closed_on_mode_mismatch() {
         let access = CustomerPreauthorizedAccess {
             principal_ref: "principal".into(),
-            authority_scope: TenantScope::Holding {
+            authority_scope: AuthorityScope::Holding {
                 holding_id: Uuid::from_u128(42),
             },
             mode: AccessMode::Read,

@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use erpx_cqrs_sqlx::{CqrsSqlxError, WritePool};
 use erpx_integration_contracts::BoundedContext;
-use erpx_kernel::{AggregateId, CorrelationId, EventId, TenantScope};
+use erpx_kernel::{AggregateId, AuthorityScope, CorrelationId, EventId};
 use erpx_operations::{
     ExceptionId, OperationsException, OperationsExceptionState, PortError, PrincipalAssignment,
     SourceReference, WorkQueuePolicy, WorkQueuePolicyId, WorkQueuePolicyState,
@@ -22,7 +22,7 @@ use crate::{
 };
 
 #[derive(Debug)]
-struct AuthorityScope {
+struct PersistedAuthorityScope {
     mode: &'static str,
     holding_id: Option<Uuid>,
     company_id: Option<Uuid>,
@@ -31,11 +31,11 @@ struct AuthorityScope {
     branch_ids: Vec<Uuid>,
 }
 
-impl AuthorityScope {
-    fn from_scope(scope: &TenantScope) -> Result<Self, PortError> {
+impl PersistedAuthorityScope {
+    fn from_scope(scope: &AuthorityScope) -> Result<Self, PortError> {
         scope.validate().map_err(|_| PortError::Internal)?;
         Ok(match scope {
-            TenantScope::Platform => Self {
+            AuthorityScope::Platform => Self {
                 mode: "platform",
                 holding_id: None,
                 company_id: None,
@@ -43,7 +43,7 @@ impl AuthorityScope {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Holding { holding_id } => Self {
+            AuthorityScope::Holding { holding_id } => Self {
                 mode: "holding",
                 holding_id: Some(*holding_id),
                 company_id: None,
@@ -51,7 +51,7 @@ impl AuthorityScope {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => Self {
@@ -62,7 +62,7 @@ impl AuthorityScope {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -74,17 +74,16 @@ impl AuthorityScope {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Self {
                 mode: "subtree",
                 holding_id: Some(*holding_id),
                 company_id: None,
                 branch_id: None,
-                company_ids: company_ids.clone(),
-                branch_ids: branch_ids.clone(),
+                company_ids: vec![*organization_node_id],
+                branch_ids: Vec::new(),
             },
         })
     }
@@ -100,10 +99,10 @@ const AUTHORITY_FILTER: &str = "
 
 pub(crate) async fn load_exception_authority(
     pool: &WritePool,
-    authority_scope: &TenantScope,
+    authority_scope: &AuthorityScope,
     id: ExceptionId,
 ) -> Result<Option<OperationsException>, PortError> {
-    let authority = AuthorityScope::from_scope(authority_scope)?;
+    let authority = PersistedAuthorityScope::from_scope(authority_scope)?;
     let sql = format!(
         "SELECT aggregate_version,scope_mode,holding_id,company_id,branch_id,reference,
                 source_context,source_event_id,source_event_type,source_aggregate_type,
@@ -112,7 +111,7 @@ pub(crate) async fn load_exception_authority(
                 assignment_authority_ref,assignment_valid_from,assignment_valid_until,due_at,
                 escalation_after_minutes,exception_status,created_at,updated_at
          FROM erpx_operations_write.exception_authority
-         WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND exception_id=$1{AUTHORITY_FILTER}"
+         WHERE holding_id=erpx_cqrs_write.current_holding_id() AND exception_id=$1{AUTHORITY_FILTER}"
     );
     let mut tx = pool.begin().await.map_err(map_store_error)?;
     let row = sqlx::query(&sql)
@@ -210,14 +209,14 @@ pub(crate) async fn load_exception_authority(
 
 pub(crate) async fn load_policy_authority(
     pool: &WritePool,
-    authority_scope: &TenantScope,
+    authority_scope: &AuthorityScope,
     id: WorkQueuePolicyId,
 ) -> Result<Option<WorkQueuePolicy>, PortError> {
-    let authority = AuthorityScope::from_scope(authority_scope)?;
+    let authority = PersistedAuthorityScope::from_scope(authority_scope)?;
     let sql = "SELECT aggregate_version,holding_id,policy_name,escalation_after_minutes,
                       policy_status,created_at,updated_at
                FROM erpx_operations_write.work_queue_policy_authority
-               WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND policy_id=$1
+               WHERE holding_id=erpx_cqrs_write.current_holding_id() AND policy_id=$1
                  AND ($2='platform' OR ($2 IN ('holding','subtree') AND holding_id=$3))";
     let mut tx = pool.begin().await.map_err(map_store_error)?;
     let row = sqlx::query(sql)
@@ -232,7 +231,7 @@ pub(crate) async fn load_policy_authority(
     };
     let sources = sqlx::query(
         "SELECT source_context FROM erpx_operations_write.work_queue_policy_source_authority
-         WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND policy_id=$1
+         WHERE holding_id=erpx_cqrs_write.current_holding_id() AND policy_id=$1
          ORDER BY source_context",
     )
     .bind(id.as_uuid())
@@ -252,7 +251,7 @@ pub(crate) async fn load_policy_authority(
     let value = WorkQueuePolicy::try_rehydrate(WorkQueuePolicyState {
         id,
         version: row_u64(&row, "aggregate_version")?,
-        scope: TenantScope::Holding { holding_id },
+        scope: AuthorityScope::Holding { holding_id },
         name: row
             .try_get("policy_name")
             .map_err(|_| PortError::Internal)?,
@@ -278,15 +277,15 @@ pub(crate) async fn apply_exception_authority(
     let source = value.source();
     let result = sqlx::query(
         "INSERT INTO erpx_operations_write.exception_authority
-         (tenant_id,exception_id,aggregate_version,scope_key,scope_mode,holding_id,company_id,
+         (holding_id,exception_id,aggregate_version,scope_key,scope_mode,holding_id,company_id,
           branch_id,reference,source_context,source_event_id,source_event_type,source_aggregate_type,
           source_aggregate_id,source_aggregate_version,source_correlation_id,source_occurred_at,
           policy_ref,category,severity,assignee_id,manager_id,assignment_authority_ref,
           assignment_valid_from,assignment_valid_until,due_at,escalation_after_minutes,
           exception_status,created_at,updated_at)
-         VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,
+         VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,
                  $14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
-         ON CONFLICT (tenant_id,exception_id) DO UPDATE SET
+         ON CONFLICT (holding_id,exception_id) DO UPDATE SET
           aggregate_version=EXCLUDED.aggregate_version,scope_key=EXCLUDED.scope_key,
           scope_mode=EXCLUDED.scope_mode,holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,
           branch_id=EXCLUDED.branch_id,policy_ref=EXCLUDED.policy_ref,category=EXCLUDED.category,
@@ -322,7 +321,7 @@ pub(crate) async fn apply_policy_authority(
     tx: &mut Transaction<'_, Postgres>,
     value: &WorkQueuePolicy,
 ) -> Result<(), CqrsSqlxError> {
-    let TenantScope::Holding { holding_id } = value.scope() else {
+    let AuthorityScope::Holding { holding_id } = value.scope() else {
         return Err(CqrsSqlxError::InvalidInput(
             "Operations policy scope must be holding",
         ));
@@ -330,10 +329,10 @@ pub(crate) async fn apply_policy_authority(
     let version = to_i64(value.version())?;
     let result=sqlx::query(
         "INSERT INTO erpx_operations_write.work_queue_policy_authority
-         (tenant_id,policy_id,aggregate_version,scope_key,holding_id,policy_name,
+         (holding_id,policy_id,aggregate_version,scope_key,holding_id,policy_name,
           escalation_after_minutes,policy_status,created_at,updated_at)
-         VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9)
-         ON CONFLICT (tenant_id,policy_id) DO UPDATE SET
+         VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9)
+         ON CONFLICT (holding_id,policy_id) DO UPDATE SET
           aggregate_version=EXCLUDED.aggregate_version,policy_name=EXCLUDED.policy_name,
           escalation_after_minutes=EXCLUDED.escalation_after_minutes,
           policy_status=EXCLUDED.policy_status,updated_at=EXCLUDED.updated_at
@@ -347,10 +346,10 @@ pub(crate) async fn apply_policy_authority(
             "Operations policy authority version changed",
         ));
     }
-    sqlx::query("DELETE FROM erpx_operations_write.work_queue_policy_source_authority WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND policy_id=$1")
+    sqlx::query("DELETE FROM erpx_operations_write.work_queue_policy_source_authority WHERE holding_id=erpx_cqrs_write.current_holding_id() AND policy_id=$1")
         .bind(value.id().as_uuid()).execute(&mut **tx).await?;
     for source in value.allowed_sources() {
-        sqlx::query("INSERT INTO erpx_operations_write.work_queue_policy_source_authority (tenant_id,policy_id,source_context,policy_version) VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3)")
+        sqlx::query("INSERT INTO erpx_operations_write.work_queue_policy_source_authority (holding_id,policy_id,source_context,policy_version) VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3)")
             .bind(value.id().as_uuid()).bind(scalar_name(*source)?).bind(version)
             .execute(&mut **tx).await?;
     }
@@ -364,15 +363,15 @@ struct ExactScopeColumns {
     branch_id: Option<Uuid>,
 }
 
-fn scope_columns(scope: &TenantScope) -> Result<ExactScopeColumns, CqrsSqlxError> {
+fn scope_columns(scope: &AuthorityScope) -> Result<ExactScopeColumns, CqrsSqlxError> {
     match scope {
-        TenantScope::Holding { holding_id } => Ok(ExactScopeColumns {
+        AuthorityScope::Holding { holding_id } => Ok(ExactScopeColumns {
             mode: "holding",
             holding_id: *holding_id,
             company_id: None,
             branch_id: None,
         }),
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok(ExactScopeColumns {
@@ -381,7 +380,7 @@ fn scope_columns(scope: &TenantScope) -> Result<ExactScopeColumns, CqrsSqlxError
             company_id: Some(*company_id),
             branch_id: None,
         }),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -391,24 +390,24 @@ fn scope_columns(scope: &TenantScope) -> Result<ExactScopeColumns, CqrsSqlxError
             company_id: Some(*company_id),
             branch_id: Some(*branch_id),
         }),
-        TenantScope::Platform | TenantScope::Subtree { .. } => Err(CqrsSqlxError::InvalidInput(
-            "Operations scope must be exact",
-        )),
+        AuthorityScope::Platform | AuthorityScope::Subtree { .. } => Err(
+            CqrsSqlxError::InvalidInput("Operations scope must be exact"),
+        ),
     }
 }
 
-fn scope_from_row(row: &sqlx::postgres::PgRow) -> Result<TenantScope, PortError> {
+fn scope_from_row(row: &sqlx::postgres::PgRow) -> Result<AuthorityScope, PortError> {
     let mode: String = row.try_get("scope_mode").map_err(|_| PortError::Internal)?;
     let holding_id: Uuid = row.try_get("holding_id").map_err(|_| PortError::Internal)?;
     let company_id: Option<Uuid> = row.try_get("company_id").map_err(|_| PortError::Internal)?;
     let branch_id: Option<Uuid> = row.try_get("branch_id").map_err(|_| PortError::Internal)?;
     let scope = match (mode.as_str(), company_id, branch_id) {
-        ("holding", None, None) => TenantScope::Holding { holding_id },
-        ("company", Some(company_id), None) => TenantScope::Company {
+        ("holding", None, None) => AuthorityScope::Holding { holding_id },
+        ("company", Some(company_id), None) => AuthorityScope::Company {
             holding_id,
             company_id,
         },
-        ("branch", Some(company_id), Some(branch_id)) => TenantScope::Branch {
+        ("branch", Some(company_id), Some(branch_id)) => AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,

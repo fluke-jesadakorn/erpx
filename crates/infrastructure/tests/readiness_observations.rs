@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use chrono::{Duration, Utc};
 use erpx_infrastructure::{
-    ControlPlaneDatabaseConfig, ControlPlanePools, ReadinessObservationPolicy,
-    ReadinessObservationState, SqlxControlPlane, TenantBackupRun, TenantDatabaseProvisioner,
-    TenantDatabaseProvisioningConfig, TenantDatabaseRouter, TenantProvisioner,
-    TenantStoreRegistration,
+    ControlPlaneDatabaseConfig, ControlPlanePools, HoldingBackupRun, HoldingDatabaseProvisioner,
+    HoldingDatabaseProvisioningConfig, HoldingDatabaseRouter, HoldingProvisioner,
+    HoldingStoreRegistration, ReadinessObservationPolicy, ReadinessObservationState,
+    SqlxControlPlane,
 };
 use erpx_migration::{migrate_control_plane, migrate_control_read};
 use serde_json::json;
@@ -21,7 +21,7 @@ fn test_config() -> ControlPlaneDatabaseConfig {
 }
 
 #[tokio::test]
-#[ignore = "requires disposable control and per-tenant PostgreSQL databases"]
+#[ignore = "requires disposable control and per-holding PostgreSQL databases"]
 async fn live_readiness_observation_requires_current_metadata_and_probes_both_routes() {
     let config = test_config();
     let pools = ControlPlanePools::connect(&config)
@@ -34,17 +34,17 @@ async fn live_readiness_observation_requires_current_metadata_and_probes_both_ro
         .await
         .expect("control read migration");
     let control = Arc::new(SqlxControlPlane::new(pools));
-    let provisioner = TenantProvisioner::new(control.clone());
+    let provisioner = HoldingProvisioner::new(control.clone());
     let suffix = std::env::var("ERPX_TEST_READINESS_SUFFIX")
         .unwrap_or_else(|_| Utc::now().timestamp_millis().unsigned_abs().to_string());
-    let tenant_id = format!("tenant-readiness-{suffix}");
+    let holding_id = format!("holding-readiness-{suffix}");
     let write_database_key = format!("erpx_rdy_w_{suffix}");
     let read_database_key = format!("erpx_rdy_r_{suffix}");
-    let holding_ref = format!("holding-readiness-{suffix}");
+    let data_profile_key = format!("holding-readiness-{suffix}");
     let storage_namespace = format!("storage-readiness-{suffix}");
-    let registration = TenantStoreRegistration {
-        tenant_id: tenant_id.clone(),
-        holding_ref,
+    let registration = HoldingStoreRegistration {
+        holding_id: holding_id.clone(),
+        data_profile_key,
         write_database_key: write_database_key.clone(),
         read_database_key: read_database_key.clone(),
         storage_namespace: storage_namespace.clone(),
@@ -56,24 +56,24 @@ async fn live_readiness_observation_requires_current_metadata_and_probes_both_ro
     provisioner
         .begin(registration.clone())
         .await
-        .expect("begin tenant provisioning");
-    let tenant_database_provisioner = TenantDatabaseProvisioner::new(
+        .expect("begin holding provisioning");
+    let holding_database_provisioner = HoldingDatabaseProvisioner::new(
         control.clone(),
-        TenantDatabaseProvisioningConfig {
+        HoldingDatabaseProvisioningConfig {
             admin_database_url: std::env::var("ERPX_TEST_ADMIN_DATABASE_URL")
                 .unwrap_or_else(|_| "postgres://localhost/postgres?sslmode=verify-full".into()),
-            database_url_template: std::env::var("ERPX_TEST_TENANT_DATABASE_URL_TEMPLATE")
+            database_url_template: std::env::var("ERPX_TEST_HOLDING_DATABASE_URL_TEMPLATE")
                 .unwrap_or_else(|_| "postgres://localhost/{database}?sslmode=verify-full".into()),
         },
     )
-    .expect("tenant provisioning config");
-    tenant_database_provisioner
-        .provision_databases(&tenant_id)
+    .expect("holding provisioning config");
+    holding_database_provisioner
+        .provision_databases(&holding_id)
         .await
-        .expect("provision tenant databases");
+        .expect("provision holding databases");
     provisioner
-        .record_storage_health(&erpx_infrastructure::TenantStorageHealth {
-            tenant_id: tenant_id.clone(),
+        .record_storage_health(&erpx_infrastructure::HoldingStorageHealth {
+            holding_id: holding_id.clone(),
             storage_namespace,
             reachable: true,
             checked_at: Utc::now(),
@@ -82,18 +82,18 @@ async fn live_readiness_observation_requires_current_metadata_and_probes_both_ro
         .await
         .expect("record storage health");
     provisioner
-        .activate(&tenant_id)
+        .activate(&holding_id)
         .await
-        .expect("activate tenant");
+        .expect("activate holding");
 
     let now = Utc::now();
     sqlx::query(
-        "INSERT INTO erpx_control.tenant_projection_switches
-            (tenant_id, current_read_database_key, candidate_read_database_key,
+        "INSERT INTO erpx_control.holding_projection_switches
+            (holding_id, current_read_database_key, candidate_read_database_key,
              state, source_version, version, activated_at, updated_at)
          VALUES ($1, $2, $3, 'activated', 1, 1, $4, $4)",
     )
-    .bind(&tenant_id)
+    .bind(&holding_id)
     .bind(&read_database_key)
     .bind(format!("{read_database_key}-candidate"))
     .bind(now)
@@ -101,9 +101,9 @@ async fn live_readiness_observation_requires_current_metadata_and_probes_both_ro
     .await
     .expect("seed projection switch");
     provisioner
-        .record_backup_run(&TenantBackupRun {
+        .record_backup_run(&HoldingBackupRun {
             id: Uuid::new_v4(),
-            tenant_id: tenant_id.clone(),
+            holding_id: holding_id.clone(),
             kind: "pitr".into(),
             status: "completed".into(),
             backup_ref: "server-only-backup-ref".into(),
@@ -122,18 +122,18 @@ async fn live_readiness_observation_requires_current_metadata_and_probes_both_ro
         .await
         .expect("record backup metadata");
 
-    let router = TenantDatabaseRouter::new(
+    let router = HoldingDatabaseRouter::new(
         control.clone(),
-        TenantDatabaseProvisioningConfig {
+        HoldingDatabaseProvisioningConfig {
             admin_database_url: std::env::var("ERPX_TEST_ADMIN_DATABASE_URL")
                 .unwrap_or_else(|_| "postgres://localhost/postgres?sslmode=verify-full".into()),
-            database_url_template: std::env::var("ERPX_TEST_TENANT_DATABASE_URL_TEMPLATE")
+            database_url_template: std::env::var("ERPX_TEST_HOLDING_DATABASE_URL_TEMPLATE")
                 .unwrap_or_else(|_| "postgres://localhost/{database}?sslmode=verify-full".into()),
         },
     )
-    .expect("tenant router");
+    .expect("holding router");
     let observation = router
-        .observe_tenant_readiness(&tenant_id, now, ReadinessObservationPolicy::default())
+        .observe_holding_readiness(&holding_id, now, ReadinessObservationPolicy::default())
         .await
         .expect("live readiness observation");
     assert_eq!(observation.routing.state, ReadinessObservationState::Ready);

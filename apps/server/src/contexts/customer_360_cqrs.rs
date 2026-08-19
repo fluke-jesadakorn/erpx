@@ -19,23 +19,23 @@ use erpx_integration_contracts::{
     support::SupportCaseStatus,
 };
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CorrelationId, ErrorCategory, EventId, QueryId,
-    SessionId, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CorrelationId, ErrorCategory,
+    EventId, QueryId, SessionId,
 };
-use erpx_proto::{common, erpx::customer_360::v2 as platform};
+use erpx_proto::{common, erpx::customer_360 as platform};
 use tonic::{Request, Response, Status, metadata::MetadataMap};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Customer360Route {
-    pub tenant_id: Option<Uuid>,
-    pub holding_ref: Option<String>,
+    pub holding_id: Option<Uuid>,
+    pub data_profile_key: Option<String>,
 }
 
 pub struct Customer360AuthenticationRequest {
     transport_metadata: MetadataMap,
     presented_actor: ActorAttribution,
-    presented_scope: TenantScope,
+    presented_scope: AuthorityScope,
     presented_route: Customer360Route,
     customer: CustomerRef,
 }
@@ -47,7 +47,7 @@ impl Customer360AuthenticationRequest {
     pub const fn presented_actor(&self) -> &ActorAttribution {
         &self.presented_actor
     }
-    pub const fn presented_scope(&self) -> &TenantScope {
+    pub const fn presented_scope(&self) -> &AuthorityScope {
         &self.presented_scope
     }
     pub const fn presented_route(&self) -> &Customer360Route {
@@ -61,14 +61,14 @@ impl Customer360AuthenticationRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthenticatedCustomer360Request {
     actor: ActorAttribution,
-    scope: TenantScope,
+    scope: AuthorityScope,
     route: Customer360Route,
 }
 
 impl AuthenticatedCustomer360Request {
     pub fn try_new(
         actor: ActorAttribution,
-        scope: TenantScope,
+        scope: AuthorityScope,
         route: Customer360Route,
     ) -> Result<Self, Customer360AuthenticationError> {
         actor
@@ -87,7 +87,7 @@ impl AuthenticatedCustomer360Request {
     pub const fn actor(&self) -> &ActorAttribution {
         &self.actor
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn route(&self) -> &Customer360Route {
@@ -144,13 +144,17 @@ impl<A: Customer360QueryApplication, G: Customer360RequestAuthenticator> Custome
         let value = request.into_inner();
         let customer = CustomerRef::try_from_uuid(parse_uuid(&value.customer_id, "customer_id")?)
             .map_err(|_| invalid("customer_id is invalid"))?;
-        let decoded = decode_query(value.metadata, value.tenant_id, GetCustomer360 { customer })?;
+        let decoded = decode_query(
+            value.metadata,
+            value.holding_id,
+            GetCustomer360 { customer },
+        )?;
         let authenticated = self
             .authenticator
             .authenticate(Customer360AuthenticationRequest {
                 transport_metadata: transport,
                 presented_actor: decoded.envelope.actor.clone(),
-                presented_scope: decoded.envelope.tenant_scope.clone(),
+                presented_scope: decoded.envelope.active_scope.clone(),
                 presented_route: decoded.route,
                 customer,
             })
@@ -158,7 +162,7 @@ impl<A: Customer360QueryApplication, G: Customer360RequestAuthenticator> Custome
             .map_err(status_from_auth)?;
         let mut envelope = decoded.envelope;
         envelope.actor = authenticated.actor().clone();
-        envelope.tenant_scope = authenticated.scope().clone();
+        envelope.active_scope = authenticated.scope().clone();
         envelope
             .validate()
             .map_err(|_| Status::internal("authenticated Customer 360 authority is invalid"))?;
@@ -172,7 +176,7 @@ impl<A: Customer360QueryApplication, G: Customer360RequestAuthenticator> Custome
             customer: result.value.customer.as_ref().map(encode_customer),
             metadata: Some(encode_query_metadata(&result.metadata)),
             control_customers: Some(encode_projection_metadata(&sources.control_customers)),
-            tenant_activity: Some(encode_projection_metadata(&sources.tenant_activity)),
+            holding_activity: Some(encode_projection_metadata(&sources.holding_activity)),
         }))
     }
 }
@@ -184,11 +188,11 @@ struct DecodedQuery<Q> {
 
 fn decode_query<Q>(
     metadata: Option<common::QueryRequestMetadata>,
-    requested_tenant: Option<String>,
+    requested_holding: Option<String>,
     query: Q,
 ) -> Result<DecodedQuery<Q>, Status> {
     let metadata = metadata.ok_or_else(|| invalid("query metadata is required"))?;
-    let route = decode_route(metadata.tenant_route, requested_tenant)?;
+    let route = decode_route(metadata.holding_route, requested_holding)?;
     let envelope = QueryEnvelope {
         contract_version: u16::try_from(metadata.contract_version)
             .map_err(|_| invalid("contract_version is invalid"))?,
@@ -196,10 +200,10 @@ fn decode_query<Q>(
             .map_err(|_| invalid("query_id is invalid"))?,
         correlation_id: correlation(&metadata.correlation_id)?,
         actor: decode_actor(metadata.actor)?,
-        tenant_scope: decode_scope(
+        active_scope: decode_scope(
             metadata
-                .tenant_scope
-                .ok_or_else(|| invalid("tenant_scope is required"))?,
+                .active_scope
+                .ok_or_else(|| invalid("active_scope is required"))?,
         )?,
         audit: decode_audit(metadata.audit)?,
         consistency: decode_consistency(metadata.consistency)?,
@@ -212,35 +216,35 @@ fn decode_query<Q>(
 }
 
 fn decode_route(
-    metadata_route: Option<common::TenantRoute>,
-    requested_tenant: Option<String>,
+    metadata_route: Option<common::HoldingRoute>,
+    requested_holding: Option<String>,
 ) -> Result<Customer360Route, Status> {
-    let metadata_tenant = metadata_route
+    let metadata_holding = metadata_route
         .as_ref()
-        .map(|value| parse_uuid(&value.tenant_id, "tenant_route.tenant_id"))
+        .map(|value| parse_uuid(&value.holding_id, "holding_route.holding_id"))
         .transpose()?;
-    let requested_tenant = requested_tenant
+    let requested_holding = requested_holding
         .as_deref()
-        .map(|value| parse_uuid(value, "tenant_id"))
+        .map(|value| parse_uuid(value, "holding_id"))
         .transpose()?;
-    if metadata_tenant.is_some()
-        && requested_tenant.is_some()
-        && metadata_tenant != requested_tenant
+    if metadata_holding.is_some()
+        && requested_holding.is_some()
+        && metadata_holding != requested_holding
     {
-        return Err(invalid("tenant_id does not match tenant_route"));
+        return Err(invalid("holding_id does not match holding_route"));
     }
     let route = Customer360Route {
-        tenant_id: requested_tenant.or(metadata_tenant),
-        holding_ref: metadata_route.and_then(|value| nonempty(value.holding_ref)),
+        holding_id: requested_holding.or(metadata_holding),
+        data_profile_key: metadata_route.and_then(|value| nonempty(value.data_profile_key)),
     };
     validate_route(&route)?;
     Ok(route)
 }
 
 fn validate_route(route: &Customer360Route) -> Result<(), Status> {
-    if route.tenant_id.is_some_and(|value| value.is_nil())
+    if route.holding_id.is_some_and(|value| value.is_nil())
         || route
-            .holding_ref
+            .data_profile_key
             .as_ref()
             .is_some_and(|value| value.len() > 255 || value.chars().any(char::is_control))
     {
@@ -494,7 +498,7 @@ fn decode_actor(value: Option<common::ActorAttribution>) -> Result<ActorAttribut
     let value = value.ok_or_else(|| invalid("actor is required"))?;
     let kind = match common::ActorKind::try_from(value.kind).ok() {
         Some(common::ActorKind::PlatformUser) => ActorKind::PlatformUser,
-        Some(common::ActorKind::TenantUser) => ActorKind::TenantUser,
+        Some(common::ActorKind::HoldingUser) => ActorKind::HoldingUser,
         Some(common::ActorKind::Service) => ActorKind::Service,
         Some(common::ActorKind::SystemWorker) => ActorKind::SystemWorker,
         _ => return Err(invalid("actor kind is invalid")),
@@ -522,34 +526,25 @@ fn decode_audit(value: Option<common::AuditContext>) -> Result<AuditContext, Sta
         module: nonempty(value.module),
     })
 }
-fn decode_scope(value: common::TenantScope) -> Result<TenantScope, Status> {
-    use common::tenant_scope::Scope;
+fn decode_scope(value: common::AuthorityScope) -> Result<AuthorityScope, Status> {
+    use common::authority_scope::Scope;
     match value.scope.ok_or_else(|| invalid("scope is required"))? {
-        Scope::Platform(_) => Ok(TenantScope::Platform),
-        Scope::Holding(value) => Ok(TenantScope::Holding {
+        Scope::Platform(_) => Ok(AuthorityScope::Platform),
+        Scope::Holding(value) => Ok(AuthorityScope::Holding {
             holding_id: parse_uuid(&value.holding_id, "holding_id")?,
         }),
-        Scope::Company(value) => Ok(TenantScope::Company {
+        Scope::Company(value) => Ok(AuthorityScope::Company {
             holding_id: parse_uuid(&value.holding_id, "holding_id")?,
             company_id: parse_uuid(&value.company_id, "company_id")?,
         }),
-        Scope::Branch(value) => Ok(TenantScope::Branch {
+        Scope::Branch(value) => Ok(AuthorityScope::Branch {
             holding_id: parse_uuid(&value.holding_id, "holding_id")?,
             company_id: parse_uuid(&value.company_id, "company_id")?,
             branch_id: parse_uuid(&value.branch_id, "branch_id")?,
         }),
-        Scope::Subtree(value) => Ok(TenantScope::Subtree {
+        Scope::Subtree(value) => Ok(AuthorityScope::Subtree {
             holding_id: parse_uuid(&value.holding_id, "holding_id")?,
-            company_ids: value
-                .company_ids
-                .iter()
-                .map(|value| parse_uuid(value, "company_id"))
-                .collect::<Result<_, _>>()?,
-            branch_ids: value
-                .branch_ids
-                .iter()
-                .map(|value| parse_uuid(value, "branch_id"))
-                .collect::<Result<_, _>>()?,
+            organization_node_id: parse_uuid(&value.organization_node_id, "organization_node_id")?,
         }),
     }
 }
@@ -610,14 +605,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn tenant_selector_must_match_authenticated_transport_route() {
-        let route = common::TenantRoute {
-            tenant_id: Uuid::from_u128(1).to_string(),
-            holding_ref: "holding-1".into(),
+    fn holding_selector_must_match_authenticated_transport_route() {
+        let route = common::HoldingRoute {
+            holding_id: Uuid::from_u128(1).to_string(),
+            data_profile_key: "holding-1".into(),
         };
         assert!(decode_route(Some(route.clone()), Some(Uuid::from_u128(2).to_string())).is_err());
         let decoded = decode_route(Some(route), Some(Uuid::from_u128(1).to_string())).unwrap();
-        assert_eq!(decoded.tenant_id, Some(Uuid::from_u128(1)));
+        assert_eq!(decoded.holding_id, Some(Uuid::from_u128(1)));
     }
 
     #[test]

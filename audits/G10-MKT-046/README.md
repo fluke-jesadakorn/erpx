@@ -1,6 +1,6 @@
 # G10-MKT-046 — bounded Marketing journey domain
 
-The Marketing domain now contains a tenant-scoped, versioned Journey graph
+The Marketing domain now contains a holding-scoped, versioned Journey graph
 with the required campaign lifecycle, validated trigger/wait/channel/branch/
 segment-change/CRM-handoff/conversion/action definitions, deterministic node
 ordering and reachability checks, and a resume-safe execution cursor. Cursor

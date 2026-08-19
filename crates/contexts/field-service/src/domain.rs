@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use chrono::{DateTime, NaiveDate, Utc};
 use erpx_integration_contracts::{MoneyAmount, Quantity, RecordVersionRef, StableRecordRef};
-use erpx_kernel::{CorrelationId, PrincipalId, TenantScope};
+use erpx_kernel::{AuthorityScope, CorrelationId, PrincipalId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -54,7 +54,7 @@ fn require_online(value: Connectivity) -> Result<(), FieldServiceDomainError> {
 pub struct ServiceAgreement {
     id: ServiceAgreementId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     customer: RecordVersionRef,
     covered_assets: BTreeSet<StableRecordRef>,
     covered_locations: BTreeSet<StableRecordRef>,
@@ -67,7 +67,7 @@ impl ServiceAgreement {
     #[allow(clippy::too_many_arguments)]
     pub fn activate(
         id: ServiceAgreementId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         customer: RecordVersionRef,
         covered_assets: BTreeSet<StableRecordRef>,
         covered_locations: BTreeSet<StableRecordRef>,
@@ -128,7 +128,7 @@ impl ServiceAgreement {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
 }
@@ -137,7 +137,7 @@ impl ServiceAgreement {
 pub struct ServiceRequest {
     pub id: ServiceRequestId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub customer: RecordVersionRef,
     pub asset: RecordVersionRef,
     pub location: StableRecordRef,
@@ -224,7 +224,7 @@ pub enum ServiceOrderStatus {
 pub struct ServiceOrder {
     id: ServiceOrderId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     request: ServiceRequestId,
     request_version: u64,
     agreement: ServiceAgreementId,
@@ -544,7 +544,7 @@ impl ServiceOrder {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn status(&self) -> ServiceOrderStatus {

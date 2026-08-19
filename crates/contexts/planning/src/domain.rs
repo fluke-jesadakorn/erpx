@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, NaiveDate, Utc};
 use erpx_integration_contracts::{Quantity, RecordVersionRef, StableRecordRef};
-use erpx_kernel::{CorrelationId, TenantScope};
+use erpx_kernel::{AuthorityScope, CorrelationId};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
@@ -118,7 +118,7 @@ pub enum ScenarioStatus {
 pub struct PlanningScenario {
     id: ScenarioId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     modes: BTreeSet<PlanningMode>,
     input_position: u64,
     inputs: Vec<RecordVersionRef>,
@@ -136,7 +136,7 @@ impl PlanningScenario {
     #[allow(clippy::too_many_arguments)]
     pub fn draft(
         id: ScenarioId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         modes: BTreeSet<PlanningMode>,
         input_position: u64,
         inputs: Vec<RecordVersionRef>,
@@ -291,7 +291,7 @@ impl PlanningScenario {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn status(&self) -> ScenarioStatus {

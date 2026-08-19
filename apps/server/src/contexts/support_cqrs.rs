@@ -9,10 +9,10 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::{customer, identity_access};
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
-    QueryId, SessionId as KernelSessionId, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+    ErrorCategory, EventId, QueryId, SessionId as KernelSessionId,
 };
-use erpx_proto::{common, erpx::support::v2 as platform};
+use erpx_proto::{common, erpx::support as platform};
 use erpx_support::{
     AddIncidentTimeline, AddTicketMessage, ApproveSupportSession, BroadcastAudience,
     BroadcastIncident, CapabilityEvidence, CapabilityId, CapabilityRevocationReason, GetIncident,
@@ -38,9 +38,9 @@ const SUPPORT_MFA_REQUIRED_MESSAGE: &str =
     "current MFA verification is required for this Support action";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SupportTenantRoute {
-    pub tenant_id: String,
-    pub holding_ref: String,
+pub struct SupportHoldingRoute {
+    pub holding_id: String,
+    pub data_profile_key: String,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SupportAccessMode {
@@ -51,8 +51,8 @@ pub enum SupportAccessMode {
 pub struct SupportAuthenticationRequest {
     transport_metadata: MetadataMap,
     presented_actor: ActorAttribution,
-    presented_scope: TenantScope,
-    presented_route: SupportTenantRoute,
+    presented_scope: AuthorityScope,
+    presented_route: SupportHoldingRoute,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
     access_mode: SupportAccessMode,
@@ -65,10 +65,10 @@ impl SupportAuthenticationRequest {
     pub const fn presented_actor(&self) -> &ActorAttribution {
         &self.presented_actor
     }
-    pub const fn presented_scope(&self) -> &TenantScope {
+    pub const fn presented_scope(&self) -> &AuthorityScope {
         &self.presented_scope
     }
-    pub const fn presented_route(&self) -> &SupportTenantRoute {
+    pub const fn presented_route(&self) -> &SupportHoldingRoute {
         &self.presented_route
     }
     pub fn subscription_id(&self) -> Option<&str> {
@@ -88,37 +88,37 @@ impl SupportAuthenticationRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthenticatedSupportRequest {
     actor: ActorAttribution,
-    tenant_scope: TenantScope,
-    route: SupportTenantRoute,
+    active_scope: AuthorityScope,
+    route: SupportHoldingRoute,
 }
 impl AuthenticatedSupportRequest {
     pub fn try_new(
         actor: ActorAttribution,
-        tenant_scope: TenantScope,
-        route: SupportTenantRoute,
+        active_scope: AuthorityScope,
+        route: SupportHoldingRoute,
     ) -> Result<Self, SupportAuthenticationError> {
         actor
             .validate()
             .map_err(|_| SupportAuthenticationError::Internal)?;
-        tenant_scope
+        active_scope
             .validate()
             .map_err(|_| SupportAuthenticationError::Internal)?;
         validate_route(&route).map_err(|_| SupportAuthenticationError::Internal)?;
-        validate_route_scope(&route, &tenant_scope)
+        validate_route_scope(&route, &active_scope)
             .map_err(|_| SupportAuthenticationError::Internal)?;
         Ok(Self {
             actor,
-            tenant_scope,
+            active_scope,
             route,
         })
     }
     pub const fn actor(&self) -> &ActorAttribution {
         &self.actor
     }
-    pub const fn tenant_scope(&self) -> &TenantScope {
-        &self.tenant_scope
+    pub const fn active_scope(&self) -> &AuthorityScope {
+        &self.active_scope
     }
-    pub const fn route(&self) -> &SupportTenantRoute {
+    pub const fn route(&self) -> &SupportHoldingRoute {
         &self.route
     }
 }
@@ -141,7 +141,7 @@ pub trait SupportRequestAuthenticator: Send + Sync + 'static {
 pub trait SupportCommandApplication: Send + Sync + 'static {
     async fn execute(
         &self,
-        route: SupportTenantRoute,
+        route: SupportHoldingRoute,
         command: CommandEnvelope<SupportCommand>,
     ) -> Result<CommandReceipt<SupportMutationResult>, CqrsError>;
 }
@@ -149,7 +149,7 @@ pub trait SupportCommandApplication: Send + Sync + 'static {
 pub trait SupportQueryApplication: Send + Sync + 'static {
     async fn execute(
         &self,
-        route: SupportTenantRoute,
+        route: SupportHoldingRoute,
         query: QueryEnvelope<SupportQuery>,
     ) -> Result<QueryResult<SupportQueryResponse>, CqrsError>;
 }
@@ -160,8 +160,8 @@ pub trait SupportQueryApplication: Send + Sync + 'static {
 pub trait SupportCustomerFactResolver: Send + Sync + 'static {
     async fn resolve_customer(
         &self,
-        route: &SupportTenantRoute,
-        authority: &TenantScope,
+        route: &SupportHoldingRoute,
+        authority: &AuthorityScope,
         customer_id: Uuid,
         account_id: Uuid,
     ) -> Result<customer::CustomerProfileFact, Status>;
@@ -213,9 +213,9 @@ pub trait SupportCapabilityAuthorityResolver: Send + Sync + 'static {
     #[allow(clippy::too_many_arguments)]
     async fn resolve_issue_material(
         &self,
-        route: &SupportTenantRoute,
+        route: &SupportHoldingRoute,
         actor: &ActorAttribution,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         command_id: CommandId,
         capability_id: CapabilityId,
         session_id: SessionId,
@@ -271,13 +271,13 @@ impl<
         transport: MetadataMap,
         metadata: Option<common::CommandRequestMetadata>,
         action: SupportAction,
-    ) -> Result<(SupportTenantRoute, CommandEnvelope<()>), Status> {
+    ) -> Result<(SupportHoldingRoute, CommandEnvelope<()>), Status> {
         let decoded = decode_command_metadata(metadata)?;
         authenticate_command(self.authenticator.as_ref(), transport, decoded, action).await
     }
     async fn execute(
         &self,
-        route: SupportTenantRoute,
+        route: SupportHoldingRoute,
         envelope: CommandEnvelope<()>,
         command: SupportCommand,
     ) -> Result<CommandReceipt<SupportMutationResult>, Status> {
@@ -309,7 +309,7 @@ impl<
         let account_id = parse_uuid(&input.customer_account_id, "customer_account_id")?;
         let fact = self
             .customers
-            .resolve_customer(&route, &envelope.tenant_scope, customer_id, account_id)
+            .resolve_customer(&route, &envelope.active_scope, customer_id, account_id)
             .await?;
         if fact.customer.as_uuid() != customer_id || fact.account.as_uuid() != account_id {
             return Err(Status::permission_denied("customer binding changed"));
@@ -506,7 +506,7 @@ impl<
             .resolve_issue_material(
                 &r,
                 &e.actor,
-                &e.tenant_scope,
+                &e.active_scope,
                 e.command_id,
                 cid,
                 sid,
@@ -975,13 +975,13 @@ fn incident_mutation(
 }
 
 struct DecodedCommand {
-    route: SupportTenantRoute,
+    route: SupportHoldingRoute,
     envelope: CommandEnvelope<()>,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
 }
 struct DecodedQuery<Q> {
-    route: SupportTenantRoute,
+    route: SupportHoldingRoute,
     envelope: QueryEnvelope<Q>,
 }
 fn map_command(v: CommandEnvelope<()>, command: SupportCommand) -> CommandEnvelope<SupportCommand> {
@@ -992,7 +992,7 @@ fn map_command(v: CommandEnvelope<()>, command: SupportCommand) -> CommandEnvelo
         correlation_id: v.correlation_id,
         causation_id: v.causation_id,
         actor: v.actor,
-        tenant_scope: v.tenant_scope,
+        active_scope: v.active_scope,
         audit: v.audit,
         expected_aggregate_version: v.expected_aggregate_version,
         command,
@@ -1019,13 +1019,13 @@ async fn authenticate_command<G: SupportRequestAuthenticator>(
     transport: MetadataMap,
     d: DecodedCommand,
     action: SupportAction,
-) -> Result<(SupportTenantRoute, CommandEnvelope<()>), Status> {
+) -> Result<(SupportHoldingRoute, CommandEnvelope<()>), Status> {
     require_current_mfa(action, d.mfa_code.as_deref())?;
     let a = auth
         .authenticate(SupportAuthenticationRequest {
             transport_metadata: transport,
             presented_actor: d.envelope.actor.clone(),
-            presented_scope: d.envelope.tenant_scope.clone(),
+            presented_scope: d.envelope.active_scope.clone(),
             presented_route: d.route,
             subscription_id: d.subscription_id,
             mfa_code: d.mfa_code,
@@ -1036,7 +1036,7 @@ async fn authenticate_command<G: SupportRequestAuthenticator>(
         .map_err(status_from_auth)?;
     let mut e = d.envelope;
     e.actor = a.actor().clone();
-    e.tenant_scope = a.tenant_scope().clone();
+    e.active_scope = a.active_scope().clone();
     e.validate()
         .map_err(|_| Status::internal("authenticated Support authority is invalid"))?;
     Ok((a.route().clone(), e))
@@ -1046,12 +1046,12 @@ async fn authenticate_query<Q, G: SupportRequestAuthenticator>(
     transport: MetadataMap,
     d: DecodedQuery<Q>,
     action: SupportAction,
-) -> Result<(SupportTenantRoute, QueryEnvelope<Q>), Status> {
+) -> Result<(SupportHoldingRoute, QueryEnvelope<Q>), Status> {
     let a = auth
         .authenticate(SupportAuthenticationRequest {
             transport_metadata: transport,
             presented_actor: d.envelope.actor.clone(),
-            presented_scope: d.envelope.tenant_scope.clone(),
+            presented_scope: d.envelope.active_scope.clone(),
             presented_route: d.route,
             subscription_id: None,
             mfa_code: None,
@@ -1062,7 +1062,7 @@ async fn authenticate_query<Q, G: SupportRequestAuthenticator>(
         .map_err(status_from_auth)?;
     let mut e = d.envelope;
     e.actor = a.actor().clone();
-    e.tenant_scope = a.tenant_scope().clone();
+    e.active_scope = a.active_scope().clone();
     e.validate()
         .map_err(|_| Status::internal("authenticated Support authority is invalid"))?;
     Ok((a.route().clone(), e))
@@ -1071,7 +1071,7 @@ fn decode_command_metadata(
     metadata: Option<common::CommandRequestMetadata>,
 ) -> Result<DecodedCommand, Status> {
     let m = metadata.ok_or_else(|| invalid("command metadata is required"))?;
-    let route = decode_route(m.tenant_route)?;
+    let route = decode_route(m.holding_route)?;
     let envelope = CommandEnvelope {
         contract_version: u16::try_from(m.contract_version)
             .map_err(|_| invalid("contract_version is invalid"))?,
@@ -1082,9 +1082,9 @@ fn decode_command_metadata(
         correlation_id: correlation(&m.correlation_id)?,
         causation_id: m.causation_id.as_deref().map(event_id).transpose()?,
         actor: decode_actor(m.actor)?,
-        tenant_scope: decode_scope(
-            m.tenant_scope
-                .ok_or_else(|| invalid("tenant_scope is required"))?,
+        active_scope: decode_scope(
+            m.active_scope
+                .ok_or_else(|| invalid("active_scope is required"))?,
         )?,
         audit: decode_audit(m.audit)?,
         expected_aggregate_version: m.expected_aggregate_version,
@@ -1112,7 +1112,7 @@ fn decode_query<Q>(
     query: Q,
 ) -> Result<DecodedQuery<Q>, Status> {
     let m = metadata.ok_or_else(|| invalid("query metadata is required"))?;
-    let route = decode_route(m.tenant_route)?;
+    let route = decode_route(m.holding_route)?;
     let envelope = QueryEnvelope {
         contract_version: u16::try_from(m.contract_version)
             .map_err(|_| invalid("contract_version is invalid"))?,
@@ -1120,9 +1120,9 @@ fn decode_query<Q>(
             .map_err(|_| invalid("query_id is invalid"))?,
         correlation_id: correlation(&m.correlation_id)?,
         actor: decode_actor(m.actor)?,
-        tenant_scope: decode_scope(
-            m.tenant_scope
-                .ok_or_else(|| invalid("tenant_scope is required"))?,
+        active_scope: decode_scope(
+            m.active_scope
+                .ok_or_else(|| invalid("active_scope is required"))?,
         )?,
         audit: decode_audit(m.audit)?,
         consistency: decode_consistency(m.consistency)?,
@@ -1356,7 +1356,7 @@ fn decode_incident_status(v: i32) -> Result<IncidentStatus, Status> {
 fn decode_mode(v: i32) -> Result<SupportMode, Status> {
     match platform::SupportMode::try_from(v).ok() {
         Some(platform::SupportMode::DiagnosticRead) => Ok(SupportMode::DiagnosticRead),
-        Some(platform::SupportMode::TenantMutation) => Ok(SupportMode::TenantMutation),
+        Some(platform::SupportMode::HoldingMutation) => Ok(SupportMode::HoldingMutation),
         Some(platform::SupportMode::Impersonation) => Ok(SupportMode::Impersonation),
         _ => Err(invalid("support mode is invalid")),
     }
@@ -1422,7 +1422,7 @@ fn encode_incident_status(v: IncidentStatus) -> i32 {
 fn encode_mode(v: SupportMode) -> i32 {
     match v {
         SupportMode::DiagnosticRead => platform::SupportMode::DiagnosticRead as i32,
-        SupportMode::TenantMutation => platform::SupportMode::TenantMutation as i32,
+        SupportMode::HoldingMutation => platform::SupportMode::HoldingMutation as i32,
         SupportMode::Impersonation => platform::SupportMode::Impersonation as i32,
     }
 }
@@ -1449,44 +1449,44 @@ fn encode_revocation(v: CapabilityRevocationReason) -> i32 {
     }
 }
 
-fn decode_route(v: Option<common::TenantRoute>) -> Result<SupportTenantRoute, Status> {
-    let v = v.ok_or_else(|| invalid("tenant route is required"))?;
-    let r = SupportTenantRoute {
-        tenant_id: v.tenant_id.trim().into(),
-        holding_ref: v.holding_ref.trim().into(),
+fn decode_route(v: Option<common::HoldingRoute>) -> Result<SupportHoldingRoute, Status> {
+    let v = v.ok_or_else(|| invalid("holding route is required"))?;
+    let r = SupportHoldingRoute {
+        holding_id: v.holding_id.trim().into(),
+        data_profile_key: v.data_profile_key.trim().into(),
     };
     validate_route(&r)?;
     Ok(r)
 }
-fn validate_route(v: &SupportTenantRoute) -> Result<(), Status> {
-    if [&v.tenant_id, &v.holding_ref]
+fn validate_route(v: &SupportHoldingRoute) -> Result<(), Status> {
+    if [&v.holding_id, &v.data_profile_key]
         .iter()
         .any(|v| v.is_empty() || v.len() > MAX_ROUTE_LENGTH)
     {
-        Err(invalid("tenant route is invalid"))
+        Err(invalid("holding route is invalid"))
     } else {
         Ok(())
     }
 }
-fn validate_route_scope(r: &SupportTenantRoute, s: &TenantScope) -> Result<(), Status> {
+fn validate_route_scope(r: &SupportHoldingRoute, s: &AuthorityScope) -> Result<(), Status> {
     let holding = match s {
-        TenantScope::Platform => return Ok(()),
-        TenantScope::Holding { holding_id }
-        | TenantScope::Company { holding_id, .. }
-        | TenantScope::Branch { holding_id, .. }
-        | TenantScope::Subtree { holding_id, .. } => holding_id,
+        AuthorityScope::Platform => return Ok(()),
+        AuthorityScope::Holding { holding_id }
+        | AuthorityScope::Company { holding_id, .. }
+        | AuthorityScope::Branch { holding_id, .. }
+        | AuthorityScope::Subtree { holding_id, .. } => holding_id,
     };
-    if parse_uuid(&r.holding_ref, "holding_ref")? == *holding {
+    if parse_uuid(&r.data_profile_key, "data_profile_key")? == *holding {
         Ok(())
     } else {
-        Err(invalid("tenant route does not match Support scope"))
+        Err(invalid("holding route does not match Support scope"))
     }
 }
 fn decode_actor(v: Option<common::ActorAttribution>) -> Result<ActorAttribution, Status> {
     let v = v.ok_or_else(|| invalid("actor is required"))?;
     let kind = match common::ActorKind::try_from(v.kind).ok() {
         Some(common::ActorKind::PlatformUser) => ActorKind::PlatformUser,
-        Some(common::ActorKind::TenantUser) => ActorKind::TenantUser,
+        Some(common::ActorKind::HoldingUser) => ActorKind::HoldingUser,
         Some(common::ActorKind::Service) => ActorKind::Service,
         Some(common::ActorKind::SystemWorker) => ActorKind::SystemWorker,
         _ => return Err(invalid("actor kind is invalid")),
@@ -1510,53 +1510,44 @@ fn decode_audit(v: Option<common::AuditContext>) -> Result<AuditContext, Status>
         module: nonempty(v.module),
     })
 }
-fn decode_scope(v: common::TenantScope) -> Result<TenantScope, Status> {
-    use common::tenant_scope::Scope;
+fn decode_scope(v: common::AuthorityScope) -> Result<AuthorityScope, Status> {
+    use common::authority_scope::Scope;
     match v.scope.ok_or_else(|| invalid("scope is required"))? {
-        Scope::Platform(_) => Ok(TenantScope::Platform),
-        Scope::Holding(v) => Ok(TenantScope::Holding {
+        Scope::Platform(_) => Ok(AuthorityScope::Platform),
+        Scope::Holding(v) => Ok(AuthorityScope::Holding {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
         }),
-        Scope::Company(v) => Ok(TenantScope::Company {
+        Scope::Company(v) => Ok(AuthorityScope::Company {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
             company_id: parse_uuid(&v.company_id, "company_id")?,
         }),
-        Scope::Branch(v) => Ok(TenantScope::Branch {
+        Scope::Branch(v) => Ok(AuthorityScope::Branch {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
             company_id: parse_uuid(&v.company_id, "company_id")?,
             branch_id: parse_uuid(&v.branch_id, "branch_id")?,
         }),
-        Scope::Subtree(v) => Ok(TenantScope::Subtree {
+        Scope::Subtree(v) => Ok(AuthorityScope::Subtree {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
-            company_ids: v
-                .company_ids
-                .iter()
-                .map(|x| parse_uuid(x, "company_id"))
-                .collect::<Result<_, _>>()?,
-            branch_ids: v
-                .branch_ids
-                .iter()
-                .map(|x| parse_uuid(x, "branch_id"))
-                .collect::<Result<_, _>>()?,
+            organization_node_id: parse_uuid(&v.organization_node_id, "organization_node_id")?,
         }),
     }
 }
-fn encode_scope(v: &TenantScope) -> common::TenantScope {
-    use common::tenant_scope::Scope;
-    common::TenantScope {
+fn encode_scope(v: &AuthorityScope) -> common::AuthorityScope {
+    use common::authority_scope::Scope;
+    common::AuthorityScope {
         scope: Some(match v {
-            TenantScope::Platform => Scope::Platform(common::PlatformScope {}),
-            TenantScope::Holding { holding_id } => Scope::Holding(common::HoldingScope {
+            AuthorityScope::Platform => Scope::Platform(common::PlatformScope {}),
+            AuthorityScope::Holding { holding_id } => Scope::Holding(common::HoldingScope {
                 holding_id: holding_id.to_string(),
             }),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => Scope::Company(common::CompanyScope {
                 holding_id: holding_id.to_string(),
                 company_id: company_id.to_string(),
             }),
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -1565,14 +1556,12 @@ fn encode_scope(v: &TenantScope) -> common::TenantScope {
                 company_id: company_id.to_string(),
                 branch_id: branch_id.to_string(),
             }),
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Scope::Subtree(common::SubtreeScope {
                 holding_id: holding_id.to_string(),
-                company_ids: company_ids.iter().map(ToString::to_string).collect(),
-                branch_ids: branch_ids.iter().map(ToString::to_string).collect(),
+                organization_node_id: organization_node_id.to_string(),
             }),
         }),
     }
@@ -1731,7 +1720,7 @@ mod tests {
     use async_trait::async_trait;
     use erpx_cqrs::{CommandEnvelope, IdempotencyKey};
     use erpx_kernel::{
-        ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, TenantScope,
+        ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
     };
     use erpx_proto::common;
     use erpx_support::SupportAction;
@@ -1741,7 +1730,7 @@ mod tests {
     use super::{
         AuthenticatedSupportRequest, DecodedCommand, SecureCapabilityIssueMaterial,
         SupportAuthenticationError, SupportAuthenticationRequest, SupportCapabilityDeliverySecret,
-        SupportRequestAuthenticator, SupportTenantRoute,
+        SupportHoldingRoute, SupportRequestAuthenticator,
     };
 
     struct MustNotAuthenticate {
@@ -1779,9 +1768,9 @@ mod tests {
     fn decoded_command(mfa_code: Option<&str>) -> DecodedCommand {
         let holding_id = Uuid::from_u128(1);
         DecodedCommand {
-            route: SupportTenantRoute {
-                tenant_id: "tenant-1".into(),
-                holding_ref: holding_id.to_string(),
+            route: SupportHoldingRoute {
+                holding_id: "holding-1".into(),
+                data_profile_key: holding_id.to_string(),
             },
             envelope: CommandEnvelope {
                 contract_version: erpx_cqrs::CONTRACT_VERSION,
@@ -1791,12 +1780,12 @@ mod tests {
                 causation_id: None,
                 actor: ActorAttribution {
                     principal_ref: Uuid::from_u128(4).to_string(),
-                    kind: ActorKind::TenantUser,
+                    kind: ActorKind::HoldingUser,
                     session_id: None,
                     represented_principal_ref: None,
                     support_capability_id: None,
                 },
-                tenant_scope: TenantScope::Holding { holding_id },
+                active_scope: AuthorityScope::Holding { holding_id },
                 audit: AuditContext {
                     purpose: "support transport MFA test".into(),
                     customer_visible: false,
@@ -1876,7 +1865,7 @@ mod tests {
                 device_ref: "support-device".into(),
                 mfa_verified_at: None,
                 segregation_of_duties_passed: true,
-                authority_scope: TenantScope::Holding {
+                authority_scope: AuthorityScope::Holding {
                     holding_id: Uuid::from_u128(91),
                 },
             },

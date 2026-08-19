@@ -7,7 +7,7 @@
   G8-FIN-013 provider-neutral adapter boundary.
 - **Allowed paths:** infrastructure secret-manager composition boundary,
   focused unit tests, this audit, and plan/ledger records.
-- **Forbidden paths:** PostgreSQL credential storage, provider SDKs, tenant
+- **Forbidden paths:** PostgreSQL credential storage, provider SDKs, holding
   banking persistence, server authorization, worker scheduling, Finance UI,
   Folio, and unrelated ERP contexts.
 
@@ -42,5 +42,5 @@ written to PostgreSQL by this packet.
 ## Rollback
 
 Remove the additive module and export. The existing opaque control-plane route
-and provider DTO boundary remain unchanged; no tenant facts or credential
+and provider DTO boundary remain unchanged; no holding facts or credential
 material are modified.

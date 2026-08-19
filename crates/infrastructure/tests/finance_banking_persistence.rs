@@ -1,5 +1,5 @@
 use chrono::{NaiveDate, Utc};
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::finance::{
     Account, AccountKind, AccountingPeriod, ChartOfAccounts, JournalEntry, JournalLine,
 };
@@ -14,12 +14,12 @@ use erpx_infrastructure::{
 use sqlx::PgPool;
 use uuid::Uuid;
 
-fn context(scope: TenantScope, key: &str) -> CommandContext {
+fn context(scope: AuthorityScope, key: &str) -> CommandContext {
     CommandContext::try_new(
         key,
         ActorAttribution {
             principal_ref: "finance-test".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
@@ -35,7 +35,7 @@ fn fixture() -> (BankAccount, BankStatementImport, BankReconciliation) {
     let company_id = Uuid::new_v4();
     let account_id = Uuid::new_v4();
     let fixture_suffix = Uuid::new_v4().simple().to_string();
-    let scope = TenantScope::Company {
+    let scope = AuthorityScope::Company {
         holding_id,
         company_id,
     };
@@ -84,7 +84,7 @@ fn fixture() -> (BankAccount, BankStatementImport, BankReconciliation) {
         1000,
         1000,
         context(
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             },
@@ -117,7 +117,7 @@ async fn store_constructor_is_lazy_and_receipts_are_typed() {
         "holding-test",
     )
     .expect("store");
-    assert_eq!(store.holding_ref(), "holding-test");
+    assert_eq!(store.data_profile_key(), "holding-test");
     let _account_receipt: Option<BankAccountWriteReceipt> = None;
     let _reconciliation_receipt: Option<BankReconciliationWriteReceipt> = None;
     let _proposal_receipt: Option<BankMatchProposalWriteReceipt> = None;
@@ -125,27 +125,31 @@ async fn store_constructor_is_lazy_and_receipts_are_typed() {
 }
 
 #[tokio::test]
-#[ignore = "requires two disposable tenant PostgreSQL databases; URLs are never printed"]
+#[ignore = "requires two disposable holding PostgreSQL databases; URLs are never printed"]
 async fn live_bank_write_boundary_is_idempotent_scoped_and_reconcilable() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
         .expect("write migration");
-    erpx_migration::migrate_tenant_read(&read_pool)
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
         .expect("read migration");
     let (account, import, reconciliation) = fixture();
-    let holding_ref = format!("holding-test-{}", Uuid::new_v4().simple());
-    let store =
-        SqlxFinanceBankingStore::new(write_pool.clone(), read_pool.clone(), holding_ref.clone())
-            .expect("store");
-    let finance_store = SqlxFinanceStore::new(write_pool.clone(), read_pool, holding_ref.clone())
-        .expect("finance store");
+    let data_profile_key = format!("holding-test-{}", Uuid::new_v4().simple());
+    let store = SqlxFinanceBankingStore::new(
+        write_pool.clone(),
+        read_pool.clone(),
+        data_profile_key.clone(),
+    )
+    .expect("store");
+    let finance_store =
+        SqlxFinanceStore::new(write_pool.clone(), read_pool, data_profile_key.clone())
+            .expect("finance store");
     let registered = store
         .register_account(&account, "register-1")
         .await
@@ -243,7 +247,7 @@ async fn live_bank_write_boundary_is_idempotent_scoped_and_reconcilable() {
             .expect("credit line"),
         ],
         context(
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id: account.holding_id(),
                 company_id: account.company_id(),
             },
@@ -258,17 +262,17 @@ async fn live_bank_write_boundary_is_idempotent_scoped_and_reconcilable() {
         .journal;
     let stored_match_facts: (Option<String>, Option<i64>) = sqlx::query_as(
         "SELECT currency, total_minor
-         FROM erpx_tenant.finance_posted_journals
-         WHERE journal_id=$1 AND holding_ref=$2",
+         FROM erpx_holding.finance_posted_journals
+         WHERE journal_id=$1 AND data_profile_key=$2",
     )
     .bind(posted.id())
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .fetch_one(&write_pool)
     .await
     .expect("stored journal match facts");
     assert_eq!(stored_match_facts, (Some("THB".into()), Some(1000)));
     let proposal_context = context(
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id: account.holding_id(),
             company_id: account.company_id(),
         },
@@ -302,7 +306,7 @@ async fn live_bank_write_boundary_is_idempotent_scoped_and_reconcilable() {
             .generate_match_proposal(
                 import.transactions()[0].id(),
                 context(
-                    TenantScope::Company {
+                    AuthorityScope::Company {
                         holding_id: account.holding_id(),
                         company_id: account.company_id(),
                     },
@@ -320,7 +324,7 @@ async fn live_bank_write_boundary_is_idempotent_scoped_and_reconcilable() {
         &import.transactions()[0],
         proposal.candidates().to_vec(),
         context(
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id: account.holding_id(),
                 company_id: account.company_id(),
             },
@@ -335,11 +339,11 @@ async fn live_bank_write_boundary_is_idempotent_scoped_and_reconcilable() {
     ));
     let proposal_events: i64 = sqlx::query_scalar(
         "SELECT COUNT(*)
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type=$2 AND aggregate_id=$3
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type=$2 AND aggregate_id=$3
            AND event_type=$4",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind("finance_bank_match_proposal")
     .bind(proposal.id())
     .bind("finance.bank_match_proposal_saved.v1")
@@ -357,7 +361,7 @@ async fn live_bank_write_boundary_is_idempotent_scoped_and_reconcilable() {
                 journal_id: posted.id(),
             },
             context(
-                TenantScope::Company {
+                AuthorityScope::Company {
                     holding_id: account.holding_id(),
                     company_id: account.company_id(),
                 },
@@ -377,11 +381,11 @@ async fn live_bank_write_boundary_is_idempotent_scoped_and_reconcilable() {
     assert!(decision_replay.replayed);
     let decision_events: i64 = sqlx::query_scalar(
         "SELECT COUNT(*)
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type=$2 AND aggregate_id=$3
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type=$2 AND aggregate_id=$3
            AND event_type=$4",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind("finance_bank_match_decision")
     .bind(decision.id())
     .bind("finance.bank_match_decision_saved.v1")
@@ -394,12 +398,12 @@ async fn live_bank_write_boundary_is_idempotent_scoped_and_reconcilable() {
     );
     assert!(
         sqlx::query(
-            "UPDATE erpx_tenant.finance_posted_journals
+            "UPDATE erpx_holding.finance_posted_journals
              SET total_minor = total_minor + 1
-             WHERE journal_id=$1 AND holding_ref=$2",
+             WHERE journal_id=$1 AND data_profile_key=$2",
         )
         .bind(posted.id())
-        .bind(&holding_ref)
+        .bind(&data_profile_key)
         .execute(&write_pool)
         .await
         .is_err(),
@@ -425,23 +429,24 @@ async fn live_bank_write_boundary_is_idempotent_scoped_and_reconcilable() {
 }
 
 #[tokio::test]
-#[ignore = "requires two disposable tenant PostgreSQL databases; URLs are never printed"]
+#[ignore = "requires two disposable holding PostgreSQL databases; URLs are never printed"]
 async fn live_bank_read_projection_is_idempotent_and_rebuildable() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
         .expect("write migration");
-    erpx_migration::migrate_tenant_read(&read_pool)
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
         .expect("read migration");
     let (account, import, reconciliation) = fixture();
-    let holding_ref = format!("holding-test-{}", Uuid::new_v4().simple());
-    let store = SqlxFinanceBankingStore::new(write_pool, read_pool, holding_ref).expect("store");
+    let data_profile_key = format!("holding-test-{}", Uuid::new_v4().simple());
+    let store =
+        SqlxFinanceBankingStore::new(write_pool, read_pool, data_profile_key).expect("store");
     store
         .register_account(&account, "register-projection")
         .await
@@ -583,7 +588,7 @@ async fn live_bank_read_projection_is_idempotent_and_rebuildable() {
     assert!(
         store
             .list_read_rows(
-                &TenantScope::Company {
+                &AuthorityScope::Company {
                     holding_id: Uuid::new_v4(),
                     company_id: Uuid::new_v4(),
                 },

@@ -18,15 +18,17 @@ const _: () = assert!(WEB_ONLY);
 
 #[cfg(test)]
 const WRITE_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0076_ecommerce_talent.sql");
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 #[cfg(test)]
-const READ_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_read/0067_ecommerce_talent_projection.sql");
+const READ_DDL: &str = include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 
 pub fn aggregate_partition(aggregate_type: &str, id: uuid::Uuid) -> String {
     format!("talent.{aggregate_type}:{}", id.simple())
 }
 
+#[cfg(test)]
+#[path = "../../schema_test.rs"]
+mod schema_test;
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -42,7 +44,8 @@ mod tests {
     }
 
     #[test]
-    fn all_talent_tables_are_tenant_bound_and_rls_protected() {
+    fn all_talent_tables_are_holding_bound_and_rls_protected() {
+        let owned = schema_test::select_schema_statements(WRITE_DDL, &["erpx_talent_write"]);
         for table in [
             "requisitions",
             "candidates",
@@ -57,18 +60,19 @@ mod tests {
             assert!(WRITE_DDL.contains(&format!("'erpx_talent_write','{table}'")));
         }
         assert!(WRITE_DDL.contains("FORCE ROW LEVEL SECURITY"));
-        assert!(!WRITE_DDL.contains("aggregate_guards"));
-        assert!(!WRITE_DDL.contains("state JSONB"));
+        assert!(!owned.contains("aggregate_guards"));
+        assert!(!owned.contains("state JSONB"));
     }
 
     #[test]
     fn read_schema_separates_candidate_and_workforce_realms() {
-        assert!(READ_DDL.contains(CANDIDATE_PROJECTION));
-        assert!(READ_DDL.contains(WORKFORCE_PROJECTION));
-        assert!(READ_DDL.contains("CREATE TABLE erpx_talent_read.candidate_projection"));
-        assert!(READ_DDL.contains("CREATE TABLE erpx_talent_read.workforce_projection"));
-        assert!(!READ_DDL.contains("email TEXT"));
-        assert!(!READ_DDL.contains("phone TEXT"));
+        let owned = schema_test::select_schema_statements(READ_DDL, &["erpx_talent_read"]);
+        assert!(owned.contains(CANDIDATE_PROJECTION));
+        assert!(owned.contains(WORKFORCE_PROJECTION));
+        assert!(owned.contains("CREATE TABLE erpx_talent_read.candidate_projection"));
+        assert!(owned.contains("CREATE TABLE erpx_talent_read.workforce_projection"));
+        assert!(!owned.contains("email TEXT"));
+        assert!(!owned.contains("phone TEXT"));
     }
 
     #[test]

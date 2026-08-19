@@ -2,7 +2,7 @@
 
 ## Delivered behavior
 
-- Integrated tenant-routed SQLx persistence for payable/receivable invoices,
+- Integrated holding-routed SQLx persistence for payable/receivable invoices,
   vendor/customer payments, allocation batches, cash receipts,
   disbursements, reconciliations, and subledger entries.
 - Enforced optimistic versions, request-bound idempotency, forced-RLS scope,
@@ -11,7 +11,7 @@
 - Added disposable Finance subledger read projection, contiguous checkpoints,
   replay, and holding-scoped rebuild clearing.
 - Added authenticated `FinanceService.ListPostedJournals` with explicit
-  holding/company/branch query scope, bounded page size, tenant routing, and
+  holding/company/branch query scope, bounded page size, holding routing, and
   read-only DTOs.
 - Added authenticated `FinanceService.SaveSubledger` for typed AP/AR and
   cash-control aggregates, with scope binding, Finance role and commercial
@@ -21,7 +21,7 @@
   payment/invoice/allocation decoding, explicit scope matching, required
   optimistic payment version, atomic all-or-nothing repository execution, and
   safe receipt mapping.
-- Added tenant read migration `0023_finance_subledgers.sql` and migration
+- Added holding read migration `0023_finance_subledgers.sql` and migration
   assertions.
 
 ## Independent verification
@@ -51,4 +51,4 @@ workflow reconciliation, and the G8 acceptance gate remain open.
 
 Disable the Finance subledger command and read transport routes while keeping
 authoritative rows, snapshots, outbox history, and Folio ownership unchanged.
-The read projection can be cleared and rebuilt from the tenant write stream.
+The read projection can be cleared and rebuilt from the holding write stream.

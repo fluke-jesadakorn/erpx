@@ -13,7 +13,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::contracts::TenantScope;
+use crate::contracts::AuthorityScope;
 use crate::marketing::{
     ConsentRecord, ConsentState, MarketingChannel, MarketingPurpose, SuppressionRecord,
 };
@@ -244,7 +244,7 @@ pub struct DeliveryIdempotencyKey(String);
 impl DeliveryIdempotencyKey {
     #[allow(clippy::too_many_arguments)]
     pub fn derive(
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         profile_id: Uuid,
         campaign_id: Uuid,
         purpose: MarketingPurpose,
@@ -266,7 +266,7 @@ impl DeliveryIdempotencyKey {
             });
         }
         let canonical = format!(
-            "erpx-marketing-delivery-v1|{}|{}|{}|{}|{}|{}|{}",
+            "erpx-marketing-delivery|{}|{}|{}|{}|{}|{}|{}",
             scope_key(scope),
             profile_id,
             campaign_id,
@@ -329,7 +329,7 @@ pub enum DeliveryTerminalReason {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DeliveryDispatch {
     pub id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub profile_id: Uuid,
     pub campaign_id: Uuid,
     pub purpose: MarketingPurpose,
@@ -356,7 +356,7 @@ impl DeliveryDispatch {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         profile_id: Uuid,
         campaign_id: Uuid,
         purpose: MarketingPurpose,
@@ -772,54 +772,50 @@ fn suppression_decision(
     }
 }
 
-fn validate_scope(scope: &TenantScope) -> Result<(), MarketingDeliveryError> {
+fn validate_scope(scope: &AuthorityScope) -> Result<(), MarketingDeliveryError> {
     match scope {
-        TenantScope::Holding { holding_id }
-        | TenantScope::Company { holding_id, .. }
-        | TenantScope::Branch { holding_id, .. }
-        | TenantScope::Subtree { holding_id, .. }
+        AuthorityScope::Holding { holding_id }
+        | AuthorityScope::Company { holding_id, .. }
+        | AuthorityScope::Branch { holding_id, .. }
+        | AuthorityScope::Subtree { holding_id, .. }
             if holding_id.is_nil() =>
         {
             Err(MarketingDeliveryError::InvalidScope)
         }
-        TenantScope::Company { company_id, .. } if company_id.is_nil() => {
+        AuthorityScope::Company { company_id, .. } if company_id.is_nil() => {
             Err(MarketingDeliveryError::InvalidScope)
         }
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             company_id,
             branch_id,
             ..
         } if company_id.is_nil() || branch_id.is_nil() => Err(MarketingDeliveryError::InvalidScope),
-        TenantScope::Subtree {
-            company_ids,
-            branch_ids,
+        AuthorityScope::Subtree {
+            organization_node_id,
             ..
-        } if company_ids.iter().any(Uuid::is_nil) || branch_ids.iter().any(Uuid::is_nil) => {
-            Err(MarketingDeliveryError::InvalidScope)
-        }
-        TenantScope::Platform => Err(MarketingDeliveryError::InvalidScope),
+        } if organization_node_id.is_nil() => Err(MarketingDeliveryError::InvalidScope),
+        AuthorityScope::Platform => Err(MarketingDeliveryError::InvalidScope),
         _ => Ok(()),
     }
 }
 
-fn scope_key(scope: &TenantScope) -> String {
+fn scope_key(scope: &AuthorityScope) -> String {
     match scope {
-        TenantScope::Holding { holding_id } => format!("h:{holding_id}"),
-        TenantScope::Company {
+        AuthorityScope::Holding { holding_id } => format!("h:{holding_id}"),
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => format!("c:{holding_id}:{company_id}"),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         } => format!("b:{holding_id}:{company_id}:{branch_id}"),
-        TenantScope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
-        } => format!("s:{holding_id}:{company_ids:?}:{branch_ids:?}"),
-        TenantScope::Platform => "platform".to_owned(),
+            organization_node_id,
+        } => format!("s:{holding_id}:{organization_node_id}"),
+        AuthorityScope::Platform => "platform".to_owned(),
     }
 }
 
@@ -869,8 +865,8 @@ mod tests {
     use super::*;
     use chrono::Duration;
 
-    fn scope() -> TenantScope {
-        TenantScope::Company {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         }
@@ -1266,7 +1262,7 @@ mod tests {
         );
         assert_eq!(
             DeliveryIdempotencyKey::derive(
-                &TenantScope::Platform,
+                &AuthorityScope::Platform,
                 Uuid::from_u128(11),
                 Uuid::from_u128(12),
                 MarketingPurpose::Newsletter,

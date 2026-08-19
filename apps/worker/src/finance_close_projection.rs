@@ -1,22 +1,21 @@
-//! Tenant-routed Finance close-review read projection worker.
+//! Holding-routed Finance close-review read projection worker.
 //!
-//! Source close-review aggregates are read from the tenant write outbox and
-//! applied atomically to the dedicated tenant read projection. The worker is
+//! Source close-review aggregates are read from the holding write outbox and
+//! applied atomically to the dedicated holding read projection. The worker is
 //! idempotent, rejects aggregate-version gaps, and rebuilds the disposable
 //! read model through the same application path.
 
 use async_trait::async_trait;
 use erpx_infrastructure::{
-    FinanceCloseProjectionRebuildPreparation, FinanceCloseSourceEventCursor,
+    FinanceCloseProjectionRebuildPreparation, FinanceCloseSourceEventCursor, HoldingDatabaseRouter,
     MAX_FINANCE_CLOSE_SOURCE_EVENT_PAGE_SIZE, PersistenceError, ProjectionClaimRecord,
-    ProjectionJobKind, RoutedDatabaseSide, RoutedTenantDatabase, SqlxFinanceCloseProjectionStore,
-    TenantDatabaseRouter,
+    ProjectionJobKind, RoutedDatabaseSide, RoutedHoldingDatabase, SqlxFinanceCloseProjectionStore,
 };
 use thiserror::Error;
 use uuid::Uuid;
 
 use super::{
-    TenantProjectionExecutor, TenantProjectionExecutorError, TenantProjectionRoutedExecutor,
+    HoldingProjectionExecutor, HoldingProjectionExecutorError, HoldingProjectionRoutedExecutor,
 };
 
 pub const FINANCE_CLOSE_PROJECTION_HANDLER_NAME: &str = "finance_close_projection";
@@ -44,22 +43,22 @@ impl From<PersistenceError> for FinanceCloseProjectionWorkerError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinanceCloseProjectionRequest {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub cursor: Option<FinanceCloseSourceEventCursor>,
     pub page_size: u32,
 }
 
 impl FinanceCloseProjectionRequest {
     pub fn new(
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         cursor: Option<FinanceCloseSourceEventCursor>,
         page_size: u32,
     ) -> Result<Self, FinanceCloseProjectionWorkerError> {
         let request = Self {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
             cursor,
             page_size,
         };
@@ -68,8 +67,8 @@ impl FinanceCloseProjectionRequest {
     }
 
     fn validate(&self) -> Result<(), FinanceCloseProjectionWorkerError> {
-        validate_reference(&self.tenant_id, "tenant_id")?;
-        validate_reference(&self.holding_ref, "holding_ref")?;
+        validate_reference(&self.holding_id, "holding_id")?;
+        validate_reference(&self.data_profile_key, "data_profile_key")?;
         if self.page_size == 0 || self.page_size > FINANCE_CLOSE_PROJECTION_MAX_PAGE_SIZE {
             return Err(FinanceCloseProjectionWorkerError::Configuration(format!(
                 "Finance close projection page size must be 1..={FINANCE_CLOSE_PROJECTION_MAX_PAGE_SIZE}"
@@ -88,8 +87,8 @@ impl FinanceCloseProjectionRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinanceCloseProjectionRunReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub events_seen: u64,
     pub events_applied: u64,
     pub next_cursor: Option<FinanceCloseSourceEventCursor>,
@@ -98,19 +97,19 @@ pub struct FinanceCloseProjectionRunReport {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinanceCloseProjectionRebuildReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub events_replayed: u64,
     pub preparation: FinanceCloseProjectionRebuildPreparation,
 }
 
 #[derive(Debug, Clone)]
 pub struct FinanceCloseProjectionRunner {
-    router: TenantDatabaseRouter,
+    router: HoldingDatabaseRouter,
 }
 
 impl FinanceCloseProjectionRunner {
-    pub fn new(router: TenantDatabaseRouter) -> Self {
+    pub fn new(router: HoldingDatabaseRouter) -> Self {
         Self { router }
     }
 
@@ -120,12 +119,12 @@ impl FinanceCloseProjectionRunner {
     ) -> Result<FinanceCloseProjectionRunReport, FinanceCloseProjectionWorkerError> {
         request.validate()?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result = match SqlxFinanceCloseProjectionStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            request.holding_ref.clone(),
+            request.data_profile_key.clone(),
         ) {
             Ok(store) => async {
                 let page = store
@@ -149,8 +148,8 @@ impl FinanceCloseProjectionRunner {
                 }
                 Ok::<FinanceCloseProjectionRunReport, PersistenceError>(
                     FinanceCloseProjectionRunReport {
-                        tenant_id: request.tenant_id.clone(),
-                        holding_ref: request.holding_ref.clone(),
+                        holding_id: request.holding_id.clone(),
+                        data_profile_key: request.data_profile_key.clone(),
                         events_seen: page.events.len() as u64,
                         events_applied,
                         next_cursor: page.next_cursor,
@@ -168,18 +167,18 @@ impl FinanceCloseProjectionRunner {
 
     pub async fn rebuild(
         &self,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         page_size: u32,
     ) -> Result<FinanceCloseProjectionRebuildReport, FinanceCloseProjectionWorkerError> {
-        self.rebuild_internal(tenant_id, holding_ref, page_size, None)
+        self.rebuild_internal(holding_id, data_profile_key, page_size, None)
             .await
     }
 
     pub async fn rebuild_with_source_fence(
         &self,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         page_size: u32,
         source_version: u64,
     ) -> Result<FinanceCloseProjectionRebuildReport, FinanceCloseProjectionWorkerError> {
@@ -188,25 +187,31 @@ impl FinanceCloseProjectionRunner {
                 "Finance close source version is invalid".into(),
             ));
         }
-        self.rebuild_internal(tenant_id, holding_ref, page_size, Some(source_version))
-            .await
+        self.rebuild_internal(
+            holding_id,
+            data_profile_key,
+            page_size,
+            Some(source_version),
+        )
+        .await
     }
 
     async fn rebuild_internal(
         &self,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         page_size: u32,
         source_version: Option<u64>,
     ) -> Result<FinanceCloseProjectionRebuildReport, FinanceCloseProjectionWorkerError> {
-        let request = FinanceCloseProjectionRequest::new(tenant_id, holding_ref, None, page_size)?;
+        let request =
+            FinanceCloseProjectionRequest::new(holding_id, data_profile_key, None, page_size)?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result = match SqlxFinanceCloseProjectionStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            request.holding_ref.clone(),
+            request.data_profile_key.clone(),
         ) {
             Ok(store) => {
                 async {
@@ -235,8 +240,8 @@ impl FinanceCloseProjectionRunner {
                         }
                     };
                     Ok(FinanceCloseProjectionRebuildReport {
-                        tenant_id: request.tenant_id.clone(),
-                        holding_ref: request.holding_ref.clone(),
+                        holding_id: request.holding_id.clone(),
+                        data_profile_key: request.data_profile_key.clone(),
                         events_replayed,
                         preparation,
                     })
@@ -251,18 +256,18 @@ impl FinanceCloseProjectionRunner {
 
     async fn route_store(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
-    ) -> Result<(RoutedTenantDatabase, RoutedTenantDatabase), FinanceCloseProjectionWorkerError>
+        holding_id: &str,
+        data_profile_key: &str,
+    ) -> Result<(RoutedHoldingDatabase, RoutedHoldingDatabase), FinanceCloseProjectionWorkerError>
     {
         let write = self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Write)
             .await
             .map_err(|_| redacted_error("write database routing"))?;
         let read = match self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Read)
             .await
         {
             Ok(read) => read,
@@ -277,19 +282,19 @@ impl FinanceCloseProjectionRunner {
 
 /// Durable scheduler adapter for Finance close projection jobs.
 ///
-/// The scheduler owns only the control-plane claim. Tenant write/read routing
+/// The scheduler owns only the control-plane claim. Holding write/read routing
 /// and projection persistence remain behind `FinanceCloseProjectionRunner`,
-/// which ensures that this adapter cannot receive or persist tenant database
+/// which ensures that this adapter cannot receive or persist holding database
 /// credentials.
 #[derive(Debug, Clone)]
-pub struct FinanceCloseTenantProjectionExecutor {
-    router: TenantDatabaseRouter,
+pub struct FinanceCloseHoldingProjectionExecutor {
+    router: HoldingDatabaseRouter,
     default_page_size: u32,
 }
 
-impl FinanceCloseTenantProjectionExecutor {
+impl FinanceCloseHoldingProjectionExecutor {
     pub fn new(
-        router: TenantDatabaseRouter,
+        router: HoldingDatabaseRouter,
         page_size: u32,
     ) -> Result<Self, FinanceCloseProjectionWorkerError> {
         validate_page_size(page_size)?;
@@ -305,20 +310,20 @@ impl FinanceCloseTenantProjectionExecutor {
 }
 
 #[async_trait]
-impl TenantProjectionExecutor for FinanceCloseTenantProjectionExecutor {
+impl HoldingProjectionExecutor for FinanceCloseHoldingProjectionExecutor {
     async fn execute(
         &self,
         claim: &ProjectionClaimRecord,
-    ) -> Result<(), TenantProjectionExecutorError> {
-        validate_claim(claim).map_err(|_| TenantProjectionExecutorError::Permanent)?;
+    ) -> Result<(), HoldingProjectionExecutorError> {
+        validate_claim(claim).map_err(|_| HoldingProjectionExecutorError::Permanent)?;
         let payload = FinanceCloseProjectionJobPayload::from_claim(claim, self.default_page_size)
-            .map_err(|_| TenantProjectionExecutorError::Permanent)?;
+            .map_err(|_| HoldingProjectionExecutorError::Permanent)?;
 
         let write = self
             .router
             .route(
-                &claim.job.binding.tenant_id,
-                &claim.job.binding.holding_ref,
+                &claim.job.binding.holding_id,
+                &claim.job.binding.data_profile_key,
                 RoutedDatabaseSide::Write,
             )
             .await
@@ -326,8 +331,8 @@ impl TenantProjectionExecutor for FinanceCloseTenantProjectionExecutor {
         let read = match self
             .router
             .route(
-                &claim.job.binding.tenant_id,
-                &claim.job.binding.holding_ref,
+                &claim.job.binding.holding_id,
+                &claim.job.binding.data_profile_key,
                 RoutedDatabaseSide::Read,
             )
             .await
@@ -346,36 +351,36 @@ impl TenantProjectionExecutor for FinanceCloseTenantProjectionExecutor {
 }
 
 #[async_trait]
-impl TenantProjectionRoutedExecutor for FinanceCloseTenantProjectionExecutor {
+impl HoldingProjectionRoutedExecutor for FinanceCloseHoldingProjectionExecutor {
     async fn execute_routed(
         &self,
         claim: &ProjectionClaimRecord,
-        write: &RoutedTenantDatabase,
-        read: &RoutedTenantDatabase,
-    ) -> Result<(), TenantProjectionExecutorError> {
-        validate_claim(claim).map_err(|_| TenantProjectionExecutorError::Permanent)?;
+        write: &RoutedHoldingDatabase,
+        read: &RoutedHoldingDatabase,
+    ) -> Result<(), HoldingProjectionExecutorError> {
+        validate_claim(claim).map_err(|_| HoldingProjectionExecutorError::Permanent)?;
         let payload = FinanceCloseProjectionJobPayload::from_claim(claim, self.default_page_size)
-            .map_err(|_| TenantProjectionExecutorError::Permanent)?;
+            .map_err(|_| HoldingProjectionExecutorError::Permanent)?;
         self.execute_store(claim, &payload, write, read).await
     }
 }
 
-impl FinanceCloseTenantProjectionExecutor {
+impl FinanceCloseHoldingProjectionExecutor {
     async fn execute_store(
         &self,
         claim: &ProjectionClaimRecord,
         payload: &FinanceCloseProjectionJobPayload,
-        write: &RoutedTenantDatabase,
-        read: &RoutedTenantDatabase,
-    ) -> Result<(), TenantProjectionExecutorError> {
+        write: &RoutedHoldingDatabase,
+        read: &RoutedHoldingDatabase,
+    ) -> Result<(), HoldingProjectionExecutorError> {
         validate_routed_binding(
             claim,
             write.side,
-            &write.tenant_id,
-            &write.holding_ref,
+            &write.holding_id,
+            &write.data_profile_key,
             read.side,
-            &read.tenant_id,
-            &read.holding_ref,
+            &read.holding_id,
+            &read.data_profile_key,
             &write.database_key,
             &read.database_key,
         )?;
@@ -383,9 +388,9 @@ impl FinanceCloseTenantProjectionExecutor {
         let store = SqlxFinanceCloseProjectionStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            claim.job.binding.holding_ref.clone(),
+            claim.job.binding.data_profile_key.clone(),
         )
-        .map_err(|_| TenantProjectionExecutorError::Permanent)?;
+        .map_err(|_| HoldingProjectionExecutorError::Permanent)?;
 
         match claim.job.kind {
             ProjectionJobKind::Incremental => {
@@ -403,7 +408,7 @@ impl FinanceCloseTenantProjectionExecutor {
                         .map_err(|_| redacted_executor_error("source event page"))?;
                     events_seen = events_seen.saturating_add(page.events.len() as u64);
                     if events_seen > MAX_FINANCE_CLOSE_INCREMENTAL_EVENTS {
-                        return Err(TenantProjectionExecutorError::Permanent);
+                        return Err(HoldingProjectionExecutorError::Permanent);
                     }
                     let has_more = page.has_more;
                     let next_cursor = page.next_cursor;
@@ -424,10 +429,10 @@ impl FinanceCloseTenantProjectionExecutor {
                         break;
                     }
                     let Some(next_cursor) = next_cursor else {
-                        return Err(TenantProjectionExecutorError::Permanent);
+                        return Err(HoldingProjectionExecutorError::Permanent);
                     };
                     if !close_cursor_is_after(cursor.as_ref(), &next_cursor) {
-                        return Err(TenantProjectionExecutorError::Permanent);
+                        return Err(HoldingProjectionExecutorError::Permanent);
                     }
                     cursor = Some(next_cursor);
                 }
@@ -436,12 +441,12 @@ impl FinanceCloseTenantProjectionExecutor {
                     .await
                     .map_err(|_| redacted_executor_error("source event watermark"))?;
                 if source_after != source_before {
-                    return Err(TenantProjectionExecutorError::Retryable);
+                    return Err(HoldingProjectionExecutorError::Retryable);
                 }
             }
             ProjectionJobKind::Rebuild => {
                 if payload.cursor.is_some() {
-                    return Err(TenantProjectionExecutorError::Permanent);
+                    return Err(HoldingProjectionExecutorError::Permanent);
                 }
                 let source_version = payload.source_version;
                 if let Some(expected) = source_version {
@@ -460,7 +465,7 @@ impl FinanceCloseTenantProjectionExecutor {
                         && let Ok(actual) = store.source_event_high_watermark().await
                         && actual != expected
                     {
-                        return Err(TenantProjectionExecutorError::CandidateSourceMoved);
+                        return Err(HoldingProjectionExecutorError::CandidateSourceMoved);
                     }
                     return Err(redacted_executor_error("projection rebuild"));
                 }
@@ -560,24 +565,24 @@ fn validate_page_size(page_size: u32) -> Result<(), FinanceCloseProjectionWorker
 fn validate_routed_binding(
     claim: &ProjectionClaimRecord,
     write_side: RoutedDatabaseSide,
-    write_tenant_id: &str,
-    write_holding_ref: &str,
+    write_holding_id: &str,
+    write_data_profile_key: &str,
     read_side: RoutedDatabaseSide,
-    read_tenant_id: &str,
-    read_holding_ref: &str,
+    read_holding_id: &str,
+    read_data_profile_key: &str,
     write_database_key: &str,
     read_database_key: &str,
-) -> Result<(), TenantProjectionExecutorError> {
+) -> Result<(), HoldingProjectionExecutorError> {
     if claim.job.projection_name != FINANCE_CLOSE_PROJECTION_NAME
         || write_side != RoutedDatabaseSide::Write
         || read_side != RoutedDatabaseSide::Read
-        || write_tenant_id != claim.job.binding.tenant_id
-        || read_tenant_id != claim.job.binding.tenant_id
-        || write_holding_ref != claim.job.binding.holding_ref
-        || read_holding_ref != claim.job.binding.holding_ref
+        || write_holding_id != claim.job.binding.holding_id
+        || read_holding_id != claim.job.binding.holding_id
+        || write_data_profile_key != claim.job.binding.data_profile_key
+        || read_data_profile_key != claim.job.binding.data_profile_key
         || write_database_key == read_database_key
     {
-        return Err(TenantProjectionExecutorError::Permanent);
+        return Err(HoldingProjectionExecutorError::Permanent);
     }
     Ok(())
 }
@@ -586,8 +591,8 @@ fn validate_claim(claim: &ProjectionClaimRecord) -> Result<(), FinanceCloseProje
     if claim.job.projection_name != FINANCE_CLOSE_PROJECTION_NAME {
         return Err(configuration("projection name is invalid"));
     }
-    validate_reference(&claim.job.binding.tenant_id, "tenant reference")?;
-    validate_reference(&claim.job.binding.holding_ref, "holding reference")?;
+    validate_reference(&claim.job.binding.holding_id, "holding reference")?;
+    validate_reference(&claim.job.binding.data_profile_key, "holding reference")?;
     Ok(())
 }
 
@@ -595,7 +600,7 @@ fn configuration(message: &'static str) -> FinanceCloseProjectionWorkerError {
     FinanceCloseProjectionWorkerError::Configuration(message.into())
 }
 
-async fn close_routes(write: RoutedTenantDatabase, read: RoutedTenantDatabase) {
+async fn close_routes(write: RoutedHoldingDatabase, read: RoutedHoldingDatabase) {
     write.close().await;
     read.close().await;
 }
@@ -619,9 +624,9 @@ fn redacted_error(operation: &'static str) -> FinanceCloseProjectionWorkerError 
     FinanceCloseProjectionWorkerError::Projection { operation }
 }
 
-fn redacted_executor_error(operation: &'static str) -> TenantProjectionExecutorError {
+fn redacted_executor_error(operation: &'static str) -> HoldingProjectionExecutorError {
     tracing::error!(operation, "Finance close projection worker seam failed");
-    TenantProjectionExecutorError::Retryable
+    HoldingProjectionExecutorError::Retryable
 }
 
 fn close_cursor_is_after(
@@ -634,10 +639,10 @@ fn close_cursor_is_after(
     })
 }
 
-fn map_close_error(error: FinanceCloseProjectionWorkerError) -> TenantProjectionExecutorError {
+fn map_close_error(error: FinanceCloseProjectionWorkerError) -> HoldingProjectionExecutorError {
     match error {
         FinanceCloseProjectionWorkerError::CandidateSourceMoved => {
-            TenantProjectionExecutorError::CandidateSourceMoved
+            HoldingProjectionExecutorError::CandidateSourceMoved
         }
         FinanceCloseProjectionWorkerError::Configuration(_)
         | FinanceCloseProjectionWorkerError::Projection { .. } => {
@@ -658,11 +663,11 @@ fn source_fence_before_rebuild(
 
 fn reject_incremental_source_fence(
     source_version: Option<u64>,
-) -> Result<(), TenantProjectionExecutorError> {
+) -> Result<(), HoldingProjectionExecutorError> {
     if source_version.is_some() {
         // Source fences belong to replacement-read rebuilds. Do not silently
         // treat a fenced incremental job as unfenced.
-        return Err(TenantProjectionExecutorError::Permanent);
+        return Err(HoldingProjectionExecutorError::Permanent);
     }
     Ok(())
 }
@@ -673,11 +678,11 @@ mod tests {
 
     #[test]
     fn request_validation_is_bounded() {
-        assert!(FinanceCloseProjectionRequest::new("tenant", "holding", None, 0).is_err());
-        assert!(FinanceCloseProjectionRequest::new("tenant/unsafe", "holding", None, 1).is_err());
+        assert!(FinanceCloseProjectionRequest::new("holding", "holding", None, 0).is_err());
+        assert!(FinanceCloseProjectionRequest::new("holding/unsafe", "holding", None, 1).is_err());
         assert!(
             FinanceCloseProjectionRequest::new(
-                "tenant",
+                "holding",
                 "holding",
                 Some(FinanceCloseSourceEventCursor {
                     aggregate_id: Uuid::nil(),
@@ -715,12 +720,12 @@ mod tests {
     ) -> ProjectionClaimRecord {
         use chrono::Utc;
         use erpx_infrastructure::{
-            ProjectionJobRecord, ProjectionLease, ProjectionPolicy, ProjectionScheduleRequest,
-            TenantHoldingBinding,
+            HoldingHoldingBinding, ProjectionJobRecord, ProjectionLease, ProjectionPolicy,
+            ProjectionScheduleRequest,
         };
 
         let now = Utc::now();
-        let binding = TenantHoldingBinding::new("tenant-1", "holding-1").expect("binding");
+        let binding = HoldingHoldingBinding::new("holding-1", "holding-1").expect("binding");
         let policy = ProjectionPolicy::new(10, 10, 3, 1, 10).expect("policy");
         let request = ProjectionScheduleRequest {
             binding,
@@ -834,7 +839,7 @@ mod tests {
         assert_eq!(payload.source_version, Some(7));
         assert_eq!(
             reject_incremental_source_fence(Some(7)),
-            Err(TenantProjectionExecutorError::Permanent)
+            Err(HoldingProjectionExecutorError::Permanent)
         );
         assert_eq!(reject_incremental_source_fence(None), Ok(()));
     }
@@ -845,7 +850,7 @@ mod tests {
         let claim = scheduler_claim(
             ProjectionJobKind::Rebuild,
             serde_json::json!({
-                "candidate": "tenant_read_candidate_7",
+                "candidate": "holding_read_candidate_7",
                 "generation": 7,
                 "source_version": 12,
                 "page_size": 25
@@ -865,13 +870,13 @@ mod tests {
             validate_routed_binding(
                 &claim,
                 RoutedDatabaseSide::Write,
-                "tenant-1",
+                "holding-1",
                 "holding-1",
                 RoutedDatabaseSide::Read,
-                "tenant-1",
                 "holding-1",
-                "tenant-1-write",
-                "tenant-1-read",
+                "holding-1",
+                "holding-1-write",
+                "holding-1-read",
             ),
             Ok(())
         );
@@ -879,57 +884,57 @@ mod tests {
             validate_routed_binding(
                 &claim,
                 RoutedDatabaseSide::Read,
-                "tenant-1",
+                "holding-1",
                 "holding-1",
                 RoutedDatabaseSide::Read,
-                "tenant-1",
                 "holding-1",
-                "tenant-1-write",
-                "tenant-1-read",
+                "holding-1",
+                "holding-1-write",
+                "holding-1-read",
             ),
-            Err(TenantProjectionExecutorError::Permanent)
+            Err(HoldingProjectionExecutorError::Permanent)
         );
         assert_eq!(
             validate_routed_binding(
                 &claim,
                 RoutedDatabaseSide::Write,
-                "tenant-1",
+                "holding-1",
                 "holding-1",
                 RoutedDatabaseSide::Read,
-                "other-tenant",
-                "holding-1",
-                "tenant-1-write",
-                "tenant-1-read",
-            ),
-            Err(TenantProjectionExecutorError::Permanent)
-        );
-        assert_eq!(
-            validate_routed_binding(
-                &claim,
-                RoutedDatabaseSide::Write,
-                "tenant-1",
-                "holding-1",
-                RoutedDatabaseSide::Read,
-                "tenant-1",
                 "other-holding",
-                "tenant-1-write",
-                "tenant-1-read",
+                "holding-1",
+                "holding-1-write",
+                "holding-1-read",
             ),
-            Err(TenantProjectionExecutorError::Permanent)
+            Err(HoldingProjectionExecutorError::Permanent)
         );
         assert_eq!(
             validate_routed_binding(
                 &claim,
                 RoutedDatabaseSide::Write,
-                "tenant-1",
+                "holding-1",
                 "holding-1",
                 RoutedDatabaseSide::Read,
-                "tenant-1",
                 "holding-1",
-                "tenant-1-db",
-                "tenant-1-db",
+                "other-holding",
+                "holding-1-write",
+                "holding-1-read",
             ),
-            Err(TenantProjectionExecutorError::Permanent)
+            Err(HoldingProjectionExecutorError::Permanent)
+        );
+        assert_eq!(
+            validate_routed_binding(
+                &claim,
+                RoutedDatabaseSide::Write,
+                "holding-1",
+                "holding-1",
+                RoutedDatabaseSide::Read,
+                "holding-1",
+                "holding-1",
+                "holding-1-db",
+                "holding-1-db",
+            ),
+            Err(HoldingProjectionExecutorError::Permanent)
         );
     }
 
@@ -954,19 +959,19 @@ mod tests {
     fn routed_error_mapping_preserves_candidate_movement_and_redacts_retryable_failures() {
         assert_eq!(
             map_close_error(FinanceCloseProjectionWorkerError::CandidateSourceMoved),
-            TenantProjectionExecutorError::CandidateSourceMoved
+            HoldingProjectionExecutorError::CandidateSourceMoved
         );
         assert_eq!(
             map_close_error(FinanceCloseProjectionWorkerError::Projection {
                 operation: "database",
             }),
-            TenantProjectionExecutorError::Retryable
+            HoldingProjectionExecutorError::Retryable
         );
         assert_eq!(
             map_close_error(FinanceCloseProjectionWorkerError::Configuration(
                 "private detail".into(),
             )),
-            TenantProjectionExecutorError::Retryable
+            HoldingProjectionExecutorError::Retryable
         );
     }
 }

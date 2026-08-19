@@ -8,7 +8,7 @@ CREATE TABLE erpx_identity_access_read.principal_projection (
     principal_id UUID NOT NULL,
     source_aggregate_version BIGINT NOT NULL CHECK (source_aggregate_version > 0),
     source_global_sequence BIGINT NOT NULL CHECK (source_global_sequence > 0),
-    tenant_scope JSONB NOT NULL,
+    holding_scope JSONB NOT NULL,
     scope_key TEXT NOT NULL,
     display_name TEXT NOT NULL,
     principal_status TEXT NOT NULL CHECK (principal_status IN (
@@ -36,7 +36,7 @@ CREATE TABLE erpx_identity_access_read.role_projection (
     role_id UUID NOT NULL,
     source_aggregate_version BIGINT NOT NULL CHECK (source_aggregate_version > 0),
     source_global_sequence BIGINT NOT NULL CHECK (source_global_sequence > 0),
-    tenant_scope JSONB NOT NULL,
+    holding_scope JSONB NOT NULL,
     scope_key TEXT NOT NULL,
     role_code TEXT NOT NULL,
     display_name TEXT NOT NULL,

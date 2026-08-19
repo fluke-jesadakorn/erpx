@@ -95,14 +95,14 @@ impl Projector for SalesQuoteProjector {
         let result = sqlx::query(
             "INSERT INTO erpx_sales_read.quote_projection
               (projection_name,generation,partition_key,quote_id,source_aggregate_version,
-               source_global_sequence,tenant_scope,scope_key,opportunity_id,customer_id,
+               source_global_sequence,active_scope,scope_key,opportunity_id,customer_id,
                quote_code,currency,total_minor,valid_until,quote_status,lines,state,
                aggregate_created_at,aggregate_updated_at,projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,now())
-             ON CONFLICT (tenant_id,projection_name,generation,partition_key,quote_id) DO UPDATE SET
+             ON CONFLICT (holding_id,projection_name,generation,partition_key,quote_id) DO UPDATE SET
                source_aggregate_version=EXCLUDED.source_aggregate_version,
                source_global_sequence=EXCLUDED.source_global_sequence,
-               tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,
+               active_scope=EXCLUDED.active_scope,scope_key=EXCLUDED.scope_key,
                opportunity_id=EXCLUDED.opportunity_id,customer_id=EXCLUDED.customer_id,
                quote_code=EXCLUDED.quote_code,currency=EXCLUDED.currency,
                total_minor=EXCLUDED.total_minor,valid_until=EXCLUDED.valid_until,
@@ -212,14 +212,14 @@ impl Projector for SalesOrderProjector {
         let result = sqlx::query(
             "INSERT INTO erpx_sales_read.sales_order_projection
               (projection_name,generation,partition_key,sales_order_id,source_aggregate_version,
-               source_global_sequence,tenant_scope,scope_key,quote_id,opportunity_id,customer_id,
+               source_global_sequence,active_scope,scope_key,quote_id,opportunity_id,customer_id,
                order_code,currency,total_minor,order_status,lines,state,
                aggregate_created_at,aggregate_updated_at,projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,now())
-             ON CONFLICT (tenant_id,projection_name,generation,partition_key,sales_order_id) DO UPDATE SET
+             ON CONFLICT (holding_id,projection_name,generation,partition_key,sales_order_id) DO UPDATE SET
                source_aggregate_version=EXCLUDED.source_aggregate_version,
                source_global_sequence=EXCLUDED.source_global_sequence,
-               tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,
+               active_scope=EXCLUDED.active_scope,scope_key=EXCLUDED.scope_key,
                quote_id=EXCLUDED.quote_id,opportunity_id=EXCLUDED.opportunity_id,
                customer_id=EXCLUDED.customer_id,order_code=EXCLUDED.order_code,
                currency=EXCLUDED.currency,total_minor=EXCLUDED.total_minor,
@@ -331,15 +331,15 @@ impl Projector for SalesRevenueArrangementProjector {
         let result = sqlx::query(
             "INSERT INTO erpx_sales_read.revenue_arrangement_projection
               (projection_name,generation,partition_key,arrangement_id,
-               source_aggregate_version,source_global_sequence,tenant_scope,scope_key,
+               source_aggregate_version,source_global_sequence,active_scope,scope_key,
                sales_order_id,customer_id,legal_contract_id,order_code,currency,
                arrangement_status,dimensions,obligations,fulfillments,state,
                aggregate_created_at,aggregate_updated_at,projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,now())
-             ON CONFLICT (tenant_id,projection_name,generation,partition_key,arrangement_id) DO UPDATE SET
+             ON CONFLICT (holding_id,projection_name,generation,partition_key,arrangement_id) DO UPDATE SET
                source_aggregate_version=EXCLUDED.source_aggregate_version,
                source_global_sequence=EXCLUDED.source_global_sequence,
-               tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,
+               active_scope=EXCLUDED.active_scope,scope_key=EXCLUDED.scope_key,
                sales_order_id=EXCLUDED.sales_order_id,customer_id=EXCLUDED.customer_id,
                legal_contract_id=EXCLUDED.legal_contract_id,order_code=EXCLUDED.order_code,
                currency=EXCLUDED.currency,arrangement_status=EXCLUDED.arrangement_status,
@@ -428,21 +428,21 @@ fn validate_event(
             aggregate_type == QUOTE_AGGREGATE_TYPE
                 && value.version == event.aggregate_version
                 && value.quote_id.as_uuid() == event.aggregate_id.as_uuid()
-                && value.scope == event.tenant_scope
+                && value.scope == event.active_scope
                 && event.partition == quote_partition(value.quote_id)
         }
         SalesSnapshot::SalesOrder(value) => {
             aggregate_type == ORDER_AGGREGATE_TYPE
                 && value.version == event.aggregate_version
                 && value.sales_order_id.as_uuid() == event.aggregate_id.as_uuid()
-                && value.scope == event.tenant_scope
+                && value.scope == event.active_scope
                 && event.partition == order_partition(value.sales_order_id)
         }
         SalesSnapshot::RevenueArrangement(value) => {
             aggregate_type == ARRANGEMENT_AGGREGATE_TYPE
                 && value.version == event.aggregate_version
                 && value.arrangement_id.as_uuid() == event.aggregate_id.as_uuid()
-                && value.scope == event.tenant_scope
+                && value.scope == event.active_scope
                 && event.partition == arrangement_partition(value.arrangement_id)
         }
     };

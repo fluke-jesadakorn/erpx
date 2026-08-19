@@ -4,7 +4,7 @@ use erpx_commercial::{
 };
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
 use erpx_integration_contracts::{ItemDescriptorDraft, commercial};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
 
@@ -111,7 +111,7 @@ impl Projector for CatalogPlanProjector {
         };
         if view.version != event.aggregate_version
             || view.id.as_uuid() != event.aggregate_id.as_uuid()
-            || event.tenant_scope != TenantScope::Platform
+            || event.active_scope != AuthorityScope::Platform
             || event.partition != catalog_plan_partition(view.id)
         {
             return Err(ProjectionFailure::new(
@@ -178,7 +178,7 @@ impl Projector for SubscriptionProjector {
         let scope_key = holding_scope_key(&view.scope)?;
         if view.version != event.aggregate_version
             || view.id.as_uuid() != event.aggregate_id.as_uuid()
-            || view.scope != event.tenant_scope
+            || view.scope != event.active_scope
             || event.partition != subscription_partition(view.id)
         {
             return Err(ProjectionFailure::new(
@@ -189,12 +189,12 @@ impl Projector for SubscriptionProjector {
         let result = sqlx::query(
             "INSERT INTO erpx_commercial_read.subscription_projection
                 (projection_name,generation,partition_key,subscription_id,source_aggregate_version,
-                 source_global_sequence,tenant_scope,scope_key,customer_id,catalog_plan_id,
+                 source_global_sequence,active_scope,scope_key,customer_id,catalog_plan_id,
                  subscription_status,amount_minor,currency,state,aggregate_updated_at,projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,now())
-             ON CONFLICT (tenant_id,projection_name,generation,partition_key,subscription_id)
+             ON CONFLICT (holding_id,projection_name,generation,partition_key,subscription_id)
              DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,
-               source_global_sequence=EXCLUDED.source_global_sequence,tenant_scope=EXCLUDED.tenant_scope,
+               source_global_sequence=EXCLUDED.source_global_sequence,active_scope=EXCLUDED.active_scope,
                scope_key=EXCLUDED.scope_key,customer_id=EXCLUDED.customer_id,
                catalog_plan_id=EXCLUDED.catalog_plan_id,subscription_status=EXCLUDED.subscription_status,
                amount_minor=EXCLUDED.amount_minor,currency=EXCLUDED.currency,state=EXCLUDED.state,
@@ -247,7 +247,7 @@ impl Projector for EntitlementProjector {
         let scope_key = holding_scope_key(&view.scope)?;
         if view.version != event.aggregate_version
             || view.id.as_uuid() != event.aggregate_id.as_uuid()
-            || view.scope != event.tenant_scope
+            || view.scope != event.active_scope
             || event.partition != entitlement_partition(view.id)
         {
             return Err(ProjectionFailure::new(
@@ -258,13 +258,13 @@ impl Projector for EntitlementProjector {
         let result = sqlx::query(
             "INSERT INTO erpx_commercial_read.entitlement_projection
                 (projection_name,generation,partition_key,entitlement_id,source_aggregate_version,
-                 source_global_sequence,tenant_scope,scope_key,subscription_id,capability,enabled,
+                 source_global_sequence,active_scope,scope_key,subscription_id,capability,enabled,
                  seat_capacity,company_capacity,branch_capacity,allocated_seats,allocated_companies,
                  allocated_branches,state,aggregate_updated_at,projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,now())
-             ON CONFLICT (tenant_id,projection_name,generation,partition_key,entitlement_id)
+             ON CONFLICT (holding_id,projection_name,generation,partition_key,entitlement_id)
              DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,
-               source_global_sequence=EXCLUDED.source_global_sequence,tenant_scope=EXCLUDED.tenant_scope,
+               source_global_sequence=EXCLUDED.source_global_sequence,active_scope=EXCLUDED.active_scope,
                scope_key=EXCLUDED.scope_key,subscription_id=EXCLUDED.subscription_id,
                capability=EXCLUDED.capability,enabled=EXCLUDED.enabled,seat_capacity=EXCLUDED.seat_capacity,
                company_capacity=EXCLUDED.company_capacity,branch_capacity=EXCLUDED.branch_capacity,
@@ -326,13 +326,13 @@ fn decode_snapshot(event: &ProjectionEvent) -> Result<CommercialSnapshot, Projec
     }
 }
 
-fn holding_scope_key(scope: &TenantScope) -> Result<String, ProjectionFailure> {
+fn holding_scope_key(scope: &AuthorityScope) -> Result<String, ProjectionFailure> {
     match scope {
-        TenantScope::Holding { holding_id } if !holding_id.is_nil() => {
+        AuthorityScope::Holding { holding_id } if !holding_id.is_nil() => {
             Ok(format!("holding:{holding_id}"))
         }
         _ => Err(ProjectionFailure::new(
-            "commercial tenant snapshot is not holding scoped",
+            "commercial holding snapshot is not holding scoped",
         )),
     }
 }
@@ -419,9 +419,9 @@ mod tests {
 
     #[test]
     fn holding_scope_key_rejects_broader_or_narrower_scope() {
-        assert!(holding_scope_key(&TenantScope::Platform).is_err());
+        assert!(holding_scope_key(&AuthorityScope::Platform).is_err());
         assert!(
-            holding_scope_key(&TenantScope::Company {
+            holding_scope_key(&AuthorityScope::Company {
                 holding_id: uuid::Uuid::from_u128(1),
                 company_id: uuid::Uuid::from_u128(2)
             })

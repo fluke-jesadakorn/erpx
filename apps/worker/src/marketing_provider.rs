@@ -1,7 +1,7 @@
 //! Provider-neutral HTTP delivery adapter for the Marketing worker.
 //!
 //! The adapter accepts only the already-authorized dispatch record and attempt
-//! token from the tenant-write repository. It does not resolve a tenant, read
+//! token from the holding-write repository. It does not resolve a holding, read
 //! consent, or construct a dispatch. Vendor-specific account onboarding and a
 //! deployment secret manager remain composition concerns; this boundary uses
 //! bounded environment-backed credential references for host-native pilots and
@@ -11,7 +11,7 @@ use std::{collections::BTreeMap, env, sync::Arc, time::Duration as StdDuration};
 
 use async_trait::async_trait;
 use erpx_domain::{
-    contracts::TenantScope,
+    contracts::AuthorityScope,
     marketing::MarketingChannel,
     marketing_callback_secret::MarketingCallbackSecretReference,
     marketing_delivery::{
@@ -197,8 +197,7 @@ struct ProviderDispatchEnvelope<'a> {
 /// request boundary.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 struct ProviderAccountRequestContext {
-    tenant_id: String,
-    holding_ref: String,
+    data_profile_key: String,
     holding_id: uuid::Uuid,
     provider_account_ref: String,
     binding_version: u64,
@@ -210,15 +209,14 @@ impl ProviderAccountRequestContext {
     ) -> Result<Self, MarketingProviderConfigurationError> {
         validate_binding(binding)?;
         Ok(Self {
-            tenant_id: binding.tenant_id.clone(),
-            holding_ref: binding.holding_ref.clone(),
+            data_profile_key: binding.data_profile_key.clone(),
             holding_id: binding.holding_id,
             provider_account_ref: binding.provider_account_ref.clone(),
             binding_version: binding.version,
         })
     }
 
-    fn matches_scope(&self, scope: &TenantScope) -> bool {
+    fn matches_scope(&self, scope: &AuthorityScope) -> bool {
         holding_id_for_scope(scope) == Some(self.holding_id)
     }
 }
@@ -363,11 +361,13 @@ where
             .bearer_auth(credential.as_str());
         if let Some(context) = self.account_context.as_ref() {
             request = request
-                .header("X-ERPX-Tenant-Id", header_value(&context.tenant_id)?)
-                .header("X-ERPX-Holding-Ref", header_value(&context.holding_ref)?)
                 .header(
                     "X-ERPX-Holding-Id",
                     header_value(&context.holding_id.to_string())?,
+                )
+                .header(
+                    "X-ERPX-Data-Profile-Key",
+                    header_value(&context.data_profile_key)?,
                 )
                 .header(
                     "X-ERPX-Provider-Account-Ref",
@@ -469,8 +469,14 @@ where
             .bearer_auth(credential.as_str());
         if let Some(context) = self.account_context.as_ref() {
             request = request
-                .header("X-ERPX-Tenant-Id", header_value(&context.tenant_id)?)
-                .header("X-ERPX-Holding-Ref", header_value(&context.holding_ref)?)
+                .header(
+                    "X-ERPX-Holding-Id",
+                    header_value(&context.holding_id.to_string())?,
+                )
+                .header(
+                    "X-ERPX-Holding-Ref",
+                    header_value(&context.data_profile_key)?,
+                )
                 .header(
                     "X-ERPX-Provider-Account-Ref",
                     header_value(&context.provider_account_ref)?,
@@ -568,7 +574,7 @@ where
     }
 }
 
-/// Resolves one exact active control-plane account for a tenant holding.
+/// Resolves one exact active control-plane account for a holding holding.
 /// Every delivery attempt rechecks this binding, so suspension, version
 /// changes, and credential rotation fail closed without claiming a new
 /// provider submission.
@@ -576,28 +582,28 @@ where
 pub struct SqlxMarketingDeliveryAccountResolver {
     control: Arc<SqlxControlPlane>,
     provider_account_ref: String,
-    tenant_id: String,
-    holding_ref: String,
+    holding_id: String,
+    data_profile_key: String,
 }
 
 impl SqlxMarketingDeliveryAccountResolver {
     pub fn new(
         control: Arc<SqlxControlPlane>,
         provider_account_ref: impl Into<String>,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, MarketingProviderConfigurationError> {
         let provider_account_ref = provider_account_ref.into();
-        let tenant_id = tenant_id.into();
-        let holding_ref = holding_ref.into();
-        for value in [&provider_account_ref, &tenant_id, &holding_ref] {
+        let holding_id = holding_id.into();
+        let data_profile_key = data_profile_key.into();
+        for value in [&provider_account_ref, &holding_id, &data_profile_key] {
             validate_opaque_reference(value, "account resolver reference")?;
         }
         Ok(Self {
             control,
             provider_account_ref,
-            tenant_id,
-            holding_ref,
+            holding_id,
+            data_profile_key,
         })
     }
 }
@@ -617,8 +623,8 @@ impl MarketingDeliveryAccountResolver for SqlxMarketingDeliveryAccountResolver {
         self.control
             .resolve_marketing_provider_account_for_outbound(
                 &self.provider_account_ref,
-                &self.tenant_id,
-                &self.holding_ref,
+                &self.holding_id,
+                &self.data_profile_key,
             )
             .await
             .map_err(|_| MarketingProviderConfigurationError::AccountBindingUnavailable)?
@@ -846,10 +852,12 @@ fn validate_binding(
     for value in [
         (&binding.provider_account_ref, "provider account reference"),
         (&binding.provider_key, "provider key"),
-        (&binding.tenant_id, "tenant reference"),
-        (&binding.holding_ref, "holding reference"),
+        (&binding.data_profile_key, "holding reference"),
     ] {
         validate_opaque_reference(value.0, value.1)?;
+    }
+    if binding.holding_id.is_nil() {
+        return Err(MarketingProviderConfigurationError::AccountBindingChanged);
     }
     validate_secret_reference(&binding.verifier_key_ref)?;
     validate_secret_reference(&binding.outbound_credential_ref)?;
@@ -993,13 +1001,13 @@ fn validate_dispatch_binding(
     Ok(())
 }
 
-fn holding_id_for_scope(scope: &TenantScope) -> Option<uuid::Uuid> {
+fn holding_id_for_scope(scope: &AuthorityScope) -> Option<uuid::Uuid> {
     match scope {
-        TenantScope::Platform => None,
-        TenantScope::Holding { holding_id }
-        | TenantScope::Company { holding_id, .. }
-        | TenantScope::Branch { holding_id, .. }
-        | TenantScope::Subtree { holding_id, .. } => Some(*holding_id),
+        AuthorityScope::Platform => None,
+        AuthorityScope::Holding { holding_id }
+        | AuthorityScope::Company { holding_id, .. }
+        | AuthorityScope::Branch { holding_id, .. }
+        | AuthorityScope::Subtree { holding_id, .. } => Some(*holding_id),
     }
 }
 
@@ -1149,7 +1157,7 @@ mod tests {
     use async_trait::async_trait;
     use chrono::{Duration, Utc};
     use erpx_domain::{
-        contracts::TenantScope,
+        contracts::AuthorityScope,
         marketing::{MarketingChannel, MarketingPurpose},
         marketing_delivery::{
             ChannelDispatchRecord, ConsentRecheckDecision, DeliveryDispatch,
@@ -1222,16 +1230,16 @@ mod tests {
     }
 
     fn account_binding(
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_key: &str,
+        data_profile_key: &str,
         holding_id: Uuid,
     ) -> MarketingProviderAccountBinding {
         MarketingProviderAccountBinding {
             provider_account_ref: "account-1".into(),
             provider_key: "provider-1".into(),
             provider_priority: 100,
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+            holding_key: holding_key.into(),
+            data_profile_key: data_profile_key.into(),
             holding_id,
             verifier_key_ref: "env:VERIFY_PROVIDER_1".into(),
             outbound_credential_ref: "env:SEND_PROVIDER_1".into(),
@@ -1245,7 +1253,7 @@ mod tests {
         }
     }
 
-    fn dispatch_for(scope: TenantScope) -> (DeliveryDispatch, AttemptAuthorization) {
+    fn dispatch_for(scope: AuthorityScope) -> (DeliveryDispatch, AttemptAuthorization) {
         let now = Utc::now();
         let mut dispatch = DeliveryDispatch::new(
             Uuid::new_v4(),
@@ -1317,7 +1325,7 @@ mod tests {
 
     #[test]
     fn account_bound_constructor_uses_control_plane_routes() {
-        let binding = account_binding("tenant-1", "holding-1", Uuid::new_v4());
+        let binding = account_binding("holding-1", "holding-1", Uuid::new_v4());
         let provider = HttpMarketingDeliveryProvider::from_account_with_key_and_resolver(
             &binding,
             "provider-1",
@@ -1374,10 +1382,10 @@ mod tests {
     async fn accepted_https_adapter_response_becomes_an_explicit_provider_reference() {
         let now = Utc::now();
         let holding_id = Uuid::new_v4();
-        let binding = account_binding("tenant-1", "holding-1", holding_id);
+        let binding = account_binding("holding-1", "holding-1", holding_id);
         let mut dispatch = DeliveryDispatch::new(
             Uuid::new_v4(),
-            TenantScope::Holding { holding_id },
+            AuthorityScope::Holding { holding_id },
             Uuid::new_v4(),
             Uuid::new_v4(),
             MarketingPurpose::Promotional,
@@ -1422,11 +1430,11 @@ mod tests {
             let request_text = String::from_utf8_lossy(&request[..size]);
             let request_lower = request_text.to_ascii_lowercase();
             assert!(request_lower.contains("idempotency-key:"));
-            assert!(request_lower.contains("x-erpx-tenant-id: tenant-1"));
-            assert!(request_lower.contains("x-erpx-holding-ref: holding-1"));
+            assert!(request_lower.contains(&format!("x-erpx-holding-id: {holding_id}")));
+            assert!(request_lower.contains("x-erpx-data-profile-key: holding-1"));
             assert!(request_lower.contains("x-erpx-provider-account-ref: account-1"));
             assert!(request_lower.contains("\"idempotency_key\":"));
-            assert!(request_lower.contains("\"tenant_id\":\"tenant-1\""));
+            assert!(request_lower.contains(&format!("\"holding_id\":\"{holding_id}\"")));
             let response = format!(
                 "HTTP/1.1 202 Accepted\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                 response_body.len(),
@@ -1460,7 +1468,7 @@ mod tests {
 
     #[test]
     fn accepted_response_identity_is_bound_before_provider_result_creation() {
-        let (dispatch, authorization) = dispatch_for(TenantScope::Holding {
+        let (dispatch, authorization) = dispatch_for(AuthorityScope::Holding {
             holding_id: Uuid::new_v4(),
         });
         let response = serde_json::json!({
@@ -1481,7 +1489,7 @@ mod tests {
 
     #[test]
     fn reconciliation_response_identity_is_bound_for_accepted_and_pending_states() {
-        let (dispatch, authorization) = dispatch_for(TenantScope::Holding {
+        let (dispatch, authorization) = dispatch_for(AuthorityScope::Holding {
             holding_id: Uuid::new_v4(),
         });
         let mismatched_responses = [
@@ -1531,7 +1539,7 @@ mod tests {
     async fn reconciliation_rejects_invalid_authorization_before_missing_route_is_treated_as_noop()
     {
         let holding_id = Uuid::new_v4();
-        let (dispatch, mut authorization) = dispatch_for(TenantScope::Holding { holding_id });
+        let (dispatch, mut authorization) = dispatch_for(AuthorityScope::Holding { holding_id });
         authorization.attempt += 1;
         let route = MarketingChannelRoute::try_new(
             MarketingChannel::Email,
@@ -1551,7 +1559,7 @@ mod tests {
     #[test]
     fn account_binding_requires_canonical_route_order() {
         let holding_id = Uuid::new_v4();
-        let mut binding = account_binding("tenant-1", "holding-1", holding_id);
+        let mut binding = account_binding("holding-1", "holding-1", holding_id);
         binding.channels = vec!["email".into(), "sms".into()];
         binding.channel_routes = vec![
             erpx_infrastructure::MarketingProviderChannelRouteBinding {
@@ -1574,7 +1582,7 @@ mod tests {
 
     #[tokio::test]
     async fn reconciliation_response_body_is_bounded_before_classification() {
-        let (dispatch, authorization) = dispatch_for(TenantScope::Holding {
+        let (dispatch, authorization) = dispatch_for(AuthorityScope::Holding {
             holding_id: Uuid::new_v4(),
         });
         let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
@@ -1616,7 +1624,7 @@ mod tests {
     #[tokio::test]
     async fn reconciliation_queries_idempotency_without_resubmitting_the_dispatch() {
         let holding_id = Uuid::new_v4();
-        let (dispatch, authorization) = dispatch_for(TenantScope::Holding { holding_id });
+        let (dispatch, authorization) = dispatch_for(AuthorityScope::Holding { holding_id });
         let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
             .await
             .unwrap();
@@ -1672,9 +1680,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn account_binding_requires_exact_tenant_holding_and_account_identity() {
+    async fn account_binding_requires_exact_holding_holding_and_account_identity() {
         let holding_id = Uuid::new_v4();
-        let binding = account_binding("tenant-1", "holding-1", holding_id);
+        let binding = account_binding("holding-1", "holding-1", holding_id);
         let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
         let provider = RecordingBoundProvider {
             seen: Arc::clone(&seen),
@@ -1687,30 +1695,30 @@ mod tests {
             &binding,
         )
         .expect("bound provider");
-        let (dispatch, authorization) = dispatch_for(TenantScope::Holding { holding_id });
+        let (dispatch, authorization) = dispatch_for(AuthorityScope::Holding { holding_id });
         assert!(matches!(
             wrapper.submit(&dispatch, &authorization).await,
             Ok(ProviderResult::Accepted { .. })
         ));
         assert_eq!(seen.lock().expect("seen").len(), 1);
 
-        let (other_dispatch, other_authorization) = dispatch_for(TenantScope::Holding {
+        let (other_dispatch, other_authorization) = dispatch_for(AuthorityScope::Holding {
             holding_id: Uuid::new_v4(),
         });
         assert_eq!(
             wrapper.submit(&other_dispatch, &other_authorization).await,
             Err(MarketingDeliveryProviderError::Configuration)
         );
-        assert_eq!(holding_id_for_scope(&TenantScope::Platform), None);
+        assert_eq!(holding_id_for_scope(&AuthorityScope::Platform), None);
 
-        let changed = account_binding("tenant-2", "holding-1", holding_id);
+        let changed = account_binding("holding-2", "holding-1", holding_id);
         let changed_wrapper = AccountBoundMarketingDeliveryProvider::new(
             RecordingBoundProvider { seen },
             FixedAccountResolver { binding: changed },
             &binding,
         )
         .expect("bound provider");
-        let (dispatch, authorization) = dispatch_for(TenantScope::Holding { holding_id });
+        let (dispatch, authorization) = dispatch_for(AuthorityScope::Holding { holding_id });
         assert_eq!(
             changed_wrapper.submit(&dispatch, &authorization).await,
             Err(MarketingDeliveryProviderError::Configuration)
@@ -1746,7 +1754,7 @@ mod tests {
         };
         let provider =
             HttpMarketingDeliveryProvider::new([route], FixedCredentialResolver).expect("provider");
-        let (dispatch, authorization) = dispatch_for(TenantScope::Holding {
+        let (dispatch, authorization) = dispatch_for(AuthorityScope::Holding {
             holding_id: Uuid::new_v4(),
         });
         assert_eq!(

@@ -5,9 +5,9 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::access::{RoleAssignment, Scope};
+use crate::access::RoleAssignment;
 use crate::commercial::{BillingState, ModuleEntitlement, authorize_module};
-use crate::contracts::TenantScope;
+use crate::contracts::AuthorityScope;
 
 pub const MAX_TICKET_AUTHOR_REF_LENGTH: usize = 255;
 pub const MAX_TICKET_MESSAGE_LENGTH: usize = 16_000;
@@ -163,7 +163,7 @@ pub struct SupportAttachmentUpload {
     pub sha256_hex: String,
     pub visibility: SupportAttachmentVisibility,
     pub uploader_ref: String,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub expires_at: DateTime<Utc>,
 }
 
@@ -178,7 +178,7 @@ pub struct SupportAttachment {
     pub sha256_hex: String,
     pub visibility: SupportAttachmentVisibility,
     pub uploader_ref: String,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub uploaded_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
 }
@@ -207,7 +207,8 @@ impl SupportAttachment {
             MAX_SUPPORT_ATTACHMENT_UPLOADER_REF_LENGTH,
             SupportError::InvalidSupportAttachment,
         )?;
-        validate_tenant_scope(&upload.scope).map_err(|_| SupportError::InvalidSupportAttachment)?;
+        validate_holding_scope(&upload.scope)
+            .map_err(|_| SupportError::InvalidSupportAttachment)?;
         if upload.expires_at <= uploaded_at
             || upload.expires_at > uploaded_at + MAX_SUPPORT_ATTACHMENT_LIFETIME
         {
@@ -251,7 +252,7 @@ impl SupportAttachment {
             MAX_SUPPORT_ATTACHMENT_UPLOADER_REF_LENGTH,
             SupportError::InvalidSupportAttachment,
         )?;
-        validate_tenant_scope(&self.scope).map_err(|_| SupportError::InvalidSupportAttachment)?;
+        validate_holding_scope(&self.scope).map_err(|_| SupportError::InvalidSupportAttachment)?;
         if self.expires_at <= self.uploaded_at
             || self.expires_at > self.uploaded_at + MAX_SUPPORT_ATTACHMENT_LIFETIME
         {
@@ -586,7 +587,7 @@ impl SupportSlaNotificationClassification {
 pub struct SupportTicketAssignment {
     pub assignee_ref: String,
     pub assigned_by: String,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub assigned_at: DateTime<Utc>,
 }
 
@@ -594,10 +595,10 @@ impl SupportTicketAssignment {
     pub fn new(
         assignee_ref: impl Into<String>,
         assigned_by: impl Into<String>,
-        scope: TenantScope,
+        scope: AuthorityScope,
         assigned_at: DateTime<Utc>,
     ) -> Result<Self, SupportError> {
-        validate_tenant_scope(&scope)?;
+        validate_holding_scope(&scope)?;
         Ok(Self {
             assignee_ref: bounded_non_empty(
                 assignee_ref.into(),
@@ -826,7 +827,7 @@ impl SupportTicketCommand {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SupportMode {
     DiagnosticRead,
-    TenantMutation,
+    HoldingMutation,
     Impersonation,
 }
 
@@ -834,7 +835,7 @@ impl SupportMode {
     pub const fn maximum_duration(self) -> Duration {
         match self {
             Self::DiagnosticRead => Duration::hours(8),
-            Self::TenantMutation | Self::Impersonation => Duration::hours(2),
+            Self::HoldingMutation | Self::Impersonation => Duration::hours(2),
         }
     }
 
@@ -851,7 +852,7 @@ pub struct SupportDomainPolicy {
     pub required_agent_permission: String,
     pub permitted_modules: BTreeSet<String>,
     pub diagnostic_read_allowed: bool,
-    pub tenant_mutation_allowed: bool,
+    pub holding_mutation_allowed: bool,
     pub impersonation_allowed: bool,
     pub segregation_of_duties_passed: bool,
 }
@@ -861,7 +862,7 @@ impl SupportDomainPolicy {
         required_agent_permission: impl Into<String>,
         permitted_modules: BTreeSet<String>,
         diagnostic_read_allowed: bool,
-        tenant_mutation_allowed: bool,
+        holding_mutation_allowed: bool,
         impersonation_allowed: bool,
         segregation_of_duties_passed: bool,
     ) -> Self {
@@ -869,7 +870,7 @@ impl SupportDomainPolicy {
             required_agent_permission: required_agent_permission.into(),
             permitted_modules,
             diagnostic_read_allowed,
-            tenant_mutation_allowed,
+            holding_mutation_allowed,
             impersonation_allowed,
             segregation_of_duties_passed,
         }
@@ -880,7 +881,7 @@ impl SupportDomainPolicy {
             && self.permitted_modules.contains(module_key)
             && match mode {
                 SupportMode::DiagnosticRead => self.diagnostic_read_allowed,
-                SupportMode::TenantMutation => self.tenant_mutation_allowed,
+                SupportMode::HoldingMutation => self.holding_mutation_allowed,
                 SupportMode::Impersonation => self.impersonation_allowed,
             }
     }
@@ -982,9 +983,9 @@ pub enum SupportError {
     InvalidSupportNotificationPolicy,
     #[error("support session exceeds its mode maximum")]
     ExceedsMaximum,
-    #[error("impersonation requires an explicitly represented tenant user")]
+    #[error("impersonation requires an explicitly represented holding user")]
     MissingRepresentedUser,
-    #[error("a represented tenant user is only valid for impersonation")]
+    #[error("a represented holding user is only valid for impersonation")]
     UnexpectedRepresentedUser,
     #[error("support session has not been approved")]
     NotApproved,
@@ -1072,7 +1073,7 @@ impl SupportTicket {
             )?;
         }
         if let Some(assignment) = &self.assignment {
-            validate_tenant_scope(&assignment.scope)?;
+            validate_holding_scope(&assignment.scope)?;
             bounded_non_empty(
                 assignment.assignee_ref.clone(),
                 MAX_TICKET_AUTHOR_REF_LENGTH,
@@ -1143,7 +1144,7 @@ impl SupportTicket {
     pub fn apply_command(
         &mut self,
         command: SupportTicketCommand,
-        actor_scope: &TenantScope,
+        actor_scope: &AuthorityScope,
         now: DateTime<Utc>,
     ) -> Result<(), SupportError> {
         self.validate()?;
@@ -1345,31 +1346,23 @@ fn canonical_sha256(value: &str) -> Result<String, SupportError> {
     Ok(value.to_ascii_lowercase())
 }
 
-fn validate_tenant_scope(scope: &TenantScope) -> Result<(), SupportError> {
+fn validate_holding_scope(scope: &AuthorityScope) -> Result<(), SupportError> {
     let valid = match scope {
-        TenantScope::Platform => true,
-        TenantScope::Holding { holding_id } => !holding_id.is_nil(),
-        TenantScope::Company {
+        AuthorityScope::Platform => true,
+        AuthorityScope::Holding { holding_id } => !holding_id.is_nil(),
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => !holding_id.is_nil() && !company_id.is_nil(),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         } => !holding_id.is_nil() && !company_id.is_nil() && !branch_id.is_nil(),
-        TenantScope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
-        } => {
-            !holding_id.is_nil()
-                && !company_ids.is_empty()
-                && company_ids.len() <= MAX_TICKET_ASSIGNMENT_SCOPE_IDS
-                && branch_ids.len() <= MAX_TICKET_ASSIGNMENT_SCOPE_IDS
-                && company_ids.iter().all(|id| !id.is_nil())
-                && branch_ids.iter().all(|id| !id.is_nil())
-        }
+            organization_node_id,
+        } => !holding_id.is_nil() && !organization_node_id.is_nil(),
     };
     valid
         .then_some(())
@@ -1382,7 +1375,7 @@ pub struct SupportSession {
     pub ticket_id: Uuid,
     pub customer_account_id: Uuid,
     pub agent_ref: String,
-    pub represented_tenant_user: Option<String>,
+    pub represented_holding_user: Option<String>,
     pub mode: SupportMode,
     pub permissions: Vec<String>,
     pub scope: String,
@@ -1433,13 +1426,13 @@ impl SupportSession {
                         .iter()
                         .any(|previous| previous == permission)
                 })
-            || self.mode.requires_represented_user() != self.represented_tenant_user.is_some()
+            || self.mode.requires_represented_user() != self.represented_holding_user.is_some()
         {
             return Err(SupportError::InvalidSupportReference);
         }
         for reference in [
             Some(self.agent_ref.as_str()),
-            self.represented_tenant_user.as_deref(),
+            self.represented_holding_user.as_deref(),
         ]
         .into_iter()
         .flatten()
@@ -1481,7 +1474,7 @@ impl SupportSession {
         reason: impl Into<String>,
         requested_at: DateTime<Utc>,
         duration: Duration,
-        represented_tenant_user: Option<String>,
+        represented_holding_user: Option<String>,
     ) -> Result<Self, SupportError> {
         Self::request_with_module(
             ticket_id,
@@ -1494,7 +1487,7 @@ impl SupportSession {
             reason,
             requested_at,
             duration,
-            represented_tenant_user,
+            represented_holding_user,
         )
     }
 
@@ -1510,7 +1503,7 @@ impl SupportSession {
         reason: impl Into<String>,
         requested_at: DateTime<Utc>,
         duration: Duration,
-        represented_tenant_user: Option<String>,
+        represented_holding_user: Option<String>,
     ) -> Result<Self, SupportError> {
         if ticket_id.is_nil() || customer_account_id.is_nil() {
             return Err(SupportError::InvalidSupportReference);
@@ -1518,10 +1511,10 @@ impl SupportSession {
         if duration <= Duration::zero() || duration > mode.maximum_duration() {
             return Err(SupportError::ExceedsMaximum);
         }
-        if mode.requires_represented_user() && represented_tenant_user.is_none() {
+        if mode.requires_represented_user() && represented_holding_user.is_none() {
             return Err(SupportError::MissingRepresentedUser);
         }
-        if !mode.requires_represented_user() && represented_tenant_user.is_some() {
+        if !mode.requires_represented_user() && represented_holding_user.is_some() {
             return Err(SupportError::UnexpectedRepresentedUser);
         }
         let mut permissions = permissions;
@@ -1536,7 +1529,7 @@ impl SupportSession {
             ticket_id,
             customer_account_id,
             agent_ref: agent_ref.into(),
-            represented_tenant_user,
+            represented_holding_user,
             mode,
             permissions,
             scope: scope.into(),
@@ -1613,8 +1606,8 @@ impl SupportSession {
     pub fn authorize_device(
         &self,
         binding: &SupportDeviceSessionBinding,
-        actor_scope: &Scope,
-        requested_scope: &Scope,
+        actor_scope: &AuthorityScope,
+        requested_scope: &AuthorityScope,
         sod_passed: bool,
         at: DateTime<Utc>,
     ) -> Result<(), SupportError> {
@@ -1732,7 +1725,7 @@ impl SupportDeviceSessionBinding {
 
 impl SupportMode {
     pub const fn requires_high_risk_mfa(self) -> bool {
-        matches!(self, Self::TenantMutation | Self::Impersonation)
+        matches!(self, Self::HoldingMutation | Self::Impersonation)
     }
 }
 
@@ -2075,7 +2068,7 @@ pub struct SupportIntersectionRequest<'a> {
     pub represented_user_identity_active: bool,
     pub represented_user_role: Option<&'a RoleAssignment>,
     pub represented_user_parent_role: Option<&'a RoleAssignment>,
-    pub requested_scope: &'a Scope,
+    pub requested_scope: &'a AuthorityScope,
     pub scope_key: &'a str,
     pub module_key: &'a str,
     pub required_permission: &'a str,
@@ -2182,7 +2175,7 @@ pub fn evaluate_support_intersection(
         return Err(SupportIntersectionDenial::AgentParentInactive);
     }
     if request.agent_role.functional_domain != "platform"
-        || request.agent_role.scope != Scope::Platform
+        || request.agent_role.scope != AuthorityScope::Platform
     {
         return Err(SupportIntersectionDenial::AgentPlatformRoleDenied);
     }
@@ -2199,7 +2192,7 @@ pub fn evaluate_support_intersection(
     }
 
     let is_mutation =
-        request.is_mutation || matches!(request.session.mode, SupportMode::TenantMutation);
+        request.is_mutation || matches!(request.session.mode, SupportMode::HoldingMutation);
     if request
         .entitlement
         .is_some_and(|entitlement| entitlement.module_key != request.module_key)
@@ -2222,7 +2215,7 @@ pub fn evaluate_support_intersection(
     }
 
     if request.session.mode.requires_represented_user() {
-        let Some(represented_ref) = request.session.represented_tenant_user.as_deref() else {
+        let Some(represented_ref) = request.session.represented_holding_user.as_deref() else {
             return Err(SupportIntersectionDenial::RepresentedUserAuthorityMissing);
         };
         if represented_ref.trim().is_empty() {
@@ -2253,7 +2246,7 @@ pub fn evaluate_support_intersection(
         {
             return Err(SupportIntersectionDenial::RepresentedUserPermissionDenied);
         }
-    } else if request.session.represented_tenant_user.is_some() {
+    } else if request.session.represented_holding_user.is_some() {
         return Err(SupportIntersectionDenial::UnexpectedRepresentedUser);
     }
 
@@ -2840,7 +2833,7 @@ mod tests {
                 Uuid::new_v4(),
                 customer,
                 "agent",
-                SupportMode::TenantMutation,
+                SupportMode::HoldingMutation,
                 vec![],
                 "finance",
                 "repair",
@@ -2874,7 +2867,7 @@ mod tests {
             Uuid::new_v4(),
             Uuid::new_v4(),
             "agent",
-            SupportMode::TenantMutation,
+            SupportMode::HoldingMutation,
             vec!["operations:write".into()],
             "holding:1",
             "operations",
@@ -3083,7 +3076,7 @@ mod tests {
             created_at: now,
         };
         ticket
-            .apply_command(customer_reply, &TenantScope::Platform, now)
+            .apply_command(customer_reply, &AuthorityScope::Platform, now)
             .expect("customer reply");
         let internal_note = SupportTicketCommand::InternalNote {
             message_id: Uuid::new_v4(),
@@ -3092,7 +3085,7 @@ mod tests {
             created_at: now,
         };
         ticket
-            .apply_command(internal_note, &TenantScope::Platform, now)
+            .apply_command(internal_note, &AuthorityScope::Platform, now)
             .expect("internal note");
 
         let customer_view = ticket.customer_visible_view();
@@ -3131,7 +3124,7 @@ mod tests {
             escalation: None,
             sla_deadline: None,
         };
-        let assignment_scope = TenantScope::Branch {
+        let assignment_scope = AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -3142,7 +3135,7 @@ mod tests {
         ticket
             .apply_command(
                 SupportTicketCommand::Assign { assignment },
-                &TenantScope::Company {
+                &AuthorityScope::Company {
                     holding_id,
                     company_id,
                 },
@@ -3153,7 +3146,7 @@ mod tests {
         let outside_scope = SupportTicketAssignment::new(
             "sibling-owner",
             "manager",
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id: Uuid::new_v4(),
@@ -3177,7 +3170,7 @@ mod tests {
                 SupportTicketCommand::SetSlaDeadline {
                     deadline: now + Duration::days(30),
                 },
-                &TenantScope::Platform,
+                &AuthorityScope::Platform,
                 now,
             )
             .expect("bounded SLA deadline");
@@ -3186,7 +3179,7 @@ mod tests {
                 SupportTicketCommand::SetSlaDeadline {
                     deadline: now + Duration::days(366),
                 },
-                &TenantScope::Platform,
+                &AuthorityScope::Platform,
                 now,
             ),
             Err(SupportError::InvalidTicketSlaDeadline)
@@ -3204,7 +3197,7 @@ mod tests {
                     )
                     .expect("bounded escalation"),
                 },
-                &TenantScope::Platform,
+                &AuthorityScope::Platform,
                 now,
             )
             .expect("escalate");
@@ -3220,7 +3213,7 @@ mod tests {
                     )
                     .expect("valid lower level value"),
                 },
-                &TenantScope::Platform,
+                &AuthorityScope::Platform,
                 now,
             ),
             Err(SupportError::EscalationLevelRegression)
@@ -3251,7 +3244,7 @@ mod tests {
                     body: "must not mutate".into(),
                     created_at: now,
                 },
-                &TenantScope::Platform,
+                &AuthorityScope::Platform,
                 now,
             ),
             Err(SupportError::ClosedTicketTerminal)
@@ -3288,7 +3281,7 @@ mod tests {
             sha256_hex: "AB".repeat(32),
             visibility,
             uploader_ref: "support-agent-1".into(),
-            scope: TenantScope::Holding {
+            scope: AuthorityScope::Holding {
                 holding_id: Uuid::new_v4(),
             },
             expires_at,
@@ -3557,7 +3550,7 @@ mod tests {
         let now = Utc::now();
         for (mode, represented_duration) in [
             (SupportMode::DiagnosticRead, Duration::hours(8)),
-            (SupportMode::TenantMutation, Duration::hours(2)),
+            (SupportMode::HoldingMutation, Duration::hours(2)),
             (SupportMode::Impersonation, Duration::hours(2)),
         ] {
             let binding = capability_binding(mode);
@@ -3602,7 +3595,7 @@ mod tests {
     #[test]
     fn capability_expiry_revocation_and_reissue_cannot_extend_approval() {
         let now = Utc::now();
-        let binding = capability_binding(SupportMode::TenantMutation);
+        let binding = capability_binding(SupportMode::HoldingMutation);
         let (mut capability, secret) =
             SupportCapability::issue(binding.clone(), now, Duration::hours(1)).expect("issue");
         assert_eq!(
@@ -3718,7 +3711,7 @@ mod tests {
         role_key: &str,
         permissions: &[&str],
         functional_domain: &str,
-        scope: Scope,
+        scope: AuthorityScope,
         valid_from: DateTime<Utc>,
         valid_until: DateTime<Utc>,
         parent_assignment_id: Option<Uuid>,
@@ -3751,7 +3744,7 @@ mod tests {
 
     struct IntersectionFixture {
         now: DateTime<Utc>,
-        scope: Scope,
+        scope: AuthorityScope,
         scope_key: String,
         session: SupportSession,
         capability: SupportCapability,
@@ -3765,7 +3758,7 @@ mod tests {
     impl IntersectionFixture {
         fn new(mode: SupportMode) -> Self {
             let now = fixed_now();
-            let scope = Scope::Platform;
+            let scope = AuthorityScope::Platform;
             let scope_key = scope.canonical_key();
             let represented_user = mode
                 .requires_represented_user()
@@ -3802,7 +3795,7 @@ mod tests {
                 "platform_support",
                 &["support:access"],
                 "platform",
-                Scope::Platform,
+                AuthorityScope::Platform,
                 now,
                 now + Duration::hours(2),
                 None,
@@ -3810,10 +3803,10 @@ mod tests {
             let represented_user_role = represented_user.map(|principal_ref| {
                 role(
                     &principal_ref,
-                    "tenant_user",
+                    "holding_user",
                     &["support:read"],
                     "operations",
-                    Scope::Platform,
+                    AuthorityScope::Platform,
                     now,
                     now + Duration::hours(2),
                     None,
@@ -4080,7 +4073,7 @@ mod tests {
             ))
         );
 
-        let mut fixture = IntersectionFixture::new(SupportMode::TenantMutation);
+        let mut fixture = IntersectionFixture::new(SupportMode::HoldingMutation);
         fixture.approve();
         let mut request = fixture.request();
         request.billing_state = BillingState::ReadOnly;
@@ -4136,7 +4129,7 @@ mod tests {
 
         let mut fixture = IntersectionFixture::new(SupportMode::Impersonation);
         fixture.approve();
-        fixture.represented_user_role.as_mut().unwrap().scope = Scope::Holding {
+        fixture.represented_user_role.as_mut().unwrap().scope = AuthorityScope::Holding {
             holding_id: Uuid::from_u128(55),
         };
         assert_eq!(
@@ -4178,7 +4171,7 @@ mod tests {
         };
         let before = ticket.clone();
         ticket
-            .apply_command(command.clone(), &TenantScope::Platform, now)
+            .apply_command(command.clone(), &AuthorityScope::Platform, now)
             .expect("apply exact command");
         assert!(command.is_exactly_applied_to(&before, &ticket));
 

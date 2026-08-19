@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, Utc};
-use erpx_kernel::{DataClassification, RecordId, TenantScope};
+use erpx_kernel::{AuthorityScope, DataClassification, RecordId};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
@@ -50,7 +50,7 @@ pub enum AgentDomainError {
     InvalidIdentifier,
     #[error("required text is missing or exceeds its limit")]
     InvalidText,
-    #[error("tenant scope is invalid")]
+    #[error("holding scope is invalid")]
     InvalidScope,
     #[error("agent ownership is incomplete")]
     MissingOwner,
@@ -152,7 +152,7 @@ pub struct AgentManifest {
     pub capabilities: BTreeSet<String>,
     pub tool_refs: BTreeSet<String>,
     pub knowledge_scopes: BTreeSet<String>,
-    pub organization_scopes: Vec<TenantScope>,
+    pub organization_scopes: Vec<AuthorityScope>,
     pub maximum_classification: DataClassification,
     pub security_review_ref: String,
     pub privacy_review_ref: String,
@@ -198,7 +198,7 @@ impl AgentManifest {
         Ok(())
     }
 
-    pub fn permits_scope(&self, requested: &TenantScope) -> bool {
+    pub fn permits_scope(&self, requested: &AuthorityScope) -> bool {
         self.organization_scopes
             .iter()
             .any(|allowed| allowed.contains(requested))
@@ -216,7 +216,7 @@ pub struct AgentVersion {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AgentDefinition {
     id: AgentDefinitionId,
-    scope: TenantScope,
+    scope: AuthorityScope,
     agent_principal_ref: String,
     business_owner_ref: String,
     technical_owner_ref: String,
@@ -232,7 +232,7 @@ impl AgentDefinition {
     #[allow(clippy::too_many_arguments)]
     pub fn register(
         id: AgentDefinitionId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         agent_principal_ref: String,
         business_owner_ref: String,
         technical_owner_ref: String,
@@ -267,7 +267,7 @@ impl AgentDefinition {
     #[allow(clippy::too_many_arguments)]
     pub fn rehydrate(
         id: AgentDefinitionId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         agent_principal_ref: String,
         business_owner_ref: String,
         technical_owner_ref: String,
@@ -430,7 +430,7 @@ impl AgentDefinition {
     pub const fn id(&self) -> AgentDefinitionId {
         self.id
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn agent_principal_ref(&self) -> &str {
@@ -599,7 +599,7 @@ pub struct Assignment {
     parent_assignment_id: Option<AssignmentId>,
     root_invocation: RootInvocation,
     pin: AgentPin,
-    scope: TenantScope,
+    scope: AuthorityScope,
     state: AssignmentState,
     lineage: Vec<AgentDefinitionId>,
     depth: u16,
@@ -622,7 +622,7 @@ impl Assignment {
         id: AssignmentId,
         invocation: RootInvocation,
         pin: AgentPin,
-        scope: TenantScope,
+        scope: AuthorityScope,
         budget_reservation_id: BudgetReservationId,
         at: DateTime<Utc>,
     ) -> Result<Self, AgentDomainError> {
@@ -663,7 +663,7 @@ impl Assignment {
         parent_assignment_id: Option<AssignmentId>,
         root_invocation: RootInvocation,
         pin: AgentPin,
-        scope: TenantScope,
+        scope: AuthorityScope,
         state: AssignmentState,
         lineage: Vec<AgentDefinitionId>,
         depth: u16,
@@ -761,7 +761,7 @@ impl Assignment {
         &self,
         child_id: AssignmentId,
         child_pin: AgentPin,
-        child_scope: TenantScope,
+        child_scope: AuthorityScope,
         child_budget_reservation_id: BudgetReservationId,
         sibling_count: u16,
         limits: &DelegationLimits,
@@ -1055,7 +1055,7 @@ impl Assignment {
     pub const fn state(&self) -> AssignmentState {
         self.state
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn pin(&self) -> &AgentPin {
@@ -1108,7 +1108,7 @@ impl Assignment {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BudgetLayerKind {
-    Tenant,
+    Holding,
     Workspace,
     Agent,
     Principal,
@@ -1117,7 +1117,7 @@ pub enum BudgetLayerKind {
 
 impl BudgetLayerKind {
     pub const ALL: [Self; 5] = [
-        Self::Tenant,
+        Self::Holding,
         Self::Workspace,
         Self::Agent,
         Self::Principal,
@@ -1240,7 +1240,7 @@ pub struct PoolRoutingDecision {
     pub pool_version: u64,
     pub root_action_ref: String,
     pub capability: String,
-    pub requested_scope: TenantScope,
+    pub requested_scope: AuthorityScope,
     pub candidate_versions: Vec<AgentVersionId>,
     pub selected: AgentPin,
     pub selected_versions: Vec<AgentVersionId>,
@@ -1256,14 +1256,14 @@ pub struct PoolRouteRequest {
     pub decision_id: PoolRoutingDecisionId,
     pub root_action_ref: String,
     pub capability: String,
-    pub requested_scope: TenantScope,
+    pub requested_scope: AuthorityScope,
     pub decided_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AgentPool {
     id: AgentPoolId,
-    scope: TenantScope,
+    scope: AuthorityScope,
     name: String,
     member_versions: BTreeSet<AgentVersionId>,
     enabled: bool,
@@ -1275,7 +1275,7 @@ pub struct AgentPool {
 impl AgentPool {
     pub fn register(
         id: AgentPoolId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         name: String,
         member_versions: BTreeSet<AgentVersionId>,
         at: DateTime<Utc>,
@@ -1302,7 +1302,7 @@ impl AgentPool {
     #[allow(clippy::too_many_arguments)]
     pub fn rehydrate(
         id: AgentPoolId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         name: String,
         member_versions: BTreeSet<AgentVersionId>,
         enabled: bool,
@@ -1501,7 +1501,7 @@ impl AgentPool {
     pub const fn id(&self) -> AgentPoolId {
         self.id
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn name(&self) -> &str {
@@ -1554,36 +1554,23 @@ fn routing_digest(
     format!("{:x}", digest.finalize())
 }
 
-fn scope_key(scope: &TenantScope) -> String {
+fn scope_key(scope: &AuthorityScope) -> String {
     match scope {
-        TenantScope::Platform => "platform".into(),
-        TenantScope::Holding { holding_id } => format!("h:{holding_id}"),
-        TenantScope::Company {
+        AuthorityScope::Platform => "platform".into(),
+        AuthorityScope::Holding { holding_id } => format!("h:{holding_id}"),
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => format!("h:{holding_id}/c:{company_id}"),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         } => format!("h:{holding_id}/c:{company_id}/b:{branch_id}"),
-        TenantScope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
-        } => {
-            let companies = company_ids
-                .iter()
-                .map(Uuid::to_string)
-                .collect::<Vec<_>>()
-                .join(",");
-            let branches = branch_ids
-                .iter()
-                .map(Uuid::to_string)
-                .collect::<Vec<_>>()
-                .join(",");
-            format!("h:{holding_id}/cs:{companies}/bs:{branches}")
-        }
+            organization_node_id,
+        } => format!("h:{holding_id}/node:{organization_node_id}"),
     }
 }
 
@@ -1938,7 +1925,7 @@ pub struct SessionMessage {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AgentSession {
     id: AgentSessionId,
-    scope: TenantScope,
+    scope: AuthorityScope,
     owner_human_ref: String,
     context: Option<SessionContext>,
     messages: Vec<SessionMessage>,
@@ -1953,14 +1940,14 @@ pub struct AgentSession {
 impl AgentSession {
     pub fn start(
         id: AgentSessionId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         owner_human_ref: String,
         context: Option<SessionContext>,
         expires_at: DateTime<Utc>,
         at: DateTime<Utc>,
     ) -> Result<Self, AgentDomainError> {
         if scope.validate().is_err()
-            || matches!(scope, TenantScope::Platform)
+            || matches!(scope, AuthorityScope::Platform)
             || !valid_text(&owner_human_ref, 256)
             || expires_at <= at
             || expires_at > at + chrono::Duration::days(90)
@@ -1988,7 +1975,7 @@ impl AgentSession {
     #[allow(clippy::too_many_arguments)]
     pub fn rehydrate(
         id: AgentSessionId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         owner_human_ref: String,
         context: Option<SessionContext>,
         messages: Vec<SessionMessage>,
@@ -2129,7 +2116,7 @@ impl AgentSession {
     pub const fn id(&self) -> AgentSessionId {
         self.id
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn owner_human_ref(&self) -> &str {
@@ -2253,8 +2240,8 @@ mod tests {
         Utc.with_ymd_and_hms(2026, 8, 15, 9, 0, 0).single().unwrap()
     }
 
-    fn scope() -> TenantScope {
-        TenantScope::Branch {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Branch {
             holding_id: id(1),
             company_id: id(2),
             branch_id: id(3),
@@ -2274,7 +2261,7 @@ mod tests {
             capabilities: BTreeSet::from(["summarize".into()]),
             tool_refs: BTreeSet::from(["record.read".into()]),
             knowledge_scopes: BTreeSet::from([format!("agent-{definition}")]),
-            organization_scopes: vec![TenantScope::Holding { holding_id: id(1) }],
+            organization_scopes: vec![AuthorityScope::Holding { holding_id: id(1) }],
             maximum_classification: DataClassification::Restricted,
             security_review_ref: "SEC-1".into(),
             privacy_review_ref: "PRI-1".into(),
@@ -2314,7 +2301,7 @@ mod tests {
     fn governance_requires_approved_complete_version() {
         let mut definition = AgentDefinition::register(
             AgentDefinitionId::try_from_uuid(id(10)).unwrap(),
-            TenantScope::Holding { holding_id: id(1) },
+            AuthorityScope::Holding { holding_id: id(1) },
             "agent:10".into(),
             "owner:business".into(),
             "owner:technical".into(),
@@ -2538,7 +2525,7 @@ mod tests {
             parent.delegate(
                 AssignmentId::try_from_uuid(id(55)).unwrap(),
                 pin(14, 15),
-                TenantScope::Holding { holding_id: id(1) },
+                AuthorityScope::Holding { holding_id: id(1) },
                 BudgetReservationId::try_from_uuid(id(56)).unwrap(),
                 0,
                 &limits,
@@ -2611,7 +2598,7 @@ mod tests {
         let second = pin(12, 13);
         let pool = AgentPool::register(
             AgentPoolId::try_from_uuid(id(70)).unwrap(),
-            TenantScope::Holding { holding_id: id(1) },
+            AuthorityScope::Holding { holding_id: id(1) },
             "summarizers".into(),
             BTreeSet::from([first.manifest.version_id, second.manifest.version_id]),
             at(),

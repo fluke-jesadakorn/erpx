@@ -63,11 +63,11 @@ handler is additionally wrapped by `grpc_handler!` at
    configuration (`apps/server/src/main.rs:1498-1527`). Storage explicitly
    reports `live_connectivity: "not_probed"`
    (`apps/server/src/storage.rs:168-193`); worker, projection/read databases,
-   commercial processing, tenant routing, and live object-store connectivity
+   commercial processing, holding routing, and live object-store connectivity
    are not part of readiness.
 
 The current ledger agrees that no G1-004 gate is claimed and specifically leaves
-worker/tenant/commercial readiness, provider/raw-body retention, complete worker
+worker/holding/commercial readiness, provider/raw-body retention, complete worker
 ErrorContext propagation, role-renewal commercial/SoD policy, and universal
 mutation adoption open (`EXECUTION_LEDGER.md:738-740`, `:954-956`).
 
@@ -87,7 +87,7 @@ handler-specific checks observed after that common layer.
 | `RequestSupportSession`, `main.rs:789-857` | `authorize`, actor match `:805-810` | Canonical approved scope containment `:811-822`; customer passed to helper | `support.session.request` at `:796-804` | Helper checks customer binding, billing, entitlement, role, SoD at `:826-834` and `main.rs:217-296` | N/A while requesting approval; capability is created only after approval | Application adapter `:852`; wrapper at `:793` | Request-stage checks present. Customer/ticket relationship remains an application/persistence invariant and should have a direct negative test. |
 | `ApproveSupportSession`, `main.rs:859-927` | `authorize`, actor match `:864-869` | Loaded session customer is used by helper `:901-917` | Customer approver and support approval roles at `:871-887` | Helper checks billing, entitlement, effective role, SoD at `:909-917`; customer approval token verified at `:918` | N/A for customer approval control | Application adapter `:924`; wrapper at `:863` | Approval boundary is present. Two-person semantics are represented by the customer approver role plus support request/approval flow; no independent worker audit was observed. |
 | `RevokeSupportSession`, `main.rs:929-975` | `authorize`, actor match `:934-949` | Session is loaded and its customer bound at `:950-966` | `support.session.revoke` at `:936-944` | Helper checks billing, entitlement, role, SoD at `:958-966` | N/A for emergency/control revocation | Application adapter `:971`; wrapper at `:933` | Enforcement is present; the success log at `:972` omits correlation/request ID and should be structured through the boundary context. |
-| `ListExpiringRoles`, `main.rs:985-1020` | `authorize`, query context | Query tenant scope passed to `list_expiring_in_scope` at `:997-1014` | `role.assignment.read` at `:998-1006` | Not applied; control-plane role read | N/A | Application adapter `:1015`; wrapper at `:989` | Read-only/control-plane exception. No global-read disclosure audit is recorded in this handler. |
+| `ListExpiringRoles`, `main.rs:985-1020` | `authorize`, query context | Query holding scope passed to `list_expiring_in_scope` at `:997-1014` | `role.assignment.read` at `:998-1006` | Not applied; control-plane role read | N/A | Application adapter `:1015`; wrapper at `:989` | Read-only/control-plane exception. No global-read disclosure audit is recorded in this handler. |
 | **`RenewRole`**, `main.rs:1022-1080` | `authorize`, grantor match `:1027-1044` | Requested scope must contain current assignment scope at `:1029-1059` | `role.assignment.renew` at `:1030-1038` | **Missing: no `authorize_entitled_command`; `CommandContext.subscription_id` is not required; no billing/entitlement/SoD lookup** | N/A for control-plane role lifecycle, unless a support actor is later allowed to call it | Application adapter `:1075`; wrapper at `:1026` | **Highest-risk mutation gap.** Domain checks parent and high-risk approval, but the server policy intersection is incomplete. |
 | `CheckEntitlement`, `main.rs:1092-1290` | `authorize`, query context | Customer binding at `:1123-1132` | Effective assignment at `:1209-1224` | Billing `:1187-1197`, entitlement `:1198-1207`, SoD `:1225-1235`, effective access and module decision `:1237-1273` | Capability ID/scope/device/session/ticket/secret checks at `:1135-1183` when supplied | Wrapper at `:1096` | Query decision path covers the universal inputs; it is not itself a mutation and does not record a decision audit. |
 
@@ -102,7 +102,7 @@ module entitlement, effective role chain, SoD, and mutation access
 `support_capability_required: false` setting means the helper cannot enforce a
 capability unless the caller supplies a separate support-aware path; current
 support request/approval calls are control-flow stages, while revoke is a
-support-capability control operation rather than a tenant business mutation.
+support-capability control operation rather than a holding business mutation.
 
 The domain itself does implement important role invariants: finite expiry and
 strict `valid_until > valid_from` (`crates/domain/src/access.rs:355-372`), the
@@ -128,14 +128,14 @@ commercial/SoD omission in `RenewRole`.
 
 These are system-worker operations rather than end-user RPCs, so actor/session/
 RBAC/entitlement/support checks are not expected at the worker loop itself.
-They still require a trusted system actor/event context, tenant/resource binding,
+They still require a trusted system actor/event context, holding/resource binding,
 correlation propagation, and redacted structured failure handling.
 
 | Worker path | Observed checks | Missing / risk |
 |---|---|---|
 | Executable composition | Only `customer_360` and `stripe_semantic` handlers can be selected (`apps/worker/src/main.rs:9-52`). | No worker identity/span initialization beyond `tracing_subscriber::fmt::init()` (`:5-8`); no correlation or audit context is attached to a pass/event. |
 | Generic outbox loop | Claims owned events, invokes handler, and performs retry/dead-letter transitions (`crates/infrastructure/src/worker.rs:119-174`). | `WorkerError` is unstructured strings (`:10-16`); event metadata is not passed into an error context/span. |
-| Customer 360 projection | Checks projection and aggregate type, parses payload, writes read model and bindings (`apps/worker/src/lib.rs:288-327`). | Trusts envelope payload and scope without an explicit actor/tenant/resource consistency check; database failures become raw strings. |
+| Customer 360 projection | Checks projection and aggregate type, parses payload, writes read model and bindings (`apps/worker/src/lib.rs:288-327`). | Trusts envelope payload and scope without an explicit actor/holding/resource consistency check; database failures become raw strings. |
 | Projection rebuild/switch | Replacement is prepared, rebuilt, then activated (`apps/worker/src/lib.rs:240-263`; infrastructure replay `worker.rs:248-314`). | Switch/rebuild failures lose structured context; `replay_dead_letter` is a callable store operation with no visible authenticated platform command boundary (`apps/worker/src/lib.rs:265-273`). |
 | Stripe semantic worker | Claims inbox events, dispatches typed semantic events, marks processed, retries or dead-letters (`apps/worker/src/lib.rs:407-484`; dispatcher `crates/infrastructure/src/commercial.rs:198-216`). | No event correlation/audit span; parser/application errors are persisted as caller-provided strings (`apps/worker/src/lib.rs:444-480`). The raw body is deliberately not returned by the claim path, but error text is not centrally redacted. |
 
@@ -165,13 +165,13 @@ in this order:
    renewals.
 
 4. **G1-004-WORKER-CONTEXT (AG-FND):** introduce a bounded system-worker/event
-   context carrying event ID, correlation, causation, tenant scope, aggregate,
+   context carrying event ID, correlation, causation, holding scope, aggregate,
    and worker identity; use it in outbox/projection/Stripe spans, structured
-   retry/DLQ errors, and replay authorization. Add tenant mismatch, correlation
+   retry/DLQ errors, and replay authorization. Add holding mismatch, correlation
    preservation, redaction, retry, and replay authorization tests.
 
 5. **G1-004-READINESS (AG-FND/AG-PRV):** add explicit worker, projection/read
-   database, commercial inbox, tenant router, and live object-store probes with
+   database, commercial inbox, holding router, and live object-store probes with
    redacted status. Test each dependency failing independently and verify
    `/readyz` cannot report ready.
 
@@ -194,7 +194,7 @@ in this order:
 - Assert `500` produces `internal` while `503` produces `unavailable`; assert
   identity database failures are 503 on every identity route and invalid-record
   classification is consistent.
-- Assert worker event correlation/tenant scope survives successful projection,
+- Assert worker event correlation/holding scope survives successful projection,
   retry, dead-letter, replay, and Stripe semantic processing; assert sensitive
   error text is redacted.
 - Make readiness dependency-specific and assert a configured-but-unreachable
@@ -233,7 +233,7 @@ database test was run, and no runtime or database mutation was performed.
   failed-precondition/permission messages and worker/DLQ strings still need a
   redaction test.
 - A configured object store and healthy control database do not prove live
-  tenant/read/worker/commercial availability.
+  holding/read/worker/commercial availability.
 - Worker replay and projection APIs are internal seams in the current code; they
   must not be exposed through a future platform RPC without an authenticated,
   audited operator boundary.

@@ -1,5 +1,7 @@
 use std::{error::Error, fmt};
 
+pub use erpx_domain::contracts::HoldingId;
+
 use crate::{Locale, NavItem, SafeUiText, TranslationKey, UiStateKind};
 
 /// The authorization boundary required by a route definition. The UI never evaluates this
@@ -10,33 +12,53 @@ pub enum RouteAuthRequirement {
     Authenticated,
 }
 
-/// Stable identifiers for the existing platform Customer 360 route set.
+/// Stable identifiers for Platform Holding 360 and holding-workspace Customer 360.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RouteId {
     /// Platform landing page.
     PlatformHome,
-    /// Customer account list.
-    CustomerList,
-    /// Customer 360 overview.
-    CustomerOverview,
+    /// Platform holding list.
+    HoldingList,
+    /// Platform Holding 360 overview.
+    HoldingOverview,
     /// Customer organization projection.
-    CustomerOrganization,
+    HoldingOrganization,
     /// Customer contacts projection.
-    CustomerContacts,
+    HoldingProfile,
     /// Customer commercial projection.
-    CustomerCommercial,
+    HoldingCommercial,
     /// Customer entitlements projection.
-    CustomerEntitlements,
+    HoldingInfrastructure,
     /// Customer onboarding projection.
-    CustomerOnboarding,
+    HoldingProvisioning,
     /// Customer health projection.
-    CustomerHealth,
+    HoldingHealth,
     /// Customer support projection.
-    CustomerSupport,
+    HoldingAudit,
     /// Customer global-read access audit.
-    CustomerAccessAudit,
+    HoldingAccessAudit,
     /// Customer notes projection.
+    HoldingNotes,
+    /// Holding-workspace business Customer 360 overview.
+    CustomerOverview,
+    /// Holding-workspace customer organization projection.
+    CustomerOrganization,
+    /// Holding-workspace customer contacts projection.
+    CustomerContacts,
+    /// Holding-workspace customer commercial projection.
+    CustomerCommercial,
+    /// Holding-workspace customer entitlements projection.
+    CustomerEntitlements,
+    /// Holding-workspace customer onboarding projection.
+    CustomerOnboarding,
+    /// Holding-workspace customer health projection.
+    CustomerHealth,
+    /// Holding-workspace customer support projection.
+    CustomerSupport,
+    /// Holding-workspace customer access audit.
+    CustomerAccessAudit,
+    /// Holding-workspace customer notes projection.
     CustomerNotes,
     /// Marketing landing page.
     MarketingOverview,
@@ -100,8 +122,8 @@ pub struct RouteDefinition {
     pub auth: RouteAuthRequirement,
 }
 
-/// Canonical registry for the platform and Customer 360 routes already defined by ERPX.
-pub const PLATFORM_CUSTOMER_360_ROUTES: &[RouteDefinition] = &[
+/// Canonical registry for Platform Holding 360 routes.
+pub const PLATFORM_HOLDING_ROUTES: &[RouteDefinition] = &[
     RouteDefinition {
         id: RouteId::PlatformHome,
         template: "/platform",
@@ -109,68 +131,68 @@ pub const PLATFORM_CUSTOMER_360_ROUTES: &[RouteDefinition] = &[
         auth: RouteAuthRequirement::Authenticated,
     },
     RouteDefinition {
-        id: RouteId::CustomerList,
-        template: "/platform/customers",
-        label: "Customers",
+        id: RouteId::HoldingList,
+        template: "/platform/holdings",
+        label: "Holdings",
         auth: RouteAuthRequirement::Authenticated,
     },
     RouteDefinition {
-        id: RouteId::CustomerOverview,
-        template: "/platform/customers/:customer_id",
-        label: "Customer 360",
+        id: RouteId::HoldingOverview,
+        template: "/platform/holdings/:holding_id",
+        label: "Holding 360",
         auth: RouteAuthRequirement::Authenticated,
     },
     RouteDefinition {
-        id: RouteId::CustomerOrganization,
-        template: "/platform/customers/:customer_id/organization",
+        id: RouteId::HoldingOrganization,
+        template: "/platform/holdings/:holding_id/organization",
         label: "Organization",
         auth: RouteAuthRequirement::Authenticated,
     },
     RouteDefinition {
-        id: RouteId::CustomerContacts,
-        template: "/platform/customers/:customer_id/contacts",
+        id: RouteId::HoldingProfile,
+        template: "/platform/holdings/:holding_id/contacts",
         label: "Contacts",
         auth: RouteAuthRequirement::Authenticated,
     },
     RouteDefinition {
-        id: RouteId::CustomerCommercial,
-        template: "/platform/customers/:customer_id/commercial",
+        id: RouteId::HoldingCommercial,
+        template: "/platform/holdings/:holding_id/commercial",
         label: "Commercial",
         auth: RouteAuthRequirement::Authenticated,
     },
     RouteDefinition {
-        id: RouteId::CustomerEntitlements,
-        template: "/platform/customers/:customer_id/entitlements",
+        id: RouteId::HoldingInfrastructure,
+        template: "/platform/holdings/:holding_id/entitlements",
         label: "Entitlements",
         auth: RouteAuthRequirement::Authenticated,
     },
     RouteDefinition {
-        id: RouteId::CustomerOnboarding,
-        template: "/platform/customers/:customer_id/onboarding",
+        id: RouteId::HoldingProvisioning,
+        template: "/platform/holdings/:holding_id/onboarding",
         label: "Onboarding",
         auth: RouteAuthRequirement::Authenticated,
     },
     RouteDefinition {
-        id: RouteId::CustomerHealth,
-        template: "/platform/customers/:customer_id/health",
+        id: RouteId::HoldingHealth,
+        template: "/platform/holdings/:holding_id/health",
         label: "Health",
         auth: RouteAuthRequirement::Authenticated,
     },
     RouteDefinition {
-        id: RouteId::CustomerSupport,
-        template: "/platform/customers/:customer_id/support",
+        id: RouteId::HoldingAudit,
+        template: "/platform/holdings/:holding_id/support",
         label: "Support",
         auth: RouteAuthRequirement::Authenticated,
     },
     RouteDefinition {
-        id: RouteId::CustomerAccessAudit,
-        template: "/platform/customers/:customer_id/access-audit",
+        id: RouteId::HoldingAccessAudit,
+        template: "/platform/holdings/:holding_id/access-audit",
         label: "Access audit",
         auth: RouteAuthRequirement::Authenticated,
     },
     RouteDefinition {
-        id: RouteId::CustomerNotes,
-        template: "/platform/customers/:customer_id/notes",
+        id: RouteId::HoldingNotes,
+        template: "/platform/holdings/:holding_id/notes",
         label: "Notes",
         auth: RouteAuthRequirement::Authenticated,
     },
@@ -354,7 +376,7 @@ impl RouteRegistry {
     /// Return every route definition in canonical order.
     pub const fn definitions(self) -> &'static [RouteDefinition] {
         match self.kind {
-            RouteRegistryKind::Platform => PLATFORM_CUSTOMER_360_ROUTES,
+            RouteRegistryKind::Platform => PLATFORM_HOLDING_ROUTES,
             RouteRegistryKind::MarketingCrm => MARKETING_CRM_ROUTES,
         }
     }
@@ -462,16 +484,33 @@ const fn route_icon(id: RouteId) -> &'static str {
     }
 }
 
-/// A validated opaque customer identifier. It may be displayed or sent to an application route,
-/// but it is not a credential and contains no bearer/refresh token material.
+/// Canonical textual size of a UUID holding identifier.
+pub const MAX_HOLDING_ID_BYTES: usize = 36;
+
+fn parse_holding_id(value: &str) -> Result<HoldingId, InvalidHoldingId> {
+    let value = uuid::Uuid::parse_str(value).map_err(|_| InvalidHoldingId)?;
+    HoldingId::try_from_uuid(value).map_err(|_| InvalidHoldingId)
+}
+
+/// Error returned for a non-UUID or nil holding identifier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InvalidHoldingId;
+
+impl fmt::Display for InvalidHoldingId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("holding route identifier must be a non-nil UUID")
+    }
+}
+
+impl Error for InvalidHoldingId {}
+
+/// Opaque business-customer identifier used only inside a holding workspace.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CustomerId(String);
 
-/// Maximum bytes retained for a customer route identifier.
 pub const MAX_CUSTOMER_ID_BYTES: usize = 128;
 
 impl CustomerId {
-    /// Validate and create an opaque route identifier.
     pub fn new(value: impl Into<String>) -> Result<Self, InvalidCustomerId> {
         let value = value.into();
         if value.len() <= MAX_CUSTOMER_ID_BYTES && is_safe_segment(&value) {
@@ -481,19 +520,17 @@ impl CustomerId {
         }
     }
 
-    /// Borrow the validated identifier.
     pub fn as_str(&self) -> &str {
         &self.0
     }
 }
 
-/// Error returned for an unsafe or empty customer identifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InvalidCustomerId;
 
 impl fmt::Display for InvalidCustomerId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("customer route identifier is empty or contains an unsafe path character")
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("customer identifier is empty or contains an unsafe path character")
     }
 }
 
@@ -507,9 +544,24 @@ impl TryFrom<&str> for CustomerId {
     }
 }
 
-/// Customer 360 sub-page represented by a typed route.
+/// Business Customer 360 view inside a holding workspace.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CustomerView {
+    Overview,
+    Organization,
+    Contacts,
+    Commercial,
+    Entitlements,
+    Onboarding,
+    Health,
+    Support,
+    AccessAudit,
+    Notes,
+}
+
+/// Platform Holding 360 sub-page represented by a typed route.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlatformHoldingView {
     /// Base overview page.
     Overview,
     /// Organization page.
@@ -537,14 +589,14 @@ pub enum CustomerView {
 pub enum PlatformRoute {
     /// Platform landing route.
     PlatformHome,
-    /// Customer list route.
-    CustomerList,
-    /// A typed Customer 360 sub-route.
-    Customer {
-        /// Opaque customer identifier.
-        customer_id: CustomerId,
-        /// Customer 360 view.
-        view: CustomerView,
+    /// Holding list route.
+    HoldingList,
+    /// A typed Holding 360 route.
+    Holding {
+        /// Canonical holding identifier.
+        holding_id: HoldingId,
+        /// Holding 360 view.
+        view: PlatformHoldingView,
     },
 }
 
@@ -565,30 +617,34 @@ impl PlatformRoute {
 
         match segments.as_slice() {
             [platform] if *platform == "platform" => Ok(Self::PlatformHome),
-            [platform, customers] if *platform == "platform" && *customers == "customers" => {
-                Ok(Self::CustomerList)
+            [platform, holdings] if *platform == "platform" && *holdings == "holdings" => {
+                Ok(Self::HoldingList)
             }
-            [platform, customers, customer_id]
-                if *platform == "platform" && *customers == "customers" =>
+            [platform, holdings, holding_id]
+                if *platform == "platform" && *holdings == "holdings" =>
             {
-                Self::customer_route(customer_id, CustomerView::Overview, normalized.clone())
+                Self::holding_route(
+                    holding_id,
+                    PlatformHoldingView::Overview,
+                    normalized.clone(),
+                )
             }
-            [platform, customers, customer_id, view]
-                if *platform == "platform" && *customers == "customers" =>
+            [platform, holdings, holding_id, view]
+                if *platform == "platform" && *holdings == "holdings" =>
             {
                 let view = match *view {
-                    "organization" => CustomerView::Organization,
-                    "contacts" => CustomerView::Contacts,
-                    "commercial" => CustomerView::Commercial,
-                    "entitlements" => CustomerView::Entitlements,
-                    "onboarding" => CustomerView::Onboarding,
-                    "health" => CustomerView::Health,
-                    "support" => CustomerView::Support,
-                    "access-audit" => CustomerView::AccessAudit,
-                    "notes" => CustomerView::Notes,
+                    "organization" => PlatformHoldingView::Organization,
+                    "contacts" => PlatformHoldingView::Contacts,
+                    "commercial" => PlatformHoldingView::Commercial,
+                    "entitlements" => PlatformHoldingView::Entitlements,
+                    "onboarding" => PlatformHoldingView::Onboarding,
+                    "health" => PlatformHoldingView::Health,
+                    "support" => PlatformHoldingView::Support,
+                    "access-audit" => PlatformHoldingView::AccessAudit,
+                    "notes" => PlatformHoldingView::Notes,
                     _ => return Err(RouteParseError::new(normalized)),
                 };
-                Self::customer_route(customer_id, view, normalized.clone())
+                Self::holding_route(holding_id, view, normalized.clone())
             }
             _ => Err(RouteParseError::new(normalized)),
         }
@@ -598,21 +654,21 @@ impl PlatformRoute {
     pub fn path(&self) -> String {
         match self {
             Self::PlatformHome => "/platform".to_string(),
-            Self::CustomerList => "/platform/customers".to_string(),
-            Self::Customer { customer_id, view } => {
+            Self::HoldingList => "/platform/holdings".to_string(),
+            Self::Holding { holding_id, view } => {
                 let suffix = match view {
-                    CustomerView::Overview => String::new(),
-                    CustomerView::Organization => "/organization".to_string(),
-                    CustomerView::Contacts => "/contacts".to_string(),
-                    CustomerView::Commercial => "/commercial".to_string(),
-                    CustomerView::Entitlements => "/entitlements".to_string(),
-                    CustomerView::Onboarding => "/onboarding".to_string(),
-                    CustomerView::Health => "/health".to_string(),
-                    CustomerView::Support => "/support".to_string(),
-                    CustomerView::AccessAudit => "/access-audit".to_string(),
-                    CustomerView::Notes => "/notes".to_string(),
+                    PlatformHoldingView::Overview => String::new(),
+                    PlatformHoldingView::Organization => "/organization".to_string(),
+                    PlatformHoldingView::Contacts => "/contacts".to_string(),
+                    PlatformHoldingView::Commercial => "/commercial".to_string(),
+                    PlatformHoldingView::Entitlements => "/entitlements".to_string(),
+                    PlatformHoldingView::Onboarding => "/onboarding".to_string(),
+                    PlatformHoldingView::Health => "/health".to_string(),
+                    PlatformHoldingView::Support => "/support".to_string(),
+                    PlatformHoldingView::AccessAudit => "/access-audit".to_string(),
+                    PlatformHoldingView::Notes => "/notes".to_string(),
                 };
-                format!("/platform/customers/{}{suffix}", customer_id.as_str())
+                format!("/platform/holdings/{holding_id}{suffix}")
             }
         }
     }
@@ -621,57 +677,57 @@ impl PlatformRoute {
     pub const fn id(&self) -> RouteId {
         match self {
             Self::PlatformHome => RouteId::PlatformHome,
-            Self::CustomerList => RouteId::CustomerList,
-            Self::Customer {
-                view: CustomerView::Overview,
+            Self::HoldingList => RouteId::HoldingList,
+            Self::Holding {
+                view: PlatformHoldingView::Overview,
                 ..
-            } => RouteId::CustomerOverview,
-            Self::Customer {
-                view: CustomerView::Organization,
+            } => RouteId::HoldingOverview,
+            Self::Holding {
+                view: PlatformHoldingView::Organization,
                 ..
-            } => RouteId::CustomerOrganization,
-            Self::Customer {
-                view: CustomerView::Contacts,
+            } => RouteId::HoldingOrganization,
+            Self::Holding {
+                view: PlatformHoldingView::Contacts,
                 ..
-            } => RouteId::CustomerContacts,
-            Self::Customer {
-                view: CustomerView::Commercial,
+            } => RouteId::HoldingProfile,
+            Self::Holding {
+                view: PlatformHoldingView::Commercial,
                 ..
-            } => RouteId::CustomerCommercial,
-            Self::Customer {
-                view: CustomerView::Entitlements,
+            } => RouteId::HoldingCommercial,
+            Self::Holding {
+                view: PlatformHoldingView::Entitlements,
                 ..
-            } => RouteId::CustomerEntitlements,
-            Self::Customer {
-                view: CustomerView::Onboarding,
+            } => RouteId::HoldingInfrastructure,
+            Self::Holding {
+                view: PlatformHoldingView::Onboarding,
                 ..
-            } => RouteId::CustomerOnboarding,
-            Self::Customer {
-                view: CustomerView::Health,
+            } => RouteId::HoldingProvisioning,
+            Self::Holding {
+                view: PlatformHoldingView::Health,
                 ..
-            } => RouteId::CustomerHealth,
-            Self::Customer {
-                view: CustomerView::Support,
+            } => RouteId::HoldingHealth,
+            Self::Holding {
+                view: PlatformHoldingView::Support,
                 ..
-            } => RouteId::CustomerSupport,
-            Self::Customer {
-                view: CustomerView::AccessAudit,
+            } => RouteId::HoldingAudit,
+            Self::Holding {
+                view: PlatformHoldingView::AccessAudit,
                 ..
-            } => RouteId::CustomerAccessAudit,
-            Self::Customer {
-                view: CustomerView::Notes,
+            } => RouteId::HoldingAccessAudit,
+            Self::Holding {
+                view: PlatformHoldingView::Notes,
                 ..
-            } => RouteId::CustomerNotes,
+            } => RouteId::HoldingNotes,
         }
     }
 
-    fn customer_route(
-        customer_id: &str,
-        view: CustomerView,
+    fn holding_route(
+        holding_id: &str,
+        view: PlatformHoldingView,
         normalized: String,
     ) -> Result<Self, RouteParseError> {
-        CustomerId::new(customer_id.to_string())
-            .map(|customer_id| Self::Customer { customer_id, view })
+        parse_holding_id(holding_id)
+            .map(|holding_id| Self::Holding { holding_id, view })
             .map_err(|_| RouteParseError::new(normalized))
     }
 }
@@ -799,7 +855,7 @@ fn has_external_origin(value: &str) -> bool {
 
 fn is_safe_segment(value: &str) -> bool {
     !value.is_empty()
-        && value.len() <= MAX_CUSTOMER_ID_BYTES
+        && value.len() <= MAX_HOLDING_ID_BYTES
         && value
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
@@ -1071,7 +1127,7 @@ pub enum ScopeKind {
     Branch,
 }
 
-/// Safe scope option metadata for the selector; it contains no credential or tenant secret.
+/// Safe scope option metadata for the selector; it contains no credential or holding secret.
 #[derive(Clone, PartialEq, Eq)]
 pub struct ScopeOption {
     /// Opaque display/navigation key supplied by the authenticated boundary.
@@ -1107,13 +1163,15 @@ impl ScopeOption {
 #[cfg(test)]
 mod tests {
     use super::{
-        CustomerView, MAX_DEEP_LINK_BYTES, PlatformRoute, RouteAuthRequirement, RouteId,
+        MAX_DEEP_LINK_BYTES, PlatformHoldingView, PlatformRoute, RouteAuthRequirement, RouteId,
         RouteRegistry, RouteState, SafeSessionMetadata, ScopeKind, ScopeOption,
         normalize_deep_link,
     };
 
+    const HOLDING_ID: &str = "60cd3a03-a19a-55b3-a52e-a772f4e8d90e";
+
     #[test]
-    fn registry_covers_every_customer_360_route() {
+    fn registry_covers_every_holding_360_route() {
         let registry = RouteRegistry::platform();
         assert_eq!(registry.definitions().len(), 12);
         assert!(
@@ -1124,10 +1182,15 @@ mod tests {
         );
 
         let route = registry
-            .resolve("#/platform/customers/cus_123/health?tab=projection")
+            .resolve(&format!(
+                "#/platform/holdings/{HOLDING_ID}/health?tab=projection"
+            ))
             .expect("health route should resolve");
-        assert_eq!(route.id(), RouteId::CustomerHealth);
-        assert_eq!(route.path(), "/platform/customers/cus_123/health");
+        assert_eq!(route.id(), RouteId::HoldingHealth);
+        assert_eq!(
+            route.path(),
+            format!("/platform/holdings/{HOLDING_ID}/health")
+        );
     }
 
     #[test]
@@ -1194,27 +1257,27 @@ mod tests {
     #[test]
     fn deep_links_are_normalized_and_dot_segments_are_rejected() {
         assert_eq!(
-            normalize_deep_link("/#/platform//customers/cus_123///?tab=health"),
-            "/platform/customers/cus_123"
+            normalize_deep_link(&format!("/#/platform//holdings/{HOLDING_ID}///?tab=health")),
+            format!("/platform/holdings/{HOLDING_ID}")
         );
         assert_eq!(normalize_deep_link("   "), "/");
         assert_eq!(normalize_deep_link("/platform/../customers"), "/");
-        assert!(PlatformRoute::parse("/platform/customers/cus_123/unknown").is_err());
+        assert!(PlatformRoute::parse(&format!("/platform/holdings/{HOLDING_ID}/unknown")).is_err());
     }
 
     #[test]
     fn credential_bearing_deep_links_are_redacted_before_display() {
         assert_eq!(
-            super::redact_deep_link("/#/platform/customers?access_token=secret"),
+            super::redact_deep_link("/#/platform/holdings?access_token=secret"),
             "/"
         );
         assert_eq!(
-            super::redact_deep_link("/platform/customers#refresh_token=secret"),
+            super::redact_deep_link("/platform/holdings#refresh_token=secret"),
             "/"
         );
         assert_eq!(
-            super::redact_deep_link("/platform/customers?tab=health"),
-            "/platform/customers"
+            super::redact_deep_link("/platform/holdings?tab=health"),
+            "/platform/holdings"
         );
         assert_eq!(
             super::redact_deep_link("/marketing/campaigns?client_secret=secret"),
@@ -1245,9 +1308,9 @@ mod tests {
         }
         assert!(PlatformRoute::parse("https://evil.example/platform").is_err());
         for ambiguous in [
-            "/platform/customers/customer:opaque",
-            "/platform/customers/customer with spaces",
-            &format!("/platform/customers/{}", "customer-".repeat(40)),
+            "/platform/holdings/customer:opaque",
+            "/platform/holdings/customer with spaces",
+            &format!("/platform/holdings/{}", "customer-".repeat(40)),
         ] {
             assert!(
                 PlatformRoute::parse(ambiguous).is_err(),
@@ -1282,24 +1345,30 @@ mod tests {
     }
 
     #[test]
-    fn typed_customer_views_round_trip() {
+    fn typed_holding_views_round_trip() {
         let routes = [
-            (CustomerView::Overview, "/platform/customers/cus_123"),
             (
-                CustomerView::Organization,
-                "/platform/customers/cus_123/organization",
+                PlatformHoldingView::Overview,
+                format!("/platform/holdings/{HOLDING_ID}"),
             ),
             (
-                CustomerView::AccessAudit,
-                "/platform/customers/cus_123/access-audit",
+                PlatformHoldingView::Organization,
+                format!("/platform/holdings/{HOLDING_ID}/organization"),
             ),
-            (CustomerView::Notes, "/platform/customers/cus_123/notes"),
+            (
+                PlatformHoldingView::AccessAudit,
+                format!("/platform/holdings/{HOLDING_ID}/access-audit"),
+            ),
+            (
+                PlatformHoldingView::Notes,
+                format!("/platform/holdings/{HOLDING_ID}/notes"),
+            ),
         ];
         for (view, path) in routes {
-            let parsed = PlatformRoute::parse(path).expect("route should parse");
+            let parsed = PlatformRoute::parse(&path).expect("route should parse");
             assert_eq!(parsed.path(), path);
             assert!(
-                matches!(parsed, PlatformRoute::Customer { view: actual, .. } if actual == view)
+                matches!(parsed, PlatformRoute::Holding { view: actual, .. } if actual == view)
             );
         }
     }
@@ -1319,17 +1388,17 @@ mod tests {
         );
         assert_eq!(
             RouteState::Unauthenticated {
-                return_to: "/platform/customers".into()
+                return_to: "/platform/holdings".into()
             }
             .ui_state(),
             Some(super::UiStateKind::Denied)
         );
         assert_eq!(
             RouteState::SessionExpired {
-                return_to: "/platform/customers/".into()
+                return_to: "/platform/holdings/".into()
             }
             .return_to(),
-            Some("/platform/customers".into())
+            Some("/platform/holdings".into())
         );
         assert_eq!(
             RouteState::ReadOnly {

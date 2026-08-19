@@ -6,38 +6,38 @@ Added an opt-in worker handler that continuously publishes the typed,
 metadata-only scheduler status projection from the authoritative control-write
 pool to the physically separate control-read pool. Publication uses the
 existing version-ordered idempotent upsert, is bounded by the infrastructure
-page size, and does not claim scheduler jobs or open tenant database routes.
+page size, and does not claim scheduler jobs or open holding database routes.
 
 The worker composition exposes the handler by an explicit registry method and
 the worker binary selects it only when
-`ERPX_WORKER_HANDLER=tenant_projection_status_projection`. The default registry
+`ERPX_WORKER_HANDLER=holding_projection_status_projection`. The default registry
 does not install it. A separate full rebuild/clear operation remains available
 on the infrastructure projection store for reviewed recovery workflows.
 
 ## Files changed
 
-- `apps/worker/src/tenant_projection_status_projection.rs`
+- `apps/worker/src/holding_projection_status_projection.rs`
 - `apps/worker/src/lib.rs`
 - `apps/worker/src/main.rs`
-- `crates/infrastructure/src/tenant_projection_status_projection.rs`
+- `crates/infrastructure/src/holding_projection_status_projection.rs`
 - `MASTER_PLAN.md`
 - `EXECUTION_LEDGER.md`
 - `audits/G6-PRV-015/README.md`
 
-No protobuf, gRPC, tenant migration, Folio application, credential, or runtime
+No protobuf, gRPC, holding migration, Folio application, credential, or runtime
 environment file changed. No production provider or external network call was
 added.
 
 ## Interfaces
 
-- `TenantProjectionStatusPublisher` — injected async publication boundary.
-- `TenantProjectionStatusProjectionHandler<P>` — named worker handler with
+- `HoldingProjectionStatusPublisher` — injected async publication boundary.
+- `HoldingProjectionStatusProjectionHandler<P>` — named worker handler with
   redacted failures and stable report counts.
-- `WorkerRuntime::handler_registry_with_control_plane_tenant_projection_status_projection`
+- `WorkerRuntime::handler_registry_with_control_plane_holding_projection_status_projection`
   — explicit physical control-pool composition.
-- `TENANT_PROJECTION_STATUS_PROJECTION_HANDLER_NAME` — selectable handler
+- `HOLDING_PROJECTION_STATUS_PROJECTION_HANDLER_NAME` — selectable handler
   name.
-- `SqlxTenantProjectionStatusProjectionStore::publish_read_model` — steady
+- `SqlxHoldingProjectionStatusProjectionStore::publish_read_model` — steady
   state upsert pass; `rebuild_read_model` remains the explicit clear-and-copy
   recovery seam.
 
@@ -49,7 +49,7 @@ part of the DTO or SQL projection. The read adapter receives only the
 control-read pool; the writer receives the control-write source and separate
 read pool through the existing control-plane composition. Persistence failures
 are logged as a safe category and returned without provider/database details.
-The handler is not silently enabled, and it never claims or executes tenant
+The handler is not silently enabled, and it never claims or executes holding
 work.
 
 ## Verification
@@ -61,7 +61,7 @@ cargo fmt --all --check — PASS
 cargo check -p erpx-worker --bin erpx-worker — PASS
 cargo clippy -p erpx-worker --all-targets -- -D warnings — PASS
 cargo test -p erpx-worker — PASS: 47 passed, 1 ignored
-cargo test -p erpx-infrastructure --test tenant_projection_status_read --test tenant_projection_status --lib — PASS: 99 library tests (95 passed, 4 ignored), 5 status tests, 2 read tests
+cargo test -p erpx-infrastructure --test holding_projection_status_read --test holding_projection_status --lib — PASS: 99 library tests (95 passed, 4 ignored), 5 status tests, 2 read tests
 ```
 
 ## Unfinished work

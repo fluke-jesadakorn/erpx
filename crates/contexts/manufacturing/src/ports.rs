@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use erpx_kernel::{CommandId, CorrelationId, PrincipalId, TenantId, TenantScope};
+use erpx_kernel::{AuthorityScope, CommandId, CorrelationId, HoldingId, PrincipalId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -11,9 +11,9 @@ use crate::record::ManufacturingRecord;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ActorContext {
-    pub tenant_id: TenantId,
+    pub holding_id: HoldingId,
     pub principal_id: PrincipalId,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,7 +34,7 @@ pub enum ManufacturingAction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorizedManufacturingAccess {
     pub actor: ActorContext,
-    pub target_scope: TenantScope,
+    pub target_scope: AuthorityScope,
     pub action: ManufacturingAction,
 }
 
@@ -43,7 +43,7 @@ pub trait AuthorizationPort: Send + Sync {
     async fn authorize(
         &self,
         actor: &ActorContext,
-        target_scope: &TenantScope,
+        target_scope: &AuthorityScope,
         action: ManufacturingAction,
     ) -> Result<AuthorizedManufacturingAccess, PortError>;
 }
@@ -98,7 +98,7 @@ impl ManufacturingAggregate {
         }
     }
 
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         match self {
             Self::Specification(value) => value.scope(),
             Self::Order(value) => value.scope(),

@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use erpx_cqrs::{CommandEnvelope, CommandReceipt, QueryEnvelope, QueryResult};
 use erpx_integration_contracts::{customer, identity_access};
-use erpx_proto::erpx::support::v2 as wire;
+use erpx_proto::erpx::support as wire;
 use erpx_support::{
     BroadcastAudience, CapabilityId, CapabilityRevocationReason, IncidentId, IncidentStatus,
     MessageAudience, MessageId, SessionId, SessionStatus, SupportCommand, SupportMode,
@@ -745,7 +745,7 @@ macro_rules! enum_codec {
 
 enum_codec!(decode_ticket_status, encode_ticket_status, wire::SupportTicketStatus, TicketStatus, {New, Triaged, WaitingForCustomer, AccessRequested, Approved, InProgress, Resolved, CustomerConfirmed, Closed});
 enum_codec!(decode_incident_status, encode_incident_status, wire::SupportIncidentStatus, IncidentStatus, {Investigating, Identified, Monitoring, Resolved, PostmortemComplete});
-enum_codec!(decode_mode, encode_mode, wire::SupportMode, SupportMode, {DiagnosticRead, TenantMutation, Impersonation});
+enum_codec!(decode_mode, encode_mode, wire::SupportMode, SupportMode, {DiagnosticRead, HoldingMutation, Impersonation});
 enum_codec!(decode_revocation, encode_revocation, wire::SupportCapabilityRevocationReason, CapabilityRevocationReason, {CustomerRequested, AgentDisabled, DeviceRevoked, SessionRevoked, TicketClosed, Administrative});
 enum_codec!(decode_broadcast_audience, encode_broadcast_audience, wire::SupportBroadcastAudience, BroadcastAudience, {CustomerVisible, Internal});
 

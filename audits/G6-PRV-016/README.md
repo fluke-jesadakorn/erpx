@@ -16,17 +16,17 @@ single response-wide freshness classification:
 
 The classification is computed once per response, uses an inclusive exact
 boundary, and does not expose source payload, claims, workers, credentials, or
-tenant connection details.
+holding connection details.
 
 ## Files changed
 
-- `crates/migration/migrations_read/0005_tenant_projection_freshness.sql`
+- `crates/migration/migrations_read/0005_holding_projection_freshness.sql`
 - `crates/migration/src/lib.rs`
-- `crates/infrastructure/src/tenant_projection_scheduler.rs`
-- `crates/infrastructure/src/tenant_projection_status_projection.rs`
+- `crates/infrastructure/src/holding_projection_scheduler.rs`
+- `crates/infrastructure/src/holding_projection_status_projection.rs`
 - `crates/infrastructure/src/lib.rs`
-- `crates/infrastructure/tests/tenant_projection_status.rs`
-- `crates/infrastructure/tests/tenant_projection_status_read.rs`
+- `crates/infrastructure/tests/holding_projection_status.rs`
+- `crates/infrastructure/tests/holding_projection_status_read.rs`
 - `crates/proto/proto/erpx/platform/v1/platform.proto`
 - `apps/server/src/main.rs`
 - `MASTER_PLAN.md`
@@ -39,7 +39,7 @@ From `erpx/`:
 ```text
 cargo fmt --all — PASS
 cargo test -p erpx-migration — PASS: 6 tests
-cargo test -p erpx-infrastructure --test tenant_projection_status --test tenant_projection_status_read — PASS: 7 tests
+cargo test -p erpx-infrastructure --test holding_projection_status --test holding_projection_status_read — PASS: 7 tests
 cargo test -p erpx-server --bin erpx-server — PASS: 62 tests
 cargo test -p erpx-worker — PASS: 47 passed, 1 ignored
 ```

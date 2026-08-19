@@ -7,22 +7,22 @@ use erpx_agent_orchestration::{
     Checkpoint, CheckpointId, InvocationOrigin, PortError, PrincipalKind, ProposedActionStatus,
     RootInvocation,
 };
-use erpx_kernel::{DataClassification, TenantScope};
+use erpx_kernel::{AuthorityScope, DataClassification};
 use sqlx::{Postgres, Row, Transaction};
 use uuid::Uuid;
 
 pub(crate) async fn load_definition(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: Uuid,
+    holding_id: Uuid,
     id: AgentDefinitionId,
 ) -> Result<Option<AgentDefinition>, PortError> {
     let row = sqlx::query(
-        "SELECT tenant_scope,agent_principal_ref,business_owner_ref,technical_owner_ref,
+        "SELECT active_scope,agent_principal_ref,business_owner_ref,technical_owner_ref,
                 agent_name,definition_status,aggregate_version,created_at,updated_at
          FROM erpx_agent_write.agent_definitions
-         WHERE tenant_id=$1 AND agent_definition_id=$2",
+         WHERE holding_id=$1 AND agent_definition_id=$2",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(id.as_uuid())
     .fetch_optional(&mut **tx)
     .await
@@ -34,10 +34,10 @@ pub(crate) async fn load_definition(
                 security_review_ref,privacy_review_ref,max_attempts,timeout_seconds,
                 approved_by,approved_at
          FROM erpx_agent_write.agent_versions
-         WHERE tenant_id=$1 AND agent_definition_id=$2
+         WHERE holding_id=$1 AND agent_definition_id=$2
          ORDER BY version_number,agent_version_id",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(id.as_uuid())
     .fetch_all(&mut **tx)
     .await
@@ -52,17 +52,23 @@ pub(crate) async fn load_definition(
         .map_err(|_| PortError::Persistence)?;
         let capabilities = load_text_set(
             tx,
-            tenant_id,
+            holding_id,
             "agent_version_capabilities",
             "capability",
             version_id,
         )
         .await?;
-        let tool_refs =
-            load_text_set(tx, tenant_id, "agent_version_tools", "tool_ref", version_id).await?;
+        let tool_refs = load_text_set(
+            tx,
+            holding_id,
+            "agent_version_tools",
+            "tool_ref",
+            version_id,
+        )
+        .await?;
         let knowledge_scopes = load_text_set(
             tx,
-            tenant_id,
+            holding_id,
             "agent_version_knowledge_scopes",
             "knowledge_scope",
             version_id,
@@ -70,18 +76,18 @@ pub(crate) async fn load_definition(
         .await?;
         let evaluation_refs = load_text_set(
             tx,
-            tenant_id,
+            holding_id,
             "agent_version_evaluations",
             "evaluation_ref",
             version_id,
         )
         .await?;
         let organization_scope_values: Vec<serde_json::Value> = sqlx::query_scalar(
-            "SELECT tenant_scope
+            "SELECT active_scope
              FROM erpx_agent_write.agent_version_organization_scopes
-             WHERE tenant_id=$1 AND agent_version_id=$2 ORDER BY scope_key",
+             WHERE holding_id=$1 AND agent_version_id=$2 ORDER BY scope_key",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(version_id.as_uuid())
         .fetch_all(&mut **tx)
         .await
@@ -89,7 +95,7 @@ pub(crate) async fn load_definition(
         let organization_scopes = organization_scope_values
             .into_iter()
             .map(|value| serde_json::from_value(value).map_err(|_| PortError::Persistence))
-            .collect::<Result<Vec<TenantScope>, _>>()?;
+            .collect::<Result<Vec<AuthorityScope>, _>>()?;
         let manifest = AgentManifest {
             version_id,
             version_number: positive_u32(
@@ -163,7 +169,7 @@ pub(crate) async fn load_definition(
     AgentDefinition::rehydrate(
         id,
         serde_json::from_value(
-            row.try_get("tenant_scope")
+            row.try_get("active_scope")
                 .map_err(|_| PortError::Persistence)?,
         )
         .map_err(|_| PortError::Persistence)?,
@@ -195,19 +201,19 @@ pub(crate) async fn load_definition(
 
 pub(crate) async fn load_assignment(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: Uuid,
+    holding_id: Uuid,
     id: AssignmentId,
 ) -> Result<Option<Assignment>, PortError> {
     let row = sqlx::query(
-        "SELECT root_assignment_id,parent_assignment_id,tenant_scope,agent_definition_id,
+        "SELECT root_assignment_id,parent_assignment_id,active_scope,agent_definition_id,
                 agent_version_id,assignment_status,depth,hops,attempt,lease_token,lease_owner,
                 lease_acquired_at,lease_expires_at,output_digest,failure_code,failure_retryable,
                 failure_detail_digest,failure_failed_at,cancellation_reason,budget_reservation_id,
                 aggregate_version,created_at,updated_at
          FROM erpx_agent_write.agent_assignments
-         WHERE tenant_id=$1 AND assignment_id=$2",
+         WHERE holding_id=$1 AND assignment_id=$2",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(id.as_uuid())
     .fetch_optional(&mut **tx)
     .await
@@ -221,9 +227,9 @@ pub(crate) async fn load_assignment(
     let root_row = sqlx::query(
         "SELECT root_action_ref,root_initiating_principal_ref,root_idempotency_key,trigger_kind
          FROM erpx_agent_write.agent_assignments
-         WHERE tenant_id=$1 AND assignment_id=$2",
+         WHERE holding_id=$1 AND assignment_id=$2",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(root_id.as_uuid())
     .fetch_optional(&mut **tx)
     .await
@@ -239,7 +245,7 @@ pub(crate) async fn load_assignment(
             .map_err(|_| PortError::Persistence)?,
     )
     .map_err(|_| PortError::Persistence)?;
-    let definition = load_definition(tx, tenant_id, definition_id)
+    let definition = load_definition(tx, holding_id, definition_id)
         .await?
         .ok_or(PortError::Persistence)?;
     let version = definition
@@ -255,16 +261,16 @@ pub(crate) async fn load_assignment(
         "WITH RECURSIVE lineage AS (
              SELECT assignment_id,parent_assignment_id,agent_definition_id,depth
              FROM erpx_agent_write.agent_assignments
-             WHERE tenant_id=$1 AND assignment_id=$2
+             WHERE holding_id=$1 AND assignment_id=$2
              UNION ALL
              SELECT parent.assignment_id,parent.parent_assignment_id,
                     parent.agent_definition_id,parent.depth
              FROM erpx_agent_write.agent_assignments parent
              JOIN lineage child ON child.parent_assignment_id=parent.assignment_id
-             WHERE parent.tenant_id=$1
+             WHERE parent.holding_id=$1
          ) SELECT agent_definition_id FROM lineage ORDER BY depth,assignment_id",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(id.as_uuid())
     .fetch_all(&mut **tx)
     .await
@@ -277,9 +283,9 @@ pub(crate) async fn load_assignment(
     let checkpoint_rows = sqlx::query(
         "SELECT checkpoint_id,step,state_digest,retry_safe,created_at
          FROM erpx_agent_write.assignment_checkpoints
-         WHERE tenant_id=$1 AND assignment_id=$2 ORDER BY step,checkpoint_id",
+         WHERE holding_id=$1 AND assignment_id=$2 ORDER BY step,checkpoint_id",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(id.as_uuid())
     .fetch_all(&mut **tx)
     .await
@@ -382,7 +388,7 @@ pub(crate) async fn load_assignment(
         },
         pin,
         serde_json::from_value(
-            row.try_get("tenant_scope")
+            row.try_get("active_scope")
                 .map_err(|_| PortError::Persistence)?,
         )
         .map_err(|_| PortError::Persistence)?,
@@ -421,25 +427,25 @@ pub(crate) async fn load_assignment(
 
 pub(crate) async fn load_action_card(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: Uuid,
+    holding_id: Uuid,
     id: ActionCardId,
-) -> Result<Option<(TenantScope, ActionCardProposal)>, PortError> {
+) -> Result<Option<(AuthorityScope, ActionCardProposal)>, PortError> {
     let row = sqlx::query(
-        "SELECT a.tenant_scope,c.assignment_id,c.agent_principal_ref,c.owner_context,
+        "SELECT a.active_scope,c.assignment_id,c.agent_principal_ref,c.owner_context,
                 c.command_type,c.payload_digest,c.action_status,c.confirmed_by_human_ref
          FROM erpx_agent_write.agent_action_cards c
          JOIN erpx_agent_write.agent_assignments a
-           ON a.tenant_id=c.tenant_id AND a.assignment_id=c.assignment_id
-         WHERE c.tenant_id=$1 AND c.action_card_id=$2",
+           ON a.holding_id=c.holding_id AND a.assignment_id=c.assignment_id
+         WHERE c.holding_id=$1 AND c.action_card_id=$2",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(id.as_uuid())
     .fetch_optional(&mut **tx)
     .await
     .map_err(|_| PortError::Persistence)?;
     let Some(row) = row else { return Ok(None) };
-    let scope: TenantScope = serde_json::from_value(
-        row.try_get("tenant_scope")
+    let scope: AuthorityScope = serde_json::from_value(
+        row.try_get("active_scope")
             .map_err(|_| PortError::Persistence)?,
     )
     .map_err(|_| PortError::Persistence)?;
@@ -478,17 +484,17 @@ pub(crate) async fn load_action_card(
 
 async fn load_text_set(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: Uuid,
+    holding_id: Uuid,
     table: &str,
     column: &str,
     version_id: AgentVersionId,
 ) -> Result<BTreeSet<String>, PortError> {
     let statement = format!(
         "SELECT {column} FROM erpx_agent_write.{table}
-         WHERE tenant_id=$1 AND agent_version_id=$2 ORDER BY {column}"
+         WHERE holding_id=$1 AND agent_version_id=$2 ORDER BY {column}"
     );
     let values: Vec<String> = sqlx::query_scalar(&statement)
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(version_id.as_uuid())
         .fetch_all(&mut **tx)
         .await

@@ -903,24 +903,24 @@ fn auth_connector_config(
         erpx_identity::DirectoryScope::Platform => {
             erpx_identity::directory::auth::ConnectorScope::Platform
         }
-        erpx_identity::DirectoryScope::Holding { holding_ref } => {
-            let holding_id = holding_ref.parse::<uuid::Uuid>().unwrap_or_else(|_| {
+        erpx_identity::DirectoryScope::Holding { data_profile_key } => {
+            let holding_id = data_profile_key.parse::<uuid::Uuid>().unwrap_or_else(|_| {
                 uuid::Uuid::new_v5(
                     &uuid::Uuid::NAMESPACE_URL,
-                    format!("erpx:holding-scope:v1:{holding_ref}").as_bytes(),
+                    format!("erpx:holding-scope:{data_profile_key}").as_bytes(),
                 )
             });
             erpx_identity::directory::auth::ConnectorScope::Holding(holding_id)
         }
         erpx_identity::DirectoryScope::Branch {
-            holding_ref,
+            data_profile_key,
             company_id,
             branch_id,
         } => erpx_identity::directory::auth::ConnectorScope::Branch {
-            holding_id: holding_ref.parse::<uuid::Uuid>().unwrap_or_else(|_| {
+            holding_id: data_profile_key.parse::<uuid::Uuid>().unwrap_or_else(|_| {
                 uuid::Uuid::new_v5(
                     &uuid::Uuid::NAMESPACE_URL,
-                    format!("erpx:holding-scope:v1:{holding_ref}").as_bytes(),
+                    format!("erpx:holding-scope:{data_profile_key}").as_bytes(),
                 )
             }),
             company_id: *company_id,
@@ -1083,7 +1083,7 @@ fn directory_authority_fingerprint(
     normalized_values.sort_unstable();
     normalized_values.dedup();
     let mut digest = Sha256::new();
-    digest.update(b"erpx-directory-authority-v1\0");
+    digest.update(b"erpx-directory-authority\0");
     digest.update(match connector.provider {
         DirectoryProvider::GenericLdap => b"generic_ldap".as_slice(),
         DirectoryProvider::ActiveDirectoryDomainServices => {

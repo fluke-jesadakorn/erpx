@@ -1,4 +1,4 @@
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::finance_budget::{BudgetLine, FinanceBudget};
 use erpx_infrastructure::{BudgetCommitmentRequest, SqlxFinanceBudgetStore};
 use sqlx::PgPool;
@@ -9,12 +9,12 @@ fn context(principal: &str, holding_id: Uuid, company_id: Uuid) -> CommandContex
         format!("budget-{principal}-{}", Uuid::new_v4()),
         ActorAttribution {
             principal_ref: principal.into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
         },
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -24,14 +24,14 @@ fn context(principal: &str, holding_id: Uuid, company_id: Uuid) -> CommandContex
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn live_budget_persistence_enforces_version_control_and_idempotent_commitments() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let pool = PgPool::connect(&url).await.expect("write pool");
-    erpx_migration::migrate_tenant_write(&pool)
+    erpx_migration::migrate_holding_write(&pool)
         .await
-        .expect("tenant write migration");
+        .expect("holding write migration");
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let account_id = Uuid::new_v4();
@@ -111,8 +111,8 @@ async fn live_budget_persistence_enforces_version_control_and_idempotent_commitm
         "budget control must reject an over-committed amount"
     );
     let outbox_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type IN ('finance_budget','finance_budget_commitment')",
+        "SELECT COUNT(*) FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type IN ('finance_budget','finance_budget_commitment')",
     )
     .bind("holding-budget-test")
     .fetch_one(&pool)
@@ -164,9 +164,9 @@ async fn live_budget_persistence_enforces_version_control_and_idempotent_commitm
     assert!(store.save_budget(&bypass, None).await.is_err());
 
     sqlx::query(
-        "UPDATE erpx_tenant.finance_budgets
+        "UPDATE erpx_holding.finance_budgets
             SET company_id=$1
-          WHERE holding_ref=$2 AND budget_id=$3",
+          WHERE data_profile_key=$2 AND budget_id=$3",
     )
     .bind(Uuid::new_v4())
     .bind("holding-budget-test")

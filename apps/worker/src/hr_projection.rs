@@ -1,10 +1,10 @@
-//! Tenant-routed HR/payroll read projection worker.
+//! Holding-routed HR/payroll read projection worker.
 
 use erpx_domain::hr::HrProjectionReconciliation;
 use erpx_infrastructure::{
-    HrProjectionRebuildPreparation, HrSourceEventCursor, HrSourceEventPage,
-    MAX_HR_SOURCE_EVENT_PAGE_SIZE, PersistenceError, RoutedDatabaseSide, RoutedTenantDatabase,
-    SqlxHrProjectionStore, TenantDatabaseRouter,
+    HoldingDatabaseRouter, HrProjectionRebuildPreparation, HrSourceEventCursor, HrSourceEventPage,
+    MAX_HR_SOURCE_EVENT_PAGE_SIZE, PersistenceError, RoutedDatabaseSide, RoutedHoldingDatabase,
+    SqlxHrProjectionStore,
 };
 use std::collections::HashSet;
 use thiserror::Error;
@@ -36,22 +36,22 @@ impl From<PersistenceError> for HrProjectionWorkerError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HrProjectionRequest {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub cursor: Option<HrSourceEventCursor>,
     pub page_size: u32,
 }
 
 impl HrProjectionRequest {
     pub fn new(
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         cursor: Option<HrSourceEventCursor>,
         page_size: u32,
     ) -> Result<Self, HrProjectionWorkerError> {
         let request = Self {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
             cursor,
             page_size,
         };
@@ -60,8 +60,8 @@ impl HrProjectionRequest {
     }
 
     fn validate(&self) -> Result<(), HrProjectionWorkerError> {
-        validate_reference(&self.tenant_id, "tenant_id")?;
-        validate_reference(&self.holding_ref, "holding_ref")?;
+        validate_reference(&self.holding_id, "holding_id")?;
+        validate_reference(&self.data_profile_key, "data_profile_key")?;
         if self.page_size == 0 || self.page_size > HR_PROJECTION_MAX_PAGE_SIZE {
             return Err(HrProjectionWorkerError::Configuration(format!(
                 "HR projection page size must be 1..={HR_PROJECTION_MAX_PAGE_SIZE}"
@@ -84,8 +84,8 @@ impl HrProjectionRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HrProjectionRunReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub events_seen: u64,
     pub events_applied: u64,
     pub next_cursor: Option<HrSourceEventCursor>,
@@ -94,26 +94,26 @@ pub struct HrProjectionRunReport {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HrProjectionRebuildReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub events_replayed: u64,
     pub preparation: HrProjectionRebuildPreparation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HrProjectionReconciliationReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub reconciliation: HrProjectionReconciliation,
 }
 
 #[derive(Debug, Clone)]
 pub struct HrProjectionRunner {
-    router: TenantDatabaseRouter,
+    router: HoldingDatabaseRouter,
 }
 
 impl HrProjectionRunner {
-    pub fn new(router: TenantDatabaseRouter) -> Self {
+    pub fn new(router: HoldingDatabaseRouter) -> Self {
         Self { router }
     }
 
@@ -142,12 +142,12 @@ impl HrProjectionRunner {
     {
         request.validate()?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result = match SqlxHrProjectionStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            request.holding_ref.clone(),
+            request.data_profile_key.clone(),
         ) {
             Ok(store) => async {
                 let mut cursor = request.cursor.clone();
@@ -180,16 +180,16 @@ impl HrProjectionRunner {
                             PersistenceError,
                         >((
                             HrProjectionRunReport {
-                                tenant_id: request.tenant_id.clone(),
-                                holding_ref: request.holding_ref.clone(),
+                                holding_id: request.holding_id.clone(),
+                                data_profile_key: request.data_profile_key.clone(),
                                 events_seen,
                                 events_applied,
                                 next_cursor: None,
                                 has_more: false,
                             },
                             HrProjectionReconciliationReport {
-                                tenant_id: request.tenant_id.clone(),
-                                holding_ref: request.holding_ref.clone(),
+                                holding_id: request.holding_id.clone(),
+                                data_profile_key: request.data_profile_key.clone(),
                                 reconciliation,
                             },
                         ));
@@ -207,18 +207,18 @@ impl HrProjectionRunner {
 
     pub async fn rebuild(
         &self,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         page_size: u32,
     ) -> Result<HrProjectionRebuildReport, HrProjectionWorkerError> {
-        let request = HrProjectionRequest::new(tenant_id, holding_ref, None, page_size)?;
+        let request = HrProjectionRequest::new(holding_id, data_profile_key, None, page_size)?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result = match SqlxHrProjectionStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            request.holding_ref.clone(),
+            request.data_profile_key.clone(),
         ) {
             Ok(store) => async {
                 let (preparation, events_replayed) = store
@@ -227,8 +227,8 @@ impl HrProjectionRunner {
                 let reconciliation = store.reconcile_projection().await?;
                 require_consistent_reconciliation(&reconciliation)?;
                 Ok::<HrProjectionRebuildReport, PersistenceError>(HrProjectionRebuildReport {
-                    tenant_id: request.tenant_id.clone(),
-                    holding_ref: request.holding_ref.clone(),
+                    holding_id: request.holding_id.clone(),
+                    data_profile_key: request.data_profile_key.clone(),
                     events_replayed,
                     preparation,
                 })
@@ -245,24 +245,24 @@ impl HrProjectionRunner {
     /// read checkpoints without mutating either side.
     pub async fn reconcile(
         &self,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<HrProjectionReconciliationReport, HrProjectionWorkerError> {
-        let request = HrProjectionRequest::new(tenant_id, holding_ref, None, 1)?;
+        let request = HrProjectionRequest::new(holding_id, data_profile_key, None, 1)?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result = match SqlxHrProjectionStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            request.holding_ref.clone(),
+            request.data_profile_key.clone(),
         ) {
             Ok(store) => store
                 .reconcile_projection()
                 .await
                 .map(|reconciliation| HrProjectionReconciliationReport {
-                    tenant_id: request.tenant_id.clone(),
-                    holding_ref: request.holding_ref.clone(),
+                    holding_id: request.holding_id.clone(),
+                    data_profile_key: request.data_profile_key.clone(),
                     reconciliation,
                 })
                 .map_err(|_| redacted_error("reconciliation")),
@@ -274,17 +274,17 @@ impl HrProjectionRunner {
 
     async fn route_store(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
-    ) -> Result<(RoutedTenantDatabase, RoutedTenantDatabase), HrProjectionWorkerError> {
+        holding_id: &str,
+        data_profile_key: &str,
+    ) -> Result<(RoutedHoldingDatabase, RoutedHoldingDatabase), HrProjectionWorkerError> {
         let write = self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Write)
             .await
             .map_err(|_| redacted_error("write database routing"))?;
         let read = match self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Read)
             .await
         {
             Ok(read) => read,
@@ -293,7 +293,7 @@ impl HrProjectionRunner {
                 return Err(redacted_error("read database routing"));
             }
         };
-        if !valid_route_fence(tenant_id, holding_ref, &write, &read) {
+        if !valid_route_fence(holding_id, data_profile_key, &write, &read) {
             write.close().await;
             read.close().await;
             return Err(redacted_error("database route binding"));
@@ -302,7 +302,7 @@ impl HrProjectionRunner {
     }
 }
 
-async fn close_routes(write: RoutedTenantDatabase, read: RoutedTenantDatabase) {
+async fn close_routes(write: RoutedHoldingDatabase, read: RoutedHoldingDatabase) {
     write.close().await;
     read.close().await;
 }
@@ -437,17 +437,17 @@ const HR_AGGREGATE_TYPES: &[&str] = &[
 ];
 
 fn valid_route_fence(
-    tenant_id: &str,
-    holding_ref: &str,
-    write: &RoutedTenantDatabase,
-    read: &RoutedTenantDatabase,
+    holding_id: &str,
+    data_profile_key: &str,
+    write: &RoutedHoldingDatabase,
+    read: &RoutedHoldingDatabase,
 ) -> bool {
     write.side == RoutedDatabaseSide::Write
         && read.side == RoutedDatabaseSide::Read
-        && write.tenant_id == tenant_id
-        && read.tenant_id == tenant_id
-        && write.holding_ref == holding_ref
-        && read.holding_ref == holding_ref
+        && write.holding_id == holding_id
+        && read.holding_id == holding_id
+        && write.data_profile_key == data_profile_key
+        && read.data_profile_key == data_profile_key
         && !write.database_key.trim().is_empty()
         && !read.database_key.trim().is_empty()
         && write.database_key != read.database_key
@@ -479,11 +479,11 @@ mod tests {
 
     #[test]
     fn request_bounds_and_cursor_are_fail_closed() {
-        assert!(HrProjectionRequest::new("tenant", "holding", None, 0).is_err());
-        assert!(HrProjectionRequest::new("tenant/unsafe", "holding", None, 1).is_err());
+        assert!(HrProjectionRequest::new("holding", "holding", None, 0).is_err());
+        assert!(HrProjectionRequest::new("holding/unsafe", "holding", None, 1).is_err());
         assert!(
             HrProjectionRequest::new(
-                "tenant",
+                "holding",
                 "holding",
                 Some(HrSourceEventCursor {
                     aggregate_type: "finance_journal".into(),
@@ -496,7 +496,7 @@ mod tests {
         );
         assert!(
             HrProjectionRequest::new(
-                "tenant",
+                "holding",
                 "holding",
                 Some(HrSourceEventCursor {
                     aggregate_type: "hr_employee".into(),
@@ -535,8 +535,8 @@ mod tests {
     #[test]
     fn scheduler_projection_contract_is_bounded_and_never_reports_partial_success() {
         let report = HrProjectionRunReport {
-            tenant_id: "tenant".into(),
-            holding_ref: "holding".into(),
+            holding_id: "holding".into(),
+            data_profile_key: "holding".into(),
             events_seen: 2,
             events_applied: 2,
             next_cursor: None,

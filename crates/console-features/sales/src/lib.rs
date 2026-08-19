@@ -90,7 +90,7 @@ fn render_feature_surface(context: &FeatureContext) -> Element {
 pub static REGISTRATION: FeatureRegistration = FeatureRegistration::with_renderer_and_artifact(
     "sales",
     FEATURE_ROUTES,
-    "erpx-feature-sales-v2",
+    "erpx-feature-sales",
     render_feature_surface,
 );
 
@@ -101,7 +101,7 @@ mod registration_contract_tests {
     #[test]
     fn web_and_native_share_the_authenticated_canonical_route() {
         assert_eq!(REGISTRATION.id, "sales");
-        assert_eq!(REGISTRATION.artifact_key, "erpx-feature-sales-v2");
+        assert_eq!(REGISTRATION.artifact_key, "erpx-feature-sales");
         assert!(REGISTRATION.routes.iter().all(|route| {
             route.authorization == "authenticated"
                 && route.canonical_path.starts_with('/')

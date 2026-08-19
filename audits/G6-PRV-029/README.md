@@ -1,4 +1,4 @@
-# G6-PRV-029 — Tenant-bound backup artifact retention
+# G6-PRV-029 — Holding-bound backup artifact retention
 
 ## Objective and ownership
 
@@ -6,7 +6,7 @@ Close the gap between durable backup-history cleanup and physical object
 cleanup without allowing metadata deletion to imply that an object was
 removed. Control-plane SQLx selects object locators from the active retention
 claim; the worker owns the external MinIO deletion; the adapter owns bounded
-S3-compatible transport. No client or tenant credential is exposed.
+S3-compatible transport. No client or holding credential is exposed.
 
 ## Delivered
 
@@ -14,15 +14,15 @@ S3-compatible transport. No client or tenant credential is exposed.
   validates namespace/key bounds, treats HTTP 404 as idempotent success, and
   maps transport failures to the existing redacted adapter errors.
 - `BackupObjectTransport` and `PostgresMinioBackupAdapter` expose a
-  tenant/namespace/chain/reference-bound deletion operation.
-- `TenantBackupTarget::for_run_in_namespace` propagates the registry-owned
+  holding/namespace/chain/reference-bound deletion operation.
+- `HoldingBackupTarget::for_run_in_namespace` propagates the registry-owned
   storage namespace through production full-backup and restore-test paths;
   isolated legacy adapter tests retain an explicit configured-namespace
   fallback.
 - The retention repository selects only object references belonging to the
-  active, lease-valid, tenant/holding-bound claim and the same bounded eligible
+  active, lease-valid, holding/holding-bound claim and the same bounded eligible
   job set used for metadata cleanup. Debug output redacts every locator.
-- Production `tenant_backup_retention` worker registration injects the
+- Production `holding_backup_retention` worker registration injects the
   configured PostgreSQL/MinIO adapter. Non-dry-run actions fail closed when the
   adapter is absent, retry when object selection/deletion fails, and complete
   metadata only after all selected artifact deletions succeed. Retries are safe
@@ -30,12 +30,12 @@ S3-compatible transport. No client or tenant credential is exposed.
 
 ## Evidence
 
-- Focused backup adapter tests — PASS; 8 tests, including tenant-bound
+- Focused backup adapter tests — PASS; 8 tests, including holding-bound
   idempotent artifact deletion and invalid-reference rejection.
 - Focused retention repository unit tests — PASS; 4 tests.
 - Focused worker retention unit tests — PASS; fail-closed bounds remain green.
 - Disposable two-control-database SQL proof — PASS; retention idempotency,
-  tenant/holding binding, object-reference selection, page-one stale-row
+  holding/holding binding, object-reference selection, page-one stale-row
   rebuild, cleanup, retry, terminal failure, and exact database cleanup.
 - `cargo check -p erpx-infrastructure -p erpx-worker` — PASS.
 - `cargo fmt --all --check` — PASS.

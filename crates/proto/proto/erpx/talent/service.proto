@@ -1,0 +1,267 @@
+syntax = "proto3";
+
+package erpx.talent;
+
+import "erpx/common/context.proto";
+
+enum TalentRealm {
+  TALENT_REALM_UNSPECIFIED = 0;
+  TALENT_REALM_WORKFORCE = 1;
+  TALENT_REALM_CANDIDATE = 2;
+}
+
+enum RequisitionStatus {
+  REQUISITION_STATUS_UNSPECIFIED = 0;
+  REQUISITION_STATUS_DRAFT = 1;
+  REQUISITION_STATUS_APPROVED = 2;
+  REQUISITION_STATUS_PUBLISHED = 3;
+  REQUISITION_STATUS_ON_HOLD = 4;
+  REQUISITION_STATUS_CLOSED = 5;
+  REQUISITION_STATUS_CANCELLED = 6;
+  REQUISITION_STATUS_ARCHIVED = 7;
+}
+
+enum TalentProposalKind {
+  TALENT_PROPOSAL_KIND_UNSPECIFIED = 0;
+  TALENT_PROPOSAL_KIND_PERFORMANCE_REVIEW = 1;
+  TALENT_PROPOSAL_KIND_CALIBRATION = 2;
+  TALENT_PROPOSAL_KIND_SUCCESSION = 3;
+  TALENT_PROPOSAL_KIND_COMPENSATION = 4;
+}
+
+enum TalentOwnerDecision {
+  TALENT_OWNER_DECISION_UNSPECIFIED = 0;
+  TALENT_OWNER_DECISION_ACCEPTED = 1;
+  TALENT_OWNER_DECISION_REJECTED = 2;
+  TALENT_OWNER_DECISION_UNCERTAIN = 3;
+}
+
+message MoneyAmount {
+  sint64 minor_units = 1;
+  string currency = 2;
+}
+
+message TalentMutationResponse {
+  erpx.common.CommandReceipt receipt = 1;
+  string record_type = 2;
+  string record_id = 3;
+  string lifecycle_status = 4;
+}
+
+message CreateRequisitionRequest {
+  erpx.common.CommandContext context = 1;
+  string requisition_id = 2;
+  erpx.common.AuthorityScope scope = 3;
+  string title = 4;
+  string position_record_id = 5;
+  uint64 position_version = 6;
+  string budget_record_id = 7;
+  uint64 budget_version = 8;
+  string public_content_digest = 9;
+  uint64 privacy_review_version = 10;
+  string proposed_by_principal_id = 11;
+}
+
+message ApproveRequisitionRequest {
+  erpx.common.CommandContext context = 1;
+  string requisition_id = 2;
+  string approved_by_principal_id = 3;
+}
+
+message TransitionRequisitionRequest {
+  erpx.common.CommandContext context = 1;
+  string requisition_id = 2;
+  RequisitionStatus target_status = 3;
+}
+
+message CreateCandidateProfileRequest {
+  erpx.common.CommandContext context = 1;
+  string candidate_id = 2;
+  erpx.common.AuthorityScope scope = 3;
+  string candidate_principal_id = 4;
+  string profile_digest = 5;
+  repeated string attachment_digests = 6;
+  bool recruiting_consent = 7;
+  bool marketing_consent = 8;
+  uint64 retention_policy_version = 9;
+}
+
+message CandidateIdentityRequest {
+  erpx.common.CommandContext context = 1;
+  string candidate_id = 2;
+}
+
+message SetCandidateLegalHoldRequest {
+  erpx.common.CommandContext context = 1;
+  string candidate_id = 2;
+  bool legal_hold = 3;
+}
+
+message SubmitApplicationRequest {
+  erpx.common.CommandContext context = 1;
+  string application_id = 2;
+  string candidate_id = 3;
+  uint64 candidate_profile_version = 4;
+  string requisition_id = 5;
+  uint64 requisition_version = 6;
+}
+
+message AddApplicationInterviewRequest {
+  erpx.common.CommandContext context = 1;
+  string application_id = 2;
+  string slot_digest = 3;
+  string participant_digest = 4;
+  optional string outcome_digest = 5;
+}
+
+message SelectApplicationRequest {
+  erpx.common.CommandContext context = 1;
+  string application_id = 2;
+  uint64 exact_profile_version = 3;
+  uint64 exact_requisition_version = 4;
+  string scorecard_digest = 5;
+  string decided_by_principal_id = 6;
+}
+
+message ApplicationIdentityRequest {
+  erpx.common.CommandContext context = 1;
+  string application_id = 2;
+}
+
+message CreateOfferRequest {
+  erpx.common.CommandContext context = 1;
+  string offer_id = 2;
+  string application_id = 3;
+  uint64 application_version = 4;
+  string terms_digest = 5;
+  uint64 terms_version = 6;
+  string expires_at = 7;
+  string proposed_by_principal_id = 8;
+}
+
+message ApproveOfferRequest {
+  erpx.common.CommandContext context = 1;
+  string offer_id = 2;
+  string approved_by_principal_id = 3;
+}
+
+message OfferIdentityRequest {
+  erpx.common.CommandContext context = 1;
+  string offer_id = 2;
+}
+
+message DecideOfferRequest {
+  erpx.common.CommandContext context = 1;
+  string offer_id = 2;
+  string candidate_principal_id = 3;
+  bool accepted = 4;
+  string acceptance_receipt_id = 5;
+}
+
+message RequestHireHandoffRequest {
+  erpx.common.CommandContext context = 1;
+  string handoff_id = 2;
+  string offer_id = 3;
+  uint64 offer_version = 4;
+  string evidence_digest = 5;
+}
+
+message ReconcileHireHandoffRequest {
+  erpx.common.CommandContext context = 1;
+  string handoff_id = 2;
+  TalentOwnerDecision decision = 3;
+  string people_receipt_id = 4;
+  optional string employee_record_id = 5;
+}
+
+message CreateTalentProposalRequest {
+  erpx.common.CommandContext context = 1;
+  string proposal_id = 2;
+  erpx.common.AuthorityScope scope = 3;
+  TalentProposalKind kind = 4;
+  string employee_record_id = 5;
+  uint64 employee_version = 6;
+  uint64 cycle_version = 7;
+  string evidence_digest = 8;
+  optional MoneyAmount compensation_amount = 9;
+  string proposed_by_principal_id = 10;
+}
+
+message TalentProposalIdentityRequest {
+  erpx.common.CommandContext context = 1;
+  string proposal_id = 2;
+}
+
+message ApproveTalentProposalRequest {
+  erpx.common.CommandContext context = 1;
+  string proposal_id = 2;
+  string approved_by_principal_id = 3;
+}
+
+message ReconcileTalentProposalRequest {
+  erpx.common.CommandContext context = 1;
+  string proposal_id = 2;
+  bool accepted = 3;
+  string owner_receipt_id = 4;
+}
+
+message GetTalentRecordRequest {
+  erpx.common.QueryContext context = 1;
+  TalentRealm realm = 2;
+  string record_id = 3;
+}
+
+message TalentRecordProjection {
+  string record_id = 1;
+  uint64 source_version = 2;
+  erpx.common.AuthorityScope scope = 3;
+  TalentRealm authority_realm = 4;
+  string record_type = 5;
+  string lifecycle_status = 6;
+  optional string candidate_principal_id = 7;
+  optional string requisition_id = 8;
+  optional string application_id = 9;
+  optional string offer_id = 10;
+  optional string employee_record_id = 11;
+  uint64 source_position = 12;
+  string projected_at = 13;
+}
+
+message GetTalentRecordResponse {
+  optional TalentRecordProjection record = 1;
+  erpx.common.ProjectionMetadata projection = 2;
+}
+
+service TalentCommandService {
+  rpc CreateRequisition(CreateRequisitionRequest) returns (TalentMutationResponse);
+  rpc ApproveRequisition(ApproveRequisitionRequest) returns (TalentMutationResponse);
+  rpc TransitionRequisition(TransitionRequisitionRequest) returns (TalentMutationResponse);
+  rpc CreateCandidateProfile(CreateCandidateProfileRequest) returns (TalentMutationResponse);
+  rpc RequestCandidateErasure(CandidateIdentityRequest) returns (TalentMutationResponse);
+  rpc CompleteCandidateErasure(CandidateIdentityRequest) returns (TalentMutationResponse);
+  rpc SetCandidateLegalHold(SetCandidateLegalHoldRequest) returns (TalentMutationResponse);
+  rpc SubmitApplication(SubmitApplicationRequest) returns (TalentMutationResponse);
+  rpc AddApplicationInterview(AddApplicationInterviewRequest) returns (TalentMutationResponse);
+  rpc SelectApplication(SelectApplicationRequest) returns (TalentMutationResponse);
+  rpc WithdrawApplication(ApplicationIdentityRequest) returns (TalentMutationResponse);
+  rpc CreateOffer(CreateOfferRequest) returns (TalentMutationResponse);
+  rpc ApproveOffer(ApproveOfferRequest) returns (TalentMutationResponse);
+  rpc PresentOffer(OfferIdentityRequest) returns (TalentMutationResponse);
+  rpc DecideOffer(DecideOfferRequest) returns (TalentMutationResponse);
+  rpc RequestHireHandoff(RequestHireHandoffRequest) returns (TalentMutationResponse);
+  rpc ReconcileHireHandoff(ReconcileHireHandoffRequest) returns (TalentMutationResponse);
+  rpc CreateProposal(CreateTalentProposalRequest) returns (TalentMutationResponse);
+  rpc SubmitProposal(TalentProposalIdentityRequest) returns (TalentMutationResponse);
+  rpc ApproveProposal(ApproveTalentProposalRequest) returns (TalentMutationResponse);
+  rpc ReconcileProposal(ReconcileTalentProposalRequest) returns (TalentMutationResponse);
+}
+
+service TalentQueryService {
+  rpc GetRequisition(GetTalentRecordRequest) returns (GetTalentRecordResponse);
+  rpc GetCandidateProfile(GetTalentRecordRequest) returns (GetTalentRecordResponse);
+  rpc GetApplication(GetTalentRecordRequest) returns (GetTalentRecordResponse);
+  rpc GetOffer(GetTalentRecordRequest) returns (GetTalentRecordResponse);
+  rpc GetHireHandoff(GetTalentRecordRequest) returns (GetTalentRecordResponse);
+  rpc GetProposal(GetTalentRecordRequest) returns (GetTalentRecordResponse);
+  rpc GetRecord(GetTalentRecordRequest) returns (GetTalentRecordResponse);
+}

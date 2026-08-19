@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use chrono::{DateTime, Duration, Utc};
 use erpx_integration_contracts::RecordVersionRef;
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -62,7 +62,7 @@ pub struct ApprovalGatePolicy {
 pub struct ApprovalPolicyVersion {
     pub policy_id: Uuid,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub status: ApprovalPolicyStatus,
     pub gates: Vec<ApprovalGatePolicy>,
     pub effective_at: Option<DateTime<Utc>>,
@@ -169,7 +169,7 @@ pub enum ApprovalSessionStatus {
 pub struct ApprovalAuthorityEvidence {
     pub principal_ref: String,
     pub role: String,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub assignment_version: u64,
     pub valid_until: DateTime<Utc>,
     pub approval_limit_minor: i64,
@@ -181,7 +181,7 @@ pub struct ApprovalAuthorityEvidence {
 pub struct ApprovalDelegation {
     pub delegator_ref: String,
     pub delegate_ref: String,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub source_assignment_version: u64,
     pub delegator_assignment_valid_until: DateTime<Utc>,
     pub valid_from: DateTime<Utc>,
@@ -236,7 +236,7 @@ pub struct OwnerCommandRequest {
 pub struct ApprovalSession {
     pub session_id: Uuid,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub source: RecordVersionRef,
     pub policy_id: Uuid,
     pub policy_version: u64,
@@ -465,8 +465,8 @@ mod tests {
     fn at() -> DateTime<Utc> {
         DateTime::from_timestamp(1_786_000_000, 0).unwrap()
     }
-    fn scope() -> TenantScope {
-        TenantScope::Company {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         }

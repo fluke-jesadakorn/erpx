@@ -4,7 +4,7 @@ The independent audit in `audits/G14-QA-061/README.md` identified four safe
 defects that were corrected without closing either gate:
 
 - Marketing delivery `get` now reads a forced-RLS disposable read projection;
-  tenant read migration 0026 and an explicit `project_read_model` operation
+  holding read migration 0026 and an explicit `project_read_model` operation
   were added.
 - Provider callbacks must supply the provider message reference recorded at
   acceptance before delivery can become terminal. Signature verification,
@@ -29,7 +29,7 @@ Independent verification:
 - `cargo test -p erpx-domain --lib` — PASS: 128 passed.
 
 Remaining audit findings are intentionally open: authoritative scheduler
-authorization and route resolution, production multi-tenant worker/projector
+authorization and route resolution, production multi-holding worker/projector
 composition, replacement-read activation, callback authentication and
 trusted time, database tamper constraints,
 live channel adapters, and full G6/G10 requirements.

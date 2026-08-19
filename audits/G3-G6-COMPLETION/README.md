@@ -13,7 +13,7 @@ No Cargo manifest or lockfile, protobuf, migration, shared registration, shared 
 
 The domain contract is authoritative and fail-closed for:
 
-- tenant lifecycle transitions (`provisioning`, `active`, `suspended`, `recovery`);
+- holding lifecycle transitions (`provisioning`, `active`, `suspended`, `recovery`);
 - full and restore-test backup commands, with PITR rejected until a WAL/recovery-point contract exists;
 - replacement-read rebuild/ready/failed/activated transitions with source-version, generation, candidate-identity, and source-fence checks;
 - platform and per-holding connector binding for Stripe, marketing, finance-bank, generic LDAP, AD DS, and UCS;
@@ -35,10 +35,10 @@ The server adapter provides mutation request/response handoffs and authorized UI
    unique projection/aggregate key.
    This lane did not edit those files.
 2. Register `PlatformCompletionApi` in the server composition and map existing
-   Platform Operations tenant lifecycle, backup, projection-rebuild,
+   Platform Operations holding lifecycle, backup, projection-rebuild,
    integration, settings, and reconciliation handlers to these methods. The
    handler must authenticate the request, enforce the existing platform
-   scope/`platform.tenant.read` or mutation permission, bind the authenticated
+   scope/`platform.holding.read` or mutation permission, bind the authenticated
    principal to `PlatformAuthorizationProof`, and preserve current command
    ownership. The current server file is only the typed adapter; composition
    wiring remains a coordinator hook.

@@ -39,7 +39,7 @@ pub(crate) async fn load_source_fact(
 ) -> Result<operations::SourceFact, PortError> {
     let kind: String = sqlx::query_scalar(
         "SELECT fact_kind FROM erpx_operations_write.exception_source_fact_authority
-         WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND exception_id=$1",
+         WHERE holding_id=erpx_cqrs_write.current_holding_id() AND exception_id=$1",
     )
     .bind(id.as_uuid())
     .fetch_optional(&mut **tx)
@@ -338,8 +338,8 @@ pub(crate) async fn replace_source_fact(
     let kind = fact_kind(fact);
     sqlx::query(
         "INSERT INTO erpx_operations_write.exception_source_fact_authority
-         (tenant_id,exception_id,fact_kind,source_version)
-         VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3)",
+         (holding_id,exception_id,fact_kind,source_version)
+         VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3)",
     )
     .bind(id.as_uuid())
     .bind(kind)
@@ -374,7 +374,7 @@ async fn delete_rows(
 ) -> Result<(), CqrsSqlxError> {
     let sql = format!(
         "DELETE FROM erpx_operations_write.{table}
-         WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND exception_id=$1"
+         WHERE holding_id=erpx_cqrs_write.current_holding_id() AND exception_id=$1"
     );
     sqlx::query(&sql)
         .bind(id.as_uuid())
@@ -392,7 +392,7 @@ async fn load_procurement(
         "SELECT line_id,item_code,quantity_units,quantity_scale,line_currency,line_minor,
                 destination_code
          FROM erpx_operations_write.source_procurement_line_authority
-         WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND exception_id=$1
+         WHERE holding_id=erpx_cqrs_write.current_holding_id() AND exception_id=$1
          ORDER BY line_ordinal",
     )
     .bind(id.as_uuid())
@@ -434,7 +434,7 @@ async fn load_sales(
     let lines = sqlx::query(
         "SELECT line_id,item_code,quantity_units,quantity_scale,line_currency,line_minor
          FROM erpx_operations_write.source_sales_line_authority
-         WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND exception_id=$1
+         WHERE holding_id=erpx_cqrs_write.current_holding_id() AND exception_id=$1
          ORDER BY line_ordinal",
     )
     .bind(id.as_uuid())
@@ -471,7 +471,7 @@ async fn load_support_incident(
     let row = variant_row(tx, "source_support_incident_authority", id).await?;
     let affected_services = sqlx::query(
         "SELECT service_code FROM erpx_operations_write.source_support_service_authority
-         WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND exception_id=$1
+         WHERE holding_id=erpx_cqrs_write.current_holding_id() AND exception_id=$1
          ORDER BY service_ordinal",
     )
     .bind(id.as_uuid())
@@ -484,7 +484,7 @@ async fn load_support_incident(
     let affected_customer_accounts = sqlx::query(
         "SELECT customer_account_id
          FROM erpx_operations_write.source_support_customer_authority
-         WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND exception_id=$1
+         WHERE holding_id=erpx_cqrs_write.current_holding_id() AND exception_id=$1
          ORDER BY customer_ordinal",
     )
     .bind(id.as_uuid())
@@ -522,9 +522,9 @@ async fn write_source_fact(
         operations::SourceFact::Commercial(value) => {
             sqlx::query(
                 "INSERT INTO erpx_operations_write.source_commercial_authority
-                 (tenant_id,exception_id,subscription_id,customer_id,plan_id,subscription_status,
+                 (holding_id,exception_id,subscription_id,customer_id,plan_id,subscription_status,
                   recurring_currency,recurring_minor,effective_at)
-                 VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8)",
+                 VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8)",
             )
             .bind(id.as_uuid())
             .bind(value.subscription.as_uuid())
@@ -540,9 +540,9 @@ async fn write_source_fact(
         operations::SourceFact::Customer(value) => {
             sqlx::query(
                 "INSERT INTO erpx_operations_write.source_customer_authority
-                 (tenant_id,exception_id,customer_id,account_id,customer_code,display_name,
+                 (holding_id,exception_id,customer_id,account_id,customer_code,display_name,
                   owning_company_id,customer_status)
-                 VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7)",
+                 VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7)",
             )
             .bind(id.as_uuid())
             .bind(value.customer.as_uuid())
@@ -557,8 +557,8 @@ async fn write_source_fact(
         operations::SourceFact::Marketing(value) => {
             sqlx::query(
                 "INSERT INTO erpx_operations_write.source_marketing_authority
-                 (tenant_id,exception_id,campaign_id,audience_member_id,channel_code,action_code)
-                 VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5)",
+                 (holding_id,exception_id,campaign_id,audience_member_id,channel_code,action_code)
+                 VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5)",
             )
             .bind(id.as_uuid())
             .bind(value.campaign.as_uuid())
@@ -572,10 +572,10 @@ async fn write_source_fact(
             let approval = &value.approval;
             sqlx::query(
                 "INSERT INTO erpx_operations_write.source_marketing_approval_authority
-                 (tenant_id,exception_id,budget_id,campaign_id,approval_request_id,subject_record_id,
+                 (holding_id,exception_id,budget_id,campaign_id,approval_request_id,subject_record_id,
                   subject_context,subject_aggregate_kind,subject_aggregate_version,policy_code,
                   amount_currency,amount_minor,requested_by,requested_at)
-                 VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)",
+                 VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)",
             )
             .bind(id.as_uuid())
             .bind(value.budget.as_uuid())
@@ -596,9 +596,9 @@ async fn write_source_fact(
         operations::SourceFact::Crm(value) => {
             sqlx::query(
                 "INSERT INTO erpx_operations_write.source_crm_authority
-                 (tenant_id,exception_id,opportunity_id,customer_id,opportunity_stage,
+                 (holding_id,exception_id,opportunity_id,customer_id,opportunity_stage,
                   expected_currency,expected_minor)
-                 VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6)",
+                 VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6)",
             )
             .bind(id.as_uuid())
             .bind(value.opportunity.as_uuid())
@@ -613,9 +613,9 @@ async fn write_source_fact(
         operations::SourceFact::Inventory(value) => {
             sqlx::query(
                 "INSERT INTO erpx_operations_write.source_inventory_authority
-                 (tenant_id,exception_id,movement_id,stock_item_id,warehouse_id,item_code,
+                 (holding_id,exception_id,movement_id,stock_item_id,warehouse_id,item_code,
                   quantity_units,quantity_scale,procurement_line_id)
-                 VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8)",
+                 VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8)",
             )
             .bind(id.as_uuid())
             .bind(value.movement.as_uuid())
@@ -631,8 +631,8 @@ async fn write_source_fact(
         operations::SourceFact::Assets(value) => {
             sqlx::query(
                 "INSERT INTO erpx_operations_write.source_assets_authority
-                 (tenant_id,exception_id,asset_id,asset_code,asset_name,location_id,asset_condition)
-                 VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6)",
+                 (holding_id,exception_id,asset_id,asset_code,asset_name,location_id,asset_condition)
+                 VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6)",
             )
             .bind(id.as_uuid())
             .bind(value.asset.as_uuid())
@@ -646,9 +646,9 @@ async fn write_source_fact(
         operations::SourceFact::Maintenance(value) => {
             sqlx::query(
                 "INSERT INTO erpx_operations_write.source_maintenance_authority
-                 (tenant_id,exception_id,work_order_id,work_order_code,asset_id,work_order_status,
+                 (holding_id,exception_id,work_order_id,work_order_code,asset_id,work_order_status,
                   scheduled_for)
-                 VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6)",
+                 VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6)",
             )
             .bind(id.as_uuid())
             .bind(value.work_order.as_uuid())
@@ -662,8 +662,8 @@ async fn write_source_fact(
         operations::SourceFact::Quality(value) => {
             sqlx::query(
                 "INSERT INTO erpx_operations_write.source_quality_authority
-                 (tenant_id,exception_id,inspection_id,subject_id,inspection_code,inspection_outcome)
-                 VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5)",
+                 (holding_id,exception_id,inspection_id,subject_id,inspection_code,inspection_outcome)
+                 VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5)",
             )
             .bind(id.as_uuid())
             .bind(value.inspection.as_uuid())
@@ -677,9 +677,9 @@ async fn write_source_fact(
         operations::SourceFact::PeoplePayroll(value) => {
             sqlx::query(
                 "INSERT INTO erpx_operations_write.source_people_payroll_authority
-                 (tenant_id,exception_id,payroll_run_id,period_code,finalized_at,gross_currency,
+                 (holding_id,exception_id,payroll_run_id,period_code,finalized_at,gross_currency,
                   gross_minor,deduction_currency,deduction_minor,net_currency,net_minor)
-                 VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+                 VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
             )
             .bind(id.as_uuid())
             .bind(value.payroll_run.as_uuid())
@@ -697,9 +697,9 @@ async fn write_source_fact(
         operations::SourceFact::PosSale(value) => {
             sqlx::query(
                 "INSERT INTO erpx_operations_write.source_pos_sale_authority
-                 (tenant_id,exception_id,transaction_id,register_id,receipt_code,customer_id,
+                 (holding_id,exception_id,transaction_id,register_id,receipt_code,customer_id,
                   gross_currency,gross_minor,completed_at)
-                 VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8)",
+                 VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8)",
             )
             .bind(id.as_uuid())
             .bind(value.transaction.as_uuid())
@@ -715,9 +715,9 @@ async fn write_source_fact(
         operations::SourceFact::PosRefund(value) => {
             sqlx::query(
                 "INSERT INTO erpx_operations_write.source_pos_refund_authority
-                 (tenant_id,exception_id,refund_id,original_sale_id,amount_currency,amount_minor,
+                 (holding_id,exception_id,refund_id,original_sale_id,amount_currency,amount_minor,
                   approved_at)
-                 VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6)",
+                 VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6)",
             )
             .bind(id.as_uuid())
             .bind(value.refund.as_uuid())
@@ -731,9 +731,9 @@ async fn write_source_fact(
         operations::SourceFact::Finance(value) => {
             sqlx::query(
                 "INSERT INTO erpx_operations_write.source_finance_authority
-                 (tenant_id,exception_id,journal_id,journal_code,journal_source_context,
+                 (holding_id,exception_id,journal_id,journal_code,journal_source_context,
                   source_reference,debit_currency,debit_minor,credit_currency,credit_minor,posted_at)
-                 VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+                 VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
             )
             .bind(id.as_uuid())
             .bind(value.journal.as_uuid())
@@ -751,9 +751,9 @@ async fn write_source_fact(
         operations::SourceFact::Legal(value) => {
             sqlx::query(
                 "INSERT INTO erpx_operations_write.source_legal_authority
-                 (tenant_id,exception_id,obligation_id,legal_case_id,customer_id,obligation_code,
+                 (holding_id,exception_id,obligation_id,legal_case_id,customer_id,obligation_code,
                   obligation_title,obligation_status,due_at)
-                 VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8)",
+                 VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8)",
             )
             .bind(id.as_uuid())
             .bind(value.obligation.as_uuid())
@@ -769,9 +769,9 @@ async fn write_source_fact(
         operations::SourceFact::Support(value) => {
             sqlx::query(
                 "INSERT INTO erpx_operations_write.source_support_authority
-                 (tenant_id,exception_id,support_case_id,case_code,customer_id,support_status,
+                 (holding_id,exception_id,support_case_id,case_code,customer_id,support_status,
                   category_code,source_updated_at)
-                 VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7)",
+                 VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7)",
             )
             .bind(id.as_uuid())
             .bind(value.support_case.as_uuid())
@@ -797,8 +797,8 @@ async fn write_procurement(
 ) -> Result<(), CqrsSqlxError> {
     sqlx::query(
         "INSERT INTO erpx_operations_write.source_procurement_authority
-         (tenant_id,exception_id,purchase_order_id,supplier_id,order_code)
-         VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4)",
+         (holding_id,exception_id,purchase_order_id,supplier_id,order_code)
+         VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4)",
     )
     .bind(id.as_uuid())
     .bind(value.purchase_order.as_uuid())
@@ -809,9 +809,9 @@ async fn write_procurement(
     for (ordinal, line) in value.lines.iter().enumerate() {
         sqlx::query(
             "INSERT INTO erpx_operations_write.source_procurement_line_authority
-             (tenant_id,exception_id,line_ordinal,line_id,item_code,quantity_units,quantity_scale,
+             (holding_id,exception_id,line_ordinal,line_id,item_code,quantity_units,quantity_scale,
               line_currency,line_minor,destination_code)
-             VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9)",
+             VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9)",
         )
         .bind(id.as_uuid())
         .bind(i32::try_from(ordinal).map_err(|_| CqrsSqlxError::NumericRange)?)
@@ -835,9 +835,9 @@ async fn write_sales(
 ) -> Result<(), CqrsSqlxError> {
     sqlx::query(
         "INSERT INTO erpx_operations_write.source_sales_authority
-         (tenant_id,exception_id,sales_order_id,order_code,customer_id,sales_status,
+         (holding_id,exception_id,sales_order_id,order_code,customer_id,sales_status,
           total_currency,total_minor)
-         VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7)",
+         VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7)",
     )
     .bind(id.as_uuid())
     .bind(value.sales_order.as_uuid())
@@ -851,9 +851,9 @@ async fn write_sales(
     for (ordinal, line) in value.lines.iter().enumerate() {
         sqlx::query(
             "INSERT INTO erpx_operations_write.source_sales_line_authority
-             (tenant_id,exception_id,line_ordinal,line_id,item_code,quantity_units,quantity_scale,
+             (holding_id,exception_id,line_ordinal,line_id,item_code,quantity_units,quantity_scale,
               line_currency,line_minor)
-             VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8)",
+             VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8)",
         )
         .bind(id.as_uuid())
         .bind(i32::try_from(ordinal).map_err(|_| CqrsSqlxError::NumericRange)?)
@@ -876,9 +876,9 @@ async fn write_support_incident(
 ) -> Result<(), CqrsSqlxError> {
     sqlx::query(
         "INSERT INTO erpx_operations_write.source_support_incident_authority
-         (tenant_id,exception_id,incident_id,incident_code,incident_status,severity_code,
+         (holding_id,exception_id,incident_id,incident_code,incident_status,severity_code,
           source_updated_at)
-         VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6)",
+         VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6)",
     )
     .bind(id.as_uuid())
     .bind(value.incident.as_uuid())
@@ -891,8 +891,8 @@ async fn write_support_incident(
     for (ordinal, service) in value.affected_services.iter().enumerate() {
         sqlx::query(
             "INSERT INTO erpx_operations_write.source_support_service_authority
-             (tenant_id,exception_id,service_ordinal,service_code)
-             VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3)",
+             (holding_id,exception_id,service_ordinal,service_code)
+             VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3)",
         )
         .bind(id.as_uuid())
         .bind(i32::try_from(ordinal).map_err(|_| CqrsSqlxError::NumericRange)?)
@@ -903,8 +903,8 @@ async fn write_support_incident(
     for (ordinal, customer) in value.affected_customer_accounts.iter().enumerate() {
         sqlx::query(
             "INSERT INTO erpx_operations_write.source_support_customer_authority
-             (tenant_id,exception_id,customer_ordinal,customer_account_id)
-             VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3)",
+             (holding_id,exception_id,customer_ordinal,customer_account_id)
+             VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3)",
         )
         .bind(id.as_uuid())
         .bind(i32::try_from(ordinal).map_err(|_| CqrsSqlxError::NumericRange)?)
@@ -922,7 +922,7 @@ async fn variant_row(
 ) -> Result<sqlx::postgres::PgRow, PortError> {
     let sql = format!(
         "SELECT * FROM erpx_operations_write.{table}
-         WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND exception_id=$1"
+         WHERE holding_id=erpx_cqrs_write.current_holding_id() AND exception_id=$1"
     );
     sqlx::query(&sql)
         .bind(id.as_uuid())

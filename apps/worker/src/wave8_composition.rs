@@ -1,11 +1,11 @@
-//! Tenant worker composition for the Wave 8 dependent bounded contexts.
+//! Holding worker composition for the Wave 8 dependent bounded contexts.
 
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionPool, ProjectionRun, ProjectionRunnerConfig, WritePool};
 use erpx_infrastructure::{
-    ProjectionClaimRecord, ProjectionJobKind, RoutedDatabaseSide, TenantDatabaseRouter,
+    HoldingDatabaseRouter, ProjectionClaimRecord, ProjectionJobKind, RoutedDatabaseSide,
 };
-use erpx_worker::{TenantProjectionExecutor, TenantProjectionExecutorError};
+use erpx_worker::{HoldingProjectionExecutor, HoldingProjectionExecutorError};
 
 use crate::contexts::{
     finance::{FinanceProjectionFactory, FinanceProjectionKind, FinanceProjectionRuntime},
@@ -62,35 +62,35 @@ impl Wave8ProjectionKind {
 
 #[derive(Debug, Clone)]
 pub struct Wave8ProjectionExecutor {
-    router: TenantDatabaseRouter,
+    router: HoldingDatabaseRouter,
     kind: Wave8ProjectionKind,
 }
 
 impl Wave8ProjectionExecutor {
-    pub const fn new(router: TenantDatabaseRouter, kind: Wave8ProjectionKind) -> Self {
+    pub const fn new(router: HoldingDatabaseRouter, kind: Wave8ProjectionKind) -> Self {
         Self { router, kind }
     }
 
     async fn runtime(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         page_size: u32,
-    ) -> Result<SnapshotRuntime, TenantProjectionExecutorError> {
+    ) -> Result<SnapshotRuntime, HoldingProjectionExecutorError> {
         let write = self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Write)
             .await
-            .map_err(|_| TenantProjectionExecutorError::Retryable)?;
+            .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
         let read = self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Read)
             .await
-            .map_err(|_| TenantProjectionExecutorError::Retryable)?;
-        let tenant_id = crate::cqrs_tenant_uuid(tenant_id)?;
-        let write = WritePool::for_tenant(write.database_pool().clone(), tenant_id)
+            .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
+        let holding_id = crate::cqrs_holding_uuid(holding_id)?;
+        let write = WritePool::for_holding(write.database_pool().clone(), holding_id)
             .map_err(crate::map_cqrs_projection_error)?;
-        let read = ProjectionPool::for_tenant(read.database_pool().clone(), tenant_id)
+        let read = ProjectionPool::for_holding(read.database_pool().clone(), holding_id)
             .map_err(crate::map_cqrs_projection_error)?;
         let config = ProjectionRunnerConfig {
             page_size,
@@ -208,7 +208,7 @@ fn support_runtime(
 }
 
 #[async_trait]
-impl TenantProjectionExecutor for Wave8ProjectionExecutor {
+impl HoldingProjectionExecutor for Wave8ProjectionExecutor {
     fn projection_name_filter(&self) -> Option<&str> {
         Some(self.kind.projection_name())
     }
@@ -216,7 +216,7 @@ impl TenantProjectionExecutor for Wave8ProjectionExecutor {
     async fn execute(
         &self,
         claim: &ProjectionClaimRecord,
-    ) -> Result<(), TenantProjectionExecutorError> {
+    ) -> Result<(), HoldingProjectionExecutorError> {
         if self.projection_name_filter() != Some(claim.job.projection_name.as_str())
             || claim.job.payload.get("after").is_some()
             || claim.job.payload.get("cursor").is_some()
@@ -224,13 +224,13 @@ impl TenantProjectionExecutor for Wave8ProjectionExecutor {
             || claim.job.payload.get("source_version").is_some()
             || claim.job.payload.get("generation").is_some()
         {
-            return Err(TenantProjectionExecutorError::Permanent);
+            return Err(HoldingProjectionExecutorError::Permanent);
         }
         let page_size = crate::projection_page_size(&claim.job.payload, 500)?;
         let runtime = self
             .runtime(
-                &claim.job.binding.tenant_id,
-                &claim.job.binding.holding_ref,
+                &claim.job.binding.holding_id,
+                &claim.job.binding.data_profile_key,
                 page_size,
             )
             .await?;
@@ -246,7 +246,7 @@ impl TenantProjectionExecutor for Wave8ProjectionExecutor {
                     .job
                     .rebuild_id
                     .filter(|value| !value.is_nil())
-                    .ok_or(TenantProjectionExecutorError::Permanent)?;
+                    .ok_or(HoldingProjectionExecutorError::Permanent)?;
                 runtime.rebuild(page_size, rebuild_id).await
             }
         }
@@ -273,7 +273,7 @@ impl SnapshotRuntime {
         &self,
         page_size: u32,
         rebuild_id: uuid::Uuid,
-    ) -> Result<(), TenantProjectionExecutorError> {
+    ) -> Result<(), HoldingProjectionExecutorError> {
         macro_rules! rebuild {
             ($runtime:expr, $kind:expr) => {{
                 let runtime = $runtime;
@@ -309,9 +309,9 @@ impl SnapshotRuntime {
     }
 }
 
-fn validate_run(run: ProjectionRun) -> Result<(), TenantProjectionExecutorError> {
+fn validate_run(run: ProjectionRun) -> Result<(), HoldingProjectionExecutorError> {
     if run.retry_scheduled || run.dead_lettered != 0 {
-        return Err(TenantProjectionExecutorError::Retryable);
+        return Err(HoldingProjectionExecutorError::Retryable);
     }
     Ok(())
 }

@@ -312,7 +312,7 @@ const fn session_status(value: SessionStatus) -> &'static str {
 const fn support_mode(value: SupportMode) -> &'static str {
     match value {
         SupportMode::DiagnosticRead => "diagnostic_read",
-        SupportMode::TenantMutation => "tenant_mutation",
+        SupportMode::HoldingMutation => "holding_mutation",
         SupportMode::Impersonation => "impersonation",
     }
 }

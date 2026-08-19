@@ -4,7 +4,7 @@
 
 The Dioxus `/procurement`, `/inventory`, and `/maintenance` routes now consume
 the existing typed SCM and Asset/Maintenance aggregate read boundaries. Each
-route requires an explicit tenant reference, holding route reference, holding
+route requires an explicit holding reference, holding route reference, holding
 UUID, aggregate type, and aggregate UUID. Procurement and Inventory use the
 SCM service; Maintenance uses the Asset/Maintenance service.
 
@@ -13,7 +13,7 @@ SCM service; Maintenance uses the Asset/Maintenance service.
 - The console sends authenticated, audited holding-scoped `QueryContext`
   requests to `ScmService::GetScmAggregate` or
   `AssetMaintenanceService::GetAssetMaintenanceAggregate`.
-- Server-side authorization, tenant routing, immutable source/read
+- Server-side authorization, holding routing, immutable source/read
   persistence, outbox/projector behavior, reconciliation, and missing-row
   semantics remain authoritative.
 - The adapter validates aggregate identity, correlation, presence/version

@@ -4,7 +4,7 @@ use erpx_integration_contracts::{
     catalog::ContextId,
     reference::{RecordTypeId, ReferenceValidationError},
 };
-use erpx_kernel::{RecordId, TenantScope};
+use erpx_kernel::{AuthorityScope, RecordId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -237,8 +237,8 @@ pub struct CustomerAccount {
     code: CustomerCode,
     identity: CustomerIdentity,
     status: CustomerStatus,
-    primary_authority: TenantScope,
-    authority_links: Vec<TenantScope>,
+    primary_authority: AuthorityScope,
+    authority_links: Vec<AuthorityScope>,
     merged_into: Option<CustomerId>,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
@@ -254,8 +254,8 @@ impl CustomerAccount {
         code: CustomerCode,
         identity: CustomerIdentity,
         status: CustomerStatus,
-        primary_authority: TenantScope,
-        authority_links: Vec<TenantScope>,
+        primary_authority: AuthorityScope,
+        authority_links: Vec<AuthorityScope>,
         merged_into: Option<CustomerId>,
         created_at: DateTime<Utc>,
         updated_at: DateTime<Utc>,
@@ -281,7 +281,7 @@ impl CustomerAccount {
         id: CustomerId,
         code: CustomerCode,
         identity: CustomerIdentity,
-        primary_authority: TenantScope,
+        primary_authority: AuthorityScope,
         at: DateTime<Utc>,
     ) -> Result<Self, CustomerAuthorityDomainError> {
         validate_primary_authority(&primary_authority)?;
@@ -371,7 +371,7 @@ impl CustomerAccount {
 
     pub fn link_authority(
         &mut self,
-        scope: TenantScope,
+        scope: AuthorityScope,
         at: DateTime<Utc>,
     ) -> Result<(), CustomerAuthorityDomainError> {
         self.ensure_mutable(at)?;
@@ -395,7 +395,7 @@ impl CustomerAccount {
 
     pub fn unlink_authority(
         &mut self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         at: DateTime<Utc>,
     ) -> Result<(), CustomerAuthorityDomainError> {
         self.ensure_mutable(at)?;
@@ -445,7 +445,7 @@ impl CustomerAccount {
     pub fn merge_into_compatible(
         &mut self,
         survivor: CustomerId,
-        survivor_primary_authority: &TenantScope,
+        survivor_primary_authority: &AuthorityScope,
         at: DateTime<Utc>,
     ) -> Result<(), CustomerAuthorityDomainError> {
         if &self.primary_authority != survivor_primary_authority {
@@ -486,10 +486,10 @@ impl CustomerAccount {
     pub const fn status(&self) -> CustomerStatus {
         self.status
     }
-    pub const fn primary_authority(&self) -> &TenantScope {
+    pub const fn primary_authority(&self) -> &AuthorityScope {
         &self.primary_authority
     }
-    pub fn authority_links(&self) -> &[TenantScope] {
+    pub fn authority_links(&self) -> &[AuthorityScope] {
         &self.authority_links
     }
     pub const fn merged_into(&self) -> Option<CustomerId> {
@@ -548,12 +548,12 @@ pub(crate) enum DomainEvent {
     },
     AuthorityLinked {
         customer_id: CustomerId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         at: DateTime<Utc>,
     },
     AuthorityUnlinked {
         customer_id: CustomerId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         at: DateTime<Utc>,
     },
     Merged {
@@ -563,28 +563,31 @@ pub(crate) enum DomainEvent {
     },
 }
 
-fn primary_company_id(scope: &TenantScope) -> Option<Uuid> {
+fn primary_company_id(scope: &AuthorityScope) -> Option<Uuid> {
     match scope {
-        TenantScope::Company { company_id, .. } => Some(*company_id),
+        AuthorityScope::Company { company_id, .. } => Some(*company_id),
         _ => None,
     }
 }
 
-fn validate_primary_authority(scope: &TenantScope) -> Result<(), CustomerAuthorityDomainError> {
+fn validate_primary_authority(scope: &AuthorityScope) -> Result<(), CustomerAuthorityDomainError> {
     scope
         .validate()
         .map_err(|_| CustomerAuthorityDomainError::InvalidPrimaryAuthority)?;
-    if !matches!(scope, TenantScope::Company { .. }) {
+    if !matches!(scope, AuthorityScope::Company { .. }) {
         return Err(CustomerAuthorityDomainError::InvalidPrimaryAuthority);
     }
     Ok(())
 }
 
-fn validate_authority_link(scope: &TenantScope) -> Result<(), CustomerAuthorityDomainError> {
+fn validate_authority_link(scope: &AuthorityScope) -> Result<(), CustomerAuthorityDomainError> {
     scope
         .validate()
         .map_err(|_| CustomerAuthorityDomainError::InvalidAuthorityLink)?;
-    if matches!(scope, TenantScope::Platform | TenantScope::Subtree { .. }) {
+    if matches!(
+        scope,
+        AuthorityScope::Platform | AuthorityScope::Subtree { .. }
+    ) {
         return Err(CustomerAuthorityDomainError::InvalidAuthorityLink);
     }
     Ok(())
@@ -654,8 +657,8 @@ mod tests {
             .unwrap()
     }
 
-    fn company() -> TenantScope {
-        TenantScope::Company {
+    fn company() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: id(1),
             company_id: id(2),
         }
@@ -701,7 +704,7 @@ mod tests {
             CustomerId::try_from_uuid(id(10)).unwrap(),
             CustomerCode::try_new("C-100").unwrap(),
             CustomerIdentity::try_new("Acme", None, None, None, "TH").unwrap(),
-            TenantScope::Holding { holding_id: id(1) },
+            AuthorityScope::Holding { holding_id: id(1) },
             at(9),
         );
         assert_eq!(
@@ -714,7 +717,7 @@ mod tests {
     fn platform_and_subtree_cannot_be_customer_authority_links() {
         let mut account = account();
         assert_eq!(
-            account.link_authority(TenantScope::Platform, at(10)),
+            account.link_authority(AuthorityScope::Platform, at(10)),
             Err(CustomerAuthorityDomainError::InvalidAuthorityLink)
         );
     }
@@ -722,7 +725,7 @@ mod tests {
     #[test]
     fn links_are_exact_unique_and_primary_link_cannot_be_removed() {
         let mut account = account();
-        let branch = TenantScope::Branch {
+        let branch = AuthorityScope::Branch {
             holding_id: id(1),
             company_id: id(2),
             branch_id: id(3),

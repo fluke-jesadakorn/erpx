@@ -4,7 +4,7 @@ use erpx_integration_contracts::{
     catalog::ContextId,
     reference::{RecordTypeId, ReferenceValidationError},
 };
-use erpx_kernel::{RecordId, TenantScope};
+use erpx_kernel::{AuthorityScope, RecordId};
 use serde::{Deserialize, Serialize};
 
 use super::{EmployeeId, PeoplePayrollDomainError};
@@ -23,7 +23,7 @@ pub enum TimeRecordStatus {
 pub struct TimeRecord {
     id: RecordId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     employee_id: EmployeeId,
     employment_record: StableRecordRef,
     work_date: NaiveDate,
@@ -42,7 +42,7 @@ impl TimeRecord {
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: RecordId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         employee_id: EmployeeId,
         employment_record: StableRecordRef,
         work_date: NaiveDate,
@@ -120,7 +120,7 @@ impl TimeRecord {
             || self.scope.validate().is_err()
             || !matches!(
                 self.scope,
-                TenantScope::Company { .. } | TenantScope::Branch { .. }
+                AuthorityScope::Company { .. } | AuthorityScope::Branch { .. }
             )
             || self.employment_record.owner_context() != ContextId::PeoplePayroll
             || self.employment_record.record_type().as_str() != "people.employment"
@@ -151,7 +151,7 @@ impl TimeRecord {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn employee_id(&self) -> EmployeeId {
@@ -214,7 +214,7 @@ mod tests {
         .unwrap();
         let mut record = TimeRecord::create(
             RecordId::try_from_uuid(Uuid::new_v4()).unwrap(),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id: Uuid::from_u128(1),
                 company_id: Uuid::from_u128(2),
             },

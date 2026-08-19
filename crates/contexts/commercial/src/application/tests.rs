@@ -15,8 +15,8 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::CurrencyCode;
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
-    FixedClock, QueryId, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+    ErrorCategory, EventId, FixedClock, QueryId,
 };
 
 use super::*;
@@ -34,8 +34,8 @@ fn id(value: u128) -> Uuid {
 fn at() -> chrono::DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap()
 }
-fn scope() -> TenantScope {
-    TenantScope::Holding { holding_id: id(1) }
+fn scope() -> AuthorityScope {
+    AuthorityScope::Holding { holding_id: id(1) }
 }
 fn currency() -> CurrencyCode {
     CurrencyCode::try_new("THB").unwrap()
@@ -44,7 +44,7 @@ fn currency() -> CurrencyCode {
 fn actor() -> ActorAttribution {
     ActorAttribution {
         principal_ref: "commercial-test-actor".into(),
-        kind: ActorKind::TenantUser,
+        kind: ActorKind::HoldingUser,
         session_id: None,
         represented_principal_ref: None,
         support_capability_id: None,
@@ -59,7 +59,7 @@ fn command_envelope<C>(sequence: u128, expected: Option<u64>, command: C) -> Com
         correlation_id: CorrelationId::try_from_uuid(id(200 + sequence)).unwrap(),
         causation_id: None,
         actor: actor(),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "commercial.test".into(),
             customer_visible: false,
@@ -76,7 +76,7 @@ fn query_envelope<Q>(sequence: u128, query: Q) -> QueryEnvelope<Q> {
         query_id: QueryId::try_from_uuid(id(300 + sequence)).unwrap(),
         correlation_id: CorrelationId::try_from_uuid(id(400 + sequence)).unwrap(),
         actor: actor(),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "commercial.test.query".into(),
             customer_visible: false,
@@ -128,7 +128,7 @@ impl ScopeAuthorityPort for FakeScopeAuthority {
     async fn ensure_customer_in_scope(
         &self,
         _customer_id: Uuid,
-        _target_scope: &TenantScope,
+        _target_scope: &AuthorityScope,
     ) -> Result<(), PortError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         if self.allow {
@@ -189,14 +189,14 @@ struct FakeWriteRepository {
 impl WriteRepository for FakeWriteRepository {
     async fn load_catalog_plan(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _id: CatalogPlanId,
     ) -> Result<Option<CatalogPlan>, PortError> {
         Ok(None)
     }
     async fn load_subscription(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _id: SubscriptionId,
     ) -> Result<Option<Subscription>, PortError> {
         self.loads.fetch_add(1, Ordering::SeqCst);
@@ -204,7 +204,7 @@ impl WriteRepository for FakeWriteRepository {
     }
     async fn load_entitlement(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _id: EntitlementId,
     ) -> Result<Option<Entitlement>, PortError> {
         Ok(None)
@@ -449,7 +449,7 @@ fn projection<T>(value: T) -> ReadProjection<T> {
 impl ReadRepository for FakeReadRepository {
     async fn get_catalog_plan(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _id: CatalogPlanId,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<CatalogPlanView>>, PortError> {
@@ -457,7 +457,7 @@ impl ReadRepository for FakeReadRepository {
     }
     async fn list_catalog_plans(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _filter: &PageFilter,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Page<CatalogPlanView>>, PortError> {
@@ -468,7 +468,7 @@ impl ReadRepository for FakeReadRepository {
     }
     async fn get_subscription(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _id: SubscriptionId,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<SubscriptionView>>, PortError> {
@@ -477,7 +477,7 @@ impl ReadRepository for FakeReadRepository {
     }
     async fn list_subscriptions(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _filter: &PageFilter,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Page<SubscriptionView>>, PortError> {
@@ -488,7 +488,7 @@ impl ReadRepository for FakeReadRepository {
     }
     async fn get_entitlement(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _id: EntitlementId,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<EntitlementView>>, PortError> {
@@ -496,7 +496,7 @@ impl ReadRepository for FakeReadRepository {
     }
     async fn list_entitlements(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _filter: &PageFilter,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Page<EntitlementView>>, PortError> {
@@ -561,7 +561,7 @@ fn invalid_page_size_fails_before_read() {
 fn catalog_view_status_is_typed() {
     let plan = CatalogPlan::create(
         CatalogPlanId::try_from_uuid(id(50)).unwrap(),
-        TenantScope::Platform,
+        AuthorityScope::Platform,
         "growth".into(),
         "Growth".into(),
         10,

@@ -3,7 +3,7 @@ use crate::domain::{PlatformCaseStatus, PlatformSupportCase};
 use async_trait::async_trait;
 use erpx_cqrs::IdempotencyKey;
 use erpx_kernel::{
-    ActorAttribution, AuditContext, CommandId, CorrelationId, RecordId, TenantScope,
+    ActorAttribution, AuditContext, AuthorityScope, CommandId, CorrelationId, RecordId,
 };
 use serde::{Deserialize, Serialize};
 
@@ -20,7 +20,7 @@ pub struct PlatformCaseView {
 pub trait PlatformCaseQueryPort: Send + Sync {
     async fn get_platform_case(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         case_id: RecordId,
     ) -> Result<Option<PlatformCaseView>, PortError>;
 }
@@ -32,7 +32,7 @@ pub struct PlatformCaseCommand {
     pub expected_version: Option<u64>,
     pub actor: ActorAttribution,
     pub audit: AuditContext,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub record: PlatformSupportCase,
 }
 #[derive(Debug, Clone, PartialEq, Eq)]

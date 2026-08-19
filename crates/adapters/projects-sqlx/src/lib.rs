@@ -26,13 +26,12 @@ pub const EVENT_VERSION: u32 = 1;
 
 #[cfg(test)]
 const WRITE_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0074_projects.sql");
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 #[cfg(test)]
-const READ_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_read/0065_projects_projection.sql");
+const READ_DDL: &str = include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 #[cfg(test)]
 const RECORD_READ_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_read/0074_projects_record_projection.sql");
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 
 pub fn project_partition(id: erpx_projects::ProjectId) -> String {
     format!("projects.project:{}", id.as_uuid().simple())
@@ -50,6 +49,9 @@ pub fn handoff_partition(id: erpx_projects::HandoffId) -> String {
     format!("projects.handoff:{}", id.as_uuid().simple())
 }
 
+#[cfg(test)]
+#[path = "../../schema_test.rs"]
+mod schema_test;
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -89,10 +91,11 @@ mod tests {
     }
 
     #[test]
-    fn every_projects_table_is_tenant_bound_and_forces_rls() {
-        for (ddl, tables) in [
+    fn every_projects_table_is_holding_bound_and_forces_rls() {
+        for (ddl, schema, tables) in [
             (
                 WRITE_DDL,
+                "erpx_projects_write",
                 &[
                     "project_guards",
                     "project_node_guards",
@@ -111,6 +114,7 @@ mod tests {
             ),
             (
                 READ_DDL,
+                "erpx_projects_read",
                 &[
                     "project_projection",
                     "hierarchy_closure_projection",
@@ -119,24 +123,31 @@ mod tests {
                 ][..],
             ),
         ] {
-            assert_eq!(ddl.matches("CREATE TABLE").count(), tables.len());
-            assert!(ddl.contains("current_setting('app.tenant_id', true)"));
-            assert!(ddl.contains("ENABLE ROW LEVEL SECURITY"));
-            assert!(ddl.contains("FORCE ROW LEVEL SECURITY"));
-            assert!(ddl.contains("tenant_id UUID NOT NULL DEFAULT"));
+            let owned = schema_test::select_schema_statements(ddl, &[schema]);
+            let expected_count = if schema == "erpx_projects_read" {
+                tables.len() + 1
+            } else {
+                tables.len()
+            };
+            assert_eq!(owned.matches("CREATE TABLE").count(), expected_count);
+            assert!(owned.contains("current_setting('app.holding_id', true)"));
+            assert!(owned.contains("ENABLE ROW LEVEL SECURITY"));
+            assert!(owned.contains("FORCE ROW LEVEL SECURITY"));
+            assert!(owned.contains("holding_id UUID NOT NULL DEFAULT"));
             for table in tables {
-                assert!(ddl.contains(&format!("'{table}'")));
+                assert!(owned.contains(&format!("'{table}'")));
             }
         }
         let command = include_str!("command.rs");
-        assert!(command.contains("set_config('app.tenant_id'"));
-        assert!(command.contains("WHERE tenant_id=$1"));
-        assert!(!WRITE_DDL.contains("state JSONB"));
+        assert!(command.contains("set_config('app.holding_id'"));
+        assert!(command.contains("WHERE holding_id=$1"));
+        let owned = schema_test::select_schema_statements(WRITE_DDL, &["erpx_projects_write"]);
+        assert!(!owned.contains("state JSONB"));
         assert!(!command.contains("load_snapshot"));
         assert!(!command.contains("ProjectsOutboxPayload::Snapshot"));
         assert!(command.contains("load_normalized_aggregate"));
         assert!(command.contains("commit_normalized(command, &guard)"));
-        assert!(RECORD_READ_DDL.contains("current_tenant_id()"));
+        assert!(RECORD_READ_DDL.contains("current_holding_id()"));
         assert!(RECORD_READ_DDL.contains("ENABLE ROW LEVEL SECURITY"));
         assert!(RECORD_READ_DDL.contains("FORCE ROW LEVEL SECURITY"));
         assert!(RECORD_READ_DDL.contains("WITH CHECK"));

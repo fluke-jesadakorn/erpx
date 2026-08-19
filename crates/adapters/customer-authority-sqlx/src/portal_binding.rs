@@ -11,7 +11,7 @@ use erpx_integration_contracts::{
     AuthorityPortalBindingStatus, AuthorityPortalUseCase, AuthorityPrincipalKind, AuthorityRealm,
     CustomerPortalBindingAuthorityEvidence, RecordVersionRef,
 };
-use erpx_kernel::{CorrelationId, PrincipalId, TenantScope};
+use erpx_kernel::{AuthorityScope, CorrelationId, PrincipalId};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Postgres, Row, Transaction};
@@ -44,7 +44,7 @@ impl CustomerRecordAuthorityPort for SqlxCustomerRecordAuthority {
     async fn ensure_active_customer_version(
         &self,
         customer: &RecordVersionRef,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
     ) -> Result<(), PortError> {
         customer.validate().map_err(|_| PortError::Denied)?;
         if customer.record().owner_context()
@@ -73,7 +73,7 @@ impl CustomerRecordAuthorityPort for SqlxCustomerRecordAuthority {
         let merged: Option<Uuid> = row
             .try_get("merged_into_customer_id")
             .map_err(|_| PortError::Internal)?;
-        let customer_scope = TenantScope::Company {
+        let customer_scope = AuthorityScope::Company {
             holding_id: row
                 .try_get("primary_holding_id")
                 .map_err(|_| PortError::Internal)?,
@@ -96,7 +96,7 @@ impl CustomerRecordAuthorityPort for SqlxCustomerRecordAuthority {
 impl PortalBindingWriteRepository for CustomerPortalBindingSqlxAdapter {
     async fn load_portal_binding(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         binding_id: CustomerPortalBindingId,
     ) -> Result<Option<CustomerPortalPrincipalBinding>, PortError> {
         authority_scope.validate().map_err(|_| PortError::Denied)?;
@@ -190,7 +190,7 @@ async fn load_binding(
                 permitted_use_cases,valid_from,valid_until,proposed_by,approved_by,
                 rejected_by,revoked_by,ended_at,decision_evidence_digest,binding_status,changed_at
          FROM erpx_authority_write.customer_portal_principal_bindings
-         WHERE tenant_id=erpx_authority_write.current_tenant_id() AND binding_id=$1{lock}"
+         WHERE holding_id=erpx_authority_write.current_holding_id() AND binding_id=$1{lock}"
     );
     let row = sqlx::query(&statement)
         .bind(binding_id.as_uuid())
@@ -256,7 +256,7 @@ async fn find_receipt(
     let row = sqlx::query(
         "SELECT command_id,request_hash,binding_id,binding_version,correlation_id,receipt,committed_at
          FROM erpx_authority_write.portal_binding_command_receipts
-         WHERE tenant_id=erpx_authority_write.current_tenant_id()
+         WHERE holding_id=erpx_authority_write.current_holding_id()
            AND (idempotency_key=$1 OR command_id=$2) FOR UPDATE",
     )
     .bind(identity.idempotency_key.as_str())
@@ -303,21 +303,21 @@ async fn persist_binding(
 ) -> Result<(), PortError> {
     let result = sqlx::query(
         "INSERT INTO erpx_authority_write.customer_portal_principal_bindings
-            (tenant_id,binding_id,binding_version,customer_record_id,customer_record_version,
+            (holding_id,binding_id,binding_version,customer_record_id,customer_record_version,
              portal_principal_id,principal_kind,portal_realm,binding_scope,
              verified_identity_digest,verified_identity_version,verified_at,permitted_use_cases,
              valid_from,valid_until,proposed_by,approved_by,rejected_by,revoked_by,ended_at,
              decision_evidence_digest,binding_status,changed_at)
-         VALUES (erpx_authority_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,'customer_portal',
+         VALUES (erpx_authority_write.current_holding_id(),$1,$2,$3,$4,$5,$6,'customer_portal',
                  $7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
-         ON CONFLICT (tenant_id,binding_id) DO UPDATE SET
+         ON CONFLICT (holding_id,binding_id) DO UPDATE SET
             binding_version=EXCLUDED.binding_version,approved_by=EXCLUDED.approved_by,
             rejected_by=EXCLUDED.rejected_by,revoked_by=EXCLUDED.revoked_by,
             ended_at=EXCLUDED.ended_at,
             decision_evidence_digest=EXCLUDED.decision_evidence_digest,
             binding_status=EXCLUDED.binding_status,changed_at=EXCLUDED.changed_at
-         WHERE erpx_authority_write.customer_portal_principal_bindings.tenant_id
-               = erpx_authority_write.current_tenant_id()
+         WHERE erpx_authority_write.customer_portal_principal_bindings.holding_id
+               = erpx_authority_write.current_holding_id()
            AND erpx_authority_write.customer_portal_principal_bindings.binding_version + 1
                = EXCLUDED.binding_version",
     )
@@ -413,10 +413,10 @@ async fn append_authority_event(
     let command_id = request.request.identity.command_id;
     sqlx::query(
         "INSERT INTO erpx_cqrs_write.outbox_events
-            (tenant_id,event_id,context_name,partition_key,command_id,event_type,event_version,
-             aggregate_type,aggregate_id,aggregate_version,tenant_scope,actor,correlation_id,
+            (holding_id,event_id,context_name,partition_key,command_id,event_type,event_version,
+             aggregate_type,aggregate_id,aggregate_version,active_scope,actor,correlation_id,
              causation_id,payload,occurred_at,available_at)
-         VALUES (erpx_authority_write.current_tenant_id(),$1,'customer_authority',$2,$3,$4,$5,
+         VALUES (erpx_authority_write.current_holding_id(),$1,'customer_authority',$2,$3,$4,$5,
                  'customer_portal_principal_binding',$6,$7,$8,$9,$10,NULL,$11,$12,now())",
     )
     .bind(deterministic_uuid(
@@ -450,9 +450,9 @@ async fn persist_audit(
     let command_id = request.request.identity.command_id;
     sqlx::query(
         "INSERT INTO erpx_authority_write.portal_binding_audit_log
-            (tenant_id,audit_id,command_id,correlation_id,actor,authority_scope,binding_id,
+            (holding_id,audit_id,command_id,correlation_id,actor,authority_scope,binding_id,
              binding_version,customer_record_id,portal_principal_id,action,evidence_digest,occurred_at)
-         VALUES (erpx_authority_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",
+         VALUES (erpx_authority_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",
     )
     .bind(deterministic_uuid(command_id.as_uuid(), b"customer-portal-binding-audit-v1"))
     .bind(command_id.as_uuid())
@@ -478,9 +478,9 @@ async fn persist_receipt(
 ) -> Result<(), PortError> {
     sqlx::query(
         "INSERT INTO erpx_authority_write.portal_binding_command_receipts
-            (tenant_id,idempotency_key,command_id,request_hash,binding_id,binding_version,
+            (holding_id,idempotency_key,command_id,request_hash,binding_id,binding_version,
              correlation_id,receipt,committed_at)
-         VALUES (erpx_authority_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8)",
+         VALUES (erpx_authority_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8)",
     )
     .bind(request.request.identity.idempotency_key.as_str())
     .bind(request.request.identity.command_id.as_uuid())
@@ -597,14 +597,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn portal_binding_adapter_is_normalized_tenant_exact_and_secret_free() {
+    fn portal_binding_adapter_is_normalized_holding_exact_and_secret_free() {
         let source = include_str!("portal_binding.rs");
         let source = source
             .split("#[cfg(test)]")
             .next()
             .expect("production source precedes tests");
         assert!(source.contains("customer_portal_principal_bindings"));
-        assert!(source.contains("tenant_id=erpx_authority_write.current_tenant_id()"));
+        assert!(source.contains("holding_id=erpx_authority_write.current_holding_id()"));
         assert!(source.contains("AUTHORITY_EVIDENCE_EVENT_TYPE"));
         assert!(!source.contains("support.internal"));
         assert!(!source.contains("comment_body"));
@@ -633,7 +633,7 @@ mod tests {
                 support_capability_id: None,
             },
             actor_principal_id: principal,
-            authority_scope: TenantScope::Company {
+            authority_scope: AuthorityScope::Company {
                 holding_id: Uuid::new_v4(),
                 company_id: Uuid::new_v4(),
             },
@@ -664,7 +664,7 @@ mod tests {
                 support_capability_id: None,
             },
             actor_principal_id: PrincipalId::try_from_uuid(Uuid::new_v4()).unwrap(),
-            authority_scope: TenantScope::Company {
+            authority_scope: AuthorityScope::Company {
                 holding_id: Uuid::new_v4(),
                 company_id: Uuid::new_v4(),
             },
@@ -675,7 +675,7 @@ mod tests {
         changed_actor.actor_principal_id = PrincipalId::try_from_uuid(Uuid::new_v4()).unwrap();
         assert_ne!(baseline, request_hash(&changed_actor).unwrap());
         let mut changed_scope = request.clone();
-        changed_scope.authority_scope = TenantScope::Holding {
+        changed_scope.authority_scope = AuthorityScope::Holding {
             holding_id: Uuid::new_v4(),
         };
         assert_ne!(baseline, request_hash(&changed_scope).unwrap());

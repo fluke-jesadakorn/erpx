@@ -59,7 +59,7 @@ fn rebuild_is_order_independent_and_exposes_only_observed_sources() {
     )
     .unwrap();
     let subscription_input = Customer360ProjectionInput::try_new(
-        Customer360ProjectionStream::TenantActivity,
+        Customer360ProjectionStream::HoldingActivity,
         position(2, 1, 2),
         subscription(id, 20),
     )
@@ -147,7 +147,7 @@ fn duplicate_out_of_order_and_stale_owner_versions_do_not_replace_current_fact()
 fn facts_for_another_customer_fail_closed_without_advancing_checkpoint() {
     let mut projection = Customer360Projection::new(customer(10));
     let input = Customer360ProjectionInput::try_new(
-        Customer360ProjectionStream::TenantActivity,
+        Customer360ProjectionStream::HoldingActivity,
         position(1, 1, 1),
         subscription(customer(99), 20),
     )
@@ -157,7 +157,7 @@ fn facts_for_another_customer_fail_closed_without_advancing_checkpoint() {
         Err(Customer360DomainError::CustomerMismatch)
     );
     assert_eq!(
-        projection.last_position(Customer360ProjectionStream::TenantActivity),
+        projection.last_position(Customer360ProjectionStream::HoldingActivity),
         None
     );
     assert_eq!(projection.view().subscriptions, Vec::new());
@@ -190,7 +190,7 @@ fn conflicting_global_positions_fail_instead_of_hiding_data_loss() {
 }
 
 #[test]
-fn control_and_tenant_sequences_are_never_compared() {
+fn control_and_holding_sequences_are_never_compared() {
     let id = customer(10);
     let mut projection = Customer360Projection::new(id);
     projection
@@ -206,7 +206,7 @@ fn control_and_tenant_sequences_are_never_compared() {
     projection
         .apply(
             Customer360ProjectionInput::try_new(
-                Customer360ProjectionStream::TenantActivity,
+                Customer360ProjectionStream::HoldingActivity,
                 position(2, 1, 2),
                 subscription(id, 20),
             )
@@ -223,7 +223,7 @@ fn control_and_tenant_sequences_are_never_compared() {
     );
     assert_eq!(
         projection
-            .last_position(Customer360ProjectionStream::TenantActivity)
+            .last_position(Customer360ProjectionStream::HoldingActivity)
             .unwrap()
             .global_sequence,
         2
@@ -235,7 +235,7 @@ fn source_fact_must_use_its_owner_database_stream() {
     let id = customer(10);
     assert_eq!(
         Customer360ProjectionInput::try_new(
-            Customer360ProjectionStream::TenantActivity,
+            Customer360ProjectionStream::HoldingActivity,
             position(1, 1, 1),
             profile(id, "Wrong stream"),
         ),

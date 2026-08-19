@@ -7,7 +7,7 @@
   `/platform/projections` through WebAssembly gRPC-Web and native Tonic.
 - The client follows the server's bounded opaque cursor, rejects empty cursors
   on continued pages, and caps pagination at 100 pages.
-- Display models allow-list tenant/holding/projection identity, kind, state,
+- Display models allow-list holding/holding/projection identity, kind, state,
   bounded attempts, freshness, and timestamps. Job identifiers, raw error
   text, database keys, credentials, and mutation controls are not rendered.
 - Authentication-required, loading, empty, error, and read-only states remain
@@ -31,7 +31,7 @@
 
 Projection rebuild commands, status filtering controls, Android/iOS evidence,
 and the remaining Platform Operations routes remain open. This is an audited
-read-only adapter and does not authorize tenant mutation.
+read-only adapter and does not authorize holding mutation.
 
 ## Rollback
 

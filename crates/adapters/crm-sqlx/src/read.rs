@@ -10,7 +10,7 @@ use erpx_crm::{
     CrmLeadId, CrmLeadView, OpportunityId, OpportunityList, OpportunityListFilter, OpportunityView,
     PortError, ReadRepository, ports::ReadProjection,
 };
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -109,7 +109,7 @@ impl CrmReadRepository {
 impl ReadRepository for CrmReadRepository {
     async fn get_lead(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: CrmLeadId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<CrmLeadView>>, PortError> {
@@ -133,7 +133,7 @@ impl ReadRepository for CrmReadRepository {
     }
     async fn get_opportunity(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: OpportunityId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<OpportunityView>>, PortError> {
@@ -157,7 +157,7 @@ impl ReadRepository for CrmReadRepository {
     }
     async fn list_opportunities(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         filter: &OpportunityListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<OpportunityList>, PortError> {
@@ -224,20 +224,20 @@ struct ScopeFilter {
     prefixes: Vec<String>,
 }
 impl ScopeFilter {
-    fn from(scope: &TenantScope) -> Result<Self, PortError> {
+    fn from(scope: &AuthorityScope) -> Result<Self, PortError> {
         scope.validate().map_err(|_| PortError::Denied)?;
         Ok(match scope {
-            TenantScope::Platform => Self {
+            AuthorityScope::Platform => Self {
                 platform: true,
                 exact: vec![],
                 prefixes: vec![],
             },
-            TenantScope::Holding { holding_id } => Self {
+            AuthorityScope::Holding { holding_id } => Self {
                 platform: false,
                 exact: vec![],
                 prefixes: vec![format!("h:{holding_id}/%")],
             },
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => {
@@ -248,7 +248,7 @@ impl ScopeFilter {
                     prefixes: vec![format!("{key}/%")],
                 }
             }
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -257,26 +257,13 @@ impl ScopeFilter {
                 exact: vec![format!("h:{holding_id}/c:{company_id}/b:{branch_id}")],
                 prefixes: vec![],
             },
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Self {
                 platform: false,
-                exact: company_ids
-                    .iter()
-                    .flat_map(|company| {
-                        if branch_ids.is_empty() {
-                            vec![format!("h:{holding_id}/c:{company}")]
-                        } else {
-                            branch_ids
-                                .iter()
-                                .map(|branch| format!("h:{holding_id}/c:{company}/b:{branch}"))
-                                .collect()
-                        }
-                    })
-                    .collect(),
-                prefixes: vec![],
+                exact: vec![format!("h:{holding_id}/c:{organization_node_id}")],
+                prefixes: vec![format!("h:{holding_id}/c:{organization_node_id}/%")],
             },
         })
     }
@@ -298,7 +285,7 @@ mod tests {
     }
     #[test]
     fn branch_scope_is_exact() {
-        let filter = ScopeFilter::from(&TenantScope::Branch {
+        let filter = ScopeFilter::from(&AuthorityScope::Branch {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
             branch_id: Uuid::from_u128(3),

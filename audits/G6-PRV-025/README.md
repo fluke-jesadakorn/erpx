@@ -1,17 +1,17 @@
-# G6-PRV-025 — Durable tenant backup scheduling, history, and worker execution
+# G6-PRV-025 — Durable holding backup scheduling, history, and worker execution
 
 ## Delivered
 
-- Control migration `0052_tenant_backup_jobs.sql` stores bounded full and
-  restore-test jobs with tenant/holding binding, idempotency hash, attempts,
+- Control migration `0052_holding_backup_jobs.sql` stores bounded full and
+  restore-test jobs with holding/holding binding, idempotency hash, attempts,
   leases, retry/dead-letter state, and verification status.
-- Control-read migration `0007_tenant_backup_jobs.sql` stores only the
+- Control-read migration `0007_holding_backup_jobs.sql` stores only the
   secret-free rebuildable history projection.
-- `TenantProvisioner::schedule_backup_job` is idempotent and rejects PITR,
+- `HoldingProvisioner::schedule_backup_job` is idempotent and rejects PITR,
   malformed restore requests, unbounded availability, and attempts outside
   `1..=5`.
-- `TenantProvisioner::claim_backup_jobs` uses `FOR UPDATE SKIP LOCKED`, active
-  tenant/holding-state binding, bounded database-clock leases, stale-lease
+- `HoldingProvisioner::claim_backup_jobs` uses `FOR UPDATE SKIP LOCKED`, active
+  holding/holding-state binding, bounded database-clock leases, stale-lease
   reclamation, and atomically creates a started run plus its durable
   job/attempt link before returning the claim.
 - Completion and failure transitions require the exact job, worker, claim, and
@@ -21,8 +21,8 @@
 - The control read projection advances by `(updated_at, id)` cursor pages until
   the complete source history is copied, including histories larger than one
   worker batch.
-- The worker `tenant_backup` handler refreshes the read projection, executes
-  full backups through the PostgreSQL/MinIO adapter, prepares tenant-bound
+- The worker `holding_backup` handler refreshes the read projection, executes
+  full backups through the PostgreSQL/MinIO adapter, prepares holding-bound
   restore candidates, and uses the fenced routed read activation path.
 - Platform Operations exposes authenticated scheduling and read-side history
   transport. Responses never include backup references, restore references,
@@ -49,12 +49,12 @@
 True PostgreSQL PITR is still fail-closed. The current contract has no WAL
 archive manifest, recovery point/LSN, or physical cluster restore target, so
 neither scheduling nor the adapter labels a logical dump as PITR. Live
-MinIO/PostgreSQL adapter execution and physical tenant restore still require
-deployment credentials and a disposable tenant fixture; those are not claimed
+MinIO/PostgreSQL adapter execution and physical holding restore still require
+deployment credentials and a disposable holding fixture; those are not claimed
 by this local evidence. The live control-plane SQL claim/projection proof does
 not extend to MinIO or true PITR.
 
-Tenant activation/suspension/recovery, owner seeding, backup cleanup, backup
+Holding activation/suspension/recovery, owner seeding, backup cleanup, backup
 retention policy, production PITR, broader Platform Operations pages, and the
 remaining G6/G14 requirements remain open.
 
@@ -69,12 +69,12 @@ The live acceptance boundary is now exercised by
 `crates/infrastructure/tests/backup_live.rs`. With disposable PostgreSQL
 databases and a credentialed MinIO namespace, it:
 
-- migrates physically distinct tenant write/read databases;
+- migrates physically distinct holding write/read databases;
 - runs the real configured PostgreSQL 18 `pg_dump` and `pg_restore` binaries;
-- uploads and downloads the tenant/chain/reference-bound custom archive through
+- uploads and downloads the holding/chain/reference-bound custom archive through
   the real MinIO object transport over HTTPS with a trusted internal CA;
 - restores into a distinct candidate read database and verifies
-  `erpx_tenant.customer_summary` plus forced tenant RLS;
+  `erpx_holding.customer_summary` plus forced holding RLS;
 - reconciles the complete object inventory, deletes the exact artifact, and
   verifies that the inventory is empty; and
 - drops every disposable database after the run.
@@ -96,7 +96,7 @@ production approval/cutover remain queued and are not claimed here.
 ## Coordinator continuation — durable PITR recovery-point admission — 2026-07-28
 
 The coordinator added the bounded `PitrRecoveryPoint` contract and control
-migration `0062_tenant_pitr_recovery_points.sql`. A PITR job now requires
+migration `0062_holding_pitr_recovery_points.sql`. A PITR job now requires
 exactly one recovery timestamp or PostgreSQL LSN plus an opaque WAL archive
 reference and physical restore-target reference. Full and restore-test jobs
 reject PITR metadata. The same metadata is included in the control request
@@ -122,7 +122,7 @@ write retirement, or cutover occurred.
 `crates/infrastructure/src/pitr.rs` now provides a production-bound,
 fail-closed capture adapter. It runs argv-only `pg_basebackup` in tar mode
 with WAL disabled, reads a bounded WAL archive directory without following
-symlinks, persists tenant/chain/backup-scoped objects through the existing
+symlinks, persists holding/chain/backup-scoped objects through the existing
 MinIO transport, and reads every object back before recording a manifest with
 sizes and SHA-256 digests. Staging directories are private and removed after
 the attempt; command output, references, and credentials remain outside logs.
@@ -137,7 +137,7 @@ physical restore or production certification.
 ## Coordinator continuation — physical PITR replay executor seam — 2026-07-28
 
 `PostgresPhysicalPitrRestoreExecutor` now provides the real replay path behind
-an explicit `PitrRestoreTargetResolver`. It verifies the tenant/chain/backup
+an explicit `PitrRestoreTargetResolver`. It verifies the holding/chain/backup
 manifest and every object digest, rehydrates the base tar and WAL files under
 the resolved restore root, writes `recovery.signal` and a target-time/LSN
 `restore_command`, starts the target with argv-only `pg_ctl`, checks

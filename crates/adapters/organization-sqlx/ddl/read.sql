@@ -10,7 +10,7 @@ CREATE TABLE erpx_organization_read.node_projection (
     node_kind TEXT NOT NULL,
     node_status TEXT NOT NULL,
     parent_node_id UUID,
-    tenant_scope JSONB NOT NULL,
+    holding_scope JSONB NOT NULL,
     scope_key TEXT NOT NULL,
     placement JSONB NOT NULL,
     node_code TEXT NOT NULL,

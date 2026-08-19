@@ -22,7 +22,7 @@ erpx_ui_kit::declare_current_workspace_feature!(
         ("people-payroll.workspace", "/people", "people"),
         ("payroll.workspace", "/payroll", "people")
     ],
-    "erpx-feature-people-payroll-v2"
+    "erpx-feature-people-payroll"
 );
 
 #[cfg(test)]
@@ -32,7 +32,7 @@ mod registration_contract_tests {
     #[test]
     fn web_and_native_share_authenticated_canonical_routes() {
         assert_eq!(REGISTRATION.id, "people-payroll");
-        assert_eq!(REGISTRATION.artifact_key, "erpx-feature-people-payroll-v2");
+        assert_eq!(REGISTRATION.artifact_key, "erpx-feature-people-payroll");
         assert!(REGISTRATION.routes.iter().all(|route| {
             route.authorization == "authenticated"
                 && route.canonical_path.starts_with('/')

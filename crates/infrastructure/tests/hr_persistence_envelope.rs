@@ -1,7 +1,7 @@
 //! Disposable acceptance evidence for the HR write-side outbox envelope.
 //!
-//! This test uses a real tenant-write PostgreSQL database. It proves that an
-//! HR source mutation and its complete trace/tenant envelope are committed
+//! This test uses a real holding-write PostgreSQL database. It proves that an
+//! HR source mutation and its complete trace/holding envelope are committed
 //! together, and that an idempotent replay does not append a second event.
 
 use chrono::NaiveDate;
@@ -17,16 +17,16 @@ use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
 #[tokio::test]
-#[ignore = "requires a disposable tenant-write PostgreSQL database"]
+#[ignore = "requires a disposable holding-write PostgreSQL database"]
 async fn live_hr_persistence_writes_complete_outbox_envelope_atomically() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migration");
+        .expect("holding write migration");
 
-    let holding_ref = format!("holding-hr-envelope-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-hr-envelope-{}", Uuid::new_v4());
     let employee = EmployeeRecord {
         id: Uuid::new_v4(),
         employee_ref: "EMP-ENVELOPE-001".into(),
@@ -41,7 +41,7 @@ async fn live_hr_persistence_writes_complete_outbox_envelope_atomically() {
         last_idempotency_key: "hr-envelope-employee-1".into(),
     };
 
-    let write = SqlxHrPersistence::new(write_pool.clone(), &holding_ref).expect("write store");
+    let write = SqlxHrPersistence::new(write_pool.clone(), &data_profile_key).expect("write store");
     let first = write
         .save_employee(&employee, None)
         .await
@@ -54,27 +54,27 @@ async fn live_hr_persistence_writes_complete_outbox_envelope_atomically() {
     assert!(replay.replayed);
 
     let mut tx = write_pool.begin().await.expect("inspection transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tx)
         .await
         .expect("holding scope");
     let row = sqlx::query(
-        "SELECT contract_version, event_version, tenant_scope, actor,
+        "SELECT contract_version, event_version, active_scope, actor,
                 correlation_id, causation_id, idempotency_key, payload
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_id=$2",
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(employee.id)
     .fetch_one(&mut *tx)
     .await
     .expect("HR outbox envelope");
     let event_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_id=$2",
+        "SELECT COUNT(*) FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(employee.id)
     .fetch_one(&mut *tx)
     .await
@@ -89,8 +89,8 @@ async fn live_hr_persistence_writes_complete_outbox_envelope_atomically() {
         Some(1)
     );
     assert_eq!(
-        row.try_get::<Option<Value>, _>("tenant_scope").unwrap(),
-        Some(serde_json::to_value(employee.scope.tenant_scope()).expect("tenant scope JSON"))
+        row.try_get::<Option<Value>, _>("active_scope").unwrap(),
+        Some(serde_json::to_value(employee.scope.active_scope()).expect("holding scope JSON"))
     );
     assert_eq!(row.try_get::<Option<Value>, _>("actor").unwrap(), None);
     assert_eq!(
@@ -117,15 +117,15 @@ async fn live_hr_persistence_writes_complete_outbox_envelope_atomically() {
 }
 
 #[tokio::test]
-#[ignore = "requires a disposable tenant-write PostgreSQL database"]
+#[ignore = "requires a disposable holding-write PostgreSQL database"]
 async fn live_hr_employee_transition_projects_authoritative_source_and_outbox() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migration");
-    let holding_ref = format!("holding-hr-transition-{}", Uuid::new_v4());
+        .expect("holding write migration");
+    let data_profile_key = format!("holding-hr-transition-{}", Uuid::new_v4());
     let scope = EmploymentScope::new(Uuid::new_v4(), Uuid::new_v4(), None).expect("scope");
     let employee = EmployeeRecord {
         id: Uuid::new_v4(),
@@ -139,7 +139,7 @@ async fn live_hr_employee_transition_projects_authoritative_source_and_outbox() 
         last_command_id: Uuid::new_v4(),
         last_idempotency_key: "hr-transition-create".into(),
     };
-    let write = SqlxHrPersistence::new(write_pool.clone(), &holding_ref).expect("write store");
+    let write = SqlxHrPersistence::new(write_pool.clone(), &data_profile_key).expect("write store");
     write
         .save_employee(&employee, None)
         .await
@@ -148,12 +148,12 @@ async fn live_hr_employee_transition_projects_authoritative_source_and_outbox() 
         "hr-transition-suspend",
         ActorAttribution {
             principal_ref: "hr-transition-actor".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
         },
-        scope.tenant_scope(),
+        scope.active_scope(),
         "hr.employee.transition",
     )
     .expect("command context");
@@ -170,16 +170,16 @@ async fn live_hr_employee_transition_projects_authoritative_source_and_outbox() 
             .is_err()
     );
     let mut tx = write_pool.begin().await.expect("inspection transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tx)
         .await
         .expect("holding scope");
     let row = sqlx::query(
-        "SELECT status, version FROM erpx_tenant.hr_employee_records
-         WHERE holding_ref=$1 AND employee_id=$2",
+        "SELECT status, version FROM erpx_holding.hr_employee_records
+         WHERE data_profile_key=$1 AND employee_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(employee.id)
     .fetch_one(&mut *tx)
     .await
@@ -187,10 +187,10 @@ async fn live_hr_employee_transition_projects_authoritative_source_and_outbox() 
     assert_eq!(row.try_get::<String, _>("status").unwrap(), "suspended");
     assert_eq!(row.try_get::<i64, _>("version").unwrap(), 2);
     let event_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_id=$2",
+        "SELECT COUNT(*) FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(employee.id)
     .fetch_one(&mut *tx)
     .await
@@ -200,16 +200,16 @@ async fn live_hr_employee_transition_projects_authoritative_source_and_outbox() 
 }
 
 #[tokio::test]
-#[ignore = "requires a disposable tenant-write PostgreSQL database"]
+#[ignore = "requires a disposable holding-write PostgreSQL database"]
 async fn live_hr_rejects_employee_references_outside_record_scope_atomically() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migration");
+        .expect("holding write migration");
 
-    let holding_ref = format!("holding-hr-integrity-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-hr-integrity-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let employee_company_id = Uuid::new_v4();
     let employee_id = Uuid::new_v4();
@@ -225,7 +225,7 @@ async fn live_hr_rejects_employee_references_outside_record_scope_atomically() {
         last_command_id: Uuid::new_v4(),
         last_idempotency_key: "hr-integrity-employee".into(),
     };
-    let write = SqlxHrPersistence::new(write_pool.clone(), &holding_ref).expect("write store");
+    let write = SqlxHrPersistence::new(write_pool.clone(), &data_profile_key).expect("write store");
     write
         .save_employee(&employee, None)
         .await
@@ -302,8 +302,8 @@ async fn live_hr_rejects_employee_references_outside_record_scope_atomically() {
     );
 
     let mut tx = write_pool.begin().await.expect("inspection transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tx)
         .await
         .expect("holding scope");
@@ -313,9 +313,9 @@ async fn live_hr_rejects_employee_references_outside_record_scope_atomically() {
         ("hr_payroll_runs", "payroll_id", payroll_id),
     ] {
         let count: i64 = sqlx::query_scalar(&format!(
-            "SELECT COUNT(*) FROM erpx_tenant.{table} WHERE holding_ref=$1 AND {id_column}=$2"
+            "SELECT COUNT(*) FROM erpx_holding.{table} WHERE data_profile_key=$1 AND {id_column}=$2"
         ))
-        .bind(&holding_ref)
+        .bind(&data_profile_key)
         .bind(aggregate_id)
         .fetch_one(&mut *tx)
         .await
@@ -323,20 +323,20 @@ async fn live_hr_rejects_employee_references_outside_record_scope_atomically() {
         assert_eq!(count, 0, "rejected aggregate must not persist");
     }
     let outbox_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_id = ANY($2)",
+        "SELECT COUNT(*) FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_id = ANY($2)",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(vec![leave_id, expense_id, payroll_id])
     .fetch_one(&mut *tx)
     .await
     .expect("outbox absence");
     assert_eq!(outbox_count, 0);
     let idempotency_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM erpx_tenant.hr_command_idempotency
-         WHERE holding_ref=$1 AND idempotency_key = ANY($2)",
+        "SELECT COUNT(*) FROM erpx_holding.hr_command_idempotency
+         WHERE data_profile_key=$1 AND idempotency_key = ANY($2)",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(vec![
         "hr-integrity-leave",
         "hr-integrity-expense",
@@ -350,16 +350,16 @@ async fn live_hr_rejects_employee_references_outside_record_scope_atomically() {
 }
 
 #[tokio::test]
-#[ignore = "requires a disposable tenant-write PostgreSQL database"]
+#[ignore = "requires a disposable holding-write PostgreSQL database"]
 async fn live_hr_rejects_update_after_source_outbox_history_is_broken() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migration");
+        .expect("holding write migration");
 
-    let holding_ref = format!("holding-hr-continuity-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-hr-continuity-{}", Uuid::new_v4());
     let employee = EmployeeRecord {
         id: Uuid::new_v4(),
         employee_ref: "EMP-CONTINUITY-001".into(),
@@ -372,7 +372,7 @@ async fn live_hr_rejects_update_after_source_outbox_history_is_broken() {
         last_command_id: Uuid::new_v4(),
         last_idempotency_key: "hr-continuity-employee-1".into(),
     };
-    let write = SqlxHrPersistence::new(write_pool.clone(), &holding_ref).expect("write store");
+    let write = SqlxHrPersistence::new(write_pool.clone(), &data_profile_key).expect("write store");
     write
         .save_employee(&employee, None)
         .await
@@ -381,16 +381,16 @@ async fn live_hr_rejects_update_after_source_outbox_history_is_broken() {
     // Simulate a damaged source stream. The source row still claims version 1,
     // but the event that makes that version replayable is gone.
     let mut tamper = write_pool.begin().await.expect("tamper transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tamper)
         .await
         .expect("holding scope");
     sqlx::query(
-        "DELETE FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type=$2 AND aggregate_id=$3",
+        "DELETE FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type=$2 AND aggregate_id=$3",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind("hr_employee")
     .bind(employee.id)
     .execute(&mut *tamper)
@@ -410,35 +410,35 @@ async fn live_hr_rejects_update_after_source_outbox_history_is_broken() {
     assert!(error.to_string().contains("not contiguous"));
 
     let mut verify = write_pool.begin().await.expect("verification transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *verify)
         .await
         .expect("verification scope");
     let source_version: i64 = sqlx::query_scalar(
-        "SELECT version FROM erpx_tenant.hr_employee_records
-         WHERE holding_ref=$1 AND employee_id=$2",
+        "SELECT version FROM erpx_holding.hr_employee_records
+         WHERE data_profile_key=$1 AND employee_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(employee.id)
     .fetch_one(&mut *verify)
     .await
     .expect("source row remains");
     let outbox_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type=$2 AND aggregate_id=$3",
+        "SELECT COUNT(*) FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type=$2 AND aggregate_id=$3",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind("hr_employee")
     .bind(employee.id)
     .fetch_one(&mut *verify)
     .await
     .expect("outbox count");
     let rejected_idempotency_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM erpx_tenant.hr_command_idempotency
-         WHERE holding_ref=$1 AND idempotency_key=$2",
+        "SELECT COUNT(*) FROM erpx_holding.hr_command_idempotency
+         WHERE data_profile_key=$1 AND idempotency_key=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(&update.last_idempotency_key)
     .fetch_one(&mut *verify)
     .await

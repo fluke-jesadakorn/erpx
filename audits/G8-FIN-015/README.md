@@ -6,7 +6,7 @@ The replaceable Finance banking read model now has a bounded keyset page API:
 
 - `FinanceBankingReadCursor` validates an allow-listed aggregate type and
   non-nil aggregate ID.
-- `SqlxFinanceBankingStore::list_read_rows` reads only the routed tenant-read
+- `SqlxFinanceBankingStore::list_read_rows` reads only the routed holding-read
   database, orders by `(aggregate_type, aggregate_id)`, uses an exclusive
   continuation cursor, and limits each page to 100 rows.
 - Holding, company, and branch scope predicates are applied in SQL before
@@ -18,7 +18,7 @@ The replaceable Finance banking read model now has a bounded keyset page API:
   scope boundary. `ListFinanceBankingReadRows` adds optional aggregate/company
   filters, bounded page size, opaque cursor transport, customer-scope checks,
   Finance role authorization, and customer-visible audit events.
-- Platform Operations now implements the already-declared `GetTenant` RPC with
+- Platform Operations now implements the already-declared `GetHolding` RPC with
   safe registry/readiness metadata and platform audit attribution. Database
   keys, storage namespaces, credential references, and backup references do
   not cross the transport.
@@ -82,7 +82,7 @@ dropped; a catalog query confirmed no matching databases remained.
   records actor, customer, purpose, action, and correlation for every read.
 - Cursors contain only an allow-listed aggregate type and UUID, encoded as an
   opaque bounded transport value.
-- Platform tenant detail returns only readiness state strings and registry
+- Platform holding detail returns only readiness state strings and registry
   metadata; credentials and physical keys remain server-side.
 
 ## Unfinished work

@@ -61,7 +61,7 @@ impl SourceHighWatermarkPort for OperationsSourceHighWatermarkReader {
         let position: i64 = sqlx::query_scalar(
             "SELECT COALESCE(MAX(global_sequence), 0)
              FROM erpx_cqrs_write.outbox_events
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id()
+             WHERE holding_id=erpx_cqrs_write.current_holding_id()
                AND context_name=$1",
         )
         .bind(CONTEXT_NAME)
@@ -78,8 +78,8 @@ impl SourceHighWatermarkPort for OperationsSourceHighWatermarkReader {
 
 impl OperationsSourceAdapter {
     /// The legacy raw handle is accepted only for composition compatibility;
-    /// every source receipt/checkpoint query uses the verified tenant-bound
-    /// write capability and therefore fails closed without an exact tenant.
+    /// every source receipt/checkpoint query uses the verified holding-bound
+    /// write capability and therefore fails closed without an exact holding.
     pub fn new(write: WritePool, _pool: PgPool) -> Self {
         Self {
             store: CommandStore::new(write.clone()),
@@ -94,7 +94,7 @@ impl OperationsSourceAdapter {
         partition: &str,
     ) -> Result<Option<SourceCheckpoint>, PortError> {
         let mut transaction = self.pool.begin().await.map_err(map_store_error)?;
-        let row = sqlx::query("SELECT source_sequence,source_event_id,source_occurred_at,updated_at FROM erpx_operations_write.source_checkpoint_authority WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND source_database=$1 AND source_key=$2 AND source_partition=$3")
+        let row = sqlx::query("SELECT source_sequence,source_event_id,source_occurred_at,updated_at FROM erpx_operations_write.source_checkpoint_authority WHERE holding_id=erpx_cqrs_write.current_holding_id() AND source_database=$1 AND source_key=$2 AND source_partition=$3")
             .bind(database.as_str()).bind(source_key).bind(partition)
             .fetch_optional(&mut *transaction).await.map_err(|_| PortError::Unavailable)?;
         transaction
@@ -131,7 +131,7 @@ impl OperationsSourceAdapter {
         identity: &SourceIdentity,
     ) -> Result<Option<StoredSourceCommit>, PortError> {
         let mut transaction = self.pool.begin().await.map_err(map_store_error)?;
-        let row = sqlx::query("SELECT source_fingerprint,disposition,exception_id,applied_at FROM erpx_operations_write.source_receipt_authority WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND source_event_id=$1")
+        let row = sqlx::query("SELECT source_fingerprint,disposition,exception_id,applied_at FROM erpx_operations_write.source_receipt_authority WHERE holding_id=erpx_cqrs_write.current_holding_id() AND source_event_id=$1")
             .bind(identity.source.event_id().as_uuid()).fetch_optional(&mut *transaction).await.map_err(|_| PortError::Unavailable)?;
         transaction
             .commit()
@@ -249,7 +249,7 @@ impl OperationsSourceAdapter {
             .await
             .map_err(map_store_error)?;
         let fingerprint = source_hash(&request.identity)?;
-        let inserted = sqlx::query("INSERT INTO erpx_operations_write.source_receipt_authority (tenant_id,source_event_id,source_context,source_fingerprint,disposition,exception_id,applied_at) VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,'ignored',NULL,$4) ON CONFLICT (tenant_id,source_event_id) DO NOTHING")
+        let inserted = sqlx::query("INSERT INTO erpx_operations_write.source_receipt_authority (holding_id,source_event_id,source_context,source_fingerprint,disposition,exception_id,applied_at) VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,'ignored',NULL,$4) ON CONFLICT (holding_id,source_event_id) DO NOTHING")
             .bind(request.identity.source.event_id().as_uuid()).bind(source_context_name(request.identity.source.source_context())).bind(fingerprint.as_bytes().as_slice()).bind(request.evaluated_at)
             .execute(&mut *tx).await.map_err(|_| PortError::Unavailable)?;
         if inserted.rows_affected() != 1 {
@@ -264,7 +264,7 @@ impl OperationsSourceAdapter {
             .map_err(map_store_error)?;
         let command_id = CommandId::try_from_uuid(request.identity.source.event_id().as_uuid())
             .map_err(|_| PortError::Internal)?;
-        sqlx::query("INSERT INTO erpx_cqrs_write.audit_log (audit_id,context_name,partition_key,command_id,correlation_id,tenant_scope,actor,audit_context,action,aggregate_type,aggregate_id,aggregate_version,details,occurred_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,1,$12,$13)")
+        sqlx::query("INSERT INTO erpx_cqrs_write.audit_log (audit_id,context_name,partition_key,command_id,correlation_id,active_scope,actor,audit_context,action,aggregate_type,aggregate_id,aggregate_version,details,occurred_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,1,$12,$13)")
             .bind(deterministic_uuid(command_id.as_uuid(), b"operations-source-ignore-audit-v1")).bind(CONTEXT_NAME)
             .bind(&request.identity.position.partition).bind(command_id.as_uuid()).bind(request.identity.source.correlation_id().as_uuid())
             .bind(serde_json::to_value(request.identity.source.scope()).map_err(|_| PortError::Internal)?)
@@ -366,7 +366,7 @@ impl OperationsSourceAdapter {
             correlation_id: identity.source.correlation_id(),
             idempotency_key,
             request_hash,
-            tenant_scope: aggregate.scope().clone(),
+            active_scope: aggregate.scope().clone(),
             actor,
             audit_context: audit,
             aggregate_type: EXCEPTION_AGGREGATE_TYPE.into(),
@@ -418,7 +418,7 @@ impl AtomicCommandGuard for SourceAtomicGuard {
     ) -> Result<Option<u64>, CqrsSqlxError> {
         sqlx::query_scalar::<_, i64>(
             "SELECT aggregate_version FROM erpx_operations_write.exception_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND exception_id=$1 FOR UPDATE",
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND exception_id=$1 FOR UPDATE",
         )
         .bind(self.aggregate.id().as_uuid())
         .fetch_optional(&mut **tx)
@@ -443,14 +443,14 @@ impl AtomicCommandGuard for SourceAtomicGuard {
             ));
         }
         lock_and_validate_position(tx, &self.identity).await?;
-        let existing: Option<Vec<u8>> = sqlx::query_scalar("SELECT source_fingerprint FROM erpx_operations_write.source_receipt_authority WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND source_event_id=$1 FOR UPDATE")
+        let existing: Option<Vec<u8>> = sqlx::query_scalar("SELECT source_fingerprint FROM erpx_operations_write.source_receipt_authority WHERE holding_id=erpx_cqrs_write.current_holding_id() AND source_event_id=$1 FOR UPDATE")
             .bind(self.identity.source.event_id().as_uuid()).fetch_optional(&mut **tx).await?;
         if existing.is_some() {
             return Err(CqrsSqlxError::GuardRejected(
                 "Operations source receipt already exists",
             ));
         }
-        let collision: Option<Uuid> = sqlx::query_scalar("SELECT exception_id FROM erpx_operations_write.exception_authority WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND source_context=$1 AND source_event_id=$2 FOR UPDATE")
+        let collision: Option<Uuid> = sqlx::query_scalar("SELECT exception_id FROM erpx_operations_write.exception_authority WHERE holding_id=erpx_cqrs_write.current_holding_id() AND source_context=$1 AND source_event_id=$2 FOR UPDATE")
             .bind(source_context_name(self.identity.source.source_context())).bind(self.identity.source.event_id().as_uuid()).fetch_optional(&mut **tx).await?;
         if collision.is_some() {
             return Err(CqrsSqlxError::GuardRejected(
@@ -475,7 +475,7 @@ impl AtomicCommandGuard for SourceAtomicGuard {
         let fingerprint = source_hash(&self.identity).map_err(|_| {
             CqrsSqlxError::InvalidInput("Operations source identity cannot be hashed")
         })?;
-        sqlx::query("INSERT INTO erpx_operations_write.source_receipt_authority (tenant_id,source_event_id,source_context,source_fingerprint,disposition,exception_id,applied_at) VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,'detected',$4,$5)")
+        sqlx::query("INSERT INTO erpx_operations_write.source_receipt_authority (holding_id,source_event_id,source_context,source_fingerprint,disposition,exception_id,applied_at) VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,'detected',$4,$5)")
             .bind(source.event_id().as_uuid()).bind(source_context_name(source.source_context())).bind(fingerprint.as_bytes().as_slice()).bind(self.aggregate.id().as_uuid()).bind(self.evaluated_at)
             .execute(&mut **tx).await?;
         advance_checkpoint(tx, &self.identity, self.evaluated_at).await?;
@@ -491,7 +491,7 @@ async fn lock_and_validate_position(
         .position
         .validate(&identity.source)
         .map_err(|_| CqrsSqlxError::InvalidInput("invalid Operations source position"))?;
-    let current: Option<i64> = sqlx::query_scalar("SELECT source_sequence FROM erpx_operations_write.source_checkpoint_authority WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND source_database=$1 AND source_key=$2 AND source_partition=$3 FOR UPDATE")
+    let current: Option<i64> = sqlx::query_scalar("SELECT source_sequence FROM erpx_operations_write.source_checkpoint_authority WHERE holding_id=erpx_cqrs_write.current_holding_id() AND source_database=$1 AND source_key=$2 AND source_partition=$3 FOR UPDATE")
         .bind(identity.position.database.as_str()).bind(&identity.position.source_key).bind(&identity.position.partition).fetch_optional(&mut **tx).await?;
     if current.is_some_and(|value| {
         u64::try_from(value)
@@ -510,7 +510,7 @@ async fn advance_checkpoint(
     identity: &SourceIdentity,
     at: DateTime<Utc>,
 ) -> Result<(), CqrsSqlxError> {
-    let result = sqlx::query("INSERT INTO erpx_operations_write.source_checkpoint_authority (tenant_id,source_database,source_key,source_partition,source_sequence,source_event_id,source_occurred_at,updated_at) VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7) ON CONFLICT (tenant_id,source_database,source_key,source_partition) DO UPDATE SET source_sequence=EXCLUDED.source_sequence,source_event_id=EXCLUDED.source_event_id,source_occurred_at=EXCLUDED.source_occurred_at,updated_at=EXCLUDED.updated_at WHERE erpx_operations_write.source_checkpoint_authority.source_sequence < EXCLUDED.source_sequence")
+    let result = sqlx::query("INSERT INTO erpx_operations_write.source_checkpoint_authority (holding_id,source_database,source_key,source_partition,source_sequence,source_event_id,source_occurred_at,updated_at) VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7) ON CONFLICT (holding_id,source_database,source_key,source_partition) DO UPDATE SET source_sequence=EXCLUDED.source_sequence,source_event_id=EXCLUDED.source_event_id,source_occurred_at=EXCLUDED.source_occurred_at,updated_at=EXCLUDED.updated_at WHERE erpx_operations_write.source_checkpoint_authority.source_sequence < EXCLUDED.source_sequence")
         .bind(identity.position.database.as_str()).bind(&identity.position.source_key).bind(&identity.position.partition)
         .bind(i64::try_from(identity.position.sequence).map_err(|_| CqrsSqlxError::NumericRange)?).bind(identity.source.event_id().as_uuid()).bind(identity.source.occurred_at()).bind(at)
         .execute(&mut **tx).await?;

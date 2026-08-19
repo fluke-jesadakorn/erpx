@@ -6,7 +6,7 @@ use erpx_cqrs_sqlx::{
     CqrsSqlxError, ProjectionEvent, ProjectionFailure, Projector, ProjectorContext, ReadPool,
     ReadSideStore, SqlxProjectionWaiter, WaitError, WaiterConfig,
 };
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use erpx_organization::{
     OrganizationSharingAgreement, PortError, ReadProjection, SharingAgreementId,
     SharingAgreementList, SharingListFilter, SharingReadRepository, SharingStatus,
@@ -94,7 +94,7 @@ impl OrganizationSharingReadAdapter {
         let mut transaction = self.pool.begin().await.map_err(map_database)?;
         let status: Option<String> = sqlx::query_scalar(
             "SELECT status FROM erpx_cqrs_read.projection_generations
-             WHERE tenant_id=erpx_cqrs_read.current_tenant_id()
+             WHERE holding_id=erpx_cqrs_read.current_holding_id()
                AND projection_name=$1 AND status IN ('active','building')
              ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END LIMIT 1",
         )
@@ -161,18 +161,18 @@ impl Projector for OrganizationSharingProjector {
         let agreement = validate_projection_event(context, event)?;
         sqlx::query(
             "INSERT INTO erpx_organization_read.sharing_agreement_projection
-                (tenant_id,projection_name,generation,partition_key,sharing_agreement_id,
+                (holding_id,projection_name,generation,partition_key,sharing_agreement_id,
                  source_aggregate_version,source_global_sequence,source_scope,target_scope,
                  sharing_status,state,aggregate_updated_at,projected_at)
-             VALUES (erpx_cqrs_read.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,now())
-             ON CONFLICT (tenant_id,projection_name,generation,partition_key,sharing_agreement_id)
+             VALUES (erpx_cqrs_read.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,now())
+             ON CONFLICT (holding_id,projection_name,generation,partition_key,sharing_agreement_id)
              DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,
                            source_global_sequence=EXCLUDED.source_global_sequence,
                            source_scope=EXCLUDED.source_scope,target_scope=EXCLUDED.target_scope,
                            sharing_status=EXCLUDED.sharing_status,state=EXCLUDED.state,
                            aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now()
-             WHERE erpx_organization_read.sharing_agreement_projection.tenant_id
-                       = erpx_cqrs_read.current_tenant_id()
+             WHERE erpx_organization_read.sharing_agreement_projection.holding_id
+                       = erpx_cqrs_read.current_holding_id()
                AND erpx_organization_read.sharing_agreement_projection.source_aggregate_version
                        < EXCLUDED.source_aggregate_version",
         )
@@ -200,7 +200,7 @@ impl Projector for OrganizationSharingProjector {
     ) -> Result<(), ProjectionFailure> {
         sqlx::query(
             "DELETE FROM erpx_organization_read.sharing_agreement_projection
-             WHERE tenant_id=erpx_cqrs_read.current_tenant_id()
+             WHERE holding_id=erpx_cqrs_read.current_holding_id()
                AND projection_name=$1 AND generation=$2",
         )
         .bind(SHARING_PROJECTION_NAME)
@@ -216,7 +216,7 @@ impl Projector for OrganizationSharingProjector {
 impl SharingReadRepository for OrganizationSharingReadAdapter {
     async fn get_sharing_agreement(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         sharing_agreement_id: SharingAgreementId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<OrganizationSharingAgreement>>, PortError> {
@@ -230,11 +230,11 @@ impl SharingReadRepository for OrganizationSharingReadAdapter {
             "SELECT projection.state
              FROM erpx_organization_read.sharing_agreement_projection projection
              JOIN erpx_cqrs_read.projection_generations generation
-               ON generation.tenant_id=projection.tenant_id
+               ON generation.holding_id=projection.holding_id
               AND generation.projection_name=projection.projection_name
               AND generation.generation=projection.generation
               AND generation.status='active'
-             WHERE projection.tenant_id=erpx_cqrs_read.current_tenant_id()
+             WHERE projection.holding_id=erpx_cqrs_read.current_holding_id()
                AND projection.projection_name=$1 AND projection.partition_key=$2
                AND projection.sharing_agreement_id=$3",
         )
@@ -257,7 +257,7 @@ impl SharingReadRepository for OrganizationSharingReadAdapter {
 
     async fn list_sharing_agreements(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &SharingListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<SharingAgreementList>, PortError> {
@@ -275,11 +275,11 @@ impl SharingReadRepository for OrganizationSharingReadAdapter {
                 "SELECT projection.sharing_agreement_id,projection.state
                  FROM erpx_organization_read.sharing_agreement_projection projection
                  JOIN erpx_cqrs_read.projection_generations generation
-                   ON generation.tenant_id=projection.tenant_id
+                   ON generation.holding_id=projection.holding_id
                   AND generation.projection_name=projection.projection_name
                   AND generation.generation=projection.generation
                   AND generation.status='active'
-                 WHERE projection.tenant_id=erpx_cqrs_read.current_tenant_id()
+                 WHERE projection.holding_id=erpx_cqrs_read.current_holding_id()
                    AND projection.projection_name=$1
                    AND ($2::text IS NULL OR projection.sharing_status=$2)
                    AND ($3::uuid IS NULL OR projection.sharing_agreement_id < $3)
@@ -357,7 +357,7 @@ fn validate_projection_event(
         .map_err(projection_failure)?;
     if agreement.id().as_uuid() != event.aggregate_id.as_uuid()
         || agreement.version() != event.aggregate_version
-        || agreement.source_scope() != &event.tenant_scope
+        || agreement.source_scope() != &event.active_scope
         || event.partition != sharing_partition(agreement.id())
     {
         return Err(ProjectionFailure::new(

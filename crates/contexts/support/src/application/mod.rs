@@ -5,7 +5,7 @@ use erpx_cqrs::{
     QueryMetadata, QueryResult,
 };
 use erpx_integration_contracts::{customer, identity_access};
-use erpx_kernel::{Clock, CorrelationId, ErrorCategory, ErrorContext, KernelError, TenantScope};
+use erpx_kernel::{AuthorityScope, Clock, CorrelationId, ErrorCategory, ErrorContext, KernelError};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -64,7 +64,7 @@ pub struct RequestSupportSession {
     pub represented_principal: Option<identity_access::PrincipalRef>,
     pub mode: SupportMode,
     pub permissions: Vec<String>,
-    pub approved_scope: TenantScope,
+    pub approved_scope: AuthorityScope,
     pub module: String,
     pub reason: String,
     pub duration_seconds: i64,
@@ -406,13 +406,13 @@ where
     async fn preflight(
         &self,
         envelope: &CommandEnvelope<SupportCommand>,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         action: SupportAction,
         session_id: Option<SessionId>,
         device_ref: Option<&str>,
         capability_evidence: Option<&CapabilityEvidence>,
     ) -> Result<(), SupportApplicationError> {
-        if !envelope.tenant_scope.contains(scope) {
+        if !envelope.active_scope.contains(scope) {
             return Err(SupportApplicationError::ScopeOutsideAuthority);
         }
         self.entitlement
@@ -421,7 +421,7 @@ where
         self.authorization
             .authorize(AuthorizationRequest {
                 actor: &envelope.actor,
-                authority_scope: &envelope.tenant_scope,
+                authority_scope: &envelope.active_scope,
                 target_scope: scope,
                 action,
                 session_id,
@@ -516,7 +516,7 @@ where
                 SupportAggregate::Ticket(
                     SupportTicket::open(
                         v.ticket_id,
-                        envelope.tenant_scope.clone(),
+                        envelope.active_scope.clone(),
                         v.customer.clone(),
                         v.case_code.clone(),
                         v.category.clone(),
@@ -534,7 +534,7 @@ where
             SupportCommand::TransitionTicket(v) => {
                 let mut value = self
                     .write
-                    .load_ticket(&envelope.tenant_scope, v.ticket_id)
+                    .load_ticket(&envelope.active_scope, v.ticket_id)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?
                     .ok_or_else(|| port_to_cqrs(PortError::NotFound, correlation))?;
@@ -554,7 +554,7 @@ where
             SupportCommand::AddTicketMessage(v) => {
                 let mut value = self
                     .write
-                    .load_ticket(&envelope.tenant_scope, v.ticket_id)
+                    .load_ticket(&envelope.active_scope, v.ticket_id)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?
                     .ok_or_else(|| port_to_cqrs(PortError::NotFound, correlation))?;
@@ -588,7 +588,7 @@ where
                 }
                 let ticket = self
                     .write
-                    .load_ticket(&envelope.tenant_scope, v.ticket_id)
+                    .load_ticket(&envelope.active_scope, v.ticket_id)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?
                     .ok_or_else(|| port_to_cqrs(PortError::NotFound, correlation))?;
@@ -622,7 +622,7 @@ where
             SupportCommand::ApproveSession(v) => {
                 let mut value = self
                     .write
-                    .load_session(&envelope.tenant_scope, v.session_id)
+                    .load_session(&envelope.active_scope, v.session_id)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?
                     .ok_or_else(|| port_to_cqrs(PortError::NotFound, correlation))?;
@@ -642,7 +642,7 @@ where
             SupportCommand::RevokeSession(v) => {
                 let mut value = self
                     .write
-                    .load_session(&envelope.tenant_scope, v.session_id)
+                    .load_session(&envelope.active_scope, v.session_id)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?
                     .ok_or_else(|| port_to_cqrs(PortError::NotFound, correlation))?;
@@ -662,7 +662,7 @@ where
             SupportCommand::IssueCapability(v) => {
                 let session = self
                     .write
-                    .load_session(&envelope.tenant_scope, v.session_id)
+                    .load_session(&envelope.active_scope, v.session_id)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?
                     .ok_or_else(|| port_to_cqrs(PortError::NotFound, correlation))?;
@@ -690,7 +690,7 @@ where
             SupportCommand::RevokeCapability(v) => {
                 let mut value = self
                     .write
-                    .load_capability(&envelope.tenant_scope, v.capability_id)
+                    .load_capability(&envelope.active_scope, v.capability_id)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?
                     .ok_or_else(|| port_to_cqrs(PortError::NotFound, correlation))?;
@@ -713,7 +713,7 @@ where
                 SupportAggregate::Incident(
                     Incident::open(
                         v.incident_id,
-                        envelope.tenant_scope.clone(),
+                        envelope.active_scope.clone(),
                         v.incident_code.clone(),
                         v.severity.clone(),
                         actor_ref.clone(),
@@ -731,7 +731,7 @@ where
             SupportCommand::TransitionIncident(v) => {
                 let mut value = self
                     .write
-                    .load_incident(&envelope.tenant_scope, v.incident_id)
+                    .load_incident(&envelope.active_scope, v.incident_id)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?
                     .ok_or_else(|| port_to_cqrs(PortError::NotFound, correlation))?;
@@ -751,7 +751,7 @@ where
             SupportCommand::AddIncidentTimeline(v) => {
                 let mut value = self
                     .write
-                    .load_incident(&envelope.tenant_scope, v.incident_id)
+                    .load_incident(&envelope.active_scope, v.incident_id)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?
                     .ok_or_else(|| port_to_cqrs(PortError::NotFound, correlation))?;
@@ -771,7 +771,7 @@ where
             SupportCommand::BroadcastIncident(v) => {
                 let mut value = self
                     .write
-                    .load_incident(&envelope.tenant_scope, v.incident_id)
+                    .load_incident(&envelope.active_scope, v.incident_id)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?
                     .ok_or_else(|| port_to_cqrs(PortError::NotFound, correlation))?;
@@ -813,7 +813,7 @@ where
                 correlation_id: correlation,
                 causation_id: envelope.causation_id,
                 actor: envelope.actor,
-                authority_scope: envelope.tenant_scope,
+                authority_scope: envelope.active_scope,
                 audit: envelope.audit,
                 expected_version,
                 dependency,
@@ -880,14 +880,14 @@ where
         let correlation = envelope.correlation_id;
         let action = envelope.query.action();
         self.entitlement
-            .ensure_support_enabled(&envelope.tenant_scope, false)
+            .ensure_support_enabled(&envelope.active_scope, false)
             .await
             .map_err(|e| port_to_cqrs(e, correlation))?;
         self.authorization
             .authorize(AuthorizationRequest {
                 actor: &envelope.actor,
-                authority_scope: &envelope.tenant_scope,
-                target_scope: &envelope.tenant_scope,
+                authority_scope: &envelope.active_scope,
+                target_scope: &envelope.active_scope,
                 action,
                 session_id: None,
                 device_ref: None,
@@ -900,7 +900,7 @@ where
                 let p = self
                     .read
                     .get_ticket(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         v.ticket_id,
                         v.audience,
                         &envelope.consistency,
@@ -913,7 +913,7 @@ where
                 validate_page(v.filter.page_size).map_err(|e| to_cqrs(e, correlation))?;
                 let p = self
                     .read
-                    .list_tickets(&envelope.tenant_scope, &v.filter, &envelope.consistency)
+                    .list_tickets(&envelope.active_scope, &v.filter, &envelope.consistency)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?;
                 (SupportQueryResponse::Tickets(p.value), p.metadata)
@@ -921,7 +921,7 @@ where
             SupportQuery::GetIncident(v) => {
                 let p = self
                     .read
-                    .get_incident(&envelope.tenant_scope, v.incident_id, &envelope.consistency)
+                    .get_incident(&envelope.active_scope, v.incident_id, &envelope.consistency)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?;
                 (SupportQueryResponse::Incident(p.value), p.metadata)
@@ -930,7 +930,7 @@ where
                 validate_page(v.filter.page_size).map_err(|e| to_cqrs(e, correlation))?;
                 let p = self
                     .read
-                    .list_incidents(&envelope.tenant_scope, &v.filter, &envelope.consistency)
+                    .list_incidents(&envelope.active_scope, &v.filter, &envelope.consistency)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?;
                 (SupportQueryResponse::Incidents(p.value), p.metadata)
@@ -938,7 +938,7 @@ where
             SupportQuery::GetSession(v) => {
                 let p = self
                     .read
-                    .get_session(&envelope.tenant_scope, v.session_id, &envelope.consistency)
+                    .get_session(&envelope.active_scope, v.session_id, &envelope.consistency)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?;
                 (SupportQueryResponse::Session(p.value), p.metadata)
@@ -947,7 +947,7 @@ where
                 let p = self
                     .read
                     .get_capability(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         v.capability_id,
                         &envelope.consistency,
                     )

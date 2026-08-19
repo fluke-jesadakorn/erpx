@@ -1,13 +1,13 @@
-//! Tenant-routed SQLx persistence for the Marketing write boundary.
+//! Holding-routed SQLx persistence for the Marketing write boundary.
 //!
 //! Domain values are validated before serialization. Mutations run in a
 //! transaction with the routed holding reference installed through a local
-//! PostgreSQL setting, so the table policies remain the final tenant fence.
+//! PostgreSQL setting, so the table policies remain the final holding fence.
 //! Audience reads deliberately use the read pool and never become write
 //! authority.
 
 use chrono::{DateTime, Utc};
-use erpx_domain::contracts::TenantScope;
+use erpx_domain::contracts::AuthorityScope;
 use erpx_domain::marketing::{
     AudienceMembership, ConsentRecord, ConsentState, MarketingChannel, MarketingProfile,
     MarketingProfileErasure, MarketingProjectionReconciliation, MarketingPurpose,
@@ -55,7 +55,7 @@ pub struct MarketingProjectionApplication {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MarketingProjectionRebuildPreparation {
-    pub holding_ref: String,
+    pub data_profile_key: String,
     pub rows_cleared: u64,
     pub checkpoints_cleared: u64,
 }
@@ -141,7 +141,7 @@ pub struct MarketingJourneyConversionReadRow {
     pub journey_id: Uuid,
     pub run_id: Uuid,
     pub profile_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub revenue_minor: Option<i64>,
     pub currency: Option<String>,
     pub occurred_at: DateTime<Utc>,
@@ -163,7 +163,7 @@ pub struct MarketingJourneyOwnerNotificationReadRow {
     pub journey_id: Uuid,
     pub run_id: Uuid,
     pub profile_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub owner_ref: String,
     pub occurred_at: DateTime<Utc>,
     pub source_version: u64,
@@ -188,7 +188,7 @@ pub struct MarketingJourneyOwnerNotificationDeliveryReadRow {
     pub journey_id: Uuid,
     pub run_id: Uuid,
     pub profile_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub owner_ref: String,
     pub occurred_at: DateTime<Utc>,
     pub source_version: u64,
@@ -213,34 +213,34 @@ pub struct MarketingJourneyOwnerNotificationDeliveryReadPage {
 pub struct SqlxMarketingStore {
     write_pool: PgPool,
     read_pool: PgPool,
-    holding_ref: String,
+    data_profile_key: String,
 }
 
 impl SqlxMarketingStore {
     pub fn new(
         write_pool: PgPool,
         read_pool: PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_holding_ref(&holding_ref)?;
+        let data_profile_key = data_profile_key.into();
+        validate_data_profile_key(&data_profile_key)?;
         Ok(Self {
             write_pool,
             read_pool,
-            holding_ref,
+            data_profile_key,
         })
     }
 
     pub fn from_pools(
         write_pool: &PgPool,
         read_pool: &PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        Self::new(write_pool.clone(), read_pool.clone(), holding_ref)
+        Self::new(write_pool.clone(), read_pool.clone(), data_profile_key)
     }
 
-    pub fn holding_ref(&self) -> &str {
-        &self.holding_ref
+    pub fn data_profile_key(&self) -> &str {
+        &self.data_profile_key
     }
 
     /// Insert or update a profile under an optimistic aggregate version.
@@ -257,15 +257,15 @@ impl SqlxMarketingStore {
         let payload_hash = hash_value(&payload)?;
         let mut tx = self.begin_write().await?;
         let current_row = sqlx::query(
-            "SELECT scope, version, erased_at FROM erpx_tenant.marketing_profiles
-             WHERE profile_id = $1 AND holding_ref = $2 FOR UPDATE",
+            "SELECT scope, version, erased_at FROM erpx_holding.marketing_profiles
+             WHERE profile_id = $1 AND data_profile_key = $2 FOR UPDATE",
         )
         .bind(profile.id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?;
         if let Some(row) = current_row.as_ref() {
-            let stored_scope: TenantScope = serde_json::from_value(row.try_get("scope")?)?;
+            let stored_scope: AuthorityScope = serde_json::from_value(row.try_get("scope")?)?;
             validate_immutable_scope(&stored_scope, &profile.scope, "marketing profile")?;
             let erased_at: Option<DateTime<Utc>> = row.try_get("erased_at")?;
             if erased_at.is_some() {
@@ -286,11 +286,11 @@ impl SqlxMarketingStore {
             });
         }
         if sqlx::query_scalar::<_, Uuid>(
-            "SELECT profile_id FROM erpx_tenant.marketing_profiles
-             WHERE holding_ref = $1 AND dedupe_key = $2 AND profile_id <> $3
+            "SELECT profile_id FROM erpx_holding.marketing_profiles
+             WHERE data_profile_key = $1 AND dedupe_key = $2 AND profile_id <> $3
              FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(&profile.dedupe_key)
         .bind(profile.id)
         .fetch_optional(&mut *tx)
@@ -306,12 +306,12 @@ impl SqlxMarketingStore {
         })?;
         if current.is_some() {
             sqlx::query(
-                "UPDATE erpx_tenant.marketing_profiles
+                "UPDATE erpx_holding.marketing_profiles
                  SET scope = $2, external_ref = $3, dedupe_key = $4, email = $5,
                      phone = $6, locale = $7, attributes = $8, payload = $9,
                      payload_hash = $10, version = $11, updated_at = $12,
                      erased_at = NULL, erasure_reason = NULL
-                 WHERE profile_id = $1 AND holding_ref = $13",
+                 WHERE profile_id = $1 AND data_profile_key = $13",
             )
             .bind(profile.id)
             .bind(serde_json::to_value(&profile.scope)?)
@@ -325,19 +325,19 @@ impl SqlxMarketingStore {
             .bind(payload_hash)
             .bind(as_i64(version, "marketing profile version")?)
             .bind(profile.updated_at)
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .execute(&mut *tx)
             .await?;
         } else {
             sqlx::query(
-                "INSERT INTO erpx_tenant.marketing_profiles
-                    (profile_id, holding_ref, scope, external_ref, dedupe_key, email,
+                "INSERT INTO erpx_holding.marketing_profiles
+                    (profile_id, data_profile_key, scope, external_ref, dedupe_key, email,
                      phone, locale, attributes, payload, payload_hash, version,
                      created_at, updated_at)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
             )
             .bind(profile.id)
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(serde_json::to_value(&profile.scope)?)
             .bind(&profile.external_ref)
             .bind(&profile.dedupe_key)
@@ -355,7 +355,7 @@ impl SqlxMarketingStore {
         }
         write_marketing_source_event(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             "marketing_profile",
             profile.id,
             version,
@@ -389,7 +389,7 @@ impl SqlxMarketingStore {
         let mut tx = self.begin_write().await?;
         if let Some(receipt) = reserve_idempotency(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             "erase_profile",
             idempotency_key,
             request_hash,
@@ -402,18 +402,18 @@ impl SqlxMarketingStore {
         }
         let row = sqlx::query(
             "SELECT scope, version, erased_at
-               FROM erpx_tenant.marketing_profiles
-              WHERE profile_id=$1 AND holding_ref=$2 FOR UPDATE",
+               FROM erpx_holding.marketing_profiles
+              WHERE profile_id=$1 AND data_profile_key=$2 FOR UPDATE",
         )
         .bind(erasure.profile_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(PersistenceError::NotFound {
             entity: "marketing profile",
             id: erasure.profile_id,
         })?;
-        let stored_scope: TenantScope = serde_json::from_value(row.try_get("scope")?)?;
+        let stored_scope: AuthorityScope = serde_json::from_value(row.try_get("scope")?)?;
         if stored_scope != erasure.scope {
             return Err(PersistenceError::InvalidData(
                 "marketing profile erasure scope does not match source profile".into(),
@@ -436,15 +436,15 @@ impl SqlxMarketingStore {
         let redacted_payload = serde_json::to_value(erasure.redacted_projection())?;
         let redacted_payload_hash = hash_value(&redacted_payload)?;
         sqlx::query(
-            "UPDATE erpx_tenant.marketing_profiles
+            "UPDATE erpx_holding.marketing_profiles
                 SET external_ref=$3, dedupe_key=$4, email=NULL, phone=NULL,
                     locale='und', attributes='{}'::jsonb, payload=$5,
                     payload_hash=$6, version=$7, updated_at=$8,
                     erased_at=$8, erasure_reason=$9
-              WHERE profile_id=$1 AND holding_ref=$2",
+              WHERE profile_id=$1 AND data_profile_key=$2",
         )
         .bind(erasure.profile_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(&redacted_external_ref)
         .bind(&redacted_dedupe_key)
         .bind(&redacted_payload)
@@ -456,7 +456,7 @@ impl SqlxMarketingStore {
         .await?;
         write_marketing_source_event(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             "marketing_profile",
             erasure.profile_id,
             version,
@@ -476,14 +476,14 @@ impl SqlxMarketingStore {
         };
         let suppression_payload = serde_json::to_value(&suppression)?;
         sqlx::query(
-            "INSERT INTO erpx_tenant.marketing_suppressions
-                (suppression_id, profile_id, holding_ref, scope, reason, source,
+            "INSERT INTO erpx_holding.marketing_suppressions
+                (suppression_id, profile_id, data_profile_key, scope, reason, source,
                  created_at, expires_at, payload, payload_hash, version)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,1)",
         )
         .bind(suppression.id)
         .bind(suppression.profile_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(serde_json::to_value(&suppression.scope)?)
         .bind(&suppression.reason)
         .bind(&suppression.source)
@@ -495,7 +495,7 @@ impl SqlxMarketingStore {
         .await?;
         write_marketing_source_event(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             "marketing_suppression",
             suppression.id,
             1,
@@ -507,17 +507,17 @@ impl SqlxMarketingStore {
         // transaction. The event identity and audit metadata remain, while
         // every replayable payload becomes the contact-free tombstone.
         sqlx::query(
-            "UPDATE erpx_tenant.outbox_events
+            "UPDATE erpx_holding.outbox_events
                 SET payload=jsonb_build_object(
                     'aggregate_type', aggregate_type,
                     'aggregate', $3::jsonb,
                     'version', aggregate_version,
                     'event_type', event_type,
                     'privacy_redacted', true)
-              WHERE holding_ref=$1 AND aggregate_type='marketing_profile'
+              WHERE data_profile_key=$1 AND aggregate_type='marketing_profile'
                 AND aggregate_id=$2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(erasure.profile_id)
         .bind(&payload)
         .execute(&mut *tx)
@@ -527,7 +527,7 @@ impl SqlxMarketingStore {
             version: Some(version),
             replayed: false,
         };
-        complete_idempotency(&mut tx, &self.holding_ref, idempotency_key, &receipt).await?;
+        complete_idempotency(&mut tx, &self.data_profile_key, idempotency_key, &receipt).await?;
         tx.commit().await?;
         Ok(receipt)
     }
@@ -568,14 +568,14 @@ impl SqlxMarketingStore {
         let mut tx = self.begin_write().await?;
         ensure_profile_scope(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             consent.profile_id,
             &consent.scope,
         )
         .await?;
         if let Some(receipt) = reserve_idempotency(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             operation,
             idempotency_key,
             request_hash,
@@ -587,11 +587,11 @@ impl SqlxMarketingStore {
             return Ok(receipt);
         }
         if sqlx::query_scalar::<_, Uuid>(
-            "SELECT consent_id FROM erpx_tenant.marketing_consents
-             WHERE consent_id = $1 AND holding_ref = $2",
+            "SELECT consent_id FROM erpx_holding.marketing_consents
+             WHERE consent_id = $1 AND data_profile_key = $2",
         )
         .bind(consent.id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         .is_some()
@@ -601,15 +601,15 @@ impl SqlxMarketingStore {
             ));
         }
         sqlx::query(
-            "INSERT INTO erpx_tenant.marketing_consents
-                (consent_id, profile_id, holding_ref, scope, purpose, channel, state,
+            "INSERT INTO erpx_holding.marketing_consents
+                (consent_id, profile_id, data_profile_key, scope, purpose, channel, state,
                  source, jurisdiction, policy_version, proof_ref, recorded_at,
                  expires_at, payload)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
         )
         .bind(consent.id)
         .bind(consent.profile_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(serde_json::to_value(&consent.scope)?)
         .bind(purpose_text(consent.purpose))
         .bind(channel_text(consent.channel))
@@ -628,10 +628,10 @@ impl SqlxMarketingStore {
             version: None,
             replayed: false,
         };
-        complete_idempotency(&mut tx, &self.holding_ref, idempotency_key, &receipt).await?;
+        complete_idempotency(&mut tx, &self.data_profile_key, idempotency_key, &receipt).await?;
         write_marketing_source_event(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             "marketing_consent",
             consent.id,
             1,
@@ -656,14 +656,14 @@ impl SqlxMarketingStore {
         let mut tx = self.begin_write().await?;
         ensure_profile_scope(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             suppression.profile_id,
             &suppression.scope,
         )
         .await?;
         if let Some(receipt) = reserve_idempotency(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             "upsert_suppression",
             idempotency_key,
             request_hash,
@@ -675,8 +675,8 @@ impl SqlxMarketingStore {
             return Ok(receipt);
         }
         let current = sqlx::query(
-            "SELECT profile_id, holding_ref, scope, version
-             FROM erpx_tenant.marketing_suppressions
+            "SELECT profile_id, data_profile_key, scope, version
+             FROM erpx_holding.marketing_suppressions
              WHERE suppression_id = $1 FOR UPDATE",
         )
         .bind(suppression.id)
@@ -684,13 +684,15 @@ impl SqlxMarketingStore {
         .await?;
         let current_version = if let Some(row) = current {
             let profile_id: Uuid = row.try_get("profile_id")?;
-            let stored_holding_ref: String = row.try_get("holding_ref")?;
-            if profile_id != suppression.profile_id || stored_holding_ref != self.holding_ref {
+            let stored_data_profile_key: String = row.try_get("data_profile_key")?;
+            if profile_id != suppression.profile_id
+                || stored_data_profile_key != self.data_profile_key
+            {
                 return Err(PersistenceError::InvalidData(
                     "marketing suppression identity cannot be rebound".into(),
                 ));
             }
-            let stored_scope: TenantScope = serde_json::from_value(row.try_get("scope")?)?;
+            let stored_scope: AuthorityScope = serde_json::from_value(row.try_get("scope")?)?;
             validate_immutable_scope(&stored_scope, &suppression.scope, "marketing suppression")?;
             as_u64(row.try_get("version")?, "marketing suppression version")?
         } else {
@@ -701,14 +703,14 @@ impl SqlxMarketingStore {
         })?;
         if current_version == 0 {
             sqlx::query(
-                "INSERT INTO erpx_tenant.marketing_suppressions
-                    (suppression_id, profile_id, holding_ref, scope, reason, source,
+                "INSERT INTO erpx_holding.marketing_suppressions
+                    (suppression_id, profile_id, data_profile_key, scope, reason, source,
                      created_at, expires_at, payload, payload_hash, version)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
             )
             .bind(suppression.id)
             .bind(suppression.profile_id)
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(serde_json::to_value(&suppression.scope)?)
             .bind(&suppression.reason)
             .bind(&suppression.source)
@@ -721,11 +723,11 @@ impl SqlxMarketingStore {
             .await?;
         } else {
             sqlx::query(
-                "UPDATE erpx_tenant.marketing_suppressions
+                "UPDATE erpx_holding.marketing_suppressions
                  SET scope = $2, reason = $3, source = $4, created_at = $5,
                      expires_at = $6, payload = $7, payload_hash = $8,
                      version = $9, updated_at = now()
-                 WHERE suppression_id = $1 AND holding_ref = $10",
+                 WHERE suppression_id = $1 AND data_profile_key = $10",
             )
             .bind(suppression.id)
             .bind(serde_json::to_value(&suppression.scope)?)
@@ -736,7 +738,7 @@ impl SqlxMarketingStore {
             .bind(&payload)
             .bind(payload_hash)
             .bind(as_i64(version, "marketing suppression version")?)
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .execute(&mut *tx)
             .await?;
         }
@@ -745,10 +747,10 @@ impl SqlxMarketingStore {
             version: Some(version),
             replayed: false,
         };
-        complete_idempotency(&mut tx, &self.holding_ref, idempotency_key, &receipt).await?;
+        complete_idempotency(&mut tx, &self.data_profile_key, idempotency_key, &receipt).await?;
         write_marketing_source_event(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             "marketing_suppression",
             suppression.id,
             version,
@@ -773,7 +775,7 @@ impl SqlxMarketingStore {
         let mut tx = self.begin_write().await?;
         if let Some(receipt) = reserve_idempotency(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             "upsert_audience_membership",
             idempotency_key,
             request_hash,
@@ -786,11 +788,11 @@ impl SqlxMarketingStore {
         }
         let profile_rows = sqlx::query(
             "SELECT profile_id, scope
-             FROM erpx_tenant.marketing_profiles
-             WHERE holding_ref = $1 AND profile_id = ANY($2) AND erased_at IS NULL
+             FROM erpx_holding.marketing_profiles
+             WHERE data_profile_key = $1 AND profile_id = ANY($2) AND erased_at IS NULL
              FOR SHARE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(&membership.profile_ids)
         .fetch_all(&mut *tx)
         .await?;
@@ -800,7 +802,7 @@ impl SqlxMarketingStore {
             ));
         }
         for row in profile_rows {
-            let profile_scope: TenantScope = serde_json::from_value(row.try_get("scope")?)?;
+            let profile_scope: AuthorityScope = serde_json::from_value(row.try_get("scope")?)?;
             if !membership.scope.contains(&profile_scope) {
                 return Err(PersistenceError::InvalidData(
                     "audience membership profile is outside the audience scope".into(),
@@ -808,15 +810,15 @@ impl SqlxMarketingStore {
             }
         }
         let current = sqlx::query(
-            "SELECT scope, version FROM erpx_tenant.marketing_audiences
-             WHERE audience_id = $1 AND holding_ref = $2 FOR UPDATE",
+            "SELECT scope, version FROM erpx_holding.marketing_audiences
+             WHERE audience_id = $1 AND data_profile_key = $2 FOR UPDATE",
         )
         .bind(membership.audience_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?;
         let current_version = if let Some(row) = current {
-            let stored_scope: TenantScope = serde_json::from_value(row.try_get("scope")?)?;
+            let stored_scope: AuthorityScope = serde_json::from_value(row.try_get("scope")?)?;
             validate_immutable_scope(&stored_scope, &membership.scope, "marketing audience")?;
             as_u64(row.try_get("version")?, "marketing audience version")?
         } else {
@@ -826,22 +828,22 @@ impl SqlxMarketingStore {
             PersistenceError::InvalidData("marketing audience version overflow".into())
         })?;
         sqlx::query(
-            "DELETE FROM erpx_tenant.marketing_audience_memberships
-             WHERE audience_id = $1 AND holding_ref = $2",
+            "DELETE FROM erpx_holding.marketing_audience_memberships
+             WHERE audience_id = $1 AND data_profile_key = $2",
         )
         .bind(membership.audience_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .execute(&mut *tx)
         .await?;
         if current_version == 0 {
             sqlx::query(
-                "INSERT INTO erpx_tenant.marketing_audiences
-                    (audience_id, holding_ref, scope, materialized_at, profile_count,
+                "INSERT INTO erpx_holding.marketing_audiences
+                    (audience_id, data_profile_key, scope, materialized_at, profile_count,
                      membership_hash, version)
                  VALUES ($1, $2, $3, $4, $5, $6, $7)",
             )
             .bind(membership.audience_id)
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(serde_json::to_value(&membership.scope)?)
             .bind(membership.materialized_at)
             .bind(i64::try_from(membership.profile_ids.len()).map_err(|_| {
@@ -853,10 +855,10 @@ impl SqlxMarketingStore {
             .await?;
         } else {
             sqlx::query(
-                "UPDATE erpx_tenant.marketing_audiences
+                "UPDATE erpx_holding.marketing_audiences
                  SET scope = $2, materialized_at = $3, profile_count = $4,
                      membership_hash = $5, version = $6, updated_at = now()
-                 WHERE audience_id = $1 AND holding_ref = $7",
+                 WHERE audience_id = $1 AND data_profile_key = $7",
             )
             .bind(membership.audience_id)
             .bind(serde_json::to_value(&membership.scope)?)
@@ -866,19 +868,19 @@ impl SqlxMarketingStore {
             })?)
             .bind(&membership_hash)
             .bind(as_i64(version, "marketing audience version")?)
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .execute(&mut *tx)
             .await?;
         }
         for profile_id in &membership.profile_ids {
             sqlx::query(
-                "INSERT INTO erpx_tenant.marketing_audience_memberships
-                    (audience_id, profile_id, holding_ref, membership_version, materialized_at)
+                "INSERT INTO erpx_holding.marketing_audience_memberships
+                    (audience_id, profile_id, data_profile_key, membership_version, materialized_at)
                  VALUES ($1, $2, $3, $4, $5)",
             )
             .bind(membership.audience_id)
             .bind(profile_id)
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(as_i64(version, "marketing audience version")?)
             .bind(membership.materialized_at)
             .execute(&mut *tx)
@@ -889,10 +891,10 @@ impl SqlxMarketingStore {
             version: Some(version),
             replayed: false,
         };
-        complete_idempotency(&mut tx, &self.holding_ref, idempotency_key, &receipt).await?;
+        complete_idempotency(&mut tx, &self.data_profile_key, idempotency_key, &receipt).await?;
         write_marketing_source_event(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             "marketing_audience",
             membership.audience_id,
             version,
@@ -904,7 +906,7 @@ impl SqlxMarketingStore {
         Ok(receipt)
     }
 
-    /// Read only from the tenant read database. The cursor is a UUID keyset,
+    /// Read only from the holding read database. The cursor is a UUID keyset,
     /// so callers cannot request an unbounded audience page.
     pub async fn list_audience_membership(
         &self,
@@ -921,11 +923,11 @@ impl SqlxMarketingStore {
         let mut tx = self.begin_read().await?;
         let audience = sqlx::query(
             "SELECT materialized_at, source_version
-             FROM erpx_tenant.marketing_audiences
-             WHERE audience_id = $1 AND holding_ref = $2",
+             FROM erpx_holding.marketing_audiences
+             WHERE audience_id = $1 AND data_profile_key = $2",
         )
         .bind(audience_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(PersistenceError::NotFound {
@@ -939,13 +941,13 @@ impl SqlxMarketingStore {
         )?;
         let fetch_limit = i64::from(limit) + 1;
         let rows = sqlx::query(
-            "SELECT profile_id FROM erpx_tenant.marketing_audience_memberships
-             WHERE audience_id = $1 AND holding_ref = $2
+            "SELECT profile_id FROM erpx_holding.marketing_audience_memberships
+             WHERE audience_id = $1 AND data_profile_key = $2
                AND ($3::uuid IS NULL OR profile_id > $3)
              ORDER BY profile_id LIMIT $4",
         )
         .bind(audience_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(after_profile_id)
         .bind(fetch_limit)
         .fetch_all(&mut *tx)
@@ -985,16 +987,21 @@ impl SqlxMarketingStore {
             )));
         }
         let mut tx = self.begin_write().await?;
-        let page =
-            read_source_event_page_in_transaction(&mut tx, &self.holding_ref, cursor, page_size)
-                .await?;
+        let page = read_source_event_page_in_transaction(
+            &mut tx,
+            &self.data_profile_key,
+            cursor,
+            page_size,
+        )
+        .await?;
         tx.commit().await?;
         Ok(page)
     }
 
     pub async fn source_event_high_watermark(&self) -> Result<u64, PersistenceError> {
         let mut tx = self.begin_write().await?;
-        let count = source_event_high_watermark_in_transaction(&mut tx, &self.holding_ref).await?;
+        let count =
+            source_event_high_watermark_in_transaction(&mut tx, &self.data_profile_key).await?;
         tx.commit().await?;
         Ok(count)
     }
@@ -1016,11 +1023,12 @@ impl SqlxMarketingStore {
         }
 
         let mut source_tx = self.begin_write().await?;
-        sqlx::query("LOCK TABLE erpx_tenant.outbox_events IN SHARE MODE")
+        sqlx::query("LOCK TABLE erpx_holding.outbox_events IN SHARE MODE")
             .execute(&mut *source_tx)
             .await?;
         let actual_source_version =
-            source_event_high_watermark_in_transaction(&mut source_tx, &self.holding_ref).await?;
+            source_event_high_watermark_in_transaction(&mut source_tx, &self.data_profile_key)
+                .await?;
         if actual_source_version != expected_source_version {
             return Err(PersistenceError::InvalidData(
                 "Marketing source fence changed before replacement rebuild".into(),
@@ -1033,14 +1041,15 @@ impl SqlxMarketingStore {
         }
 
         let mut read_tx = self.begin_read().await?;
-        let preparation = clear_projection_in_transaction(&mut read_tx, &self.holding_ref).await?;
+        let preparation =
+            clear_projection_in_transaction(&mut read_tx, &self.data_profile_key).await?;
         let mut cursor = None;
         let mut pages_read = 0_u64;
         let mut events_replayed = 0_u64;
         loop {
             let page = read_source_event_page_in_transaction(
                 &mut source_tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 cursor.as_ref(),
                 page_size,
             )
@@ -1074,7 +1083,8 @@ impl SqlxMarketingStore {
             }
         }
         let final_source_version =
-            source_event_high_watermark_in_transaction(&mut source_tx, &self.holding_ref).await?;
+            source_event_high_watermark_in_transaction(&mut source_tx, &self.data_profile_key)
+                .await?;
         if final_source_version != expected_source_version {
             return Err(PersistenceError::InvalidData(
                 "Marketing source fence changed during replacement rebuild".into(),
@@ -1099,8 +1109,8 @@ impl SqlxMarketingStore {
         let mut source_tx = self.begin_write().await?;
         let source_rows = sqlx::query(
             "SELECT aggregate_type, aggregate_id, aggregate_version, event_type, payload
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1
                AND aggregate_type IN
                    ('marketing_profile', 'marketing_consent',
                     'marketing_suppression', 'marketing_audience',
@@ -1110,7 +1120,7 @@ impl SqlxMarketingStore {
                     'marketing_journey_owner_notification')
              ORDER BY aggregate_type, aggregate_id, aggregate_version, event_id",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_all(&mut *source_tx)
         .await?;
         source_tx.commit().await?;
@@ -1171,30 +1181,30 @@ impl SqlxMarketingStore {
         let mut read_tx = self.begin_read().await?;
         let read_rows = sqlx::query(
             "SELECT aggregate_type, aggregate_id, source_version, NULL::jsonb AS payload
-             FROM erpx_tenant.marketing_projection_checkpoints
-             WHERE holding_ref=$1
+             FROM erpx_holding.marketing_projection_checkpoints
+             WHERE data_profile_key=$1
              UNION ALL
              SELECT 'marketing_crm_accepted_lead_handoff', handoff_id, source_version, payload
-             FROM erpx_tenant.crm_accepted_lead_handoff_read_rows
-             WHERE holding_ref=$1
+             FROM erpx_holding.crm_accepted_lead_handoff_read_rows
+             WHERE data_profile_key=$1
              UNION ALL
              SELECT 'marketing_crm_opportunity', opportunity_id, source_version, payload
-             FROM erpx_tenant.crm_opportunity_read_rows
-             WHERE holding_ref=$1
+             FROM erpx_holding.crm_opportunity_read_rows
+             WHERE data_profile_key=$1
              UNION ALL
              SELECT 'marketing_crm_attribution', record_id, source_version, payload
-             FROM erpx_tenant.crm_attribution_read_rows
-             WHERE holding_ref=$1
+             FROM erpx_holding.crm_attribution_read_rows
+             WHERE data_profile_key=$1
              UNION ALL
              SELECT 'marketing_journey_conversion', conversion_ref, source_version, payload
-             FROM erpx_tenant.marketing_journey_conversion_read_rows
-             WHERE holding_ref=$1
+             FROM erpx_holding.marketing_journey_conversion_read_rows
+             WHERE data_profile_key=$1
              UNION ALL
              SELECT 'marketing_journey_owner_notification', notification_ref, source_version, payload
-             FROM erpx_tenant.marketing_journey_owner_notification_read_rows
-             WHERE holding_ref=$1",
+             FROM erpx_holding.marketing_journey_owner_notification_read_rows
+             WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_all(&mut *read_tx)
         .await?;
         read_tx.commit().await?;
@@ -1266,7 +1276,7 @@ impl SqlxMarketingStore {
     pub async fn read_crm_page(
         &self,
         aggregate_type: &str,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         after_id: Option<Uuid>,
         page_size: u32,
     ) -> Result<CrmReadPage, PersistenceError> {
@@ -1284,11 +1294,11 @@ impl SqlxMarketingStore {
             ));
         }
         let (company_id, branch_id) = match scope {
-            TenantScope::Holding { holding_id } => {
+            AuthorityScope::Holding { holding_id } => {
                 validate_uuid(*holding_id, "CRM holding scope")?;
                 (None, None)
             }
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => {
@@ -1296,7 +1306,7 @@ impl SqlxMarketingStore {
                 validate_uuid(*company_id, "CRM company scope")?;
                 (Some(*company_id), None)
             }
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -1306,7 +1316,7 @@ impl SqlxMarketingStore {
                 validate_uuid(*branch_id, "CRM branch scope")?;
                 (Some(*company_id), Some(*branch_id))
             }
-            TenantScope::Platform | TenantScope::Subtree { .. } => {
+            AuthorityScope::Platform | AuthorityScope::Subtree { .. } => {
                 return Err(PersistenceError::InvalidData(
                     "CRM reads require an explicit holding, company, or branch scope".into(),
                 ));
@@ -1317,8 +1327,8 @@ impl SqlxMarketingStore {
             CRM_HANDOFF_AGGREGATE => {
                 "SELECT handoff_id AS aggregate_id, holding_id, company_id, branch_id,
                         source_version, payload
-                 FROM erpx_tenant.crm_accepted_lead_handoff_read_rows
-                 WHERE holding_ref=$1
+                 FROM erpx_holding.crm_accepted_lead_handoff_read_rows
+                 WHERE data_profile_key=$1
                    AND ($2::uuid IS NULL OR company_id=$2)
                    AND ($3::uuid IS NULL OR branch_id=$3)
                    AND ($4::uuid IS NULL OR handoff_id>$4)
@@ -1328,8 +1338,8 @@ impl SqlxMarketingStore {
             CRM_OPPORTUNITY_AGGREGATE => {
                 "SELECT opportunity_id AS aggregate_id, holding_id, company_id, branch_id,
                         source_version, payload
-                 FROM erpx_tenant.crm_opportunity_read_rows
-                 WHERE holding_ref=$1
+                 FROM erpx_holding.crm_opportunity_read_rows
+                 WHERE data_profile_key=$1
                    AND ($2::uuid IS NULL OR company_id=$2)
                    AND ($3::uuid IS NULL OR branch_id=$3)
                    AND ($4::uuid IS NULL OR opportunity_id>$4)
@@ -1339,10 +1349,10 @@ impl SqlxMarketingStore {
             CRM_ATTRIBUTION_AGGREGATE => {
                 "SELECT a.record_id AS aggregate_id, o.holding_id, o.company_id, o.branch_id,
                         a.source_version, a.payload
-                 FROM erpx_tenant.crm_attribution_read_rows a
-                 INNER JOIN erpx_tenant.crm_opportunity_read_rows o
-                   ON o.holding_ref=a.holding_ref AND o.opportunity_id=a.opportunity_id
-                 WHERE a.holding_ref=$1
+                 FROM erpx_holding.crm_attribution_read_rows a
+                 INNER JOIN erpx_holding.crm_opportunity_read_rows o
+                   ON o.data_profile_key=a.data_profile_key AND o.opportunity_id=a.opportunity_id
+                 WHERE a.data_profile_key=$1
                    AND ($2::uuid IS NULL OR o.company_id=$2)
                    AND ($3::uuid IS NULL OR o.branch_id=$3)
                    AND ($4::uuid IS NULL OR a.record_id>$4)
@@ -1353,7 +1363,7 @@ impl SqlxMarketingStore {
         };
         let mut tx = self.begin_read().await?;
         let rows = sqlx::query(query)
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(company_id)
             .bind(branch_id)
             .bind(after_id)
@@ -1399,17 +1409,17 @@ impl SqlxMarketingStore {
     /// opened; narrower scope filtering is applied to the typed payloads.
     pub async fn read_journey_conversion_page(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         after_ref: Option<Uuid>,
         page_size: u32,
     ) -> Result<MarketingJourneyConversionReadPage, PersistenceError> {
-        validate_tenant_scope(scope)?;
+        validate_holding_scope(scope)?;
         let holding_id = match scope {
-            TenantScope::Holding { holding_id }
-            | TenantScope::Company { holding_id, .. }
-            | TenantScope::Branch { holding_id, .. }
-            | TenantScope::Subtree { holding_id, .. } => *holding_id,
-            TenantScope::Platform => {
+            AuthorityScope::Holding { holding_id }
+            | AuthorityScope::Company { holding_id, .. }
+            | AuthorityScope::Branch { holding_id, .. }
+            | AuthorityScope::Subtree { holding_id, .. } => *holding_id,
+            AuthorityScope::Platform => {
                 return Err(PersistenceError::InvalidData(
                     "Marketing conversion reads cannot use platform scope".into(),
                 ));
@@ -1425,12 +1435,12 @@ impl SqlxMarketingStore {
             "SELECT conversion_ref, journey_id, run_id, profile_id, scope,
                     revenue_minor, currency, occurred_at, source_version,
                     source_event_id, payload
-               FROM erpx_tenant.marketing_journey_conversion_read_rows
-              WHERE holding_ref=$1 AND ($2::uuid IS NULL OR conversion_ref>$2)
+               FROM erpx_holding.marketing_journey_conversion_read_rows
+              WHERE data_profile_key=$1 AND ($2::uuid IS NULL OR conversion_ref>$2)
               ORDER BY conversion_ref
               LIMIT $3",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(after_ref)
         .bind(i64::from(page_size) + 1)
         .fetch_all(&mut *tx)
@@ -1438,14 +1448,14 @@ impl SqlxMarketingStore {
         tx.commit().await?;
         let mut visible = Vec::with_capacity(rows.len());
         for row in rows {
-            let row_scope: TenantScope = serde_json::from_value(row.try_get("scope")?)?;
+            let row_scope: AuthorityScope = serde_json::from_value(row.try_get("scope")?)?;
             if row_scope.contains(scope) || scope.contains(&row_scope) {
                 let row_holding = match &row_scope {
-                    TenantScope::Holding { holding_id }
-                    | TenantScope::Company { holding_id, .. }
-                    | TenantScope::Branch { holding_id, .. }
-                    | TenantScope::Subtree { holding_id, .. } => *holding_id,
-                    TenantScope::Platform => Uuid::nil(),
+                    AuthorityScope::Holding { holding_id }
+                    | AuthorityScope::Company { holding_id, .. }
+                    | AuthorityScope::Branch { holding_id, .. }
+                    | AuthorityScope::Subtree { holding_id, .. } => *holding_id,
+                    AuthorityScope::Platform => Uuid::nil(),
                 };
                 if row_holding != holding_id {
                     continue;
@@ -1489,17 +1499,17 @@ impl SqlxMarketingStore {
     /// caller cannot supply a delivery id to cross a holding boundary.
     pub async fn read_journey_owner_notification_delivery_page(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         after_ref: Option<Uuid>,
         page_size: u32,
     ) -> Result<MarketingJourneyOwnerNotificationDeliveryReadPage, PersistenceError> {
-        validate_tenant_scope(scope)?;
+        validate_holding_scope(scope)?;
         let holding_id = match scope {
-            TenantScope::Holding { holding_id }
-            | TenantScope::Company { holding_id, .. }
-            | TenantScope::Branch { holding_id, .. }
-            | TenantScope::Subtree { holding_id, .. } => *holding_id,
-            TenantScope::Platform => {
+            AuthorityScope::Holding { holding_id }
+            | AuthorityScope::Company { holding_id, .. }
+            | AuthorityScope::Branch { holding_id, .. }
+            | AuthorityScope::Subtree { holding_id, .. } => *holding_id,
+            AuthorityScope::Platform => {
                 return Err(PersistenceError::InvalidData(
                     "Marketing owner notification reads cannot use platform scope".into(),
                 ));
@@ -1520,16 +1530,16 @@ impl SqlxMarketingStore {
                     d.next_attempt_at AS delivery_next_attempt_at,
                     d.version AS delivery_version,
                     d.payload AS delivery_payload
-               FROM erpx_tenant.marketing_journey_owner_notification_read_rows AS n
-               LEFT JOIN erpx_tenant.marketing_delivery_read_rows AS d
-                 ON d.holding_ref=n.holding_ref
+               FROM erpx_holding.marketing_journey_owner_notification_read_rows AS n
+               LEFT JOIN erpx_holding.marketing_delivery_read_rows AS d
+                 ON d.data_profile_key=n.data_profile_key
                 AND d.payload->>'logical_message_ref' =
                     concat('journey-owner-notification:', n.notification_ref::text)
-              WHERE n.holding_ref=$1 AND ($2::uuid IS NULL OR n.notification_ref>$2)
+              WHERE n.data_profile_key=$1 AND ($2::uuid IS NULL OR n.notification_ref>$2)
               ORDER BY n.notification_ref
               LIMIT $3",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(after_ref)
         .bind(i64::from(page_size) + 1)
         .fetch_all(&mut *tx)
@@ -1538,16 +1548,16 @@ impl SqlxMarketingStore {
 
         let mut visible = Vec::with_capacity(rows.len());
         for row in rows {
-            let row_scope: TenantScope = serde_json::from_value(row.try_get("scope")?)?;
+            let row_scope: AuthorityScope = serde_json::from_value(row.try_get("scope")?)?;
             if !(row_scope.contains(scope) || scope.contains(&row_scope)) {
                 continue;
             }
             let row_holding = match &row_scope {
-                TenantScope::Holding { holding_id }
-                | TenantScope::Company { holding_id, .. }
-                | TenantScope::Branch { holding_id, .. }
-                | TenantScope::Subtree { holding_id, .. } => *holding_id,
-                TenantScope::Platform => Uuid::nil(),
+                AuthorityScope::Holding { holding_id }
+                | AuthorityScope::Company { holding_id, .. }
+                | AuthorityScope::Branch { holding_id, .. }
+                | AuthorityScope::Subtree { holding_id, .. } => *holding_id,
+                AuthorityScope::Platform => Uuid::nil(),
             };
             if row_holding != holding_id {
                 continue;
@@ -1695,10 +1705,10 @@ impl SqlxMarketingStore {
         })?;
         let current = sqlx::query(
             "SELECT source_version, last_event_id
-             FROM erpx_tenant.marketing_projection_checkpoints
-             WHERE holding_ref=$1 AND aggregate_type=$2 AND aggregate_id=$3 FOR UPDATE",
+             FROM erpx_holding.marketing_projection_checkpoints
+             WHERE data_profile_key=$1 AND aggregate_type=$2 AND aggregate_id=$3 FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(aggregate_type)
         .bind(aggregate_id)
         .fetch_optional(&mut *tx)
@@ -1754,15 +1764,15 @@ impl SqlxMarketingStore {
                     }
                     erasure.validate().map_err(marketing_domain_error)?;
                     let source_scope: Option<Value> = sqlx::query_scalar(
-                        "SELECT scope FROM erpx_tenant.marketing_profiles
-                         WHERE profile_id=$1 AND holding_ref=$2",
+                        "SELECT scope FROM erpx_holding.marketing_profiles
+                         WHERE profile_id=$1 AND data_profile_key=$2",
                     )
                     .bind(aggregate_id)
-                    .bind(&self.holding_ref)
+                    .bind(&self.data_profile_key)
                     .fetch_optional(&mut *tx)
                     .await?;
                     if let Some(source_scope) = source_scope {
-                        let source_scope: TenantScope = serde_json::from_value(source_scope)?;
+                        let source_scope: AuthorityScope = serde_json::from_value(source_scope)?;
                         if erasure.scope != source_scope {
                             return Err(PersistenceError::InvalidData(
                                 "Marketing profile erasure scope does not match its read source"
@@ -1773,8 +1783,8 @@ impl SqlxMarketingStore {
                     let marker = format!("erased:{aggregate_id}");
                     let marker_hash = hex::encode(Sha256::digest(marker.as_bytes()));
                     sqlx::query(
-                        "INSERT INTO erpx_tenant.marketing_profiles
-                            (profile_id, holding_ref, scope, external_ref, dedupe_key,
+                        "INSERT INTO erpx_holding.marketing_profiles
+                            (profile_id, data_profile_key, scope, external_ref, dedupe_key,
                              email, phone, locale, attributes, source_version, updated_at,
                              erased_at, erasure_reason)
                          VALUES ($1,$2,$3,$4,$5,NULL,NULL,'und','{}'::jsonb,$6,$7,$7,$8)
@@ -1785,7 +1795,7 @@ impl SqlxMarketingStore {
                             erasure_reason=$8, projected_at=now()",
                     )
                     .bind(aggregate_id)
-                    .bind(&self.holding_ref)
+                    .bind(&self.data_profile_key)
                     .bind(serde_json::to_value(&erasure.scope)?)
                     .bind(&marker)
                     .bind(&marker_hash)
@@ -1807,14 +1817,14 @@ impl SqlxMarketingStore {
                         "marketing_profiles",
                         "profile_id",
                         aggregate_id,
-                        &self.holding_ref,
+                        &self.data_profile_key,
                         &profile.scope,
                         "marketing profile",
                     )
                     .await?;
                     sqlx::query(
-                        "INSERT INTO erpx_tenant.marketing_profiles
-                            (profile_id, holding_ref, scope, external_ref, dedupe_key,
+                        "INSERT INTO erpx_holding.marketing_profiles
+                            (profile_id, data_profile_key, scope, external_ref, dedupe_key,
                              email, phone, locale, attributes, source_version, updated_at,
                              erased_at, erasure_reason)
                          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NULL,NULL)
@@ -1825,7 +1835,7 @@ impl SqlxMarketingStore {
                             projected_at=now()",
                     )
                     .bind(profile.id)
-                    .bind(&self.holding_ref)
+                    .bind(&self.data_profile_key)
                     .bind(serde_json::to_value(&profile.scope)?)
                     .bind(&profile.external_ref)
                     .bind(&profile.dedupe_key)
@@ -1852,14 +1862,14 @@ impl SqlxMarketingStore {
                     "marketing_consents",
                     "consent_id",
                     aggregate_id,
-                    &self.holding_ref,
+                    &self.data_profile_key,
                     &consent.scope,
                     "marketing consent",
                 )
                 .await?;
                 sqlx::query(
-                    "INSERT INTO erpx_tenant.marketing_consents
-                        (consent_id, profile_id, holding_ref, scope, purpose, channel,
+                    "INSERT INTO erpx_holding.marketing_consents
+                        (consent_id, profile_id, data_profile_key, scope, purpose, channel,
                          state, source, jurisdiction, policy_version, proof_ref,
                          recorded_at, expires_at, source_version)
                      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
@@ -1869,7 +1879,7 @@ impl SqlxMarketingStore {
                 )
                 .bind(consent.id)
                 .bind(consent.profile_id)
-                .bind(&self.holding_ref)
+                .bind(&self.data_profile_key)
                 .bind(serde_json::to_value(&consent.scope)?)
                 .bind(purpose_text(consent.purpose))
                 .bind(channel_text(consent.channel))
@@ -1897,14 +1907,14 @@ impl SqlxMarketingStore {
                     "marketing_suppressions",
                     "suppression_id",
                     aggregate_id,
-                    &self.holding_ref,
+                    &self.data_profile_key,
                     &suppression.scope,
                     "marketing suppression",
                 )
                 .await?;
                 sqlx::query(
-                    "INSERT INTO erpx_tenant.marketing_suppressions
-                        (suppression_id, profile_id, holding_ref, scope, reason,
+                    "INSERT INTO erpx_holding.marketing_suppressions
+                        (suppression_id, profile_id, data_profile_key, scope, reason,
                          source, created_at, expires_at, source_version)
                      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
                      ON CONFLICT (suppression_id) DO UPDATE SET
@@ -1913,7 +1923,7 @@ impl SqlxMarketingStore {
                 )
                 .bind(suppression.id)
                 .bind(suppression.profile_id)
-                .bind(&self.holding_ref)
+                .bind(&self.data_profile_key)
                 .bind(serde_json::to_value(&suppression.scope)?)
                 .bind(&suppression.reason)
                 .bind(&suppression.source)
@@ -1936,14 +1946,14 @@ impl SqlxMarketingStore {
                     "marketing_audiences",
                     "audience_id",
                     aggregate_id,
-                    &self.holding_ref,
+                    &self.data_profile_key,
                     &membership.scope,
                     "marketing audience",
                 )
                 .await?;
                 sqlx::query(
-                    "INSERT INTO erpx_tenant.marketing_audiences
-                        (audience_id, holding_ref, scope, materialized_at,
+                    "INSERT INTO erpx_holding.marketing_audiences
+                        (audience_id, data_profile_key, scope, materialized_at,
                          profile_count, source_version)
                      VALUES ($1,$2,$3,$4,$5,$6)
                      ON CONFLICT (audience_id) DO UPDATE SET
@@ -1951,7 +1961,7 @@ impl SqlxMarketingStore {
                         source_version=$6, projected_at=now()",
                 )
                 .bind(membership.audience_id)
-                .bind(&self.holding_ref)
+                .bind(&self.data_profile_key)
                 .bind(serde_json::to_value(&membership.scope)?)
                 .bind(membership.materialized_at)
                 .bind(i64::try_from(membership.profile_ids.len()).map_err(|_| {
@@ -1961,23 +1971,23 @@ impl SqlxMarketingStore {
                 .execute(&mut *tx)
                 .await?;
                 sqlx::query(
-                    "DELETE FROM erpx_tenant.marketing_audience_memberships
-                     WHERE audience_id=$1 AND holding_ref=$2",
+                    "DELETE FROM erpx_holding.marketing_audience_memberships
+                     WHERE audience_id=$1 AND data_profile_key=$2",
                 )
                 .bind(membership.audience_id)
-                .bind(&self.holding_ref)
+                .bind(&self.data_profile_key)
                 .execute(&mut *tx)
                 .await?;
                 for profile_id in membership.profile_ids {
                     sqlx::query(
-                        "INSERT INTO erpx_tenant.marketing_audience_memberships
-                            (audience_id, profile_id, holding_ref, source_version,
+                        "INSERT INTO erpx_holding.marketing_audience_memberships
+                            (audience_id, profile_id, data_profile_key, source_version,
                              materialized_at)
                          VALUES ($1,$2,$3,$4,$5)",
                     )
                     .bind(membership.audience_id)
                     .bind(profile_id)
-                    .bind(&self.holding_ref)
+                    .bind(&self.data_profile_key)
                     .bind(as_i64(aggregate_version, "Marketing source version")?)
                     .bind(membership.materialized_at)
                     .execute(&mut *tx)
@@ -1995,20 +2005,20 @@ impl SqlxMarketingStore {
                     .validate()
                     .map_err(marketing_journey_domain_error)?;
                 sqlx::query(
-                    "INSERT INTO erpx_tenant.marketing_journey_conversion_read_rows
-                        (holding_ref, conversion_ref, journey_id, run_id, profile_id, scope,
+                    "INSERT INTO erpx_holding.marketing_journey_conversion_read_rows
+                        (data_profile_key, conversion_ref, journey_id, run_id, profile_id, scope,
                          revenue_minor, currency, occurred_at, source_version,
                          source_event_id, payload)
                      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-                     ON CONFLICT (holding_ref, conversion_ref) DO UPDATE SET
+                     ON CONFLICT (data_profile_key, conversion_ref) DO UPDATE SET
                         journey_id=$3, run_id=$4, profile_id=$5, scope=$6,
                         revenue_minor=$7, currency=$8, occurred_at=$9,
                         source_version=$10, source_event_id=$11, payload=$12,
                         projected_at=now()
-                     WHERE erpx_tenant.marketing_journey_conversion_read_rows.source_version
+                     WHERE erpx_holding.marketing_journey_conversion_read_rows.source_version
                            < EXCLUDED.source_version",
                 )
-                .bind(&self.holding_ref)
+                .bind(&self.data_profile_key)
                 .bind(conversion.conversion_ref)
                 .bind(conversion.journey_id)
                 .bind(conversion.run_id)
@@ -2036,18 +2046,18 @@ impl SqlxMarketingStore {
                     .validate()
                     .map_err(marketing_journey_domain_error)?;
                 sqlx::query(
-                    "INSERT INTO erpx_tenant.marketing_journey_owner_notification_read_rows
-                        (holding_ref, notification_ref, journey_id, run_id, profile_id, scope,
+                    "INSERT INTO erpx_holding.marketing_journey_owner_notification_read_rows
+                        (data_profile_key, notification_ref, journey_id, run_id, profile_id, scope,
                          owner_ref, occurred_at, source_version, source_event_id, payload)
                      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-                     ON CONFLICT (holding_ref, notification_ref) DO UPDATE SET
+                     ON CONFLICT (data_profile_key, notification_ref) DO UPDATE SET
                         journey_id=$3, run_id=$4, profile_id=$5, scope=$6, owner_ref=$7,
                         occurred_at=$8, source_version=$9, source_event_id=$10,
                         payload=$11, projected_at=now()
-                     WHERE erpx_tenant.marketing_journey_owner_notification_read_rows.source_version
+                     WHERE erpx_holding.marketing_journey_owner_notification_read_rows.source_version
                            < EXCLUDED.source_version",
                 )
-                .bind(&self.holding_ref)
+                .bind(&self.data_profile_key)
                 .bind(notification.notification_ref)
                 .bind(notification.journey_id)
                 .bind(notification.run_id)
@@ -2064,15 +2074,15 @@ impl SqlxMarketingStore {
             _ => unreachable!("Marketing aggregate type was validated"),
         }
         sqlx::query(
-            "INSERT INTO erpx_tenant.marketing_projection_checkpoints
-                (aggregate_type, aggregate_id, holding_ref, last_event_id, source_version)
+            "INSERT INTO erpx_holding.marketing_projection_checkpoints
+                (aggregate_type, aggregate_id, data_profile_key, last_event_id, source_version)
              VALUES ($1,$2,$3,$4,$5)
              ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-                holding_ref=$3, last_event_id=$4, source_version=$5, projected_at=now()",
+                data_profile_key=$3, last_event_id=$4, source_version=$5, projected_at=now()",
         )
         .bind(aggregate_type)
         .bind(aggregate_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(event_id)
         .bind(as_i64(aggregate_version, "Marketing source version")?)
         .execute(&mut *tx)
@@ -2090,32 +2100,32 @@ impl SqlxMarketingStore {
         &self,
     ) -> Result<MarketingProjectionRebuildPreparation, PersistenceError> {
         let mut tx = self.begin_read().await?;
-        let preparation = clear_projection_in_transaction(&mut tx, &self.holding_ref).await?;
+        let preparation = clear_projection_in_transaction(&mut tx, &self.data_profile_key).await?;
         tx.commit().await?;
         Ok(preparation)
     }
 }
 
 /// Apply a journey-owned audience membership change inside the caller's
-/// tenant-scoped transaction. The journey execution idempotency receipt is
+/// holding-scoped transaction. The journey execution idempotency receipt is
 /// the command fence; this helper only mutates the audience aggregate and its
 /// existing normalized Marketing authority/outbox contract.
 pub(crate) async fn apply_journey_segment_change_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
-    execution_scope: &TenantScope,
+    data_profile_key: &str,
+    execution_scope: &AuthorityScope,
     audience_id: Uuid,
     profile_id: Uuid,
     change: SegmentChange,
     at: DateTime<Utc>,
 ) -> Result<(), PersistenceError> {
-    let profile_scope: TenantScope = sqlx::query_scalar(
+    let profile_scope: AuthorityScope = sqlx::query_scalar(
         "SELECT scope
-           FROM erpx_tenant.marketing_profiles
-          WHERE holding_ref=$1 AND profile_id=$2 AND erased_at IS NULL
+           FROM erpx_holding.marketing_profiles
+          WHERE data_profile_key=$1 AND profile_id=$2 AND erased_at IS NULL
           FOR SHARE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(profile_id)
     .fetch_optional(&mut **tx)
     .await?
@@ -2127,11 +2137,11 @@ pub(crate) async fn apply_journey_segment_change_in_transaction(
 
     let audience = sqlx::query(
         "SELECT scope, version
-           FROM erpx_tenant.marketing_audiences
-          WHERE holding_ref=$1 AND audience_id=$2
+           FROM erpx_holding.marketing_audiences
+          WHERE data_profile_key=$1 AND audience_id=$2
           FOR UPDATE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(audience_id)
     .fetch_optional(&mut **tx)
     .await?
@@ -2139,7 +2149,7 @@ pub(crate) async fn apply_journey_segment_change_in_transaction(
         entity: "Marketing audience",
         id: audience_id,
     })?;
-    let audience_scope: TenantScope = serde_json::from_value(audience.try_get("scope")?)?;
+    let audience_scope: AuthorityScope = serde_json::from_value(audience.try_get("scope")?)?;
     if !execution_scope.contains(&profile_scope)
         || !execution_scope.contains(&audience_scope)
         || !audience_scope.contains(&profile_scope)
@@ -2151,12 +2161,12 @@ pub(crate) async fn apply_journey_segment_change_in_transaction(
     let current_version = as_u64(audience.try_get("version")?, "marketing audience version")?;
     let profile_ids: Vec<Uuid> = sqlx::query_scalar(
         "SELECT profile_id
-           FROM erpx_tenant.marketing_audience_memberships
-          WHERE holding_ref=$1 AND audience_id=$2
+           FROM erpx_holding.marketing_audience_memberships
+          WHERE data_profile_key=$1 AND audience_id=$2
           ORDER BY profile_id
           FOR UPDATE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(audience_id)
     .fetch_all(&mut **tx)
     .await?;
@@ -2181,12 +2191,12 @@ pub(crate) async fn apply_journey_segment_change_in_transaction(
         PersistenceError::InvalidData("marketing audience version overflow".into())
     })?;
     sqlx::query(
-        "UPDATE erpx_tenant.marketing_audiences
+        "UPDATE erpx_holding.marketing_audiences
             SET materialized_at=$3, profile_count=$4, membership_hash=$5,
                 version=$6, updated_at=now()
-          WHERE holding_ref=$1 AND audience_id=$2",
+          WHERE data_profile_key=$1 AND audience_id=$2",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(audience_id)
     .bind(membership.materialized_at)
     .bind(i64::try_from(membership.profile_ids.len()).map_err(|_| {
@@ -2197,22 +2207,22 @@ pub(crate) async fn apply_journey_segment_change_in_transaction(
     .execute(&mut **tx)
     .await?;
     sqlx::query(
-        "DELETE FROM erpx_tenant.marketing_audience_memberships
-          WHERE holding_ref=$1 AND audience_id=$2",
+        "DELETE FROM erpx_holding.marketing_audience_memberships
+          WHERE data_profile_key=$1 AND audience_id=$2",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(audience_id)
     .execute(&mut **tx)
     .await?;
     for member_id in &membership.profile_ids {
         sqlx::query(
-            "INSERT INTO erpx_tenant.marketing_audience_memberships
-                (audience_id, profile_id, holding_ref, membership_version, materialized_at)
+            "INSERT INTO erpx_holding.marketing_audience_memberships
+                (audience_id, profile_id, data_profile_key, membership_version, materialized_at)
              VALUES ($1,$2,$3,$4,$5)",
         )
         .bind(audience_id)
         .bind(member_id)
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(as_i64(version, "marketing audience version")?)
         .bind(membership.materialized_at)
         .execute(&mut **tx)
@@ -2220,7 +2230,7 @@ pub(crate) async fn apply_journey_segment_change_in_transaction(
     }
     write_marketing_source_event(
         tx,
-        holding_ref,
+        data_profile_key,
         "marketing_audience",
         audience_id,
         version,
@@ -2230,14 +2240,14 @@ pub(crate) async fn apply_journey_segment_change_in_transaction(
     .await
 }
 
-/// Apply a profile tag action inside the caller's tenant-scoped transaction.
+/// Apply a profile tag action inside the caller's holding-scoped transaction.
 /// Tags are represented as bounded profile attributes so the existing
 /// authoritative profile aggregate, outbox event, and read projector remain
 /// the single source of truth.
 pub(crate) async fn apply_journey_profile_tag_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
-    execution_scope: &TenantScope,
+    data_profile_key: &str,
+    execution_scope: &AuthorityScope,
     profile_id: Uuid,
     tag_ref: &str,
     add: bool,
@@ -2245,11 +2255,11 @@ pub(crate) async fn apply_journey_profile_tag_in_transaction(
 ) -> Result<(), PersistenceError> {
     let row = sqlx::query(
         "SELECT payload, scope, version
-           FROM erpx_tenant.marketing_profiles
-          WHERE holding_ref=$1 AND profile_id=$2 AND erased_at IS NULL
+           FROM erpx_holding.marketing_profiles
+          WHERE data_profile_key=$1 AND profile_id=$2 AND erased_at IS NULL
           FOR UPDATE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(profile_id)
     .fetch_optional(&mut **tx)
     .await?
@@ -2257,7 +2267,7 @@ pub(crate) async fn apply_journey_profile_tag_in_transaction(
         entity: "Marketing journey profile",
         id: profile_id,
     })?;
-    let stored_scope: TenantScope = serde_json::from_value(row.try_get("scope")?)?;
+    let stored_scope: AuthorityScope = serde_json::from_value(row.try_get("scope")?)?;
     if !execution_scope.contains(&stored_scope) {
         return Err(PersistenceError::InvalidData(
             "journey profile tag scope is outside its execution scope".into(),
@@ -2291,11 +2301,11 @@ pub(crate) async fn apply_journey_profile_tag_in_transaction(
         PersistenceError::InvalidData("marketing profile version overflow".into())
     })?;
     sqlx::query(
-        "UPDATE erpx_tenant.marketing_profiles
+        "UPDATE erpx_holding.marketing_profiles
             SET attributes=$3, payload=$4, payload_hash=$5, version=$6, updated_at=$7
-          WHERE holding_ref=$1 AND profile_id=$2 AND version=$8",
+          WHERE data_profile_key=$1 AND profile_id=$2 AND version=$8",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(profile_id)
     .bind(serde_json::to_value(&profile.attributes)?)
     .bind(&payload)
@@ -2319,7 +2329,7 @@ pub(crate) async fn apply_journey_profile_tag_in_transaction(
     })?;
     write_marketing_source_event(
         tx,
-        holding_ref,
+        data_profile_key,
         "marketing_profile",
         profile_id,
         version,
@@ -2335,8 +2345,8 @@ pub(crate) async fn apply_journey_profile_tag_in_transaction(
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn apply_journey_conversion_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
-    execution_scope: &TenantScope,
+    data_profile_key: &str,
+    execution_scope: &AuthorityScope,
     conversion_ref: Uuid,
     journey_id: Uuid,
     run_id: Uuid,
@@ -2345,13 +2355,13 @@ pub(crate) async fn apply_journey_conversion_in_transaction(
     currency: Option<String>,
     at: DateTime<Utc>,
 ) -> Result<(), PersistenceError> {
-    let profile_scope: TenantScope = serde_json::from_value(
+    let profile_scope: AuthorityScope = serde_json::from_value(
         sqlx::query_scalar::<_, Value>(
-            "SELECT scope FROM erpx_tenant.marketing_profiles
-          WHERE holding_ref=$1 AND profile_id=$2 AND erased_at IS NULL
+            "SELECT scope FROM erpx_holding.marketing_profiles
+          WHERE data_profile_key=$1 AND profile_id=$2 AND erased_at IS NULL
           FOR SHARE",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(profile_id)
         .fetch_optional(&mut **tx)
         .await?
@@ -2380,11 +2390,11 @@ pub(crate) async fn apply_journey_conversion_in_transaction(
     let payload_hash = hash_value(&payload)?;
     let existing = sqlx::query(
         "SELECT payload_hash, payload
-           FROM erpx_tenant.marketing_journey_conversions
-          WHERE holding_ref=$1 AND conversion_ref=$2
+           FROM erpx_holding.marketing_journey_conversions
+          WHERE data_profile_key=$1 AND conversion_ref=$2
           FOR UPDATE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(conversion_ref)
     .fetch_optional(&mut **tx)
     .await?;
@@ -2399,12 +2409,12 @@ pub(crate) async fn apply_journey_conversion_in_transaction(
         ));
     }
     sqlx::query(
-        "INSERT INTO erpx_tenant.marketing_journey_conversions
-            (holding_ref, conversion_ref, journey_id, run_id, profile_id, scope,
+        "INSERT INTO erpx_holding.marketing_journey_conversions
+            (data_profile_key, conversion_ref, journey_id, run_id, profile_id, scope,
              revenue_minor, currency, occurred_at, version, payload, payload_hash)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,1,$10,$11)",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(conversion.conversion_ref)
     .bind(conversion.journey_id)
     .bind(conversion.run_id)
@@ -2419,7 +2429,7 @@ pub(crate) async fn apply_journey_conversion_in_transaction(
     .await?;
     write_marketing_source_event(
         tx,
-        holding_ref,
+        data_profile_key,
         MARKETING_JOURNEY_CONVERSION_AGGREGATE,
         conversion.conversion_ref,
         1,
@@ -2435,8 +2445,8 @@ pub(crate) async fn apply_journey_conversion_in_transaction(
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn apply_journey_owner_notification_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
-    execution_scope: &TenantScope,
+    data_profile_key: &str,
+    execution_scope: &AuthorityScope,
     notification_ref: Uuid,
     journey_id: Uuid,
     run_id: Uuid,
@@ -2444,13 +2454,13 @@ pub(crate) async fn apply_journey_owner_notification_in_transaction(
     owner_ref: String,
     at: DateTime<Utc>,
 ) -> Result<DateTime<Utc>, PersistenceError> {
-    let profile_scope: TenantScope = serde_json::from_value(
+    let profile_scope: AuthorityScope = serde_json::from_value(
         sqlx::query_scalar::<_, Value>(
-            "SELECT scope FROM erpx_tenant.marketing_profiles
-          WHERE holding_ref=$1 AND profile_id=$2 AND erased_at IS NULL
+            "SELECT scope FROM erpx_holding.marketing_profiles
+          WHERE data_profile_key=$1 AND profile_id=$2 AND erased_at IS NULL
           FOR SHARE",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(profile_id)
         .fetch_optional(&mut **tx)
         .await?
@@ -2471,11 +2481,11 @@ pub(crate) async fn apply_journey_owner_notification_in_transaction(
     // idempotency instead of repairing the downstream delivery reservation.
     let existing = sqlx::query(
         "SELECT payload_hash, payload
-           FROM erpx_tenant.marketing_journey_owner_notifications
-          WHERE holding_ref=$1 AND notification_ref=$2
+           FROM erpx_holding.marketing_journey_owner_notifications
+          WHERE data_profile_key=$1 AND notification_ref=$2
           FOR UPDATE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(notification_ref)
     .fetch_optional(&mut **tx)
     .await?;
@@ -2511,12 +2521,12 @@ pub(crate) async fn apply_journey_owner_notification_in_transaction(
         ));
     }
     sqlx::query(
-        "INSERT INTO erpx_tenant.marketing_journey_owner_notifications
-            (holding_ref, notification_ref, journey_id, run_id, profile_id, scope,
+        "INSERT INTO erpx_holding.marketing_journey_owner_notifications
+            (data_profile_key, notification_ref, journey_id, run_id, profile_id, scope,
              owner_ref, occurred_at, version, payload, payload_hash)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,1,$9,$10)",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(notification.notification_ref)
     .bind(notification.journey_id)
     .bind(notification.run_id)
@@ -2530,7 +2540,7 @@ pub(crate) async fn apply_journey_owner_notification_in_transaction(
     .await?;
     write_marketing_source_event(
         tx,
-        holding_ref,
+        data_profile_key,
         MARKETING_JOURNEY_OWNER_NOTIFICATION_AGGREGATE,
         notification.notification_ref,
         1,
@@ -2543,7 +2553,7 @@ pub(crate) async fn apply_journey_owner_notification_in_transaction(
 
 async fn clear_projection_in_transaction(
     tx: &mut PgConnection,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<MarketingProjectionRebuildPreparation, PersistenceError> {
     let mut rows_cleared = 0_u64;
     for table in [
@@ -2553,10 +2563,10 @@ async fn clear_projection_in_transaction(
         "marketing_audiences",
         "marketing_audience_memberships",
     ] {
-        let query = format!("DELETE FROM erpx_tenant.{table} WHERE holding_ref=$1");
+        let query = format!("DELETE FROM erpx_holding.{table} WHERE data_profile_key=$1");
         rows_cleared = rows_cleared.saturating_add(
             sqlx::query(&query)
-                .bind(holding_ref)
+                .bind(data_profile_key)
                 .execute(&mut *tx)
                 .await?
                 .rows_affected(),
@@ -2569,30 +2579,31 @@ async fn clear_projection_in_transaction(
         "marketing_journey_conversion_read_rows",
         "marketing_journey_owner_notification_read_rows",
     ] {
-        let query = format!("DELETE FROM erpx_tenant.{table} WHERE holding_ref=$1");
+        let query = format!("DELETE FROM erpx_holding.{table} WHERE data_profile_key=$1");
         rows_cleared = rows_cleared.saturating_add(
             sqlx::query(&query)
-                .bind(holding_ref)
+                .bind(data_profile_key)
                 .execute(&mut *tx)
                 .await?
                 .rows_affected(),
         );
     }
     let checkpoints_cleared = sqlx::query(
-        "DELETE FROM erpx_tenant.marketing_projection_checkpoints WHERE holding_ref=$1",
+        "DELETE FROM erpx_holding.marketing_projection_checkpoints WHERE data_profile_key=$1",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .execute(&mut *tx)
     .await?
     .rows_affected();
-    let crm_receipts_cleared =
-        sqlx::query("DELETE FROM erpx_tenant.crm_projection_event_receipts WHERE holding_ref=$1")
-            .bind(holding_ref)
-            .execute(&mut *tx)
-            .await?
-            .rows_affected();
+    let crm_receipts_cleared = sqlx::query(
+        "DELETE FROM erpx_holding.crm_projection_event_receipts WHERE data_profile_key=$1",
+    )
+    .bind(data_profile_key)
+    .execute(&mut *tx)
+    .await?
+    .rows_affected();
     Ok(MarketingProjectionRebuildPreparation {
-        holding_ref: holding_ref.to_owned(),
+        data_profile_key: data_profile_key.to_owned(),
         rows_cleared,
         checkpoints_cleared: checkpoints_cleared.saturating_add(crm_receipts_cleared),
     })
@@ -2615,11 +2626,11 @@ impl SqlxMarketingStore {
         let mut tx = self.begin_write().await?;
         let row = sqlx::query(
             "SELECT event_type, aggregate_type, aggregate_id, aggregate_version, payload
-             FROM erpx_tenant.outbox_events
-             WHERE event_id=$1 AND holding_ref=$2",
+             FROM erpx_holding.outbox_events
+             WHERE event_id=$1 AND data_profile_key=$2",
         )
         .bind(event_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?;
         tx.commit().await?;
@@ -2680,10 +2691,10 @@ impl SqlxMarketingStore {
         let payload_hash = hash_value(payload)?;
         if let Some(row) = sqlx::query(
             "SELECT aggregate_type, aggregate_id, aggregate_version, payload_hash
-             FROM erpx_tenant.crm_projection_event_receipts
-             WHERE holding_ref=$1 AND event_id=$2 FOR SHARE",
+             FROM erpx_holding.crm_projection_event_receipts
+             WHERE data_profile_key=$1 AND event_id=$2 FOR SHARE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(event_id)
         .fetch_optional(&mut *tx)
         .await?
@@ -2707,7 +2718,8 @@ impl SqlxMarketingStore {
             });
         }
         let current =
-            crm_projection_version(tx, &self.holding_ref, aggregate_type, aggregate_id).await?;
+            crm_projection_version(tx, &self.data_profile_key, aggregate_type, aggregate_id)
+                .await?;
         let applied = match current {
             Some(version) if version == aggregate_version => {
                 return Err(PersistenceError::InvalidData(
@@ -2744,20 +2756,20 @@ impl SqlxMarketingStore {
                     value.validate().map_err(marketing_crm_domain_error)?;
                     let (holding_id, company_id, branch_id) = crm_scope_columns(&value.scope)?;
                     sqlx::query(
-                        "INSERT INTO erpx_tenant.crm_accepted_lead_handoff_read_rows
-                            (holding_ref, handoff_id, holding_id, company_id, branch_id,
+                        "INSERT INTO erpx_holding.crm_accepted_lead_handoff_read_rows
+                            (data_profile_key, handoff_id, holding_id, company_id, branch_id,
                              scope, reference, account_id, contact_id, accepted_at,
                              source_version, source_event_id, payload)
                          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-                         ON CONFLICT (holding_ref, handoff_id) DO UPDATE SET
+                         ON CONFLICT (data_profile_key, handoff_id) DO UPDATE SET
                             holding_id=$3, company_id=$4, branch_id=$5, scope=$6,
                             reference=$7, account_id=$8, contact_id=$9,
                             accepted_at=$10, source_version=$11, source_event_id=$12,
                             payload=$13, projected_at=now()
-                         WHERE erpx_tenant.crm_accepted_lead_handoff_read_rows.source_version
+                         WHERE erpx_holding.crm_accepted_lead_handoff_read_rows.source_version
                                < EXCLUDED.source_version",
                     )
-                    .bind(&self.holding_ref)
+                    .bind(&self.data_profile_key)
                     .bind(value.id)
                     .bind(holding_id)
                     .bind(company_id)
@@ -2783,23 +2795,23 @@ impl SqlxMarketingStore {
                     value.validate().map_err(marketing_crm_domain_error)?;
                     let (holding_id, company_id, branch_id) = crm_scope_columns(&value.scope)?;
                     sqlx::query(
-                        "INSERT INTO erpx_tenant.crm_opportunity_read_rows
-                            (holding_ref, opportunity_id, holding_id, company_id, branch_id,
+                        "INSERT INTO erpx_holding.crm_opportunity_read_rows
+                            (data_profile_key, opportunity_id, holding_id, company_id, branch_id,
                              scope, reference, accepted_lead_reference, account_id,
                              contact_id, name, currency, expected_revenue_minor, status,
                              created_at, updated_at, source_version, source_event_id, payload)
                          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
-                         ON CONFLICT (holding_ref, opportunity_id) DO UPDATE SET
+                         ON CONFLICT (data_profile_key, opportunity_id) DO UPDATE SET
                             holding_id=$3, company_id=$4, branch_id=$5, scope=$6,
                             reference=$7, accepted_lead_reference=$8, account_id=$9,
                             contact_id=$10, name=$11, currency=$12,
                             expected_revenue_minor=$13, status=$14, created_at=$15,
                             updated_at=$16, source_version=$17, source_event_id=$18,
                             payload=$19, projected_at=now()
-                         WHERE erpx_tenant.crm_opportunity_read_rows.source_version
+                         WHERE erpx_holding.crm_opportunity_read_rows.source_version
                                < EXCLUDED.source_version",
                     )
-                    .bind(&self.holding_ref)
+                    .bind(&self.data_profile_key)
                     .bind(value.id)
                     .bind(holding_id)
                     .bind(company_id)
@@ -2855,20 +2867,20 @@ impl SqlxMarketingStore {
                         ));
                     }
                     sqlx::query(
-                        "INSERT INTO erpx_tenant.crm_attribution_read_rows
-                            (holding_ref, record_id, opportunity_id, model,
+                        "INSERT INTO erpx_holding.crm_attribution_read_rows
+                            (data_profile_key, record_id, opportunity_id, model,
                              source_opportunity_version, total_revenue_minor,
                              total_cost_minor, source_version, source_event_id, payload)
                          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-                         ON CONFLICT (holding_ref, record_id) DO UPDATE SET
+                         ON CONFLICT (data_profile_key, record_id) DO UPDATE SET
                             opportunity_id=$3, model=$4, source_opportunity_version=$5,
                             total_revenue_minor=$6, total_cost_minor=$7,
                             source_version=$8, source_event_id=$9, payload=$10,
                             projected_at=now()
-                         WHERE erpx_tenant.crm_attribution_read_rows.source_version
+                         WHERE erpx_holding.crm_attribution_read_rows.source_version
                                < EXCLUDED.source_version",
                     )
-                    .bind(&self.holding_ref)
+                    .bind(&self.data_profile_key)
                     .bind(value.record_id)
                     .bind(value.opportunity_id)
                     .bind(crm_attribution_model(value.model))
@@ -2888,12 +2900,12 @@ impl SqlxMarketingStore {
             }
         }
         sqlx::query(
-            "INSERT INTO erpx_tenant.crm_projection_event_receipts
-                (holding_ref, event_id, aggregate_type, aggregate_id,
+            "INSERT INTO erpx_holding.crm_projection_event_receipts
+                (data_profile_key, event_id, aggregate_type, aggregate_id,
                  aggregate_version, event_type, payload_hash, occurred_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,now())",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(event_id)
         .bind(aggregate_type)
         .bind(aggregate_id)
@@ -2912,17 +2924,17 @@ impl SqlxMarketingStore {
     }
 
     async fn begin_write(&self) -> Result<Transaction<'_, Postgres>, PersistenceError> {
-        begin_scoped(&self.write_pool, &self.holding_ref).await
+        begin_scoped(&self.write_pool, &self.data_profile_key).await
     }
 
     async fn begin_read(&self) -> Result<Transaction<'_, Postgres>, PersistenceError> {
-        begin_scoped(&self.read_pool, &self.holding_ref).await
+        begin_scoped(&self.read_pool, &self.data_profile_key).await
     }
 }
 
 async fn read_source_event_page_in_transaction(
     tx: &mut PgConnection,
-    holding_ref: &str,
+    data_profile_key: &str,
     cursor: Option<&MarketingSourceEventCursor>,
     page_size: u32,
 ) -> Result<MarketingSourceEventPage, PersistenceError> {
@@ -2938,8 +2950,8 @@ async fn read_source_event_page_in_transaction(
         sqlx::query(
             "SELECT event_id, event_type, aggregate_type, aggregate_id,
                     aggregate_version, payload, occurred_at
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1
                AND aggregate_type IN
                    ('marketing_profile', 'marketing_consent',
                     'marketing_suppression', 'marketing_audience',
@@ -2954,7 +2966,7 @@ async fn read_source_event_page_in_transaction(
              ORDER BY aggregate_type, aggregate_id, aggregate_version
              LIMIT $5",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(&cursor.aggregate_type)
         .bind(cursor.aggregate_id)
         .bind(as_i64(
@@ -2968,8 +2980,8 @@ async fn read_source_event_page_in_transaction(
         sqlx::query(
             "SELECT event_id, event_type, aggregate_type, aggregate_id,
                     aggregate_version, payload, occurred_at
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1
                AND aggregate_type IN
                    ('marketing_profile', 'marketing_consent',
                     'marketing_suppression', 'marketing_audience',
@@ -2980,7 +2992,7 @@ async fn read_source_event_page_in_transaction(
              ORDER BY aggregate_type, aggregate_id, aggregate_version
              LIMIT $2",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(limit)
         .fetch_all(tx)
         .await?
@@ -3031,12 +3043,12 @@ async fn read_source_event_page_in_transaction(
 
 async fn source_event_high_watermark_in_transaction(
     tx: &mut PgConnection,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<u64, PersistenceError> {
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*)
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1
            AND aggregate_type IN
                ('marketing_profile', 'marketing_consent',
                 'marketing_suppression', 'marketing_audience',
@@ -3045,7 +3057,7 @@ async fn source_event_high_watermark_in_transaction(
                 'marketing_journey_conversion',
                 'marketing_journey_owner_notification')",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_one(tx)
     .await?;
     u64::try_from(count).map_err(|_| {
@@ -3055,7 +3067,7 @@ async fn source_event_high_watermark_in_transaction(
 
 async fn write_marketing_source_event(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     aggregate_type: &str,
     aggregate_id: Uuid,
     version: u64,
@@ -3063,15 +3075,15 @@ async fn write_marketing_source_event(
     event_type: &str,
 ) -> Result<(), PersistenceError> {
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,now())",
     )
     .bind(Uuid::new_v4())
     .bind(aggregate_type)
     .bind(aggregate_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(as_i64(version, "marketing aggregate version")?)
     .bind(event_type)
     .bind(serde_json::json!({
@@ -3087,23 +3099,23 @@ async fn write_marketing_source_event(
 
 async fn ensure_profile_scope(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     profile_id: Uuid,
-    requested_scope: &TenantScope,
+    requested_scope: &AuthorityScope,
 ) -> Result<(), PersistenceError> {
     let row = sqlx::query(
-        "SELECT profile_id, scope FROM erpx_tenant.marketing_profiles
-         WHERE profile_id = $1 AND holding_ref = $2 AND erased_at IS NULL FOR SHARE",
+        "SELECT profile_id, scope FROM erpx_holding.marketing_profiles
+         WHERE profile_id = $1 AND data_profile_key = $2 AND erased_at IS NULL FOR SHARE",
     )
     .bind(profile_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_optional(&mut **tx)
     .await?
     .ok_or(PersistenceError::NotFound {
         entity: "marketing profile",
         id: profile_id,
     })?;
-    let stored_scope: TenantScope = serde_json::from_value(row.try_get("scope")?)?;
+    let stored_scope: AuthorityScope = serde_json::from_value(row.try_get("scope")?)?;
     validate_immutable_scope(&stored_scope, requested_scope, "marketing profile")?;
     Ok(())
 }
@@ -3112,20 +3124,20 @@ async fn ensure_profile_scope(
 /// reservation is held by the caller's transaction until completion.
 async fn reserve_idempotency(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     operation: &str,
     idempotency_key: &str,
     request_hash: String,
     resource_id: Uuid,
 ) -> Result<Option<MarketingMutationReceipt>, PersistenceError> {
     let inserted = sqlx::query(
-        "INSERT INTO erpx_tenant.marketing_command_idempotency
-            (idempotency_key, holding_ref, operation, request_hash, resource_id, status)
+        "INSERT INTO erpx_holding.marketing_command_idempotency
+            (idempotency_key, data_profile_key, operation, request_hash, resource_id, status)
          VALUES ($1, $2, $3, $4, $5, 'reserved')
          ON CONFLICT (idempotency_key) DO NOTHING",
     )
     .bind(idempotency_key)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(operation)
     .bind(&request_hash)
     .bind(resource_id)
@@ -3135,14 +3147,14 @@ async fn reserve_idempotency(
         return Ok(None);
     }
     let row = sqlx::query(
-        "SELECT holding_ref, operation, request_hash, resource_id, status, response
-         FROM erpx_tenant.marketing_command_idempotency
+        "SELECT data_profile_key, operation, request_hash, resource_id, status, response
+         FROM erpx_holding.marketing_command_idempotency
          WHERE idempotency_key = $1 FOR UPDATE",
     )
     .bind(idempotency_key)
     .fetch_one(&mut **tx)
     .await?;
-    if row.try_get::<String, _>("holding_ref")? != holding_ref
+    if row.try_get::<String, _>("data_profile_key")? != data_profile_key
         || row.try_get::<String, _>("operation")? != operation
         || row.try_get::<String, _>("request_hash")? != request_hash
         || row.try_get::<Uuid, _>("resource_id")? != resource_id
@@ -3175,18 +3187,18 @@ async fn reserve_idempotency(
 
 async fn complete_idempotency(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     idempotency_key: &str,
     receipt: &MarketingMutationReceipt,
 ) -> Result<(), PersistenceError> {
     let response = serde_json::to_value(receipt)?;
     let affected = sqlx::query(
-        "UPDATE erpx_tenant.marketing_command_idempotency
+        "UPDATE erpx_holding.marketing_command_idempotency
          SET status = 'completed', response = $3, completed_at = now()
-         WHERE idempotency_key = $1 AND holding_ref = $2 AND status = 'reserved'",
+         WHERE idempotency_key = $1 AND data_profile_key = $2 AND status = 'reserved'",
     )
     .bind(idempotency_key)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(response)
     .execute(&mut **tx)
     .await?
@@ -3203,7 +3215,7 @@ fn validate_profile(profile: &MarketingProfile) -> Result<(), PersistenceError> 
     profile
         .validate()
         .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
-    validate_tenant_scope(&profile.scope)?;
+    validate_holding_scope(&profile.scope)?;
     let expected = dedupe_key(
         profile.email.as_deref(),
         profile.phone.as_deref(),
@@ -3218,8 +3230,8 @@ fn validate_profile(profile: &MarketingProfile) -> Result<(), PersistenceError> 
 }
 
 fn validate_immutable_scope(
-    stored_scope: &TenantScope,
-    requested_scope: &TenantScope,
+    stored_scope: &AuthorityScope,
+    requested_scope: &AuthorityScope,
     entity: &'static str,
 ) -> Result<(), PersistenceError> {
     if stored_scope != requested_scope {
@@ -3235,21 +3247,21 @@ async fn validate_projected_scope(
     table: &str,
     id_column: &str,
     aggregate_id: Uuid,
-    holding_ref: &str,
-    requested_scope: &TenantScope,
+    data_profile_key: &str,
+    requested_scope: &AuthorityScope,
     entity: &'static str,
 ) -> Result<(), PersistenceError> {
     let query = format!(
-        "SELECT scope FROM erpx_tenant.{table}
-         WHERE {id_column}=$1 AND holding_ref=$2 FOR SHARE"
+        "SELECT scope FROM erpx_holding.{table}
+         WHERE {id_column}=$1 AND data_profile_key=$2 FOR SHARE"
     );
     let stored_scope = sqlx::query_scalar::<_, Value>(&query)
         .bind(aggregate_id)
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .fetch_optional(&mut *tx)
         .await?;
     if let Some(stored_scope) = stored_scope {
-        let stored_scope: TenantScope = serde_json::from_value(stored_scope)?;
+        let stored_scope: AuthorityScope = serde_json::from_value(stored_scope)?;
         validate_immutable_scope(&stored_scope, requested_scope, entity)?;
     }
     Ok(())
@@ -3259,21 +3271,21 @@ fn validate_consent(consent: &ConsentRecord) -> Result<(), PersistenceError> {
     consent
         .validate()
         .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
-    validate_tenant_scope(&consent.scope)
+    validate_holding_scope(&consent.scope)
 }
 
 fn validate_suppression(suppression: &SuppressionRecord) -> Result<(), PersistenceError> {
     suppression
         .validate()
         .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
-    validate_tenant_scope(&suppression.scope)
+    validate_holding_scope(&suppression.scope)
 }
 
 fn validate_audience_membership(membership: &AudienceMembership) -> Result<(), PersistenceError> {
     membership
         .validate()
         .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
-    validate_tenant_scope(&membership.scope)
+    validate_holding_scope(&membership.scope)
 }
 
 fn validate_marketing_aggregate_type(value: &str) -> Result<(), PersistenceError> {
@@ -3315,7 +3327,7 @@ fn is_crm_aggregate_type(value: &str) -> bool {
 
 async fn crm_projection_version(
     tx: &mut PgConnection,
-    holding_ref: &str,
+    data_profile_key: &str,
     aggregate_type: &str,
     aggregate_id: Uuid,
 ) -> Result<Option<u64>, PersistenceError> {
@@ -3330,11 +3342,11 @@ async fn crm_projection_version(
         }
     };
     let query = format!(
-        "SELECT source_version FROM erpx_tenant.{table}
-         WHERE holding_ref=$1 AND {id_column}=$2 FOR SHARE"
+        "SELECT source_version FROM erpx_holding.{table}
+         WHERE data_profile_key=$1 AND {id_column}=$2 FOR SHARE"
     );
     sqlx::query_scalar::<_, i64>(&query)
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(aggregate_id)
         .fetch_optional(&mut *tx)
         .await?
@@ -3342,13 +3354,15 @@ async fn crm_projection_version(
         .transpose()
 }
 
-fn crm_scope_columns(scope: &TenantScope) -> Result<(Uuid, Uuid, Option<Uuid>), PersistenceError> {
+fn crm_scope_columns(
+    scope: &AuthorityScope,
+) -> Result<(Uuid, Uuid, Option<Uuid>), PersistenceError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok((*holding_id, *company_id, None)),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -3403,29 +3417,25 @@ fn marketing_domain_error(error: erpx_domain::marketing::MarketingError) -> Pers
     PersistenceError::InvalidData(error.to_string())
 }
 
-fn validate_tenant_scope(scope: &TenantScope) -> Result<(), PersistenceError> {
+fn validate_holding_scope(scope: &AuthorityScope) -> Result<(), PersistenceError> {
     let valid = match scope {
-        TenantScope::Platform => false,
-        TenantScope::Holding { holding_id }
-        | TenantScope::Company { holding_id, .. }
-        | TenantScope::Branch { holding_id, .. }
-        | TenantScope::Subtree { holding_id, .. } => {
+        AuthorityScope::Platform => false,
+        AuthorityScope::Holding { holding_id }
+        | AuthorityScope::Company { holding_id, .. }
+        | AuthorityScope::Branch { holding_id, .. }
+        | AuthorityScope::Subtree { holding_id, .. } => {
             !holding_id.is_nil()
                 && match scope {
-                    TenantScope::Company { company_id, .. } => !company_id.is_nil(),
-                    TenantScope::Branch {
+                    AuthorityScope::Company { company_id, .. } => !company_id.is_nil(),
+                    AuthorityScope::Branch {
                         company_id,
                         branch_id,
                         ..
                     } => !company_id.is_nil() && !branch_id.is_nil(),
-                    TenantScope::Subtree {
-                        company_ids,
-                        branch_ids,
+                    AuthorityScope::Subtree {
+                        organization_node_id,
                         ..
-                    } => {
-                        company_ids.iter().all(|id| !id.is_nil())
-                            && branch_ids.iter().all(|id| !id.is_nil())
-                    }
+                    } => !organization_node_id.is_nil(),
                     _ => true,
                 }
         }
@@ -3434,7 +3444,7 @@ fn validate_tenant_scope(scope: &TenantScope) -> Result<(), PersistenceError> {
         Ok(())
     } else {
         Err(PersistenceError::InvalidData(
-            "marketing payload must use a non-platform tenant scope".into(),
+            "marketing payload must use a non-platform holding scope".into(),
         ))
     }
 }
@@ -3548,7 +3558,7 @@ fn validate_marketing_source_event(
     Ok(())
 }
 
-fn validate_holding_ref(value: &str) -> Result<(), PersistenceError> {
+fn validate_data_profile_key(value: &str) -> Result<(), PersistenceError> {
     if value.trim().is_empty()
         || value.len() > 255
         || value.chars().any(|character| character.is_control())
@@ -3580,11 +3590,11 @@ fn validate_uuid(value: Uuid, field: &'static str) -> Result<(), PersistenceErro
 
 async fn begin_scoped<'a>(
     pool: &'a PgPool,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<Transaction<'a, Postgres>, PersistenceError> {
     let mut tx = pool.begin().await?;
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(data_profile_key)
         .execute(&mut *tx)
         .await?;
     Ok(tx)
@@ -3643,15 +3653,15 @@ mod tests {
 
     use chrono::Duration;
 
-    fn scope() -> TenantScope {
-        TenantScope::Company {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         }
     }
 
     #[test]
-    fn canonical_profile_hash_and_tenant_scope_are_enforced_without_a_pool() {
+    fn canonical_profile_hash_and_holding_scope_are_enforced_without_a_pool() {
         let profile = MarketingProfile::new(
             Uuid::from_u128(10),
             scope(),
@@ -3667,17 +3677,17 @@ mod tests {
         let mut invalid = profile.clone();
         invalid.dedupe_key = "not-canonical".into();
         assert!(validate_profile(&invalid).is_err());
-        assert!(validate_tenant_scope(&TenantScope::Platform).is_err());
+        assert!(validate_holding_scope(&AuthorityScope::Platform).is_err());
     }
 
     #[test]
     fn profile_scope_is_immutable_after_identity_creation() {
         let holding_id = Uuid::from_u128(1);
-        let stored = TenantScope::Company {
+        let stored = AuthorityScope::Company {
             holding_id,
             company_id: Uuid::from_u128(2),
         };
-        let other_company = TenantScope::Company {
+        let other_company = AuthorityScope::Company {
             holding_id,
             company_id: Uuid::from_u128(3),
         };

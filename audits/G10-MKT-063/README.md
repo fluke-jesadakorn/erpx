@@ -6,11 +6,11 @@
   and `EraseMarketingProfileCommand`.
 - The command validates erasure scope containment, UUIDs, bounded idempotency,
   correlation, and causation metadata before any implementation is called.
-- The SQLx adapter routes the command to the tenant write store, preserves the
+- The SQLx adapter routes the command to the holding write store, preserves the
   transaction/idempotency/redaction behavior from G10-MKT-062, and maps
   persistence details to stable redacted application failures.
 - Tonic exposes `EraseMarketingProfile`, requiring authenticated identity,
-  explicit tenant scope, entitlement, the dedicated
+  explicit holding scope, entitlement, the dedicated
   `marketing.profile.erase` permission, current billing/SoD/RBAC state, and a
   valid command context. The server records a customer-visible audit action
   and returns only a redacted profile receipt.
@@ -37,10 +37,10 @@
 
 ## Security and scope notes
 
-No tenant credentials, contact fields, persistence errors, or erasure reason
+No holding credentials, contact fields, persistence errors, or erasure reason
 are returned through the application or Tonic receipt/error boundary. The
 dedicated permission and current authoritative access evaluator are required;
-platform and subtree scopes are rejected for this tenant-routed mutation.
+platform and subtree scopes are rejected for this holding-routed mutation.
 Queued delivery payload scrubbing, public abuse controls, SSR/UI, MinIO,
 remaining ERP contexts, migration cutover, and Folio write retirement remain
 open.

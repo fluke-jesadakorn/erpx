@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::contracts::{CommandContext, TenantScope};
+use crate::contracts::{AuthorityScope, CommandContext};
 use crate::finance::{AccountingPeriod, JournalEntry, PeriodStatus};
 use crate::operations::SourceTransactionRef;
 
@@ -26,7 +26,7 @@ pub const FINANCE_SUBLEDGER_RECONCILIATION_CONTRACT_VERSION: u16 = 1;
 pub const MAX_FINANCE_SUBLEDGER_RECONCILIATION_ISSUES: usize = 1_000;
 
 /// A safe, typed discrepancy emitted when the disposable AP/AR and cash
-/// read model no longer agrees with authoritative tenant-write aggregates.
+/// read model no longer agrees with authoritative holding-write aggregates.
 /// Payloads and command contexts are deliberately excluded from this fact.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -50,7 +50,7 @@ pub struct FinanceSubledgerReconciliationIssue {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FinanceSubledgerReconciliationReport {
     pub contract_version: u16,
-    pub holding_ref: String,
+    pub data_profile_key: String,
     pub source_aggregate_count: u64,
     pub read_row_count: u64,
     pub source_event_high_watermark: u64,
@@ -80,8 +80,8 @@ pub enum FinanceSubledgerError {
     InvalidScope,
     #[error("command scope {command_scope:?} does not contain record scope {record_scope:?}")]
     CommandScopeOutside {
-        command_scope: Box<TenantScope>,
-        record_scope: Box<TenantScope>,
+        command_scope: Box<AuthorityScope>,
+        record_scope: Box<AuthorityScope>,
     },
     #[error("{party_kind} scope does not contain the record scope")]
     PartyScopeOutside { party_kind: &'static str },
@@ -272,7 +272,7 @@ pub struct PartyReference {
     pub kind: PartyKind,
     pub party_id: Uuid,
     pub reference: String,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub holding_id: Uuid,
     pub company_id: Uuid,
 }
@@ -281,7 +281,7 @@ impl PartyReference {
     pub fn new(
         kind: PartyKind,
         party_id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         holding_id: Uuid,
         company_id: Uuid,
     ) -> Result<Self, FinanceSubledgerError> {
@@ -321,7 +321,7 @@ impl PartyReference {
 
     fn validate_for_record(
         &self,
-        record_scope: &TenantScope,
+        record_scope: &AuthorityScope,
         holding_id: Uuid,
         company_id: Uuid,
     ) -> Result<(), FinanceSubledgerError> {
@@ -346,7 +346,7 @@ pub struct FinanceRecordMetadata {
     pub reference: String,
     pub idempotency_key: String,
     pub command_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub holding_id: Uuid,
     pub company_id: Uuid,
     pub period_id: Uuid,
@@ -360,7 +360,7 @@ impl FinanceRecordMetadata {
     pub fn new(
         kind: FinanceSubledgerKind,
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         holding_id: Uuid,
         company_id: Uuid,
         period_id: Uuid,
@@ -395,9 +395,9 @@ impl FinanceRecordMetadata {
             });
         }
         validate_record_scope(&self.scope, self.holding_id, self.company_id)?;
-        if !self.context.tenant_scope.contains(&self.scope) {
+        if !self.context.active_scope.contains(&self.scope) {
             return Err(FinanceSubledgerError::CommandScopeOutside {
-                command_scope: Box::new(self.context.tenant_scope.clone()),
+                command_scope: Box::new(self.context.active_scope.clone()),
                 record_scope: Box::new(self.scope.clone()),
             });
         }
@@ -430,11 +430,11 @@ impl FinanceRecordMetadata {
         context: &CommandContext,
     ) -> Result<(), FinanceSubledgerError> {
         validate_context(context)?;
-        if context.tenant_scope.contains(&self.scope) {
+        if context.active_scope.contains(&self.scope) {
             Ok(())
         } else {
             Err(FinanceSubledgerError::CommandScopeOutside {
-                command_scope: Box::new(context.tenant_scope.clone()),
+                command_scope: Box::new(context.active_scope.clone()),
                 record_scope: Box::new(self.scope.clone()),
             })
         }
@@ -608,7 +608,7 @@ impl SubledgerEntry {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         holding_id: Uuid,
         company_id: Uuid,
         period_id: Uuid,
@@ -803,7 +803,7 @@ impl Invoice {
     pub fn new(
         kind: InvoiceKind,
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         holding_id: Uuid,
         company_id: Uuid,
         period_id: Uuid,
@@ -1050,7 +1050,7 @@ impl Payment {
     pub fn new(
         kind: PaymentKind,
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         holding_id: Uuid,
         company_id: Uuid,
         period_id: Uuid,
@@ -1213,7 +1213,7 @@ impl Allocation {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         holding_id: Uuid,
         company_id: Uuid,
         period_id: Uuid,
@@ -1480,7 +1480,7 @@ impl CashReceipt {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         holding_id: Uuid,
         company_id: Uuid,
         period_id: Uuid,
@@ -1602,7 +1602,7 @@ impl CashDisbursement {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         holding_id: Uuid,
         company_id: Uuid,
         period_id: Uuid,
@@ -1748,7 +1748,7 @@ impl CashReconciliation {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         holding_id: Uuid,
         company_id: Uuid,
         period_id: Uuid,
@@ -1918,23 +1918,25 @@ fn validate_context(context: &CommandContext) -> Result<(), FinanceSubledgerErro
 }
 
 fn validate_record_scope(
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     holding_id: Uuid,
     company_id: Uuid,
 ) -> Result<(), FinanceSubledgerError> {
     require_id(holding_id, "holding_id")?;
     require_id(company_id, "company_id")?;
     let matches = match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id: scope_holding,
             company_id: scope_company,
         } => *scope_holding == holding_id && *scope_company == company_id,
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id: scope_holding,
             company_id: scope_company,
             branch_id,
         } => *scope_holding == holding_id && *scope_company == company_id && !branch_id.is_nil(),
-        TenantScope::Platform | TenantScope::Holding { .. } | TenantScope::Subtree { .. } => false,
+        AuthorityScope::Platform
+        | AuthorityScope::Holding { .. }
+        | AuthorityScope::Subtree { .. } => false,
     };
     if matches {
         Ok(())
@@ -1997,27 +1999,27 @@ mod tests {
     const OTHER_BRANCH: Uuid = Uuid::from_u128(4);
     const PERIOD: Uuid = Uuid::from_u128(5);
 
-    fn company_scope() -> TenantScope {
-        TenantScope::Company {
+    fn company_scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: HOLDING,
             company_id: COMPANY,
         }
     }
 
-    fn branch_scope(branch_id: Uuid) -> TenantScope {
-        TenantScope::Branch {
+    fn branch_scope(branch_id: Uuid) -> AuthorityScope {
+        AuthorityScope::Branch {
             holding_id: HOLDING,
             company_id: COMPANY,
             branch_id,
         }
     }
 
-    fn context(key: &str, scope: TenantScope) -> CommandContext {
+    fn context(key: &str, scope: AuthorityScope) -> CommandContext {
         CommandContext::try_new(
             key,
             ActorAttribution {
                 principal_ref: "finance-user".into(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: None,
                 represented_principal_ref: None,
                 support_capability_id: None,
@@ -2040,7 +2042,7 @@ mod tests {
         .expect("valid period")
     }
 
-    fn vendor(scope: TenantScope) -> PartyReference {
+    fn vendor(scope: AuthorityScope) -> PartyReference {
         PartyReference::new(
             PartyKind::Vendor,
             Uuid::from_u128(10),
@@ -2051,7 +2053,7 @@ mod tests {
         .expect("vendor")
     }
 
-    fn customer(scope: TenantScope) -> PartyReference {
+    fn customer(scope: AuthorityScope) -> PartyReference {
         PartyReference::new(
             PartyKind::Customer,
             Uuid::from_u128(11),
@@ -2436,7 +2438,7 @@ mod tests {
     fn reconciliation_report_is_only_green_when_complete_and_source_stable() {
         let report = FinanceSubledgerReconciliationReport {
             contract_version: FINANCE_SUBLEDGER_RECONCILIATION_CONTRACT_VERSION,
-            holding_ref: "holding-1".into(),
+            data_profile_key: "holding-1".into(),
             source_aggregate_count: 1,
             read_row_count: 1,
             source_event_high_watermark: 1,

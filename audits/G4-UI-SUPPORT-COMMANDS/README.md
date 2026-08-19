@@ -25,7 +25,7 @@ notes, capability secrets, incident timelines, or raw RPC errors.
   module, purpose, correlation ID, idempotency key, and expected version.
 - `apps/server/src/main.rs` remains the authorization and command authority;
   it enforces Support permissions, MFA/capability policy, scope, optimistic
-  concurrency, and tenant/platform routing before calling the existing
+  concurrency, and holding/platform routing before calling the existing
   `AuthoritativeSupportService`.
 - The existing application and SQLx support paths persist source state,
   aggregate snapshots, idempotency receipts, append-only outbox events, and

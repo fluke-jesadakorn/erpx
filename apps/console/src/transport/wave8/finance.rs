@@ -13,7 +13,7 @@ use erpx_finance::{
     },
 };
 use erpx_integration_contracts::{customer, procurement};
-use erpx_proto::erpx::finance::v2 as wire;
+use erpx_proto::erpx::finance as wire;
 use erpx_ui_foundation::UiError;
 
 use crate::{features::finance::FinanceProtoTransport, transport::typed_cqrs::GrpcChannel};

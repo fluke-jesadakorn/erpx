@@ -1,7 +1,7 @@
 //! Disposable PostgreSQL evidence for normalized Chart of Accounts source
-//! persistence. The ignored test requires a dedicated tenant-write database.
+//! persistence. The ignored test requires a dedicated holding-write database.
 
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::finance_chart::{AccountCategory, AccountStatus, FinanceAccount, FinanceChart};
 use erpx_infrastructure::{PersistenceError, SqlxFinanceChartStore};
 use sqlx::PgPool;
@@ -12,12 +12,12 @@ fn context(holding_id: Uuid, company_id: Uuid, key: &str, expected: Option<u64>)
         key,
         ActorAttribution {
             principal_ref: "finance-controller".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: Some(Uuid::new_v4()),
             represented_principal_ref: None,
             support_capability_id: None,
         },
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -49,14 +49,13 @@ fn account(
 
 #[test]
 fn migration_defines_normalized_forced_rls_and_source_guards() {
-    let sql =
-        include_str!("../../migration/migrations_tenant_write/0042_finance_chart_of_accounts.sql");
+    let sql = include_str!("../../migration/migrations_holding_write/0001_baseline.sql");
     for required in [
         "finance_chart_of_accounts",
         "finance_chart_accounts",
         "finance_chart_command_idempotency",
         "FORCE ROW LEVEL SECURITY",
-        "UNIQUE (holding_ref, company_id, account_code)",
+        "UNIQUE (data_profile_key, company_id, account_code)",
         "DEFERRABLE INITIALLY DEFERRED",
         "posted/used Finance accounts are structurally immutable",
         "Finance account hierarchy contains a cycle",
@@ -69,16 +68,16 @@ fn migration_defines_normalized_forced_rls_and_source_guards() {
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn live_chart_source_is_normalized_idempotent_scoped_and_usage_safe() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let pool = PgPool::connect(&url).await.expect("write pool");
-    erpx_migration::migrate_tenant_write(&pool)
+    erpx_migration::migrate_holding_write(&pool)
         .await
-        .expect("tenant-write migrations");
+        .expect("holding-write migrations");
 
-    let holding_ref = format!("holding-finance-chart-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-finance-chart-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let parent_id = Uuid::new_v4();
@@ -97,7 +96,7 @@ async fn live_chart_source_is_normalized_idempotent_scoped_and_usage_safe() {
     )
     .expect("chart");
     let store =
-        SqlxFinanceChartStore::new(pool.clone(), &holding_ref).expect("Finance chart store");
+        SqlxFinanceChartStore::new(pool.clone(), &data_profile_key).expect("Finance chart store");
 
     let first = store
         .save_chart(&chart, &create_context, None)
@@ -132,17 +131,17 @@ async fn live_chart_source_is_normalized_idempotent_scoped_and_usage_safe() {
     // as the authoritative chart. The header and every account row share the
     // aggregate version; repair the row and prove the read recovers cleanly.
     let mut stale_tx = pool.begin().await.expect("stale account transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *stale_tx)
         .await
         .expect("stale account scope");
     sqlx::query(
-        "UPDATE erpx_tenant.finance_chart_accounts
+        "UPDATE erpx_holding.finance_chart_accounts
             SET aggregate_version=$3
-          WHERE holding_ref=$1 AND chart_id=$2 AND account_id=$4",
+          WHERE data_profile_key=$1 AND chart_id=$2 AND account_id=$4",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(chart.id)
     .bind(1_i64)
     .bind(parent_id)
@@ -159,21 +158,21 @@ async fn live_chart_source_is_normalized_idempotent_scoped_and_usage_safe() {
         "stale chart read should expose bounded reconciliation evidence: {stale_error}"
     );
     let mut stale_verify_tx = pool.begin().await.expect("stale verification transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *stale_verify_tx)
         .await
         .expect("stale verification scope");
     let unchanged: (i64, i64, i64) = sqlx::query_as(
         "SELECT
-            (SELECT version FROM erpx_tenant.finance_chart_of_accounts
-              WHERE holding_ref=$1 AND chart_id=$2),
-            (SELECT count(*) FROM erpx_tenant.finance_chart_accounts
-              WHERE holding_ref=$1 AND chart_id=$2),
-            (SELECT count(*) FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND aggregate_type='finance_chart_of_accounts')",
+            (SELECT version FROM erpx_holding.finance_chart_of_accounts
+              WHERE data_profile_key=$1 AND chart_id=$2),
+            (SELECT count(*) FROM erpx_holding.finance_chart_accounts
+              WHERE data_profile_key=$1 AND chart_id=$2),
+            (SELECT count(*) FROM erpx_holding.outbox_events
+              WHERE data_profile_key=$1 AND aggregate_type='finance_chart_of_accounts')",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(chart.id)
     .fetch_one(&mut *stale_verify_tx)
     .await
@@ -189,17 +188,17 @@ async fn live_chart_source_is_normalized_idempotent_scoped_and_usage_safe() {
         .expect("rollback stale verification");
 
     let mut restore_tx = pool.begin().await.expect("restore account transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *restore_tx)
         .await
         .expect("restore account scope");
     sqlx::query(
-        "UPDATE erpx_tenant.finance_chart_accounts
+        "UPDATE erpx_holding.finance_chart_accounts
             SET aggregate_version=$3
-          WHERE holding_ref=$1 AND chart_id=$2 AND account_id=$4",
+          WHERE data_profile_key=$1 AND chart_id=$2 AND account_id=$4",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(chart.id)
     .bind(i64::try_from(chart.version).expect("chart version in BIGINT"))
     .bind(parent_id)
@@ -213,20 +212,20 @@ async fn live_chart_source_is_normalized_idempotent_scoped_and_usage_safe() {
     );
 
     let mut tx = pool.begin().await.expect("inspection transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tx)
         .await
         .expect("holding scope");
     let counts: (i64, i64, i64, i64) = sqlx::query_as(
         "SELECT
-            (SELECT count(*) FROM erpx_tenant.finance_chart_of_accounts WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.finance_chart_accounts WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.finance_chart_command_idempotency WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND aggregate_type='finance_chart_of_accounts')",
+            (SELECT count(*) FROM erpx_holding.finance_chart_of_accounts WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.finance_chart_accounts WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.finance_chart_command_idempotency WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.outbox_events
+              WHERE data_profile_key=$1 AND aggregate_type='finance_chart_of_accounts')",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .fetch_one(&mut *tx)
     .await
     .expect("normalized counts");
@@ -239,12 +238,12 @@ async fn live_chart_source_is_normalized_idempotent_scoped_and_usage_safe() {
         Uuid,
         Option<String>,
     ) = sqlx::query_as(
-        "SELECT contract_version, event_version, tenant_scope, actor,
+        "SELECT contract_version, event_version, active_scope, actor,
                     correlation_id, idempotency_key
-               FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND event_id=$2",
+               FROM erpx_holding.outbox_events
+              WHERE data_profile_key=$1 AND event_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(first.event_id)
     .fetch_one(&mut *tx)
     .await
@@ -253,7 +252,7 @@ async fn live_chart_source_is_normalized_idempotent_scoped_and_usage_safe() {
     assert_eq!(envelope.1, 1);
     assert_eq!(
         envelope.2,
-        serde_json::to_value(&create_context.tenant_scope).expect("scope JSON")
+        serde_json::to_value(&create_context.active_scope).expect("scope JSON")
     );
     assert_eq!(
         envelope.3,
@@ -268,9 +267,9 @@ async fn live_chart_source_is_normalized_idempotent_scoped_and_usage_safe() {
         "SELECT relname, relforcerowsecurity
            FROM pg_class
           WHERE oid IN (
-            'erpx_tenant.finance_chart_of_accounts'::regclass,
-            'erpx_tenant.finance_chart_accounts'::regclass,
-            'erpx_tenant.finance_chart_command_idempotency'::regclass
+            'erpx_holding.finance_chart_of_accounts'::regclass,
+            'erpx_holding.finance_chart_accounts'::regclass,
+            'erpx_holding.finance_chart_command_idempotency'::regclass
           )
           ORDER BY relname",
     )
@@ -281,8 +280,8 @@ async fn live_chart_source_is_normalized_idempotent_scoped_and_usage_safe() {
     assert!(forced.iter().all(|(_, enabled)| *enabled));
 
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_posted_journals
-            (journal_id, holding_id, company_id, period_id, holding_ref,
+        "INSERT INTO erpx_holding.finance_posted_journals
+            (journal_id, holding_id, company_id, period_id, data_profile_key,
              version, idempotency_key, posted_at, payload, currency, total_minor)
          VALUES ($1,$2,$3,$4,$5,1,$6,now(),$7,'USD',100)",
     )
@@ -290,7 +289,7 @@ async fn live_chart_source_is_normalized_idempotent_scoped_and_usage_safe() {
     .bind(holding_id)
     .bind(company_id)
     .bind(Uuid::new_v4())
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(format!("posted-{}", Uuid::new_v4()))
     .bind(serde_json::json!({
         "entry": {
@@ -345,14 +344,14 @@ async fn live_chart_source_is_normalized_idempotent_scoped_and_usage_safe() {
         .await
         .expect("RLS role");
     sqlx::query(&format!(
-        "GRANT USAGE ON SCHEMA erpx_tenant TO \"{rls_role}\""
+        "GRANT USAGE ON SCHEMA erpx_holding TO \"{rls_role}\""
     ))
     .execute(&mut *wrong_scope)
     .await
     .expect("RLS schema grant");
     sqlx::query(&format!(
-        "GRANT SELECT ON erpx_tenant.finance_chart_of_accounts,
-            erpx_tenant.finance_chart_accounts TO \"{rls_role}\""
+        "GRANT SELECT ON erpx_holding.finance_chart_of_accounts,
+            erpx_holding.finance_chart_accounts TO \"{rls_role}\""
     ))
     .execute(&mut *wrong_scope)
     .await
@@ -361,12 +360,12 @@ async fn live_chart_source_is_normalized_idempotent_scoped_and_usage_safe() {
         .execute(&mut *wrong_scope)
         .await
         .expect("set RLS role");
-    sqlx::query("SELECT set_config('erpx.holding_ref', 'other-holding', true)")
+    sqlx::query("SELECT set_config('erpx.data_profile_key', 'other-holding', true)")
         .execute(&mut *wrong_scope)
         .await
         .expect("wrong holding setting");
     let visible: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_tenant.finance_chart_accounts WHERE chart_id=$1",
+        "SELECT count(*) FROM erpx_holding.finance_chart_accounts WHERE chart_id=$1",
     )
     .bind(chart.id)
     .fetch_one(&mut *wrong_scope)

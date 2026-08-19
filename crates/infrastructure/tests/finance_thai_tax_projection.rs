@@ -1,10 +1,10 @@
 //! Live SQLx acceptance for the explicit Thai tax source/event/projection path.
 //!
 //! The test is ignored in the normal suite because it requires the dedicated
-//! disposable tenant write and read PostgreSQL databases.
+//! disposable holding write and read PostgreSQL databases.
 
 use chrono::{NaiveDate, Utc};
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::finance::{
     Account, AccountKind, AccountingPeriod, ChartOfAccounts, JournalEntry, JournalLine,
 };
@@ -19,12 +19,12 @@ fn context(holding_id: Uuid, company_id: Uuid) -> CommandContext {
         format!("thai-tax-test-{}", Uuid::new_v4()),
         ActorAttribution {
             principal_ref: "thai-tax-projection-test".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
         },
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -58,12 +58,12 @@ fn finance_context(holding_id: Uuid, company_id: Uuid, key: &str) -> CommandCont
         key,
         ActorAttribution {
             principal_ref: "thai-tax-finance-fixture".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
         },
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -73,35 +73,35 @@ fn finance_context(holding_id: Uuid, company_id: Uuid, key: &str) -> CommandCont
 }
 
 #[tokio::test]
-#[ignore = "requires disposable tenant write and read PostgreSQL databases"]
+#[ignore = "requires disposable holding write and read PostgreSQL databases"]
 async fn live_thai_tax_projection_is_idempotent_and_report_scoped() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant-write migrations");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding-write migrations");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant-read migrations");
+        .expect("holding-read migrations");
 
-    let holding_ref = format!("holding-thai-tax-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-thai-tax-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let fact = fact(holding_id, company_id);
     let event_id = Uuid::new_v4();
     let mut write_tx = write_pool.begin().await.expect("write transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *write_tx)
         .await
         .expect("holding scope");
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_thai_tax_facts
-            (fact_id, holding_id, company_id, journal_id, line_id, holding_ref,
+        "INSERT INTO erpx_holding.finance_thai_tax_facts
+            (fact_id, holding_id, company_id, journal_id, line_id, data_profile_key,
              tax_date, tax_period, kind, currency, base_minor, tax_minor,
              tax_rate_basis_points, tax_identifier, context, recorded_at, payload)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)",
@@ -111,7 +111,7 @@ async fn live_thai_tax_projection_is_idempotent_and_report_scoped() {
     .bind(fact.company_id)
     .bind(fact.journal_id)
     .bind(fact.line_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(fact.tax_date)
     .bind(&fact.tax_period)
     .bind(fact.kind.as_str())
@@ -127,15 +127,15 @@ async fn live_thai_tax_projection_is_idempotent_and_report_scoped() {
     .await
     .expect("authoritative source fact");
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at)
          VALUES ($1,'finance_thai_tax_fact',$2,$3,1,
                  'finance.thai_tax_fact_recorded.v1',$4,$5)",
     )
     .bind(event_id)
     .bind(fact.fact_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(json!({"fact": serde_json::to_value(&fact).expect("fact json")}))
     .bind(fact.recorded_at)
     .execute(&mut *write_tx)
@@ -143,7 +143,7 @@ async fn live_thai_tax_projection_is_idempotent_and_report_scoped() {
     .expect("source event");
     write_tx.commit().await.expect("source commit");
 
-    let store = SqlxFinanceThaiTaxStore::from_pools(&write_pool, &read_pool, &holding_ref)
+    let store = SqlxFinanceThaiTaxStore::from_pools(&write_pool, &read_pool, &data_profile_key)
         .expect("tax store");
     let page = store
         .read_source_event_page(None, 10)
@@ -191,17 +191,17 @@ async fn live_thai_tax_projection_is_idempotent_and_report_scoped() {
     assert_eq!(report.report.output_vat_minor, 7_000);
 
     let mut payload_drift_tx = read_pool.begin().await.expect("payload drift transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *payload_drift_tx)
         .await
         .expect("payload drift scope");
     sqlx::query(
-        "UPDATE erpx_tenant.finance_thai_tax_fact_read_rows
+        "UPDATE erpx_holding.finance_thai_tax_fact_read_rows
             SET tax_minor=tax_minor+1
-          WHERE holding_ref=$1 AND fact_id=$2",
+          WHERE data_profile_key=$1 AND fact_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(fact.fact_id)
     .execute(&mut *payload_drift_tx)
     .await
@@ -221,17 +221,17 @@ async fn live_thai_tax_projection_is_idempotent_and_report_scoped() {
         .begin()
         .await
         .expect("restore payload transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *restore_payload_tx)
         .await
         .expect("restore payload scope");
     sqlx::query(
-        "UPDATE erpx_tenant.finance_thai_tax_fact_read_rows
+        "UPDATE erpx_holding.finance_thai_tax_fact_read_rows
             SET tax_minor=tax_minor-1
-          WHERE holding_ref=$1 AND fact_id=$2",
+          WHERE data_profile_key=$1 AND fact_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(fact.fact_id)
     .execute(&mut *restore_payload_tx)
     .await
@@ -242,16 +242,16 @@ async fn live_thai_tax_projection_is_idempotent_and_report_scoped() {
         .expect("restore payload commit");
 
     let mut drift_tx = read_pool.begin().await.expect("drift transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *drift_tx)
         .await
         .expect("read holding scope");
     sqlx::query(
-        "DELETE FROM erpx_tenant.finance_thai_tax_fact_read_rows
-          WHERE holding_ref=$1 AND fact_id=$2",
+        "DELETE FROM erpx_holding.finance_thai_tax_fact_read_rows
+          WHERE data_profile_key=$1 AND fact_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(fact.fact_id)
     .execute(&mut *drift_tx)
     .await
@@ -269,22 +269,22 @@ async fn live_thai_tax_projection_is_idempotent_and_report_scoped() {
 }
 
 #[tokio::test]
-#[ignore = "requires disposable tenant write and read PostgreSQL databases"]
+#[ignore = "requires disposable holding write and read PostgreSQL databases"]
 async fn live_thai_tax_fact_is_bound_to_authoritative_journal_line_and_currency() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant-write migrations");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding-write migrations");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant-read migrations");
+        .expect("holding-read migrations");
 
-    let holding_ref = format!("holding-thai-tax-authority-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-thai-tax-authority-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let debit_account_id = Uuid::new_v4();
@@ -325,8 +325,9 @@ async fn live_thai_tax_fact_is_bound_to_authoritative_journal_line_and_currency(
         ],
     )
     .expect("chart");
-    let finance_store = SqlxFinanceStore::new(write_pool.clone(), read_pool.clone(), &holding_ref)
-        .expect("finance store");
+    let finance_store =
+        SqlxFinanceStore::new(write_pool.clone(), read_pool.clone(), &data_profile_key)
+            .expect("finance store");
     finance_store
         .save_period(&period, None)
         .await
@@ -372,7 +373,7 @@ async fn live_thai_tax_fact_is_bound_to_authoritative_journal_line_and_currency(
         .await
         .expect("posted journal")
         .journal;
-    let tax_store = SqlxFinanceThaiTaxStore::from_pools(&write_pool, &read_pool, &holding_ref)
+    let tax_store = SqlxFinanceThaiTaxStore::from_pools(&write_pool, &read_pool, &data_profile_key)
         .expect("tax store");
     let mut tax_fact = ThaiTaxFact {
         fact_id: Uuid::new_v4(),
@@ -419,19 +420,19 @@ async fn live_thai_tax_fact_is_bound_to_authoritative_journal_line_and_currency(
     ));
 
     let mut inspection = write_pool.begin().await.expect("tax inspection");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *inspection)
         .await
         .expect("tax inspection scope");
     let counts: (i64, i64) = sqlx::query_as(
         "SELECT
-            (SELECT count(*) FROM erpx_tenant.finance_thai_tax_facts
-             WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND aggregate_type='finance_thai_tax_fact')",
+            (SELECT count(*) FROM erpx_holding.finance_thai_tax_facts
+             WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND aggregate_type='finance_thai_tax_fact')",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .fetch_one(&mut *inspection)
     .await
     .expect("tax counts");
@@ -471,18 +472,18 @@ async fn live_thai_tax_fact_is_bound_to_authoritative_journal_line_and_currency(
     assert_eq!(all_statutory.reports.len(), 1);
 
     let mut event_drift_tx = write_pool.begin().await.expect("event drift transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *event_drift_tx)
         .await
         .expect("event drift scope");
     sqlx::query(
-        "UPDATE erpx_tenant.outbox_events
+        "UPDATE erpx_holding.outbox_events
             SET event_type='finance.thai_tax_fact_tampered.v1'
-          WHERE holding_ref=$1 AND aggregate_id=$2
+          WHERE data_profile_key=$1 AND aggregate_id=$2
             AND aggregate_type='finance_thai_tax_fact'",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(authoritative_fact.fact_id)
     .execute(&mut *event_drift_tx)
     .await
@@ -497,18 +498,18 @@ async fn live_thai_tax_fact_is_bound_to_authoritative_journal_line_and_currency(
     ));
 
     let mut restore_event_tx = write_pool.begin().await.expect("restore event transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *restore_event_tx)
         .await
         .expect("restore event scope");
     sqlx::query(
-        "UPDATE erpx_tenant.outbox_events
+        "UPDATE erpx_holding.outbox_events
             SET event_type='finance.thai_tax_fact_recorded.v1'
-          WHERE holding_ref=$1 AND aggregate_id=$2
+          WHERE data_profile_key=$1 AND aggregate_id=$2
             AND aggregate_type='finance_thai_tax_fact'",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(authoritative_fact.fact_id)
     .execute(&mut *restore_event_tx)
     .await
@@ -522,17 +523,17 @@ async fn live_thai_tax_fact_is_bound_to_authoritative_journal_line_and_currency(
         .begin()
         .await
         .expect("statutory drift transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *drift_tx)
         .await
         .expect("statutory drift scope");
     sqlx::query(
-        "UPDATE erpx_tenant.finance_thai_tax_fact_read_rows
+        "UPDATE erpx_holding.finance_thai_tax_fact_read_rows
             SET tax_identifier='tampered-statutory-identifier'
-          WHERE holding_ref=$1 AND fact_id=$2",
+          WHERE data_profile_key=$1 AND fact_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(authoritative_fact.fact_id)
     .execute(&mut *drift_tx)
     .await

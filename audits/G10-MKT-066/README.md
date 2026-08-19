@@ -17,7 +17,7 @@ allow-listed shapes: `{ "value": "..." }` or `{ "secret": "..." }`.
 Non-success responses, network failures, malformed/unknown response shapes,
 and invalid material map to redacted resolver errors. Resolved bytes are
 validated by `ResolvedMarketingCallbackSecret` and remain zeroizing. No
-database or tenant route is accessed by this adapter.
+database or holding route is accessed by this adapter.
 
 ## Evidence
 

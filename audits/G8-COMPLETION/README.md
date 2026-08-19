@@ -19,8 +19,8 @@ Delivered in the allowed Finance ownership boundary:
   bounded one-million-journal report limit and fails closed when that bound is
   exceeded. It continues to derive totals from immutable posted journal facts.
 - `SqlxFinanceSubledgerStore::reconcile_read_model` compares bounded,
-  decoded authoritative AP/AR/cash aggregate rows in the tenant-write
-  database with the disposable tenant-read rows. It checks aggregate identity,
+  decoded authoritative AP/AR/cash aggregate rows in the holding-write
+  database with the disposable holding-read rows. It checks aggregate identity,
   versions, holding/company/branch scope, and full typed aggregate equality,
   records source high-watermark stability, and never repairs either side.
 - `FinanceSubledgerReconciliationRunner` routes both physical database sides,
@@ -43,7 +43,7 @@ existing worktree references the missing non-Finance module
 `crates/domain/src/operations.rs` (`E0583`). That blocker was not changed in
 this lane. No live PostgreSQL proof is claimed here; the reconciliation
 adapter is implemented against the real routed SQLx pools and requires the
-existing tenant migrations for an integration run.
+existing holding migrations for an integration run.
 
 ## Coordinator integration hooks
 

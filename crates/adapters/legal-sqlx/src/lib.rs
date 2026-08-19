@@ -34,27 +34,22 @@ pub const MATTER_SNAPSHOT_EVENT: &str = "legal.matter_snapshot";
 pub const EVENT_VERSION: u32 = 1;
 #[cfg(test)]
 const COMPLETION_WRITE_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0080_current_record_completion.sql");
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 #[cfg(test)]
-const COMPLETION_READ_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0071_current_record_completion_projection.sql"
-);
+const COMPLETION_READ_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 
 #[cfg(test)]
-const WRITE_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_write/0062_wave8_dependent_context_guards.sql"
-);
+const WRITE_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 #[cfg(test)]
-const READ_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0054_wave8_dependent_context_projections.sql"
-);
+const READ_DDL: &str = include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 #[cfg(test)]
 const MATTER_WRITE_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0068_legal_matter_graph_guards.sql");
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 #[cfg(test)]
-const MATTER_READ_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0060_legal_matter_graph_projection.sql"
-);
+const MATTER_READ_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 
 pub fn contract_partition(id: erpx_legal::LegalContractId) -> String {
     format!("legal.contract:{}", id.as_uuid().simple())
@@ -114,11 +109,11 @@ mod tests {
     }
 
     #[test]
-    fn legal_hold_completion_is_normalized_tenant_bound_and_rebuildable() {
+    fn legal_hold_completion_is_normalized_holding_bound_and_rebuildable() {
         assert!(COMPLETION_WRITE_DDL.contains("legal_hold_records"));
         assert!(COMPLETION_READ_DDL.contains("legal_hold_projection"));
         assert!(COMPLETION_WRITE_DDL.contains("FORCE ROW LEVEL SECURITY"));
-        assert!(COMPLETION_READ_DDL.contains("(tenant_id,projection_name,generation)"));
+        assert!(COMPLETION_READ_DDL.contains("(holding_id,projection_name,generation)"));
         assert!(!COMPLETION_WRITE_DDL.contains("legal_hold_snapshot"));
     }
 }

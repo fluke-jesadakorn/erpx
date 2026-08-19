@@ -13,5 +13,5 @@ erpx_ui_kit::declare_current_workspace_feature!(
     erpx_ui_kit::CurrentFeatureKind::Commercial,
     "commercial",
     [("commercial.workspace", "/commercial", "platform")],
-    "erpx-feature-commercial-v2"
+    "erpx-feature-commercial"
 );

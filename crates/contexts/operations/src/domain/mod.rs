@@ -12,7 +12,7 @@ use erpx_integration_contracts::{
     operations,
     reference::{RecordTypeId, ReferenceValidationError},
 };
-use erpx_kernel::{AggregateId, CorrelationId, EventId, RecordId, TenantScope};
+use erpx_kernel::{AggregateId, AuthorityScope, CorrelationId, EventId, RecordId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -108,7 +108,7 @@ pub struct SourceFactMessage {
     aggregate_kind: String,
     aggregate_id: AggregateId,
     aggregate_version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     correlation_id: CorrelationId,
     causation_id: Option<EventId>,
     occurred_at: DateTime<Utc>,
@@ -131,7 +131,7 @@ impl SourceFactMessage {
             aggregate_kind: envelope.aggregate_kind().to_owned(),
             aggregate_id: envelope.aggregate_id(),
             aggregate_version: envelope.aggregate_version(),
-            scope: envelope.tenant_scope().clone(),
+            scope: envelope.active_scope().clone(),
             correlation_id: envelope.correlation_id(),
             causation_id: envelope.causation_id(),
             occurred_at: *envelope.occurred_at(),
@@ -188,7 +188,7 @@ impl SourceFactMessage {
     pub const fn aggregate_version(&self) -> u64 {
         self.aggregate_version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn correlation_id(&self) -> CorrelationId {
@@ -373,7 +373,7 @@ pub(crate) enum DomainEvent {
 pub struct WorkQueuePolicy {
     id: WorkQueuePolicyId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     name: String,
     allowed_sources: Vec<BoundedContext>,
     escalation_after_minutes: u32,
@@ -388,7 +388,7 @@ pub struct WorkQueuePolicy {
 pub struct WorkQueuePolicyState {
     pub id: WorkQueuePolicyId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub name: String,
     pub allowed_sources: Vec<BoundedContext>,
     pub escalation_after_minutes: u32,
@@ -417,7 +417,7 @@ impl WorkQueuePolicy {
 
     pub fn publish(
         id: WorkQueuePolicyId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         name: String,
         allowed_sources: Vec<BoundedContext>,
         escalation_after_minutes: u32,
@@ -473,7 +473,7 @@ impl WorkQueuePolicy {
     pub fn validate(&self) -> Result<(), OperationsDomainError> {
         validate_text(&self.name, "work_queue_policy_name", MAX_REFERENCE_BYTES)?;
         validate_record_scope(&self.scope)?;
-        if !matches!(self.scope, TenantScope::Holding { .. })
+        if !matches!(self.scope, AuthorityScope::Holding { .. })
             || self.version == 0
             || self.allowed_sources.is_empty()
             || self.allowed_sources.len() > 16
@@ -512,7 +512,7 @@ impl WorkQueuePolicy {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn name(&self) -> &str {
@@ -543,7 +543,7 @@ pub struct OperationsException {
     id: ExceptionId,
     version: u64,
     reference: String,
-    scope: TenantScope,
+    scope: AuthorityScope,
     source: SourceReference,
     source_fact: operations::SourceFact,
     policy_ref: String,
@@ -564,7 +564,7 @@ pub struct OperationsExceptionState {
     pub id: ExceptionId,
     pub version: u64,
     pub reference: String,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub source: SourceReference,
     pub source_fact: operations::SourceFact,
     pub policy_ref: String,
@@ -827,7 +827,7 @@ impl OperationsException {
     pub fn reference(&self) -> &str {
         &self.reference
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn source(&self) -> &SourceReference {
@@ -891,11 +891,14 @@ fn validate_text(
     }
 }
 
-fn validate_record_scope(scope: &TenantScope) -> Result<(), OperationsDomainError> {
+fn validate_record_scope(scope: &AuthorityScope) -> Result<(), OperationsDomainError> {
     scope
         .validate()
         .map_err(|_| OperationsDomainError::InvalidScope)?;
-    if matches!(scope, TenantScope::Platform | TenantScope::Subtree { .. }) {
+    if matches!(
+        scope,
+        AuthorityScope::Platform | AuthorityScope::Subtree { .. }
+    ) {
         Err(OperationsDomainError::InvalidScope)
     } else {
         Ok(())

@@ -18,5 +18,5 @@ erpx_ui_kit::declare_current_workspace_feature!(
     erpx_ui_kit::CurrentFeatureKind::Maintenance,
     "maintenance",
     [("maintenance.workspace", "/maintenance", "operations")],
-    "erpx-feature-maintenance-v2"
+    "erpx-feature-maintenance"
 );

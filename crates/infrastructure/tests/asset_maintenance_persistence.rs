@@ -1,6 +1,6 @@
 //! Disposable end-to-end evidence for the Asset/Maintenance source and read
 //! boundary. This remains ignored in the normal suite because it requires two
-//! routed PostgreSQL databases with the tenant migrations applied.
+//! routed PostgreSQL databases with the holding migrations applied.
 
 use chrono::Utc;
 use chrono::{Duration, NaiveDate};
@@ -8,7 +8,7 @@ use erpx_domain::asset_maintenance::{
     Asset, AssetCommand, AssetScope, MaintenanceCommand, MaintenanceKind, MaintenanceWorkOrder,
     OperationsCapacityImpactHandoff,
 };
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::operations::SourceTransactionRef;
 use erpx_infrastructure::{
     AssetMaintenanceAggregate, AssetMaintenanceReadScope, SqlxAssetMaintenanceStore,
@@ -17,12 +17,12 @@ use serde_json::json;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-fn context(scope: TenantScope, key: &str, expected_version: Option<u64>) -> CommandContext {
+fn context(scope: AuthorityScope, key: &str, expected_version: Option<u64>) -> CommandContext {
     let mut context = CommandContext::try_new(
         key,
         ActorAttribution {
             principal_ref: "asset-maintenance-e2e-actor".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
@@ -36,29 +36,29 @@ fn context(scope: TenantScope, key: &str, expected_version: Option<u64>) -> Comm
 }
 
 #[tokio::test]
-#[ignore = "requires two disposable tenant PostgreSQL databases"]
+#[ignore = "requires two disposable holding PostgreSQL databases"]
 async fn live_asset_maintenance_write_outbox_projection_read_reconcile_and_rebuild() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migration");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding write migration");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migration");
+        .expect("holding read migration");
 
-    let holding_ref = format!("holding-asset-maintenance-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-asset-maintenance-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let scope = AssetScope::new(holding_id, company_id, None).expect("asset scope");
-    let tenant_scope = scope.tenant_scope();
+    let active_scope = scope.active_scope();
     let asset_id = Uuid::new_v4();
     let mut asset = Asset::new(
-        &context(tenant_scope.clone(), "asset-create", None),
+        &context(active_scope.clone(), "asset-create", None),
         asset_id,
         "Anonymized maintenance asset",
         "material_handling",
@@ -73,7 +73,7 @@ async fn live_asset_maintenance_write_outbox_projection_read_reconcile_and_rebui
     .expect("asset");
     asset
         .apply(
-            &context(tenant_scope, "asset-place-in-service", Some(0)),
+            &context(active_scope, "asset-place-in-service", Some(0)),
             AssetCommand::PlaceInService {
                 at: NaiveDate::from_ymd_opt(2026, 1, 3).expect("date"),
             },
@@ -83,9 +83,12 @@ async fn live_asset_maintenance_write_outbox_projection_read_reconcile_and_rebui
     let destination_scope =
         AssetScope::new(holding_id, company_id, Some(Uuid::new_v4())).expect("destination scope");
 
-    let store =
-        SqlxAssetMaintenanceStore::new(write_pool.clone(), read_pool.clone(), holding_ref.clone())
-            .expect("asset maintenance store");
+    let store = SqlxAssetMaintenanceStore::new(
+        write_pool.clone(),
+        read_pool.clone(),
+        data_profile_key.clone(),
+    )
+    .expect("asset maintenance store");
     let aggregate = AssetMaintenanceAggregate::Asset(asset);
     let first = store
         .save(&aggregate, "asset-maintenance-e2e-write", Some(0))
@@ -103,7 +106,7 @@ async fn live_asset_maintenance_write_outbox_projection_read_reconcile_and_rebui
     transferred_asset
         .apply(
             &context(
-                TenantScope::Company {
+                AuthorityScope::Company {
                     holding_id,
                     company_id,
                 },
@@ -260,16 +263,16 @@ async fn live_asset_maintenance_write_outbox_projection_read_reconcile_and_rebui
     assert_eq!(consistent.custody_history_mismatch_count, 0);
 
     let mut read_tx = read_pool.begin().await.expect("custody tamper transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *read_tx)
         .await
         .expect("read RLS scope");
     sqlx::query(
-        "DELETE FROM erpx_tenant.asset_custody_transfer_read_rows
-         WHERE holding_ref=$1 AND asset_id=$2",
+        "DELETE FROM erpx_holding.asset_custody_transfer_read_rows
+         WHERE data_profile_key=$1 AND asset_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(asset_id)
     .execute(&mut *read_tx)
     .await
@@ -358,21 +361,21 @@ async fn live_asset_maintenance_write_outbox_projection_read_reconcile_and_rebui
     );
     rollback_handoff.idempotency_key = "asset-maintenance-capacity-rollback".into();
     let mut rollback_seed_tx = write_pool.begin().await.expect("rollback seed transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *rollback_seed_tx)
         .await
         .expect("rollback seed RLS scope");
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at)
          VALUES ($1,'operations_capacity_handoff',$2,$3,1,
                  'seed.conflicting_event',$4,now())",
     )
     .bind(rollback_event_id)
     .bind(rollback_handoff.source.source_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(serde_json::to_value(&rollback_handoff).expect("rollback seed payload"))
     .execute(&mut *rollback_seed_tx)
     .await
@@ -391,16 +394,16 @@ async fn live_asset_maintenance_write_outbox_projection_read_reconcile_and_rebui
         .begin()
         .await
         .expect("rollback verify transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *rollback_verify_tx)
         .await
         .expect("rollback verify RLS scope");
     let rolled_back_source_count: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_tenant.asset_operations_capacity_handoffs
-         WHERE holding_ref=$1 AND source_event_id=$2",
+        "SELECT count(*) FROM erpx_holding.asset_operations_capacity_handoffs
+         WHERE data_profile_key=$1 AND source_event_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(rollback_event_id)
     .fetch_one(&mut *rollback_verify_tx)
     .await
@@ -416,17 +419,17 @@ async fn live_asset_maintenance_write_outbox_projection_read_reconcile_and_rebui
     // closed until the disposable row is restored from the authoritative
     // source handoff.
     let mut handoff_read_tx = read_pool.begin().await.expect("handoff tamper transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *handoff_read_tx)
         .await
         .expect("handoff read RLS scope");
     sqlx::query(
-        "UPDATE erpx_tenant.asset_capacity_handoff_read_rows
+        "UPDATE erpx_holding.asset_capacity_handoff_read_rows
          SET payload=jsonb_set(payload, '{downtime_minutes}', to_jsonb(91::bigint))
-         WHERE holding_ref=$1 AND source_event_id=$2",
+         WHERE data_profile_key=$1 AND source_event_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(source_event_id)
     .execute(&mut *handoff_read_tx)
     .await
@@ -446,18 +449,18 @@ async fn live_asset_maintenance_write_outbox_projection_read_reconcile_and_rebui
         .begin()
         .await
         .expect("handoff restore transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *handoff_restore_tx)
         .await
         .expect("handoff restore RLS scope");
     sqlx::query(
-        "UPDATE erpx_tenant.asset_capacity_handoff_read_rows
+        "UPDATE erpx_holding.asset_capacity_handoff_read_rows
          SET source_id=$3, company_id=$4, branch_id=$5, reference=$6,
              source_version=1, payload=$7
-         WHERE holding_ref=$1 AND source_event_id=$2",
+         WHERE data_profile_key=$1 AND source_event_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(source_event_id)
     .bind(handoff.source.source_id)
     .bind(handoff.scope.company_id)
@@ -474,17 +477,17 @@ async fn live_asset_maintenance_write_outbox_projection_read_reconcile_and_rebui
 
     // A read row claiming a future source version is not accepted as fresh.
     let mut read_tx = read_pool.begin().await.expect("read transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *read_tx)
         .await
         .expect("read RLS scope");
     sqlx::query(
-        "UPDATE erpx_tenant.asset_maintenance_read_rows
+        "UPDATE erpx_holding.asset_maintenance_read_rows
          SET source_version=3
-         WHERE holding_ref=$1 AND aggregate_type='asset' AND aggregate_id=$2",
+         WHERE data_profile_key=$1 AND aggregate_type='asset' AND aggregate_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(asset_id)
     .execute(&mut *read_tx)
     .await
@@ -499,17 +502,17 @@ async fn live_asset_maintenance_write_outbox_projection_read_reconcile_and_rebui
 
     // A projected source version behind the payload is malformed, not drift.
     let mut malformed_version_tx = read_pool.begin().await.expect("version guard transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *malformed_version_tx)
         .await
         .expect("version guard RLS scope");
     sqlx::query(
-        "UPDATE erpx_tenant.asset_maintenance_read_rows
+        "UPDATE erpx_holding.asset_maintenance_read_rows
          SET source_version=1
-         WHERE holding_ref=$1 AND aggregate_type='asset' AND aggregate_id=$2",
+         WHERE data_profile_key=$1 AND aggregate_type='asset' AND aggregate_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(asset_id)
     .execute(&mut *malformed_version_tx)
     .await
@@ -524,18 +527,18 @@ async fn live_asset_maintenance_write_outbox_projection_read_reconcile_and_rebui
     );
 
     let mut malformed_identity_tx = read_pool.begin().await.expect("identity guard transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *malformed_identity_tx)
         .await
         .expect("identity guard RLS scope");
     sqlx::query(
-        "UPDATE erpx_tenant.asset_maintenance_read_rows
+        "UPDATE erpx_holding.asset_maintenance_read_rows
          SET source_version=3,
              payload=jsonb_set(payload, '{aggregate,id}', to_jsonb($3::text))
-         WHERE holding_ref=$1 AND aggregate_type='asset' AND aggregate_id=$2",
+         WHERE data_profile_key=$1 AND aggregate_type='asset' AND aggregate_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(asset_id)
     .bind(Uuid::new_v4().to_string())
     .execute(&mut *malformed_identity_tx)
@@ -612,29 +615,29 @@ async fn live_asset_maintenance_write_outbox_projection_read_reconcile_and_rebui
 }
 
 #[tokio::test]
-#[ignore = "requires two disposable tenant PostgreSQL databases"]
+#[ignore = "requires two disposable holding PostgreSQL databases"]
 async fn live_maintenance_work_order_requires_authoritative_asset_link() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migration");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding write migration");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migration");
+        .expect("holding read migration");
 
-    let holding_ref = format!("holding-asset-maintenance-link-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-asset-maintenance-link-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let scope = AssetScope::new(holding_id, company_id, None).expect("asset scope");
-    let tenant_scope = scope.tenant_scope();
+    let active_scope = scope.active_scope();
     let asset_id = Uuid::new_v4();
     let mut asset = Asset::new(
-        &context(tenant_scope.clone(), "mwo-link-asset-create", None),
+        &context(active_scope.clone(), "mwo-link-asset-create", None),
         asset_id,
         "Maintenance-link asset",
         "material_handling",
@@ -649,15 +652,18 @@ async fn live_maintenance_work_order_requires_authoritative_asset_link() {
     .expect("asset");
     asset
         .apply(
-            &context(tenant_scope.clone(), "mwo-link-asset-service", Some(0)),
+            &context(active_scope.clone(), "mwo-link-asset-service", Some(0)),
             AssetCommand::PlaceInService {
                 at: NaiveDate::from_ymd_opt(2026, 2, 2).expect("date"),
             },
         )
         .expect("place asset in service");
-    let store =
-        SqlxAssetMaintenanceStore::new(write_pool.clone(), read_pool.clone(), holding_ref.clone())
-            .expect("asset maintenance store");
+    let store = SqlxAssetMaintenanceStore::new(
+        write_pool.clone(),
+        read_pool.clone(),
+        data_profile_key.clone(),
+    )
+    .expect("asset maintenance store");
     store
         .save(
             &AssetMaintenanceAggregate::Asset(asset.clone()),
@@ -669,7 +675,7 @@ async fn live_maintenance_work_order_requires_authoritative_asset_link() {
 
     let work_order_id = Uuid::new_v4();
     let mut work_order = MaintenanceWorkOrder::new(
-        &context(tenant_scope.clone(), "mwo-link-create", None),
+        &context(active_scope.clone(), "mwo-link-create", None),
         work_order_id,
         &asset,
         MaintenanceKind::Preventive,
@@ -678,7 +684,7 @@ async fn live_maintenance_work_order_requires_authoritative_asset_link() {
     .expect("maintenance work order");
     work_order
         .apply(
-            &context(tenant_scope.clone(), "mwo-link-schedule", Some(0)),
+            &context(active_scope.clone(), "mwo-link-schedule", Some(0)),
             MaintenanceCommand::Schedule {
                 scheduled_for: Some(Utc::now() + Duration::hours(1)),
             },
@@ -754,27 +760,27 @@ async fn live_maintenance_work_order_requires_authoritative_asset_link() {
         .begin()
         .await
         .expect("rollback verification transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *verify_tx)
         .await
         .expect("rollback verification RLS scope");
     let source_rows: i64 = sqlx::query_scalar(
         "SELECT count(*)
-         FROM erpx_tenant.asset_maintenance_aggregates
-         WHERE holding_ref=$1 AND aggregate_type='maintenance_work_order' AND aggregate_id=$2",
+         FROM erpx_holding.asset_maintenance_aggregates
+         WHERE data_profile_key=$1 AND aggregate_type='maintenance_work_order' AND aggregate_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(forged_id)
     .fetch_one(&mut *verify_tx)
     .await
     .expect("count forged source rows");
     let outbox_rows: i64 = sqlx::query_scalar(
         "SELECT count(*)
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type='maintenance_work_order' AND aggregate_id=$2",
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type='maintenance_work_order' AND aggregate_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(forged_id)
     .fetch_one(&mut *verify_tx)
     .await
@@ -790,7 +796,7 @@ async fn live_maintenance_work_order_requires_authoritative_asset_link() {
     // been disposed, even when the work-order payload otherwise validates.
     asset
         .apply(
-            &context(tenant_scope, "mwo-link-asset-dispose", Some(1)),
+            &context(active_scope, "mwo-link-asset-dispose", Some(1)),
             AssetCommand::Dispose {
                 disposed_at: NaiveDate::from_ymd_opt(2026, 2, 10).expect("date"),
                 proceeds_minor: 500,
@@ -824,11 +830,11 @@ async fn live_maintenance_work_order_requires_authoritative_asset_link() {
 #[test]
 fn asset_maintenance_acceptance_test_is_explicitly_live_and_ignored() {
     let source = include_str!("asset_maintenance_persistence.rs");
-    assert!(source.contains("migrate_tenant_write"));
-    assert!(source.contains("migrate_tenant_read"));
+    assert!(source.contains("migrate_holding_write"));
+    assert!(source.contains("migrate_holding_read"));
     assert!(source.contains("project_event"));
     assert!(source.contains("reconcile_projection"));
     assert!(source.contains("clear_projection"));
-    assert!(source.contains("ERPX_TEST_TENANT_WRITE_DATABASE_URL"));
-    assert!(source.contains("ERPX_TEST_TENANT_READ_DATABASE_URL"));
+    assert!(source.contains("ERPX_TEST_HOLDING_WRITE_DATABASE_URL"));
+    assert!(source.contains("ERPX_TEST_HOLDING_READ_DATABASE_URL"));
 }

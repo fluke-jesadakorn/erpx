@@ -71,7 +71,7 @@ Run from `erpx/`:
   databases.
 - `cargo clippy -p erpx-infrastructure --all-targets -- -D warnings` —
   **BLOCKED** by seven unrelated `support_persistence.rs` warnings/errors:
-  unused `TenantScope`, unused attachment imports, and unused attachment
+  unused `HoldingScope`, unused attachment imports, and unused attachment
   migration/page types.
 - Auxiliary `cargo clippy -p erpx-infrastructure --all-targets -- -D warnings
   -A unused-imports -A dead-code` — **PASS**; no other clippy findings.

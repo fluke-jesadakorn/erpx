@@ -8,7 +8,7 @@
 //! transaction helper and commits normalized source rows, outbox
 //! events, and idempotency receipts together.
 
-use erpx_domain::contracts::{CONTRACT_VERSION, CommandContext, TenantScope};
+use erpx_domain::contracts::{AuthorityScope, CONTRACT_VERSION, CommandContext};
 use erpx_domain::marketing_crm::{
     AcceptedLeadHandoff, AttributionModel, AttributionResult, CrmOpportunity, MarketingCrmError,
     deterministic_idempotency_key, validate_command_context,
@@ -52,31 +52,31 @@ pub struct CrmAttributionWriteReceipt {
 #[derive(Debug, Clone)]
 pub struct SqlxMarketingCrmStore {
     write_pool: PgPool,
-    holding_ref: String,
+    data_profile_key: String,
 }
 
 impl SqlxMarketingCrmStore {
     pub fn new(
         write_pool: PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_holding_ref(&holding_ref)?;
+        let data_profile_key = data_profile_key.into();
+        validate_data_profile_key(&data_profile_key)?;
         Ok(Self {
             write_pool,
-            holding_ref,
+            data_profile_key,
         })
     }
 
     pub fn from_pool(
         write_pool: &PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        Self::new(write_pool.clone(), holding_ref)
+        Self::new(write_pool.clone(), data_profile_key)
     }
 
-    pub fn holding_ref(&self) -> &str {
-        &self.holding_ref
+    pub fn data_profile_key(&self) -> &str {
+        &self.data_profile_key
     }
 
     /// Persist the immutable Marketing -> CRM acceptance boundary.
@@ -94,7 +94,7 @@ impl SqlxMarketingCrmStore {
         let mut tx = self.begin_write().await?;
         let receipt = Self::persist_handoff_in_transaction(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             handoff,
             context,
             expected_version,
@@ -109,7 +109,7 @@ impl SqlxMarketingCrmStore {
     /// caller owns the transaction and must commit all effects together.
     pub(crate) async fn persist_handoff_in_transaction(
         tx: &mut Transaction<'_, Postgres>,
-        holding_ref: &str,
+        data_profile_key: &str,
         handoff: &AcceptedLeadHandoff,
         context: &CommandContext,
         expected_version: Option<u64>,
@@ -129,7 +129,7 @@ impl SqlxMarketingCrmStore {
 
         lock_command_keys(
             tx,
-            holding_ref,
+            data_profile_key,
             HANDOFF_AGGREGATE,
             handoff.id,
             &handoff.reference,
@@ -137,7 +137,7 @@ impl SqlxMarketingCrmStore {
         )
         .await?;
         if let Some(binding) =
-            load_idempotency(&mut *tx, holding_ref, &handoff.idempotency_key).await?
+            load_idempotency(&mut *tx, data_profile_key, &handoff.idempotency_key).await?
         {
             validate_idempotency_binding(
                 &binding,
@@ -155,11 +155,11 @@ impl SqlxMarketingCrmStore {
 
         let existing: Option<i64> = sqlx::query_scalar(
             "SELECT version
-             FROM erpx_tenant.crm_accepted_lead_handoffs
-             WHERE holding_ref=$1 AND handoff_id=$2
+             FROM erpx_holding.crm_accepted_lead_handoffs
+             WHERE data_profile_key=$1 AND handoff_id=$2
              FOR UPDATE",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(handoff.id)
         .fetch_optional(&mut **tx)
         .await?;
@@ -173,7 +173,7 @@ impl SqlxMarketingCrmStore {
         }
         reject_existing_reference(
             tx,
-            holding_ref,
+            data_profile_key,
             HANDOFF_AGGREGATE,
             &handoff.reference,
             handoff.id,
@@ -181,7 +181,7 @@ impl SqlxMarketingCrmStore {
         .await?;
         reject_existing_key_row(
             tx,
-            holding_ref,
+            data_profile_key,
             HANDOFF_AGGREGATE,
             &handoff.idempotency_key,
             handoff.id,
@@ -189,14 +189,14 @@ impl SqlxMarketingCrmStore {
         .await?;
 
         sqlx::query(
-            "INSERT INTO erpx_tenant.crm_accepted_lead_handoffs
-                (handoff_id, holding_ref, holding_id, company_id, branch_id, scope,
+            "INSERT INTO erpx_holding.crm_accepted_lead_handoffs
+                (handoff_id, data_profile_key, holding_id, company_id, branch_id, scope,
                  reference, idempotency_key, command_id, source, account_id,
                  account_scope, contact_id, contact_scope, accepted_at, version, payload)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,1,$16)",
         )
         .bind(handoff.id)
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(holding_id)
         .bind(company_id)
         .bind(branch_id)
@@ -223,7 +223,7 @@ impl SqlxMarketingCrmStore {
         };
         write_crm_source_event(
             tx,
-            holding_ref,
+            data_profile_key,
             HANDOFF_AGGREGATE,
             handoff.id,
             1,
@@ -235,7 +235,7 @@ impl SqlxMarketingCrmStore {
         .await?;
         insert_idempotency(
             tx,
-            holding_ref,
+            data_profile_key,
             HANDOFF_AGGREGATE,
             handoff.id,
             &handoff.reference,
@@ -269,15 +269,19 @@ impl SqlxMarketingCrmStore {
         let mut tx = self.begin_write().await?;
         lock_command_keys(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             OPPORTUNITY_AGGREGATE,
             opportunity.id,
             &opportunity.reference,
             &opportunity.idempotency_key,
         )
         .await?;
-        if let Some(binding) =
-            load_idempotency(&mut tx, &self.holding_ref, &opportunity.idempotency_key).await?
+        if let Some(binding) = load_idempotency(
+            &mut tx,
+            &self.data_profile_key,
+            &opportunity.idempotency_key,
+        )
+        .await?
         {
             validate_idempotency_binding(
                 &binding,
@@ -300,10 +304,10 @@ impl SqlxMarketingCrmStore {
         }
 
         let source_handoff_id =
-            load_and_validate_handoff_binding(&mut tx, &self.holding_ref, opportunity).await?;
+            load_and_validate_handoff_binding(&mut tx, &self.data_profile_key, opportunity).await?;
         reject_existing_reference(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             OPPORTUNITY_AGGREGATE,
             &opportunity.reference,
             opportunity.id,
@@ -311,7 +315,7 @@ impl SqlxMarketingCrmStore {
         .await?;
         reject_existing_key_row(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             OPPORTUNITY_AGGREGATE,
             &opportunity.idempotency_key,
             opportunity.id,
@@ -320,11 +324,11 @@ impl SqlxMarketingCrmStore {
 
         let current: Option<(i64, Value, String)> = sqlx::query_as(
             "SELECT version, payload, attribution_hash
-             FROM erpx_tenant.crm_opportunities
-             WHERE holding_ref=$1 AND opportunity_id=$2
+             FROM erpx_holding.crm_opportunities
+             WHERE data_profile_key=$1 AND opportunity_id=$2
              FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(opportunity.id)
         .fetch_optional(&mut *tx)
         .await?;
@@ -367,13 +371,13 @@ impl SqlxMarketingCrmStore {
 
         if is_update {
             sqlx::query(
-                "UPDATE erpx_tenant.crm_opportunities
+                "UPDATE erpx_holding.crm_opportunities
                  SET holding_id=$3, company_id=$4, branch_id=$5, scope=$6,
                      idempotency_key=$7, command_id=$8, status=$9, updated_at=$10,
                      version=$11, payload=$12
-                 WHERE holding_ref=$1 AND opportunity_id=$2 AND version=$13",
+                 WHERE data_profile_key=$1 AND opportunity_id=$2 AND version=$13",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(opportunity.id)
             .bind(holding_id)
             .bind(company_id)
@@ -390,8 +394,8 @@ impl SqlxMarketingCrmStore {
             .await?;
         } else {
             sqlx::query(
-                "INSERT INTO erpx_tenant.crm_opportunities
-                    (opportunity_id, holding_ref, holding_id, company_id, branch_id,
+                "INSERT INTO erpx_holding.crm_opportunities
+                    (opportunity_id, data_profile_key, holding_id, company_id, branch_id,
                      scope, reference, idempotency_key, command_id,
                      accepted_lead_handoff_id, accepted_lead_reference, account_id,
                      account_scope, contact_id, contact_scope, name, currency,
@@ -401,7 +405,7 @@ impl SqlxMarketingCrmStore {
                          $18,$19,$20,$21,1,$22,$23)",
             )
             .bind(opportunity.id)
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(holding_id)
             .bind(company_id)
             .bind(branch_id)
@@ -425,7 +429,7 @@ impl SqlxMarketingCrmStore {
             .bind(&payload)
             .execute(&mut *tx)
             .await?;
-            insert_attribution_inputs(&mut tx, &self.holding_ref, opportunity).await?;
+            insert_attribution_inputs(&mut tx, &self.data_profile_key, opportunity).await?;
         }
 
         let receipt = CrmWriteReceipt {
@@ -437,7 +441,7 @@ impl SqlxMarketingCrmStore {
         };
         write_crm_source_event(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             OPPORTUNITY_AGGREGATE,
             opportunity.id,
             version,
@@ -449,7 +453,7 @@ impl SqlxMarketingCrmStore {
         .await?;
         insert_idempotency(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             OPPORTUNITY_AGGREGATE,
             opportunity.id,
             &opportunity.reference,
@@ -475,7 +479,7 @@ impl SqlxMarketingCrmStore {
         validate_uuid(opportunity_id, "opportunity_id")?;
         validate_command_context(context).map_err(domain_error)?;
         validate_bounded_context_key(&context.idempotency_key)?;
-        if matches!(context.tenant_scope, TenantScope::Platform) {
+        if matches!(context.active_scope, AuthorityScope::Platform) {
             return Err(PersistenceError::InvalidData(
                 "CRM attribution requires a non-Platform command scope".into(),
             ));
@@ -484,7 +488,7 @@ impl SqlxMarketingCrmStore {
         let mut tx = self.begin_write().await?;
         lock_command_keys(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             ATTRIBUTION_AGGREGATE,
             opportunity_id,
             &format!("CRM-ATTR-{}", opportunity_id.simple()),
@@ -493,11 +497,11 @@ impl SqlxMarketingCrmStore {
         .await?;
         let row = sqlx::query(
             "SELECT version, payload
-             FROM erpx_tenant.crm_opportunities
-             WHERE holding_ref=$1 AND opportunity_id=$2
+             FROM erpx_holding.crm_opportunities
+             WHERE data_profile_key=$1 AND opportunity_id=$2
              FOR SHARE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(opportunity_id)
         .fetch_optional(&mut *tx)
         .await?
@@ -508,7 +512,7 @@ impl SqlxMarketingCrmStore {
         let opportunity_version = as_u64(row.get::<i64, _>("version"), "CRM opportunity version")?;
         let opportunity: CrmOpportunity = serde_json::from_value(row.get("payload"))?;
         opportunity.validate().map_err(domain_error)?;
-        if !context.tenant_scope.contains(&opportunity.scope) {
+        if !context.active_scope.contains(&opportunity.scope) {
             return Err(PersistenceError::InvalidData(
                 "CRM attribution command scope is outside the opportunity scope".into(),
             ));
@@ -518,7 +522,7 @@ impl SqlxMarketingCrmStore {
             .attribute(model, opportunity.expected_revenue_minor)
             .map_err(domain_error)?;
         let model_text = attribution_model_text(model);
-        let record_id = deterministic_record_id(&self.holding_ref, opportunity_id, model_text);
+        let record_id = deterministic_record_id(&self.data_profile_key, opportunity_id, model_text);
         let reference = format!(
             "CRM-ATTR-{}",
             record_id.simple().to_string().to_ascii_uppercase()
@@ -532,7 +536,7 @@ impl SqlxMarketingCrmStore {
         });
         let request_hash = hash_request(&payload, Some(expected_opportunity_version))?;
         if let Some(binding) =
-            load_idempotency(&mut tx, &self.holding_ref, &context.idempotency_key).await?
+            load_idempotency(&mut tx, &self.data_profile_key, &context.idempotency_key).await?
         {
             validate_idempotency_binding(
                 &binding,
@@ -558,7 +562,7 @@ impl SqlxMarketingCrmStore {
             }
             reconcile_attribution_in_transaction(
                 &mut tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 opportunity_id,
                 model,
                 Some(&context.idempotency_key),
@@ -578,11 +582,11 @@ impl SqlxMarketingCrmStore {
         }
         let duplicate_model: Option<Uuid> = sqlx::query_scalar(
             "SELECT record_id
-             FROM erpx_tenant.crm_attribution_records
-             WHERE holding_ref=$1 AND opportunity_id=$2 AND model=$3
+             FROM erpx_holding.crm_attribution_records
+             WHERE data_profile_key=$1 AND opportunity_id=$2 AND model=$3
              FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(opportunity_id)
         .bind(model_text)
         .fetch_optional(&mut *tx)
@@ -594,21 +598,21 @@ impl SqlxMarketingCrmStore {
         }
         reject_existing_key_row(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             ATTRIBUTION_AGGREGATE,
             &context.idempotency_key,
             record_id,
         )
         .await?;
         sqlx::query(
-            "INSERT INTO erpx_tenant.crm_attribution_records
-                (record_id, holding_ref, opportunity_id, model, idempotency_key,
+            "INSERT INTO erpx_holding.crm_attribution_records
+                (record_id, data_profile_key, opportunity_id, model, idempotency_key,
                  source_opportunity_version, version, total_revenue_minor,
                  total_cost_minor, payload)
              VALUES ($1,$2,$3,$4,$5,$6,1,$7,$8,$9)",
         )
         .bind(record_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(opportunity_id)
         .bind(model_text)
         .bind(&context.idempotency_key)
@@ -620,12 +624,12 @@ impl SqlxMarketingCrmStore {
         .await?;
         for entry in &result.entries {
             sqlx::query(
-                "INSERT INTO erpx_tenant.crm_attribution_entries
-                    (holding_ref, record_id, touch_id, source_id, campaign_id,
+                "INSERT INTO erpx_holding.crm_attribution_entries
+                    (data_profile_key, record_id, touch_id, source_id, campaign_id,
                      revenue_minor, cost_minor)
                  VALUES ($1,$2,$3,$4,$5,$6,$7)",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(record_id)
             .bind(entry.touch_id.as_str())
             .bind(entry.source_id.as_str())
@@ -645,7 +649,7 @@ impl SqlxMarketingCrmStore {
         };
         write_crm_source_event(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             ATTRIBUTION_AGGREGATE,
             record_id,
             1,
@@ -657,7 +661,7 @@ impl SqlxMarketingCrmStore {
         .await?;
         insert_idempotency(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             ATTRIBUTION_AGGREGATE,
             record_id,
             &reference,
@@ -686,16 +690,16 @@ impl SqlxMarketingCrmStore {
     ) -> Result<(), PersistenceError> {
         validate_uuid(opportunity_id, "opportunity_id")?;
         let model_text = attribution_model_text(model);
-        let record_id = deterministic_record_id(&self.holding_ref, opportunity_id, model_text);
+        let record_id = deterministic_record_id(&self.data_profile_key, opportunity_id, model_text);
         let mut tx = self.begin_write().await?;
 
         let opportunity_row = sqlx::query(
             "SELECT version, payload
-             FROM erpx_tenant.crm_opportunities
-             WHERE holding_ref=$1 AND opportunity_id=$2
+             FROM erpx_holding.crm_opportunities
+             WHERE data_profile_key=$1 AND opportunity_id=$2
              FOR SHARE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(opportunity_id)
         .fetch_optional(&mut *tx)
         .await?
@@ -717,11 +721,11 @@ impl SqlxMarketingCrmStore {
         let record_row = sqlx::query(
             "SELECT record_id, model, idempotency_key, source_opportunity_version,
                     version, total_revenue_minor, total_cost_minor, payload
-             FROM erpx_tenant.crm_attribution_records
-             WHERE holding_ref=$1 AND opportunity_id=$2 AND model=$3
+             FROM erpx_holding.crm_attribution_records
+             WHERE data_profile_key=$1 AND opportunity_id=$2 AND model=$3
              FOR SHARE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(opportunity_id)
         .bind(model_text)
         .fetch_optional(&mut *tx)
@@ -765,7 +769,7 @@ impl SqlxMarketingCrmStore {
 
         let stored_payload_value: Value = record_row.get("payload");
         let request_hash = hash_request(&stored_payload_value, Some(source_opportunity_version))?;
-        let binding = load_idempotency(&mut tx, &self.holding_ref, &stored_idempotency_key)
+        let binding = load_idempotency(&mut tx, &self.data_profile_key, &stored_idempotency_key)
             .await?
             .ok_or_else(|| {
                 PersistenceError::InvalidData(
@@ -797,11 +801,11 @@ impl SqlxMarketingCrmStore {
 
         let persisted_entries = sqlx::query(
             "SELECT touch_id, source_id, campaign_id, revenue_minor, cost_minor
-             FROM erpx_tenant.crm_attribution_entries
-             WHERE holding_ref=$1 AND record_id=$2
+             FROM erpx_holding.crm_attribution_entries
+             WHERE data_profile_key=$1 AND record_id=$2
              ORDER BY touch_id",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(record_id)
         .fetch_all(&mut *tx)
         .await?
@@ -837,13 +841,13 @@ impl SqlxMarketingCrmStore {
 
         let outbox_rows = sqlx::query(
             "SELECT contract_version, event_version, idempotency_key,
-                    tenant_scope, actor, correlation_id, causation_id, payload
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND aggregate_type=$2 AND aggregate_id=$3
+                    active_scope, actor, correlation_id, causation_id, payload
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND aggregate_type=$2 AND aggregate_id=$3
                AND aggregate_version=1 AND event_type=$4
              FOR SHARE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(ATTRIBUTION_AGGREGATE)
         .bind(record_id)
         .bind(ATTRIBUTION_EVENT)
@@ -855,15 +859,15 @@ impl SqlxMarketingCrmStore {
             ));
         }
         let outbox = &outbox_rows[0];
-        let event_scope: TenantScope = outbox
-            .get::<Option<Value>, _>("tenant_scope")
+        let event_scope: AuthorityScope = outbox
+            .get::<Option<Value>, _>("active_scope")
             .ok_or_else(|| {
                 PersistenceError::InvalidData(
-                    "CRM attribution source event tenant scope is missing".into(),
+                    "CRM attribution source event holding scope is missing".into(),
                 )
             })
             .and_then(|value| {
-                serde_json::from_value::<TenantScope>(value).map_err(PersistenceError::from)
+                serde_json::from_value::<AuthorityScope>(value).map_err(PersistenceError::from)
             })?;
         let event_correlation_id: Uuid = outbox
             .get::<Option<Uuid>, _>("correlation_id")
@@ -885,7 +889,7 @@ impl SqlxMarketingCrmStore {
                 .as_deref()
                 != Some(stored_idempotency_key.as_str())
             || outbox.get::<Option<Value>, _>("actor").is_none()
-            || matches!(event_scope, TenantScope::Platform)
+            || matches!(event_scope, AuthorityScope::Platform)
             || !event_scope.contains(&opportunity.scope)
             || event_correlation_id.is_nil()
             || outbox.get::<Value, _>("payload") != expected_event_payload
@@ -900,7 +904,7 @@ impl SqlxMarketingCrmStore {
     }
 
     async fn begin_write(&self) -> Result<Transaction<'_, Postgres>, PersistenceError> {
-        begin_scoped(&self.write_pool, &self.holding_ref).await
+        begin_scoped(&self.write_pool, &self.data_profile_key).await
     }
 }
 
@@ -910,21 +914,21 @@ impl SqlxMarketingCrmStore {
 /// source event cannot be hidden behind a previously stored receipt.
 async fn reconcile_attribution_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     opportunity_id: Uuid,
     model: AttributionModel,
     expected_idempotency_key: Option<&str>,
     expected_source_opportunity_version: Option<u64>,
 ) -> Result<(), PersistenceError> {
     let model_text = attribution_model_text(model);
-    let record_id = deterministic_record_id(holding_ref, opportunity_id, model_text);
+    let record_id = deterministic_record_id(data_profile_key, opportunity_id, model_text);
     let opportunity_row = sqlx::query(
         "SELECT version, payload
-         FROM erpx_tenant.crm_opportunities
-         WHERE holding_ref=$1 AND opportunity_id=$2
+         FROM erpx_holding.crm_opportunities
+         WHERE data_profile_key=$1 AND opportunity_id=$2
          FOR SHARE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(opportunity_id)
     .fetch_optional(&mut **tx)
     .await?
@@ -946,11 +950,11 @@ async fn reconcile_attribution_in_transaction(
     let record_row = sqlx::query(
         "SELECT record_id, model, idempotency_key, source_opportunity_version,
                 version, total_revenue_minor, total_cost_minor, payload
-         FROM erpx_tenant.crm_attribution_records
-         WHERE holding_ref=$1 AND opportunity_id=$2 AND model=$3
+         FROM erpx_holding.crm_attribution_records
+         WHERE data_profile_key=$1 AND opportunity_id=$2 AND model=$3
          FOR SHARE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(opportunity_id)
     .bind(model_text)
     .fetch_optional(&mut **tx)
@@ -995,13 +999,13 @@ async fn reconcile_attribution_in_transaction(
 
     let outbox_rows = sqlx::query(
         "SELECT contract_version, event_version, idempotency_key,
-                tenant_scope, actor, correlation_id, payload
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type=$2 AND aggregate_id=$3
+                active_scope, actor, correlation_id, payload
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type=$2 AND aggregate_id=$3
            AND aggregate_version=1 AND event_type=$4
          FOR SHARE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(ATTRIBUTION_AGGREGATE)
     .bind(record_id)
     .bind(ATTRIBUTION_EVENT)
@@ -1013,15 +1017,15 @@ async fn reconcile_attribution_in_transaction(
         ));
     }
     let outbox = &outbox_rows[0];
-    let event_scope: TenantScope = outbox
-        .get::<Option<Value>, _>("tenant_scope")
+    let event_scope: AuthorityScope = outbox
+        .get::<Option<Value>, _>("active_scope")
         .ok_or_else(|| {
             PersistenceError::InvalidData(
-                "CRM attribution source event tenant scope is missing".into(),
+                "CRM attribution source event holding scope is missing".into(),
             )
         })
         .and_then(|value| {
-            serde_json::from_value::<TenantScope>(value).map_err(PersistenceError::from)
+            serde_json::from_value::<AuthorityScope>(value).map_err(PersistenceError::from)
         })?;
     let event_correlation_id: Uuid =
         outbox
@@ -1044,7 +1048,7 @@ async fn reconcile_attribution_in_transaction(
             .as_deref()
             != Some(stored_idempotency_key.as_str())
         || outbox.get::<Option<Value>, _>("actor").is_none()
-        || matches!(event_scope, TenantScope::Platform)
+        || matches!(event_scope, AuthorityScope::Platform)
         || !event_scope.contains(&opportunity.scope)
         || event_correlation_id.is_nil()
         || outbox.get::<Value, _>("payload") != expected_event_payload
@@ -1063,7 +1067,7 @@ async fn reconcile_attribution_in_transaction(
 #[allow(clippy::too_many_arguments)]
 async fn write_crm_source_event(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     aggregate_type: &str,
     aggregate_id: Uuid,
     version: u64,
@@ -1090,11 +1094,11 @@ async fn write_crm_source_event(
                     count(*) FILTER (WHERE event_type=$5)::BIGINT,
                     count(DISTINCT aggregate_version)::BIGINT,
                     min(aggregate_version), max(aggregate_version)
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND aggregate_type=$2 AND aggregate_id=$3
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND aggregate_type=$2 AND aggregate_id=$3
                AND aggregate_version BETWEEN 1 AND $4",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(aggregate_type)
         .bind(aggregate_id)
         .bind(previous_version)
@@ -1121,23 +1125,23 @@ async fn write_crm_source_event(
         "event_type": event_type,
     });
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at,
-             contract_version, event_version, tenant_scope, actor,
+             contract_version, event_version, active_scope, actor,
              correlation_id, causation_id, idempotency_key)
          VALUES ($1,$2,$3,$4,$5,$6,$7,now(),$8,$9,$10,$11,$12,$13,$14)",
     )
     .bind(event_id)
     .bind(aggregate_type)
     .bind(aggregate_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(version)
     .bind(event_type)
     .bind(event_payload)
     .bind(i32::from(context.contract_version))
     .bind(1_i32)
-    .bind(serde_json::to_value(&context.tenant_scope)?)
+    .bind(serde_json::to_value(&context.active_scope)?)
     .bind(serde_json::to_value(&context.actor)?)
     .bind(context.correlation_id)
     .bind(context.causation_id)
@@ -1198,16 +1202,16 @@ struct StoredAttributionEntry {
 
 async fn load_idempotency(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     key: &str,
 ) -> Result<Option<IdempotencyBinding>, PersistenceError> {
     Ok(sqlx::query(
         "SELECT aggregate_type, aggregate_id, reference, request_hash, response
-         FROM erpx_tenant.crm_idempotency_bindings
-         WHERE holding_ref=$1 AND idempotency_key=$2
+         FROM erpx_holding.crm_idempotency_bindings
+         WHERE data_profile_key=$1 AND idempotency_key=$2
          FOR UPDATE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(key)
     .fetch_optional(&mut **tx)
     .await?
@@ -1281,7 +1285,7 @@ fn validate_attribution_receipt(
 #[allow(clippy::too_many_arguments)]
 async fn insert_idempotency(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     aggregate_type: &str,
     aggregate_id: Uuid,
     reference: &str,
@@ -1290,12 +1294,12 @@ async fn insert_idempotency(
     response: &Value,
 ) -> Result<(), PersistenceError> {
     sqlx::query(
-        "INSERT INTO erpx_tenant.crm_idempotency_bindings
-            (holding_ref, idempotency_key, aggregate_type, aggregate_id,
+        "INSERT INTO erpx_holding.crm_idempotency_bindings
+            (data_profile_key, idempotency_key, aggregate_type, aggregate_id,
              reference, request_hash, response)
          VALUES ($1,$2,$3,$4,$5,$6,$7)",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(idempotency_key)
     .bind(aggregate_type)
     .bind(aggregate_id)
@@ -1309,7 +1313,7 @@ async fn insert_idempotency(
 
 async fn reject_existing_reference(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     aggregate_type: &str,
     reference: &str,
     aggregate_id: Uuid,
@@ -1320,8 +1324,8 @@ async fn reject_existing_reference(
         _ => return Ok(()),
     };
     let statement = format!(
-        "SELECT 1 FROM erpx_tenant.{table}
-         WHERE holding_ref=$1 AND reference=$2 AND {} <> $3
+        "SELECT 1 FROM erpx_holding.{table}
+         WHERE data_profile_key=$1 AND reference=$2 AND {} <> $3
          FOR UPDATE",
         if aggregate_type == HANDOFF_AGGREGATE {
             "handoff_id"
@@ -1330,7 +1334,7 @@ async fn reject_existing_reference(
         }
     );
     if sqlx::query(&statement)
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(reference)
         .bind(aggregate_id)
         .fetch_optional(&mut **tx)
@@ -1346,7 +1350,7 @@ async fn reject_existing_reference(
 
 async fn reject_existing_key_row(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     aggregate_type: &str,
     key: &str,
     aggregate_id: Uuid,
@@ -1364,12 +1368,12 @@ async fn reject_existing_key_row(
         _ => unreachable!(),
     };
     let statement = format!(
-        "SELECT {id_column} FROM erpx_tenant.{table}
-         WHERE holding_ref=$1 AND idempotency_key=$2
+        "SELECT {id_column} FROM erpx_holding.{table}
+         WHERE data_profile_key=$1 AND idempotency_key=$2
          FOR UPDATE"
     );
     if let Some(row) = sqlx::query(&statement)
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(key)
         .fetch_optional(&mut **tx)
         .await?
@@ -1384,16 +1388,16 @@ async fn reject_existing_key_row(
 
 async fn lock_command_keys(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     aggregate_type: &str,
     aggregate_id: Uuid,
     reference: &str,
     idempotency_key: &str,
 ) -> Result<(), PersistenceError> {
     for key in [
-        format!("{holding_ref}:crm:{aggregate_type}:id:{aggregate_id}"),
-        format!("{holding_ref}:crm:{aggregate_type}:reference:{reference}"),
-        format!("{holding_ref}:crm:idempotency:{idempotency_key}"),
+        format!("{data_profile_key}:crm:{aggregate_type}:id:{aggregate_id}"),
+        format!("{data_profile_key}:crm:{aggregate_type}:reference:{reference}"),
+        format!("{data_profile_key}:crm:idempotency:{idempotency_key}"),
     ] {
         sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
             .bind(key)
@@ -1405,16 +1409,16 @@ async fn lock_command_keys(
 
 async fn load_and_validate_handoff_binding(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     opportunity: &CrmOpportunity,
 ) -> Result<Uuid, PersistenceError> {
     let row = sqlx::query(
         "SELECT handoff_id, payload
-         FROM erpx_tenant.crm_accepted_lead_handoffs
-         WHERE holding_ref=$1 AND reference=$2
+         FROM erpx_holding.crm_accepted_lead_handoffs
+         WHERE data_profile_key=$1 AND reference=$2
          FOR SHARE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(opportunity.accepted_lead.id.as_str())
     .fetch_optional(&mut **tx)
     .await?
@@ -1440,17 +1444,17 @@ async fn load_and_validate_handoff_binding(
 
 async fn insert_attribution_inputs(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     opportunity: &CrmOpportunity,
 ) -> Result<(), PersistenceError> {
     for touch in opportunity.attribution().touches() {
         sqlx::query(
-            "INSERT INTO erpx_tenant.crm_opportunity_attribution_inputs
-                (holding_ref, opportunity_id, touch_id, source_id, campaign_id,
+            "INSERT INTO erpx_holding.crm_opportunity_attribution_inputs
+                (data_profile_key, opportunity_id, touch_id, source_id, campaign_id,
                  scope, occurred_at, cost_minor, weight_bps)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(opportunity.id)
         .bind(touch.touch_id.as_str())
         .bind(touch.source_id.as_str())
@@ -1538,17 +1542,17 @@ fn validate_opportunity_transition(
 }
 
 fn scope_columns(
-    scope: &TenantScope,
+    scope: &AuthorityScope,
 ) -> Result<(Uuid, Option<Uuid>, Option<Uuid>), PersistenceError> {
     match scope {
-        TenantScope::Platform => Err(PersistenceError::InvalidData(
+        AuthorityScope::Platform => Err(PersistenceError::InvalidData(
             "CRM records cannot use Platform scope".into(),
         )),
-        TenantScope::Holding { holding_id } => {
+        AuthorityScope::Holding { holding_id } => {
             validate_uuid(*holding_id, "holding_id")?;
             Ok((*holding_id, None, None))
         }
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => {
@@ -1556,7 +1560,7 @@ fn scope_columns(
             validate_uuid(*company_id, "company_id")?;
             Ok((*holding_id, Some(*company_id), None))
         }
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -1566,17 +1570,12 @@ fn scope_columns(
             validate_uuid(*branch_id, "branch_id")?;
             Ok((*holding_id, Some(*company_id), Some(*branch_id)))
         }
-        TenantScope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
+            organization_node_id,
         } => {
             validate_uuid(*holding_id, "holding_id")?;
-            if company_ids.iter().any(|id| id.is_nil()) || branch_ids.iter().any(|id| id.is_nil()) {
-                return Err(PersistenceError::InvalidData(
-                    "CRM subtree scope contains a nil identifier".into(),
-                ));
-            }
+            validate_uuid(*organization_node_id, "organization_node_id")?;
             Ok((*holding_id, None, None))
         }
     }
@@ -1601,9 +1600,9 @@ fn attribution_model_text(model: AttributionModel) -> &'static str {
     }
 }
 
-fn deterministic_record_id(holding_ref: &str, opportunity_id: Uuid, model: &str) -> Uuid {
+fn deterministic_record_id(data_profile_key: &str, opportunity_id: Uuid, model: &str) -> Uuid {
     let digest = Sha256::digest(
-        format!("{holding_ref}:crm-attribution:{opportunity_id}:{model}").as_bytes(),
+        format!("{data_profile_key}:crm-attribution:{opportunity_id}:{model}").as_bytes(),
     );
     let mut bytes = [0_u8; 16];
     bytes.copy_from_slice(&digest[..16]);
@@ -1638,7 +1637,7 @@ fn validate_bounded_context_key(value: &str) -> Result<(), PersistenceError> {
     Ok(())
 }
 
-fn validate_holding_ref(value: &str) -> Result<(), PersistenceError> {
+fn validate_data_profile_key(value: &str) -> Result<(), PersistenceError> {
     if value.trim().is_empty()
         || value.len() > 255
         || value.chars().any(|character| character.is_control())
@@ -1678,12 +1677,12 @@ mod tests {
 
     #[test]
     fn scope_columns_reject_platform_and_preserve_branch_scope() {
-        assert!(scope_columns(&TenantScope::Platform).is_err());
+        assert!(scope_columns(&AuthorityScope::Platform).is_err());
         let holding_id = Uuid::new_v4();
         let company_id = Uuid::new_v4();
         let branch_id = Uuid::new_v4();
         assert_eq!(
-            scope_columns(&TenantScope::Branch {
+            scope_columns(&AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,

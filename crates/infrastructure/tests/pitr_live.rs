@@ -21,9 +21,9 @@ use async_trait::async_trait;
 use chrono::Utc;
 use erpx_domain::platform_completion::PitrRecoveryPoint;
 use erpx_infrastructure::{
-    BackupAdapterError, MinioObjectStore, MinioObjectStoreConfig, PhysicalPitrRestoreExecutor,
-    PhysicalPitrRestoreTarget, PitrBackupAdapter, PitrBackupAdapterConfig, PitrBackupTarget,
-    PitrRestoreTargetResolver, TenantDatabaseProvisioningConfig,
+    BackupAdapterError, HoldingDatabaseProvisioningConfig, MinioObjectStore,
+    MinioObjectStoreConfig, PhysicalPitrRestoreExecutor, PhysicalPitrRestoreTarget,
+    PitrBackupAdapter, PitrBackupAdapterConfig, PitrBackupTarget, PitrRestoreTargetResolver,
     UnconfiguredPitrRestoreTargetResolver,
 };
 use serde::Deserialize;
@@ -210,8 +210,8 @@ async fn cleanup_pitr_artifacts(
     target: &PitrBackupTarget,
 ) -> TestResult {
     let prefix = format!(
-        "tenants/{}/backup-chains/{}/pitr/{}/",
-        target.tenant_id, target.backup_chain_ref, target.backup_ref
+        "holdings/{}/backup-chains/{}/pitr/{}/",
+        target.holding_id, target.backup_chain_ref, target.backup_ref
     );
     let artifacts = object_store
         .list_objects_bounded(
@@ -268,7 +268,7 @@ impl PitrRestoreTargetResolver for ConfiguredLiveRestoreTargetResolver {
 #[derive(Debug, Deserialize)]
 struct LivePitrManifest {
     format: String,
-    tenant_id: String,
+    holding_id: String,
     source_database_key: String,
     backup_chain_ref: String,
     backup_ref: String,
@@ -299,8 +299,8 @@ async fn verify_manifest_and_artifacts(
         .await
         .map_err(|error| format!("get PITR manifest: {error:?}"))?;
     let manifest: LivePitrManifest = serde_json::from_slice(&manifest_body)?;
-    if manifest.format != "erpx-pitr-v1"
-        || manifest.tenant_id != target.tenant_id
+    if manifest.format != "erpx-pitr"
+        || manifest.holding_id != target.holding_id
         || manifest.source_database_key != target.source_database_key
         || manifest.backup_chain_ref != target.backup_chain_ref
         || manifest.backup_ref != target.backup_ref
@@ -310,8 +310,8 @@ async fn verify_manifest_and_artifacts(
         return Err("PITR manifest was not bound to the exact target evidence".into());
     }
     let prefix = format!(
-        "tenants/{}/backup-chains/{}/pitr/{}/",
-        target.tenant_id, target.backup_chain_ref, target.backup_ref
+        "holdings/{}/backup-chains/{}/pitr/{}/",
+        target.holding_id, target.backup_chain_ref, target.backup_ref
     );
     let mut expected_keys = BTreeSet::from([manifest_object_key.to_owned()]);
     let mut has_base = false;
@@ -460,7 +460,7 @@ async fn real_postgres_physical_pitr_capture_restore_and_cleanup_are_authoritati
     let restore_target_ref = required("ERPX_PITR_LIVE_RESTORE_TARGET_REF")?;
     let wal_archive_ref = required("ERPX_PITR_LIVE_WAL_ARCHIVE_REF")?;
 
-    let database_config = TenantDatabaseProvisioningConfig::from_values(
+    let database_config = HoldingDatabaseProvisioningConfig::from_values(
         admin_url.clone(),
         database_template.clone(),
     )?;
@@ -543,7 +543,7 @@ async fn real_postgres_physical_pitr_capture_restore_and_cleanup_are_authoritati
         source.close().await;
 
         let target = PitrBackupTarget::new(
-            format!("tenant-pitr-live-{}", Uuid::new_v4().simple()),
+            format!("holding-pitr-live-{}", Uuid::new_v4().simple()),
             source_database_key.clone(),
             namespace.clone(),
             format!("chain-{}", Uuid::new_v4().simple()),

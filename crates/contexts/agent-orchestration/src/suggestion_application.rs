@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -62,7 +62,7 @@ impl SuggestionCommand {
 pub struct SuggestionCommandRequest {
     pub command_id: Uuid,
     pub idempotency_key: String,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub actor_ref: String,
     pub expected_version: u64,
     pub command: SuggestionCommand,
@@ -87,7 +87,7 @@ pub struct SuggestionReceipt {
 pub trait SuggestionAuthorizationPort: Send + Sync {
     async fn authorize(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         actor_ref: &str,
         command: &SuggestionCommand,
     ) -> Result<bool, SuggestionApplicationError>;
@@ -97,13 +97,13 @@ pub trait SuggestionAuthorizationPort: Send + Sync {
 pub trait SuggestionRepository: Send + Sync {
     async fn load(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: SuggestionId,
     ) -> Result<Option<SuggestionEnvelope>, SuggestionApplicationError>;
 
     async fn commit(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         commit: SuggestionCommit,
     ) -> Result<SuggestionReceipt, SuggestionApplicationError>;
 }
@@ -213,7 +213,7 @@ where
 
     pub async fn get(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: SuggestionId,
     ) -> Result<Option<SuggestionEnvelope>, SuggestionApplicationError> {
         self.repository.load(scope, id).await

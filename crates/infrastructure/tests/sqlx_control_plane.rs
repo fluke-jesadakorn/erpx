@@ -22,7 +22,7 @@ async fn reset_disposable_control_fixture(pools: &ControlPlanePools) {
     sqlx::query(
         "TRUNCATE TABLE erpx_control.outbox_events,
             erpx_control.idempotency_keys,
-            erpx_control.tenant_registry,
+            erpx_control.holding_registry,
             erpx_control.audit_events,
             erpx_control.object_access_bindings,
             erpx_control.commercial_catalog_revisions,
@@ -77,7 +77,7 @@ async fn worker_failure_context_is_persisted_with_scope_and_secret_redaction() {
     reset_disposable_control_fixture(&pools).await;
     let store = SqlxControlPlane::new(pools);
     let event = event(Uuid::new_v4(), 1, "worker.context.fixture");
-    let tenant_scope = json!({"tenant_id": "tenant-context-1", "holding_ref": "holding-1"});
+    let active_scope = json!({"holding_id": "holding-context-1", "data_profile_key": "holding-1"});
     let actor = json!({"principal_ref": "worker-context", "token": "never-persist"});
     let causation_id = Uuid::new_v4();
     let correlation_id = Uuid::new_v4();
@@ -87,7 +87,7 @@ async fn worker_failure_context_is_persisted_with_scope_and_secret_redaction() {
         .append_outbox_event(
             &event,
             &EventMetadata {
-                tenant_scope: Some(tenant_scope.clone()),
+                active_scope: Some(active_scope.clone()),
                 actor: Some(actor),
                 correlation_id: Some(correlation_id),
                 causation_id: Some(causation_id),
@@ -145,7 +145,7 @@ async fn worker_failure_context_is_persisted_with_scope_and_secret_redaction() {
     assert_eq!(context["event_id"], event.id.to_string());
     assert_eq!(context["correlation_id"], correlation_id.to_string());
     assert_eq!(context["causation_id"], causation_id.to_string());
-    assert_eq!(context["tenant_scope"], tenant_scope);
+    assert_eq!(context["active_scope"], active_scope);
     assert!(context["actor"].is_null());
     assert!(!context.to_string().contains("never-persist"));
     assert!(!context.to_string().contains("password"));

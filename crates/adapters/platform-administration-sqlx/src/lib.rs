@@ -11,44 +11,40 @@ pub use governance::{
     PlatformGovernanceRecordReadAdapter, PlatformGovernanceRecordSqlxAdapter, governance_partition,
 };
 pub use projection::{
-    AdminContextProjector, ConnectorProjector, PlatformAdministrationOutboxPayload,
-    PlatformAdministrationSnapshot, TenantProjector,
+    AdminContextProjector, ConnectorProjector, HoldingProjector,
+    PlatformAdministrationOutboxPayload, PlatformAdministrationSnapshot,
 };
 pub use read::{PlatformAdministrationReadRepository, decode_cursor, encode_cursor};
 
 pub const CONTEXT_NAME: &str = "platform_administration";
-pub const TENANT_AGGREGATE: &str = "platform_tenant";
+pub const HOLDING_AGGREGATE: &str = "platform_holding";
 pub const CONNECTOR_AGGREGATE: &str = "connector_binding";
-pub const ADMIN_CONTEXT_AGGREGATE: &str = "tenant_admin_context";
-pub const TENANT_PROJECTION: &str = "platform_administration.tenants";
+pub const ADMIN_CONTEXT_AGGREGATE: &str = "holding_admin_context";
+pub const HOLDING_PROJECTION: &str = "platform_administration.holdings";
 pub const CONNECTOR_PROJECTION: &str = "platform_administration.connectors";
 pub const ADMIN_CONTEXT_PROJECTION: &str = "platform_administration.admin_contexts";
-pub const TENANT_SNAPSHOT_EVENT: &str = "platform_administration.tenant_snapshot";
+pub const HOLDING_SNAPSHOT_EVENT: &str = "platform_administration.holding_snapshot";
 pub const CONNECTOR_SNAPSHOT_EVENT: &str = "platform_administration.connector_snapshot";
 pub const ADMIN_CONTEXT_SNAPSHOT_EVENT: &str = "platform_administration.admin_context_snapshot";
 pub const EVENT_VERSION: u32 = 1;
 
 pub const CONTROL_WRITE_DDL: &str = concat!(
-    include_str!(
-        "../../../migration/migrations/0075_cqrs_control_foundation_and_commercial_catalog.sql"
-    ),
+    include_str!("../../../migration/migrations/0001_baseline.sql"),
     "\n",
-    include_str!("../../../migration/migrations/0076_wave5_control_context_guards.sql"),
+    include_str!("../../../migration/migrations/0001_baseline.sql"),
     "\n",
-    include_str!("../../../migration/migrations/0082_current_normalized_authority.sql")
+    include_str!("../../../migration/migrations/0001_baseline.sql")
 );
 pub const CONTROL_READ_DDL: &str = concat!(
-    include_str!(
-        "../../../migration/migrations_read/0015_cqrs_control_foundation_and_commercial_catalog.sql"
-    ),
+    include_str!("../../../migration/migrations_read/0001_baseline.sql"),
     "\n",
-    include_str!("../../../migration/migrations_read/0016_wave5_control_context_projections.sql")
+    include_str!("../../../migration/migrations_read/0001_baseline.sql")
 );
 pub const WRITE_DDL: &str = CONTROL_WRITE_DDL;
 pub const READ_DDL: &str = CONTROL_READ_DDL;
 
-pub fn tenant_partition(id: erpx_platform_administration::PlatformTenantId) -> String {
-    format!("platform_administration.tenant:{}", id.as_uuid().simple())
+pub fn holding_partition(id: erpx_platform_administration::PlatformHoldingId) -> String {
+    format!("platform_administration.holding:{}", id.as_uuid().simple())
 }
 pub fn connector_partition(id: erpx_platform_administration::ConnectorBindingId) -> String {
     format!(
@@ -72,8 +68,8 @@ mod tests {
     fn partitions_are_stable_and_aggregate_specific() {
         let raw = Uuid::from_u128(42);
         assert_ne!(
-            tenant_partition(
-                erpx_platform_administration::PlatformTenantId::try_from_uuid(raw).unwrap()
+            holding_partition(
+                erpx_platform_administration::PlatformHoldingId::try_from_uuid(raw).unwrap()
             ),
             connector_partition(
                 erpx_platform_administration::ConnectorBindingId::try_from_uuid(raw).unwrap()
@@ -83,11 +79,11 @@ mod tests {
 
     #[test]
     fn canonical_control_ddl_contains_foundation_guards_and_generation_projections() {
-        for table in ["tenant_guards", "connector_guards", "admin_context_guards"] {
+        for table in ["holding_guards", "connector_guards", "admin_context_guards"] {
             assert!(CONTROL_WRITE_DDL.contains(table));
         }
         for table in [
-            "tenant_projection",
+            "holding_projection",
             "connector_projection",
             "admin_context_projection",
         ] {

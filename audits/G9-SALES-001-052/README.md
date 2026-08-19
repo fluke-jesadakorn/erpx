@@ -2,7 +2,7 @@
 
 ## Delivered behavior
 
-`erpx/crates/domain/src/sales.rs` provides a tenant-bound Sales contract slice for:
+`erpx/crates/domain/src/sales.rs` provides a holding-bound Sales contract slice for:
 
 - customer master references;
 - leads and opportunities;
@@ -12,7 +12,7 @@
 
 Every record carries a deterministic aggregate reference, a namespaced command
 idempotency key, command attribution, holding/company identifiers, and an
-explicit company or branch `TenantScope`. Command validation requires the
+explicit company or branch `HoldingScope`. Command validation requires the
 caller scope to contain the record scope. Customer references may be broader
 than a branch record, but may not cross holding or company boundaries.
 
@@ -30,8 +30,8 @@ No existing files were modified.
 ## Contracts consumed
 
 - `crate::contracts::CommandContext`
-- `crate::contracts::TenantScope`
-- Existing `CommandContext::validate` and `TenantScope::contains` behavior.
+- `crate::contracts::HoldingScope`
+- Existing `CommandContext::validate` and `HoldingScope::contains` behavior.
 
 ## Contracts produced
 
@@ -65,7 +65,7 @@ collected.
 ## Security concerns
 
 The domain contract fails closed for invalid or non-contained scopes and does
-not carry credentials, payment instruments, or tenant connection details.
+not carry credentials, payment instruments, or holding connection details.
 Persistence must enforce idempotency uniqueness and optimistic concurrency;
 transport must authorize the `CommandContext` before invoking transitions.
 

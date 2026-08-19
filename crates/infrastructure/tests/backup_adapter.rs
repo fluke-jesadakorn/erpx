@@ -9,10 +9,11 @@ use erpx_domain::platform_completion::PitrRecoveryPoint;
 use erpx_infrastructure::{
     BackupAdapterError, BackupExecutionRequest, BackupExecutor, BackupExecutorError,
     BackupFailureClass, BackupObjectTransport, BackupProcessCommand, BackupProcessRunner,
-    BackupRunKind, DatabaseSide, MinioObjectStoreConfig, PhysicalTenantDatabases,
-    PostgresMinioBackupAdapter, PostgresMinioBackupConfig, RestoreExecutor,
-    RestoreTestExecutionRequest, RestoreTestExecutionResult, RestoredDatabaseVerifier,
-    TenantBackupRun, TenantBackupTarget, TenantDatabaseProvisioningConfig, TenantRestoreTestTarget,
+    BackupRunKind, DatabaseSide, HoldingBackupRun, HoldingBackupTarget,
+    HoldingDatabaseProvisioningConfig, HoldingRestoreTestTarget, MinioObjectStoreConfig,
+    PhysicalHoldingDatabases, PostgresMinioBackupAdapter, PostgresMinioBackupConfig,
+    RestoreExecutor, RestoreTestExecutionRequest, RestoreTestExecutionResult,
+    RestoredDatabaseVerifier,
 };
 use uuid::Uuid;
 
@@ -118,7 +119,7 @@ struct FakeVerifier {
 impl RestoredDatabaseVerifier for FakeVerifier {
     async fn verify(
         &self,
-        _database_config: &TenantDatabaseProvisioningConfig,
+        _database_config: &HoldingDatabaseProvisioningConfig,
         database_key: &str,
         _timeout: Duration,
     ) -> Result<(), BackupAdapterError> {
@@ -132,9 +133,9 @@ impl RestoredDatabaseVerifier for FakeVerifier {
 
 fn config(max_artifact_bytes: u64) -> PostgresMinioBackupConfig {
     PostgresMinioBackupConfig::from_values(
-        TenantDatabaseProvisioningConfig::from_values(
+        HoldingDatabaseProvisioningConfig::from_values(
             "postgresql://backup-admin@localhost/postgres?sslmode=verify-full",
-            "postgresql://tenant-user@localhost/{database}?sslmode=verify-full",
+            "postgresql://holding-user@localhost/{database}?sslmode=verify-full",
         )
         .expect("database config"),
         MinioObjectStoreConfig {
@@ -154,10 +155,10 @@ fn config(max_artifact_bytes: u64) -> PostgresMinioBackupConfig {
     .expect("backup config")
 }
 
-fn run(kind: &str, backup_ref: &str) -> TenantBackupRun {
-    TenantBackupRun {
+fn run(kind: &str, backup_ref: &str) -> HoldingBackupRun {
+    HoldingBackupRun {
         id: Uuid::new_v4(),
-        tenant_id: "tenant-alpha".into(),
+        holding_id: "holding-alpha".into(),
         kind: kind.into(),
         status: "started".into(),
         backup_ref: backup_ref.into(),
@@ -262,10 +263,10 @@ fn injected_backup_components_reject_insecure_object_store_configuration() {
 }
 
 #[tokio::test]
-async fn retention_artifact_deletion_is_tenant_bound_and_idempotent() {
+async fn retention_artifact_deletion_is_holding_bound_and_idempotent() {
     let config = config(1024);
     let objects = FakeObjects::default();
-    let object_key = "tenants/tenant-alpha/backup-chains/chain-alpha/artifacts/backup-alpha.dump";
+    let object_key = "holdings/holding-alpha/backup-chains/chain-alpha/artifacts/backup-alpha.dump";
     objects
         .objects
         .lock()
@@ -284,8 +285,8 @@ async fn retention_artifact_deletion_is_tenant_bound_and_idempotent() {
 
     adapter
         .delete_backup_artifact(
-            "tenant-alpha",
-            "tenant-storage-alpha",
+            "holding-alpha",
+            "holding-storage-alpha",
             "chain-alpha",
             "backup-alpha",
         )
@@ -293,8 +294,8 @@ async fn retention_artifact_deletion_is_tenant_bound_and_idempotent() {
         .expect("delete artifact");
     adapter
         .delete_backup_artifact(
-            "tenant-alpha",
-            "tenant-storage-alpha",
+            "holding-alpha",
+            "holding-storage-alpha",
             "chain-alpha",
             "backup-alpha",
         )
@@ -311,8 +312,8 @@ async fn retention_artifact_deletion_is_tenant_bound_and_idempotent() {
     assert!(
         adapter
             .delete_backup_artifact(
-                "tenant/escape",
-                "tenant-storage-alpha",
+                "holding/escape",
+                "holding-storage-alpha",
                 "chain-alpha",
                 "backup-alpha"
             )
@@ -322,7 +323,7 @@ async fn retention_artifact_deletion_is_tenant_bound_and_idempotent() {
 }
 
 #[tokio::test]
-async fn backup_uses_argv_without_shell_and_binds_object_to_tenant() {
+async fn backup_uses_argv_without_shell_and_binds_object_to_holding() {
     let calls = Arc::new(Mutex::new(Vec::new()));
     let objects = FakeObjects::default();
     let adapter = adapter(
@@ -335,8 +336,8 @@ async fn backup_uses_argv_without_shell_and_binds_object_to_tenant() {
         },
         calls.clone(),
     );
-    let target = TenantBackupTarget::for_run(
-        PhysicalTenantDatabases::new("tenant-alpha", "write-alpha", "read-alpha")
+    let target = HoldingBackupTarget::for_run(
+        PhysicalHoldingDatabases::new("holding-alpha", "write-alpha", "read-alpha")
             .expect("physical databases"),
         "chain-alpha",
         &run("full", "backup-alpha"),
@@ -355,7 +356,7 @@ async fn backup_uses_argv_without_shell_and_binds_object_to_tenant() {
     assert!(process[0].1.iter().any(|arg| arg.starts_with("--dbname=")));
     let objects = objects.calls.lock().expect("object calls");
     assert!(objects.iter().any(|(_, key)| {
-        key == "tenants/tenant-alpha/backup-chains/chain-alpha/artifacts/backup-alpha.dump"
+        key == "holdings/holding-alpha/backup-chains/chain-alpha/artifacts/backup-alpha.dump"
     }));
 }
 
@@ -374,8 +375,8 @@ async fn duplicate_backup_replay_is_verified_without_second_put() {
         calls,
     );
     let run = run("full", "backup-replay");
-    let target = TenantBackupTarget::for_run(
-        PhysicalTenantDatabases::new("tenant-alpha", "write-alpha", "read-alpha")
+    let target = HoldingBackupTarget::for_run(
+        PhysicalHoldingDatabases::new("holding-alpha", "write-alpha", "read-alpha")
             .expect("physical databases"),
         "chain-alpha",
         &run,
@@ -405,8 +406,8 @@ async fn size_mismatch_and_transient_permanent_failures_are_classified() {
         },
         calls,
     );
-    let target = TenantBackupTarget::for_run(
-        PhysicalTenantDatabases::new("tenant-alpha", "write-alpha", "read-alpha")
+    let target = HoldingBackupTarget::for_run(
+        PhysicalHoldingDatabases::new("holding-alpha", "write-alpha", "read-alpha")
             .expect("physical databases"),
         "chain-alpha",
         &run("full", "backup-bounded"),
@@ -434,7 +435,7 @@ async fn checksum_mismatch_is_a_permanent_replay_conflict() {
     let calls = Arc::new(Mutex::new(Vec::new()));
     let objects = FakeObjects::default();
     objects.objects.lock().expect("objects").insert(
-        "tenants/tenant-alpha/backup-chains/chain-alpha/artifacts/backup-conflict.dump".into(),
+        "holdings/holding-alpha/backup-chains/chain-alpha/artifacts/backup-conflict.dump".into(),
         b"different-artifact".to_vec(),
     );
     let adapter = adapter(
@@ -448,8 +449,8 @@ async fn checksum_mismatch_is_a_permanent_replay_conflict() {
         calls,
     );
     let run = run("full", "backup-conflict");
-    let target = TenantBackupTarget::for_run(
-        PhysicalTenantDatabases::new("tenant-alpha", "write-alpha", "read-alpha")
+    let target = HoldingBackupTarget::for_run(
+        PhysicalHoldingDatabases::new("holding-alpha", "write-alpha", "read-alpha")
             .expect("physical databases"),
         "chain-alpha",
         &run,
@@ -486,8 +487,8 @@ async fn pitr_is_fail_closed_without_mislabeling_a_logical_dump() {
         wal_archive_ref: "wal-archive-alpha".into(),
         physical_restore_target_ref: "restore-target-alpha".into(),
     });
-    let target = TenantBackupTarget::for_run(
-        PhysicalTenantDatabases::new("tenant-alpha", "write-alpha", "read-alpha")
+    let target = HoldingBackupTarget::for_run(
+        PhysicalHoldingDatabases::new("holding-alpha", "write-alpha", "read-alpha")
             .expect("physical databases"),
         "chain-alpha",
         &run,
@@ -509,7 +510,7 @@ async fn restore_failure_does_not_verify_or_switch_and_success_verifies_candidat
     let calls = Arc::new(Mutex::new(Vec::new()));
     let objects = FakeObjects::default();
     objects.objects.lock().expect("objects").insert(
-        "tenants/tenant-alpha/backup-chains/chain-alpha/artifacts/backup-restore.dump".into(),
+        "holdings/holding-alpha/backup-chains/chain-alpha/artifacts/backup-restore.dump".into(),
         b"restore-artifact".to_vec(),
     );
     let verifier = FakeVerifier {
@@ -524,14 +525,14 @@ async fn restore_failure_does_not_verify_or_switch_and_success_verifies_candidat
         calls.clone(),
     );
     let run = run("restore_test", "backup-restore");
-    let physical = PhysicalTenantDatabases::new("tenant-alpha", "write-alpha", "read-alpha")
+    let physical = PhysicalHoldingDatabases::new("holding-alpha", "write-alpha", "read-alpha")
         .expect("physical databases");
     let backup_target =
-        TenantBackupTarget::for_run(physical.clone(), "chain-alpha", &run).expect("backup target");
+        HoldingBackupTarget::for_run(physical.clone(), "chain-alpha", &run).expect("backup target");
     let replacement = physical
         .replacement_read_database("candidate-alpha")
         .expect("replacement");
-    let restore_target = TenantRestoreTestTarget::new(
+    let restore_target = HoldingRestoreTestTarget::new(
         backup_target.clone(),
         "restore-target-alpha",
         replacement,

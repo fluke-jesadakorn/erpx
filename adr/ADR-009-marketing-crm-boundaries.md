@@ -5,6 +5,6 @@
 
 **Rationale:** Consent and delivery compliance must be enforced at the last responsible moment, while qualified revenue ownership belongs to CRM and Finance reconciliation.
 
-**Consequences:** Suppression cancels queued sends; message/lead retries are idempotent; custom domains and MinIO objects are tenant-bound; attribution models emit Finance-reconcilable revenue facts.
+**Consequences:** Suppression cancels queued sends; message/lead retries are idempotent; custom domains and MinIO objects are holding-bound; attribution models emit Finance-reconcilable revenue facts.
 
-**Evidence required:** consent/suppression/erasure tests, journey resume/idempotency, tenant-domain isolation, n8n allowlist enforcement, attribution model fixtures, and ROAS/Finance reconciliation.
+**Evidence required:** consent/suppression/erasure tests, journey resume/idempotency, holding-domain isolation, n8n allowlist enforcement, attribution model fixtures, and ROAS/Finance reconciliation.

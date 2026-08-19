@@ -6,7 +6,7 @@ use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, ItemDescriptorDraft,
     RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
 };
-use erpx_kernel::{DataClassification, RecordId, TenantScope};
+use erpx_kernel::{AuthorityScope, DataClassification, RecordId};
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
@@ -109,7 +109,7 @@ fn draft(
     record_type: &str,
     id: Uuid,
     version: u64,
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     lifecycle_state: String,
     classification: DataClassification,
     authorized_search_text: String,
@@ -144,7 +144,7 @@ fn token(value: impl serde::Serialize) -> Result<String, PortError> {
 
 pub(super) async fn append_assignment_directory_draft(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: Uuid,
+    holding_id: Uuid,
     assignment: &Assignment,
     actor: serde_json::Value,
     occurred_at: DateTime<Utc>,
@@ -152,7 +152,7 @@ pub(super) async fn append_assignment_directory_draft(
     let draft = assignment_directory_draft(assignment)?;
     append_with_idempotency(
         tx,
-        tenant_id,
+        holding_id,
         &format!(
             "assignment-directory:{}:{}",
             assignment.id().as_uuid(),
@@ -167,28 +167,33 @@ pub(super) async fn append_assignment_directory_draft(
 
 pub(super) async fn append_with_idempotency(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: Uuid,
+    holding_id: Uuid,
     idempotency_key: &str,
     actor: serde_json::Value,
     occurred_at: DateTime<Utc>,
     draft: &ItemDescriptorDraft,
 ) -> Result<(), PortError> {
     let record_id = draft.record.id().as_uuid();
-    let command_id = stable_id(tenant_id, record_id, idempotency_key.as_bytes(), b"command");
+    let command_id = stable_id(
+        holding_id,
+        record_id,
+        idempotency_key.as_bytes(),
+        b"command",
+    );
     let correlation_id = stable_id(
-        tenant_id,
+        holding_id,
         record_id,
         idempotency_key.as_bytes(),
         b"correlation",
     );
     let event_id = stable_id(
-        tenant_id,
+        holding_id,
         record_id,
         &draft.descriptor_version.to_be_bytes(),
         draft.record.record_type().as_str().as_bytes(),
     );
-    sqlx::query("INSERT INTO erpx_cqrs_write.outbox_events (tenant_id,event_id,context_name,partition_key,command_id,event_type,event_version,aggregate_type,aggregate_id,aggregate_version,tenant_scope,actor,correlation_id,causation_id,payload,occurred_at,available_at) VALUES ($1,$2,'agent_orchestration',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NULL,$13,$14,$14) ON CONFLICT (tenant_id,event_id) DO NOTHING")
-        .bind(tenant_id).bind(event_id).bind(format!("item-directory:{}",record_id.simple()))
+    sqlx::query("INSERT INTO erpx_cqrs_write.outbox_events (holding_id,event_id,context_name,partition_key,command_id,event_type,event_version,aggregate_type,aggregate_id,aggregate_version,active_scope,actor,correlation_id,causation_id,payload,occurred_at,available_at) VALUES ($1,$2,'agent_orchestration',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NULL,$13,$14,$14) ON CONFLICT (holding_id,event_id) DO NOTHING")
+        .bind(holding_id).bind(event_id).bind(format!("item-directory:{}",record_id.simple()))
         .bind(command_id).bind(ITEM_DIRECTORY_OWNER_EVENT_TYPE)
         .bind(i32::try_from(ITEM_DIRECTORY_FACT_VERSION).map_err(|_|PortError::Persistence)?)
         .bind(draft.record.record_type().as_str()).bind(record_id)
@@ -200,8 +205,8 @@ pub(super) async fn append_with_idempotency(
     Ok(())
 }
 
-fn stable_id(tenant_id: Uuid, aggregate_id: Uuid, value: &[u8], purpose: &[u8]) -> Uuid {
-    let namespace = Uuid::new_v5(&tenant_id, aggregate_id.as_bytes());
+fn stable_id(holding_id: Uuid, aggregate_id: Uuid, value: &[u8], purpose: &[u8]) -> Uuid {
+    let namespace = Uuid::new_v5(&holding_id, aggregate_id.as_bytes());
     let mut name = Vec::with_capacity(value.len() + purpose.len() + 1);
     name.extend_from_slice(value);
     name.push(0);

@@ -1,3 +1,3 @@
--- Evidence contract: canonical installation is tenant-write migration 0060.
+-- Evidence contract: canonical installation is holding-write migration 0060.
 -- Commands atomically update stock_item, movement, and reservation guards
 -- with shared aggregate snapshots, receipts, audit rows, and outbox events.

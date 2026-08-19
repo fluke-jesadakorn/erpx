@@ -18,7 +18,7 @@ use erpx_integration_contracts::{
     IntegrationEvent, ItemDescriptorDraft, PrincipalAuthorityEvidence, RecordTypeId,
     RoleAuthorityEvidence, StableRecordRef, catalog::ContextId, record_policy_id,
 };
-use erpx_kernel::{AggregateId, CommandId, DataClassification, EventId, RecordId, TenantScope};
+use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId, RecordId};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use sqlx::{Postgres, Row, Transaction};
@@ -46,7 +46,7 @@ impl IdentityAccessWriteRepository {
 impl WriteRepository for IdentityAccessWriteRepository {
     async fn load(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         key: AggregateKey,
     ) -> Result<Option<IdentityAccessAggregate>, PortError> {
         match key {
@@ -166,7 +166,7 @@ impl CommandUnitOfWork for IdentityAccessCommandAdapter {
             });
         }
 
-        let tenant_scope = request.aggregate.scope().clone();
+        let active_scope = request.aggregate.scope().clone();
         let aggregate = request.aggregate;
         let guard = IdentityAccessGuard {
             aggregate: aggregate.clone(),
@@ -179,7 +179,7 @@ impl CommandUnitOfWork for IdentityAccessCommandAdapter {
             correlation_id: request.correlation_id,
             idempotency_key,
             request_hash,
-            tenant_scope,
+            active_scope,
             actor: request.actor,
             audit_context: request.audit,
             aggregate_type: aggregate_type.into(),
@@ -413,7 +413,7 @@ impl AtomicCommandGuard for IdentityAccessGuard {
         };
         let query = format!(
             "SELECT aggregate_version FROM erpx_identity_access_write.{table}
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND {id_column}=$1 FOR UPDATE"
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND {id_column}=$1 FOR UPDATE"
         );
         let version: Option<i64> = sqlx::query_scalar(&query)
             .bind(self.aggregate.aggregate_uuid())
@@ -440,7 +440,7 @@ impl AtomicCommandGuard for IdentityAccessGuard {
                 let owner: Option<Uuid> = sqlx::query_scalar(
                     "SELECT role_id
                      FROM erpx_identity_access_write.role_authority
-                     WHERE tenant_id=erpx_cqrs_write.current_tenant_id()
+                     WHERE holding_id=erpx_cqrs_write.current_holding_id()
                        AND scope_key = $1 AND role_code = $2
                      FOR UPDATE",
                 )
@@ -475,7 +475,7 @@ impl AtomicCommandGuard for IdentityAccessGuard {
                         "SELECT EXISTS(
                             SELECT 1
                             FROM erpx_identity_access_write.role_authority
-                            WHERE tenant_id=erpx_cqrs_write.current_tenant_id()
+                            WHERE holding_id=erpx_cqrs_write.current_holding_id()
                               AND role_id=$1 AND scope_key=$2
                         )",
                     )
@@ -491,7 +491,7 @@ impl AtomicCommandGuard for IdentityAccessGuard {
                     let existing: Option<Uuid> = sqlx::query_scalar(
                         "SELECT assignment_id
                          FROM erpx_identity_access_write.assignment_authority
-                         WHERE tenant_id=erpx_cqrs_write.current_tenant_id()
+                         WHERE holding_id=erpx_cqrs_write.current_holding_id()
                            AND role_id=$1 AND scope_key=$2 AND revoked_at IS NULL
                            AND valid_from <= $3 AND valid_until > $3
                          ORDER BY assignment_id
@@ -511,7 +511,7 @@ impl AtomicCommandGuard for IdentityAccessGuard {
                 }
                 let existing_assignments = sqlx::query(
                     "SELECT assignment_id FROM erpx_identity_access_write.assignment_authority
-                     WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND principal_id=$1
+                     WHERE holding_id=erpx_cqrs_write.current_holding_id() AND principal_id=$1
                      FOR UPDATE",
                 )
                 .bind(principal.id().as_uuid())
@@ -535,7 +535,7 @@ impl AtomicCommandGuard for IdentityAccessGuard {
                 let existing_members = sqlx::query(
                     "SELECT member_principal_id
                      FROM erpx_identity_access_write.group_membership_authority
-                     WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND group_id=$1
+                     WHERE holding_id=erpx_cqrs_write.current_holding_id() AND group_id=$1
                      FOR UPDATE",
                 )
                 .bind(principal.id().as_uuid())
@@ -560,7 +560,7 @@ impl AtomicCommandGuard for IdentityAccessGuard {
                     let owner: Option<Uuid> = sqlx::query_scalar(
                         "SELECT principal_id
                          FROM erpx_identity_access_write.assignment_authority
-                         WHERE tenant_id=erpx_cqrs_write.current_tenant_id()
+                         WHERE holding_id=erpx_cqrs_write.current_holding_id()
                            AND assignment_id = $1
                          FOR UPDATE",
                     )
@@ -575,7 +575,7 @@ impl AtomicCommandGuard for IdentityAccessGuard {
                     let duplicate: Option<Uuid> = sqlx::query_scalar(
                         "SELECT assignment_id
                          FROM erpx_identity_access_write.assignment_authority
-                         WHERE tenant_id=erpx_cqrs_write.current_tenant_id()
+                         WHERE holding_id=erpx_cqrs_write.current_holding_id()
                            AND principal_id = $1 AND role_id = $2 AND scope_key = $3
                            AND revoked_at IS NULL AND assignment_id <> $4
                          FOR UPDATE",
@@ -642,19 +642,19 @@ impl AtomicCommandGuard for IdentityAccessGuard {
                 .await?;
                 sqlx::query(
                     "INSERT INTO erpx_authority_write.roles
-                        (tenant_id,role_id,role_scope,role_version,permissions,
+                        (holding_id,role_id,role_scope,role_version,permissions,
                          classification_ceiling,active,changed_at)
-                     VALUES (erpx_authority_write.current_tenant_id(),$1,$2,$3,$4,
+                     VALUES (erpx_authority_write.current_holding_id(),$1,$2,$3,$4,
                              'restricted',true,$5)
-                     ON CONFLICT (tenant_id,role_id) DO UPDATE SET
+                     ON CONFLICT (holding_id,role_id) DO UPDATE SET
                         role_scope=EXCLUDED.role_scope,
                         role_version=EXCLUDED.role_version,
                         permissions=EXCLUDED.permissions,
                         classification_ceiling=EXCLUDED.classification_ceiling,
                         active=EXCLUDED.active,
                         changed_at=EXCLUDED.changed_at
-                     WHERE erpx_authority_write.roles.tenant_id
-                           = erpx_authority_write.current_tenant_id()
+                     WHERE erpx_authority_write.roles.holding_id
+                           = erpx_authority_write.current_holding_id()
                        AND erpx_authority_write.roles.role_version < EXCLUDED.role_version",
                 )
                 .bind(role.id().as_uuid())
@@ -673,18 +673,18 @@ impl AtomicCommandGuard for IdentityAccessGuard {
             IdentityAccessAggregate::Principal(principal) => {
                 sqlx::query(
                     "INSERT INTO erpx_authority_write.principals
-                        (tenant_id,principal_id,principal_kind,realm,principal_scope,
+                        (holding_id,principal_id,principal_kind,realm,principal_scope,
                          active,principal_version,changed_at)
-                     VALUES (erpx_authority_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7)
-                     ON CONFLICT (tenant_id,principal_id) DO UPDATE SET
+                     VALUES (erpx_authority_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7)
+                     ON CONFLICT (holding_id,principal_id) DO UPDATE SET
                         principal_kind=EXCLUDED.principal_kind,
                         realm=EXCLUDED.realm,
                         principal_scope=EXCLUDED.principal_scope,
                         active=EXCLUDED.active,
                         principal_version=EXCLUDED.principal_version,
                         changed_at=EXCLUDED.changed_at
-                     WHERE erpx_authority_write.principals.tenant_id
-                           = erpx_authority_write.current_tenant_id()
+                     WHERE erpx_authority_write.principals.holding_id
+                           = erpx_authority_write.current_holding_id()
                        AND erpx_authority_write.principals.principal_version
                            < EXCLUDED.principal_version",
                 )
@@ -733,11 +733,11 @@ impl AtomicCommandGuard for IdentityAccessGuard {
                     }
                     sqlx::query(
                         "INSERT INTO erpx_authority_write.assignments
-                            (tenant_id,assignment_id,principal_id,role_id,assignment_scope,
+                            (holding_id,assignment_id,principal_id,role_id,assignment_scope,
                              assignment_version,valid_from,valid_until,revoked_at,changed_at)
-                         VALUES (erpx_authority_write.current_tenant_id(),$1,$2,$3,$4,
+                         VALUES (erpx_authority_write.current_holding_id(),$1,$2,$3,$4,
                                  $5,$6,$7,$8,$9)
-                         ON CONFLICT (tenant_id,assignment_id) DO UPDATE SET
+                         ON CONFLICT (holding_id,assignment_id) DO UPDATE SET
                             role_id=EXCLUDED.role_id,
                             assignment_scope=EXCLUDED.assignment_scope,
                             assignment_version=EXCLUDED.assignment_version,
@@ -745,8 +745,8 @@ impl AtomicCommandGuard for IdentityAccessGuard {
                             valid_until=EXCLUDED.valid_until,
                             revoked_at=EXCLUDED.revoked_at,
                             changed_at=EXCLUDED.changed_at
-                         WHERE erpx_authority_write.assignments.tenant_id
-                               = erpx_authority_write.current_tenant_id()
+                         WHERE erpx_authority_write.assignments.holding_id
+                               = erpx_authority_write.current_holding_id()
                            AND erpx_authority_write.assignments.principal_id
                                = EXCLUDED.principal_id
                            AND erpx_authority_write.assignments.assignment_version
@@ -772,12 +772,12 @@ impl AtomicCommandGuard for IdentityAccessGuard {
                     for membership in principal.group_memberships() {
                         let applied = sqlx::query(
                             "INSERT INTO erpx_authority_write.group_memberships
-                                (tenant_id,group_id,member_principal_id,group_kind,group_version,
+                                (holding_id,group_id,member_principal_id,group_kind,group_version,
                                  membership_version,membership_scope,valid_from,valid_until,
                                  revoked_at,changed_at)
-                             VALUES (erpx_authority_write.current_tenant_id(),$1,$2,$3,$4,$5,
+                             VALUES (erpx_authority_write.current_holding_id(),$1,$2,$3,$4,$5,
                                      $6,$7,$8,$9,$10)
-                             ON CONFLICT (tenant_id,group_id,member_principal_id) DO UPDATE SET
+                             ON CONFLICT (holding_id,group_id,member_principal_id) DO UPDATE SET
                                 group_kind=EXCLUDED.group_kind,
                                 group_version=EXCLUDED.group_version,
                                 membership_version=EXCLUDED.membership_version,
@@ -786,8 +786,8 @@ impl AtomicCommandGuard for IdentityAccessGuard {
                                 valid_until=EXCLUDED.valid_until,
                                 revoked_at=EXCLUDED.revoked_at,
                                 changed_at=EXCLUDED.changed_at
-                             WHERE erpx_authority_write.group_memberships.tenant_id
-                                   = erpx_authority_write.current_tenant_id()
+                             WHERE erpx_authority_write.group_memberships.holding_id
+                                   = erpx_authority_write.current_holding_id()
                                AND erpx_authority_write.group_memberships.group_version
                                    < EXCLUDED.group_version",
                         )
@@ -831,10 +831,10 @@ struct ScopeColumns {
 }
 
 impl ScopeColumns {
-    fn from_scope(scope: &TenantScope) -> Result<Self, PortError> {
+    fn from_scope(scope: &AuthorityScope) -> Result<Self, PortError> {
         scope.validate().map_err(|_| PortError::Denied)?;
         Ok(match scope {
-            TenantScope::Platform => Self {
+            AuthorityScope::Platform => Self {
                 mode: "platform",
                 holding_id: None,
                 company_id: None,
@@ -842,7 +842,7 @@ impl ScopeColumns {
                 company_ids: vec![],
                 branch_ids: vec![],
             },
-            TenantScope::Holding { holding_id } => Self {
+            AuthorityScope::Holding { holding_id } => Self {
                 mode: "holding",
                 holding_id: Some(*holding_id),
                 company_id: None,
@@ -850,7 +850,7 @@ impl ScopeColumns {
                 company_ids: vec![],
                 branch_ids: vec![],
             },
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => Self {
@@ -861,7 +861,7 @@ impl ScopeColumns {
                 company_ids: vec![],
                 branch_ids: vec![],
             },
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -873,22 +873,21 @@ impl ScopeColumns {
                 company_ids: vec![],
                 branch_ids: vec![],
             },
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Self {
                 mode: "subtree",
                 holding_id: Some(*holding_id),
                 company_id: None,
                 branch_id: None,
-                company_ids: company_ids.clone(),
-                branch_ids: branch_ids.clone(),
+                company_ids: vec![*organization_node_id],
+                branch_ids: Vec::new(),
             },
         })
     }
 
-    fn from_scope_store(scope: &TenantScope) -> Result<Self, CqrsSqlxError> {
+    fn from_scope_store(scope: &AuthorityScope) -> Result<Self, CqrsSqlxError> {
         Self::from_scope(scope)
             .map_err(|_| CqrsSqlxError::InvalidInput("Identity scope is invalid"))
     }
@@ -903,7 +902,7 @@ const AUTHORITY_FILTER: &str = "
 
 async fn load_principal(
     pool: &WritePool,
-    authority_scope: &TenantScope,
+    authority_scope: &AuthorityScope,
     id: PrincipalId,
 ) -> Result<Option<AccessPrincipal>, PortError> {
     let authority = ScopeColumns::from_scope(authority_scope)?;
@@ -914,7 +913,7 @@ async fn load_principal(
                 governance_purpose,governance_workload_binding,governance_credential_reference,
                 principal_status,created_at,updated_at
          FROM erpx_identity_access_write.principal_authority
-         WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND principal_id=$1{AUTHORITY_FILTER}"
+         WHERE holding_id=erpx_cqrs_write.current_holding_id() AND principal_id=$1{AUTHORITY_FILTER}"
     );
     let row = sqlx::query(&query)
         .bind(id.as_uuid())
@@ -983,7 +982,7 @@ async fn load_principal(
 
 async fn load_role(
     pool: &WritePool,
-    authority_scope: &TenantScope,
+    authority_scope: &AuthorityScope,
     id: RoleId,
 ) -> Result<Option<AccessRole>, PortError> {
     let authority = ScopeColumns::from_scope(authority_scope)?;
@@ -992,7 +991,7 @@ async fn load_role(
         "SELECT aggregate_version,scope_mode,holding_id,company_id,branch_id,company_ids,
                 branch_ids,role_code,display_name,risk_tier,created_at,updated_at
          FROM erpx_identity_access_write.role_authority
-         WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND role_id=$1{AUTHORITY_FILTER}"
+         WHERE holding_id=erpx_cqrs_write.current_holding_id() AND role_id=$1{AUTHORITY_FILTER}"
     );
     let row = sqlx::query(&query)
         .bind(id.as_uuid())
@@ -1010,7 +1009,7 @@ async fn load_role(
     };
     let permission_rows = sqlx::query(
         "SELECT permission_key FROM erpx_identity_access_write.role_permission_authority
-         WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND role_id=$1
+         WHERE holding_id=erpx_cqrs_write.current_holding_id() AND role_id=$1
          ORDER BY permission_key",
     )
     .bind(id.as_uuid())
@@ -1052,14 +1051,14 @@ async fn load_role(
 async fn load_assignments(
     tx: &mut Transaction<'_, Postgres>,
     principal_id: PrincipalId,
-    principal_scope: &TenantScope,
+    principal_scope: &AuthorityScope,
 ) -> Result<Vec<RoleAssignment>, PortError> {
     let rows = sqlx::query(
         "SELECT assignment_id,role_id,scope_mode,holding_id,company_id,branch_id,
                 company_ids,branch_ids,risk_tier,valid_from,valid_until,grant_reason,
                 ticket_reference,grantor_ref,approver_ref,revoked_at
          FROM erpx_identity_access_write.assignment_authority
-         WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND principal_id=$1
+         WHERE holding_id=erpx_cqrs_write.current_holding_id() AND principal_id=$1
          ORDER BY assignment_id",
     )
     .bind(principal_id.as_uuid())
@@ -1115,7 +1114,7 @@ async fn load_group_memberships(
     let rows = sqlx::query(
         "SELECT member_principal_id,membership_version,valid_from,valid_until,revoked_at
          FROM erpx_identity_access_write.group_membership_authority
-         WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND group_id=$1
+         WHERE holding_id=erpx_cqrs_write.current_holding_id() AND group_id=$1
          ORDER BY member_principal_id",
     )
     .bind(group_id.as_uuid())
@@ -1150,13 +1149,13 @@ async fn apply_principal_authority(
     let governance = principal.non_human_governance();
     let changed = sqlx::query(
         "INSERT INTO erpx_identity_access_write.principal_authority
-            (tenant_id,principal_id,aggregate_version,scope_key,scope_mode,holding_id,company_id,
+            (holding_id,principal_id,aggregate_version,scope_key,scope_mode,holding_id,company_id,
              branch_id,company_ids,branch_ids,display_name,principal_kind,principal_realm,
              governance_owner_ref,governance_purpose,governance_workload_binding,
              governance_credential_reference,principal_status,created_at,updated_at)
-         VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
+         VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
                  $11,$12,$13,$14,$15,$16,$17,$18,$19)
-         ON CONFLICT (tenant_id,principal_id) DO UPDATE SET
+         ON CONFLICT (holding_id,principal_id) DO UPDATE SET
             aggregate_version=EXCLUDED.aggregate_version,scope_key=EXCLUDED.scope_key,
             scope_mode=EXCLUDED.scope_mode,holding_id=EXCLUDED.holding_id,
             company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,
@@ -1169,8 +1168,8 @@ async fn apply_principal_authority(
             governance_credential_reference=EXCLUDED.governance_credential_reference,
             principal_status=EXCLUDED.principal_status,created_at=EXCLUDED.created_at,
             updated_at=EXCLUDED.updated_at
-         WHERE erpx_identity_access_write.principal_authority.tenant_id=
-                   erpx_cqrs_write.current_tenant_id()
+         WHERE erpx_identity_access_write.principal_authority.holding_id=
+                   erpx_cqrs_write.current_holding_id()
            AND erpx_identity_access_write.principal_authority.aggregate_version + 1=
                    EXCLUDED.aggregate_version",
     )
@@ -1202,12 +1201,12 @@ async fn apply_principal_authority(
         let assignment_scope = ScopeColumns::from_scope_store(assignment.scope())?;
         let changed = sqlx::query(
             "INSERT INTO erpx_identity_access_write.assignment_authority
-                (tenant_id,assignment_id,principal_id,role_id,scope_key,scope_mode,holding_id,
+                (holding_id,assignment_id,principal_id,role_id,scope_key,scope_mode,holding_id,
                  company_id,branch_id,company_ids,branch_ids,risk_tier,valid_from,valid_until,
                  grant_reason,ticket_reference,grantor_ref,approver_ref,revoked_at,principal_version)
-             VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
+             VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
                      $11,$12,$13,$14,$15,$16,$17,$18,$19)
-             ON CONFLICT (tenant_id,assignment_id) DO UPDATE SET
+             ON CONFLICT (holding_id,assignment_id) DO UPDATE SET
                 revoked_at=EXCLUDED.revoked_at,principal_version=EXCLUDED.principal_version
              WHERE erpx_identity_access_write.assignment_authority.principal_id=EXCLUDED.principal_id
                AND erpx_identity_access_write.assignment_authority.role_id=EXCLUDED.role_id
@@ -1248,10 +1247,10 @@ async fn apply_principal_authority(
     for membership in principal.group_memberships() {
         let changed = sqlx::query(
             "INSERT INTO erpx_identity_access_write.group_membership_authority
-                (tenant_id,group_id,member_principal_id,membership_version,valid_from,
+                (holding_id,group_id,member_principal_id,membership_version,valid_from,
                  valid_until,revoked_at,principal_version)
-             VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7)
-             ON CONFLICT (tenant_id,group_id,member_principal_id) DO UPDATE SET
+             VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7)
+             ON CONFLICT (holding_id,group_id,member_principal_id) DO UPDATE SET
                 membership_version=EXCLUDED.membership_version,
                 revoked_at=EXCLUDED.revoked_at,principal_version=EXCLUDED.principal_version
              WHERE erpx_identity_access_write.group_membership_authority.valid_from=EXCLUDED.valid_from
@@ -1285,10 +1284,10 @@ async fn apply_role_authority(
     let scope = ScopeColumns::from_scope_store(role.scope())?;
     let changed = sqlx::query(
         "INSERT INTO erpx_identity_access_write.role_authority
-            (tenant_id,role_id,aggregate_version,scope_key,scope_mode,holding_id,company_id,
+            (holding_id,role_id,aggregate_version,scope_key,scope_mode,holding_id,company_id,
              branch_id,company_ids,branch_ids,role_code,display_name,risk_tier,created_at,updated_at)
-         VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-         ON CONFLICT (tenant_id,role_id) DO UPDATE SET
+         VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+         ON CONFLICT (holding_id,role_id) DO UPDATE SET
             aggregate_version=EXCLUDED.aggregate_version,scope_key=EXCLUDED.scope_key,
             scope_mode=EXCLUDED.scope_mode,holding_id=EXCLUDED.holding_id,
             company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,
@@ -1296,8 +1295,8 @@ async fn apply_role_authority(
             role_code=EXCLUDED.role_code,display_name=EXCLUDED.display_name,
             risk_tier=EXCLUDED.risk_tier,created_at=EXCLUDED.created_at,
             updated_at=EXCLUDED.updated_at
-         WHERE erpx_identity_access_write.role_authority.tenant_id=
-                   erpx_cqrs_write.current_tenant_id()
+         WHERE erpx_identity_access_write.role_authority.holding_id=
+                   erpx_cqrs_write.current_holding_id()
            AND erpx_identity_access_write.role_authority.aggregate_version + 1=
                    EXCLUDED.aggregate_version",
     )
@@ -1321,7 +1320,7 @@ async fn apply_role_authority(
     require_one_row(changed, "Identity role version fence")?;
     sqlx::query(
         "DELETE FROM erpx_identity_access_write.role_permission_authority
-         WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND role_id=$1",
+         WHERE holding_id=erpx_cqrs_write.current_holding_id() AND role_id=$1",
     )
     .bind(role.id().as_uuid())
     .execute(&mut **tx)
@@ -1329,8 +1328,8 @@ async fn apply_role_authority(
     for permission in role.permissions() {
         sqlx::query(
             "INSERT INTO erpx_identity_access_write.role_permission_authority
-                (tenant_id,role_id,permission_key,role_version)
-             VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3)",
+                (holding_id,role_id,permission_key,role_version)
+             VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3)",
         )
         .bind(role.id().as_uuid())
         .bind(permission.as_str())
@@ -1341,7 +1340,7 @@ async fn apply_role_authority(
     Ok(())
 }
 
-fn scope_from_row(row: &sqlx::postgres::PgRow, prefix: &str) -> Result<TenantScope, PortError> {
+fn scope_from_row(row: &sqlx::postgres::PgRow, prefix: &str) -> Result<AuthorityScope, PortError> {
     let column = |name: &str| format!("{prefix}{name}");
     let mode: String = row
         .try_get(column("scope_mode").as_str())
@@ -1363,29 +1362,37 @@ fn scope_from_row(row: &sqlx::postgres::PgRow, prefix: &str) -> Result<TenantSco
         .map_err(|_| PortError::Internal)?;
     let scope = match mode.as_str() {
         "platform" if holding_id.is_none() && company_id.is_none() && branch_id.is_none() => {
-            TenantScope::Platform
+            AuthorityScope::Platform
         }
-        "holding" => TenantScope::Holding {
+        "holding" => AuthorityScope::Holding {
             holding_id: holding_id.ok_or(PortError::Internal)?,
         },
-        "company" => TenantScope::Company {
+        "company" => AuthorityScope::Company {
             holding_id: holding_id.ok_or(PortError::Internal)?,
             company_id: company_id.ok_or(PortError::Internal)?,
         },
-        "branch" => TenantScope::Branch {
+        "branch" => AuthorityScope::Branch {
             holding_id: holding_id.ok_or(PortError::Internal)?,
             company_id: company_id.ok_or(PortError::Internal)?,
             branch_id: branch_id.ok_or(PortError::Internal)?,
         },
-        "subtree" => TenantScope::Subtree {
+        "subtree" => AuthorityScope::Subtree {
             holding_id: holding_id.ok_or(PortError::Internal)?,
-            company_ids,
-            branch_ids,
+            organization_node_id: single_subtree_node(&company_ids, &branch_ids)?,
         },
         _ => return Err(PortError::Internal),
     };
     scope.validate().map_err(|_| PortError::Internal)?;
     Ok(scope)
+}
+
+fn single_subtree_node(company_ids: &[Uuid], branch_ids: &[Uuid]) -> Result<Uuid, PortError> {
+    let mut nodes = company_ids.iter().chain(branch_ids).copied();
+    let node = nodes.next().ok_or(PortError::Internal)?;
+    if node.is_nil() || nodes.next().is_some() {
+        return Err(PortError::Internal);
+    }
+    Ok(node)
 }
 
 fn row_u64(row: &sqlx::postgres::PgRow, column: &str) -> Result<u64, PortError> {
@@ -1633,40 +1640,23 @@ fn aggregate_updated_at(aggregate: &IdentityAccessAggregate) -> chrono::DateTime
     }
 }
 
-pub(crate) fn scope_key(scope: &TenantScope) -> String {
+pub(crate) fn scope_key(scope: &AuthorityScope) -> String {
     match scope {
-        TenantScope::Platform => "platform".into(),
-        TenantScope::Holding { holding_id } => format!("holding:{holding_id}"),
-        TenantScope::Company {
+        AuthorityScope::Platform => "platform".into(),
+        AuthorityScope::Holding { holding_id } => format!("holding:{holding_id}"),
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => format!("company:{holding_id}:{company_id}"),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         } => format!("branch:{holding_id}:{company_id}:{branch_id}"),
-        TenantScope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
-        } => {
-            let mut companies = company_ids
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>();
-            let mut branches = branch_ids
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>();
-            companies.sort_unstable();
-            branches.sort_unstable();
-            format!(
-                "subtree:{holding_id}:companies={}:branches={}",
-                companies.join(","),
-                branches.join(",")
-            )
-        }
+            organization_node_id,
+        } => format!("subtree:{holding_id}:{organization_node_id}"),
     }
 }
 
@@ -1752,12 +1742,12 @@ mod tests {
         let principal_id = PrincipalId::try_from_uuid(Uuid::from_u128(1)).unwrap();
         let first = CommandFingerprint::CreatePrincipal {
             principal_id,
-            scope: TenantScope::Platform,
+            scope: AuthorityScope::Platform,
             display_name: "Ada".into(),
         };
         let changed = CommandFingerprint::CreatePrincipal {
             principal_id,
-            scope: TenantScope::Platform,
+            scope: AuthorityScope::Platform,
             display_name: "Grace".into(),
         };
         assert_eq!(request_hash(&first).unwrap(), request_hash(&first).unwrap());
@@ -1769,15 +1759,13 @@ mod tests {
 
     #[test]
     fn canonical_scope_keys_are_order_insensitive_for_subtrees() {
-        let left = TenantScope::Subtree {
+        let left = AuthorityScope::Subtree {
             holding_id: Uuid::from_u128(1),
-            company_ids: vec![Uuid::from_u128(3), Uuid::from_u128(2)],
-            branch_ids: vec![Uuid::from_u128(5), Uuid::from_u128(4)],
+            organization_node_id: Uuid::from_u128(2),
         };
-        let right = TenantScope::Subtree {
+        let right = AuthorityScope::Subtree {
             holding_id: Uuid::from_u128(1),
-            company_ids: vec![Uuid::from_u128(2), Uuid::from_u128(3)],
-            branch_ids: vec![Uuid::from_u128(4), Uuid::from_u128(5)],
+            organization_node_id: Uuid::from_u128(2),
         };
         assert_eq!(scope_key(&left), scope_key(&right));
     }

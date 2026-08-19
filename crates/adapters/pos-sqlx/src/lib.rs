@@ -25,40 +25,33 @@ pub const SALE_SNAPSHOT_EVENT_TYPE: &str = "pos.sale_snapshot";
 pub const REFUND_SNAPSHOT_EVENT_TYPE: &str = "pos.refund_snapshot";
 pub const EVENT_VERSION: u32 = 1;
 pub const COMPLETION_WRITE_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0080_current_record_completion.sql");
-pub const COMPLETION_READ_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0071_current_record_completion_projection.sql"
-);
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
+pub const COMPLETION_READ_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 
 #[cfg(test)]
-pub const TENANT_WRITE_FOUNDATION_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0057_cqrs_foundation.sql");
+pub const HOLDING_WRITE_FOUNDATION_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 #[cfg(test)]
-pub const TENANT_WRITE_CONTEXT_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_write/0061_wave7_transactional_context_guards.sql"
-);
+pub const HOLDING_WRITE_CONTEXT_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 #[cfg(test)]
-pub const TENANT_READ_FOUNDATION_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_read/0048_cqrs_foundation.sql");
+pub const HOLDING_READ_FOUNDATION_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 #[cfg(test)]
-pub const TENANT_READ_CONTEXT_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0053_wave7_transactional_context_projections.sql"
-);
+pub const HOLDING_READ_CONTEXT_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 #[cfg(test)]
 pub const WRITE_DDL: &str = concat!(
-    include_str!("../../../migration/migrations_tenant_write/0057_cqrs_foundation.sql"),
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql"),
     "\n",
-    include_str!(
-        "../../../migration/migrations_tenant_write/0061_wave7_transactional_context_guards.sql"
-    )
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql")
 );
 #[cfg(test)]
 pub const READ_DDL: &str = concat!(
-    include_str!("../../../migration/migrations_tenant_read/0048_cqrs_foundation.sql"),
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql"),
     "\n",
-    include_str!(
-        "../../../migration/migrations_tenant_read/0053_wave7_transactional_context_projections.sql"
-    )
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql")
 );
 
 pub fn sale_partition(sale_id: erpx_pos::SaleId) -> String {

@@ -1,11 +1,11 @@
 //! Disposable end-to-end evidence for the Sales source/outbox/read boundary.
 //!
-//! The acceptance test uses two real tenant PostgreSQL databases when the
+//! The acceptance test uses two real holding PostgreSQL databases when the
 //! routed URLs are configured.  Without them it records the certification
 //! blocker and exits without claiming live evidence.
 
 use chrono::Utc;
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::sales::{
     CollectionState, CustomerMasterReference, HandoffStatus, InvoiceHandoff, Lead, Opportunity,
     Quote, QuoteStatus, SalesAggregateKind, SalesLine, SalesOrder, SalesOrderStatus,
@@ -15,12 +15,12 @@ use erpx_infrastructure::{SalesAggregate, SalesReadScope, SqlxSalesStore};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-fn context(scope: TenantScope, key: &str) -> CommandContext {
+fn context(scope: AuthorityScope, key: &str) -> CommandContext {
     CommandContext::try_new(
         key,
         ActorAttribution {
             principal_ref: "sales-e2e-actor".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
@@ -32,34 +32,34 @@ fn context(scope: TenantScope, key: &str) -> CommandContext {
 }
 
 #[tokio::test]
-#[ignore = "requires disposable tenant write and read PostgreSQL databases"]
+#[ignore = "requires disposable holding write and read PostgreSQL databases"]
 async fn live_sales_write_outbox_projection_scoped_read_reconciliation_and_rebuild() {
-    let Ok(write_url) = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL") else {
+    let Ok(write_url) = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL") else {
         eprintln!(
-            "G11 Sales live SQLx blocker queued: ERPX_TEST_TENANT_WRITE_DATABASE_URL is unavailable"
+            "G11 Sales live SQLx blocker queued: ERPX_TEST_HOLDING_WRITE_DATABASE_URL is unavailable"
         );
         return;
     };
-    let Ok(read_url) = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL") else {
+    let Ok(read_url) = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL") else {
         eprintln!(
-            "G11 Sales live SQLx blocker queued: ERPX_TEST_TENANT_READ_DATABASE_URL is unavailable"
+            "G11 Sales live SQLx blocker queued: ERPX_TEST_HOLDING_READ_DATABASE_URL is unavailable"
         );
         return;
     };
 
     let write_pool = PgPool::connect(&write_url).await.expect("Sales write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("Sales read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migration");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding write migration");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migration");
+        .expect("holding read migration");
 
-    let holding_ref = format!("holding-sales-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-sales-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
-    let scope = TenantScope::Company {
+    let scope = AuthorityScope::Company {
         holding_id,
         company_id,
     };
@@ -77,8 +77,12 @@ async fn live_sales_write_outbox_projection_scoped_read_reconciliation_and_rebui
     )
     .expect("valid Sales lead");
     let lead_id = lead.id;
-    let store = SqlxSalesStore::new(write_pool.clone(), read_pool.clone(), holding_ref.clone())
-        .expect("Sales store");
+    let store = SqlxSalesStore::new(
+        write_pool.clone(),
+        read_pool.clone(),
+        data_profile_key.clone(),
+    )
+    .expect("Sales store");
     let aggregate = SalesAggregate::Lead(lead);
 
     let first = store
@@ -107,23 +111,23 @@ async fn live_sales_write_outbox_projection_scoped_read_reconciliation_and_rebui
     assert_eq!(second.version, 2);
     assert!(!second.replayed);
 
-    // The tenant outbox is shared by bounded contexts.  A non-Sales row must
+    // The holding outbox is shared by bounded contexts.  A non-Sales row must
     // not make the Sales source reader fail or enter the Sales projector.
     let mut tx = write_pool.begin().await.expect("cross-context test tx");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tx)
         .await
         .expect("set holding scope");
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at)
          VALUES ($1, 'pos_sale', $2, $3, 1, 'pos.sale.v1', '{}'::jsonb, now())",
     )
     .bind(Uuid::new_v4())
     .bind(Uuid::new_v4())
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .execute(&mut *tx)
     .await
     .expect("shared outbox test row");
@@ -245,7 +249,7 @@ async fn live_sales_write_outbox_projection_scoped_read_reconciliation_and_rebui
             .get_for_scope(
                 "lead",
                 lead_id,
-                &TenantScope::Company {
+                &AuthorityScope::Company {
                     holding_id,
                     company_id: Uuid::new_v4(),
                 },
@@ -303,18 +307,18 @@ async fn live_sales_write_outbox_projection_scoped_read_reconciliation_and_rebui
         .cloned()
         .expect("latest Sales source state payload");
     let mut source_tamper = write_pool.begin().await.expect("source tamper transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *source_tamper)
         .await
         .expect("source holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.sales_aggregates
+        "UPDATE erpx_holding.sales_aggregates
          SET payload=$1
-         WHERE holding_ref=$2 AND aggregate_type=$3 AND aggregate_id=$4",
+         WHERE data_profile_key=$2 AND aggregate_type=$3 AND aggregate_id=$4",
     )
     .bind(serde_json::json!({"aggregate_type": "lead", "id": lead_id}))
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind("lead")
     .bind(lead_id)
     .execute(&mut *source_tamper)
@@ -340,18 +344,18 @@ async fn live_sales_write_outbox_projection_scoped_read_reconciliation_and_rebui
     );
 
     let mut source_repair = write_pool.begin().await.expect("source repair transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *source_repair)
         .await
         .expect("source repair holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.sales_aggregates
+        "UPDATE erpx_holding.sales_aggregates
          SET payload=$1
-         WHERE holding_ref=$2 AND aggregate_type=$3 AND aggregate_id=$4",
+         WHERE data_profile_key=$2 AND aggregate_type=$3 AND aggregate_id=$4",
     )
     .bind(latest_source_state_payload)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind("lead")
     .bind(lead_id)
     .execute(&mut *source_repair)
@@ -393,30 +397,30 @@ async fn live_sales_write_outbox_projection_scoped_read_reconciliation_and_rebui
 }
 
 #[tokio::test]
-#[ignore = "requires disposable tenant write and read PostgreSQL databases"]
+#[ignore = "requires disposable holding write and read PostgreSQL databases"]
 async fn live_sales_projection_checkpoint_integrity_fails_closed_and_rebuilds() {
-    let Ok(write_url) = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL") else {
+    let Ok(write_url) = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL") else {
         eprintln!("G11 Sales checkpoint blocker queued: write database is unavailable");
         return;
     };
-    let Ok(read_url) = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL") else {
+    let Ok(read_url) = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL") else {
         eprintln!("G11 Sales checkpoint blocker queued: read database is unavailable");
         return;
     };
 
     let write_pool = PgPool::connect(&write_url).await.expect("Sales write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("Sales read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migration");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding write migration");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migration");
+        .expect("holding read migration");
 
-    let holding_ref = format!("holding-sales-checkpoint-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-sales-checkpoint-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
-    let scope = TenantScope::Company {
+    let scope = AuthorityScope::Company {
         holding_id,
         company_id,
     };
@@ -434,8 +438,12 @@ async fn live_sales_projection_checkpoint_integrity_fails_closed_and_rebuilds() 
     )
     .expect("valid Sales lead");
     let lead_id = lead.id;
-    let store = SqlxSalesStore::new(write_pool.clone(), read_pool.clone(), holding_ref.clone())
-        .expect("Sales store");
+    let store = SqlxSalesStore::new(
+        write_pool.clone(),
+        read_pool.clone(),
+        data_profile_key.clone(),
+    )
+    .expect("Sales store");
     let aggregate = SalesAggregate::Lead(lead);
     store.save(&aggregate, None).await.expect("source write");
     let source_event = store
@@ -462,21 +470,21 @@ async fn live_sales_projection_checkpoint_integrity_fails_closed_and_rebuilds() 
     // harmless replay.
     let duplicate_event_id = Uuid::new_v4();
     let mut duplicate_tx = write_pool.begin().await.expect("duplicate event tx");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *duplicate_tx)
         .await
         .expect("route duplicate event tx");
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,now())",
     )
     .bind(duplicate_event_id)
     .bind(&source_event.aggregate_type)
     .bind(source_event.aggregate_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(source_event.aggregate_version as i64)
     .bind(&source_event.event_type)
     .bind(&source_event.payload)
@@ -498,12 +506,12 @@ async fn live_sales_projection_checkpoint_integrity_fails_closed_and_rebuilds() 
     );
 
     let mut duplicate_cleanup_tx = write_pool.begin().await.expect("duplicate cleanup tx");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *duplicate_cleanup_tx)
         .await
         .expect("route duplicate cleanup tx");
-    sqlx::query("DELETE FROM erpx_tenant.outbox_events WHERE event_id=$1")
+    sqlx::query("DELETE FROM erpx_holding.outbox_events WHERE event_id=$1")
         .bind(duplicate_event_id)
         .execute(&mut *duplicate_cleanup_tx)
         .await
@@ -514,19 +522,19 @@ async fn live_sales_projection_checkpoint_integrity_fails_closed_and_rebuilds() 
         .expect("commit duplicate cleanup");
 
     let mut payload_damage_tx = read_pool.begin().await.expect("payload damage tx");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *payload_damage_tx)
         .await
         .expect("route payload damage tx");
     sqlx::query(
-        "UPDATE erpx_tenant.sales_aggregates
+        "UPDATE erpx_holding.sales_aggregates
          SET payload=jsonb_set(payload, '{aggregate,reference}', to_jsonb('FORGED-REFERENCE'::text), false)
-         WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$3",
+         WHERE aggregate_type=$1 AND aggregate_id=$2 AND data_profile_key=$3",
     )
     .bind(&source_event.aggregate_type)
     .bind(source_event.aggregate_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .execute(&mut *payload_damage_tx)
     .await
     .expect("tamper projected payload");
@@ -557,18 +565,18 @@ async fn live_sales_projection_checkpoint_integrity_fails_closed_and_rebuilds() 
     // projector replay. The only recovery path is a controlled replacement
     // projection rebuild from the authoritative source.
     let mut damage_tx = read_pool.begin().await.expect("checkpoint damage tx");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *damage_tx)
         .await
         .expect("route checkpoint damage tx");
     sqlx::query(
-        "DELETE FROM erpx_tenant.sales_projection_checkpoints
-         WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$3",
+        "DELETE FROM erpx_holding.sales_projection_checkpoints
+         WHERE aggregate_type=$1 AND aggregate_id=$2 AND data_profile_key=$3",
     )
     .bind(&source_event.aggregate_type)
     .bind(source_event.aggregate_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .execute(&mut *damage_tx)
     .await
     .expect("delete checkpoint");
@@ -609,30 +617,30 @@ async fn live_sales_projection_checkpoint_integrity_fails_closed_and_rebuilds() 
 }
 
 #[tokio::test]
-#[ignore = "requires disposable tenant write and read PostgreSQL databases"]
+#[ignore = "requires disposable holding write and read PostgreSQL databases"]
 async fn live_sales_source_fence_rebuild_is_atomic_and_preserves_read_state_on_failure() {
-    let Ok(write_url) = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL") else {
+    let Ok(write_url) = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL") else {
         eprintln!("G9 Sales source-fence blocker queued: write database is unavailable");
         return;
     };
-    let Ok(read_url) = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL") else {
+    let Ok(read_url) = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL") else {
         eprintln!("G9 Sales source-fence blocker queued: read database is unavailable");
         return;
     };
 
     let write_pool = PgPool::connect(&write_url).await.expect("Sales write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("Sales read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migration");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding write migration");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migration");
+        .expect("holding read migration");
 
-    let holding_ref = format!("holding-sales-fence-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-sales-fence-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
-    let scope = TenantScope::Company {
+    let scope = AuthorityScope::Company {
         holding_id,
         company_id,
     };
@@ -650,8 +658,12 @@ async fn live_sales_source_fence_rebuild_is_atomic_and_preserves_read_state_on_f
     )
     .expect("valid Sales lead");
     let lead_id = lead.id;
-    let store = SqlxSalesStore::new(write_pool.clone(), read_pool.clone(), holding_ref.clone())
-        .expect("Sales store");
+    let store = SqlxSalesStore::new(
+        write_pool.clone(),
+        read_pool.clone(),
+        data_profile_key.clone(),
+    )
+    .expect("Sales store");
 
     let first = store
         .save(&SalesAggregate::Lead(lead), None)
@@ -724,21 +736,21 @@ async fn live_sales_source_fence_rebuild_is_atomic_and_preserves_read_state_on_f
         .begin()
         .await
         .expect("duplicate source transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tx)
         .await
         .expect("route duplicate source transaction");
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,now())",
     )
     .bind(duplicate_event_id)
     .bind(&version_two_event.aggregate_type)
     .bind(version_two_event.aggregate_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(version_two_event.aggregate_version as i64)
     .bind(&version_two_event.event_type)
     .bind(&version_two_event.payload)
@@ -766,34 +778,34 @@ async fn live_sales_source_fence_rebuild_is_atomic_and_preserves_read_state_on_f
 }
 
 #[tokio::test]
-#[ignore = "requires disposable tenant write and read PostgreSQL databases"]
+#[ignore = "requires disposable holding write and read PostgreSQL databases"]
 async fn live_sales_collection_payment_is_idempotent_projected_and_rebuildable() {
-    let Ok(write_url) = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL") else {
+    let Ok(write_url) = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL") else {
         eprintln!(
-            "G9 Sales payment blocker queued: ERPX_TEST_TENANT_WRITE_DATABASE_URL is unavailable"
+            "G9 Sales payment blocker queued: ERPX_TEST_HOLDING_WRITE_DATABASE_URL is unavailable"
         );
         return;
     };
-    let Ok(read_url) = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL") else {
+    let Ok(read_url) = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL") else {
         eprintln!(
-            "G9 Sales payment blocker queued: ERPX_TEST_TENANT_READ_DATABASE_URL is unavailable"
+            "G9 Sales payment blocker queued: ERPX_TEST_HOLDING_READ_DATABASE_URL is unavailable"
         );
         return;
     };
 
     let write_pool = PgPool::connect(&write_url).await.expect("Sales write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("Sales read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migration");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding write migration");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migration");
+        .expect("holding read migration");
 
-    let holding_ref = format!("holding-sales-payment-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-sales-payment-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
-    let scope = TenantScope::Company {
+    let scope = AuthorityScope::Company {
         holding_id,
         company_id,
     };
@@ -898,7 +910,7 @@ async fn live_sales_collection_payment_is_idempotent_projected_and_rebuildable()
     )
     .expect("collection state");
     let collection_id = collection.id;
-    let store = SqlxSalesStore::new(write_pool.clone(), read_pool.clone(), holding_ref)
+    let store = SqlxSalesStore::new(write_pool.clone(), read_pool.clone(), data_profile_key)
         .expect("Sales store");
     store
         .save(&SalesAggregate::Opportunity(opportunity), None)

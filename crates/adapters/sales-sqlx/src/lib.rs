@@ -30,26 +30,21 @@ pub const ORDER_SNAPSHOT_EVENT: &str = "sales.order_snapshot";
 pub const ARRANGEMENT_SNAPSHOT_EVENT: &str = "sales.revenue_arrangement_snapshot";
 pub const EVENT_VERSION: u32 = 1;
 pub const COMPLETION_WRITE_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0080_current_record_completion.sql");
-pub const COMPLETION_READ_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0071_current_record_completion_projection.sql"
-);
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
+pub const COMPLETION_READ_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 #[cfg(test)]
-pub const WRITE_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_write/0061_wave7_transactional_context_guards.sql"
-);
+pub const WRITE_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 #[cfg(test)]
-pub const READ_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0053_wave7_transactional_context_projections.sql"
-);
+pub const READ_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 #[cfg(test)]
-pub const REVENUE_WRITE_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_write/0064_unified_revenue_arrangement_guards.sql"
-);
+pub const REVENUE_WRITE_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 #[cfg(test)]
-pub const REVENUE_READ_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0056_unified_revenue_arrangement_projection.sql"
-);
+pub const REVENUE_READ_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 
 pub fn quote_partition(id: erpx_sales::QuoteId) -> String {
     format!("sales.quote:{}", id.as_uuid().simple())

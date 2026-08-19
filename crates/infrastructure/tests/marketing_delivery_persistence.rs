@@ -1,6 +1,6 @@
 use chrono::{Duration, Utc};
 use erpx_domain::{
-    contracts::TenantScope,
+    contracts::AuthorityScope,
     marketing::{ConsentRecord, ConsentState, MarketingChannel, MarketingPurpose},
     marketing_callback::{
         MarketingProviderCallbackBinding, MarketingProviderCallbackKind,
@@ -10,38 +10,38 @@ use erpx_domain::{
     marketing_delivery::{ChannelDispatchRecord, DeliveryDispatch, DeliveryState, RetryPolicy},
 };
 use erpx_infrastructure::SqlxMarketingDeliveryStore;
-use erpx_migration::{migrate_tenant_read, migrate_tenant_write};
+use erpx_migration::{migrate_holding_read, migrate_holding_write};
 use sqlx::{Row, postgres::PgPoolOptions};
 use uuid::Uuid;
 
 #[tokio::test]
-#[ignore = "requires two disposable tenant PostgreSQL databases; URLs are never printed"]
+#[ignore = "requires two disposable holding PostgreSQL databases; URLs are never printed"]
 async fn provider_callback_inbox_is_atomic_idempotent_and_scope_bound() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required for this ignored test");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required for this ignored test");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required for this ignored test");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required for this ignored test");
     assert_ne!(write_url, read_url);
     let write_pool = PgPoolOptions::new()
         .max_connections(2)
         .connect(&write_url)
         .await
-        .expect("tenant write pool");
+        .expect("holding write pool");
     let read_pool = PgPoolOptions::new()
         .max_connections(2)
         .connect(&read_url)
         .await
-        .expect("tenant read pool");
-    migrate_tenant_write(&write_pool)
+        .expect("holding read pool");
+    migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migrations");
-    migrate_tenant_read(&read_pool)
+        .expect("holding write migrations");
+    migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migrations");
+        .expect("holding read migrations");
 
     let holding_id = Uuid::new_v4();
-    let holding_ref = holding_id.to_string();
-    let scope = TenantScope::Holding { holding_id };
+    let data_profile_key = holding_id.to_string();
+    let scope = AuthorityScope::Holding { holding_id };
     let received_at = Utc::now();
     let provider_message_ref = format!("provider-message-{holding_id}");
     let mut dispatch = DeliveryDispatch::new(
@@ -69,19 +69,19 @@ async fn provider_callback_inbox_is_atomic_idempotent_and_scope_bound() {
     dispatch.version = 2;
     let payload = serde_json::to_value(&dispatch).expect("dispatch payload");
     let mut tx = write_pool.begin().await.expect("seed transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tx)
         .await
         .expect("holding scope");
     sqlx::query(
-        "INSERT INTO erpx_tenant.marketing_deliveries
-            (delivery_id, holding_ref, profile_id, campaign_id, idempotency_key,
+        "INSERT INTO erpx_holding.marketing_deliveries
+            (delivery_id, data_profile_key, profile_id, campaign_id, idempotency_key,
              state, attempt_count, next_attempt_at, expires_at, version, payload)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
     )
     .bind(dispatch.id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(dispatch.profile_id)
     .bind(dispatch.campaign_id)
     .bind(dispatch.idempotency_key.as_str())
@@ -96,13 +96,8 @@ async fn provider_callback_inbox_is_atomic_idempotent_and_scope_bound() {
     .expect("seed delivery");
     tx.commit().await.expect("seed commit");
 
-    let binding = MarketingProviderCallbackBinding::new(
-        "provider-account-test",
-        "opaque-tenant-test",
-        holding_id,
-        scope,
-    )
-    .expect("binding");
+    let binding = MarketingProviderCallbackBinding::new("provider-account-test", holding_id, scope)
+        .expect("binding");
     let request = MarketingProviderCallbackRequest::new(
         binding.clone(),
         dispatch.id,
@@ -118,7 +113,7 @@ async fn provider_callback_inbox_is_atomic_idempotent_and_scope_bound() {
     .expect("callback request");
     let callback = request.verify(&binding, received_at).expect("callback");
     let store =
-        SqlxMarketingDeliveryStore::from_pools(&write_pool, &read_pool, holding_ref.clone())
+        SqlxMarketingDeliveryStore::from_pools(&write_pool, &read_pool, data_profile_key.clone())
             .expect("delivery store");
     let first = store
         .accept_provider_callback(&callback, received_at, Uuid::new_v4())
@@ -139,18 +134,18 @@ async fn provider_callback_inbox_is_atomic_idempotent_and_scope_bound() {
     assert!(duplicate.delivery.is_none());
 
     let mut verify_tx = write_pool.begin().await.expect("verify transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *verify_tx)
         .await
         .expect("verify scope");
     let delivery = sqlx::query(
         "SELECT state, version, payload
-         FROM erpx_tenant.marketing_deliveries
-         WHERE delivery_id=$1 AND holding_ref=$2",
+         FROM erpx_holding.marketing_deliveries
+         WHERE delivery_id=$1 AND data_profile_key=$2",
     )
     .bind(dispatch.id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .fetch_one(&mut *verify_tx)
     .await
     .expect("delivery row");
@@ -160,20 +155,20 @@ async fn provider_callback_inbox_is_atomic_idempotent_and_scope_bound() {
     );
     assert_eq!(delivery.try_get::<i64, _>("version").expect("version"), 3);
     let inbox_count = sqlx::query_scalar::<_, i64>(
-        "SELECT count(*) FROM erpx_tenant.marketing_provider_callback_inbox
-         WHERE holding_ref=$1 AND provider_event_id='provider-event-1'",
+        "SELECT count(*) FROM erpx_holding.marketing_provider_callback_inbox
+         WHERE data_profile_key=$1 AND provider_event_id='provider-event-1'",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .fetch_one(&mut *verify_tx)
     .await
     .expect("inbox row");
     assert_eq!(inbox_count, 1);
     let outbox_event = sqlx::query_scalar::<_, String>(
-        "SELECT event_type FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_id=$2
+        "SELECT event_type FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_id=$2
          ORDER BY occurred_at DESC LIMIT 1",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(dispatch.id)
     .fetch_one(&mut *verify_tx)
     .await
@@ -183,33 +178,33 @@ async fn provider_callback_inbox_is_atomic_idempotent_and_scope_bound() {
 }
 
 #[tokio::test]
-#[ignore = "requires two disposable tenant PostgreSQL databases; URLs are never printed"]
+#[ignore = "requires two disposable holding PostgreSQL databases; URLs are never printed"]
 async fn channel_scoped_claims_do_not_cross_provider_accounts() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required for this ignored test");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required for this ignored test");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required for this ignored test");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required for this ignored test");
     assert_ne!(write_url, read_url);
     let write_pool = PgPoolOptions::new()
         .max_connections(2)
         .connect(&write_url)
         .await
-        .expect("tenant write pool");
+        .expect("holding write pool");
     let read_pool = PgPoolOptions::new()
         .max_connections(2)
         .connect(&read_url)
         .await
-        .expect("tenant read pool");
-    migrate_tenant_write(&write_pool)
+        .expect("holding read pool");
+    migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migrations");
-    migrate_tenant_read(&read_pool)
+        .expect("holding write migrations");
+    migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migrations");
+        .expect("holding read migrations");
 
     let holding_id = Uuid::new_v4();
-    let holding_ref = holding_id.to_string();
-    let scope = TenantScope::Holding { holding_id };
+    let data_profile_key = holding_id.to_string();
+    let scope = AuthorityScope::Holding { holding_id };
     let now = Utc::now();
     let dispatches = [
         DeliveryDispatch::new(
@@ -250,21 +245,21 @@ async fn channel_scoped_claims_do_not_cross_provider_accounts() {
         .expect("sms dispatch"),
     ];
     let mut tx = write_pool.begin().await.expect("seed transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tx)
         .await
         .expect("holding scope");
     for dispatch in &dispatches {
         let payload = serde_json::to_value(dispatch).expect("dispatch payload");
         sqlx::query(
-            "INSERT INTO erpx_tenant.marketing_deliveries
-                (delivery_id, holding_ref, profile_id, campaign_id, idempotency_key,
+            "INSERT INTO erpx_holding.marketing_deliveries
+                (delivery_id, data_profile_key, profile_id, campaign_id, idempotency_key,
                  state, attempt_count, next_attempt_at, expires_at, version, payload)
              VALUES ($1,$2,$3,$4,$5,'queued',0,$6,$7,1,$8)",
         )
         .bind(dispatch.id)
-        .bind(&holding_ref)
+        .bind(&data_profile_key)
         .bind(dispatch.profile_id)
         .bind(dispatch.campaign_id)
         .bind(dispatch.idempotency_key.as_str())
@@ -290,14 +285,14 @@ async fn channel_scoped_claims_do_not_cross_provider_accounts() {
         };
         let consent_payload = serde_json::to_value(&consent).expect("consent payload");
         sqlx::query(
-            "INSERT INTO erpx_tenant.marketing_consents
-                (consent_id, profile_id, holding_ref, scope, purpose, channel, state,
+            "INSERT INTO erpx_holding.marketing_consents
+                (consent_id, profile_id, data_profile_key, scope, purpose, channel, state,
                  source, jurisdiction, policy_version, proof_ref, recorded_at, expires_at, payload)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)",
         )
         .bind(consent.id)
         .bind(consent.profile_id)
-        .bind(&holding_ref)
+        .bind(&data_profile_key)
         .bind(serde_json::to_value(&consent.scope).expect("consent scope"))
         .bind("promotional")
         .bind(match consent.channel {
@@ -322,7 +317,7 @@ async fn channel_scoped_claims_do_not_cross_provider_accounts() {
     let email_store = SqlxMarketingDeliveryStore::new_for_channels(
         write_pool.clone(),
         read_pool.clone(),
-        holding_ref.clone(),
+        data_profile_key.clone(),
         vec!["email".into()],
     )
     .expect("email-scoped store");
@@ -336,7 +331,7 @@ async fn channel_scoped_claims_do_not_cross_provider_accounts() {
     let sms_store = SqlxMarketingDeliveryStore::new_for_channels(
         write_pool,
         read_pool,
-        holding_ref,
+        data_profile_key,
         vec!["sms".into()],
     )
     .expect("sms-scoped store");
@@ -349,33 +344,33 @@ async fn channel_scoped_claims_do_not_cross_provider_accounts() {
 }
 
 #[tokio::test]
-#[ignore = "requires two disposable tenant PostgreSQL databases; URLs are never printed"]
+#[ignore = "requires two disposable holding PostgreSQL databases; URLs are never printed"]
 async fn delivery_read_projection_requires_the_exact_authoritative_outbox_state() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required for this ignored test");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required for this ignored test");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required for this ignored test");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required for this ignored test");
     assert_ne!(write_url, read_url);
     let write_pool = PgPoolOptions::new()
         .max_connections(2)
         .connect(&write_url)
         .await
-        .expect("tenant write pool");
+        .expect("holding write pool");
     let read_pool = PgPoolOptions::new()
         .max_connections(2)
         .connect(&read_url)
         .await
-        .expect("tenant read pool");
-    migrate_tenant_write(&write_pool)
+        .expect("holding read pool");
+    migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migrations");
-    migrate_tenant_read(&read_pool)
+        .expect("holding write migrations");
+    migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migrations");
+        .expect("holding read migrations");
 
     let holding_id = Uuid::new_v4();
-    let holding_ref = format!("marketing-projection-authority-{holding_id}");
-    let scope = TenantScope::Holding { holding_id };
+    let data_profile_key = format!("marketing-projection-authority-{holding_id}");
+    let scope = AuthorityScope::Holding { holding_id };
     let now = Utc::now();
     let dispatch = DeliveryDispatch::new(
         Uuid::new_v4(),
@@ -396,7 +391,7 @@ async fn delivery_read_projection_requires_the_exact_authoritative_outbox_state(
     )
     .expect("dispatch");
     let store =
-        SqlxMarketingDeliveryStore::from_pools(&write_pool, &read_pool, holding_ref.clone())
+        SqlxMarketingDeliveryStore::from_pools(&write_pool, &read_pool, data_profile_key.clone())
             .expect("delivery store");
     store.enqueue(&dispatch).await.expect("enqueue source");
 
@@ -412,16 +407,16 @@ async fn delivery_read_projection_requires_the_exact_authoritative_outbox_state(
         .begin()
         .await
         .expect("read inspection transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *read_tx)
         .await
         .expect("read holding scope");
     let before_projection: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_tenant.marketing_delivery_read_rows
-         WHERE holding_ref=$1 AND delivery_id=$2",
+        "SELECT count(*) FROM erpx_holding.marketing_delivery_read_rows
+         WHERE data_profile_key=$1 AND delivery_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(dispatch.id)
     .fetch_one(&mut *read_tx)
     .await
@@ -437,36 +432,36 @@ async fn delivery_read_projection_requires_the_exact_authoritative_outbox_state(
 }
 
 #[tokio::test]
-#[ignore = "requires two disposable tenant PostgreSQL databases; URLs are never printed"]
+#[ignore = "requires two disposable holding PostgreSQL databases; URLs are never printed"]
 async fn delivery_projection_worker_path_advances_a_durable_cursor() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required for this ignored test");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required for this ignored test");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required for this ignored test");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required for this ignored test");
     assert_ne!(write_url, read_url);
     let write_pool = PgPoolOptions::new()
         .max_connections(2)
         .connect(&write_url)
         .await
-        .expect("tenant write pool");
+        .expect("holding write pool");
     let read_pool = PgPoolOptions::new()
         .max_connections(2)
         .connect(&read_url)
         .await
-        .expect("tenant read pool");
-    migrate_tenant_write(&write_pool)
+        .expect("holding read pool");
+    migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migrations");
-    migrate_tenant_read(&read_pool)
+        .expect("holding write migrations");
+    migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migrations");
+        .expect("holding read migrations");
 
     let holding_id = Uuid::new_v4();
-    let holding_ref = format!("marketing-delivery-projector-{holding_id}");
+    let data_profile_key = format!("marketing-delivery-projector-{holding_id}");
     let now = Utc::now();
     let dispatch = DeliveryDispatch::new(
         Uuid::new_v4(),
-        TenantScope::Holding { holding_id },
+        AuthorityScope::Holding { holding_id },
         Uuid::new_v4(),
         Uuid::new_v4(),
         MarketingPurpose::Newsletter,
@@ -483,7 +478,7 @@ async fn delivery_projection_worker_path_advances_a_durable_cursor() {
     )
     .expect("dispatch");
     let store =
-        SqlxMarketingDeliveryStore::from_pools(&write_pool, &read_pool, holding_ref.clone())
+        SqlxMarketingDeliveryStore::from_pools(&write_pool, &read_pool, data_profile_key.clone())
             .expect("delivery store");
     store.enqueue(&dispatch).await.expect("enqueue source");
 
@@ -517,18 +512,18 @@ async fn delivery_projection_worker_path_advances_a_durable_cursor() {
     assert_eq!(reconciliation.checkpoint_mismatch_count, 0);
 
     let mut tamper_tx = read_pool.begin().await.expect("read tamper transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tamper_tx)
         .await
         .expect("read tamper scope");
     sqlx::query(
-        "UPDATE erpx_tenant.marketing_delivery_read_rows
+        "UPDATE erpx_holding.marketing_delivery_read_rows
          SET payload=jsonb_set(payload, '{logical_message_ref}',
                                 to_jsonb('tampered-read-state'::text))
-         WHERE holding_ref=$1 AND delivery_id=$2",
+         WHERE data_profile_key=$1 AND delivery_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(dispatch.id)
     .execute(&mut *tamper_tx)
     .await
@@ -546,18 +541,18 @@ async fn delivery_projection_worker_path_advances_a_durable_cursor() {
         .begin()
         .await
         .expect("checkpoint tamper transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *checkpoint_tamper_tx)
         .await
         .expect("checkpoint tamper scope");
     sqlx::query(
-        "UPDATE erpx_tenant.marketing_delivery_projection_checkpoints
+        "UPDATE erpx_holding.marketing_delivery_projection_checkpoints
          SET last_event_id=$1
-         WHERE projection_name='marketing_delivery' AND holding_ref=$2",
+         WHERE projection_name='marketing_delivery' AND data_profile_key=$2",
     )
     .bind(Uuid::new_v4())
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .execute(&mut *checkpoint_tamper_tx)
     .await
     .expect("tamper projection checkpoint");
@@ -579,16 +574,16 @@ async fn delivery_projection_worker_path_advances_a_durable_cursor() {
         .expect("clear disposable delivery read model");
     assert_eq!(cleared, 1);
     let mut source_check_tx = write_pool.begin().await.expect("source check transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *source_check_tx)
         .await
         .expect("source check scope");
     let source_count_after_clear: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type='marketing_delivery'",
+        "SELECT count(*) FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type='marketing_delivery'",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .fetch_one(&mut *source_check_tx)
     .await
     .expect("authoritative delivery outbox after clear");
@@ -625,16 +620,16 @@ async fn delivery_projection_worker_path_advances_a_durable_cursor() {
         .begin()
         .await
         .expect("read inspection transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *read_tx)
         .await
         .expect("read holding scope");
     let read_count: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_tenant.marketing_delivery_read_rows
-         WHERE holding_ref=$1 AND delivery_id=$2",
+        "SELECT count(*) FROM erpx_holding.marketing_delivery_read_rows
+         WHERE data_profile_key=$1 AND delivery_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(dispatch.id)
     .fetch_one(&mut *read_tx)
     .await
@@ -642,10 +637,10 @@ async fn delivery_projection_worker_path_advances_a_durable_cursor() {
     assert_eq!(read_count, 1);
     let checkpoint_count: i64 = sqlx::query_scalar(
         "SELECT source_event_count
-         FROM erpx_tenant.marketing_delivery_projection_checkpoints
-         WHERE projection_name='marketing_delivery' AND holding_ref=$1",
+         FROM erpx_holding.marketing_delivery_projection_checkpoints
+         WHERE projection_name='marketing_delivery' AND data_profile_key=$1",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .fetch_one(&mut *read_tx)
     .await
     .expect("projection checkpoint");
@@ -654,36 +649,36 @@ async fn delivery_projection_worker_path_advances_a_durable_cursor() {
 }
 
 #[tokio::test]
-#[ignore = "requires two disposable tenant PostgreSQL databases; URLs are never printed"]
+#[ignore = "requires two disposable holding PostgreSQL databases; URLs are never printed"]
 async fn delivery_projection_rejects_a_missing_source_version() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required for this ignored test");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required for this ignored test");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required for this ignored test");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required for this ignored test");
     assert_ne!(write_url, read_url);
     let write_pool = PgPoolOptions::new()
         .max_connections(2)
         .connect(&write_url)
         .await
-        .expect("tenant write pool");
+        .expect("holding write pool");
     let read_pool = PgPoolOptions::new()
         .max_connections(2)
         .connect(&read_url)
         .await
-        .expect("tenant read pool");
-    migrate_tenant_write(&write_pool)
+        .expect("holding read pool");
+    migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migrations");
-    migrate_tenant_read(&read_pool)
+        .expect("holding write migrations");
+    migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migrations");
+        .expect("holding read migrations");
 
     let holding_id = Uuid::new_v4();
-    let holding_ref = format!("marketing-delivery-version-gap-{holding_id}");
+    let data_profile_key = format!("marketing-delivery-version-gap-{holding_id}");
     let now = Utc::now();
     let dispatch = DeliveryDispatch::new(
         Uuid::new_v4(),
-        TenantScope::Holding { holding_id },
+        AuthorityScope::Holding { holding_id },
         Uuid::new_v4(),
         Uuid::new_v4(),
         MarketingPurpose::Newsletter,
@@ -700,7 +695,7 @@ async fn delivery_projection_rejects_a_missing_source_version() {
     )
     .expect("dispatch");
     let store =
-        SqlxMarketingDeliveryStore::from_pools(&write_pool, &read_pool, holding_ref.clone())
+        SqlxMarketingDeliveryStore::from_pools(&write_pool, &read_pool, data_profile_key.clone())
             .expect("delivery store");
     store.enqueue(&dispatch).await.expect("enqueue version one");
 
@@ -714,17 +709,17 @@ async fn delivery_projection_rejects_a_missing_source_version() {
         "event_type": "marketing.delivery_queued.v1",
     });
     let mut tamper_tx = write_pool.begin().await.expect("source tamper transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tamper_tx)
         .await
         .expect("source tamper scope");
     sqlx::query(
-        "UPDATE erpx_tenant.outbox_events
+        "UPDATE erpx_holding.outbox_events
          SET aggregate_version=2, payload=$3
-         WHERE holding_ref=$1 AND aggregate_id=$2 AND aggregate_version=1",
+         WHERE data_profile_key=$1 AND aggregate_id=$2 AND aggregate_version=1",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(dispatch.id)
     .bind(version_two_envelope)
     .execute(&mut *tamper_tx)

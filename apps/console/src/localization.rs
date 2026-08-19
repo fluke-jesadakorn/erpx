@@ -255,7 +255,7 @@ mod tests {
                         || value == "UUID"
                         || value == "YYYY-MM"
                         || value.starts_with("2026-")
-                        || value.contains("tenant-001")
+                        || value.contains("holding-001")
                         || value.contains("holding-ref-001")
                         || value.contains("secret-manager/")
                         || value.contains("provider-key:")

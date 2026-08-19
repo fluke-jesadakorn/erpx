@@ -1,6 +1,6 @@
 use chrono::{Duration, TimeZone, Utc};
 use erpx_integration_contracts::assets::AssetCondition;
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use uuid::Uuid;
 
 use super::*;
@@ -14,7 +14,7 @@ fn at() -> DateTime<Utc> {
 }
 
 fn scope() -> AssetScope {
-    AssetScope::try_new(TenantScope::Company {
+    AssetScope::try_new(AuthorityScope::Company {
         holding_id: id(1),
         company_id: id(2),
     })
@@ -36,7 +36,7 @@ fn asset() -> Asset {
 #[test]
 fn asset_rejects_non_exact_scope_and_nil_location() {
     assert_eq!(
-        AssetScope::try_new(TenantScope::Holding { holding_id: id(1) }),
+        AssetScope::try_new(AuthorityScope::Holding { holding_id: id(1) }),
         Err(AssetDomainError::InvalidScope)
     );
     assert!(matches!(

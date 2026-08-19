@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
-use erpx_kernel::TenantId;
+use erpx_kernel::HoldingId;
 use erpx_projects::{Project, ProjectEvent, ProjectNodeId, ProjectsAggregate};
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
@@ -22,14 +22,14 @@ pub enum ProjectsOutboxPayload {
 #[derive(Debug, Clone)]
 pub struct ProjectsProjector {
     events: Vec<String>,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
 }
 
 impl ProjectsProjector {
-    pub fn new(tenant_id: TenantId) -> Self {
+    pub fn new(holding_id: HoldingId) -> Self {
         Self {
             events: vec![PROJECT_PROJECTION_FACT_EVENT.into()],
-            tenant_id,
+            holding_id,
         }
     }
 }
@@ -50,11 +50,11 @@ impl Projector for ProjectsProjector {
         context: &ProjectorContext<'_>,
         event: &ProjectionEvent,
     ) -> Result<(), ProjectionFailure> {
-        set_tenant(transaction, self.tenant_id).await?;
+        set_holding(transaction, self.holding_id).await?;
         let project = decode_project(context, event, PROJECT_PROJECTION)?;
         let state = serde_json::to_value(&project).map_err(failure)?;
-        sqlx::query("INSERT INTO erpx_projects_read.project_projection (tenant_id,projection_name,generation,partition_key,project_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,project_code,project_class,project_status,state,aggregate_created_at,aggregate_updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,now()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,project_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,project_code=EXCLUDED.project_code,project_class=EXCLUDED.project_class,project_status=EXCLUDED.project_status,state=EXCLUDED.state,aggregate_created_at=EXCLUDED.aggregate_created_at,aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now() WHERE erpx_projects_read.project_projection.tenant_id=EXCLUDED.tenant_id AND erpx_projects_read.project_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
-            .bind(self.tenant_id.as_uuid()).bind(PROJECT_PROJECTION).bind(context.generation).bind(&event.partition)
+        sqlx::query("INSERT INTO erpx_projects_read.project_projection (holding_id,projection_name,generation,partition_key,project_id,source_aggregate_version,source_global_sequence,active_scope,scope_key,project_code,project_class,project_status,state,aggregate_created_at,aggregate_updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,now()) ON CONFLICT (holding_id,projection_name,generation,partition_key,project_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,active_scope=EXCLUDED.active_scope,scope_key=EXCLUDED.scope_key,project_code=EXCLUDED.project_code,project_class=EXCLUDED.project_class,project_status=EXCLUDED.project_status,state=EXCLUDED.state,aggregate_created_at=EXCLUDED.aggregate_created_at,aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now() WHERE erpx_projects_read.project_projection.holding_id=EXCLUDED.holding_id AND erpx_projects_read.project_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
+            .bind(self.holding_id.as_uuid()).bind(PROJECT_PROJECTION).bind(context.generation).bind(&event.partition)
             .bind(project.id().as_uuid()).bind(to_i64(project.version())?).bind(to_i64(event.global_sequence)?)
             .bind(serde_json::to_value(project.scope()).map_err(failure)?)
             .bind(scope_key(project.scope()).map_err(failure)?).bind(project.code())
@@ -74,7 +74,7 @@ impl Projector for ProjectsProjector {
             context,
             "erpx_projects_read.project_projection",
             PROJECT_PROJECTION,
-            self.tenant_id,
+            self.holding_id,
         )
         .await
     }
@@ -83,14 +83,14 @@ impl Projector for ProjectsProjector {
 #[derive(Debug, Clone)]
 pub struct ProjectsHierarchyProjector {
     events: Vec<String>,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
 }
 
 impl ProjectsHierarchyProjector {
-    pub fn new(tenant_id: TenantId) -> Self {
+    pub fn new(holding_id: HoldingId) -> Self {
         Self {
             events: vec![PROJECT_PROJECTION_FACT_EVENT.into()],
-            tenant_id,
+            holding_id,
         }
     }
 }
@@ -111,10 +111,10 @@ impl Projector for ProjectsHierarchyProjector {
         context: &ProjectorContext<'_>,
         event: &ProjectionEvent,
     ) -> Result<(), ProjectionFailure> {
-        set_tenant(transaction, self.tenant_id).await?;
+        set_holding(transaction, self.holding_id).await?;
         let project = decode_project(context, event, HIERARCHY_PROJECTION)?;
-        sqlx::query("DELETE FROM erpx_projects_read.hierarchy_closure_projection WHERE tenant_id=$1 AND projection_name=$2 AND generation=$3 AND project_id=$4")
-            .bind(self.tenant_id.as_uuid()).bind(HIERARCHY_PROJECTION).bind(context.generation).bind(project.id().as_uuid())
+        sqlx::query("DELETE FROM erpx_projects_read.hierarchy_closure_projection WHERE holding_id=$1 AND projection_name=$2 AND generation=$3 AND project_id=$4")
+            .bind(self.holding_id.as_uuid()).bind(HIERARCHY_PROJECTION).bind(context.generation).bind(project.id().as_uuid())
             .execute(&mut **transaction).await.map_err(failure)?;
         for node in project.nodes().values() {
             insert_closure(
@@ -122,7 +122,7 @@ impl Projector for ProjectsHierarchyProjector {
                 context,
                 event,
                 &project,
-                self.tenant_id,
+                self.holding_id,
                 (node.id(), node.id(), 0),
             )
             .await?;
@@ -134,7 +134,7 @@ impl Projector for ProjectsHierarchyProjector {
                     context,
                     event,
                     &project,
-                    self.tenant_id,
+                    self.holding_id,
                     (ancestor_id, node.id(), depth),
                 )
                 .await?;
@@ -165,7 +165,7 @@ impl Projector for ProjectsHierarchyProjector {
             context,
             "erpx_projects_read.hierarchy_closure_projection",
             HIERARCHY_PROJECTION,
-            self.tenant_id,
+            self.holding_id,
         )
         .await
     }
@@ -174,14 +174,14 @@ impl Projector for ProjectsHierarchyProjector {
 #[derive(Debug, Clone)]
 pub struct ProjectsRecordProjector {
     events: Vec<String>,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
 }
 
 impl ProjectsRecordProjector {
-    pub fn new(tenant_id: TenantId) -> Self {
+    pub fn new(holding_id: HoldingId) -> Self {
         Self {
             events: vec![PROJECT_RECORD_PROJECTION_FACT_EVENT.into()],
-            tenant_id,
+            holding_id,
         }
     }
 }
@@ -202,7 +202,7 @@ impl Projector for ProjectsRecordProjector {
         context: &ProjectorContext<'_>,
         event: &ProjectionEvent,
     ) -> Result<(), ProjectionFailure> {
-        set_tenant(transaction, self.tenant_id).await?;
+        set_holding(transaction, self.holding_id).await?;
         let aggregate = decode_record(context, event)?;
         let (record_kind, project_id, lifecycle, partition) = match aggregate.as_ref() {
             ProjectsAggregate::Workflow(value) => (
@@ -226,14 +226,14 @@ impl Projector for ProjectsRecordProjector {
         let state = serde_json::to_value(aggregate.as_ref()).map_err(failure)?;
         sqlx::query(
             "INSERT INTO erpx_projects_read.project_record_projection \
-             (tenant_id,projection_name,generation,partition_key,record_id,record_kind,project_id,tenant_scope,scope_key,lifecycle_status,source_aggregate_version,source_global_sequence,state,aggregate_updated_at,projected_at) \
+             (holding_id,projection_name,generation,partition_key,record_id,record_kind,project_id,active_scope,scope_key,lifecycle_status,source_aggregate_version,source_global_sequence,state,aggregate_updated_at,projected_at) \
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,now()) \
-             ON CONFLICT (tenant_id,projection_name,generation,partition_key,record_id) DO UPDATE SET \
-             record_kind=EXCLUDED.record_kind,project_id=EXCLUDED.project_id,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,lifecycle_status=EXCLUDED.lifecycle_status,source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,state=EXCLUDED.state,aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now() \
-             WHERE erpx_projects_read.project_record_projection.tenant_id=EXCLUDED.tenant_id \
+             ON CONFLICT (holding_id,projection_name,generation,partition_key,record_id) DO UPDATE SET \
+             record_kind=EXCLUDED.record_kind,project_id=EXCLUDED.project_id,active_scope=EXCLUDED.active_scope,scope_key=EXCLUDED.scope_key,lifecycle_status=EXCLUDED.lifecycle_status,source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,state=EXCLUDED.state,aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now() \
+             WHERE erpx_projects_read.project_record_projection.holding_id=EXCLUDED.holding_id \
                AND erpx_projects_read.project_record_projection.source_aggregate_version < EXCLUDED.source_aggregate_version",
         )
-        .bind(self.tenant_id.as_uuid())
+        .bind(self.holding_id.as_uuid())
         .bind(RECORD_PROJECTION)
         .bind(context.generation)
         .bind(partition)
@@ -263,7 +263,7 @@ impl Projector for ProjectsRecordProjector {
             context,
             "erpx_projects_read.project_record_projection",
             RECORD_PROJECTION,
-            self.tenant_id,
+            self.holding_id,
         )
         .await
     }
@@ -297,7 +297,7 @@ fn decode_record(
     if aggregate.version() != event.aggregate_version
         || aggregate.id_uuid() != event.aggregate_id.as_uuid()
         || aggregate.aggregate_type() != event.aggregate_type.as_str()
-        || aggregate.scope() != &event.tenant_scope
+        || aggregate.scope() != &event.active_scope
         || !partition_matches
     {
         return Err(ProjectionFailure::new(
@@ -312,12 +312,12 @@ async fn insert_closure(
     context: &ProjectorContext<'_>,
     event: &ProjectionEvent,
     project: &Project,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
     edge: (ProjectNodeId, ProjectNodeId, u16),
 ) -> Result<(), ProjectionFailure> {
     let (ancestor, descendant, depth) = edge;
-    sqlx::query("INSERT INTO erpx_projects_read.hierarchy_closure_projection (tenant_id,projection_name,generation,partition_key,project_id,ancestor_node_id,descendant_node_id,depth,source_aggregate_version,source_global_sequence,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now())")
-        .bind(tenant_id.as_uuid()).bind(HIERARCHY_PROJECTION).bind(context.generation).bind(&event.partition)
+    sqlx::query("INSERT INTO erpx_projects_read.hierarchy_closure_projection (holding_id,projection_name,generation,partition_key,project_id,ancestor_node_id,descendant_node_id,depth,source_aggregate_version,source_global_sequence,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now())")
+        .bind(holding_id.as_uuid()).bind(HIERARCHY_PROJECTION).bind(context.generation).bind(&event.partition)
         .bind(project.id().as_uuid()).bind(ancestor.as_uuid()).bind(descendant.as_uuid())
         .bind(i16::try_from(depth).map_err(|_| ProjectionFailure::new("Projects hierarchy depth overflow"))?)
         .bind(to_i64(project.version())?).bind(to_i64(event.global_sequence)?)
@@ -350,7 +350,7 @@ fn decode_project(
     let project = *project;
     if project.version() != event.aggregate_version
         || project.id().as_uuid() != event.aggregate_id.as_uuid()
-        || project.scope() != &event.tenant_scope
+        || project.scope() != &event.active_scope
         || event.partition != project_partition(project.id())
         || project.validate().is_err()
     {
@@ -366,13 +366,13 @@ async fn reset(
     context: &ProjectorContext<'_>,
     table: &str,
     projection: &str,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
 ) -> Result<(), ProjectionFailure> {
-    set_tenant(transaction, tenant_id).await?;
+    set_holding(transaction, holding_id).await?;
     let statement =
-        format!("DELETE FROM {table} WHERE tenant_id=$1 AND projection_name=$2 AND generation=$3");
+        format!("DELETE FROM {table} WHERE holding_id=$1 AND projection_name=$2 AND generation=$3");
     sqlx::query(&statement)
-        .bind(tenant_id.as_uuid())
+        .bind(holding_id.as_uuid())
         .bind(projection)
         .bind(context.generation)
         .execute(&mut **transaction)
@@ -381,19 +381,19 @@ async fn reset(
     Ok(())
 }
 
-async fn set_tenant(
+async fn set_holding(
     transaction: &mut Transaction<'_, Postgres>,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
 ) -> Result<(), ProjectionFailure> {
-    let expected = tenant_id.as_uuid().to_string();
-    let actual: String = sqlx::query_scalar("SELECT set_config('app.tenant_id', $1, true)")
+    let expected = holding_id.as_uuid().to_string();
+    let actual: String = sqlx::query_scalar("SELECT set_config('app.holding_id', $1, true)")
         .bind(&expected)
         .fetch_one(&mut **transaction)
         .await
         .map_err(failure)?;
     (actual == expected)
         .then_some(())
-        .ok_or_else(|| ProjectionFailure::new("Projects projection tenant binding mismatch"))
+        .ok_or_else(|| ProjectionFailure::new("Projects projection holding binding mismatch"))
 }
 
 fn enum_name<T: Serialize>(value: T) -> Result<String, ProjectionFailure> {
@@ -417,22 +417,22 @@ mod tests {
     use super::*;
     use uuid::Uuid;
 
-    fn tenant_id() -> TenantId {
-        TenantId::try_from_uuid(Uuid::from_u128(1)).unwrap()
+    fn holding_id() -> HoldingId {
+        HoldingId::try_from_uuid(Uuid::from_u128(1)).unwrap()
     }
 
     #[test]
     fn project_and_closure_rebuilds_subscribe_to_the_same_projection_fact() {
         assert_eq!(
-            ProjectsProjector::new(tenant_id()).event_types(),
+            ProjectsProjector::new(holding_id()).event_types(),
             &[PROJECT_PROJECTION_FACT_EVENT.to_owned()]
         );
         assert_eq!(
-            ProjectsHierarchyProjector::new(tenant_id()).event_types(),
+            ProjectsHierarchyProjector::new(holding_id()).event_types(),
             &[PROJECT_PROJECTION_FACT_EVENT.to_owned()]
         );
         assert_eq!(
-            ProjectsRecordProjector::new(tenant_id()).event_types(),
+            ProjectsRecordProjector::new(holding_id()).event_types(),
             &[PROJECT_RECORD_PROJECTION_FACT_EVENT.to_owned()]
         );
     }
@@ -447,10 +447,10 @@ mod tests {
     }
 
     #[test]
-    fn every_projection_operation_sets_and_filters_the_tenant() {
+    fn every_projection_operation_sets_and_filters_the_holding() {
         let source = include_str!("projection.rs");
-        assert!(source.contains("set_config('app.tenant_id'"));
-        assert!(source.contains("WHERE tenant_id=$1"));
-        assert!(source.contains("ON CONFLICT (tenant_id,projection_name"));
+        assert!(source.contains("set_config('app.holding_id'"));
+        assert!(source.contains("WHERE holding_id=$1"));
+        assert!(source.contains("ON CONFLICT (holding_id,projection_name"));
     }
 }

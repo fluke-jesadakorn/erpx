@@ -1,6 +1,6 @@
 use chrono::{Duration, TimeZone, Utc};
 use erpx_integration_contracts::{DisplayName, ReferenceCode, assets};
-use erpx_kernel::{EventId, TenantScope};
+use erpx_kernel::{AuthorityScope, EventId};
 use uuid::Uuid;
 
 use super::*;
@@ -13,8 +13,8 @@ fn at() -> DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap()
 }
 
-fn scope() -> TenantScope {
-    TenantScope::Company {
+fn scope() -> AuthorityScope {
+    AuthorityScope::Company {
         holding_id: id(1),
         company_id: id(2),
     }

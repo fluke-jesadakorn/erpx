@@ -77,8 +77,8 @@ fn run_infrastructure_acceptance(
             "--test-threads=1",
         ])
         .env("CARGO_TERM_COLOR", "never")
-        .env("ERPX_TEST_TENANT_WRITE_DATABASE_URL", write_url)
-        .env("ERPX_TEST_TENANT_READ_DATABASE_URL", read_url)
+        .env("ERPX_TEST_HOLDING_WRITE_DATABASE_URL", write_url)
+        .env("ERPX_TEST_HOLDING_READ_DATABASE_URL", read_url)
         .output()
         .map_err(|error| {
             format!(

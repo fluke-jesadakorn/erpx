@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_integration_contracts::RecordRef;
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -50,7 +50,7 @@ impl ApprovalSessionCommand {
 pub struct ApprovalSessionCommandRequest {
     pub command_id: Uuid,
     pub idempotency_key: String,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub actor_ref: String,
     pub expected_version: u64,
     pub command: ApprovalSessionCommand,
@@ -75,7 +75,7 @@ pub struct ApprovalSessionReceipt {
 pub trait ApprovalSessionAuthorizationPort: Send + Sync {
     async fn authorize(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         actor_ref: &str,
         command: &ApprovalSessionCommand,
     ) -> Result<bool, ApprovalSessionApplicationError>;
@@ -85,19 +85,19 @@ pub trait ApprovalSessionAuthorizationPort: Send + Sync {
 pub trait ApprovalSessionRepository: Send + Sync {
     async fn load(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: ApprovalSessionId,
     ) -> Result<Option<ApprovalSession>, ApprovalSessionApplicationError>;
 
     async fn commit(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         commit: ApprovalSessionCommit,
     ) -> Result<ApprovalSessionReceipt, ApprovalSessionApplicationError>;
 
     async fn my_work(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         principal_ref: &str,
         limit: u16,
     ) -> Result<Vec<ApprovalSession>, ApprovalSessionApplicationError>;
@@ -207,7 +207,7 @@ where
 
     pub async fn get(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: ApprovalSessionId,
     ) -> Result<Option<ApprovalSession>, ApprovalSessionApplicationError> {
         self.repository.load(scope, id).await
@@ -215,7 +215,7 @@ where
 
     pub async fn my_work(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         principal_ref: &str,
         limit: u16,
     ) -> Result<Vec<ApprovalSession>, ApprovalSessionApplicationError> {

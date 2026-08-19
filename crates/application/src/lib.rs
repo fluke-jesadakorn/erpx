@@ -51,11 +51,11 @@ pub use erpx_domain::support::{
 };
 use erpx_domain::{
     access::{
-        AssignmentError, RoleAssignment, RoleRecoveryRequest, RoleReviewQueue, Scope,
+        AssignmentError, RoleAssignment, RoleRecoveryRequest, RoleReviewQueue,
         build_role_review_queue,
     },
     commercial::{BillingState, EntitlementDecision, ModuleEntitlement, authorize_module},
-    contracts::{CommandContext, TenantScope},
+    contracts::{AuthorityScope, CommandContext},
     cqrs::OutboxEvent,
     customer::Customer360,
     marketing_content::{

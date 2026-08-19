@@ -123,7 +123,7 @@ async fn runtime_snapshot(store: &SqlxControlPlane) -> Result<RuntimeSnapshot, s
                 ),
                 count(*) FILTER (WHERE state='retryable'),
                 count(*) FILTER (WHERE state='dead_letter')
-             FROM erpx_control.tenant_projection_jobs",
+             FROM erpx_control.holding_projection_jobs",
         )
         .fetch_one(pool)
         .await?;
@@ -132,14 +132,14 @@ async fn runtime_snapshot(store: &SqlxControlPlane) -> Result<RuntimeSnapshot, s
              extract(epoch FROM (now() - min(available_at))),
              0
          )::double precision
-         FROM erpx_control.tenant_projection_jobs
+         FROM erpx_control.holding_projection_jobs
          WHERE state IN ('pending', 'claimed', 'retryable', 'rebuild_pending')",
     )
     .fetch_one(pool)
     .await?;
     let last_verified_backup_timestamp_seconds: f64 = sqlx::query_scalar(
         "SELECT coalesce(extract(epoch FROM max(completed_at)), 0)::double precision
-         FROM erpx_control.tenant_backup_runs
+         FROM erpx_control.holding_backup_runs
          WHERE status='completed' AND verified AND completed_at IS NOT NULL",
     )
     .fetch_one(pool)
@@ -340,7 +340,7 @@ mod tests {
         ] {
             assert!(body.contains(metric), "missing {metric}");
         }
-        for forbidden in ["tenant=", "credential=", "payload=", "token="] {
+        for forbidden in ["holding=", "credential=", "payload=", "token="] {
             assert!(
                 !body.contains(forbidden),
                 "forbidden metric label {forbidden}"

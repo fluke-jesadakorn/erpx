@@ -1,4 +1,4 @@
-//! Tenant Marketing lead and campaign-budget projection runtimes.
+//! Holding Marketing lead and campaign-budget projection runtimes.
 use erpx_cqrs_sqlx::{
     CqrsSqlxError, ProjectionPool, ProjectionRun, ProjectionRunner, ProjectionRunnerConfig,
     ProjectionSource, ProjectionStore, Projector, RebuildHandle, WritePool,

@@ -1,6 +1,6 @@
 //! Transport-neutral Marketing profile privacy commands and ports.
 //!
-//! This boundary deliberately contains only the profile identifier, tenant
+//! This boundary deliberately contains only the profile identifier, holding
 //! scope, and audit correlation metadata. Contact values, persistence rows,
 //! SQLx errors, and storage credentials cannot cross it. Callers should use
 //! [`authorize_and_erase_marketing_profile`] or
@@ -10,7 +10,7 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_domain::{
-    contracts::TenantScope,
+    contracts::AuthorityScope,
     marketing::{MarketingError, MarketingProfileErasure},
 };
 use serde::{Deserialize, Serialize};
@@ -59,7 +59,7 @@ impl MarketingProfileErasureCorrelation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EraseMarketingProfileCommand {
     pub erasure: MarketingProfileErasure,
-    pub authorizing_scope: TenantScope,
+    pub authorizing_scope: AuthorityScope,
     pub idempotency_key: String,
     pub correlation: MarketingProfileErasureCorrelation,
 }
@@ -67,7 +67,7 @@ pub struct EraseMarketingProfileCommand {
 impl EraseMarketingProfileCommand {
     pub fn new(
         erasure: MarketingProfileErasure,
-        authorizing_scope: TenantScope,
+        authorizing_scope: AuthorityScope,
         idempotency_key: impl Into<String>,
         correlation: MarketingProfileErasureCorrelation,
     ) -> Result<Self, ApplicationError> {
@@ -119,7 +119,7 @@ impl EraseMarketingProfileCommand {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MarketingProfileErasureReceipt {
     pub profile_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub erased_at: DateTime<Utc>,
     pub idempotency_key: String,
     pub correlation: MarketingProfileErasureCorrelation,
@@ -128,7 +128,7 @@ pub struct MarketingProfileErasureReceipt {
 
 /// Stable, redacted failure classes for application and Tonic mapping.
 ///
-/// Variants carry no provider, SQL, tenant, identifier, or contact detail.
+/// Variants carry no provider, SQL, holding, identifier, or contact detail.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MarketingProfilePrivacyFailure {
     InvalidCommand,
@@ -162,7 +162,7 @@ pub fn redacted_marketing_profile_privacy_error(
 
 /// The sole implementation hook for Marketing profile erasure.
 ///
-/// Implementations should perform authoritative tenant routing,
+/// Implementations should perform authoritative holding routing,
 /// transactionality, idempotency, audit, outbox, and redacted receipt
 /// construction. They must return errors through the fixed application
 /// mapping above rather than formatting persistence errors.
@@ -230,7 +230,7 @@ mod tests {
     };
 
     use super::*;
-    use erpx_domain::contracts::TenantScope;
+    use erpx_domain::contracts::AuthorityScope;
 
     fn ids() -> (Uuid, Uuid, Uuid) {
         (
@@ -240,9 +240,9 @@ mod tests {
         )
     }
 
-    fn target_scope() -> TenantScope {
+    fn target_scope() -> AuthorityScope {
         let (_, company_id, branch_id) = ids();
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id: ids().0,
             company_id,
             branch_id,
@@ -267,7 +267,7 @@ mod tests {
         .expect("valid correlation")
     }
 
-    fn command(authorizing_scope: TenantScope) -> EraseMarketingProfileCommand {
+    fn command(authorizing_scope: AuthorityScope) -> EraseMarketingProfileCommand {
         EraseMarketingProfileCommand {
             erasure: erasure(),
             authorizing_scope,
@@ -279,18 +279,18 @@ mod tests {
     #[test]
     fn actor_scope_must_contain_erasure_scope() {
         let (_, company_id, _) = ids();
-        let holding = TenantScope::Holding {
+        let holding = AuthorityScope::Holding {
             holding_id: ids().0,
         };
         assert!(command(holding).validate().is_ok());
 
-        let company = TenantScope::Company {
+        let company = AuthorityScope::Company {
             holding_id: ids().0,
             company_id: Uuid::from_u128(0x630a),
         };
         assert!(command(company).validate().is_err());
 
-        let sibling = TenantScope::Branch {
+        let sibling = AuthorityScope::Branch {
             holding_id: ids().0,
             company_id,
             branch_id: Uuid::from_u128(0x6308),
@@ -304,7 +304,7 @@ mod tests {
 
     #[test]
     fn invalid_command_bounds_are_redacted() {
-        let mut invalid = command(TenantScope::Holding {
+        let mut invalid = command(AuthorityScope::Holding {
             holding_id: ids().0,
         });
         invalid.idempotency_key = " ".into();
@@ -313,7 +313,7 @@ mod tests {
             .expect_err("blank idempotency key denied");
         assert!(error.to_string().contains(INVALID_COMMAND_MESSAGE));
 
-        let mut invalid = command(TenantScope::Holding {
+        let mut invalid = command(AuthorityScope::Holding {
             holding_id: ids().0,
         });
         invalid.idempotency_key =
@@ -321,7 +321,7 @@ mod tests {
         let error = invalid.validate().expect_err("oversized key denied");
         assert!(error.to_string().contains(INVALID_COMMAND_MESSAGE));
 
-        let mut invalid = command(TenantScope::Holding {
+        let mut invalid = command(AuthorityScope::Holding {
             holding_id: ids().0,
         });
         invalid.idempotency_key = "privacy\nrequest".into();
@@ -331,7 +331,7 @@ mod tests {
 
     #[test]
     fn idempotency_and_correlation_metadata_are_preserved_and_validated() {
-        let command = command(TenantScope::Holding {
+        let command = command(AuthorityScope::Holding {
             holding_id: ids().0,
         });
         command.validate().expect("command validates");
@@ -395,14 +395,14 @@ mod tests {
         let port = AuthorizedMarketingProfilePrivacyPort::new(RecordingPort {
             calls: calls.clone(),
         });
-        let unauthorized = command(TenantScope::Company {
+        let unauthorized = command(AuthorityScope::Company {
             holding_id: ids().0,
             company_id: Uuid::from_u128(0x630a),
         });
         assert!(port.erase_profile(unauthorized).await.is_err());
         assert_eq!(calls.load(Ordering::SeqCst), 0);
 
-        let authorized = command(TenantScope::Holding {
+        let authorized = command(AuthorityScope::Holding {
             holding_id: ids().0,
         });
         let receipt = port

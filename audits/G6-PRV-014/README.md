@@ -2,7 +2,7 @@
 
 ## Delivered behavior
 
-Added `SqlxTenantProjectionStatusProjectionStore`, an explicit control-plane
+Added `SqlxHoldingProjectionStatusProjectionStore`, an explicit control-plane
 projection writer that copies only validated scheduler status metadata from the
 control-write pool into the separate rebuildable control-read table. It
 supports idempotent version-ordered upserts, bounded/redacted error material,
@@ -17,10 +17,10 @@ composition-root dependency.
 
 ## Files changed
 
-- `crates/infrastructure/src/tenant_projection_status_projection.rs`
-- `crates/infrastructure/src/tenant_projection_scheduler.rs`
+- `crates/infrastructure/src/holding_projection_status_projection.rs`
+- `crates/infrastructure/src/holding_projection_scheduler.rs`
 - `crates/infrastructure/src/lib.rs`
-- `crates/infrastructure/tests/tenant_projection_status_read.rs`
+- `crates/infrastructure/tests/holding_projection_status_read.rs`
 - `audits/G6-PRV-014/README.md`
 
 ## Verification
@@ -29,7 +29,7 @@ From `erpx/`:
 
 ```text
 cargo fmt --all — PASS
-cargo test -p erpx-infrastructure --test tenant_projection_status_read — PASS: 2 tests
+cargo test -p erpx-infrastructure --test holding_projection_status_read — PASS: 2 tests
 cargo clippy -p erpx-infrastructure --all-targets -- -D warnings — PASS
 ```
 

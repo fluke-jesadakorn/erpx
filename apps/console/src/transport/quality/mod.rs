@@ -6,7 +6,7 @@
 // constructs it during the coordinated v1 cutover.
 #![allow(dead_code, unused_imports)]
 
-// Quality uses the same envelope/receipt protocol as the later tenant
+// Quality uses the same envelope/receipt protocol as the later holding
 // contexts through the single shared transport implementation.
 pub(super) use super::wave6_7::common;
 mod transport;

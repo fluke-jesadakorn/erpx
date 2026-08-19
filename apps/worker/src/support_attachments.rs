@@ -10,14 +10,12 @@ use std::collections::HashSet;
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use erpx_domain::{
-    access::Scope,
-    contracts::TenantScope,
+    contracts::AuthorityScope,
     support::{
         MAX_SUPPORT_ATTACHMENT_CONTENT_TYPE_LENGTH, MAX_SUPPORT_ATTACHMENT_LIFETIME,
         MAX_SUPPORT_ATTACHMENT_OBJECT_REF_LENGTH, MAX_SUPPORT_ATTACHMENT_SIZE_BYTES,
-        MAX_SUPPORT_ATTACHMENT_UPLOADER_REF_LENGTH, MAX_TICKET_ASSIGNMENT_SCOPE_IDS,
-        SupportCapability, SupportCapabilityBinding, SupportCapabilitySecret, SupportMode,
-        SupportSlaNotification,
+        MAX_SUPPORT_ATTACHMENT_UPLOADER_REF_LENGTH, SupportCapability, SupportCapabilityBinding,
+        SupportCapabilitySecret, SupportMode, SupportSlaNotification,
     },
 };
 use erpx_infrastructure::{
@@ -125,7 +123,7 @@ impl<S> SupportAttachmentExpiryHandler<S> {
         requested_object_ref: &str,
         requested_ticket_id: Uuid,
         requested_customer_account_id: Uuid,
-        requested_scope: &TenantScope,
+        requested_scope: &AuthorityScope,
         authorization_checked_at: DateTime<Utc>,
         at: DateTime<Utc>,
     ) -> Result<(), WorkerRuntimeError> {
@@ -169,7 +167,7 @@ impl<S> SupportAttachmentExpiryHandler<S> {
             return Err(object_access_denied());
         }
         let capability_scope = parse_canonical_scope(&capability.binding.scope)?;
-        let attachment_scope = tenant_scope_as_access_scope(requested_scope)?;
+        let attachment_scope = holding_scope_as_access_scope(requested_scope)?;
         if !capability_scope.contains(&attachment_scope) {
             return Err(object_access_denied());
         }
@@ -190,7 +188,7 @@ impl<S> SupportAttachmentExpiryHandler<S> {
         requested_object_ref: &str,
         requested_ticket_id: Uuid,
         requested_customer_account_id: Uuid,
-        requested_scope: &TenantScope,
+        requested_scope: &AuthorityScope,
         authorization_checked_at: DateTime<Utc>,
         mfa_evidence_id: Uuid,
         mfa_verified_at: DateTime<Utc>,
@@ -787,7 +785,7 @@ fn validate_attachment_metadata(
             "support attachment metadata is invalid".into(),
         ));
     }
-    tenant_scope_as_access_scope(&value.scope)?;
+    holding_scope_as_access_scope(&value.scope)?;
     Ok(())
 }
 
@@ -830,56 +828,50 @@ fn is_valid_object_ref(value: &str) -> bool {
         })
 }
 
-fn tenant_scope_as_access_scope(scope: &TenantScope) -> Result<Scope, WorkerRuntimeError> {
+fn holding_scope_as_access_scope(
+    scope: &AuthorityScope,
+) -> Result<AuthorityScope, WorkerRuntimeError> {
     let converted = match scope {
-        TenantScope::Platform => Scope::Platform,
-        TenantScope::Holding { holding_id } if !holding_id.is_nil() => Scope::Holding {
+        AuthorityScope::Platform => AuthorityScope::Platform,
+        AuthorityScope::Holding { holding_id } if !holding_id.is_nil() => AuthorityScope::Holding {
             holding_id: *holding_id,
         },
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
-        } if !holding_id.is_nil() && !company_id.is_nil() => Scope::Company {
+        } if !holding_id.is_nil() && !company_id.is_nil() => AuthorityScope::Company {
             holding_id: *holding_id,
             company_id: *company_id,
         },
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
-        } if !holding_id.is_nil() && !company_id.is_nil() && !branch_id.is_nil() => Scope::Branch {
-            holding_id: *holding_id,
-            company_id: *company_id,
-            branch_id: *branch_id,
-        },
-        TenantScope::Subtree {
-            holding_id,
-            company_ids,
-            branch_ids,
-        } if !holding_id.is_nil()
-            && !company_ids.is_empty()
-            && company_ids.len() <= MAX_TICKET_ASSIGNMENT_SCOPE_IDS
-            && branch_ids.len() <= MAX_TICKET_ASSIGNMENT_SCOPE_IDS
-            && company_ids.iter().all(|id| !id.is_nil())
-            && branch_ids.iter().all(|id| !id.is_nil()) =>
-        {
-            Scope::Subtree {
+        } if !holding_id.is_nil() && !company_id.is_nil() && !branch_id.is_nil() => {
+            AuthorityScope::Branch {
                 holding_id: *holding_id,
-                company_ids: company_ids.clone(),
-                branch_ids: branch_ids.clone(),
+                company_id: *company_id,
+                branch_id: *branch_id,
             }
         }
+        AuthorityScope::Subtree {
+            holding_id,
+            organization_node_id,
+        } if !holding_id.is_nil() && !organization_node_id.is_nil() => AuthorityScope::Subtree {
+            holding_id: *holding_id,
+            organization_node_id: *organization_node_id,
+        },
         _ => return Err(object_access_denied()),
     };
     Ok(converted)
 }
 
-fn parse_canonical_scope(value: &str) -> Result<Scope, WorkerRuntimeError> {
+fn parse_canonical_scope(value: &str) -> Result<AuthorityScope, WorkerRuntimeError> {
     let parse_uuid = |raw: &str| Uuid::parse_str(raw).map_err(|_| object_access_denied());
     let scope = if value == "platform" {
-        Scope::Platform
+        AuthorityScope::Platform
     } else if let Some(raw) = value.strip_prefix("holding:") {
-        Scope::Holding {
+        AuthorityScope::Holding {
             holding_id: parse_uuid(raw)?,
         }
     } else if let Some(raw) = value.strip_prefix("company:") {
@@ -889,7 +881,7 @@ fn parse_canonical_scope(value: &str) -> Result<Scope, WorkerRuntimeError> {
         if parts.next().is_some() {
             return Err(object_access_denied());
         }
-        Scope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         }
@@ -901,39 +893,17 @@ fn parse_canonical_scope(value: &str) -> Result<Scope, WorkerRuntimeError> {
         if parts.next().is_some() {
             return Err(object_access_denied());
         }
-        Scope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         }
     } else if let Some(raw) = value.strip_prefix("subtree:") {
-        let (holding, rest) = raw
-            .split_once(":companies=")
-            .ok_or_else(object_access_denied)?;
-        let (companies, branches) = rest
-            .split_once(":branches=")
-            .ok_or_else(object_access_denied)?;
+        let (holding, organization_node) = raw.split_once(':').ok_or_else(object_access_denied)?;
         let holding_id = parse_uuid(holding)?;
-        let parse_ids = |raw: &str| -> Result<Vec<Uuid>, WorkerRuntimeError> {
-            if raw.is_empty() {
-                return Ok(Vec::new());
-            }
-            raw.split(',').map(parse_uuid).collect()
-        };
-        let company_ids = parse_ids(companies)?;
-        let branch_ids = parse_ids(branches)?;
-        if company_ids.is_empty()
-            || company_ids.len() > MAX_TICKET_ASSIGNMENT_SCOPE_IDS
-            || branch_ids.len() > MAX_TICKET_ASSIGNMENT_SCOPE_IDS
-            || company_ids.iter().any(Uuid::is_nil)
-            || branch_ids.iter().any(Uuid::is_nil)
-        {
-            return Err(object_access_denied());
-        }
-        Scope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
+            organization_node_id: parse_uuid(organization_node)?,
         }
     } else {
         return Err(object_access_denied());
@@ -944,31 +914,23 @@ fn parse_canonical_scope(value: &str) -> Result<Scope, WorkerRuntimeError> {
     Ok(scope)
 }
 
-fn is_valid_access_scope(scope: &Scope) -> bool {
+fn is_valid_access_scope(scope: &AuthorityScope) -> bool {
     match scope {
-        Scope::Platform => true,
-        Scope::Holding { holding_id } => !holding_id.is_nil(),
-        Scope::Company {
+        AuthorityScope::Platform => true,
+        AuthorityScope::Holding { holding_id } => !holding_id.is_nil(),
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => !holding_id.is_nil() && !company_id.is_nil(),
-        Scope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         } => !holding_id.is_nil() && !company_id.is_nil() && !branch_id.is_nil(),
-        Scope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
-        } => {
-            !holding_id.is_nil()
-                && !company_ids.is_empty()
-                && company_ids.len() <= MAX_TICKET_ASSIGNMENT_SCOPE_IDS
-                && branch_ids.len() <= MAX_TICKET_ASSIGNMENT_SCOPE_IDS
-                && company_ids.iter().all(|id| !id.is_nil())
-                && branch_ids.iter().all(|id| !id.is_nil())
-        }
+            organization_node_id,
+        } => !holding_id.is_nil() && !organization_node_id.is_nil(),
     }
 }
 

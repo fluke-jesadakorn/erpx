@@ -2,19 +2,19 @@
 
 ## Objective
 
-Keep a tenant-bound backup retention claim authoritative while a worker
+Keep a holding-bound backup retention claim authoritative while a worker
 deletes a bounded sequence of physical artifacts.
 
 ## Delivered behavior
 
 - `SqlxControlPlane::renew_backup_retention_claim` validates the immutable
-  claim, tenant/holding binding, bounded lease, worker identity, claim ID,
+  claim, holding/holding binding, bounded lease, worker identity, claim ID,
   active state, and database-clock lease before extending `lease_until`.
 - The retention worker renews immediately before each adapter deletion.
   A lost claim stops further deletion and follows the existing redacted
   retry/terminal-failure path.
 - No object locator is returned to UI or persisted in the retention report;
-  physical deletion remains delegated to the existing tenant-bound backup
+  physical deletion remains delegated to the existing holding-bound backup
   adapter.
 
 ## Evidence

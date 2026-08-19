@@ -5,19 +5,19 @@ SQLx persistence slice. It is evidence, not completion of the Marketing gate.
 
 ## Integrated behavior
 
-- Tenant-scoped versioned content assets and template revisions.
+- Holding-scoped versioned content assets and template revisions.
 - Required Thai and English content variants.
 - Bounded SEO/social metadata and opaque object references.
 - Draft/review/approval/schedule/publication/rollback domain rules.
 - Expiring and monotonic revocable preview grants.
 - Bounded form, submission, and custom-domain contracts in the domain layer,
-  with tenant-write form/domain aggregate snapshots.
-- Tenant-write asset/template snapshots with immutable revision rows.
+  with holding-write form/domain aggregate snapshots.
+- Holding-write asset/template snapshots with immutable revision rows.
 - Optimistic aggregate versions and command idempotency receipts.
-- Complete shared event envelopes and atomic tenant outbox writes.
+- Complete shared event envelopes and atomic holding outbox writes.
 - Forced-RLS write tables and a physically separate rebuildable read model.
 - Read projection rows, checkpoints, and event receipts are rebuilt from write
-  state without touching tenant credentials or object bytes.
+  state without touching holding credentials or object bytes.
 
 ## Independent evidence
 

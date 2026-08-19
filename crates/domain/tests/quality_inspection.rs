@@ -1,5 +1,5 @@
 use chrono::{DateTime, Duration, Utc};
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::quality::{
     MAX_QUALITY_TEXT_BYTES, QualityError, QualityInspection, QualityInspectionKind,
     QualityInspectionStatus, deterministic_idempotency_key, deterministic_reference,
@@ -12,27 +12,27 @@ const BRANCH_ID: Uuid = Uuid::from_u128(30);
 const SIBLING_BRANCH_ID: Uuid = Uuid::from_u128(31);
 const PRODUCT_ID: Uuid = Uuid::from_u128(40);
 
-fn company_scope(company_id: Uuid) -> TenantScope {
-    TenantScope::Company {
+fn company_scope(company_id: Uuid) -> AuthorityScope {
+    AuthorityScope::Company {
         holding_id: HOLDING_ID,
         company_id,
     }
 }
 
-fn branch_scope(company_id: Uuid, branch_id: Uuid) -> TenantScope {
-    TenantScope::Branch {
+fn branch_scope(company_id: Uuid, branch_id: Uuid) -> AuthorityScope {
+    AuthorityScope::Branch {
         holding_id: HOLDING_ID,
         company_id,
         branch_id,
     }
 }
 
-fn context(key: &str, scope: TenantScope) -> CommandContext {
+fn context(key: &str, scope: AuthorityScope) -> CommandContext {
     CommandContext::try_new(
         key,
         ActorAttribution {
             principal_ref: "quality-integration-test".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
@@ -52,7 +52,7 @@ fn at(seconds: i64) -> DateTime<Utc> {
 
 fn inspection(
     id: Uuid,
-    scope: TenantScope,
+    scope: AuthorityScope,
     branch_id: Option<Uuid>,
     command: &CommandContext,
 ) -> Result<QualityInspection, QualityError> {
@@ -148,9 +148,9 @@ fn scope_binding_and_command_containment_are_fail_closed() {
     assert_eq!(
         inspection(
             Uuid::from_u128(107),
-            TenantScope::Platform,
+            AuthorityScope::Platform,
             None,
-            &context("platform-record-is-invalid", TenantScope::Platform),
+            &context("platform-record-is-invalid", AuthorityScope::Platform),
         ),
         Err(QualityError::InvalidScope)
     );

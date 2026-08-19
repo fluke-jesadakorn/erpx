@@ -1,7 +1,7 @@
-//! Runtime composition for the Wave 6 paired tenant bounded contexts.
+//! Runtime composition for the Wave 6 paired holding bounded contexts.
 //!
 //! The inbound gRPC adapters remain storage agnostic. This module is the sole
-//! bridge from authenticated server state and tenant routing to the context
+//! bridge from authenticated server state and holding routing to the context
 //! command/query handlers.
 
 use std::{env, sync::Arc};
@@ -18,16 +18,16 @@ use erpx_cqrs_sqlx::{ReadPool, WritePool};
 use erpx_crm as crm;
 use erpx_crm_sqlx as crm_sqlx;
 use erpx_infrastructure::{
+    HoldingDatabaseRouter, HoldingHoldingBinding, HoldingProjectionSchedulerRepository,
     ProjectionJobKind, ProjectionPolicy, ProjectionScheduleRequest,
     ProjectionSchedulerAuthorization, RoutedDatabaseSide, SqlxControlPlane,
-    SqlxTenantStoreRegistry, TenantDatabaseRouter, TenantHoldingBinding,
-    TenantProjectionSchedulerRepository,
+    SqlxHoldingStoreRegistry,
 };
 use erpx_inventory as inventory;
 use erpx_inventory_sqlx as inventory_sqlx;
 use erpx_kernel::{
-    ActorAttribution, CorrelationId, ErrorCategory, ErrorContext, KernelError, SystemClock,
-    TenantScope,
+    ActorAttribution, AuthorityScope, CorrelationId, ErrorCategory, ErrorContext, KernelError,
+    SystemClock,
 };
 use erpx_maintenance as maintenance;
 use erpx_maintenance_sqlx as maintenance_sqlx;
@@ -42,32 +42,32 @@ use crate::AppState;
 use crate::contexts::{
     assets_cqrs::{
         AssetsAccessMode, AssetsAuthenticationError, AssetsAuthenticationRequest,
-        AssetsCommandApplication, AssetsQueryApplication, AssetsRequestAuthenticator,
-        AssetsTenantRoute, AuthenticatedAssetsRequest,
+        AssetsCommandApplication, AssetsHoldingRoute, AssetsQueryApplication,
+        AssetsRequestAuthenticator, AuthenticatedAssetsRequest,
     },
     crm_cqrs::{
         AuthenticatedCrmRequest, CrmAccessMode, CrmAuthenticationError, CrmAuthenticationRequest,
-        CrmCommandApplication, CrmQueryApplication, CrmRequestAuthenticator, CrmTenantRoute,
+        CrmCommandApplication, CrmHoldingRoute, CrmQueryApplication, CrmRequestAuthenticator,
     },
     maintenance_cqrs::{
         AuthenticatedMaintenanceRequest, MaintenanceAccessMode, MaintenanceAuthenticationError,
-        MaintenanceAuthenticationRequest, MaintenanceCommandApplication,
-        MaintenanceQueryApplication, MaintenanceRequestAuthenticator, MaintenanceTenantRoute,
+        MaintenanceAuthenticationRequest, MaintenanceCommandApplication, MaintenanceHoldingRoute,
+        MaintenanceQueryApplication, MaintenanceRequestAuthenticator,
     },
     marketing_cqrs::{
         AuthenticatedMarketingRequest, MarketingAccessMode, MarketingAuthenticationError,
-        MarketingAuthenticationRequest, MarketingCommandApplication, MarketingQueryApplication,
-        MarketingRequestAuthenticator, MarketingTenantRoute,
+        MarketingAuthenticationRequest, MarketingCommandApplication, MarketingHoldingRoute,
+        MarketingQueryApplication, MarketingRequestAuthenticator,
     },
     procurement_inventory_cqrs::{
         AuthenticatedSupplyChainRequest, InventoryCommandApplication, InventoryQueryApplication,
         ProcurementCommandApplication, ProcurementQueryApplication, SupplyChainAccessMode,
-        SupplyChainAuthenticationError, SupplyChainAuthenticationRequest,
-        SupplyChainRequestAuthenticator, SupplyChainTenantRoute,
+        SupplyChainAuthenticationError, SupplyChainAuthenticationRequest, SupplyChainHoldingRoute,
+        SupplyChainRequestAuthenticator,
     },
 };
-use crate::tenant_workspace::{PresentedTenantRoute, resolve_tenant_workspace};
-use crate::wave4_composition::{authenticate_context, authenticate_context_for_tenant};
+use crate::holding_workspace::{PresentedHoldingRoute, resolve_holding_workspace};
+use crate::wave4_composition::{authenticate_context, authenticate_context_for_holding};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AccessMode {
@@ -78,7 +78,7 @@ enum AccessMode {
 #[derive(Debug, Clone)]
 struct PreauthorizedAccess {
     principal_ref: String,
-    authority_scope: TenantScope,
+    authority_scope: AuthorityScope,
     mode: AccessMode,
 }
 
@@ -86,8 +86,8 @@ impl PreauthorizedAccess {
     fn permits(
         &self,
         actor: &ActorAttribution,
-        authority_scope: &TenantScope,
-        target_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         write: bool,
     ) -> bool {
         actor.principal_ref == self.principal_ref
@@ -96,7 +96,7 @@ impl PreauthorizedAccess {
             && write == (self.mode == AccessMode::Write)
     }
 
-    fn entitled(&self, scope: &TenantScope, write: bool) -> bool {
+    fn entitled(&self, scope: &AuthorityScope, write: bool) -> bool {
         self.authority_scope.contains(scope) && write == (self.mode == AccessMode::Write)
     }
 }
@@ -129,7 +129,7 @@ macro_rules! access_ports {
         impl $module::EntitlementPort for PreauthorizedAccess {
             async fn $entitlement_method(
                 &self,
-                scope: &TenantScope,
+                scope: &AuthorityScope,
                 write: bool,
             ) -> Result<(), $module::PortError> {
                 if !self.entitled(scope, write) {
@@ -173,18 +173,18 @@ access_ports!(
 );
 
 #[derive(Clone)]
-pub(crate) struct Wave6TenantApplication {
-    router: Option<Arc<TenantDatabaseRouter>>,
+pub(crate) struct Wave6HoldingApplication {
+    router: Option<Arc<HoldingDatabaseRouter>>,
     control: Arc<SqlxControlPlane>,
     projection_scheduler_actor: Option<String>,
 }
 
-impl Wave6TenantApplication {
+impl Wave6HoldingApplication {
     pub(crate) fn new(state: &AppState) -> Self {
         Self {
-            router: state.tenant_router.clone(),
+            router: state.holding_router.clone(),
             control: state.store.clone(),
-            projection_scheduler_actor: env::var("ERPX_TENANT_PROJECTION_SCHEDULER_ACTOR_REF")
+            projection_scheduler_actor: env::var("ERPX_HOLDING_PROJECTION_SCHEDULER_ACTOR_REF")
                 .ok()
                 .filter(|value| !value.trim().is_empty()),
         }
@@ -192,8 +192,8 @@ impl Wave6TenantApplication {
 
     async fn schedule_incremental_projection(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         projection_name: &str,
         command_id: uuid::Uuid,
         correlation_id: uuid::Uuid,
@@ -201,20 +201,20 @@ impl Wave6TenantApplication {
         let Some(actor_ref) = self.projection_scheduler_actor.as_deref() else {
             tracing::warn!(
                 projection_name,
-                "tenant projection scheduler actor is not configured"
+                "holding projection scheduler actor is not configured"
             );
             return;
         };
         let scheduled = async {
-            let binding = TenantHoldingBinding::new(tenant_id, holding_ref)?;
+            let binding = HoldingHoldingBinding::new(holding_id, data_profile_key)?;
             let authorization = ProjectionSchedulerAuthorization::new(
                 actor_ref,
                 "project typed CQRS command receipt",
                 correlation_id,
             )?;
-            let scheduler = TenantProjectionSchedulerRepository::new(
+            let scheduler = HoldingProjectionSchedulerRepository::new(
                 self.control.pools().write.clone(),
-                Arc::new(SqlxTenantStoreRegistry::new(self.control.clone())),
+                Arc::new(SqlxHoldingStoreRegistry::new(self.control.clone())),
                 authorization,
             );
             let now = Utc::now();
@@ -232,7 +232,7 @@ impl Wave6TenantApplication {
                     now,
                 )
                 .await?;
-            Ok::<(), erpx_infrastructure::TenantProjectionSchedulerError>(())
+            Ok::<(), erpx_infrastructure::HoldingProjectionSchedulerError>(())
         }
         .await;
         if let Err(error) = scheduled {
@@ -246,48 +246,54 @@ impl Wave6TenantApplication {
 
     async fn write_pool(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         correlation_id: CorrelationId,
         context: &'static str,
     ) -> Result<WritePool, CqrsError> {
         let pool = self
             .route_pool(
-                tenant_id,
-                holding_ref,
+                holding_id,
+                data_profile_key,
                 RoutedDatabaseSide::Write,
                 correlation_id,
                 context,
             )
             .await?;
-        WritePool::for_tenant(pool, cqrs_tenant_uuid(tenant_id, correlation_id, context)?)
-            .map_err(|_| invalid_tenant_binding(correlation_id, context))
+        WritePool::for_holding(
+            pool,
+            cqrs_holding_uuid(holding_id, correlation_id, context)?,
+        )
+        .map_err(|_| invalid_holding_binding(correlation_id, context))
     }
 
     async fn read_pool(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         correlation_id: CorrelationId,
         context: &'static str,
     ) -> Result<ReadPool, CqrsError> {
         let pool = self
             .route_pool(
-                tenant_id,
-                holding_ref,
+                holding_id,
+                data_profile_key,
                 RoutedDatabaseSide::Read,
                 correlation_id,
                 context,
             )
             .await?;
-        ReadPool::for_tenant(pool, cqrs_tenant_uuid(tenant_id, correlation_id, context)?)
-            .map_err(|_| invalid_tenant_binding(correlation_id, context))
+        ReadPool::for_holding(
+            pool,
+            cqrs_holding_uuid(holding_id, correlation_id, context)?,
+        )
+        .map_err(|_| invalid_holding_binding(correlation_id, context))
     }
 
     async fn route_pool(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         side: RoutedDatabaseSide,
         correlation_id: CorrelationId,
         context: &'static str,
@@ -297,12 +303,12 @@ impl Wave6TenantApplication {
                 correlation_id,
                 format!("{context}.routing_unavailable"),
                 ErrorCategory::Unavailable,
-                "Tenant database routing is unavailable.",
+                "Holding database routing is unavailable.",
                 true,
             )
         })?;
         let routed = router
-            .route(tenant_id, holding_ref, side)
+            .route(holding_id, data_profile_key, side)
             .await
             .map_err(|_| {
                 context_failure(
@@ -318,7 +324,7 @@ impl Wave6TenantApplication {
 
     fn access(
         envelope_actor: &ActorAttribution,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         mode: AccessMode,
     ) -> PreauthorizedAccess {
         PreauthorizedAccess {
@@ -330,21 +336,21 @@ impl Wave6TenantApplication {
 }
 
 #[async_trait]
-impl MarketingCommandApplication for Wave6TenantApplication {
+impl MarketingCommandApplication for Wave6HoldingApplication {
     async fn execute(
         &self,
-        route: MarketingTenantRoute,
+        route: MarketingHoldingRoute,
         envelope: CommandEnvelope<marketing::MarketingCommand>,
     ) -> Result<CommandReceipt<marketing::MarketingMutationResult>, CqrsError> {
         let pool = self
             .write_pool(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 envelope.correlation_id,
                 "marketing",
             )
             .await?;
-        let access = Self::access(&envelope.actor, &envelope.tenant_scope, AccessMode::Write);
+        let access = Self::access(&envelope.actor, &envelope.active_scope, AccessMode::Write);
         marketing::MarketingCommandHandler::new(
             marketing_sqlx::MarketingWriteRepository::new(pool.clone()),
             marketing_sqlx::MarketingCommandAdapter::new(pool),
@@ -358,23 +364,23 @@ impl MarketingCommandApplication for Wave6TenantApplication {
 }
 
 #[async_trait]
-impl MarketingQueryApplication for Wave6TenantApplication {
+impl MarketingQueryApplication for Wave6HoldingApplication {
     async fn execute(
         &self,
-        route: MarketingTenantRoute,
+        route: MarketingHoldingRoute,
         envelope: QueryEnvelope<marketing::MarketingQuery>,
     ) -> Result<QueryResult<marketing::MarketingQueryResponse>, CqrsError> {
         let pool = self
             .read_pool(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 envelope.correlation_id,
                 "marketing",
             )
             .await?;
         let read = marketing_sqlx::MarketingReadRepository::new(pool)
             .map_err(|_| storage_configuration_error(envelope.correlation_id, "marketing"))?;
-        let access = Self::access(&envelope.actor, &envelope.tenant_scope, AccessMode::Read);
+        let access = Self::access(&envelope.actor, &envelope.active_scope, AccessMode::Read);
         marketing::MarketingQueryHandler::new(read, access.clone(), access)
             .handle(envelope)
             .await
@@ -382,21 +388,21 @@ impl MarketingQueryApplication for Wave6TenantApplication {
 }
 
 #[async_trait]
-impl CrmCommandApplication for Wave6TenantApplication {
+impl CrmCommandApplication for Wave6HoldingApplication {
     async fn execute(
         &self,
-        route: CrmTenantRoute,
+        route: CrmHoldingRoute,
         envelope: CommandEnvelope<crm::CrmCommand>,
     ) -> Result<CommandReceipt<crm::CrmMutationResult>, CqrsError> {
         let pool = self
             .write_pool(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 envelope.correlation_id,
                 "crm",
             )
             .await?;
-        let access = Self::access(&envelope.actor, &envelope.tenant_scope, AccessMode::Write);
+        let access = Self::access(&envelope.actor, &envelope.active_scope, AccessMode::Write);
         crm::CrmCommandHandler::new(
             crm_sqlx::CrmWriteRepository::new(pool.clone()),
             crm_sqlx::CrmCommandAdapter::new(pool.clone()),
@@ -411,40 +417,40 @@ impl CrmCommandApplication for Wave6TenantApplication {
 }
 
 #[async_trait]
-impl CrmQueryApplication for Wave6TenantApplication {
+impl CrmQueryApplication for Wave6HoldingApplication {
     async fn execute(
         &self,
-        route: CrmTenantRoute,
+        route: CrmHoldingRoute,
         envelope: QueryEnvelope<crm::CrmQuery>,
     ) -> Result<QueryResult<crm::CrmQueryResponse>, CqrsError> {
         let pool = self
             .read_pool(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 envelope.correlation_id,
                 "crm",
             )
             .await?;
         let read = crm_sqlx::CrmReadRepository::new(pool)
             .map_err(|_| storage_configuration_error(envelope.correlation_id, "crm"))?;
-        let access = Self::access(&envelope.actor, &envelope.tenant_scope, AccessMode::Read);
+        let access = Self::access(&envelope.actor, &envelope.active_scope, AccessMode::Read);
         crm::CrmQueryHandler::new(read, access.clone(), access)
             .handle(envelope)
             .await
     }
 }
 
-macro_rules! tenant_handler {
+macro_rules! holding_handler {
     ($self:ident, $route:ident, $envelope:ident, $context:literal, $core:ident, $adapter:ident, $handler:ident, $write:ident, $uow:ident) => {{
         let pool = $self
             .write_pool(
-                &$route.tenant_id,
-                &$route.holding_ref,
+                &$route.holding_id,
+                &$route.data_profile_key,
                 $envelope.correlation_id,
                 $context,
             )
             .await?;
-        let access = Self::access(&$envelope.actor, &$envelope.tenant_scope, AccessMode::Write);
+        let access = Self::access(&$envelope.actor, &$envelope.active_scope, AccessMode::Write);
         $core::$handler::new(
             $adapter::$write::new(pool.clone()),
             $adapter::$uow::new(pool),
@@ -457,30 +463,30 @@ macro_rules! tenant_handler {
     }};
 }
 
-macro_rules! tenant_query_handler {
+macro_rules! holding_query_handler {
     ($self:ident, $route:ident, $envelope:ident, $context:literal, $core:ident, $adapter:ident, $handler:ident, $read:ident) => {{
         let pool = $self
             .read_pool(
-                &$route.tenant_id,
-                &$route.holding_ref,
+                &$route.holding_id,
+                &$route.data_profile_key,
                 $envelope.correlation_id,
                 $context,
             )
             .await?;
         let read = $adapter::$read::new(pool)
             .map_err(|_| storage_configuration_error($envelope.correlation_id, $context))?;
-        let access = Self::access(&$envelope.actor, &$envelope.tenant_scope, AccessMode::Read);
+        let access = Self::access(&$envelope.actor, &$envelope.active_scope, AccessMode::Read);
         $core::$handler::new(read, access.clone(), access)
             .handle($envelope)
             .await
     }};
 }
 
-macro_rules! tenant_projected_handler {
+macro_rules! holding_projected_handler {
     ($self:ident, $route:ident, $envelope:ident, $context:literal, $core:ident, $adapter:ident, $handler:ident, $write:ident, $uow:ident, [$($projection:expr),+ $(,)?]) => {{
         let command_id = $envelope.command_id.as_uuid();
         let correlation_id = $envelope.correlation_id.as_uuid();
-        let receipt = tenant_handler!(
+        let receipt = holding_handler!(
             $self,
             $route,
             $envelope,
@@ -494,8 +500,8 @@ macro_rules! tenant_projected_handler {
         $(
             $self
                 .schedule_incremental_projection(
-                    &$route.tenant_id,
-                    &$route.holding_ref,
+                    &$route.holding_id,
+                    &$route.data_profile_key,
                     $projection,
                     command_id,
                     correlation_id,
@@ -507,13 +513,13 @@ macro_rules! tenant_projected_handler {
 }
 
 #[async_trait]
-impl ProcurementCommandApplication for Wave6TenantApplication {
+impl ProcurementCommandApplication for Wave6HoldingApplication {
     async fn create(
         &self,
-        route: SupplyChainTenantRoute,
+        route: SupplyChainHoldingRoute,
         envelope: CommandEnvelope<procurement::CreatePurchaseOrder>,
     ) -> Result<CommandReceipt<procurement::CreatePurchaseOrderResult>, CqrsError> {
-        tenant_handler!(
+        holding_handler!(
             self,
             route,
             envelope,
@@ -527,10 +533,10 @@ impl ProcurementCommandApplication for Wave6TenantApplication {
     }
     async fn release(
         &self,
-        route: SupplyChainTenantRoute,
+        route: SupplyChainHoldingRoute,
         envelope: CommandEnvelope<procurement::ReleasePurchaseOrder>,
     ) -> Result<CommandReceipt<procurement::PurchaseOrderMutationResult>, CqrsError> {
-        tenant_handler!(
+        holding_handler!(
             self,
             route,
             envelope,
@@ -544,10 +550,10 @@ impl ProcurementCommandApplication for Wave6TenantApplication {
     }
     async fn cancel(
         &self,
-        route: SupplyChainTenantRoute,
+        route: SupplyChainHoldingRoute,
         envelope: CommandEnvelope<procurement::CancelPurchaseOrder>,
     ) -> Result<CommandReceipt<procurement::PurchaseOrderMutationResult>, CqrsError> {
-        tenant_handler!(
+        holding_handler!(
             self,
             route,
             envelope,
@@ -562,13 +568,13 @@ impl ProcurementCommandApplication for Wave6TenantApplication {
 }
 
 #[async_trait]
-impl ProcurementQueryApplication for Wave6TenantApplication {
+impl ProcurementQueryApplication for Wave6HoldingApplication {
     async fn get(
         &self,
-        route: SupplyChainTenantRoute,
+        route: SupplyChainHoldingRoute,
         envelope: QueryEnvelope<procurement::GetPurchaseOrder>,
     ) -> Result<QueryResult<procurement::GetPurchaseOrderResult>, CqrsError> {
-        tenant_query_handler!(
+        holding_query_handler!(
             self,
             route,
             envelope,
@@ -581,10 +587,10 @@ impl ProcurementQueryApplication for Wave6TenantApplication {
     }
     async fn list(
         &self,
-        route: SupplyChainTenantRoute,
+        route: SupplyChainHoldingRoute,
         envelope: QueryEnvelope<procurement::ListPurchaseOrders>,
     ) -> Result<QueryResult<procurement::PurchaseOrderList>, CqrsError> {
-        tenant_query_handler!(
+        holding_query_handler!(
             self,
             route,
             envelope,
@@ -598,13 +604,13 @@ impl ProcurementQueryApplication for Wave6TenantApplication {
 }
 
 #[async_trait]
-impl InventoryCommandApplication for Wave6TenantApplication {
+impl InventoryCommandApplication for Wave6HoldingApplication {
     async fn register(
         &self,
-        route: SupplyChainTenantRoute,
+        route: SupplyChainHoldingRoute,
         envelope: CommandEnvelope<inventory::RegisterStockItem>,
     ) -> Result<CommandReceipt<inventory::RegisterStockItemResult>, CqrsError> {
-        tenant_handler!(
+        holding_handler!(
             self,
             route,
             envelope,
@@ -618,10 +624,10 @@ impl InventoryCommandApplication for Wave6TenantApplication {
     }
     async fn receive(
         &self,
-        route: SupplyChainTenantRoute,
+        route: SupplyChainHoldingRoute,
         envelope: CommandEnvelope<inventory::ReceiveStock>,
     ) -> Result<CommandReceipt<inventory::InventoryMutationResult>, CqrsError> {
-        tenant_handler!(
+        holding_handler!(
             self,
             route,
             envelope,
@@ -635,10 +641,10 @@ impl InventoryCommandApplication for Wave6TenantApplication {
     }
     async fn issue(
         &self,
-        route: SupplyChainTenantRoute,
+        route: SupplyChainHoldingRoute,
         envelope: CommandEnvelope<inventory::IssueStock>,
     ) -> Result<CommandReceipt<inventory::InventoryMutationResult>, CqrsError> {
-        tenant_handler!(
+        holding_handler!(
             self,
             route,
             envelope,
@@ -652,10 +658,10 @@ impl InventoryCommandApplication for Wave6TenantApplication {
     }
     async fn reserve(
         &self,
-        route: SupplyChainTenantRoute,
+        route: SupplyChainHoldingRoute,
         envelope: CommandEnvelope<inventory::ReserveInventory>,
     ) -> Result<CommandReceipt<inventory::InventoryMutationResult>, CqrsError> {
-        tenant_handler!(
+        holding_handler!(
             self,
             route,
             envelope,
@@ -669,10 +675,10 @@ impl InventoryCommandApplication for Wave6TenantApplication {
     }
     async fn release_reservation(
         &self,
-        route: SupplyChainTenantRoute,
+        route: SupplyChainHoldingRoute,
         envelope: CommandEnvelope<inventory::ReleaseInventoryReservation>,
     ) -> Result<CommandReceipt<inventory::InventoryMutationResult>, CqrsError> {
-        tenant_handler!(
+        holding_handler!(
             self,
             route,
             envelope,
@@ -687,13 +693,13 @@ impl InventoryCommandApplication for Wave6TenantApplication {
 }
 
 #[async_trait]
-impl InventoryQueryApplication for Wave6TenantApplication {
+impl InventoryQueryApplication for Wave6HoldingApplication {
     async fn get(
         &self,
-        route: SupplyChainTenantRoute,
+        route: SupplyChainHoldingRoute,
         envelope: QueryEnvelope<inventory::GetStockItem>,
     ) -> Result<QueryResult<inventory::GetStockItemResult>, CqrsError> {
-        tenant_query_handler!(
+        holding_query_handler!(
             self,
             route,
             envelope,
@@ -706,10 +712,10 @@ impl InventoryQueryApplication for Wave6TenantApplication {
     }
     async fn list(
         &self,
-        route: SupplyChainTenantRoute,
+        route: SupplyChainHoldingRoute,
         envelope: QueryEnvelope<inventory::ListStockItems>,
     ) -> Result<QueryResult<inventory::StockItemList>, CqrsError> {
-        tenant_query_handler!(
+        holding_query_handler!(
             self,
             route,
             envelope,
@@ -723,13 +729,13 @@ impl InventoryQueryApplication for Wave6TenantApplication {
 }
 
 #[async_trait]
-impl AssetsCommandApplication for Wave6TenantApplication {
+impl AssetsCommandApplication for Wave6HoldingApplication {
     async fn create(
         &self,
-        route: AssetsTenantRoute,
+        route: AssetsHoldingRoute,
         envelope: CommandEnvelope<assets::CreateAsset>,
     ) -> Result<CommandReceipt<assets::CreateAssetResult>, CqrsError> {
-        tenant_projected_handler!(
+        holding_projected_handler!(
             self,
             route,
             envelope,
@@ -744,10 +750,10 @@ impl AssetsCommandApplication for Wave6TenantApplication {
     }
     async fn place_in_service(
         &self,
-        route: AssetsTenantRoute,
+        route: AssetsHoldingRoute,
         envelope: CommandEnvelope<assets::PlaceAssetInService>,
     ) -> Result<CommandReceipt<assets::AssetMutationResult>, CqrsError> {
-        tenant_projected_handler!(
+        holding_projected_handler!(
             self,
             route,
             envelope,
@@ -762,10 +768,10 @@ impl AssetsCommandApplication for Wave6TenantApplication {
     }
     async fn mark_degraded(
         &self,
-        route: AssetsTenantRoute,
+        route: AssetsHoldingRoute,
         envelope: CommandEnvelope<assets::MarkAssetDegraded>,
     ) -> Result<CommandReceipt<assets::AssetMutationResult>, CqrsError> {
-        tenant_projected_handler!(
+        holding_projected_handler!(
             self,
             route,
             envelope,
@@ -780,10 +786,10 @@ impl AssetsCommandApplication for Wave6TenantApplication {
     }
     async fn begin_maintenance(
         &self,
-        route: AssetsTenantRoute,
+        route: AssetsHoldingRoute,
         envelope: CommandEnvelope<assets::BeginMaintenance>,
     ) -> Result<CommandReceipt<assets::AssetMutationResult>, CqrsError> {
-        tenant_projected_handler!(
+        holding_projected_handler!(
             self,
             route,
             envelope,
@@ -801,10 +807,10 @@ impl AssetsCommandApplication for Wave6TenantApplication {
     }
     async fn return_to_service(
         &self,
-        route: AssetsTenantRoute,
+        route: AssetsHoldingRoute,
         envelope: CommandEnvelope<assets::ReturnAssetToService>,
     ) -> Result<CommandReceipt<assets::AssetMutationResult>, CqrsError> {
-        tenant_projected_handler!(
+        holding_projected_handler!(
             self,
             route,
             envelope,
@@ -819,10 +825,10 @@ impl AssetsCommandApplication for Wave6TenantApplication {
     }
     async fn retire(
         &self,
-        route: AssetsTenantRoute,
+        route: AssetsHoldingRoute,
         envelope: CommandEnvelope<assets::RetireAsset>,
     ) -> Result<CommandReceipt<assets::AssetMutationResult>, CqrsError> {
-        tenant_projected_handler!(
+        holding_projected_handler!(
             self,
             route,
             envelope,
@@ -838,13 +844,13 @@ impl AssetsCommandApplication for Wave6TenantApplication {
 }
 
 #[async_trait]
-impl AssetsQueryApplication for Wave6TenantApplication {
+impl AssetsQueryApplication for Wave6HoldingApplication {
     async fn get(
         &self,
-        route: AssetsTenantRoute,
+        route: AssetsHoldingRoute,
         envelope: QueryEnvelope<assets::GetAsset>,
     ) -> Result<QueryResult<assets::GetAssetResult>, CqrsError> {
-        tenant_query_handler!(
+        holding_query_handler!(
             self,
             route,
             envelope,
@@ -857,10 +863,10 @@ impl AssetsQueryApplication for Wave6TenantApplication {
     }
     async fn list(
         &self,
-        route: AssetsTenantRoute,
+        route: AssetsHoldingRoute,
         envelope: QueryEnvelope<assets::ListAssets>,
     ) -> Result<QueryResult<assets::AssetList>, CqrsError> {
-        tenant_query_handler!(
+        holding_query_handler!(
             self,
             route,
             envelope,
@@ -874,29 +880,29 @@ impl AssetsQueryApplication for Wave6TenantApplication {
 }
 
 #[async_trait]
-impl MaintenanceCommandApplication for Wave6TenantApplication {
+impl MaintenanceCommandApplication for Wave6HoldingApplication {
     async fn open(
         &self,
-        route: MaintenanceTenantRoute,
+        route: MaintenanceHoldingRoute,
         envelope: CommandEnvelope<maintenance::OpenWorkOrder>,
     ) -> Result<CommandReceipt<maintenance::OpenWorkOrderResult>, CqrsError> {
         let command_id = envelope.command_id.as_uuid();
         let correlation_id = envelope.correlation_id;
         let raw_pool = self
             .route_pool(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 RoutedDatabaseSide::Write,
                 correlation_id,
                 "maintenance",
             )
             .await?;
-        let pool = WritePool::for_tenant(
+        let pool = WritePool::for_holding(
             raw_pool.clone(),
-            cqrs_tenant_uuid(&route.tenant_id, correlation_id, "maintenance")?,
+            cqrs_holding_uuid(&route.holding_id, correlation_id, "maintenance")?,
         )
-        .map_err(|_| invalid_tenant_binding(correlation_id, "maintenance"))?;
-        let access = Self::access(&envelope.actor, &envelope.tenant_scope, AccessMode::Write);
+        .map_err(|_| invalid_holding_binding(correlation_id, "maintenance"))?;
+        let access = Self::access(&envelope.actor, &envelope.active_scope, AccessMode::Write);
         let receipt = maintenance::MaintenanceCommandHandler::new(
             maintenance_sqlx::MaintenanceWriteRepository::new(pool.clone()),
             maintenance_sqlx::MaintenanceCommandAdapter::new(pool),
@@ -908,8 +914,8 @@ impl MaintenanceCommandApplication for Wave6TenantApplication {
         .handle(envelope)
         .await?;
         self.schedule_incremental_projection(
-            &route.tenant_id,
-            &route.holding_ref,
+            &route.holding_id,
+            &route.data_profile_key,
             maintenance_sqlx::PROJECTION_NAME,
             command_id,
             correlation_id.as_uuid(),
@@ -919,59 +925,59 @@ impl MaintenanceCommandApplication for Wave6TenantApplication {
     }
     async fn schedule(
         &self,
-        route: MaintenanceTenantRoute,
+        route: MaintenanceHoldingRoute,
         envelope: CommandEnvelope<maintenance::ScheduleWorkOrder>,
     ) -> Result<CommandReceipt<maintenance::MaintenanceMutationResult>, CqrsError> {
         self.maintenance_command(route, envelope).await
     }
     async fn start(
         &self,
-        route: MaintenanceTenantRoute,
+        route: MaintenanceHoldingRoute,
         envelope: CommandEnvelope<maintenance::StartWorkOrder>,
     ) -> Result<CommandReceipt<maintenance::MaintenanceMutationResult>, CqrsError> {
         self.maintenance_command(route, envelope).await
     }
     async fn block(
         &self,
-        route: MaintenanceTenantRoute,
+        route: MaintenanceHoldingRoute,
         envelope: CommandEnvelope<maintenance::BlockWorkOrder>,
     ) -> Result<CommandReceipt<maintenance::MaintenanceMutationResult>, CqrsError> {
         self.maintenance_command(route, envelope).await
     }
     async fn resume(
         &self,
-        route: MaintenanceTenantRoute,
+        route: MaintenanceHoldingRoute,
         envelope: CommandEnvelope<maintenance::ResumeWorkOrder>,
     ) -> Result<CommandReceipt<maintenance::MaintenanceMutationResult>, CqrsError> {
         self.maintenance_command(route, envelope).await
     }
     async fn complete(
         &self,
-        route: MaintenanceTenantRoute,
+        route: MaintenanceHoldingRoute,
         envelope: CommandEnvelope<maintenance::CompleteWorkOrder>,
     ) -> Result<CommandReceipt<maintenance::MaintenanceMutationResult>, CqrsError> {
         self.maintenance_command(route, envelope).await
     }
     async fn cancel(
         &self,
-        route: MaintenanceTenantRoute,
+        route: MaintenanceHoldingRoute,
         envelope: CommandEnvelope<maintenance::CancelWorkOrder>,
     ) -> Result<CommandReceipt<maintenance::MaintenanceMutationResult>, CqrsError> {
         self.maintenance_command(route, envelope).await
     }
     async fn record_downtime(
         &self,
-        route: MaintenanceTenantRoute,
+        route: MaintenanceHoldingRoute,
         envelope: CommandEnvelope<maintenance::RecordDowntime>,
     ) -> Result<CommandReceipt<maintenance::MaintenanceMutationResult>, CqrsError> {
         self.maintenance_command(route, envelope).await
     }
 }
 
-impl Wave6TenantApplication {
+impl Wave6HoldingApplication {
     async fn maintenance_command<C>(
         &self,
-        route: MaintenanceTenantRoute,
+        route: MaintenanceHoldingRoute,
         envelope: CommandEnvelope<C>,
     ) -> Result<CommandReceipt<<MaintenanceHandler as CommandHandler<C>>::Response>, CqrsError>
     where
@@ -982,19 +988,19 @@ impl Wave6TenantApplication {
         let correlation_id = envelope.correlation_id;
         let raw_pool = self
             .route_pool(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 RoutedDatabaseSide::Write,
                 correlation_id,
                 "maintenance",
             )
             .await?;
-        let pool = WritePool::for_tenant(
+        let pool = WritePool::for_holding(
             raw_pool.clone(),
-            cqrs_tenant_uuid(&route.tenant_id, correlation_id, "maintenance")?,
+            cqrs_holding_uuid(&route.holding_id, correlation_id, "maintenance")?,
         )
-        .map_err(|_| invalid_tenant_binding(correlation_id, "maintenance"))?;
-        let access = Self::access(&envelope.actor, &envelope.tenant_scope, AccessMode::Write);
+        .map_err(|_| invalid_holding_binding(correlation_id, "maintenance"))?;
+        let access = Self::access(&envelope.actor, &envelope.active_scope, AccessMode::Write);
         let receipt = maintenance::MaintenanceCommandHandler::new(
             maintenance_sqlx::MaintenanceWriteRepository::new(pool.clone()),
             maintenance_sqlx::MaintenanceCommandAdapter::new(pool),
@@ -1006,8 +1012,8 @@ impl Wave6TenantApplication {
         .handle(envelope)
         .await?;
         self.schedule_incremental_projection(
-            &route.tenant_id,
-            &route.holding_ref,
+            &route.holding_id,
+            &route.data_profile_key,
             maintenance_sqlx::PROJECTION_NAME,
             command_id,
             correlation_id.as_uuid(),
@@ -1027,13 +1033,13 @@ type MaintenanceHandler = maintenance::MaintenanceCommandHandler<
 >;
 
 #[async_trait]
-impl MaintenanceQueryApplication for Wave6TenantApplication {
+impl MaintenanceQueryApplication for Wave6HoldingApplication {
     async fn get(
         &self,
-        route: MaintenanceTenantRoute,
+        route: MaintenanceHoldingRoute,
         envelope: QueryEnvelope<maintenance::GetWorkOrder>,
     ) -> Result<QueryResult<maintenance::GetWorkOrderResult>, CqrsError> {
-        tenant_query_handler!(
+        holding_query_handler!(
             self,
             route,
             envelope,
@@ -1046,10 +1052,10 @@ impl MaintenanceQueryApplication for Wave6TenantApplication {
     }
     async fn list(
         &self,
-        route: MaintenanceTenantRoute,
+        route: MaintenanceHoldingRoute,
         envelope: QueryEnvelope<maintenance::ListWorkOrders>,
     ) -> Result<QueryResult<maintenance::WorkOrderList>, CqrsError> {
-        tenant_query_handler!(
+        holding_query_handler!(
             self,
             route,
             envelope,
@@ -1078,9 +1084,9 @@ impl Wave6ServerAuthenticator {
         &self,
         metadata: &tonic::metadata::MetadataMap,
         actor: &ActorAttribution,
-        scope: &TenantScope,
-        tenant_id: &str,
-        authorization_tenant: Option<&str>,
+        scope: &AuthorityScope,
+        holding_id: &str,
+        authorization_holding: Option<&str>,
         subscription_id: Option<&str>,
         mfa_code: Option<&str>,
         mode: AccessMode,
@@ -1092,14 +1098,14 @@ impl Wave6ServerAuthenticator {
         } else {
             read_permission(context)
         };
-        if let Some(authorization_tenant) = authorization_tenant {
-            authenticate_context_for_tenant(
+        if let Some(authorization_holding) = authorization_holding {
+            authenticate_context_for_holding(
                 &self.state,
                 metadata,
                 actor,
                 scope,
-                tenant_id,
-                authorization_tenant,
+                holding_id,
+                authorization_holding,
                 permission,
                 product_name(context),
                 write,
@@ -1113,7 +1119,7 @@ impl Wave6ServerAuthenticator {
                 metadata,
                 actor,
                 scope,
-                tenant_id,
+                holding_id,
                 permission,
                 product_name(context),
                 write,
@@ -1147,7 +1153,7 @@ macro_rules! authenticator {
                         request.transport_metadata(),
                         request.presented_actor(),
                         request.presented_scope(),
-                        &request.presented_route().tenant_id,
+                        &request.presented_route().holding_id,
                         None,
                         request.subscription_id(),
                         request.mfa_code(),
@@ -1177,11 +1183,13 @@ impl MarketingRequestAuthenticator for Wave6ServerAuthenticator {
         } else {
             AccessMode::Write
         };
-        let presented_route = request.presented_route().map(|route| PresentedTenantRoute {
-            tenant_id: &route.tenant_id,
-            holding_ref: &route.holding_ref,
-        });
-        let workspace = resolve_tenant_workspace(
+        let presented_route = request
+            .presented_route()
+            .map(|route| PresentedHoldingRoute {
+                holding_id: &route.holding_id,
+                data_profile_key: &route.data_profile_key,
+            });
+        let workspace = resolve_holding_workspace(
             &self.state,
             request.presented_scope(),
             presented_route,
@@ -1198,7 +1206,7 @@ impl MarketingRequestAuthenticator for Wave6ServerAuthenticator {
                 request.presented_actor(),
                 request.presented_scope(),
                 &customer_id,
-                Some(&workspace.tenant_id),
+                Some(&workspace.holding_id),
                 subscription_id.as_deref(),
                 request.mfa_code(),
                 mode,
@@ -1209,9 +1217,9 @@ impl MarketingRequestAuthenticator for Wave6ServerAuthenticator {
         AuthenticatedMarketingRequest::try_new(
             actor,
             request.presented_scope().clone(),
-            MarketingTenantRoute {
-                tenant_id: workspace.tenant_id,
-                holding_ref: workspace.holding_ref,
+            MarketingHoldingRoute {
+                holding_id: workspace.holding_id,
+                data_profile_key: workspace.data_profile_key,
             },
         )
     }
@@ -1228,11 +1236,13 @@ impl CrmRequestAuthenticator for Wave6ServerAuthenticator {
         } else {
             AccessMode::Write
         };
-        let presented_route = request.presented_route().map(|route| PresentedTenantRoute {
-            tenant_id: &route.tenant_id,
-            holding_ref: &route.holding_ref,
-        });
-        let workspace = resolve_tenant_workspace(
+        let presented_route = request
+            .presented_route()
+            .map(|route| PresentedHoldingRoute {
+                holding_id: &route.holding_id,
+                data_profile_key: &route.data_profile_key,
+            });
+        let workspace = resolve_holding_workspace(
             &self.state,
             request.presented_scope(),
             presented_route,
@@ -1249,7 +1259,7 @@ impl CrmRequestAuthenticator for Wave6ServerAuthenticator {
                 request.presented_actor(),
                 request.presented_scope(),
                 &customer_id,
-                Some(&workspace.tenant_id),
+                Some(&workspace.holding_id),
                 subscription_id.as_deref(),
                 request.mfa_code(),
                 mode,
@@ -1260,9 +1270,9 @@ impl CrmRequestAuthenticator for Wave6ServerAuthenticator {
         AuthenticatedCrmRequest::try_new(
             actor,
             request.presented_scope().clone(),
-            CrmTenantRoute {
-                tenant_id: workspace.tenant_id,
-                holding_ref: workspace.holding_ref,
+            CrmHoldingRoute {
+                holding_id: workspace.holding_id,
+                data_profile_key: workspace.data_profile_key,
             },
         )
     }
@@ -1286,11 +1296,13 @@ impl AssetsRequestAuthenticator for Wave6ServerAuthenticator {
         } else {
             AccessMode::Write
         };
-        let presented_route = request.presented_route().map(|route| PresentedTenantRoute {
-            tenant_id: &route.tenant_id,
-            holding_ref: &route.holding_ref,
-        });
-        let workspace = resolve_tenant_workspace(
+        let presented_route = request
+            .presented_route()
+            .map(|route| PresentedHoldingRoute {
+                holding_id: &route.holding_id,
+                data_profile_key: &route.data_profile_key,
+            });
+        let workspace = resolve_holding_workspace(
             &self.state,
             request.presented_scope(),
             presented_route,
@@ -1307,7 +1319,7 @@ impl AssetsRequestAuthenticator for Wave6ServerAuthenticator {
                 request.presented_actor(),
                 request.presented_scope(),
                 &customer_id,
-                Some(&workspace.tenant_id),
+                Some(&workspace.holding_id),
                 subscription_id.as_deref(),
                 request.mfa_code(),
                 mode,
@@ -1318,9 +1330,9 @@ impl AssetsRequestAuthenticator for Wave6ServerAuthenticator {
         AuthenticatedAssetsRequest::try_new(
             actor,
             request.presented_scope().clone(),
-            AssetsTenantRoute {
-                tenant_id: workspace.tenant_id,
-                holding_ref: workspace.holding_ref,
+            AssetsHoldingRoute {
+                holding_id: workspace.holding_id,
+                data_profile_key: workspace.data_profile_key,
             },
         )
     }
@@ -1337,11 +1349,13 @@ impl MaintenanceRequestAuthenticator for Wave6ServerAuthenticator {
         } else {
             AccessMode::Write
         };
-        let presented_route = request.presented_route().map(|route| PresentedTenantRoute {
-            tenant_id: &route.tenant_id,
-            holding_ref: &route.holding_ref,
-        });
-        let workspace = resolve_tenant_workspace(
+        let presented_route = request
+            .presented_route()
+            .map(|route| PresentedHoldingRoute {
+                holding_id: &route.holding_id,
+                data_profile_key: &route.data_profile_key,
+            });
+        let workspace = resolve_holding_workspace(
             &self.state,
             request.presented_scope(),
             presented_route,
@@ -1358,7 +1372,7 @@ impl MaintenanceRequestAuthenticator for Wave6ServerAuthenticator {
                 request.presented_actor(),
                 request.presented_scope(),
                 &customer_id,
-                Some(&workspace.tenant_id),
+                Some(&workspace.holding_id),
                 subscription_id.as_deref(),
                 request.mfa_code(),
                 mode,
@@ -1369,9 +1383,9 @@ impl MaintenanceRequestAuthenticator for Wave6ServerAuthenticator {
         AuthenticatedMaintenanceRequest::try_new(
             actor,
             request.presented_scope().clone(),
-            MaintenanceTenantRoute {
-                tenant_id: workspace.tenant_id,
-                holding_ref: workspace.holding_ref,
+            MaintenanceHoldingRoute {
+                holding_id: workspace.holding_id,
+                data_profile_key: workspace.data_profile_key,
             },
         )
     }
@@ -1466,20 +1480,20 @@ fn storage_configuration_error(correlation_id: CorrelationId, context: &'static 
     )
 }
 
-fn cqrs_tenant_uuid(
-    tenant_id: &str,
+fn cqrs_holding_uuid(
+    holding_id: &str,
     correlation_id: CorrelationId,
     context: &'static str,
 ) -> Result<Uuid, CqrsError> {
-    Uuid::parse_str(tenant_id).map_err(|_| invalid_tenant_binding(correlation_id, context))
+    Uuid::parse_str(holding_id).map_err(|_| invalid_holding_binding(correlation_id, context))
 }
 
-fn invalid_tenant_binding(correlation_id: CorrelationId, context: &'static str) -> CqrsError {
+fn invalid_holding_binding(correlation_id: CorrelationId, context: &'static str) -> CqrsError {
     context_failure(
         correlation_id,
-        format!("{context}.invalid_tenant_identity"),
+        format!("{context}.invalid_holding_identity"),
         ErrorCategory::Internal,
-        "The routed tenant identity is invalid.",
+        "The routed holding identity is invalid.",
         false,
     )
 }

@@ -12,7 +12,7 @@ use sha2::{Digest, Sha256};
 use sqlx::Row;
 use uuid::Uuid;
 
-use crate::{PersistenceError, SqlxControlPlane, tenant_holding_scope_id};
+use crate::{PersistenceError, SqlxControlPlane, holding_holding_scope_id};
 
 pub const BRANCH_INFRASTRUCTURE_PROVISION: &str = "branch.infrastructure.provision";
 pub const MAX_BRANCH_PROVISIONING_ATTEMPTS: u32 = 10;
@@ -88,8 +88,8 @@ impl DatabaseProfileRegistration {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProvisionBranchRequest {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_key: String,
+    pub data_profile_key: String,
     pub holding_id: Uuid,
     pub company_id: Uuid,
     pub branch_id: Uuid,
@@ -105,8 +105,8 @@ pub struct ProvisionBranchRequest {
 
 impl ProvisionBranchRequest {
     pub fn validate(&self) -> Result<(), PersistenceError> {
-        validate_ref(&self.tenant_id, "tenant ID", 128)?;
-        validate_ref(&self.holding_ref, "holding reference", 255)?;
+        validate_ref(&self.holding_key, "holding key", 128)?;
+        validate_ref(&self.data_profile_key, "holding reference", 255)?;
         validate_ref(&self.branch_code, "branch code", 128)?;
         validate_ref(&self.branch_name, "branch name", 255)?;
         validate_ref(&self.idempotency_key, "idempotency key", 255)?;
@@ -140,8 +140,8 @@ impl ProvisionBranchRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BranchDatabaseRoute {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_key: String,
+    pub data_profile_key: String,
     pub holding_id: Uuid,
     pub company_id: Uuid,
     pub branch_id: Uuid,
@@ -159,7 +159,7 @@ pub struct BranchDatabaseRoute {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BranchProvisioningJob {
     pub job_id: Uuid,
-    pub tenant_id: String,
+    pub holding_id: String,
     pub branch_id: Uuid,
     pub branch_code: String,
     pub branch_name: String,
@@ -231,21 +231,21 @@ impl SqlxBranchProvisioningStore {
 
     pub async fn bind_profile(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         profile_key: &str,
         bound_by: &str,
     ) -> Result<(), PersistenceError> {
-        validate_ref(tenant_id, "tenant ID", 128)?;
+        validate_ref(holding_id, "holding ID", 128)?;
         validate_profile_key(profile_key)?;
         validate_ref(bound_by, "profile binding actor", 255)?;
         sqlx::query(
-            "INSERT INTO erpx_control.tenant_database_profile_bindings
-                (tenant_id, profile_key, active, bound_by)
+            "INSERT INTO erpx_control.holding_database_profile_bindings
+                (holding_id, profile_key, active, bound_by)
              VALUES ($1,$2,TRUE,$3)
-             ON CONFLICT (tenant_id, profile_key) DO UPDATE
+             ON CONFLICT (holding_id, profile_key) DO UPDATE
              SET active=TRUE, bound_by=EXCLUDED.bound_by, bound_at=now()",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(profile_key)
         .bind(bound_by)
         .execute(&self.control.pools().write)
@@ -255,20 +255,20 @@ impl SqlxBranchProvisioningStore {
 
     pub async fn approved_profile(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         profile_key: &str,
     ) -> Result<DatabaseProfileRegistration, PersistenceError> {
-        validate_ref(tenant_id, "tenant ID", 128)?;
+        validate_ref(holding_id, "holding ID", 128)?;
         validate_profile_key(profile_key)?;
         let row = sqlx::query(
             "SELECT p.profile_key, p.database_prefix, p.deployment_mode,
                     p.credential_profile_key, p.state, p.profile_version, p.created_by
              FROM erpx_control.database_profiles p
-             JOIN erpx_control.tenant_database_profile_bindings b
-               ON b.profile_key=p.profile_key AND b.tenant_id=$1
+             JOIN erpx_control.holding_database_profile_bindings b
+               ON b.profile_key=p.profile_key AND b.holding_id=$1
              WHERE p.profile_key=$2 AND p.state='active' AND b.active",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(profile_key)
         .fetch_optional(&self.control.pools().write)
         .await?
@@ -297,47 +297,56 @@ impl SqlxBranchProvisioningStore {
         sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
             .bind(format!(
                 "branch-route:{}:{}",
-                request.tenant_id, request.branch_id
+                request.holding_id, request.branch_id
             ))
             .execute(&mut *tx)
             .await?;
-        let tenant = sqlx::query(
-            "SELECT holding_ref, state, isolation_mode, write_database_key, read_database_key
-             FROM erpx_control.tenant_registry WHERE tenant_id=$1 FOR UPDATE",
+        let holding = sqlx::query(
+            "SELECT holding_id, data_profile_key, state, isolation_mode, write_database_key, read_database_key
+             FROM erpx_control.holding_registry
+             WHERE holding_id=$1 OR data_profile_key=$2
+             FOR UPDATE",
         )
-        .bind(&request.tenant_id)
+        .bind(request.holding_id.to_string())
+        .bind(&request.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
-        .ok_or_else(|| PersistenceError::InvalidData("tenant is not registered".into()))?;
-        let holding_ref: String = tenant.try_get("holding_ref")?;
-        let tenant_state: String = tenant.try_get("state")?;
-        let isolation_mode: String = tenant.try_get("isolation_mode")?;
-        if holding_ref != request.holding_ref
-            || tenant_holding_scope_id(&holding_ref) != request.holding_id
-            || tenant_state != "active"
+        .ok_or_else(|| PersistenceError::InvalidData("holding is not registered".into()))?;
+        // The request boundary is canonical UUID based, while the registry
+        // remains the durable owner of the route key.  Keep using the exact
+        // registry key for all FK-backed writes so retained local fixtures
+        // (and any future opaque registry labels) cannot drift from the
+        // holding/data-profile pair selected above.
+        let registry_holding_id: String = holding.try_get("holding_id")?;
+        let data_profile_key: String = holding.try_get("data_profile_key")?;
+        let holding_state: String = holding.try_get("state")?;
+        let isolation_mode: String = holding.try_get("isolation_mode")?;
+        if data_profile_key != request.data_profile_key
+            || holding_holding_scope_id(&data_profile_key) != request.holding_id
+            || holding_state != "active"
             || isolation_mode != "holding_and_branch_pairs"
         {
             return Err(PersistenceError::InvalidData(
-                "tenant is not eligible for branch database provisioning".into(),
+                "holding is not eligible for branch database provisioning".into(),
             ));
         }
         let profile = sqlx::query(
             "SELECT p.database_prefix
              FROM erpx_control.database_profiles p
-             JOIN erpx_control.tenant_database_profile_bindings b
-               ON b.profile_key=p.profile_key AND b.tenant_id=$1
+             JOIN erpx_control.holding_database_profile_bindings b
+               ON b.profile_key=p.profile_key AND b.holding_id=$1
              WHERE p.profile_key=$2 AND p.state='active' AND b.active",
         )
-        .bind(&request.tenant_id)
+        .bind(&registry_holding_id)
         .bind(&request.profile_key)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or_else(|| PersistenceError::InvalidData("database profile is not approved".into()))?;
         let database_prefix: String = profile.try_get("database_prefix")?;
         let (write_database_key, read_database_key) =
-            branch_database_keys(&database_prefix, &request.tenant_id, request.branch_id)?;
-        let holding_write: String = tenant.try_get("write_database_key")?;
-        let holding_read: String = tenant.try_get("read_database_key")?;
+            branch_database_keys(&database_prefix, &request.holding_id, request.branch_id)?;
+        let holding_write: String = holding.try_get("write_database_key")?;
+        let holding_read: String = holding.try_get("read_database_key")?;
         if [write_database_key.as_str(), read_database_key.as_str()]
             .iter()
             .any(|key| *key == holding_write || *key == holding_read)
@@ -348,22 +357,20 @@ impl SqlxBranchProvisioningStore {
         }
         let route = sqlx::query(
             "INSERT INTO erpx_control.branch_database_routes
-                (tenant_id, holding_ref, holding_id, company_id, branch_id,
+                (holding_id, data_profile_key, company_id, branch_id,
                  profile_key, write_database_key, read_database_key, state,
                  route_version, requested_by)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'queued',1,$9)
-             ON CONFLICT (tenant_id, branch_id) DO UPDATE SET updated_at=now()
-             WHERE erpx_control.branch_database_routes.holding_ref=EXCLUDED.holding_ref
-               AND erpx_control.branch_database_routes.holding_id=EXCLUDED.holding_id
+             VALUES ($1,$2,$3,$4,$5,$6,$7,'queued',1,$8)
+             ON CONFLICT (holding_id, branch_id) DO UPDATE SET updated_at=now()
+             WHERE erpx_control.branch_database_routes.data_profile_key=EXCLUDED.data_profile_key
                AND erpx_control.branch_database_routes.company_id=EXCLUDED.company_id
                AND erpx_control.branch_database_routes.profile_key=EXCLUDED.profile_key
                AND erpx_control.branch_database_routes.write_database_key=EXCLUDED.write_database_key
                AND erpx_control.branch_database_routes.read_database_key=EXCLUDED.read_database_key
-             RETURNING tenant_id",
+             RETURNING holding_id",
         )
-        .bind(&request.tenant_id)
-        .bind(&request.holding_ref)
-        .bind(request.holding_id)
+        .bind(&registry_holding_id)
+        .bind(&request.data_profile_key)
         .bind(request.company_id)
         .bind(request.branch_id)
         .bind(&request.profile_key)
@@ -380,8 +387,8 @@ impl SqlxBranchProvisioningStore {
         let job_id = Uuid::new_v5(
             &Uuid::NAMESPACE_URL,
             format!(
-                "erpx:branch-provisioning:v1:{}:{}",
-                request.tenant_id, request.idempotency_key
+                "erpx:branch-provisioning:{}:{}",
+                request.holding_id, request.idempotency_key
             )
             .as_bytes(),
         );
@@ -392,23 +399,23 @@ impl SqlxBranchProvisioningStore {
             .collect::<Vec<_>>();
         let row = sqlx::query(
             "INSERT INTO erpx_control.branch_provisioning_jobs
-                (job_id, tenant_id, branch_id, idempotency_key, branch_code,
+                (job_id, holding_id, branch_id, idempotency_key, branch_code,
                  branch_name, registration_number, enabled_business_units,
                  state, correlation_id)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'queued',$9)
-             ON CONFLICT (tenant_id, idempotency_key) DO UPDATE SET updated_at=now()
+             ON CONFLICT (holding_id, idempotency_key) DO UPDATE SET updated_at=now()
              WHERE erpx_control.branch_provisioning_jobs.job_id=EXCLUDED.job_id
                AND erpx_control.branch_provisioning_jobs.branch_id=EXCLUDED.branch_id
                AND erpx_control.branch_provisioning_jobs.branch_code=EXCLUDED.branch_code
                AND erpx_control.branch_provisioning_jobs.branch_name=EXCLUDED.branch_name
                AND erpx_control.branch_provisioning_jobs.registration_number=EXCLUDED.registration_number
                AND erpx_control.branch_provisioning_jobs.enabled_business_units=EXCLUDED.enabled_business_units
-             RETURNING job_id, tenant_id, branch_id, idempotency_key, branch_code,
+             RETURNING job_id, holding_id, branch_id, idempotency_key, branch_code,
                        branch_name, registration_number, enabled_business_units,
                        state, attempt_count, correlation_id, created_at, updated_at, completed_at",
         )
         .bind(job_id)
-        .bind(&request.tenant_id)
+        .bind(&registry_holding_id)
         .bind(request.branch_id)
         .bind(&request.idempotency_key)
         .bind(&request.branch_code)
@@ -429,18 +436,18 @@ impl SqlxBranchProvisioningStore {
 
     pub async fn get_job(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         job_id: Uuid,
     ) -> Result<Option<BranchProvisioningJob>, PersistenceError> {
-        validate_ref(tenant_id, "tenant ID", 128)?;
+        validate_ref(holding_id, "holding ID", 128)?;
         let row = sqlx::query(
-            "SELECT job_id, tenant_id, branch_id, idempotency_key, branch_code,
+            "SELECT job_id, holding_id, branch_id, idempotency_key, branch_code,
                     branch_name, registration_number, enabled_business_units,
                     state, attempt_count, correlation_id, created_at, updated_at, completed_at
              FROM erpx_control.branch_provisioning_jobs
-             WHERE tenant_id=$1 AND job_id=$2",
+             WHERE holding_id=$1 AND job_id=$2",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(job_id)
         .fetch_optional(&self.control.pools().write)
         .await?;
@@ -449,25 +456,25 @@ impl SqlxBranchProvisioningStore {
 
     pub async fn list_jobs(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         page_size: u32,
     ) -> Result<Vec<BranchProvisioningJob>, PersistenceError> {
-        validate_ref(tenant_id, "tenant ID", 128)?;
+        validate_ref(holding_id, "holding ID", 128)?;
         if !(1..=100).contains(&page_size) {
             return Err(PersistenceError::InvalidData(
                 "branch provisioning page size must be 1..=100".into(),
             ));
         }
         let rows = sqlx::query(
-            "SELECT job_id, tenant_id, branch_id, idempotency_key, branch_code,
+            "SELECT job_id, holding_id, branch_id, idempotency_key, branch_code,
                     branch_name, registration_number, enabled_business_units,
                     state, attempt_count, correlation_id, created_at, updated_at, completed_at
              FROM erpx_control.branch_provisioning_jobs
-             WHERE tenant_id=$1
+             WHERE holding_id=$1
              ORDER BY created_at DESC, job_id DESC
              LIMIT $2",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(i64::from(page_size))
         .fetch_all(&self.control.pools().write)
         .await?;
@@ -476,12 +483,12 @@ impl SqlxBranchProvisioningStore {
 
     pub async fn retry(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         job_id: Uuid,
         correlation_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<BranchProvisioningJob, PersistenceError> {
-        validate_ref(tenant_id, "tenant ID", 128)?;
+        validate_ref(holding_id, "holding ID", 128)?;
         if job_id.is_nil() || correlation_id.is_nil() {
             return Err(PersistenceError::InvalidData(
                 "branch retry identifiers are invalid".into(),
@@ -493,13 +500,13 @@ impl SqlxBranchProvisioningStore {
              SET state='queued', claimed_by=NULL, claimed_at=NULL, lease_expires_at=NULL,
                  next_attempt_at=$3, failure_category=NULL, correlation_id=$4,
                  completed_at=NULL, updated_at=$3
-             WHERE tenant_id=$1 AND job_id=$2 AND state='failed'
+             WHERE holding_id=$1 AND job_id=$2 AND state='failed'
                AND attempt_count < $5
-             RETURNING job_id, tenant_id, branch_id, idempotency_key, branch_code,
+             RETURNING job_id, holding_id, branch_id, idempotency_key, branch_code,
                        branch_name, registration_number, enabled_business_units,
                        state, attempt_count, correlation_id, created_at, updated_at, completed_at",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(job_id)
         .bind(now)
         .bind(correlation_id)
@@ -514,9 +521,9 @@ impl SqlxBranchProvisioningStore {
             "UPDATE erpx_control.branch_database_routes
              SET state='queued', failure_category=NULL, activated_at=NULL,
                  suspended_at=NULL, route_version=route_version+1, updated_at=$3
-             WHERE tenant_id=$1 AND branch_id=$2 AND state='failed'",
+             WHERE holding_id=$1 AND branch_id=$2 AND state='failed'",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(job.branch_id)
         .bind(now)
         .execute(&mut *tx)
@@ -532,11 +539,11 @@ impl SqlxBranchProvisioningStore {
 
     pub async fn suspend(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         branch_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<BranchDatabaseRoute, PersistenceError> {
-        validate_ref(tenant_id, "tenant ID", 128)?;
+        validate_ref(holding_id, "holding ID", 128)?;
         if branch_id.is_nil() {
             return Err(PersistenceError::InvalidData(
                 "branch ID cannot be nil".into(),
@@ -547,12 +554,12 @@ impl SqlxBranchProvisioningStore {
             "UPDATE erpx_control.branch_database_routes
              SET state='suspended', suspended_at=$3, activated_at=NULL,
                  failure_category=NULL, route_version=route_version+1, updated_at=$3
-             WHERE tenant_id=$1 AND branch_id=$2 AND state='active'
-             RETURNING tenant_id, holding_ref, holding_id, company_id, branch_id,
+             WHERE holding_id=$1 AND branch_id=$2 AND state='active'
+             RETURNING holding_id, data_profile_key, company_id, branch_id,
                        profile_key, write_database_key, read_database_key, state,
                        route_version, failure_category, requested_by, requested_at, activated_at",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(branch_id)
         .bind(now)
         .fetch_optional(&mut *tx)
@@ -561,9 +568,9 @@ impl SqlxBranchProvisioningStore {
         sqlx::query(
             "UPDATE erpx_control.branch_provisioning_jobs
              SET state='suspended', completed_at=NULL, updated_at=$3
-             WHERE tenant_id=$1 AND branch_id=$2 AND state='active'",
+             WHERE holding_id=$1 AND branch_id=$2 AND state='active'",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(branch_id)
         .bind(now)
         .execute(&mut *tx)
@@ -575,18 +582,18 @@ impl SqlxBranchProvisioningStore {
 
     pub async fn route(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         branch_id: Uuid,
     ) -> Result<Option<BranchDatabaseRoute>, PersistenceError> {
-        validate_ref(tenant_id, "tenant ID", 128)?;
+        validate_ref(holding_id, "holding ID", 128)?;
         let row = sqlx::query(
-            "SELECT tenant_id, holding_ref, holding_id, company_id, branch_id,
+            "SELECT holding_id, data_profile_key, company_id, branch_id,
                     profile_key, write_database_key, read_database_key, state,
                     route_version, failure_category, requested_by, requested_at, activated_at
              FROM erpx_control.branch_database_routes
-             WHERE tenant_id=$1 AND branch_id=$2",
+             WHERE holding_id=$1 AND branch_id=$2",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(branch_id)
         .fetch_optional(&self.control.pools().write)
         .await?;
@@ -631,7 +638,7 @@ impl SqlxBranchProvisioningStore {
                  claimed_by=$2, claimed_at=$3, lease_expires_at=$4,
                  failure_category=NULL, updated_at=$3
              WHERE job_id=$1
-             RETURNING job_id, tenant_id, branch_id, idempotency_key, branch_code,
+             RETURNING job_id, holding_id, branch_id, idempotency_key, branch_code,
                        branch_name, registration_number, enabled_business_units,
                        state, attempt_count, correlation_id, created_at, updated_at, completed_at",
         )
@@ -647,21 +654,21 @@ impl SqlxBranchProvisioningStore {
              SET state='provisioning', failure_category=NULL,
                  route_version=route_version+1, activated_at=NULL,
                  suspended_at=NULL, updated_at=$3
-             WHERE tenant_id=$1 AND branch_id=$2 AND state='queued'",
+             WHERE holding_id=$1 AND branch_id=$2 AND state='queued'",
         )
-        .bind(&job.tenant_id)
+        .bind(&job.holding_id)
         .bind(job.branch_id)
         .bind(now)
         .execute(&mut *tx)
         .await?;
         let route_row = sqlx::query(
-            "SELECT tenant_id, holding_ref, holding_id, company_id, branch_id,
+            "SELECT holding_id, data_profile_key, company_id, branch_id,
                     profile_key, write_database_key, read_database_key, state,
                     route_version, failure_category, requested_by, requested_at, activated_at
              FROM erpx_control.branch_database_routes
-             WHERE tenant_id=$1 AND branch_id=$2",
+             WHERE holding_id=$1 AND branch_id=$2",
         )
-        .bind(&job.tenant_id)
+        .bind(&job.holding_id)
         .bind(job.branch_id)
         .fetch_one(&mut *tx)
         .await?;
@@ -744,9 +751,9 @@ impl SqlxBranchProvisioningStore {
                  route_version=route_version+1,
                  activated_at=CASE WHEN $3='active' THEN $5 ELSE NULL END,
                  suspended_at=NULL, updated_at=$5
-             WHERE tenant_id=$1 AND branch_id=$2 AND state IN ('provisioning','verifying')",
+             WHERE holding_id=$1 AND branch_id=$2 AND state IN ('provisioning','verifying')",
         )
-        .bind(&claim.job.tenant_id)
+        .bind(&claim.job.holding_id)
         .bind(claim.job.branch_id)
         .bind(target)
         .bind(failure_category)
@@ -760,19 +767,23 @@ impl SqlxBranchProvisioningStore {
 
 pub fn branch_database_keys(
     prefix: &str,
-    tenant_id: &str,
+    holding_id: &Uuid,
     branch_id: Uuid,
 ) -> Result<(String, String), PersistenceError> {
     validate_database_prefix(prefix)?;
-    validate_ref(tenant_id, "tenant ID", 128)?;
+    if holding_id.is_nil() {
+        return Err(PersistenceError::InvalidData(
+            "holding ID is invalid".into(),
+        ));
+    }
     if branch_id.is_nil() {
         return Err(PersistenceError::InvalidData(
             "branch ID cannot be nil".into(),
         ));
     }
-    let tenant_token = digest_token(tenant_id.as_bytes(), 10);
+    let holding_token = digest_token(holding_id.as_bytes(), 10);
     let branch_token = branch_id.simple().to_string()[..12].to_owned();
-    let base = format!("{prefix}_{tenant_token}_{branch_token}");
+    let base = format!("{prefix}_{holding_token}_{branch_token}");
     let write = format!("{base}_write");
     let read = format!("{base}_read");
     if write.len() > 63 || read.len() > 63 {
@@ -797,7 +808,7 @@ fn branch_job_from_row(
         .collect::<Result<Vec<_>, _>>()?;
     Ok(BranchProvisioningJob {
         job_id: row.try_get("job_id")?,
-        tenant_id: row.try_get("tenant_id")?,
+        holding_id: row.try_get("holding_id")?,
         branch_id: row.try_get("branch_id")?,
         branch_code: row.try_get("branch_code")?,
         branch_name: row.try_get("branch_name")?,
@@ -817,10 +828,11 @@ fn branch_job_from_row(
 fn branch_route_from_row(
     row: &sqlx::postgres::PgRow,
 ) -> Result<BranchDatabaseRoute, PersistenceError> {
+    let data_profile_key: String = row.try_get("data_profile_key")?;
     Ok(BranchDatabaseRoute {
-        tenant_id: row.try_get("tenant_id")?,
-        holding_ref: row.try_get("holding_ref")?,
-        holding_id: row.try_get("holding_id")?,
+        holding_key: row.try_get("holding_id")?,
+        holding_id: holding_holding_scope_id(&data_profile_key),
+        data_profile_key,
         company_id: row.try_get("company_id")?,
         branch_id: row.try_get("branch_id")?,
         profile_key: row.try_get("profile_key")?,
@@ -908,8 +920,9 @@ mod tests {
     #[test]
     fn database_keys_are_bounded_deterministic_and_separate() {
         let branch_id = Uuid::from_u128(42);
-        let first = branch_database_keys("erpx", "tenant-one", branch_id).expect("keys");
-        let second = branch_database_keys("erpx", "tenant-one", branch_id).expect("keys");
+        let holding_id = Uuid::from_u128(41);
+        let first = branch_database_keys("erpx", &holding_id, branch_id).expect("keys");
+        let second = branch_database_keys("erpx", &holding_id, branch_id).expect("keys");
         assert_eq!(first, second);
         assert_ne!(first.0, first.1);
         assert!(first.0.len() <= 63);
@@ -921,8 +934,8 @@ mod tests {
     fn request_rejects_duplicate_business_units_and_nil_scope() {
         let unit = BusinessUnitId::ALL[0];
         let request = ProvisionBranchRequest {
-            tenant_id: "tenant".into(),
-            holding_ref: "holding".into(),
+            holding_key: "holding".into(),
+            data_profile_key: "holding".into(),
             holding_id: Uuid::nil(),
             company_id: Uuid::new_v4(),
             branch_id: Uuid::new_v4(),

@@ -17,9 +17,9 @@ use erpx_cqrs_sqlx::WritePool;
 use erpx_domain::platform_completion::PitrRecoveryPoint;
 use erpx_kernel::{
     ActorAttribution as KernelActorAttribution, ActorKind as KernelActorKind, AuditContext,
-    CommandId, CorrelationId, FixedClock, TenantScope,
+    AuthorityScope, CommandId, CorrelationId, FixedClock,
 };
-use erpx_migration::{migrate_tenant_read, migrate_tenant_write};
+use erpx_migration::{migrate_holding_read, migrate_holding_write};
 use erpx_organization::ports::AuthorizationRequest;
 use erpx_organization::{
     AuthorizationPort as OrganizationAuthorizationPort, CreateOrganizationNode,
@@ -39,15 +39,15 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::{
-    BranchDatabaseRoute, BranchProvisioningJob, BranchProvisioningState, PersistenceError,
-    SqlxControlPlane, SqlxTenantStoreRegistry, TenantStoreRegistration,
+    BranchDatabaseRoute, BranchProvisioningJob, BranchProvisioningState, HoldingStoreRegistration,
+    PersistenceError, SqlxControlPlane, SqlxHoldingStoreRegistry,
     object_storage::{
         MinioObjectStore, MinioObjectStoreConfig, ObjectInventoryEntry, ObjectStorageError,
     },
 };
 
 const MAX_HEALTH_DETAILS_BYTES: usize = 16 * 1024;
-pub const MAX_TENANT_PITR_INVENTORY_ENTRIES: u32 = 100_000;
+pub const MAX_HOLDING_PITR_INVENTORY_ENTRIES: u32 = 100_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DatabaseSide {
@@ -65,8 +65,8 @@ impl DatabaseSide {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TenantDatabaseHealth {
-    pub tenant_id: String,
+pub struct HoldingDatabaseHealth {
+    pub holding_id: String,
     pub side: DatabaseSide,
     pub database_key: String,
     pub schema_version: String,
@@ -76,8 +76,8 @@ pub struct TenantDatabaseHealth {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TenantStorageHealth {
-    pub tenant_id: String,
+pub struct HoldingStorageHealth {
+    pub holding_id: String,
     pub storage_namespace: String,
     pub reachable: bool,
     pub checked_at: DateTime<Utc>,
@@ -86,12 +86,12 @@ pub struct TenantStorageHealth {
 
 /// Durable, secret-free owner bootstrap metadata. The recovery code itself is
 /// generated and hashed by the identity write-side transaction; this model
-/// contains only the references needed to bind that transaction to one tenant
+/// contains only the references needed to bind that transaction to one holding
 /// and holding.
 #[derive(Clone, PartialEq, Eq)]
-pub struct TenantOwnerSeed {
-    pub tenant_id: String,
-    pub holding_ref: String,
+pub struct HoldingOwnerSeed {
+    pub holding_key: String,
+    pub data_profile_key: String,
     pub holding_id: Uuid,
     pub principal_ref: String,
     pub approver_ref: String,
@@ -100,12 +100,12 @@ pub struct TenantOwnerSeed {
     pub recovery_issued_at: Option<DateTime<Utc>>,
 }
 
-impl fmt::Debug for TenantOwnerSeed {
+impl fmt::Debug for HoldingOwnerSeed {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("TenantOwnerSeed")
-            .field("tenant_id", &self.tenant_id)
-            .field("holding_ref", &self.holding_ref)
+            .debug_struct("HoldingOwnerSeed")
+            .field("holding_id", &self.holding_id)
+            .field("data_profile_key", &self.data_profile_key)
             .field("holding_id", &self.holding_id)
             .field("principal_ref", &self.principal_ref)
             .field("approver_ref", &self.approver_ref)
@@ -119,10 +119,10 @@ impl fmt::Debug for TenantOwnerSeed {
 /// Map the opaque registry holding reference to the stable typed scope used
 /// by role assignments. The reference is namespaced so it cannot collide with
 /// unrelated UUID mappings in other contexts.
-pub fn tenant_holding_scope_id(holding_ref: &str) -> Uuid {
+pub fn holding_holding_scope_id(data_profile_key: &str) -> Uuid {
     let mut bytes = *Uuid::new_v5(
         &Uuid::NAMESPACE_URL,
-        format!("erpx:holding-scope:v1:{holding_ref}").as_bytes(),
+        format!("erpx:holding-scope:{data_profile_key}").as_bytes(),
     )
     .as_bytes();
     // Holding scope IDs are also first-class Organization record IDs. Keep
@@ -133,17 +133,17 @@ pub fn tenant_holding_scope_id(holding_ref: &str) -> Uuid {
     Uuid::from_bytes(bytes)
 }
 
-pub fn tenant_owner_assignment_id(tenant_id: &str, principal_ref: &str) -> Uuid {
+pub fn holding_owner_assignment_id(holding_id: &str, principal_ref: &str) -> Uuid {
     Uuid::new_v5(
         &Uuid::NAMESPACE_URL,
-        format!("erpx:holding-owner-assignment:v1:{tenant_id}:{principal_ref}").as_bytes(),
+        format!("erpx:holding-owner-assignment:{holding_id}:{principal_ref}").as_bytes(),
     )
 }
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct TenantBackupRun {
+pub struct HoldingBackupRun {
     pub id: Uuid,
-    pub tenant_id: String,
+    pub holding_id: String,
     pub kind: String,
     pub status: String,
     pub backup_ref: String,
@@ -155,21 +155,21 @@ pub struct TenantBackupRun {
     pub error: Option<String>,
 }
 
-pub const MAX_TENANT_BACKUP_JOB_PAGE_SIZE: u32 = 100;
-pub const MAX_TENANT_BACKUP_JOB_ATTEMPTS: u16 = 5;
-pub const MAX_TENANT_BACKUP_JOB_PROJECTION_BATCH_SIZE: u32 = 1_000;
-pub const MIN_TENANT_BACKUP_JOB_LEASE_SECONDS: i64 = 30;
-pub const MAX_TENANT_BACKUP_JOB_LEASE_SECONDS: i64 = 900;
-pub const TENANT_BACKUP_JOB_AGGREGATE: &str = "platform.tenant_backup_job";
-pub const TENANT_BACKUP_JOB_SCHEDULED_EVENT: &str = "platform.tenant_backup_job.scheduled";
-pub const TENANT_BACKUP_JOB_CLAIMED_EVENT: &str = "platform.tenant_backup_job.claimed";
-pub const TENANT_BACKUP_JOB_COMPLETED_EVENT: &str = "platform.tenant_backup_job.completed";
-pub const TENANT_BACKUP_JOB_FAILED_EVENT: &str = "platform.tenant_backup_job.failed";
+pub const MAX_HOLDING_BACKUP_JOB_PAGE_SIZE: u32 = 100;
+pub const MAX_HOLDING_BACKUP_JOB_ATTEMPTS: u16 = 5;
+pub const MAX_HOLDING_BACKUP_JOB_PROJECTION_BATCH_SIZE: u32 = 1_000;
+pub const MIN_HOLDING_BACKUP_JOB_LEASE_SECONDS: i64 = 30;
+pub const MAX_HOLDING_BACKUP_JOB_LEASE_SECONDS: i64 = 900;
+pub const HOLDING_BACKUP_JOB_AGGREGATE: &str = "platform.holding_backup_job";
+pub const HOLDING_BACKUP_JOB_SCHEDULED_EVENT: &str = "platform.holding_backup_job.scheduled";
+pub const HOLDING_BACKUP_JOB_CLAIMED_EVENT: &str = "platform.holding_backup_job.claimed";
+pub const HOLDING_BACKUP_JOB_COMPLETED_EVENT: &str = "platform.holding_backup_job.completed";
+pub const HOLDING_BACKUP_JOB_FAILED_EVENT: &str = "platform.holding_backup_job.failed";
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct TenantBackupJobRequest {
-    pub tenant_id: String,
-    pub holding_ref: String,
+pub struct HoldingBackupJobRequest {
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub kind: String,
     pub backup_ref: String,
     pub restore_target_ref: Option<String>,
@@ -183,9 +183,9 @@ pub struct TenantBackupJobRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TenantBackupJobReceipt {
+pub struct HoldingBackupJobReceipt {
     pub id: Uuid,
-    pub tenant_id: String,
+    pub holding_id: String,
     pub kind: String,
     pub state: String,
     pub available_at: DateTime<Utc>,
@@ -194,9 +194,9 @@ pub struct TenantBackupJobReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TenantBackupJobSummary {
+pub struct HoldingBackupJobSummary {
     pub id: Uuid,
-    pub tenant_id: String,
+    pub holding_id: String,
     pub kind: String,
     pub state: String,
     pub available_at: DateTime<Utc>,
@@ -208,12 +208,12 @@ pub struct TenantBackupJobSummary {
     pub updated_at: DateTime<Utc>,
 }
 
-impl fmt::Debug for TenantBackupJobRequest {
+impl fmt::Debug for HoldingBackupJobRequest {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("TenantBackupJobRequest")
-            .field("tenant_id", &"<opaque>")
-            .field("holding_ref", &"<opaque>")
+            .debug_struct("HoldingBackupJobRequest")
+            .field("holding_id", &"<opaque>")
+            .field("data_profile_key", &"<opaque>")
             .field("kind", &self.kind)
             .field("backup_ref", &"<redacted>")
             .field(
@@ -240,12 +240,12 @@ impl fmt::Debug for TenantBackupJobRequest {
 }
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct TenantBackupJobClaim {
+pub struct HoldingBackupJobClaim {
     pub id: Uuid,
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub kind: String,
-    pub run: TenantBackupRun,
+    pub run: HoldingBackupRun,
     pub candidate_read_database_key: Option<String>,
     pub source_version: Option<u64>,
     pub source_projection: String,
@@ -254,13 +254,13 @@ pub struct TenantBackupJobClaim {
     pub worker_id: Uuid,
 }
 
-impl fmt::Debug for TenantBackupJobClaim {
+impl fmt::Debug for HoldingBackupJobClaim {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("TenantBackupJobClaim")
+            .debug_struct("HoldingBackupJobClaim")
             .field("id", &self.id)
-            .field("tenant_id", &"<opaque>")
-            .field("holding_ref", &"<opaque>")
+            .field("holding_id", &"<opaque>")
+            .field("data_profile_key", &"<opaque>")
             .field("kind", &self.kind)
             .field("run", &self.run)
             .field(
@@ -280,21 +280,21 @@ impl fmt::Debug for TenantBackupJobClaim {
 }
 
 /// Receipt returned only after a verified restore test has activated the
-/// exact generation-bound candidate through a routed tenant boundary.
+/// exact generation-bound candidate through a routed holding boundary.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TenantRestoreTestActivation {
-    pub run: TenantBackupRun,
+pub struct HoldingRestoreTestActivation {
+    pub run: HoldingBackupRun,
     pub candidate_read_database_key: String,
     pub generation: u64,
     pub source_version: u64,
 }
 
-impl fmt::Debug for TenantBackupRun {
+impl fmt::Debug for HoldingBackupRun {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("TenantBackupRun")
+            .debug_struct("HoldingBackupRun")
             .field("id", &self.id)
-            .field("tenant_id", &self.tenant_id)
+            .field("holding_id", &self.holding_id)
             .field("kind", &self.kind)
             .field("status", &self.status)
             .field("backup_ref", &"<redacted>")
@@ -448,8 +448,8 @@ pub struct BackupPitrObservation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TenantReadinessMetadata {
-    pub tenant_id: String,
+pub struct HoldingReadinessMetadata {
+    pub holding_id: String,
     pub registry_state: Option<String>,
     pub registry_version: Option<u64>,
     pub write_database: DatabaseReadinessObservation,
@@ -460,8 +460,8 @@ pub struct TenantReadinessMetadata {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TenantRoutingObservation {
-    pub tenant_id: String,
+pub struct HoldingRoutingObservation {
+    pub holding_id: String,
     pub state: ReadinessObservationState,
     pub registry_state: Option<String>,
     pub registry_version: Option<u64>,
@@ -473,9 +473,9 @@ pub struct TenantRoutingObservation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TenantReadinessObservation {
-    pub tenant_id: String,
-    pub routing: TenantRoutingObservation,
+pub struct HoldingReadinessObservation {
+    pub holding_id: String,
+    pub routing: HoldingRoutingObservation,
     pub projection_freshness: ProjectionFreshnessObservation,
     pub backup_pitr: BackupPitrObservation,
 }
@@ -502,12 +502,12 @@ impl ProvisioningState {
 }
 
 #[derive(Debug, Clone)]
-pub struct TenantProvisioner {
+pub struct HoldingProvisioner {
     control: Arc<SqlxControlPlane>,
 }
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct TenantDatabaseProvisioningConfig {
+pub struct HoldingDatabaseProvisioningConfig {
     /// A server-side PostgreSQL administrative URL. It is never returned to
     /// callers or included in provisioning receipts.
     pub admin_database_url: String,
@@ -515,17 +515,17 @@ pub struct TenantDatabaseProvisioningConfig {
     pub database_url_template: String,
 }
 
-impl fmt::Debug for TenantDatabaseProvisioningConfig {
+impl fmt::Debug for HoldingDatabaseProvisioningConfig {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("TenantDatabaseProvisioningConfig")
+            .debug_struct("HoldingDatabaseProvisioningConfig")
             .field("admin_database_url", &"<redacted>")
             .field("database_url_template", &"<redacted>")
             .finish()
     }
 }
 
-impl TenantDatabaseProvisioningConfig {
+impl HoldingDatabaseProvisioningConfig {
     /// Construct and validate routing configuration from already-resolved
     /// server-side values.
     pub fn from_values(
@@ -540,22 +540,22 @@ impl TenantDatabaseProvisioningConfig {
         Ok(config)
     }
 
-    /// Load the server-only tenant database routing configuration.
+    /// Load the server-only holding database routing configuration.
     ///
     /// The administrative URL and URL template remain in the process boundary;
     /// callers receive only the validated configuration object and never a
     /// serialized credential. Requiring both variables prevents a worker or
     /// server from falling back to a shared control-plane database.
     pub fn from_env() -> Result<Self, PersistenceError> {
-        let admin_database_url = env::var("ERPX_TENANT_ADMIN_DATABASE_URL").map_err(|_| {
+        let admin_database_url = env::var("ERPX_HOLDING_ADMIN_DATABASE_URL").map_err(|_| {
             PersistenceError::Configuration(
-                "ERPX_TENANT_ADMIN_DATABASE_URL is required for tenant routing",
+                "ERPX_HOLDING_ADMIN_DATABASE_URL is required for holding routing",
             )
         })?;
         let database_url_template =
-            env::var("ERPX_TENANT_DATABASE_URL_TEMPLATE").map_err(|_| {
+            env::var("ERPX_HOLDING_DATABASE_URL_TEMPLATE").map_err(|_| {
                 PersistenceError::Configuration(
-                    "ERPX_TENANT_DATABASE_URL_TEMPLATE is required for tenant routing",
+                    "ERPX_HOLDING_DATABASE_URL_TEMPLATE is required for holding routing",
                 )
             })?;
         Self::from_values(admin_database_url, database_url_template)
@@ -670,62 +670,62 @@ impl ApprovedDatabaseProfileConnection {
 }
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct PhysicalTenantDatabases {
-    pub tenant_id: String,
+pub struct PhysicalHoldingDatabases {
+    pub holding_id: String,
     pub write_database_key: String,
     pub read_database_key: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TenantOrganizationBootstrap {
-    pub tenant_id: String,
-    pub holding_ref: String,
+pub struct HoldingOrganizationBootstrap {
+    pub holding_key: String,
+    pub data_profile_key: String,
     pub holding_id: Uuid,
     pub aggregate_version: u64,
     pub event_id: Uuid,
     pub read_projected: bool,
 }
 
-impl fmt::Debug for PhysicalTenantDatabases {
+impl fmt::Debug for PhysicalHoldingDatabases {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("PhysicalTenantDatabases")
-            .field("tenant_id", &self.tenant_id)
+            .debug_struct("PhysicalHoldingDatabases")
+            .field("holding_id", &self.holding_id)
             .field("write_database_key", &"<redacted>")
             .field("read_database_key", &"<redacted>")
             .finish()
     }
 }
 
-impl PhysicalTenantDatabases {
+impl PhysicalHoldingDatabases {
     pub fn new(
-        tenant_id: impl Into<String>,
+        holding_id: impl Into<String>,
         write_database_key: impl Into<String>,
         read_database_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
         let databases = Self {
-            tenant_id: tenant_id.into(),
+            holding_id: holding_id.into(),
             write_database_key: write_database_key.into(),
             read_database_key: read_database_key.into(),
         };
-        validate_ref(&databases.tenant_id, "tenant_id")?;
+        validate_ref(&databases.holding_id, "holding_id")?;
         validate_database_key(&databases.write_database_key, "write_database_key")?;
         validate_database_key(&databases.read_database_key, "read_database_key")?;
         if databases.write_database_key == databases.read_database_key {
             return Err(PersistenceError::Configuration(
-                "tenant write/read database keys must be distinct",
+                "holding write/read database keys must be distinct",
             ));
         }
         Ok(databases)
     }
 
-    /// Bind a replacement read database to this physical tenant inventory.
-    /// The resulting target cannot be constructed from a different tenant's
+    /// Bind a replacement read database to this physical holding inventory.
+    /// The resulting target cannot be constructed from a different holding's
     /// inventory and cannot point at either currently provisioned database.
     pub fn replacement_read_database(
         &self,
         candidate_read_database_key: &str,
-    ) -> Result<TenantReadDatabaseReplacement, PersistenceError> {
+    ) -> Result<HoldingReadDatabaseReplacement, PersistenceError> {
         validate_database_key(candidate_read_database_key, "candidate_read_database_key")?;
         if candidate_read_database_key == self.write_database_key
             || candidate_read_database_key == self.read_database_key
@@ -734,8 +734,8 @@ impl PhysicalTenantDatabases {
                 "replacement read database must be distinct from provisioned databases",
             ));
         }
-        Ok(TenantReadDatabaseReplacement {
-            tenant_id: self.tenant_id.clone(),
+        Ok(HoldingReadDatabaseReplacement {
+            holding_id: self.holding_id.clone(),
             current_read_database_key: self.read_database_key.clone(),
             candidate_read_database_key: candidate_read_database_key.into(),
         })
@@ -743,15 +743,15 @@ impl PhysicalTenantDatabases {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TenantReadDatabaseReplacement {
-    tenant_id: String,
+pub struct HoldingReadDatabaseReplacement {
+    holding_id: String,
     current_read_database_key: String,
     candidate_read_database_key: String,
 }
 
-impl TenantReadDatabaseReplacement {
-    pub fn tenant_id(&self) -> &str {
-        &self.tenant_id
+impl HoldingReadDatabaseReplacement {
+    pub fn holding_id(&self) -> &str {
+        &self.holding_id
     }
 
     pub fn current_read_database_key(&self) -> &str {
@@ -770,19 +770,19 @@ pub enum BackupRunKind {
 }
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct TenantBackupTarget {
-    databases: PhysicalTenantDatabases,
+pub struct HoldingBackupTarget {
+    databases: PhysicalHoldingDatabases,
     storage_namespace: Option<String>,
     backup_chain_ref: String,
     backup_ref: String,
     pitr_recovery_point: Option<PitrRecoveryPoint>,
 }
 
-impl fmt::Debug for TenantBackupTarget {
+impl fmt::Debug for HoldingBackupTarget {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("TenantBackupTarget")
-            .field("tenant_id", &self.databases.tenant_id)
+            .debug_struct("HoldingBackupTarget")
+            .field("holding_id", &self.databases.holding_id)
             .field("write_database_key", &self.databases.write_database_key)
             .field("read_database_key", &self.databases.read_database_key)
             .field("backup_chain_ref", &"<redacted>")
@@ -795,17 +795,17 @@ impl fmt::Debug for TenantBackupTarget {
     }
 }
 
-impl TenantBackupTarget {
+impl HoldingBackupTarget {
     pub fn for_run(
-        databases: PhysicalTenantDatabases,
+        databases: PhysicalHoldingDatabases,
         backup_chain_ref: &str,
-        run: &TenantBackupRun,
+        run: &HoldingBackupRun,
     ) -> Result<Self, PersistenceError> {
         validate_ref(backup_chain_ref, "backup_chain_ref")?;
         validate_backup_run_shape(run)?;
-        if databases.tenant_id != run.tenant_id {
+        if databases.holding_id != run.holding_id {
             return Err(PersistenceError::InvalidData(
-                "backup target tenant does not match the backup run".into(),
+                "backup target holding does not match the backup run".into(),
             ));
         }
         Ok(Self {
@@ -821,10 +821,10 @@ impl TenantBackupTarget {
     /// constructor remains available for isolated adapter tests and falls
     /// back to the adapter's explicitly configured namespace.
     pub fn for_run_in_namespace(
-        databases: PhysicalTenantDatabases,
+        databases: PhysicalHoldingDatabases,
         storage_namespace: &str,
         backup_chain_ref: &str,
-        run: &TenantBackupRun,
+        run: &HoldingBackupRun,
     ) -> Result<Self, PersistenceError> {
         MinioObjectStore::validate_namespace_reference(storage_namespace).map_err(|_| {
             PersistenceError::InvalidData("backup storage namespace is invalid".into())
@@ -834,11 +834,11 @@ impl TenantBackupTarget {
         Ok(target)
     }
 
-    pub fn tenant_id(&self) -> &str {
-        &self.databases.tenant_id
+    pub fn holding_id(&self) -> &str {
+        &self.databases.holding_id
     }
 
-    pub fn databases(&self) -> &PhysicalTenantDatabases {
+    pub fn databases(&self) -> &PhysicalHoldingDatabases {
         &self.databases
     }
 
@@ -860,18 +860,18 @@ impl TenantBackupTarget {
 }
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct TenantRestoreTestTarget {
-    backup_target: TenantBackupTarget,
+pub struct HoldingRestoreTestTarget {
+    backup_target: HoldingBackupTarget,
     restore_target_ref: String,
-    replacement: TenantReadDatabaseReplacement,
+    replacement: HoldingReadDatabaseReplacement,
     source_version: u64,
 }
 
-impl fmt::Debug for TenantRestoreTestTarget {
+impl fmt::Debug for HoldingRestoreTestTarget {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("TenantRestoreTestTarget")
-            .field("tenant_id", &self.tenant_id())
+            .debug_struct("HoldingRestoreTestTarget")
+            .field("holding_id", &self.holding_id())
             .field(
                 "candidate_read_database_key",
                 &self.replacement.candidate_read_database_key,
@@ -883,11 +883,11 @@ impl fmt::Debug for TenantRestoreTestTarget {
     }
 }
 
-impl TenantRestoreTestTarget {
+impl HoldingRestoreTestTarget {
     pub fn new(
-        backup_target: TenantBackupTarget,
+        backup_target: HoldingBackupTarget,
         restore_target_ref: &str,
-        replacement: TenantReadDatabaseReplacement,
+        replacement: HoldingReadDatabaseReplacement,
         source_version: u64,
     ) -> Result<Self, PersistenceError> {
         validate_ref(restore_target_ref, "restore_target_ref")?;
@@ -901,9 +901,9 @@ impl TenantRestoreTestTarget {
                 "restore target must be distinct from backup reference".into(),
             ));
         }
-        if backup_target.tenant_id() != replacement.tenant_id() {
+        if backup_target.holding_id() != replacement.holding_id() {
             return Err(PersistenceError::InvalidData(
-                "restore target and replacement read database belong to different tenants".into(),
+                "restore target and replacement read database belong to different holdings".into(),
             ));
         }
         Ok(Self {
@@ -914,11 +914,11 @@ impl TenantRestoreTestTarget {
         })
     }
 
-    pub fn tenant_id(&self) -> &str {
-        self.backup_target.tenant_id()
+    pub fn holding_id(&self) -> &str {
+        self.backup_target.holding_id()
     }
 
-    pub fn backup_target(&self) -> &TenantBackupTarget {
+    pub fn backup_target(&self) -> &HoldingBackupTarget {
         &self.backup_target
     }
 
@@ -926,7 +926,7 @@ impl TenantRestoreTestTarget {
         &self.restore_target_ref
     }
 
-    pub fn replacement(&self) -> &TenantReadDatabaseReplacement {
+    pub fn replacement(&self) -> &HoldingReadDatabaseReplacement {
         &self.replacement
     }
 
@@ -937,16 +937,16 @@ impl TenantRestoreTestTarget {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BackupExecutionRequest {
-    target: TenantBackupTarget,
+    target: HoldingBackupTarget,
     kind: BackupRunKind,
 }
 
 impl BackupExecutionRequest {
-    pub fn new(target: TenantBackupTarget, kind: BackupRunKind) -> Self {
+    pub fn new(target: HoldingBackupTarget, kind: BackupRunKind) -> Self {
         Self { target, kind }
     }
 
-    pub fn target(&self) -> &TenantBackupTarget {
+    pub fn target(&self) -> &HoldingBackupTarget {
         &self.target
     }
 
@@ -960,7 +960,7 @@ impl BackupExecutionRequest {
     ) -> Result<ValidatedBackupExecutionResult, PersistenceError> {
         if result.target != self.target {
             return Err(PersistenceError::InvalidData(
-                "backup executor returned a result for a different tenant or target".into(),
+                "backup executor returned a result for a different holding or target".into(),
             ));
         }
         Ok(ValidatedBackupExecutionResult {
@@ -971,12 +971,12 @@ impl BackupExecutionRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BackupExecutionResult {
-    target: TenantBackupTarget,
+    target: HoldingBackupTarget,
     verified: bool,
 }
 
 impl BackupExecutionResult {
-    pub fn for_target(target: &TenantBackupTarget, verified: bool) -> Self {
+    pub fn for_target(target: &HoldingBackupTarget, verified: bool) -> Self {
         Self {
             target: target.clone(),
             verified,
@@ -997,15 +997,15 @@ impl ValidatedBackupExecutionResult {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RestoreTestExecutionRequest {
-    target: TenantRestoreTestTarget,
+    target: HoldingRestoreTestTarget,
 }
 
 impl RestoreTestExecutionRequest {
-    pub fn new(target: TenantRestoreTestTarget) -> Self {
+    pub fn new(target: HoldingRestoreTestTarget) -> Self {
         Self { target }
     }
 
-    pub fn target(&self) -> &TenantRestoreTestTarget {
+    pub fn target(&self) -> &HoldingRestoreTestTarget {
         &self.target
     }
 
@@ -1015,7 +1015,7 @@ impl RestoreTestExecutionRequest {
     ) -> Result<ValidatedRestoreTestResult, PersistenceError> {
         if result.target != self.target {
             return Err(PersistenceError::InvalidData(
-                "restore executor returned a result for a different tenant or target".into(),
+                "restore executor returned a result for a different holding or target".into(),
             ));
         }
         Ok(ValidatedRestoreTestResult {
@@ -1034,14 +1034,14 @@ pub enum RestoreTestOutcome {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RestoreTestExecutionResult {
-    target: TenantRestoreTestTarget,
+    target: HoldingRestoreTestTarget,
     outcome: RestoreTestOutcome,
     replacement_read_verified: bool,
 }
 
 impl RestoreTestExecutionResult {
     pub fn for_target(
-        target: &TenantRestoreTestTarget,
+        target: &HoldingRestoreTestTarget,
         outcome: RestoreTestOutcome,
         replacement_read_verified: bool,
     ) -> Self {
@@ -1141,8 +1141,8 @@ pub enum RestoreTestScheduleError {
 /// absent so a later PostgreSQL/MinIO adapter can consume it safely.
 #[derive(Clone, PartialEq, Eq)]
 pub struct RestoreTestScheduleRequest {
-    run: TenantBackupRun,
-    target: TenantRestoreTestTarget,
+    run: HoldingBackupRun,
+    target: HoldingRestoreTestTarget,
     due_at: DateTime<Utc>,
     idempotency_key: String,
     max_attempts: u16,
@@ -1163,8 +1163,8 @@ impl fmt::Debug for RestoreTestScheduleRequest {
 
 impl RestoreTestScheduleRequest {
     pub fn new(
-        run: TenantBackupRun,
-        target: TenantRestoreTestTarget,
+        run: HoldingBackupRun,
+        target: HoldingRestoreTestTarget,
         due_at: DateTime<Utc>,
         idempotency_key: impl Into<String>,
         max_attempts: u16,
@@ -1176,7 +1176,7 @@ impl RestoreTestScheduleRequest {
                 "restore-test schedules require a started restore-test run",
             ));
         }
-        if target.tenant_id() != run.tenant_id
+        if target.holding_id() != run.holding_id
             || target.backup_target().backup_ref() != run.backup_ref
             || target.restore_target_ref() != run.restore_target_ref.as_deref().unwrap_or_default()
         {
@@ -1201,11 +1201,11 @@ impl RestoreTestScheduleRequest {
         })
     }
 
-    pub fn run(&self) -> &TenantBackupRun {
+    pub fn run(&self) -> &HoldingBackupRun {
         &self.run
     }
 
-    pub fn target(&self) -> &TenantRestoreTestTarget {
+    pub fn target(&self) -> &HoldingRestoreTestTarget {
         &self.target
     }
 
@@ -1225,8 +1225,8 @@ impl RestoreTestScheduleRequest {
 #[derive(Clone, PartialEq, Eq)]
 pub struct RestoreTestSchedule {
     id: Uuid,
-    run: TenantBackupRun,
-    target: TenantRestoreTestTarget,
+    run: HoldingBackupRun,
+    target: HoldingRestoreTestTarget,
     due_at: DateTime<Utc>,
     idempotency_key: String,
     max_attempts: u16,
@@ -1241,7 +1241,7 @@ impl fmt::Debug for RestoreTestSchedule {
         formatter
             .debug_struct("RestoreTestSchedule")
             .field("id", &self.id)
-            .field("tenant_id", &"<opaque>")
+            .field("holding_id", &"<opaque>")
             .field("run_id", &self.run.id)
             .field("due_at", &self.due_at)
             .field("idempotency_key", &"<redacted>")
@@ -1259,19 +1259,19 @@ impl RestoreTestSchedule {
         self.id
     }
 
-    pub fn tenant_id(&self) -> &str {
-        &self.run.tenant_id
+    pub fn holding_id(&self) -> &str {
+        &self.run.holding_id
     }
 
     pub fn run_id(&self) -> Uuid {
         self.run.id
     }
 
-    pub fn run(&self) -> &TenantBackupRun {
+    pub fn run(&self) -> &HoldingBackupRun {
         &self.run
     }
 
-    pub fn target(&self) -> &TenantRestoreTestTarget {
+    pub fn target(&self) -> &HoldingRestoreTestTarget {
         &self.target
     }
 
@@ -1311,9 +1311,9 @@ impl RestoreTestScheduleReceipt {
 #[derive(Clone, PartialEq, Eq)]
 pub struct RestoreTestClaim {
     schedule_id: Uuid,
-    tenant_id: String,
+    holding_id: String,
     run_id: Uuid,
-    target: TenantRestoreTestTarget,
+    target: HoldingRestoreTestTarget,
     attempt: u16,
     worker_id: Uuid,
     claimed_at: DateTime<Utc>,
@@ -1324,7 +1324,7 @@ impl fmt::Debug for RestoreTestClaim {
         formatter
             .debug_struct("RestoreTestClaim")
             .field("schedule_id", &self.schedule_id)
-            .field("tenant_id", &"<opaque>")
+            .field("holding_id", &"<opaque>")
             .field("run_id", &self.run_id)
             .field("target", &self.target)
             .field("attempt", &self.attempt)
@@ -1339,15 +1339,15 @@ impl RestoreTestClaim {
         self.schedule_id
     }
 
-    pub fn tenant_id(&self) -> &str {
-        &self.tenant_id
+    pub fn holding_id(&self) -> &str {
+        &self.holding_id
     }
 
     pub fn run_id(&self) -> Uuid {
         self.run_id
     }
 
-    pub fn target(&self) -> &TenantRestoreTestTarget {
+    pub fn target(&self) -> &HoldingRestoreTestTarget {
         &self.target
     }
 
@@ -1359,7 +1359,7 @@ impl RestoreTestClaim {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RestoreTestClaimResult {
     pub schedule_id: Uuid,
-    pub tenant_id: String,
+    pub holding_id: String,
     pub classification: RecoveryHistoryClassification,
     pub state: RestoreTestScheduleState,
     pub attempts: u16,
@@ -1369,7 +1369,7 @@ pub struct RestoreTestClaimResult {
 #[derive(Clone, PartialEq, Eq)]
 pub struct RestoreTestHistoryEntry {
     pub schedule_id: Uuid,
-    pub tenant_id: String,
+    pub holding_id: String,
     pub attempt: u16,
     pub classification: RecoveryHistoryClassification,
     pub observed_at: DateTime<Utc>,
@@ -1380,7 +1380,7 @@ impl fmt::Debug for RestoreTestHistoryEntry {
         formatter
             .debug_struct("RestoreTestHistoryEntry")
             .field("schedule_id", &self.schedule_id)
-            .field("tenant_id", &"<opaque>")
+            .field("holding_id", &"<opaque>")
             .field("attempt", &self.attempt)
             .field("classification", &self.classification)
             .field("observed_at", &self.observed_at)
@@ -1451,7 +1451,7 @@ impl RestoreTestScheduler {
             id,
             vec![RestoreTestHistoryEntry {
                 schedule_id: id,
-                tenant_id: schedule.tenant_id().into(),
+                holding_id: schedule.holding_id().into(),
                 attempt: 0,
                 classification: RecoveryHistoryClassification::Scheduled,
                 observed_at: Utc::now(),
@@ -1464,18 +1464,18 @@ impl RestoreTestScheduler {
         })
     }
 
-    /// Claim only one tenant's due work. A caller must supply the tenant
+    /// Claim only one holding's due work. A caller must supply the holding
     /// scope explicitly; this prevents a later adapter from accidentally
-    /// turning a global claim query into a cross-tenant restore operation.
-    pub fn claim_due_for_tenant(
+    /// turning a global claim query into a cross-holding restore operation.
+    pub fn claim_due_for_holding(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         worker_id: Uuid,
         now: DateTime<Utc>,
         batch_size: u32,
     ) -> Result<Vec<RestoreTestClaim>, RestoreTestScheduleError> {
-        validate_ref(tenant_id, "tenant_id")
-            .map_err(|_| RestoreTestScheduleError::InvalidRequest("tenant scope is invalid"))?;
+        validate_ref(holding_id, "holding_id")
+            .map_err(|_| RestoreTestScheduleError::InvalidRequest("holding scope is invalid"))?;
         if worker_id.is_nil() {
             return Err(RestoreTestScheduleError::InvalidRequest(
                 "worker identity is required",
@@ -1494,7 +1494,7 @@ impl RestoreTestScheduler {
         let lease = Duration::minutes(15);
         let mut expired_claims = Vec::new();
         for schedule in state.schedules.values_mut() {
-            if schedule.tenant_id() != tenant_id
+            if schedule.holding_id() != holding_id
                 || schedule.state != RestoreTestScheduleState::Claimed
             {
                 continue;
@@ -1508,19 +1508,19 @@ impl RestoreTestScheduler {
                 schedule.claimed_at = None;
                 expired_claims.push((
                     schedule.id,
-                    schedule.tenant_id().to_owned(),
+                    schedule.holding_id().to_owned(),
                     schedule.attempts,
                 ));
             }
         }
-        for (schedule_id, tenant_id, attempt) in expired_claims {
+        for (schedule_id, holding_id, attempt) in expired_claims {
             state
                 .history
                 .entry(schedule_id)
                 .or_default()
                 .push(RestoreTestHistoryEntry {
                     schedule_id,
-                    tenant_id,
+                    holding_id,
                     attempt,
                     classification: RecoveryHistoryClassification::ClaimLeaseExpired,
                     observed_at: now,
@@ -1530,7 +1530,7 @@ impl RestoreTestScheduler {
             .schedules
             .values()
             .filter(|schedule| {
-                schedule.tenant_id() == tenant_id
+                schedule.holding_id() == holding_id
                     && schedule.state == RestoreTestScheduleState::Pending
                     && schedule.due_at <= now
                     && schedule.attempts < schedule.max_attempts
@@ -1545,7 +1545,7 @@ impl RestoreTestScheduler {
         });
         let mut claims = Vec::with_capacity(limit.min(due_ids.len()));
         for schedule_id in due_ids.into_iter().take(limit) {
-            let (tenant_id, run_id, target, attempt) = {
+            let (holding_id, run_id, target, attempt) = {
                 let schedule = state
                     .schedules
                     .get_mut(&schedule_id)
@@ -1558,7 +1558,7 @@ impl RestoreTestScheduler {
                 schedule.claimed_by = Some(worker_id);
                 schedule.claimed_at = Some(now);
                 (
-                    schedule.tenant_id().to_owned(),
+                    schedule.holding_id().to_owned(),
                     schedule.run_id(),
                     schedule.target.clone(),
                     schedule.attempts,
@@ -1570,14 +1570,14 @@ impl RestoreTestScheduler {
                 .or_default()
                 .push(RestoreTestHistoryEntry {
                     schedule_id,
-                    tenant_id: tenant_id.clone(),
+                    holding_id: holding_id.clone(),
                     attempt,
                     classification: RecoveryHistoryClassification::Claimed,
                     observed_at: now,
                 });
             claims.push(RestoreTestClaim {
                 schedule_id,
-                tenant_id,
+                holding_id,
                 run_id,
                 target,
                 attempt,
@@ -1603,12 +1603,12 @@ impl RestoreTestScheduler {
             .state
             .lock()
             .map_err(|_| RestoreTestScheduleError::Unavailable)?;
-        let (schedule_id, tenant_id, attempt, max_attempts) = {
+        let (schedule_id, holding_id, attempt, max_attempts) = {
             let schedule = state
                 .schedules
                 .get(&claim.schedule_id)
                 .ok_or(RestoreTestScheduleError::NotFound)?;
-            if schedule.tenant_id() != claim.tenant_id
+            if schedule.holding_id() != claim.holding_id
                 || schedule.run_id() != claim.run_id
                 || schedule.target != claim.target
                 || schedule.state != RestoreTestScheduleState::Claimed
@@ -1620,7 +1620,7 @@ impl RestoreTestScheduler {
             }
             (
                 schedule.id,
-                schedule.tenant_id().to_owned(),
+                schedule.holding_id().to_owned(),
                 schedule.attempts,
                 schedule.max_attempts,
             )
@@ -1633,7 +1633,7 @@ impl RestoreTestScheduler {
             .or_default()
             .push(RestoreTestHistoryEntry {
                 schedule_id,
-                tenant_id: tenant_id.clone(),
+                holding_id: holding_id.clone(),
                 attempt,
                 classification,
                 observed_at: now,
@@ -1655,7 +1655,7 @@ impl RestoreTestScheduler {
                 .or_default()
                 .push(RestoreTestHistoryEntry {
                     schedule_id,
-                    tenant_id: tenant_id.clone(),
+                    holding_id: holding_id.clone(),
                     attempt,
                     classification,
                     observed_at: now,
@@ -1673,7 +1673,7 @@ impl RestoreTestScheduler {
         schedule.claimed_at = None;
         Ok(RestoreTestClaimResult {
             schedule_id,
-            tenant_id,
+            holding_id,
             classification,
             state: state_after,
             attempts: attempt,
@@ -1681,13 +1681,13 @@ impl RestoreTestScheduler {
         })
     }
 
-    pub fn schedule_for_tenant(
+    pub fn schedule_for_holding(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         schedule_id: Uuid,
     ) -> Result<RestoreTestSchedule, RestoreTestScheduleError> {
-        validate_ref(tenant_id, "tenant_id")
-            .map_err(|_| RestoreTestScheduleError::InvalidRequest("tenant scope is invalid"))?;
+        validate_ref(holding_id, "holding_id")
+            .map_err(|_| RestoreTestScheduleError::InvalidRequest("holding scope is invalid"))?;
         let state = self
             .state
             .lock()
@@ -1696,18 +1696,18 @@ impl RestoreTestScheduler {
             .schedules
             .get(&schedule_id)
             .ok_or(RestoreTestScheduleError::NotFound)?;
-        if schedule.tenant_id() != tenant_id {
+        if schedule.holding_id() != holding_id {
             return Err(RestoreTestScheduleError::NotFound);
         }
         Ok(schedule.clone())
     }
 
-    pub fn history_for_tenant(
+    pub fn history_for_holding(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         schedule_id: Uuid,
     ) -> Result<Vec<RestoreTestHistoryEntry>, RestoreTestScheduleError> {
-        let _ = self.schedule_for_tenant(tenant_id, schedule_id)?;
+        let _ = self.schedule_for_holding(holding_id, schedule_id)?;
         let state = self
             .state
             .lock()
@@ -1937,7 +1937,7 @@ pub trait BackupObjectTransport: Send + Sync {
 pub trait RestoredDatabaseVerifier: Send + Sync {
     async fn verify(
         &self,
-        database_config: &TenantDatabaseProvisioningConfig,
+        database_config: &HoldingDatabaseProvisioningConfig,
         database_key: &str,
         timeout: StdDuration,
     ) -> Result<(), BackupAdapterError>;
@@ -1945,7 +1945,7 @@ pub trait RestoredDatabaseVerifier: Send + Sync {
 
 #[derive(Clone)]
 pub struct PostgresMinioBackupConfig {
-    pub database_config: TenantDatabaseProvisioningConfig,
+    pub database_config: HoldingDatabaseProvisioningConfig,
     pub object_store_config: MinioObjectStoreConfig,
     pub object_namespace: String,
     pub pg_dump_program: String,
@@ -1962,7 +1962,7 @@ impl PostgresMinioBackupConfig {
     pub const DEFAULT_OBJECT_TIMEOUT: StdDuration = StdDuration::from_secs(60);
 
     pub fn from_env() -> Result<Self, BackupAdapterError> {
-        let database_config = TenantDatabaseProvisioningConfig::from_env()
+        let database_config = HoldingDatabaseProvisioningConfig::from_env()
             .map_err(|_| BackupAdapterError::Configuration)?;
         let object_store_config = MinioObjectStoreConfig {
             endpoint: required_backup_env("ERPX_BACKUP_MINIO_ENDPOINT")?,
@@ -2012,7 +2012,7 @@ impl PostgresMinioBackupConfig {
 
     #[allow(clippy::too_many_arguments)]
     pub fn from_values(
-        database_config: TenantDatabaseProvisioningConfig,
+        database_config: HoldingDatabaseProvisioningConfig,
         object_store_config: MinioObjectStoreConfig,
         object_namespace: impl Into<String>,
         pg_dump_program: impl Into<String>,
@@ -2164,7 +2164,7 @@ pub struct PostgresRestoredDatabaseVerifier;
 impl RestoredDatabaseVerifier for PostgresRestoredDatabaseVerifier {
     async fn verify(
         &self,
-        database_config: &TenantDatabaseProvisioningConfig,
+        database_config: &HoldingDatabaseProvisioningConfig,
         database_key: &str,
         timeout: StdDuration,
     ) -> Result<(), BackupAdapterError> {
@@ -2185,12 +2185,12 @@ impl RestoredDatabaseVerifier for PostgresRestoredDatabaseVerifier {
             timeout,
             sqlx::query(
                 "SELECT current_database() AS database_name,
-                        to_regclass('erpx_tenant.customer_summary')::text AS relation_name,
+                        to_regclass('erpx_holding.customer_summary')::text AS relation_name,
                         EXISTS (
                             SELECT 1
                             FROM pg_class AS c
                             JOIN pg_namespace AS n ON n.oid = c.relnamespace
-                            WHERE n.nspname = 'erpx_tenant'
+                            WHERE n.nspname = 'erpx_holding'
                               AND c.relname = 'customer_summary'
                               AND c.relrowsecurity
                               AND c.relforcerowsecurity
@@ -2212,7 +2212,7 @@ impl RestoredDatabaseVerifier for PostgresRestoredDatabaseVerifier {
             .map_err(|_| BackupAdapterError::Permanent)?;
         pool.close().await;
         if current_database != database_key
-            || relation_name.as_deref() != Some("erpx_tenant.customer_summary")
+            || relation_name.as_deref() != Some("erpx_holding.customer_summary")
             || !rls_ready
         {
             return Err(BackupAdapterError::Permanent);
@@ -2274,23 +2274,23 @@ impl PostgresMinioBackupAdapter {
     }
 
     /// Delete one retention-selected backup artifact. The worker supplies the
-    /// authoritative tenant storage namespace and opaque chain/reference
+    /// authoritative holding storage namespace and opaque chain/reference
     /// values from the control-plane registry; this adapter performs only the
     /// bounded, idempotent MinIO operation.
     pub async fn delete_backup_artifact(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         storage_namespace: &str,
         backup_chain_ref: &str,
         backup_ref: &str,
     ) -> Result<(), BackupAdapterError> {
-        validate_ref(tenant_id, "tenant_id").map_err(|_| BackupAdapterError::Configuration)?;
+        validate_ref(holding_id, "holding_id").map_err(|_| BackupAdapterError::Configuration)?;
         validate_ref(backup_chain_ref, "backup_chain_ref")
             .map_err(|_| BackupAdapterError::Configuration)?;
         validate_ref(backup_ref, "backup_ref").map_err(|_| BackupAdapterError::Configuration)?;
         MinioObjectStore::validate_namespace_reference(storage_namespace)
             .map_err(|_| BackupAdapterError::Configuration)?;
-        let object_key = backup_object_key_parts(tenant_id, backup_chain_ref, backup_ref)?;
+        let object_key = backup_object_key_parts(holding_id, backup_chain_ref, backup_ref)?;
         self.object_transport
             .delete(storage_namespace, &object_key, self.config.object_timeout)
             .await
@@ -2299,27 +2299,27 @@ impl PostgresMinioBackupAdapter {
     /// Delete every object belonging to one physical PITR artifact set. PITR
     /// uses a directory-shaped prefix rather than the single `.dump` object
     /// used by logical backups, so retention must enumerate that exact
-    /// tenant/chain/backup prefix before deleting it.
+    /// holding/chain/backup prefix before deleting it.
     pub async fn delete_pitr_backup_artifacts(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         storage_namespace: &str,
         backup_chain_ref: &str,
         backup_ref: &str,
     ) -> Result<(), BackupAdapterError> {
-        validate_ref(tenant_id, "tenant_id").map_err(|_| BackupAdapterError::Configuration)?;
+        validate_ref(holding_id, "holding_id").map_err(|_| BackupAdapterError::Configuration)?;
         validate_ref(backup_chain_ref, "backup_chain_ref")
             .map_err(|_| BackupAdapterError::Configuration)?;
         validate_ref(backup_ref, "backup_ref").map_err(|_| BackupAdapterError::Configuration)?;
         MinioObjectStore::validate_namespace_reference(storage_namespace)
             .map_err(|_| BackupAdapterError::Configuration)?;
-        let prefix = pitr_backup_object_prefix(tenant_id, backup_chain_ref, backup_ref)?;
+        let prefix = pitr_backup_object_prefix(holding_id, backup_chain_ref, backup_ref)?;
         let entries = self
             .object_transport
             .list(
                 storage_namespace,
                 &prefix,
-                MAX_TENANT_PITR_INVENTORY_ENTRIES,
+                MAX_HOLDING_PITR_INVENTORY_ENTRIES,
                 self.config.object_timeout,
             )
             .await?;
@@ -2337,23 +2337,23 @@ impl PostgresMinioBackupAdapter {
         Ok(())
     }
 
-    /// List the complete, bounded object inventory for one tenant backup
+    /// List the complete, bounded object inventory for one holding backup
     /// chain. A truncated provider page is rejected by the object store, so
     /// callers can persist a drift report without treating partial data as a
     /// match.
     pub async fn list_backup_artifacts(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         storage_namespace: &str,
         backup_chain_ref: &str,
         max_entries: u32,
     ) -> Result<Vec<String>, BackupAdapterError> {
-        validate_ref(tenant_id, "tenant_id").map_err(|_| BackupAdapterError::Configuration)?;
+        validate_ref(holding_id, "holding_id").map_err(|_| BackupAdapterError::Configuration)?;
         validate_ref(backup_chain_ref, "backup_chain_ref")
             .map_err(|_| BackupAdapterError::Configuration)?;
         MinioObjectStore::validate_namespace_reference(storage_namespace)
             .map_err(|_| BackupAdapterError::Configuration)?;
-        let prefix = format!("tenants/{tenant_id}/backup-chains/{backup_chain_ref}/artifacts/");
+        let prefix = format!("holdings/{holding_id}/backup-chains/{backup_chain_ref}/artifacts/");
         let entries = self
             .object_transport
             .list(
@@ -2383,20 +2383,20 @@ impl PostgresMinioBackupAdapter {
     /// rejected if the provider cannot prove it is complete.
     pub async fn list_pitr_backup_artifacts(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         storage_namespace: &str,
         backup_chain_ref: &str,
         max_entries: u32,
     ) -> Result<Vec<String>, BackupAdapterError> {
-        validate_ref(tenant_id, "tenant_id").map_err(|_| BackupAdapterError::Configuration)?;
+        validate_ref(holding_id, "holding_id").map_err(|_| BackupAdapterError::Configuration)?;
         validate_ref(backup_chain_ref, "backup_chain_ref")
             .map_err(|_| BackupAdapterError::Configuration)?;
-        if max_entries == 0 || max_entries > MAX_TENANT_PITR_INVENTORY_ENTRIES {
+        if max_entries == 0 || max_entries > MAX_HOLDING_PITR_INVENTORY_ENTRIES {
             return Err(BackupAdapterError::Configuration);
         }
         MinioObjectStore::validate_namespace_reference(storage_namespace)
             .map_err(|_| BackupAdapterError::Configuration)?;
-        let prefix = format!("tenants/{tenant_id}/backup-chains/{backup_chain_ref}/pitr/");
+        let prefix = format!("holdings/{holding_id}/backup-chains/{backup_chain_ref}/pitr/");
         let entries = self
             .object_transport
             .list(
@@ -2685,22 +2685,22 @@ fn map_backup_adapter_error(error: BackupAdapterError) -> BackupExecutorError {
     }
 }
 
-fn backup_object_key(target: &TenantBackupTarget) -> Result<String, BackupAdapterError> {
+fn backup_object_key(target: &HoldingBackupTarget) -> Result<String, BackupAdapterError> {
     backup_object_key_parts(
-        target.tenant_id(),
+        target.holding_id(),
         target.backup_chain_ref(),
         target.backup_ref(),
     )
 }
 
 fn backup_object_key_parts(
-    tenant_id: &str,
+    holding_id: &str,
     backup_chain_ref: &str,
     backup_ref: &str,
 ) -> Result<String, BackupAdapterError> {
     let key = format!(
-        "tenants/{}/backup-chains/{}/artifacts/{}.dump",
-        tenant_id, backup_chain_ref, backup_ref
+        "holdings/{}/backup-chains/{}/artifacts/{}.dump",
+        holding_id, backup_chain_ref, backup_ref
     );
     if key.len() > 1024 || key.split('/').any(|segment| segment == "..") {
         return Err(BackupAdapterError::Configuration);
@@ -2709,11 +2709,11 @@ fn backup_object_key_parts(
 }
 
 fn pitr_backup_object_prefix(
-    tenant_id: &str,
+    holding_id: &str,
     backup_chain_ref: &str,
     backup_ref: &str,
 ) -> Result<String, BackupAdapterError> {
-    let key = format!("tenants/{tenant_id}/backup-chains/{backup_chain_ref}/pitr/{backup_ref}/");
+    let key = format!("holdings/{holding_id}/backup-chains/{backup_chain_ref}/pitr/{backup_ref}/");
     if key.len() > 1024 || key.split('/').any(|segment| segment == "..") {
         return Err(BackupAdapterError::Configuration);
     }
@@ -2913,15 +2913,15 @@ fn directory_size(path: &std::path::Path) -> u64 {
 }
 
 #[derive(Debug, Clone)]
-pub struct TenantDatabaseProvisioner {
+pub struct HoldingDatabaseProvisioner {
     control: Arc<SqlxControlPlane>,
-    config: TenantDatabaseProvisioningConfig,
+    config: HoldingDatabaseProvisioningConfig,
 }
 
 #[derive(Debug, Clone)]
-pub struct TenantDatabaseRouter {
+pub struct HoldingDatabaseRouter {
     control: Arc<SqlxControlPlane>,
-    config: TenantDatabaseProvisioningConfig,
+    config: HoldingDatabaseProvisioningConfig,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2930,20 +2930,20 @@ pub enum RoutedDatabaseSide {
     Read,
 }
 
-/// Organization scope used to select a physical tenant route. Holding and
+/// Organization scope used to select a physical holding route. Holding and
 /// company operations remain on the holding pair; a branch route is selected
 /// only by an exact, active control-plane binding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TenantDataRouteScope {
+pub enum HoldingDataRouteScope {
     Holding,
     Company { company_id: Uuid },
     Branch { company_id: Uuid, branch_id: Uuid },
 }
 
-pub(crate) const TENANT_SOURCE_REBUILD_LOCK_PREFIX: &str = "erpx.source-rebuild:";
+pub(crate) const HOLDING_SOURCE_REBUILD_LOCK_PREFIX: &str = "erpx.source-rebuild:";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TenantSourceProjection {
+pub enum HoldingSourceProjection {
     Operations,
     FinanceBanking,
     FinanceSubledger,
@@ -2955,30 +2955,30 @@ pub enum TenantSourceProjection {
 /// a replacement read database is checked and activated. Source write
 /// transactions acquire the matching transaction advisory lock, so they wait
 /// until the control-plane activation has completed.
-pub struct TenantSourceRebuildLock<'a> {
+pub struct HoldingSourceRebuildLock<'a> {
     transaction: Transaction<'a, Postgres>,
 }
 
-impl<'a> TenantSourceRebuildLock<'a> {
+impl<'a> HoldingSourceRebuildLock<'a> {
     async fn acquire(
         pool: &'a sqlx::PgPool,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
     ) -> Result<Self, PersistenceError> {
-        let lock_name = format!("{TENANT_SOURCE_REBUILD_LOCK_PREFIX}{holding_ref}");
+        let lock_name = format!("{HOLDING_SOURCE_REBUILD_LOCK_PREFIX}{data_profile_key}");
         let mut transaction = pool.begin().await?;
-        sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-            .bind(holding_ref)
+        sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+            .bind(data_profile_key)
             .execute(&mut *transaction)
             .await?;
-        let bound_tenant: String =
-            sqlx::query_scalar("SELECT set_config('app.tenant_id', $1, true)")
-                .bind(tenant_id)
+        let bound_holding: String =
+            sqlx::query_scalar("SELECT set_config('app.holding_id', $1, true)")
+                .bind(holding_id)
                 .fetch_one(&mut *transaction)
                 .await?;
-        if bound_tenant != tenant_id {
+        if bound_holding != holding_id {
             return Err(PersistenceError::InvalidData(
-                "tenant source lock binding was not retained".into(),
+                "holding source lock binding was not retained".into(),
             ));
         }
         sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
@@ -2990,29 +2990,29 @@ impl<'a> TenantSourceRebuildLock<'a> {
 
     pub async fn source_event_high_watermark(
         &mut self,
-        projection: TenantSourceProjection,
-        holding_ref: &str,
+        projection: HoldingSourceProjection,
+        data_profile_key: &str,
     ) -> Result<u64, PersistenceError> {
         let count: i64 = match projection {
-            TenantSourceProjection::Operations => {
+            HoldingSourceProjection::Operations => {
                 sqlx::query_scalar(
                     "SELECT COALESCE(MAX(global_sequence), 0)
                      FROM erpx_cqrs_write.outbox_events
                      WHERE context_name = 'operations'
-                       AND current_setting('erpx.holding_ref') = $1",
+                       AND current_setting('erpx.data_profile_key') = $1",
                 )
-                .bind(holding_ref)
+                .bind(data_profile_key)
                 .fetch_one(&mut *self.transaction)
                 .await?
             }
-            TenantSourceProjection::FinanceBanking => {
+            HoldingSourceProjection::FinanceBanking => {
                 sqlx::query_scalar(
                     "SELECT COUNT(*)
-                     FROM erpx_tenant.outbox_events
-                     WHERE holding_ref = $1
+                     FROM erpx_holding.outbox_events
+                     WHERE data_profile_key = $1
                        AND aggregate_type = ANY($2)",
                 )
-                .bind(holding_ref)
+                .bind(data_profile_key)
                 .bind([
                     "finance_bank_account",
                     "finance_bank_statement_import",
@@ -3021,14 +3021,14 @@ impl<'a> TenantSourceRebuildLock<'a> {
                 .fetch_one(&mut *self.transaction)
                 .await?
             }
-            TenantSourceProjection::FinanceSubledger => {
+            HoldingSourceProjection::FinanceSubledger => {
                 sqlx::query_scalar(
                     "SELECT COUNT(*)
-                     FROM erpx_tenant.outbox_events
-                     WHERE holding_ref = $1
+                     FROM erpx_holding.outbox_events
+                     WHERE data_profile_key = $1
                        AND aggregate_type = ANY($2)",
                 )
-                .bind(holding_ref)
+                .bind(data_profile_key)
                 .bind([
                     "payable_invoice",
                     "receivable_invoice",
@@ -3044,19 +3044,19 @@ impl<'a> TenantSourceRebuildLock<'a> {
                 .fetch_one(&mut *self.transaction)
                 .await?
             }
-            TenantSourceProjection::FinanceClose => {
+            HoldingSourceProjection::FinanceClose => {
                 sqlx::query_scalar(
                     "SELECT COUNT(*)
-                     FROM erpx_tenant.outbox_events
-                     WHERE holding_ref = $1
+                     FROM erpx_holding.outbox_events
+                     WHERE data_profile_key = $1
                        AND aggregate_type = $2",
                 )
-                .bind(holding_ref)
+                .bind(data_profile_key)
                 .bind("finance_close_review")
                 .fetch_one(&mut *self.transaction)
                 .await?
             }
-            TenantSourceProjection::ItemDirectory => {
+            HoldingSourceProjection::ItemDirectory => {
                 // Directory owner facts are appended by many independent
                 // context UoWs. A short SHARE table lock fences every INSERT
                 // while the final watermark and control-plane route switch
@@ -3068,7 +3068,7 @@ impl<'a> TenantSourceRebuildLock<'a> {
                 sqlx::query_scalar(
                     "SELECT COALESCE(MAX(global_sequence), 0)
                      FROM erpx_cqrs_write.outbox_events
-                     WHERE tenant_id = current_setting('app.tenant_id')::uuid
+                     WHERE holding_id = current_setting('app.holding_id')::uuid
                        AND available_at <= now()
                        AND event_type = ANY($1)",
                 )
@@ -3097,18 +3097,18 @@ impl<'a> TenantSourceRebuildLock<'a> {
 }
 
 #[derive(Debug)]
-pub struct RoutedTenantDatabase {
+pub struct RoutedHoldingDatabase {
     pool: sqlx::PgPool,
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub database_key: String,
     pub side: RoutedDatabaseSide,
 }
 
-impl TenantDatabaseRouter {
+impl HoldingDatabaseRouter {
     pub fn new(
         control: Arc<SqlxControlPlane>,
-        config: TenantDatabaseProvisioningConfig,
+        config: HoldingDatabaseProvisioningConfig,
     ) -> Result<Self, PersistenceError> {
         validate_database_config(&config)?;
         Ok(Self { control, config })
@@ -3118,14 +3118,14 @@ impl TenantDatabaseRouter {
     /// provisioning boundary. The candidate is never promoted by this call.
     pub async fn prepare_replacement_read_database(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         candidate_read_database_key: &str,
     ) -> Result<(), PersistenceError> {
-        TenantDatabaseProvisioner::new(self.control.clone(), self.config.clone())?
+        HoldingDatabaseProvisioner::new(self.control.clone(), self.config.clone())?
             .provision_replacement_read_database(
-                tenant_id,
-                holding_ref,
+                holding_id,
+                data_profile_key,
                 candidate_read_database_key,
             )
             .await
@@ -3136,11 +3136,11 @@ impl TenantDatabaseRouter {
     /// idempotent without reopening a candidate route.
     pub async fn replacement_read_is_activated(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         candidate_read_database_key: &str,
         generation: u64,
     ) -> Result<bool, PersistenceError> {
-        validate_ref(tenant_id, "tenant_id")?;
+        validate_ref(holding_id, "holding_id")?;
         validate_database_key(candidate_read_database_key, "candidate_read_database_key")?;
         let generation = i64::try_from(generation).map_err(|_| {
             PersistenceError::InvalidData("projection switch generation is invalid".into())
@@ -3148,10 +3148,10 @@ impl TenantDatabaseRouter {
         let active: bool = sqlx::query_scalar(
             "SELECT EXISTS (
                  SELECT 1
-                 FROM erpx_control.tenant_registry AS r
-                 JOIN erpx_control.tenant_projection_switches AS s
-                   ON s.tenant_id = r.tenant_id
-                 WHERE r.tenant_id = $1
+                 FROM erpx_control.holding_registry AS r
+                 JOIN erpx_control.holding_projection_switches AS s
+                   ON s.holding_id = r.holding_id
+                 WHERE r.holding_id = $1
                    AND r.read_database_key = $2
                    AND s.current_read_database_key = $2
                    AND s.candidate_read_database_key <> $2
@@ -3159,7 +3159,7 @@ impl TenantDatabaseRouter {
                    AND s.version = $3 + 1
              )",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(candidate_read_database_key)
         .bind(generation)
         .fetch_one(&self.control.pools().write)
@@ -3172,12 +3172,12 @@ impl TenantDatabaseRouter {
     /// transition and the registry/switch activation transaction.
     pub async fn replacement_read_is_ready(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         candidate_read_database_key: &str,
         generation: u64,
         source_version: u64,
     ) -> Result<bool, PersistenceError> {
-        validate_ref(tenant_id, "tenant_id")?;
+        validate_ref(holding_id, "holding_id")?;
         validate_database_key(candidate_read_database_key, "candidate_read_database_key")?;
         let generation = i64::try_from(generation).map_err(|_| {
             PersistenceError::InvalidData("projection switch generation is invalid".into())
@@ -3188,10 +3188,10 @@ impl TenantDatabaseRouter {
         let ready: bool = sqlx::query_scalar(
             "SELECT EXISTS (
                  SELECT 1
-                 FROM erpx_control.tenant_registry AS r
-                 JOIN erpx_control.tenant_projection_switches AS s
-                   ON s.tenant_id = r.tenant_id
-                 WHERE r.tenant_id = $1
+                 FROM erpx_control.holding_registry AS r
+                 JOIN erpx_control.holding_projection_switches AS s
+                   ON s.holding_id = r.holding_id
+                 WHERE r.holding_id = $1
                    AND r.state = 'active'
                    AND r.read_database_key = s.current_read_database_key
                    AND s.candidate_read_database_key = $2
@@ -3200,7 +3200,7 @@ impl TenantDatabaseRouter {
                    AND s.source_version = $4
              )",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(candidate_read_database_key)
         .bind(generation)
         .bind(source_version)
@@ -3210,28 +3210,28 @@ impl TenantDatabaseRouter {
     }
 
     /// Return the source watermark bound to an exact ready candidate. Manual
-    /// activation callers must compare this value while holding the tenant
+    /// activation callers must compare this value while holding the holding
     /// source fence before promoting the candidate.
     pub async fn replacement_read_source_version(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         candidate_read_database_key: &str,
         generation: u64,
     ) -> Result<Option<u64>, PersistenceError> {
-        validate_ref(tenant_id, "tenant_id")?;
+        validate_ref(holding_id, "holding_id")?;
         validate_database_key(candidate_read_database_key, "candidate_read_database_key")?;
         let generation = i64::try_from(generation).map_err(|_| {
             PersistenceError::InvalidData("projection switch generation is invalid".into())
         })?;
         let source_version: Option<i64> = sqlx::query_scalar(
             "SELECT source_version
-             FROM erpx_control.tenant_projection_switches
-             WHERE tenant_id = $1
+             FROM erpx_control.holding_projection_switches
+             WHERE holding_id = $1
                AND candidate_read_database_key = $2
                AND state = 'ready'
                AND version = $3",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(candidate_read_database_key)
         .bind(generation)
         .fetch_optional(&self.control.pools().write)
@@ -3247,25 +3247,29 @@ impl TenantDatabaseRouter {
 
     pub async fn complete_replacement_read_database(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         candidate_read_database_key: &str,
         generation: u64,
     ) -> Result<(), PersistenceError> {
-        TenantProvisioner::new(self.control.clone())
-            .complete_read_rebuild_if_generation(tenant_id, candidate_read_database_key, generation)
+        HoldingProvisioner::new(self.control.clone())
+            .complete_read_rebuild_if_generation(
+                holding_id,
+                candidate_read_database_key,
+                generation,
+            )
             .await
     }
 
     pub async fn fail_replacement_read_database(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         candidate_read_database_key: &str,
         generation: u64,
         error: &'static str,
     ) -> Result<(), PersistenceError> {
-        TenantProvisioner::new(self.control.clone())
+        HoldingProvisioner::new(self.control.clone())
             .fail_read_rebuild_if_generation(
-                tenant_id,
+                holding_id,
                 candidate_read_database_key,
                 generation,
                 error,
@@ -3275,35 +3279,35 @@ impl TenantDatabaseRouter {
 
     pub async fn activate_replacement_read_database(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         candidate_read_database_key: &str,
         generation: u64,
     ) -> Result<(), PersistenceError> {
-        TenantProvisioner::new(self.control.clone())
+        HoldingProvisioner::new(self.control.clone())
             .activate_read_database_if_generation(
-                tenant_id,
+                holding_id,
                 candidate_read_database_key,
                 generation,
             )
             .await
     }
 
-    /// Resolve a tenant only through the control-plane registry. The returned
+    /// Resolve a holding only through the control-plane registry. The returned
     /// pool is server-side; clients receive neither this pool nor a URL.
     pub async fn route(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         side: RoutedDatabaseSide,
-    ) -> Result<RoutedTenantDatabase, PersistenceError> {
-        validate_ref(tenant_id, "tenant_id")?;
-        validate_ref(holding_ref, "holding_ref")?;
+    ) -> Result<RoutedHoldingDatabase, PersistenceError> {
+        validate_ref(holding_id, "holding_id")?;
+        validate_ref(data_profile_key, "data_profile_key")?;
         let deployment_mode: Option<String> = sqlx::query_scalar(
             "SELECT deployment_mode
-             FROM erpx_control.tenant_infrastructure_profiles
-             WHERE tenant_id = $1",
+             FROM erpx_control.holding_infrastructure_profiles
+             WHERE holding_id = $1",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .fetch_optional(&self.control.pools().write)
         .await?;
         match deployment_mode.as_deref() {
@@ -3315,46 +3319,46 @@ impl TenantDatabaseRouter {
             }
             Some(_) => {
                 return Err(PersistenceError::InvalidData(
-                    "tenant execution route is not configured".into(),
+                    "holding execution route is not configured".into(),
                 ));
             }
             None => {
-                // Tenant registry rows created before the layered customer
+                // Holding registry rows created before the layered customer
                 // administration model have no customer binding and are
                 // explicitly ERPX-managed by the rollout contract. A bound
-                // tenant missing its profile is inconsistent and must never
+                // holding missing its profile is inconsistent and must never
                 // fall back from a customer data plane into managed storage.
                 let has_customer_binding: bool = sqlx::query_scalar(
                     "SELECT EXISTS (
                          SELECT 1
-                         FROM erpx_control.customer_tenant_bindings
-                         WHERE tenant_id = $1
+                         FROM erpx_control.customer_holding_bindings
+                         WHERE holding_id = $1
                      )",
                 )
-                .bind(tenant_id)
+                .bind(holding_id)
                 .fetch_one(&self.control.pools().write)
                 .await?;
                 if has_customer_binding {
                     return Err(PersistenceError::InvalidData(
-                        "tenant execution route is not configured".into(),
+                        "holding execution route is not configured".into(),
                     ));
                 }
             }
         }
-        let registration = SqlxTenantStoreRegistry::new(self.control.clone())
-            .get(tenant_id)
+        let registration = SqlxHoldingStoreRegistry::new(self.control.clone())
+            .get(holding_id)
             .await?
             .ok_or(PersistenceError::InvalidData(
-                "tenant is not registered".into(),
+                "holding is not registered".into(),
             ))?;
         if registration.state != "active" {
             return Err(PersistenceError::InvalidData(
-                "tenant is not active for request routing".into(),
+                "holding is not active for request routing".into(),
             ));
         }
-        if registration.holding_ref != holding_ref {
+        if registration.data_profile_key != data_profile_key {
             return Err(PersistenceError::InvalidData(
-                "holding scope does not match the tenant registry".into(),
+                "holding scope does not match the holding registry".into(),
             ));
         }
         let database_key = match side {
@@ -3367,10 +3371,10 @@ impl TenantDatabaseRouter {
             .max_connections(10)
             .connect(&database_url)
             .await?;
-        let routed = RoutedTenantDatabase {
+        let routed = RoutedHoldingDatabase {
             pool,
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
             database_key,
             side,
         };
@@ -3383,31 +3387,31 @@ impl TenantDatabaseRouter {
 
     /// Resolve a physical database from an authenticated organization scope.
     /// Caller-provided database identifiers are never accepted. Branch routes
-    /// fail closed unless the tenant opted into branch isolation and the exact
-    /// tenant/holding/company/branch binding is active.
+    /// fail closed unless the holding opted into branch isolation and the exact
+    /// holding/holding/company/branch binding is active.
     pub async fn route_scoped(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
-        scope: TenantDataRouteScope,
+        holding_id: &str,
+        data_profile_key: &str,
+        scope: HoldingDataRouteScope,
         side: RoutedDatabaseSide,
-    ) -> Result<RoutedTenantDatabase, PersistenceError> {
+    ) -> Result<RoutedHoldingDatabase, PersistenceError> {
         match scope {
-            TenantDataRouteScope::Holding => self.route(tenant_id, holding_ref, side).await,
-            TenantDataRouteScope::Company { company_id } => {
+            HoldingDataRouteScope::Holding => self.route(holding_id, data_profile_key, side).await,
+            HoldingDataRouteScope::Company { company_id } => {
                 if company_id.is_nil() {
                     return Err(PersistenceError::InvalidData(
                         "company route scope cannot be nil".into(),
                     ));
                 }
-                self.route(tenant_id, holding_ref, side).await
+                self.route(holding_id, data_profile_key, side).await
             }
-            TenantDataRouteScope::Branch {
+            HoldingDataRouteScope::Branch {
                 company_id,
                 branch_id,
             } => {
-                validate_ref(tenant_id, "tenant_id")?;
-                validate_ref(holding_ref, "holding_ref")?;
+                validate_ref(holding_id, "holding_id")?;
+                validate_ref(data_profile_key, "data_profile_key")?;
                 if company_id.is_nil() || branch_id.is_nil() {
                     return Err(PersistenceError::InvalidData(
                         "branch route scope cannot contain nil identifiers".into(),
@@ -3417,20 +3421,20 @@ impl TenantDatabaseRouter {
                     "SELECT r.write_database_key, r.read_database_key,
                             p.profile_key, p.credential_profile_key, p.deployment_mode
                      FROM erpx_control.branch_database_routes r
-                     JOIN erpx_control.tenant_registry t
-                       ON t.tenant_id=r.tenant_id AND t.holding_ref=r.holding_ref
+                     JOIN erpx_control.holding_registry t
+                       ON t.holding_id=r.holding_id AND t.data_profile_key=r.data_profile_key
                      JOIN erpx_control.database_profiles p
                        ON p.profile_key=r.profile_key
-                     JOIN erpx_control.tenant_database_profile_bindings b
-                       ON b.tenant_id=r.tenant_id AND b.profile_key=r.profile_key
-                     WHERE r.tenant_id=$1 AND r.holding_ref=$2
+                     JOIN erpx_control.holding_database_profile_bindings b
+                       ON b.holding_id=r.holding_id AND b.profile_key=r.profile_key
+                     WHERE r.holding_id=$1 AND r.data_profile_key=$2
                        AND r.company_id=$3 AND r.branch_id=$4
                        AND r.state='active' AND t.state='active'
                        AND t.isolation_mode='holding_and_branch_pairs'
                        AND p.state='active' AND b.active",
                 )
-                .bind(tenant_id)
-                .bind(holding_ref)
+                .bind(holding_id)
+                .bind(data_profile_key)
                 .bind(company_id)
                 .bind(branch_id)
                 .fetch_optional(&self.control.pools().write)
@@ -3462,10 +3466,10 @@ impl TenantDatabaseRouter {
                     .max_connections(10)
                     .connect_with(profile.database_options(&database_key))
                     .await?;
-                let routed = RoutedTenantDatabase {
+                let routed = RoutedHoldingDatabase {
                     pool,
-                    tenant_id: tenant_id.into(),
-                    holding_ref: holding_ref.into(),
+                    holding_id: holding_id.into(),
+                    data_profile_key: data_profile_key.into(),
                     database_key,
                     side,
                 };
@@ -3479,18 +3483,18 @@ impl TenantDatabaseRouter {
     }
 
     /// Resolve a replacement read database only after the control-plane
-    /// switch state has bound the candidate to this tenant. The candidate is
+    /// switch state has bound the candidate to this holding. The candidate is
     /// never selected from caller-supplied credentials or an arbitrary URL;
     /// the server-only routing template remains the sole connection source.
     pub async fn route_replacement_read(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         candidate_read_database_key: &str,
-    ) -> Result<RoutedTenantDatabase, PersistenceError> {
+    ) -> Result<RoutedHoldingDatabase, PersistenceError> {
         self.route_replacement_read_fenced(
-            tenant_id,
-            holding_ref,
+            holding_id,
+            data_profile_key,
             candidate_read_database_key,
             None,
             None,
@@ -3504,15 +3508,15 @@ impl TenantDatabaseRouter {
     /// jobs; the unfenced method above remains for the older explicit seam.
     pub async fn route_replacement_read_for_generation(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         candidate_read_database_key: &str,
         generation: u64,
         source_version: u64,
-    ) -> Result<RoutedTenantDatabase, PersistenceError> {
+    ) -> Result<RoutedHoldingDatabase, PersistenceError> {
         self.route_replacement_read_fenced(
-            tenant_id,
-            holding_ref,
+            holding_id,
+            data_profile_key,
             candidate_read_database_key,
             Some(generation),
             Some(source_version),
@@ -3522,14 +3526,14 @@ impl TenantDatabaseRouter {
 
     async fn route_replacement_read_fenced(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         candidate_read_database_key: &str,
         generation: Option<u64>,
         source_version: Option<u64>,
-    ) -> Result<RoutedTenantDatabase, PersistenceError> {
-        validate_ref(tenant_id, "tenant_id")?;
-        validate_ref(holding_ref, "holding_ref")?;
+    ) -> Result<RoutedHoldingDatabase, PersistenceError> {
+        validate_ref(holding_id, "holding_id")?;
+        validate_ref(data_profile_key, "data_profile_key")?;
         validate_database_key(candidate_read_database_key, "candidate_read_database_key")?;
         let generation = generation
             .map(|value| {
@@ -3550,37 +3554,37 @@ impl TenantDatabaseRouter {
                 "candidate route fence is incomplete".into(),
             ));
         }
-        let registration = SqlxTenantStoreRegistry::new(self.control.clone())
-            .get(tenant_id)
+        let registration = SqlxHoldingStoreRegistry::new(self.control.clone())
+            .get(holding_id)
             .await?
             .ok_or(PersistenceError::InvalidData(
-                "tenant is not registered".into(),
+                "holding is not registered".into(),
             ))?;
         if registration.state != "active" {
             return Err(PersistenceError::InvalidData(
-                "tenant is not active for replacement routing".into(),
+                "holding is not active for replacement routing".into(),
             ));
         }
-        if registration.holding_ref != holding_ref {
+        if registration.data_profile_key != data_profile_key {
             return Err(PersistenceError::InvalidData(
-                "holding scope does not match the tenant registry".into(),
+                "holding scope does not match the holding registry".into(),
             ));
         }
         let mut control_transaction = self.control.pools().write.begin().await?;
         let switch = sqlx::query(
-            "SELECT r.state AS registry_state, r.holding_ref, r.read_database_key,
+            "SELECT r.state AS registry_state, r.data_profile_key, r.read_database_key,
                     s.current_read_database_key,
                     s.candidate_read_database_key, s.state AS switch_state,
                     s.version, s.source_version
-             FROM erpx_control.tenant_registry AS r
-             JOIN erpx_control.tenant_projection_switches AS s
-               ON s.tenant_id = r.tenant_id
-             WHERE r.tenant_id = $1
+             FROM erpx_control.holding_registry AS r
+             JOIN erpx_control.holding_projection_switches AS s
+               ON s.holding_id = r.holding_id
+             WHERE r.holding_id = $1
                AND ($2::BIGINT IS NULL OR s.version = $2)
                AND ($3::BIGINT IS NULL OR s.source_version = $3)
              FOR SHARE OF r, s",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(generation)
         .bind(source_version)
         .fetch_optional(&mut *control_transaction)
@@ -3589,13 +3593,13 @@ impl TenantDatabaseRouter {
             "replacement read state is not registered".into(),
         ))?;
         let registered_state: String = switch.try_get("registry_state")?;
-        let registered_holding: String = switch.try_get("holding_ref")?;
+        let registered_holding: String = switch.try_get("data_profile_key")?;
         let registered_current: String = switch.try_get("read_database_key")?;
         let current: String = switch.try_get("current_read_database_key")?;
         let candidate: String = switch.try_get("candidate_read_database_key")?;
         let state: String = switch.try_get("switch_state")?;
         if registered_state != "active"
-            || registered_holding != holding_ref
+            || registered_holding != data_profile_key
             || registered_current != current
         {
             let _ = control_transaction.rollback().await;
@@ -3609,7 +3613,7 @@ impl TenantDatabaseRouter {
         {
             let _ = control_transaction.rollback().await;
             return Err(PersistenceError::InvalidData(
-                "replacement read target is not active for this tenant".into(),
+                "replacement read target is not active for this holding".into(),
             ));
         }
         control_transaction.commit().await?;
@@ -3621,10 +3625,10 @@ impl TenantDatabaseRouter {
             .max_connections(10)
             .connect(&database_url)
             .await?;
-        let routed = RoutedTenantDatabase {
+        let routed = RoutedHoldingDatabase {
             pool,
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
             database_key: candidate_read_database_key.into(),
             side: RoutedDatabaseSide::Read,
         };
@@ -3641,44 +3645,44 @@ impl TenantDatabaseRouter {
     /// probes. A stale or missing durable observation can never be promoted
     /// by a successful socket probe, and a failed live probe is represented as
     /// unavailable without exposing the underlying connection details.
-    pub async fn observe_tenant_readiness(
+    pub async fn observe_holding_readiness(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         now: DateTime<Utc>,
         policy: ReadinessObservationPolicy,
-    ) -> Result<TenantReadinessObservation, PersistenceError> {
-        let metadata = TenantProvisioner::new(self.control.clone())
-            .observe_tenant_readiness_metadata(tenant_id, now, policy)
+    ) -> Result<HoldingReadinessObservation, PersistenceError> {
+        let metadata = HoldingProvisioner::new(self.control.clone())
+            .observe_holding_readiness_metadata(holding_id, now, policy)
             .await?;
-        let registry = SqlxTenantStoreRegistry::new(self.control.clone())
-            .get(tenant_id)
+        let registry = SqlxHoldingStoreRegistry::new(self.control.clone())
+            .get(holding_id)
             .await?;
 
         let (live_write, live_read) = match registry.as_ref() {
             Some(registration) if registration.state == "active" => {
                 let write = self
                     .probe_route(
-                        tenant_id,
-                        &registration.holding_ref,
+                        holding_id,
+                        &registration.data_profile_key,
                         RoutedDatabaseSide::Write,
                     )
                     .await;
                 let read = self
                     .probe_route(
-                        tenant_id,
-                        &registration.holding_ref,
+                        holding_id,
+                        &registration.data_profile_key,
                         RoutedDatabaseSide::Read,
                     )
                     .await;
                 (write, read)
             }
             Some(_) => (
-                ReadinessComponentObservation::unavailable("tenant_not_active", None),
-                ReadinessComponentObservation::unavailable("tenant_not_active", None),
+                ReadinessComponentObservation::unavailable("holding_not_active", None),
+                ReadinessComponentObservation::unavailable("holding_not_active", None),
             ),
             None => (
-                ReadinessComponentObservation::unavailable("tenant_not_registered", None),
-                ReadinessComponentObservation::unavailable("tenant_not_registered", None),
+                ReadinessComponentObservation::unavailable("holding_not_registered", None),
+                ReadinessComponentObservation::unavailable("holding_not_registered", None),
             ),
         };
         let write_database = merge_database_observation(metadata.write_database, live_write);
@@ -3699,18 +3703,18 @@ impl TenantDatabaseRouter {
             if registry_state.as_deref() == Some("active") {
                 None
             } else if registry_state.is_none() {
-                Some("tenant_not_registered")
+                Some("holding_not_registered")
             } else {
-                Some("tenant_not_active")
+                Some("holding_not_active")
             },
             write_database.reason_code.as_deref(),
             read_database.reason_code.as_deref(),
             metadata.storage.reason_code.as_deref(),
         ]);
-        Ok(TenantReadinessObservation {
-            tenant_id: tenant_id.into(),
-            routing: TenantRoutingObservation {
-                tenant_id: tenant_id.into(),
+        Ok(HoldingReadinessObservation {
+            holding_id: holding_id.into(),
+            routing: HoldingRoutingObservation {
+                holding_id: holding_id.into(),
                 state: routing_state,
                 registry_state,
                 registry_version,
@@ -3727,15 +3731,15 @@ impl TenantDatabaseRouter {
 
     async fn probe_route(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         side: RoutedDatabaseSide,
     ) -> ReadinessComponentObservation {
-        let routed = match self.route(tenant_id, holding_ref, side).await {
+        let routed = match self.route(holding_id, data_profile_key, side).await {
             Ok(routed) => routed,
             Err(_) => {
                 return ReadinessComponentObservation::unavailable(
-                    "tenant_database_route_failed",
+                    "holding_database_route_failed",
                     None,
                 );
             }
@@ -3745,13 +3749,13 @@ impl TenantDatabaseRouter {
         match result {
             Ok(observation) => observation,
             Err(_) => {
-                ReadinessComponentObservation::unavailable("tenant_database_probe_failed", None)
+                ReadinessComponentObservation::unavailable("holding_database_probe_failed", None)
             }
         }
     }
 }
 
-impl RoutedTenantDatabase {
+impl RoutedHoldingDatabase {
     /// Borrow the already-routed server-side pool for infrastructure adapters.
     /// The pool carries no URL or credential serialization API and must remain
     /// on the server side of the worker boundary.
@@ -3761,36 +3765,37 @@ impl RoutedTenantDatabase {
 
     pub async fn acquire_source_rebuild_lock(
         &self,
-    ) -> Result<TenantSourceRebuildLock<'_>, PersistenceError> {
-        TenantSourceRebuildLock::acquire(&self.pool, &self.tenant_id, &self.holding_ref).await
+    ) -> Result<HoldingSourceRebuildLock<'_>, PersistenceError> {
+        HoldingSourceRebuildLock::acquire(&self.pool, &self.holding_id, &self.data_profile_key)
+            .await
     }
 
     /// Begin a scoped transaction. The RLS setting is transaction-local and
     /// therefore cannot leak to another request using the same pool.
     pub async fn begin_scoped(&self) -> Result<Transaction<'_, Postgres>, PersistenceError> {
-        let tenant_id = Uuid::parse_str(&self.tenant_id).map_err(|_| {
+        let holding_id = Uuid::parse_str(&self.holding_id).map_err(|_| {
             PersistenceError::InvalidData(
-                "generation-v2 routed database requires a UUID tenant_id".into(),
+                "current routed database requires a UUID holding_id".into(),
             )
         })?;
-        if tenant_id.is_nil() {
+        if holding_id.is_nil() {
             return Err(PersistenceError::InvalidData(
-                "generation-v2 routed database requires a non-nil tenant_id".into(),
+                "current routed database requires a non-nil holding_id".into(),
             ));
         }
         let mut transaction = self.pool.begin().await?;
-        let bound: String = sqlx::query_scalar("SELECT set_config('app.tenant_id', $1, true)")
-            .bind(tenant_id.to_string())
+        let bound: String = sqlx::query_scalar("SELECT set_config('app.holding_id', $1, true)")
+            .bind(holding_id.to_string())
             .fetch_one(&mut *transaction)
             .await?;
-        if bound != tenant_id.to_string() {
+        if bound != holding_id.to_string() {
             let _ = transaction.rollback().await;
             return Err(PersistenceError::InvalidData(
-                "routed database tenant binding could not be verified".into(),
+                "routed database holding binding could not be verified".into(),
             ));
         }
-        sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-            .bind(&self.holding_ref)
+        sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+            .bind(&self.data_profile_key)
             .execute(&mut *transaction)
             .await?;
         Ok(transaction)
@@ -3798,14 +3803,14 @@ impl RoutedTenantDatabase {
 
     /// Probe the routed database without returning its URL, credentials, or
     /// database name. The relation check proves that the route reached the
-    /// expected tenant-side schema rather than merely accepting a TCP
+    /// expected holding-side schema rather than merely accepting a TCP
     /// connection.
     pub async fn probe(&self) -> Result<ReadinessComponentObservation, PersistenceError> {
         let relation = match self.side {
             RoutedDatabaseSide::Write => "erpx_cqrs_write.command_receipts",
             RoutedDatabaseSide::Read => "erpx_cqrs_read.projection_generations",
         };
-        verify_tenant_database_contract(&self.pool, &self.database_key, relation).await?;
+        verify_holding_database_contract(&self.pool, &self.database_key, relation).await?;
         Ok(ReadinessComponentObservation::ready(Utc::now()))
     }
 
@@ -3870,7 +3875,7 @@ impl RoutedTenantDatabase {
         let visible_foreign_scope: bool = sqlx::query_scalar(
             "SELECT EXISTS (
                  SELECT 1 FROM erpx_operations_read.exception_projection
-                 WHERE tenant_id <> erpx_cqrs_read.current_tenant_id()
+                 WHERE holding_id <> erpx_cqrs_read.current_holding_id()
              )",
         )
         .fetch_one(&mut *transaction)
@@ -3890,10 +3895,10 @@ impl RoutedTenantDatabase {
     }
 }
 
-impl TenantDatabaseProvisioner {
+impl HoldingDatabaseProvisioner {
     pub fn new(
         control: Arc<SqlxControlPlane>,
-        config: TenantDatabaseProvisioningConfig,
+        config: HoldingDatabaseProvisioningConfig,
     ) -> Result<Self, PersistenceError> {
         validate_database_config(&config)?;
         Ok(Self { control, config })
@@ -3905,7 +3910,7 @@ impl TenantDatabaseProvisioner {
     pub fn for_approved_profiles(control: Arc<SqlxControlPlane>) -> Self {
         Self {
             control,
-            config: TenantDatabaseProvisioningConfig {
+            config: HoldingDatabaseProvisioningConfig {
                 admin_database_url: "postgresql://localhost/postgres?sslmode=disable".into(),
                 database_url_template: "postgresql://localhost/{database}?sslmode=disable".into(),
             },
@@ -3917,26 +3922,27 @@ impl TenantDatabaseProvisioner {
     /// can complete it; no database is dropped implicitly.
     pub async fn provision_databases(
         &self,
-        tenant_id: &str,
-    ) -> Result<PhysicalTenantDatabases, PersistenceError> {
-        validate_ref(tenant_id, "tenant_id")?;
-        let registration = SqlxTenantStoreRegistry::new(self.control.clone())
-            .get(tenant_id)
+        holding_id: &str,
+    ) -> Result<PhysicalHoldingDatabases, PersistenceError> {
+        validate_ref(holding_id, "holding_id")?;
+        let registration = SqlxHoldingStoreRegistry::new(self.control.clone())
+            .get(holding_id)
             .await?
             .ok_or(PersistenceError::InvalidData(
-                "tenant is not registered".into(),
+                "holding is not registered".into(),
             ))?;
         if !matches!(registration.state.as_str(), "provisioning" | "recovery") {
             return Err(PersistenceError::InvalidData(
-                "tenant databases can only be provisioned in provisioning or recovery state".into(),
+                "holding databases can only be provisioned in provisioning or recovery state"
+                    .into(),
             ));
         }
         validate_database_key(&registration.write_database_key, "write_database_key")?;
         validate_database_key(&registration.read_database_key, "read_database_key")?;
-        // Database keys are global physical resources, not merely tenant
+        // Database keys are global physical resources, not merely holding
         // metadata. Serialize the check on both keys and reject any existing
         // owner before creating or migrating a database. This closes the
-        // race where two tenant registrations could otherwise point at the
+        // race where two holding registrations could otherwise point at the
         // same physical database while each was still in provisioning.
         let mut control_transaction = self.control.pools().write.begin().await?;
         let mut lock_keys = [
@@ -3953,20 +3959,20 @@ impl TenantDatabaseProvisioner {
         let key_conflict: bool = sqlx::query_scalar(
             "SELECT EXISTS (
                  SELECT 1
-                 FROM erpx_control.tenant_registry
-                 WHERE tenant_id <> $1
+                 FROM erpx_control.holding_registry
+                 WHERE holding_id <> $1
                    AND (write_database_key IN ($2, $3)
                         OR read_database_key IN ($2, $3))
              )",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(&registration.write_database_key)
         .bind(&registration.read_database_key)
         .fetch_one(&mut *control_transaction)
         .await?;
         if key_conflict {
             return Err(PersistenceError::Configuration(
-                "tenant database key is already owned by another tenant",
+                "holding database key is already owned by another holding",
             ));
         }
         control_transaction.commit().await?;
@@ -3980,31 +3986,31 @@ impl TenantDatabaseProvisioner {
             .await?;
 
         let checked_at = Utc::now();
-        let metadata = TenantProvisioner::new(self.control.clone());
+        let metadata = HoldingProvisioner::new(self.control.clone());
         metadata
-            .record_database_health(&TenantDatabaseHealth {
-                tenant_id: tenant_id.into(),
+            .record_database_health(&HoldingDatabaseHealth {
+                holding_id: holding_id.into(),
                 side: DatabaseSide::Write,
                 database_key: registration.write_database_key.clone(),
-                schema_version: "tenant-write-0001".into(),
+                schema_version: "holding-write-0001".into(),
                 reachable: true,
                 checked_at,
                 details: serde_json::json!({"migration": "applied", "rls": "forced"}),
             })
             .await?;
         metadata
-            .record_database_health(&TenantDatabaseHealth {
-                tenant_id: tenant_id.into(),
+            .record_database_health(&HoldingDatabaseHealth {
+                holding_id: holding_id.into(),
                 side: DatabaseSide::Read,
                 database_key: registration.read_database_key.clone(),
-                schema_version: "tenant-read-0001".into(),
+                schema_version: "holding-read-0001".into(),
                 reachable: true,
                 checked_at,
                 details: serde_json::json!({"migration": "applied", "rls": "forced"}),
             })
             .await?;
-        PhysicalTenantDatabases::new(
-            tenant_id,
+        PhysicalHoldingDatabases::new(
+            holding_id,
             registration.write_database_key,
             registration.read_database_key,
         )
@@ -4022,11 +4028,11 @@ impl TenantDatabaseProvisioner {
                 "branch databases require a claimed provisioning route".into(),
             ));
         }
-        validate_ref(&route.tenant_id, "tenant_id")?;
-        validate_ref(&route.holding_ref, "holding_ref")?;
+        validate_ref(&route.holding_key, "holding_key")?;
+        validate_ref(&route.data_profile_key, "data_profile_key")?;
         validate_database_key(&route.write_database_key, "write_database_key")?;
         validate_database_key(&route.read_database_key, "read_database_key")?;
-        if route.holding_id != tenant_holding_scope_id(&route.holding_ref)
+        if route.holding_id != holding_holding_scope_id(&route.data_profile_key)
             || route.company_id.is_nil()
             || route.branch_id.is_nil()
             || route.write_database_key == route.read_database_key
@@ -4049,17 +4055,17 @@ impl TenantDatabaseProvisioner {
         }
         let collision: bool = sqlx::query_scalar(
             "SELECT EXISTS (
-                 SELECT 1 FROM erpx_control.tenant_registry
+                 SELECT 1 FROM erpx_control.holding_registry
                  WHERE write_database_key IN ($1,$2) OR read_database_key IN ($1,$2)
              ) OR EXISTS (
                  SELECT 1 FROM erpx_control.branch_database_routes
-                 WHERE NOT (tenant_id=$3 AND branch_id=$4)
+                 WHERE NOT (data_profile_key=$3 AND branch_id=$4)
                    AND (write_database_key IN ($1,$2) OR read_database_key IN ($1,$2))
              )",
         )
         .bind(&route.write_database_key)
         .bind(&route.read_database_key)
-        .bind(&route.tenant_id)
+        .bind(&route.data_profile_key)
         .bind(route.branch_id)
         .fetch_one(&mut *tx)
         .await?;
@@ -4079,21 +4085,21 @@ impl TenantDatabaseProvisioner {
             .await?;
         let checked_at = Utc::now();
         for (side, key, schema_version) in [
-            ("write", &route.write_database_key, "tenant-write-current"),
-            ("read", &route.read_database_key, "tenant-read-current"),
+            ("write", &route.write_database_key, "holding-write-current"),
+            ("read", &route.read_database_key, "holding-read-current"),
         ] {
             sqlx::query(
                 "INSERT INTO erpx_control.branch_database_health
-                    (tenant_id, branch_id, side, database_key, schema_version,
+                    (holding_id, branch_id, side, database_key, schema_version,
                      reachable, checked_at, failure_category)
                  VALUES ($1,$2,$3,$4,$5,TRUE,$6,NULL)
-                 ON CONFLICT (tenant_id, branch_id, side) DO UPDATE
+                 ON CONFLICT (holding_id, branch_id, side) DO UPDATE
                  SET database_key=EXCLUDED.database_key,
                      schema_version=EXCLUDED.schema_version,
                      reachable=TRUE, checked_at=EXCLUDED.checked_at,
                      failure_category=NULL",
             )
-            .bind(&route.tenant_id)
+            .bind(&route.holding_key)
             .bind(route.branch_id)
             .bind(side)
             .bind(key)
@@ -4105,7 +4111,7 @@ impl TenantDatabaseProvisioner {
         Ok(())
     }
 
-    /// Provision a branch through the exact tenant-approved profile whose
+    /// Provision a branch through the exact holding-approved profile whose
     /// credentials were resolved outside ERPX storage.
     pub async fn provision_branch_databases_with_profile(
         &self,
@@ -4122,11 +4128,11 @@ impl TenantDatabaseProvisioner {
                 "branch databases require a claimed provisioning route".into(),
             ));
         }
-        validate_ref(&route.tenant_id, "tenant_id")?;
-        validate_ref(&route.holding_ref, "holding_ref")?;
+        validate_ref(&route.holding_key, "holding_key")?;
+        validate_ref(&route.data_profile_key, "data_profile_key")?;
         validate_database_key(&route.write_database_key, "write_database_key")?;
         validate_database_key(&route.read_database_key, "read_database_key")?;
-        if route.holding_id != tenant_holding_scope_id(&route.holding_ref)
+        if route.holding_id != holding_holding_scope_id(&route.data_profile_key)
             || route.company_id.is_nil()
             || route.branch_id.is_nil()
             || route.write_database_key == route.read_database_key
@@ -4149,17 +4155,17 @@ impl TenantDatabaseProvisioner {
         }
         let collision: bool = sqlx::query_scalar(
             "SELECT EXISTS (
-                 SELECT 1 FROM erpx_control.tenant_registry
+                 SELECT 1 FROM erpx_control.holding_registry
                  WHERE write_database_key IN ($1,$2) OR read_database_key IN ($1,$2)
              ) OR EXISTS (
                  SELECT 1 FROM erpx_control.branch_database_routes
-                 WHERE NOT (tenant_id=$3 AND branch_id=$4)
+                 WHERE NOT (data_profile_key=$3 AND branch_id=$4)
                    AND (write_database_key IN ($1,$2) OR read_database_key IN ($1,$2))
              )",
         )
         .bind(&route.write_database_key)
         .bind(&route.read_database_key)
-        .bind(&route.tenant_id)
+        .bind(&route.data_profile_key)
         .bind(route.branch_id)
         .fetch_one(&mut *tx)
         .await?;
@@ -4200,12 +4206,12 @@ impl TenantDatabaseProvisioner {
             (
                 DatabaseSide::Write,
                 &route.write_database_key,
-                "tenant-write-current",
+                "holding-write-current",
             ),
             (
                 DatabaseSide::Read,
                 &route.read_database_key,
-                "tenant-read-current",
+                "holding-read-current",
             ),
         ] {
             let pool = PgPoolOptions::new()
@@ -4213,8 +4219,8 @@ impl TenantDatabaseProvisioner {
                 .connect_with(profile.database_options(database_key))
                 .await?;
             let migration = match side {
-                DatabaseSide::Write => migrate_tenant_write(&pool).await,
-                DatabaseSide::Read => migrate_tenant_read(&pool).await,
+                DatabaseSide::Write => migrate_holding_write(&pool).await,
+                DatabaseSide::Read => migrate_holding_read(&pool).await,
             }
             .map_err(PersistenceError::Migration);
             if migration.is_ok() {
@@ -4222,22 +4228,22 @@ impl TenantDatabaseProvisioner {
                     DatabaseSide::Write => "erpx_cqrs_write.command_receipts",
                     DatabaseSide::Read => "erpx_cqrs_read.projection_generations",
                 };
-                verify_tenant_database_contract(&pool, database_key, relation).await?;
+                verify_holding_database_contract(&pool, database_key, relation).await?;
             }
             pool.close().await;
             migration?;
             sqlx::query(
                 "INSERT INTO erpx_control.branch_database_health
-                    (tenant_id, branch_id, side, database_key, schema_version,
+                    (holding_id, branch_id, side, database_key, schema_version,
                      reachable, checked_at, failure_category)
                  VALUES ($1,$2,$3,$4,$5,TRUE,$6,NULL)
-                 ON CONFLICT (tenant_id, branch_id, side) DO UPDATE
+                 ON CONFLICT (holding_id, branch_id, side) DO UPDATE
                  SET database_key=EXCLUDED.database_key,
                      schema_version=EXCLUDED.schema_version,
                      reachable=TRUE, checked_at=EXCLUDED.checked_at,
                      failure_category=NULL",
             )
-            .bind(&route.tenant_id)
+            .bind(&route.holding_key)
             .bind(route.branch_id)
             .bind(side.as_str())
             .bind(database_key)
@@ -4259,7 +4265,7 @@ impl TenantDatabaseProvisioner {
         worker_id: Uuid,
     ) -> Result<(), PersistenceError> {
         if route.state != BranchProvisioningState::Provisioning
-            || route.tenant_id != job.tenant_id
+            || route.holding_key != job.holding_id
             || route.branch_id != job.branch_id
             || worker_id.is_nil()
         {
@@ -4270,13 +4276,13 @@ impl TenantDatabaseProvisioner {
         // Organization hierarchy remains authoritative in the holding data
         // plane. A branch database pair receives scoped projections only and
         // must never become a second write authority for the same branch.
-        let registration = SqlxTenantStoreRegistry::new(self.control.clone())
-            .get(&route.tenant_id)
+        let registration = SqlxHoldingStoreRegistry::new(self.control.clone())
+            .get(&route.holding_key)
             .await?
-            .ok_or_else(|| PersistenceError::InvalidData("tenant is not registered".into()))?;
-        if registration.holding_ref != route.holding_ref {
+            .ok_or_else(|| PersistenceError::InvalidData("holding is not registered".into()))?;
+        if registration.data_profile_key != route.data_profile_key {
             return Err(PersistenceError::InvalidData(
-                "branch organization route does not match tenant holding authority".into(),
+                "branch organization route does not match holding holding authority".into(),
             ));
         }
         let write_url = render_database_url(
@@ -4293,13 +4299,13 @@ impl TenantDatabaseProvisioner {
             for unit in &job.enabled_business_units {
                 sqlx::query(
                     "INSERT INTO erpx_control.branch_business_unit_configurations
-                        (tenant_id, branch_id, business_unit, active,
+                        (holding_id, branch_id, business_unit, active,
                          configuration_version, updated_by)
                      VALUES ($1,$2,$3,TRUE,1,$4)
-                     ON CONFLICT (tenant_id, branch_id, business_unit) DO UPDATE
+                     ON CONFLICT (holding_id, branch_id, business_unit) DO UPDATE
                      SET active=TRUE, updated_at=now()",
                 )
-                .bind(&route.tenant_id)
+                .bind(&route.holding_key)
                 .bind(route.branch_id)
                 .bind(unit.as_str())
                 .bind(format!("erpx-worker:{worker_id}"))
@@ -4322,7 +4328,7 @@ impl TenantDatabaseProvisioner {
     ) -> Result<(), PersistenceError> {
         if route.profile_key != profile.profile_key()
             || route.state != BranchProvisioningState::Provisioning
-            || route.tenant_id != job.tenant_id
+            || route.holding_key != job.holding_id
             || route.branch_id != job.branch_id
             || worker_id.is_nil()
         {
@@ -4330,13 +4336,13 @@ impl TenantDatabaseProvisioner {
                 "branch organization provisioning profile is invalid".into(),
             ));
         }
-        let registration = SqlxTenantStoreRegistry::new(self.control.clone())
-            .get(&route.tenant_id)
+        let registration = SqlxHoldingStoreRegistry::new(self.control.clone())
+            .get(&route.holding_key)
             .await?
-            .ok_or_else(|| PersistenceError::InvalidData("tenant is not registered".into()))?;
-        if registration.holding_ref != route.holding_ref {
+            .ok_or_else(|| PersistenceError::InvalidData("holding is not registered".into()))?;
+        if registration.data_profile_key != route.data_profile_key {
             return Err(PersistenceError::InvalidData(
-                "branch organization route does not match tenant holding authority".into(),
+                "branch organization route does not match holding holding authority".into(),
             ));
         }
         let write_pool = PgPoolOptions::new()
@@ -4349,13 +4355,13 @@ impl TenantDatabaseProvisioner {
             for unit in &job.enabled_business_units {
                 sqlx::query(
                     "INSERT INTO erpx_control.branch_business_unit_configurations
-                        (tenant_id, branch_id, business_unit, active,
+                        (holding_id, branch_id, business_unit, active,
                          configuration_version, updated_by)
                      VALUES ($1,$2,$3,TRUE,1,$4)
-                     ON CONFLICT (tenant_id, branch_id, business_unit) DO UPDATE
+                     ON CONFLICT (holding_id, branch_id, business_unit) DO UPDATE
                      SET active=TRUE, updated_at=now()",
                 )
-                .bind(&route.tenant_id)
+                .bind(&route.holding_key)
                 .bind(route.branch_id)
                 .bind(unit.as_str())
                 .bind(format!("erpx-worker:{worker_id}"))
@@ -4369,33 +4375,35 @@ impl TenantDatabaseProvisioner {
         result
     }
 
-    /// Initialize the tenant-local organization root after both physical
+    /// Initialize the holding-local organization root after both physical
     /// databases have migrated. The typed Organization command transaction
     /// writes normalized authority, receipt, audit, and outbox evidence. The
     /// disposable read model is populated asynchronously by its projector.
-    pub async fn initialize_tenant_organization(
+    pub async fn initialize_holding_organization(
         &self,
-        tenant_id: &str,
+        holding_key: &str,
         holding_id: Uuid,
         owner_principal_ref: &str,
-    ) -> Result<TenantOrganizationBootstrap, PersistenceError> {
-        validate_ref(tenant_id, "tenant_id")?;
+    ) -> Result<HoldingOrganizationBootstrap, PersistenceError> {
+        validate_ref(holding_key, "holding_key")?;
         validate_principal_ref(owner_principal_ref, "owner_principal_ref")?;
         if holding_id.is_nil() {
             return Err(PersistenceError::InvalidData(
                 "organization holding ID cannot be nil".into(),
             ));
         }
-        let registration = SqlxTenantStoreRegistry::new(self.control.clone())
-            .get(tenant_id)
+        let registration = SqlxHoldingStoreRegistry::new(self.control.clone())
+            .get(holding_key)
             .await?
             .ok_or(PersistenceError::InvalidData(
-                "tenant is not registered".into(),
+                "holding is not registered".into(),
             ))?;
-        let expected_holding_id = tenant_holding_scope_id(&registration.holding_ref);
+        let expected_holding_id = Uuid::parse_str(&registration.holding_id).map_err(|_| {
+            PersistenceError::InvalidData("registered holding ID must be a UUID".into())
+        })?;
         if expected_holding_id != holding_id {
             return Err(PersistenceError::InvalidData(
-                "organization holding ID does not match the tenant registry".into(),
+                "organization holding ID does not match the holding registry".into(),
             ));
         }
         if !matches!(registration.state.as_str(), "provisioning" | "recovery") {
@@ -4426,11 +4434,11 @@ impl TenantDatabaseProvisioner {
                 return Err(PersistenceError::Database(error));
             }
         };
-        let result = initialize_tenant_organization_rows(
+        let result = initialize_holding_organization_rows(
             &write_pool,
             &read_pool,
-            tenant_id,
-            &registration.holding_ref,
+            holding_key,
+            &registration.data_profile_key,
             holding_id,
             owner_principal_ref,
             Utc::now(),
@@ -4443,26 +4451,26 @@ impl TenantDatabaseProvisioner {
 
     /// Create and migrate a disposable replacement read database that is
     /// already bound to an active rebuilding switch. The candidate is never
-    /// written into the active tenant registry and cannot be routed through
+    /// written into the active holding registry and cannot be routed through
     /// the normal read path until the transactional switch completes.
     pub async fn provision_replacement_read_database(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         candidate_read_database_key: &str,
     ) -> Result<(), PersistenceError> {
-        validate_ref(tenant_id, "tenant_id")?;
-        validate_ref(holding_ref, "holding_ref")?;
+        validate_ref(holding_id, "holding_id")?;
+        validate_ref(data_profile_key, "data_profile_key")?;
         validate_database_key(candidate_read_database_key, "candidate_read_database_key")?;
-        let registration = SqlxTenantStoreRegistry::new(self.control.clone())
-            .get(tenant_id)
+        let registration = SqlxHoldingStoreRegistry::new(self.control.clone())
+            .get(holding_id)
             .await?
             .ok_or(PersistenceError::InvalidData(
-                "tenant is not registered".into(),
+                "holding is not registered".into(),
             ))?;
         if registration.state != "active" {
             return Err(PersistenceError::InvalidData(
-                "replacement read database requires an active tenant".into(),
+                "replacement read database requires an active holding".into(),
             ));
         }
         if registration.write_database_key == candidate_read_database_key
@@ -4474,29 +4482,29 @@ impl TenantDatabaseProvisioner {
         }
         let mut control_transaction = self.control.pools().write.begin().await?;
         let switch = sqlx::query(
-            "SELECT r.state AS registry_state, r.holding_ref, r.read_database_key,
+            "SELECT r.state AS registry_state, r.data_profile_key, r.read_database_key,
                     s.current_read_database_key,
                     s.candidate_read_database_key, s.state AS switch_state
-             FROM erpx_control.tenant_registry AS r
-             JOIN erpx_control.tenant_projection_switches AS s
-               ON s.tenant_id = r.tenant_id
-             WHERE r.tenant_id = $1
+             FROM erpx_control.holding_registry AS r
+             JOIN erpx_control.holding_projection_switches AS s
+               ON s.holding_id = r.holding_id
+             WHERE r.holding_id = $1
              FOR SHARE OF r, s",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .fetch_optional(&mut *control_transaction)
         .await?
         .ok_or(PersistenceError::InvalidData(
             "replacement read state is not registered".into(),
         ))?;
         let registered_state: String = switch.try_get("registry_state")?;
-        let registered_holding: String = switch.try_get("holding_ref")?;
+        let registered_holding: String = switch.try_get("data_profile_key")?;
         let registered_current: String = switch.try_get("read_database_key")?;
         let current: String = switch.try_get("current_read_database_key")?;
         let candidate: String = switch.try_get("candidate_read_database_key")?;
         let state: String = switch.try_get("switch_state")?;
         if registered_state != "active"
-            || registered_holding != holding_ref
+            || registered_holding != data_profile_key
             || registered_current != current
             || current != registration.read_database_key
             || candidate != candidate_read_database_key
@@ -4520,20 +4528,20 @@ impl TenantDatabaseProvisioner {
     /// routable until the provisioner's fenced restore activation completes.
     pub async fn provision_restore_test_candidate_database(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         candidate_read_database_key: &str,
     ) -> Result<(), PersistenceError> {
-        validate_ref(tenant_id, "tenant_id")?;
+        validate_ref(holding_id, "holding_id")?;
         validate_database_key(candidate_read_database_key, "candidate_read_database_key")?;
-        let registration = SqlxTenantStoreRegistry::new(self.control.clone())
-            .get(tenant_id)
+        let registration = SqlxHoldingStoreRegistry::new(self.control.clone())
+            .get(holding_id)
             .await?
             .ok_or(PersistenceError::InvalidData(
-                "tenant is not registered".into(),
+                "holding is not registered".into(),
             ))?;
         if registration.state != "active" {
             return Err(PersistenceError::InvalidData(
-                "restore candidate requires an active tenant".into(),
+                "restore candidate requires an active holding".into(),
             ));
         }
         if registration.write_database_key == candidate_read_database_key
@@ -4545,21 +4553,21 @@ impl TenantDatabaseProvisioner {
         }
         let candidate_owned: bool = sqlx::query_scalar(
             "SELECT EXISTS (
-                 SELECT 1 FROM erpx_control.tenant_registry
-                 WHERE tenant_id <> $1
+                 SELECT 1 FROM erpx_control.holding_registry
+                 WHERE holding_id <> $1
                    AND (write_database_key = $2 OR read_database_key = $2)
              ) OR EXISTS (
-                 SELECT 1 FROM erpx_control.tenant_projection_switches
-                 WHERE tenant_id <> $1 AND candidate_read_database_key = $2
+                 SELECT 1 FROM erpx_control.holding_projection_switches
+                 WHERE holding_id <> $1 AND candidate_read_database_key = $2
              )",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(candidate_read_database_key)
         .fetch_one(&self.control.pools().write)
         .await?;
         if candidate_owned {
             return Err(PersistenceError::Configuration(
-                "restore candidate is already owned by another tenant",
+                "restore candidate is already owned by another holding",
             ));
         }
         self.create_database_if_missing(candidate_read_database_key)
@@ -4568,36 +4576,36 @@ impl TenantDatabaseProvisioner {
             .await
     }
 
-    /// Ensure the registered tenant namespace exists through an injected
+    /// Ensure the registered holding namespace exists through an injected
     /// object-store operation, then persist the verification result. A
     /// pending/unreachable health row is written before the external call so a
-    /// stale successful check cannot activate a tenant while verification is
+    /// stale successful check cannot activate a holding while verification is
     /// in progress or after it fails.
     pub async fn provision_storage_namespace<F, Fut>(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         ensure_namespace: F,
-    ) -> Result<TenantStorageHealth, PersistenceError>
+    ) -> Result<HoldingStorageHealth, PersistenceError>
     where
         F: FnOnce(String) -> Fut,
         Fut: Future<Output = Result<(), ObjectStorageError>>,
     {
-        validate_ref(tenant_id, "tenant_id")?;
-        let registration = SqlxTenantStoreRegistry::new(self.control.clone())
-            .get(tenant_id)
+        validate_ref(holding_id, "holding_id")?;
+        let registration = SqlxHoldingStoreRegistry::new(self.control.clone())
+            .get(holding_id)
             .await?
             .ok_or(PersistenceError::InvalidData(
-                "tenant is not registered".into(),
+                "holding is not registered".into(),
             ))?;
         if !matches!(registration.state.as_str(), "provisioning" | "recovery") {
             return Err(PersistenceError::InvalidData(
-                "tenant storage can only be provisioned in provisioning or recovery state".into(),
+                "holding storage can only be provisioned in provisioning or recovery state".into(),
             ));
         }
 
-        let metadata = TenantProvisioner::new(self.control.clone());
-        let pending = TenantStorageHealth {
-            tenant_id: tenant_id.into(),
+        let metadata = HoldingProvisioner::new(self.control.clone());
+        let pending = HoldingStorageHealth {
+            holding_id: holding_id.into(),
             storage_namespace: registration.storage_namespace.clone(),
             reachable: false,
             checked_at: Utc::now(),
@@ -4614,7 +4622,7 @@ impl TenantDatabaseProvisioner {
             .await
             .is_err()
         {
-            let failed = TenantStorageHealth {
+            let failed = HoldingStorageHealth {
                 checked_at: Utc::now(),
                 details: serde_json::json!({
                     "adapter": "object_store",
@@ -4628,12 +4636,12 @@ impl TenantDatabaseProvisioner {
             // itself cannot be persisted; either way activation must fail.
             metadata.record_storage_health(&failed).await?;
             return Err(PersistenceError::InvalidData(
-                "tenant object storage namespace verification failed".into(),
+                "holding object storage namespace verification failed".into(),
             ));
         }
 
-        let healthy = TenantStorageHealth {
-            tenant_id: tenant_id.into(),
+        let healthy = HoldingStorageHealth {
+            holding_id: holding_id.into(),
             storage_namespace: registration.storage_namespace,
             reachable: true,
             checked_at: Utc::now(),
@@ -4687,8 +4695,8 @@ impl TenantDatabaseProvisioner {
             .connect(&database_url)
             .await?;
         let result = match side {
-            DatabaseSide::Write => migrate_tenant_write(&pool).await,
-            DatabaseSide::Read => migrate_tenant_read(&pool).await,
+            DatabaseSide::Write => migrate_holding_write(&pool).await,
+            DatabaseSide::Read => migrate_holding_read(&pool).await,
         };
         let result = result.map_err(PersistenceError::Migration);
         let result = if result.is_ok() {
@@ -4696,7 +4704,7 @@ impl TenantDatabaseProvisioner {
                 DatabaseSide::Write => "erpx_cqrs_write.command_receipts",
                 DatabaseSide::Read => "erpx_cqrs_read.projection_generations",
             };
-            verify_tenant_database_contract(&pool, database_key, relation).await
+            verify_holding_database_contract(&pool, database_key, relation).await
         } else {
             result
         };
@@ -4705,11 +4713,11 @@ impl TenantDatabaseProvisioner {
     }
 }
 
-/// Check the physical database and the tenant-side security contract after a
+/// Check the physical database and the holding-side security contract after a
 /// route or migration has selected a database. A successful connection alone
 /// is not evidence that the server-side template reached the registry-owned
-/// database or that every tenant relation is protected by forced RLS.
-async fn verify_tenant_database_contract(
+/// database or that every holding relation is protected by forced RLS.
+async fn verify_holding_database_contract(
     pool: &sqlx::PgPool,
     database_key: &str,
     expected_relation: &str,
@@ -4721,7 +4729,7 @@ async fn verify_tenant_database_contract(
                     SELECT 1
                     FROM pg_class AS c
                     JOIN pg_namespace AS n ON n.oid = c.relnamespace
-                    WHERE n.nspname = 'erpx_tenant'
+                    WHERE n.nspname = 'erpx_holding'
                       AND c.relkind IN ('r', 'p')
                       AND (NOT c.relrowsecurity OR NOT c.relforcerowsecurity)
                 ) AS forced_rls_ready",
@@ -4734,37 +4742,39 @@ async fn verify_tenant_database_contract(
     let forced_rls_ready: bool = row.try_get("forced_rls_ready")?;
     if database_name != database_key {
         return Err(PersistenceError::InvalidData(
-            "tenant database identity did not match its route".into(),
+            "holding database identity did not match its route".into(),
         ));
     }
     if relation_name.as_deref() != Some(expected_relation) {
         return Err(PersistenceError::InvalidData(
-            "tenant database schema relation is missing".into(),
+            "holding database schema relation is missing".into(),
         ));
     }
     if !forced_rls_ready {
         return Err(PersistenceError::InvalidData(
-            "tenant database relations are not protected by forced RLS".into(),
+            "holding database relations are not protected by forced RLS".into(),
         ));
     }
     Ok(())
 }
 
-impl TenantProvisioner {
+impl HoldingProvisioner {
     pub fn new(control: Arc<SqlxControlPlane>) -> Self {
         Self { control }
     }
 
-    /// Register the tenant-bound owner bootstrap intent before physical
+    /// Register the holding-bound owner bootstrap intent before physical
     /// resources are created. Replays are accepted only when every immutable
     /// reference matches the original request.
     pub async fn register_owner_seed(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         principal_ref: &str,
         approver_ref: &str,
-    ) -> Result<TenantOwnerSeed, PersistenceError> {
-        validate_ref(tenant_id, "tenant_id")?;
+    ) -> Result<HoldingOwnerSeed, PersistenceError> {
+        validate_ref(holding_id, "holding_id")?;
+        let holding_id = Uuid::parse_str(holding_id)
+            .map_err(|_| PersistenceError::InvalidData("holding_id must be a UUID".into()))?;
         validate_principal_ref(principal_ref, "owner_principal_ref")?;
         validate_principal_ref(approver_ref, "owner_approver_ref")?;
         if principal_ref == approver_ref {
@@ -4774,35 +4784,33 @@ impl TenantProvisioner {
         }
         let mut transaction = self.control.pools().write.begin().await?;
         let registry = sqlx::query(
-            "SELECT holding_ref
-             FROM erpx_control.tenant_registry
-             WHERE tenant_id = $1
+            "SELECT data_profile_key
+             FROM erpx_control.holding_registry
+             WHERE holding_id = $1
              FOR UPDATE",
         )
-        .bind(tenant_id)
+        .bind(holding_id.to_string())
         .fetch_optional(&mut *transaction)
         .await?
-        .ok_or_else(|| PersistenceError::InvalidData("tenant is not registered".into()))?;
-        let holding_ref: String = registry.try_get("holding_ref")?;
-        let holding_id = tenant_holding_scope_id(&holding_ref);
-        let role_assignment_id = tenant_owner_assignment_id(tenant_id, principal_ref);
+        .ok_or_else(|| PersistenceError::InvalidData("holding is not registered".into()))?;
+        let data_profile_key: String = registry.try_get("data_profile_key")?;
+        let role_assignment_id =
+            holding_owner_assignment_id(&holding_id.to_string(), principal_ref);
         let row = sqlx::query(
-            "INSERT INTO erpx_control.tenant_owner_seeds
-                (tenant_id, holding_ref, holding_id, principal_ref, approver_ref,
+            "INSERT INTO erpx_control.holding_owner_seeds
+                (holding_id, data_profile_key, principal_ref, approver_ref,
                  role_assignment_id, state)
-             VALUES ($1, $2, $3, $4, $5, $6, 'pending')
-             ON CONFLICT (tenant_id) DO UPDATE
+             VALUES ($1, $2, $3, $4, $5, 'pending')
+             ON CONFLICT (holding_id) DO UPDATE
              SET updated_at = now()
-             WHERE erpx_control.tenant_owner_seeds.holding_ref = EXCLUDED.holding_ref
-               AND erpx_control.tenant_owner_seeds.holding_id = EXCLUDED.holding_id
-               AND erpx_control.tenant_owner_seeds.principal_ref = EXCLUDED.principal_ref
-               AND erpx_control.tenant_owner_seeds.approver_ref = EXCLUDED.approver_ref
-             RETURNING tenant_id, holding_ref, holding_id, principal_ref, approver_ref,
+             WHERE erpx_control.holding_owner_seeds.data_profile_key = EXCLUDED.data_profile_key
+               AND erpx_control.holding_owner_seeds.principal_ref = EXCLUDED.principal_ref
+               AND erpx_control.holding_owner_seeds.approver_ref = EXCLUDED.approver_ref
+             RETURNING holding_id, data_profile_key, principal_ref, approver_ref,
                        role_assignment_id, state, recovery_issued_at",
         )
-        .bind(tenant_id)
-        .bind(&holding_ref)
         .bind(holding_id)
+        .bind(&data_profile_key)
         .bind(principal_ref)
         .bind(approver_ref)
         .bind(role_assignment_id)
@@ -4810,52 +4818,54 @@ impl TenantProvisioner {
         .await?
         .ok_or_else(|| {
             PersistenceError::InvalidData(
-                "tenant owner seed already exists with different immutable references".into(),
+                "holding owner seed already exists with different immutable references".into(),
             )
         })?;
         transaction.commit().await?;
-        tenant_owner_seed_from_row(&row)
+        holding_owner_seed_from_row(&row)
     }
 
     pub async fn get_owner_seed(
         &self,
-        tenant_id: &str,
-    ) -> Result<Option<TenantOwnerSeed>, PersistenceError> {
-        validate_ref(tenant_id, "tenant_id")?;
+        holding_id: &str,
+    ) -> Result<Option<HoldingOwnerSeed>, PersistenceError> {
+        validate_ref(holding_id, "holding_id")?;
+        let holding_id = Uuid::parse_str(holding_id)
+            .map_err(|_| PersistenceError::InvalidData("holding_id must be a UUID".into()))?;
         let row = sqlx::query(
-            "SELECT tenant_id, holding_ref, holding_id, principal_ref, approver_ref,
+            "SELECT holding_id, data_profile_key, principal_ref, approver_ref,
                     role_assignment_id, state, recovery_issued_at
-             FROM erpx_control.tenant_owner_seeds
-             WHERE tenant_id = $1",
+             FROM erpx_control.holding_owner_seeds
+             WHERE holding_id = $1",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .fetch_optional(&self.control.pools().write)
         .await?;
-        row.as_ref().map(tenant_owner_seed_from_row).transpose()
+        row.as_ref().map(holding_owner_seed_from_row).transpose()
     }
 
     /// Read only the durable control-plane observations needed for readiness.
     /// Secrets, database keys, storage namespaces, backup references, and
     /// error text are intentionally not part of the returned model.
-    pub async fn observe_tenant_readiness_metadata(
+    pub async fn observe_holding_readiness_metadata(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         now: DateTime<Utc>,
         policy: ReadinessObservationPolicy,
-    ) -> Result<TenantReadinessMetadata, PersistenceError> {
-        validate_ref(tenant_id, "tenant_id")?;
+    ) -> Result<HoldingReadinessMetadata, PersistenceError> {
+        validate_ref(holding_id, "holding_id")?;
         let registry = sqlx::query(
             "SELECT state, registry_version, write_database_key,
                     read_database_key, storage_namespace
-             FROM erpx_control.tenant_registry
-             WHERE tenant_id = $1",
+             FROM erpx_control.holding_registry
+             WHERE holding_id = $1",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .fetch_optional(&self.control.pools().write)
         .await?;
         let Some(registry) = registry else {
-            return Ok(TenantReadinessMetadata {
-                tenant_id: tenant_id.into(),
+            return Ok(HoldingReadinessMetadata {
+                holding_id: holding_id.into(),
                 registry_state: None,
                 registry_version: None,
                 write_database: DatabaseReadinessObservation::not_probed(),
@@ -4869,7 +4879,7 @@ impl TenantProvisioner {
         let registry_state: String = registry.try_get("state")?;
         let registry_version = positive_observation_u64(
             registry.try_get("registry_version")?,
-            "tenant registry version",
+            "holding registry version",
         )?;
         let expected_write_database: String = registry.try_get("write_database_key")?;
         let expected_read_database: String = registry.try_get("read_database_key")?;
@@ -4877,10 +4887,10 @@ impl TenantProvisioner {
 
         let health_rows = sqlx::query(
             "SELECT side, database_key, schema_version, reachable, checked_at
-             FROM erpx_control.tenant_database_health
-             WHERE tenant_id = $1",
+             FROM erpx_control.holding_database_health
+             WHERE holding_id = $1",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .fetch_all(&self.control.pools().write)
         .await?;
         let mut write_database = DatabaseReadinessObservation::not_probed();
@@ -4927,10 +4937,10 @@ impl TenantProvisioner {
 
         let storage = sqlx::query(
             "SELECT storage_namespace, reachable, checked_at
-             FROM erpx_control.tenant_storage_health
-             WHERE tenant_id = $1",
+             FROM erpx_control.holding_storage_health
+             WHERE holding_id = $1",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .fetch_optional(&self.control.pools().write)
         .await?
         .map(|row| {
@@ -4964,10 +4974,10 @@ impl TenantProvisioner {
         let projection_freshness = sqlx::query(
             "SELECT current_read_database_key, state, source_version,
                     last_error, activated_at, updated_at
-             FROM erpx_control.tenant_projection_switches
-             WHERE tenant_id = $1",
+             FROM erpx_control.holding_projection_switches
+             WHERE holding_id = $1",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .fetch_optional(&self.control.pools().write)
         .await?
         .map(|row| {
@@ -5019,12 +5029,12 @@ impl TenantProvisioner {
         let backup_pitr = sqlx::query(
             "SELECT id, kind, status, started_at, completed_at, verified,
                     error, restore_target_ref
-             FROM erpx_control.tenant_backup_runs
-             WHERE tenant_id = $1
+             FROM erpx_control.holding_backup_runs
+             WHERE holding_id = $1
              ORDER BY started_at DESC, id DESC
              LIMIT 1",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .fetch_optional(&self.control.pools().write)
         .await?
         .map(|row| {
@@ -5085,8 +5095,8 @@ impl TenantProvisioner {
         })
         .unwrap_or_else(empty_backup_observation);
 
-        Ok(TenantReadinessMetadata {
-            tenant_id: tenant_id.into(),
+        Ok(HoldingReadinessMetadata {
+            holding_id: holding_id.into(),
             registry_state: Some(registry_state),
             registry_version: Some(registry_version),
             write_database,
@@ -5099,23 +5109,23 @@ impl TenantProvisioner {
 
     pub async fn begin(
         &self,
-        registration: TenantStoreRegistration,
+        registration: HoldingStoreRegistration,
     ) -> Result<(), PersistenceError> {
         if registration.state != "provisioning" {
             return Err(PersistenceError::InvalidData(
-                "new tenant provisioning must start in provisioning state".into(),
+                "new holding provisioning must start in provisioning state".into(),
             ));
         }
-        SqlxTenantStoreRegistry::new(self.control.clone())
+        SqlxHoldingStoreRegistry::new(self.control.clone())
             .register(registration.clone())
             .await?;
         let result = sqlx::query(
-            "INSERT INTO erpx_control.tenant_provisioning
-                (tenant_id, state, write_database_key, read_database_key, storage_namespace, version)
+            "INSERT INTO erpx_control.holding_provisioning
+                (holding_id, state, write_database_key, read_database_key, storage_namespace, version)
              VALUES ($1, $2, $3, $4, $5, 1)
-             ON CONFLICT (tenant_id) DO NOTHING",
+             ON CONFLICT (holding_id) DO NOTHING",
         )
-        .bind(&registration.tenant_id)
+        .bind(&registration.holding_id)
         .bind(ProvisioningState::Provisioning.as_str())
         .bind(&registration.write_database_key)
         .bind(&registration.read_database_key)
@@ -5124,7 +5134,7 @@ impl TenantProvisioner {
         .await?;
         if result.rows_affected() != 1 {
             return Err(PersistenceError::InvalidData(
-                "tenant provisioning already exists".into(),
+                "holding provisioning already exists".into(),
             ));
         }
         Ok(())
@@ -5132,20 +5142,20 @@ impl TenantProvisioner {
 
     pub async fn schedule_backup_job(
         &self,
-        request: TenantBackupJobRequest,
-    ) -> Result<TenantBackupJobReceipt, PersistenceError> {
+        request: HoldingBackupJobRequest,
+    ) -> Result<HoldingBackupJobReceipt, PersistenceError> {
         validate_backup_job_request(&request)?;
-        let registration = SqlxTenantStoreRegistry::new(self.control.clone())
-            .get(&request.tenant_id)
+        let registration = SqlxHoldingStoreRegistry::new(self.control.clone())
+            .get(&request.holding_id)
             .await?
             .ok_or(PersistenceError::InvalidData(
-                "tenant is not registered".into(),
+                "holding is not registered".into(),
             ))?;
-        if registration.holding_ref != request.holding_ref
+        if registration.data_profile_key != request.data_profile_key
             || !matches!(registration.state.as_str(), "active" | "recovery")
         {
             return Err(PersistenceError::InvalidData(
-                "tenant backup scope or state is invalid".into(),
+                "holding backup scope or state is invalid".into(),
             ));
         }
         let request_hash = backup_job_request_hash(&request);
@@ -5153,37 +5163,37 @@ impl TenantProvisioner {
         // Re-check and lock the registry row in the same transaction as the
         // job insert. The earlier read is useful for a fast rejection, but it
         // cannot by itself prevent a concurrent suspend/holding reassignment
-        // from admitting a job after the tenant left a backup-capable state.
+        // from admitting a job after the holding left a backup-capable state.
         let registry_row = sqlx::query(
-            "SELECT holding_ref, state
-             FROM erpx_control.tenant_registry
-             WHERE tenant_id = $1
+            "SELECT data_profile_key, state
+             FROM erpx_control.holding_registry
+             WHERE holding_id = $1
              FOR UPDATE",
         )
-        .bind(&request.tenant_id)
+        .bind(&request.holding_id)
         .fetch_optional(&mut *transaction)
         .await?;
         let Some(registry_row) = registry_row else {
             return Err(PersistenceError::InvalidData(
-                "tenant is not registered".into(),
+                "holding is not registered".into(),
             ));
         };
-        let registered_holding: String = registry_row.try_get("holding_ref")?;
+        let registered_holding: String = registry_row.try_get("data_profile_key")?;
         let registered_state: String = registry_row.try_get("state")?;
-        if registered_holding != request.holding_ref
+        if registered_holding != request.data_profile_key
             || !matches!(registered_state.as_str(), "active" | "recovery")
         {
             return Err(PersistenceError::InvalidData(
-                "tenant backup scope or state is invalid".into(),
+                "holding backup scope or state is invalid".into(),
             ));
         }
         if let Some(row) = sqlx::query(
             "SELECT id, request_hash, kind, state, available_at, max_attempts
-             FROM erpx_control.tenant_backup_jobs
-             WHERE tenant_id = $1 AND idempotency_key = $2
+             FROM erpx_control.holding_backup_jobs
+             WHERE holding_id = $1 AND idempotency_key = $2
              FOR UPDATE",
         )
-        .bind(&request.tenant_id)
+        .bind(&request.holding_id)
         .bind(&request.idempotency_key)
         .fetch_optional(&mut *transaction)
         .await?
@@ -5192,12 +5202,12 @@ impl TenantProvisioner {
             if stored_hash != request_hash {
                 let _ = transaction.rollback().await;
                 return Err(PersistenceError::InvalidData(
-                    "tenant backup idempotency conflict".into(),
+                    "holding backup idempotency conflict".into(),
                 ));
             }
-            let receipt = TenantBackupJobReceipt {
+            let receipt = HoldingBackupJobReceipt {
                 id: row.try_get("id")?,
-                tenant_id: request.tenant_id,
+                holding_id: request.holding_id,
                 kind: row.try_get("kind")?,
                 state: row.try_get("state")?,
                 available_at: row.try_get("available_at")?,
@@ -5212,15 +5222,15 @@ impl TenantProvisioner {
         let id = Uuid::new_v4();
         let pitr_recovery_point = pitr_recovery_point_json(&request.pitr_recovery_point)?;
         sqlx::query(
-            "INSERT INTO erpx_control.tenant_backup_jobs
-                (id, tenant_id, holding_ref, kind, backup_ref, restore_target_ref,
+            "INSERT INTO erpx_control.holding_backup_jobs
+                (id, holding_id, data_profile_key, kind, backup_ref, restore_target_ref,
                  candidate_read_database_key, source_version, source_projection,
                  pitr_recovery_point, state, available_at, max_attempts, request_hash, idempotency_key)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', $11, $12, $13, $14)",
         )
         .bind(id)
-        .bind(&request.tenant_id)
-        .bind(&request.holding_ref)
+        .bind(&request.holding_id)
+        .bind(&request.data_profile_key)
         .bind(&request.kind)
         .bind(&request.backup_ref)
         .bind(&request.restore_target_ref)
@@ -5243,11 +5253,11 @@ impl TenantProvisioner {
         .bind(&request.idempotency_key)
         .execute(&mut *transaction)
         .await?;
-        append_tenant_backup_job_event(
+        append_holding_backup_job_event(
             &mut transaction,
             id,
-            &request.tenant_id,
-            &request.holding_ref,
+            &request.holding_id,
+            &request.data_profile_key,
             &request.kind,
             "pending",
             0,
@@ -5255,9 +5265,9 @@ impl TenantProvisioner {
             false,
             false,
             request.available_at,
-            TENANT_BACKUP_JOB_SCHEDULED_EVENT,
+            HOLDING_BACKUP_JOB_SCHEDULED_EVENT,
             Some(&format!(
-                "tenant-backup-job-schedule-{}",
+                "holding-backup-job-schedule-{}",
                 request.idempotency_key
             )),
             Utc::now(),
@@ -5265,9 +5275,9 @@ impl TenantProvisioner {
         )
         .await?;
         transaction.commit().await?;
-        Ok(TenantBackupJobReceipt {
+        Ok(HoldingBackupJobReceipt {
             id,
-            tenant_id: request.tenant_id,
+            holding_id: request.holding_id,
             kind: request.kind,
             state: "pending".into(),
             available_at: request.available_at,
@@ -5278,32 +5288,32 @@ impl TenantProvisioner {
 
     pub async fn list_backup_jobs(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         page_size: u32,
-    ) -> Result<Vec<TenantBackupJobSummary>, PersistenceError> {
-        validate_ref(tenant_id, "tenant_id")?;
-        if page_size == 0 || page_size > MAX_TENANT_BACKUP_JOB_PAGE_SIZE {
+    ) -> Result<Vec<HoldingBackupJobSummary>, PersistenceError> {
+        validate_ref(holding_id, "holding_id")?;
+        if page_size == 0 || page_size > MAX_HOLDING_BACKUP_JOB_PAGE_SIZE {
             return Err(PersistenceError::InvalidData(
                 "backup job page size is outside its bound".into(),
             ));
         }
         let rows = sqlx::query(
-            "SELECT id, tenant_id, kind, state, available_at, attempts, max_attempts,
+            "SELECT id, holding_id, kind, state, available_at, attempts, max_attempts,
                     verified, error_present, created_at, updated_at
-             FROM erpx_control.tenant_backup_jobs
-             WHERE tenant_id = $1
+             FROM erpx_control.holding_backup_jobs
+             WHERE holding_id = $1
              ORDER BY created_at DESC, id DESC
              LIMIT $2",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(i64::from(page_size))
         .fetch_all(&self.control.pools().read)
         .await?;
         rows.into_iter()
             .map(|row| {
-                Ok(TenantBackupJobSummary {
+                Ok(HoldingBackupJobSummary {
                     id: row.try_get("id")?,
-                    tenant_id: row.try_get("tenant_id")?,
+                    holding_id: row.try_get("holding_id")?,
                     kind: row.try_get("kind")?,
                     state: row.try_get("state")?,
                     available_at: row.try_get("available_at")?,
@@ -5322,29 +5332,29 @@ impl TenantProvisioner {
             .collect()
     }
 
-    /// Re-check the tenant/holding binding at the trusted worker boundary.
+    /// Re-check the holding/holding binding at the trusted worker boundary.
     /// Claim SQL applies the same predicate, but execution must not rely on a
     /// caller-provided holding reference if the registry changes between the
     /// claim and the external backup operation.
     pub async fn validate_active_backup_job_binding(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
     ) -> Result<(), PersistenceError> {
-        validate_ref(tenant_id, "tenant_id")?;
-        validate_ref(holding_ref, "holding_ref")?;
+        validate_ref(holding_id, "holding_id")?;
+        validate_ref(data_profile_key, "data_profile_key")?;
         let bound: Option<bool> = sqlx::query_scalar(
             "SELECT TRUE
-             FROM erpx_control.tenant_registry
-             WHERE tenant_id = $1 AND holding_ref = $2 AND state = 'active'",
+             FROM erpx_control.holding_registry
+             WHERE holding_id = $1 AND data_profile_key = $2 AND state = 'active'",
         )
-        .bind(tenant_id)
-        .bind(holding_ref)
+        .bind(holding_id)
+        .bind(data_profile_key)
         .fetch_optional(&self.control.pools().write)
         .await?;
         if bound != Some(true) {
             return Err(PersistenceError::InvalidData(
-                "backup job tenant and holding binding is no longer active".into(),
+                "backup job holding and holding binding is no longer active".into(),
             ));
         }
         Ok(())
@@ -5358,7 +5368,7 @@ impl TenantProvisioner {
         &self,
         page_size: u32,
     ) -> Result<u32, PersistenceError> {
-        if page_size == 0 || page_size > MAX_TENANT_BACKUP_JOB_PROJECTION_BATCH_SIZE {
+        if page_size == 0 || page_size > MAX_HOLDING_BACKUP_JOB_PROJECTION_BATCH_SIZE {
             return Err(PersistenceError::InvalidData(
                 "backup projection page size is outside its bound".into(),
             ));
@@ -5387,10 +5397,10 @@ impl TenantProvisioner {
     ) -> Result<(u32, Option<(DateTime<Utc>, Uuid)>), PersistenceError> {
         let rows = if let Some((updated_at, id)) = after {
             sqlx::query(
-                "SELECT id, tenant_id, kind, state, available_at, attempts, max_attempts,
+                "SELECT id, holding_id, kind, state, available_at, attempts, max_attempts,
                         verified, (last_error IS NOT NULL) AS error_present,
                         created_at, updated_at
-                 FROM erpx_control.tenant_backup_jobs
+                 FROM erpx_control.holding_backup_jobs
                  WHERE (updated_at, id) > ($1, $2)
                  ORDER BY updated_at, id
                  LIMIT $3",
@@ -5402,10 +5412,10 @@ impl TenantProvisioner {
             .await?
         } else {
             sqlx::query(
-                "SELECT id, tenant_id, kind, state, available_at, attempts, max_attempts,
+                "SELECT id, holding_id, kind, state, available_at, attempts, max_attempts,
                         verified, (last_error IS NOT NULL) AS error_present,
                         created_at, updated_at
-                 FROM erpx_control.tenant_backup_jobs
+                 FROM erpx_control.holding_backup_jobs
                  ORDER BY updated_at, id
                  LIMIT $1",
             )
@@ -5416,19 +5426,19 @@ impl TenantProvisioner {
         let mut transaction = self.control.pools().read.begin().await?;
         for row in &rows {
             sqlx::query(
-                "INSERT INTO erpx_control.tenant_backup_jobs
-                    (id, tenant_id, kind, state, available_at, attempts, max_attempts,
+                "INSERT INTO erpx_control.holding_backup_jobs
+                    (id, holding_id, kind, state, available_at, attempts, max_attempts,
                      verified, error_present, created_at, updated_at)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                  ON CONFLICT (id) DO UPDATE SET
-                    tenant_id = EXCLUDED.tenant_id, kind = EXCLUDED.kind,
+                    holding_id = EXCLUDED.holding_id, kind = EXCLUDED.kind,
                     state = EXCLUDED.state, available_at = EXCLUDED.available_at,
                     attempts = EXCLUDED.attempts, max_attempts = EXCLUDED.max_attempts,
                     verified = EXCLUDED.verified, error_present = EXCLUDED.error_present,
                     created_at = EXCLUDED.created_at, updated_at = EXCLUDED.updated_at",
             )
             .bind(row.try_get::<Uuid, _>("id")?)
-            .bind(row.try_get::<String, _>("tenant_id")?)
+            .bind(row.try_get::<String, _>("holding_id")?)
             .bind(row.try_get::<String, _>("kind")?)
             .bind(row.try_get::<String, _>("state")?)
             .bind(row.try_get::<DateTime<Utc>, _>("available_at")?)
@@ -5451,23 +5461,23 @@ impl TenantProvisioner {
         Ok((u32::try_from(rows.len()).unwrap_or(u32::MAX), next))
     }
 
-    /// Build a replacement target from the current, server-side tenant
+    /// Build a replacement target from the current, server-side holding
     /// registry. The registry keys are never exposed through transport; this
     /// helper is for the trusted worker boundary only.
-    pub async fn replacement_read_database_for_tenant(
+    pub async fn replacement_read_database_for_holding(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         candidate_read_database_key: &str,
-    ) -> Result<TenantReadDatabaseReplacement, PersistenceError> {
-        validate_ref(tenant_id, "tenant_id")?;
-        let registration = SqlxTenantStoreRegistry::new(self.control.clone())
-            .get(tenant_id)
+    ) -> Result<HoldingReadDatabaseReplacement, PersistenceError> {
+        validate_ref(holding_id, "holding_id")?;
+        let registration = SqlxHoldingStoreRegistry::new(self.control.clone())
+            .get(holding_id)
             .await?
             .ok_or(PersistenceError::InvalidData(
-                "tenant is not registered".into(),
+                "holding is not registered".into(),
             ))?;
-        PhysicalTenantDatabases::new(
-            &registration.tenant_id,
+        PhysicalHoldingDatabases::new(
+            &registration.holding_id,
             registration.write_database_key,
             registration.read_database_key,
         )?
@@ -5485,20 +5495,20 @@ impl TenantProvisioner {
         _now: DateTime<Utc>,
         lease: Duration,
         page_size: u32,
-    ) -> Result<Vec<TenantBackupJobClaim>, PersistenceError> {
+    ) -> Result<Vec<HoldingBackupJobClaim>, PersistenceError> {
         if worker_id.is_nil() {
             return Err(PersistenceError::InvalidData(
                 "backup worker identity is required".into(),
             ));
         }
-        if !(MIN_TENANT_BACKUP_JOB_LEASE_SECONDS..=MAX_TENANT_BACKUP_JOB_LEASE_SECONDS)
+        if !(MIN_HOLDING_BACKUP_JOB_LEASE_SECONDS..=MAX_HOLDING_BACKUP_JOB_LEASE_SECONDS)
             .contains(&lease.num_seconds())
         {
             return Err(PersistenceError::InvalidData(
                 "backup worker lease is outside its bound".into(),
             ));
         }
-        if page_size == 0 || page_size > MAX_TENANT_BACKUP_JOB_PAGE_SIZE {
+        if page_size == 0 || page_size > MAX_HOLDING_BACKUP_JOB_PAGE_SIZE {
             return Err(PersistenceError::InvalidData(
                 "backup job page size is outside its bound".into(),
             ));
@@ -5510,14 +5520,14 @@ impl TenantProvisioner {
         // the claim transaction makes this cleanup deterministic and leaves
         // no orphaned started history after a worker crash.
         sqlx::query(
-            "UPDATE erpx_control.tenant_backup_runs r
+            "UPDATE erpx_control.holding_backup_runs r
              SET status = 'failed', completed_at = clock_timestamp(),
                  verified = FALSE, error = 'backup_lease_expired'
              WHERE r.status = 'started'
                AND EXISTS (
                    SELECT 1
-                   FROM erpx_control.tenant_backup_job_runs l
-                   JOIN erpx_control.tenant_backup_jobs j ON j.id = l.job_id
+                   FROM erpx_control.holding_backup_job_runs l
+                   JOIN erpx_control.holding_backup_jobs j ON j.id = l.job_id
                    WHERE l.run_id = r.id
                      AND j.state = 'claimed'
                      AND j.lease_until IS NOT NULL
@@ -5527,7 +5537,7 @@ impl TenantProvisioner {
         .execute(&mut *transaction)
         .await?;
         sqlx::query(
-            "UPDATE erpx_control.tenant_backup_jobs
+            "UPDATE erpx_control.holding_backup_jobs
              SET state = 'dead_letter', worker_id = NULL, claim_id = NULL,
                  lease_until = NULL, verified = FALSE,
                  last_error = 'backup_lease_exhausted', updated_at = clock_timestamp()
@@ -5537,14 +5547,14 @@ impl TenantProvisioner {
         .execute(&mut *transaction)
         .await?;
         let rows = sqlx::query(
-            "SELECT j.id, j.tenant_id, j.holding_ref, j.kind, j.backup_ref,
+            "SELECT j.id, j.holding_id, j.data_profile_key, j.kind, j.backup_ref,
                     j.restore_target_ref, j.candidate_read_database_key,
                     j.source_version, j.source_projection, j.pitr_recovery_point,
                     j.available_at, j.attempts, j.max_attempts
-             FROM erpx_control.tenant_backup_jobs j
-             JOIN erpx_control.tenant_registry r ON r.tenant_id = j.tenant_id
+             FROM erpx_control.holding_backup_jobs j
+             JOIN erpx_control.holding_registry r ON r.holding_id = j.holding_id
              WHERE r.state = 'active'
-               AND r.holding_ref = j.holding_ref
+               AND r.data_profile_key = j.data_profile_key
                AND ((j.state IN ('pending', 'retryable') AND j.available_at <= clock_timestamp())
                     OR (j.state = 'claimed' AND j.lease_until IS NOT NULL
                         AND j.lease_until <= clock_timestamp()))
@@ -5560,8 +5570,8 @@ impl TenantProvisioner {
         let mut claims = Vec::with_capacity(rows.len());
         for row in rows {
             let id: Uuid = row.try_get("id")?;
-            let tenant_id: String = row.try_get("tenant_id")?;
-            let holding_ref: String = row.try_get("holding_ref")?;
+            let holding_id: String = row.try_get("holding_id")?;
+            let data_profile_key: String = row.try_get("data_profile_key")?;
             let kind: String = row.try_get("kind")?;
             let backup_ref: String = row.try_get("backup_ref")?;
             let restore_target_ref: Option<String> = row.try_get("restore_target_ref")?;
@@ -5601,7 +5611,7 @@ impl TenantProvisioner {
             })?;
             let claim_id = Uuid::new_v4();
             let affected = sqlx::query(
-                "UPDATE erpx_control.tenant_backup_jobs
+                "UPDATE erpx_control.holding_backup_jobs
                  SET state = 'claimed', attempts = $3, worker_id = $4,
                      claim_id = $5,
                      lease_until = clock_timestamp() + ($6::double precision * interval '1 second'),
@@ -5623,8 +5633,8 @@ impl TenantProvisioner {
             if affected.is_none() {
                 continue;
             }
-            validate_ref(&tenant_id, "tenant_id")?;
-            validate_ref(&holding_ref, "holding_ref")?;
+            validate_ref(&holding_id, "holding_id")?;
+            validate_ref(&data_profile_key, "data_profile_key")?;
             validate_ref(&backup_ref, "backup_ref")?;
             if kind == "restore_test" {
                 validate_ref(
@@ -5668,13 +5678,13 @@ impl TenantProvisioner {
             let run_id = Uuid::new_v4();
             let started_at = Utc::now();
             sqlx::query(
-                "INSERT INTO erpx_control.tenant_backup_runs
-                    (id, tenant_id, kind, status, backup_ref, restore_target_ref,
+                "INSERT INTO erpx_control.holding_backup_runs
+                    (id, holding_id, kind, status, backup_ref, restore_target_ref,
                      pitr_recovery_point, started_at, completed_at, verified, error)
                  VALUES ($1, $2, $3, 'started', $4, $5, $6, $7, NULL, FALSE, NULL)",
             )
             .bind(run_id)
-            .bind(&tenant_id)
+            .bind(&holding_id)
             .bind(&kind)
             .bind(&backup_ref)
             .bind(&restore_target_ref)
@@ -5683,7 +5693,7 @@ impl TenantProvisioner {
             .execute(&mut *transaction)
             .await?;
             sqlx::query(
-                "INSERT INTO erpx_control.tenant_backup_job_runs (job_id, attempt, run_id)
+                "INSERT INTO erpx_control.holding_backup_job_runs (job_id, attempt, run_id)
                  VALUES ($1, $2, $3)",
             )
             .bind(id)
@@ -5691,11 +5701,11 @@ impl TenantProvisioner {
             .bind(run_id)
             .execute(&mut *transaction)
             .await?;
-            append_tenant_backup_job_event(
+            append_holding_backup_job_event(
                 &mut transaction,
                 id,
-                &tenant_id,
-                &holding_ref,
+                &holding_id,
+                &data_profile_key,
                 &kind,
                 "claimed",
                 next_attempt,
@@ -5703,20 +5713,20 @@ impl TenantProvisioner {
                 false,
                 false,
                 available_at,
-                TENANT_BACKUP_JOB_CLAIMED_EVENT,
+                HOLDING_BACKUP_JOB_CLAIMED_EVENT,
                 None,
                 started_at,
                 None,
             )
             .await?;
-            claims.push(TenantBackupJobClaim {
+            claims.push(HoldingBackupJobClaim {
                 id,
-                tenant_id: tenant_id.clone(),
-                holding_ref,
+                holding_id: holding_id.clone(),
+                data_profile_key,
                 kind: kind.clone(),
-                run: TenantBackupRun {
+                run: HoldingBackupRun {
                     id: run_id,
-                    tenant_id,
+                    holding_id,
                     kind,
                     status: "started".into(),
                     backup_ref,
@@ -5741,11 +5751,11 @@ impl TenantProvisioner {
 
     /// Mark a claimed job complete only while its lease is still owned by the
     /// same worker. A successful backup/restore test must have already
-    /// persisted a verified `tenant_backup_runs` row through the execution
+    /// persisted a verified `holding_backup_runs` row through the execution
     /// seam before this transition is accepted.
     pub async fn complete_backup_job(
         &self,
-        claim: &TenantBackupJobClaim,
+        claim: &HoldingBackupJobClaim,
         now: DateTime<Utc>,
     ) -> Result<(), PersistenceError> {
         validate_backup_job_claim(claim)?;
@@ -5753,10 +5763,10 @@ impl TenantProvisioner {
         let pitr_recovery_point = pitr_recovery_point_json(&claim.run.pitr_recovery_point)?;
         let run_row = sqlx::query(
             "SELECT r.status, r.verified
-             FROM erpx_control.tenant_backup_job_runs link
-             JOIN erpx_control.tenant_backup_runs r ON r.id = link.run_id
+             FROM erpx_control.holding_backup_job_runs link
+             JOIN erpx_control.holding_backup_runs r ON r.id = link.run_id
              WHERE link.job_id = $1 AND link.attempt = $2 AND link.run_id = $3
-               AND r.tenant_id = $4 AND r.kind = $5 AND r.backup_ref = $6
+               AND r.holding_id = $4 AND r.kind = $5 AND r.backup_ref = $6
                AND r.restore_target_ref IS NOT DISTINCT FROM $7
                AND r.pitr_recovery_point IS NOT DISTINCT FROM $8
              FOR UPDATE OF r",
@@ -5764,7 +5774,7 @@ impl TenantProvisioner {
         .bind(claim.id)
         .bind(i32::from(claim.attempt))
         .bind(claim.run.id)
-        .bind(&claim.tenant_id)
+        .bind(&claim.holding_id)
         .bind(&claim.kind)
         .bind(&claim.run.backup_ref)
         .bind(&claim.run.restore_target_ref)
@@ -5784,18 +5794,18 @@ impl TenantProvisioner {
             ));
         }
         let row = sqlx::query(
-            "UPDATE erpx_control.tenant_backup_jobs
+            "UPDATE erpx_control.holding_backup_jobs
              SET state = 'completed', worker_id = NULL, claim_id = NULL,
                  lease_until = NULL, verified = TRUE, last_error = NULL,
                  updated_at = clock_timestamp()
-             WHERE id = $1 AND tenant_id = $2 AND holding_ref = $3
+             WHERE id = $1 AND holding_id = $2 AND data_profile_key = $3
                AND state = 'claimed' AND claim_id = $4 AND worker_id = $5
                AND lease_until > clock_timestamp()
              RETURNING available_at, attempts, max_attempts",
         )
         .bind(claim.id)
-        .bind(&claim.tenant_id)
-        .bind(&claim.holding_ref)
+        .bind(&claim.holding_id)
+        .bind(&claim.data_profile_key)
         .bind(claim.claim_id)
         .bind(claim.worker_id)
         .fetch_optional(&mut *transaction)
@@ -5807,11 +5817,11 @@ impl TenantProvisioner {
                 event_id: claim.id,
             });
         };
-        append_tenant_backup_job_event(
+        append_holding_backup_job_event(
             &mut transaction,
             claim.id,
-            &claim.tenant_id,
-            &claim.holding_ref,
+            &claim.holding_id,
+            &claim.data_profile_key,
             &claim.kind,
             "completed",
             u16::try_from(row.try_get::<i32, _>("attempts")?)
@@ -5821,7 +5831,7 @@ impl TenantProvisioner {
             true,
             false,
             row.try_get("available_at")?,
-            TENANT_BACKUP_JOB_COMPLETED_EVENT,
+            HOLDING_BACKUP_JOB_COMPLETED_EVENT,
             None,
             now,
             None,
@@ -5836,7 +5846,7 @@ impl TenantProvisioner {
     /// work and exhausted attempts become durable dead letters.
     pub async fn fail_backup_job(
         &self,
-        claim: &TenantBackupJobClaim,
+        claim: &HoldingBackupJobClaim,
         _now: DateTime<Utc>,
         error_code: &str,
         retryable: bool,
@@ -5846,15 +5856,15 @@ impl TenantProvisioner {
         let mut transaction = self.control.pools().write.begin().await?;
         let row = sqlx::query(
             "SELECT attempts, max_attempts
-             FROM erpx_control.tenant_backup_jobs
-             WHERE id = $1 AND tenant_id = $2 AND holding_ref = $3
+             FROM erpx_control.holding_backup_jobs
+             WHERE id = $1 AND holding_id = $2 AND data_profile_key = $3
                AND state = 'claimed' AND claim_id = $4 AND worker_id = $5
                AND lease_until > clock_timestamp()
              FOR UPDATE",
         )
         .bind(claim.id)
-        .bind(&claim.tenant_id)
-        .bind(&claim.holding_ref)
+        .bind(&claim.holding_id)
+        .bind(&claim.data_profile_key)
         .bind(claim.claim_id)
         .bind(claim.worker_id)
         .fetch_optional(&mut *transaction)
@@ -5882,18 +5892,18 @@ impl TenantProvisioner {
             database_now
         };
         let row = sqlx::query(
-            "UPDATE erpx_control.tenant_backup_jobs
+            "UPDATE erpx_control.holding_backup_jobs
              SET state = $6, available_at = $5, worker_id = NULL,
                  claim_id = NULL, lease_until = NULL, verified = FALSE,
                  last_error = $4, updated_at = clock_timestamp()
-             WHERE id = $1 AND tenant_id = $2 AND holding_ref = $3
+             WHERE id = $1 AND holding_id = $2 AND data_profile_key = $3
                AND state = 'claimed' AND claim_id = $7 AND worker_id = $8
                AND lease_until > clock_timestamp()
              RETURNING available_at, attempts, max_attempts, state",
         )
         .bind(claim.id)
-        .bind(&claim.tenant_id)
-        .bind(&claim.holding_ref)
+        .bind(&claim.holding_id)
+        .bind(&claim.data_profile_key)
         .bind(error_code)
         .bind(next_available_at)
         .bind(state)
@@ -5908,11 +5918,11 @@ impl TenantProvisioner {
                 event_id: claim.id,
             });
         };
-        append_tenant_backup_job_event(
+        append_holding_backup_job_event(
             &mut transaction,
             claim.id,
-            &claim.tenant_id,
-            &claim.holding_ref,
+            &claim.holding_id,
+            &claim.data_profile_key,
             &claim.kind,
             row.try_get("state")?,
             u16::try_from(row.try_get::<i32, _>("attempts")?)
@@ -5922,7 +5932,7 @@ impl TenantProvisioner {
             false,
             true,
             row.try_get("available_at")?,
-            TENANT_BACKUP_JOB_FAILED_EVENT,
+            HOLDING_BACKUP_JOB_FAILED_EVENT,
             None,
             Utc::now(),
             Some(error_code),
@@ -5934,9 +5944,9 @@ impl TenantProvisioner {
 
     pub async fn record_database_health(
         &self,
-        health: &TenantDatabaseHealth,
+        health: &HoldingDatabaseHealth,
     ) -> Result<(), PersistenceError> {
-        validate_ref(&health.tenant_id, "tenant_id")?;
+        validate_ref(&health.holding_id, "holding_id")?;
         validate_ref(&health.database_key, "database_key")?;
         validate_ref(&health.schema_version, "schema_version")?;
         validate_health_details(&health.details)?;
@@ -5948,30 +5958,30 @@ impl TenantProvisioner {
         let mut transaction = self.control.pools().write.begin().await?;
         let expected: Option<String> = sqlx::query_scalar(
             "SELECT CASE WHEN $2 = 'write' THEN write_database_key ELSE read_database_key END
-             FROM erpx_control.tenant_registry WHERE tenant_id = $1
+             FROM erpx_control.holding_registry WHERE holding_id = $1
              FOR UPDATE",
         )
-        .bind(&health.tenant_id)
+        .bind(&health.holding_id)
         .bind(health.side.as_str())
         .fetch_optional(&mut *transaction)
         .await?;
         if expected.as_deref() != Some(&health.database_key) {
             return Err(PersistenceError::InvalidData(
-                "database health key does not match the tenant registry".into(),
+                "database health key does not match the holding registry".into(),
             ));
         }
         sqlx::query(
-            "INSERT INTO erpx_control.tenant_database_health
-                (tenant_id, side, database_key, schema_version, reachable, checked_at, details)
+            "INSERT INTO erpx_control.holding_database_health
+                (holding_id, side, database_key, schema_version, reachable, checked_at, details)
              VALUES ($1, $2, $3, $4, $5, $6, $7)
-             ON CONFLICT (tenant_id, side) DO UPDATE SET
+             ON CONFLICT (holding_id, side) DO UPDATE SET
                 database_key = EXCLUDED.database_key,
                 schema_version = EXCLUDED.schema_version,
                 reachable = EXCLUDED.reachable,
                 checked_at = EXCLUDED.checked_at,
                 details = EXCLUDED.details",
         )
-        .bind(&health.tenant_id)
+        .bind(&health.holding_id)
         .bind(health.side.as_str())
         .bind(&health.database_key)
         .bind(&health.schema_version)
@@ -5986,9 +5996,9 @@ impl TenantProvisioner {
 
     pub async fn record_storage_health(
         &self,
-        health: &TenantStorageHealth,
+        health: &HoldingStorageHealth,
     ) -> Result<(), PersistenceError> {
-        validate_ref(&health.tenant_id, "tenant_id")?;
+        validate_ref(&health.holding_id, "holding_id")?;
         validate_ref(&health.storage_namespace, "storage_namespace")?;
         validate_health_details(&health.details)?;
         if health.checked_at > Utc::now() {
@@ -5998,29 +6008,29 @@ impl TenantProvisioner {
         }
         let mut transaction = self.control.pools().write.begin().await?;
         let expected: Option<String> = sqlx::query_scalar(
-            "SELECT storage_namespace FROM erpx_control.tenant_registry
-             WHERE tenant_id = $1
+            "SELECT storage_namespace FROM erpx_control.holding_registry
+             WHERE holding_id = $1
              FOR UPDATE",
         )
-        .bind(&health.tenant_id)
+        .bind(&health.holding_id)
         .fetch_optional(&mut *transaction)
         .await?;
         if expected.as_deref() != Some(&health.storage_namespace) {
             return Err(PersistenceError::InvalidData(
-                "storage health namespace does not match the tenant registry".into(),
+                "storage health namespace does not match the holding registry".into(),
             ));
         }
         sqlx::query(
-            "INSERT INTO erpx_control.tenant_storage_health
-                (tenant_id, storage_namespace, reachable, checked_at, details)
+            "INSERT INTO erpx_control.holding_storage_health
+                (holding_id, storage_namespace, reachable, checked_at, details)
              VALUES ($1, $2, $3, $4, $5)
-             ON CONFLICT (tenant_id) DO UPDATE SET
+             ON CONFLICT (holding_id) DO UPDATE SET
                 storage_namespace = EXCLUDED.storage_namespace,
                 reachable = EXCLUDED.reachable,
                 checked_at = EXCLUDED.checked_at,
                 details = EXCLUDED.details",
         )
-        .bind(&health.tenant_id)
+        .bind(&health.holding_id)
         .bind(&health.storage_namespace)
         .bind(health.reachable)
         .bind(health.checked_at)
@@ -6031,7 +6041,7 @@ impl TenantProvisioner {
         Ok(())
     }
 
-    pub async fn record_backup_run(&self, run: &TenantBackupRun) -> Result<(), PersistenceError> {
+    pub async fn record_backup_run(&self, run: &HoldingBackupRun) -> Result<(), PersistenceError> {
         validate_backup_run_shape(run)?;
         let pitr_recovery_point = pitr_recovery_point_json(&run.pitr_recovery_point)?;
         // PostgreSQL timestamptz has microsecond precision. Normalize before
@@ -6041,14 +6051,14 @@ impl TenantProvisioner {
         let completed_at = run.completed_at.map(postgres_timestamp);
         let mut transaction = self.control.pools().write.begin().await?;
         sqlx::query(
-            "INSERT INTO erpx_control.tenant_backup_runs
-                (id, tenant_id, kind, status, backup_ref, restore_target_ref,
+            "INSERT INTO erpx_control.holding_backup_runs
+                (id, holding_id, kind, status, backup_ref, restore_target_ref,
                  pitr_recovery_point, started_at, completed_at, verified, error)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
              ON CONFLICT (id) DO NOTHING",
         )
         .bind(run.id)
-        .bind(&run.tenant_id)
+        .bind(&run.holding_id)
         .bind(&run.kind)
         .bind(&run.status)
         .bind(&run.backup_ref)
@@ -6061,15 +6071,15 @@ impl TenantProvisioner {
         .execute(&mut *transaction)
         .await?;
         let stored = sqlx::query(
-            "SELECT tenant_id, kind, status, backup_ref, restore_target_ref,
+            "SELECT holding_id, kind, status, backup_ref, restore_target_ref,
                     pitr_recovery_point, started_at, completed_at, verified, error
-             FROM erpx_control.tenant_backup_runs
+             FROM erpx_control.holding_backup_runs
              WHERE id = $1",
         )
         .bind(run.id)
         .fetch_one(&mut *transaction)
         .await?;
-        let matches = stored.try_get::<String, _>("tenant_id")? == run.tenant_id
+        let matches = stored.try_get::<String, _>("holding_id")? == run.holding_id
             && stored.try_get::<String, _>("kind")? == run.kind
             && stored.try_get::<String, _>("status")? == run.status
             && stored.try_get::<String, _>("backup_ref")? == run.backup_ref
@@ -6093,7 +6103,7 @@ impl TenantProvisioner {
     /// history complete without exposing arbitrary worker error text.
     pub async fn record_failed_backup_run(
         &self,
-        run: TenantBackupRun,
+        run: HoldingBackupRun,
         error: &'static str,
     ) -> Result<(), PersistenceError> {
         if run.status != "started" {
@@ -6112,11 +6122,11 @@ impl TenantProvisioner {
     /// or database deletion itself.
     pub async fn execute_backup<E, Fut>(
         &self,
-        run: TenantBackupRun,
+        run: HoldingBackupRun,
         executor: E,
-    ) -> Result<TenantBackupRun, PersistenceError>
+    ) -> Result<HoldingBackupRun, PersistenceError>
     where
-        E: FnOnce(TenantStoreRegistration, TenantBackupRun, Option<String>, Option<u64>) -> Fut,
+        E: FnOnce(HoldingStoreRegistration, HoldingBackupRun, Option<String>, Option<u64>) -> Fut,
         Fut: Future<Output = Result<(bool, bool), PersistenceError>>,
     {
         validate_backup_run_shape(&run)?;
@@ -6133,13 +6143,13 @@ impl TenantProvisioner {
 
     /// Execute a full or PITR backup through a transport-neutral, bounded
     /// adapter. The adapter receives no credentials, URLs, SQL pools, or
-    /// mutable registry object; its request is bound to one validated tenant
+    /// mutable registry object; its request is bound to one validated holding
     /// target. Only a matching, verified result can be recorded as completed.
     pub async fn execute_backup_with_executor<E>(
         &self,
-        run: TenantBackupRun,
+        run: HoldingBackupRun,
         executor: &E,
-    ) -> Result<TenantBackupRun, PersistenceError>
+    ) -> Result<HoldingBackupRun, PersistenceError>
     where
         E: BackupExecutor + ?Sized,
     {
@@ -6160,12 +6170,12 @@ impl TenantProvisioner {
             _ => unreachable!("backup shape validation checked kind"),
         };
         let registration = self.validate_backup_registration(&run).await?;
-        let databases = PhysicalTenantDatabases::new(
-            registration.tenant_id.clone(),
+        let databases = PhysicalHoldingDatabases::new(
+            registration.holding_id.clone(),
             registration.write_database_key,
             registration.read_database_key,
         )?;
-        let target = TenantBackupTarget::for_run_in_namespace(
+        let target = HoldingBackupTarget::for_run_in_namespace(
             databases,
             &registration.storage_namespace,
             &registration.backup_chain_ref,
@@ -6176,16 +6186,16 @@ impl TenantProvisioner {
     }
 
     /// Execute a restore test through an injected adapter. The replacement
-    /// target must have been created from the same tenant's physical database
+    /// target must have been created from the same holding's physical database
     /// inventory, and a failed or expired result is persisted as failed with
     /// no projection switch attempt.
     pub async fn execute_restore_test_with_executor<E>(
         &self,
-        run: TenantBackupRun,
-        replacement: TenantReadDatabaseReplacement,
+        run: HoldingBackupRun,
+        replacement: HoldingReadDatabaseReplacement,
         source_version: u64,
         executor: &E,
-    ) -> Result<TenantBackupRun, PersistenceError>
+    ) -> Result<HoldingBackupRun, PersistenceError>
     where
         E: RestoreExecutor + ?Sized,
     {
@@ -6207,28 +6217,28 @@ impl TenantProvisioner {
                     "restore tests require a restore target reference".into(),
                 ))?;
         let registration = self.validate_backup_registration(&run).await?;
-        if replacement.tenant_id != registration.tenant_id
+        if replacement.holding_id != registration.holding_id
             || replacement.current_read_database_key != registration.read_database_key
         {
             return Err(PersistenceError::InvalidData(
-                "replacement read database is not bound to the tenant registry".into(),
+                "replacement read database is not bound to the holding registry".into(),
             ));
         }
         i64::try_from(source_version).map_err(|_| {
             PersistenceError::InvalidData("projection source version exceeds database range".into())
         })?;
-        let databases = PhysicalTenantDatabases::new(
-            registration.tenant_id.clone(),
+        let databases = PhysicalHoldingDatabases::new(
+            registration.holding_id.clone(),
             registration.write_database_key,
             registration.read_database_key,
         )?;
-        let backup_target = TenantBackupTarget::for_run_in_namespace(
+        let backup_target = HoldingBackupTarget::for_run_in_namespace(
             databases,
             &registration.storage_namespace,
             &registration.backup_chain_ref,
             &run,
         )?;
-        let target = TenantRestoreTestTarget::new(
+        let target = HoldingRestoreTestTarget::new(
             backup_target,
             restore_target_ref,
             replacement,
@@ -6240,10 +6250,10 @@ impl TenantProvisioner {
 
     async fn execute_typed_backup<E>(
         &self,
-        run: TenantBackupRun,
+        run: HoldingBackupRun,
         request: BackupExecutionRequest,
         executor: &E,
-    ) -> Result<TenantBackupRun, PersistenceError>
+    ) -> Result<HoldingBackupRun, PersistenceError>
     where
         E: BackupExecutor + ?Sized,
     {
@@ -6282,7 +6292,7 @@ impl TenantProvisioner {
         }
         let completed_at = Utc::now();
         self.complete_backup_run(run.id, completed_at, true).await?;
-        Ok(TenantBackupRun {
+        Ok(HoldingBackupRun {
             status: "completed".into(),
             completed_at: Some(completed_at),
             verified: true,
@@ -6292,10 +6302,10 @@ impl TenantProvisioner {
 
     async fn execute_typed_restore<E>(
         &self,
-        run: TenantBackupRun,
+        run: HoldingBackupRun,
         request: RestoreTestExecutionRequest,
         executor: &E,
-    ) -> Result<TenantBackupRun, PersistenceError>
+    ) -> Result<HoldingBackupRun, PersistenceError>
     where
         E: RestoreExecutor + ?Sized,
     {
@@ -6336,7 +6346,7 @@ impl TenantProvisioner {
         }
         let completed_at = Utc::now();
         self.complete_backup_run(run.id, completed_at, true).await?;
-        let completed = TenantBackupRun {
+        let completed = HoldingBackupRun {
             status: "completed".into(),
             completed_at: Some(completed_at),
             verified: true,
@@ -6345,7 +6355,7 @@ impl TenantProvisioner {
         let replacement = request.target().replacement();
         if self
             .begin_read_rebuild(
-                &completed.tenant_id,
+                &completed.holding_id,
                 replacement.candidate_read_database_key(),
                 request.target().source_version(),
             )
@@ -6360,7 +6370,7 @@ impl TenantProvisioner {
         }
         if self
             .complete_read_rebuild(
-                &completed.tenant_id,
+                &completed.holding_id,
                 replacement.candidate_read_database_key(),
             )
             .await
@@ -6368,7 +6378,7 @@ impl TenantProvisioner {
         {
             let _ = self
                 .fail_read_rebuild(
-                    &completed.tenant_id,
+                    &completed.holding_id,
                     replacement.candidate_read_database_key(),
                     "replacement read rebuild could not complete",
                 )
@@ -6380,13 +6390,13 @@ impl TenantProvisioner {
             ));
         }
         if self
-            .activate_read_database(&completed.tenant_id)
+            .activate_read_database(&completed.holding_id)
             .await
             .is_err()
         {
             let _ = self
                 .fail_read_rebuild(
-                    &completed.tenant_id,
+                    &completed.holding_id,
                     replacement.candidate_read_database_key(),
                     "replacement read activation failed",
                 )
@@ -6406,13 +6416,13 @@ impl TenantProvisioner {
     /// as failed and leaves the previous read database selected.
     pub async fn execute_restore_test_with_read_replacement<E, Fut>(
         &self,
-        run: TenantBackupRun,
+        run: HoldingBackupRun,
         candidate_read_database_key: &str,
         source_version: u64,
         executor: E,
-    ) -> Result<TenantBackupRun, PersistenceError>
+    ) -> Result<HoldingBackupRun, PersistenceError>
     where
-        E: FnOnce(TenantStoreRegistration, TenantBackupRun, Option<String>, Option<u64>) -> Fut,
+        E: FnOnce(HoldingStoreRegistration, HoldingBackupRun, Option<String>, Option<u64>) -> Fut,
         Fut: Future<Output = Result<(bool, bool), PersistenceError>>,
     {
         validate_backup_run_shape(&run)?;
@@ -6456,7 +6466,7 @@ impl TenantProvisioner {
 
         if self
             .begin_read_rebuild(
-                &completed.tenant_id,
+                &completed.holding_id,
                 candidate_read_database_key,
                 source_version,
             )
@@ -6470,12 +6480,12 @@ impl TenantProvisioner {
             ));
         }
         if self
-            .complete_read_rebuild(&completed.tenant_id, candidate_read_database_key)
+            .complete_read_rebuild(&completed.holding_id, candidate_read_database_key)
             .await
             .is_err()
         {
             self.fail_read_rebuild(
-                &completed.tenant_id,
+                &completed.holding_id,
                 candidate_read_database_key,
                 "replacement read rebuild could not complete",
             )
@@ -6487,12 +6497,12 @@ impl TenantProvisioner {
             ));
         }
         if self
-            .activate_read_database(&completed.tenant_id)
+            .activate_read_database(&completed.holding_id)
             .await
             .is_err()
         {
             self.fail_read_rebuild(
-                &completed.tenant_id,
+                &completed.holding_id,
                 candidate_read_database_key,
                 "replacement read activation failed",
             )
@@ -6513,22 +6523,22 @@ impl TenantProvisioner {
     #[allow(clippy::too_many_arguments)]
     pub async fn execute_restore_test_with_routed_read_replacement<E, Fut>(
         &self,
-        router: &TenantDatabaseRouter,
-        run: TenantBackupRun,
-        holding_ref: &str,
+        router: &HoldingDatabaseRouter,
+        run: HoldingBackupRun,
+        data_profile_key: &str,
         candidate_read_database_key: &str,
-        source_projection: TenantSourceProjection,
+        source_projection: HoldingSourceProjection,
         source_version: u64,
         executor: E,
-    ) -> Result<TenantRestoreTestActivation, PersistenceError>
+    ) -> Result<HoldingRestoreTestActivation, PersistenceError>
     where
-        E: FnOnce(TenantStoreRegistration, TenantBackupRun, Option<String>, Option<u64>) -> Fut,
+        E: FnOnce(HoldingStoreRegistration, HoldingBackupRun, Option<String>, Option<u64>) -> Fut,
         Fut: Future<Output = Result<(bool, bool), PersistenceError>>,
     {
         self.execute_restore_test_with_routed_read_replacement_for_projection(
             router,
             run,
-            holding_ref,
+            data_profile_key,
             candidate_read_database_key,
             source_projection,
             source_version,
@@ -6541,16 +6551,16 @@ impl TenantProvisioner {
     #[allow(clippy::too_many_arguments)]
     pub async fn execute_restore_test_with_routed_read_replacement_for_projection<E, Fut>(
         &self,
-        router: &TenantDatabaseRouter,
-        run: TenantBackupRun,
-        holding_ref: &str,
+        router: &HoldingDatabaseRouter,
+        run: HoldingBackupRun,
+        data_profile_key: &str,
         candidate_read_database_key: &str,
-        source_projection: TenantSourceProjection,
+        source_projection: HoldingSourceProjection,
         source_version: u64,
         executor: E,
-    ) -> Result<TenantRestoreTestActivation, PersistenceError>
+    ) -> Result<HoldingRestoreTestActivation, PersistenceError>
     where
-        E: FnOnce(TenantStoreRegistration, TenantBackupRun, Option<String>, Option<u64>) -> Fut,
+        E: FnOnce(HoldingStoreRegistration, HoldingBackupRun, Option<String>, Option<u64>) -> Fut,
         Fut: Future<Output = Result<(bool, bool), PersistenceError>>,
     {
         validate_backup_run_shape(&run)?;
@@ -6564,7 +6574,7 @@ impl TenantProvisioner {
                 "backup execution must begin with started status".into(),
             ));
         }
-        validate_ref(holding_ref, "holding_ref")?;
+        validate_ref(data_profile_key, "data_profile_key")?;
         validate_database_key(candidate_read_database_key, "candidate_read_database_key")?;
         if source_version == 0 {
             return Err(PersistenceError::InvalidData(
@@ -6581,9 +6591,9 @@ impl TenantProvisioner {
         }
 
         let registration = self.validate_backup_registration(&run).await?;
-        if registration.holding_ref != holding_ref {
+        if registration.data_profile_key != data_profile_key {
             return Err(PersistenceError::InvalidData(
-                "restore route holding scope does not match the tenant registry".into(),
+                "restore route holding scope does not match the holding registry".into(),
             ));
         }
         if registration.write_database_key == candidate_read_database_key
@@ -6606,7 +6616,11 @@ impl TenantProvisioner {
             .await?;
 
         let write_route = match router
-            .route(&completed.tenant_id, holding_ref, RoutedDatabaseSide::Write)
+            .route(
+                &completed.holding_id,
+                data_profile_key,
+                RoutedDatabaseSide::Write,
+            )
             .await
         {
             Ok(route) => route,
@@ -6625,7 +6639,7 @@ impl TenantProvisioner {
             }
         };
         let observed_source_version = match source_lock
-            .source_event_high_watermark(source_projection, holding_ref)
+            .source_event_high_watermark(source_projection, data_profile_key)
             .await
         {
             Ok(version) => version,
@@ -6651,7 +6665,7 @@ impl TenantProvisioner {
 
         let generation = match self
             .begin_read_rebuild_with_generation(
-                &completed.tenant_id,
+                &completed.holding_id,
                 candidate_read_database_key,
                 source_version,
             )
@@ -6670,8 +6684,8 @@ impl TenantProvisioner {
 
         let candidate_route = match router
             .route_replacement_read_for_generation(
-                &completed.tenant_id,
-                holding_ref,
+                &completed.holding_id,
+                data_profile_key,
                 candidate_read_database_key,
                 generation,
                 source_version,
@@ -6682,7 +6696,7 @@ impl TenantProvisioner {
             Err(error) => {
                 if let Err(failure_error) = self
                     .fail_read_rebuild_if_generation(
-                        &completed.tenant_id,
+                        &completed.holding_id,
                         candidate_read_database_key,
                         generation,
                         "replacement read route verification failed",
@@ -6705,14 +6719,14 @@ impl TenantProvisioner {
         candidate_route.close().await;
 
         let final_source_version = match source_lock
-            .source_event_high_watermark(source_projection, holding_ref)
+            .source_event_high_watermark(source_projection, data_profile_key)
             .await
         {
             Ok(version) => version,
             Err(error) => {
                 if let Err(failure_error) = self
                     .fail_read_rebuild_if_generation(
-                        &completed.tenant_id,
+                        &completed.holding_id,
                         candidate_read_database_key,
                         generation,
                         "restore source watermark failed",
@@ -6735,7 +6749,7 @@ impl TenantProvisioner {
         if final_source_version != source_version {
             if let Err(failure_error) = self
                 .fail_read_rebuild_if_generation(
-                    &completed.tenant_id,
+                    &completed.holding_id,
                     candidate_read_database_key,
                     generation,
                     "restore source watermark is stale",
@@ -6759,7 +6773,7 @@ impl TenantProvisioner {
 
         if let Err(error) = self
             .complete_read_rebuild_if_generation(
-                &completed.tenant_id,
+                &completed.holding_id,
                 candidate_read_database_key,
                 generation,
             )
@@ -6767,7 +6781,7 @@ impl TenantProvisioner {
         {
             if let Err(failure_error) = self
                 .fail_read_rebuild_if_generation(
-                    &completed.tenant_id,
+                    &completed.holding_id,
                     candidate_read_database_key,
                     generation,
                     "replacement read rebuild could not complete",
@@ -6788,7 +6802,7 @@ impl TenantProvisioner {
         }
         if let Err(error) = self
             .activate_read_database_if_generation(
-                &completed.tenant_id,
+                &completed.holding_id,
                 candidate_read_database_key,
                 generation,
             )
@@ -6796,7 +6810,7 @@ impl TenantProvisioner {
         {
             if let Err(failure_error) = self
                 .fail_read_rebuild_if_generation(
-                    &completed.tenant_id,
+                    &completed.holding_id,
                     candidate_read_database_key,
                     generation,
                     "replacement read activation failed",
@@ -6817,7 +6831,7 @@ impl TenantProvisioner {
         }
         source_lock.commit().await?;
 
-        Ok(TenantRestoreTestActivation {
+        Ok(HoldingRestoreTestActivation {
             run: completed,
             candidate_read_database_key: candidate_read_database_key.into(),
             generation,
@@ -6831,14 +6845,14 @@ impl TenantProvisioner {
     #[allow(clippy::too_many_arguments)]
     pub async fn execute_restore_test_with_routed_read_replacement_executor<E>(
         &self,
-        router: &TenantDatabaseRouter,
-        run: TenantBackupRun,
-        holding_ref: &str,
+        router: &HoldingDatabaseRouter,
+        run: HoldingBackupRun,
+        data_profile_key: &str,
         candidate_read_database_key: &str,
-        source_projection: TenantSourceProjection,
+        source_projection: HoldingSourceProjection,
         source_version: u64,
         executor: &E,
-    ) -> Result<TenantRestoreTestActivation, PersistenceError>
+    ) -> Result<HoldingRestoreTestActivation, PersistenceError>
     where
         E: RestoreExecutor + ?Sized,
     {
@@ -6846,7 +6860,7 @@ impl TenantProvisioner {
         self.execute_restore_test_with_routed_read_replacement_for_projection(
             router,
             run,
-            holding_ref,
+            data_profile_key,
             candidate_read_database_key,
             source_projection,
             source_version,
@@ -6863,19 +6877,19 @@ impl TenantProvisioner {
                 let source_version = version.ok_or(PersistenceError::InvalidData(
                     "restore source version is required".into(),
                 ))?;
-                let databases = PhysicalTenantDatabases::new(
-                    registration.tenant_id.clone(),
+                let databases = PhysicalHoldingDatabases::new(
+                    registration.holding_id.clone(),
                     registration.write_database_key,
                     registration.read_database_key,
                 )?;
-                let backup_target = TenantBackupTarget::for_run_in_namespace(
+                let backup_target = HoldingBackupTarget::for_run_in_namespace(
                     databases.clone(),
                     &registration.storage_namespace,
                     &registration.backup_chain_ref,
                     &run,
                 )?;
                 let replacement = databases.replacement_read_database(&candidate)?;
-                let target = TenantRestoreTestTarget::new(
+                let target = HoldingRestoreTestTarget::new(
                     backup_target,
                     restore_target_ref,
                     replacement,
@@ -6898,15 +6912,15 @@ impl TenantProvisioner {
 
     async fn execute_backup_internal<E, Fut>(
         &self,
-        run: TenantBackupRun,
-        registration: TenantStoreRegistration,
+        run: HoldingBackupRun,
+        registration: HoldingStoreRegistration,
         executor: E,
         candidate_read_database_key: Option<String>,
         source_version: Option<u64>,
         require_replacement_verification: bool,
-    ) -> Result<(TenantBackupRun, (bool, bool)), PersistenceError>
+    ) -> Result<(HoldingBackupRun, (bool, bool)), PersistenceError>
     where
-        E: FnOnce(TenantStoreRegistration, TenantBackupRun, Option<String>, Option<u64>) -> Fut,
+        E: FnOnce(HoldingStoreRegistration, HoldingBackupRun, Option<String>, Option<u64>) -> Fut,
         Fut: Future<Output = Result<(bool, bool), PersistenceError>>,
     {
         self.record_backup_run(&run).await?;
@@ -6955,7 +6969,7 @@ impl TenantProvisioner {
                 self.complete_backup_run(run.id, completed_at, verified)
                     .await?;
                 Ok((
-                    TenantBackupRun {
+                    HoldingBackupRun {
                         status: "completed".into(),
                         completed_at: Some(completed_at),
                         verified,
@@ -6976,23 +6990,23 @@ impl TenantProvisioner {
 
     async fn validate_backup_registration(
         &self,
-        run: &TenantBackupRun,
-    ) -> Result<TenantStoreRegistration, PersistenceError> {
-        let registration = SqlxTenantStoreRegistry::new(self.control.clone())
-            .get(&run.tenant_id)
+        run: &HoldingBackupRun,
+    ) -> Result<HoldingStoreRegistration, PersistenceError> {
+        let registration = SqlxHoldingStoreRegistry::new(self.control.clone())
+            .get(&run.holding_id)
             .await?
             .ok_or(PersistenceError::InvalidData(
-                "tenant is not registered".into(),
+                "holding is not registered".into(),
             ))?;
         if !matches!(registration.state.as_str(), "active" | "recovery") {
             return Err(PersistenceError::InvalidData(
-                "tenant is not in a backup-capable registry state".into(),
+                "holding is not in a backup-capable registry state".into(),
             ));
         }
         let provisioning_state: Option<String> = sqlx::query_scalar(
-            "SELECT state FROM erpx_control.tenant_provisioning WHERE tenant_id = $1",
+            "SELECT state FROM erpx_control.holding_provisioning WHERE holding_id = $1",
         )
-        .bind(&run.tenant_id)
+        .bind(&run.holding_id)
         .fetch_optional(&self.control.pools().write)
         .await?;
         if !matches!(
@@ -7000,7 +7014,7 @@ impl TenantProvisioner {
             Some("active") | Some("recovery")
         ) {
             return Err(PersistenceError::InvalidData(
-                "tenant is not in a backup-capable provisioning state".into(),
+                "holding is not in a backup-capable provisioning state".into(),
             ));
         }
         validate_database_key(&registration.write_database_key, "write_database_key")?;
@@ -7016,7 +7030,7 @@ impl TenantProvisioner {
         verified: bool,
     ) -> Result<(), PersistenceError> {
         let result = sqlx::query(
-            "UPDATE erpx_control.tenant_backup_runs
+            "UPDATE erpx_control.holding_backup_runs
              SET status = 'completed', completed_at = $2, verified = $3, error = NULL
              WHERE id = $1 AND status = 'started'",
         )
@@ -7040,7 +7054,7 @@ impl TenantProvisioner {
     ) -> Result<(), PersistenceError> {
         let completed_at = Utc::now();
         let result = sqlx::query(
-            "UPDATE erpx_control.tenant_backup_runs
+            "UPDATE erpx_control.holding_backup_runs
              SET status = 'failed', completed_at = $2, verified = FALSE, error = $3
              WHERE id = $1 AND status IN ('started', 'completed')",
         )
@@ -7057,30 +7071,30 @@ impl TenantProvisioner {
         Ok(())
     }
 
-    pub async fn transition_tenant_state(
+    pub async fn transition_holding_state(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         target: ProvisioningState,
-    ) -> Result<TenantStoreRegistration, PersistenceError> {
-        validate_ref(tenant_id, "tenant_id")?;
+    ) -> Result<HoldingStoreRegistration, PersistenceError> {
+        validate_ref(holding_id, "holding_id")?;
         let mut tx = self.control.pools().write.begin().await?;
         let row = sqlx::query(
-            "SELECT r.holding_ref, r.write_database_key, r.read_database_key,
+            "SELECT r.data_profile_key, r.write_database_key, r.read_database_key,
                     r.storage_namespace, r.credential_key_ref, r.backup_chain_ref,
                     r.state AS registry_state, r.registry_version,
                     p.state AS provisioning_state
-             FROM erpx_control.tenant_registry r
-             JOIN erpx_control.tenant_provisioning p ON p.tenant_id = r.tenant_id
-             WHERE r.tenant_id = $1
+             FROM erpx_control.holding_registry r
+             JOIN erpx_control.holding_provisioning p ON p.holding_id = r.holding_id
+             WHERE r.holding_id = $1
              FOR UPDATE OF r, p",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .fetch_optional(&mut *tx)
         .await?;
         let Some(row) = row else {
             let _ = tx.rollback().await;
             return Err(PersistenceError::InvalidData(
-                "tenant is not registered".into(),
+                "holding is not registered".into(),
             ));
         };
         let registry_state: String = row.try_get("registry_state")?;
@@ -7088,7 +7102,7 @@ impl TenantProvisioner {
         if registry_state != provisioning_state {
             let _ = tx.rollback().await;
             return Err(PersistenceError::InvalidData(
-                "tenant lifecycle state is inconsistent".into(),
+                "holding lifecycle state is inconsistent".into(),
             ));
         }
         let target_state = target.as_str();
@@ -7096,7 +7110,7 @@ impl TenantProvisioner {
         if !allowed {
             let _ = tx.rollback().await;
             return Err(PersistenceError::InvalidData(
-                "tenant lifecycle transition is not allowed".into(),
+                "holding lifecycle transition is not allowed".into(),
             ));
         }
         if target == ProvisioningState::Active {
@@ -7106,23 +7120,23 @@ impl TenantProvisioner {
             // future) is not evidence that the dependency is healthy now.
             let ready = sqlx::query_scalar::<_, bool>(
                 "SELECT (
-                    EXISTS (SELECT 1 FROM erpx_control.tenant_database_health
-                            WHERE tenant_id = $1 AND side = 'write'
+                    EXISTS (SELECT 1 FROM erpx_control.holding_database_health
+                            WHERE holding_id = $1 AND side = 'write'
                               AND database_key = $2 AND reachable
                               AND checked_at >= now() - interval '5 minutes'
                               AND checked_at <= now())
-                    AND EXISTS (SELECT 1 FROM erpx_control.tenant_database_health
-                            WHERE tenant_id = $1 AND side = 'read'
+                    AND EXISTS (SELECT 1 FROM erpx_control.holding_database_health
+                            WHERE holding_id = $1 AND side = 'read'
                               AND database_key = $3 AND reachable
                               AND checked_at >= now() - interval '5 minutes'
                               AND checked_at <= now())
-                    AND EXISTS (SELECT 1 FROM erpx_control.tenant_storage_health
-                            WHERE tenant_id = $1 AND storage_namespace = $4 AND reachable
+                    AND EXISTS (SELECT 1 FROM erpx_control.holding_storage_health
+                            WHERE holding_id = $1 AND storage_namespace = $4 AND reachable
                               AND checked_at >= now() - interval '5 minutes'
                               AND checked_at <= now())
                  )",
             )
-            .bind(tenant_id)
+            .bind(holding_id)
             .bind(row.try_get::<String, _>("write_database_key")?)
             .bind(row.try_get::<String, _>("read_database_key")?)
             .bind(row.try_get::<String, _>("storage_namespace")?)
@@ -7131,29 +7145,29 @@ impl TenantProvisioner {
             if !ready {
                 let _ = tx.rollback().await;
                 return Err(PersistenceError::InvalidData(
-                    "tenant write/read databases and storage must be healthy before activation"
+                    "holding write/read databases and storage must be healthy before activation"
                         .into(),
                 ));
             }
         }
         sqlx::query(
-            "UPDATE erpx_control.tenant_provisioning
+            "UPDATE erpx_control.holding_provisioning
              SET state = $2, version = version + 1,
                  last_error = CASE WHEN $2 = 'active' THEN NULL ELSE last_error END,
                  updated_at = now()
-             WHERE tenant_id = $1 AND state = $3",
+             WHERE holding_id = $1 AND state = $3",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(target_state)
         .bind(&registry_state)
         .execute(&mut *tx)
         .await?;
         let result = sqlx::query(
-            "UPDATE erpx_control.tenant_registry
+            "UPDATE erpx_control.holding_registry
              SET state = $2, registry_version = registry_version + 1, updated_at = now()
-             WHERE tenant_id = $1 AND state = $3",
+             WHERE holding_id = $1 AND state = $3",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(target_state)
         .bind(&registry_state)
         .execute(&mut *tx)
@@ -7161,12 +7175,12 @@ impl TenantProvisioner {
         if result.rows_affected() != 1 {
             let _ = tx.rollback().await;
             return Err(PersistenceError::InvalidData(
-                "tenant lifecycle transition lost its registry claim".into(),
+                "holding lifecycle transition lost its registry claim".into(),
             ));
         }
-        let registration = TenantStoreRegistration {
-            tenant_id: tenant_id.into(),
-            holding_ref: row.try_get("holding_ref")?,
+        let registration = HoldingStoreRegistration {
+            holding_id: holding_id.into(),
+            data_profile_key: row.try_get("data_profile_key")?,
             write_database_key: row.try_get("write_database_key")?,
             read_database_key: row.try_get("read_database_key")?,
             storage_namespace: row.try_get("storage_namespace")?,
@@ -7175,47 +7189,47 @@ impl TenantProvisioner {
             state: target_state.into(),
             registry_version: u64::try_from(row.try_get::<i64, _>("registry_version")?)
                 .map_err(|_| {
-                    PersistenceError::InvalidData("tenant registry version is invalid".into())
+                    PersistenceError::InvalidData("holding registry version is invalid".into())
                 })?
                 .checked_add(1)
                 .ok_or(PersistenceError::InvalidData(
-                    "tenant registry version exceeded its bound".into(),
+                    "holding registry version exceeded its bound".into(),
                 ))?,
         };
         tx.commit().await?;
         Ok(registration)
     }
 
-    pub async fn activate(&self, tenant_id: &str) -> Result<(), PersistenceError> {
-        self.transition_tenant_state(tenant_id, ProvisioningState::Active)
+    pub async fn activate(&self, holding_id: &str) -> Result<(), PersistenceError> {
+        self.transition_holding_state(holding_id, ProvisioningState::Active)
             .await
             .map(|_| ())
     }
 
     pub async fn suspend(
         &self,
-        tenant_id: &str,
-    ) -> Result<TenantStoreRegistration, PersistenceError> {
-        self.transition_tenant_state(tenant_id, ProvisioningState::Suspended)
+        holding_id: &str,
+    ) -> Result<HoldingStoreRegistration, PersistenceError> {
+        self.transition_holding_state(holding_id, ProvisioningState::Suspended)
             .await
     }
 
     pub async fn enter_recovery(
         &self,
-        tenant_id: &str,
-    ) -> Result<TenantStoreRegistration, PersistenceError> {
-        self.transition_tenant_state(tenant_id, ProvisioningState::Recovery)
+        holding_id: &str,
+    ) -> Result<HoldingStoreRegistration, PersistenceError> {
+        self.transition_holding_state(holding_id, ProvisioningState::Recovery)
             .await
     }
 
     pub async fn begin_read_rebuild(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         candidate_read_database_key: &str,
         source_version: u64,
     ) -> Result<(), PersistenceError> {
         self.begin_read_rebuild_with_generation(
-            tenant_id,
+            holding_id,
             candidate_read_database_key,
             source_version,
         )
@@ -7228,11 +7242,11 @@ impl TenantProvisioner {
     /// completing, failing, or activating the candidate.
     pub async fn begin_read_rebuild_with_generation(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         candidate_read_database_key: &str,
         source_version: u64,
     ) -> Result<u64, PersistenceError> {
-        validate_ref(tenant_id, "tenant_id")?;
+        validate_ref(holding_id, "holding_id")?;
         validate_database_key(candidate_read_database_key, "candidate_read_database_key")?;
         if source_version == 0 {
             return Err(PersistenceError::InvalidData(
@@ -7246,17 +7260,17 @@ impl TenantProvisioner {
             .await?;
         let (state, write_database, current): (String, String, String) = sqlx::query_as(
             "SELECT state, write_database_key, read_database_key
-             FROM erpx_control.tenant_registry WHERE tenant_id = $1 FOR UPDATE",
+             FROM erpx_control.holding_registry WHERE holding_id = $1 FOR UPDATE",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(PersistenceError::InvalidData(
-            "tenant is not registered".into(),
+            "holding is not registered".into(),
         ))?;
         if state != "active" {
             return Err(PersistenceError::InvalidData(
-                "replacement read rebuild requires an active tenant".into(),
+                "replacement read rebuild requires an active holding".into(),
             ));
         }
         if write_database == candidate_read_database_key || current == candidate_read_database_key {
@@ -7266,37 +7280,37 @@ impl TenantProvisioner {
         }
         let candidate_owned: bool = sqlx::query_scalar(
             "SELECT EXISTS (
-                 SELECT 1 FROM erpx_control.tenant_registry
-                 WHERE tenant_id <> $1
+                 SELECT 1 FROM erpx_control.holding_registry
+                 WHERE holding_id <> $1
                    AND (write_database_key = $2 OR read_database_key = $2)
              ) OR EXISTS (
-                 SELECT 1 FROM erpx_control.tenant_projection_switches
-                 WHERE tenant_id <> $1 AND candidate_read_database_key = $2
+                 SELECT 1 FROM erpx_control.holding_projection_switches
+                 WHERE holding_id <> $1 AND candidate_read_database_key = $2
              )",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(candidate_read_database_key)
         .fetch_one(&mut *tx)
         .await?;
         if candidate_owned {
             return Err(PersistenceError::Configuration(
-                "replacement read database is already owned by another tenant",
+                "replacement read database is already owned by another holding",
             ));
         }
         let version: i64 = sqlx::query_scalar(
-            "INSERT INTO erpx_control.tenant_projection_switches
-                (tenant_id, current_read_database_key, candidate_read_database_key,
+            "INSERT INTO erpx_control.holding_projection_switches
+                (holding_id, current_read_database_key, candidate_read_database_key,
                  state, source_version, version)
              VALUES ($1, $2, $3, 'rebuilding', $4, 1)
-             ON CONFLICT (tenant_id) DO UPDATE SET
+             ON CONFLICT (holding_id) DO UPDATE SET
                 candidate_read_database_key = EXCLUDED.candidate_read_database_key,
                 state = 'rebuilding', source_version = EXCLUDED.source_version,
-                version = erpx_control.tenant_projection_switches.version + 1,
+                version = erpx_control.holding_projection_switches.version + 1,
                 last_error = NULL, updated_at = now()
-             WHERE erpx_control.tenant_projection_switches.state IN ('ready', 'activated', 'failed')
+             WHERE erpx_control.holding_projection_switches.state IN ('ready', 'activated', 'failed')
              RETURNING version",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(current)
         .bind(candidate_read_database_key)
         .bind(i64::try_from(source_version).map_err(|_| {
@@ -7315,18 +7329,18 @@ impl TenantProvisioner {
 
     pub async fn complete_read_rebuild(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         candidate_read_database_key: &str,
     ) -> Result<(), PersistenceError> {
-        validate_ref(tenant_id, "tenant_id")?;
+        validate_ref(holding_id, "holding_id")?;
         validate_database_key(candidate_read_database_key, "candidate_read_database_key")?;
         let version: i64 = sqlx::query_scalar(
             "SELECT version
-             FROM erpx_control.tenant_projection_switches
-             WHERE tenant_id = $1 AND candidate_read_database_key = $2
+             FROM erpx_control.holding_projection_switches
+             WHERE holding_id = $1 AND candidate_read_database_key = $2
                AND state = 'rebuilding'",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(candidate_read_database_key)
         .fetch_optional(&self.control.pools().write)
         .await?
@@ -7334,7 +7348,7 @@ impl TenantProvisioner {
             "read rebuild is not active for this candidate".into(),
         ))?;
         self.complete_read_rebuild_if_generation(
-            tenant_id,
+            holding_id,
             candidate_read_database_key,
             u64::try_from(version).map_err(|_| {
                 PersistenceError::InvalidData("projection switch generation is invalid".into())
@@ -7345,22 +7359,22 @@ impl TenantProvisioner {
 
     pub async fn complete_read_rebuild_if_generation(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         candidate_read_database_key: &str,
         generation: u64,
     ) -> Result<(), PersistenceError> {
-        validate_ref(tenant_id, "tenant_id")?;
+        validate_ref(holding_id, "holding_id")?;
         validate_database_key(candidate_read_database_key, "candidate_read_database_key")?;
         let generation = i64::try_from(generation).map_err(|_| {
             PersistenceError::InvalidData("projection switch generation is invalid".into())
         })?;
         let result = sqlx::query(
-            "UPDATE erpx_control.tenant_projection_switches
+            "UPDATE erpx_control.holding_projection_switches
              SET state = 'ready', updated_at = now()
-             WHERE tenant_id = $1 AND candidate_read_database_key = $2
+             WHERE holding_id = $1 AND candidate_read_database_key = $2
                AND state = 'rebuilding' AND version = $3",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(candidate_read_database_key)
         .bind(generation)
         .execute(&self.control.pools().write)
@@ -7375,19 +7389,19 @@ impl TenantProvisioner {
 
     pub async fn fail_read_rebuild(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         candidate_read_database_key: &str,
         error: &'static str,
     ) -> Result<(), PersistenceError> {
-        validate_ref(tenant_id, "tenant_id")?;
+        validate_ref(holding_id, "holding_id")?;
         validate_database_key(candidate_read_database_key, "candidate_read_database_key")?;
         let version: i64 = sqlx::query_scalar(
             "SELECT version
-             FROM erpx_control.tenant_projection_switches
-             WHERE tenant_id = $1 AND candidate_read_database_key = $2
+             FROM erpx_control.holding_projection_switches
+             WHERE holding_id = $1 AND candidate_read_database_key = $2
                AND state IN ('rebuilding', 'ready')",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(candidate_read_database_key)
         .fetch_optional(&self.control.pools().write)
         .await?
@@ -7395,7 +7409,7 @@ impl TenantProvisioner {
             "read rebuild is not active for failure transition".into(),
         ))?;
         self.fail_read_rebuild_if_generation(
-            tenant_id,
+            holding_id,
             candidate_read_database_key,
             u64::try_from(version).map_err(|_| {
                 PersistenceError::InvalidData("projection switch generation is invalid".into())
@@ -7407,23 +7421,23 @@ impl TenantProvisioner {
 
     pub async fn fail_read_rebuild_if_generation(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         candidate_read_database_key: &str,
         generation: u64,
         error: &'static str,
     ) -> Result<(), PersistenceError> {
-        validate_ref(tenant_id, "tenant_id")?;
+        validate_ref(holding_id, "holding_id")?;
         validate_database_key(candidate_read_database_key, "candidate_read_database_key")?;
         let generation = i64::try_from(generation).map_err(|_| {
             PersistenceError::InvalidData("projection switch generation is invalid".into())
         })?;
         let result = sqlx::query(
-            "UPDATE erpx_control.tenant_projection_switches
+            "UPDATE erpx_control.holding_projection_switches
              SET state = 'failed', last_error = $3, updated_at = now()
-             WHERE tenant_id = $1 AND candidate_read_database_key = $2
+             WHERE holding_id = $1 AND candidate_read_database_key = $2
                AND state IN ('rebuilding', 'ready') AND version = $4",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(candidate_read_database_key)
         .bind(error)
         .bind(generation)
@@ -7437,13 +7451,13 @@ impl TenantProvisioner {
         Ok(())
     }
 
-    pub async fn activate_read_database(&self, tenant_id: &str) -> Result<(), PersistenceError> {
-        validate_ref(tenant_id, "tenant_id")?;
-        // This legacy metadata-only entry point has no tenant write route and
+    pub async fn activate_read_database(&self, holding_id: &str) -> Result<(), PersistenceError> {
+        validate_ref(holding_id, "holding_id")?;
+        // This legacy metadata-only entry point has no holding write route and
         // therefore cannot hold the source fence. Refuse activation instead
         // of allowing backup/recovery callers to bypass the routed scheduler.
         Err(PersistenceError::InvalidData(
-            "direct read activation requires a routed tenant source fence".into(),
+            "direct read activation requires a routed holding source fence".into(),
         ))
     }
 
@@ -7453,11 +7467,11 @@ impl TenantProvisioner {
     /// switch a newer rebuild.
     pub async fn activate_read_database_if_generation(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         candidate_read_database_key: &str,
         generation: u64,
     ) -> Result<(), PersistenceError> {
-        validate_ref(tenant_id, "tenant_id")?;
+        validate_ref(holding_id, "holding_id")?;
         validate_database_key(candidate_read_database_key, "candidate_read_database_key")?;
         let generation = i64::try_from(generation).map_err(|_| {
             PersistenceError::InvalidData("projection switch generation is invalid".into())
@@ -7465,11 +7479,11 @@ impl TenantProvisioner {
         let mut tx = self.control.pools().write.begin().await?;
         let row = sqlx::query(
             "SELECT current_read_database_key, candidate_read_database_key
-             FROM erpx_control.tenant_projection_switches
-             WHERE tenant_id = $1 AND candidate_read_database_key = $2
+             FROM erpx_control.holding_projection_switches
+             WHERE holding_id = $1 AND candidate_read_database_key = $2
                AND state = 'ready' AND version = $3 FOR UPDATE",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(candidate_read_database_key)
         .bind(generation)
         .fetch_optional(&mut *tx)
@@ -7480,11 +7494,11 @@ impl TenantProvisioner {
         let current: String = row.try_get("current_read_database_key")?;
         let candidate: String = row.try_get("candidate_read_database_key")?;
         let result = sqlx::query(
-            "UPDATE erpx_control.tenant_registry
+            "UPDATE erpx_control.holding_registry
              SET read_database_key = $2, registry_version = registry_version + 1, updated_at = now()
-             WHERE tenant_id = $1 AND state = 'active' AND read_database_key = $3",
+             WHERE holding_id = $1 AND state = 'active' AND read_database_key = $3",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(&candidate)
         .bind(&current)
         .execute(&mut *tx)
@@ -7492,21 +7506,21 @@ impl TenantProvisioner {
         if result.rows_affected() != 1 {
             let _ = tx.rollback().await;
             return Err(PersistenceError::OptimisticConcurrency {
-                aggregate_type: "tenant_projection_switch".into(),
+                aggregate_type: "holding_projection_switch".into(),
                 aggregate_id: Uuid::nil(),
                 expected: None,
                 actual: None,
             });
         }
         let result = sqlx::query(
-            "UPDATE erpx_control.tenant_projection_switches
+            "UPDATE erpx_control.holding_projection_switches
              SET current_read_database_key = candidate_read_database_key,
                  candidate_read_database_key = current_read_database_key,
                  state = 'activated', version = version + 1, activated_at = now(), updated_at = now()
-             WHERE tenant_id = $1 AND state = 'ready' AND version = $2
+             WHERE holding_id = $1 AND state = 'ready' AND version = $2
                AND candidate_read_database_key = $3",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(generation)
         .bind(candidate_read_database_key)
         .execute(&mut *tx)
@@ -7514,7 +7528,7 @@ impl TenantProvisioner {
         if result.rows_affected() != 1 {
             let _ = tx.rollback().await;
             return Err(PersistenceError::OptimisticConcurrency {
-                aggregate_type: "tenant_projection_switch".into(),
+                aggregate_type: "holding_projection_switch".into(),
                 aggregate_id: Uuid::nil(),
                 expected: Some(generation as u64),
                 actual: None,
@@ -7526,14 +7540,14 @@ impl TenantProvisioner {
 }
 
 async fn invoke_backup_executor<E, Fut>(
-    registration: TenantStoreRegistration,
-    run: TenantBackupRun,
+    registration: HoldingStoreRegistration,
+    run: HoldingBackupRun,
     candidate_read_database_key: Option<String>,
     source_version: Option<u64>,
     executor: E,
 ) -> Result<(bool, bool), PersistenceError>
 where
-    E: FnOnce(TenantStoreRegistration, TenantBackupRun, Option<String>, Option<u64>) -> Fut,
+    E: FnOnce(HoldingStoreRegistration, HoldingBackupRun, Option<String>, Option<u64>) -> Fut,
     Fut: Future<Output = Result<(bool, bool), PersistenceError>>,
 {
     executor(
@@ -7545,9 +7559,9 @@ where
     .await
 }
 
-fn validate_backup_job_request(request: &TenantBackupJobRequest) -> Result<(), PersistenceError> {
-    validate_ref(&request.tenant_id, "tenant_id")?;
-    validate_ref(&request.holding_ref, "holding_ref")?;
+fn validate_backup_job_request(request: &HoldingBackupJobRequest) -> Result<(), PersistenceError> {
+    validate_ref(&request.holding_id, "holding_id")?;
+    validate_ref(&request.data_profile_key, "data_profile_key")?;
     validate_ref(&request.backup_ref, "backup_ref")?;
     validate_ref(&request.idempotency_key, "idempotency_key")?;
     if !matches!(request.kind.as_str(), "full" | "pitr" | "restore_test") {
@@ -7563,7 +7577,7 @@ fn validate_backup_job_request(request: &TenantBackupJobRequest) -> Result<(), P
             "backup source projection is invalid".into(),
         ));
     }
-    if request.max_attempts == 0 || request.max_attempts > MAX_TENANT_BACKUP_JOB_ATTEMPTS {
+    if request.max_attempts == 0 || request.max_attempts > MAX_HOLDING_BACKUP_JOB_ATTEMPTS {
         return Err(PersistenceError::InvalidData(
             "backup job attempts are outside their bound".into(),
         ));
@@ -7648,11 +7662,11 @@ fn pitr_recovery_point_json(
 /// same control-plane transaction as the backup job mutation. Backup and
 /// restore references intentionally never cross this event boundary.
 #[allow(clippy::too_many_arguments)]
-async fn append_tenant_backup_job_event(
+async fn append_holding_backup_job_event(
     transaction: &mut Transaction<'_, Postgres>,
     job_id: Uuid,
-    tenant_id: &str,
-    holding_ref: &str,
+    holding_id: &str,
+    data_profile_key: &str,
     kind: &str,
     state: &str,
     attempts: u16,
@@ -7665,8 +7679,8 @@ async fn append_tenant_backup_job_event(
     occurred_at: DateTime<Utc>,
     error_code: Option<&str>,
 ) -> Result<Uuid, PersistenceError> {
-    validate_ref(tenant_id, "tenant_id")?;
-    validate_ref(holding_ref, "holding_ref")?;
+    validate_ref(holding_id, "holding_id")?;
+    validate_ref(data_profile_key, "data_profile_key")?;
     validate_ref(kind, "kind")?;
     validate_ref(state, "state")?;
     if event_type.is_empty()
@@ -7679,7 +7693,7 @@ async fn append_tenant_backup_job_event(
             "backup job event type is outside its bound".into(),
         ));
     }
-    if job_id.is_nil() || attempts > MAX_TENANT_BACKUP_JOB_ATTEMPTS || max_attempts == 0 {
+    if job_id.is_nil() || attempts > MAX_HOLDING_BACKUP_JOB_ATTEMPTS || max_attempts == 0 {
         return Err(PersistenceError::InvalidData(
             "backup job event bounds are invalid".into(),
         ));
@@ -7691,16 +7705,16 @@ async fn append_tenant_backup_job_event(
         validate_ref(idempotency_key, "idempotency_key")?;
     }
     let next_version: i64 = sqlx::query_scalar(
-        "UPDATE erpx_control.tenant_backup_jobs
+        "UPDATE erpx_control.holding_backup_jobs
          SET aggregate_version=aggregate_version+1
-         WHERE id=$1 AND tenant_id=$2 AND holding_ref=$3 AND kind=$4
+         WHERE id=$1 AND holding_id=$2 AND data_profile_key=$3 AND kind=$4
            AND state=$5 AND attempts=$6 AND max_attempts=$7
            AND verified=$8
          RETURNING aggregate_version",
     )
     .bind(job_id)
-    .bind(tenant_id)
-    .bind(holding_ref)
+    .bind(holding_id)
+    .bind(data_profile_key)
     .bind(kind)
     .bind(state)
     .bind(i32::from(attempts))
@@ -7715,8 +7729,8 @@ async fn append_tenant_backup_job_event(
     })?;
     let payload = json!({
         "job_id": job_id,
-        "tenant_id": tenant_id,
-        "holding_ref": holding_ref,
+        "holding_id": holding_id,
+        "data_profile_key": data_profile_key,
         "kind": kind,
         "state": state,
         "available_at": available_at,
@@ -7731,16 +7745,16 @@ async fn append_tenant_backup_job_event(
     sqlx::query(
         "INSERT INTO erpx_control.outbox_events
             (id, event_type, event_version, aggregate_type, aggregate_id,
-             aggregate_version, tenant_scope, actor, correlation_id,
+             aggregate_version, active_scope, actor, correlation_id,
              causation_id, idempotency_key, payload, occurred_at, available_at)
          VALUES ($1, $2, 1, $3, $4, $5, $6, NULL, $1, NULL, $7, $8, $9, $9)",
     )
     .bind(event_id)
     .bind(event_type)
-    .bind(TENANT_BACKUP_JOB_AGGREGATE)
+    .bind(HOLDING_BACKUP_JOB_AGGREGATE)
     .bind(job_id)
     .bind(next_version)
-    .bind(json!({"tenant_id": tenant_id, "holding_ref": holding_ref}))
+    .bind(json!({"holding_id": holding_id, "data_profile_key": data_profile_key}))
     .bind(idempotency_key)
     .bind(&payload)
     .bind(occurred_at)
@@ -7749,11 +7763,11 @@ async fn append_tenant_backup_job_event(
     Ok(event_id)
 }
 
-fn backup_job_request_hash(request: &TenantBackupJobRequest) -> String {
+fn backup_job_request_hash(request: &HoldingBackupJobRequest) -> String {
     let canonical = format!(
         "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
-        request.tenant_id,
-        request.holding_ref,
+        request.holding_id,
+        request.data_profile_key,
         request.kind,
         request.backup_ref,
         request.restore_target_ref.as_deref().unwrap_or_default(),
@@ -7786,21 +7800,21 @@ fn backup_job_request_hash(request: &TenantBackupJobRequest) -> String {
     hex::encode(Sha256::digest(canonical.as_bytes()))
 }
 
-fn validate_backup_job_claim(claim: &TenantBackupJobClaim) -> Result<(), PersistenceError> {
-    validate_ref(&claim.tenant_id, "tenant_id")?;
-    validate_ref(&claim.holding_ref, "holding_ref")?;
+fn validate_backup_job_claim(claim: &HoldingBackupJobClaim) -> Result<(), PersistenceError> {
+    validate_ref(&claim.holding_id, "holding_id")?;
+    validate_ref(&claim.data_profile_key, "data_profile_key")?;
     validate_ref(&claim.kind, "kind")?;
     if claim.id.is_nil() || claim.claim_id.is_nil() || claim.worker_id.is_nil() {
         return Err(PersistenceError::InvalidData(
             "backup job claim identifiers are required".into(),
         ));
     }
-    if claim.kind != claim.run.kind || claim.run.tenant_id != claim.tenant_id {
+    if claim.kind != claim.run.kind || claim.run.holding_id != claim.holding_id {
         return Err(PersistenceError::InvalidData(
             "backup job claim run binding is invalid".into(),
         ));
     }
-    if claim.attempt == 0 || claim.attempt > MAX_TENANT_BACKUP_JOB_ATTEMPTS {
+    if claim.attempt == 0 || claim.attempt > MAX_HOLDING_BACKUP_JOB_ATTEMPTS {
         return Err(PersistenceError::InvalidData(
             "backup job claim attempt is outside its bound".into(),
         ));
@@ -7844,13 +7858,13 @@ fn lifecycle_transition_allowed(current: &str, target: ProvisioningState) -> boo
     }
 }
 
-fn validate_backup_run_shape(run: &TenantBackupRun) -> Result<(), PersistenceError> {
+fn validate_backup_run_shape(run: &HoldingBackupRun) -> Result<(), PersistenceError> {
     if run.id.is_nil() {
         return Err(PersistenceError::InvalidData(
             "backup run ID is required".into(),
         ));
     }
-    validate_ref(&run.tenant_id, "tenant_id")?;
+    validate_ref(&run.holding_id, "holding_id")?;
     validate_ref(&run.backup_ref, "backup_ref")?;
     if run
         .completed_at
@@ -8026,7 +8040,7 @@ fn merge_database_observation(
             checked_at: live.checked_at.or(durable.checked_at),
             reason_code: live
                 .reason_code
-                .or_else(|| Some("tenant_database_probe_failed".into())),
+                .or_else(|| Some("holding_database_probe_failed".into())),
         };
     }
     if durable.state != ReadinessObservationState::Ready
@@ -8242,42 +8256,42 @@ fn contains_sensitive_health_key(value: &Value) -> bool {
     }
 }
 
-async fn initialize_tenant_organization_rows(
+async fn initialize_holding_organization_rows(
     write_pool: &sqlx::PgPool,
     _read_pool: &sqlx::PgPool,
-    tenant_id: &str,
-    holding_ref: &str,
+    holding_key: &str,
+    data_profile_key: &str,
     holding_id: Uuid,
     owner_principal_ref: &str,
     at: DateTime<Utc>,
-) -> Result<TenantOrganizationBootstrap, PersistenceError> {
-    let tenant_uuid = Uuid::parse_str(tenant_id).map_err(|_| {
+) -> Result<HoldingOrganizationBootstrap, PersistenceError> {
+    let holding_uuid = Uuid::parse_str(holding_key).map_err(|_| {
         PersistenceError::InvalidData(
-            "generation-v2 organization bootstrap requires a UUID tenant_id".into(),
+            "current organization bootstrap requires a UUID holding_id".into(),
         )
     })?;
-    if tenant_uuid.is_nil() {
+    if holding_uuid.is_nil() {
         return Err(PersistenceError::InvalidData(
-            "generation-v2 organization bootstrap requires a non-nil tenant_id".into(),
+            "current organization bootstrap requires a non-nil holding_id".into(),
         ));
     }
     let command_uuid = Uuid::new_v5(
         &Uuid::NAMESPACE_URL,
-        format!("erpx:organization-bootstrap:command:v2:{tenant_id}").as_bytes(),
+        format!("erpx:organization-bootstrap:command:{holding_id}").as_bytes(),
     );
     let correlation_uuid = Uuid::new_v5(
         &Uuid::NAMESPACE_URL,
-        format!("erpx:organization-bootstrap:correlation:v2:{tenant_id}").as_bytes(),
+        format!("erpx:organization-bootstrap:correlation:{holding_id}").as_bytes(),
     );
     let node_id = OrganizationNodeId::try_from_uuid(holding_id)
         .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
-    let scope = TenantScope::Holding { holding_id };
+    let scope = AuthorityScope::Holding { holding_id };
     let access = OrganizationBootstrapAccess {
-        worker_principal_ref: format!("erpx-bootstrap:{tenant_id}"),
+        worker_principal_ref: format!("erpx-bootstrap:{holding_id}"),
         represented_owner_ref: owner_principal_ref.to_owned(),
         scope: scope.clone(),
     };
-    let pool = WritePool::for_tenant(write_pool.clone(), tenant_uuid)
+    let pool = WritePool::for_holding(write_pool.clone(), holding_uuid)
         .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
     let receipt = OrganizationCommandHandler::new(
         OrganizationWriteRepository::new(pool.clone()),
@@ -8292,20 +8306,20 @@ async fn initialize_tenant_organization_rows(
         command_id: CommandId::try_from_uuid(command_uuid)
             .map_err(|error| PersistenceError::InvalidData(error.to_string()))?,
         idempotency_key: IdempotencyKey::try_new(format!(
-            "erpx:organization-bootstrap:v2:{tenant_id}"
+            "erpx:organization-bootstrap:{holding_id}"
         ))
         .map_err(|error| PersistenceError::InvalidData(error.to_string()))?,
         correlation_id: CorrelationId::try_from_uuid(correlation_uuid)
             .map_err(|error| PersistenceError::InvalidData(error.to_string()))?,
         causation_id: None,
         actor: KernelActorAttribution {
-            principal_ref: format!("erpx-bootstrap:{tenant_id}"),
+            principal_ref: format!("erpx-bootstrap:{holding_id}"),
             kind: KernelActorKind::SystemWorker,
             session_id: None,
             represented_principal_ref: Some(owner_principal_ref.to_owned()),
             support_capability_id: None,
         },
-        tenant_scope: scope,
+        active_scope: scope,
         audit: AuditContext {
             purpose: "organization.bootstrap".into(),
             customer_visible: true,
@@ -8315,12 +8329,14 @@ async fn initialize_tenant_organization_rows(
         command: CreateOrganizationNode {
             node_id,
             placement: OrganizationPlacement::Holding,
-            code: holding_ref.to_owned(),
-            name: holding_ref.to_owned(),
+            code: data_profile_key.to_owned(),
+            name: data_profile_key.to_owned(),
         },
     })
     .await
-    .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
+    .map_err(|error| {
+        PersistenceError::InvalidData(format!("organization bootstrap CQRS failure: {error:?}"))
+    })?;
     let event_id = receipt
         .committed_events
         .last()
@@ -8331,9 +8347,9 @@ async fn initialize_tenant_organization_rows(
             )
         })?;
 
-    Ok(TenantOrganizationBootstrap {
-        tenant_id: tenant_id.into(),
-        holding_ref: holding_ref.into(),
+    Ok(HoldingOrganizationBootstrap {
+        holding_key: holding_key.into(),
+        data_profile_key: data_profile_key.into(),
         holding_id,
         aggregate_version: receipt.aggregate.version,
         event_id,
@@ -8351,48 +8367,108 @@ async fn initialize_branch_organization_rows(
     worker_id: Uuid,
     at: DateTime<Utc>,
 ) -> Result<(), PersistenceError> {
-    let tenant_uuid = Uuid::parse_str(&route.tenant_id).map_err(|_| {
-        PersistenceError::InvalidData(
-            "generation-v2 branch bootstrap requires a UUID tenant_id".into(),
-        )
-    })?;
-    if tenant_uuid.is_nil() {
+    let holding_uuid = route.holding_id;
+    if holding_uuid.is_nil() {
         return Err(PersistenceError::InvalidData(
-            "generation-v2 branch bootstrap requires a non-nil tenant_id".into(),
+            "current branch bootstrap requires a non-nil holding_id".into(),
         ));
     }
-    let node_id = OrganizationNodeId::try_from_uuid(route.branch_id)
-        .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
-    let scope = TenantScope::Holding {
-        holding_id: route.holding_id,
-    };
-    let worker_principal_ref = format!("erpx-worker:{worker_id}");
-    let access = OrganizationBootstrapAccess {
-        worker_principal_ref: worker_principal_ref.clone(),
-        represented_owner_ref: route.requested_by.clone(),
-        scope: scope.clone(),
-    };
-    let command_uuid = Uuid::new_v5(
-        &Uuid::NAMESPACE_URL,
-        format!(
-            "erpx:branch-organization:command:v2:{}:{}",
-            route.tenant_id, route.branch_id
-        )
-        .as_bytes(),
-    );
     let correlation_uuid = if job.correlation_id.is_nil() {
         Uuid::new_v5(
             &Uuid::NAMESPACE_URL,
             format!(
-                "erpx:branch-organization:correlation:v2:{}:{}",
-                route.tenant_id, route.branch_id
+                "erpx:branch-organization:correlation:{}:{}",
+                route.holding_id, route.branch_id
             )
             .as_bytes(),
         )
     } else {
         job.correlation_id
     };
-    let pool = WritePool::for_tenant(write_pool.clone(), tenant_uuid)
+    // A branch's company and holding roots are authoritative nodes in the
+    // same CQRS write plane.  Local read fixtures may already describe them,
+    // but the atomic hierarchy guard still requires the write-side parents.
+    create_bootstrap_organization_node(
+        write_pool,
+        route.holding_id,
+        route.holding_id,
+        OrganizationPlacement::Holding,
+        route.data_profile_key.clone(),
+        route.data_profile_key.clone(),
+        format!("holding:{}", route.holding_id),
+        correlation_uuid,
+        worker_id,
+        &route.requested_by,
+        at,
+    )
+    .await?;
+    create_bootstrap_organization_node(
+        write_pool,
+        route.holding_id,
+        route.company_id,
+        OrganizationPlacement::Company {
+            holding_id: route.holding_id,
+        },
+        format!("COMPANY-{}", route.company_id.simple()),
+        format!("Company {}", route.company_id.simple()),
+        format!("company:{}:{}", route.holding_id, route.company_id),
+        correlation_uuid,
+        worker_id,
+        &route.requested_by,
+        at,
+    )
+    .await?;
+    create_bootstrap_organization_node(
+        write_pool,
+        route.holding_id,
+        route.branch_id,
+        OrganizationPlacement::Branch {
+            holding_id: route.holding_id,
+            company_id: route.company_id,
+        },
+        job.branch_code.clone(),
+        job.branch_name.clone(),
+        format!("branch:{}:{}", route.holding_id, route.branch_id),
+        correlation_uuid,
+        worker_id,
+        &route.requested_by,
+        at,
+    )
+    .await?;
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn create_bootstrap_organization_node(
+    write_pool: &sqlx::PgPool,
+    holding_id: Uuid,
+    node_uuid: Uuid,
+    placement: OrganizationPlacement,
+    code: String,
+    name: String,
+    command_key: String,
+    correlation_uuid: Uuid,
+    worker_id: Uuid,
+    represented_owner_ref: &str,
+    at: DateTime<Utc>,
+) -> Result<(), PersistenceError> {
+    let node_id = OrganizationNodeId::try_from_uuid(node_uuid)
+        .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
+    let active_scope = AuthorityScope::Holding { holding_id };
+    let worker_principal_ref = format!("erpx-worker:{worker_id}");
+    let access = OrganizationBootstrapAccess {
+        worker_principal_ref: worker_principal_ref.clone(),
+        represented_owner_ref: represented_owner_ref.to_owned(),
+        scope: active_scope.clone(),
+    };
+    let command_uuid = Uuid::new_v5(
+        &Uuid::NAMESPACE_URL,
+        format!("erpx:organization-bootstrap:command:{command_key}").as_bytes(),
+    );
+    let target_scope = placement
+        .active_scope(node_id)
+        .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
+    let pool = WritePool::for_holding(write_pool.clone(), holding_id)
         .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
     OrganizationCommandHandler::new(
         OrganizationWriteRepository::new(pool.clone()),
@@ -8407,8 +8483,7 @@ async fn initialize_branch_organization_rows(
         command_id: CommandId::try_from_uuid(command_uuid)
             .map_err(|error| PersistenceError::InvalidData(error.to_string()))?,
         idempotency_key: IdempotencyKey::try_new(format!(
-            "erpx:branch-organization:v2:{}:{}",
-            route.tenant_id, route.branch_id
+            "erpx:organization-bootstrap:{command_key}"
         ))
         .map_err(|error| PersistenceError::InvalidData(error.to_string()))?,
         correlation_id: CorrelationId::try_from_uuid(correlation_uuid)
@@ -8418,10 +8493,10 @@ async fn initialize_branch_organization_rows(
             principal_ref: worker_principal_ref,
             kind: KernelActorKind::SystemWorker,
             session_id: None,
-            represented_principal_ref: Some(route.requested_by.clone()),
+            represented_principal_ref: Some(represented_owner_ref.to_owned()),
             support_capability_id: None,
         },
-        tenant_scope: scope,
+        active_scope,
         audit: AuditContext {
             purpose: "organization.branch.bootstrap".into(),
             customer_visible: true,
@@ -8430,16 +8505,17 @@ async fn initialize_branch_organization_rows(
         expected_aggregate_version: None,
         command: CreateOrganizationNode {
             node_id,
-            placement: OrganizationPlacement::Branch {
-                holding_id: route.holding_id,
-                company_id: route.company_id,
-            },
-            code: job.branch_code.clone(),
-            name: job.branch_name.clone(),
+            placement,
+            code,
+            name,
         },
     })
     .await
-    .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
+    .map_err(|error| {
+        PersistenceError::InvalidData(format!(
+            "organization bootstrap CQRS failure for {target_scope:?}: {error:?}"
+        ))
+    })?;
     Ok(())
 }
 
@@ -8447,7 +8523,7 @@ async fn initialize_branch_organization_rows(
 struct OrganizationBootstrapAccess {
     worker_principal_ref: String,
     represented_owner_ref: String,
-    scope: TenantScope,
+    scope: AuthorityScope,
 }
 
 #[async_trait]
@@ -8473,7 +8549,7 @@ impl OrganizationAuthorizationPort for OrganizationBootstrapAccess {
 impl OrganizationEntitlementPort for OrganizationBootstrapAccess {
     async fn ensure_organization_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         _write: bool,
     ) -> Result<(), OrganizationPortError> {
         if self.scope.contains(scope) {
@@ -8484,32 +8560,32 @@ impl OrganizationEntitlementPort for OrganizationBootstrapAccess {
     }
 }
 
-/// Initialize the first tenant organization using already-authenticated,
+/// Initialize the first holding organization using already-authenticated,
 /// in-memory pools. This entry point exists for the installation CLI so its
 /// credential-free database URL never has to be rendered into a DSN containing
 /// a username or password.
-pub async fn initialize_tenant_organization_in_pools(
+pub async fn initialize_holding_organization_in_pools(
     write_pool: &sqlx::PgPool,
     read_pool: &sqlx::PgPool,
-    tenant_id: &str,
-    holding_ref: &str,
+    holding_key: &str,
+    data_profile_key: &str,
     holding_id: Uuid,
     owner_principal_ref: &str,
     at: DateTime<Utc>,
-) -> Result<TenantOrganizationBootstrap, PersistenceError> {
-    validate_ref(tenant_id, "tenant_id")?;
-    validate_ref(holding_ref, "holding_ref")?;
+) -> Result<HoldingOrganizationBootstrap, PersistenceError> {
+    validate_ref(holding_key, "holding_key")?;
+    validate_ref(data_profile_key, "data_profile_key")?;
     validate_principal_ref(owner_principal_ref, "owner_principal_ref")?;
-    if holding_id.is_nil() || tenant_holding_scope_id(holding_ref) != holding_id {
+    if holding_id.is_nil() || holding_holding_scope_id(data_profile_key) != holding_id {
         return Err(PersistenceError::InvalidData(
             "organization holding ID does not match the holding reference".into(),
         ));
     }
-    initialize_tenant_organization_rows(
+    initialize_holding_organization_rows(
         write_pool,
         read_pool,
-        tenant_id,
-        holding_ref,
+        holding_key,
+        data_profile_key,
         holding_id,
         owner_principal_ref,
         at,
@@ -8517,13 +8593,15 @@ pub async fn initialize_tenant_organization_in_pools(
     .await
 }
 
-fn tenant_owner_seed_from_row(
+fn holding_owner_seed_from_row(
     row: &sqlx::postgres::PgRow,
-) -> Result<TenantOwnerSeed, PersistenceError> {
-    Ok(TenantOwnerSeed {
-        tenant_id: row.try_get("tenant_id")?,
-        holding_ref: row.try_get("holding_ref")?,
-        holding_id: row.try_get("holding_id")?,
+) -> Result<HoldingOwnerSeed, PersistenceError> {
+    let data_profile_key: String = row.try_get("data_profile_key")?;
+    let holding_id: Uuid = row.try_get("holding_id")?;
+    Ok(HoldingOwnerSeed {
+        holding_key: holding_id.to_string(),
+        holding_id,
+        data_profile_key,
         principal_ref: row.try_get("principal_ref")?,
         approver_ref: row.try_get("approver_ref")?,
         role_assignment_id: row.try_get("role_assignment_id")?,
@@ -8547,20 +8625,20 @@ fn validate_database_key(value: &str, field: &'static str) -> Result<(), Persist
 }
 
 fn validate_database_config(
-    config: &TenantDatabaseProvisioningConfig,
+    config: &HoldingDatabaseProvisioningConfig,
 ) -> Result<(), PersistenceError> {
     if config.admin_database_url.trim().is_empty()
         || config.database_url_template.matches("{database}").count() != 1
     {
         return Err(PersistenceError::Configuration(
-            "tenant database provisioning requires an admin URL and one {database} template token",
+            "holding database provisioning requires an admin URL and one {database} template token",
         ));
     }
-    validate_tls_database_url(&config.admin_database_url, "tenant admin database URL")?;
+    validate_tls_database_url(&config.admin_database_url, "holding admin database URL")?;
     let rendered_template = config
         .database_url_template
         .replace("{database}", "erpx_tls_validation_database");
-    validate_tls_database_url(&rendered_template, "tenant database URL template")?;
+    validate_tls_database_url(&rendered_template, "holding database URL template")?;
     database_owner_from_template(&config.database_url_template)?;
     Ok(())
 }
@@ -8614,13 +8692,13 @@ fn reject_database_profile_url_credentials(value: &str) -> Result<(), Persistenc
 fn database_owner_from_template(template: &str) -> Result<String, PersistenceError> {
     let rendered = template.replace("{database}", "erpx_owner_validation_database");
     let options = PgConnectOptions::from_str(&rendered).map_err(|_| {
-        PersistenceError::Configuration("tenant database URLs must be valid PostgreSQL URLs")
+        PersistenceError::Configuration("holding database URLs must be valid PostgreSQL URLs")
     })?;
     let owner = options.get_username();
     if owner.is_empty() || owner.len() > 63 || owner.chars().any(|character| character.is_control())
     {
         return Err(PersistenceError::Configuration(
-            "tenant database URL must identify a bounded database owner",
+            "holding database URL must identify a bounded database owner",
         ));
     }
     Ok(owner.to_owned())
@@ -8628,17 +8706,17 @@ fn database_owner_from_template(template: &str) -> Result<String, PersistenceErr
 
 fn validate_tls_database_url(value: &str, field: &'static str) -> Result<(), PersistenceError> {
     let options = PgConnectOptions::from_str(value).map_err(|_| {
-        PersistenceError::Configuration("tenant database URLs must be valid PostgreSQL URLs")
+        PersistenceError::Configuration("holding database URLs must be valid PostgreSQL URLs")
     })?;
     let loopback = database_url_host(value).is_some_and(is_loopback_database_host);
     let transport_allowed = matches!(options.get_ssl_mode(), PgSslMode::VerifyFull)
         || (loopback && matches!(options.get_ssl_mode(), PgSslMode::Disable));
     if !transport_allowed {
         return Err(PersistenceError::Configuration(match field {
-            "tenant admin database URL" => {
-                "tenant admin database communication requires sslmode=verify-full outside loopback"
+            "holding admin database URL" => {
+                "holding admin database communication requires sslmode=verify-full outside loopback"
             }
-            _ => "tenant database communication requires sslmode=verify-full outside loopback",
+            _ => "holding database communication requires sslmode=verify-full outside loopback",
         }));
     }
     Ok(())
@@ -8690,18 +8768,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn item_directory_source_fence_is_exactly_tenant_bound_and_typed() {
+    fn item_directory_source_fence_is_exactly_holding_bound_and_typed() {
         let source = include_str!("provisioning.rs");
         let lock = source
-            .split("impl<'a> TenantSourceRebuildLock<'a>")
+            .split("impl<'a> HoldingSourceRebuildLock<'a>")
             .nth(1)
             .expect("source lock")
-            .split("pub struct RoutedTenantDatabase")
+            .split("pub struct RoutedHoldingDatabase")
             .next()
             .expect("source lock boundary");
-        assert!(lock.contains("set_config('app.tenant_id', $1, true)"));
-        assert!(lock.contains("bound_tenant != tenant_id"));
-        assert!(lock.contains("tenant_id = current_setting('app.tenant_id')::uuid"));
+        assert!(lock.contains("set_config('app.holding_id', $1, true)"));
+        assert!(lock.contains("bound_holding != holding_id"));
+        assert!(lock.contains("holding_id = current_setting('app.holding_id')::uuid"));
         assert!(lock.contains("ITEM_DIRECTORY_OWNER_EVENT_TYPE"));
         assert!(lock.contains("ITEM_DIRECTORY_FACT_EVENT_TYPE"));
         let table_lock = lock
@@ -8711,17 +8789,17 @@ mod tests {
             .find("SELECT COALESCE(MAX(global_sequence), 0)")
             .expect("Item Directory source watermark");
         assert!(watermark > 0);
-        assert!(!lock.contains("current_setting('app.tenant_id', true)"));
+        assert!(!lock.contains("current_setting('app.holding_id', true)"));
     }
 
     #[test]
     fn operations_restore_fence_uses_the_normalized_outbox_position() {
         let source = include_str!("provisioning.rs");
         let lock = source
-            .split("impl<'a> TenantSourceRebuildLock<'a>")
+            .split("impl<'a> HoldingSourceRebuildLock<'a>")
             .nth(1)
             .expect("source lock")
-            .split("pub struct RoutedTenantDatabase")
+            .split("pub struct RoutedHoldingDatabase")
             .next()
             .expect("source lock boundary");
         assert!(lock.contains("COALESCE(MAX(global_sequence), 0)"));
@@ -8730,32 +8808,32 @@ mod tests {
     }
 
     #[test]
-    fn tenant_routing_config_requires_one_database_template_token() {
-        let config = TenantDatabaseProvisioningConfig::from_values(
+    fn holding_routing_config_requires_one_database_template_token() {
+        let config = HoldingDatabaseProvisioningConfig::from_values(
             "postgresql://admin@localhost/postgres?sslmode=verify-full",
-            "postgresql://tenant@localhost/{database}?sslmode=verify-full",
+            "postgresql://holding@localhost/{database}?sslmode=verify-full",
         )
-        .expect("valid tenant routing configuration");
+        .expect("valid holding routing configuration");
         assert_eq!(
             config.database_url_template.matches("{database}").count(),
             1
         );
         assert_eq!(
             database_owner_from_template(&config.database_url_template).expect("database owner"),
-            "tenant"
+            "holding"
         );
 
         assert!(
-            TenantDatabaseProvisioningConfig::from_values(
+            HoldingDatabaseProvisioningConfig::from_values(
                 "postgresql://admin@localhost/postgres?sslmode=verify-full",
-                "postgresql://tenant@localhost/tenant?sslmode=verify-full",
+                "postgresql://holding@localhost/holding?sslmode=verify-full",
             )
             .is_err()
         );
         assert!(
-            TenantDatabaseProvisioningConfig::from_values(
+            HoldingDatabaseProvisioningConfig::from_values(
                 "postgresql://admin@localhost/postgres?sslmode=verify-full",
-                "postgresql://tenant@localhost/{database}/{database}?sslmode=verify-full",
+                "postgresql://holding@localhost/{database}/{database}?sslmode=verify-full",
             )
             .is_err()
         );
@@ -8789,40 +8867,40 @@ mod tests {
     }
 
     #[test]
-    fn tenant_routing_config_allows_plaintext_only_on_loopback() {
+    fn holding_routing_config_allows_plaintext_only_on_loopback() {
         assert!(
-            TenantDatabaseProvisioningConfig::from_values(
+            HoldingDatabaseProvisioningConfig::from_values(
                 "postgres://admin@127.0.0.1/postgres?sslmode=disable",
-                "postgres://tenant@localhost/{database}?sslmode=disable",
+                "postgres://holding@localhost/{database}?sslmode=disable",
             )
             .is_ok()
         );
         for (admin, template) in [
             (
                 "postgres://admin@database.internal/postgres?sslmode=disable",
-                "postgres://tenant@database.internal/{database}?sslmode=disable",
+                "postgres://holding@database.internal/{database}?sslmode=disable",
             ),
             (
                 "postgresql://admin@localhost/postgres?sslmode=require",
-                "postgresql://tenant@localhost/{database}?sslmode=require",
+                "postgresql://holding@localhost/{database}?sslmode=require",
             ),
             (
                 "postgresql://admin@localhost/postgres?sslmode=verify-full",
-                "postgresql://tenant@localhost/{database}?sslmode=prefer",
+                "postgresql://holding@localhost/{database}?sslmode=prefer",
             ),
         ] {
             assert!(
-                TenantDatabaseProvisioningConfig::from_values(admin, template).is_err(),
-                "insecure tenant database URL must fail closed"
+                HoldingDatabaseProvisioningConfig::from_values(admin, template).is_err(),
+                "insecure holding database URL must fail closed"
             );
         }
     }
 
     #[test]
     fn backup_job_request_is_bounded_redacted_idempotent_and_pitr_safe() {
-        let request = TenantBackupJobRequest {
-            tenant_id: "tenant-test".into(),
-            holding_ref: "holding-test".into(),
+        let request = HoldingBackupJobRequest {
+            holding_id: "holding-test".into(),
+            data_profile_key: "holding-test".into(),
             kind: "full".into(),
             backup_ref: "backup-secret-ref".into(),
             restore_target_ref: None,
@@ -8862,22 +8940,22 @@ mod tests {
 
     #[test]
     fn owner_scope_and_assignment_ids_are_stable_and_namespaced() {
-        let holding_id = tenant_holding_scope_id("holding-opaque");
-        assert_eq!(holding_id, tenant_holding_scope_id("holding-opaque"));
-        assert_ne!(holding_id, tenant_holding_scope_id("holding-other"));
+        let holding_id = holding_holding_scope_id("holding-opaque");
+        assert_eq!(holding_id, holding_holding_scope_id("holding-opaque"));
+        assert_ne!(holding_id, holding_holding_scope_id("holding-other"));
         assert_eq!(holding_id.get_version(), Some(uuid::Version::Random));
-        let assignment_id = tenant_owner_assignment_id("tenant-a", "owner-a");
+        let assignment_id = holding_owner_assignment_id("holding-a", "owner-a");
         assert_eq!(
             assignment_id,
-            tenant_owner_assignment_id("tenant-a", "owner-a")
+            holding_owner_assignment_id("holding-a", "owner-a")
         );
         assert_ne!(
             assignment_id,
-            tenant_owner_assignment_id("tenant-b", "owner-a")
+            holding_owner_assignment_id("holding-b", "owner-a")
         );
-        let seed = TenantOwnerSeed {
-            tenant_id: "tenant-a".into(),
-            holding_ref: "holding-opaque".into(),
+        let seed = HoldingOwnerSeed {
+            holding_key: "holding-a".into(),
+            data_profile_key: "holding-opaque".into(),
             holding_id,
             principal_ref: "owner-a".into(),
             approver_ref: "approver-a".into(),
@@ -8892,13 +8970,13 @@ mod tests {
     #[test]
     fn owner_principal_validation_accepts_namespaced_identity_refs() {
         assert!(validate_principal_ref("local:holding-owner-v2", "principal_ref").is_ok());
-        assert!(validate_principal_ref("directory:tenant:owner", "principal_ref").is_ok());
+        assert!(validate_principal_ref("directory:holding:owner", "principal_ref").is_ok());
         assert!(validate_principal_ref("owner/ref", "principal_ref").is_err());
         assert!(validate_principal_ref("owner ref", "principal_ref").is_err());
     }
 
     #[test]
-    fn tenant_lifecycle_transition_matrix_is_closed() {
+    fn holding_lifecycle_transition_matrix_is_closed() {
         assert!(lifecycle_transition_allowed(
             "provisioning",
             ProvisioningState::Active
@@ -8937,10 +9015,10 @@ mod tests {
         ));
     }
 
-    fn started_run(kind: &str, restore_target_ref: Option<&str>) -> TenantBackupRun {
-        TenantBackupRun {
+    fn started_run(kind: &str, restore_target_ref: Option<&str>) -> HoldingBackupRun {
+        HoldingBackupRun {
             id: Uuid::from_u128(1),
-            tenant_id: "tenant-test".into(),
+            holding_id: "holding-test".into(),
             kind: kind.into(),
             status: "started".into(),
             backup_ref: "backup-test".into(),
@@ -8959,7 +9037,7 @@ mod tests {
     }
 
     fn restore_schedule_request(
-        tenant_id: &str,
+        holding_id: &str,
         schedule_id: u128,
         due_at: DateTime<Utc>,
         idempotency_key: &str,
@@ -8967,35 +9045,35 @@ mod tests {
     ) -> RestoreTestScheduleRequest {
         let mut run = started_run("restore_test", Some("restore-target-secret"));
         run.id = Uuid::from_u128(schedule_id);
-        run.tenant_id = tenant_id.into();
-        run.backup_ref = format!("{tenant_id}-backup-ref-secret");
-        let databases = PhysicalTenantDatabases::new(
-            tenant_id,
-            format!("{tenant_id}-write"),
-            format!("{tenant_id}-read"),
+        run.holding_id = holding_id.into();
+        run.backup_ref = format!("{holding_id}-backup-ref-secret");
+        let databases = PhysicalHoldingDatabases::new(
+            holding_id,
+            format!("{holding_id}-write"),
+            format!("{holding_id}-read"),
         )
         .expect("physical databases");
-        let backup_target = TenantBackupTarget::for_run(databases, "backup-chain-secret", &run)
+        let backup_target = HoldingBackupTarget::for_run(databases, "backup-chain-secret", &run)
             .expect("backup target");
         let replacement = backup_target
             .databases()
-            .replacement_read_database(&format!("{tenant_id}-replacement"))
+            .replacement_read_database(&format!("{holding_id}-replacement"))
             .expect("replacement read database");
         let target =
-            TenantRestoreTestTarget::new(backup_target, "restore-target-secret", replacement, 42)
+            HoldingRestoreTestTarget::new(backup_target, "restore-target-secret", replacement, 42)
                 .expect("restore target");
         RestoreTestScheduleRequest::new(run, target, due_at, idempotency_key, max_attempts)
             .expect("restore schedule request")
     }
 
     #[test]
-    fn restore_test_scheduler_is_tenant_scoped_and_due_claims_are_idempotent() {
+    fn restore_test_scheduler_is_holding_scoped_and_due_claims_are_idempotent() {
         let scheduler = RestoreTestScheduler::default();
         let now = DateTime::parse_from_rfc3339("2026-07-24T00:00:00Z")
             .expect("fixed timestamp")
             .with_timezone(&Utc);
         let future = restore_schedule_request(
-            "tenant-a",
+            "holding-a",
             100,
             now + Duration::hours(1),
             "restore-idempotency-a",
@@ -9008,40 +9086,40 @@ mod tests {
         assert_eq!(receipt.schedule().id(), duplicate.schedule().id());
         assert!(
             scheduler
-                .claim_due_for_tenant("tenant-b", Uuid::from_u128(9), now, 100)
-                .expect("other tenant claim")
+                .claim_due_for_holding("holding-b", Uuid::from_u128(9), now, 100)
+                .expect("other holding claim")
                 .is_empty()
         );
         assert!(
             scheduler
-                .claim_due_for_tenant("tenant-a", Uuid::from_u128(9), now, 100)
+                .claim_due_for_holding("holding-a", Uuid::from_u128(9), now, 100)
                 .expect("future claim")
                 .is_empty()
         );
 
-        let due = restore_schedule_request("tenant-a", 101, now, "restore-idempotency-b", 3);
+        let due = restore_schedule_request("holding-a", 101, now, "restore-idempotency-b", 3);
         let due_receipt = scheduler.schedule(due).expect("due schedule");
         let claims = scheduler
-            .claim_due_for_tenant("tenant-a", Uuid::from_u128(9), now, 100)
+            .claim_due_for_holding("holding-a", Uuid::from_u128(9), now, 100)
             .expect("due claim");
         assert_eq!(claims.len(), 1);
         assert_eq!(claims[0].schedule_id(), due_receipt.schedule().id());
         assert!(
             scheduler
-                .claim_due_for_tenant("tenant-a", Uuid::from_u128(10), now, 100)
+                .claim_due_for_holding("holding-a", Uuid::from_u128(10), now, 100)
                 .expect("duplicate claim")
                 .is_empty()
         );
     }
 
     #[test]
-    fn restore_test_scheduler_rejects_cross_tenant_and_idempotency_conflicts() {
+    fn restore_test_scheduler_rejects_cross_holding_and_idempotency_conflicts() {
         let scheduler = RestoreTestScheduler::default();
         let now = Utc::now();
-        let request = restore_schedule_request("tenant-a", 102, now, "restore-conflict", 3);
+        let request = restore_schedule_request("holding-a", 102, now, "restore-conflict", 3);
         scheduler.schedule(request.clone()).expect("schedule");
         let conflicting_due = restore_schedule_request(
-            "tenant-a",
+            "holding-a",
             103,
             now + Duration::minutes(1),
             "restore-conflict",
@@ -9052,12 +9130,12 @@ mod tests {
             Err(RestoreTestScheduleError::IdempotencyConflict)
         );
 
-        let other_tenant_request = restore_schedule_request("tenant-b", 104, now, "other", 3);
-        let other_target = other_tenant_request.target().clone();
-        let mut other_run = other_tenant_request.run().clone();
-        other_run.tenant_id = "tenant-c".into();
+        let other_holding_request = restore_schedule_request("holding-b", 104, now, "other", 3);
+        let other_target = other_holding_request.target().clone();
+        let mut other_run = other_holding_request.run().clone();
+        other_run.holding_id = "holding-c".into();
         assert!(matches!(
-            RestoreTestScheduleRequest::new(other_run, other_target, now, "cross-tenant", 3,),
+            RestoreTestScheduleRequest::new(other_run, other_target, now, "cross-holding", 3,),
             Err(RestoreTestScheduleError::InvalidRequest(_))
         ));
     }
@@ -9070,7 +9148,7 @@ mod tests {
             .with_timezone(&Utc);
         let receipt = scheduler
             .schedule(restore_schedule_request(
-                "tenant-a",
+                "holding-a",
                 105,
                 now,
                 "restore-retry",
@@ -9079,7 +9157,7 @@ mod tests {
             .expect("schedule");
         let worker = Uuid::from_u128(11);
         let first_claim = scheduler
-            .claim_due_for_tenant("tenant-a", worker, now, 1)
+            .claim_due_for_holding("holding-a", worker, now, 1)
             .expect("first claim")
             .pop()
             .expect("claim exists");
@@ -9094,12 +9172,12 @@ mod tests {
         let retry_at = first.next_due_at.expect("retry due time");
         assert!(
             scheduler
-                .claim_due_for_tenant("tenant-a", worker, now, 1)
+                .claim_due_for_holding("holding-a", worker, now, 1)
                 .expect("not due claim")
                 .is_empty()
         );
         let second_claim = scheduler
-            .claim_due_for_tenant("tenant-a", worker, retry_at, 1)
+            .claim_due_for_holding("holding-a", worker, retry_at, 1)
             .expect("second claim")
             .pop()
             .expect("second claim exists");
@@ -9112,7 +9190,7 @@ mod tests {
         );
         assert_eq!(terminal.state, RestoreTestScheduleState::Failed);
         let history = scheduler
-            .history_for_tenant("tenant-a", receipt.schedule().id())
+            .history_for_holding("holding-a", receipt.schedule().id())
             .expect("history");
         assert_eq!(
             history
@@ -9136,7 +9214,7 @@ mod tests {
         let now = Utc::now();
         let receipt = scheduler
             .schedule(restore_schedule_request(
-                "tenant-a",
+                "holding-a",
                 106,
                 now,
                 "restore-verification-secret",
@@ -9144,7 +9222,7 @@ mod tests {
             ))
             .expect("schedule");
         let claim = scheduler
-            .claim_due_for_tenant("tenant-a", Uuid::from_u128(12), now, 1)
+            .claim_due_for_holding("holding-a", Uuid::from_u128(12), now, 1)
             .expect("claim")
             .pop()
             .expect("claim exists");
@@ -9158,7 +9236,7 @@ mod tests {
         assert_eq!(unverified.state, RestoreTestScheduleState::Pending);
         let retry_at = unverified.next_due_at.expect("retry due time");
         let retry_claim = scheduler
-            .claim_due_for_tenant("tenant-a", Uuid::from_u128(12), retry_at, 1)
+            .claim_due_for_holding("holding-a", Uuid::from_u128(12), retry_at, 1)
             .expect("replacement retry claim")
             .pop()
             .expect("replacement retry exists");
@@ -9228,14 +9306,14 @@ mod tests {
 
     #[tokio::test]
     async fn injected_executor_receives_physical_keys_without_external_services() {
-        let registration = TenantStoreRegistration {
-            tenant_id: "tenant-test".into(),
-            holding_ref: "holding-test".into(),
-            write_database_key: "tenant-write-test".into(),
-            read_database_key: "tenant-read-test".into(),
-            storage_namespace: "tenant-storage-test".into(),
-            credential_key_ref: "tenant-key-test".into(),
-            backup_chain_ref: "tenant-backup-test".into(),
+        let registration = HoldingStoreRegistration {
+            holding_id: "holding-test".into(),
+            data_profile_key: "holding-test".into(),
+            write_database_key: "holding-write-test".into(),
+            read_database_key: "holding-read-test".into(),
+            storage_namespace: "holding-storage-test".into(),
+            credential_key_ref: "holding-key-test".into(),
+            backup_chain_ref: "holding-backup-test".into(),
             state: "active".into(),
             registry_version: 1,
         };
@@ -9243,13 +9321,13 @@ mod tests {
         let result = invoke_backup_executor(
             registration,
             run,
-            Some("tenant-read-replacement".into()),
+            Some("holding-read-replacement".into()),
             Some(42),
             |registration, run, candidate, source_version| async move {
-                assert_eq!(registration.write_database_key, "tenant-write-test");
-                assert_eq!(registration.read_database_key, "tenant-read-test");
-                assert_eq!(registration.tenant_id, run.tenant_id);
-                assert_eq!(candidate.as_deref(), Some("tenant-read-replacement"));
+                assert_eq!(registration.write_database_key, "holding-write-test");
+                assert_eq!(registration.read_database_key, "holding-read-test");
+                assert_eq!(registration.holding_id, run.holding_id);
+                assert_eq!(candidate.as_deref(), Some("holding-read-replacement"));
                 assert_eq!(source_version, Some(42));
                 Ok((true, true))
             },
@@ -9363,8 +9441,8 @@ mod tests {
 
     #[test]
     fn readiness_models_exclude_credentials_and_external_references() {
-        let metadata = TenantReadinessMetadata {
-            tenant_id: "tenant-safe".into(),
+        let metadata = HoldingReadinessMetadata {
+            holding_id: "holding-safe".into(),
             registry_state: Some("active".into()),
             registry_version: Some(2),
             write_database: DatabaseReadinessObservation::not_probed(),

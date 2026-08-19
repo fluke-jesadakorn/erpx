@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -154,21 +154,21 @@ impl OrganizationPlacement {
         OrganizationNodeId::try_from_uuid(parent).ok()
     }
 
-    pub fn tenant_scope(
+    pub fn active_scope(
         &self,
         node_id: OrganizationNodeId,
-    ) -> Result<TenantScope, OrganizationDomainError> {
+    ) -> Result<AuthorityScope, OrganizationDomainError> {
         self.validate_for(node_id)?;
         let holding_id = self.holding_id(node_id);
         match self {
-            Self::Holding => Ok(TenantScope::Holding { holding_id }),
-            Self::Company { .. } | Self::Headquarters { .. } => Ok(TenantScope::Company {
+            Self::Holding => Ok(AuthorityScope::Holding { holding_id }),
+            Self::Company { .. } | Self::Headquarters { .. } => Ok(AuthorityScope::Company {
                 holding_id,
                 company_id: self
                     .company_id(node_id)
                     .expect("company placement always has a company"),
             }),
-            Self::Branch { .. } => Ok(TenantScope::Branch {
+            Self::Branch { .. } => Ok(AuthorityScope::Branch {
                 holding_id,
                 company_id: self
                     .company_id(node_id)
@@ -186,13 +186,13 @@ impl OrganizationPlacement {
                 ..
             } => branch_id.map_or_else(
                 || {
-                    Ok(TenantScope::Company {
+                    Ok(AuthorityScope::Company {
                         holding_id,
                         company_id: *company_id,
                     })
                 },
                 |branch_id| {
-                    Ok(TenantScope::Branch {
+                    Ok(AuthorityScope::Branch {
                         holding_id,
                         company_id: *company_id,
                         branch_id,
@@ -311,8 +311,8 @@ pub enum OrganizationDomainError {
     VersionOverflow,
     #[error("organization sharing agreement must connect two branch scopes")]
     SharingRequiresBranches,
-    #[error("cross-tenant or cross-holding sharing is denied")]
-    CrossTenantSharingDenied,
+    #[error("cross-holding or cross-holding sharing is denied")]
+    CrossHoldingSharingDenied,
     #[error("an organization scope cannot share with itself")]
     SelfSharingDenied,
     #[error("sharing agreement must contain unique capabilities")]
@@ -336,7 +336,7 @@ pub struct OrganizationNode {
     code: String,
     name: String,
     placement: OrganizationPlacement,
-    scope: TenantScope,
+    scope: AuthorityScope,
     status: OrganizationNodeStatus,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
@@ -361,7 +361,7 @@ pub struct OrganizationNodeState {
 
 impl OrganizationNode {
     pub fn try_rehydrate(state: OrganizationNodeState) -> Result<Self, OrganizationDomainError> {
-        let scope = state.placement.tenant_scope(state.id)?;
+        let scope = state.placement.active_scope(state.id)?;
         let value = Self {
             id: state.id,
             version: state.version,
@@ -385,7 +385,7 @@ impl OrganizationNode {
         name: String,
         at: DateTime<Utc>,
     ) -> Result<Self, OrganizationDomainError> {
-        let scope = placement.tenant_scope(id)?;
+        let scope = placement.active_scope(id)?;
         let mut value = Self {
             id,
             version: 1,
@@ -410,7 +410,7 @@ impl OrganizationNode {
         }
         validate_text(&self.code, "code", MAX_ORGANIZATION_CODE_BYTES)?;
         validate_text(&self.name, "name", MAX_ORGANIZATION_NAME_BYTES)?;
-        let expected_scope = self.placement.tenant_scope(self.id)?;
+        let expected_scope = self.placement.active_scope(self.id)?;
         if expected_scope != self.scope || self.scope.validate().is_err() {
             return Err(OrganizationDomainError::InvalidScope);
         }
@@ -473,7 +473,7 @@ impl OrganizationNode {
         if placement == self.placement {
             return Err(OrganizationDomainError::NoChange);
         }
-        let scope = placement.tenant_scope(self.id)?;
+        let scope = placement.active_scope(self.id)?;
         let mut candidate = self.clone();
         candidate.version = next_version(candidate.version)?;
         candidate.placement = placement;
@@ -571,7 +571,7 @@ impl OrganizationNode {
         &self.placement
     }
 
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
 
@@ -689,7 +689,7 @@ mod tests {
         assert_eq!(node.kind(), OrganizationNodeKind::Department);
         assert_eq!(
             node.scope(),
-            &TenantScope::Branch {
+            &AuthorityScope::Branch {
                 holding_id: id(1),
                 company_id: id(2),
                 branch_id: id(3),
@@ -769,7 +769,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             node.scope(),
-            &TenantScope::Branch {
+            &AuthorityScope::Branch {
                 holding_id: id(1),
                 company_id: id(2),
                 branch_id: id(5),

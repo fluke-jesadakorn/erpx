@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use chrono::{DateTime, Utc};
 use erpx_integration_contracts::{StableRecordRef, catalog::ContextId};
 use erpx_kernel::{
-    DataClassification, PolicyId, PrincipalId, PrincipalKind, TenantId, TenantScope,
+    AuthorityScope, DataClassification, HoldingId, PolicyId, PrincipalId, PrincipalKind,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -145,7 +145,7 @@ pub enum ExternalPortal {
 #[serde(tag = "realm", rename_all = "snake_case")]
 pub enum Audience {
     Internal {
-        scope: TenantScope,
+        scope: AuthorityScope,
         principals: Vec<PrincipalRef>,
     },
     ExternalPortal {
@@ -241,9 +241,9 @@ fn has_duplicate_principals(values: &[PrincipalRef]) -> bool {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AnchorPolicy {
-    tenant_id: TenantId,
+    holding_id: HoldingId,
     record: StableRecordRef,
-    visibility_scope: TenantScope,
+    visibility_scope: AuthorityScope,
     external_portal: Option<ExternalPortal>,
     classification: DataClassification,
     authorization_policy: PolicyId,
@@ -251,9 +251,9 @@ pub struct AnchorPolicy {
 
 impl AnchorPolicy {
     pub fn try_new(
-        tenant_id: TenantId,
+        holding_id: HoldingId,
         record: StableRecordRef,
-        visibility_scope: TenantScope,
+        visibility_scope: AuthorityScope,
         external_portal: Option<ExternalPortal>,
         classification: DataClassification,
         authorization_policy: PolicyId,
@@ -265,7 +265,7 @@ impl AnchorPolicy {
             .validate()
             .map_err(|_| CollaborationError::InvalidAnchor)?;
         Ok(Self {
-            tenant_id,
+            holding_id,
             record,
             visibility_scope,
             external_portal,
@@ -274,13 +274,13 @@ impl AnchorPolicy {
         })
     }
 
-    pub const fn tenant_id(&self) -> TenantId {
-        self.tenant_id
+    pub const fn holding_id(&self) -> HoldingId {
+        self.holding_id
     }
     pub const fn record(&self) -> &StableRecordRef {
         &self.record
     }
-    pub const fn visibility_scope(&self) -> &TenantScope {
+    pub const fn visibility_scope(&self) -> &AuthorityScope {
         &self.visibility_scope
     }
     pub const fn external_portal(&self) -> Option<ExternalPortal> {
@@ -941,7 +941,7 @@ pub struct PendingCollaborationEvent {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OpaqueInboxFact {
     pub event_id: Uuid,
-    pub tenant_id: TenantId,
+    pub holding_id: HoldingId,
     pub thread_id: ThreadId,
     pub mention_event_id: MentionEventId,
     pub recipient_principal_id: PrincipalId,
@@ -952,7 +952,7 @@ pub struct OpaqueInboxFact {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CollaborationStreamEvent {
     pub cursor: u64,
-    pub tenant_id: TenantId,
+    pub holding_id: HoldingId,
     pub thread_id: ThreadId,
     pub aggregate_version: u64,
     pub kind: CollaborationEventKind,
@@ -1730,12 +1730,12 @@ mod tests {
             RecordTypeId::try_new("finance.invoice").unwrap(),
         )
         .unwrap();
-        let tenant = TenantId::try_from_uuid(Uuid::new_v4()).unwrap();
-        let scope = TenantScope::Holding {
+        let holding = HoldingId::try_from_uuid(Uuid::new_v4()).unwrap();
+        let scope = AuthorityScope::Holding {
             holding_id: Uuid::new_v4(),
         };
         let policy = AnchorPolicy::try_new(
-            tenant,
+            holding,
             record.clone(),
             scope.clone(),
             external,
@@ -1784,7 +1784,7 @@ mod tests {
     fn audience_can_only_narrow_and_external_threads_require_explicit_policy() {
         let (mut thread, author, now) = fixture(None);
         let broad = Audience::Internal {
-            scope: TenantScope::Platform,
+            scope: AuthorityScope::Platform,
             principals: vec![],
         };
         assert_eq!(

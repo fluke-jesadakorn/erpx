@@ -203,8 +203,8 @@ mod tests {
     use chrono::{TimeZone, Utc};
     use erpx_cqrs::{FreshnessState, IdempotencyKey, ProjectionMetadata, QueryConsistency};
     use erpx_kernel::{
-        ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, FixedClock,
-        TenantScope,
+        ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+        FixedClock,
     };
     use uuid::Uuid;
 
@@ -227,7 +227,7 @@ mod tests {
                 record_id: Uuid::new_v4(),
                 command: PlatformGovernanceRecordCommand::Create {
                     kind: PlatformGovernanceRecordKind::Release,
-                    scope: TenantScope::Platform,
+                    scope: AuthorityScope::Platform,
                     title: "Release 2026.08".into(),
                     subject_ref: "artifact:sha256:abc".into(),
                 },
@@ -240,7 +240,7 @@ mod tests {
                 represented_principal_ref: None,
                 support_capability_id: None,
             },
-            authority_scope: TenantScope::Platform,
+            authority_scope: AuthorityScope::Platform,
             audit: AuditContext {
                 purpose: "platform.governance.test".into(),
                 customer_visible: false,
@@ -256,7 +256,7 @@ mod tests {
     impl PlatformGovernanceRecordWriteRepository for Repo {
         async fn load_platform_governance_record(
             &self,
-            _: &TenantScope,
+            _: &AuthorityScope,
             _: Uuid,
         ) -> Result<Option<PlatformGovernanceRecord>, PortError> {
             Ok(None)
@@ -333,7 +333,7 @@ mod tests {
     impl PlatformGovernanceRecordReadRepository for ReadRepo {
         async fn get_platform_governance_record(
             &self,
-            _: &TenantScope,
+            _: &AuthorityScope,
             _: Uuid,
             _: &QueryConsistency,
         ) -> Result<crate::GovernanceReadProjection<Option<PlatformGovernanceRecord>>, PortError>
@@ -400,8 +400,8 @@ mod tests {
             record_id: Uuid::new_v4(),
             expected_kind: PlatformGovernanceRecordKind::Migration,
             actor: request().actor,
-            authority_scope: TenantScope::Platform,
-            target_scope: TenantScope::Platform,
+            authority_scope: AuthorityScope::Platform,
+            target_scope: AuthorityScope::Platform,
             consistency: QueryConsistency::Eventual,
         };
         assert!(matches!(

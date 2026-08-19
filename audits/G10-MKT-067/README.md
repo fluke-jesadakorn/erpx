@@ -13,7 +13,7 @@ Manager material is copied only across the narrow conversion into the worker’s
 zeroizing `MarketingDeliveryCredential`; invalid material is zeroized on
 constructor failure. Resolver failures map to bounded worker configuration
 categories and never expose references, endpoint data, tokens, or material.
-The existing authoritative provider-account key, tenant/holding binding,
+The existing authoritative provider-account key, holding/holding binding,
 route, idempotency, and account-version checks remain in force.
 
 ## Evidence

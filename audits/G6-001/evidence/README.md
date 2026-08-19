@@ -2,33 +2,33 @@
 
 This packet is a control-plane provisioning foundation, not a complete G6
 gate. It records the state needed to provision and recover a holding without
-placing tenant credentials in the client:
+placing holding credentials in the client:
 
-- `tenant_provisioning` tracks provisioning, recovery, and activation state.
-- `tenant_database_health` requires independently reported write and read
+- `holding_provisioning` tracks provisioning, recovery, and activation state.
+- `holding_database_health` requires independently reported write and read
   reachability and schema versions.
-- `tenant_storage_health` records the tenant-bound storage namespace health.
-- `tenant_backup_runs` records full, PITR, and restore-test metadata; restore
+- `holding_storage_health` records the holding-bound storage namespace health.
+- `holding_backup_runs` records full, PITR, and restore-test metadata; restore
   tests require a target reference and verification is persisted.
-- `tenant_projection_switches` supports rebuild → ready → activated read-model
+- `holding_projection_switches` supports rebuild → ready → activated read-model
   switching while retaining the active read key until the replacement is
   ready.
-- `TenantDatabaseProvisioner` creates validated opaque PostgreSQL database
-  names through a server-side admin connection, applies distinct tenant write
+- `HoldingDatabaseProvisioner` creates validated opaque PostgreSQL database
+  names through a server-side admin connection, applies distinct holding write
   and read SQLx migration sets, and records the resulting schema health.
-- Tenant write and read migrations create separate schemas and force
-  row-level-security policies keyed by the server-set `erpx.holding_ref`
+- Holding write and read migrations create separate schemas and force
+  row-level-security policies keyed by the server-set `erpx.data_profile_key`
   session setting.
-- `TenantDatabaseRouter` resolves only active registry entries, rejects a
+- `HoldingDatabaseRouter` resolves only active registry entries, rejects a
   mismatched holding scope before connecting, and exposes only transaction
   setup that applies a transaction-local holding setting.
-- `TenantDatabaseProvisioner::provision_storage_namespace` records a pending
+- `HoldingDatabaseProvisioner::provision_storage_namespace` records a pending
   unhealthy state, invokes an injected namespace verifier, records healthy
   only after success, and leaves activation blocked on failure.
 - `MinioObjectStore` signs namespace and object requests with SigV4, bounds
   presigned upload/download lifetimes, and never exposes the configured
   access or secret key in debug output.
-- `TenantProvisioner::execute_backup` validates backup kind/status/target
+- `HoldingProvisioner::execute_backup` validates backup kind/status/target
   invariants and persists started-to-completed/failed outcomes around an
   injected executor. It intentionally does not claim to run `pg_dump`,
   `pg_restore`, shell commands, or destructive database operations.
@@ -65,7 +65,7 @@ cargo clippy -p erpx-server --all-targets -- -D warnings
 Result: PASS — storage configuration validation, credential redaction,
 required/optional readiness behavior, injected namespace verification, and
 identity HTTP routing all passed. Health deliberately reports live MinIO as
-`not_probed` until a tenant-bound verification runs.
+`not_probed` until a holding-bound verification runs.
 
 Physical provisioning command:
 
@@ -73,21 +73,21 @@ Physical provisioning command:
 ERPX_TEST_CONTROL_WRITE_DATABASE_URL=postgres://localhost/erpx_physical_control_w_20260724 \
 ERPX_TEST_CONTROL_READ_DATABASE_URL=postgres://localhost/erpx_physical_control_r_20260724 \
 ERPX_TEST_ADMIN_DATABASE_URL=postgres://localhost/postgres \
-ERPX_TEST_TENANT_DATABASE_URL_TEMPLATE=postgres://localhost/{database} \
-cargo test -p erpx-infrastructure --test provisioning physical_provisioning_creates_separate_rls_backed_tenant_databases -- --ignored --nocapture
+ERPX_TEST_HOLDING_DATABASE_URL_TEMPLATE=postgres://localhost/{database} \
+cargo test -p erpx-infrastructure --test provisioning physical_provisioning_creates_separate_rls_backed_holding_databases -- --ignored --nocapture
 ```
 
-Result: PASS — the factory created and migrated distinct tenant write/read
+Result: PASS — the factory created and migrated distinct holding write/read
 databases, verified write-side forced RLS metadata, verified read-side
 projection/source-table separation, routed a scoped transaction, rejected a
-mismatched holding, recorded storage health, and activated the tenant. The two
-control and two tenant databases were explicitly dropped by the test cleanup
+mismatched holding, recorded storage health, and activated the holding. The two
+control and two holding databases were explicitly dropped by the test cleanup
 trap.
 
 ## Open G6 requirements
 
 Live MinIO credential/configuration composition, PITR execution, restore
-usability checks, router and object-access integration into all tenant RPC
+usability checks, router and object-access integration into all holding RPC
 handlers, storage-health freshness, and platform operations UI remain open.
 The injected storage verification and activation gate are integrated, but the
 factory's admin URL and database URL template
@@ -107,5 +107,5 @@ cargo test -p erpx-infrastructure --test provisioning -- --ignored --nocapture
 ```
 
 Result: PASS — 2 passed, 0 failed. The run created and verified distinct
-tenant databases `erpx_tenant_w_20260724` and `erpx_tenant_r_20260724`; all
+holding databases `erpx_holding_w_20260724` and `erpx_holding_r_20260724`; all
 four explicitly named databases were dropped after verification.

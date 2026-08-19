@@ -18,10 +18,10 @@ pub const PLATFORM_BRAND_READ: &str = "platform.brand.read";
 pub const PLATFORM_BRAND_MANAGE: &str = "platform.brand.manage";
 pub const PLATFORM_BRAND_PUBLISH: &str = "platform.brand.publish";
 pub const PLATFORM_BRAND_LOCK: &str = "platform.brand.lock";
-pub const TENANT_BRAND_READ: &str = "tenant.brand.read";
-pub const TENANT_BRAND_MANAGE: &str = "tenant.brand.manage";
-pub const TENANT_BRAND_PUBLISH: &str = "tenant.brand.publish";
-pub const TENANT_BRAND_LOCK: &str = "tenant.brand.lock";
+pub const HOLDING_BRAND_READ: &str = "holding.brand.read";
+pub const HOLDING_BRAND_MANAGE: &str = "holding.brand.manage";
+pub const HOLDING_BRAND_PUBLISH: &str = "holding.brand.publish";
+pub const HOLDING_BRAND_LOCK: &str = "holding.brand.lock";
 pub const BUSINESS_UNIT_BRAND_READ: &str = "business-unit.brand.read";
 pub const BUSINESS_UNIT_BRAND_MANAGE: &str = "business-unit.brand.manage";
 pub const BUSINESS_UNIT_BRAND_PUBLISH: &str = "business-unit.brand.publish";
@@ -60,10 +60,10 @@ impl CorporateIdentityRoleTemplate {
             .into_iter()
             .collect(),
             Self::CorporateIdentityAdmin => [
-                TENANT_BRAND_READ,
-                TENANT_BRAND_MANAGE,
-                TENANT_BRAND_PUBLISH,
-                TENANT_BRAND_LOCK,
+                HOLDING_BRAND_READ,
+                HOLDING_BRAND_MANAGE,
+                HOLDING_BRAND_PUBLISH,
+                HOLDING_BRAND_LOCK,
             ]
             .into_iter()
             .collect(),
@@ -96,11 +96,9 @@ pub const MAX_BRAND_BOOTSTRAP_BYTES: usize = 32 * 1024;
 pub enum BrandScope {
     Platform,
     Holding {
-        tenant_id: String,
         holding_id: Uuid,
     },
     BusinessUnit {
-        tenant_id: String,
         holding_id: Uuid,
         business_unit: BusinessUnitId,
     },
@@ -110,16 +108,7 @@ impl BrandScope {
     pub fn validate(&self) -> Result<(), CorporateIdentityError> {
         match self {
             Self::Platform => Ok(()),
-            Self::Holding {
-                tenant_id,
-                holding_id,
-            }
-            | Self::BusinessUnit {
-                tenant_id,
-                holding_id,
-                ..
-            } => {
-                validate_reference(tenant_id, 128)?;
+            Self::Holding { holding_id } | Self::BusinessUnit { holding_id, .. } => {
                 if holding_id.is_nil() {
                     return Err(CorporateIdentityError::InvalidScope);
                 }
@@ -137,15 +126,6 @@ impl BrandScope {
         }
     }
 
-    pub fn tenant_id(&self) -> Option<&str> {
-        match self {
-            Self::Platform => None,
-            Self::Holding { tenant_id, .. } | Self::BusinessUnit { tenant_id, .. } => {
-                Some(tenant_id)
-            }
-        }
-    }
-
     pub fn business_unit(&self) -> Option<BusinessUnitId> {
         match self {
             Self::BusinessUnit { business_unit, .. } => Some(*business_unit),
@@ -156,18 +136,11 @@ impl BrandScope {
     pub fn canonical_key(&self) -> String {
         match self {
             Self::Platform => "platform".to_owned(),
-            Self::Holding {
-                tenant_id,
-                holding_id,
-            } => format!("holding:{tenant_id}:{holding_id}"),
+            Self::Holding { holding_id } => format!("holding:{holding_id}"),
             Self::BusinessUnit {
-                tenant_id,
                 holding_id,
                 business_unit,
-            } => format!(
-                "business-unit:{tenant_id}:{holding_id}:{}",
-                business_unit.as_str()
-            ),
+            } => format!("business-unit:{holding_id}:{}", business_unit.as_str()),
         }
     }
 
@@ -176,15 +149,10 @@ impl BrandScope {
             (Self::Platform, Self::Holding { .. }) => true,
             (
                 Self::Holding {
-                    tenant_id: parent_tenant,
                     holding_id: parent_holding,
                 },
-                Self::BusinessUnit {
-                    tenant_id,
-                    holding_id,
-                    ..
-                },
-            ) => parent_tenant == tenant_id && parent_holding == holding_id,
+                Self::BusinessUnit { holding_id, .. },
+            ) => parent_holding == holding_id,
             _ => false,
         }
     }
@@ -1107,14 +1075,10 @@ mod tests {
         let mut platform = CorporateIdentityProfile::neutral_platform();
         platform.locked_categories.insert(BrandCategory::Shape);
         let holding_id = Uuid::new_v4();
-        let holding_scope = BrandScope::Holding {
-            tenant_id: "tenant-acme".to_owned(),
-            holding_id,
-        };
+        let holding_scope = BrandScope::Holding { holding_id };
         let holding = published_child(holding_scope, platform.version);
         let unit = published_child(
             BrandScope::BusinessUnit {
-                tenant_id: "tenant-acme".to_owned(),
                 holding_id,
                 business_unit: BusinessUnitId::Finance,
             },
@@ -1134,7 +1098,6 @@ mod tests {
         platform.locked_categories.insert(BrandCategory::Identity);
         let holding = published_child(
             BrandScope::Holding {
-                tenant_id: "tenant-acme".to_owned(),
                 holding_id: Uuid::new_v4(),
             },
             platform.version,
@@ -1209,10 +1172,10 @@ mod tests {
     fn corporate_identity_role_templates_are_exact_and_layered() {
         let platform = CorporateIdentityRoleTemplate::PlatformBrandAdmin.permissions();
         assert!(platform.contains(PLATFORM_BRAND_LOCK));
-        assert!(!platform.contains(TENANT_BRAND_MANAGE));
+        assert!(!platform.contains(HOLDING_BRAND_MANAGE));
         let unit = CorporateIdentityRoleTemplate::BusinessUnitBrandAdmin.permissions();
         assert!(unit.contains(BUSINESS_UNIT_BRAND_PUBLISH));
-        assert!(!unit.contains(TENANT_BRAND_LOCK));
+        assert!(!unit.contains(HOLDING_BRAND_LOCK));
         assert!(CorporateIdentityRoleTemplate::parse("custom_brand_admin").is_err());
     }
 }

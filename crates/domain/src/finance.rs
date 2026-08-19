@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::contracts::{ActorKind, CommandContext, TenantScope};
+use crate::contracts::{ActorKind, AuthorityScope, CommandContext};
 
 pub const FINANCE_CONTRACT_VERSION: u16 = 1;
 pub const FINANCE_AUTHORIZATION_CONTRACT_VERSION: u16 = 1;
@@ -70,7 +70,7 @@ pub enum FinanceError {
     InvalidCommandContext(String),
     #[error("command context scope {scope:?} does not contain company {company_id}")]
     ContextScopeOutsideCompany {
-        scope: TenantScope,
+        scope: AuthorityScope,
         company_id: Uuid,
     },
     #[error("journal company {journal_company} does not match chart company {chart_company}")]
@@ -298,9 +298,9 @@ impl FinanceAuthorizationRequest {
                 "Finance actor reference is invalid".into(),
             ));
         }
-        if matches!(&self.context.tenant_scope, TenantScope::Platform) {
+        if matches!(&self.context.active_scope, AuthorityScope::Platform) {
             return Err(FinanceError::InvalidAuthorizationContext(
-                "Finance authorization requires an explicit tenant scope".into(),
+                "Finance authorization requires an explicit holding scope".into(),
             ));
         }
         if self.operation.requires_mfa() && !self.mfa_verified {
@@ -325,7 +325,7 @@ impl FinanceAuthorizationRequest {
             }
         }
         if let FinanceAccessPath::LocalBreakGlass { evidence_ref } = &self.access_path
-            && (self.context.actor.kind != ActorKind::TenantUser
+            && (self.context.actor.kind != ActorKind::HoldingUser
                 || self.context.actor.represented_principal_ref.is_some()
                 || !self.mfa_verified
                 || evidence_ref.trim().is_empty()
@@ -2003,12 +2003,12 @@ fn validate_context_for_scope(
     require_id(context.command_id, "command_id")?;
     require_id(context.correlation_id, "correlation_id")?;
     require_bounded_text(&context.actor.principal_ref, "actor_principal_ref", 255)?;
-    if !context.tenant_scope.contains(&TenantScope::Company {
+    if !context.active_scope.contains(&AuthorityScope::Company {
         holding_id,
         company_id,
     }) {
         return Err(FinanceError::ContextScopeOutsideCompany {
-            scope: context.tenant_scope.clone(),
+            scope: context.active_scope.clone(),
             company_id,
         });
     }
@@ -2055,7 +2055,7 @@ mod tests {
     fn context(company_id: Uuid, key: &str) -> CommandContext {
         let actor = ActorAttribution {
             principal_ref: "finance-user".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: Some(Uuid::from_u128(100)),
             represented_principal_ref: None,
             support_capability_id: None,
@@ -2063,7 +2063,7 @@ mod tests {
         let mut context = CommandContext::try_new(
             key,
             actor,
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id: Uuid::from_u128(10),
                 company_id,
             },

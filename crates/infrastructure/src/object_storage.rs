@@ -245,7 +245,7 @@ impl MinioObjectStore {
     }
 
     /// Upload one bounded object through a short-lived presigned request.
-    /// Callers remain responsible for tenant authorization; this method only
+    /// Callers remain responsible for holding authorization; this method only
     /// validates the storage-safe namespace/key and transfer bounds.
     pub async fn put_object_bounded(
         &self,
@@ -327,7 +327,7 @@ impl MinioObjectStore {
         Ok(body)
     }
 
-    /// Delete one tenant-bound object through a short-lived presigned request.
+    /// Delete one holding-bound object through a short-lived presigned request.
     /// Missing objects are idempotent success so a retried retention sweep
     /// cannot recreate a deletion side effect.
     pub async fn delete_object_bounded(
@@ -351,7 +351,7 @@ impl MinioObjectStore {
         }
     }
 
-    /// Read a bounded S3-compatible object inventory for one tenant-bound
+    /// Read a bounded S3-compatible object inventory for one holding-bound
     /// prefix. A truncated response is rejected so callers never mistake a
     /// partial provider page for a complete reconciliation.
     pub async fn list_objects_bounded(
@@ -412,7 +412,7 @@ impl MinioObjectStore {
     }
 
     /// Convert an already-authorized, short-lived Legal download grant into a
-    /// MinIO URL. The server remains responsible for identity, tenant scope,
+    /// MinIO URL. The server remains responsible for identity, holding scope,
     /// RBAC, retention, and access-history recording; this adapter only
     /// enforces the grant's storage-safe bounds and never receives bytes or
     /// credentials from the caller.
@@ -752,7 +752,7 @@ mod tests {
     use super::*;
     use chrono::TimeZone;
     use erpx_domain::{
-        contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope},
+        contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext},
         legal::{LegalScope, SignedDownloadAuthorization},
     };
     use uuid::Uuid;
@@ -774,29 +774,29 @@ mod tests {
             .single()
             .expect("fixed timestamp");
         let put = store()
-            .presign_upload("tenant-abc", "documents/a b.txt", 300, at)
+            .presign_upload("holding-abc", "documents/a b.txt", 300, at)
             .expect("put URL");
         assert_eq!(put.method, "PUT");
         assert_eq!(put.expires_at, at + chrono::Duration::seconds(300));
         assert!(put.url.contains("X-Amz-Signature="));
-        assert!(put.url.contains("/tenant-abc/documents/a%20b.txt"));
+        assert!(put.url.contains("/holding-abc/documents/a%20b.txt"));
         let get = store()
-            .presign_download("tenant-abc", "documents/a b.txt", 300, at)
+            .presign_download("holding-abc", "documents/a b.txt", 300, at)
             .expect("get URL");
         assert_ne!(put.url, get.url);
         assert!(
             store()
-                .presign_upload("tenant-abc", "../secret", 300, at)
+                .presign_upload("holding-abc", "../secret", 300, at)
                 .is_err()
         );
         assert!(
             store()
-                .presign_upload("Tenant-abc", "safe", 300, at)
+                .presign_upload("Holding-abc", "safe", 300, at)
                 .is_err()
         );
         assert!(
             store()
-                .presign_upload("tenant-abc", "safe", 604_801, at)
+                .presign_upload("holding-abc", "safe", 604_801, at)
                 .is_err()
         );
     }
@@ -824,10 +824,10 @@ mod tests {
             .single()
             .expect("fixed timestamp");
         let upload = store()
-            .presign_upload("tenant-abc", "documents/report.pdf", 300, at)
+            .presign_upload("holding-abc", "documents/report.pdf", 300, at)
             .expect("upload URL");
         let download = store()
-            .presign_download("tenant-abc", "documents/report.pdf", 300, at)
+            .presign_download("holding-abc", "documents/report.pdf", 300, at)
             .expect("download URL");
         assert!(!upload.url.contains("minio-secret"));
         assert!(!download.url.contains("minio-secret"));
@@ -838,20 +838,23 @@ mod tests {
     fn inventory_parser_rejects_partial_pages_and_preserves_bounded_rows() {
         let body = r#"
             <ListBucketResult>
-              <Contents><Key>tenants/tenant-a/backup-chains/chain-a/artifacts/a.dump</Key><Size>42</Size></Contents>
-              <Contents><Key>tenants/tenant-a/backup-chains/chain-a/artifacts/b.dump</Key><Size>84</Size></Contents>
+              <Contents><Key>holdings/holding-a/backup-chains/chain-a/artifacts/a.dump</Key><Size>42</Size></Contents>
+              <Contents><Key>holdings/holding-a/backup-chains/chain-a/artifacts/b.dump</Key><Size>84</Size></Contents>
               <IsTruncated>false</IsTruncated>
             </ListBucketResult>
         "#;
-        let entries =
-            parse_inventory_response(body, "tenants/tenant-a/backup-chains/chain-a/artifacts/", 2)
-                .expect("inventory");
+        let entries = parse_inventory_response(
+            body,
+            "holdings/holding-a/backup-chains/chain-a/artifacts/",
+            2,
+        )
+        .expect("inventory");
         assert_eq!(entries.len(), 2);
         assert_eq!(entries[0].size_bytes, 42);
         assert!(
             parse_inventory_response(
                 &body.replace("false", "true"),
-                "tenants/tenant-a/backup-chains/chain-a/artifacts/",
+                "holdings/holding-a/backup-chains/chain-a/artifacts/",
                 2,
             )
             .is_err()
@@ -859,10 +862,10 @@ mod tests {
         assert!(
             parse_inventory_response(
                 &body.replace(
-                    "tenants/tenant-a/backup-chains/chain-a/artifacts/b.dump",
-                    "tenants/tenant-a/backup-chains/chain-a/artifacts/a.dump",
+                    "holdings/holding-a/backup-chains/chain-a/artifacts/b.dump",
+                    "holdings/holding-a/backup-chains/chain-a/artifacts/a.dump",
                 ),
-                "tenants/tenant-a/backup-chains/chain-a/artifacts/",
+                "holdings/holding-a/backup-chains/chain-a/artifacts/",
                 2,
             )
             .is_err()
@@ -870,7 +873,7 @@ mod tests {
         assert!(matches!(
             parse_inventory_response(
                 &body.replace("<IsTruncated>false</IsTruncated>", ""),
-                "tenants/tenant-a/backup-chains/chain-a/artifacts/",
+                "holdings/holding-a/backup-chains/chain-a/artifacts/",
                 2,
             ),
             Err(ObjectStorageError::InvalidResponse)
@@ -878,7 +881,7 @@ mod tests {
         assert!(matches!(
             parse_inventory_response(
                 "<NotAnInventory><IsTruncated>false</IsTruncated></NotAnInventory>",
-                "tenants/tenant-a/backup-chains/chain-a/artifacts/",
+                "holdings/holding-a/backup-chains/chain-a/artifacts/",
                 2,
             ),
             Err(ObjectStorageError::InvalidResponse)
@@ -904,7 +907,7 @@ mod tests {
         assert!(matches!(
             store()
                 .put_object_bounded(
-                    "tenant-abc",
+                    "holding-abc",
                     "artifact.bin",
                     b"payload",
                     0,
@@ -915,7 +918,7 @@ mod tests {
         ));
         assert!(matches!(
             store()
-                .get_object_bounded("tenant-abc", "artifact.bin", 0, Duration::from_secs(1),)
+                .get_object_bounded("holding-abc", "artifact.bin", 0, Duration::from_secs(1),)
                 .await,
             Err(ObjectStorageError::ObjectTooLarge)
         ));
@@ -932,12 +935,12 @@ mod tests {
             "legal-download-test",
             ActorAttribution {
                 principal_ref: "principal:legal-reader".into(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: None,
                 represented_principal_ref: None,
                 support_capability_id: None,
             },
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             },
@@ -962,19 +965,19 @@ mod tests {
         let now = Utc::now() + chrono::Duration::minutes(1);
         let authorization = legal_authorization(now + chrono::Duration::minutes(10), 1024);
         let signed = store()
-            .presign_legal_download("tenant-abc", &authorization, now)
+            .presign_legal_download("holding-abc", &authorization, now)
             .expect("signed legal download");
         assert_eq!(signed.method, "GET");
         assert!(
             signed
                 .url
-                .contains("/tenant-abc/legal/documents/contract.pdf")
+                .contains("/holding-abc/legal/documents/contract.pdf")
         );
 
         let expired = legal_authorization(now, 1024);
         assert!(
             store()
-                .presign_legal_download("tenant-abc", &expired, now)
+                .presign_legal_download("holding-abc", &expired, now)
                 .is_err()
         );
         let oversized = legal_authorization(
@@ -983,7 +986,7 @@ mod tests {
         );
         assert!(
             store()
-                .presign_legal_download("tenant-abc", &oversized, now)
+                .presign_legal_download("holding-abc", &oversized, now)
                 .is_err()
         );
         let traversal = SignedDownloadAuthorization {
@@ -992,7 +995,7 @@ mod tests {
         };
         assert!(
             store()
-                .presign_legal_download("tenant-abc", &traversal, now)
+                .presign_legal_download("holding-abc", &traversal, now)
                 .is_err()
         );
 
@@ -1001,7 +1004,7 @@ mod tests {
             ..authorization.clone()
         };
         let error = store()
-            .presign_legal_download("tenant-abc", &invalid_actor, now)
+            .presign_legal_download("holding-abc", &invalid_actor, now)
             .expect_err("presign must revalidate actor metadata");
         assert_eq!(
             error.to_string(),
@@ -1017,7 +1020,7 @@ mod tests {
         };
         assert!(
             store()
-                .presign_legal_download("tenant-abc", &invalid_scope, now)
+                .presign_legal_download("holding-abc", &invalid_scope, now)
                 .is_err()
         );
     }

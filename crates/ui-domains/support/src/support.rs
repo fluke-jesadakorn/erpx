@@ -2,7 +2,7 @@
 //!
 //! The types in this module are deliberately transport-neutral. An application converts an
 //! authorized gRPC/HTTP response into these display-safe models at its boundary; this crate does
-//! not carry capability secrets, access tokens, tenant credentials, or internal support notes.
+//! not carry capability secrets, access tokens, holding credentials, or internal support notes.
 
 use std::{fmt, time::Duration};
 
@@ -13,16 +13,16 @@ use erpx_ui_core::{Locale, NavItem, ProjectionFreshness, TranslationKey, UiState
 pub enum SupportMode {
     /// Read-only diagnostics and inspection.
     DiagnosticRead,
-    /// Approved tenant mutations performed by a support agent.
-    TenantMutation,
-    /// Approved impersonation of a represented tenant user.
+    /// Approved holding mutations performed by a support agent.
+    HoldingMutation,
+    /// Approved impersonation of a represented holding user.
     Impersonation,
 }
 
 /// Maximum diagnostic-read capability duration.
 pub const DIAGNOSTIC_READ_MAX_SECONDS: u64 = 8 * 60 * 60;
-/// Maximum tenant-mutation capability duration.
-pub const TENANT_MUTATION_MAX_SECONDS: u64 = 2 * 60 * 60;
+/// Maximum holding-mutation capability duration.
+pub const HOLDING_MUTATION_MAX_SECONDS: u64 = 2 * 60 * 60;
 /// Maximum impersonation capability duration.
 pub const IMPERSONATION_MAX_SECONDS: u64 = 2 * 60 * 60;
 
@@ -31,7 +31,7 @@ impl SupportMode {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::DiagnosticRead => "diagnostic_read",
-            Self::TenantMutation => "tenant_mutation",
+            Self::HoldingMutation => "holding_mutation",
             Self::Impersonation => "impersonation",
         }
     }
@@ -40,7 +40,7 @@ impl SupportMode {
     pub const fn max_seconds(self) -> u64 {
         match self {
             Self::DiagnosticRead => DIAGNOSTIC_READ_MAX_SECONDS,
-            Self::TenantMutation => TENANT_MUTATION_MAX_SECONDS,
+            Self::HoldingMutation => HOLDING_MUTATION_MAX_SECONDS,
             Self::Impersonation => IMPERSONATION_MAX_SECONDS,
         }
     }
@@ -58,7 +58,7 @@ impl SupportMode {
     const fn translation_key(self) -> TranslationKey {
         match self {
             Self::DiagnosticRead => TranslationKey::SupportModeDiagnosticRead,
-            Self::TenantMutation => TranslationKey::SupportModeTenantMutation,
+            Self::HoldingMutation => TranslationKey::SupportModeHoldingMutation,
             Self::Impersonation => TranslationKey::SupportModeImpersonation,
         }
     }
@@ -349,16 +349,16 @@ pub enum SupportRoute {
     PlatformIncidents,
     /// Platform incident detail.
     PlatformIncidentDetail,
-    /// Tenant support queue.
-    TenantSupport,
-    /// Tenant support intake.
-    TenantSupportNew,
-    /// Tenant support ticket detail.
-    TenantSupportDetail,
-    /// Tenant customer-approval surface.
-    TenantSupportAccessApproval,
-    /// Tenant platform-access surface.
-    TenantPlatformAccess,
+    /// Holding support queue.
+    HoldingSupport,
+    /// Holding support intake.
+    HoldingSupportNew,
+    /// Holding support ticket detail.
+    HoldingSupportDetail,
+    /// Holding customer-approval surface.
+    HoldingSupportAccessApproval,
+    /// Holding platform-access surface.
+    HoldingPlatformAccess,
 }
 
 /// Audience for a support route.
@@ -366,8 +366,8 @@ pub enum SupportRoute {
 pub enum SupportRouteAudience {
     /// Platform support staff.
     Platform,
-    /// Customer tenant users.
-    Tenant,
+    /// Customer holding users.
+    Holding,
 }
 
 /// Safe route metadata for the Dioxus navigation shell.
@@ -377,13 +377,13 @@ pub struct SupportRouteDefinition {
     pub route: SupportRoute,
     /// Canonical path template.
     pub template: &'static str,
-    /// Platform or tenant audience.
+    /// Platform or holding audience.
     pub audience: SupportRouteAudience,
     /// Whether an authenticated session is required.
     pub authenticated: bool,
 }
 
-/// Canonical support and incident routes required by platform and tenant clients.
+/// Canonical support and incident routes required by platform and holding clients.
 pub const SUPPORT_ROUTES: &[SupportRouteDefinition] = &[
     SupportRouteDefinition {
         route: SupportRoute::PlatformSupport,
@@ -434,33 +434,33 @@ pub const SUPPORT_ROUTES: &[SupportRouteDefinition] = &[
         authenticated: true,
     },
     SupportRouteDefinition {
-        route: SupportRoute::TenantSupport,
+        route: SupportRoute::HoldingSupport,
         template: "/support",
-        audience: SupportRouteAudience::Tenant,
+        audience: SupportRouteAudience::Holding,
         authenticated: true,
     },
     SupportRouteDefinition {
-        route: SupportRoute::TenantSupportNew,
+        route: SupportRoute::HoldingSupportNew,
         template: "/support/new",
-        audience: SupportRouteAudience::Tenant,
+        audience: SupportRouteAudience::Holding,
         authenticated: true,
     },
     SupportRouteDefinition {
-        route: SupportRoute::TenantSupportDetail,
+        route: SupportRoute::HoldingSupportDetail,
         template: "/support/:id",
-        audience: SupportRouteAudience::Tenant,
+        audience: SupportRouteAudience::Holding,
         authenticated: true,
     },
     SupportRouteDefinition {
-        route: SupportRoute::TenantSupportAccessApproval,
+        route: SupportRoute::HoldingSupportAccessApproval,
         template: "/support/:id/access-approval",
-        audience: SupportRouteAudience::Tenant,
+        audience: SupportRouteAudience::Holding,
         authenticated: true,
     },
     SupportRouteDefinition {
-        route: SupportRoute::TenantPlatformAccess,
+        route: SupportRoute::HoldingPlatformAccess,
         template: "/support/platform-access",
-        audience: SupportRouteAudience::Tenant,
+        audience: SupportRouteAudience::Holding,
         authenticated: true,
     },
 ];
@@ -1034,11 +1034,11 @@ impl SupportRoute {
             Self::PlatformSupportSessions => "/platform/support/sessions",
             Self::PlatformIncidents => "/platform/incidents",
             Self::PlatformIncidentDetail => "/platform/incidents/:id",
-            Self::TenantSupport => "/support",
-            Self::TenantSupportNew => "/support/new",
-            Self::TenantSupportDetail => "/support/:id",
-            Self::TenantSupportAccessApproval => "/support/:id/access-approval",
-            Self::TenantPlatformAccess => "/support/platform-access",
+            Self::HoldingSupport => "/support",
+            Self::HoldingSupportNew => "/support/new",
+            Self::HoldingSupportDetail => "/support/:id",
+            Self::HoldingSupportAccessApproval => "/support/:id/access-approval",
+            Self::HoldingPlatformAccess => "/support/platform-access",
         }
     }
 
@@ -1053,11 +1053,11 @@ impl SupportRoute {
             | Self::PlatformSupportSessions
             | Self::PlatformIncidents
             | Self::PlatformIncidentDetail => SupportRouteAudience::Platform,
-            Self::TenantSupport
-            | Self::TenantSupportNew
-            | Self::TenantSupportDetail
-            | Self::TenantSupportAccessApproval
-            | Self::TenantPlatformAccess => SupportRouteAudience::Tenant,
+            Self::HoldingSupport
+            | Self::HoldingSupportNew
+            | Self::HoldingSupportDetail
+            | Self::HoldingSupportAccessApproval
+            | Self::HoldingPlatformAccess => SupportRouteAudience::Holding,
         }
     }
 
@@ -1073,15 +1073,15 @@ impl SupportRoute {
 
     const fn translation_key(self) -> TranslationKey {
         match self {
-            Self::PlatformSupport | Self::TenantSupport => TranslationKey::Support,
-            Self::PlatformSupportNew | Self::TenantSupportNew => TranslationKey::SupportNew,
-            Self::PlatformSupportDetail | Self::TenantSupportDetail => TranslationKey::Support,
+            Self::PlatformSupport | Self::HoldingSupport => TranslationKey::Support,
+            Self::PlatformSupportNew | Self::HoldingSupportNew => TranslationKey::SupportNew,
+            Self::PlatformSupportDetail | Self::HoldingSupportDetail => TranslationKey::Support,
             Self::PlatformSupportAccess => TranslationKey::SupportAccess,
             Self::PlatformSupportDiagnostics => TranslationKey::SupportDiagnostics,
             Self::PlatformSupportSessions => TranslationKey::SupportSessions,
             Self::PlatformIncidents | Self::PlatformIncidentDetail => TranslationKey::Incidents,
-            Self::TenantSupportAccessApproval => TranslationKey::SupportApproval,
-            Self::TenantPlatformAccess => TranslationKey::SupportPlatformAccess,
+            Self::HoldingSupportAccessApproval => TranslationKey::SupportApproval,
+            Self::HoldingPlatformAccess => TranslationKey::SupportPlatformAccess,
         }
     }
 }
@@ -1226,7 +1226,6 @@ pub struct SupportProjectionMetadata {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SupportScope {
     holding_id: String,
-    tenant_id: String,
 }
 
 impl SupportProjectionMetadata {
@@ -1268,33 +1267,32 @@ impl SupportProjectionMetadata {
         }
     }
 
-    /// Build metadata explicitly bound to one holding and tenant.
+    /// Build metadata explicitly bound to one holding and holding.
     pub fn fresh_for_scope(
         holding_id: impl AsRef<str>,
-        tenant_id: impl AsRef<str>,
         projection_updated_at: impl Into<String>,
     ) -> Self {
         let mut metadata = Self::fresh(projection_updated_at);
-        metadata.scope = safe_support_scope(holding_id.as_ref(), tenant_id.as_ref());
+        metadata.scope = safe_support_scope(holding_id.as_ref());
         if metadata.scope.is_none() {
             metadata.freshness = ProjectionFreshness::Unknown;
         }
         metadata
     }
 
-    /// Whether this metadata has an explicit holding/tenant binding.
+    /// Whether this metadata has an explicit holding/holding binding.
     pub const fn has_scope(&self) -> bool {
         self.scope.is_some()
     }
 
-    /// Whether this metadata matches the requested holding and tenant.
-    pub fn is_bound_to_scope(&self, holding_id: &str, tenant_id: &str) -> bool {
-        self.scope.as_ref().is_some_and(|scope| {
-            scope.holding_id == holding_id.trim() && scope.tenant_id == tenant_id.trim()
-        })
+    /// Whether this metadata matches the requested holding and holding.
+    pub fn is_bound_to_scope(&self, holding_id: &str) -> bool {
+        self.scope
+            .as_ref()
+            .is_some_and(|scope| scope.holding_id == holding_id.trim())
     }
 
-    /// Whether two projection states carry the same explicit holding/tenant scope.
+    /// Whether two projection states carry the same explicit holding/holding scope.
     pub fn has_same_scope_as(&self, other: &Self) -> bool {
         self.scope.is_some() && self.scope == other.scope
     }
@@ -1626,13 +1624,9 @@ fn normalize_key(key: &str) -> String {
     key.trim().to_ascii_lowercase().replace('-', "_")
 }
 
-fn safe_support_scope(holding_id: &str, tenant_id: &str) -> Option<SupportScope> {
+fn safe_support_scope(holding_id: &str) -> Option<SupportScope> {
     let holding_id = safe_scope_id(holding_id)?;
-    let tenant_id = safe_scope_id(tenant_id)?;
-    Some(SupportScope {
-        holding_id,
-        tenant_id,
-    })
+    Some(SupportScope { holding_id })
 }
 
 fn safe_scope_id(value: &str) -> Option<String> {
@@ -1729,7 +1723,7 @@ fn contains_secret_marker(value: &str) -> bool {
         "sk_live_",
         "rk_live_",
         "capability_secret",
-        "tenant_credential",
+        "holding_credential",
     ]
     .iter()
     .any(|marker| value.contains(marker))
@@ -1792,8 +1786,8 @@ mod tests {
             SupportRouteAudience::Platform
         );
         assert_eq!(
-            SupportRoute::TenantSupport.audience(),
-            SupportRouteAudience::Tenant
+            SupportRoute::HoldingSupport.audience(),
+            SupportRouteAudience::Holding
         );
     }
 
@@ -1804,7 +1798,7 @@ mod tests {
             Duration::from_secs(8 * 3600)
         );
         assert_eq!(
-            SupportMode::TenantMutation.max_duration(),
+            SupportMode::HoldingMutation.max_duration(),
             Duration::from_secs(2 * 3600)
         );
         assert_eq!(
@@ -1814,7 +1808,7 @@ mod tests {
 
         for mode in [
             SupportMode::DiagnosticRead,
-            SupportMode::TenantMutation,
+            SupportMode::HoldingMutation,
             SupportMode::Impersonation,
         ] {
             assert!(mode.validate_duration(mode.max_duration()).is_ok());
@@ -1849,7 +1843,7 @@ mod tests {
     #[test]
     fn context_distinguishes_approval_impersonation_and_read_only() {
         let pending = SupportContextMetadata::new(
-            SupportMode::TenantMutation,
+            SupportMode::HoldingMutation,
             SupportApprovalState::Pending,
             SupportImpersonationState::PendingApproval,
             true,
@@ -1887,7 +1881,7 @@ mod tests {
             SupportApprovalState::Revoked,
         ] {
             let context = SupportContextMetadata::new(
-                SupportMode::TenantMutation,
+                SupportMode::HoldingMutation,
                 approval,
                 SupportImpersonationState::NotActive,
                 false,
@@ -1914,7 +1908,7 @@ mod tests {
             ("internal_note", "agent-only text"),
             ("private_notes", "agent-only text"),
             ("capability_secret", "one-time-secret"),
-            ("tenant_credentials", "postgres://tenant"),
+            ("holding_credentials", "postgres://holding"),
             ("diagnostic_version", "access_token=secret"),
             ("correlation_id", "Bearer secret"),
             ("attachment_url", "https://example.test/signed_url=secret"),
@@ -1965,23 +1959,15 @@ mod tests {
     }
 
     #[test]
-    fn tenant_projection_metadata_requires_matching_holding_and_tenant_scope() {
-        let metadata = SupportProjectionMetadata::fresh_for_scope(
-            "holding-1",
-            "tenant-1",
-            "2026-07-24T00:00:00Z",
-        );
+    fn holding_projection_metadata_requires_matching_holding_and_holding_scope() {
+        let metadata =
+            SupportProjectionMetadata::fresh_for_scope("holding-1", "2026-07-24T00:00:00Z");
         assert!(metadata.has_scope());
-        assert!(metadata.is_bound_to_scope("holding-1", "tenant-1"));
-        assert!(!metadata.is_bound_to_scope("holding-2", "tenant-1"));
-        assert!(!metadata.is_bound_to_scope("holding-1", "tenant-2"));
+        assert!(metadata.is_bound_to_scope("holding-1"));
+        assert!(!metadata.is_bound_to_scope("holding-2"));
         assert!(
-            !SupportProjectionMetadata::fresh_for_scope(
-                "holding/unsafe",
-                "tenant-1",
-                "2026-07-24T00:00:00Z",
-            )
-            .has_scope()
+            !SupportProjectionMetadata::fresh_for_scope("holding/unsafe", "2026-07-24T00:00:00Z",)
+                .has_scope()
         );
     }
 
@@ -2008,7 +1994,7 @@ mod tests {
     #[test]
     fn all_view_states_remain_explicit() {
         let model = SupportDisplayModel::new(
-            SupportRoute::TenantSupport,
+            SupportRoute::HoldingSupport,
             metadata(),
             context(SupportMode::DiagnosticRead),
         );
@@ -2145,7 +2131,7 @@ mod tests {
             "commander-safe",
             ["lead-safe", "Bearer should-not-display"],
             ["checkout-api", "private_key=not-a-service"],
-            ["customer-safe", "tenant_credential=not-an-account"],
+            ["customer-safe", "holding_credential=not-an-account"],
             12,
         );
         let detail = IncidentDisplayModel::from_safe_dto(incident_metadata(), input.clone())

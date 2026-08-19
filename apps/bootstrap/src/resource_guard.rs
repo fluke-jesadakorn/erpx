@@ -558,7 +558,7 @@ mod tests {
             at(8),
             vec!["legacy".into()],
             vec!["legacy_control_read".into(), "legacy_control_write".into()],
-            vec!["legacy-tenant-objects".into()],
+            vec!["legacy-holding-objects".into()],
             vec!["release:v1".into()],
             "environment/legacy-v1".into(),
         )
@@ -599,7 +599,7 @@ mod tests {
             FreshNamespacePlan::new(
                 "https://127.0.0.1:9000",
                 "next_v2",
-                "next-v2-tenant-objects",
+                "next-v2-holding-objects",
                 &retained,
             )
             .is_ok()
@@ -608,7 +608,7 @@ mod tests {
             FreshNamespacePlan::new(
                 "https://127.0.0.1:9000",
                 "legacy",
-                "legacy-v2-tenant-objects",
+                "legacy-v2-holding-objects",
                 &retained,
             )
             .is_err()
@@ -617,7 +617,7 @@ mod tests {
             FreshNamespacePlan::new(
                 "https://127.0.0.1:9000",
                 "next_v2",
-                "legacy-tenant-objects",
+                "legacy-holding-objects",
                 &retained,
             )
             .is_err()
@@ -663,7 +663,7 @@ mod tests {
         let plan = FreshNamespacePlan::new(
             "https://127.0.0.1:9000",
             "next_v2",
-            "next-v2-tenant-objects",
+            "next-v2-holding-objects",
             &retained_inventory(),
         )
         .expect("fresh plan");
@@ -676,7 +676,7 @@ mod tests {
         let receipt = create_and_verify_new_namespace(&plan, &admin, at(9), Duration::from_secs(5))
             .await
             .expect("verified namespace");
-        assert_eq!(receipt.namespace(), "next-v2-tenant-objects");
+        assert_eq!(receipt.namespace(), "next-v2-holding-objects");
         assert_eq!(receipt.verified_at(), at(9));
         assert_eq!(admin.calls.lock().expect("calls mutex").len(), 3);
 
@@ -710,7 +710,7 @@ mod tests {
         let plan = FreshNamespacePlan::new(
             "https://127.0.0.1:9000",
             "next_v2",
-            "next-v2-tenant-objects",
+            "next-v2-holding-objects",
             &retained_inventory(),
         )
         .expect("fresh plan");
@@ -748,7 +748,7 @@ mod tests {
             .expect("namespace is absent");
         assert_eq!(
             absent.calls.lock().expect("calls mutex").as_slice(),
-            ["exists:next-v2-tenant-objects"]
+            ["exists:next-v2-holding-objects"]
         );
 
         assert!(

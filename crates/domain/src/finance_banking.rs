@@ -14,7 +14,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::contracts::{CommandContext, TenantScope};
+use crate::contracts::{AuthorityScope, CommandContext};
 
 pub const FINANCE_BANKING_CONTRACT_VERSION: u16 = 1;
 pub const MAX_BANK_REFERENCE_BYTES: usize = 255;
@@ -40,8 +40,8 @@ pub enum FinanceBankingError {
     InvalidScope,
     #[error("command scope {command_scope:?} does not contain record scope {record_scope:?}")]
     CommandScopeOutside {
-        command_scope: Box<TenantScope>,
-        record_scope: Box<TenantScope>,
+        command_scope: Box<AuthorityScope>,
+        record_scope: Box<AuthorityScope>,
     },
     #[error("command context is invalid: {0}")]
     InvalidCommandContext(String),
@@ -124,7 +124,7 @@ pub enum FinanceBankingError {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BankAccount {
     id: Uuid,
-    scope: TenantScope,
+    scope: AuthorityScope,
     holding_id: Uuid,
     company_id: Uuid,
     currency: String,
@@ -137,7 +137,7 @@ impl BankAccount {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         holding_id: Uuid,
         company_id: Uuid,
         currency: impl Into<String>,
@@ -183,7 +183,7 @@ impl BankAccount {
         self.id
     }
 
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
 
@@ -348,7 +348,7 @@ impl ImportedBankTransaction {
 pub struct BankStatementImport {
     id: Uuid,
     bank_account_id: Uuid,
-    scope: TenantScope,
+    scope: AuthorityScope,
     holding_id: Uuid,
     company_id: Uuid,
     statement_reference: String,
@@ -368,7 +368,7 @@ impl BankStatementImport {
     pub fn new(
         id: Uuid,
         bank_account_id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         holding_id: Uuid,
         company_id: Uuid,
         statement_reference: impl Into<String>,
@@ -402,7 +402,7 @@ impl BankStatementImport {
     fn new_checked(
         id: Uuid,
         bank_account_id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         holding_id: Uuid,
         company_id: Uuid,
         statement_reference: String,
@@ -564,7 +564,7 @@ impl BankStatementImport {
         self.bank_account_id
     }
 
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
 
@@ -839,7 +839,7 @@ impl BankMatchResolution {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BankMatchProposal {
     id: Uuid,
-    scope: TenantScope,
+    scope: AuthorityScope,
     holding_id: Uuid,
     company_id: Uuid,
     bank_account_id: Uuid,
@@ -997,7 +997,7 @@ impl BankMatchProposal {
         self.id
     }
 
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
 
@@ -1042,7 +1042,7 @@ pub struct BankMatchDecision {
     id: Uuid,
     proposal_id: Uuid,
     proposal_idempotency_key: String,
-    scope: TenantScope,
+    scope: AuthorityScope,
     holding_id: Uuid,
     company_id: Uuid,
     bank_account_id: Uuid,
@@ -1187,7 +1187,7 @@ impl BankMatchDecision {
         &self.proposal_idempotency_key
     }
 
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
 
@@ -1316,7 +1316,7 @@ pub fn deterministic_match_proposal_id(
 
 fn deterministic_match_idempotency_key_from_parts(
     bank_account_id: Uuid,
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     transaction_id: Uuid,
     posted_on: NaiveDate,
     amount_minor: i64,
@@ -1432,7 +1432,7 @@ impl BankReconciliationStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BankReconciliation {
     id: Uuid,
-    scope: TenantScope,
+    scope: AuthorityScope,
     holding_id: Uuid,
     company_id: Uuid,
     bank_account_id: Uuid,
@@ -1450,7 +1450,7 @@ impl BankReconciliation {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         holding_id: Uuid,
         company_id: Uuid,
         bank_account_id: Uuid,
@@ -1627,7 +1627,7 @@ impl BankReconciliation {
         self.id
     }
 
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
 
@@ -1744,7 +1744,7 @@ fn transaction_content_digest(
 #[allow(clippy::too_many_arguments)]
 fn import_content_digest(
     bank_account_id: Uuid,
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     holding_id: Uuid,
     company_id: Uuid,
     statement_reference: &str,
@@ -1791,36 +1791,38 @@ fn validate_context(context: &CommandContext) -> Result<(), FinanceBankingError>
 
 fn require_scope_contains(
     context: &CommandContext,
-    record_scope: &TenantScope,
+    record_scope: &AuthorityScope,
 ) -> Result<(), FinanceBankingError> {
-    if context.tenant_scope.contains(record_scope) {
+    if context.active_scope.contains(record_scope) {
         Ok(())
     } else {
         Err(FinanceBankingError::CommandScopeOutside {
-            command_scope: Box::new(context.tenant_scope.clone()),
+            command_scope: Box::new(context.active_scope.clone()),
             record_scope: Box::new(record_scope.clone()),
         })
     }
 }
 
 fn validate_record_scope(
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     holding_id: Uuid,
     company_id: Uuid,
 ) -> Result<(), FinanceBankingError> {
     require_id(holding_id, "holding_id")?;
     require_id(company_id, "company_id")?;
     let valid = match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id: scoped_holding,
             company_id: scoped_company,
         } => *scoped_holding == holding_id && *scoped_company == company_id,
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id: scoped_holding,
             company_id: scoped_company,
             branch_id,
         } => *scoped_holding == holding_id && *scoped_company == company_id && !branch_id.is_nil(),
-        TenantScope::Platform | TenantScope::Holding { .. } | TenantScope::Subtree { .. } => false,
+        AuthorityScope::Platform
+        | AuthorityScope::Holding { .. }
+        | AuthorityScope::Subtree { .. } => false,
     };
     if valid {
         Ok(())
@@ -1869,24 +1871,23 @@ fn append_component(output: &mut String, value: &str) {
     output.push('|');
 }
 
-fn scope_key(scope: &TenantScope) -> String {
+fn scope_key(scope: &AuthorityScope) -> String {
     match scope {
-        TenantScope::Platform => "platform".to_owned(),
-        TenantScope::Holding { holding_id } => format!("holding:{holding_id}"),
-        TenantScope::Company {
+        AuthorityScope::Platform => "platform".to_owned(),
+        AuthorityScope::Holding { holding_id } => format!("holding:{holding_id}"),
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => format!("company:{holding_id}:{company_id}"),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         } => format!("branch:{holding_id}:{company_id}:{branch_id}"),
-        TenantScope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
-        } => format!("subtree:{holding_id}:{company_ids:?}:{branch_ids:?}"),
+            organization_node_id,
+        } => format!("subtree:{holding_id}:{organization_node_id}"),
     }
 }
 
@@ -1903,24 +1904,24 @@ mod tests {
     const TRANSACTION: Uuid = Uuid::from_u128(12);
     const RECONCILIATION: Uuid = Uuid::from_u128(13);
 
-    fn scope(company_id: Uuid) -> TenantScope {
-        TenantScope::Company {
+    fn scope(company_id: Uuid) -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: HOLDING,
             company_id,
         }
     }
 
-    fn context(key: &str, tenant_scope: TenantScope) -> CommandContext {
+    fn context(key: &str, active_scope: AuthorityScope) -> CommandContext {
         CommandContext::try_new(
             key,
             ActorAttribution {
                 principal_ref: "finance-user".to_owned(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: Some(Uuid::from_u128(20)),
                 represented_principal_ref: None,
                 support_capability_id: None,
             },
-            tenant_scope,
+            active_scope,
             "finance banking test",
         )
         .expect("test context is valid")

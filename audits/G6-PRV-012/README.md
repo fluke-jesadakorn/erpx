@@ -4,7 +4,7 @@
 
 Added `ListProjectionStatuses` to the Platform Operations gRPC service. The
 handler requires an authenticated session, platform scope, the existing
-platform tenant-read permission, bounded optional tenant/holding/projection
+platform holding-read permission, bounded optional holding/holding/projection
 filters, and a bounded continuation cursor. It records a platform audit event
 with actor and correlation attribution before returning typed status rows.
 

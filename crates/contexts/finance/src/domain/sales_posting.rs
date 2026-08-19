@@ -7,7 +7,7 @@ use std::collections::BTreeSet;
 
 use chrono::{DateTime, NaiveDate, Utc};
 use erpx_integration_contracts::{BoundedContext, DimensionSet, RecordRef};
-use erpx_kernel::{EventId, TenantScope};
+use erpx_kernel::{AuthorityScope, EventId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -244,7 +244,7 @@ impl AccountingPlanSuggestionProvenance {
 pub struct AccountingPlan {
     id: AccountingPlanId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     quote: RecordRef,
     currency: String,
     quote_net_minor: i64,
@@ -266,7 +266,7 @@ impl AccountingPlan {
     #[allow(clippy::too_many_arguments)]
     pub fn draft(
         id: AccountingPlanId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         quote: RecordRef,
         currency: String,
         quote_net_minor: i64,
@@ -420,7 +420,7 @@ impl AccountingPlan {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn quote(&self) -> &RecordRef {
@@ -592,7 +592,7 @@ impl PostingReceipt {
 pub struct PostingPacket {
     id: PostingPacketId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     plan_id: AccountingPlanId,
     plan_version: u64,
     quote: RecordRef,
@@ -823,7 +823,7 @@ impl PostingPacket {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn plan_id(&self) -> AccountingPlanId {
@@ -970,7 +970,7 @@ mod tests {
     fn plan() -> AccountingPlan {
         let mut value = AccountingPlan::draft(
             AccountingPlanId::try_from_uuid(Uuid::from_u128(30)).unwrap(),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id: Uuid::from_u128(31),
                 company_id: Uuid::from_u128(32),
             },

@@ -2339,13 +2339,13 @@ fn parse_scope_key(value: &str) -> Result<ConnectorScope, DirectoryRbacError> {
     if value == "platform" {
         return Ok(ConnectorScope::Platform);
     }
-    let holding_ref = value
+    let data_profile_key = value
         .strip_prefix("holding:")
         .filter(|reference| !reference.is_empty())
         .ok_or(DirectoryRbacError::InvalidReference {
             field: "connector_scope",
         })?;
-    let holding_id = directory_holding_id(holding_ref);
+    let holding_id = directory_holding_id(data_profile_key);
     validate_scope(&ConnectorScope::Holding(holding_id))?;
     Ok(ConnectorScope::Holding(holding_id))
 }

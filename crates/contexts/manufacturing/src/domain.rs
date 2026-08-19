@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, Utc};
 use erpx_integration_contracts::{MoneyAmount, Quantity, StableRecordRef};
-use erpx_kernel::{CorrelationId, TenantScope};
+use erpx_kernel::{AuthorityScope, CorrelationId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -122,7 +122,7 @@ pub struct SpecificationRef {
 pub struct ManufacturingSpecification {
     id: SpecificationId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     mode: ManufacturingMode,
     output_item: StableRecordRef,
     output_quantity: Quantity,
@@ -137,7 +137,7 @@ impl ManufacturingSpecification {
     #[allow(clippy::too_many_arguments)]
     pub fn draft(
         id: SpecificationId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         mode: ManufacturingMode,
         output_item: StableRecordRef,
         output_quantity: Quantity,
@@ -233,7 +233,7 @@ impl ManufacturingSpecification {
     pub const fn mode(&self) -> ManufacturingMode {
         self.mode
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn materials(&self) -> &[MaterialLine] {
@@ -316,7 +316,7 @@ pub struct ManufacturingCostFact {
 pub struct ProductionOrder {
     id: ProductionOrderId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     specification: SpecificationRef,
     mode: ManufacturingMode,
     planned_output: Quantity,
@@ -334,7 +334,7 @@ pub struct ProductionOrder {
 impl ProductionOrder {
     pub fn draft(
         id: ProductionOrderId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         specification: &ManufacturingSpecification,
         planned_output: Quantity,
         correlation_id: CorrelationId,
@@ -601,7 +601,7 @@ impl ProductionOrder {
     pub const fn status(&self) -> ProductionStatus {
         self.status
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn specification(&self) -> SpecificationRef {

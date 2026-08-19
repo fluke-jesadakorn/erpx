@@ -720,7 +720,7 @@ impl<T> FinanceReadPage<T> {
     }
 }
 
-/// Typed tenant scope supplied by an already-authorized Finance read boundary.
+/// Typed holding scope supplied by an already-authorized Finance read boundary.
 ///
 /// The UI never derives authorization from this value; it only preserves the
 /// exact holding/company binding so a consuming adapter can reject mismatched
@@ -806,13 +806,13 @@ impl FinanceProjectionMetadata {
         }
     }
 
-    /// Bind this metadata to the exact tenant scope used by the read.
+    /// Bind this metadata to the exact holding scope used by the read.
     pub fn with_scope(mut self, scope: FinanceScope) -> Self {
         self.scope = Some(scope);
         self
     }
 
-    /// Return the typed tenant scope, when the adapter supplied one.
+    /// Return the typed holding scope, when the adapter supplied one.
     pub const fn scope(&self) -> Option<&FinanceScope> {
         self.scope.as_ref()
     }
@@ -1016,7 +1016,7 @@ impl<T> FinancePageState<T> {
             // A Finance payload is renderable only when the authorized adapter
             // supplied the exact typed holding/company scope.  Keeping the
             // scope check at this accessor prevents a target from accidentally
-            // rendering an otherwise safe-looking row outside its tenant
+            // rendering an otherwise safe-looking row outside its holding
             // binding, including cached/conflict/offline data.
             Self::Ready { data, metadata }
             | Self::Stale { data, metadata, .. }

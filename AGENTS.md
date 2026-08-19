@@ -46,12 +46,14 @@ build. Desktop/Mobile certification is deferred to the manual
 
 ## Development
 
-Run `cargo xtask dev --detach` once and keep Dioxus hot reload active. Re-run the
-same command after backend edits for a selective warm restart; use
-`cargo xtask dev --detach --fresh` only for a full non-destructive runtime
-reconcile. Keep the ERPX development server running on port 3004 when handing
-work back. Use `cargo xtask status` and `cargo xtask stop`; these commands manage
-only recorded ERPX child processes.
+Run `cargo xtask dev --detach` when a live runtime is needed and keep Dioxus hot
+reload active while editing UI Rust/RSX. Re-run the same command after backend
+edits for a selective warm restart; use `cargo xtask dev --detach --fresh` for a
+full non-destructive runtime reconcile when needed. Reload or restart the
+development runtime freely, but after every reload or restart verify with
+`cargo xtask status` and a relevant live request that ERPX is usable again. The
+development server does not need to remain running on port 3004 at handoff. Use
+`cargo xtask stop` to stop only recorded ERPX child processes.
 
 ## Runtime safety
 

@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
 use erpx_integration_contracts::{ItemDescriptorDraft, pos};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use erpx_pos::{PaymentMethod, RefundStatus, RefundView, SaleStatus, SaleView};
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
@@ -73,15 +73,15 @@ impl Projector for PosSaleProjector {
         let result = sqlx::query(
             "INSERT INTO erpx_pos_read.sale_projection
                 (projection_name,generation,partition_key,sale_id,
-                 source_aggregate_version,source_global_sequence,tenant_scope,scope_key,
+                 source_aggregate_version,source_global_sequence,active_scope,scope_key,
                  receipt_code,register_id,customer_id,currency,subtotal_minor,tax_minor,
                  total_minor,paid_minor,sale_status,lines,payments,state,
                  aggregate_created_at,aggregate_updated_at,projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,now())
-             ON CONFLICT (tenant_id,projection_name,generation,partition_key,sale_id)
+             ON CONFLICT (holding_id,projection_name,generation,partition_key,sale_id)
              DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,
                 source_global_sequence=EXCLUDED.source_global_sequence,
-                tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,
+                active_scope=EXCLUDED.active_scope,scope_key=EXCLUDED.scope_key,
                 receipt_code=EXCLUDED.receipt_code,register_id=EXCLUDED.register_id,
                 customer_id=EXCLUDED.customer_id,currency=EXCLUDED.currency,
                 subtotal_minor=EXCLUDED.subtotal_minor,tax_minor=EXCLUDED.tax_minor,
@@ -184,15 +184,15 @@ impl Projector for PosRefundProjector {
         let result = sqlx::query(
             "INSERT INTO erpx_pos_read.refund_projection
                 (projection_name,generation,partition_key,refund_id,
-                 source_aggregate_version,source_global_sequence,tenant_scope,scope_key,
+                 source_aggregate_version,source_global_sequence,active_scope,scope_key,
                  sale_id,currency,total_amount_minor,refund_status,requester_principal_ref,
                  reviewer_principal_ref,lines,state,aggregate_requested_at,
                  aggregate_updated_at,projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,now())
-             ON CONFLICT (tenant_id,projection_name,generation,partition_key,refund_id)
+             ON CONFLICT (holding_id,projection_name,generation,partition_key,refund_id)
              DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,
                 source_global_sequence=EXCLUDED.source_global_sequence,
-                tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,
+                active_scope=EXCLUDED.active_scope,scope_key=EXCLUDED.scope_key,
                 sale_id=EXCLUDED.sale_id,currency=EXCLUDED.currency,
                 total_amount_minor=EXCLUDED.total_amount_minor,
                 refund_status=EXCLUDED.refund_status,
@@ -275,7 +275,7 @@ fn validate_sale_event(
     let view = snapshot.sale;
     if view.version != event.aggregate_version
         || view.sale_id.as_uuid() != event.aggregate_id.as_uuid()
-        || view.scope != event.tenant_scope
+        || view.scope != event.active_scope
         || event.partition != sale_partition(view.sale_id)
         || scope_key(&view.scope).is_err()
     {
@@ -310,7 +310,7 @@ fn validate_refund_event(
     let view = snapshot.refund;
     if view.version != event.aggregate_version
         || view.refund_id.as_uuid() != event.aggregate_id.as_uuid()
-        || view.scope != event.tenant_scope
+        || view.scope != event.active_scope
         || event.partition != refund_partition(view.refund_id)
         || scope_key(&view.scope).is_err()
     {
@@ -321,13 +321,13 @@ fn validate_refund_event(
     Ok(view)
 }
 
-pub(crate) fn scope_key(scope: &TenantScope) -> Result<String, ProjectionFailure> {
+pub(crate) fn scope_key(scope: &AuthorityScope) -> Result<String, ProjectionFailure> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok(format!("holding:{holding_id}/company:{company_id}")),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -407,7 +407,7 @@ mod tests {
             payment_method_name(PaymentMethod::MobileWallet),
             "mobile_wallet"
         );
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         };

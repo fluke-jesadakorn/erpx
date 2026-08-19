@@ -2,13 +2,13 @@
 
 ## Delivered behavior
 
-- Added an ignored real PostgreSQL integration harness for the existing `TenantDatabaseProvisioner` and `TenantProvisioner` path.
-- Creates uniquely named disposable control-write, control-read, tenant-write, tenant-read, failed-candidate-read, and successful-candidate-read databases.
-- Applies the embedded control and tenant migrations and verifies the tenant write/read databases are physically distinct.
-- Repeats tenant provisioning to verify migration/provisioning idempotency.
-- Verifies every table in the `erpx_tenant` schema has both row-level security and forced row-level security.
-- Verifies inactive tenants cannot route, activation requires storage verification, failed storage verification cannot activate a tenant, and successful verification permits activation.
-- Verifies active routing is holding-scoped and that the write transaction receives the transaction-local `erpx.holding_ref` setting.
+- Added an ignored real PostgreSQL integration harness for the existing `HoldingDatabaseProvisioner` and `HoldingProvisioner` path.
+- Creates uniquely named disposable control-write, control-read, holding-write, holding-read, failed-candidate-read, and successful-candidate-read databases.
+- Applies the embedded control and holding migrations and verifies the holding write/read databases are physically distinct.
+- Repeats holding provisioning to verify migration/provisioning idempotency.
+- Verifies every table in the `erpx_holding` schema has both row-level security and forced row-level security.
+- Verifies inactive holdings cannot route, activation requires storage verification, failed storage verification cannot activate a holding, and successful verification permits activation.
+- Verifies active routing is holding-scoped and that the write transaction receives the transaction-local `erpx.data_profile_key` setting.
 - Exercises failed restore verification and proves the durable backup run is failed, the prior read database remains selected, and no projection switch is recorded.
 - Exercises verified restore plus replacement-read activation against a physically migrated candidate read database, then probes the newly selected read route.
 - Cleanup attempts every created database in reverse order and terminates active connections before dropping it. Database URLs and credentials are not printed.
@@ -24,9 +24,9 @@ cargo test -p erpx-infrastructure --test provisioning_replacement -- --ignored r
 Required environment:
 
 - `ERPX_TEST_ADMIN_DATABASE_URL`: server-side PostgreSQL URL with permission to create/drop databases; defaults in the harness to `postgres://localhost/postgres` for local development.
-- `ERPX_TEST_TENANT_DATABASE_URL_TEMPLATE`: tenant URL template containing exactly one `{database}` token; defaults to `postgres://localhost/{database}`.
+- `ERPX_TEST_HOLDING_DATABASE_URL_TEMPLATE`: holding URL template containing exactly one `{database}` token; defaults to `postgres://localhost/{database}`.
 
-The test does not print either value. The control and tenant databases are generated inside the test with a UUID suffix and are dropped before the test returns on both success and ordinary assertion/error paths.
+The test does not print either value. The control and holding databases are generated inside the test with a UUID suffix and are dropped before the test returns on both success and ordinary assertion/error paths.
 
 Required verification:
 

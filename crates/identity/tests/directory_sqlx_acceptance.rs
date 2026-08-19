@@ -82,7 +82,7 @@ fn root_connector(
         id,
         provider,
         scope: DirectoryScope::Holding {
-            holding_ref: format!("g14-local-{}", id.simple()),
+            data_profile_key: format!("g14-local-{}", id.simple()),
         },
         endpoint: endpoint.into(),
         base_dn: "dc=example,dc=test".into(),
@@ -302,7 +302,7 @@ async fn g14_local_directory_sqlx_acceptance() {
         group_ref: "group:platform-directory-users".into(),
         role_ref: "role:directory-reader".into(),
         scope: DirectoryScope::Holding {
-            holding_ref: "platform-contained-holding".into(),
+            data_profile_key: "platform-contained-holding".into(),
         },
         target_scope: DirectoryRoleTargetScope::Holding,
         requires_mfa: false,
@@ -379,8 +379,8 @@ async fn g14_local_directory_sqlx_acceptance() {
     .expect("enable direct native-import fixture");
 
     let sync_scope_id = match &generic.scope {
-        DirectoryScope::Holding { holding_ref } => {
-            Uuid::new_v5(&Uuid::NAMESPACE_URL, holding_ref.as_bytes())
+        DirectoryScope::Holding { data_profile_key } => {
+            Uuid::new_v5(&Uuid::NAMESPACE_URL, data_profile_key.as_bytes())
         }
         DirectoryScope::Platform => panic!("generic local fixture must be holding-scoped"),
         DirectoryScope::Branch { .. } => panic!("generic local fixture must be holding-scoped"),

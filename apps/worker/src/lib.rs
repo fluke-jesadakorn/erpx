@@ -14,17 +14,17 @@ use erpx_infrastructure::{
     AssetMaintenanceProjectionRebuildPreparation, AssetMaintenanceSourceEventCursor,
     AssetMaintenanceSourceEventPage, BankProviderCredentialResolver, CapabilityMetadata,
     ControlPlaneDatabaseConfig, ControlPlanePoolSettings, ControlPlanePools,
+    HoldingDatabaseProvisioner, HoldingDatabaseRouter, HoldingProvisioner,
     MAX_QUALITY_PROJECTION_EVENTS, MAX_QUALITY_SOURCE_PAGE_SIZE,
     MAX_RESTORE_TEST_SCHEDULE_BATCH_SIZE, MarketingSourceEvent as InfraMarketingSourceEvent,
     MarketingSourceEventCursor as InfraMarketingSourceEventCursor, OutboxEnvelope,
     PersistenceError, RestoreTestClaim, RestoreTestScheduleError, RestoreTestScheduler,
-    RoleReviewPersistence, RoutedDatabaseSide, RoutedTenantDatabase,
+    RoleReviewPersistence, RoutedDatabaseSide, RoutedHoldingDatabase,
     SalesProjectionRebuildPreparation, SalesSourceEventCursor, SqlxAssetMaintenanceStore,
-    SqlxCommercialStore, SqlxControlPlane, SqlxMarketingStore, SqlxSalesStore,
-    SqlxTenantProjectionStatusProjectionStore, StripeInboxRetryPolicy, StripeInboxTransition,
+    SqlxCommercialStore, SqlxControlPlane, SqlxHoldingProjectionStatusProjectionStore,
+    SqlxMarketingStore, SqlxSalesStore, StripeInboxRetryPolicy, StripeInboxTransition,
     StripeSemanticApplyError, StripeSemanticDispatchError, StripeSemanticDispatcher,
-    SupportPersistence, SupportPersistenceError, SupportWorkflowStore, TenantDatabaseProvisioner,
-    TenantDatabaseRouter, TenantProvisioner,
+    SupportPersistence, SupportPersistenceError, SupportWorkflowStore,
 };
 use erpx_migration::{migrate_control_plane, migrate_control_read};
 use thiserror::Error;
@@ -32,8 +32,8 @@ use uuid::Uuid;
 
 #[cfg(test)]
 use erpx_infrastructure::{
-    DatabaseSide, ReadinessObservationState, TenantBackupRun, TenantDatabaseHealth,
-    TenantStorageHealth,
+    DatabaseSide, HoldingBackupRun, HoldingDatabaseHealth, HoldingStorageHealth,
+    ReadinessObservationState,
 };
 #[cfg(test)]
 use std::sync::Mutex;
@@ -42,13 +42,13 @@ pub use erpx_infrastructure::{
     ReadinessState, WorkerHeartbeat, WorkerHeartbeatObservation, WorkerHeartbeatReadiness,
     WorkerLiveReadinessObservation, WorkerLiveReadinessPolicy, WorkerReadinessComposition,
     WorkerReadinessMetadata, WorkerReadinessObserver, backup_pitr_readiness,
-    projection_freshness_readiness, tenant_routing_readiness,
+    holding_routing_readiness, projection_freshness_readiness,
 };
 
+mod agent_holding_runtime;
 mod agent_material;
 mod agent_orchestration_runtime;
 mod agent_provider;
-mod agent_tenant_runtime;
 mod approval_session_integration;
 mod backup_retention;
 mod backup_runtime;
@@ -73,6 +73,8 @@ mod finance_tax_projection;
 mod fixture_suggestion_provider;
 mod future_enterprise_projection;
 mod g13_target_runtime;
+mod holding_projection_scheduler;
+mod holding_projection_status_projection;
 mod hr_completion_runtime;
 mod hr_projection;
 mod item_directory_authority;
@@ -101,12 +103,17 @@ mod sales_finance_integration;
 mod scm_projection;
 mod support_attachments;
 mod support_workflow;
-mod tenant_projection_scheduler;
-mod tenant_projection_status_projection;
 
 #[cfg(test)]
 mod vertical_slice_tests;
 
+pub use agent_holding_runtime::{
+    AgentGovernanceMaintenancePass, AgentHoldingRuntimeBundle, AgentHoldingRuntimeFactoryPort,
+    AgentProjectionPass, SqlxTrustedAgentHoldingRuntimeFactory, TrustedAgentHoldingDependencies,
+    TrustedAgentHoldingDependencyPort, TrustedAgentHoldingOperationsConfig,
+    TrustedAgentHoldingRuntimeConfig, TrustedHoldingAgentAssignmentPass,
+    compose_trusted_holding_agent_operations, compose_trusted_holding_agent_runner,
+};
 pub use agent_material::{
     AgentEncryptedObjectPort, AgentEnvelopeCiphertext, AgentEnvelopeKeyManagerPort,
     AgentProtectedMaterialConfig, GovernedAgentProtectedMaterial,
@@ -120,27 +127,19 @@ pub use agent_orchestration_runtime::{
 };
 pub use agent_provider::{
     AgentNetworkProviderConfig, AgentProviderApproval, AgentProviderConfigurationError,
-    AgentProviderLimits, GovernedAgentProvider, OllamaAgentProvider, OllamaProviderConfig,
-    OpenAiCompatibleAgentProvider, OpenAiCompatibleCredential, OpenAiCompatiblePricing,
-    OpenAiCompatibleProviderConfig, TenantBoundAgentProviderPort,
-};
-pub use agent_tenant_runtime::{
-    AgentGovernanceMaintenancePass, AgentProjectionPass, AgentTenantRuntimeBundle,
-    AgentTenantRuntimeFactoryPort, SqlxTrustedAgentTenantRuntimeFactory,
-    TrustedAgentTenantDependencies, TrustedAgentTenantDependencyPort,
-    TrustedAgentTenantOperationsConfig, TrustedAgentTenantRuntimeConfig,
-    TrustedTenantAgentAssignmentPass, compose_trusted_tenant_agent_operations,
-    compose_trusted_tenant_agent_runner,
+    AgentProviderLimits, GovernedAgentProvider, HoldingBoundAgentProviderPort, OllamaAgentProvider,
+    OllamaProviderConfig, OpenAiCompatibleAgentProvider, OpenAiCompatibleCredential,
+    OpenAiCompatiblePricing, OpenAiCompatibleProviderConfig,
 };
 pub use approval_session_integration::{
     ApprovalIngressOutcome, ApprovalIntegrationError, ApprovalOwnerCommand, ApprovalOwnerHandoff,
     ApprovalSessionIngressState, owner_handoff,
 };
 pub use backup_retention::{
-    TENANT_BACKUP_RETENTION_HANDLER_NAME, TenantBackupRetentionRuntimeHandler,
+    HOLDING_BACKUP_RETENTION_HANDLER_NAME, HoldingBackupRetentionRuntimeHandler,
 };
 pub use backup_runtime::{
-    BackupRuntime, TENANT_BACKUP_HANDLER_NAME, TenantBackupJobRuntimeHandler,
+    BackupRuntime, HOLDING_BACKUP_HANDLER_NAME, HoldingBackupJobRuntimeHandler,
 };
 pub use branch_provisioning_runtime::{
     BRANCH_PROVISIONING_HANDLER_NAME, BranchProvisioningRuntimeHandler,
@@ -185,9 +184,9 @@ pub use finance_banking_import_source::{
 };
 pub use finance_banking_projection::{
     FINANCE_BANKING_PROJECTION_HANDLER_NAME, FINANCE_BANKING_PROJECTION_MAX_PAGE_SIZE,
-    FinanceBankingProjectionRebuildReport, FinanceBankingProjectionRequest,
-    FinanceBankingProjectionRunReport, FinanceBankingProjectionRunner,
-    FinanceBankingProjectionWorkerError, FinanceBankingTenantProjectionExecutor,
+    FinanceBankingHoldingProjectionExecutor, FinanceBankingProjectionRebuildReport,
+    FinanceBankingProjectionRequest, FinanceBankingProjectionRunReport,
+    FinanceBankingProjectionRunner, FinanceBankingProjectionWorkerError,
 };
 pub use finance_banking_provider::{
     BankProviderImportCoordinator, MAX_BANK_PROVIDER_IMPORT_PAGES,
@@ -195,15 +194,17 @@ pub use finance_banking_provider::{
 };
 pub use finance_chart_projection::{
     FINANCE_CHART_PROJECTION_HANDLER_NAME, FINANCE_CHART_PROJECTION_MAX_PAGE_SIZE,
-    FINANCE_CHART_PROJECTION_NAME, FinanceChartProjectionRebuildReport,
-    FinanceChartProjectionRequest, FinanceChartProjectionRunReport, FinanceChartProjectionRunner,
-    FinanceChartProjectionWorkerError, FinanceChartTenantProjectionExecutor,
+    FINANCE_CHART_PROJECTION_NAME, FinanceChartHoldingProjectionExecutor,
+    FinanceChartProjectionRebuildReport, FinanceChartProjectionRequest,
+    FinanceChartProjectionRunReport, FinanceChartProjectionRunner,
+    FinanceChartProjectionWorkerError,
 };
 pub use finance_close_projection::{
     FINANCE_CLOSE_PROJECTION_HANDLER_NAME, FINANCE_CLOSE_PROJECTION_MAX_PAGE_SIZE,
-    FINANCE_CLOSE_PROJECTION_NAME, FinanceCloseProjectionRebuildReport,
-    FinanceCloseProjectionRequest, FinanceCloseProjectionRunReport, FinanceCloseProjectionRunner,
-    FinanceCloseProjectionWorkerError, FinanceCloseTenantProjectionExecutor,
+    FINANCE_CLOSE_PROJECTION_NAME, FinanceCloseHoldingProjectionExecutor,
+    FinanceCloseProjectionRebuildReport, FinanceCloseProjectionRequest,
+    FinanceCloseProjectionRunReport, FinanceCloseProjectionRunner,
+    FinanceCloseProjectionWorkerError,
 };
 pub use finance_completion_runtime::{
     FINANCE_COMPLETION_AUTHORIZATION_MAX_SECONDS, FINANCE_COMPLETION_MAX_PAGE_SIZE,
@@ -225,13 +226,13 @@ pub use finance_projection::{
 pub use finance_subledger_projection::{
     FINANCE_SUBLEDGER_PROJECTION_HANDLER_NAME, FINANCE_SUBLEDGER_PROJECTION_MAX_PAGE_SIZE,
     FINANCE_SUBLEDGER_PROJECTION_NAME, FINANCE_SUBLEDGER_RECONCILIATION_MAX_ROWS,
-    FinanceSubledgerProjectionWorkerError, FinanceSubledgerReconciliationRequest,
-    FinanceSubledgerReconciliationRunner, FinanceSubledgerReconciliationWorkerError,
-    FinanceSubledgerTenantProjectionExecutor,
+    FinanceSubledgerHoldingProjectionExecutor, FinanceSubledgerProjectionWorkerError,
+    FinanceSubledgerReconciliationRequest, FinanceSubledgerReconciliationRunner,
+    FinanceSubledgerReconciliationWorkerError,
 };
 pub use finance_tax_projection::{
     FINANCE_THAI_TAX_PROJECTION_HANDLER_NAME, FINANCE_THAI_TAX_PROJECTION_MAX_PAGE_SIZE,
-    FinanceThaiTaxProjectionWorkerError, FinanceThaiTaxTenantProjectionExecutor,
+    FinanceThaiTaxHoldingProjectionExecutor, FinanceThaiTaxProjectionWorkerError,
 };
 pub use fixture_suggestion_provider::{
     FixtureAgentProvider, FixtureEnvironment, FixtureSuggestionProviderError,
@@ -251,7 +252,7 @@ pub use hr_projection::{
 };
 pub use item_directory_authority::{
     AuthorityGrantReconciliationReport, AuthorityProjectionError,
-    MAX_AUTHORITY_RECONCILIATION_ROWS, TenantAuthorityEvidenceProjection,
+    HoldingAuthorityEvidenceProjection, MAX_AUTHORITY_RECONCILIATION_ROWS,
     decode_authority_evidence,
 };
 pub use item_directory_policy::{
@@ -262,9 +263,9 @@ pub use item_directory_policy::{
     RecordPolicyFactSink, RecordPolicyReleaseKind, RecordPolicyRuntimeError, RecordPolicyTrigger,
 };
 pub use item_directory_projection::{
-    FUTURE_DESCRIPTOR_GAPS, FUTURE_LIVE_RECORD_FAMILIES, ITEM_DIRECTORY_PROJECTION_MAX_PAGE_SIZE,
-    ItemDirectoryProjectionError, ItemDirectoryTenantProjectionExecutor,
-    TenantItemDirectoryProjector, UNROUTED_FUTURE_AUTHORITY, decode_item_directory_event,
+    FUTURE_DESCRIPTOR_GAPS, FUTURE_LIVE_RECORD_FAMILIES, HoldingItemDirectoryProjector,
+    ITEM_DIRECTORY_PROJECTION_MAX_PAGE_SIZE, ItemDirectoryHoldingProjectionExecutor,
+    ItemDirectoryProjectionError, UNROUTED_FUTURE_AUTHORITY, decode_item_directory_event,
     decode_item_directory_owner_event,
 };
 pub use legal_projection::{
@@ -315,19 +316,19 @@ pub use marketing_journey_integration::{
     HttpMarketingJourneyIntegrationProvider, MARKETING_JOURNEY_INTEGRATION_HANDLER_NAME,
     MARKETING_JOURNEY_INTEGRATION_MAX_BATCH_SIZE, MARKETING_JOURNEY_INTEGRATION_MAX_LEASE_SECONDS,
     MARKETING_JOURNEY_INTEGRATION_MIN_LEASE_SECONDS, MarketingJourneyIntegrationHandler,
-    MarketingJourneyIntegrationMultiTenantRuntimeHandler, MarketingJourneyIntegrationProvider,
+    MarketingJourneyIntegrationMultiHoldingRuntimeHandler, MarketingJourneyIntegrationProvider,
     MarketingJourneyIntegrationProviderError,
 };
 pub use marketing_projection::{
     MARKETING_PROJECTION_HANDLER_NAME, MARKETING_PROJECTION_MAX_PAGE_SIZE,
-    MARKETING_PROJECTION_NAME, MarketingProjectionApplication, MarketingProjectionFencedRebuild,
-    MarketingProjectionFencedStore, MarketingProjectionRebuildPreparation,
-    MarketingProjectionRebuildReport, MarketingProjectionRebuildRequest,
-    MarketingProjectionReconciliationReport, MarketingProjectionReconciliationStore,
-    MarketingProjectionRequest, MarketingProjectionRunReport, MarketingProjectionRunner,
-    MarketingProjectionStore, MarketingProjectionStoreFactory, MarketingProjectionWorkerError,
-    MarketingSourceEvent, MarketingSourceEventCursor, MarketingSourceEventPage,
-    MarketingTenantProjectionExecutor,
+    MARKETING_PROJECTION_NAME, MarketingHoldingProjectionExecutor, MarketingProjectionApplication,
+    MarketingProjectionFencedRebuild, MarketingProjectionFencedStore,
+    MarketingProjectionRebuildPreparation, MarketingProjectionRebuildReport,
+    MarketingProjectionRebuildRequest, MarketingProjectionReconciliationReport,
+    MarketingProjectionReconciliationStore, MarketingProjectionRequest,
+    MarketingProjectionRunReport, MarketingProjectionRunner, MarketingProjectionStore,
+    MarketingProjectionStoreFactory, MarketingProjectionWorkerError, MarketingSourceEvent,
+    MarketingSourceEventCursor, MarketingSourceEventPage,
 };
 pub use marketing_provider::{
     AccountBoundMarketingDeliveryProvider, EnvMarketingDeliveryCredentialResolver,
@@ -365,6 +366,17 @@ pub use pos_projection::{
 pub const QUALITY_PROJECTION_HANDLER_NAME: &str = "quality_projection";
 pub const QUALITY_PROJECTION_MAX_PAGE_SIZE: u32 = MAX_QUALITY_SOURCE_PAGE_SIZE;
 pub const QUALITY_PROJECTION_MAX_EVENTS: u64 = MAX_QUALITY_PROJECTION_EVENTS;
+pub use holding_projection_scheduler::{
+    HOLDING_PROJECTION_SCHEDULER_HANDLER_NAME, HOLDING_PROJECTION_SCHEDULER_MAX_BATCH_SIZE,
+    HoldingProjectionBindingSource, HoldingProjectionExecutor, HoldingProjectionExecutorError,
+    HoldingProjectionRoutedExecutor, HoldingProjectionSchedulerHandler,
+    HoldingProjectionSchedulerSource, MultiHoldingProjectionSchedulerHandler,
+    RoutedHoldingProjectionExecutor,
+};
+pub use holding_projection_status_projection::{
+    HOLDING_PROJECTION_STATUS_PROJECTION_HANDLER_NAME, HoldingProjectionStatusProjectionHandler,
+    HoldingProjectionStatusPublisher,
+};
 pub use quality_projection::{
     QualityProjectionRebuildReport, QualityProjectionReconciliationReport,
     QualityProjectionRequest, QualityProjectionRunReport, QualityProjectionRunner,
@@ -391,21 +403,10 @@ pub use support_workflow::{
     SUPPORT_WORKFLOW_HANDLER_NAME, SupportWorkflowHandler, SupportWorkflowOutboxHandler,
     SupportWorkflowProjection,
 };
-pub use tenant_projection_scheduler::{
-    MultiTenantProjectionSchedulerHandler, RoutedTenantProjectionExecutor,
-    TENANT_PROJECTION_SCHEDULER_HANDLER_NAME, TENANT_PROJECTION_SCHEDULER_MAX_BATCH_SIZE,
-    TenantProjectionBindingSource, TenantProjectionExecutor, TenantProjectionExecutorError,
-    TenantProjectionRoutedExecutor, TenantProjectionSchedulerHandler,
-    TenantProjectionSchedulerSource,
-};
-pub use tenant_projection_status_projection::{
-    TENANT_PROJECTION_STATUS_PROJECTION_HANDLER_NAME, TenantProjectionStatusProjectionHandler,
-    TenantProjectionStatusPublisher,
-};
 
 /// Infrastructure adapter for the generic Marketing projection worker seam.
 ///
-/// The adapter performs only lossless DTO conversion. Tenant routing, scoped
+/// The adapter performs only lossless DTO conversion. Holding routing, scoped
 /// database settings, source-event ordering, and read-model writes remain in
 /// the infrastructure store and the projection runner respectively.
 #[derive(Debug, Clone)]
@@ -424,10 +425,10 @@ impl marketing_projection::MarketingProjectionStoreFactory for SqlxMarketingProj
         &self,
         write_pool: sqlx::PgPool,
         read_pool: sqlx::PgPool,
-        holding_ref: String,
+        data_profile_key: String,
     ) -> Result<Self::Store, PersistenceError> {
         Ok(SqlxMarketingProjectionStore {
-            store: SqlxMarketingStore::from_pools(&write_pool, &read_pool, holding_ref)?,
+            store: SqlxMarketingStore::from_pools(&write_pool, &read_pool, data_profile_key)?,
         })
     }
 }
@@ -510,7 +511,7 @@ impl marketing_projection::MarketingProjectionStore for SqlxMarketingProjectionS
         let preparation = self.store.clear_projection().await?;
         Ok(
             marketing_projection::MarketingProjectionRebuildPreparation {
-                holding_ref: preparation.holding_ref,
+                data_profile_key: preparation.data_profile_key,
                 rows_cleared: preparation.rows_cleared,
                 checkpoints_cleared: preparation.checkpoints_cleared,
             },
@@ -574,22 +575,22 @@ fn validate_worker_reference(value: &str, field: &str) -> Result<(), WorkerRunti
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SalesProjectionRequest {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub cursor: Option<SalesSourceEventCursor>,
     pub page_size: u32,
 }
 
 impl SalesProjectionRequest {
     pub fn new(
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         cursor: Option<SalesSourceEventCursor>,
         page_size: u32,
     ) -> Result<Self, WorkerRuntimeError> {
         let request = Self {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
             cursor,
             page_size,
         };
@@ -598,8 +599,8 @@ impl SalesProjectionRequest {
     }
 
     fn validate(&self) -> Result<(), WorkerRuntimeError> {
-        validate_sales_reference(&self.tenant_id, "tenant_id")?;
-        validate_sales_reference(&self.holding_ref, "holding_ref")?;
+        validate_sales_reference(&self.holding_id, "holding_id")?;
+        validate_sales_reference(&self.data_profile_key, "data_profile_key")?;
         if self.page_size == 0 || self.page_size > SALES_PROJECTION_MAX_PAGE_SIZE {
             return Err(WorkerRuntimeError::Configuration(format!(
                 "Sales projection page size must be 1..={SALES_PROJECTION_MAX_PAGE_SIZE}"
@@ -611,8 +612,8 @@ impl SalesProjectionRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SalesProjectionRunReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub events_seen: u64,
     pub events_applied: u64,
     pub next_cursor: Option<SalesSourceEventCursor>,
@@ -622,8 +623,8 @@ pub struct SalesProjectionRunReport {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SalesProjectionRebuildReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub events_replayed: u64,
     pub preparation: SalesProjectionRebuildPreparation,
     pub reconciliation: SalesProjectionReconciliation,
@@ -631,23 +632,23 @@ pub struct SalesProjectionRebuildReport {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SalesProjectionReconciliationReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub reconciliation: SalesProjectionReconciliation,
 }
 
-/// Tenant-routed Sales source-stream projector. Source events are read from
+/// Holding-routed Sales source-stream projector. Source events are read from
 /// the write database and applied to the replaceable read database. The
 /// infrastructure projection method enforces payload identity, contiguous
 /// versions, and replay idempotency; this runner owns routing and rebuild
 /// orchestration only.
 #[derive(Debug, Clone)]
 pub struct SalesProjectionRunner {
-    router: TenantDatabaseRouter,
+    router: HoldingDatabaseRouter,
 }
 
 impl SalesProjectionRunner {
-    pub fn new(router: TenantDatabaseRouter) -> Self {
+    pub fn new(router: HoldingDatabaseRouter) -> Self {
         Self { router }
     }
 
@@ -657,12 +658,12 @@ impl SalesProjectionRunner {
     ) -> Result<SalesProjectionRunReport, WorkerRuntimeError> {
         request.validate()?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result = match SqlxSalesStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            request.holding_ref.clone(),
+            request.data_profile_key.clone(),
         ) {
             Ok(store) => {
                 let result: Result<SalesProjectionRunReport, WorkerRuntimeError> = async {
@@ -696,8 +697,8 @@ impl SalesProjectionRunner {
                     let reconciliation = store.reconcile_projection().await?;
                     require_sales_reconciliation(reconciliation)?;
                     Ok::<SalesProjectionRunReport, PersistenceError>(SalesProjectionRunReport {
-                        tenant_id: request.tenant_id.clone(),
-                        holding_ref: request.holding_ref.clone(),
+                        holding_id: request.holding_id.clone(),
+                        data_profile_key: request.data_profile_key.clone(),
                         events_seen,
                         events_applied,
                         next_cursor: None,
@@ -718,18 +719,18 @@ impl SalesProjectionRunner {
 
     pub async fn rebuild(
         &self,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         page_size: u32,
     ) -> Result<SalesProjectionRebuildReport, WorkerRuntimeError> {
-        let request = SalesProjectionRequest::new(tenant_id, holding_ref, None, page_size)?;
+        let request = SalesProjectionRequest::new(holding_id, data_profile_key, None, page_size)?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result = match SqlxSalesStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            request.holding_ref.clone(),
+            request.data_profile_key.clone(),
         ) {
             Ok(store) => {
                 async {
@@ -754,8 +755,8 @@ impl SalesProjectionRunner {
                     require_sales_reconciliation(reconciliation)
                         .map_err(|_| redacted_sales_error("rebuild reconciliation"))?;
                     Ok(SalesProjectionRebuildReport {
-                        tenant_id: request.tenant_id.clone(),
-                        holding_ref: request.holding_ref.clone(),
+                        holding_id: request.holding_id.clone(),
+                        data_profile_key: request.data_profile_key.clone(),
                         events_replayed,
                         preparation,
                         reconciliation,
@@ -777,24 +778,24 @@ impl SalesProjectionRunner {
     /// model.
     pub async fn reconcile(
         &self,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<SalesProjectionReconciliationReport, WorkerRuntimeError> {
-        let request = SalesProjectionRequest::new(tenant_id, holding_ref, None, 1)?;
+        let request = SalesProjectionRequest::new(holding_id, data_profile_key, None, 1)?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result = match SqlxSalesStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            request.holding_ref.clone(),
+            request.data_profile_key.clone(),
         ) {
             Ok(store) => store
                 .reconcile_projection()
                 .await
                 .map(|reconciliation| SalesProjectionReconciliationReport {
-                    tenant_id: request.tenant_id.clone(),
-                    holding_ref: request.holding_ref.clone(),
+                    holding_id: request.holding_id.clone(),
+                    data_profile_key: request.data_profile_key.clone(),
                     reconciliation,
                 })
                 .map_err(|_| redacted_sales_error("reconciliation")),
@@ -807,23 +808,23 @@ impl SalesProjectionRunner {
 
     async fn route_store(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
     ) -> Result<
         (
-            erpx_infrastructure::RoutedTenantDatabase,
-            erpx_infrastructure::RoutedTenantDatabase,
+            erpx_infrastructure::RoutedHoldingDatabase,
+            erpx_infrastructure::RoutedHoldingDatabase,
         ),
         WorkerRuntimeError,
     > {
         let write = self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Write)
             .await
             .map_err(|_| redacted_sales_error("write database routing"))?;
         let read = match self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Read)
             .await
         {
             Ok(read) => read,
@@ -895,22 +896,22 @@ fn require_sales_reconciliation(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssetMaintenanceProjectionRequest {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub cursor: Option<AssetMaintenanceSourceEventCursor>,
     pub page_size: u32,
 }
 
 impl AssetMaintenanceProjectionRequest {
     pub fn new(
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         cursor: Option<AssetMaintenanceSourceEventCursor>,
         page_size: u32,
     ) -> Result<Self, WorkerRuntimeError> {
         let request = Self {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
             cursor,
             page_size,
         };
@@ -919,8 +920,8 @@ impl AssetMaintenanceProjectionRequest {
     }
 
     fn validate(&self) -> Result<(), WorkerRuntimeError> {
-        validate_asset_reference(&self.tenant_id, "tenant_id")?;
-        validate_asset_reference(&self.holding_ref, "holding_ref")?;
+        validate_asset_reference(&self.holding_id, "holding_id")?;
+        validate_asset_reference(&self.data_profile_key, "data_profile_key")?;
         if self.page_size == 0 || self.page_size > ASSET_MAINTENANCE_PROJECTION_MAX_PAGE_SIZE {
             return Err(WorkerRuntimeError::Configuration(format!(
                 "Asset/Maintenance projection page size must be 1..={ASSET_MAINTENANCE_PROJECTION_MAX_PAGE_SIZE}"
@@ -941,8 +942,8 @@ impl AssetMaintenanceProjectionRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssetMaintenanceProjectionRunReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub events_seen: u64,
     pub events_applied: u64,
     pub next_cursor: Option<AssetMaintenanceSourceEventCursor>,
@@ -951,26 +952,26 @@ pub struct AssetMaintenanceProjectionRunReport {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssetMaintenanceProjectionRebuildReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub events_replayed: u64,
     pub preparation: AssetMaintenanceProjectionRebuildPreparation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssetMaintenanceProjectionReconciliationReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub reconciliation: AssetMaintenanceProjectionReconciliation,
 }
 
 #[derive(Debug, Clone)]
 pub struct AssetMaintenanceProjectionRunner {
-    router: TenantDatabaseRouter,
+    router: HoldingDatabaseRouter,
 }
 
 impl AssetMaintenanceProjectionRunner {
-    pub fn new(router: TenantDatabaseRouter) -> Self {
+    pub fn new(router: HoldingDatabaseRouter) -> Self {
         Self { router }
     }
 
@@ -980,12 +981,12 @@ impl AssetMaintenanceProjectionRunner {
     ) -> Result<AssetMaintenanceProjectionRunReport, WorkerRuntimeError> {
         request.validate()?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result = match SqlxAssetMaintenanceStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            request.holding_ref.clone(),
+            request.data_profile_key.clone(),
         ) {
             Ok(store) => {
                 let result: Result<AssetMaintenanceProjectionRunReport, WorkerRuntimeError> =
@@ -1024,8 +1025,8 @@ impl AssetMaintenanceProjectionRunner {
                         }
                         Ok::<AssetMaintenanceProjectionRunReport, PersistenceError>(
                             AssetMaintenanceProjectionRunReport {
-                                tenant_id: request.tenant_id.clone(),
-                                holding_ref: request.holding_ref.clone(),
+                                holding_id: request.holding_id.clone(),
+                                data_profile_key: request.data_profile_key.clone(),
                                 events_seen,
                                 events_applied,
                                 next_cursor: None,
@@ -1046,19 +1047,19 @@ impl AssetMaintenanceProjectionRunner {
 
     pub async fn rebuild(
         &self,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         page_size: u32,
     ) -> Result<AssetMaintenanceProjectionRebuildReport, WorkerRuntimeError> {
         let request =
-            AssetMaintenanceProjectionRequest::new(tenant_id, holding_ref, None, page_size)?;
+            AssetMaintenanceProjectionRequest::new(holding_id, data_profile_key, None, page_size)?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result = match SqlxAssetMaintenanceStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            request.holding_ref.clone(),
+            request.data_profile_key.clone(),
         ) {
             Ok(store) => {
                 let source_event_count = store
@@ -1106,8 +1107,8 @@ impl AssetMaintenanceProjectionRunner {
                         );
                     }
                     Ok(AssetMaintenanceProjectionRebuildReport {
-                        tenant_id: request.tenant_id.clone(),
-                        holding_ref: request.holding_ref.clone(),
+                        holding_id: request.holding_id.clone(),
+                        data_profile_key: request.data_profile_key.clone(),
                         events_replayed,
                         preparation,
                     })
@@ -1125,25 +1126,26 @@ impl AssetMaintenanceProjectionRunner {
     /// disposable read projection without mutating either database.
     pub async fn reconcile(
         &self,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<AssetMaintenanceProjectionReconciliationReport, WorkerRuntimeError> {
-        let request = AssetMaintenanceProjectionRequest::new(tenant_id, holding_ref, None, 1)?;
+        let request =
+            AssetMaintenanceProjectionRequest::new(holding_id, data_profile_key, None, 1)?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result = match SqlxAssetMaintenanceStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            request.holding_ref.clone(),
+            request.data_profile_key.clone(),
         ) {
             Ok(store) => store
                 .reconcile_projection()
                 .await
                 .map(
                     |reconciliation| AssetMaintenanceProjectionReconciliationReport {
-                        tenant_id: request.tenant_id.clone(),
-                        holding_ref: request.holding_ref.clone(),
+                        holding_id: request.holding_id.clone(),
+                        data_profile_key: request.data_profile_key.clone(),
                         reconciliation,
                     },
                 )
@@ -1157,23 +1159,23 @@ impl AssetMaintenanceProjectionRunner {
 
     async fn route_store(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
     ) -> Result<
         (
-            erpx_infrastructure::RoutedTenantDatabase,
-            erpx_infrastructure::RoutedTenantDatabase,
+            erpx_infrastructure::RoutedHoldingDatabase,
+            erpx_infrastructure::RoutedHoldingDatabase,
         ),
         WorkerRuntimeError,
     > {
         let write = self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Write)
             .await
             .map_err(|_| redacted_asset_error("write database routing"))?;
         let read = match self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Read)
             .await
         {
             Ok(read) => read,
@@ -1370,7 +1372,7 @@ impl WorkerHandlerRegistry {
 /// failed rebuilds leave the currently active read database untouched.
 #[async_trait::async_trait]
 pub trait ProjectionReadDatabaseSwitcher: Send + Sync {
-    fn replacement_tenant_id(&self) -> &str;
+    fn replacement_holding_id(&self) -> &str;
     fn replacement_candidate_database_key(&self) -> &str;
     fn replacement_source_version(&self) -> u64;
     async fn prepare_replacement(&self, projection_name: &str) -> Result<(), WorkerError>;
@@ -1393,7 +1395,7 @@ pub trait CandidateProjectionRebuilder: Send + Sync {
     async fn rebuild_candidate(
         &self,
         projection_name: &str,
-        candidate: &RoutedTenantDatabase,
+        candidate: &RoutedHoldingDatabase,
         source_version: u64,
     ) -> Result<erpx_infrastructure::ProjectionRebuildReport, WorkerError>;
 }
@@ -1410,13 +1412,13 @@ pub trait CandidateReadDatabasePreparer: Send + Sync {
 }
 
 /// Fully bound input for one physical replacement-read rebuild. Keeping the
-/// tenant, holding, candidate, projection, and source checkpoint together
+/// holding, holding, candidate, projection, and source checkpoint together
 /// prevents callers from accidentally mixing independently selected values.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectionCandidateRebuildRequest {
     pub projection_name: String,
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub candidate_read_database_key: String,
     pub source_version: u64,
 }
@@ -1424,15 +1426,15 @@ pub struct ProjectionCandidateRebuildRequest {
 impl ProjectionCandidateRebuildRequest {
     pub fn new(
         projection_name: impl Into<String>,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         candidate_read_database_key: impl Into<String>,
         source_version: u64,
     ) -> Result<Self, WorkerRuntimeError> {
         let request = Self {
             projection_name: projection_name.into(),
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
             candidate_read_database_key: candidate_read_database_key.into(),
             source_version,
         };
@@ -1442,8 +1444,8 @@ impl ProjectionCandidateRebuildRequest {
 
     fn validate(&self) -> Result<(), WorkerRuntimeError> {
         validate_switch_reference(&self.projection_name, "projection_name")?;
-        validate_switch_reference(&self.tenant_id, "tenant_id")?;
-        validate_switch_reference(&self.holding_ref, "holding_ref")?;
+        validate_switch_reference(&self.holding_id, "holding_id")?;
+        validate_switch_reference(&self.data_profile_key, "data_profile_key")?;
         validate_switch_reference(
             &self.candidate_read_database_key,
             "candidate_read_database_key",
@@ -1466,14 +1468,14 @@ impl ProjectionCandidateRebuildRequest {
     }
 }
 
-/// Control-plane metadata switcher for a physically rebuilt tenant read
+/// Control-plane metadata switcher for a physically rebuilt holding read
 /// database. The context-specific projector must complete its rebuild between
 /// `prepare_replacement` and `activate_replacement`; this adapter only owns
 /// the authoritative, transactional control-plane state transition.
 #[derive(Debug, Clone)]
-pub struct SqlxTenantProjectionReadDatabaseSwitcher {
-    provisioner: TenantProvisioner,
-    tenant_id: String,
+pub struct SqlxHoldingProjectionReadDatabaseSwitcher {
+    provisioner: HoldingProvisioner,
+    holding_id: String,
     candidate_read_database_key: String,
     source_version: u64,
     projection_name: String,
@@ -1481,14 +1483,14 @@ pub struct SqlxTenantProjectionReadDatabaseSwitcher {
 }
 
 #[async_trait::async_trait]
-impl CandidateReadDatabasePreparer for TenantDatabaseProvisioner {
+impl CandidateReadDatabasePreparer for HoldingDatabaseProvisioner {
     async fn prepare_candidate(
         &self,
         request: &ProjectionCandidateRebuildRequest,
     ) -> Result<(), WorkerError> {
         self.provision_replacement_read_database(
-            &request.tenant_id,
-            &request.holding_ref,
+            &request.holding_id,
+            &request.data_profile_key,
             &request.candidate_read_database_key,
         )
         .await
@@ -1496,18 +1498,18 @@ impl CandidateReadDatabasePreparer for TenantDatabaseProvisioner {
     }
 }
 
-impl SqlxTenantProjectionReadDatabaseSwitcher {
+impl SqlxHoldingProjectionReadDatabaseSwitcher {
     pub fn new(
         control: Arc<SqlxControlPlane>,
-        tenant_id: impl Into<String>,
+        holding_id: impl Into<String>,
         candidate_read_database_key: impl Into<String>,
         source_version: u64,
         projection_name: impl Into<String>,
     ) -> Result<Self, WorkerRuntimeError> {
-        let tenant_id = tenant_id.into();
+        let holding_id = holding_id.into();
         let candidate_read_database_key = candidate_read_database_key.into();
         let projection_name = projection_name.into();
-        validate_switch_reference(&tenant_id, "tenant_id")?;
+        validate_switch_reference(&holding_id, "holding_id")?;
         validate_switch_reference(&candidate_read_database_key, "candidate_read_database_key")?;
         validate_switch_reference(&projection_name, "projection_name")?;
         if source_version == 0
@@ -1525,8 +1527,8 @@ impl SqlxTenantProjectionReadDatabaseSwitcher {
             ));
         }
         Ok(Self {
-            provisioner: TenantProvisioner::new(control),
-            tenant_id,
+            provisioner: HoldingProvisioner::new(control),
+            holding_id,
             candidate_read_database_key,
             source_version,
             projection_name,
@@ -1534,8 +1536,8 @@ impl SqlxTenantProjectionReadDatabaseSwitcher {
         })
     }
 
-    pub fn tenant_id(&self) -> &str {
-        &self.tenant_id
+    pub fn holding_id(&self) -> &str {
+        &self.holding_id
     }
 
     pub fn candidate_read_database_key(&self) -> &str {
@@ -1558,9 +1560,9 @@ impl SqlxTenantProjectionReadDatabaseSwitcher {
 }
 
 #[async_trait::async_trait]
-impl ProjectionReadDatabaseSwitcher for SqlxTenantProjectionReadDatabaseSwitcher {
-    fn replacement_tenant_id(&self) -> &str {
-        &self.tenant_id
+impl ProjectionReadDatabaseSwitcher for SqlxHoldingProjectionReadDatabaseSwitcher {
+    fn replacement_holding_id(&self) -> &str {
+        &self.holding_id
     }
 
     fn replacement_candidate_database_key(&self) -> &str {
@@ -1576,7 +1578,7 @@ impl ProjectionReadDatabaseSwitcher for SqlxTenantProjectionReadDatabaseSwitcher
         let generation = self
             .provisioner
             .begin_read_rebuild_with_generation(
-                &self.tenant_id,
+                &self.holding_id,
                 &self.candidate_read_database_key,
                 self.source_version,
             )
@@ -1599,7 +1601,7 @@ impl ProjectionReadDatabaseSwitcher for SqlxTenantProjectionReadDatabaseSwitcher
             Some(generation) => {
                 self.provisioner
                     .fail_read_rebuild_if_generation(
-                        &self.tenant_id,
+                        &self.holding_id,
                         &self.candidate_read_database_key,
                         generation,
                         reason,
@@ -1608,7 +1610,7 @@ impl ProjectionReadDatabaseSwitcher for SqlxTenantProjectionReadDatabaseSwitcher
             }
             None => {
                 self.provisioner
-                    .fail_read_rebuild(&self.tenant_id, &self.candidate_read_database_key, reason)
+                    .fail_read_rebuild(&self.holding_id, &self.candidate_read_database_key, reason)
                     .await
             }
         }
@@ -1617,7 +1619,7 @@ impl ProjectionReadDatabaseSwitcher for SqlxTenantProjectionReadDatabaseSwitcher
 
     async fn activate_replacement(&self, projection_name: &str) -> Result<(), WorkerError> {
         self.require_projection(projection_name)?;
-        // This legacy metadata-only adapter cannot hold the tenant source
+        // This legacy metadata-only adapter cannot hold the holding source
         // fence through activation. Production callers must use the routed
         // scheduler path, which owns the source lock and final watermark
         // check. Failing closed prevents this compatibility seam from
@@ -1773,7 +1775,13 @@ impl WorkerRuntime {
         let pools = ControlPlanePools::connect_worker(
             &database_config,
             ControlPlanePoolSettings {
-                write_max_connections: 2,
+                // Every worker is a separately supervised process and the
+                // local composition starts dozens of them at once. One
+                // eagerly-used control connection per worker is sufficient
+                // for the bounded outbox loop and keeps the shared local
+                // PostgreSQL cluster below its connection budget during the
+                // startup health handoff. The read side remains lazy.
+                write_max_connections: 1,
                 read_max_connections: 1,
                 acquire_timeout: StdDuration::from_secs(10),
             },
@@ -1839,19 +1847,19 @@ impl WorkerRuntime {
         self.heartbeat.record_at(observed_at)
     }
 
-    /// Compose the worker heartbeat with live tenant routing and the durable
+    /// Compose the worker heartbeat with live holding routing and the durable
     /// projection/backup observations. A persistence failure is returned to
     /// the caller rather than being converted into a green snapshot.
     pub async fn observe_live_readiness(
         &self,
-        router: &TenantDatabaseRouter,
-        tenant_id: &str,
+        router: &HoldingDatabaseRouter,
+        holding_id: &str,
         now: DateTime<Utc>,
         policy: WorkerLiveReadinessPolicy,
     ) -> Result<WorkerLiveReadinessObservation, WorkerRuntimeError> {
         Ok(self
             .readiness_observer()
-            .observe_live_readiness(router, tenant_id, now, policy)
+            .observe_live_readiness(router, holding_id, now, policy)
             .await?)
     }
 
@@ -1917,21 +1925,21 @@ impl WorkerRuntime {
     }
 
     /// Compose and register the production Agent handler from trusted active
-    /// tenant routes. The caller must supply real provider/KMS authority and
-    /// object storage; no default or environment tenant identity is accepted.
+    /// holding routes. The caller must supply real provider/KMS authority and
+    /// object storage; no default or environment holding identity is accepted.
     pub fn handler_registry_with_trusted_agent_assignment<D>(
         &self,
-        tenant_registry: erpx_infrastructure::SqlxTenantStoreRegistry,
-        router: TenantDatabaseRouter,
+        holding_registry: erpx_infrastructure::SqlxHoldingStoreRegistry,
+        router: HoldingDatabaseRouter,
         objects: erpx_infrastructure::MinioObjectStore,
         dependencies: D,
-        config: TrustedAgentTenantRuntimeConfig,
+        config: TrustedAgentHoldingRuntimeConfig,
     ) -> Result<WorkerHandlerRegistry, WorkerRuntimeError>
     where
-        D: TrustedAgentTenantDependencyPort + 'static,
+        D: TrustedAgentHoldingDependencyPort + 'static,
     {
-        let runner = compose_trusted_tenant_agent_runner(
-            tenant_registry,
+        let runner = compose_trusted_holding_agent_runner(
+            holding_registry,
             router,
             objects,
             dependencies,
@@ -1939,7 +1947,7 @@ impl WorkerRuntime {
         )
         .map_err(|_| {
             WorkerRuntimeError::Configuration(
-                "trusted Agent tenant dependencies are unavailable".into(),
+                "trusted Agent holding dependencies are unavailable".into(),
             )
         })?;
         self.handler_registry_with_agent_assignment(runner)
@@ -1970,7 +1978,7 @@ impl WorkerRuntime {
     #[allow(clippy::too_many_arguments)]
     pub fn handler_registry_with_finance_bank_provider_import<A, R, F>(
         &self,
-        router: TenantDatabaseRouter,
+        router: HoldingDatabaseRouter,
         authorizer: A,
         credential_resolver: R,
         adapter_factory: F,
@@ -2003,7 +2011,7 @@ impl WorkerRuntime {
     /// configured delivery boundary.
     pub fn handler_registry_with_role_review_notifications<P>(
         &self,
-        scope: erpx_domain::access::Scope,
+        scope: erpx_domain::contracts::AuthorityScope,
         publisher: P,
         claimant_ref: impl Into<String>,
         horizon: Duration,
@@ -2026,10 +2034,10 @@ impl WorkerRuntime {
         Ok(registry)
     }
 
-    /// Compose a Legal retention sweep only from an explicitly routed tenant
-    /// write runner. Tenant enumeration and scheduling remain an external
+    /// Compose a Legal retention sweep only from an explicitly routed holding
+    /// write runner. Holding enumeration and scheduling remain an external
     /// integration until a control-plane source can provide a safe durable
-    /// per-tenant claim boundary.
+    /// per-holding claim boundary.
     pub fn handler_registry_with_legal_retention(
         &self,
         runner: LegalRetentionRunner,
@@ -2054,7 +2062,7 @@ impl WorkerRuntime {
         Ok(registry)
     }
 
-    /// Register Marketing delivery only when a tenant-scoped source and an
+    /// Register Marketing delivery only when a holding-scoped source and an
     /// explicit provider adapter are supplied. The default registry remains
     /// fail-closed and never claims delivery rows without both boundaries.
     pub fn handler_registry_with_marketing_delivery_source<S, P>(
@@ -2082,68 +2090,68 @@ impl WorkerRuntime {
     /// physically separated control pools. This handler is opt-in and never
     /// claims scheduler jobs; it only publishes metadata from the
     /// control-write scheduler into the rebuildable control-read table.
-    pub fn handler_registry_with_control_plane_tenant_projection_status_projection(
+    pub fn handler_registry_with_control_plane_holding_projection_status_projection(
         &self,
     ) -> Result<WorkerHandlerRegistry, WorkerRuntimeError> {
-        let publisher = SqlxTenantProjectionStatusProjectionStore::new(Arc::clone(&self.store));
+        let publisher = SqlxHoldingProjectionStatusProjectionStore::new(Arc::clone(&self.store));
         let mut registry = self.handler_registry()?;
-        registry.register(Arc::new(TenantProjectionStatusProjectionHandler::new(
+        registry.register(Arc::new(HoldingProjectionStatusProjectionHandler::new(
             publisher,
         )))?;
         Ok(registry)
     }
 
-    /// Register tenant projection execution only when the caller supplies an
-    /// exact tenant/holding binding, durable scheduler source, and projector.
+    /// Register holding projection execution only when the caller supplies an
+    /// exact holding/holding binding, durable scheduler source, and projector.
     /// The default worker registry never claims scheduler rows implicitly.
-    pub fn handler_registry_with_tenant_projection_scheduler<S, E>(
+    pub fn handler_registry_with_holding_projection_scheduler<S, E>(
         &self,
         source: S,
         executor: E,
-        binding: erpx_infrastructure::TenantHoldingBinding,
+        binding: erpx_infrastructure::HoldingHoldingBinding,
         claim_key_prefix: impl Into<String>,
     ) -> Result<WorkerHandlerRegistry, WorkerRuntimeError>
     where
-        S: TenantProjectionSchedulerSource,
-        E: TenantProjectionExecutor,
+        S: HoldingProjectionSchedulerSource,
+        E: HoldingProjectionExecutor,
     {
         let mut registry = self.handler_registry()?;
-        registry.register(Arc::new(TenantProjectionSchedulerHandler::new(
+        registry.register(Arc::new(HoldingProjectionSchedulerHandler::new(
             source,
             executor,
             binding,
             claim_key_prefix,
             self.config
                 .batch_size
-                .min(TENANT_PROJECTION_SCHEDULER_MAX_BATCH_SIZE),
+                .min(HOLDING_PROJECTION_SCHEDULER_MAX_BATCH_SIZE),
             self.config.claim_timeout,
         )?))?;
         Ok(registry)
     }
 
     /// Compose the durable control-plane scheduler source from the runtime's
-    /// own pools and tenant registry. The projector remains an explicit
+    /// own pools and holding registry. The projector remains an explicit
     /// dependency so a worker cannot claim jobs without a real projector, but
     /// production callers no longer need to construct an unbound scheduler
     /// repository by hand.
-    pub fn handler_registry_with_control_plane_tenant_projection_scheduler<E>(
+    pub fn handler_registry_with_control_plane_holding_projection_scheduler<E>(
         &self,
         executor: E,
-        binding: erpx_infrastructure::TenantHoldingBinding,
+        binding: erpx_infrastructure::HoldingHoldingBinding,
         authorization: erpx_infrastructure::ProjectionSchedulerAuthorization,
         claim_key_prefix: impl Into<String>,
     ) -> Result<WorkerHandlerRegistry, WorkerRuntimeError>
     where
-        E: TenantProjectionExecutor,
+        E: HoldingProjectionExecutor,
     {
-        let source = erpx_infrastructure::TenantProjectionSchedulerRepository::new(
+        let source = erpx_infrastructure::HoldingProjectionSchedulerRepository::new(
             self.store.pools().write.clone(),
-            Arc::new(erpx_infrastructure::SqlxTenantStoreRegistry::new(
+            Arc::new(erpx_infrastructure::SqlxHoldingStoreRegistry::new(
                 Arc::clone(&self.store),
             )),
             authorization,
         );
-        self.handler_registry_with_tenant_projection_scheduler(
+        self.handler_registry_with_holding_projection_scheduler(
             source,
             executor,
             binding,
@@ -2151,35 +2159,35 @@ impl WorkerRuntime {
         )
     }
 
-    /// Compose the multi-tenant scheduler from active control-plane registry
-    /// enumeration, the physical tenant router, and an executor that accepts
-    /// both routed database sides. Every pass re-enumerates active tenants so
+    /// Compose the multi-holding scheduler from active control-plane registry
+    /// enumeration, the physical holding router, and an executor that accepts
+    /// both routed database sides. Every pass re-enumerates active holdings so
     /// suspension takes effect without a process restart.
-    pub fn handler_registry_with_control_plane_multi_tenant_projection_scheduler<E>(
+    pub fn handler_registry_with_control_plane_multi_holding_projection_scheduler<E>(
         &self,
-        router: TenantDatabaseRouter,
+        router: HoldingDatabaseRouter,
         executor: E,
         authorization: erpx_infrastructure::ProjectionSchedulerAuthorization,
         claim_key_prefix: impl Into<String>,
     ) -> Result<WorkerHandlerRegistry, WorkerRuntimeError>
     where
-        E: TenantProjectionRoutedExecutor,
+        E: HoldingProjectionRoutedExecutor,
     {
-        let registry = erpx_infrastructure::SqlxTenantStoreRegistry::new(Arc::clone(&self.store));
-        let source = erpx_infrastructure::TenantProjectionSchedulerRepository::new(
+        let registry = erpx_infrastructure::SqlxHoldingStoreRegistry::new(Arc::clone(&self.store));
+        let source = erpx_infrastructure::HoldingProjectionSchedulerRepository::new(
             self.store.pools().write.clone(),
             Arc::new(registry.clone()),
             authorization,
         );
-        let executor = RoutedTenantProjectionExecutor::new(router, executor);
-        let handler = MultiTenantProjectionSchedulerHandler::new(
+        let executor = RoutedHoldingProjectionExecutor::new(router, executor);
+        let handler = MultiHoldingProjectionSchedulerHandler::new(
             source,
             executor,
             registry,
             claim_key_prefix,
             self.config
                 .batch_size
-                .min(TENANT_PROJECTION_SCHEDULER_MAX_BATCH_SIZE),
+                .min(HOLDING_PROJECTION_SCHEDULER_MAX_BATCH_SIZE),
             self.config.claim_timeout,
         )?;
         let mut worker_registry = self.handler_registry()?;
@@ -2191,34 +2199,34 @@ impl WorkerRuntime {
     /// rebuild mode for projectors that support both ordinary rebuilds and
     /// replacement-read candidate rebuilds. Candidate payloads still use the
     /// generic source-lock and activation path.
-    pub fn handler_registry_with_control_plane_multi_tenant_projection_scheduler_unfenced_rebuilds<
+    pub fn handler_registry_with_control_plane_multi_holding_projection_scheduler_unfenced_rebuilds<
         E,
     >(
         &self,
-        router: TenantDatabaseRouter,
+        router: HoldingDatabaseRouter,
         executor: E,
         authorization: erpx_infrastructure::ProjectionSchedulerAuthorization,
         claim_key_prefix: impl Into<String>,
     ) -> Result<WorkerHandlerRegistry, WorkerRuntimeError>
     where
-        E: TenantProjectionRoutedExecutor,
+        E: HoldingProjectionRoutedExecutor,
     {
-        let registry = erpx_infrastructure::SqlxTenantStoreRegistry::new(Arc::clone(&self.store));
-        let source = erpx_infrastructure::TenantProjectionSchedulerRepository::new(
+        let registry = erpx_infrastructure::SqlxHoldingStoreRegistry::new(Arc::clone(&self.store));
+        let source = erpx_infrastructure::HoldingProjectionSchedulerRepository::new(
             self.store.pools().write.clone(),
             Arc::new(registry.clone()),
             authorization,
         );
         let executor =
-            RoutedTenantProjectionExecutor::new_allow_unfenced_rebuilds(router, executor);
-        let handler = MultiTenantProjectionSchedulerHandler::new(
+            RoutedHoldingProjectionExecutor::new_allow_unfenced_rebuilds(router, executor);
+        let handler = MultiHoldingProjectionSchedulerHandler::new(
             source,
             executor,
             registry,
             claim_key_prefix,
             self.config
                 .batch_size
-                .min(TENANT_PROJECTION_SCHEDULER_MAX_BATCH_SIZE),
+                .min(HOLDING_PROJECTION_SCHEDULER_MAX_BATCH_SIZE),
             self.config.claim_timeout,
         )?;
         let mut worker_registry = self.handler_registry()?;
@@ -2226,33 +2234,33 @@ impl WorkerRuntime {
         Ok(worker_registry)
     }
 
-    /// Compose the same durable multi-tenant scheduler for an executor that
+    /// Compose the same durable multi-holding scheduler for an executor that
     /// owns an existing routed runner. This is intentionally not a second
     /// scheduler: claims, leases, retries, dead letters, authorization, and
-    /// active-tenant enumeration remain the established scheduler path.
-    pub fn handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor<E>(
+    /// active-holding enumeration remain the established scheduler path.
+    pub fn handler_registry_with_control_plane_multi_holding_projection_scheduler_executor<E>(
         &self,
         executor: E,
         authorization: erpx_infrastructure::ProjectionSchedulerAuthorization,
         claim_key_prefix: impl Into<String>,
     ) -> Result<WorkerHandlerRegistry, WorkerRuntimeError>
     where
-        E: TenantProjectionExecutor,
+        E: HoldingProjectionExecutor,
     {
-        let registry = erpx_infrastructure::SqlxTenantStoreRegistry::new(Arc::clone(&self.store));
-        let source = erpx_infrastructure::TenantProjectionSchedulerRepository::new(
+        let registry = erpx_infrastructure::SqlxHoldingStoreRegistry::new(Arc::clone(&self.store));
+        let source = erpx_infrastructure::HoldingProjectionSchedulerRepository::new(
             self.store.pools().write.clone(),
             Arc::new(registry.clone()),
             authorization,
         );
-        let handler = MultiTenantProjectionSchedulerHandler::new(
+        let handler = MultiHoldingProjectionSchedulerHandler::new(
             source,
             executor,
             registry,
             claim_key_prefix,
             self.config
                 .batch_size
-                .min(TENANT_PROJECTION_SCHEDULER_MAX_BATCH_SIZE),
+                .min(HOLDING_PROJECTION_SCHEDULER_MAX_BATCH_SIZE),
             self.config.claim_timeout,
         )?;
         let mut worker_registry = self.handler_registry()?;
@@ -2260,13 +2268,13 @@ impl WorkerRuntime {
         Ok(worker_registry)
     }
 
-    /// Register restore-test work only when a tenant-scoped source is
+    /// Register restore-test work only when a holding-scoped source is
     /// explicitly composed. The default registry remains fail-closed and
     /// cannot claim recovery work without an adapter.
     pub fn handler_registry_with_restore_test_source<S>(
         &self,
         source: S,
-        tenant_id: impl Into<String>,
+        holding_id: impl Into<String>,
     ) -> Result<WorkerHandlerRegistry, WorkerRuntimeError>
     where
         S: RestoreTestScheduleSource + 'static,
@@ -2274,7 +2282,7 @@ impl WorkerRuntime {
         let mut registry = self.handler_registry()?;
         registry.register(Arc::new(RestoreTestScheduleHandler::new(
             source,
-            tenant_id,
+            holding_id,
             self.config.batch_size,
         )?))?;
         Ok(registry)
@@ -2432,7 +2440,7 @@ impl WorkerRuntime {
     pub async fn rebuild_candidate_and_switch<H, P, S>(
         &self,
         request: ProjectionCandidateRebuildRequest,
-        router: &TenantDatabaseRouter,
+        router: &HoldingDatabaseRouter,
         preparer: &P,
         handler: &H,
         switcher: &S,
@@ -2443,7 +2451,7 @@ impl WorkerRuntime {
         S: ProjectionReadDatabaseSwitcher + ?Sized,
     {
         request.validate()?;
-        if switcher.replacement_tenant_id() != request.tenant_id
+        if switcher.replacement_holding_id() != request.holding_id
             || switcher.replacement_candidate_database_key() != request.candidate_read_database_key
             || switcher.replacement_source_version() != request.source_version
         {
@@ -2466,8 +2474,8 @@ impl WorkerRuntime {
         }
         let candidate = match router
             .route_replacement_read(
-                &request.tenant_id,
-                &request.holding_ref,
+                &request.holding_id,
+                &request.data_profile_key,
                 &request.candidate_read_database_key,
             )
             .await
@@ -2666,13 +2674,13 @@ impl NamedWorkerHandler for AuditRegisteredHandler {
 }
 
 /// Narrow worker boundary for a future PostgreSQL-backed restore-test queue.
-/// The worker receives only tenant-scoped opaque claims; it never receives
+/// The worker receives only holding-scoped opaque claims; it never receives
 /// credentials, URLs, storage clients, or a command to execute a backup.
 #[async_trait::async_trait]
 pub trait RestoreTestScheduleSource: Send + Sync {
-    async fn claim_due_for_tenant(
+    async fn claim_due_for_holding(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         worker_id: Uuid,
         now: DateTime<Utc>,
         batch_size: u32,
@@ -2681,21 +2689,21 @@ pub trait RestoreTestScheduleSource: Send + Sync {
 
 #[async_trait::async_trait]
 impl RestoreTestScheduleSource for RestoreTestScheduler {
-    async fn claim_due_for_tenant(
+    async fn claim_due_for_holding(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         worker_id: Uuid,
         now: DateTime<Utc>,
         batch_size: u32,
     ) -> Result<Vec<RestoreTestClaim>, RestoreTestScheduleError> {
-        RestoreTestScheduler::claim_due_for_tenant(self, tenant_id, worker_id, now, batch_size)
+        RestoreTestScheduler::claim_due_for_holding(self, holding_id, worker_id, now, batch_size)
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct RestoreTestScheduleHandler<S> {
     source: S,
-    tenant_id: String,
+    holding_id: String,
     batch_size: u32,
 }
 
@@ -2705,14 +2713,14 @@ where
 {
     pub fn new(
         source: S,
-        tenant_id: impl Into<String>,
+        holding_id: impl Into<String>,
         batch_size: u32,
     ) -> Result<Self, WorkerRuntimeError> {
-        let tenant_id = tenant_id.into();
-        validate_worker_reference(&tenant_id, "tenant_id")?;
+        let holding_id = holding_id.into();
+        validate_worker_reference(&holding_id, "holding_id")?;
         Ok(Self {
             source,
-            tenant_id,
+            holding_id,
             batch_size: batch_size.clamp(1, MAX_RESTORE_TEST_SCHEDULE_BATCH_SIZE),
         })
     }
@@ -2721,8 +2729,8 @@ where
         self.batch_size
     }
 
-    pub fn tenant_id(&self) -> &str {
-        &self.tenant_id
+    pub fn holding_id(&self) -> &str {
+        &self.holding_id
     }
 }
 
@@ -2738,7 +2746,7 @@ where
     async fn run_once(&self, worker_id: Uuid) -> Result<WorkerHandlerReport, WorkerRuntimeError> {
         let claims = self
             .source
-            .claim_due_for_tenant(&self.tenant_id, worker_id, Utc::now(), self.batch_size)
+            .claim_due_for_holding(&self.holding_id, worker_id, Utc::now(), self.batch_size)
             .await
             .map_err(redacted_restore_test_schedule_error)?;
         let claimed = claims.len() as u64;
@@ -3388,21 +3396,21 @@ mod tests {
     fn candidate_rebuild_request_is_fully_bound_and_bounded() {
         let request = ProjectionCandidateRebuildRequest::new(
             erpx_operations_sqlx::EXCEPTION_PROJECTION,
-            "tenant-1",
             "holding-1",
-            "tenant_candidate_read_1",
+            "holding-1",
+            "holding_candidate_read_1",
             42,
         )
         .expect("valid candidate rebuild request");
         assert_eq!(request.source_version, 42);
-        assert_eq!(request.tenant_id, "tenant-1");
-        assert_eq!(request.holding_ref, "holding-1");
+        assert_eq!(request.holding_id, "holding-1");
+        assert_eq!(request.data_profile_key, "holding-1");
         assert!(
             ProjectionCandidateRebuildRequest::new(
                 "operations/read",
-                "tenant-1",
                 "holding-1",
-                "tenant_candidate_read_1",
+                "holding-1",
+                "holding_candidate_read_1",
                 42,
             )
             .is_err()
@@ -3410,9 +3418,9 @@ mod tests {
         assert!(
             ProjectionCandidateRebuildRequest::new(
                 erpx_operations_sqlx::EXCEPTION_PROJECTION,
-                "tenant-1",
                 "holding-1",
-                "tenant candidate",
+                "holding-1",
+                "holding candidate",
                 42,
             )
             .is_err()
@@ -3420,9 +3428,9 @@ mod tests {
         assert!(
             ProjectionCandidateRebuildRequest::new(
                 erpx_operations_sqlx::EXCEPTION_PROJECTION,
-                "tenant-1",
                 "holding-1",
-                "tenant_candidate_read_1",
+                "holding-1",
+                "holding_candidate_read_1",
                 0,
             )
             .is_err()
@@ -3430,29 +3438,29 @@ mod tests {
     }
 
     #[test]
-    fn sales_projection_requests_are_bounded_and_tenant_bound() {
-        assert!(SalesProjectionRequest::new("tenant-1", "holding-1", None, 0).is_err());
+    fn sales_projection_requests_are_bounded_and_holding_bound() {
+        assert!(SalesProjectionRequest::new("holding-1", "holding-1", None, 0).is_err());
         assert!(
             SalesProjectionRequest::new(
-                "tenant-1",
+                "holding-1",
                 "holding-1",
                 None,
                 SALES_PROJECTION_MAX_PAGE_SIZE + 1,
             )
             .is_err()
         );
-        assert!(SalesProjectionRequest::new("tenant/1", "holding-1", None, 1).is_err());
-        assert!(SalesProjectionRequest::new("tenant-1", "holding 1", None, 1).is_err());
+        assert!(SalesProjectionRequest::new("holding/1", "holding-1", None, 1).is_err());
+        assert!(SalesProjectionRequest::new("holding-1", "holding 1", None, 1).is_err());
 
         let cursor = SalesSourceEventCursor {
             aggregate_type: "sales_order".into(),
             aggregate_id: Uuid::new_v4(),
             aggregate_version: 1,
         };
-        let request = SalesProjectionRequest::new("tenant-1", "holding-1", Some(cursor), 500)
+        let request = SalesProjectionRequest::new("holding-1", "holding-1", Some(cursor), 500)
             .expect("bounded Sales projection request");
-        assert_eq!(request.tenant_id, "tenant-1");
-        assert_eq!(request.holding_ref, "holding-1");
+        assert_eq!(request.holding_id, "holding-1");
+        assert_eq!(request.data_profile_key, "holding-1");
         assert_eq!(request.page_size, SALES_PROJECTION_MAX_PAGE_SIZE);
     }
 
@@ -3501,19 +3509,19 @@ mod tests {
     }
 
     #[test]
-    fn asset_maintenance_projection_requests_are_bounded_and_tenant_bound() {
-        assert!(AssetMaintenanceProjectionRequest::new("tenant-1", "holding-1", None, 0).is_err());
+    fn asset_maintenance_projection_requests_are_bounded_and_holding_bound() {
+        assert!(AssetMaintenanceProjectionRequest::new("holding-1", "holding-1", None, 0).is_err());
         assert!(
             AssetMaintenanceProjectionRequest::new(
-                "tenant-1",
+                "holding-1",
                 "holding-1",
                 None,
                 ASSET_MAINTENANCE_PROJECTION_MAX_PAGE_SIZE + 1,
             )
             .is_err()
         );
-        assert!(AssetMaintenanceProjectionRequest::new("tenant/1", "holding-1", None, 1).is_err());
-        assert!(AssetMaintenanceProjectionRequest::new("tenant-1", "holding 1", None, 1).is_err());
+        assert!(AssetMaintenanceProjectionRequest::new("holding/1", "holding-1", None, 1).is_err());
+        assert!(AssetMaintenanceProjectionRequest::new("holding-1", "holding 1", None, 1).is_err());
 
         let cursor = AssetMaintenanceSourceEventCursor {
             aggregate_type: "asset".into(),
@@ -3521,17 +3529,17 @@ mod tests {
             aggregate_version: 1,
         };
         let request =
-            AssetMaintenanceProjectionRequest::new("tenant-1", "holding-1", Some(cursor), 500)
+            AssetMaintenanceProjectionRequest::new("holding-1", "holding-1", Some(cursor), 500)
                 .expect("bounded Asset/Maintenance projection request");
-        assert_eq!(request.tenant_id, "tenant-1");
-        assert_eq!(request.holding_ref, "holding-1");
+        assert_eq!(request.holding_id, "holding-1");
+        assert_eq!(request.data_profile_key, "holding-1");
         assert_eq!(
             request.page_size,
             ASSET_MAINTENANCE_PROJECTION_MAX_PAGE_SIZE
         );
         assert!(
             AssetMaintenanceProjectionRequest::new(
-                "tenant-1",
+                "holding-1",
                 "holding-1",
                 Some(AssetMaintenanceSourceEventCursor {
                     aggregate_type: "asset".into(),
@@ -3634,7 +3642,7 @@ mod tests {
                 aggregate_type: "test".into(),
                 aggregate_id: Uuid::nil(),
                 aggregate_version: 1,
-                tenant_scope: Some(serde_json::json!("platform")),
+                active_scope: Some(serde_json::json!("platform")),
                 actor: Some(serde_json::json!("test")),
                 correlation_id: Uuid::nil(),
                 causation_id: None,
@@ -3852,7 +3860,7 @@ mod tests {
         let composed = runtime
             .handler_registry_with_restore_test_source(
                 RestoreTestScheduler::default(),
-                "tenant-test",
+                "holding-test",
             )
             .expect("composed handler registry");
         assert!(
@@ -3902,16 +3910,16 @@ mod tests {
             !default_registry
                 .names()
                 .iter()
-                .any(|name| name == TENANT_PROJECTION_STATUS_PROJECTION_HANDLER_NAME)
+                .any(|name| name == HOLDING_PROJECTION_STATUS_PROJECTION_HANDLER_NAME)
         );
         let composed = runtime
-            .handler_registry_with_control_plane_tenant_projection_status_projection()
+            .handler_registry_with_control_plane_holding_projection_status_projection()
             .expect("status projection registry");
         assert!(
             composed
                 .names()
                 .iter()
-                .any(|name| name == TENANT_PROJECTION_STATUS_PROJECTION_HANDLER_NAME)
+                .any(|name| name == HOLDING_PROJECTION_STATUS_PROJECTION_HANDLER_NAME)
         );
     }
 
@@ -3925,9 +3933,9 @@ mod tests {
             .expect("lazy read pool");
         let control = Arc::new(SqlxControlPlane::new(ControlPlanePools { write, read }));
         assert!(
-            SqlxTenantProjectionReadDatabaseSwitcher::new(
+            SqlxHoldingProjectionReadDatabaseSwitcher::new(
                 Arc::clone(&control),
-                "tenant-switch",
+                "holding-switch",
                 "candidate-read",
                 0,
                 "operations",
@@ -3935,9 +3943,9 @@ mod tests {
             .is_err()
         );
         assert!(
-            SqlxTenantProjectionReadDatabaseSwitcher::new(
+            SqlxHoldingProjectionReadDatabaseSwitcher::new(
                 Arc::clone(&control),
-                "tenant-switch",
+                "holding-switch",
                 "candidate/read",
                 1,
                 "operations",
@@ -3945,15 +3953,15 @@ mod tests {
             .is_err()
         );
 
-        let switcher = SqlxTenantProjectionReadDatabaseSwitcher::new(
+        let switcher = SqlxHoldingProjectionReadDatabaseSwitcher::new(
             control,
-            "tenant-switch",
+            "holding-switch",
             "candidate-read",
             42,
             "operations",
         )
         .expect("bounded switcher");
-        assert_eq!(switcher.tenant_id(), "tenant-switch");
+        assert_eq!(switcher.holding_id(), "holding-switch");
         assert_eq!(switcher.candidate_read_database_key(), "candidate-read");
         assert_eq!(switcher.source_version(), 42);
         let error = switcher
@@ -3974,7 +3982,7 @@ mod tests {
     async fn restore_test_handler_is_bounded_and_fail_closed_without_due_work() {
         let handler = RestoreTestScheduleHandler::new(
             RestoreTestScheduler::default(),
-            "tenant-test",
+            "holding-test",
             u32::MAX,
         )
         .expect("restore handler");
@@ -3986,40 +3994,40 @@ mod tests {
             .expect("empty restore pass");
         assert_eq!(report.claimed, 0);
         assert!(!report.has_work);
-        assert_eq!(handler.tenant_id(), "tenant-test");
+        assert_eq!(handler.holding_id(), "holding-test");
     }
 
     fn database_health(
-        tenant_id: &str,
+        holding_id: &str,
         side: DatabaseSide,
         database_key: &str,
         reachable: bool,
-    ) -> TenantDatabaseHealth {
-        TenantDatabaseHealth {
-            tenant_id: tenant_id.into(),
+    ) -> HoldingDatabaseHealth {
+        HoldingDatabaseHealth {
+            holding_id: holding_id.into(),
             side,
             database_key: database_key.into(),
-            schema_version: "tenant-0001".into(),
+            schema_version: "holding-0001".into(),
             reachable,
             checked_at: Utc::now(),
             details: serde_json::json!({"source": "injected-test"}),
         }
     }
 
-    fn storage_health(tenant_id: &str, reachable: bool) -> TenantStorageHealth {
-        TenantStorageHealth {
-            tenant_id: tenant_id.into(),
-            storage_namespace: "tenant-storage".into(),
+    fn storage_health(holding_id: &str, reachable: bool) -> HoldingStorageHealth {
+        HoldingStorageHealth {
+            holding_id: holding_id.into(),
+            storage_namespace: "holding-storage".into(),
             reachable,
             checked_at: Utc::now(),
             details: serde_json::json!({"source": "injected-test"}),
         }
     }
 
-    fn backup_run(tenant_id: &str, status: &str, verified: bool) -> TenantBackupRun {
-        TenantBackupRun {
+    fn backup_run(holding_id: &str, status: &str, verified: bool) -> HoldingBackupRun {
+        HoldingBackupRun {
             id: Uuid::from_u128(7),
-            tenant_id: tenant_id.into(),
+            holding_id: holding_id.into(),
             kind: "restore_test".into(),
             status: status.into(),
             backup_ref: "backup-chain-1".into(),
@@ -4052,10 +4060,10 @@ mod tests {
         assert!(!WorkerReadinessComposition::not_probed().is_ready());
 
         let now = Utc::now();
-        let write = database_health("tenant-test", DatabaseSide::Write, "tenant-write", true);
-        let read = database_health("tenant-test", DatabaseSide::Read, "tenant-read", true);
-        let storage = storage_health("tenant-test", true);
-        let backup = backup_run("tenant-test", "completed", true);
+        let write = database_health("holding-test", DatabaseSide::Write, "holding-write", true);
+        let read = database_health("holding-test", DatabaseSide::Read, "holding-read", true);
+        let storage = storage_health("holding-test", true);
+        let backup = backup_run("holding-test", "completed", true);
         let composition = WorkerReadinessComposition::from_metadata(
             WorkerHeartbeatReadiness::from_last_seen(
                 Some(now - chrono::Duration::seconds(1)),
@@ -4063,7 +4071,7 @@ mod tests {
                 chrono::Duration::seconds(30),
             ),
             WorkerReadinessMetadata {
-                tenant_id: "tenant-test",
+                holding_id: "holding-test",
                 registry_state: Some("active"),
                 write_health: Some(&write),
                 read_health: Some(&read),
@@ -4075,7 +4083,7 @@ mod tests {
         assert!(composition.is_ready());
         assert_eq!(composition.overall(), ReadinessState::Ready);
         let failed = WorkerReadinessComposition {
-            tenant_routing: ReadinessState::Unavailable,
+            holding_routing: ReadinessState::Unavailable,
             ..composition
         };
         assert_eq!(failed.overall(), ReadinessState::Unavailable);
@@ -4158,13 +4166,13 @@ mod tests {
     }
 
     #[test]
-    fn tenant_projection_and_backup_classifiers_do_not_promote_missing_or_failed_metadata() {
-        let write = database_health("tenant-test", DatabaseSide::Write, "tenant-write", true);
-        let read = database_health("tenant-test", DatabaseSide::Read, "tenant-read", true);
-        let storage = storage_health("tenant-test", true);
+    fn holding_projection_and_backup_classifiers_do_not_promote_missing_or_failed_metadata() {
+        let write = database_health("holding-test", DatabaseSide::Write, "holding-write", true);
+        let read = database_health("holding-test", DatabaseSide::Read, "holding-read", true);
+        let storage = storage_health("holding-test", true);
         assert_eq!(
-            tenant_routing_readiness(
-                "tenant-test",
+            holding_routing_readiness(
+                "holding-test",
                 Some("active"),
                 Some(&write),
                 Some(&read),
@@ -4172,10 +4180,10 @@ mod tests {
             ),
             ReadinessState::NotProbed
         );
-        let failed_storage = storage_health("tenant-test", false);
+        let failed_storage = storage_health("holding-test", false);
         assert_eq!(
-            tenant_routing_readiness(
-                "tenant-test",
+            holding_routing_readiness(
+                "holding-test",
                 Some("active"),
                 Some(&write),
                 Some(&read),
@@ -4184,8 +4192,8 @@ mod tests {
             ReadinessState::Unavailable
         );
         assert_eq!(
-            tenant_routing_readiness(
-                "tenant-test",
+            holding_routing_readiness(
+                "holding-test",
                 Some("active"),
                 Some(&write),
                 Some(&read),
@@ -4205,18 +4213,18 @@ mod tests {
             projection_freshness_readiness(Some("activated")),
             ReadinessState::Ready
         );
-        let started = backup_run("tenant-test", "started", false);
+        let started = backup_run("holding-test", "started", false);
         assert_eq!(
-            backup_pitr_readiness("tenant-test", Some(&started)),
+            backup_pitr_readiness("holding-test", Some(&started)),
             ReadinessState::Unavailable
         );
-        let completed = backup_run("tenant-test", "completed", true);
+        let completed = backup_run("holding-test", "completed", true);
         assert_eq!(
-            backup_pitr_readiness("tenant-test", Some(&completed)),
+            backup_pitr_readiness("holding-test", Some(&completed)),
             ReadinessState::Ready
         );
         assert_eq!(
-            backup_pitr_readiness("other-tenant", Some(&completed)),
+            backup_pitr_readiness("other-holding", Some(&completed)),
             ReadinessState::Unavailable
         );
     }

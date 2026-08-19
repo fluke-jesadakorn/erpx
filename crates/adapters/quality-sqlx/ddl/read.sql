@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS erpx_quality_read.inspection_projection (
     source_aggregate_version BIGINT NOT NULL CHECK (source_aggregate_version > 0),
     source_global_sequence BIGINT NOT NULL CHECK (source_global_sequence > 0),
     reference TEXT NOT NULL,
-    tenant_scope JSONB NOT NULL,
+    holding_scope JSONB NOT NULL,
     holding_id UUID NOT NULL,
     company_id UUID NOT NULL,
     branch_id UUID,

@@ -26,10 +26,10 @@
   - the domain support-intersection evaluator, including capability revocation
     and exact time boundaries.
 - Customer-support reads record the customer ID in the existing audit event;
-  platform operational reads retain no tenant customer ID.
+  platform operational reads retain no holding customer ID.
 - Existing allow-list diagnostics construction and redaction remains the only
   payload path. No capability bearer, credentials, tokens, payment data, or
-  arbitrary tenant data is added to the response.
+  arbitrary holding data is added to the response.
 
 ## Files changed
 
@@ -76,11 +76,11 @@ path is outside this packet's ownership and was not modified.
 
 ## Unfinished work and residual gaps
 
-- This packet does not create live tenant diagnostic producers, projection-lag
+- This packet does not create live holding diagnostic producers, projection-lag
   collectors, incident projections, broadcasts, notifications, or the full
   support workflow/UI.
 - The current response remains the existing bounded operational snapshot; it
-  does not expose arbitrary per-tenant business records.
+  does not expose arbitrary per-holding business records.
 - End-to-end gRPC/database tests for the complete handler path require a
   disposable control plane with identity, role, customer, billing, entitlement,
   support session, and capability fixtures. The unit boundary and existing

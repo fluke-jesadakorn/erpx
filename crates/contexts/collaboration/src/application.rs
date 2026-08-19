@@ -203,7 +203,7 @@ where
     ) -> Result<CommitReceipt, CollaborationApplicationError> {
         actor.validate()?;
         command.identity.validate()?;
-        if actor.tenant_id != command.policy.tenant_id()
+        if actor.holding_id != command.policy.holding_id()
             || actor.principal != command.creator
             || command.anchor.record() != command.policy.record()
         {
@@ -294,7 +294,7 @@ where
             .await?
             .ok_or(CollaborationApplicationError::Neutral)?;
         if thread.id() != command.thread_id
-            || thread.policy().tenant_id() != actor.tenant_id
+            || thread.policy().holding_id() != actor.holding_id
             || thread.anchor().record().id() != access.anchor_record_id()
         {
             return Err(CollaborationApplicationError::Internal);
@@ -422,7 +422,7 @@ where
         actor.validate()?;
         request.validate()?;
         let access = self.authorization.authorize_search(actor).await?;
-        if access.tenant_id() != actor.tenant_id
+        if access.holding_id() != actor.holding_id
             || access.authority_scope() != &actor.authority_scope
             || access.actor() != actor.principal
             || access.external_portal() != actor.external_portal
@@ -472,7 +472,7 @@ where
             .authorize_record_ref(actor, record, CollaborationAction::ListRecordThreads)
             .await?;
         let search_access = self.authorization.authorize_search(actor).await?;
-        if search_access.tenant_id() != actor.tenant_id
+        if search_access.holding_id() != actor.holding_id
             || search_access.authority_scope() != &actor.authority_scope
             || search_access.actor() != actor.principal
             || search_access.external_portal() != actor.external_portal
@@ -556,7 +556,7 @@ where
         }
         self.authorization.authorize_inbox(actor).await?;
         self.read
-            .inbox_after(actor.principal.id(), actor.tenant_id, after_cursor, limit)
+            .inbox_after(actor.principal.id(), actor.holding_id, after_cursor, limit)
             .await
             .map_err(Into::into)
     }
@@ -585,7 +585,7 @@ fn validate_access(
     thread_id: ThreadId,
     action: CollaborationAction,
 ) -> Result<(), CollaborationApplicationError> {
-    if access.tenant_id() != actor.tenant_id
+    if access.holding_id() != actor.holding_id
         || access.thread_id() != thread_id
         || access.authority_scope() != &actor.authority_scope
         || access.actor() != actor.principal
@@ -698,7 +698,7 @@ fn opaque_inbox_facts(
                 .into_iter()
                 .map(move |principal| OpaqueInboxFact {
                     event_id: Uuid::new_v4(),
-                    tenant_id: thread.policy().tenant_id(),
+                    holding_id: thread.policy().holding_id(),
                     thread_id: thread.id(),
                     mention_event_id: mention.id(),
                     recipient_principal_id: principal.id(),
@@ -739,8 +739,8 @@ mod tests {
     use chrono::Duration;
     use erpx_integration_contracts::{RecordTypeId, StableRecordRef, catalog::ContextId};
     use erpx_kernel::{
-        CommandId, CorrelationId, DataClassification, PolicyId, PrincipalId, PrincipalKind,
-        RecordId, TenantId, TenantScope,
+        AuthorityScope, CommandId, CorrelationId, DataClassification, HoldingId, PolicyId,
+        PrincipalId, PrincipalKind, RecordId,
     };
     use serde_json::json;
 
@@ -789,7 +789,7 @@ mod tests {
                 return Err(PortError::Denied);
             }
             AuthorizedSearchAccess::try_from_authorization(
-                actor.tenant_id,
+                actor.holding_id,
                 actor.authority_scope.clone(),
                 actor.principal,
                 actor.external_portal,
@@ -851,7 +851,7 @@ mod tests {
                 return Err(PortError::Denied);
             }
             AuthorizedThreadAccess::try_from_authorization(
-                actor.tenant_id,
+                actor.holding_id,
                 thread_id,
                 self.anchor_record_id,
                 actor.authority_scope.clone(),
@@ -961,7 +961,7 @@ mod tests {
         async fn inbox_after(
             &self,
             _: PrincipalId,
-            _: erpx_kernel::TenantId,
+            _: erpx_kernel::HoldingId,
             _: u64,
             _: u16,
         ) -> Result<Vec<OpaqueInboxFact>, PortError> {
@@ -1004,9 +1004,9 @@ mod tests {
     }
 
     fn fixture() -> (ActorContext, Thread, RecordId, DateTime<Utc>) {
-        let tenant_id = TenantId::try_from_uuid(Uuid::new_v4()).unwrap();
+        let holding_id = HoldingId::try_from_uuid(Uuid::new_v4()).unwrap();
         let actor = principal();
-        let scope = TenantScope::Holding {
+        let scope = AuthorityScope::Holding {
             holding_id: Uuid::new_v4(),
         };
         let record_id = RecordId::try_from_uuid(Uuid::new_v4()).unwrap();
@@ -1017,7 +1017,7 @@ mod tests {
         )
         .unwrap();
         let policy = AnchorPolicy::try_new(
-            tenant_id,
+            holding_id,
             record.clone(),
             scope.clone(),
             None,
@@ -1046,7 +1046,7 @@ mod tests {
         .unwrap();
         (
             ActorContext {
-                tenant_id,
+                holding_id,
                 principal: actor,
                 authority_scope: scope,
                 external_portal: None,

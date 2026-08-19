@@ -1,20 +1,20 @@
-# G6-PRV-010 — Safe Platform Operations tenant detail adapter
+# G6-PRV-010 — Safe Platform Operations holding detail adapter
 
 ## Delivered behavior
 
-Added `SqlxTenantStoreRegistry::get_detail`, which validates an opaque tenant
+Added `SqlxHoldingStoreRegistry::get_detail`, which validates an opaque holding
 identifier before querying the authoritative control-plane registry and returns
-only safe tenant/holding references, lifecycle state, registry version, and
+only safe holding/holding references, lifecycle state, registry version, and
 boolean registration-presence flags. Database names/keys, storage namespaces,
 credential references, and backup references are never represented by the
-detail DTO or selected into it. The existing tenant registry remains the
-control-plane source; no tenant database or migration changed.
+detail DTO or selected into it. The existing holding registry remains the
+control-plane source; no holding database or migration changed.
 
 ## Files changed
 
 - `crates/infrastructure/src/repositories.rs`
 - `crates/infrastructure/src/lib.rs`
-- `crates/infrastructure/tests/tenant_registry_detail.rs`
+- `crates/infrastructure/tests/holding_registry_detail.rs`
 - `erpx/audits/G6-PRV-010/README.md`
 
 ## Verification
@@ -22,11 +22,11 @@ control-plane source; no tenant database or migration changed.
 ```text
 cargo fmt --all --check
 cargo clippy -p erpx-infrastructure --all-targets -- -D warnings
-cargo test -p erpx-infrastructure --test tenant_registry_detail
+cargo test -p erpx-infrastructure --test holding_registry_detail
 ```
 
 The focused tests cover safe debug output and invalid opaque IDs failing before
-database access. Platform Operations GetTenant transport, readiness/detail
+database access. Platform Operations GetHolding transport, readiness/detail
 composition, provisioning actions, backups, integrations, and full UI journeys
 remain open.
 

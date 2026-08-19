@@ -2,28 +2,28 @@
 
 ## Objective
 
-Close the physical replacement-read seam for one concrete tenant projection
+Close the physical replacement-read seam for one concrete holding projection
 without exposing database credentials or allowing a stale worker to switch a
 newer candidate.
 
 ## Delivered behavior
 
-- `TenantDatabaseProvisioner::provision_replacement_read_database` creates a
+- `HoldingDatabaseProvisioner::provision_replacement_read_database` creates a
   candidate database through the server-only administrative URL, applies the
-  tenant-read migration set, and requires an active tenant with a matching
+  holding-read migration set, and requires an active holding with a matching
   `rebuilding` switch state.
 - Candidate keys are serialized through a per-key PostgreSQL advisory lock and
-  rejected when another tenant owns the key in its registry or active switch.
-- `TenantDatabaseRouter::route_replacement_read` binds the candidate to the
-  tenant/holding switch row, verifies the registry current-read binding, and
+  rejected when another holding owns the key in its registry or active switch.
+- `HoldingDatabaseRouter::route_replacement_read` binds the candidate to the
+  holding/holding switch row, verifies the registry current-read binding, and
   probes the physical database identity, required read relations, forced RLS,
   policies, and holding isolation before returning a pool.
 - `OperationsProjectionRunner` implements `CandidateProjectionRebuilder` and
   clears/replays the Operations read model against the explicitly routed
   candidate pool while reading immutable source events from the write pool.
 - `CandidateReadDatabasePreparer` is an injected worker seam; the production
-  `TenantDatabaseProvisioner` implementation validates tenant/holding binding,
-  creates the candidate, and applies the complete tenant-read migration set
+  `HoldingDatabaseProvisioner` implementation validates holding/holding binding,
+  creates the candidate, and applies the complete holding-read migration set
   before the projector receives the route.
 - Replacement completion, failure, and activation support a monotonic switch
   generation. The worker switcher uses that generation for compare-and-swap
@@ -42,7 +42,7 @@ newer candidate.
 - `apps/server/src/main.rs`
 - `crates/proto/proto/erpx/platform/v1/platform.proto`
 
-No tenant URL, credential, storage namespace, or candidate pool is serialized
+No holding URL, credential, storage namespace, or candidate pool is serialized
 by the protobuf contract.
 
 ## Verification evidence
@@ -74,4 +74,4 @@ Remove the additive candidate provisioning method, Operations candidate
 rebuilder implementation, generation-bound transition methods, activation RPC,
 and focused evidence. Preserve the existing active-read registry and the
 legacy non-candidate backup/restore seam until a reviewed replacement is
-available. No active tenant read key is changed by rollback itself.
+available. No active holding read key is changed by rollback itself.

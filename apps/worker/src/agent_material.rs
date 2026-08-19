@@ -20,7 +20,7 @@ use zeroize::Zeroizing;
 
 use crate::ProtectedAgentMaterialPort;
 
-const REFERENCE_PREFIX: &str = "agent-material:v1:";
+const REFERENCE_PREFIX: &str = "agent-material:";
 const MAX_REFERENCE_BYTES: usize = 128;
 const MAX_PLAINTEXT_BYTES: usize = 1024 * 1024;
 const MAX_ENVELOPE_BYTES: u64 = 2 * 1024 * 1024;
@@ -109,7 +109,7 @@ fn object_error(error: ObjectStorageError) -> PortError {
 
 #[derive(Clone)]
 pub struct AgentProtectedMaterialConfig {
-    tenant_id: Uuid,
+    holding_id: Uuid,
     namespace: String,
     key_ref: String,
     max_plaintext_bytes: usize,
@@ -120,7 +120,7 @@ impl fmt::Debug for AgentProtectedMaterialConfig {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("AgentProtectedMaterialConfig")
-            .field("tenant_id", &self.tenant_id)
+            .field("holding_id", &self.holding_id)
             .field("namespace", &"[OPAQUE]")
             .field("key_ref", &"[REDACTED]")
             .field("max_plaintext_bytes", &self.max_plaintext_bytes)
@@ -131,13 +131,13 @@ impl fmt::Debug for AgentProtectedMaterialConfig {
 
 impl AgentProtectedMaterialConfig {
     pub fn try_new(
-        tenant_id: Uuid,
+        holding_id: Uuid,
         namespace: String,
         key_ref: String,
         max_plaintext_bytes: usize,
         storage_timeout: StdDuration,
     ) -> Result<Self, PortError> {
-        if tenant_id.is_nil()
+        if holding_id.is_nil()
             || MinioObjectStore::validate_namespace_reference(&namespace).is_err()
             || !safe_ref(&key_ref, 512)
             || max_plaintext_bytes == 0
@@ -148,7 +148,7 @@ impl AgentProtectedMaterialConfig {
             return Err(PortError::ProtectedMaterialUnavailable);
         }
         Ok(Self {
-            tenant_id,
+            holding_id,
             namespace,
             key_ref,
             max_plaintext_bytes,
@@ -156,8 +156,8 @@ impl AgentProtectedMaterialConfig {
         })
     }
 
-    pub const fn tenant_id(&self) -> Uuid {
-        self.tenant_id
+    pub const fn holding_id(&self) -> Uuid {
+        self.holding_id
     }
 }
 
@@ -197,7 +197,7 @@ enum MaterialKind {
 #[derive(Debug, Serialize)]
 struct MaterialAad<'a> {
     version: u8,
-    tenant_id: Uuid,
+    holding_id: Uuid,
     assignment_id: Uuid,
     material_id: Uuid,
     kind: MaterialKind,
@@ -212,7 +212,7 @@ struct MaterialAad<'a> {
 #[serde(deny_unknown_fields)]
 struct StoredMaterialEnvelope {
     version: u8,
-    tenant_id: Uuid,
+    holding_id: Uuid,
     assignment_id: Uuid,
     material_id: Uuid,
     kind: MaterialKind,
@@ -257,14 +257,14 @@ where
         }
         let digest = format!("{:x}", Sha256::digest(material.as_bytes()));
         let material_id = material_id(
-            self.config.tenant_id,
+            self.config.holding_id,
             assignment.id().as_uuid(),
             kind,
             &digest,
         );
         let aad = aad_bytes(MaterialAad {
             version: 1,
-            tenant_id: self.config.tenant_id,
+            holding_id: self.config.holding_id,
             assignment_id: assignment.id().as_uuid(),
             material_id,
             kind,
@@ -290,7 +290,7 @@ where
         }
         let envelope = StoredMaterialEnvelope {
             version: 1,
-            tenant_id: self.config.tenant_id,
+            holding_id: self.config.holding_id,
             assignment_id: assignment.id().as_uuid(),
             material_id,
             kind,
@@ -311,7 +311,7 @@ where
             .put_envelope(
                 &self.config.namespace,
                 &object_key(
-                    self.config.tenant_id,
+                    self.config.holding_id,
                     assignment.id().as_uuid(),
                     material_id,
                 ),
@@ -334,7 +334,7 @@ where
             .get_envelope(
                 &self.config.namespace,
                 &object_key(
-                    self.config.tenant_id,
+                    self.config.holding_id,
                     assignment.id().as_uuid(),
                     material_id,
                 ),
@@ -347,7 +347,7 @@ where
         let at = self.clock.now();
         let current = self.retention.load_retention(assignment, at).await?;
         if envelope.version != 1
-            || envelope.tenant_id != self.config.tenant_id
+            || envelope.holding_id != self.config.holding_id
             || envelope.assignment_id != assignment.id().as_uuid()
             || envelope.material_id != material_id
             || envelope.kind != expected_kind
@@ -361,7 +361,7 @@ where
         }
         let aad = aad_bytes(MaterialAad {
             version: envelope.version,
-            tenant_id: envelope.tenant_id,
+            holding_id: envelope.holding_id,
             assignment_id: envelope.assignment_id,
             material_id: envelope.material_id,
             kind: envelope.kind,
@@ -417,10 +417,10 @@ where
     }
 }
 
-fn material_id(tenant_id: Uuid, assignment_id: Uuid, kind: MaterialKind, digest: &str) -> Uuid {
+fn material_id(holding_id: Uuid, assignment_id: Uuid, kind: MaterialKind, digest: &str) -> Uuid {
     let mut value = Sha256::new();
-    value.update(b"erpx.agent.material.v1");
-    value.update(tenant_id.as_bytes());
+    value.update(b"erpx.agent.material");
+    value.update(holding_id.as_bytes());
     value.update(assignment_id.as_bytes());
     value.update([kind as u8]);
     value.update(digest.as_bytes());
@@ -443,8 +443,8 @@ fn parse_material_ref(value: &str) -> Result<Uuid, PortError> {
         .ok_or(PortError::ProtectedMaterialUnavailable)
 }
 
-fn object_key(tenant_id: Uuid, assignment_id: Uuid, material_id: Uuid) -> String {
-    format!("agent-material/{tenant_id}/{assignment_id}/{material_id}.json")
+fn object_key(holding_id: Uuid, assignment_id: Uuid, material_id: Uuid) -> String {
+    format!("agent-material/{holding_id}/{assignment_id}/{material_id}.json")
 }
 
 fn aad_bytes(aad: MaterialAad<'_>) -> Result<Vec<u8>, PortError> {
@@ -476,30 +476,30 @@ mod tests {
     fn config_debug_redacts_namespace_and_key_reference() {
         let config = AgentProtectedMaterialConfig::try_new(
             Uuid::from_u128(1),
-            "tenant-agent-material".into(),
-            "kms:key:tenant-1".into(),
+            "holding-agent-material".into(),
+            "kms:key:holding-1".into(),
             1024,
             StdDuration::from_secs(2),
         )
         .expect("config");
         let debug = format!("{config:?}");
         assert!(debug.contains("REDACTED"));
-        assert!(!debug.contains("kms:key:tenant-1"));
-        assert!(!debug.contains("tenant-agent-material"));
+        assert!(!debug.contains("kms:key:holding-1"));
+        assert!(!debug.contains("holding-agent-material"));
     }
 
     #[test]
-    fn material_identity_is_tenant_assignment_kind_and_digest_bound() {
-        let tenant = Uuid::from_u128(1);
+    fn material_identity_is_holding_assignment_kind_and_digest_bound() {
+        let holding = Uuid::from_u128(1);
         let assignment = Uuid::from_u128(2);
-        let prompt = material_id(tenant, assignment, MaterialKind::Prompt, &"a".repeat(64));
+        let prompt = material_id(holding, assignment, MaterialKind::Prompt, &"a".repeat(64));
         assert_eq!(
             prompt,
-            material_id(tenant, assignment, MaterialKind::Prompt, &"a".repeat(64))
+            material_id(holding, assignment, MaterialKind::Prompt, &"a".repeat(64))
         );
         assert_ne!(
             prompt,
-            material_id(tenant, assignment, MaterialKind::Output, &"a".repeat(64))
+            material_id(holding, assignment, MaterialKind::Output, &"a".repeat(64))
         );
         assert_ne!(
             prompt,

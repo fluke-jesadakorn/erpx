@@ -12,8 +12,7 @@ use serde_json::Value;
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::access::Scope;
-use crate::contracts::{ActorAttribution, EventEnvelope, TenantScope};
+use crate::contracts::{ActorAttribution, AuthorityScope, EventEnvelope};
 
 pub mod completion;
 
@@ -46,8 +45,8 @@ pub enum OperationsError {
     InvalidAggregateScope,
     #[error("scope {child:?} is outside parent scope {parent:?}")]
     ScopeOutsideParent {
-        parent: Box<Scope>,
-        child: Box<Scope>,
+        parent: Box<AuthorityScope>,
+        child: Box<AuthorityScope>,
     },
     #[error("{field} must end after it starts")]
     InvalidWindow { field: &'static str },
@@ -102,8 +101,8 @@ pub enum OperationsError {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AggregateMetadata {
     pub id: Uuid,
-    pub holding_ref: String,
-    pub scope: Scope,
+    pub data_profile_key: String,
+    pub scope: AuthorityScope,
     /// Version zero is the unpersisted form. The write repository assigns the
     /// first version atomically with insertion.
     pub version: u64,
@@ -114,13 +113,13 @@ pub struct AggregateMetadata {
 impl AggregateMetadata {
     pub fn new(
         id: Uuid,
-        holding_ref: impl Into<String>,
-        scope: Scope,
+        data_profile_key: impl Into<String>,
+        scope: AuthorityScope,
         at: DateTime<Utc>,
     ) -> Result<Self, OperationsError> {
         let metadata = Self {
             id,
-            holding_ref: holding_ref.into(),
+            data_profile_key: data_profile_key.into(),
             scope,
             version: 0,
             created_at: at,
@@ -134,7 +133,7 @@ impl AggregateMetadata {
         if self.id.is_nil() {
             return Err(OperationsError::NilAggregateId);
         }
-        require_text(&self.holding_ref, "holding_ref")?;
+        require_text(&self.data_profile_key, "data_profile_key")?;
         validate_persisted_scope(&self.scope)?;
         if self.updated_at < self.created_at {
             return Err(OperationsError::InvalidWindow {
@@ -151,7 +150,10 @@ impl AggregateMetadata {
     }
 }
 
-pub fn ensure_scope_containment(parent: &Scope, child: &Scope) -> Result<(), OperationsError> {
+pub fn ensure_scope_containment(
+    parent: &AuthorityScope,
+    child: &AuthorityScope,
+) -> Result<(), OperationsError> {
     if parent.contains(child) {
         Ok(())
     } else {
@@ -162,12 +164,12 @@ pub fn ensure_scope_containment(parent: &Scope, child: &Scope) -> Result<(), Ope
     }
 }
 
-fn require_scope_holding(scope: &Scope, expected: Uuid) -> Result<(), OperationsError> {
+fn require_scope_holding(scope: &AuthorityScope, expected: Uuid) -> Result<(), OperationsError> {
     let actual = match scope {
-        Scope::Holding { holding_id }
-        | Scope::Company { holding_id, .. }
-        | Scope::Branch { holding_id, .. } => *holding_id,
-        Scope::Platform | Scope::Subtree { .. } => {
+        AuthorityScope::Holding { holding_id }
+        | AuthorityScope::Company { holding_id, .. }
+        | AuthorityScope::Branch { holding_id, .. } => *holding_id,
+        AuthorityScope::Platform | AuthorityScope::Subtree { .. } => {
             return Err(OperationsError::InvalidAggregateScope);
         }
     };
@@ -175,7 +177,7 @@ fn require_scope_holding(scope: &Scope, expected: Uuid) -> Result<(), Operations
         Ok(())
     } else {
         Err(OperationsError::ScopeOutsideParent {
-            parent: Box::new(Scope::Holding {
+            parent: Box::new(AuthorityScope::Holding {
                 holding_id: expected,
             }),
             child: Box::new(scope.clone()),
@@ -215,23 +217,23 @@ fn require_window(
     }
 }
 
-/// Operations records are always bound to one concrete tenant hierarchy node.
+/// Operations records are always bound to one concrete holding hierarchy node.
 /// Platform and access-query subtree scopes are authorization scopes, not
 /// source/aggregate record scopes; nil hierarchy IDs would also make RLS and
 /// branch-isolation checks meaningless.
-fn validate_persisted_scope(scope: &Scope) -> Result<(), OperationsError> {
+fn validate_persisted_scope(scope: &AuthorityScope) -> Result<(), OperationsError> {
     let valid = match scope {
-        Scope::Holding { holding_id } => !holding_id.is_nil(),
-        Scope::Company {
+        AuthorityScope::Holding { holding_id } => !holding_id.is_nil(),
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => !holding_id.is_nil() && !company_id.is_nil(),
-        Scope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         } => !holding_id.is_nil() && !company_id.is_nil() && !branch_id.is_nil(),
-        Scope::Platform | Scope::Subtree { .. } => false,
+        AuthorityScope::Platform | AuthorityScope::Subtree { .. } => false,
     };
     if valid {
         Ok(())
@@ -240,7 +242,10 @@ fn validate_persisted_scope(scope: &Scope) -> Result<(), OperationsError> {
     }
 }
 
-fn ensure_exact_scope(actual: &Scope, expected: &Scope) -> Result<(), OperationsError> {
+fn ensure_exact_scope(
+    actual: &AuthorityScope,
+    expected: &AuthorityScope,
+) -> Result<(), OperationsError> {
     if actual == expected {
         Ok(())
     } else {
@@ -319,8 +324,8 @@ pub struct OperationsSourceEvent {
     pub source_version: u64,
     pub event_type: String,
     pub event_version: u16,
-    pub holding_ref: String,
-    pub scope: Scope,
+    pub data_profile_key: String,
+    pub scope: AuthorityScope,
     pub actor: ActorAttribution,
     pub correlation_id: Uuid,
     pub causation_id: Option<Uuid>,
@@ -341,8 +346,8 @@ impl OperationsSourceEvent {
             MAX_OPERATIONS_SOURCE_EVENT_TYPE_BYTES,
         )?;
         require_bounded_text(
-            &self.holding_ref,
-            "holding_ref",
+            &self.data_profile_key,
+            "data_profile_key",
             MAX_OPERATIONS_REFERENCE_BYTES,
         )?;
         if self.source_id.is_nil()
@@ -412,7 +417,7 @@ impl OperationsSourceEvent {
     /// holding-wide orchestration state accidentally.
     pub fn validate_for_aggregate_scope(
         &self,
-        aggregate_scope: &Scope,
+        aggregate_scope: &AuthorityScope,
     ) -> Result<(), OperationsError> {
         self.validate()?;
         ensure_scope_containment(&self.scope, aggregate_scope)
@@ -430,36 +435,34 @@ fn require_unique_ids(values: &[Uuid], field: &'static str) -> Result<(), Operat
     Ok(())
 }
 
-fn tenant_scope(scope: &Scope) -> TenantScope {
+fn active_scope(scope: &AuthorityScope) -> AuthorityScope {
     match scope {
-        Scope::Platform => TenantScope::Platform,
-        Scope::Holding { holding_id } => TenantScope::Holding {
+        AuthorityScope::Platform => AuthorityScope::Platform,
+        AuthorityScope::Holding { holding_id } => AuthorityScope::Holding {
             holding_id: *holding_id,
         },
-        Scope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
-        } => TenantScope::Company {
+        } => AuthorityScope::Company {
             holding_id: *holding_id,
             company_id: *company_id,
         },
-        Scope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
-        } => TenantScope::Branch {
+        } => AuthorityScope::Branch {
             holding_id: *holding_id,
             company_id: *company_id,
             branch_id: *branch_id,
         },
-        Scope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
-        } => TenantScope::Subtree {
+            organization_node_id,
+        } => AuthorityScope::Subtree {
             holding_id: *holding_id,
-            company_ids: company_ids.clone(),
-            branch_ids: branch_ids.clone(),
+            organization_node_id: *organization_node_id,
         },
     }
 }
@@ -617,7 +620,7 @@ pub fn event_for<A: OperationsAggregate>(
         aggregate_type: A::AGGREGATE_TYPE.into(),
         aggregate_id: aggregate.metadata().id,
         aggregate_version: aggregate.metadata().version,
-        tenant_scope: tenant_scope(&aggregate.metadata().scope),
+        active_scope: active_scope(&aggregate.metadata().scope),
         actor,
         correlation_id,
         causation_id,
@@ -740,7 +743,7 @@ macro_rules! organization_aggregate {
 organization_aggregate!(
     Holding,
     "organization.holding",
-    |value: &Holding| Scope::Holding {
+    |value: &Holding| AuthorityScope::Holding {
         holding_id: self_holding_id(value)
     },
     |value: &Holding| self_holding_id(value),
@@ -749,7 +752,7 @@ organization_aggregate!(
 organization_aggregate!(
     Company,
     "organization.company",
-    |value: &Company| Scope::Company {
+    |value: &Company| AuthorityScope::Company {
         holding_id: value.holding_id,
         company_id: value.meta.id
     },
@@ -759,7 +762,7 @@ organization_aggregate!(
 organization_aggregate!(
     Headquarters,
     "organization.headquarters",
-    |value: &Headquarters| Scope::Company {
+    |value: &Headquarters| AuthorityScope::Company {
         holding_id: value.holding_id,
         company_id: value.company_id
     },
@@ -769,7 +772,7 @@ organization_aggregate!(
 organization_aggregate!(
     Branch,
     "organization.branch",
-    |value: &Branch| Scope::Branch {
+    |value: &Branch| AuthorityScope::Branch {
         holding_id: value.holding_id,
         company_id: value.company_id,
         branch_id: value.meta.id
@@ -780,7 +783,7 @@ organization_aggregate!(
 
 fn self_holding_id(value: &Holding) -> Uuid {
     match value.meta.scope {
-        Scope::Holding { holding_id } => holding_id,
+        AuthorityScope::Holding { holding_id } => holding_id,
         _ => Uuid::nil(),
     }
 }
@@ -798,11 +801,11 @@ impl OperationsAggregate for Department {
         require_text(&self.name, "name")?;
         require_scope_holding(&self.meta.scope, self.holding_id)?;
         let expected = self.branch_id.map_or(
-            Scope::Company {
+            AuthorityScope::Company {
                 holding_id: self.holding_id,
                 company_id: self.company_id,
             },
-            |branch_id| Scope::Branch {
+            |branch_id| AuthorityScope::Branch {
                 holding_id: self.holding_id,
                 company_id: self.company_id,
                 branch_id,
@@ -825,11 +828,11 @@ impl OperationsAggregate for Team {
         require_text(&self.name, "name")?;
         require_scope_holding(&self.meta.scope, self.holding_id)?;
         let expected = self.branch_id.map_or(
-            Scope::Company {
+            AuthorityScope::Company {
                 holding_id: self.holding_id,
                 company_id: self.company_id,
             },
-            |branch_id| Scope::Branch {
+            |branch_id| AuthorityScope::Branch {
                 holding_id: self.holding_id,
                 company_id: self.company_id,
                 branch_id,
@@ -1180,7 +1183,7 @@ pub struct OperationalPlan {
     pub name: String,
     pub period_start: DateTime<Utc>,
     pub period_end: DateTime<Utc>,
-    pub branch_scopes: Vec<Scope>,
+    pub branch_scopes: Vec<AuthorityScope>,
     #[serde(default)]
     pub source_refs: Vec<SourceTransactionRef>,
     pub status: OperationalPlanStatus,
@@ -1386,7 +1389,7 @@ operations_aggregate!(
         require_window(value.period_start, value.period_end, "period")?;
         let mut scopes = BTreeSet::new();
         for scope in &value.branch_scopes {
-            if !matches!(scope, Scope::Branch { .. }) {
+            if !matches!(scope, AuthorityScope::Branch { .. }) {
                 return Err(OperationsError::InvalidAggregateScope);
             }
             ensure_scope_containment(&value.meta.scope, scope)?;
@@ -1536,7 +1539,7 @@ operations_aggregate!(
         require_scope_holding(&value.meta.scope, value.meta.scope.holding_id())?;
         ensure_scope_containment(
             &value.meta.scope,
-            &Scope::Branch {
+            &AuthorityScope::Branch {
                 holding_id: value.meta.scope.holding_id(),
                 company_id: value.company_id,
                 branch_id: value.branch_id,
@@ -1602,14 +1605,14 @@ trait ScopeHoldingId {
     fn holding_id(&self) -> Uuid;
 }
 
-impl ScopeHoldingId for Scope {
+impl ScopeHoldingId for AuthorityScope {
     fn holding_id(&self) -> Uuid {
         match self {
-            Scope::Holding { holding_id }
-            | Scope::Company { holding_id, .. }
-            | Scope::Branch { holding_id, .. }
-            | Scope::Subtree { holding_id, .. } => *holding_id,
-            Scope::Platform => Uuid::nil(),
+            AuthorityScope::Holding { holding_id }
+            | AuthorityScope::Company { holding_id, .. }
+            | AuthorityScope::Branch { holding_id, .. }
+            | AuthorityScope::Subtree { holding_id, .. } => *holding_id,
+            AuthorityScope::Platform => Uuid::nil(),
         }
     }
 }
@@ -1663,7 +1666,7 @@ impl OperationalPlan {
         name: impl Into<String>,
         period_start: DateTime<Utc>,
         period_end: DateTime<Utc>,
-        branch_scopes: Vec<Scope>,
+        branch_scopes: Vec<AuthorityScope>,
         source_refs: Vec<SourceTransactionRef>,
     ) -> Result<Self, OperationsError> {
         let value = Self {
@@ -1904,7 +1907,7 @@ impl ExceptionCase {
         let exception = Self {
             meta: AggregateMetadata {
                 id: exception_id,
-                holding_ref: source_event.holding_ref.clone(),
+                data_profile_key: source_event.data_profile_key.clone(),
                 scope: source_event.scope.clone(),
                 version: 1,
                 created_at: source_event.occurred_at,
@@ -2176,8 +2179,8 @@ impl DispatchBatch {
 mod tests {
     use super::*;
 
-    fn scope() -> Scope {
-        Scope::Holding {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Holding {
             holding_id: Uuid::from_u128(1),
         }
     }
@@ -2211,7 +2214,7 @@ mod tests {
     fn dependency_ready_operations_aggregates_are_validated_and_provenance_bound() {
         let at = Utc::now();
         let source_refs = vec![source()];
-        let branch = Scope::Branch {
+        let branch = AuthorityScope::Branch {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(5),
             branch_id: Uuid::from_u128(6),
@@ -2325,7 +2328,7 @@ mod tests {
                 "leaking plan",
                 at,
                 at + chrono::Duration::hours(1),
-                vec![Scope::Branch {
+                vec![AuthorityScope::Branch {
                     holding_id: Uuid::from_u128(999),
                     company_id: Uuid::from_u128(5),
                     branch_id: Uuid::from_u128(6),
@@ -2404,7 +2407,7 @@ mod tests {
         );
 
         let company_scope_meta = AggregateMetadata {
-            scope: Scope::Company {
+            scope: AuthorityScope::Company {
                 holding_id: Uuid::from_u128(1),
                 company_id: Uuid::from_u128(5),
             },
@@ -2430,7 +2433,7 @@ mod tests {
     #[test]
     fn organization_and_operations_scopes_are_contained() {
         let holding = scope();
-        let branch = Scope::Branch {
+        let branch = AuthorityScope::Branch {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(5),
             branch_id: Uuid::from_u128(6),
@@ -2446,7 +2449,7 @@ mod tests {
             meta: AggregateMetadata::new(
                 Uuid::from_u128(201),
                 "holding-ref",
-                Scope::Holding {
+                AuthorityScope::Holding {
                     holding_id: Uuid::from_u128(1),
                 },
                 at,
@@ -2454,7 +2457,7 @@ mod tests {
             .unwrap(),
             holding_id: Uuid::from_u128(1),
             registration_number: "REG-201".into(),
-            legal_name: "Exact Scope Co".into(),
+            legal_name: "Exact AuthorityScope Co".into(),
             status: OrganizationStatus::Active,
         };
         assert!(matches!(
@@ -2462,7 +2465,7 @@ mod tests {
             Err(OperationsError::ScopeOutsideParent { .. })
         ));
 
-        company.meta.scope = Scope::Company {
+        company.meta.scope = AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(201),
         };
@@ -2574,7 +2577,7 @@ mod tests {
             source_version: 4,
             event_type: "source.updated".into(),
             event_version: 1,
-            holding_ref: "holding-ref".into(),
+            data_profile_key: "holding-ref".into(),
             scope: scope(),
             actor: ActorAttribution {
                 principal_ref: "source-worker".into(),
@@ -2613,7 +2616,7 @@ mod tests {
             Err(OperationsError::UnsupportedSourceDomain { .. })
         ));
         let mut event = source_event(OperationsSourceDomain::Sales);
-        event.scope = Scope::Branch {
+        event.scope = AuthorityScope::Branch {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(5),
             branch_id: Uuid::from_u128(6),
@@ -2625,23 +2628,22 @@ mod tests {
     }
 
     #[test]
-    fn source_events_and_aggregates_require_concrete_tenant_scopes() {
+    fn source_events_and_aggregates_require_concrete_holding_scopes() {
         let mut event = source_event(OperationsSourceDomain::Sales);
-        event.scope = Scope::Holding {
+        event.scope = AuthorityScope::Holding {
             holding_id: Uuid::nil(),
         };
         assert_eq!(event.validate(), Err(OperationsError::InvalidSourceEvent));
 
         let mut event = source_event(OperationsSourceDomain::Sales);
-        event.scope = Scope::Subtree {
+        event.scope = AuthorityScope::Subtree {
             holding_id: Uuid::from_u128(1),
-            company_ids: Vec::new(),
-            branch_ids: Vec::new(),
+            organization_node_id: Uuid::nil(),
         };
         assert_eq!(event.validate(), Err(OperationsError::InvalidSourceEvent));
 
         let mut metadata = metadata();
-        metadata.scope = Scope::Company {
+        metadata.scope = AuthorityScope::Company {
             holding_id: metadata.scope.holding_id(),
             company_id: Uuid::nil(),
         };
@@ -2692,7 +2694,7 @@ mod tests {
     fn exception_attribution(name: &str) -> ActorAttribution {
         ActorAttribution {
             principal_ref: name.into(),
-            kind: crate::contracts::ActorKind::TenantUser,
+            kind: crate::contracts::ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
@@ -2725,7 +2727,7 @@ mod tests {
         let mut exception = ExceptionCase {
             meta: AggregateMetadata {
                 id: exception_id,
-                holding_ref: "holding-ref".into(),
+                data_profile_key: "holding-ref".into(),
                 scope: scope(),
                 version: 1,
                 created_at,
@@ -2923,7 +2925,7 @@ mod tests {
         let mut exception = ExceptionCase {
             meta: AggregateMetadata {
                 id: exception_id,
-                holding_ref: "holding-ref".into(),
+                data_profile_key: "holding-ref".into(),
                 scope: scope(),
                 version: u64::MAX,
                 created_at,

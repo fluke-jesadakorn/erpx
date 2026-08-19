@@ -17,6 +17,6 @@ Folio actions use row locks and compare the submitted stage with the current dat
 | Customer | prospect, onboarding, active, suspended, churned | `db/migrations/2026-07-23-erpx-control-plane.sql`, `lib/platform/types.ts` |
 | Billing | trialing, active, past_due, grace, read_only, canceled | Platform SQL check, `erpx/crates/domain/src/commercial.rs` |
 | Support ticket | new, triaged, waiting_for_customer, access_requested, approved, in_progress, resolved, customer_confirmed, closed | Platform SQL check, `erpx/crates/domain/src/support.rs` |
-| Support mode | diagnostic_read ≤8h, tenant_mutation ≤2h, impersonation ≤2h | Platform SQL check, `erpx/crates/domain/src/support.rs` |
+| Support mode | diagnostic_read ≤8h, holding_mutation ≤2h, impersonation ≤2h | Platform SQL check, `erpx/crates/domain/src/support.rs` |
 
 The Rust support transition implementation was identified as incomplete at G0-001: required waiting/access/in-progress/reopen edges are missing and `resolved → closed` is too permissive. G4 must replace it with the frozen lifecycle before acceptance.

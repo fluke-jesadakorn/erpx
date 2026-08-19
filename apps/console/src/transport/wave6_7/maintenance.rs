@@ -8,8 +8,8 @@ use erpx_maintenance::{
     OpenWorkOrderResult, RecordDowntime, ResumeWorkOrder, ScheduleWorkOrder, StartWorkOrder,
     WorkOrderId, WorkOrderList, WorkOrderStatus, WorkOrderView,
 };
-use erpx_proto::erpx::assets::v2::AssetCondition as WireAssetCondition;
-use erpx_proto::erpx::maintenance::v2 as wire;
+use erpx_proto::erpx::assets::AssetCondition as WireAssetCondition;
+use erpx_proto::erpx::maintenance as wire;
 use erpx_ui_foundation::UiError;
 
 use super::common::{
@@ -67,7 +67,7 @@ fn result<R>(
     command_result(response.receipt, build(work_order), command_id, correlation)
 }
 fn identity(
-    metadata: erpx_proto::common::v2::CommandRequestMetadata,
+    metadata: erpx_proto::common::CommandRequestMetadata,
     value: WorkOrderId,
 ) -> wire::MaintenanceWorkOrderIdentityRequest {
     wire::MaintenanceWorkOrderIdentityRequest {
@@ -100,7 +100,7 @@ impl MaintenanceProtoTransport for MaintenanceGrpcTransport {
         let request = wire::AssetMaintenanceRequestEvent {
             event_id: source.event_id().to_string(),
             event_version: u32::from(source.event_version()),
-            tenant_scope: Some(encode_scope(source.tenant_scope())),
+            active_scope: Some(encode_scope(source.active_scope())),
             aggregate_id: source.aggregate_id().to_string(),
             aggregate_version: source.aggregate_version(),
             correlation_id: source.correlation_id().to_string(),

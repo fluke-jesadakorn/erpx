@@ -22,7 +22,7 @@ erpx_ui_enterprise_workspaces::declare_enterprise_workspace_feature!(
     "manufacturing.workspace",
     "/manufacturing",
     "operations",
-    "erpx-feature-manufacturing-v2"
+    "erpx-feature-manufacturing"
 );
 
 #[cfg(test)]

@@ -6,7 +6,7 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::platform_administration;
 use erpx_kernel::{
-    ActorAttribution, AggregateId, AuditContext, CommandId, CorrelationId, EventId, TenantScope,
+    ActorAttribution, AggregateId, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -26,22 +26,22 @@ pub use governance::{
 use crate::domain::{
     AdminContextId, AdminContextStatus, ConnectorBinding, ConnectorBindingId, ConnectorKind,
     ConnectorReadinessEvidence, ConnectorScope, ConnectorState, ConnectorTransition, EnvironmentId,
-    PlatformAggregate, PlatformTenant, PlatformTenantId, TenantAdminContext, TenantLifecycleAction,
-    TenantLifecycleState,
+    HoldingAdminContext, HoldingLifecycleAction, HoldingLifecycleState, PlatformAggregate,
+    PlatformHolding, PlatformHoldingId,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PlatformAdministrationAction {
-    RegisterTenant,
-    TransitionTenant,
+    RegisterHolding,
+    TransitionHolding,
     RegisterConnector,
     TransitionConnector,
     ObserveConnectorReadiness,
     IssueAdminContext,
     RevokeAdminContext,
-    ViewTenant,
-    ListTenants,
+    ViewHolding,
+    ListHoldings,
     ViewConnector,
     ListConnectors,
     ViewAdminContext,
@@ -51,8 +51,8 @@ impl PlatformAdministrationAction {
     pub const fn high_risk(self) -> bool {
         matches!(
             self,
-            Self::RegisterTenant
-                | Self::TransitionTenant
+            Self::RegisterHolding
+                | Self::TransitionHolding
                 | Self::RegisterConnector
                 | Self::TransitionConnector
                 | Self::IssueAdminContext
@@ -63,8 +63,8 @@ impl PlatformAdministrationAction {
     pub const fn write(self) -> bool {
         !matches!(
             self,
-            Self::ViewTenant
-                | Self::ListTenants
+            Self::ViewHolding
+                | Self::ListHoldings
                 | Self::ViewConnector
                 | Self::ListConnectors
                 | Self::ViewAdminContext
@@ -75,14 +75,14 @@ impl PlatformAdministrationAction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
-    pub target_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
+    pub target_scope: &'a AuthorityScope,
     pub action: PlatformAdministrationAction,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorizationGrant {
-    pub authorized_scope: TenantScope,
+    pub authorized_scope: AuthorityScope,
     pub mfa_verified: bool,
 }
 
@@ -102,36 +102,36 @@ pub trait EntitlementPort: Send + Sync {
 /// Resolves customer/root-holding ownership from authoritative control-plane
 /// records. Command payloads are never accepted as ownership evidence.
 #[async_trait]
-pub trait TenantAuthorityPort: Send + Sync {
+pub trait HoldingAuthorityPort: Send + Sync {
     async fn ensure_binding_available(
         &self,
         customer_id: Uuid,
-        root_holding_id: Uuid,
-        holding_ref: &str,
+        canonical_holding_id: Uuid,
+        data_profile_key: &str,
     ) -> Result<(), PortError>;
 
-    async fn ensure_tenant_scope(
+    async fn ensure_holding_scope(
         &self,
-        tenant_id: PlatformTenantId,
-        target_scope: &TenantScope,
+        holding_id: PlatformHoldingId,
+        target_scope: &AuthorityScope,
     ) -> Result<(), PortError>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "command", rename_all = "snake_case")]
 pub enum CommandFingerprint {
-    RegisterTenant {
-        tenant_id: PlatformTenantId,
+    RegisterHolding {
+        holding_id: PlatformHoldingId,
         code: String,
         name: String,
         environment_id: EnvironmentId,
         customer_id: Uuid,
-        root_holding_id: Uuid,
-        holding_ref: String,
+        canonical_holding_id: Uuid,
+        data_profile_key: String,
     },
-    TransitionTenant {
-        tenant_id: PlatformTenantId,
-        action: TenantLifecycleAction,
+    TransitionHolding {
+        holding_id: PlatformHoldingId,
+        action: HoldingLifecycleAction,
     },
     RegisterConnector {
         connector_id: ConnectorBindingId,
@@ -151,8 +151,8 @@ pub enum CommandFingerprint {
     },
     IssueAdminContext {
         context_id: AdminContextId,
-        tenant_id: PlatformTenantId,
-        scope: TenantScope,
+        holding_id: PlatformHoldingId,
+        scope: AuthorityScope,
         device_id: Uuid,
         session_id: Uuid,
         reason: String,
@@ -172,21 +172,21 @@ pub struct CommandIdentity {
 
 #[async_trait]
 pub trait WriteRepository: Send + Sync {
-    async fn load_tenant(
+    async fn load_holding(
         &self,
-        authority_scope: &TenantScope,
-        id: PlatformTenantId,
-    ) -> Result<Option<PlatformTenant>, PortError>;
+        authority_scope: &AuthorityScope,
+        id: PlatformHoldingId,
+    ) -> Result<Option<PlatformHolding>, PortError>;
     async fn load_connector(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: ConnectorBindingId,
     ) -> Result<Option<ConnectorBinding>, PortError>;
     async fn load_admin_context(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: AdminContextId,
-    ) -> Result<Option<TenantAdminContext>, PortError>;
+    ) -> Result<Option<HoldingAdminContext>, PortError>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -195,7 +195,7 @@ pub struct PlatformAdministrationCommit {
     pub correlation_id: CorrelationId,
     pub causation_id: Option<EventId>,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
     pub aggregate: PlatformAggregate,
@@ -246,31 +246,31 @@ pub trait CommandUnitOfWork: Send + Sync {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TenantView {
-    pub tenant_id: PlatformTenantId,
+pub struct HoldingView {
+    pub holding_id: PlatformHoldingId,
     pub version: u64,
     pub code: String,
     pub name: String,
     pub environment_id: EnvironmentId,
     pub customer_id: Uuid,
-    pub root_holding_id: Uuid,
-    pub holding_ref: String,
-    pub status: TenantLifecycleState,
+    pub canonical_holding_id: Uuid,
+    pub data_profile_key: String,
+    pub status: HoldingLifecycleState,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
-impl From<&PlatformTenant> for TenantView {
-    fn from(value: &PlatformTenant) -> Self {
+impl From<&PlatformHolding> for HoldingView {
+    fn from(value: &PlatformHolding) -> Self {
         Self {
-            tenant_id: value.id(),
+            holding_id: value.id(),
             version: value.version(),
             code: value.code().into(),
             name: value.name().into(),
             environment_id: value.environment_id(),
             customer_id: value.customer_id(),
-            root_holding_id: value.root_holding_id(),
-            holding_ref: value.holding_ref().into(),
+            canonical_holding_id: value.canonical_holding_id(),
+            data_profile_key: value.data_profile_key().into(),
             status: value.status(),
             created_at: value.created_at(),
             updated_at: value.updated_at(),
@@ -314,8 +314,8 @@ impl From<&ConnectorBinding> for ConnectorView {
 pub struct AdminContextView {
     pub context_id: AdminContextId,
     pub version: u64,
-    pub tenant_id: PlatformTenantId,
-    pub scope: TenantScope,
+    pub holding_id: PlatformHoldingId,
+    pub scope: AuthorityScope,
     pub principal_ref: String,
     pub reason: String,
     pub issued_at: DateTime<Utc>,
@@ -325,11 +325,11 @@ pub struct AdminContextView {
 }
 
 impl AdminContextView {
-    pub fn from_context(value: &TenantAdminContext, at: DateTime<Utc>) -> Self {
+    pub fn from_context(value: &HoldingAdminContext, at: DateTime<Utc>) -> Self {
         Self {
             context_id: value.id(),
             version: value.version(),
-            tenant_id: value.tenant_id(),
+            holding_id: value.holding_id(),
             scope: value.scope().clone(),
             principal_ref: value.principal_ref().into(),
             reason: value.reason().into(),
@@ -344,7 +344,7 @@ impl AdminContextView {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "record", rename_all = "snake_case")]
 pub enum PlatformRecordView {
-    Tenant(TenantView),
+    Holding(HoldingView),
     Connector(ConnectorView),
     AdminContext(AdminContextView),
 }
@@ -370,33 +370,33 @@ pub struct ReadProjection<T> {
 /// Disposable projection access only. Query handlers have no write-store path.
 #[async_trait]
 pub trait ReadRepository: Send + Sync {
-    async fn get_tenant(
+    async fn get_holding(
         &self,
-        scope: &TenantScope,
-        id: PlatformTenantId,
+        scope: &AuthorityScope,
+        id: PlatformHoldingId,
         consistency: &QueryConsistency,
-    ) -> Result<ReadProjection<Option<TenantView>>, PortError>;
-    async fn list_tenants(
+    ) -> Result<ReadProjection<Option<HoldingView>>, PortError>;
+    async fn list_holdings(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         filter: &PageFilter,
         consistency: &QueryConsistency,
-    ) -> Result<ReadProjection<Page<TenantView>>, PortError>;
+    ) -> Result<ReadProjection<Page<HoldingView>>, PortError>;
     async fn get_connector(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: ConnectorBindingId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<ConnectorView>>, PortError>;
     async fn list_connectors(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         filter: &PageFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Page<ConnectorView>>, PortError>;
     async fn get_admin_context(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: AdminContextId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<AdminContextView>>, PortError>;

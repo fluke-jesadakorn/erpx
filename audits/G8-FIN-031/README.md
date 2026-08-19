@@ -2,17 +2,17 @@
 
 ## Delivered behavior
 
-- Added tenant read migration `0031_finance_close_projection.sql` with typed
+- Added holding read migration `0031_finance_close_projection.sql` with typed
   close-review/report rows, account summaries, and per-period checkpoints.
 - Enabled and forced holding RLS on every projection table.
-- Added `SqlxFinanceCloseProjectionStore` source-event paging from the tenant
+- Added `SqlxFinanceCloseProjectionStore` source-event paging from the holding
   write outbox and atomic read-side projection application.
 - Added contiguous aggregate-version checks, duplicate delivery no-ops,
   bounded domain decoding, account-row replacement, and rebuild clearing.
-- Added `FinanceCloseProjectionRunner` for tenant-routed incremental and full
+- Added `FinanceCloseProjectionRunner` for holding-routed incremental and full
   rebuild execution.
-- Changed the close-read adapter and server helper to query only the tenant
-  read database. No tenant write pool is opened for the close read path.
+- Changed the close-read adapter and server helper to query only the holding
+  read database. No holding write pool is opened for the close read path.
 
 ## Evidence
 
@@ -29,8 +29,8 @@
 
 ## Open boundary and rollback
 
-Live disposable tenant database projection/rebuild evidence, durable scheduler
+Live disposable holding database projection/rebuild evidence, durable scheduler
 registration, Finance UI, and full Finance reconciliation remain open. Rollback
-rebuilds or omits the disposable tenant read database migration and removes the
-additive projector/adapter/worker wiring; tenant write data and Folio remain
+rebuilds or omits the disposable holding read database migration and removes the
+additive projector/adapter/worker wiring; holding write data and Folio remain
 unchanged.

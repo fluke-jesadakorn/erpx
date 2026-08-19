@@ -6,7 +6,7 @@ use erpx_cqrs::{
 use erpx_cqrs_sqlx::{
     CqrsSqlxError, ReadPool, ReadSideStore, SqlxProjectionWaiter, WaitError, WaiterConfig,
 };
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use erpx_procurement::{
     PortError, PurchaseOrderId, PurchaseOrderList, PurchaseOrderListFilter, PurchaseOrderView,
     ReadProjection, ReadRepository,
@@ -125,7 +125,7 @@ impl ProcurementReadRepository {
 impl ReadRepository for ProcurementReadRepository {
     async fn get(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         purchase_order_id: PurchaseOrderId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<PurchaseOrderView>>, PortError> {
@@ -160,7 +160,7 @@ impl ReadRepository for ProcurementReadRepository {
 
     async fn list(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &PurchaseOrderListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<PurchaseOrderList>, PortError> {

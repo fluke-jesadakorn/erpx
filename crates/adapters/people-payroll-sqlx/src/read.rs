@@ -6,7 +6,7 @@ use erpx_cqrs::{
 use erpx_cqrs_sqlx::{
     CqrsSqlxError, ReadPool, ReadSideStore, SqlxProjectionWaiter, WaitError, WaiterConfig,
 };
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use erpx_people_payroll::{
     EmployeeId, ExpenseClaimId, LeaveRequestId, PayrollRunId, PortError, ReadRepository,
     ports::{
@@ -117,7 +117,7 @@ impl PeoplePayrollReadRepository {
 impl ReadRepository for PeoplePayrollReadRepository {
     async fn get_employee(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: EmployeeId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<EmployeeView>>, PortError> {
@@ -144,7 +144,7 @@ impl ReadRepository for PeoplePayrollReadRepository {
 
     async fn list_employees(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         filter: &EmployeeListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<EmployeeList>, PortError> {
@@ -175,7 +175,7 @@ impl ReadRepository for PeoplePayrollReadRepository {
 
     async fn get_leave_request(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: LeaveRequestId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<LeaveRequestView>>, PortError> {
@@ -202,7 +202,7 @@ impl ReadRepository for PeoplePayrollReadRepository {
 
     async fn list_leave_requests(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         filter: &LeaveRequestListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<LeaveRequestList>, PortError> {
@@ -232,7 +232,7 @@ impl ReadRepository for PeoplePayrollReadRepository {
 
     async fn get_expense_claim(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: ExpenseClaimId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<ExpenseClaimView>>, PortError> {
@@ -259,7 +259,7 @@ impl ReadRepository for PeoplePayrollReadRepository {
 
     async fn list_expense_claims(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         filter: &ExpenseClaimListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<ExpenseClaimList>, PortError> {
@@ -291,7 +291,7 @@ impl ReadRepository for PeoplePayrollReadRepository {
 
     async fn get_payroll_run(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: PayrollRunId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<PayrollRunView>>, PortError> {
@@ -318,7 +318,7 @@ impl ReadRepository for PeoplePayrollReadRepository {
 
     async fn list_payroll_runs(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         filter: &PayrollRunListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<PayrollRunList>, PortError> {
@@ -386,8 +386,8 @@ fn truncate_cursor<T>(
     }
 }
 fn validate_scopes<'a>(
-    authority: &TenantScope,
-    scopes: impl Iterator<Item = &'a TenantScope>,
+    authority: &AuthorityScope,
+    scopes: impl Iterator<Item = &'a AuthorityScope>,
 ) -> Result<(), PortError> {
     if scopes.into_iter().all(|scope| authority.contains(scope)) {
         Ok(())
@@ -414,20 +414,20 @@ struct ScopeFilter {
     prefixes: Vec<String>,
 }
 impl ScopeFilter {
-    fn from(scope: &TenantScope) -> Result<Self, PortError> {
+    fn from(scope: &AuthorityScope) -> Result<Self, PortError> {
         scope.validate().map_err(|_| PortError::Denied)?;
         Ok(match scope {
-            TenantScope::Platform => Self {
+            AuthorityScope::Platform => Self {
                 platform: true,
                 exact: vec![],
                 prefixes: vec![],
             },
-            TenantScope::Holding { holding_id } => Self {
+            AuthorityScope::Holding { holding_id } => Self {
                 platform: false,
                 exact: vec![],
                 prefixes: vec![format!("h:{holding_id}/%")],
             },
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => {
@@ -438,7 +438,7 @@ impl ScopeFilter {
                     prefixes: vec![format!("{key}/%")],
                 }
             }
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -447,26 +447,13 @@ impl ScopeFilter {
                 exact: vec![format!("h:{holding_id}/c:{company_id}/b:{branch_id}")],
                 prefixes: vec![],
             },
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Self {
                 platform: false,
-                exact: company_ids
-                    .iter()
-                    .flat_map(|company| {
-                        if branch_ids.is_empty() {
-                            vec![format!("h:{holding_id}/c:{company}")]
-                        } else {
-                            branch_ids
-                                .iter()
-                                .map(|branch| format!("h:{holding_id}/c:{company}/b:{branch}"))
-                                .collect()
-                        }
-                    })
-                    .collect(),
-                prefixes: vec![],
+                exact: vec![format!("h:{holding_id}/c:{organization_node_id}")],
+                prefixes: vec![format!("h:{holding_id}/c:{organization_node_id}/%")],
             },
         })
     }
@@ -491,7 +478,7 @@ mod tests {
     }
     #[test]
     fn branch_scope_is_exact() {
-        let filter = ScopeFilter::from(&TenantScope::Branch {
+        let filter = ScopeFilter::from(&AuthorityScope::Branch {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
             branch_id: Uuid::from_u128(3),

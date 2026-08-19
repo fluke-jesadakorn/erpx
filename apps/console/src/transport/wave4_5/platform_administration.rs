@@ -3,13 +3,14 @@ use erpx_cqrs::{CommandEnvelope, CommandReceipt, QueryEnvelope, QueryResult};
 use erpx_platform_administration::{
     AdminContextId, AdminContextStatus, AdminContextView, ConnectorBindingId, ConnectorKind,
     ConnectorScope, ConnectorState, ConnectorTransition, ConnectorView, EnvironmentId,
-    GetAdminContext, GetAdminContextResult, GetConnector, GetConnectorResult, GetPlatformTenant,
-    GetPlatformTenantResult, IssueTenantAdminContext, ListConnectors, ListPlatformTenants, Page,
-    PlatformAdministrationMutationResult, PlatformRecordView, PlatformTenantId, RegisterConnector,
-    RegisterPlatformTenant, RevokeTenantAdminContext, TenantLifecycleAction, TenantLifecycleState,
-    TenantView, TransitionConnector, TransitionPlatformTenant,
+    GetAdminContext, GetAdminContextResult, GetConnector, GetConnectorResult, GetPlatformHolding,
+    GetPlatformHoldingResult, HoldingLifecycleAction, HoldingLifecycleState, HoldingView,
+    IssueHoldingAdminContext, ListConnectors, ListPlatformHoldings, Page,
+    PlatformAdministrationMutationResult, PlatformHoldingId, PlatformRecordView, RegisterConnector,
+    RegisterPlatformHolding, RevokeHoldingAdminContext, TransitionConnector,
+    TransitionPlatformHolding,
 };
-use erpx_proto::{common, erpx::platform_administration::v2 as platform};
+use erpx_proto::{common, erpx::platform_administration as platform};
 use erpx_ui_foundation::UiError;
 
 use crate::{
@@ -45,31 +46,31 @@ impl PlatformAdministrationGrpcTransport {
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl PlatformAdministrationProtoTransport for PlatformAdministrationGrpcTransport {
-    async fn register_tenant(
+    async fn register_holding(
         &self,
-        envelope: CommandEnvelope<RegisterPlatformTenant>,
+        envelope: CommandEnvelope<RegisterPlatformHolding>,
     ) -> Result<CommandReceipt<PlatformAdministrationMutationResult>, UiError> {
         let request = self.authority.command(envelope, |command, metadata| {
-            platform::RegisterPlatformTenantRequest {
+            platform::RegisterPlatformHoldingRequest {
                 metadata: Some(metadata),
-                tenant_id: command.tenant_id.as_uuid().to_string(),
+                holding_id: command.holding_id.as_uuid().to_string(),
                 code: command.code,
                 name: command.name,
                 environment_id: command.environment_id.as_uuid().to_string(),
                 customer_id: command.customer_id.to_string(),
-                root_holding_id: command.root_holding_id.to_string(),
-                holding_ref: command.holding_ref,
+                canonical_holding_id: command.canonical_holding_id.to_string(),
+                data_profile_key: command.data_profile_key,
             }
         })?;
         let response = self
             .command
             .clone()
-            .register_tenant(request)
+            .register_holding(request)
             .await
-            .map_err(|error| rpc(error, "register platform tenant"))?
+            .map_err(|error| rpc(error, "register platform holding"))?
             .into_inner();
-        let record = PlatformRecordView::Tenant(decode_tenant(
-            response.tenant.ok_or_else(invalid_response)?,
+        let record = PlatformRecordView::Holding(decode_holding(
+            response.holding.ok_or_else(invalid_response)?,
         )?);
         command_receipt(
             response.receipt,
@@ -77,26 +78,26 @@ impl PlatformAdministrationProtoTransport for PlatformAdministrationGrpcTranspor
         )
     }
 
-    async fn transition_tenant(
+    async fn transition_holding(
         &self,
-        envelope: CommandEnvelope<TransitionPlatformTenant>,
+        envelope: CommandEnvelope<TransitionPlatformHolding>,
     ) -> Result<CommandReceipt<PlatformAdministrationMutationResult>, UiError> {
         let request = self.authority.command(envelope, |command, metadata| {
-            platform::TransitionPlatformTenantRequest {
+            platform::TransitionPlatformHoldingRequest {
                 metadata: Some(metadata),
-                tenant_id: command.tenant_id.as_uuid().to_string(),
-                action: encode_tenant_action(command.action),
+                holding_id: command.holding_id.as_uuid().to_string(),
+                action: encode_holding_action(command.action),
             }
         })?;
         let response = self
             .command
             .clone()
-            .transition_tenant(request)
+            .transition_holding(request)
             .await
-            .map_err(|error| rpc(error, "transition platform tenant"))?
+            .map_err(|error| rpc(error, "transition platform holding"))?
             .into_inner();
-        let record = PlatformRecordView::Tenant(decode_tenant(
-            response.tenant.ok_or_else(invalid_response)?,
+        let record = PlatformRecordView::Holding(decode_holding(
+            response.holding.ok_or_else(invalid_response)?,
         )?);
         command_receipt(
             response.receipt,
@@ -166,13 +167,13 @@ impl PlatformAdministrationProtoTransport for PlatformAdministrationGrpcTranspor
 
     async fn issue_admin_context(
         &self,
-        envelope: CommandEnvelope<IssueTenantAdminContext>,
+        envelope: CommandEnvelope<IssueHoldingAdminContext>,
     ) -> Result<CommandReceipt<PlatformAdministrationMutationResult>, UiError> {
         let request = self.authority.command(envelope, |command, metadata| {
-            platform::IssuePlatformTenantAdminContextRequest {
+            platform::IssuePlatformHoldingAdminContextRequest {
                 metadata: Some(metadata),
                 context_id: command.context_id.as_uuid().to_string(),
-                tenant_id: command.tenant_id.as_uuid().to_string(),
+                holding_id: command.holding_id.as_uuid().to_string(),
                 scope: Some(encode_scope(&command.scope)),
                 device_id: command.device_id.to_string(),
                 session_id: command.session_id.to_string(),
@@ -198,10 +199,10 @@ impl PlatformAdministrationProtoTransport for PlatformAdministrationGrpcTranspor
 
     async fn revoke_admin_context(
         &self,
-        envelope: CommandEnvelope<RevokeTenantAdminContext>,
+        envelope: CommandEnvelope<RevokeHoldingAdminContext>,
     ) -> Result<CommandReceipt<PlatformAdministrationMutationResult>, UiError> {
         let request = self.authority.command(envelope, |command, metadata| {
-            platform::RevokePlatformTenantAdminContextRequest {
+            platform::RevokePlatformHoldingAdminContextRequest {
                 metadata: Some(metadata),
                 context_id: command.context_id.as_uuid().to_string(),
             }
@@ -222,33 +223,33 @@ impl PlatformAdministrationProtoTransport for PlatformAdministrationGrpcTranspor
         )
     }
 
-    async fn get_tenant(
+    async fn get_holding(
         &self,
-        envelope: QueryEnvelope<GetPlatformTenant>,
-    ) -> Result<QueryResult<GetPlatformTenantResult>, UiError> {
+        envelope: QueryEnvelope<GetPlatformHolding>,
+    ) -> Result<QueryResult<GetPlatformHoldingResult>, UiError> {
         let request = self.authority.query(envelope, |query, metadata| {
-            platform::GetPlatformAdministrationTenantRequest {
+            platform::GetPlatformAdministrationHoldingRequest {
                 metadata: Some(metadata),
-                tenant_id: query.tenant_id.as_uuid().to_string(),
+                holding_id: query.holding_id.as_uuid().to_string(),
             }
         })?;
         let response = self
             .query
             .clone()
-            .get_tenant(request)
+            .get_holding(request)
             .await
-            .map_err(|error| rpc(error, "get platform tenant"))?
+            .map_err(|error| rpc(error, "get platform holding"))?
             .into_inner();
-        let tenant = response.tenant.map(decode_tenant).transpose()?;
-        query_result(response.metadata, GetPlatformTenantResult { tenant })
+        let holding = response.holding.map(decode_holding).transpose()?;
+        query_result(response.metadata, GetPlatformHoldingResult { holding })
     }
 
-    async fn list_tenants(
+    async fn list_holdings(
         &self,
-        envelope: QueryEnvelope<ListPlatformTenants>,
-    ) -> Result<QueryResult<Page<TenantView>>, UiError> {
+        envelope: QueryEnvelope<ListPlatformHoldings>,
+    ) -> Result<QueryResult<Page<HoldingView>>, UiError> {
         let request = self.authority.query(envelope, |query, metadata| {
-            platform::ListPlatformAdministrationTenantsRequest {
+            platform::ListPlatformAdministrationHoldingsRequest {
                 metadata: Some(metadata),
                 filter: Some(encode_page(query.filter.page_size, query.filter.cursor)),
             }
@@ -256,14 +257,14 @@ impl PlatformAdministrationProtoTransport for PlatformAdministrationGrpcTranspor
         let response = self
             .query
             .clone()
-            .list_tenants(request)
+            .list_holdings(request)
             .await
-            .map_err(|error| rpc(error, "list platform tenants"))?
+            .map_err(|error| rpc(error, "list platform holdings"))?
             .into_inner();
         let records = response
-            .tenants
+            .holdings
             .into_iter()
-            .map(decode_tenant)
+            .map(decode_holding)
             .collect::<Result<_, _>>()?;
         query_result(
             response.metadata,
@@ -331,7 +332,7 @@ impl PlatformAdministrationProtoTransport for PlatformAdministrationGrpcTranspor
         envelope: QueryEnvelope<GetAdminContext>,
     ) -> Result<QueryResult<GetAdminContextResult>, UiError> {
         let request = self.authority.query(envelope, |query, metadata| {
-            platform::GetPlatformTenantAdminContextRequest {
+            platform::GetPlatformHoldingAdminContextRequest {
                 metadata: Some(metadata),
                 context_id: query.context_id.as_uuid().to_string(),
             }
@@ -358,14 +359,16 @@ fn encode_page(
     }
 }
 
-fn encode_tenant_action(value: TenantLifecycleAction) -> i32 {
+fn encode_holding_action(value: HoldingLifecycleAction) -> i32 {
     match value {
-        TenantLifecycleAction::Activate => platform::PlatformTenantLifecycleAction::Activate as i32,
-        TenantLifecycleAction::Suspend => platform::PlatformTenantLifecycleAction::Suspend as i32,
-        TenantLifecycleAction::EnterRecovery => {
-            platform::PlatformTenantLifecycleAction::EnterRecovery as i32
+        HoldingLifecycleAction::Activate => {
+            platform::PlatformHoldingLifecycleAction::Activate as i32
         }
-        TenantLifecycleAction::Retire => platform::PlatformTenantLifecycleAction::Retire as i32,
+        HoldingLifecycleAction::Suspend => platform::PlatformHoldingLifecycleAction::Suspend as i32,
+        HoldingLifecycleAction::EnterRecovery => {
+            platform::PlatformHoldingLifecycleAction::EnterRecovery as i32
+        }
+        HoldingLifecycleAction::Retire => platform::PlatformHoldingLifecycleAction::Retire as i32,
     }
 }
 
@@ -394,7 +397,7 @@ fn encode_connector_scope(value: &ConnectorScope) -> platform::PlatformConnector
     platform::PlatformConnectorScope {
         target: Some(match value {
             ConnectorScope::Platform => Target::Platform(common::PlatformScope {}),
-            ConnectorScope::Tenant(scope) => Target::Tenant(encode_scope(scope)),
+            ConnectorScope::Holding(scope) => Target::Holding(encode_scope(scope)),
         }),
     }
 }
@@ -405,15 +408,15 @@ fn decode_connector_scope(
     use platform::platform_connector_scope::Target;
     match value.target.ok_or_else(invalid_response)? {
         Target::Platform(_) => Ok(ConnectorScope::Platform),
-        Target::Tenant(value) => Ok(ConnectorScope::Tenant(decode_scope(value)?)),
+        Target::Holding(value) => Ok(ConnectorScope::Holding(decode_scope(value)?)),
     }
 }
 
-fn decode_tenant(
-    value: platform::PlatformAdministrationTenantRecord,
-) -> Result<TenantView, UiError> {
-    Ok(TenantView {
-        tenant_id: PlatformTenantId::try_from_uuid(uuid(&value.tenant_id)?)
+fn decode_holding(
+    value: platform::PlatformAdministrationHoldingRecord,
+) -> Result<HoldingView, UiError> {
+    Ok(HoldingView {
+        holding_id: PlatformHoldingId::try_from_uuid(uuid(&value.holding_id)?)
             .map_err(|_| invalid_response())?,
         version: value.aggregate_version,
         code: value.code,
@@ -421,20 +424,28 @@ fn decode_tenant(
         environment_id: EnvironmentId::try_from_uuid(uuid(&value.environment_id)?)
             .map_err(|_| invalid_response())?,
         customer_id: uuid(&value.customer_id)?,
-        root_holding_id: uuid(&value.root_holding_id)?,
-        holding_ref: value.holding_ref,
-        status: match platform::PlatformTenantLifecycleState::try_from(value.status).ok() {
-            Some(platform::PlatformTenantLifecycleState::Provisioning) => {
-                TenantLifecycleState::Provisioning
+        canonical_holding_id: uuid(&value.canonical_holding_id)?,
+        data_profile_key: value.data_profile_key,
+        status: match platform::PlatformHoldingLifecycleState::try_from(value.status).ok() {
+            Some(platform::PlatformHoldingLifecycleState::PendingSubscription) => {
+                HoldingLifecycleState::PendingSubscription
             }
-            Some(platform::PlatformTenantLifecycleState::Active) => TenantLifecycleState::Active,
-            Some(platform::PlatformTenantLifecycleState::Suspended) => {
-                TenantLifecycleState::Suspended
+            Some(platform::PlatformHoldingLifecycleState::Provisioning) => {
+                HoldingLifecycleState::Provisioning
             }
-            Some(platform::PlatformTenantLifecycleState::Recovery) => {
-                TenantLifecycleState::Recovery
+            Some(platform::PlatformHoldingLifecycleState::ProvisioningFailed) => {
+                HoldingLifecycleState::ProvisioningFailed
             }
-            Some(platform::PlatformTenantLifecycleState::Retired) => TenantLifecycleState::Retired,
+            Some(platform::PlatformHoldingLifecycleState::Active) => HoldingLifecycleState::Active,
+            Some(platform::PlatformHoldingLifecycleState::Suspended) => {
+                HoldingLifecycleState::Suspended
+            }
+            Some(platform::PlatformHoldingLifecycleState::Recovery) => {
+                HoldingLifecycleState::Recovery
+            }
+            Some(platform::PlatformHoldingLifecycleState::Retired) => {
+                HoldingLifecycleState::Retired
+            }
             _ => return Err(invalid_response()),
         },
         created_at: time(&value.created_at)?,
@@ -486,7 +497,7 @@ fn decode_admin_context(
         context_id: AdminContextId::try_from_uuid(uuid(&value.context_id)?)
             .map_err(|_| invalid_response())?,
         version: value.aggregate_version,
-        tenant_id: PlatformTenantId::try_from_uuid(uuid(&value.tenant_id)?)
+        holding_id: PlatformHoldingId::try_from_uuid(uuid(&value.holding_id)?)
             .map_err(|_| invalid_response())?,
         scope: decode_scope(value.scope.ok_or_else(invalid_response)?)?,
         principal_ref: value.principal_ref,

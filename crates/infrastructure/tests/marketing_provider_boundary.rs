@@ -3,7 +3,7 @@ mod marketing_provider;
 
 use chrono::{Duration, Utc};
 use erpx_domain::{
-    contracts::TenantScope,
+    contracts::AuthorityScope,
     marketing::{MarketingChannel, MarketingPurpose},
     marketing_delivery::{
         AttemptAuthorization, ChannelDispatchRecord, ConsentRecheckDecision, DeliveryDispatch,
@@ -21,7 +21,7 @@ fn authorized_attempt() -> (DeliveryDispatch, AttemptAuthorization) {
     let now = Utc::now();
     let mut dispatch = DeliveryDispatch::new(
         Uuid::new_v4(),
-        TenantScope::Holding {
+        AuthorityScope::Holding {
             holding_id: Uuid::new_v4(),
         },
         Uuid::new_v4(),

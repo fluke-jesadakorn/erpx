@@ -22,7 +22,7 @@
   authoritative Finance entitlement `finance.write`.
 - Rejects platform and subtree mutation scopes, invalid transport references,
   missing reviewers/closers, and context mismatches before persistence.
-- Routes the mutation to the tenant write database only, uses the existing
+- Routes the mutation to the holding write database only, uses the existing
   `SqlxFinanceCloseStore`, and supports optional optimistic expected-version
   checks.
 - Emits a typed receipt and an immutable `finance.close_review.saved` audit

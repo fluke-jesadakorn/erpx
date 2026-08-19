@@ -4,7 +4,7 @@ use erpx_integration_contracts::{
     catalog::ContextId,
     reference::{RecordTypeId, ReferenceValidationError},
 };
-use erpx_kernel::{RecordId, TenantScope};
+use erpx_kernel::{AuthorityScope, RecordId};
 use serde::{Deserialize, Serialize};
 
 use super::{CustomerAuthorityDomainError, CustomerId};
@@ -42,7 +42,7 @@ pub struct CustomerAuthorityRecord {
     customer_id: CustomerId,
     customer_account: StableRecordRef,
     support_case: Option<StableRecordRef>,
-    scope: TenantScope,
+    scope: AuthorityScope,
     evidence_sha256: String,
     status: CustomerAuthorityRecordStatus,
     valid_until: DateTime<Utc>,
@@ -60,7 +60,7 @@ impl CustomerAuthorityRecord {
         customer_id: CustomerId,
         customer_account: StableRecordRef,
         support_case: Option<StableRecordRef>,
-        scope: TenantScope,
+        scope: AuthorityScope,
         evidence_sha256: String,
         valid_until: DateTime<Utc>,
         created_by: String,
@@ -131,7 +131,7 @@ impl CustomerAuthorityRecord {
             || self.scope.validate().is_err()
             || !matches!(
                 self.scope,
-                TenantScope::Company { .. } | TenantScope::Branch { .. }
+                AuthorityScope::Company { .. } | AuthorityScope::Branch { .. }
             )
             || self.version == 0
             || self.created_by.trim().is_empty()
@@ -192,7 +192,7 @@ impl CustomerAuthorityRecord {
     pub const fn support_case(&self) -> Option<&StableRecordRef> {
         self.support_case.as_ref()
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn evidence_sha256(&self) -> &str {
@@ -233,8 +233,8 @@ mod tests {
     fn at() -> DateTime<Utc> {
         Utc.with_ymd_and_hms(2026, 8, 16, 9, 0, 0).single().unwrap()
     }
-    fn scope() -> TenantScope {
-        TenantScope::Company {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         }

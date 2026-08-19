@@ -1,7 +1,5 @@
 use erpx_domain::contracts::CONTRACT_VERSION;
-use erpx_proto::common::v2::{
-    ActorAttribution, ActorKind, AuditContext, CommandContext, QueryContext,
-};
+use erpx_proto::common::{ActorAttribution, ActorKind, AuditContext, CommandContext, QueryContext};
 use tonic::{Request, Status};
 use uuid::Uuid;
 
@@ -107,8 +105,8 @@ pub fn query<T>(
     if context.request_id.trim().is_empty() {
         return Err(Status::invalid_argument("query request_id is required"));
     }
-    if context.tenant_scope.is_none() {
-        return Err(Status::permission_denied("query tenant scope is required"));
+    if context.active_scope.is_none() {
+        return Err(Status::permission_denied("query holding scope is required"));
     }
     if context.consistency.is_none() {
         return Err(Status::failed_precondition("query consistency is required"));
@@ -143,9 +141,9 @@ pub fn command<T>(
     if context.idempotency_key.trim().is_empty() {
         return Err(Status::invalid_argument("idempotency_key is required"));
     }
-    if context.tenant_scope.is_none() {
+    if context.active_scope.is_none() {
         return Err(Status::permission_denied(
-            "command tenant scope is required",
+            "command holding scope is required",
         ));
     }
     Ok(BoundaryContext {
@@ -175,46 +173,40 @@ pub fn command_domain<T>(
         .audit
         .as_ref()
         .ok_or_else(|| Status::failed_precondition("audit context is required"))?;
-    let tenant_scope = context
-        .tenant_scope
+    let active_scope = context
+        .active_scope
         .as_ref()
         .and_then(|scope| scope.scope.as_ref())
-        .ok_or_else(|| Status::permission_denied("command tenant scope is required"))?;
-    let tenant_scope = match tenant_scope {
-        erpx_proto::common::v2::tenant_scope::Scope::Platform(_) => {
-            erpx_domain::contracts::TenantScope::Platform
+        .ok_or_else(|| Status::permission_denied("command holding scope is required"))?;
+    let active_scope = match active_scope {
+        erpx_proto::common::authority_scope::Scope::Platform(_) => {
+            erpx_domain::contracts::AuthorityScope::Platform
         }
-        erpx_proto::common::v2::tenant_scope::Scope::Holding(scope) => {
-            erpx_domain::contracts::TenantScope::Holding {
+        erpx_proto::common::authority_scope::Scope::Holding(scope) => {
+            erpx_domain::contracts::AuthorityScope::Holding {
                 holding_id: parse_uuid(&scope.holding_id, "holding_id")?,
             }
         }
-        erpx_proto::common::v2::tenant_scope::Scope::Company(scope) => {
-            erpx_domain::contracts::TenantScope::Company {
+        erpx_proto::common::authority_scope::Scope::Company(scope) => {
+            erpx_domain::contracts::AuthorityScope::Company {
                 holding_id: parse_uuid(&scope.holding_id, "holding_id")?,
                 company_id: parse_uuid(&scope.company_id, "company_id")?,
             }
         }
-        erpx_proto::common::v2::tenant_scope::Scope::Branch(scope) => {
-            erpx_domain::contracts::TenantScope::Branch {
+        erpx_proto::common::authority_scope::Scope::Branch(scope) => {
+            erpx_domain::contracts::AuthorityScope::Branch {
                 holding_id: parse_uuid(&scope.holding_id, "holding_id")?,
                 company_id: parse_uuid(&scope.company_id, "company_id")?,
                 branch_id: parse_uuid(&scope.branch_id, "branch_id")?,
             }
         }
-        erpx_proto::common::v2::tenant_scope::Scope::Subtree(scope) => {
-            erpx_domain::contracts::TenantScope::Subtree {
+        erpx_proto::common::authority_scope::Scope::Subtree(scope) => {
+            erpx_domain::contracts::AuthorityScope::Subtree {
                 holding_id: parse_uuid(&scope.holding_id, "holding_id")?,
-                company_ids: scope
-                    .company_ids
-                    .iter()
-                    .map(|id| parse_uuid(id, "company_id"))
-                    .collect::<Result<Vec<_>, _>>()?,
-                branch_ids: scope
-                    .branch_ids
-                    .iter()
-                    .map(|id| parse_uuid(id, "branch_id"))
-                    .collect::<Result<Vec<_>, _>>()?,
+                organization_node_id: parse_uuid(
+                    &scope.organization_node_id,
+                    "organization_node_id",
+                )?,
             }
         }
     };
@@ -222,8 +214,8 @@ pub fn command_domain<T>(
         value if value == ActorKind::PlatformUser as i32 => {
             erpx_domain::contracts::ActorKind::PlatformUser
         }
-        value if value == ActorKind::TenantUser as i32 => {
-            erpx_domain::contracts::ActorKind::TenantUser
+        value if value == ActorKind::HoldingUser as i32 => {
+            erpx_domain::contracts::ActorKind::HoldingUser
         }
         value if value == ActorKind::Service as i32 => erpx_domain::contracts::ActorKind::Service,
         value if value == ActorKind::SystemWorker as i32 => {
@@ -252,7 +244,7 @@ pub fn command_domain<T>(
                 .then(|| parse_uuid(&actor.support_capability_id, "support_capability_id"))
                 .transpose()?,
         },
-        tenant_scope,
+        active_scope,
         audit: erpx_domain::contracts::AuditContext {
             purpose: audit.purpose.clone(),
             customer_visible: audit.customer_visible,
@@ -369,8 +361,8 @@ fn validate_bounded_text(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use erpx_proto::common::v2::{
-        ActorKind, EventualConsistency, PlatformScope, QueryConsistency, TenantScope,
+    use erpx_proto::common::{
+        ActorKind, AuthorityScope, EventualConsistency, PlatformScope, QueryConsistency,
         query_consistency,
     };
     use tonic::metadata::MetadataValue;
@@ -387,8 +379,8 @@ mod tests {
                 represented_principal_ref: String::new(),
                 support_capability_id: String::new(),
             }),
-            tenant_scope: Some(TenantScope {
-                scope: Some(erpx_proto::common::v2::tenant_scope::Scope::Platform(
+            active_scope: Some(AuthorityScope {
+                scope: Some(erpx_proto::common::authority_scope::Scope::Platform(
                     PlatformScope {},
                 )),
             }),

@@ -5,7 +5,7 @@ Date: 2026-07-28
 ## Delivered behavior
 
 The Marketing delivery projector now reconciles the disposable read model
-against the authoritative tenant-write outbox before the worker claims
+against the authoritative holding-write outbox before the worker claims
 provider work after a bounded page is drained.
 
 - Reconciliation validates source envelope identity, aggregate identity and
@@ -17,7 +17,7 @@ provider work after a bounded page is drained.
   holding's checkpoint, and reset deletes only the selected holding's cursor.
 - The worker fails closed before provider claims when the caught-up read model
   or cursor is unhealthy.
-- Clearing and replaying the disposable read model leaves the tenant-write
+- Clearing and replaying the disposable read model leaves the holding-write
   delivery aggregate and outbox unchanged.
 
 ## Exact files
@@ -40,12 +40,12 @@ provider work after a bounded page is drained.
 - The focused disposable SQLx test covers exact source/read payload
   reconciliation, checkpoint drift detection, holding-scoped clear, source
   outbox preservation, and replay rebuild. It requires the repository's two
-  disposable tenant PostgreSQL URLs and was not represented as an external
+  disposable holding PostgreSQL URLs and was not represented as an external
   provider certification claim.
 
 ## Rollback
 
 Revert the three implementation/test files and this audit together. If the
 worker change is reverted after deployment, stop using the new reconciliation
-fence and retain the existing tenant-write delivery aggregate/outbox and
+fence and retain the existing holding-write delivery aggregate/outbox and
 disposable read rows. No migration or authoritative write data changed.

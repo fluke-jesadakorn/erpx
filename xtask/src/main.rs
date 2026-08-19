@@ -20,14 +20,15 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use chrono::Utc;
 use erpx_application::{RoleLifecycleService, SystemClock};
 use erpx_domain::{
-    access::{RiskTier, RoleAssignment, Scope},
-    tenant_administration::CustomerTenantBinding,
+    access::{RiskTier, RoleAssignment},
+    contracts::AuthorityScope as Scope,
+    holding_administration::HoldingRegistryBinding,
 };
 use erpx_identity::{SqlxIdentityStore, apply_identity_migration};
 use erpx_infrastructure::{
-    ControlPlanePools, FRESH_INITIAL_TENANT_PROJECTIONS, SqlxControlPlane,
-    SqlxTenantAdministrationStore, SqlxTenantStoreRegistry, TenantStoreRegistration,
-    tenant_holding_scope_id,
+    ControlPlanePools, FRESH_INITIAL_HOLDING_PROJECTIONS, HoldingStoreRegistration,
+    SqlxControlPlane, SqlxHoldingAdministrationStore, SqlxHoldingStoreRegistry,
+    holding_holding_scope_id,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -50,11 +51,14 @@ const LEGACY_DATABASE: &str = "folio_db";
 const LEGACY_BUCKET: &str = "folio-storage";
 const ERPX_BUCKET: &str = "erpx-demo";
 const WORKER_ID: &str = "1db95d2e-6aa6-5de7-81b2-e650a66be777";
-const TENANT_ID: &str = "demo-tenant";
-const HOLDING_REF: &str = "demo-holding";
-const RESTRICTED_TENANT_ID: &str = "demo-tenant-restricted";
-const RESTRICTED_HOLDING_REF: &str = "beacon-holding";
-const FIXTURE_VERSION: &str = "erpx-demo-v5";
+// Runtime fixtures use the same UUID-only holding identity contract as the
+// production boundary. Human-readable names remain data-profile/display
+// metadata and must never become a routing identity.
+const HOLDING_ID: &str = "37098a2d-0d13-5b0e-8a37-f2df2fbe8cba";
+const DATA_PROFILE_KEY: &str = "demo-holding-v6";
+const RESTRICTED_HOLDING_ID: &str = "4017ec64-6620-50e2-bfdc-14d0a9b3c414";
+const RESTRICTED_DATA_PROFILE_KEY: &str = "beacon-holding-v6";
+const FIXTURE_VERSION: &str = "erpx-demo-v6";
 const DEV_STATE_VERSION: u32 = 3;
 const WEB_LAUNCH_CONTRACT_VERSION: u32 = 4;
 const WEB_SESSION_CACHE_CONTRACT_VERSION: u32 = 1;
@@ -64,12 +68,12 @@ const DEV_WORKER_POLL_INTERVAL_MS: &str = "5000";
 const DEVELOPMENT_TAILSCALE_FQDN_ENV: &str = "ERPX_DEV_TAILSCALE_FQDN";
 const LEGACY_DEVELOPMENT_TAILSCALE_IP_ENV: &str = "ERPX_DEV_TAILSCALE_IP";
 const DATABASES: [&str; 6] = [
-    "erpx_control_write",
-    "erpx_control_read",
-    "erpx_tenant_write",
-    "erpx_tenant_read",
-    "erpx_restricted_tenant_write",
-    "erpx_restricted_tenant_read",
+    "erpx_clean_control_write",
+    "erpx_clean_control_read",
+    "erpx_clean_holding_write",
+    "erpx_clean_holding_read",
+    "erpx_clean_restricted_holding_write",
+    "erpx_clean_restricted_holding_read",
 ];
 const LEGACY_SCHEMAS: [&str; 11] = [
     "ai",
@@ -153,12 +157,12 @@ const PLATFORM_PERMISSIONS: &[&str] = &[
     "platform.directory.read",
     "platform.outbox.replay",
     "platform.projection.rebuild",
-    "platform.tenant.backup",
-    "platform.tenant.provision",
-    "platform.tenant.read",
-    "platform.tenant.recovery",
-    "platform.tenant.suspend",
-    "tenant.projection.execute",
+    "platform.holding.backup",
+    "platform.holding.provision",
+    "platform.holding.read",
+    "platform.holding.recovery",
+    "platform.holding.suspend",
+    "holding.projection.execute",
     "support.incident.create",
     "support.incident.open",
     "support.incident.read",
@@ -181,7 +185,7 @@ type TaskResult<T = ()> = Result<T, Box<dyn Error + Send + Sync>>;
 
 const STANDARD_WORKERS: [&str; 92] = [
     "support-worker",
-    "agent-tenant-operations-worker",
+    "agent-holding-operations-worker",
     "commercial-catalog-projector",
     "wave5-control-projector",
     "quality-projector",
@@ -266,16 +270,16 @@ const STANDARD_WORKERS: [&str; 92] = [
     "operations-source-ingestion-worker",
     "marketing-approval-decisions-worker",
     "customer360-control-customers-projector",
-    "customer360-tenant-activity-projector",
+    "customer360-holding-activity-projector",
     "branch-provisioning-worker",
-    "tenant-projection-status-projector",
+    "holding-projection-status-projector",
     "marketing-public-abuse-cleanup-worker",
     "marketing-delivery-worker",
     "marketing-journey-integration-worker",
 ];
 const DEDICATED_WORKERS: [&str; 95] = [
     "support-worker",
-    "agent-tenant-operations-worker",
+    "agent-holding-operations-worker",
     "commercial-catalog-projector",
     "wave5-control-projector",
     "quality-projector",
@@ -360,14 +364,14 @@ const DEDICATED_WORKERS: [&str; 95] = [
     "operations-source-ingestion-worker",
     "marketing-approval-decisions-worker",
     "customer360-control-customers-projector",
-    "customer360-tenant-activity-projector",
+    "customer360-holding-activity-projector",
     "branch-provisioning-worker",
-    "tenant-projection-status-projector",
+    "holding-projection-status-projector",
     "marketing-public-abuse-cleanup-worker",
     "marketing-delivery-worker",
     "marketing-journey-integration-worker",
     "directory-supervisor",
-    "tenant-backup-worker",
+    "holding-backup-worker",
     "backup-retention-worker",
 ];
 const LEGACY_LOCAL_WORKERS: [&str; 1] = ["pitr-controller"];
@@ -444,19 +448,19 @@ struct DevConfig {
 #[serde(deny_unknown_fields)]
 struct FreshRuntimeManifest {
     version: u32,
-    schema_generation: u16,
+    schema_revision: u16,
     service_catalog_generation: u16,
     service_id_range: String,
     state: String,
     prepared_at: String,
     installation_generation: Uuid,
     installation_prefix: String,
-    tenant_id: String,
-    holding_ref: String,
+    holding_id: String,
+    data_profile_key: String,
     control_write_database: String,
     control_read_database: String,
-    tenant_write_database: String,
-    tenant_read_database: String,
+    holding_write_database: String,
+    holding_read_database: String,
     object_namespace: String,
     rollback: serde_json::Value,
 }
@@ -467,12 +471,12 @@ struct LocalReconfigurationManifest {
     service_catalog_generation: u16,
     installation_generation: Uuid,
     installation_prefix: String,
-    tenant_id: String,
-    holding_ref: String,
+    holding_id: String,
+    data_profile_key: String,
     control_write_database: String,
     control_read_database: String,
-    tenant_write_database: String,
-    tenant_read_database: String,
+    holding_write_database: String,
+    holding_read_database: String,
     object_namespace: String,
 }
 
@@ -481,8 +485,8 @@ impl LocalReconfigurationManifest {
         vec![
             self.control_write_database.clone(),
             self.control_read_database.clone(),
-            self.tenant_write_database.clone(),
-            self.tenant_read_database.clone(),
+            self.holding_write_database.clone(),
+            self.holding_read_database.clone(),
         ]
     }
 }
@@ -507,8 +511,18 @@ impl FreshRuntimeManifest {
         if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() > 128 * 1024 {
             return Err("fresh-state runtime manifest is not a bounded regular file".into());
         }
-        let manifest: Self = serde_json::from_slice(&fs::read(&path)?)
+        let bytes = fs::read(&path)?;
+        let raw: serde_json::Value = serde_json::from_slice(&bytes)
             .map_err(|_| "fresh-state runtime manifest is invalid")?;
+        // The active path may still contain a pre-cutover marker retained from
+        // an earlier installation. It is rollback evidence, not an authority
+        // for the current runtime. Ignore only this exact legacy shape so the
+        // current four-database runtime can reconcile without rewriting it.
+        if is_retained_legacy_manifest(&raw) {
+            return Ok(None);
+        }
+        let manifest: Self =
+            serde_json::from_value(raw).map_err(|_| "fresh-state runtime manifest is invalid")?;
         manifest.validate()?;
         Ok(Some(manifest))
     }
@@ -529,10 +543,10 @@ impl FreshRuntimeManifest {
                     .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
         });
         let unique_databases = databases.into_iter().collect::<BTreeSet<_>>().len() == 4;
-        let tenant_id = Uuid::parse_str(&self.tenant_id)
+        let holding_id = Uuid::parse_str(&self.holding_id)
             .ok()
             .filter(|value| !value.is_nil());
-        let holding_ref = Uuid::parse_str(&self.holding_ref)
+        let data_profile_key = Uuid::parse_str(&self.data_profile_key)
             .ok()
             .filter(|value| !value.is_nil());
         let rollback_valid = self.rollback.get("retained_resource_authority")
@@ -542,27 +556,27 @@ impl FreshRuntimeManifest {
             && self.rollback.get("write_policy")
                 == Some(&serde_json::Value::String("isolated_no_merge".into()));
         let expected_object_namespace = format!(
-            "{}-tenant-objects",
+            "{}-holding-objects",
             self.installation_prefix.replace('_', "-")
         );
-        let tenant_write_token = self
-            .tenant_write_database
+        let holding_write_token = self
+            .holding_write_database
             .strip_prefix(&format!("{}_", self.installation_prefix))
-            .and_then(|value| value.strip_suffix("_tenant_write"));
-        let tenant_read_token = self
-            .tenant_read_database
+            .and_then(|value| value.strip_suffix("_holding_write"));
+        let holding_read_token = self
+            .holding_read_database
             .strip_prefix(&format!("{}_", self.installation_prefix))
-            .and_then(|value| value.strip_suffix("_tenant_read"));
-        let tenant_token_valid = tenant_write_token == tenant_read_token
-            && tenant_write_token.is_some_and(|token| {
+            .and_then(|value| value.strip_suffix("_holding_read"));
+        let holding_token_valid = holding_write_token == holding_read_token
+            && holding_write_token.is_some_and(|token| {
                 token.len() == 12 && token.bytes().all(|byte| byte.is_ascii_hexdigit())
             });
         let names_match_prefix = self.control_write_database
             == format!("{}_control_write", self.installation_prefix)
             && self.control_read_database == format!("{}_control_read", self.installation_prefix)
-            && tenant_token_valid;
+            && holding_token_valid;
         if self.version != 4
-            || self.schema_generation != 2
+            || self.schema_revision != 2
             || self.service_catalog_generation != 4
             || self.service_id_range != "IFC-SVC-201..265"
             || self.state != "prepared"
@@ -570,8 +584,8 @@ impl FreshRuntimeManifest {
             || !valid_prefix
             || !database_names_valid
             || !unique_databases
-            || tenant_id.is_none()
-            || holding_ref.is_none()
+            || holding_id.is_none()
+            || data_profile_key.is_none()
             || chrono::DateTime::parse_from_rfc3339(&self.prepared_at).is_err()
             || self.object_namespace != expected_object_namespace
             || !names_match_prefix
@@ -586,8 +600,8 @@ impl FreshRuntimeManifest {
         [
             &self.control_write_database,
             &self.control_read_database,
-            &self.tenant_write_database,
-            &self.tenant_read_database,
+            &self.holding_write_database,
+            &self.holding_read_database,
         ]
     }
 
@@ -600,13 +614,13 @@ impl FreshRuntimeManifest {
         let root_principal: Option<String> = sqlx::query_scalar(
             "SELECT receipt.root_principal_ref
                 FROM erpx_control.platform_bootstrap_receipts receipt
-                JOIN erpx_control.tenant_registry registry
-                  ON registry.tenant_id=receipt.tenant_id
+                JOIN erpx_control.holding_registry registry
+                  ON registry.holding_id=receipt.holding_id
                 WHERE receipt.installation_prefix=$1
-                  AND receipt.tenant_id=$2
-                  AND receipt.holding_ref=$3
+                  AND receipt.holding_id=$2
+                  AND receipt.data_profile_key=$3
                   AND receipt.state='complete'
-                  AND registry.holding_ref=$3
+                  AND registry.data_profile_key=$3
                   AND registry.write_database_key=$4
                   AND registry.read_database_key=$5
                   AND registry.storage_namespace=$6
@@ -614,16 +628,16 @@ impl FreshRuntimeManifest {
                 LIMIT 1",
         )
         .bind(&self.installation_prefix)
-        .bind(&self.tenant_id)
-        .bind(&self.holding_ref)
-        .bind(&self.tenant_write_database)
-        .bind(&self.tenant_read_database)
+        .bind(&self.holding_id)
+        .bind(&self.data_profile_key)
+        .bind(&self.holding_write_database)
+        .bind(&self.holding_read_database)
         .bind(&self.object_namespace)
         .fetch_optional(&pool)
         .await?;
         pool.close().await;
         let root_principal = root_principal
-            .ok_or("fresh-state runtime requires a matching complete receipt and active tenant")?;
+            .ok_or("fresh-state runtime requires a matching complete receipt and active holding")?;
         if root_principal.trim() != root_principal
             || root_principal.is_empty()
             || root_principal.len() > 255
@@ -645,11 +659,22 @@ impl FreshRuntimeManifest {
     }
 }
 
+fn is_retained_legacy_manifest(value: &serde_json::Value) -> bool {
+    let Some(object) = value.as_object() else {
+        return false;
+    };
+    object.get("holding_id").is_none()
+        && object.get("holding_ref").is_some()
+        && object.get("tenant_id").is_some()
+        && object.get("tenant_write_database").is_some()
+        && object.get("tenant_read_database").is_some()
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct DevelopmentAccessRuntimeTarget {
     control_write_database: String,
     control_read_database: String,
-    controller_target_tenant: String,
+    controller_target_holding: String,
     fresh_state: bool,
 }
 
@@ -660,13 +685,13 @@ fn development_access_target_from_manifest(
         || DevelopmentAccessRuntimeTarget {
             control_write_database: DATABASES[0].into(),
             control_read_database: DATABASES[1].into(),
-            controller_target_tenant: erpx_identity::DEVELOPMENT_CONTROLLER_TARGET_TENANT.into(),
+            controller_target_holding: erpx_identity::DEVELOPMENT_CONTROLLER_TARGET_HOLDING.into(),
             fresh_state: false,
         },
         |manifest| DevelopmentAccessRuntimeTarget {
             control_write_database: manifest.control_write_database.clone(),
             control_read_database: manifest.control_read_database.clone(),
-            controller_target_tenant: manifest.tenant_id.clone(),
+            controller_target_holding: manifest.holding_id.clone(),
             fresh_state: true,
         },
     )
@@ -694,7 +719,7 @@ async fn reconcile_development_access_for_runtime(
             config,
             &target.control_write_database,
             &target.control_read_database,
-            &target.controller_target_tenant,
+            &target.controller_target_holding,
         )
         .await
     } else {
@@ -764,7 +789,7 @@ impl DevConfig {
             && !(self.port == 55_432
                 && matches!(
                     self.legacy_database.as_str(),
-                    "erpx_control_write" | "erpxv8_control_write"
+                    "erpx_clean_control_write" | "erpx_control_write" | "erpxv8_control_write"
                 ))
         {
             return Err("reset-dev refuses an unexpected legacy database".into());
@@ -871,13 +896,13 @@ async fn run() -> TaskResult {
             require_development_access_requested(&root)?;
             dev_access::credentials(&root, None)
         }
-        [command, subcommand, tenant_flag, tenant]
+        [command, subcommand, holding_flag, holding]
             if command == "dev-access"
                 && subcommand == "credentials"
-                && tenant_flag == "--tenant" =>
+                && holding_flag == "--holding" =>
         {
             require_development_access_requested(&root)?;
-            dev_access::credentials(&root, Some(tenant))
+            dev_access::credentials(&root, Some(holding))
         }
         [command, subcommand, confirm_flag, confirmation]
             if command == "dev-access" && subcommand == "rotate" && confirm_flag == "--confirm" =>
@@ -986,13 +1011,13 @@ async fn run() -> TaskResult {
         _ => {
             println!(
                 "ERPX development tasks\n\n\
-                 cargo xtask dev --detach [--fresh] [--no-hot-patch] [--web-debug]\n\
+                 cargo xtask dev --detach [--fresh] [--hot-patch|--no-hot-patch] [--web-debug]\n\
                  cargo xtask status\n\
                  cargo xtask stop\n\
                  cargo xtask infra init|start|status|stop\n\
                  cargo xtask directory-lab init|start|configure|verify-deny-wins|status|stop\n\
                  cargo xtask directory-lab ucs-real check|seed|verify\n\
-                 cargo xtask dev-access init|reconcile|status|credentials [--tenant TENANT]\n\
+                 cargo xtask dev-access init|reconcile|status|credentials [--holding HOLDING]\n\
                  cargo xtask dev-access rotate|reset --confirm ...\n\
                  cargo xtask migrate-all-erpx-databases\n\
                  cargo xtask pitr rehearsal\n\
@@ -1024,7 +1049,7 @@ fn parse_dev_options(args: &[String]) -> TaskResult<Option<DevOptions>> {
     let mut options = DevOptions {
         mode: DevMode::Warm,
         web_debug: false,
-        hot_patch: true,
+        hot_patch: false,
     };
     let mut seen = BTreeSet::new();
     let mut detach = false;
@@ -1035,6 +1060,7 @@ fn parse_dev_options(args: &[String]) -> TaskResult<Option<DevOptions>> {
         match flag.as_str() {
             "--detach" => detach = true,
             "--fresh" => options.mode = DevMode::Fresh,
+            "--hot-patch" => options.hot_patch = true,
             "--no-hot-patch" => options.hot_patch = false,
             "--web-debug" => options.web_debug = true,
             _ => return Err(format!("unknown dev flag: {flag}").into()),
@@ -1042,7 +1068,8 @@ fn parse_dev_options(args: &[String]) -> TaskResult<Option<DevOptions>> {
     }
     if !detach {
         return Err(
-            "usage: cargo xtask dev --detach [--fresh] [--no-hot-patch] [--web-debug]".into(),
+            "usage: cargo xtask dev --detach [--fresh] [--hot-patch|--no-hot-patch] [--web-debug]"
+                .into(),
         );
     }
     Ok(Some(options))
@@ -1103,46 +1130,54 @@ async fn initialize_databases_with_admin(
 async fn migrate_all(config: &DevConfig) -> TaskResult {
     let control_write = pool(&config.database_url(DATABASES[0])).await?;
     let control_read = pool(&config.database_url(DATABASES[1])).await?;
-    let tenant_write = pool(&config.database_url(DATABASES[2])).await?;
-    let tenant_read = pool(&config.database_url(DATABASES[3])).await?;
-    let restricted_tenant_write = pool(&config.database_url(DATABASES[4])).await?;
-    let restricted_tenant_read = pool(&config.database_url(DATABASES[5])).await?;
-    erpx_migration::migrate_control_plane(&control_write).await?;
-    erpx_migration::migrate_control_read(&control_read).await?;
-    erpx_migration::migrate_tenant_write(&tenant_write).await?;
-    erpx_migration::migrate_tenant_read(&tenant_read).await?;
-    erpx_migration::migrate_tenant_write(&restricted_tenant_write).await?;
-    erpx_migration::migrate_tenant_read(&restricted_tenant_read).await?;
+    let holding_write = pool(&config.database_url(DATABASES[2])).await?;
+    let holding_read = pool(&config.database_url(DATABASES[3])).await?;
+    let restricted_holding_write = pool(&config.database_url(DATABASES[4])).await?;
+    let restricted_holding_read = pool(&config.database_url(DATABASES[5])).await?;
+    erpx_migration::migrate_control_plane(&control_write)
+        .await
+        .map_err(|error| format!("control-write baseline failed: {error}"))?;
+    erpx_migration::migrate_control_read(&control_read)
+        .await
+        .map_err(|error| format!("control-read baseline failed: {error}"))?;
+    erpx_migration::migrate_holding_write(&holding_write)
+        .await
+        .map_err(|error| format!("holding-write baseline failed: {error}"))?;
+    erpx_migration::migrate_holding_read(&holding_read)
+        .await
+        .map_err(|error| format!("holding-read baseline failed: {error}"))?;
+    erpx_migration::migrate_holding_write(&restricted_holding_write).await?;
+    erpx_migration::migrate_holding_read(&restricted_holding_read).await?;
     apply_identity_migration(&control_write).await?;
     let control = SqlxControlPlane::new(ControlPlanePools {
         write: control_write,
         read: control_read,
     });
     control.require_erpx_command_owner().await?;
-    tenant_write.close().await;
-    tenant_read.close().await;
-    restricted_tenant_write.close().await;
-    restricted_tenant_read.close().await;
+    holding_write.close().await;
+    holding_read.close().await;
+    restricted_holding_write.close().await;
+    restricted_holding_read.close().await;
     Ok(())
 }
 
 async fn migrate_fresh_runtime(config: &DevConfig, manifest: &FreshRuntimeManifest) -> TaskResult {
     let control_write = pool(&config.database_url(&manifest.control_write_database)).await?;
     let control_read = pool(&config.database_url(&manifest.control_read_database)).await?;
-    let tenant_write = pool(&config.database_url(&manifest.tenant_write_database)).await?;
-    let tenant_read = pool(&config.database_url(&manifest.tenant_read_database)).await?;
+    let holding_write = pool(&config.database_url(&manifest.holding_write_database)).await?;
+    let holding_read = pool(&config.database_url(&manifest.holding_read_database)).await?;
     erpx_migration::migrate_control_plane(&control_write).await?;
     erpx_migration::migrate_control_read(&control_read).await?;
-    erpx_migration::migrate_tenant_write(&tenant_write).await?;
-    erpx_migration::migrate_tenant_read(&tenant_read).await?;
+    erpx_migration::migrate_holding_write(&holding_write).await?;
+    erpx_migration::migrate_holding_read(&holding_read).await?;
     apply_identity_migration(&control_write).await?;
     let control = SqlxControlPlane::new(ControlPlanePools {
         write: control_write,
         read: control_read,
     });
     control.require_erpx_command_owner().await?;
-    tenant_write.close().await;
-    tenant_read.close().await;
+    holding_write.close().await;
+    holding_read.close().await;
     Ok(())
 }
 
@@ -1164,8 +1199,8 @@ fn load_reconfiguration_manifest(
         || !matches!(manifest.service_catalog_generation, 2..=4)
         || manifest.installation_generation.is_nil()
         || manifest.installation_prefix != "erpxv8"
-        || Uuid::parse_str(&manifest.tenant_id).is_err()
-        || Uuid::parse_str(&manifest.holding_ref).is_err()
+        || Uuid::parse_str(&manifest.holding_id).is_err()
+        || Uuid::parse_str(&manifest.data_profile_key).is_err()
         || manifest.database_names().iter().any(|database| {
             database.is_empty()
                 || database.len() > 63
@@ -1173,7 +1208,7 @@ fn load_reconfiguration_manifest(
                     .bytes()
                     .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
         })
-        || manifest.object_namespace != "erpxv8-tenant-objects"
+        || manifest.object_namespace != "erpxv8-holding-objects"
     {
         return Err("reconfigure-local manifest failed the active erpxv8 fence".into());
     }
@@ -1205,18 +1240,18 @@ async fn verify_reconfiguration_authority(
     let active: bool = sqlx::query_scalar(
         "SELECT EXISTS(
             SELECT 1 FROM erpx_control.platform_bootstrap_receipts receipt
-            JOIN erpx_control.tenant_registry registry ON registry.tenant_id=receipt.tenant_id
+            JOIN erpx_control.holding_registry registry ON registry.holding_id=receipt.holding_id
             WHERE receipt.installation_prefix=$1
-              AND receipt.tenant_id=$2 AND receipt.holding_ref=$3 AND receipt.state='complete'
-              AND registry.holding_ref=$3 AND registry.write_database_key=$4
+              AND receipt.holding_id=$2 AND receipt.data_profile_key=$3 AND receipt.state='complete'
+              AND registry.data_profile_key=$3 AND registry.write_database_key=$4
               AND registry.read_database_key=$5 AND registry.storage_namespace=$6
               AND registry.state='active')",
     )
     .bind(&manifest.installation_prefix)
-    .bind(&manifest.tenant_id)
-    .bind(&manifest.holding_ref)
-    .bind(&manifest.tenant_write_database)
-    .bind(&manifest.tenant_read_database)
+    .bind(&manifest.holding_id)
+    .bind(&manifest.data_profile_key)
+    .bind(&manifest.holding_write_database)
+    .bind(&manifest.holding_read_database)
     .bind(&manifest.object_namespace)
     .fetch_one(&control_write)
     .await?;
@@ -1476,39 +1511,39 @@ async fn demo_fixture_current(root: &Path, config: &DevConfig) -> TaskResult<boo
         return Ok(false);
     }
 
-    let tenant_count: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_control.tenant_registry
-         WHERE (tenant_id=$1 AND holding_ref=$2 AND write_database_key=$3
+    let holding_count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM erpx_control.holding_registry
+         WHERE (holding_id=$1 AND data_profile_key=$2 AND write_database_key=$3
                 AND read_database_key=$4 AND storage_namespace=$5 AND state='active')
-            OR (tenant_id=$6 AND holding_ref=$7 AND write_database_key=$8
+            OR (holding_id=$6 AND data_profile_key=$7 AND write_database_key=$8
                 AND read_database_key=$9 AND storage_namespace=$10 AND state='active')",
     )
-    .bind(TENANT_ID)
-    .bind(HOLDING_REF)
+    .bind(HOLDING_ID)
+    .bind(DATA_PROFILE_KEY)
     .bind(DATABASES[2])
     .bind(DATABASES[3])
     .bind(ERPX_BUCKET)
-    .bind(RESTRICTED_TENANT_ID)
-    .bind(RESTRICTED_HOLDING_REF)
+    .bind(RESTRICTED_HOLDING_ID)
+    .bind(RESTRICTED_DATA_PROFILE_KEY)
     .bind(DATABASES[4])
     .bind(DATABASES[5])
     .bind("erpx-demo-restricted")
     .fetch_one(&write)
     .await?;
 
-    let configured_tenant_count: i64 = sqlx::query_scalar(
+    let configured_holding_count: i64 = sqlx::query_scalar(
         "SELECT count(*)
-         FROM erpx_control.tenant_summary_projection
-         WHERE tenant_id = ANY($1)
+         FROM erpx_control.holding_summary_projection
+         WHERE holding_id = ANY($1)
            AND configuration_state='configured'
            AND customer_id IS NOT NULL
-           AND root_holding_id IS NOT NULL
-           AND ((tenant_id=$2 AND cardinality(enabled_modules)=12)
-                OR (tenant_id=$3 AND cardinality(enabled_modules)=12))",
+           AND canonical_holding_id IS NOT NULL
+           AND ((holding_id=$2 AND cardinality(enabled_modules)=12)
+                OR (holding_id=$3 AND cardinality(enabled_modules)=12))",
     )
-    .bind([TENANT_ID, RESTRICTED_TENANT_ID])
-    .bind(TENANT_ID)
-    .bind(RESTRICTED_TENANT_ID)
+    .bind([HOLDING_ID, RESTRICTED_HOLDING_ID])
+    .bind(HOLDING_ID)
+    .bind(RESTRICTED_HOLDING_ID)
     .fetch_one(&write)
     .await?;
 
@@ -1518,10 +1553,10 @@ async fn demo_fixture_current(root: &Path, config: &DevConfig) -> TaskResult<boo
         .collect::<Vec<_>>();
     let context_count: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM erpx_control.demo_contexts
-         WHERE tenant_id=$1 AND holding_ref=$2 AND context_key = ANY($3)",
+         WHERE holding_id=$1 AND data_profile_key=$2 AND context_key = ANY($3)",
     )
-    .bind(TENANT_ID)
-    .bind(HOLDING_REF)
+    .bind(HOLDING_ID)
+    .bind(DATA_PROFILE_KEY)
     .bind(&context_keys)
     .fetch_one(&write)
     .await?;
@@ -1556,8 +1591,8 @@ async fn demo_fixture_current(root: &Path, config: &DevConfig) -> TaskResult<boo
     write.close().await;
 
     let native_secret = runtime_dir(root).join("secrets/native-demo-password.key");
-    Ok(tenant_count == 2
-        && configured_tenant_count == 2
+    Ok(holding_count == 2
+        && configured_holding_count == 2
         && context_count == i64::try_from(DEMO_CONTEXTS.len())?
         && principal_count == i64::try_from(principal_refs.len())?
         && assignment_count == i64::try_from(assignment_ids.len())?
@@ -1573,12 +1608,24 @@ async fn seed_demo(root: &Path, config: &DevConfig) -> TaskResult {
     }));
     control.require_erpx_command_owner().await?;
 
-    let registry = SqlxTenantStoreRegistry::new(control.clone());
-    if registry.get(TENANT_ID).await?.is_none() {
+    let registry = SqlxHoldingStoreRegistry::new(control.clone());
+    // Older local fixtures used display labels as holding identities. Keep
+    // those rows as retained, non-routable evidence while making the active
+    // runtime registry UUID-only. This is an idempotent fixture reconciliation
+    // and does not delete any database or object data.
+    sqlx::query(
+        "UPDATE erpx_control.holding_registry
+         SET state='suspended', updated_at=now()
+         WHERE holding_id IN ('demo-holding', 'demo-holding-restricted')
+           AND state='active'",
+    )
+    .execute(&write)
+    .await?;
+    if registry.get(HOLDING_ID).await?.is_none() {
         registry
-            .register(TenantStoreRegistration {
-                tenant_id: TENANT_ID.into(),
-                holding_ref: HOLDING_REF.into(),
+            .register(HoldingStoreRegistration {
+                holding_id: HOLDING_ID.into(),
+                data_profile_key: DATA_PROFILE_KEY.into(),
                 write_database_key: DATABASES[2].into(),
                 read_database_key: DATABASES[3].into(),
                 storage_namespace: ERPX_BUCKET.into(),
@@ -1589,11 +1636,11 @@ async fn seed_demo(root: &Path, config: &DevConfig) -> TaskResult {
             })
             .await?;
     }
-    if registry.get(RESTRICTED_TENANT_ID).await?.is_none() {
+    if registry.get(RESTRICTED_HOLDING_ID).await?.is_none() {
         registry
-            .register(TenantStoreRegistration {
-                tenant_id: RESTRICTED_TENANT_ID.into(),
-                holding_ref: RESTRICTED_HOLDING_REF.into(),
+            .register(HoldingStoreRegistration {
+                holding_id: RESTRICTED_HOLDING_ID.into(),
+                data_profile_key: RESTRICTED_DATA_PROFILE_KEY.into(),
                 write_database_key: DATABASES[4].into(),
                 read_database_key: DATABASES[5].into(),
                 storage_namespace: "erpx-demo-restricted".into(),
@@ -1605,17 +1652,17 @@ async fn seed_demo(root: &Path, config: &DevConfig) -> TaskResult {
             .await?;
     }
     sqlx::query(
-        "UPDATE erpx_control.tenant_registry
+        "UPDATE erpx_control.holding_registry
          SET credential_key_ref='local_shared',
              updated_at=now()
-         WHERE tenant_id IN ($1,$2)",
+         WHERE holding_id IN ($1,$2)",
     )
-    .bind(TENANT_ID)
-    .bind(RESTRICTED_TENANT_ID)
+    .bind(HOLDING_ID)
+    .bind(RESTRICTED_HOLDING_ID)
     .execute(&write)
     .await?;
 
-    configure_demo_tenants(&control).await?;
+    configure_demo_holdings(&control).await?;
 
     let identity = SqlxIdentityStore::new(write.clone());
     ensure_native_demo_principal(root, &write, &identity).await?;
@@ -1682,7 +1729,7 @@ async fn seed_demo(root: &Path, config: &DevConfig) -> TaskResult {
         for (key, display_name, state, sample_count) in DEMO_CONTEXTS {
             sqlx::query(
                 "INSERT INTO erpx_control.demo_contexts
-                    (context_key, display_name, tenant_id, holding_ref, state,
+                    (context_key, display_name, holding_id, data_profile_key, state,
                      sample_count, source_version, updated_at)
                  VALUES ($1, $2, $3, $4, $5, $6, 1, $7)
                  ON CONFLICT (context_key) DO UPDATE
@@ -1694,8 +1741,8 @@ async fn seed_demo(root: &Path, config: &DevConfig) -> TaskResult {
             )
             .bind(key)
             .bind(display_name)
-            .bind(TENANT_ID)
-            .bind(HOLDING_REF)
+            .bind(HOLDING_ID)
+            .bind(DATA_PROFILE_KEY)
             .bind(state)
             .bind(sample_count)
             .bind(Utc::now())
@@ -1708,15 +1755,15 @@ async fn seed_demo(root: &Path, config: &DevConfig) -> TaskResult {
             sqlx::query(
                 "INSERT INTO erpx_control.outbox_events (
                     id, event_type, event_version, aggregate_type, aggregate_id,
-                    aggregate_version, tenant_scope, actor, correlation_id,
+                    aggregate_version, active_scope, actor, correlation_id,
                     idempotency_key, payload, occurred_at
                  )
-                 VALUES ($1, 'erpx.demo.context.seeded.v1', 1, 'demo_context', $1,
+                 VALUES ($1, 'erpx.demo.context.seeded', 1, 'demo_context', $1,
                          1, $2, $3, $4, $5, $6, $7)
                  ON CONFLICT (id) DO NOTHING",
             )
             .bind(event_id)
-            .bind(serde_json::json!({"tenant_id":TENANT_ID,"holding_ref":HOLDING_REF}))
+            .bind(serde_json::json!({"holding_id":HOLDING_ID,"data_profile_key":DATA_PROFILE_KEY}))
             .bind(serde_json::json!({"kind":"system","subject":"xtask:seed-demo"}))
             .bind(Uuid::new_v5(
                 &Uuid::NAMESPACE_URL,
@@ -1759,7 +1806,7 @@ async fn seed_demo(root: &Path, config: &DevConfig) -> TaskResult {
     Ok(())
 }
 
-async fn configure_demo_tenants(control: &std::sync::Arc<SqlxControlPlane>) -> TaskResult {
+async fn configure_demo_holdings(control: &std::sync::Arc<SqlxControlPlane>) -> TaskResult {
     const ALL_MODULES: &[&str] = &[
         "operations",
         "finance",
@@ -1774,11 +1821,11 @@ async fn configure_demo_tenants(control: &std::sync::Arc<SqlxControlPlane>) -> T
         "point-of-sale",
         "legal",
     ];
-    let tenants = [
+    let holdings = [
         (
-            TENANT_ID,
-            HOLDING_REF,
-            "DEMO-ATLAS",
+            HOLDING_ID,
+            DATA_PROFILE_KEY,
+            "DEMO-ATLAS-V6",
             "Atlas Holdings",
             "Atlas Holdings Co., Ltd.",
             ALL_MODULES,
@@ -1788,9 +1835,9 @@ async fn configure_demo_tenants(control: &std::sync::Arc<SqlxControlPlane>) -> T
             4_i32,
         ),
         (
-            RESTRICTED_TENANT_ID,
-            RESTRICTED_HOLDING_REF,
-            "DEMO-BEACON",
+            RESTRICTED_HOLDING_ID,
+            RESTRICTED_DATA_PROFILE_KEY,
+            "DEMO-BEACON-V6",
             "Beacon Services",
             "Beacon Services Co., Ltd.",
             ALL_MODULES,
@@ -1800,11 +1847,11 @@ async fn configure_demo_tenants(control: &std::sync::Arc<SqlxControlPlane>) -> T
             4_i32,
         ),
     ];
-    let administration = SqlxTenantAdministrationStore::new(control.clone());
+    let administration = SqlxHoldingAdministrationStore::new(control.clone());
 
     for (
-        tenant_id,
-        holding_ref,
+        holding_id,
+        data_profile_key,
         account_code,
         trading_name,
         legal_name,
@@ -1813,13 +1860,13 @@ async fn configure_demo_tenants(control: &std::sync::Arc<SqlxControlPlane>) -> T
         used_seats,
         company_count,
         branch_count,
-    ) in tenants
+    ) in holdings
     {
         let customer_id = Uuid::new_v5(
             &Uuid::NAMESPACE_URL,
-            format!("erpx:demo:customer:v1:{tenant_id}").as_bytes(),
+            format!("erpx:demo:customer:{holding_id}").as_bytes(),
         );
-        let root_holding_id = tenant_holding_scope_id(holding_ref);
+        let canonical_holding_id = holding_holding_scope_id(data_profile_key);
         let payload = serde_json::json!({
             "account": {
                 "id": customer_id,
@@ -1880,24 +1927,28 @@ async fn configure_demo_tenants(control: &std::sync::Arc<SqlxControlPlane>) -> T
              ON CONFLICT DO NOTHING",
         )
         .bind(customer_id)
-        .bind(root_holding_id)
+        .bind(canonical_holding_id)
         .execute(&control.pools().write)
         .await?;
 
         if administration
-            .customer_tenant_binding(tenant_id)
+            .customer_holding_binding(holding_id)
             .await?
             .is_none()
         {
-            let binding =
-                CustomerTenantBinding::new(customer_id, tenant_id, root_holding_id, holding_ref)?;
+            let binding = HoldingRegistryBinding::new(
+                customer_id,
+                holding_id,
+                canonical_holding_id,
+                data_profile_key,
+            )?;
             administration
-                .bind_customer_tenant(&binding, "xtask:seed-demo")
+                .bind_customer_holding(&binding, "xtask:seed-demo")
                 .await?;
         }
 
         sqlx::query(
-            "UPDATE erpx_control.tenant_summary_projection
+            "UPDATE erpx_control.holding_summary_projection
              SET subscription_state='active',
                  plan_key='demo-enterprise',
                  enabled_modules=$2,
@@ -1913,9 +1964,9 @@ async fn configure_demo_tenants(control: &std::sync::Arc<SqlxControlPlane>) -> T
                  integration_health='healthy',
                  health='healthy',
                  projected_at=now()
-             WHERE tenant_id=$1",
+             WHERE holding_id=$1",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(modules)
         .bind(purchased_seats)
         .bind(used_seats)
@@ -2066,7 +2117,7 @@ async fn seed_demo_identities_and_roles(
                         platform_permissions.clone()
                     } else {
                         vec![
-                            "platform.tenant.read".into(),
+                            "platform.holding.read".into(),
                             "platform.customer.read".into(),
                         ]
                     },
@@ -2113,10 +2164,10 @@ fn fixture_digest_for(
     let mut digest = Sha256::new();
     for value in [
         FIXTURE_VERSION,
-        TENANT_ID,
-        HOLDING_REF,
-        RESTRICTED_TENANT_ID,
-        RESTRICTED_HOLDING_REF,
+        HOLDING_ID,
+        DATA_PROFILE_KEY,
+        RESTRICTED_HOLDING_ID,
+        RESTRICTED_DATA_PROFILE_KEY,
         ERPX_BUCKET,
         "erpx-demo-restricted",
         "local-development-disabled",
@@ -2265,7 +2316,7 @@ async fn dev(root: &Path, config: &DevConfig, options: DevOptions) -> TaskResult
                         root,
                         config,
                         &manifest.control_write_database,
-                        &manifest.tenant_id,
+                        &manifest.holding_id,
                     )
                     .await?
                 }
@@ -2295,7 +2346,7 @@ async fn dev(root: &Path, config: &DevConfig, options: DevOptions) -> TaskResult
                     config,
                     &manifest.control_write_database,
                     &manifest.control_read_database,
-                    &manifest.tenant_id,
+                    &manifest.holding_id,
                 )
                 .await?;
             } else {
@@ -2366,7 +2417,7 @@ async fn dev(root: &Path, config: &DevConfig, options: DevOptions) -> TaskResult
             secret_file(&runtime.join("support-capability-escrow.key"))?,
         ),
         (
-            "ERPX_TENANT_PROJECTION_SCHEDULER_ACTOR_REF",
+            "ERPX_HOLDING_PROJECTION_SCHEDULER_ACTOR_REF",
             projection_actor_ref,
         ),
     ]);
@@ -2528,7 +2579,7 @@ fn dev_common_environment(
             config.database_url(control_read_database),
         ),
         (
-            "ERPX_TENANT_ADMIN_DATABASE_URL",
+            "ERPX_HOLDING_ADMIN_DATABASE_URL",
             if dedicated {
                 infra::admin_runtime_database_url(root)?
             } else {
@@ -2536,7 +2587,7 @@ fn dev_common_environment(
             },
         ),
         (
-            "ERPX_TENANT_DATABASE_URL_TEMPLATE",
+            "ERPX_HOLDING_DATABASE_URL_TEMPLATE",
             config.database_template(),
         ),
         ("ERPX_ACCESS_TOKEN_SIGNING_KEY", access_key),
@@ -2564,18 +2615,18 @@ fn dev_common_environment(
         ),
     ];
     if development_access_enabled {
-        let target_tenant = fresh_runtime.map_or(
-            erpx_identity::DEVELOPMENT_CONTROLLER_TARGET_TENANT,
-            |manifest| manifest.tenant_id.as_str(),
+        let target_holding = fresh_runtime.map_or(
+            erpx_identity::DEVELOPMENT_CONTROLLER_TARGET_HOLDING,
+            |manifest| manifest.holding_id.as_str(),
         );
         common.extend([
             ("ERPX_DEV_PERSONA_MODE", "enabled".into()),
             ("ERPX_DEVELOPMENT_CLUSTER", "local-ucs-lab".into()),
             (
                 "ERPX_DEV_CONTROLLER_ROLE_PROFILE",
-                "restricted_tenant_full_admin".into(),
+                "restricted_holding_full_admin".into(),
             ),
-            ("ERPX_DEV_CONTROLLER_TARGET_TENANT", target_tenant.into()),
+            ("ERPX_DEV_CONTROLLER_TARGET_HOLDING", target_holding.into()),
             ("ERPX_DEV_CONTROLLER_MFA_BYPASS", "enabled".into()),
             ("ERPX_DEV_CONTROLLER_SOD_BYPASS", "enabled".into()),
             (
@@ -2591,7 +2642,7 @@ fn dev_common_environment(
     }
     // Dedicated infrastructure contributes credential-bearing defaults for
     // the legacy development databases. Replace only the two control URLs;
-    // tenant routing continues to resolve database keys from the fresh
+    // holding routing continues to resolve database keys from the fresh
     // registry through the unchanged template.
     common.retain(|(key, _)| {
         *key != "ERPX_CONTROL_WRITE_DATABASE_URL" && *key != "ERPX_CONTROL_READ_DATABASE_URL"
@@ -2627,7 +2678,7 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
             projection_kind: None,
         },
         WorkerSpec {
-            name: "agent-tenant-operations-worker",
+            name: "agent-holding-operations-worker",
             handler: "agent_assignment",
             worker_id: "8cf8d67f-186e-4b12-9e1c-bc29f5f5b18a",
             projection_kind: None,
@@ -2860,7 +2911,7 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
         .into_iter()
         .map(|(name, projection_kind, suffix)| WorkerSpec {
             name,
-            handler: "tenant_projection_scheduler",
+            handler: "holding_projection_scheduler",
             worker_id: match suffix {
                 "b146" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b146",
                 "b147" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b147",
@@ -3000,7 +3051,7 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
         .into_iter()
         .map(|(name, projection_kind, suffix)| WorkerSpec {
             name,
-            handler: "tenant_projection_scheduler",
+            handler: "holding_projection_scheduler",
             worker_id: match suffix {
                 "b130" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b130",
                 "b131" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b131",
@@ -3049,8 +3100,8 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
             projection_kind: None,
         },
         WorkerSpec {
-            name: "customer360-tenant-activity-projector",
-            handler: "customer360_tenant_activity_projection",
+            name: "customer360-holding-activity-projector",
+            handler: "customer360_holding_activity_projection",
             worker_id: "8cf8d67f-186e-4b12-9e1c-bc29f5f5b142",
             projection_kind: None,
         },
@@ -3061,8 +3112,8 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
             projection_kind: None,
         },
         WorkerSpec {
-            name: "tenant-projection-status-projector",
-            handler: "tenant_projection_status_projection",
+            name: "holding-projection-status-projector",
+            handler: "holding_projection_status_projection",
             worker_id: "8cf8d67f-186e-4b12-9e1c-bc29f5f5b15d",
             projection_kind: None,
         },
@@ -3094,14 +3145,14 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
                 projection_kind: None,
             },
             WorkerSpec {
-                name: "tenant-backup-worker",
-                handler: "tenant_backup",
+                name: "holding-backup-worker",
+                handler: "holding_backup",
                 worker_id: "8cf8d67f-186e-4b12-9e1c-bc29f5f554a2",
                 projection_kind: None,
             },
             WorkerSpec {
                 name: "backup-retention-worker",
-                handler: "tenant_backup_retention",
+                handler: "holding_backup_retention",
                 worker_id: "8cf8d67f-186e-4b12-9e1c-bc29f5f554a3",
                 projection_kind: None,
             },
@@ -3214,7 +3265,7 @@ fn web_launch_sha256(root: &Path, options: DevOptions) -> TaskResult<String> {
 fn ucs_environment_sha256(root: &Path) -> TaskResult<String> {
     let runtime = runtime_dir(root);
     let mut digest = Sha256::new();
-    for value in ["platform", TENANT_ID, RESTRICTED_TENANT_ID] {
+    for value in ["platform", HOLDING_ID, RESTRICTED_HOLDING_ID] {
         update_digest(&mut digest, value);
     }
     for path in [
@@ -3390,10 +3441,10 @@ fn apply_worker_plan(
         ]);
         if let Some(kind) = spec.projection_kind {
             environment.extend([
-                ("ERPX_TENANT_PROJECTION_KIND", kind.into()),
+                ("ERPX_HOLDING_PROJECTION_KIND", kind.into()),
                 (
-                    "ERPX_TENANT_PROJECTION_CLAIM_KEY_PREFIX",
-                    format!("tenant-projection-{kind}"),
+                    "ERPX_HOLDING_PROJECTION_CLAIM_KEY_PREFIX",
+                    format!("holding-projection-{kind}"),
                 ),
             ]);
         }
@@ -3479,16 +3530,16 @@ async fn wait_for_fresh_worker_barrier(
                     count(*) FILTER (WHERE state='dead_letter') AS failed,
                     count(*) FILTER (WHERE state='claimed' AND lease_until <= now()) AS expired,
                     max(updated_at) AS newest_updated_at
-             FROM erpx_control.tenant_projection_jobs
-             WHERE tenant_id=$1 AND holding_ref=$2 AND job_key LIKE $3",
+             FROM erpx_control.holding_projection_jobs
+             WHERE holding_id=$1 AND data_profile_key=$2 AND job_key LIKE $3",
         )
-        .bind(&manifest.tenant_id)
-        .bind(&manifest.holding_ref)
+        .bind(&manifest.holding_id)
+        .bind(&manifest.data_profile_key)
         .bind(&job_prefix)
         .fetch_one(&write)
         .await
         .map_err(|_| "fresh initial projection barrier could not be evaluated")?;
-        let expected_job_count = i64::try_from(FRESH_INITIAL_TENANT_PROJECTIONS.len())?;
+        let expected_job_count = i64::try_from(FRESH_INITIAL_HOLDING_PROJECTIONS.len())?;
         if jobs.0 != expected_job_count {
             return Err(format!(
                 "fresh initial projection job inventory is incomplete: expected {expected_job_count}, found {}",
@@ -3502,8 +3553,8 @@ async fn wait_for_fresh_worker_barrier(
 
         let status_checkpoint: Option<chrono::DateTime<Utc>> = sqlx::query_scalar(
             "SELECT source_updated_at
-             FROM erpx_control.tenant_projection_status_checkpoints
-             WHERE projection_name='tenant_projection_status'",
+             FROM erpx_control.holding_projection_status_checkpoints
+             WHERE projection_name='holding_projection_status'",
         )
         .fetch_optional(&read)
         .await
@@ -3859,6 +3910,15 @@ where
 
 fn status(root: &Path) -> TaskResult {
     let runtime = runtime_dir(root);
+    println!(
+        "public-origin: {}",
+        env::var("ERPX_PUBLIC_ORIGIN").unwrap_or_else(|_| "http://127.0.0.1:3004".into())
+    );
+    println!(
+        "platform-origin: {}",
+        env::var("ERPX_PLATFORM_ORIGIN")
+            .unwrap_or_else(|_| "https://console.tailb48369.ts.net".into())
+    );
     for name in ["server", "ucs-lab"]
         .into_iter()
         .chain(DEDICATED_WORKERS)
@@ -4055,7 +4115,7 @@ fn validate_web_production_profile() -> TaskResult<String> {
         "ERPX_DEV_PERSONA_MODE",
         "ERPX_DEVELOPMENT_CLUSTER",
         "ERPX_DEV_CONTROLLER_ROLE_PROFILE",
-        "ERPX_DEV_CONTROLLER_TARGET_TENANT",
+        "ERPX_DEV_CONTROLLER_TARGET_HOLDING",
         "ERPX_DEV_CONTROLLER_MFA_BYPASS",
         "ERPX_DEV_CONTROLLER_SOD_BYPASS",
     ] {
@@ -4627,7 +4687,7 @@ async fn verify_runtime_readiness(root: &Path, config: &DevConfig) -> TaskResult
                 WHERE state IN ('pending', 'rebuild_pending')
                   AND available_at < now() - interval '60 seconds'
             )
-         FROM erpx_control.tenant_projection_jobs",
+         FROM erpx_control.holding_projection_jobs",
     )
     .fetch_one(&write)
     .await
@@ -4958,7 +5018,7 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
     }
     if !sign_in_html.contains("<form")
         || !sign_in_html.contains("method=\"post\"")
-        || !sign_in_html.contains("action=\"/api/v2/auth/password/form\"")
+        || !sign_in_html.contains("action=\"/api/auth/password/form\"")
         || !sign_in_html.contains("type=\"submit\"")
         || !sign_in_html.contains("name=\"principal_ref\"")
         || !sign_in_html.contains("name=\"password\"")
@@ -4971,7 +5031,7 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
         );
     }
     let native_form_entry = redirect_client
-        .get("http://127.0.0.1:3004/api/v2/auth/password/form")
+        .get("http://127.0.0.1:3004/api/auth/password/form")
         .send()
         .await?;
     if native_form_entry.status() != reqwest::StatusCode::SEE_OTHER
@@ -4984,7 +5044,7 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
         return Err("native password form entry did not redirect to /auth/sign-in".into());
     }
     let native_form = redirect_client
-        .post("http://127.0.0.1:3004/api/v2/auth/password/form")
+        .post("http://127.0.0.1:3004/api/auth/password/form")
         .header(reqwest::header::ORIGIN, "http://127.0.0.1:3004")
         .form(&[
             ("principal_ref", "local:dev-controller"),
@@ -5019,7 +5079,7 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
         }
     }
 
-    for retired in ["/api/v2/session", "/auth/bff/upgrade"] {
+    for retired in ["/api/session", "/auth/bff/upgrade"] {
         let get_response = redirect_client
             .get(format!("http://127.0.0.1:3004{retired}"))
             .send()
@@ -5048,7 +5108,7 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
     }
 
     let spoofed_grpc = client
-        .post("http://127.0.0.1:3004/api/v2/internal/grpc/erpx.finance.v2.FinanceQueryService/GetChart")
+        .post("http://127.0.0.1:3004/api/internal/grpc/erpx.finance.FinanceQueryService/GetChart")
         .header(reqwest::header::ORIGIN, "http://127.0.0.1:3004")
         .header(reqwest::header::CONTENT_TYPE, "application/grpc-web+proto")
         .header("x-erpx-access-token", "browser-spoof")
@@ -5069,7 +5129,7 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
     }
 
     let csrf_login = client
-        .post("http://127.0.0.1:3004/api/v2/auth/password")
+        .post("http://127.0.0.1:3004/api/auth/password")
         .json(&serde_json::json!({
             "principal_ref": "local:probe",
             "password": "not-a-real-password",
@@ -5127,24 +5187,32 @@ async fn verify_local_sqlx(root: &Path, config: &DevConfig) -> TaskResult {
         |database: &str| application_database_template.replace("{database}", database);
     let control_write_url = verification_url(&database_keys[0]);
     let control_read_url = verification_url(&database_keys[1]);
-    let tenant_write_url = verification_url(&database_keys[2]);
-    let tenant_read_url = verification_url(&database_keys[3]);
+    let holding_write_url = verification_url(&database_keys[2]);
+    let holding_read_url = verification_url(&database_keys[3]);
     let directory_url = verification_url(&database_keys[4]);
     let commercial_url = verification_url(&database_keys[5]);
     let marketing_url = verification_url(&database_keys[6]);
     let support_url = verification_url(&database_keys[7]);
     let application_control_write_url = application_url(&database_keys[0]);
     let application_control_read_url = application_url(&database_keys[1]);
-    let application_tenant_write_url = application_url(&database_keys[2]);
-    let application_tenant_read_url = application_url(&database_keys[3]);
+    let application_holding_write_url = application_url(&database_keys[2]);
+    let application_holding_read_url = application_url(&database_keys[3]);
     let control_write = pool(&application_control_write_url).await?;
     let control_read = pool(&application_control_read_url).await?;
-    let tenant_write = pool(&application_tenant_write_url).await?;
-    let tenant_read = pool(&application_tenant_read_url).await?;
-    erpx_migration::migrate_control_plane(&control_write).await?;
-    erpx_migration::migrate_control_read(&control_read).await?;
-    erpx_migration::migrate_tenant_write(&tenant_write).await?;
-    erpx_migration::migrate_tenant_read(&tenant_read).await?;
+    let holding_write = pool(&application_holding_write_url).await?;
+    let holding_read = pool(&application_holding_read_url).await?;
+    erpx_migration::migrate_control_plane(&control_write)
+        .await
+        .map_err(|error| format!("control-write baseline failed: {error}"))?;
+    erpx_migration::migrate_control_read(&control_read)
+        .await
+        .map_err(|error| format!("control-read baseline failed: {error}"))?;
+    erpx_migration::migrate_holding_write(&holding_write)
+        .await
+        .map_err(|error| format!("holding-write baseline failed: {error}"))?;
+    erpx_migration::migrate_holding_read(&holding_read)
+        .await
+        .map_err(|error| format!("holding-read baseline failed: {error}"))?;
 
     let local_values = read_dotenv(&root.join(".env.local"))?;
     let minio_endpoint = required_value(&local_values, "ERPX_MINIO_ENDPOINT")?;
@@ -5152,27 +5220,28 @@ async fn verify_local_sqlx(root: &Path, config: &DevConfig) -> TaskResult {
     let minio_secret_key = required_value(&local_values, "ERPX_MINIO_SECRET_KEY")?;
     let minio_region = required_value(&local_values, "ERPX_MINIO_REGION")?;
     let minio_ca = required_value(&local_values, "ERPX_MINIO_CA_CERTIFICATE_PATH")?;
-    let object_namespace = FreshRuntimeManifest::load(root)?
-        .ok_or("fresh-state runtime manifest is required for SQLx verification")?
-        .object_namespace;
+    // SQLx acceptance must not depend on, or write through, the retained
+    // runtime cutover manifest. The live MinIO probe creates a unique object
+    // key and removes it before returning, inside this dedicated namespace.
+    let object_namespace = "erpx-sqlx-acceptance".to_owned();
     let test_environment = vec![
         ("ERPX_TEST_CONTROL_WRITE_DATABASE_URL", control_write_url),
         ("ERPX_TEST_CONTROL_READ_DATABASE_URL", control_read_url),
         (
-            "ERPX_TEST_TENANT_WRITE_DATABASE_URL",
-            tenant_write_url.clone(),
+            "ERPX_TEST_HOLDING_WRITE_DATABASE_URL",
+            holding_write_url.clone(),
         ),
         (
-            "ERPX_TEST_TENANT_READ_DATABASE_URL",
-            tenant_read_url.clone(),
+            "ERPX_TEST_HOLDING_READ_DATABASE_URL",
+            holding_read_url.clone(),
         ),
         (
-            "ERPX_TEST_RLS_TENANT_WRITE_DATABASE_URL",
-            application_tenant_write_url,
+            "ERPX_TEST_RLS_HOLDING_WRITE_DATABASE_URL",
+            application_holding_write_url,
         ),
         (
-            "ERPX_TEST_RLS_TENANT_READ_DATABASE_URL",
-            application_tenant_read_url,
+            "ERPX_TEST_RLS_HOLDING_READ_DATABASE_URL",
+            application_holding_read_url,
         ),
         (
             "ERPX_TEST_DIRECTORY_RBAC_DATABASE_URL",
@@ -5189,52 +5258,52 @@ async fn verify_local_sqlx(root: &Path, config: &DevConfig) -> TaskResult {
             admin_url.clone(),
         ),
         (
-            "ERPX_TEST_TENANT_DATABASE_URL_TEMPLATE",
+            "ERPX_TEST_HOLDING_DATABASE_URL_TEMPLATE",
             verification_database_template,
         ),
         (
-            "ERPX_TEST_PHYSICAL_TENANT_WRITE_KEY",
+            "ERPX_TEST_PHYSICAL_HOLDING_WRITE_KEY",
             physical_write_key.clone(),
         ),
         (
-            "ERPX_TEST_PHYSICAL_TENANT_READ_KEY",
+            "ERPX_TEST_PHYSICAL_HOLDING_READ_KEY",
             physical_read_key.clone(),
         ),
         (
-            "ERPX_TEST_ORGANIZATION_TENANT_WRITE_KEY",
+            "ERPX_TEST_ORGANIZATION_HOLDING_WRITE_KEY",
             organization_write_key.clone(),
         ),
         (
-            "ERPX_TEST_ORGANIZATION_TENANT_READ_KEY",
+            "ERPX_TEST_ORGANIZATION_HOLDING_READ_KEY",
             organization_read_key.clone(),
         ),
         ("ERPX_TEST_READINESS_SUFFIX", stamp.clone()),
         (
             "ERPX_TEST_G9_INVENTORY_WRITE_DATABASE_URL",
-            tenant_write_url.clone(),
+            holding_write_url.clone(),
         ),
         (
             "ERPX_TEST_G9_INVENTORY_READ_DATABASE_URL",
-            tenant_read_url.clone(),
+            holding_read_url.clone(),
         ),
         (
             "ERPX_TEST_G9_LOGISTICS_WRITE_DATABASE_URL",
-            tenant_write_url.clone(),
+            holding_write_url.clone(),
         ),
         (
             "ERPX_TEST_G9_LOGISTICS_READ_DATABASE_URL",
-            tenant_read_url.clone(),
+            holding_read_url.clone(),
         ),
         (
             "ERPX_TEST_G9_PROCUREMENT_WRITE_DATABASE_URL",
-            tenant_write_url.clone(),
+            holding_write_url.clone(),
         ),
         (
             "ERPX_TEST_G9_PROCUREMENT_READ_DATABASE_URL",
-            tenant_read_url.clone(),
+            holding_read_url.clone(),
         ),
-        ("ERPX_TEST_G9_SALES_WRITE_DATABASE_URL", tenant_write_url),
-        ("ERPX_TEST_G9_SALES_READ_DATABASE_URL", tenant_read_url),
+        ("ERPX_TEST_G9_SALES_WRITE_DATABASE_URL", holding_write_url),
+        ("ERPX_TEST_G9_SALES_READ_DATABASE_URL", holding_read_url),
         (
             "ERPX_TEST_CALLBACK_SECRET",
             "local-verification-callback-secret".into(),
@@ -5353,6 +5422,8 @@ fn repository_scan(root: &Path) -> TaskResult {
             "!target/**",
             "-g",
             "!.runtime/**",
+            "-g",
+            "!*.base64",
             "folio|ERPX_G13_SOURCE_|legacy_bridge|FolioSourceExtractor",
             "apps",
             "crates",
@@ -5368,7 +5439,75 @@ fn repository_scan(root: &Path) -> TaskResult {
         )
         .into());
     }
+
+    let architecture_output = Command::new("rg")
+        .args([
+            "-n",
+            "--hidden",
+            "-g",
+            "!.git/**",
+            "-g",
+            "!target/**",
+            "-g",
+            "!.runtime/**",
+            "-g",
+            "!*.base64",
+            "TenantId|TenantScope|tenant_id|holding_ref|root_holding_id|CustomerTenantBinding|CustomerHoldingBinding|PlatformCustomerService|/platform/customers|(?i:generation[-_ ](?:v?[0-9]+|two))|erpx\\.[a-z0-9_.]+\\.v[123]\\b|erpx[-_a-z0-9]*[-_]v[123]\\b|erpxv[123]\\b|current-workspace-v[123]\\b|/api/v[123]\\b|:[vV][123]:|\\b[A-Za-z][A-Za-z0-9]*(V1|V2|V3)\\b",
+            "apps",
+            "crates",
+            "fixtures",
+            "adr",
+            "audits",
+            "README.md",
+        ])
+        .current_dir(root)
+        .output()?;
+    if architecture_output.status.success() {
+        return Err(format!(
+            "forbidden pre-Holding or version-branded architecture remains:\n{}",
+            String::from_utf8_lossy(&architecture_output.stdout)
+        )
+        .into());
+    }
+
+    let path_output = Command::new("rg")
+        .args(["--files", "apps", "crates", "fixtures", "adr", "audits"])
+        .current_dir(root)
+        .output()?;
+    if !path_output.status.success() {
+        return Err("repository path scan could not enumerate source files".into());
+    }
+    let path_listing = String::from_utf8_lossy(&path_output.stdout);
+    let forbidden_paths = path_listing
+        .lines()
+        .filter(|path| forbidden_architecture_path(path))
+        .collect::<Vec<_>>();
+    if !forbidden_paths.is_empty() {
+        return Err(format!(
+            "forbidden pre-Holding or generation-branded paths remain:\n{}",
+            forbidden_paths.join("\n")
+        )
+        .into());
+    }
     Ok(())
+}
+
+fn forbidden_architecture_path(path: &str) -> bool {
+    let normalized = path.to_ascii_lowercase().replace('\\', "/");
+    if normalized.contains("tenant") {
+        return true;
+    }
+    if normalized.contains("stripe") {
+        return false;
+    }
+    normalized.split('/').any(|segment| {
+        segment == "v1"
+            || segment == "v2"
+            || segment == "v3"
+            || ["-v1", "-v2", "-v3", "_v1", "_v2", "_v3"]
+                .iter()
+                .any(|marker| segment.contains(marker))
+    })
 }
 
 fn run_command<I, S>(root: &Path, program: &str, args: I) -> TaskResult
@@ -5508,7 +5647,6 @@ async fn dioxus_web_readiness_once(
     {
         return Err("Dioxus login SSR omitted its hydration payload".into());
     }
-
     let stylesheet_urls = html_asset_urls(&html, "link", ("rel", "stylesheet"), "href");
     let module_urls = html_asset_urls(&html, "script", ("type", "module"), "src");
     if stylesheet_urls.is_empty() || module_urls.is_empty() {
@@ -5537,24 +5675,27 @@ async fn dioxus_web_readiness_once(
         urls.push(public_asset_url(&artifacts.public, wasm)?);
     }
     for asset_url in urls {
-        let url = login_url.join(&asset_url)?;
-        let response = client.get(url.clone()).send().await?;
-        let status = response.status();
-        let content_type = response
-            .headers()
-            .get(reqwest::header::CONTENT_TYPE)
-            .and_then(|value| value.to_str().ok())
-            .unwrap_or_default()
-            .to_owned();
-        if !status.is_success() {
-            return Err(format!("Dioxus asset {} returned {status}", url.path()).into());
-        }
-        if !content_type_matches(url.path(), &content_type) {
-            return Err(format!(
-                "Dioxus asset {} returned invalid MIME {content_type:?}",
-                url.path()
-            )
-            .into());
+        let canonical_url = login_url.join(&asset_url)?;
+        let route_relative_url = login_url.join(asset_url.trim_start_matches('/'))?;
+        for url in [canonical_url, route_relative_url] {
+            let response = client.get(url.clone()).send().await?;
+            let status = response.status();
+            let content_type = response
+                .headers()
+                .get(reqwest::header::CONTENT_TYPE)
+                .and_then(|value| value.to_str().ok())
+                .unwrap_or_default()
+                .to_owned();
+            if !status.is_success() {
+                return Err(format!("Dioxus asset {} returned {status}", url.path()).into());
+            }
+            if !content_type_matches(url.path(), &content_type) {
+                return Err(format!(
+                    "Dioxus asset {} returned invalid MIME {content_type:?}",
+                    url.path()
+                )
+                .into());
+            }
         }
     }
     Ok(())
@@ -5583,7 +5724,7 @@ async fn wait_for_ucs_authorities(root: &Path, seconds: u64) -> TaskResult {
     let certificate = runtime_dir(root).join("ucs-lab/tls/ucs.crt");
     for _ in 0..seconds {
         let mut ready = true;
-        for authority in ["platform", TENANT_ID, RESTRICTED_TENANT_ID] {
+        for authority in ["platform", HOLDING_ID, RESTRICTED_HOLDING_ID] {
             let url = format!("https://127.0.0.1:15443/authorities/{authority}/healthz");
             if !Command::new("/usr/bin/curl")
                 .args([
@@ -5801,6 +5942,37 @@ fn percent_encode(value: &str) -> String {
 mod tests {
     use super::*;
 
+    #[test]
+    fn architecture_path_scan_is_path_aware() {
+        assert!(forbidden_architecture_path("apps/server/src/tenant.rs"));
+        assert!(forbidden_architecture_path(
+            "crates/proto/proto/erpx/finance/v2/service.proto"
+        ));
+        assert!(forbidden_architecture_path(
+            "audits/DIOXUS-V2-TRACEABILITY.md"
+        ));
+        assert!(!forbidden_architecture_path(
+            "apps/console/assets/fonts/Sarabun-Regular.ttf.base64"
+        ));
+        assert!(!forbidden_architecture_path(
+            "crates/infrastructure/src/stripe_v1_boundary.rs"
+        ));
+    }
+
+    #[test]
+    fn retained_legacy_manifest_is_ignored_but_unrelated_invalid_json_is_not() {
+        let legacy = serde_json::json!({
+            "holding_ref": "opaque-retained-reference",
+            "tenant_id": "opaque-retained-id",
+            "tenant_write_database": "retained_write",
+            "tenant_read_database": "retained_read"
+        });
+        assert!(is_retained_legacy_manifest(&legacy));
+        assert!(!is_retained_legacy_manifest(&serde_json::json!({
+            "holding_ref": "opaque-retained-reference"
+        })));
+    }
+
     fn args(values: &[&str]) -> Vec<String> {
         values.iter().map(|value| (*value).to_owned()).collect()
     }
@@ -5835,7 +6007,7 @@ mod tests {
     fn sample_fresh_runtime_manifest() -> FreshRuntimeManifest {
         FreshRuntimeManifest {
             version: 4,
-            schema_generation: 2,
+            schema_revision: 2,
             service_catalog_generation: 4,
             service_id_range: "IFC-SVC-201..265".into(),
             state: "prepared".into(),
@@ -5843,13 +6015,13 @@ mod tests {
             installation_generation: Uuid::parse_str("4fbf88d8-ea38-51b6-93f6-8cdb6c7585ec")
                 .expect("generation"),
             installation_prefix: "next".into(),
-            tenant_id: "a5c86431-c0b8-58ea-bb5f-5af2f940918d".into(),
-            holding_ref: "ad093a73-d3d0-5532-8a03-2f2a29ca0f3c".into(),
+            holding_id: "a5c86431-c0b8-58ea-bb5f-5af2f940918d".into(),
+            data_profile_key: "ad093a73-d3d0-5532-8a03-2f2a29ca0f3c".into(),
             control_write_database: "next_control_write".into(),
             control_read_database: "next_control_read".into(),
-            tenant_write_database: "next_1234567890ab_tenant_write".into(),
-            tenant_read_database: "next_1234567890ab_tenant_read".into(),
-            object_namespace: "next-tenant-objects".into(),
+            holding_write_database: "next_1234567890ab_holding_write".into(),
+            holding_read_database: "next_1234567890ab_holding_read".into(),
+            object_namespace: "next-holding-objects".into(),
             rollback: serde_json::json!({
                 "retained_resource_authority": "offline_non_authoritative",
                 "write_policy": "isolated_no_merge"
@@ -5867,7 +6039,7 @@ mod tests {
         assert!(legacy.validate().is_err());
 
         let mut legacy_schema = valid.clone();
-        legacy_schema.schema_generation = 1;
+        legacy_schema.schema_revision = 1;
         assert!(legacy_schema.validate().is_err());
 
         let mut retired_services = valid.clone();
@@ -5875,7 +6047,7 @@ mod tests {
         assert!(retired_services.validate().is_err());
 
         let mut mismatched_database = valid.clone();
-        mismatched_database.tenant_read_database = "retained_tenant_read".into();
+        mismatched_database.holding_read_database = "retained_holding_read".into();
         assert!(mismatched_database.validate().is_err());
 
         let mut merge_policy = valid;
@@ -5889,8 +6061,8 @@ mod tests {
         assert_eq!(retained.control_write_database, DATABASES[0]);
         assert_eq!(retained.control_read_database, DATABASES[1]);
         assert_eq!(
-            retained.controller_target_tenant,
-            erpx_identity::DEVELOPMENT_CONTROLLER_TARGET_TENANT
+            retained.controller_target_holding,
+            erpx_identity::DEVELOPMENT_CONTROLLER_TARGET_HOLDING
         );
         assert!(!retained.fresh_state);
 
@@ -5901,7 +6073,7 @@ mod tests {
             manifest.control_write_database
         );
         assert_eq!(fresh.control_read_database, manifest.control_read_database);
-        assert_eq!(fresh.controller_target_tenant, manifest.tenant_id);
+        assert_eq!(fresh.controller_target_holding, manifest.holding_id);
         assert!(fresh.fresh_state);
     }
 
@@ -5995,14 +6167,14 @@ mod tests {
                 && spec.projection_kind.is_none()
         }));
         assert!(standard.iter().any(|spec| {
-            spec.handler == "customer360_tenant_activity_projection"
+            spec.handler == "customer360_holding_activity_projection"
                 && spec.projection_kind.is_none()
         }));
         assert!(
             standard
                 .iter()
                 .filter(|spec| spec.projection_kind.is_some())
-                .all(|spec| spec.handler == "tenant_projection_scheduler")
+                .all(|spec| spec.handler == "holding_projection_scheduler")
         );
         for legacy in [
             "asset_maintenance",
@@ -6051,7 +6223,7 @@ mod tests {
             Some(DevOptions {
                 mode: DevMode::Warm,
                 web_debug: false,
-                hot_patch: true,
+                hot_patch: false,
             })
         );
         assert_eq!(
@@ -6060,7 +6232,7 @@ mod tests {
             Some(DevOptions {
                 mode: DevMode::Fresh,
                 web_debug: true,
-                hot_patch: true,
+                hot_patch: false,
             })
         );
         assert_eq!(
@@ -6070,6 +6242,15 @@ mod tests {
                 mode: DevMode::Warm,
                 web_debug: false,
                 hot_patch: false,
+            })
+        );
+        assert_eq!(
+            parse_dev_options(&args(&["dev", "--detach", "--hot-patch"]))
+                .expect("hot-patch opt-in options"),
+            Some(DevOptions {
+                mode: DevMode::Warm,
+                web_debug: false,
+                hot_patch: true,
             })
         );
         assert!(parse_dev_options(&args(&["dev"])).is_err());
@@ -6082,7 +6263,7 @@ mod tests {
     }
 
     #[test]
-    fn web_arguments_enable_hot_patch_and_persistent_cache_by_default() {
+    fn web_arguments_use_stable_hot_reload_by_default_and_allow_hot_patch_opt_in() {
         let root = Path::new("/workspace/erpx");
         let arguments = web_serve_arguments(
             root,

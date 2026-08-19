@@ -74,7 +74,6 @@ uuid_identifier!(PrincipalId);
 uuid_identifier!(QueryId);
 uuid_identifier!(RecordId);
 uuid_identifier!(SessionId);
-uuid_identifier!(TenantId);
 
 /// Classification carried by records, fields, events, and provider payloads.
 ///
@@ -109,16 +108,12 @@ impl DataClassification {
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum ScopeError {
-    #[error("tenant scope contains a nil identifier")]
+    #[error("authority scope contains a nil identifier")]
     NilIdentifier,
-    #[error("tenant subtree must select at least one company or branch")]
-    EmptySubtree,
-    #[error("tenant subtree contains duplicate identifiers")]
-    DuplicateIdentifier,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TenantScope {
+pub enum AuthorityScope {
     Platform,
     Holding {
         holding_id: Uuid,
@@ -134,12 +129,33 @@ pub enum TenantScope {
     },
     Subtree {
         holding_id: Uuid,
-        company_ids: Vec<Uuid>,
-        branch_ids: Vec<Uuid>,
+        organization_node_id: Uuid,
     },
 }
 
-impl TenantScope {
+impl AuthorityScope {
+    /// Stable representation for persistence keys and audited capability
+    /// bindings. Transport adapters must still encode the structured scope.
+    pub fn canonical_key(&self) -> String {
+        match self {
+            Self::Platform => "platform".into(),
+            Self::Holding { holding_id } => format!("holding:{holding_id}"),
+            Self::Company {
+                holding_id,
+                company_id,
+            } => format!("company:{holding_id}:{company_id}"),
+            Self::Branch {
+                holding_id,
+                company_id,
+                branch_id,
+            } => format!("branch:{holding_id}:{company_id}:{branch_id}"),
+            Self::Subtree {
+                holding_id,
+                organization_node_id,
+            } => format!("subtree:{holding_id}:{organization_node_id}"),
+        }
+    }
+
     pub fn validate(&self) -> Result<(), ScopeError> {
         let non_nil = |value: &Uuid| !value.is_nil();
         match self {
@@ -156,23 +172,8 @@ impl TenantScope {
             } if non_nil(holding_id) && non_nil(company_id) && non_nil(branch_id) => Ok(()),
             Self::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
-            } => {
-                if !non_nil(holding_id)
-                    || !company_ids.iter().all(non_nil)
-                    || !branch_ids.iter().all(non_nil)
-                {
-                    return Err(ScopeError::NilIdentifier);
-                }
-                if company_ids.is_empty() && branch_ids.is_empty() {
-                    return Err(ScopeError::EmptySubtree);
-                }
-                if contains_duplicate(company_ids) || contains_duplicate(branch_ids) {
-                    return Err(ScopeError::DuplicateIdentifier);
-                }
-                Ok(())
-            }
+                organization_node_id,
+            } if non_nil(holding_id) && non_nil(organization_node_id) => Ok(()),
             _ => Err(ScopeError::NilIdentifier),
         }
     }
@@ -221,14 +222,9 @@ impl TenantScope {
                 },
                 Self::Subtree {
                     holding_id: child_holding,
-                    company_ids,
-                    branch_ids,
+                    organization_node_id,
                 },
-            ) => {
-                parent_holding == child_holding
-                    && company_ids.iter().all(|id| id == parent_company)
-                    && branch_ids.is_empty()
-            }
+            ) => parent_holding == child_holding && organization_node_id == parent_company,
             (
                 Self::Branch {
                     holding_id: parent_holding,
@@ -248,23 +244,17 @@ impl TenantScope {
             (
                 Self::Subtree {
                     holding_id: parent_holding,
-                    company_ids: parent_companies,
-                    branch_ids: parent_branches,
+                    organization_node_id,
                 },
                 Self::Company {
                     holding_id: child_holding,
                     company_id: child_company,
                 },
-            ) => {
-                parent_holding == child_holding
-                    && parent_branches.is_empty()
-                    && parent_companies.contains(child_company)
-            }
+            ) => parent_holding == child_holding && organization_node_id == child_company,
             (
                 Self::Subtree {
                     holding_id: parent_holding,
-                    company_ids: parent_companies,
-                    branch_ids: parent_branches,
+                    organization_node_id,
                 },
                 Self::Branch {
                     holding_id: child_holding,
@@ -273,43 +263,29 @@ impl TenantScope {
                 },
             ) => {
                 parent_holding == child_holding
-                    && parent_companies.contains(child_company)
-                    && parent_branches.contains(child_branch)
+                    && (organization_node_id == child_company
+                        || organization_node_id == child_branch)
             }
             (
                 Self::Subtree {
                     holding_id: parent_holding,
-                    company_ids: parent_companies,
-                    branch_ids: parent_branches,
+                    organization_node_id: parent_node,
                 },
                 Self::Subtree {
                     holding_id: child_holding,
-                    company_ids: child_companies,
-                    branch_ids: child_branches,
+                    organization_node_id: child_node,
                 },
-            ) => {
-                parent_holding == child_holding
-                    && (parent_branches.is_empty() || !child_branches.is_empty())
-                    && child_companies
-                        .iter()
-                        .all(|id| parent_companies.contains(id))
-                    && child_branches.iter().all(|id| parent_branches.contains(id))
-            }
+            ) => parent_holding == child_holding && parent_node == child_node,
             _ => self == child,
         }
     }
-}
-
-fn contains_duplicate(values: &[Uuid]) -> bool {
-    let unique = values.iter().collect::<std::collections::BTreeSet<_>>();
-    unique.len() != values.len()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ActorKind {
     PlatformUser,
-    TenantUser,
+    HoldingUser,
     Agent,
     Service,
     SystemWorker,
@@ -518,17 +494,17 @@ mod tests {
 
     #[test]
     fn branch_authority_does_not_imply_siblings_or_parent() {
-        let branch = TenantScope::Branch {
+        let branch = AuthorityScope::Branch {
             holding_id: id(1),
             company_id: id(2),
             branch_id: id(3),
         };
-        let sibling = TenantScope::Branch {
+        let sibling = AuthorityScope::Branch {
             holding_id: id(1),
             company_id: id(2),
             branch_id: id(4),
         };
-        let company = TenantScope::Company {
+        let company = AuthorityScope::Company {
             holding_id: id(1),
             company_id: id(2),
         };
@@ -540,13 +516,12 @@ mod tests {
 
     #[test]
     fn invalid_subtrees_never_authorize() {
-        let invalid = TenantScope::Subtree {
+        let invalid = AuthorityScope::Subtree {
             holding_id: id(1),
-            company_ids: vec![],
-            branch_ids: vec![],
+            organization_node_id: Uuid::nil(),
         };
-        assert_eq!(invalid.validate(), Err(ScopeError::EmptySubtree));
-        assert!(!invalid.contains(&TenantScope::Platform));
+        assert_eq!(invalid.validate(), Err(ScopeError::NilIdentifier));
+        assert!(!invalid.contains(&AuthorityScope::Platform));
     }
 
     #[test]

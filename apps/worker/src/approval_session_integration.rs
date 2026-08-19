@@ -10,7 +10,7 @@ use erpx_finance::{AccountingPlanId, PostingPacketId, SalesPostingCommand};
 use erpx_integration_contracts::{
     IntegrationEventEnvelope, RecordRef, finance, operations as contract, sales,
 };
-use erpx_kernel::{EventId, TenantScope};
+use erpx_kernel::{AuthorityScope, EventId};
 use erpx_operations::{
     ApprovalGateKind, ApprovalGateSpec, ApprovalGateStatus, ApprovalSession,
     ApprovalSessionCommand, ApprovalSessionCommandRequest, ApprovalSessionId,
@@ -50,7 +50,7 @@ impl ApprovalSessionIngressState {
         let request = match envelope.payload() {
             sales::Event::QuoteApprovalRequested(fact) => Some(request_from_fact(
                 envelope.event_id(),
-                envelope.tenant_scope().clone(),
+                envelope.active_scope().clone(),
                 &fact.approval,
             )?),
             sales::Event::SalesOrderChanged(_)
@@ -73,12 +73,12 @@ impl ApprovalSessionIngressState {
         let request = match envelope.payload() {
             finance::Event::AccountingPlanApprovalRequested(fact) => Some(request_from_fact(
                 envelope.event_id(),
-                envelope.tenant_scope().clone(),
+                envelope.active_scope().clone(),
                 &fact.approval,
             )?),
             finance::Event::PostingApprovalRequested(fact) => Some(request_from_fact(
                 envelope.event_id(),
-                envelope.tenant_scope().clone(),
+                envelope.active_scope().clone(),
                 &fact.approval,
             )?),
             finance::Event::JournalPosted(_)
@@ -132,7 +132,7 @@ impl ApprovalSessionIngressState {
 
 fn request_from_fact(
     event_id: EventId,
-    scope: TenantScope,
+    scope: AuthorityScope,
     fact: &contract::ApprovalSessionRequestFact,
 ) -> Result<ApprovalSessionCommandRequest, ApprovalIntegrationError> {
     fact.validate()
@@ -186,7 +186,7 @@ pub struct ApprovalOwnerHandoff {
     pub handoff_id: Uuid,
     pub approval_session_id: ApprovalSessionId,
     pub approval_session_version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub subject: RecordRef,
     pub command: ApprovalOwnerCommand,
 }
@@ -350,8 +350,8 @@ mod tests {
         Uuid::from_u128(value)
     }
 
-    fn scope() -> TenantScope {
-        TenantScope::Company {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: uuid(1),
             company_id: uuid(2),
         }

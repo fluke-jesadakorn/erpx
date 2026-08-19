@@ -3,7 +3,7 @@
 ## Delivered slice
 
 The Finance close projection now exposes a bounded company-scoped list over
-the existing tenant-read model. `SqlxFinanceCloseReadAdapter::list_reviews`
+the existing holding-read model. `SqlxFinanceCloseReadAdapter::list_reviews`
 uses the read pool only, joins the close projection checkpoint, validates
 holding/company/period identity, source version and event identity, lifecycle
 state, control totals, statement invariants, freshness, and a bounded
@@ -12,7 +12,7 @@ report scalars only; close aggregate JSON, journal facts, command context,
 credentials, and object references remain server-owned.
 
 `ListFinanceCloseReviews` requires authenticated `finance.read`, explicit
-holding/company/branch containment, customer scope membership, tenant read
+holding/company/branch containment, customer scope membership, holding read
 routing, bounded opaque cursors, and a customer audit event. The Finance
 Dioxus route renders loading, safe error, empty, bounded table, pagination,
 freshness, and read-only boundary states while retaining the existing
@@ -31,7 +31,7 @@ Passed:
 The ignored disposable two-database acceptance was extended to assert one
 scoped list row, source version/freshness, sibling-company isolation, and
 clear/rebuild rollback. It remains queued behind the supplied
-`ERPX_TEST_TENANT_WRITE_DATABASE_URL` and `ERPX_TEST_TENANT_READ_DATABASE_URL`.
+`ERPX_TEST_HOLDING_WRITE_DATABASE_URL` and `ERPX_TEST_HOLDING_READ_DATABASE_URL`.
 No mock, schema-only fixture, or fabricated database result is claimed as
 acceptance evidence.
 
@@ -41,7 +41,7 @@ blockers; no new application assertion failure appeared.
 
 ## Rollback
 
-Disable the additive RPC/UI adapter and rebuild the existing tenant-read
+Disable the additive RPC/UI adapter and rebuild the existing holding-read
 projection from retained close outbox events. The authoritative Finance close
 write tables, outbox history, audit rows, scheduler, and existing detail RPC
 remain unchanged. No production state, Folio write ownership, directory

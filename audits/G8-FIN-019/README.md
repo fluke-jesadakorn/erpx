@@ -3,9 +3,9 @@
 ## Packet contract
 
 - Objective: persist the already-integrated `FinanceCloseReview` aggregate in
-  a holding-scoped tenant-write adapter with optimistic versions, idempotency,
+  a holding-scoped holding-write adapter with optimistic versions, idempotency,
   atomic snapshots/outbox events, and database immutability for closed input.
-- Dependencies: `erpx_domain::finance_close`, tenant `begin_scoped`, and the
+- Dependencies: `erpx_domain::finance_close`, holding `begin_scoped`, and the
   Finance snapshot/outbox helper.
 - Allowed paths: the new adapter, migration, focused integration test, and
   this audit file only.
@@ -24,7 +24,7 @@
 - The active mutation context supplies the bounded idempotency key and actor
   attribution. An exact retry returns a replay receipt without a second
   snapshot or outbox event.
-- Each accepted mutation writes the tenant aggregate snapshot and outbox event
+- Each accepted mutation writes the holding aggregate snapshot and outbox event
   in the same transaction.
 - Migration `0034` adds forced-RLS storage, holding-bound keys, and a trigger
   that rejects every update or delete after a row reaches `closed`.
@@ -73,11 +73,11 @@
 
 ## Security considerations
 
-- RLS is forced and every adapter transaction sets `erpx.holding_ref`.
+- RLS is forced and every adapter transaction sets `erpx.data_profile_key`.
 - The adapter cannot accept a caller-supplied idempotency key separate from the
   domain command context.
 - Caller-provided journal facts and resolved control flags are not treated as
-  authority; both are checked against tenant write-side evidence.
+  authority; both are checked against holding write-side evidence.
 - Closed-row immutability is enforced twice: domain transition validation and a
   database trigger.
-- The adapter never reads tenant credentials or emits secrets.
+- The adapter never reads holding credentials or emits secrets.

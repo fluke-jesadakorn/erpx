@@ -7,7 +7,7 @@ use erpx_cqrs::{
 use erpx_integration_contracts::RecordRef;
 use erpx_integration_contracts::legal;
 use erpx_kernel::{
-    ActorAttribution, AggregateId, AuditContext, CommandId, CorrelationId, EventId, TenantScope,
+    ActorAttribution, AggregateId, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -30,7 +30,7 @@ pub use legal_case::{
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SignatureProviderSubmission {
     pub envelope_id: SignatureEnvelopeId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub document_id: LegalDocumentId,
     pub document_version: u64,
     pub document_sha256: String,
@@ -94,7 +94,7 @@ pub trait SignatureEnvelopeQueryPort: Send + Sync {
     /// degraded read and must not be treated as a neutral not-found result.
     async fn get_signature_envelope(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         envelope_id: SignatureEnvelopeId,
     ) -> Result<Option<SignatureEnvelopeView>, PortError>;
 }
@@ -145,8 +145,8 @@ impl LegalAction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
-    pub target_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
+    pub target_scope: &'a AuthorityScope,
     pub action: LegalAction,
 }
 
@@ -157,8 +157,11 @@ pub trait AuthorizationPort: Send + Sync {
 
 #[async_trait]
 pub trait EntitlementPort: Send + Sync {
-    async fn ensure_legal_enabled(&self, scope: &TenantScope, write: bool)
-    -> Result<(), PortError>;
+    async fn ensure_legal_enabled(
+        &self,
+        scope: &AuthorityScope,
+        write: bool,
+    ) -> Result<(), PortError>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -166,7 +169,7 @@ pub trait EntitlementPort: Send + Sync {
 pub enum CommandFingerprint {
     CreateContract {
         contract_id: LegalContractId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         reference: String,
         title: String,
         object_ref: String,
@@ -183,7 +186,7 @@ pub enum CommandFingerprint {
     },
     CreateDocument {
         document_id: LegalDocumentId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         title: String,
     },
     AddDocumentVersion {
@@ -204,7 +207,7 @@ pub enum CommandFingerprint {
     },
     CreateMatter {
         matter_id: LegalMatterId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         reference: String,
         title: String,
     },
@@ -212,7 +215,7 @@ pub enum CommandFingerprint {
         matter_id: LegalMatterId,
         relation: RecordRelation,
         target: RecordRef,
-        target_scope: TenantScope,
+        target_scope: AuthorityScope,
         target_digest: String,
     },
     PlaceLegalHold {
@@ -238,19 +241,19 @@ pub struct CommandIdentity {
 pub trait WriteRepository: Send + Sync {
     async fn load_contract(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         contract_id: LegalContractId,
     ) -> Result<Option<LegalContract>, PortError>;
 
     async fn load_document(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         document_id: LegalDocumentId,
     ) -> Result<Option<LegalDocument>, PortError>;
 
     async fn load_matter(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         matter_id: LegalMatterId,
     ) -> Result<Option<LegalMatter>, PortError>;
 }
@@ -261,7 +264,7 @@ pub struct LegalCommit {
     pub correlation_id: CorrelationId,
     pub causation_id: Option<EventId>,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
     pub aggregate: LegalAggregate,
@@ -313,7 +316,7 @@ pub trait CommandUnitOfWork: Send + Sync {
 pub struct ContractView {
     pub contract_id: LegalContractId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub reference: String,
     pub title: String,
     pub object_ref: String,
@@ -352,7 +355,7 @@ impl From<&LegalContract> for ContractView {
 pub struct DocumentView {
     pub document_id: LegalDocumentId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub title: String,
     pub versions: Vec<DocumentVersion>,
     pub current_version: u64,
@@ -381,7 +384,7 @@ impl From<&LegalDocument> for DocumentView {
 pub struct AccessEntryView {
     pub access_entry_id: AccessEntryId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub document_id: LegalDocumentId,
     pub document_version: u64,
     pub actor_ref: String,
@@ -410,7 +413,7 @@ impl From<&AccessEntry> for AccessEntryView {
 pub struct MatterView {
     pub matter_id: LegalMatterId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub reference: String,
     pub title: String,
     pub status: MatterStatus,
@@ -489,42 +492,42 @@ pub struct ReadProjection<T> {
 pub trait ReadRepository: Send + Sync {
     async fn get_contract(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         contract_id: LegalContractId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<ContractView>>, PortError>;
 
     async fn list_contracts(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &ContractListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<ContractList>, PortError>;
 
     async fn get_document(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         document_id: LegalDocumentId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<DocumentView>>, PortError>;
 
     async fn list_documents(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &DocumentListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<DocumentList>, PortError>;
 
     async fn list_access_history(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &AccessHistoryFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<AccessHistoryList>, PortError>;
 
     async fn get_matter(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         matter_id: LegalMatterId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<MatterView>>, PortError>;

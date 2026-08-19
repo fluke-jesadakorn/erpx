@@ -7,7 +7,7 @@ use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
     ItemDescriptorDraft, RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
 };
-use erpx_kernel::{AggregateId, CommandId, DataClassification, EventId, RecordId, TenantScope};
+use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId, RecordId};
 use erpx_people_payroll::{
     Aggregate, CommandUnitOfWork, Currency, Employee, EmployeeId, EmployeeState, EmployeeStatus,
     ExpenseClaim, ExpenseClaimId, ExpenseClaimState, ExpenseStatus, LeaveRequest, LeaveRequestId,
@@ -47,28 +47,28 @@ impl PeoplePayrollWriteRepository {
 impl WriteRepository for PeoplePayrollWriteRepository {
     async fn load_employee(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: EmployeeId,
     ) -> Result<Option<Employee>, PortError> {
         load_employee_authority(&self.pool, scope, id).await
     }
     async fn load_leave_request(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: LeaveRequestId,
     ) -> Result<Option<LeaveRequest>, PortError> {
         load_leave_authority(&self.pool, scope, id).await
     }
     async fn load_expense_claim(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: ExpenseClaimId,
     ) -> Result<Option<ExpenseClaim>, PortError> {
         load_expense_authority(&self.pool, scope, id).await
     }
     async fn load_payroll_run(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: PayrollRunId,
     ) -> Result<Option<PayrollRun>, PortError> {
         load_payroll_authority(&self.pool, scope, id).await
@@ -168,7 +168,7 @@ impl CommandUnitOfWork for PeoplePayrollCommandAdapter {
             correlation_id: request.correlation_id,
             idempotency_key: request.identity.idempotency_key,
             request_hash: request_hash(&request.identity.fingerprint)?,
-            tenant_scope: aggregate.scope().clone(),
+            active_scope: aggregate.scope().clone(),
             actor: request.actor,
             audit_context: request.audit,
             aggregate_type: aggregate_type.into(),
@@ -327,7 +327,7 @@ impl AtomicCommandGuard for PeoplePayrollAtomicGuard {
         }
         match &self.aggregate {
             Aggregate::Employee(value) if context.expected_version.is_none() => {
-                let existing: Option<Uuid> = sqlx::query_scalar("SELECT employee_id FROM erpx_people_payroll_write.employee_authority WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND scope_key=$1 AND employee_code=$2 FOR UPDATE")
+                let existing: Option<Uuid> = sqlx::query_scalar("SELECT employee_id FROM erpx_people_payroll_write.employee_authority WHERE holding_id=erpx_cqrs_write.current_holding_id() AND scope_key=$1 AND employee_code=$2 FOR UPDATE")
                     .bind(scope_key(value.scope())?).bind(value.employee_code())
                     .fetch_optional(&mut **transaction).await?;
                 if existing.is_some_and(|id| id != value.id().as_uuid()) {
@@ -346,7 +346,7 @@ impl AtomicCommandGuard for PeoplePayrollAtomicGuard {
                     .iter()
                     .map(|line| line.employee_id.as_uuid())
                     .collect::<Vec<_>>();
-                let count: i64 = sqlx::query_scalar("SELECT count(*) FROM erpx_people_payroll_write.employee_authority WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND scope_key=$1 AND employee_id=ANY($2::uuid[])")
+                let count: i64 = sqlx::query_scalar("SELECT count(*) FROM erpx_people_payroll_write.employee_authority WHERE holding_id=erpx_cqrs_write.current_holding_id() AND scope_key=$1 AND employee_id=ANY($2::uuid[])")
                     .bind(scope_key(value.scope())?).bind(&ids).fetch_one(&mut **transaction).await?;
                 if usize::try_from(count).ok() != Some(ids.len()) {
                     return Err(CqrsSqlxError::GuardRejected(
@@ -393,10 +393,10 @@ struct AuthorityScopeParams {
 }
 
 impl AuthorityScopeParams {
-    fn from_authority(scope: &TenantScope) -> Result<Self, PortError> {
+    fn from_authority(scope: &AuthorityScope) -> Result<Self, PortError> {
         scope.validate().map_err(|_| PortError::Internal)?;
         Ok(match scope {
-            TenantScope::Platform => Self {
+            AuthorityScope::Platform => Self {
                 mode: "platform",
                 holding_id: None,
                 company_id: None,
@@ -404,7 +404,7 @@ impl AuthorityScopeParams {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Holding { holding_id } => Self {
+            AuthorityScope::Holding { holding_id } => Self {
                 mode: "holding",
                 holding_id: Some(*holding_id),
                 company_id: None,
@@ -412,7 +412,7 @@ impl AuthorityScopeParams {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => Self {
@@ -423,7 +423,7 @@ impl AuthorityScopeParams {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -435,17 +435,16 @@ impl AuthorityScopeParams {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Self {
                 mode: "subtree",
                 holding_id: Some(*holding_id),
                 company_id: None,
                 branch_id: None,
-                company_ids: company_ids.clone(),
-                branch_ids: branch_ids.clone(),
+                company_ids: vec![*organization_node_id],
+                branch_ids: Vec::new(),
             },
         })
     }
@@ -460,7 +459,7 @@ const AUTHORITY_FILTER: &str = "
 
 async fn authority_row(
     pool: &WritePool,
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     table: &str,
     id_column: &str,
     id: Uuid,
@@ -469,7 +468,7 @@ async fn authority_row(
     let authority = AuthorityScopeParams::from_authority(scope)?;
     let sql = format!(
         "SELECT {columns} FROM erpx_people_payroll_write.{table}
-         WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND {id_column}=$1{AUTHORITY_FILTER}"
+         WHERE holding_id=erpx_cqrs_write.current_holding_id() AND {id_column}=$1{AUTHORITY_FILTER}"
     );
     let mut tx = pool.begin().await.map_err(map_store_error)?;
     let row = sqlx::query(&sql)
@@ -489,7 +488,7 @@ async fn authority_row(
 
 async fn load_employee_authority(
     pool: &WritePool,
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     id: EmployeeId,
 ) -> Result<Option<Employee>, PortError> {
     let row = authority_row(
@@ -531,7 +530,7 @@ async fn load_employee_authority(
 
 async fn load_leave_authority(
     pool: &WritePool,
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     id: LeaveRequestId,
 ) -> Result<Option<LeaveRequest>, PortError> {
     let row = authority_row(
@@ -577,7 +576,7 @@ async fn load_leave_authority(
 
 async fn load_expense_authority(
     pool: &WritePool,
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     id: ExpenseClaimId,
 ) -> Result<Option<ExpenseClaim>, PortError> {
     let row = authority_row(
@@ -628,7 +627,7 @@ async fn load_expense_authority(
 
 async fn load_payroll_authority(
     pool: &WritePool,
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     id: PayrollRunId,
 ) -> Result<Option<PayrollRun>, PortError> {
     let authority = AuthorityScopeParams::from_authority(scope)?;
@@ -637,7 +636,7 @@ async fn load_payroll_authority(
                 currency,payroll_status,prepared_by,reviewed_by,approved_by,total_gross_minor,
                 total_deductions_minor,total_net_minor,created_at,updated_at
          FROM erpx_people_payroll_write.payroll_run_authority
-         WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND payroll_run_id=$1{AUTHORITY_FILTER}"
+         WHERE holding_id=erpx_cqrs_write.current_holding_id() AND payroll_run_id=$1{AUTHORITY_FILTER}"
     );
     let mut tx = pool.begin().await.map_err(map_store_error)?;
     let row = sqlx::query(&root_sql)
@@ -657,7 +656,7 @@ async fn load_payroll_authority(
     let line_rows = sqlx::query(
         "SELECT employee_id,gross_minor,deductions_minor,net_minor
          FROM erpx_people_payroll_write.payroll_line_authority
-         WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND payroll_run_id=$1
+         WHERE holding_id=erpx_cqrs_write.current_holding_id() AND payroll_run_id=$1
          ORDER BY employee_id",
     )
     .bind(id.as_uuid())
@@ -688,7 +687,7 @@ async fn load_payroll_authority(
     let evidence_row = sqlx::query(
         "SELECT policy_version,rate_table_version,calculation_sha256,captured_at
          FROM erpx_people_payroll_write.payroll_calculation_evidence_authority
-         WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND payroll_run_id=$1",
+         WHERE holding_id=erpx_cqrs_write.current_holding_id() AND payroll_run_id=$1",
     )
     .bind(id.as_uuid())
     .fetch_optional(&mut *tx)
@@ -699,7 +698,7 @@ async fn load_payroll_authority(
             "SELECT source_record_id,source_owner_context,source_record_type,source_version,
                     content_sha256
              FROM erpx_people_payroll_write.payroll_input_evidence_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND payroll_run_id=$1
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND payroll_run_id=$1
              ORDER BY input_ordinal",
         )
         .bind(id.as_uuid())
@@ -813,10 +812,10 @@ async fn apply_people_payroll_authority(
     let result = match aggregate {
         Aggregate::Employee(value) => sqlx::query(
             "INSERT INTO erpx_people_payroll_write.employee_authority
-             (tenant_id,employee_id,aggregate_version,scope_key,holding_id,company_id,branch_id,
+             (holding_id,employee_id,aggregate_version,scope_key,holding_id,company_id,branch_id,
               employee_code,display_name,hired_on,terminated_on,employee_status,created_at,updated_at)
-             VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-             ON CONFLICT (tenant_id,employee_id) DO UPDATE SET
+             VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+             ON CONFLICT (holding_id,employee_id) DO UPDATE SET
               aggregate_version=EXCLUDED.aggregate_version,scope_key=EXCLUDED.scope_key,
               holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,
               employee_code=EXCLUDED.employee_code,display_name=EXCLUDED.display_name,
@@ -831,10 +830,10 @@ async fn apply_people_payroll_authority(
         .execute(&mut **tx).await?,
         Aggregate::LeaveRequest(value) => sqlx::query(
             "INSERT INTO erpx_people_payroll_write.leave_request_authority
-             (tenant_id,leave_request_id,aggregate_version,scope_key,holding_id,company_id,branch_id,
+             (holding_id,leave_request_id,aggregate_version,scope_key,holding_id,company_id,branch_id,
               employee_id,starts_on,ends_on,reason,leave_status,requested_by,approved_by,created_at,updated_at)
-             VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-             ON CONFLICT (tenant_id,leave_request_id) DO UPDATE SET
+             VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+             ON CONFLICT (holding_id,leave_request_id) DO UPDATE SET
               aggregate_version=EXCLUDED.aggregate_version,scope_key=EXCLUDED.scope_key,
               holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,
               employee_id=EXCLUDED.employee_id,starts_on=EXCLUDED.starts_on,ends_on=EXCLUDED.ends_on,
@@ -850,10 +849,10 @@ async fn apply_people_payroll_authority(
         .bind(value.created_at()).bind(value.updated_at()).execute(&mut **tx).await?,
         Aggregate::ExpenseClaim(value) => sqlx::query(
             "INSERT INTO erpx_people_payroll_write.expense_claim_authority
-             (tenant_id,expense_claim_id,aggregate_version,scope_key,holding_id,company_id,branch_id,
+             (holding_id,expense_claim_id,aggregate_version,scope_key,holding_id,company_id,branch_id,
               employee_id,currency,amount_minor,reason,expense_status,claimed_by,approved_by,created_at,updated_at)
-             VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-             ON CONFLICT (tenant_id,expense_claim_id) DO UPDATE SET
+             VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+             ON CONFLICT (holding_id,expense_claim_id) DO UPDATE SET
               aggregate_version=EXCLUDED.aggregate_version,scope_key=EXCLUDED.scope_key,
               holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,
               employee_id=EXCLUDED.employee_id,currency=EXCLUDED.currency,amount_minor=EXCLUDED.amount_minor,
@@ -869,11 +868,11 @@ async fn apply_people_payroll_authority(
         .bind(value.created_at()).bind(value.updated_at()).execute(&mut **tx).await?,
         Aggregate::PayrollRun(value) => sqlx::query(
             "INSERT INTO erpx_people_payroll_write.payroll_run_authority
-             (tenant_id,payroll_run_id,aggregate_version,scope_key,holding_id,company_id,branch_id,
+             (holding_id,payroll_run_id,aggregate_version,scope_key,holding_id,company_id,branch_id,
               period_code,starts_on,ends_on,currency,payroll_status,prepared_by,reviewed_by,approved_by,
               total_gross_minor,total_deductions_minor,total_net_minor,created_at,updated_at)
-             VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
-             ON CONFLICT (tenant_id,payroll_run_id) DO UPDATE SET
+             VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+             ON CONFLICT (holding_id,payroll_run_id) DO UPDATE SET
               aggregate_version=EXCLUDED.aggregate_version,scope_key=EXCLUDED.scope_key,
               holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,
               period_code=EXCLUDED.period_code,starts_on=EXCLUDED.starts_on,ends_on=EXCLUDED.ends_on,
@@ -915,7 +914,7 @@ async fn replace_payroll_children(
     ] {
         let sql = format!(
             "DELETE FROM erpx_people_payroll_write.{table}
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND payroll_run_id=$1"
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND payroll_run_id=$1"
         );
         sqlx::query(&sql)
             .bind(value.id().as_uuid())
@@ -925,8 +924,8 @@ async fn replace_payroll_children(
     for line in value.lines() {
         sqlx::query(
             "INSERT INTO erpx_people_payroll_write.payroll_line_authority
-             (tenant_id,payroll_run_id,employee_id,gross_minor,deductions_minor,net_minor,payroll_version)
-             VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6)",
+             (holding_id,payroll_run_id,employee_id,gross_minor,deductions_minor,net_minor,payroll_version)
+             VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6)",
         )
         .bind(value.id().as_uuid())
         .bind(line.employee_id.as_uuid())
@@ -940,9 +939,9 @@ async fn replace_payroll_children(
     if let Some(evidence) = value.calculation_evidence() {
         sqlx::query(
             "INSERT INTO erpx_people_payroll_write.payroll_calculation_evidence_authority
-             (tenant_id,payroll_run_id,policy_version,rate_table_version,calculation_sha256,
+             (holding_id,payroll_run_id,policy_version,rate_table_version,calculation_sha256,
               captured_at,payroll_version)
-             VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6)",
+             VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6)",
         )
         .bind(value.id().as_uuid())
         .bind(&evidence.policy_version)
@@ -955,9 +954,9 @@ async fn replace_payroll_children(
         for (ordinal, input) in evidence.source_inputs.iter().enumerate() {
             sqlx::query(
                 "INSERT INTO erpx_people_payroll_write.payroll_input_evidence_authority
-                 (tenant_id,payroll_run_id,input_ordinal,source_record_id,source_owner_context,
+                 (holding_id,payroll_run_id,input_ordinal,source_record_id,source_owner_context,
                   source_record_type,source_version,content_sha256,payroll_version)
-                 VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8)",
+                 VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8)",
             )
             .bind(value.id().as_uuid())
             .bind(i32::try_from(ordinal).map_err(|_| CqrsSqlxError::NumericRange)?)
@@ -987,12 +986,12 @@ async fn apply_derived_people_records(
                 .map_err(|_| CqrsSqlxError::InvalidInput("employment record is invalid"))?;
             sqlx::query(
                 "INSERT INTO erpx_people_payroll_write.employment_records
-                 (tenant_id,employment_id,employee_id,source_employee_version,tenant_scope,
+                 (holding_id,employment_id,employee_id,source_employee_version,active_scope,
                   scope_key,hired_on,terminated_on,employment_status,changed_at)
-                 VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9)
-                 ON CONFLICT (tenant_id,employment_id) DO UPDATE SET
+                 VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9)
+                 ON CONFLICT (holding_id,employment_id) DO UPDATE SET
                   source_employee_version=EXCLUDED.source_employee_version,
-                  tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,
+                  active_scope=EXCLUDED.active_scope,scope_key=EXCLUDED.scope_key,
                   terminated_on=EXCLUDED.terminated_on,employment_status=EXCLUDED.employment_status,
                   changed_at=EXCLUDED.changed_at
                  WHERE erpx_people_payroll_write.employment_records.source_employee_version+1
@@ -1018,11 +1017,11 @@ async fn apply_derived_people_records(
                     .ok_or(CqrsSqlxError::InvalidInput("payslip employee is missing"))?;
                 sqlx::query(
                     "INSERT INTO erpx_people_payroll_write.payslip_records
-                     (tenant_id,payslip_id,payroll_run_id,employee_id,source_payroll_version,
-                      tenant_scope,scope_key,period_code,starts_on,ends_on,currency,
+                     (holding_id,payslip_id,payroll_run_id,employee_id,source_payroll_version,
+                      active_scope,scope_key,period_code,starts_on,ends_on,currency,
                       gross_minor,deductions_minor,net_minor,payslip_status,changed_at)
-                     VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-                     ON CONFLICT (tenant_id,payslip_id) DO UPDATE SET
+                     VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+                     ON CONFLICT (holding_id,payslip_id) DO UPDATE SET
                       source_payroll_version=EXCLUDED.source_payroll_version,
                       gross_minor=EXCLUDED.gross_minor,deductions_minor=EXCLUDED.deductions_minor,
                       net_minor=EXCLUDED.net_minor,payslip_status=EXCLUDED.payslip_status,
@@ -1044,13 +1043,15 @@ async fn apply_derived_people_records(
     Ok(())
 }
 
-fn exact_scope_columns(scope: &TenantScope) -> Result<(Uuid, Uuid, Option<Uuid>), CqrsSqlxError> {
+fn exact_scope_columns(
+    scope: &AuthorityScope,
+) -> Result<(Uuid, Uuid, Option<Uuid>), CqrsSqlxError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok((*holding_id, *company_id, None)),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -1061,16 +1062,16 @@ fn exact_scope_columns(scope: &TenantScope) -> Result<(Uuid, Uuid, Option<Uuid>)
     }
 }
 
-fn exact_scope_from_row(row: &sqlx::postgres::PgRow) -> Result<TenantScope, PortError> {
+fn exact_scope_from_row(row: &sqlx::postgres::PgRow) -> Result<AuthorityScope, PortError> {
     let holding_id = row.try_get("holding_id").map_err(|_| PortError::Internal)?;
     let company_id = row.try_get("company_id").map_err(|_| PortError::Internal)?;
     let branch_id: Option<Uuid> = row.try_get("branch_id").map_err(|_| PortError::Internal)?;
     let scope = branch_id.map_or(
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },
-        |branch_id| TenantScope::Branch {
+        |branch_id| AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -1150,19 +1151,19 @@ async fn guard_version(
 ) -> Result<Option<i64>, CqrsSqlxError> {
     let (sql, id) = match aggregate {
         Aggregate::Employee(value) => (
-            "SELECT aggregate_version FROM erpx_people_payroll_write.employee_authority WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND employee_id=$1 FOR UPDATE",
+            "SELECT aggregate_version FROM erpx_people_payroll_write.employee_authority WHERE holding_id=erpx_cqrs_write.current_holding_id() AND employee_id=$1 FOR UPDATE",
             value.id().as_uuid(),
         ),
         Aggregate::LeaveRequest(value) => (
-            "SELECT aggregate_version FROM erpx_people_payroll_write.leave_request_authority WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND leave_request_id=$1 FOR UPDATE",
+            "SELECT aggregate_version FROM erpx_people_payroll_write.leave_request_authority WHERE holding_id=erpx_cqrs_write.current_holding_id() AND leave_request_id=$1 FOR UPDATE",
             value.id().as_uuid(),
         ),
         Aggregate::ExpenseClaim(value) => (
-            "SELECT aggregate_version FROM erpx_people_payroll_write.expense_claim_authority WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND expense_claim_id=$1 FOR UPDATE",
+            "SELECT aggregate_version FROM erpx_people_payroll_write.expense_claim_authority WHERE holding_id=erpx_cqrs_write.current_holding_id() AND expense_claim_id=$1 FOR UPDATE",
             value.id().as_uuid(),
         ),
         Aggregate::PayrollRun(value) => (
-            "SELECT aggregate_version FROM erpx_people_payroll_write.payroll_run_authority WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND payroll_run_id=$1 FOR UPDATE",
+            "SELECT aggregate_version FROM erpx_people_payroll_write.payroll_run_authority WHERE holding_id=erpx_cqrs_write.current_holding_id() AND payroll_run_id=$1 FOR UPDATE",
             value.id().as_uuid(),
         ),
     };
@@ -1175,9 +1176,9 @@ async fn guard_version(
 async fn ensure_employee(
     transaction: &mut Transaction<'_, Postgres>,
     employee_id: EmployeeId,
-    scope: &TenantScope,
+    scope: &AuthorityScope,
 ) -> Result<(), CqrsSqlxError> {
-    let row = sqlx::query("SELECT scope_key FROM erpx_people_payroll_write.employee_authority WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND employee_id=$1 FOR SHARE")
+    let row = sqlx::query("SELECT scope_key FROM erpx_people_payroll_write.employee_authority WHERE holding_id=erpx_cqrs_write.current_holding_id() AND employee_id=$1 FOR SHARE")
         .bind(employee_id.as_uuid()).fetch_optional(&mut **transaction).await?;
     let Some(row) = row else {
         return Err(CqrsSqlxError::GuardRejected("employee guard is missing"));
@@ -1299,13 +1300,13 @@ fn deterministic_uuid(seed: Uuid, label: &[u8]) -> Uuid {
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
     Uuid::from_bytes(bytes)
 }
-pub(crate) fn scope_key(scope: &TenantScope) -> Result<String, CqrsSqlxError> {
+pub(crate) fn scope_key(scope: &AuthorityScope) -> Result<String, CqrsSqlxError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok(format!("h:{holding_id}/c:{company_id}")),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,

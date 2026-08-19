@@ -10,7 +10,7 @@ use erpx_customer_authority::{
     CustomerAuthorityView, CustomerCode, CustomerId, CustomerList, CustomerListFilter, PortError,
     ReadProjection, ReadRepository,
 };
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -126,7 +126,7 @@ impl CustomerAuthorityReadRepository {
 impl ReadRepository for CustomerAuthorityReadRepository {
     async fn get(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         customer_id: CustomerId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<CustomerAuthorityView>>, PortError> {
@@ -184,7 +184,7 @@ impl ReadRepository for CustomerAuthorityReadRepository {
 
     async fn list(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &CustomerListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<CustomerList>, PortError> {
@@ -277,15 +277,15 @@ struct ScopeFilter {
 }
 
 impl ScopeFilter {
-    fn from_scope(scope: &TenantScope) -> Result<Self, PortError> {
+    fn from_scope(scope: &AuthorityScope) -> Result<Self, PortError> {
         scope.validate().map_err(|_| PortError::Denied)?;
         Ok(match scope {
-            TenantScope::Platform => Self {
+            AuthorityScope::Platform => Self {
                 platform: true,
                 exact: Vec::new(),
                 prefixes: Vec::new(),
             },
-            TenantScope::Holding { holding_id } => {
+            AuthorityScope::Holding { holding_id } => {
                 let holding = format!("h:{holding_id}");
                 Self {
                     platform: false,
@@ -293,7 +293,7 @@ impl ScopeFilter {
                     prefixes: vec![format!("{holding}/%")],
                 }
             }
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => {
@@ -305,7 +305,7 @@ impl ScopeFilter {
                     prefixes: vec![format!("{company}/%")],
                 }
             }
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -318,30 +318,16 @@ impl ScopeFilter {
                     prefixes: Vec::new(),
                 }
             }
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => {
                 let holding = format!("h:{holding_id}");
-                let mut exact = vec![holding];
-                if branch_ids.is_empty() {
-                    exact.extend(
-                        company_ids
-                            .iter()
-                            .map(|company| format!("h:{holding_id}/c:{company}")),
-                    );
-                } else {
-                    exact.extend(company_ids.iter().flat_map(|company| {
-                        branch_ids
-                            .iter()
-                            .map(move |branch| format!("h:{holding_id}/c:{company}/b:{branch}"))
-                    }));
-                }
+                let root = format!("h:{holding_id}/c:{organization_node_id}");
                 Self {
                     platform: false,
-                    exact,
-                    prefixes: Vec::new(),
+                    exact: vec![holding, root.clone()],
+                    prefixes: vec![format!("{root}/%")],
                 }
             }
         })
@@ -386,7 +372,7 @@ mod tests {
 
     #[test]
     fn branch_scope_includes_only_its_ancestors_and_exact_branch() {
-        let filter = ScopeFilter::from_scope(&TenantScope::Branch {
+        let filter = ScopeFilter::from_scope(&AuthorityScope::Branch {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
             branch_id: Uuid::from_u128(3),

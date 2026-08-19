@@ -4,4 +4,4 @@ Base tables in source snapshot: 72
 Source control-plane migration: db/migrations/2026-07-23-erpx-control-plane.sql
 Source Operations migration: db/migrations/2026-07-24-operations-command-center.sql
 Source setup behavior: db/setup.sh applies schema.sql, seed.sql, then dated migrations in sequence; it is not a SQLx migration runner.
-Source RLS declaration: no production tenant/control-plane RLS boundary exists in the source snapshot; the live database has RLS only on chat.messages and chat.sessions.
+Source RLS declaration: no production holding/control-plane RLS boundary exists in the source snapshot; the live database has RLS only on chat.messages and chat.sessions.

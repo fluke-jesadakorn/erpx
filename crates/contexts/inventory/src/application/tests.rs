@@ -29,8 +29,8 @@ fn id(value: u128) -> Uuid {
 fn at() -> chrono::DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap()
 }
-fn scope() -> TenantScope {
-    TenantScope::Company {
+fn scope() -> AuthorityScope {
+    AuthorityScope::Company {
         holding_id: id(1),
         company_id: id(2),
     }
@@ -38,7 +38,7 @@ fn scope() -> TenantScope {
 fn actor() -> ActorAttribution {
     ActorAttribution {
         principal_ref: "inventory-test".into(),
-        kind: ActorKind::TenantUser,
+        kind: ActorKind::HoldingUser,
         session_id: None,
         represented_principal_ref: None,
         support_capability_id: None,
@@ -89,7 +89,7 @@ fn command_envelope<C>(sequence: u128, expected: Option<u64>, command: C) -> Com
         correlation_id: CorrelationId::try_from_uuid(id(200 + sequence)).unwrap(),
         causation_id: None,
         actor: actor(),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "inventory.test".into(),
             customer_visible: false,
@@ -119,7 +119,7 @@ struct FakeEntitlement(bool);
 impl EntitlementPort for FakeEntitlement {
     async fn ensure_inventory_enabled(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _write: bool,
     ) -> Result<(), PortError> {
         if self.0 {
@@ -136,7 +136,7 @@ struct FakeWrite(Arc<Mutex<Option<StockItem>>>);
 impl WriteRepository for FakeWrite {
     async fn load(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _stock_item_id: StockItemId,
     ) -> Result<Option<StockItem>, PortError> {
         Ok(self.0.lock().unwrap().clone())
@@ -316,7 +316,7 @@ struct NotReadyRead(Arc<AtomicUsize>);
 impl ReadRepository for NotReadyRead {
     async fn get(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _stock_item_id: StockItemId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<StockItemView>>, PortError> {
@@ -333,7 +333,7 @@ impl ReadRepository for NotReadyRead {
     }
     async fn list(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _filter: &StockItemListFilter,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<StockItemList>, PortError> {
@@ -345,7 +345,7 @@ impl ReadRepository for NotReadyRead {
 impl ReservationReadRepository for NotReadyRead {
     async fn get_reservation(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _reservation_id: ReservationId,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<ReservationView>>, PortError> {
@@ -367,7 +367,7 @@ fn reservation_query_authorizes_before_reading_the_projection() {
         query_id: QueryId::try_from_uuid(id(302)).unwrap(),
         correlation_id: CorrelationId::try_from_uuid(id(303)).unwrap(),
         actor: actor(),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "inventory.test.reservation-query".into(),
             customer_visible: false,
@@ -397,7 +397,7 @@ fn read_your_writes_not_ready_never_falls_back_to_write_state() {
         query_id: QueryId::try_from_uuid(id(300)).unwrap(),
         correlation_id: CorrelationId::try_from_uuid(id(301)).unwrap(),
         actor: actor(),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "inventory.test.query".into(),
             customer_visible: false,

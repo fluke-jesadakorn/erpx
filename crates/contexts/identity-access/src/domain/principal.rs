@@ -1,5 +1,5 @@
 use chrono::{DateTime, Duration, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -163,7 +163,7 @@ impl RiskTier {
 pub struct RoleAssignment {
     id: RoleAssignmentId,
     role_id: RoleId,
-    scope: TenantScope,
+    scope: AuthorityScope,
     risk_tier: RiskTier,
     valid_from: DateTime<Utc>,
     valid_until: DateTime<Utc>,
@@ -178,7 +178,7 @@ pub struct RoleAssignment {
 pub struct RoleAssignmentState {
     pub id: RoleAssignmentId,
     pub role_id: RoleId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub risk_tier: RiskTier,
     pub valid_from: DateTime<Utc>,
     pub valid_until: DateTime<Utc>,
@@ -191,7 +191,7 @@ pub struct RoleAssignmentState {
 
 impl RoleAssignment {
     pub fn try_rehydrate(
-        principal_scope: &TenantScope,
+        principal_scope: &AuthorityScope,
         state: RoleAssignmentState,
     ) -> Result<Self, IdentityAccessDomainError> {
         let mut value = Self::new(
@@ -220,8 +220,8 @@ impl RoleAssignment {
     pub fn new(
         id: RoleAssignmentId,
         role_id: RoleId,
-        principal_scope: &TenantScope,
-        scope: TenantScope,
+        principal_scope: &AuthorityScope,
+        scope: AuthorityScope,
         risk_tier: RiskTier,
         valid_from: DateTime<Utc>,
         valid_until: DateTime<Utc>,
@@ -286,7 +286,7 @@ impl RoleAssignment {
         self.role_id
     }
 
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
 
@@ -327,7 +327,7 @@ impl RoleAssignment {
 pub struct AccessPrincipal {
     id: PrincipalId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     display_name: String,
     #[serde(default)]
     kind: PrincipalKind,
@@ -358,7 +358,7 @@ pub struct GroupMembershipState {
 pub struct AccessPrincipalState {
     pub id: PrincipalId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub display_name: String,
     pub kind: PrincipalKind,
     pub realm: PrincipalRealm,
@@ -443,7 +443,7 @@ impl AccessPrincipal {
 
     pub fn create(
         id: PrincipalId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         display_name: String,
         at: DateTime<Utc>,
     ) -> Result<Self, IdentityAccessDomainError> {
@@ -458,7 +458,7 @@ impl AccessPrincipal {
 
     pub fn create_human_in_realm(
         id: PrincipalId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         display_name: String,
         realm: PrincipalRealm,
         at: DateTime<Utc>,
@@ -476,7 +476,7 @@ impl AccessPrincipal {
 
     pub fn create_non_human(
         id: PrincipalId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         display_name: String,
         kind: PrincipalKind,
         governance: NonHumanPrincipalGovernance,
@@ -498,7 +498,7 @@ impl AccessPrincipal {
 
     fn create_governed(
         id: PrincipalId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         display_name: String,
         kind: PrincipalKind,
         realm: PrincipalRealm,
@@ -780,7 +780,7 @@ impl AccessPrincipal {
         self.version
     }
 
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
 
@@ -841,8 +841,8 @@ mod tests {
             .unwrap()
     }
 
-    fn scope() -> TenantScope {
-        TenantScope::Holding { holding_id: id(1) }
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Holding { holding_id: id(1) }
     }
 
     fn principal() -> AccessPrincipal {
@@ -868,7 +868,7 @@ mod tests {
             RoleAssignmentId::try_from_uuid(id(assignment_id)).unwrap(),
             RoleId::try_from_uuid(id(role_id)).unwrap(),
             &scope(),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id: id(1),
                 company_id: id(3),
             },
@@ -915,7 +915,7 @@ mod tests {
             RoleAssignmentId::try_from_uuid(id(10)).unwrap(),
             RoleId::try_from_uuid(id(20)).unwrap(),
             &scope(),
-            TenantScope::Holding { holding_id: id(99) },
+            AuthorityScope::Holding { holding_id: id(99) },
             RiskTier::Standard,
             at(9),
             at(10),

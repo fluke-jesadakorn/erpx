@@ -15,7 +15,7 @@ findings without changing Folio or runtime secrets.
 - Customer-scoped role renewal now requires customer scope binding, active
   subscription, module entitlement, billing permission, recursive role chain,
   and active SoD. Platform role renewal uses an explicit identity control-plane
-  policy with active role chain and SoD; it cannot accept tenant commercial
+  policy with active role chain and SoD; it cannot accept holding commercial
   claims.
 - Worker failures now emit bounded structured context containing worker/event/
   aggregate/correlation identifiers and a redacted message; the durable error

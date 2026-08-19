@@ -1,4 +1,4 @@
-# G6-PRV-008 — Platform Operations tenant registry read API
+# G6-PRV-008 — Platform Operations holding registry read API
 
 ## Scope
 
@@ -7,17 +7,17 @@ adapter. It is a bounded read slice and does not close the G6 gate.
 
 ## Delivered behavior
 
-- Added `PlatformOperationsService.ListTenants` to the Tonic/gRPC and
+- Added `PlatformOperationsService.ListHoldings` to the Tonic/gRPC and
   gRPC-Web contract.
-- Added deterministic keyset pagination over all tenant registry states with a
+- Added deterministic keyset pagination over all holding registry states with a
   default page size of 25 and a hard maximum of 100.
 - Added a server-side registry page query and safe readiness summary mapping
   for routing, projection, backup/PITR, and storage state.
 - Requires an authenticated active session, platform query scope, and the
-  authoritative `platform.tenant.read` role permission.
+  authoritative `platform.holding.read` role permission.
 - Records a platform audit event containing actor, purpose, action, and
   correlation ID.
-- Exposes only opaque tenant ID, registry state/version, and readiness state
+- Exposes only opaque holding ID, registry state/version, and readiness state
   labels. Database keys, storage namespaces, credential references, backup
   references, and SQL errors never enter the protobuf response.
 
@@ -43,14 +43,14 @@ plane. Pagination is bounded and deterministic. Readiness is fail-closed at
 the underlying metadata layer and is represented as a state label only.
 
 The console currently renders the route surface in explicit not-connected and
-read-only states; it does not yet consume this RPC. Tenant detail,
+read-only states; it does not yet consume this RPC. Holding detail,
 projection-rebuild, backup/restore, integrations, audit, settings, and
 provisioning commands still require separate authoritative contracts and
-authorization. This packet does not expose tenant credentials or claim live
+authorization. This packet does not expose holding credentials or claim live
 external backup/storage operations.
 
 ## Rollback
 
 Remove the additive protobuf method, registry page export, and server service
 registration after stopping ERPX clients that may reference the method. No
-tenant data, Folio state, or command ownership changed.
+holding data, Folio state, or command ownership changed.

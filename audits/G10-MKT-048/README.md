@@ -2,7 +2,7 @@
 
 ## Scope
 
-This packet adds the tenant-write execution cursor and the explicit worker
+This packet adds the holding-write execution cursor and the explicit worker
 resume seam for Marketing Journeys. A version-zero cursor seed is persisted
 without an outbox event; every execution fact advances to a positive version
 and atomically persists the cursor, generic snapshot, complete shared event
@@ -17,15 +17,15 @@ versioned boundary.
 
 The worker binary exposes this only as an explicit handler with
 `ERPX_WORKER_HANDLER=marketing_journey_execution`,
-`ERPX_MARKETING_JOURNEY_TENANT_ID`, and
-`ERPX_MARKETING_JOURNEY_HOLDING_REF`. The default decision source advances
+`ERPX_MARKETING_JOURNEY_HOLDING_ID`, and
+`ERPX_MARKETING_JOURNEY_DATA_PROFILE_KEY`. The default decision source advances
 linear and wait nodes only and dead-letters branches until a permission-aware
 decision provider is supplied. It performs no channel, CRM, or n8n side
 effects.
 
 ## Changed paths
 
-- `crates/migration/migrations_tenant_write/0045_marketing_journey_execution.sql`
+- `crates/migration/migrations_holding_write/0045_marketing_journey_execution.sql`
 - `crates/infrastructure/src/marketing_journey_execution_persistence.rs`
 - `crates/infrastructure/src/lib.rs`
 - `crates/infrastructure/tests/marketing_journey_execution_persistence.rs`

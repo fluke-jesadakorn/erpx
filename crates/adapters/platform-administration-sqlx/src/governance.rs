@@ -10,7 +10,7 @@ use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, ItemDescriptorDraft,
     RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
 };
-use erpx_kernel::{DataClassification, RecordId, TenantScope};
+use erpx_kernel::{AuthorityScope, DataClassification, RecordId};
 use erpx_platform_administration::{
     GovernanceReadProjection, PlatformGovernanceRecord, PlatformGovernanceRecordCommand,
     PlatformGovernanceRecordCommandIdentity, PlatformGovernanceRecordCommit,
@@ -79,7 +79,7 @@ impl Default for PlatformGovernanceRecordProjector {
 impl PlatformGovernanceRecordWriteRepository for PlatformGovernanceRecordSqlxAdapter {
     async fn load_platform_governance_record(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         record_id: Uuid,
     ) -> Result<Option<PlatformGovernanceRecord>, PortError> {
         authority_scope.validate().map_err(|_| PortError::Denied)?;
@@ -225,7 +225,7 @@ impl Projector for PlatformGovernanceRecordProjector {
 impl PlatformGovernanceRecordReadRepository for PlatformGovernanceRecordReadAdapter {
     async fn get_platform_governance_record(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         record_id: Uuid,
         consistency: &QueryConsistency,
     ) -> Result<GovernanceReadProjection<Option<PlatformGovernanceRecord>>, PortError> {
@@ -441,7 +441,7 @@ async fn append_event(
     sqlx::query(
         "INSERT INTO erpx_cqrs_write.outbox_events
             (event_id,context_name,partition_key,command_id,event_type,event_version,
-             aggregate_type,aggregate_id,aggregate_version,tenant_scope,actor,correlation_id,
+             aggregate_type,aggregate_id,aggregate_version,active_scope,actor,correlation_id,
              causation_id,payload,occurred_at,available_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NULL,$13,$14,now())",
     )
@@ -610,7 +610,7 @@ fn validate_event(
     if record.id() != event.aggregate_id.as_uuid()
         || record.version() != event.aggregate_version
         || record.kind().record_type() != event.aggregate_type
-        || record.scope() != &event.tenant_scope
+        || record.scope() != &event.active_scope
         || event.partition != governance_partition(record.id())
     {
         return Err(ProjectionFailure::new(

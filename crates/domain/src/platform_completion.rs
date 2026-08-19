@@ -1,6 +1,6 @@
 //! Platform control-plane completion contracts for G3--G6.
 //!
-//! The control plane owns tenant lifecycle, connector binding, backup
+//! The control plane owns holding lifecycle, connector binding, backup
 //! coordination, and replacement-read state.  This module contains the
 //! invariants that must be true before a SQLx adapter is allowed to mutate
 //! those records.  It deliberately consumes an authorization proof from the
@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::access::Scope;
+use crate::contracts::AuthorityScope;
 
 pub const PLATFORM_COMPLETION_CONTRACT_VERSION: u16 = 1;
 pub const PLATFORM_MAX_REFERENCE_BYTES: usize = 200;
@@ -54,7 +54,7 @@ pub enum PlatformCompletionError {
     MfaRequired,
     #[error("break-glass fallback must be local-only, expiring, and explicitly approved")]
     InvalidBreakGlass,
-    #[error("tenant lifecycle transition {from} -> {to} is not allowed")]
+    #[error("holding lifecycle transition {from} -> {to} is not allowed")]
     InvalidLifecycleTransition { from: String, to: String },
     #[error("PITR is unavailable until a WAL/recovery-point contract exists")]
     PitrUnavailable,
@@ -103,7 +103,7 @@ fn identifier(value: Uuid, field: &'static str) -> Result<(), PlatformCompletion
 pub struct PlatformAuthorizationProof {
     pub principal_ref: String,
     pub permission: String,
-    pub scope: Scope,
+    pub scope: AuthorityScope,
     pub valid_from: DateTime<Utc>,
     pub valid_until: DateTime<Utc>,
     pub mfa_verified: bool,
@@ -115,7 +115,7 @@ impl PlatformAuthorizationProof {
     pub fn validate(
         &self,
         actor_ref: &str,
-        requested_scope: &Scope,
+        requested_scope: &AuthorityScope,
         required_permission: &'static str,
         high_risk: bool,
         at: DateTime<Utc>,
@@ -172,7 +172,7 @@ impl PlatformAuthorizationProof {
                 "authorization.break_glass_ticket_ref",
                 PLATFORM_MAX_REFERENCE_BYTES,
             )?;
-            if !self.mfa_verified || !matches!(self.scope, Scope::Platform) {
+            if !self.mfa_verified || !matches!(self.scope, AuthorityScope::Platform) {
                 return Err(PlatformCompletionError::InvalidBreakGlass);
             }
         } else if self.break_glass_ticket_ref.is_some() {
@@ -183,49 +183,49 @@ impl PlatformAuthorizationProof {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TenantBinding {
-    pub tenant_id: String,
-    pub holding_ref: String,
+pub struct HoldingBinding {
+    pub holding_id: String,
+    pub data_profile_key: String,
 }
 
-impl TenantBinding {
+impl HoldingBinding {
     pub fn new(
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PlatformCompletionError> {
         let binding = Self {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
         };
         bounded(
-            &binding.tenant_id,
-            "tenant_id",
+            &binding.holding_id,
+            "holding_id",
             PLATFORM_MAX_REFERENCE_BYTES,
         )?;
         bounded(
-            &binding.holding_ref,
-            "holding_ref",
+            &binding.data_profile_key,
+            "data_profile_key",
             PLATFORM_MAX_REFERENCE_BYTES,
         )?;
         Ok(binding)
     }
 
-    pub fn scope(&self) -> Scope {
+    pub fn scope(&self) -> AuthorityScope {
         // Control-plane bindings carry opaque holding references rather than
         // the UUID-shaped IDs used by the shared authorization scope.  Use a
         // stable, domain-separated projection so a holding-scoped proof can
         // authorize this binding without changing the persisted contract or
-        // treating every tenant mutation as platform-wide.
-        Scope::Holding {
-            holding_id: stable_holding_scope_id(&self.holding_ref),
+        // treating every holding mutation as platform-wide.
+        AuthorityScope::Holding {
+            holding_id: stable_holding_scope_id(&self.data_profile_key),
         }
     }
 
     fn validate(&self) -> Result<(), PlatformCompletionError> {
-        bounded(&self.tenant_id, "tenant_id", PLATFORM_MAX_REFERENCE_BYTES)?;
+        bounded(&self.holding_id, "holding_id", PLATFORM_MAX_REFERENCE_BYTES)?;
         bounded(
-            &self.holding_ref,
-            "holding_ref",
+            &self.data_profile_key,
+            "data_profile_key",
             PLATFORM_MAX_REFERENCE_BYTES,
         )
     }
@@ -233,14 +233,14 @@ impl TenantBinding {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum TenantLifecycleState {
+pub enum HoldingLifecycleState {
     Provisioning,
     Active,
     Suspended,
     Recovery,
 }
 
-impl TenantLifecycleState {
+impl HoldingLifecycleState {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Provisioning => "provisioning",
@@ -251,7 +251,7 @@ impl TenantLifecycleState {
     }
 }
 
-impl std::str::FromStr for TenantLifecycleState {
+impl std::str::FromStr for HoldingLifecycleState {
     type Err = PlatformCompletionError;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
@@ -261,7 +261,7 @@ impl std::str::FromStr for TenantLifecycleState {
             "suspended" => Ok(Self::Suspended),
             "recovery" => Ok(Self::Recovery),
             _ => Err(PlatformCompletionError::InvalidField {
-                field: "tenant_lifecycle_state",
+                field: "holding_lifecycle_state",
             }),
         }
     }
@@ -269,54 +269,56 @@ impl std::str::FromStr for TenantLifecycleState {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum TenantLifecycleAction {
+pub enum HoldingLifecycleAction {
     Activate,
     Suspend,
     EnterRecovery,
 }
 
-impl TenantLifecycleAction {
-    pub const fn target(self) -> TenantLifecycleState {
+impl HoldingLifecycleAction {
+    pub const fn target(self) -> HoldingLifecycleState {
         match self {
-            Self::Activate => TenantLifecycleState::Active,
-            Self::Suspend => TenantLifecycleState::Suspended,
-            Self::EnterRecovery => TenantLifecycleState::Recovery,
+            Self::Activate => HoldingLifecycleState::Active,
+            Self::Suspend => HoldingLifecycleState::Suspended,
+            Self::EnterRecovery => HoldingLifecycleState::Recovery,
         }
     }
 
     pub const fn permission(self) -> &'static str {
         match self {
-            Self::Activate => "platform.tenant.provision",
-            Self::Suspend => "platform.tenant.suspend",
-            Self::EnterRecovery => "platform.tenant.recovery",
+            Self::Activate => "platform.holding.provision",
+            Self::Suspend => "platform.holding.suspend",
+            Self::EnterRecovery => "platform.holding.recovery",
         }
     }
 }
 
 pub fn validate_lifecycle_transition(
-    current: TenantLifecycleState,
-    action: TenantLifecycleAction,
-) -> Result<TenantLifecycleState, PlatformCompletionError> {
+    current: HoldingLifecycleState,
+    action: HoldingLifecycleAction,
+) -> Result<HoldingLifecycleState, PlatformCompletionError> {
     let target = action.target();
     let allowed = matches!(
         (current, target),
         (
-            TenantLifecycleState::Provisioning,
-            TenantLifecycleState::Active
-        ) | (TenantLifecycleState::Recovery, TenantLifecycleState::Active)
-            | (
-                TenantLifecycleState::Suspended,
-                TenantLifecycleState::Active
-            )
-            | (
-                TenantLifecycleState::Active,
-                TenantLifecycleState::Suspended
-            )
-            | (TenantLifecycleState::Active, TenantLifecycleState::Recovery)
-            | (
-                TenantLifecycleState::Suspended,
-                TenantLifecycleState::Recovery
-            )
+            HoldingLifecycleState::Provisioning,
+            HoldingLifecycleState::Active
+        ) | (
+            HoldingLifecycleState::Recovery,
+            HoldingLifecycleState::Active
+        ) | (
+            HoldingLifecycleState::Suspended,
+            HoldingLifecycleState::Active
+        ) | (
+            HoldingLifecycleState::Active,
+            HoldingLifecycleState::Suspended
+        ) | (
+            HoldingLifecycleState::Active,
+            HoldingLifecycleState::Recovery
+        ) | (
+            HoldingLifecycleState::Suspended,
+            HoldingLifecycleState::Recovery
+        )
     );
     if allowed {
         Ok(target)
@@ -329,9 +331,9 @@ pub fn validate_lifecycle_transition(
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TenantLifecycleCommand {
-    pub binding: TenantBinding,
-    pub action: TenantLifecycleAction,
+pub struct HoldingLifecycleCommand {
+    pub binding: HoldingBinding,
+    pub action: HoldingLifecycleAction,
     pub actor_ref: String,
     pub correlation_id: Uuid,
     pub idempotency_key: String,
@@ -339,7 +341,7 @@ pub struct TenantLifecycleCommand {
     pub at: DateTime<Utc>,
 }
 
-impl TenantLifecycleCommand {
+impl HoldingLifecycleCommand {
     pub fn validate(
         &self,
         proof: &PlatformAuthorizationProof,
@@ -443,7 +445,7 @@ impl PlatformBackupKind {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BackupControlCommand {
-    pub binding: TenantBinding,
+    pub binding: HoldingBinding,
     pub kind: PlatformBackupKind,
     pub backup_ref: String,
     pub restore_target_ref: Option<String>,
@@ -525,7 +527,7 @@ impl BackupControlCommand {
         proof.validate(
             &self.actor_ref,
             &self.binding.scope(),
-            "platform.tenant.backup",
+            "platform.holding.backup",
             true,
             self.at,
         )
@@ -554,7 +556,7 @@ impl ReplacementReadState {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReplacementReadCommand {
-    pub binding: TenantBinding,
+    pub binding: HoldingBinding,
     pub projection_name: String,
     pub candidate_read_database_key: String,
     pub source_version: u64,
@@ -669,7 +671,7 @@ impl ReconciliationState {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlatformReconciliationReport {
     pub report_id: Uuid,
-    pub binding: TenantBinding,
+    pub binding: HoldingBinding,
     pub observed_at: DateTime<Utc>,
     pub state: ReconciliationState,
     pub registry_state: String,
@@ -686,11 +688,14 @@ pub struct PlatformReconciliationReport {
 impl PlatformReconciliationReport {
     pub fn validate(&self) -> Result<(), PlatformCompletionError> {
         identifier(self.report_id, "report_id")?;
-        if self.registry_state.parse::<TenantLifecycleState>().is_err()
+        if self
+            .registry_state
+            .parse::<HoldingLifecycleState>()
+            .is_err()
             || (self.provisioning_state != "missing"
                 && self
                     .provisioning_state
-                    .parse::<TenantLifecycleState>()
+                    .parse::<HoldingLifecycleState>()
                     .is_err())
         {
             return Err(PlatformCompletionError::InvalidField {
@@ -723,7 +728,7 @@ impl PlatformReconciliationReport {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReconciliationCommand {
-    pub binding: TenantBinding,
+    pub binding: HoldingBinding,
     pub actor_ref: String,
     pub correlation_id: Uuid,
     pub idempotency_key: String,
@@ -746,7 +751,7 @@ impl ReconciliationCommand {
         proof.validate(
             &self.actor_ref,
             &self.binding.scope(),
-            "platform.tenant.reconcile",
+            "platform.holding.reconcile",
             true,
             self.at,
         )
@@ -780,27 +785,27 @@ impl PlatformConnectorKind {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PlatformConnectorScope {
     Platform,
-    Holding(TenantBinding),
+    Holding(HoldingBinding),
 }
 
 impl PlatformConnectorScope {
     pub fn validate(&self) -> Result<(), PlatformCompletionError> {
         if let Self::Holding(binding) = self {
             bounded(
-                &binding.tenant_id,
-                "connector.tenant_id",
+                &binding.holding_id,
+                "connector.holding_id",
                 PLATFORM_MAX_REFERENCE_BYTES,
             )?;
             bounded(
-                &binding.holding_ref,
-                "connector.holding_ref",
+                &binding.data_profile_key,
+                "connector.data_profile_key",
                 PLATFORM_MAX_REFERENCE_BYTES,
             )?;
         }
         Ok(())
     }
 
-    pub fn binding(&self) -> Option<&TenantBinding> {
+    pub fn binding(&self) -> Option<&HoldingBinding> {
         match self {
             Self::Platform => None,
             Self::Holding(binding) => Some(binding),
@@ -949,7 +954,7 @@ impl ConnectorControlCommand {
             .control
             .scope
             .binding()
-            .map_or(Scope::Platform, TenantBinding::scope);
+            .map_or(AuthorityScope::Platform, HoldingBinding::scope);
         proof.validate(
             &self.actor_ref,
             &requested_scope,
@@ -969,8 +974,8 @@ pub fn stable_platform_aggregate_id(kind: &str, key: &str) -> Uuid {
 /// the shared authorization contract.  The namespace keeps this projection
 /// distinct from platform aggregate IDs and makes the mapping deterministic
 /// across API, worker, and persistence boundaries.
-pub fn stable_holding_scope_id(holding_ref: &str) -> Uuid {
-    stable_platform_aggregate_id("holding-scope", holding_ref)
+pub fn stable_holding_scope_id(data_profile_key: &str) -> Uuid {
+    stable_platform_aggregate_id("holding-scope", data_profile_key)
 }
 
 #[cfg(test)]
@@ -981,7 +986,7 @@ mod tests {
         PlatformAuthorizationProof {
             principal_ref: "platform-admin".into(),
             permission: permission.into(),
-            scope: Scope::Platform,
+            scope: AuthorityScope::Platform,
             valid_from: at - Duration::minutes(1),
             valid_until: at + Duration::minutes(4),
             mfa_verified: true,
@@ -994,24 +999,24 @@ mod tests {
     fn lifecycle_rules_are_closed_and_recovery_is_explicit() {
         assert_eq!(
             validate_lifecycle_transition(
-                TenantLifecycleState::Provisioning,
-                TenantLifecycleAction::Activate,
+                HoldingLifecycleState::Provisioning,
+                HoldingLifecycleAction::Activate,
             )
             .expect("activation"),
-            TenantLifecycleState::Active
+            HoldingLifecycleState::Active
         );
         assert_eq!(
             validate_lifecycle_transition(
-                TenantLifecycleState::Suspended,
-                TenantLifecycleAction::EnterRecovery,
+                HoldingLifecycleState::Suspended,
+                HoldingLifecycleAction::EnterRecovery,
             )
             .expect("recovery"),
-            TenantLifecycleState::Recovery
+            HoldingLifecycleState::Recovery
         );
         assert!(
             validate_lifecycle_transition(
-                TenantLifecycleState::Provisioning,
-                TenantLifecycleAction::Suspend,
+                HoldingLifecycleState::Provisioning,
+                HoldingLifecycleAction::Suspend,
             )
             .is_err()
         );
@@ -1020,8 +1025,8 @@ mod tests {
     #[test]
     fn high_risk_platform_command_requires_mfa_and_local_break_glass_is_bounded() {
         let at = Utc::now();
-        let binding = TenantBinding::new("tenant-a", "holding-a").expect("binding");
-        let mut no_mfa = proof("platform.tenant.reconcile", at);
+        let binding = HoldingBinding::new("holding-a", "holding-a").expect("binding");
+        let mut no_mfa = proof("platform.holding.reconcile", at);
         no_mfa.mfa_verified = false;
         let command = ReconciliationCommand {
             binding: binding.clone(),
@@ -1038,16 +1043,16 @@ mod tests {
         break_glass.local_break_glass = true;
         break_glass.break_glass_ticket_ref = Some("incident-1".into());
         assert!(command.validate(&break_glass).is_ok());
-        break_glass.permission = "platform.tenant.reconcile".into();
+        break_glass.permission = "platform.holding.reconcile".into();
         assert_eq!(
             command.validate(&break_glass),
             Err(PlatformCompletionError::PermissionDenied {
                 required: "platform.break_glass",
-                actual: "platform.tenant.reconcile".into(),
+                actual: "platform.holding.reconcile".into(),
             })
         );
         break_glass.permission = "platform.break_glass".into();
-        break_glass.scope = Scope::Holding {
+        break_glass.scope = AuthorityScope::Holding {
             holding_id: Uuid::new_v4(),
         };
         assert_eq!(
@@ -1059,7 +1064,7 @@ mod tests {
     #[test]
     fn authorization_proof_window_is_bounded_by_clock_skew_policy() {
         let at = Utc::now();
-        let binding = TenantBinding::new("tenant-a", "holding-a").expect("binding");
+        let binding = HoldingBinding::new("holding-a", "holding-a").expect("binding");
         let command = ReconciliationCommand {
             binding,
             actor_ref: "platform-admin".into(),
@@ -1067,7 +1072,7 @@ mod tests {
             idempotency_key: "reconcile-window".into(),
             at,
         };
-        let mut proof = proof("platform.tenant.reconcile", at);
+        let mut proof = proof("platform.holding.reconcile", at);
         proof.valid_until = at + PLATFORM_AUTHORIZATION_MAX_CLOCK_SKEW + Duration::seconds(1);
         assert_eq!(
             command.validate(&proof),
@@ -1076,9 +1081,9 @@ mod tests {
     }
 
     #[test]
-    fn tenant_pitr_is_unavailable_and_recovery_points_remain_strictly_validated() {
+    fn holding_pitr_is_unavailable_and_recovery_points_remain_strictly_validated() {
         let at = Utc::now();
-        let binding = TenantBinding::new("tenant-a", "holding-a").expect("binding");
+        let binding = HoldingBinding::new("holding-a", "holding-a").expect("binding");
         let pitr = BackupControlCommand {
             binding: binding.clone(),
             kind: PlatformBackupKind::Pitr,
@@ -1096,7 +1101,7 @@ mod tests {
             at,
         };
         assert_eq!(
-            pitr.validate(&proof("platform.tenant.backup", at)),
+            pitr.validate(&proof("platform.holding.backup", at)),
             Err(PlatformCompletionError::PitrUnavailable)
         );
         let mut valid_pitr = pitr.clone();
@@ -1115,7 +1120,7 @@ mod tests {
                 .is_ok()
         );
         assert_eq!(
-            valid_pitr.validate(&proof("platform.tenant.backup", at)),
+            valid_pitr.validate(&proof("platform.holding.backup", at)),
             Err(PlatformCompletionError::PitrUnavailable)
         );
         let mut invalid_lsn = valid_pitr.clone();
@@ -1141,7 +1146,7 @@ mod tests {
         restore.candidate_read_database_key = None;
         restore.source_version = Some(1);
         assert_eq!(
-            restore.validate(&proof("platform.tenant.backup", at)),
+            restore.validate(&proof("platform.holding.backup", at)),
             Err(PlatformCompletionError::InvalidBackupShape)
         );
     }
@@ -1249,16 +1254,16 @@ mod tests {
     }
 
     #[test]
-    fn tenant_binding_scope_is_stable_and_holding_bounded() {
-        let first = TenantBinding::new("tenant-a", "holding-a").expect("binding");
-        let same_holding = TenantBinding::new("tenant-b", "holding-a").expect("binding");
-        let other = TenantBinding::new("tenant-a", "holding-b").expect("binding");
+    fn holding_binding_scope_is_stable_and_holding_bounded() {
+        let first = HoldingBinding::new("holding-a", "holding-a").expect("binding");
+        let same_holding = HoldingBinding::new("holding-b", "holding-a").expect("binding");
+        let other = HoldingBinding::new("holding-a", "holding-b").expect("binding");
 
         assert_eq!(first.scope(), same_holding.scope());
         assert_ne!(first.scope(), other.scope());
         assert_eq!(
             first.scope(),
-            Scope::Holding {
+            AuthorityScope::Holding {
                 holding_id: stable_holding_scope_id("holding-a"),
             }
         );
@@ -1267,7 +1272,7 @@ mod tests {
     #[test]
     fn holding_connector_requires_matching_holding_scope() {
         let at = Utc::now();
-        let binding = TenantBinding::new("tenant-a", "holding-a").expect("binding");
+        let binding = HoldingBinding::new("holding-a", "holding-a").expect("binding");
         let control = ConnectorControl {
             connector_id: Uuid::new_v4(),
             kind: PlatformConnectorKind::GenericLdap,
@@ -1296,7 +1301,7 @@ mod tests {
         assert!(command.validate(&matching).is_ok());
 
         let mut wrong_holding = matching;
-        wrong_holding.scope = Scope::Holding {
+        wrong_holding.scope = AuthorityScope::Holding {
             holding_id: stable_holding_scope_id("holding-b"),
         };
         assert_eq!(
@@ -1307,7 +1312,7 @@ mod tests {
 
     #[test]
     fn reconciliation_report_state_is_bound_to_drift_evidence_and_binding() {
-        let binding = TenantBinding::new("tenant-a", "holding-a").unwrap();
+        let binding = HoldingBinding::new("holding-a", "holding-a").unwrap();
         let mut report = PlatformReconciliationReport {
             report_id: Uuid::from_u128(900),
             binding: binding.clone(),
@@ -1338,13 +1343,15 @@ mod tests {
             report.validate(),
             Err(PlatformCompletionError::InvalidReconciliationState)
         );
-        report.binding = TenantBinding {
-            tenant_id: String::new(),
-            holding_ref: binding.holding_ref,
+        report.binding = HoldingBinding {
+            holding_id: String::new(),
+            data_profile_key: binding.data_profile_key,
         };
         assert_eq!(
             report.validate(),
-            Err(PlatformCompletionError::EmptyField { field: "tenant_id" })
+            Err(PlatformCompletionError::EmptyField {
+                field: "holding_id"
+            })
         );
     }
 }

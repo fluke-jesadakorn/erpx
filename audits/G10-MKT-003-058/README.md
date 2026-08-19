@@ -1,14 +1,14 @@
-# G10-MKT-003-058 — Marketing tenant read projector runner
+# G10-MKT-003-058 — Marketing holding read projector runner
 
 ## Delivered behavior
 
 `apps/worker/src/marketing_projection.rs` defines the standalone worker seam
 for the Marketing disposable read model:
 
-- Bounded tenant/holding requests with a maximum page size of 500.
+- Bounded holding/holding requests with a maximum page size of 500.
 - Stable source cursor containing aggregate type, aggregate ID, and aggregate
   version.
-- Tenant write/read routing through `TenantDatabaseRouter`.
+- Holding write/read routing through `HoldingDatabaseRouter`.
 - One-page projection, bounded catch-up, and clear/replay rebuild operations.
 - Idempotent source-event application delegated to the persistence adapter;
   the worker counts only applications reported as new.
@@ -18,10 +18,10 @@ for the Marketing disposable read model:
   only as redacted worker errors.
 - Both routed database handles are explicitly closed after every normal result
   path; a failed read-route closes the already-open write handle immediately.
-- Pure tests cover request bounds, tenant/holding validation, cursor validity,
+- Pure tests cover request bounds, holding/holding validation, cursor validity,
   and error redaction.
 
-The worker deliberately does not choose tenant credentials, database URLs, or
+The worker deliberately does not choose holding credentials, database URLs, or
 write-side business tables.
 
 ## Files changed
@@ -96,9 +96,9 @@ The main agent must complete these dependency steps:
 
 ## Security concerns
 
-- Routing is performed from the tenant and holding request only; the module
+- Routing is performed from the holding and holding request only; the module
   never accepts raw connection strings or credentials.
-- Holding and tenant references reject control characters and path/database
+- Holding and holding references reject control characters and path/database
   separator characters and are length-bounded.
 - Every adapter operation receives both routed pools and the holding reference;
   the adapter remains responsible for installing the scoped database setting

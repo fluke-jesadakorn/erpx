@@ -43,29 +43,23 @@ pub const REVENUE_SCHEDULE_SNAPSHOT_EVENT: &str = "finance.revenue_schedule_snap
 pub const EVENT_VERSION: u32 = 1;
 
 #[cfg(test)]
-pub const WRITE_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_write/0062_wave8_dependent_context_guards.sql"
-);
+pub const WRITE_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 #[cfg(test)]
-pub const READ_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0054_wave8_dependent_context_projections.sql"
-);
+pub const READ_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 #[cfg(test)]
-pub const CUSTOMER_INVOICE_WRITE_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_write/0065_finance_customer_invoice_guards.sql"
-);
+pub const CUSTOMER_INVOICE_WRITE_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 #[cfg(test)]
-pub const CUSTOMER_INVOICE_READ_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0057_finance_customer_invoice_projection.sql"
-);
+pub const CUSTOMER_INVOICE_READ_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 #[cfg(test)]
-pub const REVENUE_SCHEDULE_WRITE_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_write/0066_finance_revenue_schedule_guards.sql"
-);
+pub const REVENUE_SCHEDULE_WRITE_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 #[cfg(test)]
-pub const REVENUE_SCHEDULE_READ_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0058_finance_revenue_schedule_projection.sql"
-);
+pub const REVENUE_SCHEDULE_READ_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 
 macro_rules! partition {
     ($name:ident, $prefix:literal, $id:ty) => {

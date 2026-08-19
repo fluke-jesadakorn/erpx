@@ -1,11 +1,11 @@
-//! Typed, rebuildable tenant-read projection for the authoritative Finance
-//! Chart of Accounts aggregate. Source events are read only from the tenant
-//! write outbox; normalized rows are written only to the tenant read pool.
+//! Typed, rebuildable holding-read projection for the authoritative Finance
+//! Chart of Accounts aggregate. Source events are read only from the holding
+//! write outbox; normalized rows are written only to the holding read pool.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, Utc};
-use erpx_domain::contracts::{ActorKind, CONTRACT_VERSION, EventEnvelope, TenantScope};
+use erpx_domain::contracts::{ActorKind, AuthorityScope, CONTRACT_VERSION, EventEnvelope};
 use erpx_domain::finance_chart::{
     AccountCategory, AccountStatus, FinanceAccount, MAX_FINANCE_ACCOUNT_CODE_BYTES,
     MAX_FINANCE_ACCOUNT_NAME_BYTES, MAX_FINANCE_CHART_ACCOUNTS, MAX_FINANCE_CHART_NAME_BYTES,
@@ -54,7 +54,7 @@ pub struct FinanceChartProjectionApplication {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinanceChartProjectionRebuildPreparation {
-    pub holding_ref: String,
+    pub data_profile_key: String,
     pub rows_cleared: u64,
     pub checkpoints_cleared: u64,
     pub receipts_cleared: u64,
@@ -123,26 +123,26 @@ pub struct FinanceChartReadPage {
 pub struct SqlxFinanceChartProjectionStore {
     write_pool: PgPool,
     read_pool: PgPool,
-    holding_ref: String,
+    data_profile_key: String,
 }
 
 impl SqlxFinanceChartProjectionStore {
     pub fn from_pools(
         write_pool: &PgPool,
         read_pool: &PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_holding_ref(&holding_ref)?;
+        let data_profile_key = data_profile_key.into();
+        validate_data_profile_key(&data_profile_key)?;
         Ok(Self {
             write_pool: write_pool.clone(),
             read_pool: read_pool.clone(),
-            holding_ref,
+            data_profile_key,
         })
     }
 
-    pub fn holding_ref(&self) -> &str {
-        &self.holding_ref
+    pub fn data_profile_key(&self) -> &str {
+        &self.data_profile_key
     }
 
     pub async fn read_source_event_page(
@@ -161,13 +161,13 @@ impl SqlxFinanceChartProjectionStore {
             }
         }
         let limit = i64::from(page_size) + 1;
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
         let rows = if let Some(cursor) = cursor {
-            sqlx::query("SELECT event_id,event_type,aggregate_type,aggregate_id,aggregate_version,occurred_at,contract_version,event_version,tenant_scope,actor,correlation_id,causation_id,idempotency_key,payload FROM erpx_tenant.outbox_events WHERE holding_ref=$1 AND aggregate_type=$2 AND (aggregate_id>$3 OR (aggregate_id=$3 AND aggregate_version>$4)) ORDER BY aggregate_id,aggregate_version LIMIT $5")
-                .bind(&self.holding_ref).bind(FINANCE_CHART_AGGREGATE).bind(cursor.aggregate_id).bind(as_i64(cursor.aggregate_version, "Finance chart source cursor version")?).bind(limit).fetch_all(&mut *tx).await?
+            sqlx::query("SELECT event_id,event_type,aggregate_type,aggregate_id,aggregate_version,occurred_at,contract_version,event_version,active_scope,actor,correlation_id,causation_id,idempotency_key,payload FROM erpx_holding.outbox_events WHERE data_profile_key=$1 AND aggregate_type=$2 AND (aggregate_id>$3 OR (aggregate_id=$3 AND aggregate_version>$4)) ORDER BY aggregate_id,aggregate_version LIMIT $5")
+                .bind(&self.data_profile_key).bind(FINANCE_CHART_AGGREGATE).bind(cursor.aggregate_id).bind(as_i64(cursor.aggregate_version, "Finance chart source cursor version")?).bind(limit).fetch_all(&mut *tx).await?
         } else {
-            sqlx::query("SELECT event_id,event_type,aggregate_type,aggregate_id,aggregate_version,occurred_at,contract_version,event_version,tenant_scope,actor,correlation_id,causation_id,idempotency_key,payload FROM erpx_tenant.outbox_events WHERE holding_ref=$1 AND aggregate_type=$2 ORDER BY aggregate_id,aggregate_version LIMIT $3")
-                .bind(&self.holding_ref).bind(FINANCE_CHART_AGGREGATE).bind(limit).fetch_all(&mut *tx).await?
+            sqlx::query("SELECT event_id,event_type,aggregate_type,aggregate_id,aggregate_version,occurred_at,contract_version,event_version,active_scope,actor,correlation_id,causation_id,idempotency_key,payload FROM erpx_holding.outbox_events WHERE data_profile_key=$1 AND aggregate_type=$2 ORDER BY aggregate_id,aggregate_version LIMIT $3")
+                .bind(&self.data_profile_key).bind(FINANCE_CHART_AGGREGATE).bind(limit).fetch_all(&mut *tx).await?
         };
         tx.commit().await?;
         let length = usize::try_from(page_size)
@@ -179,7 +179,7 @@ impl SqlxFinanceChartProjectionStore {
             .map(decode_source_event)
             .collect::<Result<Vec<_>, _>>()?;
         for event in &events {
-            validate_source_event(event, &self.holding_ref)?;
+            validate_source_event(event, &self.data_profile_key)?;
         }
         let next_cursor =
             has_more
@@ -197,8 +197,8 @@ impl SqlxFinanceChartProjectionStore {
     }
 
     pub async fn source_event_high_watermark(&self) -> Result<u64, PersistenceError> {
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
-        let count = chart_source_event_count(&mut tx, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
+        let count = chart_source_event_count(&mut tx, &self.data_profile_key).await?;
         tx.commit().await?;
         Ok(count)
     }
@@ -207,9 +207,10 @@ impl SqlxFinanceChartProjectionStore {
         &self,
         event: &FinanceChartSourceEvent,
     ) -> Result<FinanceChartProjectionApplication, PersistenceError> {
-        validate_source_event(event, &self.holding_ref)?;
-        verify_authoritative_chart_source_event(&self.write_pool, &self.holding_ref, event).await?;
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        validate_source_event(event, &self.data_profile_key)?;
+        verify_authoritative_chart_source_event(&self.write_pool, &self.data_profile_key, event)
+            .await?;
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let result = self.project_event_in_transaction(&mut tx, event).await?;
         tx.commit().await?;
         Ok(result)
@@ -220,13 +221,13 @@ impl SqlxFinanceChartProjectionStore {
         tx: &mut Transaction<'_, Postgres>,
         event: &FinanceChartSourceEvent,
     ) -> Result<FinanceChartProjectionApplication, PersistenceError> {
-        if let Some(existing) = sqlx::query("SELECT aggregate_id,aggregate_version,event_type,source_contract_version,source_event_version,source_actor_ref,source_actor_kind,source_correlation_id,source_causation_id,source_idempotency_key FROM erpx_tenant.finance_chart_projection_event_receipts WHERE holding_ref=$1 AND projection_name=$2 AND event_id=$3 FOR UPDATE")
-            .bind(&self.holding_ref).bind(FINANCE_CHART_PROJECTION_NAME).bind(event.envelope.event_id).fetch_optional(&mut **tx).await? {
+        if let Some(existing) = sqlx::query("SELECT aggregate_id,aggregate_version,event_type,source_contract_version,source_event_version,source_actor_ref,source_actor_kind,source_correlation_id,source_causation_id,source_idempotency_key FROM erpx_holding.finance_chart_projection_event_receipts WHERE data_profile_key=$1 AND projection_name=$2 AND event_id=$3 FOR UPDATE")
+            .bind(&self.data_profile_key).bind(FINANCE_CHART_PROJECTION_NAME).bind(event.envelope.event_id).fetch_optional(&mut **tx).await? {
             validate_receipt(&existing, event)?;
             return Ok(FinanceChartProjectionApplication { event_id: event.envelope.event_id, aggregate_id: event.envelope.aggregate_id, aggregate_version: event.envelope.aggregate_version, applied: false });
         }
-        let current = sqlx::query("SELECT source_version FROM erpx_tenant.finance_chart_projection_checkpoints WHERE holding_ref=$1 AND projection_name=$2 AND aggregate_id=$3 FOR UPDATE")
-            .bind(&self.holding_ref).bind(FINANCE_CHART_PROJECTION_NAME).bind(event.envelope.aggregate_id).fetch_optional(&mut **tx).await?;
+        let current = sqlx::query("SELECT source_version FROM erpx_holding.finance_chart_projection_checkpoints WHERE data_profile_key=$1 AND projection_name=$2 AND aggregate_id=$3 FOR UPDATE")
+            .bind(&self.data_profile_key).bind(FINANCE_CHART_PROJECTION_NAME).bind(event.envelope.aggregate_id).fetch_optional(&mut **tx).await?;
         let current_version = current
             .map(|row| {
                 as_u64(
@@ -248,19 +249,19 @@ impl SqlxFinanceChartProjectionStore {
             )));
         }
 
-        sqlx::query("INSERT INTO erpx_tenant.finance_chart_projection_event_receipts (holding_ref,projection_name,event_id,aggregate_type,aggregate_id,aggregate_version,event_type,source_contract_version,source_event_version,source_actor_ref,source_actor_kind,source_correlation_id,source_causation_id,source_idempotency_key) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)")
-            .bind(&self.holding_ref).bind(FINANCE_CHART_PROJECTION_NAME).bind(event.envelope.event_id).bind(FINANCE_CHART_AGGREGATE).bind(event.envelope.aggregate_id).bind(as_i64(event.envelope.aggregate_version, "Finance chart source version")?).bind(FINANCE_CHART_SAVED_EVENT).bind(i32::from(event.envelope.contract_version)).bind(i32::from(event.envelope.event_version)).bind(&event.envelope.actor.principal_ref).bind(actor_kind_name(&event.envelope.actor.kind)).bind(event.envelope.correlation_id).bind(event.envelope.causation_id).bind(event.envelope.idempotency_key.as_deref().unwrap_or_default()).execute(&mut **tx).await?;
+        sqlx::query("INSERT INTO erpx_holding.finance_chart_projection_event_receipts (data_profile_key,projection_name,event_id,aggregate_type,aggregate_id,aggregate_version,event_type,source_contract_version,source_event_version,source_actor_ref,source_actor_kind,source_correlation_id,source_causation_id,source_idempotency_key) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)")
+            .bind(&self.data_profile_key).bind(FINANCE_CHART_PROJECTION_NAME).bind(event.envelope.event_id).bind(FINANCE_CHART_AGGREGATE).bind(event.envelope.aggregate_id).bind(as_i64(event.envelope.aggregate_version, "Finance chart source version")?).bind(FINANCE_CHART_SAVED_EVENT).bind(i32::from(event.envelope.contract_version)).bind(i32::from(event.envelope.event_version)).bind(&event.envelope.actor.principal_ref).bind(actor_kind_name(&event.envelope.actor.kind)).bind(event.envelope.correlation_id).bind(event.envelope.causation_id).bind(event.envelope.idempotency_key.as_deref().unwrap_or_default()).execute(&mut **tx).await?;
         let source = &event.envelope;
         let chart = &event.payload;
-        sqlx::query("INSERT INTO erpx_tenant.finance_chart_read_rows (holding_ref,chart_id,holding_id,company_id,chart_name,source_version,source_event_id,source_contract_version,source_event_version,source_actor_ref,source_actor_kind,source_correlation_id,source_causation_id,source_idempotency_key) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ON CONFLICT (holding_ref,chart_id) DO UPDATE SET holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,chart_name=EXCLUDED.chart_name,source_version=EXCLUDED.source_version,source_event_id=EXCLUDED.source_event_id,source_contract_version=EXCLUDED.source_contract_version,source_event_version=EXCLUDED.source_event_version,source_actor_ref=EXCLUDED.source_actor_ref,source_actor_kind=EXCLUDED.source_actor_kind,source_correlation_id=EXCLUDED.source_correlation_id,source_causation_id=EXCLUDED.source_causation_id,source_idempotency_key=EXCLUDED.source_idempotency_key,projected_at=now()")
-            .bind(&self.holding_ref).bind(chart.chart_id).bind(chart.holding_id).bind(chart.company_id).bind(&chart.name).bind(as_i64(source.aggregate_version, "Finance chart source version")?).bind(source.event_id).bind(i32::from(source.contract_version)).bind(i32::from(source.event_version)).bind(&source.actor.principal_ref).bind(actor_kind_name(&source.actor.kind)).bind(source.correlation_id).bind(source.causation_id).bind(source.idempotency_key.as_deref().unwrap_or_default()).execute(&mut **tx).await?;
-        sqlx::query("DELETE FROM erpx_tenant.finance_chart_account_read_rows WHERE holding_ref=$1 AND chart_id=$2").bind(&self.holding_ref).bind(chart.chart_id).execute(&mut **tx).await?;
+        sqlx::query("INSERT INTO erpx_holding.finance_chart_read_rows (data_profile_key,chart_id,holding_id,company_id,chart_name,source_version,source_event_id,source_contract_version,source_event_version,source_actor_ref,source_actor_kind,source_correlation_id,source_causation_id,source_idempotency_key) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ON CONFLICT (data_profile_key,chart_id) DO UPDATE SET holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,chart_name=EXCLUDED.chart_name,source_version=EXCLUDED.source_version,source_event_id=EXCLUDED.source_event_id,source_contract_version=EXCLUDED.source_contract_version,source_event_version=EXCLUDED.source_event_version,source_actor_ref=EXCLUDED.source_actor_ref,source_actor_kind=EXCLUDED.source_actor_kind,source_correlation_id=EXCLUDED.source_correlation_id,source_causation_id=EXCLUDED.source_causation_id,source_idempotency_key=EXCLUDED.source_idempotency_key,projected_at=now()")
+            .bind(&self.data_profile_key).bind(chart.chart_id).bind(chart.holding_id).bind(chart.company_id).bind(&chart.name).bind(as_i64(source.aggregate_version, "Finance chart source version")?).bind(source.event_id).bind(i32::from(source.contract_version)).bind(i32::from(source.event_version)).bind(&source.actor.principal_ref).bind(actor_kind_name(&source.actor.kind)).bind(source.correlation_id).bind(source.causation_id).bind(source.idempotency_key.as_deref().unwrap_or_default()).execute(&mut **tx).await?;
+        sqlx::query("DELETE FROM erpx_holding.finance_chart_account_read_rows WHERE data_profile_key=$1 AND chart_id=$2").bind(&self.data_profile_key).bind(chart.chart_id).execute(&mut **tx).await?;
         for account in &chart.accounts {
-            sqlx::query("INSERT INTO erpx_tenant.finance_chart_account_read_rows (holding_ref,chart_id,holding_id,company_id,account_id,code,account_name,category,normal_balance,parent_account_id,status,source_version,source_event_id,source_contract_version,source_event_version,source_actor_ref,source_actor_kind,source_correlation_id,source_causation_id,source_idempotency_key) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)")
-                .bind(&self.holding_ref).bind(chart.chart_id).bind(chart.holding_id).bind(chart.company_id).bind(account.id).bind(&account.code).bind(&account.name).bind(category_name(account.category)).bind(normal_balance_name(account.normal_balance)).bind(account.parent_id).bind(status_name(account.status)).bind(as_i64(source.aggregate_version, "Finance chart source version")?).bind(source.event_id).bind(i32::from(source.contract_version)).bind(i32::from(source.event_version)).bind(&source.actor.principal_ref).bind(actor_kind_name(&source.actor.kind)).bind(source.correlation_id).bind(source.causation_id).bind(source.idempotency_key.as_deref().unwrap_or_default()).execute(&mut **tx).await?;
+            sqlx::query("INSERT INTO erpx_holding.finance_chart_account_read_rows (data_profile_key,chart_id,holding_id,company_id,account_id,code,account_name,category,normal_balance,parent_account_id,status,source_version,source_event_id,source_contract_version,source_event_version,source_actor_ref,source_actor_kind,source_correlation_id,source_causation_id,source_idempotency_key) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)")
+                .bind(&self.data_profile_key).bind(chart.chart_id).bind(chart.holding_id).bind(chart.company_id).bind(account.id).bind(&account.code).bind(&account.name).bind(category_name(account.category)).bind(normal_balance_name(account.normal_balance)).bind(account.parent_id).bind(status_name(account.status)).bind(as_i64(source.aggregate_version, "Finance chart source version")?).bind(source.event_id).bind(i32::from(source.contract_version)).bind(i32::from(source.event_version)).bind(&source.actor.principal_ref).bind(actor_kind_name(&source.actor.kind)).bind(source.correlation_id).bind(source.causation_id).bind(source.idempotency_key.as_deref().unwrap_or_default()).execute(&mut **tx).await?;
         }
-        sqlx::query("INSERT INTO erpx_tenant.finance_chart_projection_checkpoints (holding_ref,projection_name,aggregate_type,aggregate_id,holding_id,company_id,last_event_id,source_version) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (holding_ref,projection_name,aggregate_id) DO UPDATE SET holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,last_event_id=EXCLUDED.last_event_id,source_version=EXCLUDED.source_version,projected_at=now()")
-            .bind(&self.holding_ref).bind(FINANCE_CHART_PROJECTION_NAME).bind(FINANCE_CHART_AGGREGATE).bind(chart.chart_id).bind(chart.holding_id).bind(chart.company_id).bind(source.event_id).bind(as_i64(source.aggregate_version, "Finance chart source version")?).execute(&mut **tx).await?;
+        sqlx::query("INSERT INTO erpx_holding.finance_chart_projection_checkpoints (data_profile_key,projection_name,aggregate_type,aggregate_id,holding_id,company_id,last_event_id,source_version) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (data_profile_key,projection_name,aggregate_id) DO UPDATE SET holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,last_event_id=EXCLUDED.last_event_id,source_version=EXCLUDED.source_version,projected_at=now()")
+            .bind(&self.data_profile_key).bind(FINANCE_CHART_PROJECTION_NAME).bind(FINANCE_CHART_AGGREGATE).bind(chart.chart_id).bind(chart.holding_id).bind(chart.company_id).bind(source.event_id).bind(as_i64(source.aggregate_version, "Finance chart source version")?).execute(&mut **tx).await?;
         Ok(FinanceChartProjectionApplication {
             event_id: source.event_id,
             aggregate_id: source.aggregate_id,
@@ -272,30 +273,31 @@ impl SqlxFinanceChartProjectionStore {
     pub async fn clear_projection(
         &self,
     ) -> Result<FinanceChartProjectionRebuildPreparation, PersistenceError> {
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
-        let rows_cleared =
-            sqlx::query("DELETE FROM erpx_tenant.finance_chart_read_rows WHERE holding_ref=$1")
-                .bind(&self.holding_ref)
-                .execute(&mut *tx)
-                .await?
-                .rows_affected();
-        let checkpoints_cleared = sqlx::query(
-            "DELETE FROM erpx_tenant.finance_chart_projection_checkpoints WHERE holding_ref=$1",
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
+        let rows_cleared = sqlx::query(
+            "DELETE FROM erpx_holding.finance_chart_read_rows WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+        let checkpoints_cleared = sqlx::query(
+            "DELETE FROM erpx_holding.finance_chart_projection_checkpoints WHERE data_profile_key=$1",
+        )
+        .bind(&self.data_profile_key)
         .execute(&mut *tx)
         .await?
         .rows_affected();
         let receipts_cleared = sqlx::query(
-            "DELETE FROM erpx_tenant.finance_chart_projection_event_receipts WHERE holding_ref=$1",
+            "DELETE FROM erpx_holding.finance_chart_projection_event_receipts WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .execute(&mut *tx)
         .await?
         .rows_affected();
         tx.commit().await?;
         Ok(FinanceChartProjectionRebuildPreparation {
-            holding_ref: self.holding_ref.clone(),
+            data_profile_key: self.data_profile_key.clone(),
             rows_cleared,
             checkpoints_cleared,
             receipts_cleared,
@@ -313,41 +315,42 @@ impl SqlxFinanceChartProjectionStore {
         page_size: u32,
     ) -> Result<(FinanceChartProjectionRebuildPreparation, u64), PersistenceError> {
         validate_page_size(page_size)?;
-        let mut source_tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
-        sqlx::query("LOCK TABLE erpx_tenant.outbox_events IN SHARE MODE")
+        let mut source_tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
+        sqlx::query("LOCK TABLE erpx_holding.outbox_events IN SHARE MODE")
             .execute(&mut *source_tx)
             .await?;
         let actual_source_version =
-            chart_source_event_count(&mut source_tx, &self.holding_ref).await?;
+            chart_source_event_count(&mut source_tx, &self.data_profile_key).await?;
         if expected_source_version.is_some_and(|expected| expected != actual_source_version) {
             return Err(invalid(
                 "Finance chart source fence changed before replacement rebuild",
             ));
         }
 
-        let mut read_tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
-        let rows_cleared =
-            sqlx::query("DELETE FROM erpx_tenant.finance_chart_read_rows WHERE holding_ref=$1")
-                .bind(&self.holding_ref)
-                .execute(&mut *read_tx)
-                .await?
-                .rows_affected();
-        let checkpoints_cleared = sqlx::query(
-            "DELETE FROM erpx_tenant.finance_chart_projection_checkpoints WHERE holding_ref=$1",
+        let mut read_tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
+        let rows_cleared = sqlx::query(
+            "DELETE FROM erpx_holding.finance_chart_read_rows WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
+        .execute(&mut *read_tx)
+        .await?
+        .rows_affected();
+        let checkpoints_cleared = sqlx::query(
+            "DELETE FROM erpx_holding.finance_chart_projection_checkpoints WHERE data_profile_key=$1",
+        )
+        .bind(&self.data_profile_key)
         .execute(&mut *read_tx)
         .await?
         .rows_affected();
         let receipts_cleared = sqlx::query(
-            "DELETE FROM erpx_tenant.finance_chart_projection_event_receipts WHERE holding_ref=$1",
+            "DELETE FROM erpx_holding.finance_chart_projection_event_receipts WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .execute(&mut *read_tx)
         .await?
         .rows_affected();
         let preparation = FinanceChartProjectionRebuildPreparation {
-            holding_ref: self.holding_ref.clone(),
+            data_profile_key: self.data_profile_key.clone(),
             rows_cleared,
             checkpoints_cleared,
             receipts_cleared,
@@ -358,7 +361,7 @@ impl SqlxFinanceChartProjectionStore {
         loop {
             let page = read_chart_source_event_page_in_transaction(
                 &mut source_tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 cursor.as_ref(),
                 page_size,
             )
@@ -381,7 +384,7 @@ impl SqlxFinanceChartProjectionStore {
             }
         }
         let final_source_version =
-            chart_source_event_count(&mut source_tx, &self.holding_ref).await?;
+            chart_source_event_count(&mut source_tx, &self.data_profile_key).await?;
         if final_source_version != actual_source_version {
             return Err(invalid(
                 "Finance chart source fence changed during replacement rebuild",
@@ -395,7 +398,7 @@ impl SqlxFinanceChartProjectionStore {
     pub fn read_store(&self) -> SqlxFinanceChartReadStore {
         SqlxFinanceChartReadStore {
             read_pool: self.read_pool.clone(),
-            holding_ref: self.holding_ref.clone(),
+            data_profile_key: self.data_profile_key.clone(),
         }
     }
 }
@@ -403,19 +406,19 @@ impl SqlxFinanceChartProjectionStore {
 #[derive(Debug, Clone)]
 pub struct SqlxFinanceChartReadStore {
     read_pool: PgPool,
-    holding_ref: String,
+    data_profile_key: String,
 }
 
 impl SqlxFinanceChartReadStore {
     pub fn new(
         read_pool: PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_holding_ref(&holding_ref)?;
+        let data_profile_key = data_profile_key.into();
+        validate_data_profile_key(&data_profile_key)?;
         Ok(Self {
             read_pool,
-            holding_ref,
+            data_profile_key,
         })
     }
 
@@ -431,16 +434,16 @@ impl SqlxFinanceChartReadStore {
             return Err(invalid("Finance chart read cursor is invalid"));
         }
         let limit = i64::from(page_size) + 1;
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
-        let rows = sqlx::query("SELECT chart_id,holding_id,company_id,chart_name,source_version,source_event_id,source_contract_version,source_event_version,source_actor_ref,source_actor_kind,source_correlation_id,source_causation_id,source_idempotency_key,projected_at FROM erpx_tenant.finance_chart_read_rows WHERE holding_ref=$1 AND holding_id=$2 AND company_id=$3 AND ($4::UUID IS NULL OR chart_id>$4) ORDER BY chart_id LIMIT $5")
-            .bind(&self.holding_ref).bind(scope.holding_id).bind(scope.company_id).bind(cursor.map(|value| value.chart_id)).bind(limit).fetch_all(&mut *tx).await?;
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
+        let rows = sqlx::query("SELECT chart_id,holding_id,company_id,chart_name,source_version,source_event_id,source_contract_version,source_event_version,source_actor_ref,source_actor_kind,source_correlation_id,source_causation_id,source_idempotency_key,projected_at FROM erpx_holding.finance_chart_read_rows WHERE data_profile_key=$1 AND holding_id=$2 AND company_id=$3 AND ($4::UUID IS NULL OR chart_id>$4) ORDER BY chart_id LIMIT $5")
+            .bind(&self.data_profile_key).bind(scope.holding_id).bind(scope.company_id).bind(cursor.map(|value| value.chart_id)).bind(limit).fetch_all(&mut *tx).await?;
         let length = page_size as usize;
         let has_more = rows.len() > length;
         let mut result = Vec::with_capacity(length.min(rows.len()));
         for row in rows.into_iter().take(length) {
             let chart_id: Uuid = row.try_get("chart_id")?;
-            let accounts = sqlx::query("SELECT account_id,holding_id,company_id,code,account_name,category,normal_balance,parent_account_id,status,source_version,source_event_id,source_contract_version,source_event_version,source_actor_ref,source_actor_kind,source_correlation_id,source_causation_id,source_idempotency_key,projected_at FROM erpx_tenant.finance_chart_account_read_rows WHERE holding_ref=$1 AND chart_id=$2 AND holding_id=$3 AND company_id=$4 ORDER BY code,account_id")
-                .bind(&self.holding_ref).bind(chart_id).bind(scope.holding_id).bind(scope.company_id).fetch_all(&mut *tx).await?;
+            let accounts = sqlx::query("SELECT account_id,holding_id,company_id,code,account_name,category,normal_balance,parent_account_id,status,source_version,source_event_id,source_contract_version,source_event_version,source_actor_ref,source_actor_kind,source_correlation_id,source_causation_id,source_idempotency_key,projected_at FROM erpx_holding.finance_chart_account_read_rows WHERE data_profile_key=$1 AND chart_id=$2 AND holding_id=$3 AND company_id=$4 ORDER BY code,account_id")
+                .bind(&self.data_profile_key).bind(chart_id).bind(scope.holding_id).bind(scope.company_id).fetch_all(&mut *tx).await?;
             if accounts.len() > MAX_FINANCE_CHART_ACCOUNTS {
                 return Err(invalid("Finance chart read account limit exceeded"));
             }
@@ -480,14 +483,14 @@ impl SqlxFinanceChartReadStore {
 
 async fn chart_source_event_count(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<u64, PersistenceError> {
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*)
-           FROM erpx_tenant.outbox_events
-          WHERE holding_ref=$1 AND aggregate_type=$2",
+           FROM erpx_holding.outbox_events
+          WHERE data_profile_key=$1 AND aggregate_type=$2",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(FINANCE_CHART_AGGREGATE)
     .fetch_one(&mut **tx)
     .await?;
@@ -496,7 +499,7 @@ async fn chart_source_event_count(
 
 async fn read_chart_source_event_page_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     cursor: Option<&FinanceChartSourceEventCursor>,
     page_size: u32,
 ) -> Result<FinanceChartSourceEventPage, PersistenceError> {
@@ -510,8 +513,8 @@ async fn read_chart_source_event_page_in_transaction(
         if cursor.aggregate_version == 0 {
             return Err(invalid("Finance chart source cursor version is invalid"));
         }
-        sqlx::query("SELECT event_id,event_type,aggregate_type,aggregate_id,aggregate_version,occurred_at,contract_version,event_version,tenant_scope,actor,correlation_id,causation_id,idempotency_key,payload FROM erpx_tenant.outbox_events WHERE holding_ref=$1 AND aggregate_type=$2 AND (aggregate_id>$3 OR (aggregate_id=$3 AND aggregate_version>$4)) ORDER BY aggregate_id,aggregate_version LIMIT $5")
-            .bind(holding_ref)
+        sqlx::query("SELECT event_id,event_type,aggregate_type,aggregate_id,aggregate_version,occurred_at,contract_version,event_version,active_scope,actor,correlation_id,causation_id,idempotency_key,payload FROM erpx_holding.outbox_events WHERE data_profile_key=$1 AND aggregate_type=$2 AND (aggregate_id>$3 OR (aggregate_id=$3 AND aggregate_version>$4)) ORDER BY aggregate_id,aggregate_version LIMIT $5")
+            .bind(data_profile_key)
             .bind(FINANCE_CHART_AGGREGATE)
             .bind(cursor.aggregate_id)
             .bind(as_i64(cursor.aggregate_version, "Finance chart source cursor version")?)
@@ -519,8 +522,8 @@ async fn read_chart_source_event_page_in_transaction(
             .fetch_all(&mut **tx)
             .await?
     } else {
-        sqlx::query("SELECT event_id,event_type,aggregate_type,aggregate_id,aggregate_version,occurred_at,contract_version,event_version,tenant_scope,actor,correlation_id,causation_id,idempotency_key,payload FROM erpx_tenant.outbox_events WHERE holding_ref=$1 AND aggregate_type=$2 ORDER BY aggregate_id,aggregate_version LIMIT $3")
-            .bind(holding_ref)
+        sqlx::query("SELECT event_id,event_type,aggregate_type,aggregate_id,aggregate_version,occurred_at,contract_version,event_version,active_scope,actor,correlation_id,causation_id,idempotency_key,payload FROM erpx_holding.outbox_events WHERE data_profile_key=$1 AND aggregate_type=$2 ORDER BY aggregate_id,aggregate_version LIMIT $3")
+            .bind(data_profile_key)
             .bind(FINANCE_CHART_AGGREGATE)
             .bind(limit)
             .fetch_all(&mut **tx)
@@ -535,7 +538,7 @@ async fn read_chart_source_event_page_in_transaction(
         .map(decode_source_event)
         .collect::<Result<Vec<_>, _>>()?;
     for event in &events {
-        validate_source_event(event, holding_ref)?;
+        validate_source_event(event, data_profile_key)?;
     }
     let next_cursor = if has_more {
         events.last().map(|event| FinanceChartSourceEventCursor {
@@ -576,7 +579,7 @@ fn decode_source_event(
             row.try_get("aggregate_version")?,
             "Finance chart source version",
         )?,
-        tenant_scope: serde_json::from_value(row.try_get::<Value, _>("tenant_scope")?)?,
+        active_scope: serde_json::from_value(row.try_get::<Value, _>("active_scope")?)?,
         actor: serde_json::from_value(row.try_get::<Value, _>("actor")?)?,
         correlation_id: row.try_get("correlation_id")?,
         causation_id: row.try_get("causation_id")?,
@@ -591,7 +594,7 @@ fn decode_source_event(
 struct FinanceChartAuthoritativeEnvelopeMetadata {
     contract_version: Option<i32>,
     event_version: Option<i32>,
-    tenant_scope: Option<Value>,
+    active_scope: Option<Value>,
     actor: Option<Value>,
     correlation_id: Option<Uuid>,
     causation_id: Option<Uuid>,
@@ -604,19 +607,19 @@ struct FinanceChartAuthoritativeEnvelopeMetadata {
 /// the envelope metadata copied into read-model provenance columns.
 async fn verify_authoritative_chart_source_event(
     write_pool: &PgPool,
-    holding_ref: &str,
+    data_profile_key: &str,
     event: &FinanceChartSourceEvent,
 ) -> Result<(), PersistenceError> {
-    let mut tx = begin_scoped(write_pool, holding_ref).await?;
+    let mut tx = begin_scoped(write_pool, data_profile_key).await?;
     let row = sqlx::query(
         "SELECT event_type, aggregate_type, aggregate_id, aggregate_version,
-                payload, contract_version, event_version, tenant_scope, actor,
+                payload, contract_version, event_version, active_scope, actor,
                 correlation_id, causation_id, idempotency_key, occurred_at
-           FROM erpx_tenant.outbox_events
-          WHERE event_id=$1 AND holding_ref=$2",
+           FROM erpx_holding.outbox_events
+          WHERE event_id=$1 AND data_profile_key=$2",
     )
     .bind(event.envelope.event_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_optional(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -637,7 +640,7 @@ async fn verify_authoritative_chart_source_event(
     let source = FinanceChartAuthoritativeEnvelopeMetadata {
         contract_version: row.try_get("contract_version")?,
         event_version: row.try_get("event_version")?,
-        tenant_scope: row.try_get("tenant_scope")?,
+        active_scope: row.try_get("active_scope")?,
         actor: row.try_get("actor")?,
         correlation_id: row.try_get("correlation_id")?,
         causation_id: row.try_get("causation_id")?,
@@ -661,11 +664,11 @@ fn validate_authoritative_envelope_metadata(
     envelope: &EventEnvelope,
     source: &FinanceChartAuthoritativeEnvelopeMetadata,
 ) -> Result<(), PersistenceError> {
-    let tenant_scope = serde_json::to_value(&envelope.tenant_scope)?;
+    let active_scope = serde_json::to_value(&envelope.active_scope)?;
     let actor = serde_json::to_value(&envelope.actor)?;
     if source.contract_version != Some(i32::from(envelope.contract_version))
         || source.event_version != Some(i32::from(envelope.event_version))
-        || source.tenant_scope.as_ref() != Some(&tenant_scope)
+        || source.active_scope.as_ref() != Some(&active_scope)
         || source.actor.as_ref() != Some(&actor)
         || source.correlation_id != Some(envelope.correlation_id)
         || source.causation_id != envelope.causation_id
@@ -681,7 +684,7 @@ fn validate_authoritative_envelope_metadata(
 
 fn validate_source_event(
     event: &FinanceChartSourceEvent,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<(), PersistenceError> {
     let envelope = &event.envelope;
     let chart = &event.payload;
@@ -720,11 +723,11 @@ fn validate_source_event(
             "Finance chart source payload identity or size is invalid",
         ));
     }
-    let expected = TenantScope::Company {
+    let expected = AuthorityScope::Company {
         holding_id: chart.holding_id,
         company_id: chart.company_id,
     };
-    if !envelope.tenant_scope.contains(&expected) || holding_ref.trim().is_empty() {
+    if !envelope.active_scope.contains(&expected) || data_profile_key.trim().is_empty() {
         return Err(invalid("Finance chart source scope is invalid"));
     }
     validate_accounts(&chart.accounts)
@@ -863,7 +866,7 @@ fn status_name(value: AccountStatus) -> &'static str {
 fn actor_kind_name(value: &ActorKind) -> &'static str {
     match value {
         ActorKind::PlatformUser => "platform_user",
-        ActorKind::TenantUser => "tenant_user",
+        ActorKind::HoldingUser => "holding_user",
         ActorKind::Service => "service",
         ActorKind::SystemWorker => "system_worker",
     }
@@ -886,7 +889,7 @@ fn validate_read_page_size(value: u32) -> Result<(), PersistenceError> {
         Ok(())
     }
 }
-fn validate_holding_ref(value: &str) -> Result<(), PersistenceError> {
+fn validate_data_profile_key(value: &str) -> Result<(), PersistenceError> {
     if value.trim().is_empty() || value.len() > 255 || value.chars().any(char::is_control) {
         Err(PersistenceError::Configuration(
             "holding reference must be bounded and non-empty",
@@ -922,7 +925,7 @@ fn invalid(message: impl Into<String>) -> PersistenceError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use erpx_domain::contracts::{ActorAttribution, ActorKind, TenantScope};
+    use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope};
 
     fn envelope() -> EventEnvelope {
         let holding_id = Uuid::new_v4();
@@ -936,13 +939,13 @@ mod tests {
             aggregate_type: FINANCE_CHART_AGGREGATE.into(),
             aggregate_id: Uuid::new_v4(),
             aggregate_version: 1,
-            tenant_scope: TenantScope::Company {
+            active_scope: AuthorityScope::Company {
                 holding_id,
                 company_id,
             },
             actor: ActorAttribution {
                 principal_ref: "finance-chart-projector-test".into(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: None,
                 represented_principal_ref: None,
                 support_capability_id: None,
@@ -958,7 +961,7 @@ mod tests {
         FinanceChartAuthoritativeEnvelopeMetadata {
             contract_version: Some(i32::from(envelope.contract_version)),
             event_version: Some(i32::from(envelope.event_version)),
-            tenant_scope: Some(serde_json::to_value(&envelope.tenant_scope).expect("scope")),
+            active_scope: Some(serde_json::to_value(&envelope.active_scope).expect("scope")),
             actor: Some(serde_json::to_value(&envelope.actor).expect("actor")),
             correlation_id: Some(envelope.correlation_id),
             causation_id: envelope.causation_id,
@@ -976,7 +979,7 @@ mod tests {
         let mut forged_actor = source.clone();
         forged_actor.actor = Some(serde_json::json!({
             "principal_ref": "forged-projector",
-            "kind": "TenantUser",
+            "kind": "HoldingUser",
             "session_id": null,
             "represented_principal_ref": null,
             "support_capability_id": null

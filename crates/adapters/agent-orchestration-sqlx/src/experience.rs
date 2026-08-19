@@ -10,7 +10,7 @@ use erpx_agent_orchestration::{
     SessionContext, SessionMessage, SessionMessageId,
 };
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, DataClassification, RecordId, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, DataClassification, RecordId,
 };
 use serde::Serialize;
 use serde_json::json;
@@ -18,33 +18,33 @@ use sha2::{Digest, Sha256};
 use sqlx::{Postgres, Row, Transaction};
 use uuid::Uuid;
 
-use crate::{normalized, tenant::TenantBoundPool};
+use crate::{holding::HoldingBoundPool, normalized};
 
-/// Tenant-bound authoritative pool/session/provenance store. Every operation
+/// Holding-bound authoritative pool/session/provenance store. Every operation
 /// starts through the verified RLS-binding transaction boundary.
 #[derive(Debug, Clone)]
 pub struct SqlxAgentExperienceStore {
-    database: TenantBoundPool,
+    database: HoldingBoundPool,
 }
 
-/// Tenant-bound CQRS query adapter over disposable projections only.
+/// Holding-bound CQRS query adapter over disposable projections only.
 #[derive(Debug, Clone)]
 pub struct SqlxAgentExperienceQuery {
-    database: TenantBoundPool,
+    database: HoldingBoundPool,
 }
 
 impl SqlxAgentExperienceStore {
-    pub fn try_new(pool: sqlx::PgPool, tenant_id: Uuid) -> Result<Self, PortError> {
+    pub fn try_new(pool: sqlx::PgPool, holding_id: Uuid) -> Result<Self, PortError> {
         Ok(Self {
-            database: TenantBoundPool::try_new(pool, tenant_id)?,
+            database: HoldingBoundPool::try_new(pool, holding_id)?,
         })
     }
 }
 
 impl SqlxAgentExperienceQuery {
-    pub fn try_new(pool: sqlx::PgPool, tenant_id: Uuid) -> Result<Self, PortError> {
+    pub fn try_new(pool: sqlx::PgPool, holding_id: Uuid) -> Result<Self, PortError> {
         Ok(Self {
-            database: TenantBoundPool::try_new(pool, tenant_id)?,
+            database: HoldingBoundPool::try_new(pool, holding_id)?,
         })
     }
 }
@@ -53,17 +53,17 @@ impl SqlxAgentExperienceQuery {
 impl AgentExperienceRepository for SqlxAgentExperienceStore {
     async fn load_pool(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: AgentPoolId,
     ) -> Result<Option<AgentPool>, PortError> {
-        let tenant_id = self.database.tenant_id();
+        let holding_id = self.database.holding_id();
         let mut tx = self.database.begin().await?;
         let row = sqlx::query(
-            "SELECT tenant_scope,pool_name,pool_version,enabled,created_at,updated_at
+            "SELECT active_scope,pool_name,pool_version,enabled,created_at,updated_at
              FROM erpx_agent_write.agent_pools
-             WHERE tenant_id=$1 AND agent_pool_id=$2",
+             WHERE holding_id=$1 AND agent_pool_id=$2",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(id.as_uuid())
         .fetch_optional(&mut *tx)
         .await
@@ -72,8 +72,8 @@ impl AgentExperienceRepository for SqlxAgentExperienceStore {
             tx.commit().await.map_err(|_| PortError::Persistence)?;
             return Ok(None);
         };
-        let scope: TenantScope = serde_json::from_value(
-            row.try_get("tenant_scope")
+        let scope: AuthorityScope = serde_json::from_value(
+            row.try_get("active_scope")
                 .map_err(|_| PortError::Persistence)?,
         )
         .map_err(|_| PortError::Persistence)?;
@@ -82,9 +82,9 @@ impl AgentExperienceRepository for SqlxAgentExperienceStore {
         }
         let member_ids: Vec<Uuid> = sqlx::query_scalar(
             "SELECT agent_version_id FROM erpx_agent_write.agent_pool_members
-             WHERE tenant_id=$1 AND agent_pool_id=$2 ORDER BY agent_version_id",
+             WHERE holding_id=$1 AND agent_pool_id=$2 ORDER BY agent_version_id",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(id.as_uuid())
         .fetch_all(&mut *tx)
         .await
@@ -117,19 +117,19 @@ impl AgentExperienceRepository for SqlxAgentExperienceStore {
 
     async fn load_session(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: AgentSessionId,
     ) -> Result<Option<AgentSession>, PortError> {
-        let tenant_id = self.database.tenant_id();
+        let holding_id = self.database.holding_id();
         let mut tx = self.database.begin().await?;
         let row = sqlx::query(
-            "SELECT tenant_scope,owner_human_ref,record_id,descriptor_version,
+            "SELECT active_scope,owner_human_ref,record_id,descriptor_version,
                     source_event_position,expires_at,legal_hold,expired_at,
                     session_version,created_at,updated_at
              FROM erpx_agent_write.agent_sessions
-             WHERE tenant_id=$1 AND agent_session_id=$2",
+             WHERE holding_id=$1 AND agent_session_id=$2",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(id.as_uuid())
         .fetch_optional(&mut *tx)
         .await
@@ -138,8 +138,8 @@ impl AgentExperienceRepository for SqlxAgentExperienceStore {
             tx.commit().await.map_err(|_| PortError::Persistence)?;
             return Ok(None);
         };
-        let scope: TenantScope = serde_json::from_value(
-            row.try_get("tenant_scope")
+        let scope: AuthorityScope = serde_json::from_value(
+            row.try_get("active_scope")
                 .map_err(|_| PortError::Persistence)?,
         )
         .map_err(|_| PortError::Persistence)?;
@@ -151,10 +151,10 @@ impl AgentExperienceRepository for SqlxAgentExperienceStore {
                     content_digest,message_version,created_at,published_at,
                     publishing_approver_human_ref,publication_anchor_ref
              FROM erpx_agent_write.agent_session_messages
-             WHERE tenant_id=$1 AND agent_session_id=$2
+             WHERE holding_id=$1 AND agent_session_id=$2
              ORDER BY created_at,session_message_id",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(id.as_uuid())
         .fetch_all(&mut *tx)
         .await
@@ -256,22 +256,22 @@ impl AgentExperienceRepository for SqlxAgentExperienceStore {
 /// receipt, audit fact, and opaque projection event atomically.
 pub(crate) async fn expire_one_due_session(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: Uuid,
+    holding_id: Uuid,
     at: chrono::DateTime<chrono::Utc>,
 ) -> Result<bool, PortError> {
     let id: Option<Uuid> = sqlx::query_scalar(
         "SELECT agent_session_id FROM erpx_agent_write.agent_sessions
-         WHERE tenant_id=$1 AND expired_at IS NULL AND legal_hold=FALSE AND expires_at<=$2
+         WHERE holding_id=$1 AND expired_at IS NULL AND legal_hold=FALSE AND expires_at<=$2
          ORDER BY expires_at,agent_session_id LIMIT 1 FOR UPDATE SKIP LOCKED",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(at)
     .fetch_optional(&mut **tx)
     .await
     .map_err(|_| PortError::Persistence)?;
     let Some(id) = id else { return Ok(false) };
     let id = AgentSessionId::try_from_uuid(id).map_err(|_| PortError::Persistence)?;
-    let mut session = load_session_in_transaction(tx, tenant_id, id)
+    let mut session = load_session_in_transaction(tx, holding_id, id)
         .await?
         .ok_or(PortError::Persistence)?;
     let previous_version = session.version();
@@ -279,10 +279,10 @@ pub(crate) async fn expire_one_due_session(
     let updated = sqlx::query(
         "UPDATE erpx_agent_write.agent_sessions
          SET expired_at=$3,session_version=$4,updated_at=$3
-         WHERE tenant_id=$1 AND agent_session_id=$2 AND expired_at IS NULL
+         WHERE holding_id=$1 AND agent_session_id=$2 AND expired_at IS NULL
            AND legal_hold=FALSE AND session_version=$5",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(id.as_uuid())
     .bind(at)
     .bind(to_i64(session.version())?)
@@ -295,9 +295,9 @@ pub(crate) async fn expire_one_due_session(
     }
     sqlx::query(
         "DELETE FROM erpx_agent_write.agent_session_messages
-         WHERE tenant_id=$1 AND agent_session_id=$2 AND published_at IS NULL",
+         WHERE holding_id=$1 AND agent_session_id=$2 AND published_at IS NULL",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(id.as_uuid())
     .execute(&mut **tx)
     .await
@@ -316,7 +316,7 @@ pub(crate) async fn expire_one_due_session(
     if let Some(draft) = crate::publication::published_session_directory_draft(&session)? {
         crate::publication::append_with_idempotency(
             tx,
-            tenant_id,
+            holding_id,
             &idempotency_key,
             serde_json::to_value(&maintenance_actor).map_err(|_| PortError::Persistence)?,
             at,
@@ -326,7 +326,7 @@ pub(crate) async fn expire_one_due_session(
     }
     finish_commit(
         tx,
-        tenant_id,
+        holding_id,
         &scope_key(session.scope()),
         &idempotency_key,
         &object_digest(&session)?,
@@ -349,17 +349,17 @@ pub(crate) async fn expire_one_due_session(
 
 async fn load_session_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: Uuid,
+    holding_id: Uuid,
     id: AgentSessionId,
 ) -> Result<Option<AgentSession>, PortError> {
     let row = sqlx::query(
-        "SELECT tenant_scope,owner_human_ref,record_id,descriptor_version,
+        "SELECT active_scope,owner_human_ref,record_id,descriptor_version,
                 source_event_position,expires_at,legal_hold,expired_at,
                 session_version,created_at,updated_at
          FROM erpx_agent_write.agent_sessions
-         WHERE tenant_id=$1 AND agent_session_id=$2",
+         WHERE holding_id=$1 AND agent_session_id=$2",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(id.as_uuid())
     .fetch_optional(&mut **tx)
     .await
@@ -370,15 +370,15 @@ async fn load_session_in_transaction(
                 content_digest,message_version,created_at,published_at,
                 publishing_approver_human_ref,publication_anchor_ref
          FROM erpx_agent_write.agent_session_messages
-         WHERE tenant_id=$1 AND agent_session_id=$2 ORDER BY created_at,session_message_id",
+         WHERE holding_id=$1 AND agent_session_id=$2 ORDER BY created_at,session_message_id",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(id.as_uuid())
     .fetch_all(&mut **tx)
     .await
     .map_err(|_| PortError::Persistence)?;
-    let scope: TenantScope = serde_json::from_value(
-        row.try_get("tenant_scope")
+    let scope: AuthorityScope = serde_json::from_value(
+        row.try_get("active_scope")
             .map_err(|_| PortError::Persistence)?,
     )
     .map_err(|_| PortError::Persistence)?;
@@ -475,10 +475,10 @@ async fn load_session_in_transaction(
 impl PoolCandidatePort for SqlxAgentExperienceStore {
     async fn eligible_candidates(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         pool: &AgentPool,
         capability: &str,
-        requested_scope: &TenantScope,
+        requested_scope: &AuthorityScope,
     ) -> Result<Vec<PoolCandidate>, PortError> {
         if !authority_scope.contains(pool.scope())
             || !authority_scope.contains(requested_scope)
@@ -487,7 +487,7 @@ impl PoolCandidatePort for SqlxAgentExperienceStore {
         {
             return Err(PortError::Denied);
         }
-        let tenant_id = self.database.tenant_id();
+        let holding_id = self.database.holding_id();
         let member_ids = pool
             .member_versions()
             .iter()
@@ -500,17 +500,17 @@ impl PoolCandidatePort for SqlxAgentExperienceStore {
                         ('queued','running','waiting')) AS active_assignments
              FROM erpx_agent_write.agent_versions v
              JOIN erpx_agent_write.agent_definitions d
-               ON d.tenant_id=v.tenant_id AND d.agent_definition_id=v.agent_definition_id
+               ON d.holding_id=v.holding_id AND d.agent_definition_id=v.agent_definition_id
              LEFT JOIN erpx_agent_write.agent_assignments a
-               ON a.tenant_id=v.tenant_id
+               ON a.holding_id=v.holding_id
               AND a.agent_definition_id=v.agent_definition_id
               AND a.agent_version_id=v.agent_version_id
-             WHERE v.tenant_id=$1 AND v.agent_version_id=ANY($2)
+             WHERE v.holding_id=$1 AND v.agent_version_id=ANY($2)
                AND v.version_status='approved' AND d.definition_status='approved'
              GROUP BY v.agent_definition_id,v.agent_version_id
              ORDER BY v.agent_definition_id,v.agent_version_id",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(member_ids)
         .fetch_all(&mut *tx)
         .await
@@ -527,7 +527,7 @@ impl PoolCandidatePort for SqlxAgentExperienceStore {
             .map_err(|_| PortError::Persistence)?;
             let definition = normalized::load_definition(
                 &mut tx,
-                tenant_id,
+                holding_id,
                 erpx_agent_orchestration::AgentDefinitionId::try_from_uuid(definition_id)
                     .map_err(|_| PortError::Persistence)?,
             )
@@ -562,11 +562,11 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
         }
         let digest = object_digest(&commit.pool)?;
         let scope_key = scope_key(commit.pool.scope());
-        let tenant_id = self.database.tenant_id();
+        let holding_id = self.database.holding_id();
         let mut tx = self.database.begin().await?;
         if replay_receipt(
             &mut tx,
-            tenant_id,
+            holding_id,
             &scope_key,
             &commit.idempotency_key,
             &digest,
@@ -579,9 +579,9 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
         }
         let current: Option<i64> = sqlx::query_scalar(
             "SELECT pool_version FROM erpx_agent_write.agent_pools
-             WHERE tenant_id=$1 AND agent_pool_id=$2 FOR UPDATE",
+             WHERE holding_id=$1 AND agent_pool_id=$2 FOR UPDATE",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(commit.pool.id().as_uuid())
         .fetch_optional(&mut *tx)
         .await
@@ -590,11 +590,11 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
         if current.is_none() {
             sqlx::query(
                 "INSERT INTO erpx_agent_write.agent_pools
-                    (tenant_id,agent_pool_id,scope_key,tenant_scope,pool_name,pool_version,
+                    (holding_id,agent_pool_id,scope_key,active_scope,pool_name,pool_version,
                      enabled,created_at,updated_at)
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
             )
-            .bind(tenant_id)
+            .bind(holding_id)
             .bind(commit.pool.id().as_uuid())
             .bind(&scope_key)
             .bind(serde_json::to_value(commit.pool.scope()).map_err(|_| PortError::Persistence)?)
@@ -610,9 +610,9 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
             let updated = sqlx::query(
                 "UPDATE erpx_agent_write.agent_pools SET pool_name=$3,pool_version=$4,
                     enabled=$5,updated_at=$6
-                 WHERE tenant_id=$1 AND agent_pool_id=$2 AND pool_version=$7",
+                 WHERE holding_id=$1 AND agent_pool_id=$2 AND pool_version=$7",
             )
-            .bind(tenant_id)
+            .bind(holding_id)
             .bind(commit.pool.id().as_uuid())
             .bind(commit.pool.name())
             .bind(to_i64(commit.pool.version())?)
@@ -629,9 +629,9 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
             }
             sqlx::query(
                 "DELETE FROM erpx_agent_write.agent_pool_members
-                 WHERE tenant_id=$1 AND agent_pool_id=$2",
+                 WHERE holding_id=$1 AND agent_pool_id=$2",
             )
-            .bind(tenant_id)
+            .bind(holding_id)
             .bind(commit.pool.id().as_uuid())
             .execute(&mut *tx)
             .await
@@ -640,9 +640,9 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
         for member in commit.pool.member_versions() {
             sqlx::query(
                 "INSERT INTO erpx_agent_write.agent_pool_members
-                    (tenant_id,agent_pool_id,agent_version_id) VALUES ($1,$2,$3)",
+                    (holding_id,agent_pool_id,agent_version_id) VALUES ($1,$2,$3)",
             )
-            .bind(tenant_id)
+            .bind(holding_id)
             .bind(commit.pool.id().as_uuid())
             .bind(member.as_uuid())
             .execute(&mut *tx)
@@ -651,7 +651,7 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
         }
         finish_commit(
             &mut tx,
-            tenant_id,
+            holding_id,
             &scope_key,
             &commit.idempotency_key,
             &digest,
@@ -681,11 +681,11 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
         }
         let digest = object_digest(&commit.decision)?;
         let scope_key = scope_key(&commit.decision.requested_scope);
-        let tenant_id = self.database.tenant_id();
+        let holding_id = self.database.holding_id();
         let mut tx = self.database.begin().await?;
         if replay_receipt(
             &mut tx,
-            tenant_id,
+            holding_id,
             &scope_key,
             &commit.idempotency_key,
             &digest,
@@ -698,13 +698,13 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
         }
         sqlx::query(
             "INSERT INTO erpx_agent_write.agent_pool_routing_decisions
-                (tenant_id,routing_decision_id,agent_pool_id,pool_version,root_action_ref,
+                (holding_id,routing_decision_id,agent_pool_id,pool_version,root_action_ref,
                  capability,requested_scope,candidate_version_ids,selected_agent_version_id,
                  selected_agent_version_ids,decision_digest,compare_requested,
                  previewed_cost_micros,initiating_human_ref,decided_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(commit.decision.id.as_uuid())
         .bind(commit.decision.pool_id.as_uuid())
         .bind(to_i64(commit.decision.pool_version)?)
@@ -747,7 +747,7 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
         .map_err(|_| PortError::Persistence)?;
         finish_commit(
             &mut tx,
-            tenant_id,
+            holding_id,
             &scope_key,
             &commit.idempotency_key,
             &digest,
@@ -771,11 +771,11 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
         }
         let digest = object_digest(&commit.session)?;
         let scope_key = scope_key(commit.session.scope());
-        let tenant_id = self.database.tenant_id();
+        let holding_id = self.database.holding_id();
         let mut tx = self.database.begin().await?;
         if replay_receipt(
             &mut tx,
-            tenant_id,
+            holding_id,
             &scope_key,
             &commit.idempotency_key,
             &digest,
@@ -788,9 +788,9 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
         }
         let current: Option<i64> = sqlx::query_scalar(
             "SELECT session_version FROM erpx_agent_write.agent_sessions
-             WHERE tenant_id=$1 AND agent_session_id=$2 FOR UPDATE",
+             WHERE holding_id=$1 AND agent_session_id=$2 FOR UPDATE",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(commit.session.id().as_uuid())
         .fetch_optional(&mut *tx)
         .await
@@ -800,12 +800,12 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
         if current.is_none() {
             sqlx::query(
                 "INSERT INTO erpx_agent_write.agent_sessions
-                    (tenant_id,agent_session_id,scope_key,tenant_scope,owner_human_ref,
+                    (holding_id,agent_session_id,scope_key,active_scope,owner_human_ref,
                      record_id,descriptor_version,source_event_position,expires_at,legal_hold,
                      expired_at,session_version,created_at,updated_at)
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)",
             )
-            .bind(tenant_id)
+            .bind(holding_id)
             .bind(commit.session.id().as_uuid())
             .bind(&scope_key)
             .bind(serde_json::to_value(commit.session.scope()).map_err(|_| PortError::Persistence)?)
@@ -834,9 +834,9 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
             let updated = sqlx::query(
                 "UPDATE erpx_agent_write.agent_sessions SET legal_hold=$3,expired_at=$4,
                     session_version=$5,updated_at=$6
-                 WHERE tenant_id=$1 AND agent_session_id=$2 AND session_version=$7",
+                 WHERE holding_id=$1 AND agent_session_id=$2 AND session_version=$7",
             )
-            .bind(tenant_id)
+            .bind(holding_id)
             .bind(commit.session.id().as_uuid())
             .bind(commit.session.legal_hold())
             .bind(commit.session.expired_at())
@@ -859,10 +859,10 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
                 .collect::<Vec<_>>();
             sqlx::query(
                 "DELETE FROM erpx_agent_write.agent_session_messages
-                 WHERE tenant_id=$1 AND agent_session_id=$2 AND published_at IS NULL
+                 WHERE holding_id=$1 AND agent_session_id=$2 AND published_at IS NULL
                    AND NOT (session_message_id = ANY($3))",
             )
-            .bind(tenant_id)
+            .bind(holding_id)
             .bind(commit.session.id().as_uuid())
             .bind(retained_ids)
             .execute(&mut *tx)
@@ -872,18 +872,18 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
         for message in commit.session.messages() {
             sqlx::query(
                 "INSERT INTO erpx_agent_write.agent_session_messages
-                    (tenant_id,session_message_id,agent_session_id,author_kind,author_ref,
+                    (holding_id,session_message_id,agent_session_id,author_kind,author_ref,
                      encrypted_payload_ref,content_digest,message_version,created_at,published_at,
                      publishing_approver_human_ref,publication_anchor_ref)
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-                 ON CONFLICT (tenant_id,session_message_id) DO UPDATE SET
+                 ON CONFLICT (holding_id,session_message_id) DO UPDATE SET
                     message_version=EXCLUDED.message_version,published_at=EXCLUDED.published_at,
                     publishing_approver_human_ref=EXCLUDED.publishing_approver_human_ref,
                     publication_anchor_ref=EXCLUDED.publication_anchor_ref
                  WHERE erpx_agent_write.agent_session_messages.message_version + 1
                     = EXCLUDED.message_version",
             )
-            .bind(tenant_id)
+            .bind(holding_id)
             .bind(message.id.as_uuid())
             .bind(commit.session.id().as_uuid())
             .bind(author_kind(message.author_kind))
@@ -903,7 +903,7 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
         {
             crate::publication::append_with_idempotency(
                 &mut tx,
-                tenant_id,
+                holding_id,
                 &commit.idempotency_key,
                 serde_json::to_value(&commit.actor).map_err(|_| PortError::Persistence)?,
                 commit.session.updated_at(),
@@ -913,7 +913,7 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
         }
         finish_commit(
             &mut tx,
-            tenant_id,
+            holding_id,
             &scope_key,
             &commit.idempotency_key,
             &digest,
@@ -936,19 +936,19 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
         commit: InvocationEvidenceCommit,
     ) -> Result<ProviderInvocationEvidence, PortError> {
         let digest = object_digest(&commit.evidence)?;
-        let tenant_id = self.database.tenant_id();
+        let holding_id = self.database.holding_id();
         let mut tx = self.database.begin().await?;
         let assignment_scope: serde_json::Value = sqlx::query_scalar(
-            "SELECT tenant_scope FROM erpx_agent_write.agent_assignments
-             WHERE tenant_id=$1 AND assignment_id=$2 FOR SHARE",
+            "SELECT active_scope FROM erpx_agent_write.agent_assignments
+             WHERE holding_id=$1 AND assignment_id=$2 FOR SHARE",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(commit.evidence.assignment_id().as_uuid())
         .fetch_optional(&mut *tx)
         .await
         .map_err(|_| PortError::Persistence)?
         .ok_or(PortError::NotFound)?;
-        let scope: TenantScope =
+        let scope: AuthorityScope =
             serde_json::from_value(assignment_scope).map_err(|_| PortError::Persistence)?;
         if !commit.authority_scope.contains(&scope) {
             return Err(PortError::Denied);
@@ -956,7 +956,7 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
         let scope_key = scope_key(&scope);
         if replay_receipt(
             &mut tx,
-            tenant_id,
+            holding_id,
             &scope_key,
             &commit.idempotency_key,
             &digest,
@@ -969,9 +969,9 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
         }
         let current: Option<i64> = sqlx::query_scalar(
             "SELECT evidence_version FROM erpx_agent_write.provider_invocation_evidence
-             WHERE tenant_id=$1 AND invocation_id=$2 FOR UPDATE",
+             WHERE holding_id=$1 AND invocation_id=$2 FOR UPDATE",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(commit.evidence.id().as_uuid())
         .fetch_optional(&mut *tx)
         .await
@@ -980,7 +980,7 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
         if current.is_none() {
             sqlx::query(
                 "INSERT INTO erpx_agent_write.provider_invocation_evidence
-                    (tenant_id,invocation_id,assignment_id,assignment_version,attempt,
+                    (holding_id,invocation_id,assignment_id,assignment_version,attempt,
                      agent_definition_id,agent_version_id,provider_ref,model_ref,policy_version,
                      payload_digest,policy_digest,field_refs,document_refs,classification,residency,
                      output_digest,provider_units,provider_cost_micros,evidence_version,invoked_at,
@@ -988,7 +988,7 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
                          $17,$18,$19,$20,$21,$22,$23)",
             )
-            .bind(tenant_id)
+            .bind(holding_id)
             .bind(commit.evidence.id().as_uuid())
             .bind(commit.evidence.assignment_id().as_uuid())
             .bind(to_i64(commit.evidence.assignment_version())?)
@@ -1039,9 +1039,9 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
                 "UPDATE erpx_agent_write.provider_invocation_evidence SET
                     output_digest=$3,provider_units=$4,provider_cost_micros=$5,
                     evidence_version=$6,completed_at=$7,outcome=$8
-                 WHERE tenant_id=$1 AND invocation_id=$2 AND evidence_version=$9",
+                 WHERE holding_id=$1 AND invocation_id=$2 AND evidence_version=$9",
             )
-            .bind(tenant_id)
+            .bind(holding_id)
             .bind(commit.evidence.id().as_uuid())
             .bind(commit.evidence.output_digest())
             .bind(commit.evidence.provider_units().map(to_i64).transpose()?)
@@ -1067,7 +1067,7 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
         }
         finish_commit(
             &mut tx,
-            tenant_id,
+            holding_id,
             &scope_key,
             &commit.idempotency_key,
             &digest,
@@ -1093,7 +1093,7 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
 impl AgentExperienceQueryPort for SqlxAgentExperienceQuery {
     async fn routing_summary(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: PoolRoutingDecisionId,
     ) -> Result<Option<PoolRoutingSummary>, PortError> {
         let mut tx = self.database.begin().await?;
@@ -1102,19 +1102,19 @@ impl AgentExperienceQueryPort for SqlxAgentExperienceQuery {
                     p.selected_agent_version_ids,p.compare_requested,p.decision_digest,p.decided_at,
                     p.source_global_sequence,c.global_sequence AS checkpoint_position,
                     EXISTS(SELECT 1 FROM erpx_cqrs_read.projection_failures f
-                      WHERE f.tenant_id=p.tenant_id AND f.projection_name=p.projection_name
+                      WHERE f.holding_id=p.holding_id AND f.projection_name=p.projection_name
                         AND f.generation=p.generation AND f.partition_key=p.partition_key) AS has_failure
              FROM erpx_agent_read.pool_routing_projection p
              JOIN erpx_cqrs_read.projection_generations g
-               ON g.tenant_id=p.tenant_id AND g.projection_name=p.projection_name
+               ON g.holding_id=p.holding_id AND g.projection_name=p.projection_name
               AND g.generation=p.generation AND g.status='active'
              LEFT JOIN erpx_cqrs_read.projection_checkpoints c
-               ON c.tenant_id=p.tenant_id AND c.projection_name=p.projection_name
+               ON c.holding_id=p.holding_id AND c.projection_name=p.projection_name
               AND c.generation=p.generation AND c.partition_key=p.partition_key
-             WHERE p.tenant_id=$1 AND p.projection_name='agent_orchestration.pool_routing'
+             WHERE p.holding_id=$1 AND p.projection_name='agent_orchestration.pool_routing'
                AND p.routing_decision_id=$2",
         )
-        .bind(self.database.tenant_id())
+        .bind(self.database.holding_id())
         .bind(id.as_uuid())
         .fetch_optional(&mut *tx)
         .await
@@ -1155,30 +1155,30 @@ impl AgentExperienceQueryPort for SqlxAgentExperienceQuery {
 
     async fn invocation_summary(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: ProviderInvocationId,
     ) -> Result<Option<InvocationEvidenceSummary>, PortError> {
         let mut tx = self.database.begin().await?;
         let row = sqlx::query(
-            "SELECT p.tenant_scope,p.assignment_id,p.attempt,p.provider_ref,p.model_ref,
+            "SELECT p.active_scope,p.assignment_id,p.attempt,p.provider_ref,p.model_ref,
                     p.policy_version,p.policy_digest,p.payload_digest,p.output_digest,
                     p.provider_units,p.provider_cost_micros,p.outcome,p.invoked_at,p.completed_at,
                     p.source_global_sequence,c.global_sequence AS checkpoint_position,
                     EXISTS(SELECT 1 FROM erpx_cqrs_read.projection_failures f
-                      WHERE f.tenant_id=p.tenant_id AND f.projection_name=p.projection_name
+                      WHERE f.holding_id=p.holding_id AND f.projection_name=p.projection_name
                         AND f.generation=p.generation AND f.partition_key=p.partition_key) AS has_failure
              FROM erpx_agent_read.provider_invocation_projection p
              JOIN erpx_cqrs_read.projection_generations g
-               ON g.tenant_id=p.tenant_id AND g.projection_name=p.projection_name
+               ON g.holding_id=p.holding_id AND g.projection_name=p.projection_name
               AND g.generation=p.generation AND g.status='active'
              LEFT JOIN erpx_cqrs_read.projection_checkpoints c
-               ON c.tenant_id=p.tenant_id AND c.projection_name=p.projection_name
+               ON c.holding_id=p.holding_id AND c.projection_name=p.projection_name
               AND c.generation=p.generation AND c.partition_key=p.partition_key
-             WHERE p.tenant_id=$1
+             WHERE p.holding_id=$1
                AND p.projection_name='agent_orchestration.provider_invocations'
                AND p.invocation_id=$2",
         )
-        .bind(self.database.tenant_id())
+        .bind(self.database.holding_id())
         .bind(id.as_uuid())
         .fetch_optional(&mut *tx)
         .await
@@ -1188,7 +1188,7 @@ impl AgentExperienceQueryPort for SqlxAgentExperienceQuery {
         ensure_projection_fresh(&row)?;
         ensure_scope(
             authority_scope,
-            row.try_get("tenant_scope")
+            row.try_get("active_scope")
                 .map_err(|_| PortError::Persistence)?,
         )?;
         Ok(Some(InvocationEvidenceSummary {
@@ -1260,50 +1260,50 @@ fn ensure_projection_fresh(row: &sqlx::postgres::PgRow) -> Result<(), PortError>
 #[allow(clippy::too_many_arguments)]
 async fn finish_commit(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: Uuid,
+    holding_id: Uuid,
     scope_key: &str,
     idempotency_key: &str,
     request_digest: &str,
     aggregate_type: &str,
     aggregate_id: Uuid,
     aggregate_version: u64,
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     actor: &ActorAttribution,
     audit: &AuditContext,
     event_type: &str,
     occurred_at: chrono::DateTime<chrono::Utc>,
 ) -> Result<(), PortError> {
     let command_id = stable_id(
-        tenant_id,
+        holding_id,
         aggregate_id,
         idempotency_key.as_bytes(),
         b"command",
     );
     let audit_id = stable_id(
-        tenant_id,
+        holding_id,
         aggregate_id,
         &aggregate_version.to_be_bytes(),
         b"audit",
     );
     let event_id = stable_id(
-        tenant_id,
+        holding_id,
         aggregate_id,
         &aggregate_version.to_be_bytes(),
         b"event",
     );
     let correlation_id = stable_id(
-        tenant_id,
+        holding_id,
         aggregate_id,
         idempotency_key.as_bytes(),
         b"correlation",
     );
     sqlx::query(
         "INSERT INTO erpx_agent_write.agent_command_receipts
-            (tenant_id,scope_key,idempotency_key,request_digest,aggregate_type,
+            (holding_id,scope_key,idempotency_key,request_digest,aggregate_type,
              aggregate_id,aggregate_version,committed_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(scope_key)
     .bind(idempotency_key)
     .bind(request_digest)
@@ -1316,12 +1316,12 @@ async fn finish_commit(
     .map_err(map_unique)?;
     sqlx::query(
         "INSERT INTO erpx_cqrs_write.audit_log
-            (tenant_id,audit_id,context_name,partition_key,command_id,correlation_id,
-             tenant_scope,actor,audit_context,action,aggregate_type,aggregate_id,
+            (holding_id,audit_id,context_name,partition_key,command_id,correlation_id,
+             active_scope,actor,audit_context,action,aggregate_type,aggregate_id,
              aggregate_version,details,occurred_at)
          VALUES ($1,$2,'agent_orchestration',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(audit_id)
     .bind(scope_key)
     .bind(command_id)
@@ -1340,13 +1340,13 @@ async fn finish_commit(
     .map_err(|_| PortError::Persistence)?;
     sqlx::query(
         "INSERT INTO erpx_cqrs_write.outbox_events
-            (tenant_id,event_id,context_name,partition_key,command_id,event_type,event_version,
-             aggregate_type,aggregate_id,aggregate_version,tenant_scope,actor,correlation_id,
+            (holding_id,event_id,context_name,partition_key,command_id,event_type,event_version,
+             aggregate_type,aggregate_id,aggregate_version,active_scope,actor,correlation_id,
              causation_id,payload,occurred_at,available_at)
          VALUES ($1,$2,'agent_orchestration',$3,$4,$5,1,$6,$7,$8,$9,$10,$11,NULL,$12,$13,$13)
-         ON CONFLICT (tenant_id,event_id) DO NOTHING",
+         ON CONFLICT (holding_id,event_id) DO NOTHING",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(event_id)
     .bind(scope_key)
     .bind(command_id)
@@ -1367,7 +1367,7 @@ async fn finish_commit(
 
 async fn replay_receipt(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: Uuid,
+    holding_id: Uuid,
     scope_key: &str,
     idempotency_key: &str,
     request_digest: &str,
@@ -1375,9 +1375,9 @@ async fn replay_receipt(
 ) -> Result<bool, PortError> {
     let receipt: Option<(String, Uuid)> = sqlx::query_as(
         "SELECT request_digest,aggregate_id FROM erpx_agent_write.agent_command_receipts
-         WHERE tenant_id=$1 AND scope_key=$2 AND idempotency_key=$3 FOR UPDATE",
+         WHERE holding_id=$1 AND scope_key=$2 AND idempotency_key=$3 FOR UPDATE",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(scope_key)
     .bind(idempotency_key)
     .fetch_optional(&mut **tx)
@@ -1412,11 +1412,11 @@ fn object_digest(value: &impl Serialize) -> Result<String, PortError> {
     Ok(format!("{:x}", Sha256::digest(bytes)))
 }
 
-fn stable_id(tenant_id: Uuid, aggregate_id: Uuid, identity: &[u8], purpose: &[u8]) -> Uuid {
+fn stable_id(holding_id: Uuid, aggregate_id: Uuid, identity: &[u8], purpose: &[u8]) -> Uuid {
     let mut digest = Sha256::new();
-    digest.update(b"erpx.agent.experience.v1");
+    digest.update(b"erpx.agent.experience");
     digest.update(purpose);
-    digest.update(tenant_id.as_bytes());
+    digest.update(holding_id.as_bytes());
     digest.update(aggregate_id.as_bytes());
     digest.update(identity);
     let bytes = digest.finalize();
@@ -1427,41 +1427,32 @@ fn stable_id(tenant_id: Uuid, aggregate_id: Uuid, identity: &[u8], purpose: &[u8
     Uuid::from_bytes(uuid_bytes)
 }
 
-fn scope_key(scope: &TenantScope) -> String {
+fn scope_key(scope: &AuthorityScope) -> String {
     match scope {
-        TenantScope::Platform => "platform".into(),
-        TenantScope::Holding { holding_id } => format!("h:{holding_id}"),
-        TenantScope::Company {
+        AuthorityScope::Platform => "platform".into(),
+        AuthorityScope::Holding { holding_id } => format!("h:{holding_id}"),
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => format!("h:{holding_id}/c:{company_id}"),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         } => format!("h:{holding_id}/c:{company_id}/b:{branch_id}"),
-        TenantScope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
-        } => format!(
-            "h:{holding_id}/cs:{}/bs:{}",
-            company_ids
-                .iter()
-                .map(Uuid::to_string)
-                .collect::<Vec<_>>()
-                .join(","),
-            branch_ids
-                .iter()
-                .map(Uuid::to_string)
-                .collect::<Vec<_>>()
-                .join(",")
-        ),
+            organization_node_id,
+        } => format!("h:{holding_id}/node:{organization_node_id}"),
     }
 }
 
-fn ensure_scope(authority_scope: &TenantScope, stored: serde_json::Value) -> Result<(), PortError> {
-    let stored: TenantScope = serde_json::from_value(stored).map_err(|_| PortError::Persistence)?;
+fn ensure_scope(
+    authority_scope: &AuthorityScope,
+    stored: serde_json::Value,
+) -> Result<(), PortError> {
+    let stored: AuthorityScope =
+        serde_json::from_value(stored).map_err(|_| PortError::Persistence)?;
     if authority_scope.contains(&stored) {
         Ok(())
     } else {
@@ -1534,11 +1525,11 @@ fn map_unique(error: sqlx::Error) -> PortError {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn adapter_source_enforces_tenant_version_receipt_audit_and_outbox_fences() {
+    fn adapter_source_enforces_holding_version_receipt_audit_and_outbox_fences() {
         let source = include_str!("experience.rs");
-        assert!(source.contains("TenantBoundPool"));
-        assert!(source.contains("WHERE tenant_id=$1"));
-        assert!(source.contains("ON CONFLICT (tenant_id,event_id)"));
+        assert!(source.contains("HoldingBoundPool"));
+        assert!(source.contains("WHERE holding_id=$1"));
+        assert!(source.contains("ON CONFLICT (holding_id,event_id)"));
         assert!(source.contains("erpx_cqrs_write.audit_log"));
         assert!(source.contains("agent_command_receipts"));
         assert!(source.contains("next == expected.checked_add(1)"));

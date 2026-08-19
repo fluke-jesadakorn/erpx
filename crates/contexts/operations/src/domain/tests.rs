@@ -3,7 +3,7 @@ use erpx_integration_contracts::{
     AggregateKind, CurrencyCode, IntegrationEventEnvelope, MoneyAmount, ReferenceCode, customer,
     identity_access, marketing, operations, sales,
 };
-use erpx_kernel::{AggregateId, CorrelationId, EventId, TenantScope};
+use erpx_kernel::{AggregateId, AuthorityScope, CorrelationId, EventId};
 use uuid::Uuid;
 
 use super::*;
@@ -17,7 +17,7 @@ fn source_message() -> SourceFactMessage {
     let currency = CurrencyCode::try_new("THB").unwrap();
     let envelope = IntegrationEventEnvelope::try_new(
         EventId::try_from_uuid(Uuid::from_u128(1)).unwrap(),
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id: Uuid::from_u128(2),
             company_id: Uuid::from_u128(3),
         },
@@ -113,7 +113,7 @@ fn approval_source_message() -> SourceFactMessage {
     };
     let envelope = IntegrationEventEnvelope::try_new(
         EventId::try_from_uuid(Uuid::from_u128(73)).unwrap(),
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id: Uuid::from_u128(2),
             company_id: Uuid::from_u128(3),
         },
@@ -366,7 +366,7 @@ fn policy_rejects_duplicate_sources_and_operations_recursion() {
 fn work_queue_policy_is_holding_owned_bounded_and_versioned() {
     let mut value = WorkQueuePolicy::publish(
         WorkQueuePolicyId::try_from_uuid(Uuid::from_u128(30)).unwrap(),
-        TenantScope::Holding {
+        AuthorityScope::Holding {
             holding_id: Uuid::from_u128(2),
         },
         "priority queue".into(),
@@ -395,7 +395,7 @@ fn work_queue_policy_rejects_non_holding_and_unsupported_sources() {
     assert_eq!(
         WorkQueuePolicy::publish(
             WorkQueuePolicyId::try_from_uuid(Uuid::from_u128(30)).unwrap(),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id: Uuid::from_u128(2),
                 company_id: Uuid::from_u128(3),
             },
@@ -409,7 +409,7 @@ fn work_queue_policy_rejects_non_holding_and_unsupported_sources() {
     assert_eq!(
         WorkQueuePolicy::publish(
             WorkQueuePolicyId::try_from_uuid(Uuid::from_u128(30)).unwrap(),
-            TenantScope::Holding {
+            AuthorityScope::Holding {
                 holding_id: Uuid::from_u128(2),
             },
             "recursive".into(),
@@ -422,7 +422,7 @@ fn work_queue_policy_rejects_non_holding_and_unsupported_sources() {
     assert_eq!(
         WorkQueuePolicy::publish(
             WorkQueuePolicyId::try_from_uuid(Uuid::from_u128(30)).unwrap(),
-            TenantScope::Holding {
+            AuthorityScope::Holding {
                 holding_id: Uuid::from_u128(2),
             },
             "unpublished legal source".into(),
@@ -437,21 +437,21 @@ fn work_queue_policy_rejects_non_holding_and_unsupported_sources() {
 #[test]
 fn source_position_is_database_qualified_and_monotonic() {
     let source = source_message();
-    let tenant = SourcePosition {
-        database: SourceDatabase::Tenant,
-        source_key: "tenant-write-outbox".into(),
+    let holding = SourcePosition {
+        database: SourceDatabase::Holding,
+        source_key: "holding-write-outbox".into(),
         partition: "sales-order:4".into(),
         sequence: 7,
     };
-    assert_eq!(tenant.validate(&source), Ok(()));
+    assert_eq!(holding.validate(&source), Ok(()));
 
-    let mut invalid = tenant.clone();
+    let mut invalid = holding.clone();
     invalid.database = SourceDatabase::Control;
     assert_eq!(
         invalid.validate(&source),
         Err(crate::PortError::SourcePositionInvalid)
     );
-    invalid = tenant;
+    invalid = holding;
     invalid.sequence = 0;
     assert_eq!(
         invalid.validate(&source),

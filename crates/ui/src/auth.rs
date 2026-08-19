@@ -2425,7 +2425,7 @@ mod tests {
     #[test]
     fn authoritative_browser_restore_installs_fresh_session_or_signs_out() {
         let mut controller = SessionController::default();
-        controller.begin_server_restore("/platform/customers");
+        controller.begin_server_restore("/platform/holdings");
         assert!(matches!(controller.state(), SessionState::Restoring { .. }));
 
         let issued = IssuedSession::new(
@@ -2439,17 +2439,17 @@ mod tests {
         assert_eq!(
             controller.complete_server_restore(
                 Ok(("local:browser".into(), issued)),
-                "/platform/customers",
+                "/platform/holdings",
             ),
             Ok(true)
         );
         assert!(matches!(controller.state(), SessionState::Authenticated(_)));
 
-        controller.begin_server_restore("/platform/customers");
+        controller.begin_server_restore("/platform/holdings");
         assert_eq!(
             controller.complete_server_restore(
                 Err(AuthTransportError::Unauthorized),
-                "/platform/customers",
+                "/platform/holdings",
             ),
             Ok(false)
         );
@@ -2489,8 +2489,8 @@ mod tests {
     #[test]
     fn return_targets_are_bounded_and_mobile_safe() {
         assert_eq!(
-            safe_return_to("/#/platform/customers?tab=health"),
-            "/platform/customers"
+            safe_return_to("/#/platform/holdings?tab=health"),
+            "/platform/holdings"
         );
         assert_eq!(safe_return_to("https://evil.example/platform"), "/");
         assert_eq!(safe_return_to("//evil.example/platform"), "/");
@@ -2552,8 +2552,7 @@ mod tests {
         let mut controller = SessionController::default();
         assert!(
             block_on(
-                controller
-                    .restore_secure_session(&store, "/platform/customers?access_token=secret")
+                controller.restore_secure_session(&store, "/platform/holdings?access_token=secret")
             )
             .expect("restore")
         );
@@ -2574,7 +2573,7 @@ mod tests {
                     )
                     .expect("revalidated session")),
                 },
-                "/platform/customers",
+                "/platform/holdings",
             ),
         )
         .expect("server revalidation");
@@ -2589,7 +2588,7 @@ mod tests {
         assert!(block_on(store.load()).expect("load after clear").is_none());
 
         let state = SessionState::SignedOut {
-            return_to: "/#/platform/customers?refresh_token=secret".into(),
+            return_to: "/#/platform/holdings?refresh_token=secret".into(),
         };
         assert_eq!(state.route_state().return_to(), Some("/".into()));
     }
@@ -2719,7 +2718,7 @@ mod tests {
         };
         let request = LoginRequest::new("principal-1", "password", "desktop").expect("request");
         let mut controller = SessionController::default();
-        block_on(controller.login(&transport, request, "/platform/customers")).expect("login");
+        block_on(controller.login(&transport, request, "/platform/holdings")).expect("login");
         assert!(matches!(controller.state(), SessionState::Authenticated(_)));
         assert_eq!(
             controller
@@ -2749,7 +2748,7 @@ mod tests {
             RouteState::ReadOnly { .. }
         ));
 
-        block_on(controller.refresh(&transport, "/platform/customers")).expect("refresh");
+        block_on(controller.refresh(&transport, "/platform/holdings")).expect("refresh");
         assert!(matches!(controller.state(), SessionState::Authenticated(_)));
         assert_eq!(
             controller.session_id().map(SessionId::as_str),
@@ -2766,7 +2765,7 @@ mod tests {
             RouteState::ReadOnly { .. }
         ));
 
-        block_on(controller.revoke(&transport, "/platform/customers")).expect("revoke");
+        block_on(controller.revoke(&transport, "/platform/holdings")).expect("revoke");
         assert!(matches!(controller.state(), SessionState::SignedOut { .. }));
         assert!(controller.access_token().is_none());
     }

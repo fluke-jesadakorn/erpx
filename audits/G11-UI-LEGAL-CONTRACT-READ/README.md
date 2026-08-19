@@ -3,7 +3,7 @@
 ## Scope
 
 The Dioxus Legal route now exposes the existing authenticated
-LegalService::ListLegalContracts projection for an explicit tenant, holding,
+LegalService::ListLegalContracts projection for an explicit holding, holding,
 company, and optional branch UUID scope. The adapter is read-only and keeps
 object bytes, object references, content hashes, party identities, and
 mutation controls outside the client contract.
@@ -13,7 +13,7 @@ mutation controls outside the client contract.
 - The console sends an authenticated/audited query context to the existing
   Legal service.
 - The server performs explicit company/branch containment, legal.read
-  authorization, customer-scope containment, tenant-read routing, bounded
+  authorization, customer-scope containment, holding-read routing, bounded
   cursor pagination, SQLx projection access, retention projection, and audit
   persistence.
 - The client retains only contract UUID/reference/title, scoped
@@ -24,7 +24,7 @@ mutation controls outside the client contract.
 
 ## Fail-closed boundary
 
-LegalContractScope rejects invalid tenant/holding/company/branch references.
+LegalContractScope rejects invalid holding/holding/company/branch references.
 LegalContractReadModel::from_wire rejects oversized pages, missing or
 contradictory cursors, scope escapes, unsafe values, unknown lifecycle or
 retention states, malformed party identity/role metadata, oversized party

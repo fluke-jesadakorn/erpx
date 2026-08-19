@@ -10,7 +10,7 @@ use erpx_identity_access::{
     PortError, PrincipalId, PrincipalList, PrincipalListFilter, PrincipalView, ReadProjection,
     ReadRepository, RoleId, RoleList, RoleListFilter, RoleView,
 };
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -139,7 +139,7 @@ impl IdentityAccessReadRepository {
 impl ReadRepository for IdentityAccessReadRepository {
     async fn get_principal(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         principal_id: PrincipalId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<PrincipalView>>, PortError> {
@@ -188,7 +188,7 @@ impl ReadRepository for IdentityAccessReadRepository {
 
     async fn list_principals(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &PrincipalListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<PrincipalList>, PortError> {
@@ -247,7 +247,7 @@ impl ReadRepository for IdentityAccessReadRepository {
 
     async fn get_role(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         role_id: RoleId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<RoleView>>, PortError> {
@@ -288,7 +288,7 @@ impl ReadRepository for IdentityAccessReadRepository {
 
     async fn list_roles(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &RoleListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<RoleList>, PortError> {
@@ -343,7 +343,7 @@ impl ReadRepository for IdentityAccessReadRepository {
     }
 }
 
-fn validate_authority(scope: &TenantScope) -> Result<(), PortError> {
+fn validate_authority(scope: &AuthorityScope) -> Result<(), PortError> {
     scope.validate().map_err(|_| PortError::Denied)
 }
 

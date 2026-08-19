@@ -1,9 +1,9 @@
-//! Tenant-write SQLx persistence for HR and payroll aggregates.
+//! Holding-write SQLx persistence for HR and payroll aggregates.
 //!
 //! The adapter stores bounded, typed source fields in the holding write
 //! database.  Payroll lines are normalized child rows rather than a serialized
 //! aggregate payload.  A small internal idempotency ledger and the existing
-//! tenant outbox are committed in the same transaction as each source change.
+//! holding outbox are committed in the same transaction as each source change.
 //! No read-model or transport type is exposed from this module.
 
 use chrono::NaiveDate;
@@ -24,7 +24,7 @@ use crate::PersistenceError;
 use crate::finance_persistence::begin_scoped;
 
 const MAX_IDEMPOTENCY_KEY_BYTES: usize = 255;
-const MAX_HOLDING_REF_BYTES: usize = 255;
+const MAX_DATA_PROFILE_KEY_BYTES: usize = 255;
 
 const EMPLOYEE_AGGREGATE: &str = "hr_employee";
 const LEAVE_AGGREGATE: &str = "hr_leave_request";
@@ -46,24 +46,24 @@ pub struct HrWriteReceipt {
 #[derive(Debug, Clone)]
 pub struct SqlxHrPersistence {
     write_pool: PgPool,
-    holding_ref: String,
+    data_profile_key: String,
 }
 
 impl SqlxHrPersistence {
     pub fn new(
         write_pool: PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_holding_ref(&holding_ref)?;
+        let data_profile_key = data_profile_key.into();
+        validate_data_profile_key(&data_profile_key)?;
         Ok(Self {
             write_pool,
-            holding_ref,
+            data_profile_key,
         })
     }
 
-    pub fn holding_ref(&self) -> &str {
-        &self.holding_ref
+    pub fn data_profile_key(&self) -> &str {
+        &self.data_profile_key
     }
 
     /// Persist an EmployeeRecord with source state, idempotency, and outbox
@@ -80,7 +80,9 @@ impl SqlxHrPersistence {
         let request_hash =
             request_hash(EMPLOYEE_AGGREGATE, aggregate_id, employee, expected_version)?;
         let mut tx = self.begin_write().await?;
-        if let Some(receipt) = find_replay(&mut tx, &self.holding_ref, key, &request_hash).await? {
+        if let Some(receipt) =
+            find_replay(&mut tx, &self.data_profile_key, key, &request_hash).await?
+        {
             tx.commit().await?;
             return Ok(receipt);
         }
@@ -89,12 +91,12 @@ impl SqlxHrPersistence {
             "hr_employee_records",
             "employee_id",
             aggregate_id,
-            &self.holding_ref,
+            &self.data_profile_key,
         )
         .await?;
         ensure_source_event_continuity(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             EMPLOYEE_AGGREGATE,
             aggregate_id,
             current,
@@ -111,13 +113,13 @@ impl SqlxHrPersistence {
 
         if let Some(current_version) = current {
             let affected = sqlx::query(
-                "UPDATE erpx_tenant.hr_employee_records
+                "UPDATE erpx_holding.hr_employee_records
                  SET holding_id=$3, company_id=$4, branch_id=$5, employee_ref=$6,
                      display_name=$7, status=$8, hired_on=$9, terminated_on=$10,
                      version=$11, command_id=$12, idempotency_key=$13, updated_at=now()
-                 WHERE holding_ref=$1 AND employee_id=$2 AND version=$14",
+                 WHERE data_profile_key=$1 AND employee_id=$2 AND version=$14",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(employee.id)
             .bind(employee.scope.holding_id)
             .bind(employee.scope.company_id)
@@ -141,13 +143,13 @@ impl SqlxHrPersistence {
             )?;
         } else {
             sqlx::query(
-                "INSERT INTO erpx_tenant.hr_employee_records
-                    (holding_ref, employee_id, holding_id, company_id, branch_id,
+                "INSERT INTO erpx_holding.hr_employee_records
+                    (data_profile_key, employee_id, holding_id, company_id, branch_id,
                      employee_ref, display_name, status, hired_on, terminated_on,
                      version, command_id, idempotency_key)
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(employee.id)
             .bind(employee.scope.holding_id)
             .bind(employee.scope.company_id)
@@ -172,7 +174,7 @@ impl SqlxHrPersistence {
         };
         append_hr_event(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             EMPLOYEE_AGGREGATE,
             aggregate_id,
             next_version,
@@ -183,13 +185,20 @@ impl SqlxHrPersistence {
             employee,
         )
         .await?;
-        record_idempotency(&mut tx, &self.holding_ref, key, &request_hash, &receipt).await?;
+        record_idempotency(
+            &mut tx,
+            &self.data_profile_key,
+            key,
+            &request_hash,
+            &receipt,
+        )
+        .await?;
         tx.commit().await?;
         Ok(receipt)
     }
 
     /// Apply one domain-approved employee lifecycle transition against the
-    /// authoritative tenant-write row, then reuse the atomic employee writer
+    /// authoritative holding-write row, then reuse the atomic employee writer
     /// for source state, outbox, and idempotency persistence.
     pub async fn transition_employee(
         &self,
@@ -212,11 +221,11 @@ impl SqlxHrPersistence {
         let row = sqlx::query(
             "SELECT holding_id, company_id, branch_id, employee_ref, display_name,
                     status, hired_on, terminated_on, version, command_id, idempotency_key
-               FROM erpx_tenant.hr_employee_records
-              WHERE holding_ref=$1 AND employee_id=$2
+               FROM erpx_holding.hr_employee_records
+              WHERE data_profile_key=$1 AND employee_id=$2
               FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(employee_id)
         .fetch_optional(&mut *tx)
         .await?;
@@ -278,25 +287,35 @@ impl SqlxHrPersistence {
         let aggregate_id = leave.id;
         let request_hash = request_hash(LEAVE_AGGREGATE, aggregate_id, leave, expected_version)?;
         let mut tx = self.begin_write().await?;
-        if let Some(receipt) =
-            find_replay(&mut tx, &self.holding_ref, idempotency_key, &request_hash).await?
+        if let Some(receipt) = find_replay(
+            &mut tx,
+            &self.data_profile_key,
+            idempotency_key,
+            &request_hash,
+        )
+        .await?
         {
             tx.commit().await?;
             return Ok(receipt);
         }
-        ensure_employee_reference(&mut tx, &self.holding_ref, leave.employee_id, &leave.scope)
-            .await?;
+        ensure_employee_reference(
+            &mut tx,
+            &self.data_profile_key,
+            leave.employee_id,
+            &leave.scope,
+        )
+        .await?;
         let current = current_version(
             &mut tx,
             "hr_leave_requests",
             "leave_id",
             aggregate_id,
-            &self.holding_ref,
+            &self.data_profile_key,
         )
         .await?;
         ensure_source_event_continuity(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             LEAVE_AGGREGATE,
             aggregate_id,
             current,
@@ -307,14 +326,14 @@ impl SqlxHrPersistence {
         ensure_domain_version(LEAVE_AGGREGATE, aggregate_id, leave.version, next_version)?;
         if let Some(current_version) = current {
             sqlx::query(
-                "UPDATE erpx_tenant.hr_leave_requests
+                "UPDATE erpx_holding.hr_leave_requests
                  SET holding_id=$3, company_id=$4, branch_id=$5, employee_id=$6,
                      starts_on=$7, ends_on=$8, reason=$9, status=$10, requested_by=$11,
                      approved_by=$12, version=$13, command_id=$14, idempotency_key=$15,
                      updated_at=now()
-                 WHERE holding_ref=$1 AND leave_id=$2 AND version=$16",
+                 WHERE data_profile_key=$1 AND leave_id=$2 AND version=$16",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(leave.id)
             .bind(leave.scope.holding_id)
             .bind(leave.scope.company_id)
@@ -334,13 +353,13 @@ impl SqlxHrPersistence {
             .await?;
         } else {
             sqlx::query(
-                "INSERT INTO erpx_tenant.hr_leave_requests
-                    (holding_ref, leave_id, holding_id, company_id, branch_id, employee_id,
+                "INSERT INTO erpx_holding.hr_leave_requests
+                    (data_profile_key, leave_id, holding_id, company_id, branch_id, employee_id,
                      starts_on, ends_on, reason, status, requested_by, approved_by, version,
                      command_id, idempotency_key)
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(leave.id)
             .bind(leave.scope.holding_id)
             .bind(leave.scope.company_id)
@@ -361,7 +380,7 @@ impl SqlxHrPersistence {
         let receipt = receipt(LEAVE_AGGREGATE, aggregate_id, next_version, idempotency_key);
         append_hr_event(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             LEAVE_AGGREGATE,
             aggregate_id,
             next_version,
@@ -374,7 +393,7 @@ impl SqlxHrPersistence {
         .await?;
         record_idempotency(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             idempotency_key,
             &request_hash,
             &receipt,
@@ -397,15 +416,20 @@ impl SqlxHrPersistence {
         let request_hash =
             request_hash(EXPENSE_AGGREGATE, aggregate_id, expense, expected_version)?;
         let mut tx = self.begin_write().await?;
-        if let Some(receipt) =
-            find_replay(&mut tx, &self.holding_ref, idempotency_key, &request_hash).await?
+        if let Some(receipt) = find_replay(
+            &mut tx,
+            &self.data_profile_key,
+            idempotency_key,
+            &request_hash,
+        )
+        .await?
         {
             tx.commit().await?;
             return Ok(receipt);
         }
         ensure_employee_reference(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             expense.employee_id,
             &expense.scope,
         )
@@ -415,12 +439,12 @@ impl SqlxHrPersistence {
             "hr_expense_claims",
             "expense_id",
             aggregate_id,
-            &self.holding_ref,
+            &self.data_profile_key,
         )
         .await?;
         ensure_source_event_continuity(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             EXPENSE_AGGREGATE,
             aggregate_id,
             current,
@@ -436,13 +460,13 @@ impl SqlxHrPersistence {
         )?;
         if let Some(current_version) = current {
             sqlx::query(
-                "UPDATE erpx_tenant.hr_expense_claims
+                "UPDATE erpx_holding.hr_expense_claims
                  SET holding_id=$3, company_id=$4, branch_id=$5, employee_id=$6,
                      currency=$7, amount_minor=$8, status=$9, submitted_by=$10,
                      approved_by=$11, version=$12, idempotency_key=$13, updated_at=now()
-                 WHERE holding_ref=$1 AND expense_id=$2 AND version=$14",
+                 WHERE data_profile_key=$1 AND expense_id=$2 AND version=$14",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(expense.id)
             .bind(expense.scope.holding_id)
             .bind(expense.scope.company_id)
@@ -460,13 +484,13 @@ impl SqlxHrPersistence {
             .await?;
         } else {
             sqlx::query(
-                "INSERT INTO erpx_tenant.hr_expense_claims
-                    (holding_ref, expense_id, holding_id, company_id, branch_id, employee_id,
+                "INSERT INTO erpx_holding.hr_expense_claims
+                    (data_profile_key, expense_id, holding_id, company_id, branch_id, employee_id,
                      currency, amount_minor, status, submitted_by, approved_by, version,
                      idempotency_key)
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(expense.id)
             .bind(expense.scope.holding_id)
             .bind(expense.scope.company_id)
@@ -490,7 +514,7 @@ impl SqlxHrPersistence {
         );
         append_hr_event(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             EXPENSE_AGGREGATE,
             aggregate_id,
             next_version,
@@ -503,7 +527,7 @@ impl SqlxHrPersistence {
         .await?;
         record_idempotency(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             idempotency_key,
             &request_hash,
             &receipt,
@@ -526,24 +550,29 @@ impl SqlxHrPersistence {
         let request_hash =
             request_hash(PAYROLL_AGGREGATE, aggregate_id, payroll, expected_version)?;
         let mut tx = self.begin_write().await?;
-        if let Some(receipt) =
-            find_replay(&mut tx, &self.holding_ref, idempotency_key, &request_hash).await?
+        if let Some(receipt) = find_replay(
+            &mut tx,
+            &self.data_profile_key,
+            idempotency_key,
+            &request_hash,
+        )
+        .await?
         {
             tx.commit().await?;
             return Ok(receipt);
         }
-        ensure_payroll_employee_references(&mut tx, &self.holding_ref, payroll).await?;
+        ensure_payroll_employee_references(&mut tx, &self.data_profile_key, payroll).await?;
         let current = current_version(
             &mut tx,
             "hr_payroll_runs",
             "payroll_id",
             aggregate_id,
-            &self.holding_ref,
+            &self.data_profile_key,
         )
         .await?;
         ensure_source_event_continuity(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             PAYROLL_AGGREGATE,
             aggregate_id,
             current,
@@ -559,14 +588,14 @@ impl SqlxHrPersistence {
         )?;
         if let Some(current_version) = current {
             sqlx::query(
-                "UPDATE erpx_tenant.hr_payroll_runs
+                "UPDATE erpx_holding.hr_payroll_runs
                  SET holding_id=$3, company_id=$4, branch_id=$5, starts_on=$6, ends_on=$7,
                      status=$8, prepared_by=$9, reviewed_by=$10, approved_by=$11,
                      total_gross_minor=$12, total_deductions_minor=$13, total_net_minor=$14,
                      version=$15, created_at=$16, idempotency_key=$17, updated_at=now()
-                 WHERE holding_ref=$1 AND payroll_id=$2 AND version=$18",
+                 WHERE data_profile_key=$1 AND payroll_id=$2 AND version=$18",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(payroll.id)
             .bind(payroll.scope.holding_id)
             .bind(payroll.scope.company_id)
@@ -588,13 +617,13 @@ impl SqlxHrPersistence {
             .await?;
         } else {
             sqlx::query(
-                "INSERT INTO erpx_tenant.hr_payroll_runs
-                    (holding_ref, payroll_id, holding_id, company_id, branch_id, starts_on,
+                "INSERT INTO erpx_holding.hr_payroll_runs
+                    (data_profile_key, payroll_id, holding_id, company_id, branch_id, starts_on,
                      ends_on, status, prepared_by, reviewed_by, approved_by, total_gross_minor,
                      total_deductions_minor, total_net_minor, version, created_at, idempotency_key)
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(payroll.id)
             .bind(payroll.scope.holding_id)
             .bind(payroll.scope.company_id)
@@ -615,21 +644,21 @@ impl SqlxHrPersistence {
             .await?;
         }
         sqlx::query(
-            "DELETE FROM erpx_tenant.hr_payroll_lines
-             WHERE holding_ref=$1 AND payroll_id=$2",
+            "DELETE FROM erpx_holding.hr_payroll_lines
+             WHERE data_profile_key=$1 AND payroll_id=$2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(payroll.id)
         .execute(&mut *tx)
         .await?;
         for (line_no, line) in payroll.lines.iter().enumerate() {
             sqlx::query(
-                "INSERT INTO erpx_tenant.hr_payroll_lines
-                    (holding_ref, payroll_id, line_no, employee_id, gross_minor,
+                "INSERT INTO erpx_holding.hr_payroll_lines
+                    (data_profile_key, payroll_id, line_no, employee_id, gross_minor,
                      deductions_minor, net_minor)
                  VALUES ($1,$2,$3,$4,$5,$6,$7)",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(payroll.id)
             .bind(i32::try_from(line_no).map_err(|_| {
                 PersistenceError::InvalidData("payroll line number exceeds INTEGER".into())
@@ -649,7 +678,7 @@ impl SqlxHrPersistence {
         );
         append_hr_event(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             PAYROLL_AGGREGATE,
             aggregate_id,
             next_version,
@@ -662,7 +691,7 @@ impl SqlxHrPersistence {
         .await?;
         record_idempotency(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             idempotency_key,
             &request_hash,
             &receipt,
@@ -682,20 +711,26 @@ impl SqlxHrPersistence {
     ) -> Result<HrWriteReceipt, PersistenceError> {
         validate_reassignment(reassignment)?;
         validate_idempotency_key(idempotency_key)?;
-        let aggregate_id = stable_reassignment_id(&self.holding_ref, &reassignment.workflow_ref);
+        let aggregate_id =
+            stable_reassignment_id(&self.data_profile_key, &reassignment.workflow_ref);
         let request_hash = request_hash(REASSIGNMENT_AGGREGATE, aggregate_id, reassignment, None)?;
         let mut tx = self.begin_write().await?;
-        if let Some(receipt) =
-            find_replay(&mut tx, &self.holding_ref, idempotency_key, &request_hash).await?
+        if let Some(receipt) = find_replay(
+            &mut tx,
+            &self.data_profile_key,
+            idempotency_key,
+            &request_hash,
+        )
+        .await?
         {
             tx.commit().await?;
             return Ok(receipt);
         }
         let existing: Option<i64> = sqlx::query_scalar(
-            "SELECT version FROM erpx_tenant.hr_expired_role_reassignments
-             WHERE holding_ref=$1 AND workflow_ref=$2 FOR UPDATE",
+            "SELECT version FROM erpx_holding.hr_expired_role_reassignments
+             WHERE data_profile_key=$1 AND workflow_ref=$2 FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(&reassignment.workflow_ref)
         .fetch_optional(&mut *tx)
         .await?;
@@ -708,13 +743,13 @@ impl SqlxHrPersistence {
             });
         }
         sqlx::query(
-            "INSERT INTO erpx_tenant.hr_expired_role_reassignments
-                (holding_ref, workflow_ref, holding_id, company_id, branch_id,
+            "INSERT INTO erpx_holding.hr_expired_role_reassignments
+                (data_profile_key, workflow_ref, holding_id, company_id, branch_id,
                  expired_principal_ref, replacement_principal_ref, reason, reassigned_at,
                  command_id, idempotency_key, version)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,1)",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(&reassignment.workflow_ref)
         .bind(reassignment.scope.holding_id)
         .bind(reassignment.scope.company_id)
@@ -730,7 +765,7 @@ impl SqlxHrPersistence {
         let receipt = receipt(REASSIGNMENT_AGGREGATE, aggregate_id, 1, idempotency_key);
         append_hr_event(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             REASSIGNMENT_AGGREGATE,
             aggregate_id,
             1,
@@ -743,7 +778,7 @@ impl SqlxHrPersistence {
         .await?;
         record_idempotency(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             idempotency_key,
             &request_hash,
             &receipt,
@@ -754,7 +789,7 @@ impl SqlxHrPersistence {
     }
 
     async fn begin_write(&self) -> Result<Transaction<'_, Postgres>, PersistenceError> {
-        begin_scoped(&self.write_pool, &self.holding_ref).await
+        begin_scoped(&self.write_pool, &self.data_profile_key).await
     }
 }
 
@@ -766,16 +801,16 @@ struct IdempotencyRecord {
 
 async fn find_replay(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     key: &str,
     request_hash: &str,
 ) -> Result<Option<HrWriteReceipt>, PersistenceError> {
     let row = sqlx::query(
         "SELECT request_hash, aggregate_type, aggregate_id, version
-         FROM erpx_tenant.hr_command_idempotency
-         WHERE holding_ref=$1 AND idempotency_key=$2 FOR UPDATE",
+         FROM erpx_holding.hr_command_idempotency
+         WHERE data_profile_key=$1 AND idempotency_key=$2 FOR UPDATE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(key)
     .fetch_optional(&mut **tx)
     .await?;
@@ -798,18 +833,18 @@ async fn find_replay(
 
 async fn record_idempotency(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     key: &str,
     request_hash: &str,
     receipt: &HrWriteReceipt,
 ) -> Result<(), PersistenceError> {
     sqlx::query(
-        "INSERT INTO erpx_tenant.hr_command_idempotency
-            (holding_ref, idempotency_key, request_hash, aggregate_type,
+        "INSERT INTO erpx_holding.hr_command_idempotency
+            (data_profile_key, idempotency_key, request_hash, aggregate_type,
              aggregate_id, version)
          VALUES ($1,$2,$3,$4,$5,$6)",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(key)
     .bind(request_hash)
     .bind(&receipt.aggregate_type)
@@ -826,17 +861,17 @@ async fn record_idempotency(
 /// a branch-scoped employee is valid for a company record or that same branch.
 async fn ensure_employee_reference(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     employee_id: Uuid,
     record_scope: &EmploymentScope,
 ) -> Result<(), PersistenceError> {
     let row = sqlx::query(
         "SELECT holding_id, company_id, branch_id
-         FROM erpx_tenant.hr_employee_records
-         WHERE holding_ref=$1 AND employee_id=$2
+         FROM erpx_holding.hr_employee_records
+         WHERE data_profile_key=$1 AND employee_id=$2
          FOR UPDATE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(employee_id)
     .fetch_optional(&mut **tx)
     .await?
@@ -863,7 +898,7 @@ async fn ensure_employee_reference(
 /// including a source employee outside the run's holding/company/branch scope.
 async fn ensure_payroll_employee_references(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     payroll: &PayrollRun,
 ) -> Result<(), PersistenceError> {
     let mut employee_ids: Vec<Uuid> = payroll.lines.iter().map(|line| line.employee_id).collect();
@@ -874,12 +909,12 @@ async fn ensure_payroll_employee_references(
     }
     let rows = sqlx::query(
         "SELECT employee_id, holding_id, company_id, branch_id
-         FROM erpx_tenant.hr_employee_records
-         WHERE holding_ref=$1 AND employee_id = ANY($2)
+         FROM erpx_holding.hr_employee_records
+         WHERE data_profile_key=$1 AND employee_id = ANY($2)
          ORDER BY employee_id
          FOR UPDATE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(&employee_ids)
     .fetch_all(&mut **tx)
     .await?;
@@ -934,15 +969,15 @@ async fn current_version(
     table: &str,
     id_column: &str,
     aggregate_id: Uuid,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<Option<u64>, PersistenceError> {
     // Table and column names are closed internal constants at every call site;
     // values remain bound parameters.
     let sql = format!(
-        "SELECT version FROM erpx_tenant.{table} WHERE holding_ref=$1 AND {id_column}=$2 FOR UPDATE"
+        "SELECT version FROM erpx_holding.{table} WHERE data_profile_key=$1 AND {id_column}=$2 FOR UPDATE"
     );
     let value: Option<i64> = sqlx::query_scalar(&sql)
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(aggregate_id)
         .fetch_optional(&mut **tx)
         .await?;
@@ -957,7 +992,7 @@ async fn current_version(
 /// duplicate version N would make the authoritative source unreplayable.
 async fn ensure_source_event_continuity(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     aggregate_type: &str,
     aggregate_id: Uuid,
     current_version: Option<u64>,
@@ -967,10 +1002,10 @@ async fn ensure_source_event_continuity(
                 COUNT(DISTINCT aggregate_version) AS distinct_version_count,
                 COALESCE(MIN(aggregate_version), 0) AS first_version,
                 COALESCE(MAX(aggregate_version), 0) AS last_version
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type=$2 AND aggregate_id=$3",
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type=$2 AND aggregate_id=$3",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(aggregate_type)
     .bind(aggregate_id)
     .fetch_one(&mut **tx)
@@ -1068,12 +1103,12 @@ fn request_hash<T: Serialize>(
 }
 
 // The arguments intentionally mirror the immutable outbox envelope fields;
-// keeping them explicit prevents accidentally omitting tenant or replay
+// keeping them explicit prevents accidentally omitting holding or replay
 // metadata at one of the five aggregate write call sites.
 #[allow(clippy::too_many_arguments)]
 async fn append_hr_event<T: Serialize>(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     aggregate_type: &str,
     aggregate_id: Uuid,
     version: u64,
@@ -1093,25 +1128,25 @@ async fn append_hr_event<T: Serialize>(
         "version": version,
         "event_type": event_type,
     });
-    let tenant_scope = serde_json::to_value(scope.tenant_scope())?;
+    let active_scope = serde_json::to_value(scope.active_scope())?;
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at,
-             contract_version, event_version, tenant_scope, actor,
+             contract_version, event_version, active_scope, actor,
              correlation_id, causation_id, idempotency_key)
          VALUES ($1,$2,$3,$4,$5,$6,$7,now(),$8,$9,$10,$11,$12,$13,$14)",
     )
     .bind(event_id)
     .bind(aggregate_type)
     .bind(aggregate_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(as_i64(version, "outbox aggregate version")?)
     .bind(event_type)
     .bind(payload)
     .bind(i32::from(HR_CONTRACT_VERSION))
     .bind(i32::from(HR_EVENT_VERSION))
-    .bind(tenant_scope)
+    .bind(active_scope)
     // The persistence adapter intentionally has no command actor input. A
     // null actor is honest and keeps authorization fail-closed for callers
     // that require authenticated command attribution.
@@ -1385,9 +1420,9 @@ fn validate_idempotency_key(value: &str) -> Result<(), PersistenceError> {
     validate_bounded(value, "idempotency_key", MAX_IDEMPOTENCY_KEY_BYTES)
 }
 
-fn validate_holding_ref(value: &str) -> Result<(), PersistenceError> {
+fn validate_data_profile_key(value: &str) -> Result<(), PersistenceError> {
     if value.trim().is_empty()
-        || value.len() > MAX_HOLDING_REF_BYTES
+        || value.len() > MAX_DATA_PROFILE_KEY_BYTES
         || value.chars().any(char::is_control)
     {
         return Err(PersistenceError::Configuration(
@@ -1476,9 +1511,10 @@ fn payroll_status(status: PayrollStatus) -> &'static str {
     }
 }
 
-fn stable_reassignment_id(holding_ref: &str, workflow_ref: &str) -> Uuid {
-    let digest =
-        Sha256::digest(format!("{REASSIGNMENT_AGGREGATE}:{holding_ref}:{workflow_ref}").as_bytes());
+fn stable_reassignment_id(data_profile_key: &str, workflow_ref: &str) -> Uuid {
+    let digest = Sha256::digest(
+        format!("{REASSIGNMENT_AGGREGATE}:{data_profile_key}:{workflow_ref}").as_bytes(),
+    );
     let mut bytes = [0_u8; 16];
     bytes.copy_from_slice(&digest[..16]);
     let mut id = Uuid::from_bytes(bytes);
@@ -1493,10 +1529,10 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn constructor_rejects_unscoped_holding_references() {
+    async fn constructor_rejects_unscoped_data_profile_references() {
         let pool = PgPool::connect_lazy("postgres://unused").expect("lazy pool");
         assert!(SqlxHrPersistence::new(pool.clone(), " ").is_err());
-        assert!(SqlxHrPersistence::new(pool, "tenant\nref").is_err());
+        assert!(SqlxHrPersistence::new(pool, "holding\nref").is_err());
     }
 
     #[test]

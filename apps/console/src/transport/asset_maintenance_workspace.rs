@@ -1,6 +1,6 @@
 //! Role-scoped Assets and Maintenance workspace.
 //!
-//! This surface deliberately has no tenant-route, subscription, or aggregate-ID
+//! This surface deliberately has no holding-route, subscription, or aggregate-ID
 //! input. The active role is the only authority presented to the server.
 
 use chrono::{DateTime, Duration, NaiveDateTime, Utc};
@@ -15,8 +15,8 @@ use erpx_cqrs::{
     QueryConsistency, QueryEnvelope, ReadYourWrites,
 };
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, QueryId, SessionId,
-    TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId, QueryId,
+    SessionId,
 };
 use erpx_maintenance::{
     BlockWorkOrder, CancelWorkOrder, CompleteWorkOrder, Downtime, RecordDowntime, ResumeWorkOrder,
@@ -49,7 +49,7 @@ struct WorkspaceCredentials {
     principal_ref: String,
     session_id: String,
     scope_key: String,
-    scope: TenantScope,
+    scope: AuthorityScope,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -60,7 +60,7 @@ enum WorkspaceRows {
 
 #[derive(Debug, Clone, PartialEq)]
 struct WorkspaceSnapshot {
-    scope: TenantScope,
+    scope: AuthorityScope,
     companies: Vec<NodeView>,
     branches: Vec<NodeView>,
     rows: WorkspaceRows,
@@ -141,7 +141,7 @@ fn copy(locale: Locale, en: &'static str, th: &'static str) -> &'static str {
     }
 }
 
-fn scope_from_key(scope_key: &str) -> Result<TenantScope, WorkspaceError> {
+fn scope_from_key(scope_key: &str) -> Result<AuthorityScope, WorkspaceError> {
     let invalid = || WorkspaceError {
         kind: UiErrorKind::Denied,
         code: "invalid_active_scope".into(),
@@ -153,7 +153,7 @@ fn scope_from_key(scope_key: &str) -> Result<TenantScope, WorkspaceError> {
             code: "platform_scope_not_supported".into(),
         });
     } else if let Some(value) = scope_key.strip_prefix("holding:") {
-        TenantScope::Holding {
+        AuthorityScope::Holding {
             holding_id: uuid(value)?,
         }
     } else if let Some(value) = scope_key.strip_prefix("company:") {
@@ -161,7 +161,7 @@ fn scope_from_key(scope_key: &str) -> Result<TenantScope, WorkspaceError> {
         if parts.len() != 2 {
             return Err(invalid());
         }
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id: uuid(parts[0])?,
             company_id: uuid(parts[1])?,
         }
@@ -170,25 +170,16 @@ fn scope_from_key(scope_key: &str) -> Result<TenantScope, WorkspaceError> {
         if parts.len() != 3 {
             return Err(invalid());
         }
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id: uuid(parts[0])?,
             company_id: uuid(parts[1])?,
             branch_id: uuid(parts[2])?,
         }
     } else if let Some(value) = scope_key.strip_prefix("subtree:") {
-        let (holding, descendants) = value.split_once(":companies=").ok_or_else(invalid)?;
-        let (companies, branches) = descendants.split_once(":branches=").ok_or_else(invalid)?;
-        let parse_ids = |values: &str| -> Result<Vec<Uuid>, WorkspaceError> {
-            if values.is_empty() {
-                Ok(Vec::new())
-            } else {
-                values.split(',').map(uuid).collect()
-            }
-        };
-        TenantScope::Subtree {
+        let (holding, organization_node) = value.split_once(':').ok_or_else(invalid)?;
+        AuthorityScope::Subtree {
             holding_id: uuid(holding)?,
-            company_ids: parse_ids(companies)?,
-            branch_ids: parse_ids(branches)?,
+            organization_node_id: uuid(organization_node)?,
         }
     } else {
         return Err(invalid());
@@ -244,7 +235,7 @@ fn actor(value: &WorkspaceCredentials) -> Result<ActorAttribution, WorkspaceErro
     })?;
     Ok(ActorAttribution {
         principal_ref: value.principal_ref.clone(),
-        kind: ActorKind::TenantUser,
+        kind: ActorKind::HoldingUser,
         session_id: Some(
             SessionId::try_from_uuid(session).map_err(|_| WorkspaceError {
                 kind: UiErrorKind::Denied,
@@ -267,7 +258,7 @@ fn query<Q>(
         query_id: QueryId::try_from_uuid(Uuid::new_v4()).expect("v4 UUID is non-nil"),
         correlation_id: CorrelationId::try_from_uuid(Uuid::new_v4()).expect("v4 UUID is non-nil"),
         actor: actor(value)?,
-        tenant_scope: value.scope.clone(),
+        active_scope: value.scope.clone(),
         audit: AuditContext {
             purpose: format!("{module}_workspace_read"),
             customer_visible: false,
@@ -293,7 +284,7 @@ fn command<C>(
         correlation_id: CorrelationId::try_from_uuid(Uuid::new_v4()).expect("v4 UUID is non-nil"),
         causation_id: None,
         actor: actor(value)?,
-        tenant_scope: value.scope.clone(),
+        active_scope: value.scope.clone(),
         audit: AuditContext {
             purpose: format!("{module}_workspace_command"),
             customer_visible: true,
@@ -592,27 +583,27 @@ fn company_id(node: &NodeView) -> Option<Uuid> {
 }
 
 fn target_scope(
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     companies: &[NodeView],
     branches: &[NodeView],
     selected_company: &str,
     selected_branch: &str,
 ) -> Option<(AssetScope, Uuid)> {
     let holding_id = match authority {
-        TenantScope::Holding { holding_id }
-        | TenantScope::Company { holding_id, .. }
-        | TenantScope::Branch { holding_id, .. }
-        | TenantScope::Subtree { holding_id, .. } => *holding_id,
-        TenantScope::Platform => return None,
+        AuthorityScope::Holding { holding_id }
+        | AuthorityScope::Company { holding_id, .. }
+        | AuthorityScope::Branch { holding_id, .. }
+        | AuthorityScope::Subtree { holding_id, .. } => *holding_id,
+        AuthorityScope::Platform => return None,
     };
     let fixed_company = match authority {
-        TenantScope::Company { company_id, .. } | TenantScope::Branch { company_id, .. } => {
+        AuthorityScope::Company { company_id, .. } | AuthorityScope::Branch { company_id, .. } => {
             Some(*company_id)
         }
         _ => None,
     };
     let fixed_branch = match authority {
-        TenantScope::Branch { branch_id, .. } => Some(*branch_id),
+        AuthorityScope::Branch { branch_id, .. } => Some(*branch_id),
         _ => None,
     };
     let company = fixed_company
@@ -625,22 +616,22 @@ fn target_scope(
                 .any(|node| node.node_id.as_uuid() == *id && company_id(node) == Some(company))
         })
     });
-    let tenant_scope = branch.map_or(
-        TenantScope::Company {
+    let active_scope = branch.map_or(
+        AuthorityScope::Company {
             holding_id,
             company_id: company,
         },
-        |branch_id| TenantScope::Branch {
+        |branch_id| AuthorityScope::Branch {
             holding_id,
             company_id: company,
             branch_id,
         },
     );
-    if !authority.contains(&tenant_scope) {
+    if !authority.contains(&active_scope) {
         return None;
     }
     let location = branch.unwrap_or(company);
-    AssetScope::try_new(tenant_scope)
+    AssetScope::try_new(active_scope)
         .ok()
         .map(|scope| (scope, location))
 }
@@ -785,13 +776,13 @@ pub(crate) fn ActiveAssetMaintenanceSurface(
     };
 
     let fixed_company = match snapshot.scope {
-        TenantScope::Company { company_id, .. } | TenantScope::Branch { company_id, .. } => {
+        AuthorityScope::Company { company_id, .. } | AuthorityScope::Branch { company_id, .. } => {
             Some(company_id)
         }
         _ => None,
     };
     let fixed_branch = match snapshot.scope {
-        TenantScope::Branch { branch_id, .. } => Some(branch_id),
+        AuthorityScope::Branch { branch_id, .. } => Some(branch_id),
         _ => None,
     };
     let effective_company = fixed_company
@@ -1174,26 +1165,26 @@ mod tests {
     use super::*;
 
     #[test]
-    fn active_scope_parser_covers_tenant_scopes_and_rejects_platform() {
+    fn active_scope_parser_covers_holding_scopes_and_rejects_platform() {
         let holding = Uuid::from_u128(1);
         let company = Uuid::from_u128(2);
         let branch = Uuid::from_u128(3);
         assert_eq!(
             scope_from_key(&format!("holding:{holding}")),
-            Ok(TenantScope::Holding {
+            Ok(AuthorityScope::Holding {
                 holding_id: holding
             })
         );
         assert_eq!(
             scope_from_key(&format!("company:{holding}:{company}")),
-            Ok(TenantScope::Company {
+            Ok(AuthorityScope::Company {
                 holding_id: holding,
                 company_id: company,
             })
         );
         assert_eq!(
             scope_from_key(&format!("branch:{holding}:{company}:{branch}")),
-            Ok(TenantScope::Branch {
+            Ok(AuthorityScope::Branch {
                 holding_id: holding,
                 company_id: company,
                 branch_id: branch,

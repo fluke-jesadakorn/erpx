@@ -15,8 +15,8 @@ use erpx_cqrs::{
     ReadYourWrites,
 };
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
-    FixedClock, QueryId, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+    ErrorCategory, EventId, FixedClock, QueryId,
 };
 
 use super::*;
@@ -30,8 +30,8 @@ fn at() -> chrono::DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap()
 }
 
-fn scope() -> TenantScope {
-    TenantScope::Company {
+fn scope() -> AuthorityScope {
+    AuthorityScope::Company {
         holding_id: id(1),
         company_id: id(2),
     }
@@ -44,7 +44,7 @@ fn asset_scope() -> AssetScope {
 fn actor() -> ActorAttribution {
     ActorAttribution {
         principal_ref: "assets-test-actor".into(),
-        kind: ActorKind::TenantUser,
+        kind: ActorKind::HoldingUser,
         session_id: None,
         represented_principal_ref: None,
         support_capability_id: None,
@@ -59,7 +59,7 @@ fn command_envelope<C>(sequence: u128, expected: Option<u64>, command: C) -> Com
         correlation_id: CorrelationId::try_from_uuid(id(200 + sequence)).unwrap(),
         causation_id: None,
         actor: actor(),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "assets.test".into(),
             customer_visible: false,
@@ -91,7 +91,7 @@ struct FakeEntitlement(bool);
 impl EntitlementPort for FakeEntitlement {
     async fn ensure_assets_enabled(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _write: bool,
     ) -> Result<(), PortError> {
         if self.0 {
@@ -109,7 +109,7 @@ struct FakeWriteRepository(Option<Asset>);
 impl WriteRepository for FakeWriteRepository {
     async fn load(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _asset_id: AssetId,
     ) -> Result<Option<Asset>, PortError> {
         Ok(self.0.clone())
@@ -172,7 +172,7 @@ struct NotReadyRead {
 impl ReadRepository for NotReadyRead {
     async fn get(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _asset_id: AssetId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<AssetView>>, PortError> {
@@ -190,7 +190,7 @@ impl ReadRepository for NotReadyRead {
 
     async fn list(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _filter: &AssetListFilter,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<AssetList>, PortError> {
@@ -311,7 +311,7 @@ fn read_your_writes_not_ready_is_returned_without_write_fallback() {
         query_id: QueryId::try_from_uuid(id(500)).unwrap(),
         correlation_id: CorrelationId::try_from_uuid(id(501)).unwrap(),
         actor: actor(),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "assets.test.query".into(),
             customer_visible: false,

@@ -2,15 +2,15 @@ use chrono::NaiveDate;
 use erpx_domain::asset_maintenance::{
     Asset, AssetMaintenanceError, AssetScope, MaintenanceKind, MaintenanceWorkOrder,
 };
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use uuid::Uuid;
 
-fn context(scope: TenantScope, key: &str) -> CommandContext {
+fn context(scope: AuthorityScope, key: &str) -> CommandContext {
     CommandContext::try_new(
         key,
         ActorAttribution {
             principal_ref: "user:asset-maintenance-test".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: Some(Uuid::from_u128(90)),
             represented_principal_ref: None,
             support_capability_id: None,
@@ -29,7 +29,7 @@ fn valid_asset() -> Asset {
     )
     .expect("test asset scope is valid");
     Asset::new(
-        &context(scope.tenant_scope(), "asset-create"),
+        &context(scope.active_scope(), "asset-create"),
         Uuid::from_u128(4),
         "Forklift",
         "material_handling",
@@ -53,7 +53,7 @@ fn maintenance_creation_rejects_an_invalid_source_asset_before_copying_it() {
     let before = source.clone();
 
     let result = MaintenanceWorkOrder::new(
-        &context(source.scope.tenant_scope(), "maintenance-create"),
+        &context(source.scope.active_scope(), "maintenance-create"),
         Uuid::from_u128(5),
         &source,
         MaintenanceKind::Corrective,

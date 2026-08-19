@@ -7,7 +7,7 @@
 use std::collections::BTreeSet;
 
 use chrono::{DateTime, Utc};
-use erpx_domain::contracts::{CommandContext, TenantScope};
+use erpx_domain::contracts::{AuthorityScope, CommandContext};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -58,8 +58,6 @@ pub enum MarketingProviderOnboardingError {
 pub struct ConfigureMarketingProviderAccountCommand {
     pub provider_account_id: Uuid,
     pub provider_account_ref: String,
-    pub tenant_id: String,
-    pub holding_ref: String,
     pub holding_id: Uuid,
     pub provider_key: String,
     pub provider_priority: u32,
@@ -75,8 +73,6 @@ impl ConfigureMarketingProviderAccountCommand {
     pub fn new(
         provider_account_id: Uuid,
         provider_account_ref: impl Into<String>,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
         holding_id: Uuid,
         provider_key: impl Into<String>,
         provider_priority: u32,
@@ -92,8 +88,6 @@ impl ConfigureMarketingProviderAccountCommand {
             ));
         }
         let provider_account_ref = bounded_reference(provider_account_ref.into())?;
-        let tenant_id = bounded_reference(tenant_id.into())?;
-        let holding_ref = bounded_reference(holding_ref.into())?;
         let provider_key = bounded_reference(provider_key.into())?;
         if !(1..=MAX_MARKETING_PROVIDER_PRIORITY).contains(&provider_priority) {
             return Err(MarketingProviderOnboardingError::Invalid(
@@ -111,8 +105,6 @@ impl ConfigureMarketingProviderAccountCommand {
         Ok(Self {
             provider_account_id,
             provider_account_ref,
-            tenant_id,
-            holding_ref,
             holding_id,
             provider_key,
             provider_priority,
@@ -128,8 +120,8 @@ impl ConfigureMarketingProviderAccountCommand {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AcknowledgeMarketingProviderVerificationCommand {
     pub provider_account_id: Uuid,
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub verification_reference: String,
     pub activate: bool,
     pub context: CommandContext,
@@ -138,8 +130,8 @@ pub struct AcknowledgeMarketingProviderVerificationCommand {
 impl AcknowledgeMarketingProviderVerificationCommand {
     pub fn new(
         provider_account_id: Uuid,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         verification_reference: impl Into<String>,
         activate: bool,
         context: CommandContext,
@@ -149,8 +141,8 @@ impl AcknowledgeMarketingProviderVerificationCommand {
                 "account identity",
             ));
         }
-        let tenant_id = bounded_reference(tenant_id.into())?;
-        let holding_ref = bounded_reference(holding_ref.into())?;
+        let holding_id = bounded_reference(holding_id.into())?;
+        let data_profile_key = bounded_reference(data_profile_key.into())?;
         let verification_reference = bounded_reference(verification_reference.into())?;
         context
             .validate()
@@ -158,8 +150,8 @@ impl AcknowledgeMarketingProviderVerificationCommand {
         validate_holding_context(&context, None)?;
         Ok(Self {
             provider_account_id,
-            tenant_id,
-            holding_ref,
+            holding_id,
+            data_profile_key,
             verification_reference,
             activate,
             context,
@@ -170,8 +162,8 @@ impl AcknowledgeMarketingProviderVerificationCommand {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SetMarketingProviderAccountStateCommand {
     pub provider_account_id: Uuid,
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub active: bool,
     pub context: CommandContext,
 }
@@ -179,8 +171,8 @@ pub struct SetMarketingProviderAccountStateCommand {
 impl SetMarketingProviderAccountStateCommand {
     pub fn new(
         provider_account_id: Uuid,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         active: bool,
         context: CommandContext,
     ) -> Result<Self, MarketingProviderOnboardingError> {
@@ -189,16 +181,16 @@ impl SetMarketingProviderAccountStateCommand {
                 "account identity",
             ));
         }
-        let tenant_id = bounded_reference(tenant_id.into())?;
-        let holding_ref = bounded_reference(holding_ref.into())?;
+        let holding_id = bounded_reference(holding_id.into())?;
+        let data_profile_key = bounded_reference(data_profile_key.into())?;
         context
             .validate()
             .map_err(|_| MarketingProviderOnboardingError::Invalid("command context"))?;
         validate_holding_context(&context, None)?;
         Ok(Self {
             provider_account_id,
-            tenant_id,
-            holding_ref,
+            holding_id,
+            data_profile_key,
             active,
             context,
         })
@@ -209,8 +201,8 @@ impl SetMarketingProviderAccountStateCommand {
 pub struct MarketingProviderAccountWriteReceipt {
     pub provider_account_id: Uuid,
     pub provider_account_ref: String,
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub provider_key: String,
     pub provider_priority: u32,
     pub channels: Vec<String>,
@@ -240,8 +232,8 @@ fn validate_holding_context(
     context: &CommandContext,
     expected_holding_id: Option<Uuid>,
 ) -> Result<(), MarketingProviderOnboardingError> {
-    match &context.tenant_scope {
-        TenantScope::Holding { holding_id }
+    match &context.active_scope {
+        AuthorityScope::Holding { holding_id }
             if expected_holding_id.is_none_or(|expected| expected == *holding_id) =>
         {
             Ok(())
@@ -329,19 +321,19 @@ fn normalize_channel_routes(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use erpx_domain::contracts::{ActorAttribution, ActorKind, TenantScope};
+    use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope};
 
     fn context(holding_id: Uuid) -> CommandContext {
         CommandContext::try_new(
             "provider-config-1",
             ActorAttribution {
                 principal_ref: "operator-1".into(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: None,
                 represented_principal_ref: None,
                 support_capability_id: None,
             },
-            TenantScope::Holding { holding_id },
+            AuthorityScope::Holding { holding_id },
             "provider onboarding",
         )
         .unwrap()
@@ -353,8 +345,6 @@ mod tests {
         let command = ConfigureMarketingProviderAccountCommand::new(
             Uuid::new_v4(),
             "account-1",
-            "tenant-1",
-            "holding-1",
             holding_id,
             "provider-1",
             DEFAULT_MARKETING_PROVIDER_PRIORITY,
@@ -383,8 +373,6 @@ mod tests {
             ConfigureMarketingProviderAccountCommand::new(
                 Uuid::new_v4(),
                 "unsafe/ref",
-                "tenant-1",
-                "holding-1",
                 holding_id,
                 "provider-1",
                 DEFAULT_MARKETING_PROVIDER_PRIORITY,
@@ -435,13 +423,11 @@ mod tests {
     fn provider_commands_require_an_explicit_holding_scope() {
         let holding_id = Uuid::new_v4();
         let mut context = context(holding_id);
-        context.tenant_scope = TenantScope::Platform;
+        context.active_scope = AuthorityScope::Platform;
         assert!(matches!(
             ConfigureMarketingProviderAccountCommand::new(
                 Uuid::new_v4(),
                 "account-1",
-                "tenant-1",
-                "holding-1",
                 holding_id,
                 "provider-1",
                 DEFAULT_MARKETING_PROVIDER_PRIORITY,

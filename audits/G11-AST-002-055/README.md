@@ -2,7 +2,7 @@
 
 ## Scope
 
-This packet adds tenant-routed SQLx persistence for Asset and
+This packet adds holding-routed SQLx persistence for Asset and
 MaintenanceWorkOrder aggregates. The write database is authoritative and the
 read database is disposable. Mutations validate domain state, enforce
 holding-reference RLS, optimistic contiguous versions, and request-bound
@@ -15,8 +15,8 @@ persisted as source-owned immutable handoffs with their own outbox event.
 
 - `crates/infrastructure/src/asset_maintenance_persistence.rs`
 - `crates/infrastructure/src/lib.rs`
-- `crates/migration/migrations_tenant_write/0021_asset_maintenance.sql`
-- `crates/migration/migrations_tenant_read/0021_asset_maintenance.sql`
+- `crates/migration/migrations_holding_write/0021_asset_maintenance.sql`
+- `crates/migration/migrations_holding_read/0021_asset_maintenance.sql`
 - `crates/migration/src/lib.rs`
 - `MASTER_PLAN.md`
 - `EXECUTION_LEDGER.md`
@@ -42,7 +42,7 @@ reconciliation remain open. This packet does not claim completion of G11.
 
 ## Security concerns
 
-Tenant RLS is forced on all source, custody, handoff, read, and checkpoint
+Holding RLS is forced on all source, custody, handoff, read, and checkpoint
 tables. Secrets are not modeled. Persistence callers must still perform
 authoritative RBAC, entitlement, billing, SoD, audit, and actor checks before
 calling the repository.

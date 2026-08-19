@@ -9,7 +9,7 @@ use erpx_cqrs::{
 use erpx_cqrs_sqlx::{
     CqrsSqlxError, ReadPool, ReadSideStore, SqlxProjectionWaiter, WaitError, WaiterConfig,
 };
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -121,7 +121,7 @@ impl AssetsReadRepository {
 impl ReadRepository for AssetsReadRepository {
     async fn get(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         asset_id: AssetId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<AssetView>>, PortError> {
@@ -148,7 +148,7 @@ impl ReadRepository for AssetsReadRepository {
         .await
         .map_err(|_| PortError::Unavailable)?;
         let value = row.map(decode_view).transpose()?;
-        let value = value.filter(|view| authority_scope.contains(view.scope.tenant_scope()));
+        let value = value.filter(|view| authority_scope.contains(view.scope.active_scope()));
         Ok(ReadProjection {
             value,
             metadata: self.metadata(checkpoint).await?,
@@ -157,7 +157,7 @@ impl ReadRepository for AssetsReadRepository {
 
     async fn list(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &AssetListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<AssetList>, PortError> {
@@ -201,7 +201,7 @@ impl ReadRepository for AssetsReadRepository {
             .map(decode_view)
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
-            .filter(|view| authority_scope.contains(view.scope.tenant_scope()))
+            .filter(|view| authority_scope.contains(view.scope.active_scope()))
             .take(usize::try_from(limit).map_err(|_| PortError::Internal)?)
             .collect::<Vec<_>>();
         let next_cursor = if assets.len() > usize::from(filter.page_size) {
@@ -225,7 +225,7 @@ impl ReadRepository for AssetsReadRepository {
 fn decode_view(row: sqlx::postgres::PgRow) -> Result<AssetView, PortError> {
     let state: serde_json::Value = row.try_get("state").map_err(|_| PortError::Internal)?;
     let view: AssetView = serde_json::from_value(state).map_err(|_| PortError::Internal)?;
-    if view.version == 0 || view.scope.tenant_scope().validate().is_err() {
+    if view.version == 0 || view.scope.active_scope().validate().is_err() {
         return Err(PortError::Internal);
     }
     Ok(view)

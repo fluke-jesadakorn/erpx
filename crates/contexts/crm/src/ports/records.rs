@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_cqrs::{IdempotencyKey, QueryConsistency};
-use erpx_kernel::{ActorAttribution, AuditContext, CommandId, CorrelationId, TenantScope};
+use erpx_kernel::{ActorAttribution, AuditContext, AuthorityScope, CommandId, CorrelationId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -20,7 +20,7 @@ pub enum CrmRecordAction {
 pub enum CrmRecordCommand {
     Create {
         kind: CrmRecordKind,
-        scope: TenantScope,
+        scope: AuthorityScope,
         title: String,
     },
     Transition {
@@ -50,15 +50,15 @@ pub struct CrmRecordCommandRequest {
     pub identity: CrmRecordCommandIdentity,
     pub correlation_id: CorrelationId,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
 }
 
 pub struct CrmRecordAuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
-    pub target_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
+    pub target_scope: &'a AuthorityScope,
     pub action: CrmRecordAction,
     pub kind: CrmRecordKind,
 }
@@ -75,7 +75,7 @@ pub trait CrmRecordAuthorizationPort: Send + Sync {
 pub trait CrmRecordWriteRepository: Send + Sync {
     async fn load_crm_record(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         record_id: Uuid,
     ) -> Result<Option<CrmRecord>, super::PortError>;
 }
@@ -113,7 +113,7 @@ pub trait CrmRecordUnitOfWork: Send + Sync {
 pub trait CrmRecordReadRepository: Send + Sync {
     async fn get_crm_record(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         record_id: Uuid,
         consistency: &QueryConsistency,
     ) -> Result<super::ReadProjection<Option<CrmRecord>>, super::PortError>;

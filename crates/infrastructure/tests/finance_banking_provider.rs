@@ -5,7 +5,7 @@ use std::sync::{
 
 use async_trait::async_trait;
 use chrono::{Duration, NaiveDate, Utc};
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_infrastructure::{
     BankProviderAccountBinding, BankProviderAccountRef, BankProviderAdapter, BankProviderCursor,
     BankProviderError, BankProviderTlsEvidence, BankProviderTlsVersion, BankStatementFacts,
@@ -19,8 +19,8 @@ const OTHER_COMPANY: Uuid = Uuid::from_u128(3);
 const ACCOUNT: Uuid = Uuid::from_u128(10);
 const IMPORT: Uuid = Uuid::from_u128(11);
 
-fn scope(company_id: Uuid) -> TenantScope {
-    TenantScope::Company {
+fn scope(company_id: Uuid) -> AuthorityScope {
+    AuthorityScope::Company {
         holding_id: HOLDING,
         company_id,
     }
@@ -81,7 +81,7 @@ fn context(company_id: Uuid, key: &str) -> CommandContext {
         key,
         ActorAttribution {
             principal_ref: "finance-user".to_owned(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: Some(Uuid::from_u128(20)),
             represented_principal_ref: None,
             support_capability_id: None,

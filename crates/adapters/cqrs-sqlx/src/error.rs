@@ -35,8 +35,8 @@ pub enum CqrsSqlxError {
     GuardRejected(&'static str),
     #[error("CQRS database is missing its schema-generation manifest")]
     MissingSchemaManifest,
-    #[error("CQRS database schema generation is unsupported")]
-    UnsupportedSchemaGeneration,
+    #[error("CQRS database schema revision is unsupported")]
+    UnsupportedSchemaRevision,
     #[error("CQRS database role is not valid for this capability")]
     DatabaseRoleMismatch,
     #[error("CQRS write and read databases do not belong to the same plane")]

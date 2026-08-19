@@ -67,7 +67,7 @@ where
         actor: &ActorContext,
         identity: MutationIdentity,
         enrollment_id: BenefitEnrollmentId,
-        scope: &erpx_kernel::TenantScope,
+        scope: &erpx_kernel::AuthorityScope,
         plan_id: BenefitPlanId,
         plan_version: u64,
         window: EnrollmentWindow,
@@ -128,7 +128,7 @@ where
         actor: &ActorContext,
         identity: MutationIdentity,
         enrollment_id: BenefitEnrollmentId,
-        scope: &erpx_kernel::TenantScope,
+        scope: &erpx_kernel::AuthorityScope,
         requested_version: Option<u64>,
         action: BenefitsAction,
         event_type: &str,
@@ -171,7 +171,7 @@ where
         actor: &ActorContext,
         identity: MutationIdentity,
         enrollment_id: BenefitEnrollmentId,
-        scope: &erpx_kernel::TenantScope,
+        scope: &erpx_kernel::AuthorityScope,
         handoff_id: PayrollHandoffId,
         at: DateTime<Utc>,
     ) -> Result<CommitReceipt, BenefitsError> {
@@ -262,7 +262,7 @@ where
     pub async fn get_enrollment(
         &self,
         actor: &ActorContext,
-        scope: &erpx_kernel::TenantScope,
+        scope: &erpx_kernel::AuthorityScope,
         id: BenefitEnrollmentId,
     ) -> Result<crate::ports::BenefitEnrollmentProjection, BenefitsError> {
         let authority = self
@@ -278,7 +278,7 @@ where
     pub async fn get_record(
         &self,
         actor: &ActorContext,
-        scope: &erpx_kernel::TenantScope,
+        scope: &erpx_kernel::AuthorityScope,
         id: uuid::Uuid,
     ) -> Result<crate::ports::BenefitsRecordProjection, BenefitsError> {
         let authority = self

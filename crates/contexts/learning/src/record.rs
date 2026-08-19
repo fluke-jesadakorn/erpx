@@ -1,7 +1,7 @@
 use crate::LearningDomainError;
 use chrono::{DateTime, Utc};
 use erpx_integration_contracts::StableRecordRef;
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -38,7 +38,7 @@ pub enum LearningRecordStatus {
 pub struct LearningRecord {
     id: Uuid,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     kind: LearningRecordKind,
     subject: StableRecordRef,
     evidence_digest: String,
@@ -48,7 +48,7 @@ pub struct LearningRecord {
 impl LearningRecord {
     pub fn propose(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         kind: LearningRecordKind,
         subject: StableRecordRef,
         evidence_digest: impl Into<String>,
@@ -145,7 +145,7 @@ impl LearningRecord {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn kind(&self) -> LearningRecordKind {
@@ -163,8 +163,8 @@ mod tests {
     use super::*;
     use erpx_integration_contracts::{RecordTypeId, catalog::ContextId};
     use erpx_kernel::RecordId;
-    fn scope() -> TenantScope {
-        TenantScope::Holding {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Holding {
             holding_id: Uuid::new_v4(),
         }
     }

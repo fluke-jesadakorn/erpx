@@ -20,34 +20,29 @@ pub const PROJECTION_NAME: &str = "assets.assets";
 pub const SNAPSHOT_EVENT_TYPE: &str = "assets.asset_snapshot";
 pub const EVENT_VERSION: u32 = 1;
 
-pub const TENANT_WRITE_FOUNDATION_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0057_cqrs_foundation.sql");
-pub const TENANT_WRITE_CONTEXT_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0060_wave6_paired_context_guards.sql");
-pub const TENANT_READ_FOUNDATION_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_read/0048_cqrs_foundation.sql");
-pub const TENANT_READ_CONTEXT_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0052_wave6_paired_context_projections.sql"
-);
+pub const HOLDING_WRITE_FOUNDATION_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
+pub const HOLDING_WRITE_CONTEXT_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
+pub const HOLDING_READ_FOUNDATION_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
+pub const HOLDING_READ_CONTEXT_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 pub const COMPLETION_WRITE_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0080_current_record_completion.sql");
-pub const COMPLETION_READ_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0071_current_record_completion_projection.sql"
-);
-pub const NORMALIZED_AUTHORITY_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_write/0081_current_normalized_authority.sql"
-);
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
+pub const COMPLETION_READ_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
+pub const NORMALIZED_AUTHORITY_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 pub const WRITE_DDL: &str = concat!(
-    include_str!("../../../migration/migrations_tenant_write/0057_cqrs_foundation.sql"),
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql"),
     "\n",
-    include_str!("../../../migration/migrations_tenant_write/0060_wave6_paired_context_guards.sql")
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql")
 );
 pub const READ_DDL: &str = concat!(
-    include_str!("../../../migration/migrations_tenant_read/0048_cqrs_foundation.sql"),
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql"),
     "\n",
-    include_str!(
-        "../../../migration/migrations_tenant_read/0052_wave6_paired_context_projections.sql"
-    )
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql")
 );
 
 pub fn asset_partition(asset_id: erpx_assets::AssetId) -> String {
@@ -84,7 +79,7 @@ mod tests {
     }
 
     #[test]
-    fn asset_commands_use_typed_tenant_authority() {
+    fn asset_commands_use_typed_holding_authority() {
         let source = include_str!("command.rs");
         assert!(source.contains("erpx_assets_write.asset_authority"));
         assert!(source.contains("commit_normalized"));

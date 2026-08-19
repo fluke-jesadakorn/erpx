@@ -4,9 +4,9 @@
 
 `PublishOperationsWorkQueuePolicy` requires an authenticated actor, a
 contained holding scope, and `operations.manage`. The server routes through
-the active tenant registry and the SQLx adapter binds the policy to the
+the active holding registry and the SQLx adapter binds the policy to the
 holding. The write path uses the existing `operations_aggregate_snapshots`,
-`operations_events`, tenant outbox, and `operations_source_references`
+`operations_events`, holding outbox, and `operations_source_references`
 contracts; the read path advances the existing `operations_read_model`
 projection. No policy table or client-side state was introduced.
 
@@ -60,7 +60,7 @@ rejected read-only root.
 
 The `TransitionOperationsException` protobuf now carries an ephemeral
 `mfa_code`. Assign, reassign, and escalate are rejected unless the server
-performs fresh write-side TOTP verification before tenant routing and
+performs fresh write-side TOTP verification before holding routing and
 aggregate mutation. The console treats the value as a password/one-time-code
 field; it is not included in command context, events, receipts, or read
 models. Acknowledge and resolve remain lower-risk transitions.
@@ -71,7 +71,7 @@ models. Acknowledge and resolve remain lower-risk transitions.
 producer boundary for source-context exception facts. It requires exact actor
 binding, contained holding scope, `operations.exception.manage`, bounded source
 and event identities/versions, RFC3339 occurrence time, and bounded valid JSON.
-The server derives the holding reference from the active tenant registry and
+The server derives the holding reference from the active holding registry and
 uses the existing SQLx source-provenance, aggregate, event, outbox, and read
 projection path. Operations stores source identity and orchestration state;
 the upstream context retains source transaction and payload ownership. This

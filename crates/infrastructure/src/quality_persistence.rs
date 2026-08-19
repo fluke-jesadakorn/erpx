@@ -1,14 +1,14 @@
-//! Tenant-routed SQLx persistence for Quality inspections.
+//! Holding-routed SQLx persistence for Quality inspections.
 //!
-//! The inspection aggregate is authoritative on the tenant write database.
+//! The inspection aggregate is authoritative on the holding write database.
 //! Every accepted command commits the source row, immutable snapshot, complete
-//! tenant outbox envelope, and idempotency receipt together. The read model is
+//! holding outbox envelope, and idempotency receipt together. The read model is
 //! disposable and can only be populated from an authoritative outbox event.
 
 use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
-use erpx_domain::contracts::{ActorAttribution, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, AuthorityScope, CommandContext};
 use erpx_domain::quality::{QualityInspection, QualityProjectionReconciliation};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -55,7 +55,7 @@ pub struct QualitySourceEventPage {
     pub has_more: bool,
 }
 
-/// Explicit tenant scope accepted by the Quality read gateway. Company scope
+/// Explicit holding scope accepted by the Quality read gateway. Company scope
 /// includes its branches; a branch scope is exact. Platform and subtree
 /// scopes are rejected by the transport before this type is constructed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,7 +95,7 @@ pub struct QualityProjectionApplication {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QualityProjectionRebuildPreparation {
-    pub holding_ref: String,
+    pub data_profile_key: String,
     pub rows_cleared: u64,
     pub checkpoints_cleared: u64,
 }
@@ -104,7 +104,7 @@ pub struct QualityProjectionRebuildPreparation {
 pub struct SqlxQualityStore {
     write_pool: PgPool,
     read_pool: PgPool,
-    holding_ref: String,
+    data_profile_key: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -122,7 +122,7 @@ struct QualitySourceProjectionFact {
 
 #[derive(Debug, Clone, PartialEq)]
 struct QualityProjectedFact {
-    holding_ref: String,
+    data_profile_key: String,
     company_id: Uuid,
     branch_id: Option<Uuid>,
     source_version: u64,
@@ -179,8 +179,8 @@ fn quality_idempotency_lock_name(command_key: &str) -> String {
     format!("quality:idempotency:{command_key}")
 }
 
-fn quality_projection_lock_name(holding_ref: &str) -> String {
-    format!("quality:projection:{holding_ref}")
+fn quality_projection_lock_name(data_profile_key: &str) -> String {
+    format!("quality:projection:{data_profile_key}")
 }
 
 async fn lock_quality_transaction(
@@ -198,23 +198,23 @@ impl SqlxQualityStore {
     pub fn new(
         write_pool: PgPool,
         read_pool: PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_text(&holding_ref, "holding_ref", 255)?;
+        let data_profile_key = data_profile_key.into();
+        validate_text(&data_profile_key, "data_profile_key", 255)?;
         Ok(Self {
             write_pool,
             read_pool,
-            holding_ref,
+            data_profile_key,
         })
     }
 
     pub fn from_pools(
         write_pool: &PgPool,
         read_pool: &PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        Self::new(write_pool.clone(), read_pool.clone(), holding_ref)
+        Self::new(write_pool.clone(), read_pool.clone(), data_profile_key)
     }
 
     pub async fn save(
@@ -229,7 +229,7 @@ impl SqlxQualityStore {
         context
             .validate()
             .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
-        if !context.tenant_scope.contains(&inspection.scope) {
+        if !context.active_scope.contains(&inspection.scope) {
             return Err(PersistenceError::InvalidData(
                 "quality inspection is outside command scope".into(),
             ));
@@ -241,10 +241,10 @@ impl SqlxQualityStore {
         let mut tx = self.begin_write().await?;
         lock_quality_transaction(&mut tx, quality_idempotency_lock_name(&command_key)).await?;
         if let Some(row) = sqlx::query(
-            "SELECT request_hash, response FROM erpx_tenant.quality_command_idempotency
-             WHERE holding_ref=$1 AND idempotency_key=$2 FOR UPDATE",
+            "SELECT request_hash, response FROM erpx_holding.quality_command_idempotency
+             WHERE data_profile_key=$1 AND idempotency_key=$2 FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(&command_key)
         .fetch_optional(&mut *tx)
         .await?
@@ -262,10 +262,10 @@ impl SqlxQualityStore {
             return Ok(receipt);
         }
         let current = sqlx::query(
-            "SELECT version, payload FROM erpx_tenant.quality_inspections
-             WHERE holding_ref=$1 AND inspection_id=$2 FOR UPDATE",
+            "SELECT version, payload FROM erpx_holding.quality_inspections
+             WHERE data_profile_key=$1 AND inspection_id=$2 FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(inspection.id)
         .fetch_optional(&mut *tx)
         .await?
@@ -311,12 +311,12 @@ impl SqlxQualityStore {
         }
         if current.is_some() {
             sqlx::query(
-                "UPDATE erpx_tenant.quality_inspections
+                "UPDATE erpx_holding.quality_inspections
                  SET company_id=$3, branch_id=$4, reference=$5, version=$6,
                      payload=$7, updated_at=$8
-                 WHERE holding_ref=$1 AND inspection_id=$2",
+                 WHERE data_profile_key=$1 AND inspection_id=$2",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(inspection.id)
             .bind(inspection.company_id)
             .bind(inspection.branch_id)
@@ -328,13 +328,13 @@ impl SqlxQualityStore {
             .await?;
         } else {
             sqlx::query(
-                "INSERT INTO erpx_tenant.quality_inspections
-                    (inspection_id, holding_ref, company_id, branch_id, reference,
+                "INSERT INTO erpx_holding.quality_inspections
+                    (inspection_id, data_profile_key, company_id, branch_id, reference,
                      version, idempotency_key, payload, updated_at)
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
             )
             .bind(inspection.id)
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(inspection.company_id)
             .bind(inspection.branch_id)
             .bind(&inspection.reference)
@@ -352,21 +352,21 @@ impl SqlxQualityStore {
             "version": inspection.version,
         });
         sqlx::query(
-            "INSERT INTO erpx_tenant.outbox_events
-                (event_id, aggregate_type, aggregate_id, holding_ref,
+            "INSERT INTO erpx_holding.outbox_events
+                (event_id, aggregate_type, aggregate_id, data_profile_key,
                  aggregate_version, event_type, payload, occurred_at,
-                 contract_version, event_version, tenant_scope, actor,
+                 contract_version, event_version, active_scope, actor,
                  correlation_id, causation_id, idempotency_key)
              VALUES ($1,'quality_inspection',$2,$3,$4,'quality.inspection.v1',$5,$6,
                      1,1,$7,$8,$9,$10,$11)",
         )
         .bind(event_id)
         .bind(inspection.id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(as_i64(inspection.version, "quality inspection version")?)
         .bind(event_payload)
         .bind(inspection.updated_at)
-        .bind(serde_json::to_value(&context.tenant_scope)?)
+        .bind(serde_json::to_value(&context.active_scope)?)
         .bind(serde_json::to_value(&context.actor)?)
         .bind(context.correlation_id)
         .bind(context.causation_id)
@@ -380,12 +380,12 @@ impl SqlxQualityStore {
             replayed: false,
         };
         sqlx::query(
-            "INSERT INTO erpx_tenant.quality_command_idempotency
-                (idempotency_key, holding_ref, request_hash, response)
+            "INSERT INTO erpx_holding.quality_command_idempotency
+                (idempotency_key, data_profile_key, request_hash, response)
              VALUES ($1,$2,$3,$4)",
         )
         .bind(&command_key)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(request_hash)
         .bind(serde_json::to_value(&receipt)?)
         .execute(&mut *tx)
@@ -405,9 +405,13 @@ impl SqlxQualityStore {
             ));
         }
         let mut tx = self.begin_write().await?;
-        let page =
-            read_source_event_page_in_transaction(&mut tx, &self.holding_ref, cursor, page_size)
-                .await?;
+        let page = read_source_event_page_in_transaction(
+            &mut tx,
+            &self.data_profile_key,
+            cursor,
+            page_size,
+        )
+        .await?;
         tx.commit().await?;
         Ok(page)
     }
@@ -418,7 +422,8 @@ impl SqlxQualityStore {
     /// page query below.
     pub async fn source_event_high_watermark(&self) -> Result<u64, PersistenceError> {
         let mut tx = self.begin_write().await?;
-        let count = source_event_high_watermark_in_transaction(&mut tx, &self.holding_ref).await?;
+        let count =
+            source_event_high_watermark_in_transaction(&mut tx, &self.data_profile_key).await?;
         tx.commit().await?;
         Ok(count)
     }
@@ -434,16 +439,16 @@ impl SqlxQualityStore {
         let mut source_tx = self.begin_write().await?;
         let source = sqlx::query(
             "SELECT e.event_type, e.aggregate_id, e.aggregate_version, e.payload AS payload,
-                    e.contract_version, e.event_version, e.tenant_scope, e.actor, e.correlation_id,
+                    e.contract_version, e.event_version, e.active_scope, e.actor, e.correlation_id,
                     e.causation_id, e.idempotency_key,
                     q.version AS source_version, q.payload AS source_payload
-             FROM erpx_tenant.outbox_events e
-             JOIN erpx_tenant.quality_inspections q
-               ON q.holding_ref=e.holding_ref AND q.inspection_id=e.aggregate_id
-             WHERE e.event_id=$1 AND e.holding_ref=$2",
+             FROM erpx_holding.outbox_events e
+             JOIN erpx_holding.quality_inspections q
+               ON q.data_profile_key=e.data_profile_key AND q.inspection_id=e.aggregate_id
+             WHERE e.event_id=$1 AND e.data_profile_key=$2",
         )
         .bind(event_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *source_tx)
         .await?;
         source_tx.commit().await?;
@@ -474,7 +479,7 @@ impl SqlxQualityStore {
         let mut read_tx = self.begin_read().await?;
         lock_quality_transaction(
             &mut read_tx,
-            quality_projection_lock_name(&self.holding_ref),
+            quality_projection_lock_name(&self.data_profile_key),
         )
         .await?;
         let result = self
@@ -518,10 +523,10 @@ impl SqlxQualityStore {
         }
         let existing = sqlx::query(
             "SELECT company_id, branch_id, source_version, payload
-             FROM erpx_tenant.quality_inspection_read_rows
-             WHERE holding_ref=$1 AND inspection_id=$2 FOR UPDATE",
+             FROM erpx_holding.quality_inspection_read_rows
+             WHERE data_profile_key=$1 AND inspection_id=$2 FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(aggregate_id)
         .fetch_optional(&mut **read_tx)
         .await?;
@@ -539,10 +544,10 @@ impl SqlxQualityStore {
             let current_payload: Value = existing.try_get("payload")?;
             let checkpoint = sqlx::query(
                 "SELECT source_version, last_event_id
-                 FROM erpx_tenant.quality_projection_checkpoints
-                 WHERE holding_ref=$1 AND inspection_id=$2 FOR UPDATE",
+                 FROM erpx_holding.quality_projection_checkpoints
+                 WHERE data_profile_key=$1 AND inspection_id=$2 FOR UPDATE",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(aggregate_id)
             .fetch_optional(&mut **read_tx)
             .await?
@@ -586,8 +591,8 @@ impl SqlxQualityStore {
             ));
         }
         sqlx::query(
-            "INSERT INTO erpx_tenant.quality_inspection_read_rows
-                (inspection_id, holding_ref, company_id, branch_id, reference,
+            "INSERT INTO erpx_holding.quality_inspection_read_rows
+                (inspection_id, data_profile_key, company_id, branch_id, reference,
                  source_version, payload, projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,now())
              ON CONFLICT (inspection_id) DO UPDATE SET
@@ -595,7 +600,7 @@ impl SqlxQualityStore {
                 payload=$7, projected_at=now()",
         )
         .bind(inspection.id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(inspection.company_id)
         .bind(inspection.branch_id)
         .bind(&inspection.reference)
@@ -604,14 +609,14 @@ impl SqlxQualityStore {
         .execute(&mut **read_tx)
         .await?;
         sqlx::query(
-            "INSERT INTO erpx_tenant.quality_projection_checkpoints
-                (inspection_id, holding_ref, last_event_id, source_version, projected_at)
+            "INSERT INTO erpx_holding.quality_projection_checkpoints
+                (inspection_id, data_profile_key, last_event_id, source_version, projected_at)
              VALUES ($1,$2,$3,$4,now())
              ON CONFLICT (inspection_id) DO UPDATE SET
                 last_event_id=$3, source_version=$4, projected_at=now()",
         )
         .bind(aggregate_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(event_id)
         .bind(as_i64(aggregate_version, "quality checkpoint version")?)
         .execute(&mut **read_tx)
@@ -636,10 +641,10 @@ impl SqlxQualityStore {
         let mut tx = self.begin_read().await?;
         let row = sqlx::query(
             "SELECT company_id, branch_id, payload, source_version
-             FROM erpx_tenant.quality_inspection_read_rows
-             WHERE holding_ref=$1 AND inspection_id=$2",
+             FROM erpx_holding.quality_inspection_read_rows
+             WHERE data_profile_key=$1 AND inspection_id=$2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(inspection_id)
         .fetch_optional(&mut *tx)
         .await?;
@@ -671,7 +676,7 @@ impl SqlxQualityStore {
     pub async fn get_for_scope(
         &self,
         inspection_id: Uuid,
-        authorizing_scope: &TenantScope,
+        authorizing_scope: &AuthorityScope,
     ) -> Result<Option<(QualityInspection, u64)>, PersistenceError> {
         validate_authorizing_quality_scope(authorizing_scope)?;
         let Some((inspection, source_version)) = self.get(inspection_id).await? else {
@@ -685,7 +690,7 @@ impl SqlxQualityStore {
         Ok(Some((inspection, source_version)))
     }
 
-    /// Read typed Quality facts from the physically separate tenant read pool.
+    /// Read typed Quality facts from the physically separate holding read pool.
     /// The source aggregate and command history never participate in this
     /// query. Rows are bounded and keyset-paginated by projection time plus
     /// immutable inspection identity.
@@ -712,15 +717,15 @@ impl SqlxQualityStore {
         let rows = sqlx::query(
             "SELECT inspection_id, company_id, branch_id, payload, source_version,
                     projected_at
-             FROM erpx_tenant.quality_inspection_read_rows
-             WHERE holding_ref=$1 AND company_id=$2
+             FROM erpx_holding.quality_inspection_read_rows
+             WHERE data_profile_key=$1 AND company_id=$2
                AND ($3::UUID IS NULL OR branch_id=$3)
                AND ($4::TIMESTAMPTZ IS NULL OR
                     (projected_at, inspection_id) < ($4, $5))
              ORDER BY projected_at DESC, inspection_id DESC
              LIMIT $6",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(scope.company_id)
         .bind(scope.branch_id)
         .bind(before.map(|cursor| cursor.projected_at))
@@ -788,10 +793,10 @@ impl SqlxQualityStore {
         }
         let mut tx = self.begin_write().await?;
         let row = sqlx::query(
-            "SELECT payload FROM erpx_tenant.quality_inspections
-             WHERE holding_ref=$1 AND inspection_id=$2",
+            "SELECT payload FROM erpx_holding.quality_inspections
+             WHERE data_profile_key=$1 AND inspection_id=$2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(inspection_id)
         .fetch_optional(&mut *tx)
         .await?;
@@ -818,10 +823,10 @@ impl SqlxQualityStore {
         validate_text(request_hash, "request_hash", 64)?;
         let mut tx = self.begin_write().await?;
         let row = sqlx::query(
-            "SELECT request_hash, response FROM erpx_tenant.quality_command_idempotency
-             WHERE holding_ref=$1 AND idempotency_key=$2",
+            "SELECT request_hash, response FROM erpx_holding.quality_command_idempotency
+             WHERE data_profile_key=$1 AND idempotency_key=$2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(idempotency_key)
         .fetch_optional(&mut *tx)
         .await?;
@@ -843,40 +848,40 @@ impl SqlxQualityStore {
         let source_rows = sqlx::query(
             "SELECT q.inspection_id, q.company_id, q.branch_id, q.version, q.payload,
                     (SELECT count(*)
-                     FROM erpx_tenant.outbox_events o
-                     WHERE o.holding_ref=q.holding_ref
+                     FROM erpx_holding.outbox_events o
+                     WHERE o.data_profile_key=q.data_profile_key
                        AND o.aggregate_type='quality_inspection'
                        AND o.aggregate_id=q.inspection_id) AS event_count,
                     (SELECT max(o.aggregate_version)
-                     FROM erpx_tenant.outbox_events o
-                     WHERE o.holding_ref=q.holding_ref
+                     FROM erpx_holding.outbox_events o
+                     WHERE o.data_profile_key=q.data_profile_key
                        AND o.aggregate_type='quality_inspection'
                        AND o.aggregate_id=q.inspection_id) AS max_event_version,
                     (SELECT o.event_id
-                     FROM erpx_tenant.outbox_events o
-                     WHERE o.holding_ref=q.holding_ref
+                     FROM erpx_holding.outbox_events o
+                     WHERE o.data_profile_key=q.data_profile_key
                        AND o.aggregate_type='quality_inspection'
                        AND o.aggregate_id=q.inspection_id
                      ORDER BY o.aggregate_version DESC, o.occurred_at DESC, o.event_id DESC
                      LIMIT 1) AS latest_event_id,
                     (SELECT o.payload
-                     FROM erpx_tenant.outbox_events o
-                     WHERE o.holding_ref=q.holding_ref
+                     FROM erpx_holding.outbox_events o
+                     WHERE o.data_profile_key=q.data_profile_key
                        AND o.aggregate_type='quality_inspection'
                        AND o.aggregate_id=q.inspection_id
                      ORDER BY o.aggregate_version DESC, o.occurred_at DESC, o.event_id DESC
                      LIMIT 1) AS latest_event_payload
-             FROM erpx_tenant.quality_inspections q
-             WHERE q.holding_ref=$1",
+             FROM erpx_holding.quality_inspections q
+             WHERE q.data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_all(&mut *tx)
         .await?;
         let source_events: i64 = sqlx::query_scalar(
-            "SELECT count(*) FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND aggregate_type='quality_inspection'",
+            "SELECT count(*) FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND aggregate_type='quality_inspection'",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_one(&mut *tx)
         .await?;
         tx.commit().await?;
@@ -908,10 +913,10 @@ impl SqlxQualityStore {
         let mut read_tx = self.begin_read().await?;
         let checkpoint_rows = sqlx::query(
             "SELECT inspection_id, source_version, last_event_id
-             FROM erpx_tenant.quality_projection_checkpoints
-             WHERE holding_ref=$1",
+             FROM erpx_holding.quality_projection_checkpoints
+             WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_all(&mut *read_tx)
         .await?;
         let checkpoints = checkpoint_rows
@@ -927,11 +932,11 @@ impl SqlxQualityStore {
             })
             .collect::<Result<HashMap<_, _>, _>>()?;
         let projected_rows = sqlx::query(
-            "SELECT inspection_id, holding_ref, company_id, branch_id, source_version, payload
-             FROM erpx_tenant.quality_inspection_read_rows
-             WHERE holding_ref=$1",
+            "SELECT inspection_id, data_profile_key, company_id, branch_id, source_version, payload
+             FROM erpx_holding.quality_inspection_read_rows
+             WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_all(&mut *read_tx)
         .await?;
         read_tx.commit().await?;
@@ -942,7 +947,7 @@ impl SqlxQualityStore {
                 Ok::<_, PersistenceError>((
                     inspection_id,
                     QualityProjectedFact {
-                        holding_ref: row.try_get("holding_ref")?,
+                        data_profile_key: row.try_get("data_profile_key")?,
                         company_id: row.try_get("company_id")?,
                         branch_id: row.try_get("branch_id")?,
                         source_version: as_u64(
@@ -956,7 +961,7 @@ impl SqlxQualityStore {
             })
             .collect::<Result<HashMap<_, _>, _>>()?;
         Ok(reconcile_projection_facts(
-            &self.holding_ref,
+            &self.data_profile_key,
             &source_facts,
             &projected_facts,
             &checkpoints,
@@ -992,11 +997,12 @@ impl SqlxQualityStore {
         }
 
         let mut source_tx = self.begin_write().await?;
-        sqlx::query("LOCK TABLE erpx_tenant.outbox_events IN SHARE MODE")
+        sqlx::query("LOCK TABLE erpx_holding.outbox_events IN SHARE MODE")
             .execute(&mut *source_tx)
             .await?;
         let actual_source_event_count =
-            source_event_high_watermark_in_transaction(&mut source_tx, &self.holding_ref).await?;
+            source_event_high_watermark_in_transaction(&mut source_tx, &self.data_profile_key)
+                .await?;
         if expected_source_event_count.is_some_and(|expected| expected != actual_source_event_count)
         {
             return Err(PersistenceError::InvalidData(
@@ -1008,30 +1014,30 @@ impl SqlxQualityStore {
                 "quality projection source event bound exceeded".into(),
             ));
         }
-        ensure_no_duplicate_source_versions(&mut source_tx, &self.holding_ref).await?;
+        ensure_no_duplicate_source_versions(&mut source_tx, &self.data_profile_key).await?;
 
         let mut read_tx = self.begin_read().await?;
         lock_quality_transaction(
             &mut read_tx,
-            quality_projection_lock_name(&self.holding_ref),
+            quality_projection_lock_name(&self.data_profile_key),
         )
         .await?;
         let rows_cleared = sqlx::query(
-            "DELETE FROM erpx_tenant.quality_inspection_read_rows WHERE holding_ref=$1",
+            "DELETE FROM erpx_holding.quality_inspection_read_rows WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .execute(&mut *read_tx)
         .await?
         .rows_affected();
         let checkpoints_cleared = sqlx::query(
-            "DELETE FROM erpx_tenant.quality_projection_checkpoints WHERE holding_ref=$1",
+            "DELETE FROM erpx_holding.quality_projection_checkpoints WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .execute(&mut *read_tx)
         .await?
         .rows_affected();
         let preparation = QualityProjectionRebuildPreparation {
-            holding_ref: self.holding_ref.clone(),
+            data_profile_key: self.data_profile_key.clone(),
             rows_cleared,
             checkpoints_cleared,
         };
@@ -1041,7 +1047,7 @@ impl SqlxQualityStore {
         loop {
             let page = read_source_event_page_in_transaction(
                 &mut source_tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 cursor.as_ref(),
                 page_size,
             )
@@ -1080,7 +1086,8 @@ impl SqlxQualityStore {
         }
 
         let final_source_event_count =
-            source_event_high_watermark_in_transaction(&mut source_tx, &self.holding_ref).await?;
+            source_event_high_watermark_in_transaction(&mut source_tx, &self.data_profile_key)
+                .await?;
         if final_source_event_count != actual_source_event_count {
             return Err(PersistenceError::InvalidData(
                 "quality source fence changed during replacement rebuild".into(),
@@ -1095,41 +1102,45 @@ impl SqlxQualityStore {
         &self,
     ) -> Result<QualityProjectionRebuildPreparation, PersistenceError> {
         let mut tx = self.begin_read().await?;
-        lock_quality_transaction(&mut tx, quality_projection_lock_name(&self.holding_ref)).await?;
-        let rows_cleared = sqlx::query(
-            "DELETE FROM erpx_tenant.quality_inspection_read_rows WHERE holding_ref=$1",
+        lock_quality_transaction(
+            &mut tx,
+            quality_projection_lock_name(&self.data_profile_key),
         )
-        .bind(&self.holding_ref)
+        .await?;
+        let rows_cleared = sqlx::query(
+            "DELETE FROM erpx_holding.quality_inspection_read_rows WHERE data_profile_key=$1",
+        )
+        .bind(&self.data_profile_key)
         .execute(&mut *tx)
         .await?
         .rows_affected();
         let checkpoints_cleared = sqlx::query(
-            "DELETE FROM erpx_tenant.quality_projection_checkpoints WHERE holding_ref=$1",
+            "DELETE FROM erpx_holding.quality_projection_checkpoints WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .execute(&mut *tx)
         .await?
         .rows_affected();
         tx.commit().await?;
         Ok(QualityProjectionRebuildPreparation {
-            holding_ref: self.holding_ref.clone(),
+            data_profile_key: self.data_profile_key.clone(),
             rows_cleared,
             checkpoints_cleared,
         })
     }
 
     async fn begin_write(&self) -> Result<Transaction<'_, Postgres>, PersistenceError> {
-        begin_scoped(&self.write_pool, &self.holding_ref).await
+        begin_scoped(&self.write_pool, &self.data_profile_key).await
     }
 
     async fn begin_read(&self) -> Result<Transaction<'_, Postgres>, PersistenceError> {
-        begin_scoped(&self.read_pool, &self.holding_ref).await
+        begin_scoped(&self.read_pool, &self.data_profile_key).await
     }
 }
 
 async fn read_source_event_page_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     cursor: Option<&QualitySourceEventCursor>,
     page_size: u32,
 ) -> Result<QualitySourceEventPage, PersistenceError> {
@@ -1138,7 +1149,7 @@ async fn read_source_event_page_in_transaction(
             "quality source event page size is out of bounds".into(),
         ));
     }
-    ensure_no_duplicate_source_versions(tx, holding_ref).await?;
+    ensure_no_duplicate_source_versions(tx, data_profile_key).await?;
     let limit = i64::from(page_size) + 1;
     let rows = if let Some(cursor) = cursor {
         if cursor.aggregate_id.is_nil() || cursor.aggregate_version == 0 {
@@ -1148,14 +1159,14 @@ async fn read_source_event_page_in_transaction(
         }
         sqlx::query(
             "SELECT event_id, aggregate_id, aggregate_version, payload, occurred_at,
-                    event_type, contract_version, event_version, tenant_scope, actor,
+                    event_type, contract_version, event_version, active_scope, actor,
                     correlation_id, idempotency_key
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND aggregate_type='quality_inspection'
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND aggregate_type='quality_inspection'
                AND (aggregate_id>$2 OR (aggregate_id=$2 AND aggregate_version>$3))
              ORDER BY aggregate_id, aggregate_version LIMIT $4",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(cursor.aggregate_id)
         .bind(as_i64(cursor.aggregate_version, "quality cursor version")?)
         .bind(limit)
@@ -1164,13 +1175,13 @@ async fn read_source_event_page_in_transaction(
     } else {
         sqlx::query(
             "SELECT event_id, aggregate_id, aggregate_version, payload, occurred_at,
-                    event_type, contract_version, event_version, tenant_scope, actor,
+                    event_type, contract_version, event_version, active_scope, actor,
                     correlation_id, idempotency_key
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND aggregate_type='quality_inspection'
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND aggregate_type='quality_inspection'
              ORDER BY aggregate_id, aggregate_version LIMIT $2",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(limit)
         .fetch_all(&mut **tx)
         .await?
@@ -1222,14 +1233,14 @@ async fn read_source_event_page_in_transaction(
 
 async fn source_event_high_watermark_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<u64, PersistenceError> {
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*)
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type='quality_inspection'",
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type='quality_inspection'",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_one(&mut **tx)
     .await?;
     as_u64(count, "quality source event high watermark")
@@ -1237,17 +1248,17 @@ async fn source_event_high_watermark_in_transaction(
 
 async fn ensure_no_duplicate_source_versions(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<(), PersistenceError> {
     let duplicate = sqlx::query(
         "SELECT aggregate_id, aggregate_version
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type='quality_inspection'
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type='quality_inspection'
          GROUP BY aggregate_id, aggregate_version
          HAVING COUNT(*) > 1
          LIMIT 1",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_optional(&mut **tx)
     .await?;
     if duplicate.is_some() {
@@ -1331,7 +1342,7 @@ fn quality_source_inspection_from_row(
         event_type: row.try_get("event_type")?,
         contract_version: row.try_get("contract_version")?,
         event_version: row.try_get("event_version")?,
-        tenant_scope: row.try_get("tenant_scope")?,
+        active_scope: row.try_get("active_scope")?,
         actor: row.try_get("actor")?,
         correlation_id: row.try_get("correlation_id")?,
         idempotency_key: row.try_get("idempotency_key")?,
@@ -1346,7 +1357,7 @@ struct QualitySourceEnvelope {
     event_type: String,
     contract_version: Option<i32>,
     event_version: Option<i32>,
-    tenant_scope: Option<Value>,
+    active_scope: Option<Value>,
     actor: Option<Value>,
     correlation_id: Option<Uuid>,
     idempotency_key: Option<String>,
@@ -1369,9 +1380,9 @@ fn validate_quality_source_envelope(
             "quality source event envelope version or type is invalid".into(),
         ));
     }
-    let tenant_scope: TenantScope =
-        serde_json::from_value(envelope.tenant_scope.ok_or_else(|| {
-            PersistenceError::InvalidData("quality source event tenant scope is missing".into())
+    let active_scope: AuthorityScope =
+        serde_json::from_value(envelope.active_scope.ok_or_else(|| {
+            PersistenceError::InvalidData("quality source event holding scope is missing".into())
         })?)?;
     let actor: ActorAttribution = serde_json::from_value(envelope.actor.ok_or_else(|| {
         PersistenceError::InvalidData("quality source event actor is missing".into())
@@ -1406,7 +1417,7 @@ fn validate_quality_source_envelope(
             "quality source event identity/version mismatch".into(),
         ));
     }
-    if !tenant_scope.contains(&inspection.scope) {
+    if !active_scope.contains(&inspection.scope) {
         return Err(PersistenceError::InvalidData(
             "quality source event scope does not contain aggregate scope".into(),
         ));
@@ -1460,13 +1471,13 @@ fn validate_quality_read_scope(scope: QualityReadScope) -> Result<(), Persistenc
     Ok(())
 }
 
-fn validate_authorizing_quality_scope(scope: &TenantScope) -> Result<(), PersistenceError> {
+fn validate_authorizing_quality_scope(scope: &AuthorityScope) -> Result<(), PersistenceError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } if !holding_id.is_nil() && !company_id.is_nil() => Ok(()),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -1548,7 +1559,7 @@ fn reconcile_projection_versions(
 }
 
 fn reconcile_projection_facts(
-    holding_ref: &str,
+    data_profile_key: &str,
     source_facts: &HashMap<Uuid, QualitySourceProjectionFact>,
     projected_facts: &HashMap<Uuid, QualityProjectedFact>,
     checkpoints: &HashMap<Uuid, (u64, Uuid)>,
@@ -1584,7 +1595,7 @@ fn reconcile_projection_facts(
                 reconciliation.ahead_aggregate_count.saturating_add(1);
         }
 
-        if projected.holding_ref != holding_ref
+        if projected.data_profile_key != data_profile_key
             || projected.company_id != source.company_id
             || projected.branch_id != source.branch_id
             || projected.payload != source.payload
@@ -1723,7 +1734,7 @@ mod tests {
         let projected = HashMap::from([(
             inspection_id,
             QualityProjectedFact {
-                holding_ref: "holding-quality".into(),
+                data_profile_key: "holding-quality".into(),
                 company_id: Uuid::new_v4(),
                 branch_id: Some(branch_id),
                 source_version: 2,

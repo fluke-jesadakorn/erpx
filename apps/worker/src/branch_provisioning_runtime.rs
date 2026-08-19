@@ -3,8 +3,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use chrono::Utc;
 use erpx_infrastructure::{
-    ApprovedDatabaseProfileConnection, SqlxBranchProvisioningStore, SqlxControlPlane,
-    TenantDatabaseProvisioner,
+    ApprovedDatabaseProfileConnection, HoldingDatabaseProvisioner, SqlxBranchProvisioningStore,
+    SqlxControlPlane,
 };
 use uuid::Uuid;
 
@@ -15,12 +15,12 @@ pub const BRANCH_PROVISIONING_HANDLER_NAME: &str = "branch_provisioning";
 #[derive(Debug, Clone)]
 pub struct BranchProvisioningRuntimeHandler {
     jobs: SqlxBranchProvisioningStore,
-    databases: TenantDatabaseProvisioner,
+    databases: HoldingDatabaseProvisioner,
 }
 
 impl BranchProvisioningRuntimeHandler {
     pub fn from_env(control: Arc<SqlxControlPlane>) -> Result<Self, WorkerRuntimeError> {
-        let databases = TenantDatabaseProvisioner::for_approved_profiles(control.clone());
+        let databases = HoldingDatabaseProvisioner::for_approved_profiles(control.clone());
         Ok(Self {
             jobs: SqlxBranchProvisioningStore::new(control),
             databases,
@@ -53,7 +53,7 @@ impl NamedWorkerHandler for BranchProvisioningRuntimeHandler {
         };
         let registration = match self
             .jobs
-            .approved_profile(&claim.route.tenant_id, &claim.route.profile_key)
+            .approved_profile(&claim.route.holding_key, &claim.route.profile_key)
             .await
         {
             Ok(profile) => profile,

@@ -17,7 +17,7 @@ use erpx_integration_contracts::{
     BoundedContext, DimensionSet, RecordRef, customer, finance, inventory, people_payroll, pos,
     procurement, sales,
 };
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -248,7 +248,7 @@ pub(crate) struct RevenueRecognitionState {
 pub struct Chart {
     id: ChartId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     code: String,
     name: String,
     currency: String,
@@ -264,7 +264,7 @@ impl Chart {
     pub fn try_rehydrate(
         id: ChartId,
         version: u64,
-        scope: TenantScope,
+        scope: AuthorityScope,
         code: String,
         name: String,
         currency: String,
@@ -297,7 +297,7 @@ impl Chart {
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: ChartId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         code: String,
         name: String,
         currency: String,
@@ -428,7 +428,7 @@ impl Chart {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn code(&self) -> &str {
@@ -469,7 +469,7 @@ pub enum PeriodStatus {
 pub struct AccountingPeriod {
     id: PeriodId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     code: String,
     starts_on: NaiveDate,
     ends_on: NaiveDate,
@@ -487,7 +487,7 @@ impl AccountingPeriod {
     pub fn try_rehydrate(
         id: PeriodId,
         version: u64,
-        scope: TenantScope,
+        scope: AuthorityScope,
         code: String,
         starts_on: NaiveDate,
         ends_on: NaiveDate,
@@ -517,7 +517,7 @@ impl AccountingPeriod {
 
     pub fn create(
         id: PeriodId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         code: String,
         starts_on: NaiveDate,
         ends_on: NaiveDate,
@@ -615,7 +615,7 @@ impl AccountingPeriod {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn code(&self) -> &str {
@@ -778,7 +778,7 @@ pub enum JournalStatus {
 pub struct Journal {
     id: JournalId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     chart_id: ChartId,
     period_id: PeriodId,
     journal_code: String,
@@ -802,7 +802,7 @@ impl Journal {
     pub fn try_rehydrate(
         id: JournalId,
         version: u64,
-        scope: TenantScope,
+        scope: AuthorityScope,
         chart_id: ChartId,
         period_id: PeriodId,
         journal_code: String,
@@ -844,7 +844,7 @@ impl Journal {
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: JournalId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         chart_id: ChartId,
         period_id: PeriodId,
         journal_code: String,
@@ -963,7 +963,7 @@ impl Journal {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn chart_id(&self) -> ChartId {
@@ -1126,7 +1126,7 @@ impl RevenueRecognitionEntry {
 pub struct RevenueSchedule {
     id: RevenueScheduleId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     arrangement_source: RecordRef,
     last_source: RecordRef,
     arrangement: sales::RevenueArrangementFact,
@@ -1145,7 +1145,7 @@ impl RevenueSchedule {
     pub fn try_rehydrate(
         id: RevenueScheduleId,
         version: u64,
-        scope: TenantScope,
+        scope: AuthorityScope,
         arrangement_source: RecordRef,
         last_source: RecordRef,
         arrangement: sales::RevenueArrangementFact,
@@ -1177,7 +1177,7 @@ impl RevenueSchedule {
 
     pub fn create_from_arrangement(
         id: RevenueScheduleId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         source: RecordRef,
         arrangement: sales::RevenueArrangementFact,
         at: DateTime<Utc>,
@@ -1422,7 +1422,7 @@ impl RevenueSchedule {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn arrangement_source(&self) -> &RecordRef {
@@ -1486,7 +1486,7 @@ pub enum CustomerInvoiceStatus {
 pub struct CustomerInvoice {
     id: CustomerInvoiceId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     invoice_code: String,
     source: RecordRef,
     billing: sales::BillingEligibilityFact,
@@ -1506,7 +1506,7 @@ impl CustomerInvoice {
     pub fn try_rehydrate(
         id: CustomerInvoiceId,
         version: u64,
-        scope: TenantScope,
+        scope: AuthorityScope,
         invoice_code: String,
         source: RecordRef,
         billing: sales::BillingEligibilityFact,
@@ -1541,7 +1541,7 @@ impl CustomerInvoice {
     #[allow(clippy::too_many_arguments)]
     pub fn create_from_billing(
         id: CustomerInvoiceId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         invoice_code: String,
         source: RecordRef,
         billing: sales::BillingEligibilityFact,
@@ -1672,7 +1672,7 @@ impl CustomerInvoice {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn invoice_code(&self) -> &str {
@@ -1729,7 +1729,7 @@ pub enum SubledgerStatus {
 pub struct SubledgerItem {
     id: SubledgerId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     kind: SubledgerKind,
     document_code: String,
     source_reference: String,
@@ -1748,7 +1748,7 @@ impl SubledgerItem {
     pub fn try_rehydrate(
         id: SubledgerId,
         version: u64,
-        scope: TenantScope,
+        scope: AuthorityScope,
         kind: SubledgerKind,
         document_code: String,
         source_reference: String,
@@ -1780,7 +1780,7 @@ impl SubledgerItem {
 
     pub fn receivable_from_invoice(
         id: SubledgerId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         fact: finance::CustomerInvoicePostedFact,
         at: DateTime<Utc>,
     ) -> Result<Self, FinanceDomainError> {
@@ -1814,7 +1814,7 @@ impl SubledgerItem {
 
     pub fn payable_from_procurement(
         id: SubledgerId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         fact: procurement::ReleasedPurchaseOrderFact,
         at: DateTime<Utc>,
     ) -> Result<Self, FinanceDomainError> {
@@ -1851,7 +1851,7 @@ impl SubledgerItem {
     #[allow(clippy::too_many_arguments)]
     fn create(
         id: SubledgerId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         kind: SubledgerKind,
         document_code: String,
         source_reference: String,
@@ -1958,7 +1958,7 @@ impl SubledgerItem {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn kind(&self) -> &SubledgerKind {
@@ -2035,7 +2035,7 @@ impl FinanceAggregate {
             Self::RevenueSchedule(v) => v.version(),
         }
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         match self {
             Self::Chart(v) => v.scope(),
             Self::Period(v) => v.scope(),
@@ -2088,9 +2088,11 @@ fn validate_journal_lines(
     Ok((debit, credit))
 }
 
-fn validate_scope(scope: &TenantScope) -> Result<(), FinanceDomainError> {
+fn validate_scope(scope: &AuthorityScope) -> Result<(), FinanceDomainError> {
     match scope {
-        TenantScope::Company { .. } | TenantScope::Branch { .. } if scope.validate().is_ok() => {
+        AuthorityScope::Company { .. } | AuthorityScope::Branch { .. }
+            if scope.validate().is_ok() =>
+        {
             Ok(())
         }
         _ => Err(FinanceDomainError::InvalidScope),
@@ -2098,12 +2100,12 @@ fn validate_scope(scope: &TenantScope) -> Result<(), FinanceDomainError> {
 }
 
 fn validate_finance_dimensions(
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     dimensions: &DimensionSet,
 ) -> Result<(), FinanceDomainError> {
     let (company_id, branch_id) = match scope {
-        TenantScope::Company { company_id, .. } => (*company_id, None),
-        TenantScope::Branch {
+        AuthorityScope::Company { company_id, .. } => (*company_id, None),
+        AuthorityScope::Branch {
             company_id,
             branch_id,
             ..

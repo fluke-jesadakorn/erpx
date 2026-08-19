@@ -3,11 +3,11 @@ use sqlx::{PgPool, Row, migrate::MigrateError};
 use thiserror::Error;
 
 use crate::{
-    CONTROL_PLANE_MIGRATOR, CONTROL_READ_MIGRATOR, TENANT_READ_MIGRATOR, TENANT_WRITE_MIGRATOR,
+    CONTROL_PLANE_MIGRATOR, CONTROL_READ_MIGRATOR, HOLDING_READ_MIGRATOR, HOLDING_WRITE_MIGRATOR,
 };
 
-/// Clean-rebuild schema generation accepted by ERPX runtime composition.
-pub const SCHEMA_GENERATION: i16 = 2;
+/// Clean-rebuild schema revision accepted by ERPX runtime composition.
+pub const SCHEMA_REVISION: i16 = 2;
 pub const SCHEMA_MANIFEST_VERSION: i16 = 1;
 
 /// Physical database roles are closed so a write migration can never be
@@ -16,8 +16,8 @@ pub const SCHEMA_MANIFEST_VERSION: i16 = 1;
 pub enum DatabaseRole {
     ControlWrite,
     ControlRead,
-    TenantWrite,
-    TenantRead,
+    HoldingWrite,
+    HoldingRead,
 }
 
 impl DatabaseRole {
@@ -25,24 +25,24 @@ impl DatabaseRole {
         match self {
             Self::ControlWrite => "control_write",
             Self::ControlRead => "control_read",
-            Self::TenantWrite => "tenant_write",
-            Self::TenantRead => "tenant_read",
+            Self::HoldingWrite => "holding_write",
+            Self::HoldingRead => "holding_read",
         }
     }
 
     pub const fn migration_set(self) -> &'static str {
         match self {
-            Self::ControlWrite => "control-write-v2",
-            Self::ControlRead => "control-read-v2",
-            Self::TenantWrite => "tenant-write-v2",
-            Self::TenantRead => "tenant-read-v2",
+            Self::ControlWrite => "control-write",
+            Self::ControlRead => "control-read",
+            Self::HoldingWrite => "holding-write",
+            Self::HoldingRead => "holding-read",
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SchemaManifest {
-    pub schema_generation: i16,
+    pub schema_revision: i16,
     pub manifest_version: i16,
     pub database_role: String,
     pub migration_set: String,
@@ -55,7 +55,7 @@ pub struct SchemaManifest {
 pub enum SchemaManifestViolation {
     #[error("database contains schema state without an ERPX generation manifest")]
     UnversionedSchema,
-    #[error("ERPX schema generation is unsupported")]
+    #[error("ERPX schema revision is unsupported")]
     UnsupportedGeneration,
     #[error("ERPX schema manifest version is unsupported")]
     UnsupportedManifestVersion,
@@ -63,13 +63,13 @@ pub enum SchemaManifestViolation {
     RoleMismatch,
     #[error("ERPX migration-set identity does not match the requested database role")]
     MigrationSetMismatch,
-    #[error("ERPX schema generation manifest is missing after migration")]
+    #[error("ERPX schema revision manifest is missing after migration")]
     MissingAfterMigration,
 }
 
 /// Run exactly one role-specific migration set. Existing unversioned schemas
 /// are rejected before SQLx can append migration history, preserving the
-/// clean-rebuild boundary and every retained generation-1 database.
+/// clean-rebuild boundary and every retained pre-cutover database.
 pub async fn migrate_database_role(pool: &PgPool, role: DatabaseRole) -> Result<(), MigrateError> {
     match load_schema_manifest(pool).await? {
         Some(manifest) => validate_manifest(&manifest, role).map_err(as_migrate_error)?,
@@ -99,7 +99,7 @@ fn validate_manifest(
     manifest: &SchemaManifest,
     role: DatabaseRole,
 ) -> Result<(), SchemaManifestViolation> {
-    if manifest.schema_generation != SCHEMA_GENERATION {
+    if manifest.schema_revision != SCHEMA_REVISION {
         return Err(SchemaManifestViolation::UnsupportedGeneration);
     }
     if manifest.manifest_version != SCHEMA_MANIFEST_VERSION {
@@ -125,7 +125,7 @@ async fn load_schema_manifest(pool: &PgPool) -> Result<Option<SchemaManifest>, M
     }
 
     let row = sqlx::query(
-        "SELECT schema_generation, manifest_version, database_role, migration_set, installed_at
+        "SELECT schema_revision, manifest_version, database_role, migration_set, installed_at
          FROM erpx_meta.schema_manifest WHERE singleton = TRUE",
     )
     .fetch_optional(pool)
@@ -133,7 +133,7 @@ async fn load_schema_manifest(pool: &PgPool) -> Result<Option<SchemaManifest>, M
     .map_err(MigrateError::Execute)?;
     row.map(|row| {
         Ok(SchemaManifest {
-            schema_generation: row.try_get("schema_generation")?,
+            schema_revision: row.try_get("schema_revision")?,
             manifest_version: row.try_get("manifest_version")?,
             database_role: row.try_get("database_role")?,
             migration_set: row.try_get("migration_set")?,
@@ -164,8 +164,8 @@ const fn migrator(role: DatabaseRole) -> &'static sqlx::migrate::Migrator {
     match role {
         DatabaseRole::ControlWrite => &CONTROL_PLANE_MIGRATOR,
         DatabaseRole::ControlRead => &CONTROL_READ_MIGRATOR,
-        DatabaseRole::TenantWrite => &TENANT_WRITE_MIGRATOR,
-        DatabaseRole::TenantRead => &TENANT_READ_MIGRATOR,
+        DatabaseRole::HoldingWrite => &HOLDING_WRITE_MIGRATOR,
+        DatabaseRole::HoldingRead => &HOLDING_READ_MIGRATOR,
     }
 }
 
@@ -179,7 +179,7 @@ mod tests {
 
     fn manifest(role: DatabaseRole) -> SchemaManifest {
         SchemaManifest {
-            schema_generation: SCHEMA_GENERATION,
+            schema_revision: SCHEMA_REVISION,
             manifest_version: SCHEMA_MANIFEST_VERSION,
             database_role: role.as_str().into(),
             migration_set: role.migration_set().into(),
@@ -192,8 +192,8 @@ mod tests {
         let roles = [
             DatabaseRole::ControlWrite,
             DatabaseRole::ControlRead,
-            DatabaseRole::TenantWrite,
-            DatabaseRole::TenantRead,
+            DatabaseRole::HoldingWrite,
+            DatabaseRole::HoldingRead,
         ];
         let mut role_names = roles.map(DatabaseRole::as_str).to_vec();
         role_names.sort_unstable();
@@ -208,39 +208,39 @@ mod tests {
 
     #[test]
     fn manifest_validation_rejects_generation_role_and_set_mismatches() {
-        let mut value = manifest(DatabaseRole::TenantWrite);
-        assert!(validate_manifest(&value, DatabaseRole::TenantWrite).is_ok());
-        value.schema_generation = 1;
+        let mut value = manifest(DatabaseRole::HoldingWrite);
+        assert!(validate_manifest(&value, DatabaseRole::HoldingWrite).is_ok());
+        value.schema_revision = 1;
         assert_eq!(
-            validate_manifest(&value, DatabaseRole::TenantWrite),
+            validate_manifest(&value, DatabaseRole::HoldingWrite),
             Err(SchemaManifestViolation::UnsupportedGeneration)
         );
-        value = manifest(DatabaseRole::TenantWrite);
+        value = manifest(DatabaseRole::HoldingWrite);
         assert_eq!(
             validate_manifest(&value, DatabaseRole::ControlWrite),
             Err(SchemaManifestViolation::RoleMismatch)
         );
-        value.migration_set = "tenant-read-v2".into();
+        value.migration_set = "holding-read".into();
         assert_eq!(
-            validate_manifest(&value, DatabaseRole::TenantWrite),
+            validate_manifest(&value, DatabaseRole::HoldingWrite),
             Err(SchemaManifestViolation::MigrationSetMismatch)
         );
     }
 
     #[test]
-    fn every_embedded_migration_set_ends_with_its_generation_two_role_marker() {
+    fn every_embedded_migration_set_ends_with_its_current_role_marker() {
         for role in [
             DatabaseRole::ControlWrite,
             DatabaseRole::ControlRead,
-            DatabaseRole::TenantWrite,
-            DatabaseRole::TenantRead,
+            DatabaseRole::HoldingWrite,
+            DatabaseRole::HoldingRead,
         ] {
             let marker = migrator(role)
                 .iter()
                 .last()
                 .expect("schema marker migration");
             assert!(marker.sql.contains("erpx_meta.schema_manifest"));
-            assert!(marker.sql.contains("schema_generation"));
+            assert!(marker.sql.contains("schema_revision"));
             assert!(marker.sql.contains(role.as_str()));
             assert!(marker.sql.contains(role.migration_set()));
         }

@@ -11,7 +11,7 @@ use erpx_inventory::{
     ReservationStatus, ReservationView, StockItemId, StockItemList, StockItemListFilter,
     StockItemView, WarehouseId,
 };
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -123,7 +123,7 @@ impl InventoryReadRepository {
 impl ReadRepository for InventoryReadRepository {
     async fn get(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         stock_item_id: StockItemId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<StockItemView>>, PortError> {
@@ -164,7 +164,7 @@ impl ReadRepository for InventoryReadRepository {
 
     async fn list(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &StockItemListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<StockItemList>, PortError> {
@@ -225,7 +225,7 @@ impl ReadRepository for InventoryReadRepository {
 impl ReservationReadRepository for InventoryReadRepository {
     async fn get_reservation(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         reservation_id: ReservationId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<ReservationView>>, PortError> {
@@ -242,15 +242,15 @@ impl ReservationReadRepository for InventoryReadRepository {
             .map_err(|_| PortError::Unavailable)?;
         let row = sqlx::query(
             "SELECT projection.stock_item_id,projection.source_aggregate_version,
-                    projection.tenant_scope,projection.warehouse_id,projection.item_code,
+                    projection.active_scope,projection.warehouse_id,projection.item_code,
                     projection.quantity,projection.demand_reference,
                     projection.reservation_status,projection.projected_at
              FROM erpx_inventory_read.reservation_projection projection
              JOIN erpx_cqrs_read.projection_generations generation
-               ON generation.tenant_id=projection.tenant_id
+               ON generation.holding_id=projection.holding_id
               AND generation.projection_name=projection.projection_name
               AND generation.generation=projection.generation AND generation.status='active'
-             WHERE projection.tenant_id=erpx_cqrs_read.current_tenant_id()
+             WHERE projection.holding_id=erpx_cqrs_read.current_holding_id()
                AND projection.projection_name=$1 AND projection.reservation_id=$2
                AND ($3::text IS NULL OR projection.partition_key=$3)",
         )
@@ -286,8 +286,8 @@ fn decode_reservation(
         "released" => ReservationStatus::Released,
         _ => return Err(PortError::Internal),
     };
-    let scope: TenantScope =
-        serde_json::from_value(row.get("tenant_scope")).map_err(|_| PortError::Internal)?;
+    let scope: AuthorityScope =
+        serde_json::from_value(row.get("active_scope")).map_err(|_| PortError::Internal)?;
     Ok(ReservationView {
         reservation_id,
         stock_item_id: StockItemId::try_from_uuid(row.get("stock_item_id"))

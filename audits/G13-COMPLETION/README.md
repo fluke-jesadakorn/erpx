@@ -171,7 +171,7 @@ still required for G13/G14 closure.
 ## Coordinator final verification addendum — 2026-07-27
 
 The complete ignored workspace suite passed against fresh disposable
-control/tenant/commercial/scheduler/support databases, including the durable
+control/holding/commercial/scheduler/support databases, including the durable
 G13 migration persistence test and the one-million-user directory volume
 test; all disposable databases were removed. Final format, warnings-denied
 Clippy, non-ignored tests, protobuf compilation, Dioxus target checks, Folio
@@ -206,7 +206,7 @@ OPEN and Folio remains the operational write owner.
 
 ## Coordinator continuation — executable target import and rollback boundary — 2026-07-27
 
-Tenant-write migration 0050 and `G13TargetImporter` now provide a real,
+Holding-write migration 0050 and `G13TargetImporter` now provide a real,
 RLS-scoped target import ledger. The importer consumes retained source
 identity mappings under the exact source contract hash/fence, persists
 idempotent target rows and outbox events, saves control checkpoints through the
@@ -218,7 +218,7 @@ command ownership or advances a migration phase.
 
 Disposable PostgreSQL acceptance
 `g13_target_import_replay_reconcile_and_rollback_are_durable`: PASS. It used
-separate control write/read, tenant target, and rollback databases; verified
+separate control write/read, holding target, and rollback databases; verified
 source snapshot reload, two-row import, zero-row replay, matched
 reconciliation, two-row rollback restore, and two rollback-replay outbox
 events.

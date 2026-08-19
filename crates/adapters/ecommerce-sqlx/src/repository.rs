@@ -23,17 +23,17 @@ impl SqlxCommerceWriteRepository {
 #[derive(Debug, Clone)]
 pub struct SqlxCommerceReadRepository {
     pool: erpx_cqrs_sqlx::ReadPool,
-    tenant_id: erpx_kernel::TenantId,
+    holding_id: erpx_kernel::HoldingId,
 }
 
 impl SqlxCommerceReadRepository {
     pub fn new(
         pool: sqlx::PgPool,
-        tenant_id: erpx_kernel::TenantId,
+        holding_id: erpx_kernel::HoldingId,
     ) -> Result<Self, CommercePortError> {
-        let pool = erpx_cqrs_sqlx::ReadPool::for_tenant(pool, tenant_id.as_uuid())
+        let pool = erpx_cqrs_sqlx::ReadPool::for_holding(pool, holding_id.as_uuid())
             .map_err(|_| CommercePortError::Unavailable)?;
-        Ok(Self { pool, tenant_id })
+        Ok(Self { pool, holding_id })
     }
 }
 
@@ -43,7 +43,7 @@ use erpx_ecommerce::{
     AggregateRepository, CommerceAggregate, CommerceCommit, CommerceCommitReceipt,
     CommerceIdentity, CommercePortError, CommerceProjection, CommerceReadRepository,
 };
-use erpx_kernel::{TenantId, TenantScope};
+use erpx_kernel::{AuthorityScope, HoldingId};
 use sha2::{Digest, Sha256};
 use sqlx::{Postgres, Row, Transaction};
 use uuid::Uuid;
@@ -52,18 +52,18 @@ use uuid::Uuid;
 impl AggregateRepository for SqlxCommerceWriteRepository {
     async fn load(
         &self,
-        tenant_id: TenantId,
-        authority: &TenantScope,
+        holding_id: HoldingId,
+        authority: &AuthorityScope,
         aggregate_type: &str,
         id: Uuid,
     ) -> Result<Option<CommerceAggregate>, CommercePortError> {
         let mut tx = self.pool.begin().await.map_err(map)?;
-        set_tenant(&mut tx, tenant_id).await?;
+        set_holding(&mut tx, holding_id).await?;
         let document: Option<serde_json::Value> = sqlx::query_scalar(
             "SELECT aggregate_document FROM erpx_ecommerce_write.aggregate_rehydration
-             WHERE tenant_id=$1 AND aggregate_type=$2 AND aggregate_id=$3",
+             WHERE holding_id=$1 AND aggregate_type=$2 AND aggregate_id=$3",
         )
-        .bind(tenant_id.as_uuid())
+        .bind(holding_id.as_uuid())
         .bind(aggregate_type)
         .bind(id)
         .fetch_optional(&mut *tx)
@@ -93,17 +93,17 @@ impl AggregateRepository for SqlxCommerceWriteRepository {
         {
             return Err(CommercePortError::Invalid);
         }
-        let tenant = command.actor.tenant_id;
+        let holding = command.actor.holding_id;
         let aggregate_type = command.aggregate.aggregate_type();
         let aggregate_id = command.aggregate.id_uuid();
         let aggregate_version = command.aggregate.version();
         let mut tx = self.pool.begin().await.map_err(map)?;
-        set_tenant(&mut tx, tenant).await?;
-        if let Some(receipt) = replay(&mut tx, tenant, &command).await? {
+        set_holding(&mut tx, holding).await?;
+        if let Some(receipt) = replay(&mut tx, holding, &command).await? {
             tx.commit().await.map_err(map)?;
             return Ok(receipt);
         }
-        let current = lock_version(&mut tx, tenant, aggregate_type, aggregate_id).await?;
+        let current = lock_version(&mut tx, holding, aggregate_type, aggregate_id).await?;
         match (command.expected_version, current) {
             (None, None) if aggregate_version == 1 => {}
             (Some(expected), Some(actual))
@@ -120,7 +120,7 @@ impl AggregateRepository for SqlxCommerceWriteRepository {
         let projection_payload =
             serde_json::to_value(&command.aggregate).map_err(|_| CommercePortError::Invalid)?;
         sqlx::query("SELECT erpx_ecommerce_write.persist_normalized($1,$2,$3,$4,$5,$6)")
-            .bind(tenant.as_uuid())
+            .bind(holding.as_uuid())
             .bind(aggregate_type)
             .bind(aggregate_id)
             .bind(scope_key(command.aggregate.scope())?)
@@ -135,11 +135,11 @@ impl AggregateRepository for SqlxCommerceWriteRepository {
         let action = enum_name(command.action)?;
         sqlx::query(
             "INSERT INTO erpx_ecommerce_write.audit_log
-             (tenant_id,audit_id,command_id,actor_principal_id,action,aggregate_type,aggregate_id,
+             (holding_id,audit_id,command_id,actor_principal_id,action,aggregate_type,aggregate_id,
               aggregate_version,scope_key,correlation_id,evidence_digest,occurred_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",
         )
-        .bind(tenant.as_uuid())
+        .bind(holding.as_uuid())
         .bind(derived_id(command.identity.command_id.as_uuid(), b"audit"))
         .bind(command.identity.command_id.as_uuid())
         .bind(command.actor.principal_id)
@@ -164,15 +164,15 @@ impl AggregateRepository for SqlxCommerceWriteRepository {
             _ => None,
         };
         if let Some(projection_event) = projection_event {
-            let actor = serde_json::json!({"principal_ref":format!("principal:{}",command.actor.principal_id),"kind":"tenant_user","session_id":null,"represented_principal_ref":null,"support_capability_id":null});
-            sqlx::query("INSERT INTO erpx_cqrs_write.outbox_events (tenant_id,event_id,context_name,partition_key,command_id,event_type,event_version,aggregate_type,aggregate_id,aggregate_version,tenant_scope,actor,correlation_id,causation_id,payload,occurred_at,available_at) VALUES ($1,$2,'ecommerce',$3,$4,$5,1,$6,$7,$8,$9,$10,$11,NULL,$12,$13,$13)")
-                .bind(tenant.as_uuid()).bind(derived_id(command.identity.command_id.as_uuid(),b"projection")).bind(crate::aggregate_partition(aggregate_type,aggregate_id)).bind(command.identity.command_id.as_uuid()).bind(projection_event).bind(aggregate_type).bind(aggregate_id).bind(to_i64(aggregate_version)?).bind(serde_json::to_value(command.aggregate.scope()).map_err(|_|CommercePortError::Invalid)?).bind(actor).bind(command.identity.correlation_id.as_uuid()).bind(serde_json::json!({"aggregate":projection_payload})).bind(command.aggregate.updated_at()).execute(&mut *tx).await.map_err(map)?;
+            let actor = serde_json::json!({"principal_ref":format!("principal:{}",command.actor.principal_id),"kind":"holding_user","session_id":null,"represented_principal_ref":null,"support_capability_id":null});
+            sqlx::query("INSERT INTO erpx_cqrs_write.outbox_events (holding_id,event_id,context_name,partition_key,command_id,event_type,event_version,aggregate_type,aggregate_id,aggregate_version,active_scope,actor,correlation_id,causation_id,payload,occurred_at,available_at) VALUES ($1,$2,'ecommerce',$3,$4,$5,1,$6,$7,$8,$9,$10,$11,NULL,$12,$13,$13)")
+                .bind(holding.as_uuid()).bind(derived_id(command.identity.command_id.as_uuid(),b"projection")).bind(crate::aggregate_partition(aggregate_type,aggregate_id)).bind(command.identity.command_id.as_uuid()).bind(projection_event).bind(aggregate_type).bind(aggregate_id).bind(to_i64(aggregate_version)?).bind(serde_json::to_value(command.aggregate.scope()).map_err(|_|CommercePortError::Invalid)?).bind(actor).bind(command.identity.correlation_id.as_uuid()).bind(serde_json::json!({"aggregate":projection_payload})).bind(command.aggregate.updated_at()).execute(&mut *tx).await.map_err(map)?;
         }
         if let Some(draft) = crate::directory::commerce_directory_draft(&command.aggregate)? {
-            let actor = serde_json::json!({"principal_ref":format!("principal:{}",command.actor.principal_id),"kind":"tenant_user","session_id":null,"represented_principal_ref":null,"support_capability_id":null});
+            let actor = serde_json::json!({"principal_ref":format!("principal:{}",command.actor.principal_id),"kind":"holding_user","session_id":null,"represented_principal_ref":null,"support_capability_id":null});
             crate::directory::append_directory_draft(
                 &mut tx,
-                tenant,
+                holding,
                 command.identity.command_id,
                 command.identity.correlation_id,
                 actor,
@@ -184,11 +184,11 @@ impl AggregateRepository for SqlxCommerceWriteRepository {
         let event_id = derived_id(command.identity.command_id.as_uuid(), b"event");
         let position: i64 = sqlx::query_scalar(
             "INSERT INTO erpx_ecommerce_write.outbox
-             (tenant_id,event_id,aggregate_type,aggregate_id,aggregate_version,event_type,
+             (holding_id,event_id,aggregate_type,aggregate_id,aggregate_version,event_type,
               correlation_id,payload,occurred_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
               RETURNING position",
         )
-        .bind(tenant.as_uuid())
+        .bind(holding.as_uuid())
         .bind(event_id)
         .bind(aggregate_type)
         .bind(aggregate_id)
@@ -202,10 +202,10 @@ impl AggregateRepository for SqlxCommerceWriteRepository {
         .map_err(map)?;
         let committed_at: DateTime<Utc> = sqlx::query_scalar(
             "INSERT INTO erpx_ecommerce_write.command_receipts
-             (tenant_id,idempotency_key,command_id,request_digest,aggregate_type,aggregate_id,aggregate_version)
+             (holding_id,idempotency_key,command_id,request_digest,aggregate_type,aggregate_id,aggregate_version)
              VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING committed_at",
         )
-        .bind(tenant.as_uuid())
+        .bind(holding.as_uuid())
         .bind(command.identity.idempotency_key)
         .bind(command.identity.command_id.as_uuid())
         .bind(command.identity.request_digest)
@@ -231,11 +231,11 @@ impl AggregateRepository for SqlxCommerceWriteRepository {
 impl CommerceReadRepository for SqlxCommerceReadRepository {
     async fn get(
         &self,
-        tenant_id: TenantId,
+        holding_id: HoldingId,
         aggregate_type: &str,
         id: Uuid,
     ) -> Result<Option<CommerceProjection>, CommercePortError> {
-        if tenant_id != self.tenant_id {
+        if holding_id != self.holding_id {
             return Err(CommercePortError::Denied);
         }
         let mut tx = self
@@ -248,18 +248,18 @@ impl CommerceReadRepository for SqlxCommerceReadRepository {
             "commerce_listing" => crate::LISTING_PROJECTION,
             _ => crate::JOURNEY_PROJECTION,
         };
-        let generation:Option<Uuid>=sqlx::query_scalar("SELECT generation FROM erpx_cqrs_read.projection_generations WHERE tenant_id=$1 AND projection_name=$2 AND status='active'").bind(self.tenant_id.as_uuid()).bind(projection_name).fetch_optional(&mut *tx).await.map_err(map)?;
+        let generation:Option<Uuid>=sqlx::query_scalar("SELECT generation FROM erpx_cqrs_read.projection_generations WHERE holding_id=$1 AND projection_name=$2 AND status='active'").bind(self.holding_id.as_uuid()).bind(projection_name).fetch_optional(&mut *tx).await.map_err(map)?;
         let generation = generation.ok_or(CommercePortError::Unavailable)?;
         let row = if aggregate_type == "commerce_channel" {
             sqlx::query(
-                "SELECT tenant_scope,NULL::text owner_realm,NULL::uuid owner_principal_id,
+                "SELECT active_scope,NULL::text owner_realm,NULL::uuid owner_principal_id,
                         channel_status lifecycle_status,source_aggregate_version,
                         source_global_sequence,projected_at,generation,c.global_sequence AS checkpoint_position,
-                        EXISTS(SELECT 1 FROM erpx_cqrs_read.projection_failures f WHERE f.tenant_id=p.tenant_id AND f.projection_name=p.projection_name AND f.generation=p.generation AND f.partition_key=p.partition_key) AS has_failure
-                 FROM erpx_ecommerce_read.channel_projection p LEFT JOIN erpx_cqrs_read.projection_checkpoints c ON c.tenant_id=p.tenant_id AND c.projection_name=p.projection_name AND c.generation=p.generation AND c.partition_key=p.partition_key
-                 WHERE p.tenant_id=$1 AND p.projection_name=$2 AND p.generation=$3 AND channel_id=$4",
+                        EXISTS(SELECT 1 FROM erpx_cqrs_read.projection_failures f WHERE f.holding_id=p.holding_id AND f.projection_name=p.projection_name AND f.generation=p.generation AND f.partition_key=p.partition_key) AS has_failure
+                 FROM erpx_ecommerce_read.channel_projection p LEFT JOIN erpx_cqrs_read.projection_checkpoints c ON c.holding_id=p.holding_id AND c.projection_name=p.projection_name AND c.generation=p.generation AND c.partition_key=p.partition_key
+                 WHERE p.holding_id=$1 AND p.projection_name=$2 AND p.generation=$3 AND channel_id=$4",
             )
-            .bind(self.tenant_id.as_uuid())
+            .bind(self.holding_id.as_uuid())
             .bind(projection_name)
             .bind(generation)
             .bind(id)
@@ -268,27 +268,27 @@ impl CommerceReadRepository for SqlxCommerceReadRepository {
             .map_err(map)?
         } else if aggregate_type == "commerce_listing" {
             sqlx::query(
-                "SELECT tenant_scope,NULL::text owner_realm,NULL::uuid owner_principal_id,
+                "SELECT active_scope,NULL::text owner_realm,NULL::uuid owner_principal_id,
                         listing_status lifecycle_status,source_aggregate_version,
                         source_global_sequence,projected_at,generation,c.global_sequence AS checkpoint_position,
-                        EXISTS(SELECT 1 FROM erpx_cqrs_read.projection_failures f WHERE f.tenant_id=p.tenant_id AND f.projection_name=p.projection_name AND f.generation=p.generation AND f.partition_key=p.partition_key) AS has_failure
-                 FROM erpx_ecommerce_read.listing_projection p LEFT JOIN erpx_cqrs_read.projection_checkpoints c ON c.tenant_id=p.tenant_id AND c.projection_name=p.projection_name AND c.generation=p.generation AND c.partition_key=p.partition_key
-                 WHERE p.tenant_id=$1 AND p.projection_name=$2 AND p.generation=$3 AND listing_id=$4",
+                        EXISTS(SELECT 1 FROM erpx_cqrs_read.projection_failures f WHERE f.holding_id=p.holding_id AND f.projection_name=p.projection_name AND f.generation=p.generation AND f.partition_key=p.partition_key) AS has_failure
+                 FROM erpx_ecommerce_read.listing_projection p LEFT JOIN erpx_cqrs_read.projection_checkpoints c ON c.holding_id=p.holding_id AND c.projection_name=p.projection_name AND c.generation=p.generation AND c.partition_key=p.partition_key
+                 WHERE p.holding_id=$1 AND p.projection_name=$2 AND p.generation=$3 AND listing_id=$4",
             )
-            .bind(self.tenant_id.as_uuid()).bind(projection_name).bind(generation)
+            .bind(self.holding_id.as_uuid()).bind(projection_name).bind(generation)
             .bind(id)
             .fetch_optional(&mut *tx)
             .await
             .map_err(map)?
         } else {
             sqlx::query(
-                "SELECT tenant_scope,owner_realm,owner_principal_id,lifecycle_status,
+                "SELECT active_scope,owner_realm,owner_principal_id,lifecycle_status,
                         source_aggregate_version,source_global_sequence,projected_at,generation,c.global_sequence AS checkpoint_position,
-                        EXISTS(SELECT 1 FROM erpx_cqrs_read.projection_failures f WHERE f.tenant_id=p.tenant_id AND f.projection_name=p.projection_name AND f.generation=p.generation AND f.partition_key=p.partition_key) AS has_failure
-                 FROM erpx_ecommerce_read.journey_projection p LEFT JOIN erpx_cqrs_read.projection_checkpoints c ON c.tenant_id=p.tenant_id AND c.projection_name=p.projection_name AND c.generation=p.generation AND c.partition_key=p.partition_key
-                 WHERE p.tenant_id=$1 AND p.projection_name=$2 AND p.generation=$3 AND record_id=$4 AND record_type=$5",
+                        EXISTS(SELECT 1 FROM erpx_cqrs_read.projection_failures f WHERE f.holding_id=p.holding_id AND f.projection_name=p.projection_name AND f.generation=p.generation AND f.partition_key=p.partition_key) AS has_failure
+                 FROM erpx_ecommerce_read.journey_projection p LEFT JOIN erpx_cqrs_read.projection_checkpoints c ON c.holding_id=p.holding_id AND c.projection_name=p.projection_name AND c.generation=p.generation AND c.partition_key=p.partition_key
+                 WHERE p.holding_id=$1 AND p.projection_name=$2 AND p.generation=$3 AND record_id=$4 AND record_type=$5",
             )
-            .bind(self.tenant_id.as_uuid()).bind(projection_name).bind(generation)
+            .bind(self.holding_id.as_uuid()).bind(projection_name).bind(generation)
             .bind(id)
             .bind(variant(aggregate_type)?)
             .fetch_optional(&mut *tx)
@@ -316,12 +316,12 @@ impl CommerceReadRepository for SqlxCommerceReadRepository {
     }
 }
 
-async fn set_tenant(
+async fn set_holding(
     tx: &mut Transaction<'_, Postgres>,
-    tenant: TenantId,
+    holding: HoldingId,
 ) -> Result<(), CommercePortError> {
-    sqlx::query("SELECT set_config('app.tenant_id',$1,true)")
-        .bind(tenant.to_string())
+    sqlx::query("SELECT set_config('app.holding_id',$1,true)")
+        .bind(holding.to_string())
         .execute(&mut **tx)
         .await
         .map_err(map)?;
@@ -330,7 +330,7 @@ async fn set_tenant(
 
 async fn replay(
     tx: &mut Transaction<'_, Postgres>,
-    tenant: TenantId,
+    holding: HoldingId,
     command: &CommerceCommit,
 ) -> Result<Option<CommerceCommitReceipt>, CommercePortError> {
     let row = sqlx::query(
@@ -338,13 +338,13 @@ async fn replay(
                 r.aggregate_version,r.committed_at,o.event_id,o.position
          FROM erpx_ecommerce_write.command_receipts r
          JOIN erpx_ecommerce_write.outbox o
-           ON o.tenant_id=r.tenant_id
+           ON o.holding_id=r.holding_id
           AND o.aggregate_type=r.aggregate_type
           AND o.aggregate_id=r.aggregate_id
           AND o.aggregate_version=r.aggregate_version
-         WHERE r.tenant_id=$1 AND r.idempotency_key=$2 FOR UPDATE OF r",
+         WHERE r.holding_id=$1 AND r.idempotency_key=$2 FOR UPDATE OF r",
     )
-    .bind(tenant.as_uuid())
+    .bind(holding.as_uuid())
     .bind(&command.identity.idempotency_key)
     .fetch_optional(&mut **tx)
     .await
@@ -383,17 +383,17 @@ async fn replay(
 
 async fn lock_version(
     tx: &mut Transaction<'_, Postgres>,
-    tenant: TenantId,
+    holding: HoldingId,
     kind: &str,
     id: Uuid,
 ) -> Result<Option<u64>, CommercePortError> {
     let (table, column) = table(kind)?;
     let query = format!(
         "SELECT aggregate_version FROM erpx_ecommerce_write.{table} \
-         WHERE tenant_id=$1 AND {column}=$2 FOR UPDATE"
+         WHERE holding_id=$1 AND {column}=$2 FOR UPDATE"
     );
     let value: Option<i64> = sqlx::query_scalar(&query)
-        .bind(tenant.as_uuid())
+        .bind(holding.as_uuid())
         .bind(id)
         .fetch_optional(&mut **tx)
         .await
@@ -429,13 +429,13 @@ fn variant(kind: &str) -> Result<&'static str, CommercePortError> {
         _ => Err(CommercePortError::Invalid),
     }
 }
-fn scope_key(scope: &TenantScope) -> Result<String, CommercePortError> {
+fn scope_key(scope: &AuthorityScope) -> Result<String, CommercePortError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok(format!("h:{holding_id}/c:{company_id}")),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -479,7 +479,7 @@ fn projection(
         aggregate_type: kind.into(),
         aggregate_id: id,
         scope: serde_json::from_value(
-            row.try_get("tenant_scope")
+            row.try_get("active_scope")
                 .map_err(|_| CommercePortError::Internal)?,
         )
         .map_err(|_| CommercePortError::Internal)?,
@@ -521,10 +521,10 @@ fn map(_: sqlx::Error) -> CommercePortError {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn command_path_is_tenant_bound_atomic_and_normalized() {
+    fn command_path_is_holding_bound_atomic_and_normalized() {
         let source = include_str!("repository.rs");
         for marker in [
-            "set_config('app.tenant_id'",
+            "set_config('app.holding_id'",
             "FOR UPDATE",
             "audit_log",
             "command_receipts",

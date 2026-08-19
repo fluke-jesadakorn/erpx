@@ -17,11 +17,12 @@ use erpx_cqrs::{
     CONTRACT_VERSION, MAX_IDEMPOTENCY_KEY_LENGTH, MAX_PARTITION_KEY_LENGTH,
     MAX_PROJECTION_NAME_LENGTH, MAX_READ_YOUR_WRITES_WAIT,
 };
-use erpx_proto::common::v2::{
-    ActorAttribution, ActorKind, AuditContext, BranchScope, CommandReceipt, CommandRequestMetadata,
-    CompanyScope, EventualConsistency, HoldingScope, PlatformScope, ProjectionFreshnessState,
+use erpx_proto::common::{
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope as WireAuthorityScope, BranchScope,
+    CommandReceipt, CommandRequestMetadata, CompanyScope, EventualConsistency,
+    HoldingRoute as WireHoldingRoute, HoldingScope, PlatformScope, ProjectionFreshnessState,
     QueryConsistency, QueryMetadata, QueryRequestMetadata, ReadYourWrites, SubtreeScope,
-    TenantRoute as WireTenantRoute, TenantScope, query_consistency, tenant_scope,
+    authority_scope, query_consistency,
 };
 use tonic::metadata::MetadataValue;
 use uuid::Uuid;
@@ -201,14 +202,14 @@ impl AuthenticatedSession {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ConsoleActorKind {
     PlatformUser,
-    TenantUser,
+    HoldingUser,
 }
 
 impl From<ConsoleActorKind> for i32 {
     fn from(value: ConsoleActorKind) -> Self {
         match value {
             ConsoleActorKind::PlatformUser => ActorKind::PlatformUser as i32,
-            ConsoleActorKind::TenantUser => ActorKind::TenantUser as i32,
+            ConsoleActorKind::HoldingUser => ActorKind::HoldingUser as i32,
         }
     }
 }
@@ -230,8 +231,7 @@ pub(crate) enum AuthorityScope {
     },
     Subtree {
         holding_id: Uuid,
-        company_ids: Vec<Uuid>,
-        branch_ids: Vec<Uuid>,
+        organization_node_id: Uuid,
     },
 }
 
@@ -268,61 +268,29 @@ impl AuthorityScope {
         })
     }
 
-    pub(crate) fn try_subtree<Companies, Company, Branches, Branch>(
+    pub(crate) fn try_subtree(
         holding_id: impl AsRef<str>,
-        company_ids: Companies,
-        branch_ids: Branches,
-    ) -> Result<Self, TransportError>
-    where
-        Companies: IntoIterator<Item = Company>,
-        Company: AsRef<str>,
-        Branches: IntoIterator<Item = Branch>,
-        Branch: AsRef<str>,
-    {
-        let company_ids = company_ids
-            .into_iter()
-            .map(|value| parse_uuid(value.as_ref(), "build authority scope"))
-            .collect::<Result<Vec<_>, _>>()?;
-        let branch_ids = branch_ids
-            .into_iter()
-            .map(|value| parse_uuid(value.as_ref(), "build authority scope"))
-            .collect::<Result<Vec<_>, _>>()?;
-        if company_ids.is_empty() && branch_ids.is_empty() {
-            return Err(TransportError::new(
-                TransportErrorKind::InvalidRequest,
-                "build authority scope",
-            ));
-        }
-        let mut unique_companies = company_ids.clone();
-        unique_companies.sort_unstable();
-        unique_companies.dedup();
-        let mut unique_branches = branch_ids.clone();
-        unique_branches.sort_unstable();
-        unique_branches.dedup();
-        if unique_companies.len() != company_ids.len() || unique_branches.len() != branch_ids.len()
-        {
-            return Err(TransportError::new(
-                TransportErrorKind::InvalidRequest,
-                "build authority scope",
-            ));
-        }
+        organization_node_id: impl AsRef<str>,
+    ) -> Result<Self, TransportError> {
         Ok(Self::Subtree {
             holding_id: parse_uuid(holding_id.as_ref(), "build authority scope")?,
-            company_ids,
-            branch_ids,
+            organization_node_id: parse_uuid(
+                organization_node_id.as_ref(),
+                "build authority scope",
+            )?,
         })
     }
 
-    fn to_wire(&self) -> TenantScope {
+    fn to_wire(&self) -> WireAuthorityScope {
         let scope = match self {
-            Self::Platform => tenant_scope::Scope::Platform(PlatformScope {}),
-            Self::Holding { holding_id } => tenant_scope::Scope::Holding(HoldingScope {
+            Self::Platform => authority_scope::Scope::Platform(PlatformScope {}),
+            Self::Holding { holding_id } => authority_scope::Scope::Holding(HoldingScope {
                 holding_id: holding_id.to_string(),
             }),
             Self::Company {
                 holding_id,
                 company_id,
-            } => tenant_scope::Scope::Company(CompanyScope {
+            } => authority_scope::Scope::Company(CompanyScope {
                 holding_id: holding_id.to_string(),
                 company_id: company_id.to_string(),
             }),
@@ -330,48 +298,46 @@ impl AuthorityScope {
                 holding_id,
                 company_id,
                 branch_id,
-            } => tenant_scope::Scope::Branch(BranchScope {
+            } => authority_scope::Scope::Branch(BranchScope {
                 holding_id: holding_id.to_string(),
                 company_id: company_id.to_string(),
                 branch_id: branch_id.to_string(),
             }),
             Self::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
-            } => tenant_scope::Scope::Subtree(SubtreeScope {
+                organization_node_id,
+            } => authority_scope::Scope::Subtree(SubtreeScope {
                 holding_id: holding_id.to_string(),
-                company_ids: company_ids.iter().map(ToString::to_string).collect(),
-                branch_ids: branch_ids.iter().map(ToString::to_string).collect(),
+                organization_node_id: organization_node_id.to_string(),
             }),
         };
-        TenantScope { scope: Some(scope) }
+        WireAuthorityScope { scope: Some(scope) }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct TenantRoute {
-    tenant_id: Uuid,
-    holding_ref: String,
+pub(crate) struct HoldingRoute {
+    holding_id: Uuid,
+    data_profile_key: String,
 }
 
-impl TenantRoute {
+impl HoldingRoute {
     pub(crate) fn try_new(
-        tenant_id: impl AsRef<str>,
-        holding_ref: impl Into<String>,
+        holding_id: impl AsRef<str>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, TransportError> {
-        let holding_ref = holding_ref.into();
-        validate_reference(&holding_ref, "build tenant route")?;
+        let data_profile_key = data_profile_key.into();
+        validate_reference(&data_profile_key, "build holding route")?;
         Ok(Self {
-            tenant_id: parse_uuid(tenant_id.as_ref(), "build tenant route")?,
-            holding_ref,
+            holding_id: parse_uuid(holding_id.as_ref(), "build holding route")?,
+            data_profile_key,
         })
     }
 
-    fn to_wire(&self) -> WireTenantRoute {
-        WireTenantRoute {
-            tenant_id: self.tenant_id.to_string(),
-            holding_ref: self.holding_ref.clone(),
+    fn to_wire(&self) -> WireHoldingRoute {
+        WireHoldingRoute {
+            holding_id: self.holding_id.to_string(),
+            data_profile_key: self.data_profile_key.clone(),
         }
     }
 }
@@ -380,7 +346,7 @@ impl TenantRoute {
 pub(crate) struct RequestContext {
     session: Arc<AuthenticatedSession>,
     authority: AuthorityScope,
-    tenant_route: Option<TenantRoute>,
+    holding_route: Option<HoldingRoute>,
     module: String,
 }
 
@@ -388,12 +354,12 @@ impl RequestContext {
     pub(crate) fn try_new(
         session: AuthenticatedSession,
         authority: AuthorityScope,
-        tenant_route: Option<TenantRoute>,
+        holding_route: Option<HoldingRoute>,
         module: impl Into<String>,
     ) -> Result<Self, TransportError> {
         let module = module.into();
         validate_reference(&module, "build request context")?;
-        if !matches!(authority, AuthorityScope::Platform) && tenant_route.is_none() {
+        if !matches!(authority, AuthorityScope::Platform) && holding_route.is_none() {
             return Err(TransportError::new(
                 TransportErrorKind::InvalidRequest,
                 "build request context",
@@ -402,7 +368,7 @@ impl RequestContext {
         Ok(Self {
             session: Arc::new(session),
             authority,
-            tenant_route,
+            holding_route,
             module,
         })
     }
@@ -939,7 +905,7 @@ impl<C> CommandInvocation<C> {
             correlation_id: correlation_id.clone(),
             causation_id: self.options.causation_id.map(|value| value.to_string()),
             actor: Some(self.context.session.actor()),
-            tenant_scope: Some(self.context.authority.to_wire()),
+            active_scope: Some(self.context.authority.to_wire()),
             audit: Some(AuditContext {
                 purpose: self.options.purpose,
                 customer_visible: self.options.customer_visible,
@@ -949,7 +915,7 @@ impl<C> CommandInvocation<C> {
             expected_aggregate_version: self.options.expected_aggregate_version,
             subscription_id: self.options.subscription_id,
             mfa_code: self.options.mfa_code,
-            tenant_route: self.context.tenant_route.map(|route| route.to_wire()),
+            holding_route: self.context.holding_route.map(|route| route.to_wire()),
         };
         WireCommand {
             command: self.command,
@@ -987,7 +953,7 @@ impl<Q> QueryInvocation<Q> {
             query_id: self.query_id.to_string(),
             correlation_id: correlation_id.clone(),
             actor: Some(self.context.session.actor()),
-            tenant_scope: Some(self.context.authority.to_wire()),
+            active_scope: Some(self.context.authority.to_wire()),
             audit: Some(AuditContext {
                 purpose: self.options.purpose,
                 customer_visible: self.options.customer_visible,
@@ -995,7 +961,7 @@ impl<Q> QueryInvocation<Q> {
                 correlation_id,
             }),
             consistency: Some(self.options.consistency.to_wire()),
-            tenant_route: self.context.tenant_route.map(|route| route.to_wire()),
+            holding_route: self.context.holding_route.map(|route| route.to_wire()),
         };
         WireQuery {
             query: self.query,
@@ -1131,14 +1097,13 @@ mod tests {
         thread,
     };
 
-    use erpx_proto::common::v2::{AggregateVersion, EventPosition};
+    use erpx_proto::common::{AggregateVersion, EventPosition};
 
     use super::*;
 
     const SESSION_ID: &str = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     const HOLDING_ID: &str = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
     const COMPANY_ID: &str = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
-    const TENANT_ID: &str = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
     const COMMAND_ID: &str = "11111111-1111-4111-8111-111111111111";
     const CORRELATION_ID: &str = "22222222-2222-4222-8222-222222222222";
     const QUERY_ID: &str = "33333333-3333-4333-8333-333333333333";
@@ -1236,11 +1201,11 @@ mod tests {
                 "access-token",
                 "principal@example.com",
                 SESSION_ID,
-                ConsoleActorKind::TenantUser,
+                ConsoleActorKind::HoldingUser,
             )
             .expect("session is valid"),
             AuthorityScope::try_company(HOLDING_ID, COMPANY_ID).expect("scope is valid"),
-            Some(TenantRoute::try_new(TENANT_ID, HOLDING_ID).expect("route is valid")),
+            Some(HoldingRoute::try_new(HOLDING_ID, HOLDING_ID).expect("route is valid")),
             "widgets",
         )
         .expect("context is valid")
@@ -1273,10 +1238,10 @@ mod tests {
         assert_eq!(metadata.expected_aggregate_version, Some(7));
         assert_eq!(
             metadata
-                .tenant_route
+                .holding_route
                 .as_ref()
-                .map(|route| route.tenant_id.as_str()),
-            Some(TENANT_ID)
+                .map(|route| route.holding_id.as_str()),
+            Some(HOLDING_ID)
         );
         assert_eq!(
             metadata
@@ -1317,7 +1282,7 @@ mod tests {
                     "widget_console_read",
                     &receipt,
                     "widget_projection",
-                    TENANT_ID,
+                    HOLDING_ID,
                     1_500,
                 )
                 .expect("query options are valid"),
@@ -1334,7 +1299,7 @@ mod tests {
             panic!("expected read-your-writes consistency");
         };
         assert_eq!(target.projection, "widget_projection");
-        assert_eq!(target.partition, TENANT_ID);
+        assert_eq!(target.partition, HOLDING_ID);
         assert_eq!(target.event_id, EVENT_ID);
         assert_eq!(target.global_sequence, 42);
         assert_eq!(target.timeout_millis, 1_500);
@@ -1361,8 +1326,7 @@ mod tests {
 
     #[test]
     fn invalid_scope_and_unbounded_wait_are_rejected_before_rpc() {
-        let scope_error =
-            AuthorityScope::try_subtree(HOLDING_ID, Vec::<String>::new(), Vec::<String>::new());
+        let scope_error = AuthorityScope::try_subtree(HOLDING_ID, Uuid::nil().to_string());
         assert_eq!(
             scope_error.expect_err("empty subtree is invalid").kind(),
             TransportErrorKind::InvalidRequest
@@ -1388,7 +1352,7 @@ mod tests {
             "widget_console_read",
             &receipt,
             "widget_projection",
-            TENANT_ID,
+            HOLDING_ID,
             MAX_READ_YOUR_WRITES_WAIT.as_millis() as u64 + 1,
         );
         assert_eq!(

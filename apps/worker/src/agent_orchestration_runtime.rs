@@ -8,14 +8,14 @@ use erpx_agent_orchestration::{
     ProviderInvocationEvidence, ProviderInvocationId, ProviderInvocationRequest,
     ProviderInvocationResponse, ProviderPolicyPort, UsageReconciliation, WorkerAssignmentPort,
 };
-use erpx_kernel::{ActorAttribution, ActorKind, AuditContext, Clock, TenantScope};
+use erpx_kernel::{ActorAttribution, ActorKind, AuditContext, AuthorityScope, Clock};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 use crate::{
     NamedWorkerHandler, OutboxEnvelope, OutboxHandler, WorkerError, WorkerHandlerReport,
     WorkerRuntimeError,
-    agent_provider::{GovernedAgentProvider, TenantBoundAgentProviderPort},
+    agent_provider::{GovernedAgentProvider, HoldingBoundAgentProviderPort},
 };
 
 pub const AGENT_ASSIGNMENT_HANDLER_NAME: &str = "agent_assignment";
@@ -28,7 +28,7 @@ const MAX_PROVIDER_OUTPUT_BYTES: usize = 1024 * 1024;
 pub trait ProtectedAgentMaterialPort: Send + Sync {
     /// Resolve the exact, authorization-bound payload referenced by the
     /// durable claim. Implementations must fail closed when the reference,
-    /// assignment, tenant, or payload digest does not match.
+    /// assignment, holding, or payload digest does not match.
     async fn resolve_prompt(&self, claim: &ClaimedAssignment) -> Result<String, PortError>;
 
     async fn protect_output(
@@ -82,15 +82,15 @@ pub trait BudgetedAgentProviderPort: Send + Sync {
 struct EvidencedAgentProvider<P, U> {
     provider: P,
     evidence: U,
-    tenant_id: uuid::Uuid,
+    holding_id: uuid::Uuid,
 }
 
 impl<P, U> EvidencedAgentProvider<P, U> {
-    const fn new(provider: P, evidence: U, tenant_id: uuid::Uuid) -> Self {
+    const fn new(provider: P, evidence: U, holding_id: uuid::Uuid) -> Self {
         Self {
             provider,
             evidence,
-            tenant_id,
+            holding_id,
         }
     }
 }
@@ -107,7 +107,7 @@ where
         budget: &BudgetRequest,
     ) -> Result<ProviderInvocationResponse, PortError> {
         let invocation_id =
-            provider_invocation_id(self.tenant_id, request.assignment_id, request.attempt)?;
+            provider_invocation_id(self.holding_id, request.assignment_id, request.attempt)?;
         let mut evidence = ProviderInvocationEvidence::begin(
             invocation_id,
             request.assignment_id,
@@ -221,16 +221,16 @@ where
 }
 
 fn provider_invocation_id(
-    tenant_id: uuid::Uuid,
+    holding_id: uuid::Uuid,
     assignment_id: AssignmentId,
     attempt: u32,
 ) -> Result<ProviderInvocationId, PortError> {
-    if tenant_id.is_nil() || attempt == 0 {
+    if holding_id.is_nil() || attempt == 0 {
         return Err(PortError::Denied);
     }
     let mut digest = Sha256::new();
     digest.update(b"erpx.agent.provider-invocation.v1");
-    digest.update(tenant_id.as_bytes());
+    digest.update(holding_id.as_bytes());
     digest.update(assignment_id.as_uuid().as_bytes());
     digest.update(attempt.to_be_bytes());
     let bytes = digest.finalize();
@@ -528,7 +528,7 @@ pub struct AgentAssignmentRuntimeHandler {
     runner: Option<std::sync::Arc<dyn AgentAssignmentPass>>,
 }
 
-/// Routes the authoritative tenant outbox fact through the existing
+/// Routes the authoritative holding outbox fact through the existing
 /// notification authority. It owns no notification records and relies on the
 /// port's assignment/version/state idempotency identity for safe replay.
 pub struct AgentAssignmentNotificationOutboxHandler<N> {
@@ -540,8 +540,8 @@ pub trait AgentNotificationOutboxPass: Send + Sync {
     async fn run_notification_pass(&self) -> Result<bool, AgentWorkerError>;
 }
 
-/// Tenant-local notification publisher. It claims only the exact Agent event
-/// type from a tenant-bound queue, persists only a redacted failure digest,
+/// Holding-local notification publisher. It claims only the exact Agent event
+/// type from a holding-bound queue, persists only a redacted failure digest,
 /// and fences acknowledgement with the durable claim token.
 pub struct AgentNotificationOutboxWorker {
     queue: erpx_agent_orchestration_sqlx::SqlxWorkerQueue,
@@ -580,7 +580,7 @@ impl AgentNotificationOutboxWorker {
             aggregate_type: fact.aggregate_type,
             aggregate_id: fact.aggregate_id,
             aggregate_version: fact.aggregate_version,
-            tenant_scope: Some(fact.tenant_scope),
+            active_scope: Some(fact.active_scope),
             actor: Some(fact.actor),
             correlation_id: fact.correlation_id,
             causation_id: fact.causation_id,
@@ -669,7 +669,7 @@ where
         if event.event_type != "agent.assignment.state_notification.requested"
             || event.event_version != 1
             || event.aggregate_type != "assignment"
-            || event.tenant_scope.is_none()
+            || event.active_scope.is_none()
             || event.actor.is_none()
         {
             return Err(WorkerError::Permanent(
@@ -695,11 +695,11 @@ where
         })?;
         self.notifications
             .publish_state(
-                &serde_json::from_value(event.tenant_scope.clone().ok_or_else(|| {
-                    WorkerError::Permanent("missing agent notification tenant scope".into())
+                &serde_json::from_value(event.active_scope.clone().ok_or_else(|| {
+                    WorkerError::Permanent("missing agent notification holding scope".into())
                 })?)
                 .map_err(|_| {
-                    WorkerError::Permanent("invalid agent notification tenant scope".into())
+                    WorkerError::Permanent("invalid agent notification holding scope".into())
                 })?,
                 AssignmentId::try_from_uuid(payload.assignment_id).map_err(|_| {
                     WorkerError::Permanent("invalid agent assignment notification id".into())
@@ -739,16 +739,16 @@ fn notification_worker_error(error: PortError) -> WorkerError {
     }
 }
 
-/// Constructs one production runner for exactly one generation-v2 tenant data
+/// Constructs one production runner for exactly one current holding data
 /// plane. The queue and last-moment execution guard share the same immutable
-/// tenant identity and bind it through transaction-local RLS before querying.
+/// holding identity and bind it through transaction-local RLS before querying.
 /// Every egress-capable dependency is supplied explicitly; there
 /// is deliberately no environment fallback that could install a permissive
 /// policy, plaintext material resolver, notification sink, or network client.
 #[allow(clippy::too_many_arguments)]
 pub fn compose_sqlx_agent_assignment_runner<Y, M, N>(
-    tenant_write_pool: sqlx::PgPool,
-    tenant_id: uuid::Uuid,
+    holding_write_pool: sqlx::PgPool,
+    holding_id: uuid::Uuid,
     policies: Y,
     provider: GovernedAgentProvider,
     protected_material: M,
@@ -761,16 +761,16 @@ where
     M: ProtectedAgentMaterialPort + 'static,
     N: AgentNotificationPort + 'static,
 {
-    if provider.tenant_id() != tenant_id {
+    if provider.holding_id() != holding_id {
         return Err(AgentWorkerError::InvalidConfiguration);
     }
     let evidence = erpx_agent_orchestration_sqlx::SqlxAgentExperienceStore::try_new(
-        tenant_write_pool.clone(),
-        tenant_id,
+        holding_write_pool.clone(),
+        holding_id,
     )?;
-    let provider = EvidencedAgentProvider::new(provider, evidence, tenant_id);
+    let provider = EvidencedAgentProvider::new(provider, evidence, holding_id);
     let queue =
-        erpx_agent_orchestration_sqlx::SqlxWorkerQueue::try_new(tenant_write_pool, tenant_id)?;
+        erpx_agent_orchestration_sqlx::SqlxWorkerQueue::try_new(holding_write_pool, holding_id)?;
     Ok(std::sync::Arc::new(AgentAssignmentWorker::try_new(
         queue.clone(),
         policies,
@@ -851,7 +851,7 @@ fn provider_failure_code(error: &PortError) -> &'static str {
 }
 
 #[allow(dead_code)]
-fn _scope_is_never_widened(parent: &TenantScope, child: &TenantScope) -> bool {
+fn _scope_is_never_widened(parent: &AuthorityScope, child: &AuthorityScope) -> bool {
     parent.contains(child)
 }
 
@@ -958,7 +958,7 @@ mod tests {
     impl ProviderPolicyPort for FakePolicy {
         async fn load_policy(
             &self,
-            _authority_scope: &TenantScope,
+            _authority_scope: &AuthorityScope,
             _pin: &AgentPin,
             _at: chrono::DateTime<Utc>,
         ) -> Result<ProviderPolicy, PortError> {
@@ -1074,7 +1074,7 @@ mod tests {
     impl AgentNotificationPort for FakeNotifications {
         async fn publish_state(
             &self,
-            _scope: &TenantScope,
+            _scope: &AuthorityScope,
             _assignment_id: AssignmentId,
             aggregate_version: u64,
             _recipient_principal_ref: &str,
@@ -1106,7 +1106,7 @@ mod tests {
 
     fn fixture() -> Fixture {
         let at = Utc.with_ymd_and_hms(2026, 8, 16, 10, 0, 0).unwrap();
-        let scope = TenantScope::Holding {
+        let scope = AuthorityScope::Holding {
             holding_id: Uuid::from_u128(10),
         };
         let policy_digest = "a".repeat(64);
@@ -1357,7 +1357,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn production_composition_rejects_provider_from_another_tenant_before_pool_use() {
+    async fn production_composition_rejects_provider_from_another_holding_before_pool_use() {
         let fixture = fixture();
         let provider = crate::AgentNetworkProviderConfig::Ollama(
             crate::OllamaProviderConfig::try_new(
@@ -1586,8 +1586,8 @@ mod tests {
             aggregate_type: "assignment".into(),
             aggregate_id: assignment_id,
             aggregate_version: 9,
-            tenant_scope: Some(
-                serde_json::to_value(TenantScope::Holding {
+            active_scope: Some(
+                serde_json::to_value(AuthorityScope::Holding {
                     holding_id: Uuid::from_u128(10),
                 })
                 .expect("scope"),

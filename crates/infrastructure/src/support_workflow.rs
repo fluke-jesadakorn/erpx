@@ -545,7 +545,7 @@ impl SupportWorkflowStore {
     ) -> Result<(), SupportWorkflowPersistenceError> {
         let source = sqlx::query(
             "SELECT event_type, event_version, aggregate_type, aggregate_id,
-                    aggregate_version, tenant_scope, actor, correlation_id,
+                    aggregate_version, active_scope, actor, correlation_id,
                     causation_id, idempotency_key, payload, occurred_at
              FROM erpx_control.outbox_events
              WHERE id = $1",
@@ -567,7 +567,7 @@ impl SupportWorkflowStore {
             && source.try_get::<Uuid, _>("aggregate_id")? == event.aggregate_id
             && positive_version(source.try_get("aggregate_version")?, "event version")?
                 == event.aggregate_version
-            && source.try_get::<Option<Value>, _>("tenant_scope")? == event.tenant_scope
+            && source.try_get::<Option<Value>, _>("active_scope")? == event.active_scope
             && source.try_get::<Option<Value>, _>("actor")? == event.actor
             && source.try_get::<Uuid, _>("correlation_id")? == event.correlation_id
             && source.try_get::<Option<Uuid>, _>("causation_id")? == event.causation_id
@@ -602,7 +602,7 @@ impl SupportWorkflowStore {
         self.ensure_read_model().await?;
         let events = sqlx::query(
             "SELECT id, event_type, event_version, aggregate_type, aggregate_id,
-                    aggregate_version, tenant_scope, actor, correlation_id,
+                    aggregate_version, active_scope, actor, correlation_id,
                     causation_id, idempotency_key, payload, occurred_at, available_at,
                     attempts, max_attempts, claimed_by, claimed_at, published_at,
                     dead_lettered_at, last_error, last_error_context
@@ -685,8 +685,8 @@ impl SupportWorkflowStore {
         let scope_mismatches: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM erpx_control.outbox_events e
              WHERE e.aggregate_type IN ('support_session','support_capability','support_diagnostics_audit')
-               AND (e.tenant_scope IS NULL
-                    OR e.tenant_scope->>'support_scope' IS NULL)",
+               AND (e.active_scope IS NULL
+                    OR e.active_scope->>'support_scope' IS NULL)",
         )
         .fetch_one(&self.write)
         .await?;
@@ -898,7 +898,7 @@ impl SupportWorkflowStore {
         })?;
         let scope = required_string(payload, "scope")?;
         if event
-            .tenant_scope
+            .active_scope
             .as_ref()
             .and_then(|scope| scope.get("support_scope"))
             .and_then(Value::as_str)
@@ -1001,7 +1001,7 @@ impl SupportWorkflowStore {
         })?;
         let scope = required_string(payload, "scope")?;
         if event
-            .tenant_scope
+            .active_scope
             .as_ref()
             .and_then(|scope| scope.get("support_scope"))
             .and_then(Value::as_str)
@@ -1260,7 +1260,7 @@ async fn upsert_approved_request(
     let permissions = serde_json::to_value(&command.session.permissions)?;
     let row = sqlx::query(
         "INSERT INTO erpx_control.support_access_requests
-            (id, ticket_id, customer_account_id, agent_ref, represented_tenant_user,
+            (id, ticket_id, customer_account_id, agent_ref, represented_holding_user,
              mode, permissions, scope, reason, requested_at, expires_at, status,
              approved_by, approved_at, approval_ref, version, payload)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'approved',$12,$13,$14,1,$15)
@@ -1279,7 +1279,7 @@ async fn upsert_approved_request(
     .bind(command.session.ticket_id)
     .bind(command.session.customer_account_id)
     .bind(&command.session.agent_ref)
-    .bind(&command.session.represented_tenant_user)
+    .bind(&command.session.represented_holding_user)
     .bind(support_mode(command.session.mode))
     .bind(permissions)
     .bind(&command.session.scope)
@@ -1428,13 +1428,13 @@ async fn append_workflow_event(
             "support workflow event identity is invalid",
         ));
     }
-    let tenant_scope = json!({ "support_scope": scope });
+    let active_scope = json!({ "support_scope": scope });
     let actor = json!({ "principal_ref": actor_ref });
     let event_id = Uuid::new_v4();
     let inserted = sqlx::query(
         "INSERT INTO erpx_control.outbox_events
             (id,event_type,event_version,aggregate_type,aggregate_id,aggregate_version,
-             tenant_scope,actor,correlation_id,idempotency_key,payload,occurred_at,available_at)
+             active_scope,actor,correlation_id,idempotency_key,payload,occurred_at,available_at)
          VALUES ($1,$2,1,$3,$4,$5,$6,$7,$1,$8,$9,$10,$10)
          ON CONFLICT (idempotency_key) DO NOTHING",
     )
@@ -1443,7 +1443,7 @@ async fn append_workflow_event(
     .bind(aggregate_type)
     .bind(aggregate_id)
     .bind(as_i64(aggregate_version, "support workflow event version")?)
-    .bind(&tenant_scope)
+    .bind(&active_scope)
     .bind(&actor)
     .bind(&idempotency_key)
     .bind(&payload)
@@ -1455,7 +1455,7 @@ async fn append_workflow_event(
     }
     let stored = sqlx::query(
         "SELECT id, event_type, event_version, aggregate_type, aggregate_id,
-                aggregate_version, tenant_scope, actor, payload, occurred_at
+                aggregate_version, active_scope, actor, payload, occurred_at
          FROM erpx_control.outbox_events WHERE idempotency_key=$1 FOR SHARE",
     )
     .bind(&idempotency_key)
@@ -1467,7 +1467,7 @@ async fn append_workflow_event(
         || stored.try_get::<Uuid, _>("aggregate_id")? != aggregate_id
         || positive_version(stored.try_get("aggregate_version")?, "event version")?
             != aggregate_version
-        || stored.try_get::<Value, _>("tenant_scope")? != tenant_scope
+        || stored.try_get::<Value, _>("active_scope")? != active_scope
         || stored.try_get::<Value, _>("actor")? != actor
         || stored.try_get::<Value, _>("payload")? != payload
         || stored.try_get::<DateTime<Utc>, _>("occurred_at")? != occurred_at
@@ -1490,7 +1490,7 @@ fn outbox_from_row(
         aggregate_type: row.try_get("aggregate_type")?,
         aggregate_id: row.try_get("aggregate_id")?,
         aggregate_version: positive_version(row.try_get("aggregate_version")?, "event version")?,
-        tenant_scope: row.try_get("tenant_scope")?,
+        active_scope: row.try_get("active_scope")?,
         actor: row.try_get("actor")?,
         correlation_id: row.try_get("correlation_id")?,
         causation_id: row.try_get("causation_id")?,
@@ -1586,7 +1586,7 @@ fn sha256_hex(bytes: &[u8]) -> String {
 fn support_mode(mode: SupportMode) -> &'static str {
     match mode {
         SupportMode::DiagnosticRead => "diagnostic_read",
-        SupportMode::TenantMutation => "tenant_mutation",
+        SupportMode::HoldingMutation => "holding_mutation",
         SupportMode::Impersonation => "impersonation",
     }
 }

@@ -28,10 +28,10 @@ mod future_field_service;
 mod future_learning;
 mod future_manufacturing_planning;
 mod future_talent;
+mod holding_workspace;
 mod operational_metrics;
 mod persistence;
 mod target_transport;
-mod tenant_workspace;
 mod wave4_composition;
 mod wave5_composition;
 mod wave6_composition;
@@ -42,7 +42,7 @@ mod wave9_composition;
 use contexts::quality::{
     AuthenticatedQualityRequest, QualityAccessMode, QualityAuthenticationError,
     QualityAuthenticationRequest, QualityCommandApplication, QualityCommandRpc,
-    QualityQueryApplication, QualityQueryRpc, QualityRequestAuthenticator, QualityTenantRoute,
+    QualityHoldingRoute, QualityQueryApplication, QualityQueryRpc, QualityRequestAuthenticator,
 };
 use contexts::{
     assets_cqrs::{AssetsCommandRpc, AssetsQueryRpc},
@@ -86,12 +86,14 @@ use contexts::{
     sales_cqrs::{SalesCommandRpc, SalesQueryRpc},
     support_cqrs::{SupportCommandRpc, SupportQueryRpc},
 };
-use persistence::seed_tenant_owner;
+use holding_workspace::{
+    PresentedHoldingRoute, ResolvedHoldingWorkspace, resolve_holding_workspace,
+};
+use persistence::seed_holding_owner;
 use target_transport::{
     CollaborationCommandRpc, CollaborationQueryRpc, CollaborationStreamRpc, DataPlaneStreamRpc,
     ReferenceQueryRpc,
 };
-use tenant_workspace::{PresentedTenantRoute, ResolvedTenantWorkspace, resolve_tenant_workspace};
 use wave4_composition::{
     CommercialProviderKey, CommercialServerApplication, CommercialServerAuthenticator,
     IdentityServerApplication, IdentityServerAuthenticator, OrganizationServerApplication,
@@ -102,9 +104,9 @@ use wave5_composition::{
     CustomerAuthorityServerAuthenticator, PlatformAdministrationServerApplication,
     PlatformAdministrationServerAuthenticator,
 };
-use wave6_composition::{Wave6ServerAuthenticator, Wave6TenantApplication};
-use wave7_composition::{Wave7ServerAuthenticator, Wave7TenantApplication};
-use wave8_composition::{Wave8ServerAuthenticator, Wave8TenantApplication};
+use wave6_composition::{Wave6HoldingApplication, Wave6ServerAuthenticator};
+use wave7_composition::{Wave7HoldingApplication, Wave7ServerAuthenticator};
+use wave8_composition::{Wave8HoldingApplication, Wave8ServerAuthenticator};
 use wave9_composition::{Wave9Application, Wave9ServerAuthenticator};
 
 use std::future::Future;
@@ -155,7 +157,7 @@ use erpx_customer_authority_sqlx::CustomerAuthorityWriteRepository;
 use erpx_domain::{
     access::{
         EffectiveAccessRequest, HOLDING_OWNER_ROLE, RiskTier, RoleAssignment,
-        RoleExpiryNotificationKind, RoleReviewItem, Scope, evaluate_effective_access_chain,
+        RoleExpiryNotificationKind, RoleReviewItem, evaluate_effective_access_chain,
     },
     commercial::{
         ACTIVE_CATALOG_CURRENCY, ActivateBranchModuleCommand, ActivateCompanyModuleCommand,
@@ -164,7 +166,10 @@ use erpx_domain::{
         SubscriptionItemSelection as DomainSubscriptionItemSelection, active_subscription_currency,
         authorize_module,
     },
-    contracts::{ActorAttribution, ActorKind, CONTRACT_VERSION, CommandContext, TenantScope},
+    contracts::{
+        ActorAttribution, ActorKind, AuthorityScope, AuthorityScope as Scope, CONTRACT_VERSION,
+        CommandContext,
+    },
     customer::{
         Customer360DetailReadContext, CustomerGlobalReadContext, CustomerNoteCursor,
         CustomerStatus, GlobalReadActor, GlobalReadAuditRecord, GlobalReadScope, HealthState,
@@ -173,6 +178,7 @@ use erpx_domain::{
         BusinessUnitId, BusinessUnitRoleTemplate, ConfigurationLayer,
         directory_role_template_is_allowed,
     },
+    holding_administration::{HoldingAdminAuthorizationRequest, HoldingOrganizationScope},
     marketing::MarketingProfileErasure,
     marketing_abuse::{
         AnonymousMarketingAbuseInput, AnonymousMarketingAbusePolicy, MarketingAbuseDecision,
@@ -190,11 +196,10 @@ use erpx_domain::{
     marketing_crm::{AcceptedLeadHandoff, AttributionModel, CrmOpportunity},
     marketing_delivery::DeliveryState,
     platform_completion::{
-        BackupControlCommand, PitrRecoveryPoint, PlatformAuthorizationProof, PlatformBackupKind,
-        TenantBinding, TenantLifecycleAction, TenantLifecycleCommand,
+        BackupControlCommand, HoldingBinding, HoldingLifecycleAction, HoldingLifecycleCommand,
+        PitrRecoveryPoint, PlatformAuthorizationProof, PlatformBackupKind,
     },
     support::{SupportCapabilitySecret, SupportDomainPolicy, SupportMode},
-    tenant_administration::{TenantAdminAuthorizationRequest, TenantOrganizationScope},
 };
 use erpx_identity::{
     AccessTokenClaims, AccessTokenSigner, DIRECTORY_PREFLIGHT_MAX_AGE, DIRECTORY_REVOCATION_SLA,
@@ -208,36 +213,36 @@ use erpx_identity::{
 };
 use erpx_infrastructure::{
     ClusterPitrRepository, ControlPlaneDatabaseConfig, ControlPlanePools, DeadLetterReplayCommand,
-    EnvMarketingCallbackSecretResolver, HttpMarketingCallbackSecretManager,
-    MAX_CLUSTER_PITR_PAGE_SIZE, MAX_CRM_READ_PAGE_SIZE, MAX_MARKETING_CONTENT_READ_PAGE_SIZE,
+    EnvMarketingCallbackSecretResolver, HoldingAdminContextIssue,
+    HoldingBillingGraceExtensionGrant, HoldingDatabaseProvisioner,
+    HoldingDatabaseProvisioningConfig, HoldingDatabaseRouter, HoldingHoldingBinding,
+    HoldingProjectionSchedulerRepository, HoldingProjectionStatusReadRepository,
+    HoldingProvisioner, HoldingRegistryFilter, HoldingRegistrySummary, HoldingSourceProjection,
+    HoldingStoreRegistration, HttpMarketingCallbackSecretManager, MAX_CLUSTER_PITR_PAGE_SIZE,
+    MAX_CRM_READ_PAGE_SIZE, MAX_HOLDING_REGISTRY_PAGE_SIZE, MAX_MARKETING_CONTENT_READ_PAGE_SIZE,
     MAX_PLATFORM_AUDIT_PAGE_SIZE, MAX_PROJECTION_STATUS_FRESHNESS_SECONDS,
-    MAX_PROJECTION_STATUS_PAGE_SIZE, MAX_TENANT_REGISTRY_PAGE_SIZE,
-    MarketingCallbackSecretResolver, MarketingPublicAbuseWindowRequest, ObjectAccessBindingRequest,
-    PersistenceError, PlatformControlStore, PlatformIntegrationObservation, ProjectionPolicy,
+    MAX_PROJECTION_STATUS_PAGE_SIZE, MarketingCallbackSecretResolver,
+    MarketingPublicAbuseWindowRequest, ObjectAccessBindingRequest, PersistenceError,
+    PlatformControlStore, PlatformIntegrationObservation, ProjectionPolicy,
     ProjectionSchedulerAuthorization, ProjectionStatusCursor, ReadinessObservationState,
-    ReadinessState, RoutedDatabaseSide, RoutedTenantDatabase, SqlxBranchProvisioningStore,
+    ReadinessState, RoutedDatabaseSide, RoutedHoldingDatabase, SqlxBranchProvisioningStore,
     SqlxCommercialStore, SqlxControlPlane, SqlxCorporateIdentityStore, SqlxG13MigrationStore,
-    SqlxMarketingContentStore, SqlxMarketingContentWriteAdapter, SqlxMarketingCrmStore,
-    SqlxMarketingDeliveryStore, SqlxMarketingProfilePrivacyAdapter,
-    SqlxMarketingProviderOnboardingStore, SqlxMarketingStore, SqlxTenantAdministrationStore,
-    SqlxTenantStoreRegistry, StripeApiKey, StripeCheckoutLineItem, StripeCheckoutMode,
-    StripeCheckoutSessionCreateRequest, StripeCustomerPortalSessionCreateRequest, StripeHttpClient,
-    StripeInboxInsert, StripeProviderConfig, StripeWebhookEvent, StripeWebhookPersistenceContext,
-    SupportCapabilityAuthorizationRequest, TenantAdminContextIssue,
-    TenantBillingGraceExtensionGrant, TenantDatabaseProvisioner, TenantDatabaseProvisioningConfig,
-    TenantDatabaseRouter, TenantHoldingBinding, TenantProjectionSchedulerRepository,
-    TenantProjectionStatusReadRepository, TenantProvisioner, TenantRegistryFilter,
-    TenantRegistrySummary, TenantSourceProjection, TenantStoreRegistration,
-    UnconfiguredMarketingCallbackSecretResolver, WorkerHeartbeatReadiness,
-    WorkerLiveReadinessPolicy, WorkerReadinessComposition, tenant_holding_scope_id,
+    SqlxHoldingAdministrationStore, SqlxHoldingStoreRegistry, SqlxMarketingContentStore,
+    SqlxMarketingContentWriteAdapter, SqlxMarketingCrmStore, SqlxMarketingDeliveryStore,
+    SqlxMarketingProfilePrivacyAdapter, SqlxMarketingProviderOnboardingStore, SqlxMarketingStore,
+    StripeApiKey, StripeCheckoutLineItem, StripeCheckoutMode, StripeCheckoutSessionCreateRequest,
+    StripeCustomerPortalSessionCreateRequest, StripeHttpClient, StripeInboxInsert,
+    StripeProviderConfig, StripeWebhookEvent, StripeWebhookPersistenceContext,
+    SupportCapabilityAuthorizationRequest, UnconfiguredMarketingCallbackSecretResolver,
+    WorkerHeartbeatReadiness, WorkerLiveReadinessPolicy, WorkerReadinessComposition,
+    holding_holding_scope_id,
 };
 use erpx_kernel::{
     ActorAttribution as KernelActorAttribution, ActorKind as KernelActorKind,
-    AuditContext as KernelAuditContext, CommandId as KernelCommandId,
-    CorrelationId as KernelCorrelationId, ErrorCategory as KernelErrorCategory,
-    ErrorContext as KernelErrorContext, KernelError, RecordId as KernelRecordId,
-    SessionId as KernelSessionId, SystemClock as KernelSystemClock,
-    TenantScope as KernelTenantScope,
+    AuditContext as KernelAuditContext, AuthorityScope as KernelHoldingScope,
+    CommandId as KernelCommandId, CorrelationId as KernelCorrelationId,
+    ErrorCategory as KernelErrorCategory, ErrorContext as KernelErrorContext, KernelError,
+    RecordId as KernelRecordId, SessionId as KernelSessionId, SystemClock as KernelSystemClock,
 };
 use erpx_operations::SourceHighWatermarkPort;
 use erpx_operations_sqlx::EXCEPTION_PROJECTION as OPERATIONS_READ_PROJECTION;
@@ -250,10 +255,9 @@ use erpx_organization::{
 };
 use erpx_organization_sqlx::OrganizationReadRepository;
 use erpx_proto::erpx::{
-    commercial::v2 as commercial_target, crm::v2 as crm_target,
-    customer_360::v2 as customer360_target, customer_authority::v2 as customer_authority_target,
-    identity_access::v2 as identity_target, marketing::v2 as marketing_target,
-    platform_administration::v2 as platform_admin_target,
+    commercial as commercial_target, crm as crm_target, customer_360 as customer360_target,
+    customer_authority as customer_authority_target, identity_access as identity_target,
+    marketing as marketing_target, platform_administration as platform_admin_target,
 };
 use erpx_quality::ports::AuthorizationRequest as QualityAuthorizationRequest;
 use erpx_quality::{
@@ -297,37 +301,37 @@ use platform_completion::{
     PlatformBackupApiRequest, PlatformCompletionApi, PlatformLifecycleApiRequest,
 };
 use storage::{
-    ObjectAccessError, ObjectAuthorizationError, StorageComposition, TenantObjectDownloadRequest,
-    TenantObjectUploadRequest,
+    HoldingObjectDownloadRequest, HoldingObjectUploadRequest, ObjectAccessError,
+    ObjectAuthorizationError, StorageComposition,
 };
 
 const PLATFORM_CUSTOMER_READ_PERMISSION: &str = "platform.customer.read";
 const PLATFORM_CUSTOMER_ACCESS_AUDIT_PERMISSION: &str = "platform.customer.access_audit.read";
 const PLATFORM_CUSTOMER_NOTE_WRITE_PERMISSION: &str = "platform.customer.notes.write";
-const PLATFORM_TENANT_READ_PERMISSION: &str = "platform.tenant.read";
-const PLATFORM_TENANT_HISTORY_READ_PERMISSION: &str = "platform.tenant.history.read";
+const PLATFORM_HOLDING_READ_PERMISSION: &str = "platform.holding.read";
+const PLATFORM_HOLDING_HISTORY_READ_PERMISSION: &str = "platform.holding.history.read";
 
-const PLATFORM_TENANT_ENTER_PERMISSION: &str = "platform.tenant.enter";
-const PLATFORM_TENANT_PROVISION_PERMISSION: &str = "platform.tenant.provision";
-const PLATFORM_TENANT_BACKUP_PERMISSION: &str = "platform.tenant.backup";
-const PLATFORM_TENANT_SUSPEND_PERMISSION: &str = "platform.tenant.suspend";
-const PLATFORM_TENANT_RECOVERY_PERMISSION: &str = "platform.tenant.recovery";
+const PLATFORM_HOLDING_ENTER_PERMISSION: &str = "platform.holding.enter";
+const PLATFORM_HOLDING_PROVISION_PERMISSION: &str = "platform.holding.provision";
+const PLATFORM_HOLDING_BACKUP_PERMISSION: &str = "platform.holding.backup";
+const PLATFORM_HOLDING_SUSPEND_PERMISSION: &str = "platform.holding.suspend";
+const PLATFORM_HOLDING_RECOVERY_PERMISSION: &str = "platform.holding.recovery";
 const PLATFORM_PROJECTION_REBUILD_PERMISSION: &str = "platform.projection.rebuild";
 const PLATFORM_DIRECTORY_READ_PERMISSION: &str = "platform.directory.read";
 const PLATFORM_DIRECTORY_MANAGE_PERMISSION: &str = "platform.directory.manage";
 const PLATFORM_DIRECTORY_ACTIVATE_PERMISSION: &str = "platform.directory.activate";
-const TENANT_DIRECTORY_READ_PERMISSION: &str = "tenant.directory.read";
-const TENANT_DIRECTORY_MANAGE_PERMISSION: &str = "tenant.directory.manage";
-const TENANT_DIRECTORY_ACTIVATE_PERMISSION: &str = "tenant.directory.activate";
+const HOLDING_DIRECTORY_READ_PERMISSION: &str = "holding.directory.read";
+const HOLDING_DIRECTORY_MANAGE_PERMISSION: &str = "holding.directory.manage";
+const HOLDING_DIRECTORY_ACTIVATE_PERMISSION: &str = "holding.directory.activate";
 
 fn directory_permission(scope: &Scope, operation: &str) -> &'static str {
     match (scope, operation) {
         (Scope::Platform, "read") => PLATFORM_DIRECTORY_READ_PERMISSION,
         (Scope::Platform, "activate") => PLATFORM_DIRECTORY_ACTIVATE_PERMISSION,
         (Scope::Platform, _) => PLATFORM_DIRECTORY_MANAGE_PERMISSION,
-        (_, "read") => TENANT_DIRECTORY_READ_PERMISSION,
-        (_, "activate") => TENANT_DIRECTORY_ACTIVATE_PERMISSION,
-        _ => TENANT_DIRECTORY_MANAGE_PERMISSION,
+        (_, "read") => HOLDING_DIRECTORY_READ_PERMISSION,
+        (_, "activate") => HOLDING_DIRECTORY_ACTIVATE_PERMISSION,
+        _ => HOLDING_DIRECTORY_MANAGE_PERMISSION,
     }
 }
 const MAX_DIRECTORY_IDENTITY_LINK_PAGE_SIZE: u32 = 500;
@@ -358,12 +362,12 @@ fn validate_read_purpose(value: &str) -> Result<&str, Status> {
     Ok(purpose)
 }
 
-fn platform_tenant_page_size(value: u32) -> Result<u32, Status> {
+fn platform_holding_page_size(value: u32) -> Result<u32, Status> {
     match value {
         0 => Ok(25),
-        value if value <= MAX_TENANT_REGISTRY_PAGE_SIZE => Ok(value),
+        value if value <= MAX_HOLDING_REGISTRY_PAGE_SIZE => Ok(value),
         _ => Err(Status::invalid_argument(
-            "platform tenant page size exceeds the allowed bound",
+            "platform holding page size exceeds the allowed bound",
         )),
     }
 }
@@ -373,56 +377,56 @@ fn optional_registry_filter(value: &str) -> Option<String> {
     (!value.is_empty()).then(|| value.to_owned())
 }
 
-fn platform_tenant_summary(
-    tenant: TenantRegistrySummary,
-) -> platform_admin_target::PlatformTenantSummary {
-    let enterable = tenant.enterable();
-    platform_admin_target::PlatformTenantSummary {
-        tenant_id: tenant.tenant_id,
-        state: tenant.tenant_state,
+fn platform_holding_summary(
+    holding: HoldingRegistrySummary,
+) -> platform_admin_target::PlatformHoldingSummary {
+    let enterable = holding.enterable();
+    platform_admin_target::PlatformHoldingSummary {
+        holding_id: holding.holding_id,
+        state: holding.holding_state,
         registry_version: 0,
         routing: "control-plane projection".into(),
-        projection: tenant.projection_freshness,
-        backup_pitr: tenant.backup_state,
-        storage: tenant.storage_state,
-        customer_id: tenant
+        projection: holding.projection_freshness,
+        backup_pitr: holding.backup_state,
+        storage: holding.storage_state,
+        customer_id: holding
             .customer_id
             .map(|id| id.to_string())
             .unwrap_or_default(),
-        root_holding_id: tenant
-            .root_holding_id
+        canonical_holding_id: holding
+            .canonical_holding_id
             .map(|id| id.to_string())
             .unwrap_or_default(),
-        customer_name: tenant.customer_name,
-        configuration_state: tenant.configuration_state,
-        subscription_state: tenant.subscription_state,
-        plan_key: tenant.plan_key,
-        enabled_modules: tenant.enabled_modules,
-        purchased_seats: tenant.purchased_seats,
-        used_seats: tenant.used_seats,
-        company_count: tenant.company_count,
-        branch_count: tenant.branch_count,
-        renewal_at: tenant
+        customer_name: holding.customer_name,
+        configuration_state: holding.configuration_state,
+        subscription_state: holding.subscription_state,
+        plan_key: holding.plan_key,
+        enabled_modules: holding.enabled_modules,
+        purchased_seats: holding.purchased_seats,
+        used_seats: holding.used_seats,
+        company_count: holding.company_count,
+        branch_count: holding.branch_count,
+        renewal_at: holding
             .renewal_at
             .map(|value| value.to_rfc3339())
             .unwrap_or_default(),
-        overdue: tenant.overdue,
-        integration_health: tenant.integration_health,
-        health: tenant.health,
-        projected_at: tenant.projected_at.to_rfc3339(),
+        overdue: holding.overdue,
+        integration_health: holding.integration_health,
+        health: holding.health,
+        projected_at: holding.projected_at.to_rfc3339(),
         enterable,
     }
 }
 
-fn tenant_admin_context_message(
-    context: &erpx_domain::tenant_administration::TenantAdminContext,
+fn holding_admin_context_message(
+    context: &erpx_domain::holding_administration::HoldingAdminContext,
     at: DateTime<Utc>,
-) -> platform_admin_target::TenantAdminContext {
-    platform_admin_target::TenantAdminContext {
+) -> platform_admin_target::HoldingAdminContext {
+    platform_admin_target::HoldingAdminContext {
         administrative_context_id: context.id.to_string(),
-        tenant_id: context.tenant_id.clone(),
+        holding_id: context.holding_id.clone(),
         customer_id: context.customer_id.to_string(),
-        root_holding_id: context.root_holding_id.to_string(),
+        canonical_holding_id: context.canonical_holding_id.to_string(),
         issued_at: context.issued_at.to_rfc3339(),
         expires_at: context.expires_at.to_rfc3339(),
         active: context.revoked_at.is_none() && at >= context.issued_at && at < context.expires_at,
@@ -474,20 +478,18 @@ fn projection_rebuild_generation(value: u64) -> Result<u64, Status> {
 }
 
 async fn operations_source_high_watermark(
-    router: &TenantDatabaseRouter,
-    tenant_id: &str,
-    holding_ref: &str,
+    router: &HoldingDatabaseRouter,
+    holding_id: &str,
+    data_profile_key: &str,
 ) -> Result<u64, PersistenceError> {
     let write = router
-        .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
+        .route(holding_id, data_profile_key, RoutedDatabaseSide::Write)
         .await?;
-    let tenant_uuid = Uuid::parse_str(tenant_id).map_err(|_| {
-        PersistenceError::InvalidData(
-            "generation-v2 Operations source requires a UUID tenant_id".into(),
-        )
+    let holding_uuid = Uuid::parse_str(holding_id).map_err(|_| {
+        PersistenceError::InvalidData("current Operations source requires a UUID holding_id".into())
     })?;
-    let pool = CqrsWritePool::for_tenant(write.database_pool().clone(), tenant_uuid)
-        .map_err(|_| PersistenceError::Configuration("Operations tenant binding is invalid"))?;
+    let pool = CqrsWritePool::for_holding(write.database_pool().clone(), holding_uuid)
+        .map_err(|_| PersistenceError::Configuration("Operations holding binding is invalid"))?;
     let result = OperationsSourceHighWatermarkReader::new(pool)
         .source_high_watermark()
         .await
@@ -925,7 +927,7 @@ fn require_platform_scope(scope: &Scope) -> Result<(), Status> {
     }
 }
 
-fn command_mfa_code(context: Option<&erpx_proto::common::v2::CommandContext>) -> &str {
+fn command_mfa_code(context: Option<&erpx_proto::common::CommandContext>) -> &str {
     context.map_or("", |context| context.mfa_code.as_str())
 }
 
@@ -1013,7 +1015,10 @@ fn parse_directory_json_object(bytes: &[u8], field: &str) -> Result<Value, Statu
     Ok(value)
 }
 
-fn parse_directory_scope(scope_key: &str, holding_ref: &str) -> Result<DirectoryScope, Status> {
+fn parse_directory_scope(
+    scope_key: &str,
+    data_profile_key: &str,
+) -> Result<DirectoryScope, Status> {
     if let Some(branch) = scope_key.trim().strip_prefix("branch:") {
         let mut parts = branch.rsplitn(3, ':');
         let branch_id = parts
@@ -1027,39 +1032,39 @@ fn parse_directory_scope(scope_key: &str, holding_ref: &str) -> Result<Directory
         let parsed_holding = parts
             .next()
             .ok_or_else(|| Status::invalid_argument("directory branch scope is invalid"))?;
-        if !holding_ref.trim().is_empty() && holding_ref.trim() != parsed_holding {
+        if !data_profile_key.trim().is_empty() && data_profile_key.trim() != parsed_holding {
             return Err(Status::invalid_argument(
-                "directory branch scope and holding_ref do not match",
+                "directory branch scope and data_profile_key do not match",
             ));
         }
         return Ok(DirectoryScope::Branch {
-            holding_ref: parsed_holding.into(),
+            data_profile_key: parsed_holding.into(),
             company_id,
             branch_id,
         });
     }
-    if scope_key.trim() == "platform" && holding_ref.trim().is_empty() {
+    if scope_key.trim() == "platform" && data_profile_key.trim().is_empty() {
         return Ok(DirectoryScope::Platform);
     }
-    let holding = if holding_ref.trim().is_empty() {
+    let holding = if data_profile_key.trim().is_empty() {
         scope_key.trim()
     } else {
-        holding_ref.trim()
+        data_profile_key.trim()
     }
     .strip_prefix("holding:")
     .unwrap_or_else(|| {
-        if holding_ref.trim().is_empty() {
+        if data_profile_key.trim().is_empty() {
             scope_key.trim()
         } else {
-            holding_ref.trim()
+            data_profile_key.trim()
         }
     });
     if scope_key.trim().starts_with("holding:")
-        && !holding_ref.trim().is_empty()
+        && !data_profile_key.trim().is_empty()
         && scope_key.trim() != format!("holding:{holding}")
     {
         return Err(Status::invalid_argument(
-            "directory holding scope and holding_ref do not match",
+            "directory holding scope and data_profile_key do not match",
         ));
     }
     let holding = holding.trim().to_owned();
@@ -1069,7 +1074,7 @@ fn parse_directory_scope(scope_key: &str, holding_ref: &str) -> Result<Directory
         ));
     }
     Ok(DirectoryScope::Holding {
-        holding_ref: holding,
+        data_profile_key: holding,
     })
 }
 
@@ -1162,7 +1167,7 @@ fn directory_connector_summary(
             .directory_authority_fingerprint
             .unwrap_or_default(),
         fallback_to_holding: snapshot.fallback_to_holding,
-        holding_ref: snapshot.holding_ref.unwrap_or_default(),
+        data_profile_key: snapshot.data_profile_key.unwrap_or_default(),
         company_id: snapshot
             .company_id
             .map(|value| value.to_string())
@@ -1226,7 +1231,7 @@ fn directory_audit_action(scope: &Scope, operation: &str) -> String {
     let prefix = if matches!(scope, Scope::Platform) {
         "platform.directory"
     } else {
-        "tenant.directory"
+        "holding.directory"
     };
     format!("{prefix}.{operation}")
 }
@@ -1270,7 +1275,7 @@ struct AppState {
     auth: Arc<AuthContext>,
     store: Arc<SqlxControlPlane>,
     commercial: Arc<SqlxCommercialStore>,
-    tenant_router: Option<Arc<TenantDatabaseRouter>>,
+    holding_router: Option<Arc<HoldingDatabaseRouter>>,
     storage: Arc<StorageComposition>,
     roles: Arc<RoleLifecycleUseCase<SqlxControlPlane, SystemClock>>,
     platform_completion: Arc<PlatformCompletionApi>,
@@ -1282,12 +1287,12 @@ enum ReadinessTarget {
     NotConfigured,
     InvalidConfiguration,
     Configured {
-        tenant_id: Option<String>,
-        router: Arc<TenantDatabaseRouter>,
+        holding_id: Option<String>,
+        router: Arc<HoldingDatabaseRouter>,
     },
 }
 
-const MAX_READINESS_TENANTS: usize = 1_000;
+const MAX_READINESS_HOLDINGS: usize = 1_000;
 
 fn system_readiness_required(development_profile: Option<&str>) -> bool {
     !matches!(development_profile, Some("local" | "local-fresh-state"))
@@ -1296,7 +1301,7 @@ fn system_readiness_required(development_profile: Option<&str>) -> bool {
 #[derive(Clone)]
 struct ServerReadinessAdapter {
     store: Arc<SqlxControlPlane>,
-    registry: Arc<SqlxTenantStoreRegistry>,
+    registry: Arc<SqlxHoldingStoreRegistry>,
     worker_id: Option<Uuid>,
     target: ReadinessTarget,
     policy: WorkerLiveReadinessPolicy,
@@ -1304,31 +1309,31 @@ struct ServerReadinessAdapter {
 }
 
 impl ServerReadinessAdapter {
-    fn from_env(store: Arc<SqlxControlPlane>, registry: Arc<SqlxTenantStoreRegistry>) -> Self {
+    fn from_env(store: Arc<SqlxControlPlane>, registry: Arc<SqlxHoldingStoreRegistry>) -> Self {
         let worker_id = std::env::var("ERPX_READINESS_WORKER_ID")
             .ok()
             .and_then(|value| Uuid::parse_str(&value).ok())
             .filter(|worker_id| !worker_id.is_nil());
-        let tenant_id = std::env::var("ERPX_READINESS_TENANT_ID")
+        let holding_id = std::env::var("ERPX_READINESS_HOLDING_ID")
             .ok()
             .filter(|value| !value.trim().is_empty());
-        let admin_database_url = std::env::var("ERPX_TENANT_ADMIN_DATABASE_URL")
+        let admin_database_url = std::env::var("ERPX_HOLDING_ADMIN_DATABASE_URL")
             .ok()
             .filter(|value| !value.trim().is_empty());
-        let database_url_template = std::env::var("ERPX_TENANT_DATABASE_URL_TEMPLATE")
+        let database_url_template = std::env::var("ERPX_HOLDING_DATABASE_URL_TEMPLATE")
             .ok()
             .filter(|value| !value.trim().is_empty());
 
-        let target = match (tenant_id, admin_database_url, database_url_template) {
-            (tenant_id, Some(admin_database_url), Some(database_url_template)) => {
-                let config = TenantDatabaseProvisioningConfig {
+        let target = match (holding_id, admin_database_url, database_url_template) {
+            (holding_id, Some(admin_database_url), Some(database_url_template)) => {
+                let config = HoldingDatabaseProvisioningConfig {
                     admin_database_url,
                     database_url_template,
                 };
-                let router = TenantDatabaseRouter::new(store.clone(), config);
+                let router = HoldingDatabaseRouter::new(store.clone(), config);
                 match router {
                     Ok(router) => ReadinessTarget::Configured {
-                        tenant_id,
+                        holding_id,
                         router: Arc::new(router),
                     },
                     Err(_) => ReadinessTarget::InvalidConfiguration,
@@ -1353,7 +1358,7 @@ impl ServerReadinessAdapter {
     fn unavailable_composition() -> WorkerReadinessComposition {
         WorkerReadinessComposition {
             worker_heartbeat: ReadinessState::Unavailable,
-            tenant_routing: ReadinessState::Unavailable,
+            holding_routing: ReadinessState::Unavailable,
             projection_freshness: ReadinessState::Unavailable,
             backup_pitr: ReadinessState::Unavailable,
         }
@@ -1362,7 +1367,7 @@ impl ServerReadinessAdapter {
     fn not_probed_composition() -> WorkerReadinessComposition {
         WorkerReadinessComposition {
             worker_heartbeat: ReadinessState::NotProbed,
-            tenant_routing: ReadinessState::NotProbed,
+            holding_routing: ReadinessState::NotProbed,
             projection_freshness: ReadinessState::NotProbed,
             backup_pitr: ReadinessState::NotProbed,
         }
@@ -1372,7 +1377,7 @@ impl ServerReadinessAdapter {
         if !self.required {
             return Self::not_probed_composition();
         }
-        let ReadinessTarget::Configured { tenant_id, router } = &self.target else {
+        let ReadinessTarget::Configured { holding_id, router } = &self.target else {
             return Self::unavailable_composition();
         };
         let now = Utc::now();
@@ -1395,24 +1400,24 @@ impl ServerReadinessAdapter {
             None => ReadinessState::Unavailable,
         };
 
-        let tenant_ids = match tenant_id {
-            Some(tenant_id) => vec![tenant_id.clone()],
+        let holding_ids = match holding_id {
+            Some(holding_id) => vec![holding_id.clone()],
             None => match self
                 .registry
-                .list_active_bounded(MAX_READINESS_TENANTS)
+                .list_active_bounded(MAX_READINESS_HOLDINGS)
                 .await
             {
                 Ok(registrations) => registrations
                     .into_iter()
-                    .map(|registration| registration.tenant_id)
+                    .map(|registration| registration.holding_id)
                     .collect(),
                 Err(_) => {
                     // Do not expose database URLs, SQLx details, credentials, or
                     // registry references through the unauthenticated endpoint.
-                    tracing::warn!("active tenant readiness enumeration failed");
+                    tracing::warn!("active holding readiness enumeration failed");
                     return WorkerReadinessComposition {
                         worker_heartbeat,
-                        tenant_routing: ReadinessState::Unavailable,
+                        holding_routing: ReadinessState::Unavailable,
                         projection_freshness: ReadinessState::Unavailable,
                         backup_pitr: ReadinessState::Unavailable,
                     };
@@ -1420,20 +1425,20 @@ impl ServerReadinessAdapter {
             },
         };
 
-        let mut observations = Vec::with_capacity(tenant_ids.len());
-        for tenant_id in tenant_ids {
+        let mut observations = Vec::with_capacity(holding_ids.len());
+        for holding_id in holding_ids {
             match router
-                .observe_tenant_readiness(&tenant_id, now, self.policy.tenant)
+                .observe_holding_readiness(&holding_id, now, self.policy.holding)
                 .await
             {
                 Ok(observation) => observations.push(observation),
                 Err(_) => {
                     // Do not expose database URLs, SQLx details, credentials, or
                     // registry references through the unauthenticated endpoint.
-                    tracing::warn!("tenant readiness observation failed");
+                    tracing::warn!("holding readiness observation failed");
                     return WorkerReadinessComposition {
                         worker_heartbeat,
-                        tenant_routing: ReadinessState::Unavailable,
+                        holding_routing: ReadinessState::Unavailable,
                         projection_freshness: ReadinessState::Unavailable,
                         backup_pitr: ReadinessState::Unavailable,
                     };
@@ -1443,7 +1448,7 @@ impl ServerReadinessAdapter {
 
         WorkerReadinessComposition {
             worker_heartbeat,
-            tenant_routing: aggregate_readiness_states(
+            holding_routing: aggregate_readiness_states(
                 observations
                     .iter()
                     .map(|observation| readiness_state_from_observation(observation.routing.state)),
@@ -1642,17 +1647,17 @@ impl AuthContext {
             .map_err(|_| Status::permission_denied("fresh MFA step-up is required"))
     }
 
-    async fn authorize_mfa_for_tenant(
+    async fn authorize_mfa_for_holding(
         &self,
         store: &SqlxControlPlane,
         claims: &AccessTokenClaims,
-        tenant_id: &str,
+        holding_id: &str,
         presented_code: &str,
         correlation_id: Uuid,
     ) -> Result<(), Status> {
         if self.development_controller.as_ref().is_some_and(|config| {
             config.mfa_bypass
-                && config.target_tenant == tenant_id
+                && config.target_holding == holding_id
                 && claims.principal_ref == erpx_identity::DEVELOPMENT_CONTROLLER_PRINCIPAL
         }) {
             let role = claims
@@ -1661,12 +1666,12 @@ impl AuthContext {
                 .ok_or_else(|| Status::permission_denied("role_selection_required"))?;
             if self
                 .identity
-                .selected_role_access_for_tenant(
+                .selected_role_access_for_holding(
                     &claims.principal_ref,
                     role,
                     &Scope::Platform,
                     erpx_identity::DEVELOPMENT_MFA_BYPASS_PERMISSION,
-                    Some(tenant_id),
+                    Some(holding_id),
                     Utc::now(),
                 )
                 .await
@@ -1677,7 +1682,7 @@ impl AuthContext {
                         actor_ref: claims.principal_ref.clone(),
                         customer_account_id: None,
                         action: "development.authorization.mfa_bypass".into(),
-                        purpose: format!("local tenant target {tenant_id}"),
+                        purpose: format!("local holding target {holding_id}"),
                         correlation_id,
                     })
                     .await
@@ -1692,12 +1697,12 @@ impl AuthContext {
         &self,
         store: &SqlxControlPlane,
         claims: &AccessTokenClaims,
-        tenant_id: &str,
+        holding_id: &str,
         correlation_id: Uuid,
     ) -> Result<bool, Status> {
         if !self.development_controller.as_ref().is_some_and(|config| {
             config.sod_bypass
-                && config.target_tenant == tenant_id
+                && config.target_holding == holding_id
                 && claims.principal_ref == erpx_identity::DEVELOPMENT_CONTROLLER_PRINCIPAL
         }) {
             return Ok(false);
@@ -1707,12 +1712,12 @@ impl AuthContext {
         };
         if !self
             .identity
-            .selected_role_access_for_tenant(
+            .selected_role_access_for_holding(
                 &claims.principal_ref,
                 role,
                 &Scope::Platform,
                 erpx_identity::DEVELOPMENT_SOD_BYPASS_PERMISSION,
-                Some(tenant_id),
+                Some(holding_id),
                 Utc::now(),
             )
             .await
@@ -1725,7 +1730,7 @@ impl AuthContext {
                 actor_ref: claims.principal_ref.clone(),
                 customer_account_id: None,
                 action: "development.authorization.sod_bypass".into(),
-                purpose: format!("local tenant target {tenant_id}"),
+                purpose: format!("local holding target {holding_id}"),
                 correlation_id,
             })
             .await
@@ -1740,17 +1745,17 @@ impl AuthContext {
         requested_scope: &Scope,
         required_permission: &str,
     ) -> Result<(), Status> {
-        self.authorize_role_for_tenant(store, claims, requested_scope, required_permission, None)
+        self.authorize_role_for_holding(store, claims, requested_scope, required_permission, None)
             .await
     }
 
-    async fn authorize_role_for_tenant(
+    async fn authorize_role_for_holding(
         &self,
         store: &SqlxControlPlane,
         claims: &AccessTokenClaims,
         requested_scope: &Scope,
         required_permission: &str,
-        target_tenant: Option<&str>,
+        target_holding: Option<&str>,
     ) -> Result<(), Status> {
         if claims.principal_ref == erpx_identity::DEVELOPMENT_CONTROLLER_PRINCIPAL
             && self.development_controller.is_none()
@@ -1762,12 +1767,12 @@ impl AuthContext {
         if let Some(role) = claims.active_role.as_ref() {
             if self
                 .identity
-                .selected_role_access_for_tenant(
+                .selected_role_access_for_holding(
                     &claims.principal_ref,
                     role,
                     requested_scope,
                     required_permission,
-                    target_tenant,
+                    target_holding,
                     Utc::now(),
                 )
                 .await
@@ -1900,18 +1905,18 @@ impl AuthContext {
     }
 }
 
-async fn validate_tenant_admin_context<T>(
+async fn validate_holding_admin_context<T>(
     state: &AppState,
     request: &Request<T>,
     claims: &AccessTokenClaims,
-    tenant_id: &str,
-    root_holding_id: Uuid,
+    holding_id: &str,
+    canonical_holding_id: Uuid,
 ) -> Result<(), Status> {
     let context_id = request
         .metadata()
-        .get("x-erpx-tenant-admin-context")
+        .get("x-erpx-holding-admin-context")
         .and_then(|value| value.to_str().ok())
-        .ok_or_else(|| Status::permission_denied("tenant administration context is required"))
+        .ok_or_else(|| Status::permission_denied("holding administration context is required"))
         .and_then(|value| parse_uuid(value, "administrative_context_id"))?;
     let at = Utc::now();
     let device_id = state
@@ -1920,24 +1925,24 @@ async fn validate_tenant_admin_context<T>(
         .active_session_device_id(claims.session_id, at)
         .await
         .map_err(map_identity_auth_error)?;
-    let administrative_context = SqlxTenantAdministrationStore::new(state.store.clone())
+    let administrative_context = SqlxHoldingAdministrationStore::new(state.store.clone())
         .get_context(context_id)
         .await
-        .map_err(|_| Status::unavailable("tenant administration context unavailable"))?
-        .ok_or_else(|| Status::permission_denied("tenant administration context not found"))?;
-    if administrative_context.root_holding_id != root_holding_id {
+        .map_err(|_| Status::unavailable("holding administration context unavailable"))?
+        .ok_or_else(|| Status::permission_denied("holding administration context not found"))?;
+    if administrative_context.canonical_holding_id != canonical_holding_id {
         return Err(Status::permission_denied(
-            "tenant administration context holding mismatch",
+            "holding administration context holding mismatch",
         ));
     }
     administrative_context
-        .authorize(&TenantAdminAuthorizationRequest {
+        .authorize(&HoldingAdminAuthorizationRequest {
             principal_ref: &claims.principal_ref,
             device_id,
             session_id: claims.session_id,
-            tenant_id,
-            requested_scope: &TenantOrganizationScope::Holding {
-                holding_id: root_holding_id,
+            holding_id,
+            requested_scope: &HoldingOrganizationScope::Holding {
+                holding_id: canonical_holding_id,
             },
             module: None,
             entitlements: &[],
@@ -1947,21 +1952,21 @@ async fn validate_tenant_admin_context<T>(
             platform_role_active: true,
             at,
         })
-        .map_err(|_| Status::permission_denied("tenant administration context denied"))?;
+        .map_err(|_| Status::permission_denied("holding administration context denied"))?;
     Ok(())
 }
 
-async fn validate_controller_tenant_admin_context<T>(
+async fn validate_controller_holding_admin_context<T>(
     state: &AppState,
     request: &Request<T>,
     claims: &AccessTokenClaims,
-    tenant_id: &str,
-    root_holding_id: Uuid,
+    holding_id: &str,
+    canonical_holding_id: Uuid,
 ) -> Result<(), Status> {
     if claims.principal_ref != erpx_identity::DEVELOPMENT_CONTROLLER_PRINCIPAL {
         return Ok(());
     }
-    validate_tenant_admin_context(state, request, claims, tenant_id, root_holding_id).await
+    validate_holding_admin_context(state, request, claims, holding_id, canonical_holding_id).await
 }
 
 impl AppState {
@@ -1976,7 +1981,7 @@ impl AppState {
         module_key: &str,
         required_permission: &str,
     ) -> Result<(), Status> {
-        self.authorize_entitled_command_with_tenant(
+        self.authorize_entitled_command_with_holding(
             claims,
             context,
             customer_id,
@@ -1987,41 +1992,41 @@ impl AppState {
         .await
     }
 
-    async fn authorize_entitled_command_for_tenant(
+    async fn authorize_entitled_command_for_holding(
         &self,
         claims: &AccessTokenClaims,
         context: &erpx_domain::contracts::CommandContext,
         customer_id: Uuid,
         module_key: &str,
         required_permission: &str,
-        authorization_tenant: &str,
+        authorization_holding: &str,
     ) -> Result<(), Status> {
-        self.authorize_entitled_command_with_tenant(
+        self.authorize_entitled_command_with_holding(
             claims,
             context,
             customer_id,
             module_key,
             required_permission,
-            Some(authorization_tenant),
+            Some(authorization_holding),
         )
         .await
     }
 
-    async fn authorize_entitled_command_with_tenant(
+    async fn authorize_entitled_command_with_holding(
         &self,
         claims: &AccessTokenClaims,
         context: &erpx_domain::contracts::CommandContext,
         customer_id: Uuid,
         module_key: &str,
         required_permission: &str,
-        authorization_tenant: Option<&str>,
+        authorization_holding: Option<&str>,
     ) -> Result<(), Status> {
         require_actor_match(
             &claims.principal_ref,
             &context.actor.principal_ref,
             "command actor must match the authenticated principal",
         )?;
-        let scope = access_scope(&context.tenant_scope);
+        let scope = access_scope(&context.active_scope);
         if !self
             .store
             .customer_scope_contains(customer_id, &scope)
@@ -2031,12 +2036,12 @@ impl AppState {
             return Err(Status::permission_denied("customer_scope_not_granted"));
         }
         self.auth
-            .authorize_role_for_tenant(
+            .authorize_role_for_holding(
                 &self.store,
                 claims,
                 &scope,
                 required_permission,
-                authorization_tenant,
+                authorization_holding,
             )
             .await?;
         let subscription_id = context
@@ -2120,20 +2125,20 @@ impl AppState {
     }
 }
 
-fn access_scope(scope: &TenantScope) -> Scope {
+fn access_scope(scope: &AuthorityScope) -> Scope {
     match scope {
-        TenantScope::Platform => Scope::Platform,
-        TenantScope::Holding { holding_id } => Scope::Holding {
+        AuthorityScope::Platform => Scope::Platform,
+        AuthorityScope::Holding { holding_id } => Scope::Holding {
             holding_id: *holding_id,
         },
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Scope::Company {
             holding_id: *holding_id,
             company_id: *company_id,
         },
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -2142,14 +2147,12 @@ fn access_scope(scope: &TenantScope) -> Scope {
             company_id: *company_id,
             branch_id: *branch_id,
         },
-        TenantScope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
+            organization_node_id,
         } => Scope::Subtree {
             holding_id: *holding_id,
-            company_ids: company_ids.clone(),
-            branch_ids: branch_ids.clone(),
+            organization_node_id: *organization_node_id,
         },
     }
 }
@@ -2157,7 +2160,7 @@ fn access_scope(scope: &TenantScope) -> Scope {
 fn entitlement_holding_id(scope: &Scope) -> Result<Uuid, Status> {
     match scope {
         Scope::Platform => Err(Status::permission_denied(
-            "commercial entitlement commands require a tenant scope",
+            "commercial entitlement commands require a holding scope",
         )),
         Scope::Holding { holding_id }
         | Scope::Company { holding_id, .. }
@@ -2177,15 +2180,15 @@ fn directory_holding_scope_key(scope: &Scope) -> Option<String> {
     Some(format!("holding:{holding_id}"))
 }
 
-fn finance_banking_read_tenant_scope(scope: &Scope) -> Result<TenantScope, Status> {
+fn finance_banking_read_holding_scope(scope: &Scope) -> Result<AuthorityScope, Status> {
     match scope {
-        Scope::Holding { holding_id } => Ok(TenantScope::Holding {
+        Scope::Holding { holding_id } => Ok(AuthorityScope::Holding {
             holding_id: *holding_id,
         }),
         Scope::Company {
             holding_id,
             company_id,
-        } => Ok(TenantScope::Company {
+        } => Ok(AuthorityScope::Company {
             holding_id: *holding_id,
             company_id: *company_id,
         }),
@@ -2193,7 +2196,7 @@ fn finance_banking_read_tenant_scope(scope: &Scope) -> Result<TenantScope, Statu
             holding_id,
             company_id,
             branch_id,
-        } => Ok(TenantScope::Branch {
+        } => Ok(AuthorityScope::Branch {
             holding_id: *holding_id,
             company_id: *company_id,
             branch_id: *branch_id,
@@ -2203,38 +2206,29 @@ fn finance_banking_read_tenant_scope(scope: &Scope) -> Result<TenantScope, Statu
         )),
     }
 }
-fn query_access_scope(context: &erpx_proto::common::v2::QueryContext) -> Result<Scope, Status> {
+fn query_access_scope(context: &erpx_proto::common::QueryContext) -> Result<Scope, Status> {
     let scope = context
-        .tenant_scope
+        .active_scope
         .as_ref()
         .and_then(|scope| scope.scope.as_ref())
-        .ok_or_else(|| Status::permission_denied("query tenant scope is required"))?;
+        .ok_or_else(|| Status::permission_denied("query holding scope is required"))?;
     match scope {
-        erpx_proto::common::v2::tenant_scope::Scope::Platform(_) => Ok(Scope::Platform),
-        erpx_proto::common::v2::tenant_scope::Scope::Holding(value) => Ok(Scope::Holding {
+        erpx_proto::common::authority_scope::Scope::Platform(_) => Ok(Scope::Platform),
+        erpx_proto::common::authority_scope::Scope::Holding(value) => Ok(Scope::Holding {
             holding_id: parse_uuid(&value.holding_id, "holding_id")?,
         }),
-        erpx_proto::common::v2::tenant_scope::Scope::Company(value) => Ok(Scope::Company {
+        erpx_proto::common::authority_scope::Scope::Company(value) => Ok(Scope::Company {
             holding_id: parse_uuid(&value.holding_id, "holding_id")?,
             company_id: parse_uuid(&value.company_id, "company_id")?,
         }),
-        erpx_proto::common::v2::tenant_scope::Scope::Branch(value) => Ok(Scope::Branch {
+        erpx_proto::common::authority_scope::Scope::Branch(value) => Ok(Scope::Branch {
             holding_id: parse_uuid(&value.holding_id, "holding_id")?,
             company_id: parse_uuid(&value.company_id, "company_id")?,
             branch_id: parse_uuid(&value.branch_id, "branch_id")?,
         }),
-        erpx_proto::common::v2::tenant_scope::Scope::Subtree(value) => Ok(Scope::Subtree {
+        erpx_proto::common::authority_scope::Scope::Subtree(value) => Ok(Scope::Subtree {
             holding_id: parse_uuid(&value.holding_id, "holding_id")?,
-            company_ids: value
-                .company_ids
-                .iter()
-                .map(|id| parse_uuid(id, "company_id"))
-                .collect::<Result<Vec<_>, _>>()?,
-            branch_ids: value
-                .branch_ids
-                .iter()
-                .map(|id| parse_uuid(id, "branch_id"))
-                .collect::<Result<Vec<_>, _>>()?,
+            organization_node_id: parse_uuid(&value.organization_node_id, "organization_node_id")?,
         }),
     }
 }
@@ -2257,7 +2251,7 @@ enum QualityAuthorizedMode {
 #[derive(Debug, Clone)]
 struct QualityPreauthorizedAccess {
     principal_ref: String,
-    authority_scope: KernelTenantScope,
+    authority_scope: KernelHoldingScope,
     mode: QualityAuthorizedMode,
 }
 
@@ -2286,7 +2280,7 @@ impl QualityAuthorizationPort for QualityPreauthorizedAccess {
 impl QualityEntitlementPort for QualityPreauthorizedAccess {
     async fn ensure_quality_enabled(
         &self,
-        scope: &KernelTenantScope,
+        scope: &KernelHoldingScope,
         write: bool,
     ) -> Result<(), QualityPortError> {
         let authorized_write = self.mode == QualityAuthorizedMode::Write;
@@ -2312,13 +2306,13 @@ type QualitySqlxQueryHandler = QualityQueryHandler<
 
 #[derive(Clone)]
 struct QualityServerApplication {
-    router: Option<Arc<TenantDatabaseRouter>>,
+    router: Option<Arc<HoldingDatabaseRouter>>,
 }
 
 impl QualityServerApplication {
     async fn execute_command<C>(
         &self,
-        route: QualityTenantRoute,
+        route: QualityHoldingRoute,
         envelope: CqrsCommandEnvelope<C>,
     ) -> Result<
         CqrsCommandReceipt<<QualitySqlxCommandHandler as CommandHandler<C>>::Response>,
@@ -2330,7 +2324,7 @@ impl QualityServerApplication {
         let correlation_id = envelope.correlation_id;
         let access = QualityPreauthorizedAccess {
             principal_ref: envelope.actor.principal_ref.clone(),
-            authority_scope: envelope.tenant_scope.clone(),
+            authority_scope: envelope.active_scope.clone(),
             mode: QualityAuthorizedMode::Write,
         };
         let router = self.router.as_ref().ok_or_else(|| {
@@ -2344,8 +2338,8 @@ impl QualityServerApplication {
         })?;
         let routed = router
             .route(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 RoutedDatabaseSide::Write,
             )
             .await
@@ -2358,25 +2352,26 @@ impl QualityServerApplication {
                     true,
                 )
             })?;
-        let tenant_id = Uuid::parse_str(&routed.tenant_id).map_err(|_| {
+        let holding_id = Uuid::parse_str(&routed.holding_id).map_err(|_| {
             quality_cqrs_failure(
                 correlation_id,
-                "quality.invalid_tenant_identity",
+                "quality.invalid_holding_identity",
                 KernelErrorCategory::Internal,
-                "Quality storage tenant identity is invalid.",
+                "Quality storage holding identity is invalid.",
                 false,
             )
         })?;
-        let pool =
-            CqrsWritePool::for_tenant(routed.database_pool().clone(), tenant_id).map_err(|_| {
+        let pool = CqrsWritePool::for_holding(routed.database_pool().clone(), holding_id).map_err(
+            |_| {
                 quality_cqrs_failure(
                     correlation_id,
-                    "quality.invalid_tenant_identity",
+                    "quality.invalid_holding_identity",
                     KernelErrorCategory::Internal,
-                    "Quality storage tenant identity is invalid.",
+                    "Quality storage holding identity is invalid.",
                     false,
                 )
-            })?;
+            },
+        )?;
         let handler = QualityCommandHandler::new(
             QualityWriteRepository::new(pool.clone()),
             QualityCommandAdapter::new(pool),
@@ -2391,7 +2386,7 @@ impl QualityServerApplication {
 
     async fn execute_query<Q>(
         &self,
-        route: QualityTenantRoute,
+        route: QualityHoldingRoute,
         envelope: CqrsQueryEnvelope<Q>,
     ) -> Result<CqrsQueryResult<<QualitySqlxQueryHandler as QueryHandler<Q>>::Response>, CqrsError>
     where
@@ -2400,7 +2395,7 @@ impl QualityServerApplication {
         let correlation_id = envelope.correlation_id;
         let access = QualityPreauthorizedAccess {
             principal_ref: envelope.actor.principal_ref.clone(),
-            authority_scope: envelope.tenant_scope.clone(),
+            authority_scope: envelope.active_scope.clone(),
             mode: QualityAuthorizedMode::Read,
         };
         let router = self.router.as_ref().ok_or_else(|| {
@@ -2414,8 +2409,8 @@ impl QualityServerApplication {
         })?;
         let routed = router
             .route(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 RoutedDatabaseSide::Read,
             )
             .await
@@ -2428,22 +2423,22 @@ impl QualityServerApplication {
                     true,
                 )
             })?;
-        let tenant_id = Uuid::parse_str(&routed.tenant_id).map_err(|_| {
+        let holding_id = Uuid::parse_str(&routed.holding_id).map_err(|_| {
             quality_cqrs_failure(
                 correlation_id,
-                "quality.invalid_tenant_identity",
+                "quality.invalid_holding_identity",
                 KernelErrorCategory::Internal,
-                "Quality read storage tenant identity is invalid.",
+                "Quality read storage holding identity is invalid.",
                 false,
             )
         })?;
-        let read_pool = CqrsReadPool::for_tenant(routed.database_pool().clone(), tenant_id)
+        let read_pool = CqrsReadPool::for_holding(routed.database_pool().clone(), holding_id)
             .map_err(|_| {
                 quality_cqrs_failure(
                     correlation_id,
-                    "quality.invalid_tenant_identity",
+                    "quality.invalid_holding_identity",
                     KernelErrorCategory::Internal,
-                    "Quality read storage tenant identity is invalid.",
+                    "Quality read storage holding identity is invalid.",
                     false,
                 )
             })?;
@@ -2467,7 +2462,7 @@ impl QualityServerApplication {
 impl QualityCommandApplication for QualityServerApplication {
     async fn create(
         &self,
-        route: QualityTenantRoute,
+        route: QualityHoldingRoute,
         command: CqrsCommandEnvelope<erpx_quality::CreateInspection>,
     ) -> Result<CqrsCommandReceipt<erpx_quality::CreateInspectionResult>, CqrsError> {
         self.execute_command(route, command).await
@@ -2475,7 +2470,7 @@ impl QualityCommandApplication for QualityServerApplication {
 
     async fn start(
         &self,
-        route: QualityTenantRoute,
+        route: QualityHoldingRoute,
         command: CqrsCommandEnvelope<erpx_quality::StartInspection>,
     ) -> Result<CqrsCommandReceipt<erpx_quality::InspectionMutationResult>, CqrsError> {
         self.execute_command(route, command).await
@@ -2483,7 +2478,7 @@ impl QualityCommandApplication for QualityServerApplication {
 
     async fn record_result(
         &self,
-        route: QualityTenantRoute,
+        route: QualityHoldingRoute,
         command: CqrsCommandEnvelope<erpx_quality::RecordInspectionResult>,
     ) -> Result<CqrsCommandReceipt<erpx_quality::InspectionMutationResult>, CqrsError> {
         self.execute_command(route, command).await
@@ -2491,7 +2486,7 @@ impl QualityCommandApplication for QualityServerApplication {
 
     async fn release(
         &self,
-        route: QualityTenantRoute,
+        route: QualityHoldingRoute,
         command: CqrsCommandEnvelope<erpx_quality::ReleaseInspection>,
     ) -> Result<CqrsCommandReceipt<erpx_quality::InspectionMutationResult>, CqrsError> {
         self.execute_command(route, command).await
@@ -2499,7 +2494,7 @@ impl QualityCommandApplication for QualityServerApplication {
 
     async fn cancel(
         &self,
-        route: QualityTenantRoute,
+        route: QualityHoldingRoute,
         command: CqrsCommandEnvelope<erpx_quality::CancelInspection>,
     ) -> Result<CqrsCommandReceipt<erpx_quality::InspectionMutationResult>, CqrsError> {
         self.execute_command(route, command).await
@@ -2510,7 +2505,7 @@ impl QualityCommandApplication for QualityServerApplication {
 impl QualityQueryApplication for QualityServerApplication {
     async fn get(
         &self,
-        route: QualityTenantRoute,
+        route: QualityHoldingRoute,
         query: CqrsQueryEnvelope<erpx_quality::GetInspection>,
     ) -> Result<CqrsQueryResult<erpx_quality::GetInspectionResult>, CqrsError> {
         self.execute_query(route, query).await
@@ -2518,7 +2513,7 @@ impl QualityQueryApplication for QualityServerApplication {
 
     async fn list(
         &self,
-        route: QualityTenantRoute,
+        route: QualityHoldingRoute,
         query: CqrsQueryEnvelope<erpx_quality::ListInspections>,
     ) -> Result<CqrsQueryResult<erpx_quality::InspectionList>, CqrsError> {
         self.execute_query(route, query).await
@@ -2554,11 +2549,11 @@ impl QualityRequestAuthenticator for QualityServerAuthenticator {
         let scope =
             explicit_product_scope(quality_access_scope(request.presented_scope()), "Quality")
                 .map_err(quality_authentication_error)?;
-        let tenant_id =
-            validate_transport_reference(&request.presented_route().tenant_id, "tenant_id")
+        let holding_id =
+            validate_transport_reference(&request.presented_route().holding_id, "holding_id")
                 .map_err(quality_authentication_error)?;
         let customer_id =
-            parse_uuid(tenant_id, "tenant_id").map_err(quality_authentication_error)?;
+            parse_uuid(holding_id, "holding_id").map_err(quality_authentication_error)?;
 
         match request.access_mode() {
             QualityAccessMode::Read => {
@@ -2614,7 +2609,7 @@ impl QualityRequestAuthenticator for QualityServerAuthenticator {
         AuthenticatedQualityRequest::try_new(
             KernelActorAttribution {
                 principal_ref: claims.principal_ref,
-                kind: KernelActorKind::TenantUser,
+                kind: KernelActorKind::HoldingUser,
                 session_id: Some(session_id),
                 represented_principal_ref: None,
                 support_capability_id: None,
@@ -2627,7 +2622,7 @@ impl QualityRequestAuthenticator for QualityServerAuthenticator {
 
 fn quality_legacy_command_context(
     claims: &AccessTokenClaims,
-    scope: &KernelTenantScope,
+    scope: &KernelHoldingScope,
     subscription_id: Uuid,
 ) -> CommandContext {
     let correlation_id = Uuid::new_v4();
@@ -2639,12 +2634,12 @@ fn quality_legacy_command_context(
         causation_id: None,
         actor: ActorAttribution {
             principal_ref: claims.principal_ref.clone(),
-            kind: erpx_domain::contracts::ActorKind::TenantUser,
+            kind: erpx_domain::contracts::ActorKind::HoldingUser,
             session_id: Some(claims.session_id),
             represented_principal_ref: None,
             support_capability_id: None,
         },
-        tenant_scope: quality_legacy_scope(scope),
+        active_scope: quality_legacy_scope(scope),
         audit: erpx_domain::contracts::AuditContext {
             purpose: "authorize Quality command".into(),
             customer_visible: false,
@@ -2656,96 +2651,92 @@ fn quality_legacy_command_context(
     }
 }
 
-fn quality_legacy_scope(scope: &KernelTenantScope) -> TenantScope {
+fn quality_legacy_scope(scope: &KernelHoldingScope) -> AuthorityScope {
     match scope {
-        KernelTenantScope::Platform => TenantScope::Platform,
-        KernelTenantScope::Holding { holding_id } => TenantScope::Holding {
+        KernelHoldingScope::Platform => AuthorityScope::Platform,
+        KernelHoldingScope::Holding { holding_id } => AuthorityScope::Holding {
             holding_id: *holding_id,
         },
-        KernelTenantScope::Company {
+        KernelHoldingScope::Company {
             holding_id,
             company_id,
-        } => TenantScope::Company {
+        } => AuthorityScope::Company {
             holding_id: *holding_id,
             company_id: *company_id,
         },
-        KernelTenantScope::Branch {
+        KernelHoldingScope::Branch {
             holding_id,
             company_id,
             branch_id,
-        } => TenantScope::Branch {
+        } => AuthorityScope::Branch {
             holding_id: *holding_id,
             company_id: *company_id,
             branch_id: *branch_id,
         },
-        KernelTenantScope::Subtree {
+        KernelHoldingScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
-        } => TenantScope::Subtree {
+            organization_node_id,
+        } => AuthorityScope::Subtree {
             holding_id: *holding_id,
-            company_ids: company_ids.clone(),
-            branch_ids: branch_ids.clone(),
+            organization_node_id: *organization_node_id,
         },
     }
 }
 
-fn legacy_kernel_scope(scope: &TenantScope) -> KernelTenantScope {
+fn legacy_kernel_scope(scope: &AuthorityScope) -> KernelHoldingScope {
     match scope {
-        TenantScope::Platform => KernelTenantScope::Platform,
-        TenantScope::Holding { holding_id } => KernelTenantScope::Holding {
+        AuthorityScope::Platform => KernelHoldingScope::Platform,
+        AuthorityScope::Holding { holding_id } => KernelHoldingScope::Holding {
             holding_id: *holding_id,
         },
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
-        } => KernelTenantScope::Company {
+        } => KernelHoldingScope::Company {
             holding_id: *holding_id,
             company_id: *company_id,
         },
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
-        } => KernelTenantScope::Branch {
+        } => KernelHoldingScope::Branch {
             holding_id: *holding_id,
             company_id: *company_id,
             branch_id: *branch_id,
         },
-        TenantScope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
-        } => KernelTenantScope::Subtree {
+            organization_node_id,
+        } => KernelHoldingScope::Subtree {
             holding_id: *holding_id,
-            company_ids: company_ids.clone(),
-            branch_ids: branch_ids.clone(),
+            organization_node_id: *organization_node_id,
         },
     }
 }
 
-async fn resolve_legacy_tenant_workspace(
+async fn resolve_legacy_holding_workspace(
     state: &AppState,
-    scope: &TenantScope,
-    tenant_id: &str,
-    holding_ref: &str,
+    scope: &AuthorityScope,
+    holding_id: &str,
+    data_profile_key: &str,
     write: bool,
-) -> Result<ResolvedTenantWorkspace, Status> {
-    let tenant_id = tenant_id.trim();
-    let holding_ref = holding_ref.trim();
-    let presented_route = match (tenant_id.is_empty(), holding_ref.is_empty()) {
+) -> Result<ResolvedHoldingWorkspace, Status> {
+    let holding_id = holding_id.trim();
+    let data_profile_key = data_profile_key.trim();
+    let presented_route = match (holding_id.is_empty(), data_profile_key.is_empty()) {
         (true, true) => None,
-        (false, false) => Some(PresentedTenantRoute {
-            tenant_id: validate_transport_reference(tenant_id, "tenant_id")?,
-            holding_ref: validate_transport_reference(holding_ref, "holding_ref")?,
+        (false, false) => Some(PresentedHoldingRoute {
+            holding_id: validate_transport_reference(holding_id, "holding_id")?,
+            data_profile_key: validate_transport_reference(data_profile_key, "data_profile_key")?,
         }),
         _ => {
             return Err(Status::invalid_argument(
-                "presented tenant route is incomplete",
+                "presented holding route is incomplete",
             ));
         }
     };
-    resolve_tenant_workspace(
+    resolve_holding_workspace(
         state,
         &legacy_kernel_scope(scope),
         presented_route,
@@ -2755,7 +2746,7 @@ async fn resolve_legacy_tenant_workspace(
     .await
 }
 
-fn quality_access_scope(scope: &KernelTenantScope) -> Scope {
+fn quality_access_scope(scope: &KernelHoldingScope) -> Scope {
     access_scope(&quality_legacy_scope(scope))
 }
 
@@ -2887,25 +2878,8 @@ fn support_scope_reference(scope: &Scope) -> String {
         } => format!("branch/{holding_id}/{company_id}/{branch_id}"),
         Scope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
-        } => {
-            let mut company_ids = company_ids.clone();
-            let mut branch_ids = branch_ids.clone();
-            company_ids.sort_unstable();
-            branch_ids.sort_unstable();
-            let companies = company_ids
-                .iter()
-                .map(Uuid::to_string)
-                .collect::<Vec<_>>()
-                .join(",");
-            let branches = branch_ids
-                .iter()
-                .map(Uuid::to_string)
-                .collect::<Vec<_>>()
-                .join(",");
-            format!("subtree/{holding_id}/companies/{companies}/branches/{branches}")
-        }
+            organization_node_id,
+        } => format!("subtree/{holding_id}/node/{organization_node_id}"),
     }
 }
 
@@ -2925,29 +2899,10 @@ fn parse_support_scope(value: &str) -> Result<Scope, Status> {
             company_id: parse_uuid(company_id, "support company_id")?,
             branch_id: parse_uuid(branch_id, "support branch_id")?,
         }),
-        [
-            "subtree",
-            holding_id,
-            "companies",
-            companies,
-            "branches",
-            branches,
-        ] => {
-            let parse_ids = |value: &str, field: &str| {
-                if value.is_empty() {
-                    return Ok(Vec::new());
-                }
-                value
-                    .split(',')
-                    .map(|id| parse_uuid(id, field))
-                    .collect::<Result<Vec<_>, _>>()
-            };
-            Ok(Scope::Subtree {
-                holding_id: parse_uuid(holding_id, "support holding_id")?,
-                company_ids: parse_ids(companies, "support company_id")?,
-                branch_ids: parse_ids(branches, "support branch_id")?,
-            })
-        }
+        ["subtree", holding_id, "node", organization_node_id] => Ok(Scope::Subtree {
+            holding_id: parse_uuid(holding_id, "support holding_id")?,
+            organization_node_id: parse_uuid(organization_node_id, "support organization_node_id")?,
+        }),
         _ => Err(Status::invalid_argument(
             "support scope must use a canonical platform/holding/company/branch reference",
         )),
@@ -3073,8 +3028,8 @@ fn decode_projection_status_cursor(value: &str) -> Result<ProjectionStatusCursor
     let cursor: ProjectionStatusCursor = serde_json::from_slice(&bytes)
         .map_err(|_| Status::invalid_argument("projection status cursor is invalid"))?;
     ProjectionStatusCursor::new(
-        cursor.tenant_id,
-        cursor.holding_ref,
+        cursor.holding_id,
+        cursor.data_profile_key,
         cursor.projection_name,
         cursor.job_key,
         cursor.job_id,
@@ -3687,24 +3642,21 @@ where
 }
 
 #[tonic::async_trait]
-impl erpx_proto::erpx::customer_360::v2::customer360_command_service_server::Customer360CommandService
+impl erpx_proto::erpx::customer_360::customer360_command_service_server::Customer360CommandService
     for CustomerRpcImpl
 {
     async fn add_customer_note(
         &self,
-        request: Request<erpx_proto::erpx::customer_360::v2::AddCustomerNoteRequest>,
-    ) -> Result<
-        Response<erpx_proto::erpx::customer_360::v2::AddCustomerNoteResponse>,
-        Status,
-    > {
+        request: Request<erpx_proto::erpx::customer_360::AddCustomerNoteRequest>,
+    ) -> Result<Response<erpx_proto::erpx::customer_360::AddCustomerNoteResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
-            let authority_scope = legacy_kernel_scope(&context.tenant_scope);
+            let scope = access_scope(&context.active_scope);
+            let authority_scope = legacy_kernel_scope(&context.active_scope);
             if !matches!(
                 authority_scope,
-                KernelTenantScope::Company { .. } | KernelTenantScope::Branch { .. }
+                KernelHoldingScope::Company { .. } | KernelHoldingScope::Branch { .. }
             ) {
                 return Err(Status::permission_denied(
                     "customer notes require an exact company or branch scope",
@@ -3732,7 +3684,7 @@ impl erpx_proto::erpx::customer_360::v2::customer360_command_service_server::Cus
                 ));
             }
             let subscription_id = context.subscription_id.map(|id| id.to_string());
-            let workspace = resolve_tenant_workspace(
+            let workspace = resolve_holding_workspace(
                 &self.state,
                 &authority_scope,
                 None,
@@ -3742,7 +3694,7 @@ impl erpx_proto::erpx::customer_360::v2::customer360_command_service_server::Cus
             .await?;
             if workspace.customer_id != customer_id {
                 return Err(Status::permission_denied(
-                    "customer is outside the active tenant workspace",
+                    "customer is outside the active holding workspace",
                 ));
             }
             let customer_repository = CustomerAuthorityWriteRepository::new(
@@ -3786,21 +3738,21 @@ impl erpx_proto::erpx::customer_360::v2::customer360_command_service_server::Cus
                 Utc::now(),
             )
             .map_err(|_| Status::invalid_argument("customer note metadata is invalid"))?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::unavailable("customer note tenant routing is unavailable")
+            let router = self.state.holding_router.as_ref().ok_or_else(|| {
+                Status::unavailable("customer note holding routing is unavailable")
             })?;
             let routed = router
                 .route(
-                    &workspace.tenant_id,
-                    &workspace.holding_ref,
+                    &workspace.holding_id,
+                    &workspace.data_profile_key,
                     RoutedDatabaseSide::Write,
                 )
                 .await
                 .map_err(|_| Status::unavailable("customer note storage is unavailable"))?;
-            let tenant_id = Uuid::parse_str(&workspace.tenant_id)
-                .map_err(|_| Status::internal("tenant workspace identity is invalid"))?;
-            let write = CqrsWritePool::for_tenant(routed.database_pool().clone(), tenant_id)
-                .map_err(|_| Status::internal("tenant workspace identity is invalid"))?;
+            let holding_id = Uuid::parse_str(&workspace.holding_id)
+                .map_err(|_| Status::internal("holding workspace identity is invalid"))?;
+            let write = CqrsWritePool::for_holding(routed.database_pool().clone(), holding_id)
+                .map_err(|_| Status::internal("holding workspace identity is invalid"))?;
             let receipt = Customer360RecordSqlxAdapter::new(write)
                 .save_record(Customer360RecordCommand {
                     command_id: KernelCommandId::try_from_uuid(context.command_id)
@@ -3812,7 +3764,7 @@ impl erpx_proto::erpx::customer_360::v2::customer360_command_service_server::Cus
                     expected_version: context.expected_aggregate_version,
                     actor: KernelActorAttribution {
                         principal_ref: claims.principal_ref.clone(),
-                        kind: KernelActorKind::TenantUser,
+                        kind: KernelActorKind::HoldingUser,
                         session_id: Some(
                             KernelSessionId::try_from_uuid(claims.session_id)
                                 .map_err(|_| Status::internal("session identity is invalid"))?,
@@ -3842,24 +3794,21 @@ impl erpx_proto::erpx::customer_360::v2::customer360_command_service_server::Cus
                     }
                 })?;
             Ok(Response::new(
-                erpx_proto::erpx::customer_360::v2::AddCustomerNoteResponse {
-                    note: Some(erpx_proto::erpx::customer_360::v2::CustomerNote {
+                erpx_proto::erpx::customer_360::AddCustomerNoteResponse {
+                    note: Some(erpx_proto::erpx::customer_360::CustomerNote {
                         id: receipt.record.id().to_string(),
                         author_ref: receipt.record.created_by().to_owned(),
                         created_at: receipt.record.created_at().to_rfc3339(),
                         // Protected note bodies are returned only by an authorized read model.
                         body: String::new(),
                     }),
-                    receipt: Some(
-                        erpx_proto::erpx::customer_360::v2::CustomerNoteWriteReceipt {
-                            aggregate_type: "customer_360_owned_record".into(),
-                            aggregate_id: receipt.record.id().to_string(),
-                            aggregate_version: receipt.record.version(),
-                            event_id: Uuid::new_v5(&context.command_id, b"c360-state")
-                                .to_string(),
-                            replayed: receipt.replayed,
-                        },
-                    ),
+                    receipt: Some(erpx_proto::erpx::customer_360::CustomerNoteWriteReceipt {
+                        aggregate_type: "customer_360_owned_record".into(),
+                        aggregate_id: receipt.record.id().to_string(),
+                        aggregate_version: receipt.record.version(),
+                        event_id: Uuid::new_v5(&context.command_id, b"c360-state").to_string(),
+                        replayed: receipt.replayed,
+                    }),
                     correlation_id: context.correlation_id.to_string(),
                 },
             ))
@@ -3869,7 +3818,7 @@ impl erpx_proto::erpx::customer_360::v2::customer360_command_service_server::Cus
 
 fn catalog_price_kind_name(kind: CatalogPriceKind) -> &'static str {
     match kind {
-        CatalogPriceKind::BaseFee => "tenant_base",
+        CatalogPriceKind::BaseFee => "holding_base",
         CatalogPriceKind::Module => "module",
         CatalogPriceKind::SetupFee => "setup_fee",
     }
@@ -3958,42 +3907,47 @@ fn validate_checkout_items(
             base_count = base_count.saturating_add(1);
             if selection.quantity != 1 {
                 return Err(Status::invalid_argument(
-                    "tenant base subscription quantity must be one",
+                    "holding base subscription quantity must be one",
                 ));
             }
         }
     }
     if base_count != 1 {
         return Err(Status::invalid_argument(
-            "subscription must contain exactly one tenant base item",
+            "subscription must contain exactly one holding base item",
         ));
     }
     Ok(currency)
 }
 
-async fn authorize_tenant_billing_scope(
+async fn authorize_holding_billing_scope(
     state: &AppState,
     claims: &AccessTokenClaims,
-    tenant_id: &str,
+    holding_id: &str,
     scope: &Scope,
-    tenant_permission: &str,
+    holding_permission: &str,
     platform_read_allowed: bool,
-) -> Result<erpx_domain::tenant_administration::CustomerTenantBinding, Status> {
-    let binding = SqlxTenantAdministrationStore::new(state.store.clone())
-        .customer_tenant_binding(tenant_id)
+) -> Result<erpx_domain::holding_administration::HoldingRegistryBinding, Status> {
+    let binding = SqlxHoldingAdministrationStore::new(state.store.clone())
+        .customer_holding_binding(holding_id)
         .await
-        .map_err(|_| Status::unavailable("tenant billing binding is unavailable"))?
+        .map_err(|_| Status::unavailable("holding billing binding is unavailable"))?
         .ok_or_else(|| {
-            Status::failed_precondition("tenant configuration is incomplete for billing")
+            Status::failed_precondition("holding configuration is incomplete for billing")
         })?;
     match scope {
         Scope::Platform if platform_read_allowed => {
             state
                 .auth
-                .authorize_role(&state.store, claims, scope, PLATFORM_TENANT_READ_PERMISSION)
+                .authorize_role(
+                    &state.store,
+                    claims,
+                    scope,
+                    PLATFORM_HOLDING_READ_PERMISSION,
+                )
                 .await?;
         }
-        Scope::Holding { holding_id } if *holding_id == binding.root_holding_id => {
+        Scope::Holding { holding_id } if *holding_id == binding.canonical_holding_id => {
             if !state
                 .store
                 .customer_scope_contains(binding.customer_id, scope)
@@ -4006,12 +3960,12 @@ async fn authorize_tenant_billing_scope(
             }
             state
                 .auth
-                .authorize_role(&state.store, claims, scope, tenant_permission)
+                .authorize_role(&state.store, claims, scope, holding_permission)
                 .await?;
         }
         Scope::Platform => {
             return Err(Status::permission_denied(
-                "platform staff cannot initiate tenant payment sessions",
+                "platform staff cannot initiate holding payment sessions",
             ));
         }
         Scope::Holding { .. }
@@ -4047,7 +4001,7 @@ impl SaasBillingRpcImpl {
             let query = query_context(&request, Some(&proto_context))?;
             let scope = query_access_scope(&proto_context)?;
             let permission = if scope == Scope::Platform {
-                PLATFORM_TENANT_READ_PERMISSION
+                PLATFORM_HOLDING_READ_PERMISSION
             } else {
                 COMMERCIAL_BILLING_READ_PERMISSION
             };
@@ -4097,8 +4051,8 @@ impl SaasBillingRpcImpl {
 
     async fn get_subscription(
         &self,
-        request: Request<commercial_target::GetTenantSubscriptionRequest>,
-    ) -> Result<Response<commercial_target::GetTenantSubscriptionResponse>, Status> {
+        request: Request<commercial_target::GetHoldingSubscriptionRequest>,
+    ) -> Result<Response<commercial_target::GetHoldingSubscriptionResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -4109,22 +4063,22 @@ impl SaasBillingRpcImpl {
                 .ok_or_else(|| Status::failed_precondition("query context is required"))?;
             let query = query_context(&request, Some(&proto_context))?;
             let scope = query_access_scope(&proto_context)?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let binding = authorize_tenant_billing_scope(
+            let holding_id =
+                validate_transport_reference(&request.get_ref().holding_id, "holding_id")?;
+            let binding = authorize_holding_billing_scope(
                 &self.state,
                 &claims,
-                tenant_id,
+                holding_id,
                 &scope,
                 COMMERCIAL_BILLING_READ_PERMISSION,
                 true,
             )
             .await?;
-            let administration = SqlxTenantAdministrationStore::new(self.state.store.clone());
+            let administration = SqlxHoldingAdministrationStore::new(self.state.store.clone());
             let subscription_binding = administration
-                .tenant_subscription_binding(tenant_id)
+                .holding_subscription_binding(holding_id)
                 .await
-                .map_err(|_| Status::unavailable("tenant subscription is unavailable"))?;
+                .map_err(|_| Status::unavailable("holding subscription is unavailable"))?;
             let (state, currency, grace_until, read_only, items) =
                 if let Some(subscription_binding) = subscription_binding {
                     let lifecycle = self
@@ -4135,7 +4089,7 @@ impl SaasBillingRpcImpl {
                             subscription_binding.subscription_id,
                         )
                         .await
-                        .map_err(|_| Status::unavailable("tenant billing state is unavailable"))?
+                        .map_err(|_| Status::unavailable("holding billing state is unavailable"))?
                         .map(|(lifecycle, _)| lifecycle);
                     let state = lifecycle
                         .as_ref()
@@ -4176,9 +4130,9 @@ impl SaasBillingRpcImpl {
                     )
                 };
             Ok(Response::new(
-                commercial_target::GetTenantSubscriptionResponse {
-                    subscription: Some(commercial_target::TenantSubscriptionStatus {
-                        tenant_id: tenant_id.to_owned(),
+                commercial_target::GetHoldingSubscriptionResponse {
+                    subscription: Some(commercial_target::HoldingSubscriptionStatus {
+                        holding_id: holding_id.to_owned(),
                         state,
                         currency,
                         grace_until,
@@ -4203,13 +4157,14 @@ impl SaasBillingRpcImpl {
                 &command.actor.principal_ref,
                 "command actor must match the authenticated principal",
             )?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?.to_owned();
-            let scope = access_scope(&command.tenant_scope);
-            let binding = authorize_tenant_billing_scope(
+            let holding_id =
+                validate_transport_reference(&request.get_ref().holding_id, "holding_id")?
+                    .to_owned();
+            let scope = access_scope(&command.active_scope);
+            let binding = authorize_holding_billing_scope(
                 &self.state,
                 &claims,
-                &tenant_id,
+                &holding_id,
                 &scope,
                 COMMERCIAL_BILLING_MANAGE_PERMISSION,
                 false,
@@ -4244,11 +4199,11 @@ impl SaasBillingRpcImpl {
                 .map_err(|_| {
                     Status::failed_precondition("SaaS catalog is not activated in Stripe")
                 })?;
-            let administration = SqlxTenantAdministrationStore::new(self.state.store.clone());
+            let administration = SqlxHoldingAdministrationStore::new(self.state.store.clone());
             let existing_subscription = administration
-                .tenant_subscription_binding(&tenant_id)
+                .holding_subscription_binding(&holding_id)
                 .await
-                .map_err(|_| Status::unavailable("tenant subscription is unavailable"))?;
+                .map_err(|_| Status::unavailable("holding subscription is unavailable"))?;
             if existing_subscription
                 .as_ref()
                 .is_some_and(|existing| existing.currency != currency)
@@ -4275,7 +4230,7 @@ impl SaasBillingRpcImpl {
                 || {
                     Uuid::new_v5(
                         &Uuid::NAMESPACE_URL,
-                        format!("erpx-subscription:{}:{}", tenant_id, command.command_id)
+                        format!("erpx-subscription:{}:{}", holding_id, command.command_id)
                             .as_bytes(),
                     )
                 },
@@ -4296,7 +4251,7 @@ impl SaasBillingRpcImpl {
                 ));
             }
             let metadata = BTreeMap::from([
-                ("erpx_tenant_id".into(), tenant_id.clone()),
+                ("erpx_holding_id".into(), holding_id.clone()),
                 ("erpx_customer_id".into(), binding.customer_id.to_string()),
                 (
                     "erpx_subscription_id".into(),
@@ -4374,23 +4329,24 @@ impl SaasBillingRpcImpl {
                 &command.actor.principal_ref,
                 "command actor must match the authenticated principal",
             )?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?.to_owned();
-            let scope = access_scope(&command.tenant_scope);
-            let binding = authorize_tenant_billing_scope(
+            let holding_id =
+                validate_transport_reference(&request.get_ref().holding_id, "holding_id")?
+                    .to_owned();
+            let scope = access_scope(&command.active_scope);
+            let binding = authorize_holding_billing_scope(
                 &self.state,
                 &claims,
-                &tenant_id,
+                &holding_id,
                 &scope,
                 COMMERCIAL_BILLING_MANAGE_PERMISSION,
                 false,
             )
             .await?;
-            let subscription = SqlxTenantAdministrationStore::new(self.state.store.clone())
-                .tenant_subscription_binding(&tenant_id)
+            let subscription = SqlxHoldingAdministrationStore::new(self.state.store.clone())
+                .holding_subscription_binding(&holding_id)
                 .await
-                .map_err(|_| Status::unavailable("tenant subscription is unavailable"))?
-                .ok_or_else(|| Status::failed_precondition("tenant has no Stripe customer"))?;
+                .map_err(|_| Status::unavailable("holding subscription is unavailable"))?
+                .ok_or_else(|| Status::failed_precondition("holding has no Stripe customer"))?;
             let client = stripe_billing_client()?;
             let stripe = client
                 .create_customer_portal_session(
@@ -4425,8 +4381,8 @@ impl SaasBillingRpcImpl {
 
     async fn list_invoices(
         &self,
-        request: Request<commercial_target::ListTenantInvoicesRequest>,
-    ) -> Result<Response<commercial_target::ListTenantInvoicesResponse>, Status> {
+        request: Request<commercial_target::ListHoldingInvoicesRequest>,
+    ) -> Result<Response<commercial_target::ListHoldingInvoicesResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -4437,12 +4393,12 @@ impl SaasBillingRpcImpl {
                 .ok_or_else(|| Status::failed_precondition("query context is required"))?;
             let query = query_context(&request, Some(&proto_context))?;
             let scope = query_access_scope(&proto_context)?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            authorize_tenant_billing_scope(
+            let holding_id =
+                validate_transport_reference(&request.get_ref().holding_id, "holding_id")?;
+            authorize_holding_billing_scope(
                 &self.state,
                 &claims,
-                tenant_id,
+                holding_id,
                 &scope,
                 COMMERCIAL_BILLING_READ_PERMISSION,
                 true,
@@ -4454,16 +4410,16 @@ impl SaasBillingRpcImpl {
                 _ => return Err(Status::invalid_argument("invoice page size exceeds 100")),
             };
             let after = optional_registry_filter(&request.get_ref().after_invoice_id);
-            let page = SqlxTenantAdministrationStore::new(self.state.store.clone())
-                .list_invoices(tenant_id, after.as_deref(), page_size)
+            let page = SqlxHoldingAdministrationStore::new(self.state.store.clone())
+                .list_invoices(holding_id, after.as_deref(), page_size)
                 .await
-                .map_err(|_| Status::unavailable("tenant invoices are unavailable"))?;
+                .map_err(|_| Status::unavailable("holding invoices are unavailable"))?;
             Ok(Response::new(
-                commercial_target::ListTenantInvoicesResponse {
+                commercial_target::ListHoldingInvoicesResponse {
                     invoices: page
                         .invoices
                         .into_iter()
-                        .map(|invoice| commercial_target::TenantInvoiceSummary {
+                        .map(|invoice| commercial_target::HoldingInvoiceSummary {
                             invoice_id: invoice.invoice_id,
                             state: invoice.state,
                             currency: invoice.currency,
@@ -4496,7 +4452,7 @@ impl SaasBillingRpcImpl {
                 &command.actor.principal_ref,
                 "command actor must match the authenticated principal",
             )?;
-            let scope = access_scope(&command.tenant_scope);
+            let scope = access_scope(&command.active_scope);
             require_platform_scope(&scope)?;
             self.state
                 .auth
@@ -4511,8 +4467,8 @@ impl SaasBillingRpcImpl {
                 .auth
                 .authorize_mfa(&claims, &request.get_ref().mfa_code)
                 .await?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
+            let holding_id =
+                validate_transport_reference(&request.get_ref().holding_id, "holding_id")?;
             let cycle_id = parse_uuid(
                 &request.get_ref().delinquency_cycle_id,
                 "delinquency_cycle_id",
@@ -4524,9 +4480,9 @@ impl SaasBillingRpcImpl {
                 ));
             }
             let reason = validate_transport_reference(&request.get_ref().reason, "reason")?;
-            let extension = SqlxTenantAdministrationStore::new(self.state.store.clone())
-                .grant_billing_grace_extension(TenantBillingGraceExtensionGrant {
-                    tenant_id,
+            let extension = SqlxHoldingAdministrationStore::new(self.state.store.clone())
+                .grant_billing_grace_extension(HoldingBillingGraceExtensionGrant {
+                    holding_id,
                     delinquency_cycle_id: cycle_id,
                     extension: Duration::days(i64::from(days)),
                     granted_at: Utc::now(),
@@ -4557,19 +4513,19 @@ async fn authorize_branch_administration<T>(
     claims: &AccessTokenClaims,
     request: &Request<T>,
     scope: &Scope,
-    tenant_id: &str,
+    holding_key: &str,
     holding_id: Uuid,
     mutation: bool,
 ) -> Result<(), Status> {
     let exact_holding = Scope::Holding { holding_id };
     if !scope.contains(&exact_holding) {
         return Err(Status::permission_denied(
-            "branch administration requires exact holding or entered-tenant scope",
+            "branch administration requires exact holding or entered-holding scope",
         ));
     }
     state
         .auth
-        .authorize_role_for_tenant(
+        .authorize_role_for_holding(
             &state.store,
             claims,
             scope,
@@ -4578,19 +4534,19 @@ async fn authorize_branch_administration<T>(
             } else {
                 "organization.read"
             },
-            Some(tenant_id),
+            Some(holding_key),
         )
         .await?;
     if matches!(scope, Scope::Platform)
         || claims.principal_ref == erpx_identity::DEVELOPMENT_CONTROLLER_PRINCIPAL
     {
-        validate_tenant_admin_context(state, request, claims, tenant_id, holding_id).await?;
+        validate_holding_admin_context(state, request, claims, holding_key, holding_id).await?;
     }
     Ok(())
 }
 
-async fn require_branch_capacity(store: &SqlxControlPlane, tenant_id: &str) -> Result<(), Status> {
-    let available = persistence::branch_capacity_available(store, tenant_id)
+async fn require_branch_capacity(store: &SqlxControlPlane, holding_id: &str) -> Result<(), Status> {
+    let available = persistence::branch_capacity_available(store, holding_id)
         .await
         .map_err(|_| Status::unavailable("subscription branch capacity is unavailable"))?;
     available
@@ -4601,14 +4557,14 @@ async fn require_branch_capacity(store: &SqlxControlPlane, tenant_id: &str) -> R
 async fn branch_provisioning_record(
     store: &SqlxBranchProvisioningStore,
     job: erpx_infrastructure::BranchProvisioningJob,
-) -> Result<platform_admin_target::TenantBranchProvisioningRecord, Status> {
+) -> Result<platform_admin_target::HoldingBranchProvisioningRecord, Status> {
     let route = store
-        .route(&job.tenant_id, job.branch_id)
+        .route(&job.holding_id, job.branch_id)
         .await
         .map_err(|_| Status::unavailable("branch route status is unavailable"))?;
-    Ok(platform_admin_target::TenantBranchProvisioningRecord {
+    Ok(platform_admin_target::HoldingBranchProvisioningRecord {
         job_id: job.job_id.to_string(),
-        tenant_id: job.tenant_id,
+        holding_id: job.holding_id,
         branch_id: job.branch_id.to_string(),
         branch_code: job.branch_code,
         branch_name: job.branch_name,
@@ -4635,10 +4591,10 @@ async fn branch_provisioning_record(
 }
 
 impl PlatformOperationsRpcImpl {
-    pub(crate) async fn list_tenants(
+    pub(crate) async fn list_holdings(
         &self,
-        request: Request<platform_admin_target::ListPlatformTenantsRequest>,
-    ) -> Result<Response<platform_admin_target::ListPlatformTenantsResponse>, Status> {
+        request: Request<platform_admin_target::ListPlatformHoldingsRequest>,
+    ) -> Result<Response<platform_admin_target::ListPlatformHoldingsResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -4656,60 +4612,60 @@ impl PlatformOperationsRpcImpl {
                     &self.state.store,
                     &claims,
                     &scope,
-                    PLATFORM_TENANT_READ_PERMISSION,
+                    PLATFORM_HOLDING_READ_PERMISSION,
                 )
                 .await?;
 
-            let page_size = platform_tenant_page_size(request.get_ref().page_size)?;
+            let page_size = platform_holding_page_size(request.get_ref().page_size)?;
             let input = request.get_ref();
-            let page = SqlxTenantAdministrationStore::new(self.state.store.clone())
-                .list_tenants(&TenantRegistryFilter {
+            let page = SqlxHoldingAdministrationStore::new(self.state.store.clone())
+                .list_holdings(&HoldingRegistryFilter {
                     search: optional_registry_filter(&input.search),
                     lifecycle: optional_registry_filter(&input.lifecycle),
                     billing_state: optional_registry_filter(&input.billing_state),
                     plan: optional_registry_filter(&input.plan),
                     module: optional_registry_filter(&input.module),
                     health: optional_registry_filter(&input.health),
-                    after_tenant_id: optional_registry_filter(&input.after_tenant_id),
+                    after_holding_id: optional_registry_filter(&input.after_holding_id),
                     page_size,
                 })
                 .await
-                .map_err(|_| Status::internal("platform tenant registry read failed"))?;
-            let tenants = page
-                .tenants
+                .map_err(|_| Status::internal("platform holding registry read failed"))?;
+            let holdings = page
+                .holdings
                 .into_iter()
-                .map(platform_tenant_summary)
+                .map(platform_holding_summary)
                 .collect();
             self.state
                 .store
                 .record(AuditEvent {
                     actor_ref: claims.principal_ref,
                     customer_account_id: None,
-                    action: "platform.tenant.list".into(),
+                    action: "platform.holding.list".into(),
                     purpose: proto_context
                         .audit
                         .as_ref()
                         .map(|audit| audit.purpose.clone())
-                        .unwrap_or_else(|| "platform operations tenant list".into()),
+                        .unwrap_or_else(|| "platform operations holding list".into()),
                     correlation_id: context.correlation_id,
                 })
                 .await
-                .map_err(|_| Status::internal("platform tenant audit failed"))?;
+                .map_err(|_| Status::internal("platform holding audit failed"))?;
             Ok(Response::new(
-                platform_admin_target::ListPlatformTenantsResponse {
-                    tenants,
+                platform_admin_target::ListPlatformHoldingsResponse {
+                    holdings,
                     has_more: page.has_more,
-                    next_after_tenant_id: page.next_after_tenant_id.unwrap_or_default(),
+                    next_after_holding_id: page.next_after_holding_id.unwrap_or_default(),
                     correlation_id: context.correlation_id.to_string(),
                 },
             ))
         })
     }
 
-    pub(crate) async fn get_tenant(
+    pub(crate) async fn get_holding(
         &self,
-        request: Request<platform_admin_target::GetPlatformTenantRequest>,
-    ) -> Result<Response<platform_admin_target::GetPlatformTenantResponse>, Status> {
+        request: Request<platform_admin_target::GetPlatformHoldingRequest>,
+    ) -> Result<Response<platform_admin_target::GetPlatformHoldingResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -4727,44 +4683,44 @@ impl PlatformOperationsRpcImpl {
                     &self.state.store,
                     &claims,
                     &scope,
-                    PLATFORM_TENANT_READ_PERMISSION,
+                    PLATFORM_HOLDING_READ_PERMISSION,
                 )
                 .await?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let tenant = SqlxTenantAdministrationStore::new(self.state.store.clone())
-                .get_tenant_summary(tenant_id)
+            let holding_id =
+                validate_transport_reference(&request.get_ref().holding_id, "holding_id")?;
+            let holding = SqlxHoldingAdministrationStore::new(self.state.store.clone())
+                .get_holding_summary(holding_id)
                 .await
-                .map_err(|_| Status::internal("platform tenant registry read failed"))?
-                .ok_or_else(|| Status::not_found("platform tenant not found"))?;
+                .map_err(|_| Status::internal("platform holding registry read failed"))?
+                .ok_or_else(|| Status::not_found("platform holding not found"))?;
             self.state
                 .store
                 .record(AuditEvent {
                     actor_ref: claims.principal_ref,
                     customer_account_id: None,
-                    action: "platform.tenant.get".into(),
+                    action: "platform.holding.get".into(),
                     purpose: proto_context
                         .audit
                         .as_ref()
                         .map(|audit| audit.purpose.clone())
-                        .unwrap_or_else(|| "platform operations tenant detail".into()),
+                        .unwrap_or_else(|| "platform operations holding detail".into()),
                     correlation_id: context.correlation_id,
                 })
                 .await
-                .map_err(|_| Status::internal("platform tenant audit failed"))?;
+                .map_err(|_| Status::internal("platform holding audit failed"))?;
             Ok(Response::new(
-                platform_admin_target::GetPlatformTenantResponse {
-                    tenant: Some(platform_tenant_summary(tenant)),
+                platform_admin_target::GetPlatformHoldingResponse {
+                    holding: Some(platform_holding_summary(holding)),
                     correlation_id: context.correlation_id.to_string(),
                 },
             ))
         })
     }
 
-    pub(crate) async fn list_tenant_control_history(
+    pub(crate) async fn list_holding_control_history(
         &self,
-        request: Request<platform_admin_target::ListTenantControlHistoryRequest>,
-    ) -> Result<Response<platform_admin_target::ListTenantControlHistoryResponse>, Status> {
+        request: Request<platform_admin_target::ListHoldingControlHistoryRequest>,
+    ) -> Result<Response<platform_admin_target::ListHoldingControlHistoryResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -4775,24 +4731,24 @@ impl PlatformOperationsRpcImpl {
                 .ok_or_else(|| Status::failed_precondition("query context is required"))?;
             let context = query_context(&request, Some(&proto_context))?;
             require_platform_scope(&query_access_scope(&proto_context)?)?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let administration = SqlxTenantAdministrationStore::new(self.state.store.clone());
+            let holding_id =
+                validate_transport_reference(&request.get_ref().holding_id, "holding_id")?;
+            let administration = SqlxHoldingAdministrationStore::new(self.state.store.clone());
             let binding = administration
-                .customer_tenant_binding(tenant_id)
+                .customer_holding_binding(holding_id)
                 .await
-                .map_err(|_| Status::unavailable("tenant binding unavailable"))?
-                .ok_or_else(|| Status::failed_precondition("tenant binding is incomplete"))?;
+                .map_err(|_| Status::unavailable("holding binding unavailable"))?
+                .ok_or_else(|| Status::failed_precondition("holding binding is incomplete"))?;
             self.state
                 .auth
-                .authorize_role_for_tenant(
+                .authorize_role_for_holding(
                     &self.state.store,
                     &claims,
                     &Scope::Holding {
-                        holding_id: binding.root_holding_id,
+                        holding_id: binding.canonical_holding_id,
                     },
-                    PLATFORM_TENANT_HISTORY_READ_PERMISSION,
-                    Some(tenant_id),
+                    PLATFORM_HOLDING_HISTORY_READ_PERMISSION,
+                    Some(holding_id),
                 )
                 .await?;
             let input = request.get_ref();
@@ -4801,7 +4757,7 @@ impl PlatformOperationsRpcImpl {
                 input.before_event_id.trim().is_empty(),
             ) {
                 (true, true) => None,
-                (false, false) => Some(erpx_infrastructure::TenantControlHistoryCursor {
+                (false, false) => Some(erpx_infrastructure::HoldingControlHistoryCursor {
                     occurred_at: DateTime::parse_from_rfc3339(&input.before_occurred_at)
                         .map_err(|_| {
                             Status::invalid_argument("history cursor time must be RFC 3339")
@@ -4821,15 +4777,15 @@ impl PlatformOperationsRpcImpl {
                 _ => return Err(Status::invalid_argument("history page size exceeds 100")),
             };
             let page = administration
-                .list_control_history(tenant_id, cursor, page_size)
+                .list_control_history(holding_id, cursor, page_size)
                 .await
-                .map_err(|_| Status::unavailable("tenant control history unavailable"))?;
+                .map_err(|_| Status::unavailable("holding control history unavailable"))?;
             Ok(Response::new(
-                platform_admin_target::ListTenantControlHistoryResponse {
+                platform_admin_target::ListHoldingControlHistoryResponse {
                     entries: page
                         .entries
                         .into_iter()
-                        .map(|entry| platform_admin_target::TenantControlHistoryEntry {
+                        .map(|entry| platform_admin_target::HoldingControlHistoryEntry {
                             event_id: entry.event_id.to_string(),
                             event_category: entry.event_category,
                             safe_action: entry.safe_action,
@@ -4854,47 +4810,47 @@ impl PlatformOperationsRpcImpl {
         })
     }
 
-    pub(crate) async fn begin_tenant_admin_context(
+    pub(crate) async fn begin_holding_admin_context(
         &self,
-        request: Request<platform_admin_target::BeginTenantAdminContextRequest>,
-    ) -> Result<Response<platform_admin_target::BeginTenantAdminContextResponse>, Status> {
+        request: Request<platform_admin_target::BeginHoldingAdminContextRequest>,
+    ) -> Result<Response<platform_admin_target::BeginHoldingAdminContextResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
+            let scope = access_scope(&context.active_scope);
             require_platform_scope(&scope)?;
             require_actor_match(
                 &claims.principal_ref,
                 &context.actor.principal_ref,
                 "command actor must match the authenticated principal",
             )?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
+            let holding_id =
+                validate_transport_reference(&request.get_ref().holding_id, "holding_id")?;
             let reason = validate_transport_reference(&request.get_ref().reason, "reason")?;
-            let administration = SqlxTenantAdministrationStore::new(self.state.store.clone());
+            let administration = SqlxHoldingAdministrationStore::new(self.state.store.clone());
             let binding = administration
-                .customer_tenant_binding(tenant_id)
+                .customer_holding_binding(holding_id)
                 .await
-                .map_err(|_| Status::unavailable("tenant binding unavailable"))?
-                .ok_or_else(|| Status::failed_precondition("tenant binding is incomplete"))?;
+                .map_err(|_| Status::unavailable("holding binding unavailable"))?
+                .ok_or_else(|| Status::failed_precondition("holding binding is incomplete"))?;
             self.state
                 .auth
-                .authorize_role_for_tenant(
+                .authorize_role_for_holding(
                     &self.state.store,
                     &claims,
                     &Scope::Holding {
-                        holding_id: binding.root_holding_id,
+                        holding_id: binding.canonical_holding_id,
                     },
-                    PLATFORM_TENANT_ENTER_PERMISSION,
-                    Some(tenant_id),
+                    PLATFORM_HOLDING_ENTER_PERMISSION,
+                    Some(holding_id),
                 )
                 .await?;
             self.state
                 .auth
-                .authorize_mfa_for_tenant(
+                .authorize_mfa_for_holding(
                     &self.state.store,
                     &claims,
-                    tenant_id,
+                    holding_id,
                     &request.get_ref().mfa_code,
                     context.correlation_id,
                 )
@@ -4908,8 +4864,8 @@ impl PlatformOperationsRpcImpl {
                 .await
                 .map_err(map_identity_auth_error)?;
             let administrative_context = administration
-                .begin_context(TenantAdminContextIssue {
-                    tenant_id,
+                .begin_context(HoldingAdminContextIssue {
+                    holding_id,
                     principal_ref: &claims.principal_ref,
                     device_id,
                     session_id: claims.session_id,
@@ -4919,11 +4875,13 @@ impl PlatformOperationsRpcImpl {
                 })
                 .await
                 .map_err(|_| {
-                    Status::failed_precondition("tenant configuration is incomplete or unavailable")
+                    Status::failed_precondition(
+                        "holding configuration is incomplete or unavailable",
+                    )
                 })?;
             Ok(Response::new(
-                platform_admin_target::BeginTenantAdminContextResponse {
-                    administrative_context: Some(tenant_admin_context_message(
+                platform_admin_target::BeginHoldingAdminContextResponse {
+                    administrative_context: Some(holding_admin_context_message(
                         &administrative_context,
                         at,
                     )),
@@ -4933,10 +4891,10 @@ impl PlatformOperationsRpcImpl {
         })
     }
 
-    pub(crate) async fn get_tenant_admin_context(
+    pub(crate) async fn get_holding_admin_context(
         &self,
-        request: Request<platform_admin_target::GetTenantAdminContextRequest>,
-    ) -> Result<Response<platform_admin_target::GetTenantAdminContextResponse>, Status> {
+        request: Request<platform_admin_target::GetHoldingAdminContextRequest>,
+    ) -> Result<Response<platform_admin_target::GetHoldingAdminContextResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -4953,7 +4911,7 @@ impl PlatformOperationsRpcImpl {
                     &self.state.store,
                     &claims,
                     &Scope::Platform,
-                    PLATFORM_TENANT_ENTER_PERMISSION,
+                    PLATFORM_HOLDING_ENTER_PERMISSION,
                 )
                 .await?;
             let context_id = parse_uuid(
@@ -4969,20 +4927,20 @@ impl PlatformOperationsRpcImpl {
                 .await
                 .map_err(map_identity_auth_error)?;
             let administrative_context =
-                SqlxTenantAdministrationStore::new(self.state.store.clone())
+                SqlxHoldingAdministrationStore::new(self.state.store.clone())
                     .get_context(context_id)
                     .await
-                    .map_err(|_| Status::unavailable("tenant administration context unavailable"))?
-                    .ok_or_else(|| Status::not_found("tenant administration context not found"))?;
-            let requested_scope = TenantOrganizationScope::Holding {
-                holding_id: administrative_context.root_holding_id,
+                    .map_err(|_| Status::unavailable("holding administration context unavailable"))?
+                    .ok_or_else(|| Status::not_found("holding administration context not found"))?;
+            let requested_scope = HoldingOrganizationScope::Holding {
+                holding_id: administrative_context.canonical_holding_id,
             };
             administrative_context
-                .authorize(&TenantAdminAuthorizationRequest {
+                .authorize(&HoldingAdminAuthorizationRequest {
                     principal_ref: &claims.principal_ref,
                     device_id,
                     session_id: claims.session_id,
-                    tenant_id: &administrative_context.tenant_id,
+                    holding_id: &administrative_context.holding_id,
                     requested_scope: &requested_scope,
                     module: None,
                     entitlements: &[],
@@ -4992,10 +4950,10 @@ impl PlatformOperationsRpcImpl {
                     platform_role_active: true,
                     at,
                 })
-                .map_err(|_| Status::permission_denied("tenant administration context denied"))?;
+                .map_err(|_| Status::permission_denied("holding administration context denied"))?;
             Ok(Response::new(
-                platform_admin_target::GetTenantAdminContextResponse {
-                    administrative_context: Some(tenant_admin_context_message(
+                platform_admin_target::GetHoldingAdminContextResponse {
+                    administrative_context: Some(holding_admin_context_message(
                         &administrative_context,
                         at,
                     )),
@@ -5005,14 +4963,14 @@ impl PlatformOperationsRpcImpl {
         })
     }
 
-    pub(crate) async fn end_tenant_admin_context(
+    pub(crate) async fn end_holding_admin_context(
         &self,
-        request: Request<platform_admin_target::EndTenantAdminContextRequest>,
-    ) -> Result<Response<platform_admin_target::EndTenantAdminContextResponse>, Status> {
+        request: Request<platform_admin_target::EndHoldingAdminContextRequest>,
+    ) -> Result<Response<platform_admin_target::EndHoldingAdminContextResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            require_platform_scope(&access_scope(&context.tenant_scope))?;
+            require_platform_scope(&access_scope(&context.active_scope))?;
             require_actor_match(
                 &claims.principal_ref,
                 &context.actor.principal_ref,
@@ -5031,7 +4989,7 @@ impl PlatformOperationsRpcImpl {
                 .active_session_device_id(claims.session_id, at)
                 .await
                 .map_err(map_identity_auth_error)?;
-            let ended = SqlxTenantAdministrationStore::new(self.state.store.clone())
+            let ended = SqlxHoldingAdministrationStore::new(self.state.store.clone())
                 .end_context(
                     context_id,
                     &claims.principal_ref,
@@ -5041,9 +4999,9 @@ impl PlatformOperationsRpcImpl {
                     at,
                 )
                 .await
-                .map_err(|_| Status::unavailable("tenant administration context unavailable"))?;
+                .map_err(|_| Status::unavailable("holding administration context unavailable"))?;
             Ok(Response::new(
-                platform_admin_target::EndTenantAdminContextResponse {
+                platform_admin_target::EndHoldingAdminContextResponse {
                     ended,
                     correlation_id: context.correlation_id.to_string(),
                 },
@@ -5051,10 +5009,10 @@ impl PlatformOperationsRpcImpl {
         })
     }
 
-    pub(crate) async fn discover_tenant_organization_units(
+    pub(crate) async fn discover_holding_organization_units(
         &self,
-        request: Request<platform_admin_target::DiscoverTenantOrganizationUnitsRequest>,
-    ) -> Result<Response<platform_admin_target::DiscoverTenantOrganizationUnitsResponse>, Status>
+        request: Request<platform_admin_target::DiscoverHoldingOrganizationUnitsRequest>,
+    ) -> Result<Response<platform_admin_target::DiscoverHoldingOrganizationUnitsResponse>, Status>
     {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
@@ -5072,19 +5030,19 @@ impl PlatformOperationsRpcImpl {
                     &self.state.store,
                     &claims,
                     &Scope::Platform,
-                    PLATFORM_TENANT_ENTER_PERMISSION,
+                    PLATFORM_HOLDING_ENTER_PERMISSION,
                 )
                 .await?;
             let context_id = request
                 .metadata()
-                .get("x-erpx-tenant-admin-context")
+                .get("x-erpx-holding-admin-context")
                 .and_then(|value| value.to_str().ok())
                 .ok_or_else(|| {
-                    Status::permission_denied("tenant administration context is required")
+                    Status::permission_denied("holding administration context is required")
                 })
                 .and_then(|value| parse_uuid(value, "administrative_context_id"))?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
+            let holding_id =
+                validate_transport_reference(&request.get_ref().holding_id, "holding_id")?;
             let at = Utc::now();
             let device_id = self
                 .state
@@ -5093,21 +5051,21 @@ impl PlatformOperationsRpcImpl {
                 .active_session_device_id(claims.session_id, at)
                 .await
                 .map_err(map_identity_auth_error)?;
-            let administration = SqlxTenantAdministrationStore::new(self.state.store.clone());
+            let administration = SqlxHoldingAdministrationStore::new(self.state.store.clone());
             let administrative_context = administration
                 .get_context(context_id)
                 .await
-                .map_err(|_| Status::unavailable("tenant administration context unavailable"))?
-                .ok_or_else(|| Status::not_found("tenant administration context not found"))?;
-            let requested_scope = TenantOrganizationScope::Holding {
-                holding_id: administrative_context.root_holding_id,
+                .map_err(|_| Status::unavailable("holding administration context unavailable"))?
+                .ok_or_else(|| Status::not_found("holding administration context not found"))?;
+            let requested_scope = HoldingOrganizationScope::Holding {
+                holding_id: administrative_context.canonical_holding_id,
             };
             administrative_context
-                .authorize(&TenantAdminAuthorizationRequest {
+                .authorize(&HoldingAdminAuthorizationRequest {
                     principal_ref: &claims.principal_ref,
                     device_id,
                     session_id: claims.session_id,
-                    tenant_id,
+                    holding_id,
                     requested_scope: &requested_scope,
                     module: None,
                     entitlements: &[],
@@ -5117,45 +5075,45 @@ impl PlatformOperationsRpcImpl {
                     platform_role_active: true,
                     at,
                 })
-                .map_err(|_| Status::permission_denied("tenant administration context denied"))?;
-            let registry = SqlxTenantStoreRegistry::new(self.state.store.clone());
+                .map_err(|_| Status::permission_denied("holding administration context denied"))?;
+            let registry = SqlxHoldingStoreRegistry::new(self.state.store.clone());
             let registration = registry
-                .get(tenant_id)
+                .get(holding_id)
                 .await
-                .map_err(|_| Status::unavailable("tenant registry is unavailable"))?
-                .ok_or_else(|| Status::not_found("tenant is not registered"))?;
+                .map_err(|_| Status::unavailable("holding registry is unavailable"))?
+                .ok_or_else(|| Status::not_found("holding is not registered"))?;
             if registration.state != "active"
-                || tenant_holding_scope_id(&registration.holding_ref)
-                    != administrative_context.root_holding_id
+                || holding_holding_scope_id(&registration.data_profile_key)
+                    != administrative_context.canonical_holding_id
             {
                 return Err(Status::failed_precondition(
-                    "tenant organization route is unavailable",
+                    "holding organization route is unavailable",
                 ));
             }
             let router = self
                 .state
-                .tenant_router
+                .holding_router
                 .as_ref()
-                .ok_or_else(|| Status::unavailable("tenant routing is not configured"))?;
+                .ok_or_else(|| Status::unavailable("holding routing is not configured"))?;
             let read = router
                 .route(
-                    tenant_id,
-                    &registration.holding_ref,
+                    holding_id,
+                    &registration.data_profile_key,
                     RoutedDatabaseSide::Read,
                 )
                 .await
-                .map_err(|_| Status::unavailable("tenant read route is unavailable"))?;
-            let tenant_uuid = Uuid::parse_str(tenant_id)
-                .map_err(|_| Status::failed_precondition("tenant identity is invalid"))?;
-            let pool = CqrsReadPool::for_tenant(read.database_pool().clone(), tenant_uuid)
-                .map_err(|_| Status::unavailable("tenant read authority is unavailable"))?;
+                .map_err(|_| Status::unavailable("holding read route is unavailable"))?;
+            let holding_uuid = Uuid::parse_str(holding_id)
+                .map_err(|_| Status::failed_precondition("holding identity is invalid"))?;
+            let pool = CqrsReadPool::for_holding(read.database_pool().clone(), holding_uuid)
+                .map_err(|_| Status::unavailable("holding read authority is unavailable"))?;
             let store = OrganizationReadRepository::new(pool)
                 .map_err(|_| Status::unavailable("organization read model is unavailable"))?;
             let page_size = organization_page_size(request.get_ref().page_size)?;
             let result = store
                 .list(
-                    &erpx_kernel::TenantScope::Holding {
-                        holding_id: administrative_context.root_holding_id,
+                    &erpx_kernel::AuthorityScope::Holding {
+                        holding_id: administrative_context.canonical_holding_id,
                     },
                     &OrganizationNodeListFilter {
                         page_size: u16::try_from(page_size).map_err(|_| {
@@ -5180,15 +5138,15 @@ impl PlatformOperationsRpcImpl {
                     at,
                 )
                 .await
-                .map_err(|_| Status::unavailable("tenant access audit unavailable"))?;
+                .map_err(|_| Status::unavailable("holding access audit unavailable"))?;
             Ok(Response::new(
-                platform_admin_target::DiscoverTenantOrganizationUnitsResponse {
+                platform_admin_target::DiscoverHoldingOrganizationUnitsResponse {
                     units: page
                         .nodes
                         .into_iter()
-                        .map(|node| platform_admin_target::TenantOrganizationUnit {
+                        .map(|node| platform_admin_target::HoldingOrganizationUnit {
                             kind: typed_organization_kind_name(node.kind).into(),
-                            holding_id: administrative_context.root_holding_id.to_string(),
+                            holding_id: administrative_context.canonical_holding_id.to_string(),
                             company_id: typed_organization_company_id(
                                 node.node_id.as_uuid(),
                                 &node.placement,
@@ -5213,30 +5171,30 @@ impl PlatformOperationsRpcImpl {
         })
     }
 
-    pub(crate) async fn begin_tenant_provisioning(
+    pub(crate) async fn begin_holding_provisioning(
         &self,
-        request: Request<platform_admin_target::BeginTenantProvisioningRequest>,
-    ) -> Result<Response<platform_admin_target::BeginTenantProvisioningResponse>, Status> {
+        request: Request<platform_admin_target::BeginHoldingProvisioningRequest>,
+    ) -> Result<Response<platform_admin_target::BeginHoldingProvisioningResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
+            let scope = access_scope(&context.active_scope);
             require_platform_scope(&scope)?;
             require_actor_match(
                 &claims.principal_ref,
                 &context.actor.principal_ref,
                 "command actor must match the authenticated principal",
             )?;
-            let target_tenant =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
+            let target_holding =
+                validate_transport_reference(&request.get_ref().holding_id, "holding_id")?;
             self.state
                 .auth
-                .authorize_role_for_tenant(
+                .authorize_role_for_holding(
                     &self.state.store,
                     &claims,
                     &scope,
-                    PLATFORM_TENANT_PROVISION_PERMISSION,
-                    Some(target_tenant),
+                    PLATFORM_HOLDING_PROVISION_PERMISSION,
+                    Some(target_holding),
                 )
                 .await?;
             let owner_principal_ref = validate_transport_reference(
@@ -5255,7 +5213,7 @@ impl PlatformOperationsRpcImpl {
                     &self.state.store,
                     &owner_approver_ref,
                     &Scope::Platform,
-                    PLATFORM_TENANT_PROVISION_PERMISSION,
+                    PLATFORM_HOLDING_PROVISION_PERMISSION,
                     &context.actor.principal_ref,
                 )
                 .await?;
@@ -5276,19 +5234,22 @@ impl PlatformOperationsRpcImpl {
             }
             self.state
                 .auth
-                .authorize_mfa_for_tenant(
+                .authorize_mfa_for_holding(
                     &self.state.store,
                     &claims,
-                    target_tenant,
+                    target_holding,
                     command_mfa_code(request.get_ref().context.as_ref()),
                     context.correlation_id,
                 )
                 .await?;
             let input = request.into_inner();
-            let registration = TenantStoreRegistration {
-                tenant_id: validate_transport_reference(&input.tenant_id, "tenant_id")?.into(),
-                holding_ref: validate_transport_reference(&input.holding_ref, "holding_ref")?
-                    .into(),
+            let registration = HoldingStoreRegistration {
+                holding_id: validate_transport_reference(&input.holding_id, "holding_id")?.into(),
+                data_profile_key: validate_transport_reference(
+                    &input.data_profile_key,
+                    "data_profile_key",
+                )?
+                .into(),
                 write_database_key: validate_transport_reference(
                     &input.write_database_key,
                     "write_database_key",
@@ -5317,33 +5278,35 @@ impl PlatformOperationsRpcImpl {
                 state: "provisioning".into(),
                 registry_version: 1,
             };
-            let tenant_id = registration.tenant_id.clone();
-            TenantProvisioner::new(self.state.store.clone())
+            let holding_id = registration.holding_id.clone();
+            HoldingProvisioner::new(self.state.store.clone())
                 .begin(registration)
                 .await
-                .map_err(|_| Status::failed_precondition("tenant provisioning request rejected"))?;
-            TenantProvisioner::new(self.state.store.clone())
+                .map_err(|_| {
+                    Status::failed_precondition("holding provisioning request rejected")
+                })?;
+            HoldingProvisioner::new(self.state.store.clone())
                 .register_owner_seed(
-                    tenant_id.as_str(),
+                    holding_id.as_str(),
                     &owner_principal_ref,
                     &owner_approver_ref,
                 )
                 .await
-                .map_err(|_| Status::failed_precondition("tenant owner seed was rejected"))?;
+                .map_err(|_| Status::failed_precondition("holding owner seed was rejected"))?;
             self.state
                 .store
                 .record(AuditEvent {
                     actor_ref: context.actor.principal_ref,
                     customer_account_id: None,
-                    action: "platform.tenant.provision.begin".into(),
+                    action: "platform.holding.provision.begin".into(),
                     purpose: context.audit.purpose,
                     correlation_id: context.correlation_id,
                 })
                 .await
                 .map_err(|_| Status::unavailable("platform audit persistence unavailable"))?;
             Ok(Response::new(
-                platform_admin_target::BeginTenantProvisioningResponse {
-                    tenant_id,
+                platform_admin_target::BeginHoldingProvisioningResponse {
+                    holding_id,
                     state: "provisioning".into(),
                     registry_version: 1,
                     accepted: true,
@@ -5353,83 +5316,84 @@ impl PlatformOperationsRpcImpl {
         })
     }
 
-    pub(crate) async fn provision_tenant_resources(
+    pub(crate) async fn provision_holding_resources(
         &self,
-        request: Request<platform_admin_target::ProvisionTenantResourcesRequest>,
-    ) -> Result<Response<platform_admin_target::ProvisionTenantResourcesResponse>, Status> {
+        request: Request<platform_admin_target::ProvisionHoldingResourcesRequest>,
+    ) -> Result<Response<platform_admin_target::ProvisionHoldingResourcesResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
+            let scope = access_scope(&context.active_scope);
             require_platform_scope(&scope)?;
             require_actor_match(
                 &claims.principal_ref,
                 &context.actor.principal_ref,
                 "command actor must match the authenticated principal",
             )?;
-            let target_tenant =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
+            let target_holding =
+                validate_transport_reference(&request.get_ref().holding_id, "holding_id")?;
             self.state
                 .auth
-                .authorize_role_for_tenant(
+                .authorize_role_for_holding(
                     &self.state.store,
                     &claims,
                     &scope,
-                    PLATFORM_TENANT_PROVISION_PERMISSION,
-                    Some(target_tenant),
+                    PLATFORM_HOLDING_PROVISION_PERMISSION,
+                    Some(target_holding),
                 )
                 .await?;
             self.state
                 .auth
-                .authorize_mfa_for_tenant(
+                .authorize_mfa_for_holding(
                     &self.state.store,
                     &claims,
-                    target_tenant,
+                    target_holding,
                     command_mfa_code(request.get_ref().context.as_ref()),
                     context.correlation_id,
                 )
                 .await?;
             let input = request.into_inner();
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let owner_seed = TenantProvisioner::new(self.state.store.clone())
-                .get_owner_seed(tenant_id)
+            let holding_id = validate_transport_reference(&input.holding_id, "holding_id")?;
+            let owner_seed = HoldingProvisioner::new(self.state.store.clone())
+                .get_owner_seed(holding_id)
                 .await
-                .map_err(|_| Status::unavailable("tenant owner seed unavailable"))?
-                .ok_or_else(|| Status::failed_precondition("tenant owner seed is missing"))?;
-            let database_config = TenantDatabaseProvisioningConfig::from_env().map_err(|_| {
-                Status::unavailable("tenant provisioning configuration unavailable")
+                .map_err(|_| Status::unavailable("holding owner seed unavailable"))?
+                .ok_or_else(|| Status::failed_precondition("holding owner seed is missing"))?;
+            let database_config = HoldingDatabaseProvisioningConfig::from_env().map_err(|_| {
+                Status::unavailable("holding provisioning configuration unavailable")
             })?;
             let provisioner =
-                TenantDatabaseProvisioner::new(self.state.store.clone(), database_config).map_err(
-                    |_| Status::unavailable("tenant provisioning configuration unavailable"),
-                )?;
+                HoldingDatabaseProvisioner::new(self.state.store.clone(), database_config)
+                    .map_err(|_| {
+                        Status::unavailable("holding provisioning configuration unavailable")
+                    })?;
             provisioner
-                .provision_databases(tenant_id)
+                .provision_databases(holding_id)
                 .await
-                .map_err(|_| Status::unavailable("tenant database provisioning unavailable"))?;
+                .map_err(|_| Status::unavailable("holding database provisioning unavailable"))?;
             provisioner
-                .initialize_tenant_organization(
-                    tenant_id,
+                .initialize_holding_organization(
+                    holding_id,
                     owner_seed.holding_id,
                     &owner_seed.principal_ref,
                 )
                 .await
                 .map_err(|_| {
-                    Status::unavailable("tenant organization initialization unavailable")
+                    Status::unavailable("holding organization initialization unavailable")
                 })?;
             let storage = self.state.storage.clone();
             let storage_health = provisioner
-                .provision_storage_namespace(tenant_id, move |namespace| async move {
+                .provision_storage_namespace(holding_id, move |namespace| async move {
                     storage.ensure_namespace(&namespace).await
                 })
                 .await
-                .map_err(|_| Status::unavailable("tenant storage provisioning unavailable"))?;
-            let registration = SqlxTenantStoreRegistry::new(self.state.store.clone())
-                .get(tenant_id)
+                .map_err(|_| Status::unavailable("holding storage provisioning unavailable"))?;
+            let registration = SqlxHoldingStoreRegistry::new(self.state.store.clone())
+                .get(holding_id)
                 .await
-                .map_err(|_| Status::unavailable("tenant registry unavailable"))?
-                .ok_or_else(|| Status::not_found("tenant not found"))?;
-            let owner_receipt = seed_tenant_owner(
+                .map_err(|_| Status::unavailable("holding registry unavailable"))?
+                .ok_or_else(|| Status::not_found("holding not found"))?;
+            let owner_receipt = seed_holding_owner(
                 &self.state.store,
                 &owner_seed,
                 &context.actor.principal_ref,
@@ -5441,8 +5405,8 @@ impl PlatformOperationsRpcImpl {
                 .record(AuditEvent {
                     actor_ref: context.actor.principal_ref.clone(),
                     customer_account_id: None,
-                    action: "platform.tenant.owner.seed".into(),
-                    purpose: "tenant owner bootstrap".into(),
+                    action: "platform.holding.owner.seed".into(),
+                    purpose: "holding owner bootstrap".into(),
                     correlation_id: context.correlation_id,
                 })
                 .await
@@ -5452,15 +5416,15 @@ impl PlatformOperationsRpcImpl {
                 .record(AuditEvent {
                     actor_ref: context.actor.principal_ref,
                     customer_account_id: None,
-                    action: "platform.tenant.provision.resources".into(),
+                    action: "platform.holding.provision.resources".into(),
                     purpose: context.audit.purpose,
                     correlation_id: context.correlation_id,
                 })
                 .await
                 .map_err(|_| Status::unavailable("platform audit persistence unavailable"))?;
             Ok(Response::new(
-                platform_admin_target::ProvisionTenantResourcesResponse {
-                    tenant_id: tenant_id.into(),
+                platform_admin_target::ProvisionHoldingResourcesResponse {
+                    holding_id: holding_id.into(),
                     state: registration.state,
                     databases_ready: true,
                     storage_ready: storage_health.reachable,
@@ -5473,53 +5437,53 @@ impl PlatformOperationsRpcImpl {
         })
     }
 
-    pub(crate) async fn activate_tenant(
+    pub(crate) async fn activate_holding(
         &self,
-        request: Request<platform_admin_target::TransitionTenantStateRequest>,
-    ) -> Result<Response<platform_admin_target::TransitionTenantStateResponse>, Status> {
+        request: Request<platform_admin_target::TransitionHoldingStateRequest>,
+    ) -> Result<Response<platform_admin_target::TransitionHoldingStateResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
+            let scope = access_scope(&context.active_scope);
             require_platform_scope(&scope)?;
             require_actor_match(
                 &claims.principal_ref,
                 &context.actor.principal_ref,
                 "command actor must match the authenticated principal",
             )?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let registration = SqlxTenantStoreRegistry::new(self.state.store.clone())
-                .get(tenant_id)
+            let holding_id =
+                validate_transport_reference(&request.get_ref().holding_id, "holding_id")?;
+            let registration = SqlxHoldingStoreRegistry::new(self.state.store.clone())
+                .get(holding_id)
                 .await
-                .map_err(|_| Status::unavailable("tenant registry unavailable"))?
-                .ok_or_else(|| Status::not_found("tenant not found"))?;
-            validate_controller_tenant_admin_context(
+                .map_err(|_| Status::unavailable("holding registry unavailable"))?
+                .ok_or_else(|| Status::not_found("holding not found"))?;
+            validate_controller_holding_admin_context(
                 &self.state,
                 &request,
                 &claims,
-                tenant_id,
-                tenant_holding_scope_id(&registration.holding_ref),
+                holding_id,
+                holding_holding_scope_id(&registration.data_profile_key),
             )
             .await?;
             self.state
                 .auth
-                .authorize_role_for_tenant(
+                .authorize_role_for_holding(
                     &self.state.store,
                     &claims,
                     &Scope::Holding {
-                        holding_id: tenant_holding_scope_id(&registration.holding_ref),
+                        holding_id: holding_holding_scope_id(&registration.data_profile_key),
                     },
-                    PLATFORM_TENANT_PROVISION_PERMISSION,
-                    Some(tenant_id),
+                    PLATFORM_HOLDING_PROVISION_PERMISSION,
+                    Some(holding_id),
                 )
                 .await?;
             self.state
                 .auth
-                .authorize_mfa_for_tenant(
+                .authorize_mfa_for_holding(
                     &self.state.store,
                     &claims,
-                    tenant_id,
+                    holding_id,
                     command_mfa_code(request.get_ref().context.as_ref()),
                     context.correlation_id,
                 )
@@ -5529,13 +5493,13 @@ impl PlatformOperationsRpcImpl {
                 .state
                 .platform_completion
                 .transition_lifecycle(PlatformLifecycleApiRequest {
-                    command: TenantLifecycleCommand {
-                        binding: TenantBinding::new(
-                            tenant_id.to_owned(),
-                            registration.holding_ref.clone(),
+                    command: HoldingLifecycleCommand {
+                        binding: HoldingBinding::new(
+                            holding_id.to_owned(),
+                            registration.data_profile_key.clone(),
                         )
-                        .map_err(|_| Status::failed_precondition("tenant binding is invalid"))?,
-                        action: TenantLifecycleAction::Activate,
+                        .map_err(|_| Status::failed_precondition("holding binding is invalid"))?,
+                        action: HoldingLifecycleAction::Activate,
                         actor_ref: context.actor.principal_ref.clone(),
                         correlation_id: context.correlation_id,
                         idempotency_key: context.idempotency_key.clone(),
@@ -5544,7 +5508,7 @@ impl PlatformOperationsRpcImpl {
                     },
                     proof: platform_authorization_proof(
                         &context.actor.principal_ref,
-                        PLATFORM_TENANT_PROVISION_PERMISSION,
+                        PLATFORM_HOLDING_PROVISION_PERMISSION,
                         scope,
                         at,
                     ),
@@ -5552,8 +5516,8 @@ impl PlatformOperationsRpcImpl {
                 .await?
                 .into_inner();
             Ok(Response::new(
-                platform_admin_target::TransitionTenantStateResponse {
-                    tenant_id: receipt.tenant_id,
+                platform_admin_target::TransitionHoldingStateResponse {
+                    holding_id: receipt.holding_id,
                     state: receipt.state.as_str().into(),
                     registry_version: receipt.registry_version,
                     correlation_id: context.correlation_id.to_string(),
@@ -5562,53 +5526,53 @@ impl PlatformOperationsRpcImpl {
         })
     }
 
-    pub(crate) async fn suspend_tenant(
+    pub(crate) async fn suspend_holding(
         &self,
-        request: Request<platform_admin_target::TransitionTenantStateRequest>,
-    ) -> Result<Response<platform_admin_target::TransitionTenantStateResponse>, Status> {
+        request: Request<platform_admin_target::TransitionHoldingStateRequest>,
+    ) -> Result<Response<platform_admin_target::TransitionHoldingStateResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
+            let scope = access_scope(&context.active_scope);
             require_platform_scope(&scope)?;
             require_actor_match(
                 &claims.principal_ref,
                 &context.actor.principal_ref,
                 "command actor must match the authenticated principal",
             )?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let registration = SqlxTenantStoreRegistry::new(self.state.store.clone())
-                .get(tenant_id)
+            let holding_id =
+                validate_transport_reference(&request.get_ref().holding_id, "holding_id")?;
+            let registration = SqlxHoldingStoreRegistry::new(self.state.store.clone())
+                .get(holding_id)
                 .await
-                .map_err(|_| Status::unavailable("tenant registry unavailable"))?
-                .ok_or_else(|| Status::not_found("tenant not found"))?;
-            validate_controller_tenant_admin_context(
+                .map_err(|_| Status::unavailable("holding registry unavailable"))?
+                .ok_or_else(|| Status::not_found("holding not found"))?;
+            validate_controller_holding_admin_context(
                 &self.state,
                 &request,
                 &claims,
-                tenant_id,
-                tenant_holding_scope_id(&registration.holding_ref),
+                holding_id,
+                holding_holding_scope_id(&registration.data_profile_key),
             )
             .await?;
             self.state
                 .auth
-                .authorize_role_for_tenant(
+                .authorize_role_for_holding(
                     &self.state.store,
                     &claims,
                     &Scope::Holding {
-                        holding_id: tenant_holding_scope_id(&registration.holding_ref),
+                        holding_id: holding_holding_scope_id(&registration.data_profile_key),
                     },
-                    PLATFORM_TENANT_SUSPEND_PERMISSION,
-                    Some(tenant_id),
+                    PLATFORM_HOLDING_SUSPEND_PERMISSION,
+                    Some(holding_id),
                 )
                 .await?;
             self.state
                 .auth
-                .authorize_mfa_for_tenant(
+                .authorize_mfa_for_holding(
                     &self.state.store,
                     &claims,
-                    tenant_id,
+                    holding_id,
                     command_mfa_code(request.get_ref().context.as_ref()),
                     context.correlation_id,
                 )
@@ -5618,13 +5582,13 @@ impl PlatformOperationsRpcImpl {
                 .state
                 .platform_completion
                 .transition_lifecycle(PlatformLifecycleApiRequest {
-                    command: TenantLifecycleCommand {
-                        binding: TenantBinding::new(
-                            tenant_id.to_owned(),
-                            registration.holding_ref.clone(),
+                    command: HoldingLifecycleCommand {
+                        binding: HoldingBinding::new(
+                            holding_id.to_owned(),
+                            registration.data_profile_key.clone(),
                         )
-                        .map_err(|_| Status::failed_precondition("tenant binding is invalid"))?,
-                        action: TenantLifecycleAction::Suspend,
+                        .map_err(|_| Status::failed_precondition("holding binding is invalid"))?,
+                        action: HoldingLifecycleAction::Suspend,
                         actor_ref: context.actor.principal_ref.clone(),
                         correlation_id: context.correlation_id,
                         idempotency_key: context.idempotency_key.clone(),
@@ -5633,7 +5597,7 @@ impl PlatformOperationsRpcImpl {
                     },
                     proof: platform_authorization_proof(
                         &context.actor.principal_ref,
-                        PLATFORM_TENANT_SUSPEND_PERMISSION,
+                        PLATFORM_HOLDING_SUSPEND_PERMISSION,
                         scope,
                         at,
                     ),
@@ -5641,8 +5605,8 @@ impl PlatformOperationsRpcImpl {
                 .await?
                 .into_inner();
             Ok(Response::new(
-                platform_admin_target::TransitionTenantStateResponse {
-                    tenant_id: receipt.tenant_id,
+                platform_admin_target::TransitionHoldingStateResponse {
+                    holding_id: receipt.holding_id,
                     state: receipt.state.as_str().into(),
                     registry_version: receipt.registry_version,
                     correlation_id: context.correlation_id.to_string(),
@@ -5651,53 +5615,53 @@ impl PlatformOperationsRpcImpl {
         })
     }
 
-    pub(crate) async fn enter_tenant_recovery(
+    pub(crate) async fn enter_holding_recovery(
         &self,
-        request: Request<platform_admin_target::TransitionTenantStateRequest>,
-    ) -> Result<Response<platform_admin_target::TransitionTenantStateResponse>, Status> {
+        request: Request<platform_admin_target::TransitionHoldingStateRequest>,
+    ) -> Result<Response<platform_admin_target::TransitionHoldingStateResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
+            let scope = access_scope(&context.active_scope);
             require_platform_scope(&scope)?;
             require_actor_match(
                 &claims.principal_ref,
                 &context.actor.principal_ref,
                 "command actor must match the authenticated principal",
             )?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let registration = SqlxTenantStoreRegistry::new(self.state.store.clone())
-                .get(tenant_id)
+            let holding_id =
+                validate_transport_reference(&request.get_ref().holding_id, "holding_id")?;
+            let registration = SqlxHoldingStoreRegistry::new(self.state.store.clone())
+                .get(holding_id)
                 .await
-                .map_err(|_| Status::unavailable("tenant registry unavailable"))?
-                .ok_or_else(|| Status::not_found("tenant not found"))?;
-            validate_controller_tenant_admin_context(
+                .map_err(|_| Status::unavailable("holding registry unavailable"))?
+                .ok_or_else(|| Status::not_found("holding not found"))?;
+            validate_controller_holding_admin_context(
                 &self.state,
                 &request,
                 &claims,
-                tenant_id,
-                tenant_holding_scope_id(&registration.holding_ref),
+                holding_id,
+                holding_holding_scope_id(&registration.data_profile_key),
             )
             .await?;
             self.state
                 .auth
-                .authorize_role_for_tenant(
+                .authorize_role_for_holding(
                     &self.state.store,
                     &claims,
                     &Scope::Holding {
-                        holding_id: tenant_holding_scope_id(&registration.holding_ref),
+                        holding_id: holding_holding_scope_id(&registration.data_profile_key),
                     },
-                    PLATFORM_TENANT_RECOVERY_PERMISSION,
-                    Some(tenant_id),
+                    PLATFORM_HOLDING_RECOVERY_PERMISSION,
+                    Some(holding_id),
                 )
                 .await?;
             self.state
                 .auth
-                .authorize_mfa_for_tenant(
+                .authorize_mfa_for_holding(
                     &self.state.store,
                     &claims,
-                    tenant_id,
+                    holding_id,
                     command_mfa_code(request.get_ref().context.as_ref()),
                     context.correlation_id,
                 )
@@ -5707,13 +5671,13 @@ impl PlatformOperationsRpcImpl {
                 .state
                 .platform_completion
                 .transition_lifecycle(PlatformLifecycleApiRequest {
-                    command: TenantLifecycleCommand {
-                        binding: TenantBinding::new(
-                            tenant_id.to_owned(),
-                            registration.holding_ref.clone(),
+                    command: HoldingLifecycleCommand {
+                        binding: HoldingBinding::new(
+                            holding_id.to_owned(),
+                            registration.data_profile_key.clone(),
                         )
-                        .map_err(|_| Status::failed_precondition("tenant binding is invalid"))?,
-                        action: TenantLifecycleAction::EnterRecovery,
+                        .map_err(|_| Status::failed_precondition("holding binding is invalid"))?,
+                        action: HoldingLifecycleAction::EnterRecovery,
                         actor_ref: context.actor.principal_ref.clone(),
                         correlation_id: context.correlation_id,
                         idempotency_key: context.idempotency_key.clone(),
@@ -5722,7 +5686,7 @@ impl PlatformOperationsRpcImpl {
                     },
                     proof: platform_authorization_proof(
                         &context.actor.principal_ref,
-                        PLATFORM_TENANT_RECOVERY_PERMISSION,
+                        PLATFORM_HOLDING_RECOVERY_PERMISSION,
                         scope,
                         at,
                     ),
@@ -5730,8 +5694,8 @@ impl PlatformOperationsRpcImpl {
                 .await?
                 .into_inner();
             Ok(Response::new(
-                platform_admin_target::TransitionTenantStateResponse {
-                    tenant_id: receipt.tenant_id,
+                platform_admin_target::TransitionHoldingStateResponse {
+                    holding_id: receipt.holding_id,
                     state: receipt.state.as_str().into(),
                     registry_version: receipt.registry_version,
                     correlation_id: context.correlation_id.to_string(),
@@ -5740,60 +5704,62 @@ impl PlatformOperationsRpcImpl {
         })
     }
 
-    pub(crate) async fn schedule_tenant_backup(
+    pub(crate) async fn schedule_holding_backup(
         &self,
-        request: Request<platform_admin_target::ScheduleTenantBackupRequest>,
-    ) -> Result<Response<platform_admin_target::ScheduleTenantBackupResponse>, Status> {
+        request: Request<platform_admin_target::ScheduleHoldingBackupRequest>,
+    ) -> Result<Response<platform_admin_target::ScheduleHoldingBackupResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
+            let scope = access_scope(&context.active_scope);
             require_platform_scope(&scope)?;
             require_actor_match(
                 &claims.principal_ref,
                 &context.actor.principal_ref,
                 "command actor must match the authenticated principal",
             )?;
-            let target_tenant =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let requested_holding =
-                validate_transport_reference(&request.get_ref().holding_ref, "holding_ref")?;
-            let registration = SqlxTenantStoreRegistry::new(self.state.store.clone())
-                .get(target_tenant)
+            let target_holding =
+                validate_transport_reference(&request.get_ref().holding_id, "holding_id")?;
+            let requested_holding = validate_transport_reference(
+                &request.get_ref().data_profile_key,
+                "data_profile_key",
+            )?;
+            let registration = SqlxHoldingStoreRegistry::new(self.state.store.clone())
+                .get(target_holding)
                 .await
-                .map_err(|_| Status::unavailable("tenant registry unavailable"))?
-                .ok_or_else(|| Status::not_found("tenant not found"))?;
-            if registration.holding_ref != requested_holding {
+                .map_err(|_| Status::unavailable("holding registry unavailable"))?
+                .ok_or_else(|| Status::not_found("holding not found"))?;
+            if registration.data_profile_key != requested_holding {
                 return Err(Status::permission_denied(
-                    "tenant and holding target do not match",
+                    "holding and holding target do not match",
                 ));
             }
-            validate_controller_tenant_admin_context(
+            validate_controller_holding_admin_context(
                 &self.state,
                 &request,
                 &claims,
-                target_tenant,
-                tenant_holding_scope_id(&registration.holding_ref),
+                target_holding,
+                holding_holding_scope_id(&registration.data_profile_key),
             )
             .await?;
             self.state
                 .auth
-                .authorize_role_for_tenant(
+                .authorize_role_for_holding(
                     &self.state.store,
                     &claims,
                     &Scope::Holding {
-                        holding_id: tenant_holding_scope_id(&registration.holding_ref),
+                        holding_id: holding_holding_scope_id(&registration.data_profile_key),
                     },
-                    PLATFORM_TENANT_BACKUP_PERMISSION,
-                    Some(target_tenant),
+                    PLATFORM_HOLDING_BACKUP_PERMISSION,
+                    Some(target_holding),
                 )
                 .await?;
             self.state
                 .auth
-                .authorize_mfa_for_tenant(
+                .authorize_mfa_for_holding(
                     &self.state.store,
                     &claims,
-                    target_tenant,
+                    target_holding,
                     command_mfa_code(request.get_ref().context.as_ref()),
                     context.correlation_id,
                 )
@@ -5837,14 +5803,15 @@ impl PlatformOperationsRpcImpl {
                     })
                 })
                 .transpose()?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
+            let holding_id = validate_transport_reference(&input.holding_id, "holding_id")?;
+            let data_profile_key =
+                validate_transport_reference(&input.data_profile_key, "data_profile_key")?;
             let kind = match validate_transport_reference(&input.kind, "kind")? {
                 "full" => PlatformBackupKind::Full,
                 "restore_test" => PlatformBackupKind::RestoreTest,
                 "pitr" => {
                     return Err(Status::failed_precondition(
-                        "tenant PITR is unsupported; use cluster-scoped PITR",
+                        "holding PITR is unsupported; use cluster-scoped PITR",
                     ));
                 }
                 _ => return Err(Status::invalid_argument("backup kind is unsupported")),
@@ -5863,10 +5830,11 @@ impl PlatformOperationsRpcImpl {
                 .platform_completion
                 .schedule_backup(PlatformBackupApiRequest {
                     command: BackupControlCommand {
-                        binding: TenantBinding::new(tenant_id.to_owned(), holding_ref.to_owned())
-                            .map_err(|_| {
-                            Status::failed_precondition("tenant binding is invalid")
-                        })?,
+                        binding: HoldingBinding::new(
+                            holding_id.to_owned(),
+                            data_profile_key.to_owned(),
+                        )
+                        .map_err(|_| Status::failed_precondition("holding binding is invalid"))?,
                         kind,
                         backup_ref: validate_transport_reference(&input.backup_ref, "backup_ref")?
                             .to_owned(),
@@ -5893,7 +5861,7 @@ impl PlatformOperationsRpcImpl {
                     },
                     proof: platform_authorization_proof(
                         &context.actor.principal_ref,
-                        PLATFORM_TENANT_BACKUP_PERMISSION,
+                        PLATFORM_HOLDING_BACKUP_PERMISSION,
                         scope,
                         at,
                     ),
@@ -5901,9 +5869,9 @@ impl PlatformOperationsRpcImpl {
                 .await?
                 .into_inner();
             Ok(Response::new(
-                platform_admin_target::ScheduleTenantBackupResponse {
+                platform_admin_target::ScheduleHoldingBackupResponse {
                     job_id: receipt.id.to_string(),
-                    tenant_id: receipt.tenant_id,
+                    holding_id: receipt.holding_id,
                     kind: receipt.kind,
                     state: receipt.state,
                     available_at: receipt.available_at.to_rfc3339(),
@@ -5915,10 +5883,10 @@ impl PlatformOperationsRpcImpl {
         })
     }
 
-    pub(crate) async fn list_tenant_backup_jobs(
+    pub(crate) async fn list_holding_backup_jobs(
         &self,
-        request: Request<platform_admin_target::ListTenantBackupJobsRequest>,
-    ) -> Result<Response<platform_admin_target::ListTenantBackupJobsResponse>, Status> {
+        request: Request<platform_admin_target::ListHoldingBackupJobsRequest>,
+    ) -> Result<Response<platform_admin_target::ListHoldingBackupJobsResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -5936,14 +5904,14 @@ impl PlatformOperationsRpcImpl {
                     &self.state.store,
                     &claims,
                     &scope,
-                    PLATFORM_TENANT_READ_PERMISSION,
+                    PLATFORM_HOLDING_READ_PERMISSION,
                 )
                 .await?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let page_size = platform_tenant_page_size(request.get_ref().page_size)?;
-            let jobs = TenantProvisioner::new(self.state.store.clone())
-                .list_backup_jobs(tenant_id, page_size)
+            let holding_id =
+                validate_transport_reference(&request.get_ref().holding_id, "holding_id")?;
+            let page_size = platform_holding_page_size(request.get_ref().page_size)?;
+            let jobs = HoldingProvisioner::new(self.state.store.clone())
+                .list_backup_jobs(holding_id, page_size)
                 .await
                 .map_err(|_| Status::internal("backup job history read failed"))?;
             self.state
@@ -5951,23 +5919,23 @@ impl PlatformOperationsRpcImpl {
                 .record(AuditEvent {
                     actor_ref: claims.principal_ref,
                     customer_account_id: None,
-                    action: "platform.tenant.backup.list".into(),
+                    action: "platform.holding.backup.list".into(),
                     purpose: proto_context
                         .audit
                         .as_ref()
                         .map(|audit| audit.purpose.clone())
-                        .unwrap_or_else(|| "platform tenant backup history".into()),
+                        .unwrap_or_else(|| "platform holding backup history".into()),
                     correlation_id: context.correlation_id,
                 })
                 .await
                 .map_err(|_| Status::unavailable("platform audit persistence unavailable"))?;
             Ok(Response::new(
-                platform_admin_target::ListTenantBackupJobsResponse {
+                platform_admin_target::ListHoldingBackupJobsResponse {
                     jobs: jobs
                         .into_iter()
-                        .map(|job| platform_admin_target::TenantBackupJobSummary {
+                        .map(|job| platform_admin_target::HoldingBackupJobSummary {
                             job_id: job.id.to_string(),
-                            tenant_id: job.tenant_id,
+                            holding_id: job.holding_id,
                             kind: job.kind,
                             state: job.state,
                             available_at: job.available_at.to_rfc3339(),
@@ -5992,7 +5960,7 @@ impl PlatformOperationsRpcImpl {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
+            let scope = access_scope(&context.active_scope);
             require_platform_scope(&scope)?;
             require_actor_match(
                 &claims.principal_ref,
@@ -6005,7 +5973,7 @@ impl PlatformOperationsRpcImpl {
                     &self.state.store,
                     &claims,
                     &scope,
-                    PLATFORM_TENANT_BACKUP_PERMISSION,
+                    PLATFORM_HOLDING_BACKUP_PERMISSION,
                 )
                 .await?;
             self.state
@@ -6061,7 +6029,7 @@ impl PlatformOperationsRpcImpl {
                     &self.state.store,
                     &claims,
                     &scope,
-                    PLATFORM_TENANT_READ_PERMISSION,
+                    PLATFORM_HOLDING_READ_PERMISSION,
                 )
                 .await?;
             let input = request.get_ref();
@@ -6110,7 +6078,7 @@ impl PlatformOperationsRpcImpl {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
+            let scope = access_scope(&context.active_scope);
             require_platform_scope(&scope)?;
             require_actor_match(
                 &claims.principal_ref,
@@ -6123,7 +6091,7 @@ impl PlatformOperationsRpcImpl {
                     &self.state.store,
                     &claims,
                     &scope,
-                    PLATFORM_TENANT_BACKUP_PERMISSION,
+                    PLATFORM_HOLDING_BACKUP_PERMISSION,
                 )
                 .await?;
             self.state
@@ -6177,7 +6145,7 @@ impl PlatformOperationsRpcImpl {
                     &self.state.store,
                     &claims,
                     &scope,
-                    PLATFORM_TENANT_READ_PERMISSION,
+                    PLATFORM_HOLDING_READ_PERMISSION,
                 )
                 .await?;
             let rehearsal_id = Uuid::parse_str(request.get_ref().rehearsal_id.trim())
@@ -6207,7 +6175,7 @@ impl PlatformOperationsRpcImpl {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
+            let scope = access_scope(&context.active_scope);
             require_platform_scope(&scope)?;
             require_actor_match(
                 &claims.principal_ref,
@@ -6231,50 +6199,53 @@ impl PlatformOperationsRpcImpl {
                 )
                 .await?;
             let input = request.into_inner();
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
+            let holding_id = validate_transport_reference(&input.holding_id, "holding_id")?;
             let projection_name = projection_rebuild_name(&input.projection_name)?;
             let candidate_read_database_key = validate_transport_reference(
                 &input.candidate_read_database_key,
                 "candidate_read_database_key",
             )?;
             let source_version = projection_rebuild_source_version(input.source_version)?;
-            let registry = Arc::new(SqlxTenantStoreRegistry::new(self.state.store.clone()));
-            let registration = match registry.get(tenant_id).await {
+            let registry = Arc::new(SqlxHoldingStoreRegistry::new(self.state.store.clone()));
+            let registration = match registry.get(holding_id).await {
                 Ok(Some(registration)) if registration.state == "active" => registration,
                 Ok(Some(_)) => {
                     return Err(Status::failed_precondition(
-                        "projection rebuild tenant is not active",
+                        "projection rebuild holding is not active",
                     ));
                 }
-                Ok(None) => return Err(Status::not_found("projection rebuild tenant not found")),
-                Err(_) => return Err(Status::unavailable("tenant registry unavailable")),
+                Ok(None) => return Err(Status::not_found("projection rebuild holding not found")),
+                Err(_) => return Err(Status::unavailable("holding registry unavailable")),
             };
             let router = self
                 .state
-                .tenant_router
+                .holding_router
                 .as_deref()
-                .ok_or_else(|| Status::unavailable("tenant routing is not configured"))?;
-            let observed_source_version =
-                operations_source_high_watermark(router, tenant_id, &registration.holding_ref)
-                    .await
-                    .map_err(|_| Status::unavailable("Operations source is unavailable"))?;
+                .ok_or_else(|| Status::unavailable("holding routing is not configured"))?;
+            let observed_source_version = operations_source_high_watermark(
+                router,
+                holding_id,
+                &registration.data_profile_key,
+            )
+            .await
+            .map_err(|_| Status::unavailable("Operations source is unavailable"))?;
             if observed_source_version != source_version {
                 return Err(Status::failed_precondition(
                     "projection source_version is no longer current",
                 ));
             }
-            let binding = TenantHoldingBinding::new(
-                registration.tenant_id.clone(),
-                registration.holding_ref.clone(),
+            let binding = HoldingHoldingBinding::new(
+                registration.holding_id.clone(),
+                registration.data_profile_key.clone(),
             )
-            .map_err(|_| Status::failed_precondition("tenant projection binding is invalid"))?;
+            .map_err(|_| Status::failed_precondition("holding projection binding is invalid"))?;
             let scheduler_authorization = ProjectionSchedulerAuthorization::new(
                 claims.principal_ref.clone(),
                 context.audit.purpose.clone(),
                 context.correlation_id,
             )
             .map_err(|_| Status::internal("projection scheduler authorization is invalid"))?;
-            let scheduler = TenantProjectionSchedulerRepository::new(
+            let scheduler = HoldingProjectionSchedulerRepository::new(
                 self.state.store.pools().write.clone(),
                 registry,
                 scheduler_authorization,
@@ -6294,7 +6265,7 @@ impl PlatformOperationsRpcImpl {
                 .map_err(|_| Status::unavailable("projection rebuild could not be scheduled"))?;
             Ok(Response::new(
                 platform_admin_target::StartProjectionRebuildResponse {
-                    tenant_id: tenant_id.into(),
+                    holding_id: holding_id.into(),
                     projection_name: projection_name.into(),
                     state: "rebuilding".into(),
                     source_version,
@@ -6312,7 +6283,7 @@ impl PlatformOperationsRpcImpl {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
+            let scope = access_scope(&context.active_scope);
             require_platform_scope(&scope)?;
             require_actor_match(
                 &claims.principal_ref,
@@ -6336,7 +6307,7 @@ impl PlatformOperationsRpcImpl {
                 )
                 .await?;
             let input = request.into_inner();
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
+            let holding_id = validate_transport_reference(&input.holding_id, "holding_id")?;
             let projection_name = projection_rebuild_name(&input.projection_name)?;
             let candidate_read_database_key = validate_transport_reference(
                 &input.candidate_read_database_key,
@@ -6345,41 +6316,45 @@ impl PlatformOperationsRpcImpl {
             let generation = projection_rebuild_generation(input.generation)?;
             let router = self
                 .state
-                .tenant_router
+                .holding_router
                 .as_deref()
-                .ok_or_else(|| Status::unavailable("tenant routing is not configured"))?;
-            let registry = Arc::new(SqlxTenantStoreRegistry::new(Arc::clone(&self.state.store)));
+                .ok_or_else(|| Status::unavailable("holding routing is not configured"))?;
+            let registry = Arc::new(SqlxHoldingStoreRegistry::new(Arc::clone(&self.state.store)));
             let registration = registry
-                .get(tenant_id)
+                .get(holding_id)
                 .await
-                .map_err(|_| Status::unavailable("tenant registry unavailable"))?
-                .ok_or_else(|| Status::failed_precondition("tenant is not registered"))?;
+                .map_err(|_| Status::unavailable("holding registry unavailable"))?
+                .ok_or_else(|| Status::failed_precondition("holding is not registered"))?;
             if projection_name != OPERATIONS_READ_PROJECTION {
                 return Err(Status::invalid_argument(
                     "projection activation is not supported for this projection",
                 ));
             }
             let source_version = router
-                .replacement_read_source_version(tenant_id, candidate_read_database_key, generation)
+                .replacement_read_source_version(
+                    holding_id,
+                    candidate_read_database_key,
+                    generation,
+                )
                 .await
                 .map_err(|_| Status::failed_precondition("projection generation is not ready"))?
                 .ok_or_else(|| Status::failed_precondition("projection generation is not ready"))?;
             let write = router
                 .route(
-                    tenant_id,
-                    &registration.holding_ref,
+                    holding_id,
+                    &registration.data_profile_key,
                     RoutedDatabaseSide::Write,
                 )
                 .await
-                .map_err(|_| Status::unavailable("tenant write database unavailable"))?;
+                .map_err(|_| Status::unavailable("holding write database unavailable"))?;
             let mut source_lock = match write.acquire_source_rebuild_lock().await {
                 Ok(lock) => lock,
                 Err(_) => return Err(Status::unavailable("projection source fence unavailable")),
             };
             let current_source_version = source_lock
                 .source_event_high_watermark(
-                    TenantSourceProjection::Operations,
-                    &registration.holding_ref,
+                    HoldingSourceProjection::Operations,
+                    &registration.data_profile_key,
                 )
                 .await
                 .map_err(|_| Status::unavailable("Operations source is unavailable"));
@@ -6400,25 +6375,27 @@ impl PlatformOperationsRpcImpl {
                 write.close().await;
                 router
                     .fail_replacement_read_database(
-                        tenant_id,
+                        holding_id,
                         candidate_read_database_key,
                         generation,
                         "source moved before manual activation",
                     )
                     .await
                     .map_err(|_| Status::unavailable("projection stale transition failed"))?;
-                let binding = TenantHoldingBinding::new(
-                    registration.tenant_id.clone(),
-                    registration.holding_ref.clone(),
+                let binding = HoldingHoldingBinding::new(
+                    registration.holding_id.clone(),
+                    registration.data_profile_key.clone(),
                 )
-                .map_err(|_| Status::failed_precondition("tenant projection binding is invalid"))?;
+                .map_err(|_| {
+                    Status::failed_precondition("holding projection binding is invalid")
+                })?;
                 let scheduler_authorization = ProjectionSchedulerAuthorization::new(
                     claims.principal_ref.clone(),
                     context.audit.purpose.clone(),
                     context.correlation_id,
                 )
                 .map_err(|_| Status::internal("projection scheduler authorization is invalid"))?;
-                let scheduler = TenantProjectionSchedulerRepository::new(
+                let scheduler = HoldingProjectionSchedulerRepository::new(
                     self.state.store.pools().write.clone(),
                     registry,
                     scheduler_authorization,
@@ -6451,7 +6428,7 @@ impl PlatformOperationsRpcImpl {
             }
             if router
                 .activate_replacement_read_database(
-                    tenant_id,
+                    holding_id,
                     candidate_read_database_key,
                     generation,
                 )
@@ -6486,7 +6463,7 @@ impl PlatformOperationsRpcImpl {
                 .map_err(|_| Status::unavailable("platform audit persistence unavailable"))?;
             Ok(Response::new(
                 platform_admin_target::ActivateProjectionRebuildResponse {
-                    tenant_id: tenant_id.into(),
+                    holding_id: holding_id.into(),
                     projection_name: projection_name.into(),
                     state: "activated".into(),
                     generation,
@@ -6517,19 +6494,21 @@ impl PlatformOperationsRpcImpl {
                     &self.state.store,
                     &claims,
                     &scope,
-                    PLATFORM_TENANT_READ_PERMISSION,
+                    PLATFORM_HOLDING_READ_PERMISSION,
                 )
                 .await?;
 
             let input = request.get_ref();
-            let tenant_id = (!input.tenant_id.trim().is_empty())
-                .then(|| validate_transport_reference(&input.tenant_id, "tenant_id"))
+            let holding_id = (!input.holding_id.trim().is_empty())
+                .then(|| validate_transport_reference(&input.holding_id, "holding_id"))
                 .transpose()?;
-            let holding_ref = (!input.holding_ref.trim().is_empty())
-                .then(|| validate_transport_reference(&input.holding_ref, "holding_ref"))
+            let data_profile_key = (!input.data_profile_key.trim().is_empty())
+                .then(|| validate_transport_reference(&input.data_profile_key, "data_profile_key"))
                 .transpose()?;
-            if holding_ref.is_some() && tenant_id.is_none() {
-                return Err(Status::invalid_argument("holding_ref requires tenant_id"));
+            if data_profile_key.is_some() && holding_id.is_none() {
+                return Err(Status::invalid_argument(
+                    "data_profile_key requires holding_id",
+                ));
             }
             let projection_name = (!input.projection_name.trim().is_empty())
                 .then(|| validate_transport_reference(&input.projection_name, "projection_name"))
@@ -6546,11 +6525,11 @@ impl PlatformOperationsRpcImpl {
                 .map(|audit| audit.purpose.clone())
                 .unwrap_or_else(|| "platform projection status read".into());
             let status_read =
-                TenantProjectionStatusReadRepository::new(self.state.store.pools().read.clone());
+                HoldingProjectionStatusReadRepository::new(self.state.store.pools().read.clone());
             let page = status_read
                 .list_status_page(
-                    tenant_id,
-                    holding_ref,
+                    holding_id,
+                    data_profile_key,
                     projection_name,
                     after.as_ref(),
                     page_size,
@@ -6575,8 +6554,8 @@ impl PlatformOperationsRpcImpl {
                 .map(|status| {
                     let freshness = projection_status_freshness(status.published_at, freshness_now);
                     platform_admin_target::ProjectionStatus {
-                        tenant_id: status.tenant_id,
-                        holding_ref: status.holding_ref,
+                        holding_id: status.holding_id,
+                        data_profile_key: status.data_profile_key,
                         projection_name: status.projection_name,
                         job_key: status.job_key,
                         job_id: status.job_id.to_string(),
@@ -6659,7 +6638,7 @@ impl PlatformOperationsRpcImpl {
                     &self.state.store,
                     &claims,
                     &scope,
-                    PLATFORM_TENANT_READ_PERMISSION,
+                    PLATFORM_HOLDING_READ_PERMISSION,
                 )
                 .await?;
 
@@ -6745,7 +6724,7 @@ impl PlatformOperationsRpcImpl {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
+            let scope = access_scope(&context.active_scope);
             require_platform_scope(&scope)?;
             require_actor_match(
                 &claims.principal_ref,
@@ -6822,7 +6801,7 @@ impl PlatformOperationsRpcImpl {
                     &self.state.store,
                     &claims,
                     &scope,
-                    PLATFORM_TENANT_READ_PERMISSION,
+                    PLATFORM_HOLDING_READ_PERMISSION,
                 )
                 .await?;
             let checked_at = Utc::now();
@@ -6851,20 +6830,20 @@ impl PlatformOperationsRpcImpl {
                     checked_at,
                 },
                 PlatformIntegrationObservation {
-                    integration_key: "tenant_routing".into(),
-                    state: if self.state.tenant_router.is_some() {
+                    integration_key: "holding_routing".into(),
+                    state: if self.state.holding_router.is_some() {
                         "configured"
                     } else {
                         "not_configured"
                     }
                     .into(),
-                    capability: "physical tenant write/read database routing".into(),
+                    capability: "physical holding write/read database routing".into(),
                     checked_at,
                 },
                 PlatformIntegrationObservation {
                     integration_key: "object_storage".into(),
                     state: storage.0.into(),
-                    capability: "MinIO-compatible tenant object storage".into(),
+                    capability: "MinIO-compatible holding object storage".into(),
                     checked_at,
                 },
                 PlatformIntegrationObservation {
@@ -6935,7 +6914,7 @@ impl PlatformOperationsRpcImpl {
                     &self.state.store,
                     &claims,
                     &scope,
-                    PLATFORM_TENANT_READ_PERMISSION,
+                    PLATFORM_HOLDING_READ_PERMISSION,
                 )
                 .await?;
             let command_owner = self
@@ -6973,7 +6952,7 @@ impl PlatformOperationsRpcImpl {
                     settings: Some(platform_admin_target::PlatformSettingsSummary {
                         contract_version: u32::from(CONTRACT_VERSION).to_string(),
                         transport: "tonic gRPC and gRPC-Web".into(),
-                        tenant_isolation: "physical per-holding write/read PostgreSQL databases"
+                        holding_isolation: "physical per-holding write/read PostgreSQL databases"
                             .into(),
                         aggregate_authority: "PostgreSQL aggregate state with outbox projection"
                             .into(),
@@ -6987,10 +6966,10 @@ impl PlatformOperationsRpcImpl {
         })
     }
 
-    pub(crate) async fn provision_tenant_branch(
+    pub(crate) async fn provision_holding_branch(
         &self,
-        request: Request<platform_admin_target::ProvisionTenantBranchRequest>,
-    ) -> Result<Response<platform_admin_target::ProvisionTenantBranchResponse>, Status> {
+        request: Request<platform_admin_target::ProvisionHoldingBranchRequest>,
+    ) -> Result<Response<platform_admin_target::ProvisionHoldingBranchResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
@@ -6999,39 +6978,40 @@ impl PlatformOperationsRpcImpl {
                 &context.actor.principal_ref,
                 "command actor must match the authenticated principal",
             )?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?.to_owned();
-            let registration = SqlxTenantStoreRegistry::new(self.state.store.clone())
-                .get(&tenant_id)
+            let holding_key =
+                validate_transport_reference(&request.get_ref().holding_id, "holding_id")?
+                    .to_owned();
+            let registration = SqlxHoldingStoreRegistry::new(self.state.store.clone())
+                .get(&holding_key)
                 .await
-                .map_err(|_| Status::unavailable("tenant registry is unavailable"))?
-                .ok_or_else(|| Status::not_found("tenant is not registered"))?;
+                .map_err(|_| Status::unavailable("holding registry is unavailable"))?
+                .ok_or_else(|| Status::not_found("holding is not registered"))?;
             if registration.state != "active" {
-                return Err(Status::failed_precondition("tenant is not active"));
+                return Err(Status::failed_precondition("holding is not active"));
             }
-            let holding_id = tenant_holding_scope_id(&registration.holding_ref);
-            let scope = access_scope(&context.tenant_scope);
+            let holding_id = holding_holding_scope_id(&registration.data_profile_key);
+            let scope = access_scope(&context.active_scope);
             authorize_branch_administration(
                 &self.state,
                 &claims,
                 &request,
                 &scope,
-                &tenant_id,
+                &holding_key,
                 holding_id,
                 true,
             )
             .await?;
             self.state
                 .auth
-                .authorize_mfa_for_tenant(
+                .authorize_mfa_for_holding(
                     &self.state.store,
                     &claims,
-                    &tenant_id,
+                    &holding_key,
                     &request.get_ref().mfa_code,
                     context.correlation_id,
                 )
                 .await?;
-            require_branch_capacity(&self.state.store, &tenant_id).await?;
+            require_branch_capacity(&self.state.store, &holding_key).await?;
             let input = request.into_inner();
             let company_id = parse_uuid(&input.company_id, "company_id")?;
             let branch_id = parse_uuid(&input.branch_id, "branch_id")?;
@@ -7057,8 +7037,8 @@ impl PlatformOperationsRpcImpl {
             let store = SqlxBranchProvisioningStore::new(self.state.store.clone());
             let job = store
                 .enqueue(&erpx_infrastructure::ProvisionBranchRequest {
-                    tenant_id: tenant_id.clone(),
-                    holding_ref: registration.holding_ref,
+                    holding_key,
+                    data_profile_key: registration.data_profile_key,
                     holding_id,
                     company_id,
                     branch_id,
@@ -7082,7 +7062,7 @@ impl PlatformOperationsRpcImpl {
                 })?;
             let provisioning = branch_provisioning_record(&store, job).await?;
             Ok(Response::new(
-                platform_admin_target::ProvisionTenantBranchResponse {
+                platform_admin_target::ProvisionHoldingBranchResponse {
                     provisioning: Some(provisioning),
                     correlation_id: context.correlation_id.to_string(),
                 },
@@ -7090,10 +7070,10 @@ impl PlatformOperationsRpcImpl {
         })
     }
 
-    pub(crate) async fn get_tenant_branch_provisioning(
+    pub(crate) async fn get_holding_branch_provisioning(
         &self,
-        request: Request<platform_admin_target::GetTenantBranchProvisioningRequest>,
-    ) -> Result<Response<platform_admin_target::GetTenantBranchProvisioningResponse>, Status> {
+        request: Request<platform_admin_target::GetHoldingBranchProvisioningRequest>,
+    ) -> Result<Response<platform_admin_target::GetHoldingBranchProvisioningResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -7103,31 +7083,31 @@ impl PlatformOperationsRpcImpl {
                 .cloned()
                 .ok_or_else(|| Status::failed_precondition("query context is required"))?;
             let query = query_context(&request, Some(&proto_context))?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let registration = SqlxTenantStoreRegistry::new(self.state.store.clone())
-                .get(tenant_id)
+            let holding_id =
+                validate_transport_reference(&request.get_ref().holding_id, "holding_id")?;
+            let registration = SqlxHoldingStoreRegistry::new(self.state.store.clone())
+                .get(holding_id)
                 .await
-                .map_err(|_| Status::unavailable("tenant registry is unavailable"))?
-                .ok_or_else(|| Status::not_found("tenant is not registered"))?;
+                .map_err(|_| Status::unavailable("holding registry is unavailable"))?
+                .ok_or_else(|| Status::not_found("holding is not registered"))?;
             authorize_branch_administration(
                 &self.state,
                 &claims,
                 &request,
                 &query_access_scope(&proto_context)?,
-                tenant_id,
-                tenant_holding_scope_id(&registration.holding_ref),
+                holding_id,
+                holding_holding_scope_id(&registration.data_profile_key),
                 false,
             )
             .await?;
             let store = SqlxBranchProvisioningStore::new(self.state.store.clone());
             let job = store
-                .get_job(tenant_id, parse_uuid(&request.get_ref().job_id, "job_id")?)
+                .get_job(holding_id, parse_uuid(&request.get_ref().job_id, "job_id")?)
                 .await
                 .map_err(|_| Status::unavailable("branch provisioning status is unavailable"))?
                 .ok_or_else(|| Status::not_found("branch provisioning was not found"))?;
             Ok(Response::new(
-                platform_admin_target::GetTenantBranchProvisioningResponse {
+                platform_admin_target::GetHoldingBranchProvisioningResponse {
                     provisioning: Some(branch_provisioning_record(&store, job).await?),
                     correlation_id: query.correlation_id.to_string(),
                 },
@@ -7135,10 +7115,10 @@ impl PlatformOperationsRpcImpl {
         })
     }
 
-    pub(crate) async fn list_tenant_branch_provisionings(
+    pub(crate) async fn list_holding_branch_provisionings(
         &self,
-        request: Request<platform_admin_target::ListTenantBranchProvisioningsRequest>,
-    ) -> Result<Response<platform_admin_target::ListTenantBranchProvisioningsResponse>, Status>
+        request: Request<platform_admin_target::ListHoldingBranchProvisioningsRequest>,
+    ) -> Result<Response<platform_admin_target::ListHoldingBranchProvisioningsResponse>, Status>
     {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
@@ -7149,20 +7129,20 @@ impl PlatformOperationsRpcImpl {
                 .cloned()
                 .ok_or_else(|| Status::failed_precondition("query context is required"))?;
             let query = query_context(&request, Some(&proto_context))?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let registration = SqlxTenantStoreRegistry::new(self.state.store.clone())
-                .get(tenant_id)
+            let holding_id =
+                validate_transport_reference(&request.get_ref().holding_id, "holding_id")?;
+            let registration = SqlxHoldingStoreRegistry::new(self.state.store.clone())
+                .get(holding_id)
                 .await
-                .map_err(|_| Status::unavailable("tenant registry is unavailable"))?
-                .ok_or_else(|| Status::not_found("tenant is not registered"))?;
+                .map_err(|_| Status::unavailable("holding registry is unavailable"))?
+                .ok_or_else(|| Status::not_found("holding is not registered"))?;
             authorize_branch_administration(
                 &self.state,
                 &claims,
                 &request,
                 &query_access_scope(&proto_context)?,
-                tenant_id,
-                tenant_holding_scope_id(&registration.holding_ref),
+                holding_id,
+                holding_holding_scope_id(&registration.data_profile_key),
                 false,
             )
             .await?;
@@ -7173,7 +7153,7 @@ impl PlatformOperationsRpcImpl {
             };
             let store = SqlxBranchProvisioningStore::new(self.state.store.clone());
             let jobs = store
-                .list_jobs(tenant_id, page_size)
+                .list_jobs(holding_id, page_size)
                 .await
                 .map_err(|_| Status::unavailable("branch provisioning list is unavailable"))?;
             let mut provisionings = Vec::with_capacity(jobs.len());
@@ -7181,7 +7161,7 @@ impl PlatformOperationsRpcImpl {
                 provisionings.push(branch_provisioning_record(&store, job).await?);
             }
             Ok(Response::new(
-                platform_admin_target::ListTenantBranchProvisioningsResponse {
+                platform_admin_target::ListHoldingBranchProvisioningsResponse {
                     provisionings,
                     correlation_id: query.correlation_id.to_string(),
                 },
@@ -7189,10 +7169,10 @@ impl PlatformOperationsRpcImpl {
         })
     }
 
-    pub(crate) async fn retry_tenant_branch_provisioning(
+    pub(crate) async fn retry_holding_branch_provisioning(
         &self,
-        request: Request<platform_admin_target::RetryTenantBranchProvisioningRequest>,
-    ) -> Result<Response<platform_admin_target::RetryTenantBranchProvisioningResponse>, Status>
+        request: Request<platform_admin_target::RetryHoldingBranchProvisioningRequest>,
+    ) -> Result<Response<platform_admin_target::RetryHoldingBranchProvisioningResponse>, Status>
     {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
@@ -7202,38 +7182,38 @@ impl PlatformOperationsRpcImpl {
                 &context.actor.principal_ref,
                 "command actor must match the authenticated principal",
             )?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let registration = SqlxTenantStoreRegistry::new(self.state.store.clone())
-                .get(tenant_id)
+            let holding_id =
+                validate_transport_reference(&request.get_ref().holding_id, "holding_id")?;
+            let registration = SqlxHoldingStoreRegistry::new(self.state.store.clone())
+                .get(holding_id)
                 .await
-                .map_err(|_| Status::unavailable("tenant registry is unavailable"))?
-                .ok_or_else(|| Status::not_found("tenant is not registered"))?;
+                .map_err(|_| Status::unavailable("holding registry is unavailable"))?
+                .ok_or_else(|| Status::not_found("holding is not registered"))?;
             authorize_branch_administration(
                 &self.state,
                 &claims,
                 &request,
-                &access_scope(&context.tenant_scope),
-                tenant_id,
-                tenant_holding_scope_id(&registration.holding_ref),
+                &access_scope(&context.active_scope),
+                holding_id,
+                holding_holding_scope_id(&registration.data_profile_key),
                 true,
             )
             .await?;
             self.state
                 .auth
-                .authorize_mfa_for_tenant(
+                .authorize_mfa_for_holding(
                     &self.state.store,
                     &claims,
-                    tenant_id,
+                    holding_id,
                     &request.get_ref().mfa_code,
                     context.correlation_id,
                 )
                 .await?;
-            require_branch_capacity(&self.state.store, tenant_id).await?;
+            require_branch_capacity(&self.state.store, holding_id).await?;
             let store = SqlxBranchProvisioningStore::new(self.state.store.clone());
             let job = store
                 .retry(
-                    tenant_id,
+                    holding_id,
                     parse_uuid(&request.get_ref().job_id, "job_id")?,
                     context.correlation_id,
                     Utc::now(),
@@ -7241,7 +7221,7 @@ impl PlatformOperationsRpcImpl {
                 .await
                 .map_err(|_| Status::failed_precondition("branch provisioning is not retryable"))?;
             Ok(Response::new(
-                platform_admin_target::RetryTenantBranchProvisioningResponse {
+                platform_admin_target::RetryHoldingBranchProvisioningResponse {
                     provisioning: Some(branch_provisioning_record(&store, job).await?),
                     correlation_id: context.correlation_id.to_string(),
                 },
@@ -7249,10 +7229,10 @@ impl PlatformOperationsRpcImpl {
         })
     }
 
-    pub(crate) async fn suspend_tenant_branch_route(
+    pub(crate) async fn suspend_holding_branch_route(
         &self,
-        request: Request<platform_admin_target::SuspendTenantBranchRouteRequest>,
-    ) -> Result<Response<platform_admin_target::SuspendTenantBranchRouteResponse>, Status> {
+        request: Request<platform_admin_target::SuspendHoldingBranchRouteRequest>,
+    ) -> Result<Response<platform_admin_target::SuspendHoldingBranchRouteResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
@@ -7261,41 +7241,41 @@ impl PlatformOperationsRpcImpl {
                 &context.actor.principal_ref,
                 "command actor must match the authenticated principal",
             )?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let registration = SqlxTenantStoreRegistry::new(self.state.store.clone())
-                .get(tenant_id)
+            let holding_id =
+                validate_transport_reference(&request.get_ref().holding_id, "holding_id")?;
+            let registration = SqlxHoldingStoreRegistry::new(self.state.store.clone())
+                .get(holding_id)
                 .await
-                .map_err(|_| Status::unavailable("tenant registry is unavailable"))?
-                .ok_or_else(|| Status::not_found("tenant is not registered"))?;
+                .map_err(|_| Status::unavailable("holding registry is unavailable"))?
+                .ok_or_else(|| Status::not_found("holding is not registered"))?;
             authorize_branch_administration(
                 &self.state,
                 &claims,
                 &request,
-                &access_scope(&context.tenant_scope),
-                tenant_id,
-                tenant_holding_scope_id(&registration.holding_ref),
+                &access_scope(&context.active_scope),
+                holding_id,
+                holding_holding_scope_id(&registration.data_profile_key),
                 true,
             )
             .await?;
             self.state
                 .auth
-                .authorize_mfa_for_tenant(
+                .authorize_mfa_for_holding(
                     &self.state.store,
                     &claims,
-                    tenant_id,
+                    holding_id,
                     &request.get_ref().mfa_code,
                     context.correlation_id,
                 )
                 .await?;
             let branch_id = parse_uuid(&request.get_ref().branch_id, "branch_id")?;
             let route = SqlxBranchProvisioningStore::new(self.state.store.clone())
-                .suspend(tenant_id, branch_id, Utc::now())
+                .suspend(holding_id, branch_id, Utc::now())
                 .await
                 .map_err(|_| Status::failed_precondition("active branch route was not found"))?;
             Ok(Response::new(
-                platform_admin_target::SuspendTenantBranchRouteResponse {
-                    tenant_id: route.tenant_id,
+                platform_admin_target::SuspendHoldingBranchRouteResponse {
+                    holding_id: route.holding_id.to_string(),
                     branch_id: route.branch_id.to_string(),
                     state: route.state.as_str().into(),
                     route_version: route.route_version,
@@ -7414,18 +7394,18 @@ where
     A: contexts::platform_administration_cqrs::PlatformAdministrationCommandApplication,
     G: contexts::platform_administration_cqrs::PlatformAdministrationRequestAuthenticator,
 {
-    async fn register_tenant(
+    async fn register_holding(
         &self,
-        request: Request<platform_admin_target::RegisterPlatformTenantRequest>,
-    ) -> Result<Response<platform_admin_target::RegisterPlatformTenantResponse>, Status> {
-        self.current.register_tenant(request).await
+        request: Request<platform_admin_target::RegisterPlatformHoldingRequest>,
+    ) -> Result<Response<platform_admin_target::RegisterPlatformHoldingResponse>, Status> {
+        self.current.register_holding(request).await
     }
 
-    async fn transition_tenant(
+    async fn transition_holding(
         &self,
-        request: Request<platform_admin_target::TransitionPlatformTenantRequest>,
-    ) -> Result<Response<platform_admin_target::TransitionPlatformTenantResponse>, Status> {
-        self.current.transition_tenant(request).await
+        request: Request<platform_admin_target::TransitionPlatformHoldingRequest>,
+    ) -> Result<Response<platform_admin_target::TransitionPlatformHoldingResponse>, Status> {
+        self.current.transition_holding(request).await
     }
 
     async fn register_connector(
@@ -7444,38 +7424,38 @@ where
 
     async fn issue_admin_context(
         &self,
-        request: Request<platform_admin_target::IssuePlatformTenantAdminContextRequest>,
-    ) -> Result<Response<platform_admin_target::IssuePlatformTenantAdminContextResponse>, Status> {
+        request: Request<platform_admin_target::IssuePlatformHoldingAdminContextRequest>,
+    ) -> Result<Response<platform_admin_target::IssuePlatformHoldingAdminContextResponse>, Status> {
         self.current.issue_admin_context(request).await
     }
 
     async fn revoke_admin_context(
         &self,
-        request: Request<platform_admin_target::RevokePlatformTenantAdminContextRequest>,
-    ) -> Result<Response<platform_admin_target::RevokePlatformTenantAdminContextResponse>, Status> {
+        request: Request<platform_admin_target::RevokePlatformHoldingAdminContextRequest>,
+    ) -> Result<Response<platform_admin_target::RevokePlatformHoldingAdminContextResponse>, Status> {
         self.current.revoke_admin_context(request).await
     }
 
-    forward_platform_operation_command!(begin_tenant_admin_context, platform_admin_target::BeginTenantAdminContextRequest, platform_admin_target::BeginTenantAdminContextResponse);
-    forward_platform_operation_command!(end_tenant_admin_context, platform_admin_target::EndTenantAdminContextRequest, platform_admin_target::EndTenantAdminContextResponse);
-    forward_platform_operation_command!(begin_tenant_provisioning, platform_admin_target::BeginTenantProvisioningRequest, platform_admin_target::BeginTenantProvisioningResponse);
-    forward_platform_operation_command!(provision_tenant_resources, platform_admin_target::ProvisionTenantResourcesRequest, platform_admin_target::ProvisionTenantResourcesResponse);
-    forward_platform_operation_command!(activate_tenant, platform_admin_target::TransitionTenantStateRequest, platform_admin_target::TransitionTenantStateResponse);
-    forward_platform_operation_command!(suspend_tenant, platform_admin_target::TransitionTenantStateRequest, platform_admin_target::TransitionTenantStateResponse);
-    forward_platform_operation_command!(enter_tenant_recovery, platform_admin_target::TransitionTenantStateRequest, platform_admin_target::TransitionTenantStateResponse);
-    forward_platform_operation_command!(schedule_tenant_backup, platform_admin_target::ScheduleTenantBackupRequest, platform_admin_target::ScheduleTenantBackupResponse);
+    forward_platform_operation_command!(begin_holding_admin_context, platform_admin_target::BeginHoldingAdminContextRequest, platform_admin_target::BeginHoldingAdminContextResponse);
+    forward_platform_operation_command!(end_holding_admin_context, platform_admin_target::EndHoldingAdminContextRequest, platform_admin_target::EndHoldingAdminContextResponse);
+    forward_platform_operation_command!(begin_holding_provisioning, platform_admin_target::BeginHoldingProvisioningRequest, platform_admin_target::BeginHoldingProvisioningResponse);
+    forward_platform_operation_command!(provision_holding_resources, platform_admin_target::ProvisionHoldingResourcesRequest, platform_admin_target::ProvisionHoldingResourcesResponse);
+    forward_platform_operation_command!(activate_holding, platform_admin_target::TransitionHoldingStateRequest, platform_admin_target::TransitionHoldingStateResponse);
+    forward_platform_operation_command!(suspend_holding, platform_admin_target::TransitionHoldingStateRequest, platform_admin_target::TransitionHoldingStateResponse);
+    forward_platform_operation_command!(enter_holding_recovery, platform_admin_target::TransitionHoldingStateRequest, platform_admin_target::TransitionHoldingStateResponse);
+    forward_platform_operation_command!(schedule_holding_backup, platform_admin_target::ScheduleHoldingBackupRequest, platform_admin_target::ScheduleHoldingBackupResponse);
     forward_platform_operation_command!(schedule_cluster_base_backup, platform_admin_target::ScheduleClusterBaseBackupRequest, platform_admin_target::ScheduleClusterBaseBackupResponse);
     forward_platform_operation_command!(start_cluster_restore_rehearsal, platform_admin_target::StartClusterRestoreRehearsalRequest, platform_admin_target::StartClusterRestoreRehearsalResponse);
     forward_platform_operation_command!(start_projection_rebuild, platform_admin_target::StartProjectionRebuildRequest, platform_admin_target::StartProjectionRebuildResponse);
     forward_platform_operation_command!(activate_projection_rebuild, platform_admin_target::ActivateProjectionRebuildRequest, platform_admin_target::ActivateProjectionRebuildResponse);
     forward_platform_operation_command!(replay_dead_letter_outbox, platform_admin_target::ReplayDeadLetterOutboxRequest, platform_admin_target::ReplayDeadLetterOutboxResponse);
-    forward_platform_operation_command!(provision_tenant_branch, platform_admin_target::ProvisionTenantBranchRequest, platform_admin_target::ProvisionTenantBranchResponse);
-    forward_platform_operation_command!(retry_tenant_branch_provisioning, platform_admin_target::RetryTenantBranchProvisioningRequest, platform_admin_target::RetryTenantBranchProvisioningResponse);
-    forward_platform_operation_command!(suspend_tenant_branch_route, platform_admin_target::SuspendTenantBranchRouteRequest, platform_admin_target::SuspendTenantBranchRouteResponse);
+    forward_platform_operation_command!(provision_holding_branch, platform_admin_target::ProvisionHoldingBranchRequest, platform_admin_target::ProvisionHoldingBranchResponse);
+    forward_platform_operation_command!(retry_holding_branch_provisioning, platform_admin_target::RetryHoldingBranchProvisioningRequest, platform_admin_target::RetryHoldingBranchProvisioningResponse);
+    forward_platform_operation_command!(suspend_holding_branch_route, platform_admin_target::SuspendHoldingBranchRouteRequest, platform_admin_target::SuspendHoldingBranchRouteResponse);
     forward_migration_command!(queue_migration_work, platform_admin_target::QueueMigrationWorkRequest, platform_admin_target::QueueMigrationWorkResponse);
     forward_migration_command!(begin_migration_run, platform_admin_target::BeginMigrationRunRequest, platform_admin_target::BeginMigrationRunResponse);
     forward_migration_command!(advance_migration_phase, platform_admin_target::AdvanceMigrationPhaseRequest, platform_admin_target::AdvanceMigrationPhaseResponse);
-    forward_data_plane_rpc!(save_tenant_infrastructure_profile, platform_admin_target::SaveTenantInfrastructureProfileRequest, platform_admin_target::SaveTenantInfrastructureProfileResponse);
+    forward_data_plane_rpc!(save_holding_infrastructure_profile, platform_admin_target::SaveHoldingInfrastructureProfileRequest, platform_admin_target::SaveHoldingInfrastructureProfileResponse);
     forward_data_plane_rpc!(save_business_unit_configuration, platform_admin_target::SaveBusinessUnitConfigurationRequest, platform_admin_target::SaveBusinessUnitConfigurationResponse);
     forward_data_plane_rpc!(issue_data_plane_enrollment, platform_admin_target::IssueDataPlaneEnrollmentRequest, platform_admin_target::IssueDataPlaneEnrollmentResponse);
     forward_data_plane_rpc!(propose_desired_configuration, platform_admin_target::ProposeDesiredConfigurationRequest, platform_admin_target::ProposeDesiredConfigurationResponse);
@@ -7496,18 +7476,18 @@ where
     A: contexts::platform_administration_cqrs::PlatformAdministrationQueryApplication,
     G: contexts::platform_administration_cqrs::PlatformAdministrationRequestAuthenticator,
 {
-    async fn get_tenant(
+    async fn get_holding(
         &self,
-        request: Request<platform_admin_target::GetPlatformAdministrationTenantRequest>,
-    ) -> Result<Response<platform_admin_target::GetPlatformAdministrationTenantResponse>, Status> {
-        self.current.get_tenant(request).await
+        request: Request<platform_admin_target::GetPlatformAdministrationHoldingRequest>,
+    ) -> Result<Response<platform_admin_target::GetPlatformAdministrationHoldingResponse>, Status> {
+        self.current.get_holding(request).await
     }
 
-    async fn list_tenants(
+    async fn list_holdings(
         &self,
-        request: Request<platform_admin_target::ListPlatformAdministrationTenantsRequest>,
-    ) -> Result<Response<platform_admin_target::ListPlatformAdministrationTenantsResponse>, Status> {
-        self.current.list_tenants(request).await
+        request: Request<platform_admin_target::ListPlatformAdministrationHoldingsRequest>,
+    ) -> Result<Response<platform_admin_target::ListPlatformAdministrationHoldingsResponse>, Status> {
+        self.current.list_holdings(request).await
     }
 
     async fn get_connector(
@@ -7526,25 +7506,25 @@ where
 
     async fn get_admin_context(
         &self,
-        request: Request<platform_admin_target::GetPlatformTenantAdminContextRequest>,
-    ) -> Result<Response<platform_admin_target::GetPlatformTenantAdminContextResponse>, Status> {
+        request: Request<platform_admin_target::GetPlatformHoldingAdminContextRequest>,
+    ) -> Result<Response<platform_admin_target::GetPlatformHoldingAdminContextResponse>, Status> {
         self.current.get_admin_context(request).await
     }
 
-    forward_platform_operation_query!(list_operational_tenants, list_tenants, platform_admin_target::ListPlatformTenantsRequest, platform_admin_target::ListPlatformTenantsResponse);
-    forward_platform_operation_query!(get_operational_tenant, get_tenant, platform_admin_target::GetPlatformTenantRequest, platform_admin_target::GetPlatformTenantResponse);
-    forward_platform_operation_query!(list_tenant_control_history, list_tenant_control_history, platform_admin_target::ListTenantControlHistoryRequest, platform_admin_target::ListTenantControlHistoryResponse);
-    forward_platform_operation_query!(get_tenant_admin_context, get_tenant_admin_context, platform_admin_target::GetTenantAdminContextRequest, platform_admin_target::GetTenantAdminContextResponse);
-    forward_platform_operation_query!(discover_tenant_organization_units, discover_tenant_organization_units, platform_admin_target::DiscoverTenantOrganizationUnitsRequest, platform_admin_target::DiscoverTenantOrganizationUnitsResponse);
-    forward_platform_operation_query!(list_tenant_backup_jobs, list_tenant_backup_jobs, platform_admin_target::ListTenantBackupJobsRequest, platform_admin_target::ListTenantBackupJobsResponse);
+    forward_platform_operation_query!(list_operational_holdings, list_holdings, platform_admin_target::ListPlatformHoldingsRequest, platform_admin_target::ListPlatformHoldingsResponse);
+    forward_platform_operation_query!(get_operational_holding, get_holding, platform_admin_target::GetPlatformHoldingRequest, platform_admin_target::GetPlatformHoldingResponse);
+    forward_platform_operation_query!(list_holding_control_history, list_holding_control_history, platform_admin_target::ListHoldingControlHistoryRequest, platform_admin_target::ListHoldingControlHistoryResponse);
+    forward_platform_operation_query!(get_holding_admin_context, get_holding_admin_context, platform_admin_target::GetHoldingAdminContextRequest, platform_admin_target::GetHoldingAdminContextResponse);
+    forward_platform_operation_query!(discover_holding_organization_units, discover_holding_organization_units, platform_admin_target::DiscoverHoldingOrganizationUnitsRequest, platform_admin_target::DiscoverHoldingOrganizationUnitsResponse);
+    forward_platform_operation_query!(list_holding_backup_jobs, list_holding_backup_jobs, platform_admin_target::ListHoldingBackupJobsRequest, platform_admin_target::ListHoldingBackupJobsResponse);
     forward_platform_operation_query!(list_cluster_recovery_points, list_cluster_recovery_points, platform_admin_target::ListClusterRecoveryPointsRequest, platform_admin_target::ListClusterRecoveryPointsResponse);
     forward_platform_operation_query!(get_cluster_restore_rehearsal, get_cluster_restore_rehearsal, platform_admin_target::GetClusterRestoreRehearsalRequest, platform_admin_target::GetClusterRestoreRehearsalResponse);
     forward_platform_operation_query!(list_projection_statuses, list_projection_statuses, platform_admin_target::ListProjectionStatusesRequest, platform_admin_target::ListProjectionStatusesResponse);
     forward_platform_operation_query!(list_platform_audit, list_platform_audit, platform_admin_target::ListPlatformAuditRequest, platform_admin_target::ListPlatformAuditResponse);
     forward_platform_operation_query!(list_platform_integrations, list_platform_integrations, platform_admin_target::ListPlatformIntegrationsRequest, platform_admin_target::ListPlatformIntegrationsResponse);
     forward_platform_operation_query!(get_platform_settings, get_platform_settings, platform_admin_target::GetPlatformSettingsRequest, platform_admin_target::GetPlatformSettingsResponse);
-    forward_platform_operation_query!(get_tenant_branch_provisioning, get_tenant_branch_provisioning, platform_admin_target::GetTenantBranchProvisioningRequest, platform_admin_target::GetTenantBranchProvisioningResponse);
-    forward_platform_operation_query!(list_tenant_branch_provisionings, list_tenant_branch_provisionings, platform_admin_target::ListTenantBranchProvisioningsRequest, platform_admin_target::ListTenantBranchProvisioningsResponse);
+    forward_platform_operation_query!(get_holding_branch_provisioning, get_holding_branch_provisioning, platform_admin_target::GetHoldingBranchProvisioningRequest, platform_admin_target::GetHoldingBranchProvisioningResponse);
+    forward_platform_operation_query!(list_holding_branch_provisionings, list_holding_branch_provisionings, platform_admin_target::ListHoldingBranchProvisioningsRequest, platform_admin_target::ListHoldingBranchProvisioningsResponse);
 
     async fn list_migration_statuses(
         &self,
@@ -7553,7 +7533,7 @@ where
         self.migration.list_migration_statuses(request).await
     }
 
-    forward_data_plane_rpc!(get_tenant_infrastructure, platform_admin_target::GetTenantInfrastructureRequest, platform_admin_target::GetTenantInfrastructureResponse);
+    forward_data_plane_rpc!(get_holding_infrastructure, platform_admin_target::GetHoldingInfrastructureRequest, platform_admin_target::GetHoldingInfrastructureResponse);
     forward_data_plane_rpc!(get_business_unit_configuration, platform_admin_target::GetBusinessUnitConfigurationRequest, platform_admin_target::GetBusinessUnitConfigurationResponse);
     forward_data_plane_rpc!(list_root_access_requests, platform_admin_target::ListRootAccessRequestsRequest, platform_admin_target::ListRootAccessRequestsResponse);
     forward_data_plane_rpc!(get_resolved_corporate_identity, platform_admin_target::GetResolvedCorporateIdentityRequest, platform_admin_target::GetResolvedCorporateIdentityResponse);
@@ -7584,24 +7564,24 @@ impl DirectoryRpcImpl {
                 Ok(None)
             }
             Scope::Holding { holding_id } => {
-                let tenant_id = SqlxTenantAdministrationStore::new(self.state.store.clone())
-                    .tenant_id_for_root_holding(*holding_id)
+                let holding_id = SqlxHoldingAdministrationStore::new(self.state.store.clone())
+                    .holding_id_for_root_holding(*holding_id)
                     .await
-                    .map_err(|_| Status::unavailable("directory tenant binding unavailable"))?
+                    .map_err(|_| Status::unavailable("directory holding binding unavailable"))?
                     .ok_or_else(|| {
-                        Status::failed_precondition("directory holding is not bound to a tenant")
+                        Status::failed_precondition("directory holding is not bound to a holding")
                     })?;
                 self.state
                     .auth
-                    .authorize_role_for_tenant(
+                    .authorize_role_for_holding(
                         &self.state.store,
                         claims,
                         scope,
                         permission,
-                        Some(&tenant_id),
+                        Some(&holding_id),
                     )
                     .await?;
-                Ok(Some(tenant_id))
+                Ok(Some(holding_id))
             }
             Scope::Company { .. } | Scope::Branch { .. } | Scope::Subtree { .. } => Err(
                 Status::permission_denied("directory administration requires holding scope"),
@@ -7612,17 +7592,17 @@ impl DirectoryRpcImpl {
     async fn authorize_directory_mfa(
         &self,
         claims: &AccessTokenClaims,
-        tenant_id: Option<&str>,
+        holding_id: Option<&str>,
         presented_code: &str,
         correlation_id: Uuid,
     ) -> Result<(), Status> {
-        if let Some(tenant_id) = tenant_id {
+        if let Some(holding_id) = holding_id {
             self.state
                 .auth
-                .authorize_mfa_for_tenant(
+                .authorize_mfa_for_holding(
                     &self.state.store,
                     claims,
-                    tenant_id,
+                    holding_id,
                     presented_code,
                     correlation_id,
                 )
@@ -7637,21 +7617,21 @@ impl DirectoryRpcImpl {
         request: &Request<T>,
         claims: &AccessTokenClaims,
         scope: &Scope,
-        target_tenant: Option<&str>,
+        target_holding: Option<&str>,
     ) -> Result<(), Status> {
-        match (scope, target_tenant) {
-            (Scope::Holding { holding_id }, Some(tenant_id)) => {
-                validate_controller_tenant_admin_context(
+        match (scope, target_holding) {
+            (Scope::Holding { holding_id }, Some(holding_key)) => {
+                validate_controller_holding_admin_context(
                     &self.state,
                     request,
                     claims,
-                    tenant_id,
+                    holding_key,
                     *holding_id,
                 )
                 .await
             }
             _ if claims.principal_ref == erpx_identity::DEVELOPMENT_CONTROLLER_PRINCIPAL => Err(
-                Status::permission_denied("tenant-bound directory context is required"),
+                Status::permission_denied("holding-bound directory context is required"),
             ),
             _ => Ok(()),
         }
@@ -7757,7 +7737,7 @@ impl DirectoryRpcImpl {
                 .cloned()
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
             let context = command_domain(&request, Some(&proto_context))?;
-            let scope = access_scope(&context.tenant_scope);
+            let scope = access_scope(&context.active_scope);
             if matches!(
                 scope,
                 Scope::Company { .. } | Scope::Branch { .. } | Scope::Subtree { .. }
@@ -7766,14 +7746,14 @@ impl DirectoryRpcImpl {
                     "directory administration requires platform or holding scope",
                 ));
             }
-            let target_tenant = self
+            let target_holding = self
                 .authorize_directory_role(&claims, &scope, directory_permission(&scope, "manage"))
                 .await?;
             self.validate_directory_admin_context(
                 &request,
                 &claims,
                 &scope,
-                target_tenant.as_deref(),
+                target_holding.as_deref(),
             )
             .await?;
             let input = request.get_ref();
@@ -7826,7 +7806,7 @@ impl DirectoryRpcImpl {
             let connector = DirectoryConnector {
                 id: connector_id,
                 provider,
-                scope: parse_directory_scope(&input.scope_key, &input.holding_ref)?,
+                scope: parse_directory_scope(&input.scope_key, &input.data_profile_key)?,
                 endpoint: input.endpoint.trim().into(),
                 base_dn: input.base_dn.trim().into(),
                 tls: DirectoryTlsPolicy {
@@ -7875,7 +7855,7 @@ impl DirectoryRpcImpl {
             directory_scope_access(&scope, &connector.scope)?;
             self.authorize_directory_mfa(
                 &claims,
-                target_tenant.as_deref(),
+                target_holding.as_deref(),
                 &request.get_ref().mfa_code,
                 context.correlation_id,
             )
@@ -7971,7 +7951,7 @@ impl DirectoryRpcImpl {
                 .cloned()
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
             let context = command_domain(&request, Some(&proto_context))?;
-            let scope = access_scope(&context.tenant_scope);
+            let scope = access_scope(&context.active_scope);
             if matches!(
                 scope,
                 Scope::Company { .. } | Scope::Branch { .. } | Scope::Subtree { .. }
@@ -7980,14 +7960,14 @@ impl DirectoryRpcImpl {
                     "directory administration requires platform or holding scope",
                 ));
             }
-            let target_tenant = self
+            let target_holding = self
                 .authorize_directory_role(&claims, &scope, directory_permission(&scope, "manage"))
                 .await?;
             self.validate_directory_admin_context(
                 &request,
                 &claims,
                 &scope,
-                target_tenant.as_deref(),
+                target_holding.as_deref(),
             )
             .await?;
             if !self.runtime_enabled {
@@ -8016,7 +7996,7 @@ impl DirectoryRpcImpl {
             directory_scope_access(&scope, &connector.scope)?;
             self.authorize_directory_mfa(
                 &claims,
-                target_tenant.as_deref(),
+                target_holding.as_deref(),
                 &request.get_ref().mfa_code,
                 context.correlation_id,
             )
@@ -8307,7 +8287,7 @@ impl DirectoryRpcImpl {
                 .cloned()
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
             let context = command_domain(&request, Some(&proto_context))?;
-            let scope = access_scope(&context.tenant_scope);
+            let scope = access_scope(&context.active_scope);
             if matches!(
                 scope,
                 Scope::Company { .. } | Scope::Branch { .. } | Scope::Subtree { .. }
@@ -8316,14 +8296,14 @@ impl DirectoryRpcImpl {
                     "directory administration requires platform or holding scope",
                 ));
             }
-            let target_tenant = self
+            let target_holding = self
                 .authorize_directory_role(&claims, &scope, directory_permission(&scope, "manage"))
                 .await?;
             self.validate_directory_admin_context(
                 &request,
                 &claims,
                 &scope,
-                target_tenant.as_deref(),
+                target_holding.as_deref(),
             )
             .await?;
             let input = request.get_ref();
@@ -8365,7 +8345,7 @@ impl DirectoryRpcImpl {
                 ),
                 DirectoryScope::Holding { .. } | DirectoryScope::Branch { .. } => {
                     directory_role_template_is_allowed(
-                        ConfigurationLayer::Tenant,
+                        ConfigurationLayer::Holding,
                         &mapping.role_ref,
                     ) || BusinessUnitRoleTemplate::parse(&mapping.role_ref).is_ok()
                 }
@@ -8387,7 +8367,7 @@ impl DirectoryRpcImpl {
                 })?;
             self.authorize_directory_mfa(
                 &claims,
-                target_tenant.as_deref(),
+                target_holding.as_deref(),
                 &request.get_ref().mfa_code,
                 context.correlation_id,
             )
@@ -8441,15 +8421,15 @@ impl DirectoryRpcImpl {
                 .cloned()
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
             let context = command_domain(&request, Some(&proto_context))?;
-            let scope = access_scope(&context.tenant_scope);
-            let target_tenant = self
+            let scope = access_scope(&context.active_scope);
+            let target_holding = self
                 .authorize_directory_role(&claims, &scope, directory_permission(&scope, "manage"))
                 .await?;
             self.validate_directory_admin_context(
                 &request,
                 &claims,
                 &scope,
-                target_tenant.as_deref(),
+                target_holding.as_deref(),
             )
             .await?;
             if !self.runtime_enabled {
@@ -8467,7 +8447,7 @@ impl DirectoryRpcImpl {
             directory_scope_access(&scope, &connector.scope)?;
             self.authorize_directory_mfa(
                 &claims,
-                target_tenant.as_deref(),
+                target_holding.as_deref(),
                 &request.get_ref().mfa_code,
                 context.correlation_id,
             )
@@ -8570,8 +8550,8 @@ impl DirectoryRpcImpl {
                 .cloned()
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
             let context = command_domain(&request, Some(&proto_context))?;
-            let scope = access_scope(&context.tenant_scope);
-            let target_tenant = self
+            let scope = access_scope(&context.active_scope);
+            let target_holding = self
                 .authorize_directory_role(
                     &claims,
                     &scope,
@@ -8589,7 +8569,7 @@ impl DirectoryRpcImpl {
                 &request,
                 &claims,
                 &scope,
-                target_tenant.as_deref(),
+                target_holding.as_deref(),
             )
             .await?;
             let target = parse_directory_lifecycle(&request.get_ref().target_lifecycle)?;
@@ -8608,7 +8588,7 @@ impl DirectoryRpcImpl {
             directory_scope_access(&scope, &connector.scope)?;
             self.authorize_directory_mfa(
                 &claims,
-                target_tenant.as_deref(),
+                target_holding.as_deref(),
                 &request.get_ref().mfa_code,
                 context.correlation_id,
             )
@@ -8652,15 +8632,15 @@ impl DirectoryRpcImpl {
                 .cloned()
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
             let context = command_domain(&request, Some(&proto_context))?;
-            let scope = access_scope(&context.tenant_scope);
-            let target_tenant = self
+            let scope = access_scope(&context.active_scope);
+            let target_holding = self
                 .authorize_directory_role(&claims, &scope, directory_permission(&scope, "manage"))
                 .await?;
             self.validate_directory_admin_context(
                 &request,
                 &claims,
                 &scope,
-                target_tenant.as_deref(),
+                target_holding.as_deref(),
             )
             .await?;
             let input = request.get_ref();
@@ -8674,7 +8654,7 @@ impl DirectoryRpcImpl {
             directory_scope_access(&scope, &connector.scope)?;
             self.authorize_directory_mfa(
                 &claims,
-                target_tenant.as_deref(),
+                target_holding.as_deref(),
                 &request.get_ref().mfa_code,
                 context.correlation_id,
             )
@@ -8717,15 +8697,15 @@ impl DirectoryRpcImpl {
                 .cloned()
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
             let context = command_domain(&request, Some(&proto_context))?;
-            let scope = access_scope(&context.tenant_scope);
-            let target_tenant = self
+            let scope = access_scope(&context.active_scope);
+            let target_holding = self
                 .authorize_directory_role(&claims, &scope, directory_permission(&scope, "manage"))
                 .await?;
             self.validate_directory_admin_context(
                 &request,
                 &claims,
                 &scope,
-                target_tenant.as_deref(),
+                target_holding.as_deref(),
             )
             .await?;
             let input = request.get_ref();
@@ -8739,7 +8719,7 @@ impl DirectoryRpcImpl {
             directory_scope_access(&scope, &connector.scope)?;
             self.authorize_directory_mfa(
                 &claims,
-                target_tenant.as_deref(),
+                target_holding.as_deref(),
                 &request.get_ref().mfa_code,
                 context.correlation_id,
             )
@@ -8834,15 +8814,15 @@ impl DirectoryRpcImpl {
                 .cloned()
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
             let context = command_domain(&request, Some(&proto_context))?;
-            let scope = access_scope(&context.tenant_scope);
-            let target_tenant = self
+            let scope = access_scope(&context.active_scope);
+            let target_holding = self
                 .authorize_directory_role(&claims, &scope, directory_permission(&scope, "manage"))
                 .await?;
             self.validate_directory_admin_context(
                 &request,
                 &claims,
                 &scope,
-                target_tenant.as_deref(),
+                target_holding.as_deref(),
             )
             .await?;
             let connector_id = Uuid::parse_str(request.get_ref().connector_id.trim())
@@ -8855,7 +8835,7 @@ impl DirectoryRpcImpl {
             directory_scope_access(&scope, &connector.scope)?;
             self.authorize_directory_mfa(
                 &claims,
-                target_tenant.as_deref(),
+                target_holding.as_deref(),
                 &request.get_ref().mfa_code,
                 context.correlation_id,
             )
@@ -8982,7 +8962,7 @@ impl DirectoryRpcImpl {
                 .cloned()
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
             let context = command_domain(&request, Some(&proto_context))?;
-            let scope = access_scope(&context.tenant_scope);
+            let scope = access_scope(&context.active_scope);
             if matches!(
                 scope,
                 Scope::Company { .. } | Scope::Branch { .. } | Scope::Subtree { .. }
@@ -9075,7 +9055,7 @@ impl DirectoryRpcImpl {
                 .cloned()
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
             let context = command_domain(&request, Some(&proto_context))?;
-            let scope = access_scope(&context.tenant_scope);
+            let scope = access_scope(&context.active_scope);
             if matches!(
                 scope,
                 Scope::Company { .. } | Scope::Branch { .. } | Scope::Subtree { .. }
@@ -9167,7 +9147,7 @@ impl DirectoryRpcImpl {
                 .cloned()
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
             let context = command_domain(&request, Some(&proto_context))?;
-            let scope = access_scope(&context.tenant_scope);
+            let scope = access_scope(&context.active_scope);
             if matches!(
                 scope,
                 Scope::Company { .. } | Scope::Branch { .. } | Scope::Subtree { .. }
@@ -9628,9 +9608,9 @@ where
 }
 
 async fn with_crm_read_store<T, F, Fut>(
-    router: &TenantDatabaseRouter,
-    tenant_id: &str,
-    holding_ref: &str,
+    router: &HoldingDatabaseRouter,
+    holding_id: &str,
+    data_profile_key: &str,
     correlation_id: Uuid,
     operation: F,
 ) -> Result<T, Status>
@@ -9639,13 +9619,16 @@ where
     Fut: Future<Output = Result<T, Status>>,
 {
     let read = router
-        .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
+        .route(holding_id, data_profile_key, RoutedDatabaseSide::Read)
         .await
-        .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
+        .map_err(|_| Status::unavailable("holding read database is unavailable"))?;
     let result = async {
-        let store =
-            SqlxMarketingStore::from_pools(read.database_pool(), read.database_pool(), holding_ref)
-                .map_err(|error| crm_persistence_status(error, correlation_id))?;
+        let store = SqlxMarketingStore::from_pools(
+            read.database_pool(),
+            read.database_pool(),
+            data_profile_key,
+        )
+        .map_err(|error| crm_persistence_status(error, correlation_id))?;
         operation(store).await
     }
     .await;
@@ -9654,9 +9637,9 @@ where
 }
 
 async fn with_crm_write_store<T, F, Fut>(
-    router: &TenantDatabaseRouter,
-    tenant_id: &str,
-    holding_ref: &str,
+    router: &HoldingDatabaseRouter,
+    holding_id: &str,
+    data_profile_key: &str,
     correlation_id: Uuid,
     operation: F,
 ) -> Result<T, Status>
@@ -9665,11 +9648,11 @@ where
     Fut: Future<Output = Result<T, Status>>,
 {
     let write = router
-        .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
+        .route(holding_id, data_profile_key, RoutedDatabaseSide::Write)
         .await
-        .map_err(|_| Status::unavailable("tenant write database is unavailable"))?;
+        .map_err(|_| Status::unavailable("holding write database is unavailable"))?;
     let result = async {
-        let store = SqlxMarketingCrmStore::from_pool(write.database_pool(), holding_ref)
+        let store = SqlxMarketingCrmStore::from_pool(write.database_pool(), data_profile_key)
             .map_err(|error| crm_persistence_status(error, correlation_id))?;
         operation(store).await
     }
@@ -9702,24 +9685,24 @@ impl CrmRpcImpl {
                     "CRM reads require an explicit holding, company, or branch scope",
                 ));
             }
-            let read_scope = finance_banking_read_tenant_scope(&scope)?;
+            let read_scope = finance_banking_read_holding_scope(&scope)?;
             let input = request.get_ref();
-            let workspace = resolve_legacy_tenant_workspace(
+            let workspace = resolve_legacy_holding_workspace(
                 &self.state,
                 &read_scope,
-                &input.tenant_id,
-                &input.holding_ref,
+                &input.holding_id,
+                &input.data_profile_key,
                 false,
             )
             .await?;
             self.state
                 .auth
-                .authorize_role_for_tenant(
+                .authorize_role_for_holding(
                     &self.state.store,
                     &claims,
                     &scope,
                     "marketing-crm.read",
-                    Some(&workspace.tenant_id),
+                    Some(&workspace.holding_id),
                 )
                 .await?;
             let aggregate_type =
@@ -9755,14 +9738,14 @@ impl CrmRpcImpl {
             {
                 return Err(Status::permission_denied("customer_scope_not_granted"));
             }
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
+            let router = self.state.holding_router.as_ref().ok_or_else(|| {
+                Status::failed_precondition("holding database routing is not configured")
             })?;
             let correlation_id = context.correlation_id;
             let page = with_crm_read_store(
                 router,
-                &workspace.tenant_id,
-                &workspace.holding_ref,
+                &workspace.holding_id,
+                &workspace.data_profile_key,
                 correlation_id,
                 |store| async move {
                     store
@@ -9809,17 +9792,17 @@ impl CrmRpcImpl {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let mut context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
+            let scope = access_scope(&context.active_scope);
             if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
                 return Err(Status::permission_denied(
                     "CRM mutations require an explicit holding, company, or branch scope",
                 ));
             }
-            let workspace = resolve_legacy_tenant_workspace(
+            let workspace = resolve_legacy_holding_workspace(
                 &self.state,
-                &context.tenant_scope,
-                &request.get_ref().tenant_id,
-                &request.get_ref().holding_ref,
+                &context.active_scope,
+                &request.get_ref().holding_id,
+                &request.get_ref().data_profile_key,
                 true,
             )
             .await?;
@@ -9829,30 +9812,30 @@ impl CrmRpcImpl {
             handoff
                 .validate()
                 .map_err(|_| Status::failed_precondition("CRM handoff is invalid"))?;
-            if !context.tenant_scope.contains(&handoff.scope)
+            if !context.active_scope.contains(&handoff.scope)
                 || handoff.command_id != context.command_id
             {
                 return Err(Status::permission_denied("CRM handoff binding is invalid"));
             }
             self.state
-                .authorize_entitled_command_for_tenant(
+                .authorize_entitled_command_for_holding(
                     &claims,
                     &context,
                     workspace.customer_id,
                     "crm",
                     "marketing-crm.write",
-                    &workspace.tenant_id,
+                    &workspace.holding_id,
                 )
                 .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
+            let router = self.state.holding_router.as_ref().ok_or_else(|| {
+                Status::failed_precondition("holding database routing is not configured")
             })?;
             let correlation_id = context.correlation_id;
             let command_context = context.clone();
             let receipt = with_crm_write_store(
                 router,
-                &workspace.tenant_id,
-                &workspace.holding_ref,
+                &workspace.holding_id,
+                &workspace.data_profile_key,
                 correlation_id,
                 |store| async move {
                     store
@@ -9893,17 +9876,17 @@ impl CrmRpcImpl {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let mut context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
+            let scope = access_scope(&context.active_scope);
             if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
                 return Err(Status::permission_denied(
                     "CRM mutations require an explicit holding, company, or branch scope",
                 ));
             }
-            let workspace = resolve_legacy_tenant_workspace(
+            let workspace = resolve_legacy_holding_workspace(
                 &self.state,
-                &context.tenant_scope,
-                &request.get_ref().tenant_id,
-                &request.get_ref().holding_ref,
+                &context.active_scope,
+                &request.get_ref().holding_id,
+                &request.get_ref().data_profile_key,
                 true,
             )
             .await?;
@@ -9913,7 +9896,7 @@ impl CrmRpcImpl {
             opportunity
                 .validate()
                 .map_err(|_| Status::failed_precondition("CRM opportunity is invalid"))?;
-            if !context.tenant_scope.contains(&opportunity.scope)
+            if !context.active_scope.contains(&opportunity.scope)
                 || opportunity.command_id != context.command_id
             {
                 return Err(Status::permission_denied(
@@ -9921,17 +9904,17 @@ impl CrmRpcImpl {
                 ));
             }
             self.state
-                .authorize_entitled_command_for_tenant(
+                .authorize_entitled_command_for_holding(
                     &claims,
                     &context,
                     workspace.customer_id,
                     "crm",
                     "marketing-crm.write",
-                    &workspace.tenant_id,
+                    &workspace.holding_id,
                 )
                 .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
+            let router = self.state.holding_router.as_ref().ok_or_else(|| {
+                Status::failed_precondition("holding database routing is not configured")
             })?;
             let correlation_id = context.correlation_id;
             let command_context = context.clone();
@@ -9941,8 +9924,8 @@ impl CrmRpcImpl {
                 .then_some(request.get_ref().expected_version);
             let receipt = with_crm_write_store(
                 router,
-                &workspace.tenant_id,
-                &workspace.holding_ref,
+                &workspace.holding_id,
+                &workspace.data_profile_key,
                 correlation_id,
                 |store| async move {
                     store
@@ -9983,17 +9966,17 @@ impl CrmRpcImpl {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let mut context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
+            let scope = access_scope(&context.active_scope);
             if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
                 return Err(Status::permission_denied(
                     "CRM mutations require an explicit holding, company, or branch scope",
                 ));
             }
-            let workspace = resolve_legacy_tenant_workspace(
+            let workspace = resolve_legacy_holding_workspace(
                 &self.state,
-                &context.tenant_scope,
-                &request.get_ref().tenant_id,
-                &request.get_ref().holding_ref,
+                &context.active_scope,
+                &request.get_ref().holding_id,
+                &request.get_ref().data_profile_key,
                 true,
             )
             .await?;
@@ -10013,25 +9996,25 @@ impl CrmRpcImpl {
                 ));
             }
             self.state
-                .authorize_entitled_command_for_tenant(
+                .authorize_entitled_command_for_holding(
                     &claims,
                     &context,
                     workspace.customer_id,
                     "crm",
                     "marketing-crm.write",
-                    &workspace.tenant_id,
+                    &workspace.holding_id,
                 )
                 .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
+            let router = self.state.holding_router.as_ref().ok_or_else(|| {
+                Status::failed_precondition("holding database routing is not configured")
             })?;
             let correlation_id = context.correlation_id;
             let command_context = context.clone();
             let expected = request.get_ref().expected_opportunity_version;
             let receipt = with_crm_write_store(
                 router,
-                &workspace.tenant_id,
-                &workspace.holding_ref,
+                &workspace.holding_id,
+                &workspace.data_profile_key,
                 correlation_id,
                 |store| async move {
                     store
@@ -10187,11 +10170,11 @@ fn marketing_secret_hash(secret: &str) -> String {
 
 fn marketing_scope(
     context: &erpx_domain::contracts::CommandContext,
-) -> Result<TenantScope, Status> {
-    match context.tenant_scope {
-        TenantScope::Platform | TenantScope::Subtree { .. } => Err(Status::permission_denied(
-            "Marketing content writes require an explicit tenant scope",
-        )),
+) -> Result<AuthorityScope, Status> {
+    match context.active_scope {
+        AuthorityScope::Platform | AuthorityScope::Subtree { .. } => Err(
+            Status::permission_denied("Marketing content writes require an explicit holding scope"),
+        ),
         ref scope => Ok(scope.clone()),
     }
 }
@@ -10209,12 +10192,12 @@ fn marketing_application_status(_: ApplicationError, _: Uuid) -> Status {
 fn provider_account_scope(
     context: &erpx_domain::contracts::CommandContext,
 ) -> Result<Uuid, Status> {
-    match context.tenant_scope {
-        TenantScope::Holding { holding_id } => Ok(holding_id),
-        TenantScope::Platform
-        | TenantScope::Company { .. }
-        | TenantScope::Branch { .. }
-        | TenantScope::Subtree { .. } => Err(Status::permission_denied(
+    match context.active_scope {
+        AuthorityScope::Holding { holding_id } => Ok(holding_id),
+        AuthorityScope::Platform
+        | AuthorityScope::Company { .. }
+        | AuthorityScope::Branch { .. }
+        | AuthorityScope::Subtree { .. } => Err(Status::permission_denied(
             "Marketing provider account commands require holding scope",
         )),
     }
@@ -10264,8 +10247,8 @@ fn marketing_provider_receipt(
     marketing_target::MarketingProviderAccountWriteReceipt {
         provider_account_id: receipt.provider_account_id.to_string(),
         provider_account_ref: receipt.provider_account_ref,
-        tenant_id: receipt.tenant_id,
-        holding_ref: receipt.holding_ref,
+        holding_id: receipt.holding_id,
+        data_profile_key: receipt.data_profile_key,
         provider_key: receipt.provider_key,
         provider_priority: receipt.provider_priority,
         channels: receipt.channels,
@@ -10292,23 +10275,23 @@ fn marketing_receipt(
 
 async fn route_marketing_content_store(
     state: &AppState,
-    tenant_id: &str,
-    holding_ref: &str,
+    holding_id: &str,
+    data_profile_key: &str,
     correlation_id: Uuid,
 ) -> Result<
     (
-        RoutedTenantDatabase,
-        RoutedTenantDatabase,
+        RoutedHoldingDatabase,
+        RoutedHoldingDatabase,
         SqlxMarketingContentWriteAdapter,
     ),
     Status,
 > {
     let (write, read) =
-        route_marketing_databases(state, tenant_id, holding_ref, correlation_id).await?;
+        route_marketing_databases(state, holding_id, data_profile_key, correlation_id).await?;
     let store = match SqlxMarketingContentStore::new(
         write.database_pool().clone(),
         read.database_pool().clone(),
-        holding_ref.to_owned(),
+        data_profile_key.to_owned(),
     ) {
         Ok(store) => store,
         Err(error) => {
@@ -10326,23 +10309,23 @@ async fn route_marketing_content_store(
 
 async fn route_marketing_profile_store(
     state: &AppState,
-    tenant_id: &str,
-    holding_ref: &str,
+    holding_id: &str,
+    data_profile_key: &str,
     correlation_id: Uuid,
 ) -> Result<
     (
-        RoutedTenantDatabase,
-        RoutedTenantDatabase,
+        RoutedHoldingDatabase,
+        RoutedHoldingDatabase,
         SqlxMarketingStore,
     ),
     Status,
 > {
     let (write, read) =
-        route_marketing_databases(state, tenant_id, holding_ref, correlation_id).await?;
+        route_marketing_databases(state, holding_id, data_profile_key, correlation_id).await?;
     let store = match SqlxMarketingStore::new(
         write.database_pool().clone(),
         read.database_pool().clone(),
-        holding_ref.to_owned(),
+        data_profile_key.to_owned(),
     ) {
         Ok(store) => store,
         Err(error) => {
@@ -10356,20 +10339,20 @@ async fn route_marketing_profile_store(
 
 async fn route_marketing_databases(
     state: &AppState,
-    tenant_id: &str,
-    holding_ref: &str,
+    holding_id: &str,
+    data_profile_key: &str,
     correlation_id: Uuid,
-) -> Result<(RoutedTenantDatabase, RoutedTenantDatabase), Status> {
+) -> Result<(RoutedHoldingDatabase, RoutedHoldingDatabase), Status> {
     let router = state
-        .tenant_router
+        .holding_router
         .as_ref()
-        .ok_or_else(|| Status::failed_precondition("tenant database routing is not configured"))?;
+        .ok_or_else(|| Status::failed_precondition("holding database routing is not configured"))?;
     let write = router
-        .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
+        .route(holding_id, data_profile_key, RoutedDatabaseSide::Write)
         .await
         .map_err(|error| marketing_content_persistence_status(error, correlation_id))?;
     let read = match router
-        .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
+        .route(holding_id, data_profile_key, RoutedDatabaseSide::Read)
         .await
     {
         Ok(read) => read,
@@ -10420,44 +10403,48 @@ impl MarketingContentRpcImpl {
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
             let mut context = command_domain(&request, Some(proto_context))?;
             if matches!(
-                context.tenant_scope,
-                TenantScope::Platform | TenantScope::Subtree { .. }
+                context.active_scope,
+                AuthorityScope::Platform | AuthorityScope::Subtree { .. }
             ) {
                 return Err(Status::permission_denied(
-                    "Marketing form submission requires an explicit tenant scope",
+                    "Marketing form submission requires an explicit holding scope",
                 ));
             }
-            let workspace = resolve_legacy_tenant_workspace(
+            let workspace = resolve_legacy_holding_workspace(
                 &self.state,
-                &context.tenant_scope,
-                &input.tenant_id,
-                &input.holding_ref,
+                &context.active_scope,
+                &input.holding_id,
+                &input.data_profile_key,
                 true,
             )
             .await?;
             context.subscription_id = workspace.subscription_id;
-            let tenant_id = workspace.tenant_id.as_str();
-            let holding_ref = workspace.holding_ref.as_str();
+            let holding_id = workspace.holding_id.as_str();
+            let data_profile_key = workspace.data_profile_key.as_str();
             let form_id = parse_uuid(&input.form_id, "form_id")?;
             let submission_id = parse_uuid(&input.submission_id, "submission_id")?;
             let values = marketing_form_values(&input.values)?;
-            let form = ContentFormRef::new(form_id, context.tenant_scope.clone())
+            let form = ContentFormRef::new(form_id, context.active_scope.clone())
                 .map_err(|_| Status::invalid_argument("form scope is invalid"))?;
             let customer_id = workspace.customer_id;
             self.state
-                .authorize_entitled_command_for_tenant(
+                .authorize_entitled_command_for_holding(
                     &claims,
                     &context,
                     customer_id,
                     "marketing",
                     "marketing-crm.write",
-                    tenant_id,
+                    holding_id,
                 )
                 .await?;
             let correlation_id = context.correlation_id;
-            let (write, read, port) =
-                route_marketing_content_store(&self.state, tenant_id, holding_ref, correlation_id)
-                    .await?;
+            let (write, read, port) = route_marketing_content_store(
+                &self.state,
+                holding_id,
+                data_profile_key,
+                correlation_id,
+            )
+            .await?;
             let result = async {
                 let command = SubmitPublishedFormCommand::new(
                     form.clone(),
@@ -10515,24 +10502,24 @@ impl MarketingContentRpcImpl {
                 .ok_or_else(|| Status::failed_precondition("query context is required"))?;
             let context = query_context(&request, Some(proto_context))?;
             let caller_scope = query_access_scope(proto_context)?;
-            let read_scope = finance_banking_read_tenant_scope(&caller_scope)?;
-            let workspace = resolve_legacy_tenant_workspace(
+            let read_scope = finance_banking_read_holding_scope(&caller_scope)?;
+            let workspace = resolve_legacy_holding_workspace(
                 &self.state,
                 &read_scope,
-                &input.tenant_id,
-                &input.holding_ref,
+                &input.holding_id,
+                &input.data_profile_key,
                 false,
             )
             .await?;
             let delivery_id = parse_uuid(&input.delivery_id, "delivery_id")?;
             self.state
                 .auth
-                .authorize_role_for_tenant(
+                .authorize_role_for_holding(
                     &self.state.store,
                     &claims,
                     &caller_scope,
                     "marketing-crm.read",
-                    Some(&workspace.tenant_id),
+                    Some(&workspace.holding_id),
                 )
                 .await?;
             if !self
@@ -10546,8 +10533,8 @@ impl MarketingContentRpcImpl {
             }
             let (write, read) = route_marketing_databases(
                 &self.state,
-                &workspace.tenant_id,
-                &workspace.holding_ref,
+                &workspace.holding_id,
+                &workspace.data_profile_key,
                 context.correlation_id,
             )
             .await?;
@@ -10555,7 +10542,7 @@ impl MarketingContentRpcImpl {
                 let store = SqlxMarketingDeliveryStore::from_pools(
                     write.database_pool(),
                     read.database_pool(),
-                    &workspace.holding_ref,
+                    &workspace.data_profile_key,
                 )
                 .map_err(|error| {
                     marketing_content_persistence_status(error, context.correlation_id)
@@ -10572,11 +10559,11 @@ impl MarketingContentRpcImpl {
                     );
                 };
                 let holding_id = match dispatch.scope {
-                    TenantScope::Holding { holding_id }
-                    | TenantScope::Company { holding_id, .. }
-                    | TenantScope::Branch { holding_id, .. }
-                    | TenantScope::Subtree { holding_id, .. } => holding_id,
-                    TenantScope::Platform => {
+                    AuthorityScope::Holding { holding_id }
+                    | AuthorityScope::Company { holding_id, .. }
+                    | AuthorityScope::Branch { holding_id, .. }
+                    | AuthorityScope::Subtree { holding_id, .. } => holding_id,
+                    AuthorityScope::Platform => {
                         return Err(Status::failed_precondition(
                             "Marketing delivery read cannot be platform scoped",
                         ));
@@ -10642,23 +10629,23 @@ impl MarketingContentRpcImpl {
                     "Marketing content reads require an explicit holding, company, or branch scope",
                 ));
             }
-            let read_scope = finance_banking_read_tenant_scope(&caller_scope)?;
-            let workspace = resolve_legacy_tenant_workspace(
+            let read_scope = finance_banking_read_holding_scope(&caller_scope)?;
+            let workspace = resolve_legacy_holding_workspace(
                 &self.state,
                 &read_scope,
-                &input.tenant_id,
-                &input.holding_ref,
+                &input.holding_id,
+                &input.data_profile_key,
                 false,
             )
             .await?;
             self.state
                 .auth
-                .authorize_role_for_tenant(
+                .authorize_role_for_holding(
                     &self.state.store,
                     &claims,
                     &caller_scope,
                     "marketing-crm.read",
-                    Some(&workspace.tenant_id),
+                    Some(&workspace.holding_id),
                 )
                 .await?;
             let aggregate_type = if input.aggregate_type.trim().is_empty() {
@@ -10700,23 +10687,23 @@ impl MarketingContentRpcImpl {
             {
                 return Err(Status::permission_denied("customer_scope_not_granted"));
             }
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
+            let router = self.state.holding_router.as_ref().ok_or_else(|| {
+                Status::failed_precondition("holding database routing is not configured")
             })?;
             let correlation_id = context.correlation_id;
             let read = router
                 .route(
-                    &workspace.tenant_id,
-                    &workspace.holding_ref,
+                    &workspace.holding_id,
+                    &workspace.data_profile_key,
                     RoutedDatabaseSide::Read,
                 )
                 .await
-                .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
+                .map_err(|_| Status::unavailable("holding read database is unavailable"))?;
             let result = async {
                 let store = SqlxMarketingContentStore::new(
                     read.database_pool().clone(),
                     read.database_pool().clone(),
-                    &workspace.holding_ref,
+                    &workspace.data_profile_key,
                 )
                 .map_err(|error| marketing_content_persistence_status(error, correlation_id))?;
                 let (rows, next_cursor) = store
@@ -10824,11 +10811,11 @@ impl MarketingContentRpcImpl {
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
             let mut context = command_domain(&request, Some(proto_context))?;
             if matches!(
-                context.tenant_scope,
-                TenantScope::Platform | TenantScope::Subtree { .. }
+                context.active_scope,
+                AuthorityScope::Platform | AuthorityScope::Subtree { .. }
             ) {
                 return Err(Status::permission_denied(
-                    "Marketing profile erasure requires an explicit tenant scope",
+                    "Marketing profile erasure requires an explicit holding scope",
                 ));
             }
             if input.reason.trim().is_empty()
@@ -10837,17 +10824,17 @@ impl MarketingContentRpcImpl {
             {
                 return Err(Status::invalid_argument("erasure reason is invalid"));
             }
-            let workspace = resolve_legacy_tenant_workspace(
+            let workspace = resolve_legacy_holding_workspace(
                 &self.state,
-                &context.tenant_scope,
-                &input.tenant_id,
-                &input.holding_ref,
+                &context.active_scope,
+                &input.holding_id,
+                &input.data_profile_key,
                 true,
             )
             .await?;
             context.subscription_id = workspace.subscription_id;
-            let tenant_id = workspace.tenant_id.as_str();
-            let holding_ref = workspace.holding_ref.as_str();
+            let holding_id = workspace.holding_id.as_str();
+            let data_profile_key = workspace.data_profile_key.as_str();
             let profile_id = parse_uuid(&input.profile_id, "profile_id")?;
             let erased_at = if input.erased_at.trim().is_empty() {
                 Utc::now()
@@ -10856,20 +10843,20 @@ impl MarketingContentRpcImpl {
             };
             let erasure = MarketingProfileErasure::new(
                 profile_id,
-                context.tenant_scope.clone(),
+                context.active_scope.clone(),
                 erased_at,
                 input.reason.trim(),
             )
             .map_err(|_| Status::invalid_argument("profile erasure is invalid"))?;
             let customer_id = workspace.customer_id;
             self.state
-                .authorize_entitled_command_for_tenant(
+                .authorize_entitled_command_for_holding(
                     &claims,
                     &context,
                     customer_id,
                     "marketing",
                     "marketing.profile.erase",
-                    tenant_id,
+                    holding_id,
                 )
                 .await?;
             let correlation = MarketingProfileErasureCorrelation::new(
@@ -10879,15 +10866,19 @@ impl MarketingContentRpcImpl {
             .map_err(|_| Status::invalid_argument("erasure correlation is invalid"))?;
             let command = EraseMarketingProfileCommand::new(
                 erasure,
-                context.tenant_scope.clone(),
+                context.active_scope.clone(),
                 context.idempotency_key.clone(),
                 correlation,
             )
             .map_err(|error| errors::application(error, context.correlation_id))?;
             let correlation_id = context.correlation_id;
-            let (write, read, store) =
-                route_marketing_profile_store(&self.state, tenant_id, holding_ref, correlation_id)
-                    .await?;
+            let (write, read, store) = route_marketing_profile_store(
+                &self.state,
+                holding_id,
+                data_profile_key,
+                correlation_id,
+            )
+            .await?;
             let adapter = SqlxMarketingProfilePrivacyAdapter::from_store(store);
             let port = AuthorizedMarketingProfilePrivacyPort::new(adapter);
             let result = authorize_and_erase_marketing_profile(&port, command)
@@ -10930,17 +10921,17 @@ impl MarketingContentRpcImpl {
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
             let mut context = command_domain(&request, Some(proto_context))?;
             let scope = marketing_scope(&context)?;
-            let workspace = resolve_legacy_tenant_workspace(
+            let workspace = resolve_legacy_holding_workspace(
                 &self.state,
-                &context.tenant_scope,
-                &input.tenant_id,
-                &input.holding_ref,
+                &context.active_scope,
+                &input.holding_id,
+                &input.data_profile_key,
                 true,
             )
             .await?;
             context.subscription_id = workspace.subscription_id;
-            let tenant_id = workspace.tenant_id.as_str();
-            let holding_ref = workspace.holding_ref.as_str();
+            let holding_id = workspace.holding_id.as_str();
+            let data_profile_key = workspace.data_profile_key.as_str();
             let template_id = parse_uuid(&input.template_id, "template_id")?;
             let template =
                 ContentTemplateRef::new(template_id, input.template_version, scope.clone())
@@ -10948,13 +10939,13 @@ impl MarketingContentRpcImpl {
             let expires_at = marketing_expiry(&input.expires_at)?;
             let customer_id = workspace.customer_id;
             self.state
-                .authorize_entitled_command_for_tenant(
+                .authorize_entitled_command_for_holding(
                     &claims,
                     &context,
                     customer_id,
                     "marketing",
                     "marketing-crm.write",
-                    tenant_id,
+                    holding_id,
                 )
                 .await?;
             let issued_at = Utc::now();
@@ -10962,9 +10953,13 @@ impl MarketingContentRpcImpl {
                 .map_err(|_| Status::invalid_argument("preview expiry is invalid"))?;
             let token = marketing_opaque_secret();
             let correlation_id = context.correlation_id;
-            let (write, read, port) =
-                route_marketing_content_store(&self.state, tenant_id, holding_ref, correlation_id)
-                    .await?;
+            let (write, read, port) = route_marketing_content_store(
+                &self.state,
+                holding_id,
+                data_profile_key,
+                correlation_id,
+            )
+            .await?;
             let result = async {
                 let command = IssuePreviewCommand::new(
                     preview.clone(),
@@ -11013,33 +11008,37 @@ impl MarketingContentRpcImpl {
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
             let mut context = command_domain(&request, Some(proto_context))?;
             let scope = marketing_scope(&context)?;
-            let workspace = resolve_legacy_tenant_workspace(
+            let workspace = resolve_legacy_holding_workspace(
                 &self.state,
-                &context.tenant_scope,
-                &input.tenant_id,
-                &input.holding_ref,
+                &context.active_scope,
+                &input.holding_id,
+                &input.data_profile_key,
                 true,
             )
             .await?;
             context.subscription_id = workspace.subscription_id;
-            let tenant_id = workspace.tenant_id.as_str();
-            let holding_ref = workspace.holding_ref.as_str();
+            let holding_id = workspace.holding_id.as_str();
+            let data_profile_key = workspace.data_profile_key.as_str();
             let preview_id = parse_uuid(&input.preview_id, "preview_id")?;
             let customer_id = workspace.customer_id;
             self.state
-                .authorize_entitled_command_for_tenant(
+                .authorize_entitled_command_for_holding(
                     &claims,
                     &context,
                     customer_id,
                     "marketing",
                     "marketing-crm.write",
-                    tenant_id,
+                    holding_id,
                 )
                 .await?;
             let correlation_id = context.correlation_id;
-            let (write, read, port) =
-                route_marketing_content_store(&self.state, tenant_id, holding_ref, correlation_id)
-                    .await?;
+            let (write, read, port) = route_marketing_content_store(
+                &self.state,
+                holding_id,
+                data_profile_key,
+                correlation_id,
+            )
+            .await?;
             let result = async {
                 let command =
                     RevokePreviewCommand::new(preview_id, scope, Utc::now(), context.clone())
@@ -11082,34 +11081,38 @@ impl MarketingContentRpcImpl {
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
             let mut context = command_domain(&request, Some(proto_context))?;
             let scope = marketing_scope(&context)?;
-            let workspace = resolve_legacy_tenant_workspace(
+            let workspace = resolve_legacy_holding_workspace(
                 &self.state,
-                &context.tenant_scope,
-                &input.tenant_id,
-                &input.holding_ref,
+                &context.active_scope,
+                &input.holding_id,
+                &input.data_profile_key,
                 true,
             )
             .await?;
             context.subscription_id = workspace.subscription_id;
-            let tenant_id = workspace.tenant_id.as_str();
-            let holding_ref = workspace.holding_ref.as_str();
+            let holding_id = workspace.holding_id.as_str();
+            let data_profile_key = workspace.data_profile_key.as_str();
             let domain_id = parse_uuid(&input.domain_id, "domain_id")?;
             let customer_id = workspace.customer_id;
             self.state
-                .authorize_entitled_command_for_tenant(
+                .authorize_entitled_command_for_holding(
                     &claims,
                     &context,
                     customer_id,
                     "marketing",
                     "marketing-crm.write",
-                    tenant_id,
+                    holding_id,
                 )
                 .await?;
             let challenge = marketing_opaque_secret();
             let correlation_id = context.correlation_id;
-            let (write, read, port) =
-                route_marketing_content_store(&self.state, tenant_id, holding_ref, correlation_id)
-                    .await?;
+            let (write, read, port) = route_marketing_content_store(
+                &self.state,
+                holding_id,
+                data_profile_key,
+                correlation_id,
+            )
+            .await?;
             let result = async {
                 let command = IssueDomainVerificationCommand::new(
                     domain_id,
@@ -11160,33 +11163,37 @@ impl MarketingContentRpcImpl {
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
             let mut context = command_domain(&request, Some(proto_context))?;
             let scope = marketing_scope(&context)?;
-            let workspace = resolve_legacy_tenant_workspace(
+            let workspace = resolve_legacy_holding_workspace(
                 &self.state,
-                &context.tenant_scope,
-                &input.tenant_id,
-                &input.holding_ref,
+                &context.active_scope,
+                &input.holding_id,
+                &input.data_profile_key,
                 true,
             )
             .await?;
             context.subscription_id = workspace.subscription_id;
-            let tenant_id = workspace.tenant_id.as_str();
-            let holding_ref = workspace.holding_ref.as_str();
+            let holding_id = workspace.holding_id.as_str();
+            let data_profile_key = workspace.data_profile_key.as_str();
             let domain_id = parse_uuid(&input.domain_id, "domain_id")?;
             let customer_id = workspace.customer_id;
             self.state
-                .authorize_entitled_command_for_tenant(
+                .authorize_entitled_command_for_holding(
                     &claims,
                     &context,
                     customer_id,
                     "marketing",
                     "marketing-crm.write",
-                    tenant_id,
+                    holding_id,
                 )
                 .await?;
             let correlation_id = context.correlation_id;
-            let (write, read, port) =
-                route_marketing_content_store(&self.state, tenant_id, holding_ref, correlation_id)
-                    .await?;
+            let (write, read, port) = route_marketing_content_store(
+                &self.state,
+                holding_id,
+                data_profile_key,
+                correlation_id,
+            )
+            .await?;
             let result = async {
                 let command = VerifyDomainCommand::new(
                     domain_id,
@@ -11233,17 +11240,17 @@ impl MarketingContentRpcImpl {
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
             let mut context = command_domain(&request, Some(proto_context))?;
             let scope = marketing_scope(&context)?;
-            let workspace = resolve_legacy_tenant_workspace(
+            let workspace = resolve_legacy_holding_workspace(
                 &self.state,
-                &context.tenant_scope,
-                &input.tenant_id,
-                &input.holding_ref,
+                &context.active_scope,
+                &input.holding_id,
+                &input.data_profile_key,
                 true,
             )
             .await?;
             context.subscription_id = workspace.subscription_id;
-            let tenant_id = workspace.tenant_id.as_str();
-            let holding_ref = workspace.holding_ref.as_str();
+            let holding_id = workspace.holding_id.as_str();
+            let data_profile_key = workspace.data_profile_key.as_str();
             let domain_id = parse_uuid(&input.domain_id, "domain_id")?;
             let template = ContentTemplateRef::new(
                 parse_uuid(&input.template_id, "template_id")?,
@@ -11259,19 +11266,23 @@ impl MarketingContentRpcImpl {
             };
             let customer_id = workspace.customer_id;
             self.state
-                .authorize_entitled_command_for_tenant(
+                .authorize_entitled_command_for_holding(
                     &claims,
                     &context,
                     customer_id,
                     "marketing",
                     "marketing-crm.write",
-                    tenant_id,
+                    holding_id,
                 )
                 .await?;
             let correlation_id = context.correlation_id;
-            let (write, read, port) =
-                route_marketing_content_store(&self.state, tenant_id, holding_ref, correlation_id)
-                    .await?;
+            let (write, read, port) = route_marketing_content_store(
+                &self.state,
+                holding_id,
+                data_profile_key,
+                correlation_id,
+            )
+            .await?;
             let result = async {
                 let command = BindDomainCommand::new(binding, context.clone())
                     .map_err(|error| marketing_application_status(error, correlation_id))?;
@@ -11312,28 +11323,27 @@ impl MarketingContentRpcImpl {
                 .as_ref()
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
             let mut context = command_domain(&request, Some(proto_context))?;
-            let holding_id = provider_account_scope(&context)?;
-            let workspace = resolve_legacy_tenant_workspace(
+            let holding_uuid = provider_account_scope(&context)?;
+            let workspace = resolve_legacy_holding_workspace(
                 &self.state,
-                &context.tenant_scope,
-                &input.tenant_id,
-                &input.holding_ref,
+                &context.active_scope,
+                &input.holding_id,
+                &input.data_profile_key,
                 true,
             )
             .await?;
             context.subscription_id = workspace.subscription_id;
-            let tenant_id = workspace.tenant_id.as_str();
-            let holding_ref = workspace.holding_ref.as_str();
+            let holding_id = workspace.holding_id.as_str();
             let account_id = parse_uuid(&input.provider_account_id, "provider_account_id")?;
             let customer_id = workspace.customer_id;
             self.state
-                .authorize_entitled_command_for_tenant(
+                .authorize_entitled_command_for_holding(
                     &claims,
                     &context,
                     customer_id,
                     "marketing",
                     "marketing.provider.configure",
-                    tenant_id,
+                    holding_id,
                 )
                 .await?;
             let channel_routes = input
@@ -11354,9 +11364,7 @@ impl MarketingContentRpcImpl {
             let command = ConfigureMarketingProviderAccountCommand::new(
                 account_id,
                 validate_transport_reference(&input.provider_account_ref, "provider_account_ref")?,
-                tenant_id,
-                holding_ref,
-                holding_id,
+                holding_uuid,
                 validate_transport_reference(&input.provider_key, "provider_key")?,
                 if input.provider_priority == 0 {
                     DEFAULT_MARKETING_PROVIDER_PRIORITY
@@ -11404,17 +11412,17 @@ impl MarketingContentRpcImpl {
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
             let mut context = command_domain(&request, Some(proto_context))?;
             provider_account_scope(&context)?;
-            let workspace = resolve_legacy_tenant_workspace(
+            let workspace = resolve_legacy_holding_workspace(
                 &self.state,
-                &context.tenant_scope,
-                &input.tenant_id,
-                &input.holding_ref,
+                &context.active_scope,
+                &input.holding_id,
+                &input.data_profile_key,
                 true,
             )
             .await?;
             context.subscription_id = workspace.subscription_id;
-            let tenant_id = workspace.tenant_id.as_str();
-            let holding_ref = workspace.holding_ref.as_str();
+            let holding_id = workspace.holding_id.as_str();
+            let data_profile_key = workspace.data_profile_key.as_str();
             let account_id = parse_uuid(&input.provider_account_id, "provider_account_id")?;
             let verification_reference = validate_transport_reference(
                 &input.verification_reference,
@@ -11422,19 +11430,19 @@ impl MarketingContentRpcImpl {
             )?;
             let customer_id = workspace.customer_id;
             self.state
-                .authorize_entitled_command_for_tenant(
+                .authorize_entitled_command_for_holding(
                     &claims,
                     &context,
                     customer_id,
                     "marketing",
                     "marketing.provider.verify",
-                    tenant_id,
+                    holding_id,
                 )
                 .await?;
             let command = AcknowledgeMarketingProviderVerificationCommand::new(
                 account_id,
-                tenant_id,
-                holding_ref,
+                holding_id,
+                data_profile_key,
                 verification_reference,
                 input.activate,
                 context.clone(),
@@ -11468,33 +11476,33 @@ impl MarketingContentRpcImpl {
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
             let mut context = command_domain(&request, Some(proto_context))?;
             provider_account_scope(&context)?;
-            let workspace = resolve_legacy_tenant_workspace(
+            let workspace = resolve_legacy_holding_workspace(
                 &self.state,
-                &context.tenant_scope,
-                &input.tenant_id,
-                &input.holding_ref,
+                &context.active_scope,
+                &input.holding_id,
+                &input.data_profile_key,
                 true,
             )
             .await?;
             context.subscription_id = workspace.subscription_id;
-            let tenant_id = workspace.tenant_id.as_str();
-            let holding_ref = workspace.holding_ref.as_str();
+            let holding_id = workspace.holding_id.as_str();
+            let data_profile_key = workspace.data_profile_key.as_str();
             let account_id = parse_uuid(&input.provider_account_id, "provider_account_id")?;
             let customer_id = workspace.customer_id;
             self.state
-                .authorize_entitled_command_for_tenant(
+                .authorize_entitled_command_for_holding(
                     &claims,
                     &context,
                     customer_id,
                     "marketing",
                     "marketing.provider.configure",
-                    tenant_id,
+                    holding_id,
                 )
                 .await?;
             let command = SetMarketingProviderAccountStateCommand::new(
                 account_id,
-                tenant_id,
-                holding_ref,
+                holding_id,
+                data_profile_key,
                 input.active,
                 context.clone(),
             )
@@ -11712,7 +11720,7 @@ impl EntitlementRpcImpl {
             &context.actor.principal_ref,
             "command actor must match the authenticated principal",
         )?;
-        let scope = access_scope(&context.tenant_scope);
+        let scope = access_scope(&context.active_scope);
         if !scope.contains(target_scope) {
             return Err(Status::permission_denied(
                 "entitlement target is outside the command scope",
@@ -11959,17 +11967,17 @@ where
         self.billing.list_catalog(request).await
     }
 
-    async fn get_tenant_subscription(
+    async fn get_holding_subscription(
         &self,
-        request: Request<commercial_target::GetTenantSubscriptionRequest>,
-    ) -> Result<Response<commercial_target::GetTenantSubscriptionResponse>, Status> {
+        request: Request<commercial_target::GetHoldingSubscriptionRequest>,
+    ) -> Result<Response<commercial_target::GetHoldingSubscriptionResponse>, Status> {
         self.billing.get_subscription(request).await
     }
 
-    async fn list_tenant_invoices(
+    async fn list_holding_invoices(
         &self,
-        request: Request<commercial_target::ListTenantInvoicesRequest>,
-    ) -> Result<Response<commercial_target::ListTenantInvoicesResponse>, Status> {
+        request: Request<commercial_target::ListHoldingInvoicesRequest>,
+    ) -> Result<Response<commercial_target::ListHoldingInvoicesResponse>, Status> {
         self.billing.list_invoices(request).await
     }
 
@@ -12245,7 +12253,7 @@ impl EntitlementRpcImpl {
             let company_id = parse_uuid(&input.company_id, "company_id")?;
             let module_key =
                 validate_transport_reference(&input.module_key, "module_key")?.to_owned();
-            let scope = access_scope(&context.tenant_scope);
+            let scope = access_scope(&context.active_scope);
             let target_scope = Scope::Company {
                 holding_id: entitlement_holding_id(&scope)?,
                 company_id,
@@ -12298,7 +12306,7 @@ impl EntitlementRpcImpl {
             let module_key =
                 validate_transport_reference(&input.module_key, "module_key")?.to_owned();
             let activated_at = entitlement_activation_time(&input.activated_at)?;
-            let scope = access_scope(&context.tenant_scope);
+            let scope = access_scope(&context.active_scope);
             let target_scope = Scope::Company {
                 holding_id: entitlement_holding_id(&scope)?,
                 company_id,
@@ -12351,7 +12359,7 @@ impl EntitlementRpcImpl {
             let module_key =
                 validate_transport_reference(&input.module_key, "module_key")?.to_owned();
             let activated_at = entitlement_activation_time(&input.activated_at)?;
-            let scope = access_scope(&context.tenant_scope);
+            let scope = access_scope(&context.active_scope);
             let target_scope = Scope::Branch {
                 holding_id: entitlement_holding_id(&scope)?,
                 company_id,
@@ -12512,7 +12520,7 @@ struct AccountsBody {
 
 const BROWSER_SESSION_ID_COOKIE: &str = "erpx_session_id";
 const BROWSER_REFRESH_COOKIE: &str = "erpx_refresh_token";
-const BROWSER_SESSION_BUNDLE_COOKIE: &str = "erpx_session_bundle_v2";
+const BROWSER_SESSION_BUNDLE_COOKIE: &str = "erpx_session_bundle";
 const MAX_BROWSER_ACCOUNTS: usize = 5;
 const MAX_BROWSER_BUNDLE_ENCODED_BYTES: usize = 3_800;
 
@@ -12916,10 +12924,10 @@ fn identity_http_error(error: IdentityStoreError) -> (&'static str, &'static str
 #[derive(Clone)]
 struct HttpServiceContext {
     store: Arc<SqlxControlPlane>,
-    registry: Arc<SqlxTenantStoreRegistry>,
+    registry: Arc<SqlxHoldingStoreRegistry>,
     auth: Arc<AuthContext>,
     commercial: Arc<SqlxCommercialStore>,
-    tenant_router: Option<Arc<TenantDatabaseRouter>>,
+    holding_router: Option<Arc<HoldingDatabaseRouter>>,
     storage: Arc<StorageComposition>,
     readiness: Arc<ServerReadinessAdapter>,
     marketing_callback_secrets: Arc<dyn MarketingCallbackSecretResolver>,
@@ -12933,8 +12941,8 @@ struct PublicMarketingFormSubmissionBody {
 
 struct PublicMarketingHttpContext<'a> {
     control: &'a SqlxControlPlane,
-    registry: &'a SqlxTenantStoreRegistry,
-    router: Option<&'a TenantDatabaseRouter>,
+    registry: &'a SqlxHoldingStoreRegistry,
+    router: Option<&'a HoldingDatabaseRouter>,
 }
 
 fn public_marketing_path(path: &str) -> bool {
@@ -12987,7 +12995,7 @@ fn marketing_abuse_binding_id(namespace: &str, value: &str) -> Uuid {
 
 fn marketing_abuse_fingerprint(
     headers: &HashMap<String, String>,
-    tenant_ref: &str,
+    data_profile_key: &str,
     hostname: &str,
 ) -> Result<String, &'static str> {
     let key = std::env::var("ERPX_MARKETING_ABUSE_FINGERPRINT_KEY")
@@ -12997,8 +13005,8 @@ fn marketing_abuse_fingerprint(
     }
     let mut mac = Hmac::<Sha256>::new_from_slice(key.as_bytes())
         .map_err(|_| "marketing abuse fingerprinting is not configured")?;
-    mac.update(b"erpx-marketing-public-abuse-v1\0");
-    mac.update(tenant_ref.as_bytes());
+    mac.update(b"erpx-marketing-public-abuse\0");
+    mac.update(data_profile_key.as_bytes());
     mac.update(b"\0");
     mac.update(hostname.as_bytes());
     for header in [
@@ -13113,8 +13121,8 @@ async fn handle_public_marketing_http(
             "{\"error\":\"method_not_allowed\"}".into(),
         ));
     }
-    let tenant_id = match headers
-        .get("x-erpx-tenant-id")
+    let holding_id = match headers
+        .get("x-erpx-holding-id")
         .map(String::as_str)
         .filter(|value| !value.trim().is_empty())
     {
@@ -13123,11 +13131,11 @@ async fn handle_public_marketing_http(
             return Some((
                 "400 Bad Request",
                 "application/json",
-                "{\"error\":\"tenant_id_required\"}".into(),
+                "{\"error\":\"holding_id_required\"}".into(),
             ));
         }
     };
-    let registration = match registry.get(tenant_id).await {
+    let registration = match registry.get(holding_id).await {
         Ok(Some(registration)) if registration.state == "active" => registration,
         Ok(_) => {
             return Some((
@@ -13148,7 +13156,7 @@ async fn handle_public_marketing_http(
         return Some((
             "503 Service Unavailable",
             "application/json",
-            "{\"error\":\"tenant_routing_unavailable\"}".into(),
+            "{\"error\":\"holding_routing_unavailable\"}".into(),
         ));
     };
     let hostname = match public_marketing_hostname(headers) {
@@ -13181,7 +13189,7 @@ async fn handle_public_marketing_http(
     } else {
         ("preview", PUBLIC_MARKETING_PREVIEW_REQUESTS_PER_MINUTE)
     };
-    let fingerprint = match marketing_abuse_fingerprint(headers, tenant_id, hostname) {
+    let fingerprint = match marketing_abuse_fingerprint(headers, holding_id, hostname) {
         Ok(fingerprint) => fingerprint,
         Err(_) => {
             return Some((
@@ -13191,10 +13199,10 @@ async fn handle_public_marketing_http(
             ));
         }
     };
-    let tenant_binding_id = marketing_abuse_binding_id("tenant", tenant_id);
+    let holding_binding_id = marketing_abuse_binding_id("holding", holding_id);
     let domain_binding_id = marketing_abuse_binding_id("hostname", &hostname.to_ascii_lowercase());
     let policy = match AnonymousMarketingAbusePolicy::new(
-        tenant_binding_id,
+        holding_binding_id,
         resource_id,
         domain_binding_id,
         Duration::seconds(erpx_domain::marketing_abuse::DEFAULT_MARKETING_ABUSE_WINDOW_SECONDS),
@@ -13215,7 +13223,7 @@ async fn handle_public_marketing_http(
     };
     let signal = public_marketing_abuse_signal(kind, headers, body);
     let policy_input = match AnonymousMarketingAbuseInput::new(
-        tenant_binding_id,
+        holding_binding_id,
         resource_id,
         domain_binding_id,
         fingerprint,
@@ -13250,8 +13258,8 @@ async fn handle_public_marketing_http(
     let abuse_allowed = control
         .consume_marketing_public_abuse_window(
             &MarketingPublicAbuseWindowRequest {
-                tenant_id: tenant_id.to_owned(),
-                holding_ref: registration.holding_ref.clone(),
+                holding_id: holding_id.to_owned(),
+                data_profile_key: registration.data_profile_key.clone(),
                 hostname: hostname.to_ascii_lowercase(),
                 resource_kind: resource_kind.to_owned(),
                 resource_id,
@@ -13290,8 +13298,8 @@ async fn handle_public_marketing_http(
     }
     let write = match router
         .route(
-            tenant_id,
-            &registration.holding_ref,
+            holding_id,
+            &registration.data_profile_key,
             RoutedDatabaseSide::Write,
         )
         .await
@@ -13301,14 +13309,14 @@ async fn handle_public_marketing_http(
             return Some((
                 "503 Service Unavailable",
                 "application/json",
-                "{\"error\":\"tenant_write_unavailable\"}".into(),
+                "{\"error\":\"holding_write_unavailable\"}".into(),
             ));
         }
     };
     let read = match router
         .route(
-            tenant_id,
-            &registration.holding_ref,
+            holding_id,
+            &registration.data_profile_key,
             RoutedDatabaseSide::Read,
         )
         .await
@@ -13319,14 +13327,14 @@ async fn handle_public_marketing_http(
             return Some((
                 "503 Service Unavailable",
                 "application/json",
-                "{\"error\":\"tenant_read_unavailable\"}".into(),
+                "{\"error\":\"holding_read_unavailable\"}".into(),
             ));
         }
     };
     let store = match SqlxMarketingContentStore::new(
         write.database_pool().clone(),
         read.database_pool().clone(),
-        registration.holding_ref.clone(),
+        registration.data_profile_key.clone(),
     ) {
         Ok(store) => store,
         Err(error) => {
@@ -13449,7 +13457,7 @@ async fn handle_public_marketing_http(
         let mut context = match CommandContext::try_new(
             idempotency_key,
             ActorAttribution {
-                principal_ref: format!("public-form:{tenant_id}"),
+                principal_ref: format!("public-form:{holding_id}"),
                 kind: ActorKind::Service,
                 session_id: None,
                 represented_principal_ref: None,
@@ -13675,7 +13683,7 @@ async fn handle_http_health(
         registry,
         auth,
         commercial,
-        tenant_router,
+        holding_router,
         storage,
         readiness,
         marketing_callback_secrets,
@@ -13725,7 +13733,7 @@ async fn handle_http_health(
         }
     };
     let _request_trace = errors::HttpRequestTrace::start(&method, &path, correlation_id);
-    if path == "/branding/v1/bootstrap" {
+    if path == "/branding/bootstrap" {
         let (status, response_body) = if method != "GET" {
             (
                 "405 Method Not Allowed",
@@ -13859,7 +13867,7 @@ async fn handle_http_health(
             PublicMarketingHttpContext {
                 control: &store,
                 registry: &registry,
-                router: tenant_router.as_deref(),
+                router: holding_router.as_deref(),
             },
         )
         .await
@@ -13891,7 +13899,7 @@ async fn handle_http_health(
                     auth: &auth,
                     store: &store,
                     commercial: &commercial,
-                    router: tenant_router.as_deref(),
+                    router: holding_router.as_deref(),
                     storage: &storage,
                 },
             )
@@ -13918,7 +13926,7 @@ async fn handle_http_health(
                 &body,
                 &headers,
                 &store,
-                tenant_router.as_deref(),
+                holding_router.as_deref(),
                 marketing_callback_secrets.as_ref(),
                 correlation_id,
             )
@@ -13999,7 +14007,7 @@ async fn handle_http_health(
                             "status": system_readiness.overall().as_str(),
                             "required": readiness.required,
                             "worker_heartbeat": system_readiness.worker_heartbeat.as_str(),
-                            "tenant_routing": system_readiness.tenant_routing.as_str(),
+                            "holding_routing": system_readiness.holding_routing.as_str(),
                             "projection_freshness": system_readiness.projection_freshness.as_str(),
                             "backup_pitr": system_readiness.backup_pitr.as_str(),
                         },
@@ -14020,7 +14028,7 @@ async fn handle_http_health(
                             "status": system_readiness.overall().as_str(),
                             "required": readiness.required,
                             "worker_heartbeat": system_readiness.worker_heartbeat.as_str(),
-                            "tenant_routing": system_readiness.tenant_routing.as_str(),
+                            "holding_routing": system_readiness.holding_routing.as_str(),
                             "projection_freshness": system_readiness.projection_freshness.as_str(),
                             "backup_pitr": system_readiness.backup_pitr.as_str(),
                         },
@@ -14397,7 +14405,7 @@ async fn handle_http_health(
 
 #[derive(Debug, Deserialize)]
 struct ObjectUploadBody {
-    tenant_id: String,
+    holding_id: String,
     storage_namespace: String,
     customer_id: String,
     subscription_id: String,
@@ -14411,7 +14419,7 @@ struct ObjectUploadBody {
 
 #[derive(Debug, Deserialize)]
 struct ObjectDownloadBody {
-    tenant_id: String,
+    holding_id: String,
     storage_namespace: String,
     customer_id: String,
     subscription_id: String,
@@ -14424,16 +14432,16 @@ struct ObjectDownloadBody {
 }
 
 struct ObjectHttpContext<'a> {
-    registry: &'a SqlxTenantStoreRegistry,
+    registry: &'a SqlxHoldingStoreRegistry,
     auth: &'a AuthContext,
     store: &'a SqlxControlPlane,
     commercial: &'a SqlxCommercialStore,
-    router: Option<&'a TenantDatabaseRouter>,
+    router: Option<&'a HoldingDatabaseRouter>,
     storage: &'a StorageComposition,
 }
 
 struct ObjectPolicyRequest<'a> {
-    tenant_id: &'a str,
+    holding_id: &'a str,
     storage_namespace: &'a str,
     customer_id_ref: &'a str,
     subscription_id_ref: &'a str,
@@ -14463,8 +14471,8 @@ async fn handle_object_http(
         let subscription_id = input.subscription_id.clone();
         let company_id = input.company_id.clone();
         let branch_id = input.branch_id.clone();
-        let request = TenantObjectUploadRequest {
-            tenant_id: input.tenant_id,
+        let request = HoldingObjectUploadRequest {
+            holding_id: input.holding_id,
             storage_namespace: input.storage_namespace,
             object_key: input.object_key,
             expires_seconds: input.expires_seconds,
@@ -14479,7 +14487,7 @@ async fn handle_object_http(
             context.commercial,
             context.router,
             ObjectPolicyRequest {
-                tenant_id: &request.tenant_id,
+                holding_id: &request.holding_id,
                 storage_namespace: &request.storage_namespace,
                 customer_id_ref: &customer_id,
                 subscription_id_ref: &subscription_id,
@@ -14520,8 +14528,8 @@ async fn handle_object_http(
     let subscription_id = input.subscription_id.clone();
     let company_id = input.company_id.clone();
     let branch_id = input.branch_id.clone();
-    let request = TenantObjectDownloadRequest {
-        tenant_id: input.tenant_id,
+    let request = HoldingObjectDownloadRequest {
+        holding_id: input.holding_id,
         storage_namespace: input.storage_namespace,
         object_key: input.object_key,
         expires_seconds: input.expires_seconds,
@@ -14536,7 +14544,7 @@ async fn handle_object_http(
         context.commercial,
         context.router,
         ObjectPolicyRequest {
-            tenant_id: &request.tenant_id,
+            holding_id: &request.holding_id,
             storage_namespace: &request.storage_namespace,
             customer_id_ref: &customer_id,
             subscription_id_ref: &subscription_id,
@@ -14570,11 +14578,11 @@ async fn handle_object_http(
 
 async fn authorize_object_request(
     headers: &HashMap<String, String>,
-    registry: &SqlxTenantStoreRegistry,
+    registry: &SqlxHoldingStoreRegistry,
     auth: &AuthContext,
     store: &SqlxControlPlane,
     commercial: &SqlxCommercialStore,
-    router: Option<&TenantDatabaseRouter>,
+    router: Option<&HoldingDatabaseRouter>,
     policy: ObjectPolicyRequest<'_>,
 ) -> Result<(), ObjectAuthorizationError> {
     let token = headers
@@ -14610,7 +14618,7 @@ async fn authorize_object_request(
         .await
         .map_err(|_| ObjectAuthorizationError::Denied)?;
     let Some(registration) = registry
-        .get(policy.tenant_id)
+        .get(policy.holding_id)
         .await
         .map_err(|_| ObjectAuthorizationError::Denied)?
     else {
@@ -14620,8 +14628,8 @@ async fn authorize_object_request(
     {
         return Err(ObjectAuthorizationError::Denied);
     }
-    let holding_id =
-        Uuid::parse_str(&registration.holding_ref).map_err(|_| ObjectAuthorizationError::Denied)?;
+    let holding_id = Uuid::parse_str(&registration.data_profile_key)
+        .map_err(|_| ObjectAuthorizationError::Denied)?;
     let customer_id =
         Uuid::parse_str(policy.customer_id_ref).map_err(|_| ObjectAuthorizationError::Denied)?;
     let subscription_id = Uuid::parse_str(policy.subscription_id_ref)
@@ -14721,7 +14729,7 @@ async fn authorize_object_request(
             Scope::Company {
                 holding_id,
                 company_id,
-            } => KernelTenantScope::Company {
+            } => KernelHoldingScope::Company {
                 holding_id,
                 company_id,
             },
@@ -14729,7 +14737,7 @@ async fn authorize_object_request(
                 holding_id,
                 company_id,
                 branch_id,
-            } => KernelTenantScope::Branch {
+            } => KernelHoldingScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -14739,15 +14747,15 @@ async fn authorize_object_request(
         let router = router.ok_or(ObjectAuthorizationError::Denied)?;
         let routed = router
             .route(
-                policy.tenant_id,
-                &registration.holding_ref,
+                policy.holding_id,
+                &registration.data_profile_key,
                 RoutedDatabaseSide::Write,
             )
             .await
             .map_err(|_| ObjectAuthorizationError::Denied)?;
-        let tenant_id =
-            Uuid::parse_str(policy.tenant_id).map_err(|_| ObjectAuthorizationError::Denied)?;
-        let write = CqrsWritePool::for_tenant(routed.database_pool().clone(), tenant_id)
+        let holding_id =
+            Uuid::parse_str(policy.holding_id).map_err(|_| ObjectAuthorizationError::Denied)?;
+        let write = CqrsWritePool::for_holding(routed.database_pool().clone(), holding_id)
             .map_err(|_| ObjectAuthorizationError::Denied)?;
         let repository = SupportWriteRepository::new(write);
         let ticket = erpx_support::WriteRepository::load_ticket(
@@ -14779,12 +14787,12 @@ async fn authorize_object_request(
         .ok_or(ObjectAuthorizationError::Denied)?;
         let legacy_mode = match normalized_session.mode() {
             erpx_support::SupportMode::DiagnosticRead => SupportMode::DiagnosticRead,
-            erpx_support::SupportMode::TenantMutation => SupportMode::TenantMutation,
+            erpx_support::SupportMode::HoldingMutation => SupportMode::HoldingMutation,
             erpx_support::SupportMode::Impersonation => SupportMode::Impersonation,
         };
         let mode_name = match legacy_mode {
             SupportMode::DiagnosticRead => "diagnostic_read",
-            SupportMode::TenantMutation => "tenant_mutation",
+            SupportMode::HoldingMutation => "holding_mutation",
             SupportMode::Impersonation => "impersonation",
         };
         if ticket.id().as_uuid() != ticket_id
@@ -14828,7 +14836,7 @@ async fn authorize_object_request(
             ticket_id,
             customer_account_id: customer_id,
             agent_ref: claims.principal_ref.clone(),
-            represented_tenant_user: normalized_session
+            represented_holding_user: normalized_session
                 .represented_principal()
                 .map(|principal| principal.as_uuid().to_string()),
             mode: legacy_mode,
@@ -14955,7 +14963,7 @@ async fn authorize_object_request(
             .ok_or(ObjectAuthorizationError::Denied)?;
         let represented_user_role =
             session
-                .represented_tenant_user
+                .represented_holding_user
                 .as_deref()
                 .map(|principal_ref| async {
                     store
@@ -14976,7 +14984,7 @@ async fn authorize_object_request(
             "support.session.request",
             BTreeSet::from([String::from("documents")]),
             matches!(session.mode, SupportMode::DiagnosticRead),
-            matches!(session.mode, SupportMode::TenantMutation),
+            matches!(session.mode, SupportMode::HoldingMutation),
             matches!(session.mode, SupportMode::Impersonation),
             store
                 .sod_decision_active(&claims.principal_ref, "documents", &Scope::Platform, at)
@@ -15043,7 +15051,7 @@ async fn authorize_object_request(
     }
     if !store
         .authorize_object_binding(&ObjectAccessBindingRequest {
-            tenant_id: policy.tenant_id,
+            holding_id: policy.holding_id,
             storage_namespace: policy.storage_namespace,
             object_key: policy.object_key,
             customer_id,
@@ -15141,7 +15149,7 @@ async fn accept_marketing_provider_callback(
     body: &[u8],
     headers: &HashMap<String, String>,
     control: &SqlxControlPlane,
-    router: Option<&TenantDatabaseRouter>,
+    router: Option<&HoldingDatabaseRouter>,
     secret_resolver: &dyn MarketingCallbackSecretResolver,
     correlation_id: Uuid,
 ) -> Result<erpx_infrastructure::MarketingProviderCallbackReceipt, MarketingCallbackHttpError> {
@@ -15183,16 +15191,16 @@ async fn accept_marketing_provider_callback(
         .map_err(|_| MarketingCallbackHttpError::Invalid("marketing delivery ID is invalid"))?;
     let write = router
         .route(
-            &binding.tenant_id,
-            &binding.holding_ref,
+            &binding.holding_id.to_string(),
+            &binding.data_profile_key,
             RoutedDatabaseSide::Write,
         )
         .await
         .map_err(|_| MarketingCallbackHttpError::Persistence)?;
     let read = match router
         .route(
-            &binding.tenant_id,
-            &binding.holding_ref,
+            &binding.holding_id.to_string(),
+            &binding.data_profile_key,
             RoutedDatabaseSide::Read,
         )
         .await
@@ -15206,7 +15214,7 @@ async fn accept_marketing_provider_callback(
     let store = match SqlxMarketingDeliveryStore::from_pools(
         write.database_pool(),
         read.database_pool(),
-        binding.holding_ref.clone(),
+        binding.data_profile_key.clone(),
     ) {
         Ok(store) => store,
         Err(_) => {
@@ -15226,11 +15234,11 @@ async fn accept_marketing_provider_callback(
         }
     };
     let dispatch_holding_id = match &dispatch.scope {
-        TenantScope::Holding { holding_id }
-        | TenantScope::Company { holding_id, .. }
-        | TenantScope::Branch { holding_id, .. }
-        | TenantScope::Subtree { holding_id, .. } => Some(*holding_id),
-        TenantScope::Platform => None,
+        AuthorityScope::Holding { holding_id }
+        | AuthorityScope::Company { holding_id, .. }
+        | AuthorityScope::Branch { holding_id, .. }
+        | AuthorityScope::Subtree { holding_id, .. } => Some(*holding_id),
+        AuthorityScope::Platform => None,
     };
     if dispatch_holding_id != Some(binding.holding_id) {
         write.close().await;
@@ -15242,7 +15250,6 @@ async fn accept_marketing_provider_callback(
     let scope = dispatch.scope.clone();
     let callback_binding = MarketingProviderCallbackBinding::new(
         provider_account_ref.clone(),
-        binding.tenant_id.clone(),
         binding.holding_id,
         scope,
     )
@@ -15711,25 +15718,25 @@ fn configure_totp_key_resolver() -> Result<Option<Arc<TotpKeyResolver>>, Box<dyn
     }
 }
 
-fn configure_tenant_router(
+fn configure_holding_router(
     store: Arc<SqlxControlPlane>,
-) -> Result<Option<Arc<TenantDatabaseRouter>>, Box<dyn std::error::Error>> {
-    let admin = std::env::var("ERPX_TENANT_ADMIN_DATABASE_URL").ok();
-    let template = std::env::var("ERPX_TENANT_DATABASE_URL_TEMPLATE").ok();
+) -> Result<Option<Arc<HoldingDatabaseRouter>>, Box<dyn std::error::Error>> {
+    let admin = std::env::var("ERPX_HOLDING_ADMIN_DATABASE_URL").ok();
+    let template = std::env::var("ERPX_HOLDING_DATABASE_URL_TEMPLATE").ok();
     match (admin, template) {
         (None, None) => Ok(None),
         (Some(admin_database_url), Some(database_url_template))
             if !admin_database_url.trim().is_empty()
                 && !database_url_template.trim().is_empty() =>
         {
-            let config = TenantDatabaseProvisioningConfig {
+            let config = HoldingDatabaseProvisioningConfig {
                 admin_database_url,
                 database_url_template,
             };
-            let router = TenantDatabaseRouter::new(store, config)?;
+            let router = HoldingDatabaseRouter::new(store, config)?;
             Ok(Some(Arc::new(router)))
         }
-        _ => Err("tenant database routing configuration is incomplete".into()),
+        _ => Err("holding database routing configuration is incomplete".into()),
     }
 }
 
@@ -15805,7 +15812,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         || std::env::var("ERPX_DEVELOPMENT_CLUSTER").as_deref() == Ok("local-ucs-lab")
         || [
             "ERPX_DEV_CONTROLLER_ROLE_PROFILE",
-            "ERPX_DEV_CONTROLLER_TARGET_TENANT",
+            "ERPX_DEV_CONTROLLER_TARGET_HOLDING",
             "ERPX_DEV_CONTROLLER_MFA_BYPASS",
             "ERPX_DEV_CONTROLLER_SOD_BYPASS",
         ]
@@ -15843,7 +15850,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         .await
         .map_err(|error| format!("control-plane command-owner check failed: {error}"))?;
     let commercial = Arc::new(SqlxCommercialStore::new(&store));
-    let tenant_router = configure_tenant_router(store.clone())?;
+    let holding_router = configure_holding_router(store.clone())?;
     let marketing_callback_secrets = configure_marketing_callback_secret_resolver()?;
     let identity = Arc::new(SqlxIdentityStore::new(store.pools().write.clone()));
     let directory_secrets = configure_directory_secret_resolver()?;
@@ -15864,7 +15871,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         auth: auth.clone(),
         store: store.clone(),
         commercial: commercial.clone(),
-        tenant_router,
+        holding_router,
         storage: storage.clone(),
         roles: Arc::new(RoleLifecycleUseCase::new(store.clone(), clock, audit)),
         platform_completion: Arc::new(PlatformCompletionApi::new(Arc::new(
@@ -15881,20 +15888,20 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let http_addr: SocketAddr = std::env::var("ERPX_HTTP_ADDR")
         .unwrap_or_else(|_| "127.0.0.1:50052".into())
         .parse()?;
-    let tenant_registry = Arc::new(SqlxTenantStoreRegistry::new(state.store.clone()));
+    let holding_registry = Arc::new(SqlxHoldingStoreRegistry::new(state.store.clone()));
     let readiness = Arc::new(ServerReadinessAdapter::from_env(
         state.store.clone(),
-        tenant_registry.clone(),
+        holding_registry.clone(),
     ));
     let http_listener = TcpListener::bind(http_addr).await?;
     tokio::spawn(serve_http_health(
         http_listener,
         HttpServiceContext {
             store: state.store.clone(),
-            registry: tenant_registry,
+            registry: holding_registry,
             auth: state.auth.clone(),
             commercial: state.commercial.clone(),
-            tenant_router: state.tenant_router.clone(),
+            holding_router: state.holding_router.clone(),
             storage: state.storage.clone(),
             readiness: readiness.clone(),
             marketing_callback_secrets,
@@ -15905,7 +15912,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|_| "127.0.0.1:50051".into())
         .parse()?;
     let quality_application = Arc::new(QualityServerApplication {
-        router: state.tenant_router.clone(),
+        router: state.holding_router.clone(),
     });
     let quality_authenticator = Arc::new(QualityServerAuthenticator {
         state: state.clone(),
@@ -15920,10 +15927,10 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         commercial_provider_key,
     ));
     let identity_access_application =
-        Arc::new(IdentityServerApplication::new(state.tenant_router.clone()));
+        Arc::new(IdentityServerApplication::new(state.holding_router.clone()));
     let identity_access_authenticator = Arc::new(IdentityServerAuthenticator::new(state.clone()));
     let organization_application = Arc::new(OrganizationServerApplication::new(
-        state.tenant_router.clone(),
+        state.holding_router.clone(),
     ));
     let organization_authenticator = Arc::new(OrganizationServerAuthenticator::new(state.clone()));
     let platform_administration_application =
@@ -15936,11 +15943,11 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let customer_authority_application = Arc::new(CustomerAuthorityServerApplication::new(&state));
     let customer_authority_authenticator =
         Arc::new(CustomerAuthorityServerAuthenticator::new(state.clone()));
-    let wave6_application = Arc::new(Wave6TenantApplication::new(&state));
+    let wave6_application = Arc::new(Wave6HoldingApplication::new(&state));
     let wave6_authenticator = Arc::new(Wave6ServerAuthenticator::new(state.clone()));
-    let wave7_application = Arc::new(Wave7TenantApplication::new(&state));
+    let wave7_application = Arc::new(Wave7HoldingApplication::new(&state));
     let wave7_authenticator = Arc::new(Wave7ServerAuthenticator::new(state.clone()));
-    let wave8_application = Arc::new(Wave8TenantApplication::new(state.clone())?);
+    let wave8_application = Arc::new(Wave8HoldingApplication::new(state.clone())?);
     let wave8_authenticator = Arc::new(Wave8ServerAuthenticator::new(state.clone()));
     let wave9_application = Arc::new(Wave9Application::new(&state));
     let wave9_authenticator = Arc::new(Wave9ServerAuthenticator::new(state.clone()));
@@ -15954,32 +15961,32 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         .layer(grpc_web_cors_layer())
         .layer(tonic_web::GrpcWebLayer::new())
         .add_service(
-            erpx_proto::erpx::reference::v2::reference_query_service_server::ReferenceQueryServiceServer::new(
+            erpx_proto::erpx::reference::reference_query_service_server::ReferenceQueryServiceServer::new(
                 ReferenceQueryRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::collaboration::v2::collaboration_command_service_server::CollaborationCommandServiceServer::new(
+            erpx_proto::erpx::collaboration::collaboration_command_service_server::CollaborationCommandServiceServer::new(
                 CollaborationCommandRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::collaboration::v2::collaboration_query_service_server::CollaborationQueryServiceServer::new(
+            erpx_proto::erpx::collaboration::collaboration_query_service_server::CollaborationQueryServiceServer::new(
                 CollaborationQueryRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::collaboration::v2::collaboration_stream_service_server::CollaborationStreamServiceServer::new(
+            erpx_proto::erpx::collaboration::collaboration_stream_service_server::CollaborationStreamServiceServer::new(
                 CollaborationStreamRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::platform_administration::v2::data_plane_stream_service_server::DataPlaneStreamServiceServer::new(
+            erpx_proto::erpx::platform_administration::data_plane_stream_service_server::DataPlaneStreamServiceServer::new(
                 DataPlaneStreamRpc::new(state.clone(), readiness),
             ),
         )
         .add_service(
-            erpx_proto::erpx::operations::v2::operations_command_service_server::OperationsCommandServiceServer::new(
+            erpx_proto::erpx::operations::operations_command_service_server::OperationsCommandServiceServer::new(
                 OperationsCommandRpc::new(
                     wave9_application.clone(),
                     wave9_authenticator.clone(),
@@ -15987,7 +15994,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::operations::v2::operations_query_service_server::OperationsQueryServiceServer::new(
+            erpx_proto::erpx::operations::operations_query_service_server::OperationsQueryServiceServer::new(
                 OperationsQueryRpc::new(
                     wave9_application.clone(),
                     wave9_authenticator.clone(),
@@ -15995,14 +16002,14 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::customer_360::v2::customer360_command_service_server::Customer360CommandServiceServer::new(
+            erpx_proto::erpx::customer_360::customer360_command_service_server::Customer360CommandServiceServer::new(
                 CustomerRpcImpl {
                     state: state.clone(),
                 },
             ),
         )
         .add_service(
-            erpx_proto::erpx::customer_360::v2::customer360_query_service_server::Customer360QueryServiceServer::new(
+            erpx_proto::erpx::customer_360::customer360_query_service_server::Customer360QueryServiceServer::new(
                 Customer360QueryComposite::new(
                     Customer360QueryRpc::new(wave9_application, wave9_authenticator),
                     CustomerRpcImpl { state: state.clone() },
@@ -16010,17 +16017,17 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::quality::v2::quality_command_service_server::QualityCommandServiceServer::new(
+            erpx_proto::erpx::quality::quality_command_service_server::QualityCommandServiceServer::new(
                 QualityCommandRpc::new(quality_application.clone(), quality_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::quality::v2::quality_query_service_server::QualityQueryServiceServer::new(
+            erpx_proto::erpx::quality::quality_query_service_server::QualityQueryServiceServer::new(
                 QualityQueryRpc::new(quality_application, quality_authenticator),
             ),
         )
         .add_service(
-            erpx_proto::erpx::commercial::v2::commercial_command_service_server::CommercialCommandServiceServer::new(
+            erpx_proto::erpx::commercial::commercial_command_service_server::CommercialCommandServiceServer::new(
                 CommercialCommandComposite::new(
                     CommercialCommandRpc::new(
                         commercial_application.clone(),
@@ -16036,7 +16043,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::commercial::v2::commercial_query_service_server::CommercialQueryServiceServer::new(
+            erpx_proto::erpx::commercial::commercial_query_service_server::CommercialQueryServiceServer::new(
                 CommercialQueryComposite::new(
                     CommercialQueryRpc::new(commercial_application, commercial_authenticator),
                     EntitlementRpcImpl {
@@ -16049,7 +16056,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::identity_access::v2::identity_access_command_service_server::IdentityAccessCommandServiceServer::new(
+            erpx_proto::erpx::identity_access::identity_access_command_service_server::IdentityAccessCommandServiceServer::new(
                 IdentityAccessCommandComposite::new(
                     IdentityAccessCommandRpc::new(
                         identity_access_application.clone(),
@@ -16064,7 +16071,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::identity_access::v2::identity_access_query_service_server::IdentityAccessQueryServiceServer::new(
+            erpx_proto::erpx::identity_access::identity_access_query_service_server::IdentityAccessQueryServiceServer::new(
                 IdentityAccessQueryComposite::new(
                     IdentityAccessQueryRpc::new(
                         identity_access_application,
@@ -16080,7 +16087,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::organization::v2::organization_command_service_server::OrganizationCommandServiceServer::new(
+            erpx_proto::erpx::organization::organization_command_service_server::OrganizationCommandServiceServer::new(
                 OrganizationCommandRpc::new(
                     organization_application.clone(),
                     organization_authenticator.clone(),
@@ -16088,7 +16095,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::organization::v2::organization_query_service_server::OrganizationQueryServiceServer::new(
+            erpx_proto::erpx::organization::organization_query_service_server::OrganizationQueryServiceServer::new(
                 OrganizationQueryRpc::new(
                     organization_application,
                     organization_authenticator,
@@ -16096,7 +16103,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::platform_administration::v2::platform_administration_command_service_server::PlatformAdministrationCommandServiceServer::new(
+            erpx_proto::erpx::platform_administration::platform_administration_command_service_server::PlatformAdministrationCommandServiceServer::new(
                 PlatformAdministrationCommandComposite {
                     current: PlatformAdministrationCommandRpc::new(
                         platform_administration_application.clone(),
@@ -16112,7 +16119,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::platform_administration::v2::platform_administration_query_service_server::PlatformAdministrationQueryServiceServer::new(
+            erpx_proto::erpx::platform_administration::platform_administration_query_service_server::PlatformAdministrationQueryServiceServer::new(
                 PlatformAdministrationQueryComposite {
                     current: PlatformAdministrationQueryRpc::new(
                         platform_administration_application,
@@ -16128,17 +16135,17 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::brand::v2::brand_command_service_server::BrandCommandServiceServer::new(
+            erpx_proto::erpx::brand::brand_command_service_server::BrandCommandServiceServer::new(
                 BrandCommandRpc::new(brand_application.clone(), brand_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::brand::v2::brand_query_service_server::BrandQueryServiceServer::new(
+            erpx_proto::erpx::brand::brand_query_service_server::BrandQueryServiceServer::new(
                 BrandQueryRpc::new(brand_application, brand_authenticator),
             ),
         )
         .add_service(
-            erpx_proto::erpx::customer_authority::v2::customer_authority_command_service_server::CustomerAuthorityCommandServiceServer::new(
+            erpx_proto::erpx::customer_authority::customer_authority_command_service_server::CustomerAuthorityCommandServiceServer::new(
                 CustomerAuthorityCommandRpc::new(
                     customer_authority_application.clone(),
                     customer_authority_authenticator.clone(),
@@ -16146,7 +16153,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::customer_authority::v2::customer_authority_query_service_server::CustomerAuthorityQueryServiceServer::new(
+            erpx_proto::erpx::customer_authority::customer_authority_query_service_server::CustomerAuthorityQueryServiceServer::new(
                 CustomerAuthorityQueryComposite::new(
                     CustomerAuthorityQueryRpc::new(
                         customer_authority_application,
@@ -16157,7 +16164,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::marketing::v2::marketing_command_service_server::MarketingCommandServiceServer::new(
+            erpx_proto::erpx::marketing::marketing_command_service_server::MarketingCommandServiceServer::new(
                 MarketingCommandComposite::new(
                     MarketingCommandRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
                     MarketingContentRpcImpl { state: state.clone() },
@@ -16165,7 +16172,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::marketing::v2::marketing_query_service_server::MarketingQueryServiceServer::new(
+            erpx_proto::erpx::marketing::marketing_query_service_server::MarketingQueryServiceServer::new(
                 MarketingQueryComposite::new(
                     MarketingQueryRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
                     MarketingContentRpcImpl { state: state.clone() },
@@ -16173,7 +16180,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::crm::v2::crm_command_service_server::CrmCommandServiceServer::new(
+            erpx_proto::erpx::crm::crm_command_service_server::CrmCommandServiceServer::new(
                 CrmCommandComposite::new(
                     CrmCommandRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
                     CrmRpcImpl { state: state.clone() },
@@ -16181,7 +16188,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::crm::v2::crm_query_service_server::CrmQueryServiceServer::new(
+            erpx_proto::erpx::crm::crm_query_service_server::CrmQueryServiceServer::new(
                 CrmQueryComposite::new(
                     CrmQueryRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
                     CrmRpcImpl { state: state.clone() },
@@ -16189,57 +16196,57 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::procurement::v2::procurement_command_service_server::ProcurementCommandServiceServer::new(
+            erpx_proto::erpx::procurement::procurement_command_service_server::ProcurementCommandServiceServer::new(
                 ProcurementCommandRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::procurement::v2::procurement_query_service_server::ProcurementQueryServiceServer::new(
+            erpx_proto::erpx::procurement::procurement_query_service_server::ProcurementQueryServiceServer::new(
                 ProcurementQueryRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::inventory::v2::inventory_command_service_server::InventoryCommandServiceServer::new(
+            erpx_proto::erpx::inventory::inventory_command_service_server::InventoryCommandServiceServer::new(
                 InventoryCommandRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::inventory::v2::inventory_query_service_server::InventoryQueryServiceServer::new(
+            erpx_proto::erpx::inventory::inventory_query_service_server::InventoryQueryServiceServer::new(
                 InventoryQueryRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::assets::v2::assets_command_service_server::AssetsCommandServiceServer::new(
+            erpx_proto::erpx::assets::assets_command_service_server::AssetsCommandServiceServer::new(
                 AssetsCommandRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::assets::v2::assets_query_service_server::AssetsQueryServiceServer::new(
+            erpx_proto::erpx::assets::assets_query_service_server::AssetsQueryServiceServer::new(
                 AssetsQueryRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::maintenance::v2::maintenance_command_service_server::MaintenanceCommandServiceServer::new(
+            erpx_proto::erpx::maintenance::maintenance_command_service_server::MaintenanceCommandServiceServer::new(
                 MaintenanceCommandRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::maintenance::v2::maintenance_query_service_server::MaintenanceQueryServiceServer::new(
+            erpx_proto::erpx::maintenance::maintenance_query_service_server::MaintenanceQueryServiceServer::new(
                 MaintenanceQueryRpc::new(wave6_application, wave6_authenticator),
             ),
         )
         .add_service(
-            erpx_proto::erpx::sales::v2::sales_command_service_server::SalesCommandServiceServer::new(
+            erpx_proto::erpx::sales::sales_command_service_server::SalesCommandServiceServer::new(
                 SalesCommandRpc::new(wave7_application.clone(), wave7_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::sales::v2::sales_query_service_server::SalesQueryServiceServer::new(
+            erpx_proto::erpx::sales::sales_query_service_server::SalesQueryServiceServer::new(
                 SalesQueryRpc::new(wave7_application.clone(), wave7_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::people_payroll::v2::people_payroll_command_service_server::PeoplePayrollCommandServiceServer::new(
+            erpx_proto::erpx::people_payroll::people_payroll_command_service_server::PeoplePayrollCommandServiceServer::new(
                 PeoplePayrollCommandRpc::new(
                     wave7_application.clone(),
                     wave7_authenticator.clone(),
@@ -16247,7 +16254,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::people_payroll::v2::people_payroll_query_service_server::PeoplePayrollQueryServiceServer::new(
+            erpx_proto::erpx::people_payroll::people_payroll_query_service_server::PeoplePayrollQueryServiceServer::new(
                 PeoplePayrollQueryRpc::new(
                     wave7_application.clone(),
                     wave7_authenticator.clone(),
@@ -16255,37 +16262,37 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::pos::v2::point_of_sale_command_service_server::PointOfSaleCommandServiceServer::new(
+            erpx_proto::erpx::pos::point_of_sale_command_service_server::PointOfSaleCommandServiceServer::new(
                 PosCommandRpc::new(wave7_application.clone(), wave7_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::pos::v2::point_of_sale_query_service_server::PointOfSaleQueryServiceServer::new(
+            erpx_proto::erpx::pos::point_of_sale_query_service_server::PointOfSaleQueryServiceServer::new(
                 PosQueryRpc::new(wave7_application, wave7_authenticator),
             ),
         )
         .add_service(
-            erpx_proto::erpx::finance::v2::finance_command_service_server::FinanceCommandServiceServer::new(
+            erpx_proto::erpx::finance::finance_command_service_server::FinanceCommandServiceServer::new(
                 FinanceCommandRpc::new(wave8_application.clone(), wave8_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::finance::v2::finance_query_service_server::FinanceQueryServiceServer::new(
+            erpx_proto::erpx::finance::finance_query_service_server::FinanceQueryServiceServer::new(
                 FinanceQueryRpc::new(wave8_application.clone(), wave8_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::legal::v2::legal_command_service_server::LegalCommandServiceServer::new(
+            erpx_proto::erpx::legal::legal_command_service_server::LegalCommandServiceServer::new(
                 LegalCommandRpc::new(wave8_application.clone(), wave8_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::legal::v2::legal_query_service_server::LegalQueryServiceServer::new(
+            erpx_proto::erpx::legal::legal_query_service_server::LegalQueryServiceServer::new(
                 LegalQueryRpc::new(wave8_application.clone(), wave8_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::support::v2::support_command_service_server::SupportCommandServiceServer::new(
+            erpx_proto::erpx::support::support_command_service_server::SupportCommandServiceServer::new(
                 SupportCommandRpc::new(
                     wave8_application.clone(),
                     wave8_authenticator.clone(),
@@ -16295,7 +16302,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::support::v2::support_query_service_server::SupportQueryServiceServer::new(
+            erpx_proto::erpx::support::support_query_service_server::SupportQueryServiceServer::new(
                 SupportQueryRpc::new(wave8_application.clone(), wave8_authenticator.clone()),
             ),
         )
@@ -16304,72 +16311,72 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         .add_service(future_agent_projects.projects_command)
         .add_service(future_agent_projects.projects_query)
         .add_service(
-            erpx_proto::erpx::manufacturing::v2::manufacturing_command_service_server::ManufacturingCommandServiceServer::new(
+            erpx_proto::erpx::manufacturing::manufacturing_command_service_server::ManufacturingCommandServiceServer::new(
                 future_manufacturing_planning::ManufacturingCommandRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::manufacturing::v2::manufacturing_query_service_server::ManufacturingQueryServiceServer::new(
+            erpx_proto::erpx::manufacturing::manufacturing_query_service_server::ManufacturingQueryServiceServer::new(
                 future_manufacturing_planning::ManufacturingQueryRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::planning::v2::planning_command_service_server::PlanningCommandServiceServer::new(
+            erpx_proto::erpx::planning::planning_command_service_server::PlanningCommandServiceServer::new(
                 future_manufacturing_planning::PlanningCommandRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::planning::v2::planning_query_service_server::PlanningQueryServiceServer::new(
+            erpx_proto::erpx::planning::planning_query_service_server::PlanningQueryServiceServer::new(
                 future_manufacturing_planning::PlanningQueryRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::benefits::v2::benefits_command_service_server::BenefitsCommandServiceServer::new(
+            erpx_proto::erpx::benefits::benefits_command_service_server::BenefitsCommandServiceServer::new(
                 future_benefits::BenefitsCommandRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::benefits::v2::benefits_query_service_server::BenefitsQueryServiceServer::new(
+            erpx_proto::erpx::benefits::benefits_query_service_server::BenefitsQueryServiceServer::new(
                 future_benefits::BenefitsQueryRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::learning::v2::learning_command_service_server::LearningCommandServiceServer::new(
+            erpx_proto::erpx::learning::learning_command_service_server::LearningCommandServiceServer::new(
                 future_learning::LearningCommandRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::learning::v2::learning_query_service_server::LearningQueryServiceServer::new(
+            erpx_proto::erpx::learning::learning_query_service_server::LearningQueryServiceServer::new(
                 future_learning::LearningQueryRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::field_service::v2::field_service_command_service_server::FieldServiceCommandServiceServer::new(
+            erpx_proto::erpx::field_service::field_service_command_service_server::FieldServiceCommandServiceServer::new(
                 future_field_service::FieldServiceCommandRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::field_service::v2::field_service_query_service_server::FieldServiceQueryServiceServer::new(
+            erpx_proto::erpx::field_service::field_service_query_service_server::FieldServiceQueryServiceServer::new(
                 future_field_service::FieldServiceQueryRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::ecommerce::v2::ecommerce_command_service_server::EcommerceCommandServiceServer::new(
+            erpx_proto::erpx::ecommerce::ecommerce_command_service_server::EcommerceCommandServiceServer::new(
                 future_ecommerce::EcommerceCommandRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::ecommerce::v2::ecommerce_query_service_server::EcommerceQueryServiceServer::new(
+            erpx_proto::erpx::ecommerce::ecommerce_query_service_server::EcommerceQueryServiceServer::new(
                 future_ecommerce::EcommerceQueryRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::talent::v2::talent_command_service_server::TalentCommandServiceServer::new(
+            erpx_proto::erpx::talent::talent_command_service_server::TalentCommandServiceServer::new(
                 future_talent::TalentCommandRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::talent::v2::talent_query_service_server::TalentQueryServiceServer::new(
+            erpx_proto::erpx::talent::talent_query_service_server::TalentQueryServiceServer::new(
                 future_talent::TalentQueryRpc::new(state.clone()),
             ),
         )
@@ -16409,7 +16416,7 @@ mod target_service_registration_tests {
         for (module, service) in current_services {
             for kind in ["command", "query"] {
                 let target =
-                    format!("erpx_proto::erpx::{module}::v2::{service}_{kind}_service_server::");
+                    format!("erpx_proto::erpx::{module}::{service}_{kind}_service_server::");
                 assert!(
                     source.contains(&target),
                     "missing target {kind} service registration for {module}"
@@ -16804,7 +16811,7 @@ mod server_security_tests {
             ServerReadinessAdapter::not_probed_composition(),
             WorkerReadinessComposition {
                 worker_heartbeat: ReadinessState::NotProbed,
-                tenant_routing: ReadinessState::NotProbed,
+                holding_routing: ReadinessState::NotProbed,
                 projection_freshness: ReadinessState::NotProbed,
                 backup_pitr: ReadinessState::NotProbed,
             }
@@ -16852,13 +16859,13 @@ mod server_security_tests {
     }
 
     #[test]
-    fn platform_tenant_page_size_is_defaulted_and_bounded() {
-        assert_eq!(platform_tenant_page_size(0).expect("default"), 25);
+    fn platform_holding_page_size_is_defaulted_and_bounded() {
+        assert_eq!(platform_holding_page_size(0).expect("default"), 25);
         assert_eq!(
-            platform_tenant_page_size(MAX_TENANT_REGISTRY_PAGE_SIZE).expect("maximum"),
-            MAX_TENANT_REGISTRY_PAGE_SIZE
+            platform_holding_page_size(MAX_HOLDING_REGISTRY_PAGE_SIZE).expect("maximum"),
+            MAX_HOLDING_REGISTRY_PAGE_SIZE
         );
-        assert!(platform_tenant_page_size(MAX_TENANT_REGISTRY_PAGE_SIZE + 1).is_err());
+        assert!(platform_holding_page_size(MAX_HOLDING_REGISTRY_PAGE_SIZE + 1).is_err());
     }
 
     #[test]
@@ -16871,7 +16878,7 @@ mod server_security_tests {
         assert!(projection_status_page_size(MAX_PROJECTION_STATUS_PAGE_SIZE + 1).is_err());
 
         let cursor = ProjectionStatusCursor::new(
-            "tenant-opaque",
+            "holding-opaque",
             "holding-opaque",
             "operations",
             "job-1",
@@ -16879,7 +16886,7 @@ mod server_security_tests {
         )
         .expect("cursor");
         let encoded = encode_projection_status_cursor(&cursor);
-        assert!(!encoded.contains("tenant-opaque"));
+        assert!(!encoded.contains("holding-opaque"));
         assert_eq!(
             decode_projection_status_cursor(&encoded).expect("round trip"),
             cursor
@@ -16920,7 +16927,7 @@ mod server_security_tests {
             OPERATIONS_READ_PROJECTION
         );
         assert!(
-            projection_rebuild_name(erpx_infrastructure::TENANT_PROJECTION_STATUS_READ_PROJECTION)
+            projection_rebuild_name(erpx_infrastructure::HOLDING_PROJECTION_STATUS_READ_PROJECTION)
                 .is_err()
         );
         assert!(projection_rebuild_source_version(0).is_err());
@@ -17064,7 +17071,7 @@ mod server_security_tests {
             (
                 "device-1",
                 session_id,
-                SupportMode::TenantMutation,
+                SupportMode::HoldingMutation,
                 "holding/301",
                 "support",
             ),
@@ -17169,8 +17176,7 @@ mod server_security_tests {
                 customer_id,
                 &Scope::Subtree {
                     holding_id,
-                    company_ids: vec![company_id],
-                    branch_ids: vec![branch_id],
+                    organization_node_id: branch_id,
                 }
             )
             .is_err()
@@ -17275,11 +17281,17 @@ mod marketing_content_transport_tests {
 
     #[test]
     fn public_marketing_abuse_binding_ids_are_deterministic_and_opaque() {
-        let tenant = marketing_abuse_binding_id("tenant", "tenant-ref-1");
-        assert_eq!(tenant, marketing_abuse_binding_id("tenant", "tenant-ref-1"));
-        assert_ne!(tenant, marketing_abuse_binding_id("tenant", "tenant-ref-2"));
-        assert_ne!(tenant, Uuid::nil());
-        assert!(!format!("{tenant:?}").contains("tenant-ref-1"));
+        let holding = marketing_abuse_binding_id("holding", "holding-ref-1");
+        assert_eq!(
+            holding,
+            marketing_abuse_binding_id("holding", "holding-ref-1")
+        );
+        assert_ne!(
+            holding,
+            marketing_abuse_binding_id("holding", "holding-ref-2")
+        );
+        assert_ne!(holding, Uuid::nil());
+        assert!(!format!("{holding:?}").contains("holding-ref-1"));
     }
 
     #[test]
@@ -17293,7 +17305,7 @@ mod marketing_content_transport_tests {
 }
 
 #[cfg(test)]
-mod tenant_owner_seed_tests {
+mod holding_owner_seed_tests {
     use super::*;
 
     #[tokio::test]
@@ -17318,30 +17330,27 @@ mod tenant_owner_seed_tests {
             .await
             .expect("identity migration");
         let store = Arc::new(SqlxControlPlane::new(pools));
-        let provisioner = TenantProvisioner::new(store.clone());
+        let provisioner = HoldingProvisioner::new(store.clone());
+        let holding_id = "00000000-0000-4000-8000-000000000901";
         provisioner
-            .begin(TenantStoreRegistration {
-                tenant_id: "tenant-owner-transaction".into(),
-                holding_ref: "holding-owner-transaction".into(),
-                write_database_key: "tenant-owner-transaction-write".into(),
-                read_database_key: "tenant-owner-transaction-read".into(),
-                storage_namespace: "tenant-owner-transaction-storage".into(),
-                credential_key_ref: "tenant-owner-transaction-key".into(),
-                backup_chain_ref: "tenant-owner-transaction-chain".into(),
+            .begin(HoldingStoreRegistration {
+                holding_id: holding_id.into(),
+                data_profile_key: "holding-owner-transaction".into(),
+                write_database_key: "holding-owner-transaction-write".into(),
+                read_database_key: "holding-owner-transaction-read".into(),
+                storage_namespace: "holding-owner-transaction-storage".into(),
+                credential_key_ref: "holding-owner-transaction-key".into(),
+                backup_chain_ref: "holding-owner-transaction-chain".into(),
                 state: "provisioning".into(),
                 registry_version: 1,
             })
             .await
             .expect("begin provisioning");
         let seed = provisioner
-            .register_owner_seed(
-                "tenant-owner-transaction",
-                "owner-transaction",
-                "approver-transaction",
-            )
+            .register_owner_seed(holding_id, "owner-transaction", "approver-transaction")
             .await
             .expect("owner seed");
-        let receipt = seed_tenant_owner(&store, &seed, "grantor-transaction", Utc::now())
+        let receipt = seed_holding_owner(&store, &seed, "grantor-transaction", Utc::now())
             .await
             .expect("seed owner");
         assert!(receipt.seeded);
@@ -17375,13 +17384,13 @@ mod tenant_owner_seed_tests {
         assert!(assignment.valid_until > assignment.valid_from);
         assert!(assignment.valid_until < DateTime::<Utc>::MAX_UTC);
         assert_eq!(assignment.approver.as_deref(), Some("approver-transaction"));
-        let replay = seed_tenant_owner(&store, &seed, "grantor-transaction", Utc::now())
+        let replay = seed_holding_owner(&store, &seed, "grantor-transaction", Utc::now())
             .await
             .expect("replay owner seed");
         assert!(replay.seeded);
         assert!(replay.recovery_code.is_none());
         let read_table: Option<String> =
-            sqlx::query_scalar("SELECT to_regclass('erpx_control.tenant_owner_seeds')::text")
+            sqlx::query_scalar("SELECT to_regclass('erpx_control.holding_owner_seeds')::text")
                 .fetch_one(&store.pools().read)
                 .await
                 .expect("read isolation query");
@@ -17395,9 +17404,9 @@ mod directory_scope_tests {
 
     #[test]
     fn directory_scope_accepts_platform_and_matching_opaque_holding_only() {
-        let holding_ref = "holding-ref-42";
+        let data_profile_key = "holding-ref-42";
         let holding_scope = DirectoryScope::Holding {
-            holding_ref: holding_ref.into(),
+            data_profile_key: data_profile_key.into(),
         };
         let holding_id = holding_scope
             .holding_id()
@@ -17435,13 +17444,13 @@ mod directory_scope_tests {
         assert_eq!(
             parse_directory_scope("holding:holding-ref-42", "").expect("canonical"),
             DirectoryScope::Holding {
-                holding_ref: "holding-ref-42".into()
+                data_profile_key: "holding-ref-42".into()
             }
         );
         assert_eq!(
             parse_directory_scope("holding-ref-42", "holding-ref-42").expect("legacy"),
             DirectoryScope::Holding {
-                holding_ref: "holding-ref-42".into()
+                data_profile_key: "holding-ref-42".into()
             }
         );
         assert!(parse_directory_scope("holding:other", "holding-ref-42").is_err());

@@ -7,7 +7,7 @@ use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
     ItemDescriptorDraft, record_policy_id,
 };
-use erpx_kernel::{AggregateId, CommandId, DataClassification, EventId, TenantScope};
+use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId};
 use erpx_operations::{
     CommandUnitOfWork, ExceptionId, OperationsCommit, OperationsException, PortError,
     WorkQueuePolicy, WorkQueuePolicyId, WorkQueuePolicyUnitOfWork, WriteRepository,
@@ -47,7 +47,7 @@ impl OperationsWriteRepository {
 impl WriteRepository for OperationsWriteRepository {
     async fn load_exception(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: ExceptionId,
     ) -> Result<Option<OperationsException>, PortError> {
         load_exception_authority(&self.pool, authority, id).await
@@ -55,7 +55,7 @@ impl WriteRepository for OperationsWriteRepository {
 
     async fn load_work_queue_policy(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: WorkQueuePolicyId,
     ) -> Result<Option<WorkQueuePolicy>, PortError> {
         load_policy_authority(&self.pool, authority, id).await
@@ -148,7 +148,7 @@ impl CommandUnitOfWork for OperationsCommandAdapter {
             correlation_id: request.correlation_id,
             idempotency_key: request.identity.idempotency_key,
             request_hash: request_hash(&request.identity.fingerprint)?,
-            tenant_scope: aggregate.scope().clone(),
+            active_scope: aggregate.scope().clone(),
             actor: request.actor,
             audit_context: request.audit,
             aggregate_type: EXCEPTION_AGGREGATE_TYPE.into(),
@@ -259,7 +259,7 @@ impl WorkQueuePolicyUnitOfWork for OperationsCommandAdapter {
             correlation_id: request.correlation_id,
             idempotency_key: request.identity.idempotency_key,
             request_hash: request_hash(&request.identity.fingerprint)?,
-            tenant_scope: aggregate.scope().clone(),
+            active_scope: aggregate.scope().clone(),
             actor: request.actor,
             audit_context: request.audit,
             aggregate_type: POLICY_AGGREGATE_TYPE.into(),
@@ -312,11 +312,11 @@ impl AtomicCommandGuard for OperationsAtomicGuard {
     ) -> Result<Option<u64>, CqrsSqlxError> {
         let (sql, id) = match self {
             Self::Exception(value) => (
-                "SELECT aggregate_version FROM erpx_operations_write.exception_authority WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND exception_id=$1 FOR UPDATE",
+                "SELECT aggregate_version FROM erpx_operations_write.exception_authority WHERE holding_id=erpx_cqrs_write.current_holding_id() AND exception_id=$1 FOR UPDATE",
                 value.id().as_uuid(),
             ),
             Self::Policy(value) => (
-                "SELECT aggregate_version FROM erpx_operations_write.work_queue_policy_authority WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND policy_id=$1 FOR UPDATE",
+                "SELECT aggregate_version FROM erpx_operations_write.work_queue_policy_authority WHERE holding_id=erpx_cqrs_write.current_holding_id() AND policy_id=$1 FOR UPDATE",
                 value.id().as_uuid(),
             ),
         };
@@ -342,7 +342,7 @@ impl AtomicCommandGuard for OperationsAtomicGuard {
                     &exception_partition(value.id()),
                 )?;
                 let current: Option<i64> = sqlx::query_scalar(
-                    "SELECT aggregate_version FROM erpx_operations_write.exception_authority WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND exception_id=$1 FOR UPDATE",
+                    "SELECT aggregate_version FROM erpx_operations_write.exception_authority WHERE holding_id=erpx_cqrs_write.current_holding_id() AND exception_id=$1 FOR UPDATE",
                 )
                 .bind(value.id().as_uuid())
                 .fetch_optional(&mut **tx)
@@ -361,7 +361,7 @@ impl AtomicCommandGuard for OperationsAtomicGuard {
                     &policy_partition(value.id()),
                 )?;
                 let current: Option<i64> = sqlx::query_scalar(
-                    "SELECT aggregate_version FROM erpx_operations_write.work_queue_policy_authority WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND policy_id=$1 FOR UPDATE",
+                    "SELECT aggregate_version FROM erpx_operations_write.work_queue_policy_authority WHERE holding_id=erpx_cqrs_write.current_holding_id() AND policy_id=$1 FOR UPDATE",
                 )
                 .bind(value.id().as_uuid())
                 .fetch_optional(&mut **tx)
@@ -381,7 +381,7 @@ impl AtomicCommandGuard for OperationsAtomicGuard {
                     .execute(&mut **tx)
                     .await?;
                 let collision: Option<Uuid> = sqlx::query_scalar(
-                    "SELECT policy_id FROM erpx_operations_write.work_queue_policy_authority WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND scope_key=$1 AND policy_name=$2 AND policy_id<>$3 FOR UPDATE",
+                    "SELECT policy_id FROM erpx_operations_write.work_queue_policy_authority WHERE holding_id=erpx_cqrs_write.current_holding_id() AND scope_key=$1 AND policy_name=$2 AND policy_id<>$3 FOR UPDATE",
                 )
                 .bind(scope_key(value.scope())?)
                 .bind(value.name())
@@ -554,33 +554,26 @@ fn policy_receipt(
     })
 }
 
-pub(crate) fn scope_key(scope: &TenantScope) -> Result<String, CqrsSqlxError> {
+pub(crate) fn scope_key(scope: &AuthorityScope) -> Result<String, CqrsSqlxError> {
     scope
         .validate()
         .map_err(|_| CqrsSqlxError::InvalidInput("invalid scope"))?;
     Ok(match scope {
-        TenantScope::Platform => "platform".into(),
-        TenantScope::Holding { holding_id } => format!("holding:{holding_id}"),
-        TenantScope::Company {
+        AuthorityScope::Platform => "platform".into(),
+        AuthorityScope::Holding { holding_id } => format!("holding:{holding_id}"),
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => format!("holding:{holding_id}/company:{company_id}"),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         } => format!("holding:{holding_id}/company:{company_id}/branch:{branch_id}"),
-        TenantScope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
-        } => {
-            format!(
-                "subtree:{holding_id}:{}:{}",
-                company_ids.len(),
-                branch_ids.len()
-            )
-        }
+            organization_node_id,
+        } => format!("subtree:{holding_id}:{organization_node_id}"),
     })
 }
 

@@ -45,11 +45,11 @@ pub const DIRECTORY_EVENT_VERSION: i32 = 1;
 pub const DIRECTORY_IMPORT_AGGREGATE: &str = "directory_import";
 pub const DIRECTORY_IDENTITY_AGGREGATE: &str = "directory_identity";
 
-pub(crate) fn directory_holding_id(holding_ref: &str) -> Uuid {
-    holding_ref.parse::<Uuid>().unwrap_or_else(|_| {
+pub(crate) fn directory_holding_id(data_profile_key: &str) -> Uuid {
+    data_profile_key.parse::<Uuid>().unwrap_or_else(|_| {
         Uuid::new_v5(
             &Uuid::NAMESPACE_URL,
-            format!("erpx:holding-scope:v1:{holding_ref}").as_bytes(),
+            format!("erpx:holding-scope:{data_profile_key}").as_bytes(),
         )
     })
 }
@@ -2100,7 +2100,7 @@ impl SqlxDirectorySyncStore {
         actor_ref: Option<&str>,
     ) -> Result<(), SyncStoreError> {
         let (scope_kind, scope_id) = event.scope.storage_parts();
-        let tenant_scope = serde_json::json!({
+        let active_scope = serde_json::json!({
             "kind": scope_kind,
             "holding_id": scope_id,
             "connector_id": event.connector_id,
@@ -2120,7 +2120,7 @@ impl SqlxDirectorySyncStore {
         .bind(DIRECTORY_EVENT_VERSION)
         .bind(event.connector_id)
         .bind(event.aggregate_version)
-        .bind(&tenant_scope)
+        .bind(&active_scope)
         .bind(actor_ref.map(|actor| serde_json::json!({ "actor_ref": actor })))
         .bind(&event.idempotency_key)
         .bind(&event.payload)
@@ -2142,7 +2142,7 @@ impl SqlxDirectorySyncStore {
                 && existing.try_get::<Uuid, _>("aggregate_id")? == event.aggregate_id
                 && existing.try_get::<i64, _>("aggregate_version")? == event.aggregate_version
                 && existing.try_get::<Uuid, _>("connector_id")? == event.connector_id
-                && existing.try_get::<Value, _>("scope_json")? == tenant_scope
+                && existing.try_get::<Value, _>("scope_json")? == active_scope
                 && existing.try_get::<Option<Value>, _>("actor_json")?
                     == actor_ref.map(|actor| serde_json::json!({ "actor_ref": actor }))
                 && existing.try_get::<String, _>("idempotency_key")? == event.idempotency_key
@@ -2686,14 +2686,14 @@ impl SqlxDirectorySyncStore {
         let connector_scope = match connector_scope {
             ConnectorScope::Platform => DirectoryScope::Platform,
             ConnectorScope::Holding(holding_id) => DirectoryScope::Holding {
-                holding_ref: holding_id.to_string(),
+                data_profile_key: holding_id.to_string(),
             },
             ConnectorScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
             } => DirectoryScope::Branch {
-                holding_ref: holding_id.to_string(),
+                data_profile_key: holding_id.to_string(),
                 company_id: *company_id,
                 branch_id: *branch_id,
             },
@@ -4352,11 +4352,11 @@ fn directory_scope_from_key(value: &str) -> Result<DirectoryScope, SyncStoreErro
     if value == "platform" {
         return Ok(DirectoryScope::Platform);
     }
-    let holding_ref = value.strip_prefix("holding:").ok_or_else(|| {
+    let data_profile_key = value.strip_prefix("holding:").ok_or_else(|| {
         SyncStoreError::InvalidRecord("directory connector scope is malformed".into())
     })?;
     let scope = DirectoryScope::Holding {
-        holding_ref: holding_ref.to_owned(),
+        data_profile_key: data_profile_key.to_owned(),
     };
     scope
         .canonical_key()

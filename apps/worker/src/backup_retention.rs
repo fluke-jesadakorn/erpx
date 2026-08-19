@@ -9,38 +9,39 @@ use std::{collections::BTreeSet, sync::Arc};
 use async_trait::async_trait;
 use chrono::Duration;
 use erpx_infrastructure::{
-    MAX_TENANT_BACKUP_INVENTORY_ENTRIES, MAX_TENANT_BACKUP_RETENTION_LEASE_SECONDS,
-    MAX_TENANT_BACKUP_RETENTION_PAGE_SIZE, MIN_TENANT_BACKUP_RETENTION_LEASE_SECONDS,
-    PostgresMinioBackupAdapter, SqlxControlPlane, TenantBackupInventoryObservation,
+    HoldingBackupInventoryObservation, MAX_HOLDING_BACKUP_INVENTORY_ENTRIES,
+    MAX_HOLDING_BACKUP_RETENTION_LEASE_SECONDS, MAX_HOLDING_BACKUP_RETENTION_PAGE_SIZE,
+    MIN_HOLDING_BACKUP_RETENTION_LEASE_SECONDS, PostgresMinioBackupAdapter, SqlxControlPlane,
 };
 use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{NamedWorkerHandler, WorkerHandlerReport, WorkerRuntimeError};
 
-pub const TENANT_BACKUP_RETENTION_HANDLER_NAME: &str = "tenant_backup_retention";
+pub const HOLDING_BACKUP_RETENTION_HANDLER_NAME: &str = "holding_backup_retention";
 const BACKUP_EXTERNAL_CREDENTIALS_BLOCKER_CODE: &str = "backup_external_credentials_unavailable";
 
 #[derive(Debug, Clone)]
-pub struct TenantBackupRetentionRuntimeHandler {
+pub struct HoldingBackupRetentionRuntimeHandler {
     control: Arc<SqlxControlPlane>,
     backup_adapter: Option<Arc<PostgresMinioBackupAdapter>>,
     batch_size: u32,
     lease: Duration,
 }
 
-impl TenantBackupRetentionRuntimeHandler {
+impl HoldingBackupRetentionRuntimeHandler {
     pub fn validate_config(batch_size: u32, lease: Duration) -> Result<(), WorkerRuntimeError> {
-        if batch_size == 0 || batch_size > MAX_TENANT_BACKUP_RETENTION_PAGE_SIZE {
+        if batch_size == 0 || batch_size > MAX_HOLDING_BACKUP_RETENTION_PAGE_SIZE {
             return Err(WorkerRuntimeError::Configuration(
-                "tenant backup retention batch size is outside its bound".into(),
+                "holding backup retention batch size is outside its bound".into(),
             ));
         }
-        if !(MIN_TENANT_BACKUP_RETENTION_LEASE_SECONDS..=MAX_TENANT_BACKUP_RETENTION_LEASE_SECONDS)
+        if !(MIN_HOLDING_BACKUP_RETENTION_LEASE_SECONDS
+            ..=MAX_HOLDING_BACKUP_RETENTION_LEASE_SECONDS)
             .contains(&lease.num_seconds())
         {
             return Err(WorkerRuntimeError::Configuration(
-                "tenant backup retention lease is outside its bound".into(),
+                "holding backup retention lease is outside its bound".into(),
             ));
         }
         Ok(())
@@ -81,7 +82,7 @@ impl TenantBackupRetentionRuntimeHandler {
     /// expire rather than attempting any provider deletion.
     async fn release_claim_after_error(
         &self,
-        claim: &erpx_infrastructure::TenantBackupRetentionClaim,
+        claim: &erpx_infrastructure::HoldingBackupRetentionClaim,
         report: &mut WorkerHandlerReport,
         operation: &'static str,
     ) -> Result<(), WorkerRuntimeError> {
@@ -96,8 +97,8 @@ impl TenantBackupRetentionRuntimeHandler {
 
     async fn due_actions(&self) -> Result<Vec<RetentionActionCandidate>, WorkerRuntimeError> {
         let rows = sqlx::query(
-            "SELECT id, tenant_id, holding_ref
-             FROM erpx_control.tenant_backup_retention_actions
+            "SELECT id, holding_id, data_profile_key
+             FROM erpx_control.holding_backup_retention_actions
              WHERE attempts < max_attempts
                AND (state = 'pending'
                     OR (state = 'claimed' AND lease_until <= clock_timestamp()))
@@ -112,8 +113,8 @@ impl TenantBackupRetentionRuntimeHandler {
             .map(|row| {
                 Ok(RetentionActionCandidate {
                     id: row.try_get("id")?,
-                    tenant_id: row.try_get("tenant_id")?,
-                    holding_ref: row.try_get("holding_ref")?,
+                    holding_id: row.try_get("holding_id")?,
+                    data_profile_key: row.try_get("data_profile_key")?,
                 })
             })
             .collect::<Result<Vec<_>, sqlx::Error>>()
@@ -124,8 +125,8 @@ impl TenantBackupRetentionRuntimeHandler {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct RetentionActionCandidate {
     id: Uuid,
-    tenant_id: String,
-    holding_ref: String,
+    holding_id: String,
+    data_profile_key: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -156,10 +157,10 @@ fn inventory_deletion_decision(
     }
 }
 
-impl TenantBackupRetentionRuntimeHandler {
+impl HoldingBackupRetentionRuntimeHandler {
     async fn handle_missing_adapter(
         &self,
-        claim: &erpx_infrastructure::TenantBackupRetentionClaim,
+        claim: &erpx_infrastructure::HoldingBackupRetentionClaim,
     ) -> Result<MissingAdapterOutcome, WorkerRuntimeError> {
         let objects = self
             .control
@@ -172,7 +173,7 @@ impl TenantBackupRetentionRuntimeHandler {
         self.control
             .record_backup_inventory_report(
                 claim,
-                TenantBackupInventoryObservation {
+                HoldingBackupInventoryObservation {
                     expected_objects: u32::try_from(objects.len()).unwrap_or(u32::MAX),
                     observed_objects: 0,
                     missing_objects: u32::try_from(objects.len()).unwrap_or(u32::MAX),
@@ -185,7 +186,7 @@ impl TenantBackupRetentionRuntimeHandler {
             .map_err(|_| redacted_retention_worker_error("inventory blocker"))?;
         tracing::warn!(
             blocker = BACKUP_EXTERNAL_CREDENTIALS_BLOCKER_CODE,
-            "tenant backup retention certification blocker queued; native external backup credentials are unavailable"
+            "holding backup retention certification blocker queued; native external backup credentials are unavailable"
         );
         let terminal = self
             .control
@@ -201,18 +202,18 @@ impl TenantBackupRetentionRuntimeHandler {
 }
 
 #[async_trait]
-impl NamedWorkerHandler for TenantBackupRetentionRuntimeHandler {
+impl NamedWorkerHandler for HoldingBackupRetentionRuntimeHandler {
     fn name(&self) -> &str {
-        TENANT_BACKUP_RETENTION_HANDLER_NAME
+        HOLDING_BACKUP_RETENTION_HANDLER_NAME
     }
 
     async fn run_once(&self, worker_id: Uuid) -> Result<WorkerHandlerReport, WorkerRuntimeError> {
         self.control
-            .project_backup_retention_to_read(MAX_TENANT_BACKUP_RETENTION_PAGE_SIZE)
+            .project_backup_retention_to_read(MAX_HOLDING_BACKUP_RETENTION_PAGE_SIZE)
             .await
             .map_err(|_| redacted_retention_worker_error("projection"))?;
         self.control
-            .project_backup_inventory_reports_to_read(MAX_TENANT_BACKUP_RETENTION_PAGE_SIZE)
+            .project_backup_inventory_reports_to_read(MAX_HOLDING_BACKUP_RETENTION_PAGE_SIZE)
             .await
             .map_err(|_| redacted_retention_worker_error("inventory projection"))?;
         let candidates = self.due_actions().await?;
@@ -224,8 +225,8 @@ impl NamedWorkerHandler for TenantBackupRetentionRuntimeHandler {
             let claim = self
                 .control
                 .claim_backup_retention(
-                    &candidate.tenant_id,
-                    &candidate.holding_ref,
+                    &candidate.holding_id,
+                    &candidate.data_profile_key,
                     candidate.id,
                     worker_id,
                     self.lease,
@@ -304,10 +305,10 @@ impl NamedWorkerHandler for TenantBackupRetentionRuntimeHandler {
                     let first = &objects_to_delete[0];
                     let inventory = match adapter
                         .list_backup_artifacts(
-                            &first.tenant_id,
+                            &first.holding_id,
                             &first.storage_namespace,
                             &first.backup_chain_ref,
-                            MAX_TENANT_BACKUP_INVENTORY_ENTRIES,
+                            MAX_HOLDING_BACKUP_INVENTORY_ENTRIES,
                         )
                         .await
                     {
@@ -320,10 +321,10 @@ impl NamedWorkerHandler for TenantBackupRetentionRuntimeHandler {
                                 if objects_to_delete.iter().any(|object| object.is_pitr) {
                                     match adapter
                                         .list_pitr_backup_artifacts(
-                                            &first.tenant_id,
+                                            &first.holding_id,
                                             &first.storage_namespace,
                                             &first.backup_chain_ref,
-                                            erpx_infrastructure::MAX_TENANT_PITR_INVENTORY_ENTRIES,
+                                            erpx_infrastructure::MAX_HOLDING_PITR_INVENTORY_ENTRIES,
                                         )
                                         .await
                                     {
@@ -346,7 +347,7 @@ impl NamedWorkerHandler for TenantBackupRetentionRuntimeHandler {
                                         .control
                                         .record_backup_inventory_report(
                                             &claim,
-                                            TenantBackupInventoryObservation {
+                                            HoldingBackupInventoryObservation {
                                                 expected_objects: u32::try_from(expected.len())
                                                     .unwrap_or(u32::MAX),
                                                 observed_objects: 0,
@@ -382,7 +383,7 @@ impl NamedWorkerHandler for TenantBackupRetentionRuntimeHandler {
                                             .control
                                             .record_backup_inventory_report(
                                                 &claim,
-                                                TenantBackupInventoryObservation {
+                                                HoldingBackupInventoryObservation {
                                                     expected_objects: u32::try_from(expected.len())
                                                         .unwrap_or(u32::MAX),
                                                     observed_objects: u32::try_from(
@@ -426,7 +427,7 @@ impl NamedWorkerHandler for TenantBackupRetentionRuntimeHandler {
                                             .control
                                             .record_backup_inventory_report(
                                                 &claim,
-                                                TenantBackupInventoryObservation {
+                                                HoldingBackupInventoryObservation {
                                                     expected_objects: u32::try_from(expected.len())
                                                         .unwrap_or(u32::MAX),
                                                     observed_objects: u32::try_from(
@@ -463,7 +464,7 @@ impl NamedWorkerHandler for TenantBackupRetentionRuntimeHandler {
                                     .control
                                     .record_backup_inventory_report(
                                         &claim,
-                                        TenantBackupInventoryObservation {
+                                        HoldingBackupInventoryObservation {
                                             expected_objects: u32::try_from(expected.len())
                                                 .unwrap_or(u32::MAX),
                                             observed_objects: 0,
@@ -518,7 +519,7 @@ impl NamedWorkerHandler for TenantBackupRetentionRuntimeHandler {
                     let deletion = if object.is_pitr {
                         adapter
                             .delete_pitr_backup_artifacts(
-                                &object.tenant_id,
+                                &object.holding_id,
                                 &object.storage_namespace,
                                 &object.backup_chain_ref,
                                 &object.backup_ref,
@@ -527,7 +528,7 @@ impl NamedWorkerHandler for TenantBackupRetentionRuntimeHandler {
                     } else {
                         adapter
                             .delete_backup_artifact(
-                                &object.tenant_id,
+                                &object.holding_id,
                                 &object.storage_namespace,
                                 &object.backup_chain_ref,
                                 &object.backup_ref,
@@ -582,8 +583,13 @@ fn record_claim_failure(report: &mut WorkerHandlerReport, terminal: bool) {
 }
 
 fn redacted_retention_worker_error(operation: &'static str) -> WorkerRuntimeError {
-    tracing::error!(operation, "tenant backup retention worker operation failed");
-    WorkerRuntimeError::Configuration(format!("tenant backup retention worker {operation} failed"))
+    tracing::error!(
+        operation,
+        "holding backup retention worker operation failed"
+    );
+    WorkerRuntimeError::Configuration(format!(
+        "holding backup retention worker {operation} failed"
+    ))
 }
 
 #[cfg(test)]
@@ -593,20 +599,20 @@ mod tests {
     #[test]
     fn retention_worker_bounds_are_fail_closed() {
         assert!(
-            TenantBackupRetentionRuntimeHandler::validate_config(
+            HoldingBackupRetentionRuntimeHandler::validate_config(
                 1,
-                Duration::seconds(MIN_TENANT_BACKUP_RETENTION_LEASE_SECONDS),
+                Duration::seconds(MIN_HOLDING_BACKUP_RETENTION_LEASE_SECONDS),
             )
             .is_ok()
         );
         assert!(
-            TenantBackupRetentionRuntimeHandler::validate_config(0, Duration::seconds(30),)
+            HoldingBackupRetentionRuntimeHandler::validate_config(0, Duration::seconds(30),)
                 .is_err()
         );
         assert!(
-            TenantBackupRetentionRuntimeHandler::validate_config(
+            HoldingBackupRetentionRuntimeHandler::validate_config(
                 1,
-                Duration::seconds(MAX_TENANT_BACKUP_RETENTION_LEASE_SECONDS + 1),
+                Duration::seconds(MAX_HOLDING_BACKUP_RETENTION_LEASE_SECONDS + 1),
             )
             .is_err()
         );

@@ -476,7 +476,7 @@ impl ExternalIdentityLinkRef {
             return Err(DirectoryAuthError::InvalidExternalIdentityLink);
         }
         Ok(Self(format!(
-            "erpx:directory-link:v1:{}:{}:{}",
+            "erpx:directory-link:{}:{}:{}",
             connector_ref.hyphenated(),
             provider.segment(),
             key.value().hyphenated()
@@ -1837,12 +1837,7 @@ mod tests {
             )
             .await
             .expect("bind");
-        assert!(
-            result
-                .link()
-                .as_str()
-                .starts_with("erpx:directory-link:v1:")
-        );
+        assert!(result.link().as_str().starts_with("erpx:directory-link:"));
         assert!(
             result
                 .link()
@@ -2550,7 +2545,7 @@ mod tests {
         }
         .persistence_evidence();
         let encoded = serde_json::to_string(&evidence).expect("evidence JSON");
-        assert!(encoded.contains("directory-link:v1"));
+        assert!(encoded.contains("directory-link:"));
         assert!(encoded.contains("peer_certificate_fingerprint"));
         assert!(!encoded.contains("alice@example.test"));
         assert!(!encoded.contains("correct horse battery staple"));

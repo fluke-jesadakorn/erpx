@@ -3,7 +3,7 @@
 The shared Dioxus UI crate now contains a transport-neutral Customer 360
 display model for all ten required platform customer sections. It keeps
 presentation state separate from server authorization and does not carry
-tokens, tenant credentials, or secret values.
+tokens, holding credentials, or secret values.
 
 ## Delivered behavior
 
@@ -30,5 +30,5 @@ Run from `erpx/`:
 ## Open work and rollback
 
 Native Dioxus target adapters, transport bindings, authenticated deep-link
-rendering, pagination, and the full platform/tenant product surfaces remain
+rendering, pagination, and the full platform/holding product surfaces remain
 open. Rollback removes only the shared model/export additions.

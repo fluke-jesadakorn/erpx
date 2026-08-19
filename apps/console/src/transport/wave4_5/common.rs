@@ -4,8 +4,8 @@ use erpx_cqrs::{
     ProjectionCheckpoint, ProjectionMetadata, ProjectionTarget, QueryConsistency, QueryEnvelope,
     QueryMetadata, QueryResult, ReadYourWrites,
 };
-use erpx_kernel::{ActorKind, AggregateId, CommandId, CorrelationId, EventId, TenantScope};
-use erpx_proto::common::v2 as wire;
+use erpx_kernel::{ActorKind, AggregateId, AuthorityScope, CommandId, CorrelationId, EventId};
+use erpx_proto::common as wire;
 use erpx_ui_foundation::{UiError, UiErrorKind};
 use tonic::metadata::MetadataValue;
 use uuid::Uuid;
@@ -18,7 +18,7 @@ const MAX_ROUTE_BYTES: usize = 256;
 #[derive(Clone)]
 pub(super) struct RpcAuthority {
     access_token: MetadataValue<tonic::metadata::Ascii>,
-    route: Option<wire::TenantRoute>,
+    route: Option<wire::HoldingRoute>,
 }
 
 impl RpcAuthority {
@@ -26,24 +26,24 @@ impl RpcAuthority {
         Self::build(access_token.as_ref(), None)
     }
 
-    pub(super) fn tenant(
+    pub(super) fn holding(
         access_token: impl AsRef<str>,
-        tenant_id: impl AsRef<str>,
-        holding_ref: impl AsRef<str>,
+        holding_id: impl AsRef<str>,
+        data_profile_key: impl AsRef<str>,
     ) -> Result<Self, UiError> {
-        let tenant_id = tenant_id.as_ref().trim();
-        let holding_ref = holding_ref.as_ref().trim();
-        if Uuid::parse_str(tenant_id).is_err()
-            || holding_ref.is_empty()
-            || holding_ref.len() > MAX_ROUTE_BYTES
+        let holding_id = holding_id.as_ref().trim();
+        let data_profile_key = data_profile_key.as_ref().trim();
+        if Uuid::parse_str(holding_id).is_err()
+            || data_profile_key.is_empty()
+            || data_profile_key.len() > MAX_ROUTE_BYTES
         {
             return Err(invalid_request());
         }
         Self::build(
             access_token.as_ref(),
-            Some(wire::TenantRoute {
-                tenant_id: tenant_id.into(),
-                holding_ref: holding_ref.into(),
+            Some(wire::HoldingRoute {
+                holding_id: holding_id.into(),
+                data_profile_key: data_profile_key.into(),
             }),
         )
     }
@@ -52,7 +52,7 @@ impl RpcAuthority {
         Self::build(access_token.as_ref(), None)
     }
 
-    fn build(access_token: &str, route: Option<wire::TenantRoute>) -> Result<Self, UiError> {
+    fn build(access_token: &str, route: Option<wire::HoldingRoute>) -> Result<Self, UiError> {
         if access_token.is_empty() || access_token.len() > MAX_TOKEN_BYTES {
             return Err(invalid_request());
         }
@@ -78,12 +78,12 @@ impl RpcAuthority {
             correlation_id: envelope.correlation_id.to_string(),
             causation_id: envelope.causation_id.map(|value| value.to_string()),
             actor: Some(encode_actor(&envelope.actor)),
-            tenant_scope: Some(encode_scope(&envelope.tenant_scope)),
+            active_scope: Some(encode_scope(&envelope.active_scope)),
             audit: Some(encode_audit(&envelope.audit, envelope.correlation_id)),
             expected_aggregate_version: envelope.expected_aggregate_version,
             subscription_id: None,
             mfa_code: None,
-            tenant_route: self.route.clone(),
+            holding_route: self.route.clone(),
         };
         self.authenticated(
             build(envelope.command, metadata),
@@ -105,10 +105,10 @@ impl RpcAuthority {
             query_id: envelope.query_id.to_string(),
             correlation_id: envelope.correlation_id.to_string(),
             actor: Some(encode_actor(&envelope.actor)),
-            tenant_scope: Some(encode_scope(&envelope.tenant_scope)),
+            active_scope: Some(encode_scope(&envelope.active_scope)),
             audit: Some(encode_audit(&envelope.audit, envelope.correlation_id)),
             consistency: Some(encode_consistency(&envelope.consistency)),
-            tenant_route: self.route.clone(),
+            holding_route: self.route.clone(),
         };
         self.authenticated(build(envelope.query, metadata), &principal_ref, session_id)
     }
@@ -146,7 +146,7 @@ fn encode_actor(value: &erpx_kernel::ActorAttribution) -> wire::ActorAttribution
         principal_ref: value.principal_ref.clone(),
         kind: match value.kind {
             ActorKind::PlatformUser => wire::ActorKind::PlatformUser as i32,
-            ActorKind::TenantUser => wire::ActorKind::TenantUser as i32,
+            ActorKind::HoldingUser => wire::ActorKind::HoldingUser as i32,
             ActorKind::Service => wire::ActorKind::Service as i32,
             ActorKind::SystemWorker => wire::ActorKind::SystemWorker as i32,
             // The legacy wire contract has no Agent discriminator. Encoding it
@@ -177,21 +177,21 @@ fn encode_audit(
     }
 }
 
-pub(super) fn encode_scope(value: &TenantScope) -> wire::TenantScope {
-    use wire::tenant_scope::Scope;
+pub(super) fn encode_scope(value: &AuthorityScope) -> wire::AuthorityScope {
+    use wire::authority_scope::Scope;
     let scope = match value {
-        TenantScope::Platform => Scope::Platform(wire::PlatformScope {}),
-        TenantScope::Holding { holding_id } => Scope::Holding(wire::HoldingScope {
+        AuthorityScope::Platform => Scope::Platform(wire::PlatformScope {}),
+        AuthorityScope::Holding { holding_id } => Scope::Holding(wire::HoldingScope {
             holding_id: holding_id.to_string(),
         }),
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Scope::Company(wire::CompanyScope {
             holding_id: holding_id.to_string(),
             company_id: company_id.to_string(),
         }),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -200,47 +200,36 @@ pub(super) fn encode_scope(value: &TenantScope) -> wire::TenantScope {
             company_id: company_id.to_string(),
             branch_id: branch_id.to_string(),
         }),
-        TenantScope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
+            organization_node_id,
         } => Scope::Subtree(wire::SubtreeScope {
             holding_id: holding_id.to_string(),
-            company_ids: company_ids.iter().map(ToString::to_string).collect(),
-            branch_ids: branch_ids.iter().map(ToString::to_string).collect(),
+            organization_node_id: organization_node_id.to_string(),
         }),
     };
-    wire::TenantScope { scope: Some(scope) }
+    wire::AuthorityScope { scope: Some(scope) }
 }
 
-pub(super) fn decode_scope(value: wire::TenantScope) -> Result<TenantScope, UiError> {
-    use wire::tenant_scope::Scope;
+pub(super) fn decode_scope(value: wire::AuthorityScope) -> Result<AuthorityScope, UiError> {
+    use wire::authority_scope::Scope;
     let scope = match value.scope.ok_or_else(invalid_response)? {
-        Scope::Platform(_) => TenantScope::Platform,
-        Scope::Holding(value) => TenantScope::Holding {
+        Scope::Platform(_) => AuthorityScope::Platform,
+        Scope::Holding(value) => AuthorityScope::Holding {
             holding_id: uuid(&value.holding_id)?,
         },
-        Scope::Company(value) => TenantScope::Company {
+        Scope::Company(value) => AuthorityScope::Company {
             holding_id: uuid(&value.holding_id)?,
             company_id: uuid(&value.company_id)?,
         },
-        Scope::Branch(value) => TenantScope::Branch {
+        Scope::Branch(value) => AuthorityScope::Branch {
             holding_id: uuid(&value.holding_id)?,
             company_id: uuid(&value.company_id)?,
             branch_id: uuid(&value.branch_id)?,
         },
-        Scope::Subtree(value) => TenantScope::Subtree {
+        Scope::Subtree(value) => AuthorityScope::Subtree {
             holding_id: uuid(&value.holding_id)?,
-            company_ids: value
-                .company_ids
-                .iter()
-                .map(|v| uuid(v))
-                .collect::<Result<_, _>>()?,
-            branch_ids: value
-                .branch_ids
-                .iter()
-                .map(|v| uuid(v))
-                .collect::<Result<_, _>>()?,
+            organization_node_id: uuid(&value.organization_node_id)?,
         },
     };
     scope.validate().map_err(|_| invalid_response())?;
@@ -461,7 +450,7 @@ mod tests {
     #[test]
     fn credentials_reject_secret_or_route_metadata_that_cannot_be_encoded() {
         assert!(RpcAuthority::platform("\n").is_err());
-        assert!(RpcAuthority::tenant("token", "not-a-uuid", "holding").is_err());
+        assert!(RpcAuthority::holding("token", "not-a-uuid", "holding").is_err());
     }
 
     #[test]

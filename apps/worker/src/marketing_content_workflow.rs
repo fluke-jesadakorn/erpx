@@ -1,4 +1,4 @@
-//! Registration-free tenant write worker seam for expiring marketing previews.
+//! Registration-free holding write worker seam for expiring marketing previews.
 //!
 //! This module deliberately contains orchestration only. It does not select a
 //! database, mutate SQL state, register itself with the worker runtime, or
@@ -16,7 +16,7 @@ pub const MARKETING_CONTENT_PREVIEW_EXPIRY_HANDLER_NAME: &str = "marketing_conte
 
 /// Bounded, redacted worker-level failures. Item failures are deliberately
 /// reported in [`MarketingContentPreviewExpiryRunReport`] so one bad preview
-/// does not prevent the rest of the tenant batch from being attempted.
+/// does not prevent the rest of the holding batch from being attempted.
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum MarketingContentPreviewExpiryWorkerError {
     #[error("marketing content preview expiry configuration error: {0}")]
@@ -50,13 +50,13 @@ pub enum MarketingContentPreviewExpiryItemError {
     Permanent,
 }
 
-/// The only tenant route accepted by one invocation. A request cannot carry
-/// a tenant collection or a cross-holding scope.
+/// The only holding route accepted by one invocation. A request cannot carry
+/// a holding collection or a cross-holding scope.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MarketingContentPreviewExpiryRequest {
     pub worker_id: Uuid,
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub batch_size: u32,
     pub now: DateTime<Utc>,
 }
@@ -64,15 +64,15 @@ pub struct MarketingContentPreviewExpiryRequest {
 impl MarketingContentPreviewExpiryRequest {
     pub fn new(
         worker_id: Uuid,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         batch_size: u32,
         now: DateTime<Utc>,
     ) -> Result<Self, MarketingContentPreviewExpiryWorkerError> {
         let request = Self {
             worker_id,
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
             batch_size,
             now,
         };
@@ -84,8 +84,8 @@ impl MarketingContentPreviewExpiryRequest {
         if self.worker_id.is_nil() {
             return Err(configuration("worker_id is invalid"));
         }
-        validate_scope_reference(&self.tenant_id, "tenant_id")?;
-        validate_scope_reference(&self.holding_ref, "holding_ref")?;
+        validate_scope_reference(&self.holding_id, "holding_id")?;
+        validate_scope_reference(&self.data_profile_key, "data_profile_key")?;
         if self.batch_size == 0 || self.batch_size > MARKETING_CONTENT_PREVIEW_EXPIRY_MAX_BATCH_SIZE
         {
             return Err(configuration(&format!(
@@ -99,8 +99,8 @@ impl MarketingContentPreviewExpiryRequest {
     /// worker id and invocation time are intentionally excluded.
     pub fn operation_key(&self, preview_id: Uuid) -> String {
         format!(
-            "erpx:marketing:preview-expiry:v1:{}:{}:{preview_id}",
-            self.tenant_id, self.holding_ref
+            "erpx:marketing:preview-expiry:{}:{}:{preview_id}",
+            self.holding_id, self.data_profile_key
         )
     }
 }
@@ -113,8 +113,8 @@ pub struct MarketingContentPreviewExpiryCandidate {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MarketingContentPreviewExpiryItemRequest {
     pub worker_id: Uuid,
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub preview_id: Uuid,
     pub now: DateTime<Utc>,
     pub operation_key: String,
@@ -139,8 +139,8 @@ pub struct MarketingContentPreviewExpiryItemReport {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MarketingContentPreviewExpiryRunReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub scanned: u32,
     pub attempted: u32,
     pub expired: u32,
@@ -150,7 +150,7 @@ pub struct MarketingContentPreviewExpiryRunReport {
     pub items: Vec<MarketingContentPreviewExpiryItemReport>,
 }
 
-/// Tenant-routed source and mutation boundary. Implementations must apply the
+/// Holding-routed source and mutation boundary. Implementations must apply the
 /// supplied operation key atomically with the preview-expiry mutation (or
 /// return `AlreadyExpired` when that key was already applied). This is what
 /// makes a repeated worker invocation safe without a duplicate retry side
@@ -197,8 +197,8 @@ where
         }
 
         let mut report = MarketingContentPreviewExpiryRunReport {
-            tenant_id: request.tenant_id.clone(),
-            holding_ref: request.holding_ref.clone(),
+            holding_id: request.holding_id.clone(),
+            data_profile_key: request.data_profile_key.clone(),
             scanned: candidates.len() as u32,
             attempted: 0,
             expired: 0,
@@ -235,8 +235,8 @@ where
             report.attempted = report.attempted.saturating_add(1);
             let item_request = MarketingContentPreviewExpiryItemRequest {
                 worker_id: request.worker_id,
-                tenant_id: request.tenant_id.clone(),
-                holding_ref: request.holding_ref.clone(),
+                holding_id: request.holding_id.clone(),
+                data_profile_key: request.data_profile_key.clone(),
                 preview_id: candidate.preview_id,
                 now: request.now,
                 operation_key: operation_key.clone(),
@@ -340,7 +340,7 @@ mod tests {
     fn request(batch_size: u32) -> MarketingContentPreviewExpiryRequest {
         MarketingContentPreviewExpiryRequest::new(
             Uuid::new_v4(),
-            "tenant-a",
+            "holding-a",
             "holding-a",
             batch_size,
             Utc::now(),
@@ -368,7 +368,7 @@ mod tests {
         assert!(
             MarketingContentPreviewExpiryRequest::new(
                 Uuid::nil(),
-                "tenant-a",
+                "holding-a",
                 "holding-a",
                 1,
                 Utc::now()
@@ -378,7 +378,7 @@ mod tests {
         assert!(
             MarketingContentPreviewExpiryRequest::new(
                 Uuid::new_v4(),
-                "tenant-a",
+                "holding-a",
                 "holding/a",
                 1,
                 Utc::now()
@@ -388,7 +388,7 @@ mod tests {
         assert!(
             MarketingContentPreviewExpiryRequest::new(
                 Uuid::new_v4(),
-                "tenant-a",
+                "holding-a",
                 "holding-a",
                 0,
                 Utc::now()
@@ -408,7 +408,7 @@ mod tests {
         assert!(
             MarketingContentPreviewExpiryRequest::new(
                 Uuid::new_v4(),
-                "tenant-a",
+                "holding-a",
                 "holding-a",
                 MARKETING_CONTENT_PREVIEW_EXPIRY_MAX_BATCH_SIZE + 1,
                 Utc::now()
@@ -427,8 +427,8 @@ mod tests {
 
         let report = handler.run_once(request(2)).await.expect("run succeeds");
 
-        assert_eq!(report.tenant_id, "tenant-a");
-        assert_eq!(report.holding_ref, "holding-a");
+        assert_eq!(report.holding_id, "holding-a");
+        assert_eq!(report.data_profile_key, "holding-a");
         assert_eq!(report.scanned, 2);
         assert_eq!(report.attempted, 2);
         assert_eq!(report.expired, 1);

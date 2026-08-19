@@ -1,4 +1,4 @@
-//! Tenant CRM lead/opportunity projection runtimes.
+//! Holding CRM lead/opportunity projection runtimes.
 use erpx_cqrs_sqlx::{
     CqrsSqlxError, ProjectionPool, ProjectionRun, ProjectionRunner, ProjectionRunnerConfig,
     ProjectionSource, ProjectionStore, Projector, RebuildHandle, WritePool,

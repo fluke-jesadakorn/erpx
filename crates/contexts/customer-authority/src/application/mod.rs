@@ -4,8 +4,8 @@ use erpx_cqrs::{
     QueryMetadata, QueryResult,
 };
 use erpx_kernel::{
-    ActorAttribution, AuditContext, Clock, CorrelationId, ErrorCategory, ErrorContext, EventId,
-    KernelError, TenantScope,
+    ActorAttribution, AuditContext, AuthorityScope, Clock, CorrelationId, ErrorCategory,
+    ErrorContext, EventId, KernelError,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -37,7 +37,7 @@ pub struct CreateCustomer {
     pub customer_id: CustomerId,
     pub code: CustomerCode,
     pub identity: CustomerIdentity,
-    pub primary_authority: TenantScope,
+    pub primary_authority: AuthorityScope,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -55,13 +55,13 @@ pub struct ChangeCustomerStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LinkCustomerAuthority {
     pub customer_id: CustomerId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UnlinkCustomerAuthority {
     pub customer_id: CustomerId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -149,12 +149,12 @@ struct ExistingCommand {
     correlation_id: CorrelationId,
     causation_id: Option<EventId>,
     actor: ActorAttribution,
-    authority_scope: TenantScope,
+    authority_scope: AuthorityScope,
     audit: AuditContext,
     expected_version: Option<u64>,
     identity: CommandIdentity,
     customer_id: CustomerId,
-    additional_scope: Option<TenantScope>,
+    additional_scope: Option<AuthorityScope>,
     action: CustomerAuthorityAction,
     merge_target: Option<MergeTargetVersion>,
 }
@@ -170,8 +170,8 @@ where
     async fn preflight(
         &self,
         actor: &ActorAttribution,
-        authority_scope: &TenantScope,
-        target_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         action: CustomerAuthorityAction,
     ) -> Result<(), CustomerAuthorityApplicationError> {
         if !authority_scope.contains(target_scope) {
@@ -328,7 +328,7 @@ where
         {
             self.preflight(
                 &envelope.actor,
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 stored.aggregate.primary_authority(),
                 CustomerAuthorityAction::Create,
             )
@@ -348,7 +348,7 @@ where
         }
         self.preflight(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             &command.primary_authority,
             CustomerAuthorityAction::Create,
         )
@@ -376,7 +376,7 @@ where
                 correlation_id,
                 causation_id: envelope.causation_id,
                 actor: envelope.actor,
-                authority_scope: envelope.tenant_scope,
+                authority_scope: envelope.active_scope,
                 audit: envelope.audit,
                 expected_version: None,
                 merge_target: None,
@@ -416,7 +416,7 @@ macro_rules! existing_handler {
                     correlation_id: envelope.correlation_id,
                     causation_id: envelope.causation_id,
                     actor: envelope.actor,
-                    authority_scope: envelope.tenant_scope,
+                    authority_scope: envelope.active_scope,
                     audit: envelope.audit,
                     expected_version: envelope.expected_aggregate_version,
                     identity: CommandIdentity {
@@ -529,7 +529,7 @@ where
         {
             let survivor = self
                 .write_repository
-                .load(&envelope.tenant_scope, command.surviving_customer_id)
+                .load(&envelope.active_scope, command.surviving_customer_id)
                 .await
                 .map_err(|error| to_cqrs(error.into(), correlation_id))?
                 .filter(|aggregate| {
@@ -544,7 +544,7 @@ where
                 })?;
             self.preflight(
                 &envelope.actor,
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 stored.aggregate.primary_authority(),
                 CustomerAuthorityAction::Merge,
             )
@@ -552,7 +552,7 @@ where
             .map_err(|error| to_cqrs(error, correlation_id))?;
             self.preflight(
                 &envelope.actor,
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 survivor.primary_authority(),
                 CustomerAuthorityAction::Merge,
             )
@@ -572,7 +572,7 @@ where
         }
         let survivor = self
             .write_repository
-            .load(&envelope.tenant_scope, command.surviving_customer_id)
+            .load(&envelope.active_scope, command.surviving_customer_id)
             .await
             .map_err(|error| to_cqrs(error.into(), correlation_id))?
             .ok_or_else(|| {
@@ -589,7 +589,7 @@ where
         }
         self.preflight(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             survivor.primary_authority(),
             CustomerAuthorityAction::Merge,
         )
@@ -600,7 +600,7 @@ where
             correlation_id,
             causation_id: envelope.causation_id,
             actor: envelope.actor,
-            authority_scope: envelope.tenant_scope,
+            authority_scope: envelope.active_scope,
             audit: envelope.audit,
             expected_version: envelope.expected_aggregate_version,
             identity,
@@ -653,7 +653,7 @@ where
     async fn authorize_query(
         &self,
         actor: &ActorAttribution,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         action: CustomerAuthorityAction,
     ) -> Result<(), PortError> {
         self.entitlement
@@ -686,7 +686,7 @@ where
         envelope.validate()?;
         self.authorize_query(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             CustomerAuthorityAction::View,
         )
         .await
@@ -694,7 +694,7 @@ where
         let projection = self
             .read_repository
             .get(
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 envelope.query.customer_id,
                 &envelope.consistency,
             )
@@ -703,7 +703,7 @@ where
         if projection
             .value
             .as_ref()
-            .is_some_and(|view| !view.visible_under(&envelope.tenant_scope))
+            .is_some_and(|view| !view.visible_under(&envelope.active_scope))
         {
             return Err(to_cqrs(
                 CustomerAuthorityApplicationError::ScopeOutsideAuthority,
@@ -745,7 +745,7 @@ where
         }
         self.authorize_query(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             CustomerAuthorityAction::List,
         )
         .await
@@ -753,7 +753,7 @@ where
         let projection = self
             .read_repository
             .list(
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 &envelope.query.filter,
                 &envelope.consistency,
             )
@@ -763,7 +763,7 @@ where
             .value
             .customers
             .iter()
-            .any(|view| !view.visible_under(&envelope.tenant_scope))
+            .any(|view| !view.visible_under(&envelope.active_scope))
         {
             return Err(to_cqrs(
                 CustomerAuthorityApplicationError::ScopeOutsideAuthority,

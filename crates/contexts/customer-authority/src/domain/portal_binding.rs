@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use chrono::{DateTime, Utc};
 use erpx_integration_contracts::{RecordVersionRef, catalog::ContextId};
-use erpx_kernel::{PrincipalId, TenantScope};
+use erpx_kernel::{AuthorityScope, PrincipalId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -104,7 +104,7 @@ pub struct CustomerPortalPrincipalBinding {
     customer: RecordVersionRef,
     portal_principal_id: PrincipalId,
     principal_kind: PortalPrincipalKind,
-    scope: TenantScope,
+    scope: AuthorityScope,
     verified_identity: VerifiedIdentityEvidence,
     permitted_use_cases: BTreeSet<PortalUseCase>,
     valid_from: DateTime<Utc>,
@@ -126,7 +126,7 @@ impl CustomerPortalPrincipalBinding {
         customer: RecordVersionRef,
         portal_principal_id: PrincipalId,
         principal_kind: PortalPrincipalKind,
-        scope: TenantScope,
+        scope: AuthorityScope,
         verified_identity: VerifiedIdentityEvidence,
         permitted_use_cases: BTreeSet<PortalUseCase>,
         valid_from: DateTime<Utc>,
@@ -325,7 +325,7 @@ impl CustomerPortalPrincipalBinding {
     pub const fn principal_kind(&self) -> PortalPrincipalKind {
         self.principal_kind
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn verified_identity(&self) -> &VerifiedIdentityEvidence {
@@ -402,7 +402,7 @@ mod tests {
             customer(),
             principal(),
             PortalPrincipalKind::Human,
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id: Uuid::new_v4(),
                 company_id: Uuid::new_v4(),
             },

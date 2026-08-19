@@ -94,10 +94,10 @@ const NO_METHODS: &[&str] = &[];
 const NO_ROUTES: &[&str] = &[];
 const IDENTITY_ROUTES: &[&str] = &["/platform/role-review"];
 const PLATFORM_ROUTES: &[&str] = &["/platform"];
-const ORGANIZATION_ROUTES: &[&str] = &["/tenant/organization"];
+const ORGANIZATION_ROUTES: &[&str] = &["/holding/organization"];
 const COMMERCIAL_ROUTES: &[&str] = &["/billing"];
-const BRAND_ROUTES: &[&str] = &["/tenant/corporate-identity"];
-const CUSTOMER_ROUTES: &[&str] = &["/platform/customers"];
+const BRAND_ROUTES: &[&str] = &["/holding/corporate-identity"];
+const CUSTOMER_ROUTES: &[&str] = &["/platform/holdings"];
 const SUPPORT_ROUTES: &[&str] = &["/support"];
 const FINANCE_ROUTES: &[&str] = &["/finance"];
 const SALES_ROUTES: &[&str] = &["/sales"];
@@ -276,38 +276,38 @@ mod tests {
     use super::*;
 
     const ACTIVE_PROTO: &str = concat!(
-        include_str!("../../proto/proto/erpx/identity_access/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/platform_administration/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/organization/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/commercial/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/brand/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/customer_authority/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/customer_360/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/support/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/finance/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/sales/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/pos/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/procurement/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/inventory/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/assets/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/maintenance/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/quality/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/operations/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/people_payroll/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/legal/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/marketing/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/crm/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/manufacturing/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/planning/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/projects/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/ecommerce/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/talent/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/learning/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/benefits/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/field_service/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/collaboration/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/agent/v2/service.proto"),
-        include_str!("../../proto/proto/erpx/reference/v2/service.proto"),
+        include_str!("../../proto/proto/erpx/identity_access/service.proto"),
+        include_str!("../../proto/proto/erpx/platform_administration/service.proto"),
+        include_str!("../../proto/proto/erpx/organization/service.proto"),
+        include_str!("../../proto/proto/erpx/commercial/service.proto"),
+        include_str!("../../proto/proto/erpx/brand/service.proto"),
+        include_str!("../../proto/proto/erpx/customer_authority/service.proto"),
+        include_str!("../../proto/proto/erpx/customer_360/service.proto"),
+        include_str!("../../proto/proto/erpx/support/service.proto"),
+        include_str!("../../proto/proto/erpx/finance/service.proto"),
+        include_str!("../../proto/proto/erpx/sales/service.proto"),
+        include_str!("../../proto/proto/erpx/pos/service.proto"),
+        include_str!("../../proto/proto/erpx/procurement/service.proto"),
+        include_str!("../../proto/proto/erpx/inventory/service.proto"),
+        include_str!("../../proto/proto/erpx/assets/service.proto"),
+        include_str!("../../proto/proto/erpx/maintenance/service.proto"),
+        include_str!("../../proto/proto/erpx/quality/service.proto"),
+        include_str!("../../proto/proto/erpx/operations/service.proto"),
+        include_str!("../../proto/proto/erpx/people_payroll/service.proto"),
+        include_str!("../../proto/proto/erpx/legal/service.proto"),
+        include_str!("../../proto/proto/erpx/marketing/service.proto"),
+        include_str!("../../proto/proto/erpx/crm/service.proto"),
+        include_str!("../../proto/proto/erpx/manufacturing/service.proto"),
+        include_str!("../../proto/proto/erpx/planning/service.proto"),
+        include_str!("../../proto/proto/erpx/projects/service.proto"),
+        include_str!("../../proto/proto/erpx/ecommerce/service.proto"),
+        include_str!("../../proto/proto/erpx/talent/service.proto"),
+        include_str!("../../proto/proto/erpx/learning/service.proto"),
+        include_str!("../../proto/proto/erpx/benefits/service.proto"),
+        include_str!("../../proto/proto/erpx/field_service/service.proto"),
+        include_str!("../../proto/proto/erpx/collaboration/service.proto"),
+        include_str!("../../proto/proto/erpx/agent/service.proto"),
+        include_str!("../../proto/proto/erpx/reference/service.proto"),
     );
 
     fn descriptor_rpcs() -> BTreeSet<(String, String)> {
@@ -404,6 +404,6 @@ mod tests {
         // members of the internal service catalog, but remain explicit vocabulary.
         assert!(RpcClassification::PublicHuman.requires_human_surface());
         assert!(!RpcClassification::WorkerOnly.requires_human_surface());
-        assert!(rpc_workflow("PlatformOperationsService", "ListTenants").is_none());
+        assert!(rpc_workflow("PlatformOperationsService", "ListHoldings").is_none());
     }
 }

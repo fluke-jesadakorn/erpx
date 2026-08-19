@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use erpx_infrastructure::{
-    ControlPlaneDatabaseConfig, ControlPlanePools, SqlxControlPlane, SqlxTenantStoreRegistry,
-    TenantStoreRegistration,
+    ControlPlaneDatabaseConfig, ControlPlanePools, HoldingStoreRegistration, SqlxControlPlane,
+    SqlxHoldingStoreRegistry,
 };
 use erpx_migration::{migrate_control_plane, migrate_control_read};
 use sqlx::Row;
@@ -32,14 +32,14 @@ async fn provider_account_resolution_requires_active_authoritative_binding() {
         .await
         .expect("control read migrations");
     let control = Arc::new(SqlxControlPlane::new(pools));
-    let registry = SqlxTenantStoreRegistry::new(Arc::clone(&control));
-    let tenant_id = "marketing-provider-tenant";
+    let registry = SqlxHoldingStoreRegistry::new(Arc::clone(&control));
     let holding_id = Uuid::new_v4();
-    let holding_ref = holding_id.to_string();
+    let holding_key = holding_id.to_string();
+    let data_profile_key = holding_id.to_string();
     registry
-        .register(TenantStoreRegistration {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.clone(),
+        .register(HoldingStoreRegistration {
+            holding_id: holding_key.clone(),
+            data_profile_key: data_profile_key.clone(),
             write_database_key: "marketing_provider_write".into(),
             read_database_key: "marketing_provider_read".into(),
             storage_namespace: "marketing_provider_storage".into(),
@@ -49,18 +49,17 @@ async fn provider_account_resolution_requires_active_authoritative_binding() {
             registry_version: 1,
         })
         .await
-        .expect("tenant registration");
+        .expect("holding registration");
     sqlx::query(
         "INSERT INTO erpx_control.marketing_provider_accounts
-            (provider_account_id, provider_account_ref, tenant_id, holding_ref,
-             holding_id, verifier_key_ref, state, version)
-         VALUES ($1,$2,$3,$4,$5,$6,'active',1)",
+            (provider_account_id, provider_account_ref, holding_id, data_profile_key,
+             verifier_key_ref, state, version)
+         VALUES ($1,$2,$3,$4,$5,'active',1)",
     )
     .bind(Uuid::new_v4())
     .bind("provider-account-test")
-    .bind(tenant_id)
-    .bind(&holding_ref)
     .bind(holding_id)
+    .bind(&data_profile_key)
     .bind("marketing-verifier-test")
     .execute(&control.pools().write)
     .await
@@ -78,8 +77,8 @@ async fn provider_account_resolution_requires_active_authoritative_binding() {
     let resolved = control
         .resolve_marketing_provider_account(
             "provider-account-test",
-            tenant_id,
-            &holding_ref,
+            &holding_key,
+            &data_profile_key,
             "marketing-verifier-test",
         )
         .await
@@ -92,12 +91,11 @@ async fn provider_account_resolution_requires_active_authoritative_binding() {
     );
     assert_eq!(resolved.version, 1);
     assert_eq!(resolved.holding_id, holding_id);
-    assert_eq!(resolved.tenant_id, tenant_id);
     let outbound = control
         .resolve_marketing_provider_account_for_outbound(
             "provider-account-test",
-            tenant_id,
-            &holding_ref,
+            &holding_key,
+            &data_profile_key,
         )
         .await
         .expect("outbound provider account lookup")
@@ -114,8 +112,8 @@ async fn provider_account_resolution_requires_active_authoritative_binding() {
         .await
         .expect("callback provider account lookup")
         .expect("active callback provider account");
-    assert_eq!(callback.tenant_id, tenant_id);
-    assert_eq!(callback.holding_ref, holding_ref);
+    assert_eq!(callback.holding_id, holding_id);
+    assert_eq!(callback.data_profile_key, data_profile_key);
     let debug = format!("{resolved:?}");
     assert!(debug.contains("[redacted]"));
     assert!(!debug.contains("marketing-verifier-test"));
@@ -124,8 +122,8 @@ async fn provider_account_resolution_requires_active_authoritative_binding() {
         control
             .resolve_marketing_provider_account(
                 "provider-account-test",
-                tenant_id,
-                &holding_ref,
+                &holding_key,
+                &data_profile_key,
                 "wrong-verifier",
             )
             .await
@@ -144,8 +142,8 @@ async fn provider_account_resolution_requires_active_authoritative_binding() {
         control
             .resolve_marketing_provider_account(
                 "provider-account-test",
-                tenant_id,
-                &holding_ref,
+                &holding_key,
+                &data_profile_key,
                 "marketing-verifier-test",
             )
             .await
@@ -156,8 +154,8 @@ async fn provider_account_resolution_requires_active_authoritative_binding() {
         control
             .resolve_marketing_provider_account_for_outbound(
                 "provider-account-test",
-                tenant_id,
-                &holding_ref,
+                &holding_key,
+                &data_profile_key,
             )
             .await
             .expect("suspended outbound provider lookup")

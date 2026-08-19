@@ -2,7 +2,7 @@
 //! write boundary.
 
 use chrono::{NaiveDate, Utc};
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::finance::{
     Account, AccountKind, AccountingPeriod, ChartOfAccounts, JournalEntry, JournalLine,
     PostedJournalEntry,
@@ -15,12 +15,12 @@ use erpx_infrastructure::{FinanceSubledgerAggregate, PersistenceError, SqlxFinan
 use sqlx::PgPool;
 use uuid::Uuid;
 
-fn context(scope: TenantScope, key: &str) -> CommandContext {
+fn context(scope: AuthorityScope, key: &str) -> CommandContext {
     CommandContext::try_new(
         key,
         ActorAttribution {
             principal_ref: "finance-subledger-handoff-test".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
@@ -51,7 +51,7 @@ fn invoice(
     id: Uuid,
     key: &str,
 ) -> Invoice {
-    let scope = TenantScope::Branch {
+    let scope = AuthorityScope::Branch {
         holding_id,
         company_id,
         branch_id,
@@ -59,7 +59,7 @@ fn invoice(
     let party = PartyReference::new(
         PartyKind::Vendor,
         Uuid::new_v4(),
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -137,7 +137,7 @@ fn posted_journal(
             JournalLine::new(Uuid::new_v4(), credit_id, 0, 100, None).expect("credit"),
         ],
         context(
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             },
@@ -186,7 +186,7 @@ fn settled_payment(
     journal: &PostedJournalEntry,
     key: &str,
 ) -> Payment {
-    let scope = TenantScope::Branch {
+    let scope = AuthorityScope::Branch {
         holding_id,
         company_id,
         branch_id,
@@ -194,7 +194,7 @@ fn settled_payment(
     let party = PartyReference::new(
         PartyKind::Vendor,
         Uuid::new_v4(),
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -239,7 +239,7 @@ fn allocation(
     invoice_id: Uuid,
     key: &str,
 ) -> Allocation {
-    let scope = TenantScope::Branch {
+    let scope = AuthorityScope::Branch {
         holding_id,
         company_id,
         branch_id,
@@ -261,7 +261,7 @@ fn allocation(
 
 async fn insert_posted_journal(
     pool: &PgPool,
-    holding_ref: &str,
+    data_profile_key: &str,
     posted: &PostedJournalEntry,
     row_holding_id: Uuid,
     row_company_id: Uuid,
@@ -270,14 +270,14 @@ async fn insert_posted_journal(
     let payload = serde_json::to_value(posted).expect("posted payload");
     let total_minor: i64 = posted.lines().iter().map(|line| line.debit_minor).sum();
     let mut tx = pool.begin().await.expect("journal insert transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(data_profile_key)
         .execute(&mut *tx)
         .await
         .expect("journal holding scope");
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_posted_journals
-            (journal_id, holding_id, company_id, period_id, holding_ref, version,
+        "INSERT INTO erpx_holding.finance_posted_journals
+            (journal_id, holding_id, company_id, period_id, data_profile_key, version,
              idempotency_key, posted_at, currency, total_minor, payload)
          VALUES ($1,$2,$3,$4,$5,1,$6,$7,'THB',$8,$9)",
     )
@@ -285,7 +285,7 @@ async fn insert_posted_journal(
     .bind(row_holding_id)
     .bind(row_company_id)
     .bind(row_period_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(posted.idempotency_key())
     .bind(posted.posted_at())
     .bind(total_minor)
@@ -298,7 +298,7 @@ async fn insert_posted_journal(
 
 async fn insert_subledger_aggregate(
     pool: &PgPool,
-    holding_ref: &str,
+    data_profile_key: &str,
     aggregate: &FinanceSubledgerAggregate,
     version: i64,
 ) {
@@ -326,24 +326,24 @@ async fn insert_subledger_aggregate(
         }
     };
     let branch_id = match aggregate.scope() {
-        TenantScope::Branch { branch_id, .. } => Some(*branch_id),
+        AuthorityScope::Branch { branch_id, .. } => Some(*branch_id),
         _ => None,
     };
     let mut tx = pool.begin().await.expect("subledger insert transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(data_profile_key)
         .execute(&mut *tx)
         .await
         .expect("subledger holding scope");
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_subledger_aggregates
-            (aggregate_id, aggregate_type, holding_ref, company_id, branch_id,
+        "INSERT INTO erpx_holding.finance_subledger_aggregates
+            (aggregate_id, aggregate_type, data_profile_key, company_id, branch_id,
              period_id, accounting_date, reference, version, idempotency_key, payload)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
     )
     .bind(aggregate.aggregate_id())
     .bind(aggregate.aggregate_type())
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(aggregate.metadata().company_id)
     .bind(branch_id)
     .bind(aggregate.metadata().period_id)
@@ -360,26 +360,26 @@ async fn insert_subledger_aggregate(
 
 async fn subledger_counts(
     pool: &PgPool,
-    holding_ref: &str,
+    data_profile_key: &str,
     aggregate_id: Uuid,
     request_key: &str,
 ) -> (i64, i64, i64) {
     let mut tx = pool.begin().await.expect("count transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(data_profile_key)
         .execute(&mut *tx)
         .await
         .expect("count holding scope");
     let counts = sqlx::query_as::<_, (i64, i64, i64)>(
         "SELECT
-            (SELECT count(*) FROM erpx_tenant.finance_subledger_aggregates
-              WHERE holding_ref=$1 AND aggregate_id=$2),
-            (SELECT count(*) FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND aggregate_id=$2),
-            (SELECT count(*) FROM erpx_tenant.finance_subledger_command_idempotency
-              WHERE holding_ref=$1 AND idempotency_key=$3)",
+            (SELECT count(*) FROM erpx_holding.finance_subledger_aggregates
+              WHERE data_profile_key=$1 AND aggregate_id=$2),
+            (SELECT count(*) FROM erpx_holding.outbox_events
+              WHERE data_profile_key=$1 AND aggregate_id=$2),
+            (SELECT count(*) FROM erpx_holding.finance_subledger_command_idempotency
+              WHERE data_profile_key=$1 AND idempotency_key=$3)",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(aggregate_id)
     .bind(request_key)
     .fetch_one(&mut *tx)
@@ -459,16 +459,16 @@ fn posted_invoice_without_or_with_record_mismatched_handoff_is_rejected() {
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn live_subledger_handoff_is_authoritative_atomic_and_idempotent() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let pool = PgPool::connect(&url).await.expect("write pool");
-    erpx_migration::migrate_tenant_write(&pool)
+    erpx_migration::migrate_holding_write(&pool)
         .await
-        .expect("tenant-write migrations");
+        .expect("holding-write migrations");
 
-    let holding_ref = format!("holding-finance-handoff-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-finance-handoff-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let branch_id = Uuid::new_v4();
@@ -481,7 +481,7 @@ async fn live_subledger_handoff_is_authoritative_atomic_and_idempotent() {
     );
     insert_posted_journal(
         &pool,
-        &holding_ref,
+        &data_profile_key,
         &journal,
         holding_id,
         company_id,
@@ -489,8 +489,8 @@ async fn live_subledger_handoff_is_authoritative_atomic_and_idempotent() {
     )
     .await;
 
-    let store =
-        SqlxFinanceSubledgerStore::new(pool.clone(), pool.clone(), &holding_ref).expect("store");
+    let store = SqlxFinanceSubledgerStore::new(pool.clone(), pool.clone(), &data_profile_key)
+        .expect("store");
     let valid = posted_invoice(
         holding_id,
         company_id,
@@ -513,7 +513,7 @@ async fn live_subledger_handoff_is_authoritative_atomic_and_idempotent() {
     assert!(replay.replayed);
     assert_eq!(replay.version, first.version);
     assert_eq!(
-        subledger_counts(&pool, &holding_ref, valid_id, &valid_key).await,
+        subledger_counts(&pool, &data_profile_key, valid_id, &valid_key).await,
         (1, 1, 1)
     );
 
@@ -548,7 +548,7 @@ async fn live_subledger_handoff_is_authoritative_atomic_and_idempotent() {
         }) if id == missing_journal_id
     ));
     assert_eq!(
-        subledger_counts(&pool, &holding_ref, missing_id, &missing_key).await,
+        subledger_counts(&pool, &data_profile_key, missing_id, &missing_key).await,
         (0, 0, 0)
     );
 
@@ -562,7 +562,7 @@ async fn live_subledger_handoff_is_authoritative_atomic_and_idempotent() {
     );
     insert_posted_journal(
         &pool,
-        &holding_ref,
+        &data_profile_key,
         &other_journal,
         holding_id,
         other_company_id,
@@ -599,7 +599,7 @@ async fn live_subledger_handoff_is_authoritative_atomic_and_idempotent() {
             if message == "Finance journal handoff does not match the authoritative posted journal"
     ));
     assert_eq!(
-        subledger_counts(&pool, &holding_ref, mismatched_id, &mismatched_key).await,
+        subledger_counts(&pool, &data_profile_key, mismatched_id, &mismatched_key).await,
         (0, 0, 0)
     );
 
@@ -642,14 +642,14 @@ async fn live_subledger_handoff_is_authoritative_atomic_and_idempotent() {
     let allocation_invoice_key = allocation_invoice.metadata.idempotency_key.clone();
     insert_subledger_aggregate(
         &pool,
-        &holding_ref,
+        &data_profile_key,
         &FinanceSubledgerAggregate::Payment(allocation_payment.clone()),
         1,
     )
     .await;
     insert_subledger_aggregate(
         &pool,
-        &holding_ref,
+        &data_profile_key,
         &FinanceSubledgerAggregate::Invoice(allocation_invoice.clone()),
         1,
     )
@@ -677,15 +677,27 @@ async fn live_subledger_handoff_is_authoritative_atomic_and_idempotent() {
         }) if id == missing_allocation_journal.id()
     ));
     assert_eq!(
-        subledger_counts(&pool, &holding_ref, payment_id, &allocation_payment_key).await,
+        subledger_counts(
+            &pool,
+            &data_profile_key,
+            payment_id,
+            &allocation_payment_key
+        )
+        .await,
         (1, 0, 0)
     );
     assert_eq!(
-        subledger_counts(&pool, &holding_ref, invoice_id, &allocation_invoice_key).await,
+        subledger_counts(
+            &pool,
+            &data_profile_key,
+            invoice_id,
+            &allocation_invoice_key
+        )
+        .await,
         (1, 0, 0)
     );
     assert_eq!(
-        subledger_counts(&pool, &holding_ref, allocation_id, &allocation_key).await,
+        subledger_counts(&pool, &data_profile_key, allocation_id, &allocation_key).await,
         (0, 0, 0)
     );
 }

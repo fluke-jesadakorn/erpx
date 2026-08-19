@@ -3,7 +3,7 @@
 ## Scope
 
 The Dioxus POS route now exposes the existing authenticated
-PosService::ListPosSales projection for an explicit tenant, holding, company,
+PosService::ListPosSales projection for an explicit holding, holding, company,
 and optional branch UUID scope. The adapter is read-only and keeps customer
 identity, register references, line/payment payloads, and mutation controls
 outside the client contract.
@@ -13,7 +13,7 @@ outside the client contract.
 - The console sends an authenticated/audited query context to the existing POS
   service.
 - The server performs explicit company/branch containment, pos.read
-  authorization, customer-scope containment, tenant-read routing, bounded
+  authorization, customer-scope containment, holding-read routing, bounded
   cursor pagination, SQLx projection access, and audit persistence.
 - The client retains only sale reference, currency, bounded monetary totals,
   lifecycle status, line/payment counts with truncation markers, creation time,
@@ -23,7 +23,7 @@ outside the client contract.
 
 ## Fail-closed boundary
 
-PosSaleScope rejects invalid tenant/holding/company/branch references.
+PosSaleScope rejects invalid holding/holding/company/branch references.
 PosSaleReadModel::from_wire rejects oversized pages, missing or contradictory
 cursors, scope escapes, invalid currency/status values, unsafe references,
 oversized line/payment sets, zero source versions, and malformed timestamps.

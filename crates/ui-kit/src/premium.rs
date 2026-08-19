@@ -497,7 +497,7 @@ pub fn Timeline(items: Vec<TimelineItem>, label: String) -> Element {
 }
 
 #[component]
-pub fn DataTableV2(
+pub fn PremiumDataTable(
     caption: String,
     columns: Vec<TableColumn>,
     empty: bool,
@@ -515,7 +515,7 @@ pub fn DataTableV2(
     let count = columns.len().max(1);
     rsx! {
         ScrollArea {
-            class: "ui-data-table-v2",
+            class: "ui-data-table",
             tabindex: "0",
             "data-erpx-component": "data-table-scroll-area",
             KitTable {

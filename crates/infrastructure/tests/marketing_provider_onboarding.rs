@@ -4,10 +4,10 @@ use erpx_application::{
     AcknowledgeMarketingProviderVerificationCommand, ConfigureMarketingProviderAccountCommand,
     MarketingProviderChannelRoute, SetMarketingProviderAccountStateCommand,
 };
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_infrastructure::{
-    ControlPlaneDatabaseConfig, ControlPlanePools, SqlxControlPlane,
-    SqlxMarketingProviderOnboardingStore, SqlxTenantStoreRegistry, TenantStoreRegistration,
+    ControlPlaneDatabaseConfig, ControlPlanePools, HoldingStoreRegistration, SqlxControlPlane,
+    SqlxHoldingStoreRegistry, SqlxMarketingProviderOnboardingStore,
 };
 use erpx_migration::{migrate_control_plane, migrate_control_read};
 use sqlx::Row;
@@ -27,12 +27,12 @@ fn context(key: &str, holding_id: Uuid, expected: Option<u64>) -> CommandContext
         key,
         ActorAttribution {
             principal_ref: "holding-owner-1".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
         },
-        TenantScope::Holding { holding_id },
+        AuthorityScope::Holding { holding_id },
         "marketing provider onboarding",
     )
     .expect("command context");
@@ -55,14 +55,14 @@ async fn provider_onboarding_is_idempotent_verified_before_activation_and_audite
         .await
         .expect("control read migrations");
     let control = Arc::new(SqlxControlPlane::new(pools));
-    let registry = SqlxTenantStoreRegistry::new(Arc::clone(&control));
-    let tenant_id = Uuid::new_v4().to_string();
+    let registry = SqlxHoldingStoreRegistry::new(Arc::clone(&control));
     let holding_id = Uuid::new_v4();
-    let holding_ref = holding_id.to_string();
+    let holding_key = holding_id.to_string();
+    let data_profile_key = holding_id.to_string();
     registry
-        .register(TenantStoreRegistration {
-            tenant_id: tenant_id.clone(),
-            holding_ref: holding_ref.clone(),
+        .register(HoldingStoreRegistration {
+            holding_id: holding_key.clone(),
+            data_profile_key: data_profile_key.clone(),
             write_database_key: "provider_onboarding_write".into(),
             read_database_key: "provider_onboarding_read".into(),
             storage_namespace: "provider_onboarding_storage".into(),
@@ -72,15 +72,13 @@ async fn provider_onboarding_is_idempotent_verified_before_activation_and_audite
             registry_version: 1,
         })
         .await
-        .expect("tenant registration");
+        .expect("holding registration");
 
     let store = SqlxMarketingProviderOnboardingStore::new(Arc::clone(&control));
     let account_id = Uuid::new_v4();
     let configure = ConfigureMarketingProviderAccountCommand::new(
         account_id,
         "provider-account-onboarding-1",
-        tenant_id.clone(),
-        holding_ref.clone(),
         holding_id,
         "provider-test",
         100,
@@ -124,8 +122,8 @@ async fn provider_onboarding_is_idempotent_verified_before_activation_and_audite
 
     let verification = AcknowledgeMarketingProviderVerificationCommand::new(
         account_id,
-        tenant_id.clone(),
-        holding_ref.clone(),
+        holding_id,
+        data_profile_key.clone(),
         "provider-check-2026-07-26",
         true,
         context("provider-verify-1", holding_id, Some(1)),
@@ -141,8 +139,8 @@ async fn provider_onboarding_is_idempotent_verified_before_activation_and_audite
     let binding = control
         .resolve_marketing_provider_account_for_outbound(
             &verified.provider_account_ref,
-            &tenant_id,
-            &holding_ref,
+            &holding_key,
+            &data_profile_key,
         )
         .await
         .expect("active binding lookup")
@@ -161,8 +159,8 @@ async fn provider_onboarding_is_idempotent_verified_before_activation_and_audite
         .set_state(
             SetMarketingProviderAccountStateCommand::new(
                 account_id,
-                tenant_id.clone(),
-                holding_ref.clone(),
+                holding_id,
+                data_profile_key.clone(),
                 false,
                 context("provider-suspend-1", holding_id, Some(2)),
             )
@@ -175,8 +173,8 @@ async fn provider_onboarding_is_idempotent_verified_before_activation_and_audite
         control
             .resolve_marketing_provider_account_for_outbound(
                 &suspended.provider_account_ref,
-                &tenant_id,
-                &holding_ref,
+                &holding_key,
+                &data_profile_key,
             )
             .await
             .expect("suspended binding lookup")
@@ -187,8 +185,8 @@ async fn provider_onboarding_is_idempotent_verified_before_activation_and_audite
         .set_state(
             SetMarketingProviderAccountStateCommand::new(
                 account_id,
-                tenant_id.clone(),
-                holding_ref.clone(),
+                holding_id,
+                data_profile_key.clone(),
                 true,
                 context("provider-stale-1", holding_id, Some(2)),
             )
@@ -204,8 +202,8 @@ async fn provider_onboarding_is_idempotent_verified_before_activation_and_audite
         .set_state(
             SetMarketingProviderAccountStateCommand::new(
                 account_id,
-                tenant_id.clone(),
-                holding_ref.clone(),
+                holding_id,
+                data_profile_key.clone(),
                 true,
                 context("provider-active-1", holding_id, Some(3)),
             )
@@ -222,8 +220,6 @@ async fn provider_onboarding_is_idempotent_verified_before_activation_and_audite
             ConfigureMarketingProviderAccountCommand::new(
                 secondary_id,
                 "provider-account-onboarding-2",
-                tenant_id.clone(),
-                holding_ref.clone(),
                 holding_id,
                 "provider-test-2",
                 10,
@@ -247,8 +243,8 @@ async fn provider_onboarding_is_idempotent_verified_before_activation_and_audite
         .acknowledge_verification(
             AcknowledgeMarketingProviderVerificationCommand::new(
                 secondary_id,
-                tenant_id.clone(),
-                holding_ref.clone(),
+                holding_id,
+                data_profile_key.clone(),
                 "provider-check-2026-07-26-secondary",
                 true,
                 context("provider-verify-2", holding_id, Some(1)),
@@ -258,7 +254,7 @@ async fn provider_onboarding_is_idempotent_verified_before_activation_and_audite
         .await
         .expect("secondary verification");
     let ordered = control
-        .list_marketing_provider_accounts_for_outbound(&tenant_id, &holding_ref)
+        .list_marketing_provider_accounts_for_outbound(&holding_key, &data_profile_key)
         .await
         .expect("ordered provider accounts");
     assert_eq!(ordered.len(), 2);

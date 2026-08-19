@@ -19,34 +19,28 @@ pub const HISTORY_PROJECTION: &str = "brand.history";
 pub const SNAPSHOT_EVENT_TYPE: &str = "brand.profile_snapshot";
 pub const EVENT_VERSION: u32 = 1;
 
-pub const CONTROL_WRITE_FOUNDATION_DDL: &str = include_str!(
-    "../../../migration/migrations/0075_cqrs_control_foundation_and_commercial_catalog.sql"
-);
+pub const CONTROL_WRITE_FOUNDATION_DDL: &str =
+    include_str!("../../../migration/migrations/0001_baseline.sql");
 pub const CONTROL_WRITE_CONTEXT_DDL: &str = concat!(
-    include_str!("../../../migration/migrations/0076_wave5_control_context_guards.sql"),
+    include_str!("../../../migration/migrations/0001_baseline.sql"),
     "\n",
-    include_str!("../../../migration/migrations/0082_current_normalized_authority.sql")
+    include_str!("../../../migration/migrations/0001_baseline.sql")
 );
 pub const CONTROL_WRITE_DDL: &str = concat!(
-    include_str!(
-        "../../../migration/migrations/0075_cqrs_control_foundation_and_commercial_catalog.sql"
-    ),
+    include_str!("../../../migration/migrations/0001_baseline.sql"),
     "\n",
-    include_str!("../../../migration/migrations/0076_wave5_control_context_guards.sql"),
+    include_str!("../../../migration/migrations/0001_baseline.sql"),
     "\n",
-    include_str!("../../../migration/migrations/0082_current_normalized_authority.sql")
+    include_str!("../../../migration/migrations/0001_baseline.sql")
 );
-pub const CONTROL_READ_FOUNDATION_DDL: &str = include_str!(
-    "../../../migration/migrations_read/0015_cqrs_control_foundation_and_commercial_catalog.sql"
-);
+pub const CONTROL_READ_FOUNDATION_DDL: &str =
+    include_str!("../../../migration/migrations_read/0001_baseline.sql");
 pub const CONTROL_READ_CONTEXT_DDL: &str =
-    include_str!("../../../migration/migrations_read/0016_wave5_control_context_projections.sql");
+    include_str!("../../../migration/migrations_read/0001_baseline.sql");
 pub const CONTROL_READ_DDL: &str = concat!(
-    include_str!(
-        "../../../migration/migrations_read/0015_cqrs_control_foundation_and_commercial_catalog.sql"
-    ),
+    include_str!("../../../migration/migrations_read/0001_baseline.sql"),
     "\n",
-    include_str!("../../../migration/migrations_read/0016_wave5_control_context_projections.sql")
+    include_str!("../../../migration/migrations_read/0001_baseline.sql")
 );
 pub const WRITE_DDL: &str = CONTROL_WRITE_DDL;
 pub const READ_DDL: &str = CONTROL_READ_DDL;
@@ -55,6 +49,9 @@ pub fn profile_partition(id: erpx_brand::BrandProfileId) -> String {
     format!("brand.profile:{}", id.as_uuid().simple())
 }
 
+#[cfg(test)]
+#[path = "../../schema_test.rs"]
+mod schema_test;
 #[cfg(test)]
 mod tests {
     use uuid::Uuid;
@@ -73,7 +70,11 @@ mod tests {
     #[test]
     fn canonical_ddl_contains_foundation_and_brand_tables() {
         assert!(CONTROL_WRITE_FOUNDATION_DDL.contains("command_receipts"));
-        assert!(!CONTROL_WRITE_FOUNDATION_DDL.contains("aggregate_snapshots"));
+        let foundation = schema_test::select_schema_statements(
+            CONTROL_WRITE_FOUNDATION_DDL,
+            &["erpx_cqrs_write"],
+        );
+        assert!(!foundation.contains("CREATE TABLE erpx_cqrs_write.aggregate_snapshots"));
         assert!(CONTROL_WRITE_CONTEXT_DDL.contains("erpx_brand_write.profile_guards"));
         assert!(CONTROL_READ_FOUNDATION_DDL.contains("projection_generations"));
         assert!(CONTROL_READ_CONTEXT_DDL.contains("erpx_brand_read.profile_projection"));

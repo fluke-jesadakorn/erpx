@@ -3,13 +3,13 @@
 ## Bounded gap
 
 The Operations detection scheduler previously rebuilt its request list from the
-beginning of the source-owned tenant outbox on every completion pass. That was
+beginning of the source-owned holding outbox on every completion pass. That was
 safe for replay but did not provide durable progress for a growing source feed:
 restart cost grew with the full history, and a bounded pass could not express
 which page had already been durably handled.
 
-This slice adds a tenant-scoped source-feed high-water mark using the existing
-forced-RLS `erpx_tenant.operations_projection_checkpoints` table. It is stored
+This slice adds a holding-scoped source-feed high-water mark using the existing
+forced-RLS `erpx_holding.operations_projection_checkpoints` table. It is stored
 under `operations_detection_cursor` and does not change migrations, protobuf,
 shared authorization, registration, or production command ownership.
 
@@ -67,7 +67,7 @@ was changed.
 - Live SQLx cursor acceptance — 1 passed.
 - Live SQLx Operations scheduler acceptance — 1 passed.
 - Package Clippy with warnings denied remains blocked by the pre-existing
-  unrelated `append_tenant_backup_job_event` too-many-arguments warning at
+  unrelated `append_holding_backup_job_event` too-many-arguments warning at
   `crates/infrastructure/src/provisioning.rs:6550`; that file was not changed.
 
 External LDAP/AD/UCS environments are not required by this bounded source-feed

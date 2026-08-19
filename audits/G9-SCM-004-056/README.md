@@ -1,11 +1,11 @@
-# G9-SCM-004 standalone SCM tenant projector runner
+# G9-SCM-004 standalone SCM holding projector runner
 
 ## Delivered behavior
 
-- Added a standalone tenant-routed SCM projector module.
-- Validated tenant/holding references and bounded page sizes before routing.
-- Routes both the tenant write and read databases through
-  `TenantDatabaseRouter`; tenant database handles are closed on every exit
+- Added a standalone holding-routed SCM projector module.
+- Validated holding/holding references and bounded page sizes before routing.
+- Routes both the holding write and read databases through
+  `HoldingDatabaseRouter`; holding database handles are closed on every exit
   path after routing.
 - Applies bounded source-event pages through `SqlxScmStore::project_event`.
   The infrastructure boundary supplies aggregate identity/version validation,
@@ -72,14 +72,14 @@ evidence.
 - Main must export and integrate this module from the worker crate.
 - Main must decide whether to publicly re-export the SCM cursor/event/page
   types and add continuation-aware scheduling/claiming.
-- Durable per-tenant scheduling/claiming, transport registration, source
+- Durable per-holding scheduling/claiming, transport registration, source
   event production, downstream Operations/Finance handoffs, and full
   Procure-to-Pay reconciliation remain open.
 
 ## Security concerns
 
-- Routing is fail-closed through the control-plane tenant registry and holding
-  binding; tenant credentials remain server-side.
+- Routing is fail-closed through the control-plane holding registry and holding
+  binding; holding credentials remain server-side.
 - Inputs reject whitespace/control/path separator characters and unbounded
   page sizes.
 - Projection failures are redacted at the worker boundary.
@@ -93,7 +93,7 @@ evidence.
 1. Main exports this module from `apps/worker/src/lib.rs`.
 2. Main publishes the SCM source cursor/event/page types or supplies a
    continuation adapter.
-3. Main registers the runner with durable tenant scheduling/claiming.
+3. Main registers the runner with durable holding scheduling/claiming.
 4. Main adds authenticated transport and downstream event consumers.
 5. Main independently runs the worker, infrastructure, migration, and full
    ERPX verification waves.

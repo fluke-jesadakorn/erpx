@@ -4,7 +4,7 @@
 CREATE SCHEMA IF NOT EXISTS erpx_quality_write;
 
 CREATE TABLE IF NOT EXISTS erpx_quality_write.inspection_authority (
-    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_write.current_tenant_id(),
+    holding_id UUID NOT NULL DEFAULT erpx_cqrs_write.current_holding_id(),
     inspection_id UUID NOT NULL,
     aggregate_version BIGINT NOT NULL CHECK (aggregate_version > 0),
     reference TEXT NOT NULL CHECK (octet_length(reference) BETWEEN 1 AND 255),
@@ -29,10 +29,10 @@ CREATE TABLE IF NOT EXISTS erpx_quality_write.inspection_authority (
     ),
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (tenant_id, inspection_id),
-    UNIQUE (tenant_id, inspection_id, aggregate_version),
+    PRIMARY KEY (holding_id, inspection_id),
+    UNIQUE (holding_id, inspection_id, aggregate_version),
     UNIQUE NULLS NOT DISTINCT (
-        tenant_id, holding_id, company_id, branch_id, reference
+        holding_id, holding_id, company_id, branch_id, reference
     ),
     CHECK (passed_quantity + failed_quantity <= quantity),
     CHECK (updated_at >= created_at),
@@ -51,14 +51,14 @@ CREATE TABLE IF NOT EXISTS erpx_quality_write.inspection_authority (
 
 CREATE INDEX IF NOT EXISTS quality_inspection_authority_scope
     ON erpx_quality_write.inspection_authority
-        (tenant_id, holding_id, company_id, branch_id, inspection_status,
+        (holding_id, holding_id, company_id, branch_id, inspection_status,
          updated_at DESC, inspection_id DESC);
 
 ALTER TABLE erpx_quality_write.inspection_authority ENABLE ROW LEVEL SECURITY;
 ALTER TABLE erpx_quality_write.inspection_authority FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS quality_inspection_authority_tenant_isolation
+DROP POLICY IF EXISTS quality_inspection_authority_holding_isolation
     ON erpx_quality_write.inspection_authority;
-CREATE POLICY quality_inspection_authority_tenant_isolation
+CREATE POLICY quality_inspection_authority_holding_isolation
     ON erpx_quality_write.inspection_authority
-    USING (tenant_id=erpx_cqrs_write.current_tenant_id())
-    WITH CHECK (tenant_id=erpx_cqrs_write.current_tenant_id());
+    USING (holding_id=erpx_cqrs_write.current_holding_id())
+    WITH CHECK (holding_id=erpx_cqrs_write.current_holding_id());

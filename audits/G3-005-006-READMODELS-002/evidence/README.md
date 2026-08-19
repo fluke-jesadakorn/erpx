@@ -71,7 +71,7 @@ The physical PostgreSQL test could not run because
 ## Security and isolation review
 
 - New repository queries use `self.pools.read` exclusively. They do not query
-  write-side global audit tables, support/commercial tables, tenant databases,
+  write-side global audit tables, support/commercial tables, holding databases,
   credentials, or scope authority.
 - The access-audit read model exposes only aggregate customer-visible audit
   fields; actor, scope, purpose, and correlation details remain in the

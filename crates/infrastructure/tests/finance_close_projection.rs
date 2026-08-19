@@ -2,7 +2,7 @@
 //! rollback boundary.
 
 use chrono::{NaiveDate, Utc};
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::finance::{AccountingPeriod, PeriodStatus};
 use erpx_domain::finance_close::FinanceCloseReview;
 use erpx_infrastructure::{
@@ -18,12 +18,12 @@ fn context(holding_id: Uuid, company_id: Uuid, key: &str) -> CommandContext {
         key,
         ActorAttribution {
             principal_ref: "finance-close-projection-test".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
         },
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -41,28 +41,28 @@ fn event_payload(review: &FinanceCloseReview, version: u64) -> Value {
 
 async fn insert_source_event(
     pool: &PgPool,
-    holding_ref: &str,
+    data_profile_key: &str,
     event_id: Uuid,
     period_id: Uuid,
     version: u64,
     payload: Value,
 ) {
     let mut tx = pool.begin().await.expect("source event transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(data_profile_key)
         .execute(&mut *tx)
         .await
-        .expect("source tenant scope");
+        .expect("source holding scope");
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at)
          VALUES ($1,'finance_close_review',$2,$3,$4,
                  'finance.close_review_saved.v1',$5,now())",
     )
     .bind(event_id)
     .bind(period_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(i64::try_from(version).expect("source version"))
     .bind(payload)
     .execute(&mut *tx)
@@ -73,31 +73,31 @@ async fn insert_source_event(
 
 async fn projected_state(
     pool: &PgPool,
-    holding_ref: &str,
+    data_profile_key: &str,
     period_id: Uuid,
 ) -> ((i64, Uuid, String), i64) {
     let mut tx = pool.begin().await.expect("read state transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(data_profile_key)
         .execute(&mut *tx)
         .await
-        .expect("read tenant scope");
+        .expect("read holding scope");
     let row = sqlx::query_as(
         "SELECT source_version, source_event_id, status
-         FROM erpx_tenant.finance_close_review_read_rows
-         WHERE holding_ref=$1 AND period_id=$2",
+         FROM erpx_holding.finance_close_review_read_rows
+         WHERE data_profile_key=$1 AND period_id=$2",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(period_id)
     .fetch_one(&mut *tx)
     .await
     .expect("projected row");
     let checkpoint_count = sqlx::query_scalar(
         "SELECT COUNT(*)
-         FROM erpx_tenant.finance_close_projection_checkpoints
-         WHERE holding_ref=$1 AND period_id=$2",
+         FROM erpx_holding.finance_close_projection_checkpoints
+         WHERE data_profile_key=$1 AND period_id=$2",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(period_id)
     .fetch_one(&mut *tx)
     .await
@@ -107,22 +107,22 @@ async fn projected_state(
 }
 
 #[tokio::test]
-#[ignore = "requires disposable tenant write and read PostgreSQL databases"]
+#[ignore = "requires disposable holding write and read PostgreSQL databases"]
 async fn live_finance_close_rebuild_rolls_back_after_late_source_failure() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant-write migrations");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding-write migrations");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant-read migrations");
+        .expect("holding-read migrations");
 
-    let holding_ref = format!("holding-finance-close-rebuild-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-finance-close-rebuild-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let period_id = Uuid::new_v4();
@@ -143,7 +143,7 @@ async fn live_finance_close_rebuild_rolls_back_after_late_source_failure() {
         .expect("open close review");
     insert_source_event(
         &write_pool,
-        &holding_ref,
+        &data_profile_key,
         Uuid::new_v4(),
         period_id,
         1,
@@ -151,8 +151,9 @@ async fn live_finance_close_rebuild_rolls_back_after_late_source_failure() {
     )
     .await;
 
-    let store = SqlxFinanceCloseProjectionStore::from_pools(&write_pool, &read_pool, &holding_ref)
-        .expect("projection store");
+    let store =
+        SqlxFinanceCloseProjectionStore::from_pools(&write_pool, &read_pool, &data_profile_key)
+            .expect("projection store");
     let (preparation, replayed) = store
         .rebuild_projection_with_source_fence(Some(1), 1)
         .await
@@ -161,10 +162,10 @@ async fn live_finance_close_rebuild_rolls_back_after_late_source_failure() {
     assert_eq!(replayed, 1);
 
     let (before, before_checkpoint_count) =
-        projected_state(&read_pool, &holding_ref, period_id).await;
+        projected_state(&read_pool, &data_profile_key, period_id).await;
     assert_eq!(before_checkpoint_count, 1);
 
-    let read_adapter = SqlxFinanceCloseReadAdapter::new(read_pool.clone(), &holding_ref)
+    let read_adapter = SqlxFinanceCloseReadAdapter::new(read_pool.clone(), &data_profile_key)
         .expect("close read adapter");
     let read_result = read_adapter
         .read_review(
@@ -225,7 +226,7 @@ async fn live_finance_close_rebuild_rolls_back_after_late_source_failure() {
     // replay instead of leaving an empty or partial read model.
     insert_source_event(
         &write_pool,
-        &holding_ref,
+        &data_profile_key,
         Uuid::new_v4(),
         period_id,
         2,
@@ -239,7 +240,7 @@ async fn live_finance_close_rebuild_rolls_back_after_late_source_failure() {
     );
 
     let (after, after_checkpoint_count) =
-        projected_state(&read_pool, &holding_ref, period_id).await;
+        projected_state(&read_pool, &data_profile_key, period_id).await;
     assert_eq!(
         after, before,
         "failed rebuild must preserve prior read state"

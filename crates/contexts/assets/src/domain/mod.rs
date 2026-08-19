@@ -11,7 +11,7 @@ use erpx_integration_contracts::{
     catalog::ContextId,
     reference::{RecordTypeId, ReferenceValidationError},
 };
-use erpx_kernel::{RecordId, TenantScope};
+use erpx_kernel::{AuthorityScope, RecordId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -50,23 +50,23 @@ impl From<AssetId> for Uuid {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AssetScope {
-    tenant_scope: TenantScope,
+    active_scope: AuthorityScope,
 }
 
 impl AssetScope {
-    pub fn try_new(tenant_scope: TenantScope) -> Result<Self, AssetDomainError> {
+    pub fn try_new(active_scope: AuthorityScope) -> Result<Self, AssetDomainError> {
         if !matches!(
-            tenant_scope,
-            TenantScope::Company { .. } | TenantScope::Branch { .. }
-        ) || tenant_scope.validate().is_err()
+            active_scope,
+            AuthorityScope::Company { .. } | AuthorityScope::Branch { .. }
+        ) || active_scope.validate().is_err()
         {
             return Err(AssetDomainError::InvalidScope);
         }
-        Ok(Self { tenant_scope })
+        Ok(Self { active_scope })
     }
 
-    pub const fn tenant_scope(&self) -> &TenantScope {
-        &self.tenant_scope
+    pub const fn active_scope(&self) -> &AuthorityScope {
+        &self.active_scope
     }
 }
 
@@ -89,7 +89,7 @@ pub struct AssetLifecycle {
 pub enum DomainEvent {
     Created {
         asset_id: AssetId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         asset_code: String,
         name: String,
         location_id: Uuid,
@@ -223,7 +223,7 @@ impl Asset {
         value.validate()?;
         value.uncommitted_events.push(DomainEvent::Created {
             asset_id: id,
-            scope: value.scope.tenant_scope().clone(),
+            scope: value.scope.active_scope().clone(),
             asset_code: code,
             name,
             location_id,
@@ -240,7 +240,7 @@ impl Asset {
         ReferenceCode::try_new(self.code.clone())
             .map_err(|_| AssetDomainError::InvalidReference)?;
         DisplayName::try_new(self.name.clone()).map_err(|_| AssetDomainError::InvalidReference)?;
-        AssetScope::try_new(self.scope.tenant_scope().clone())?;
+        AssetScope::try_new(self.scope.active_scope().clone())?;
         if self.version == 0 || self.updated_at < self.created_at {
             return Err(AssetDomainError::InvalidWindow);
         }

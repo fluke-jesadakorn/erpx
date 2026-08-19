@@ -1,4 +1,4 @@
-//! Tenant-routed SQLx persistence for bank imports and reconciliations.
+//! Holding-routed SQLx persistence for bank imports and reconciliations.
 //!
 //! Bank providers are deliberately outside this adapter. Callers supply
 //! validated domain facts; this store provides the durable write boundary,
@@ -8,7 +8,7 @@
 use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
-use erpx_domain::contracts::TenantScope;
+use erpx_domain::contracts::AuthorityScope;
 use erpx_domain::finance::PostedJournalEntry;
 use erpx_domain::finance_banking::{
     BankAccount, BankImportReceipt, BankMatchDecision, BankMatchProposal, BankReconciliation,
@@ -22,7 +22,7 @@ use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Postgres, QueryBuilder, Row, Transaction, postgres::PgRow};
 use uuid::Uuid;
 
-use crate::{PersistenceError, provisioning::TENANT_SOURCE_REBUILD_LOCK_PREFIX};
+use crate::{PersistenceError, provisioning::HOLDING_SOURCE_REBUILD_LOCK_PREFIX};
 
 pub const MAX_FINANCE_BANKING_SOURCE_EVENT_PAGE_SIZE: u32 = 500;
 pub const MAX_FINANCE_BANKING_TRANSACTION_PAGE_SIZE: u32 = 500;
@@ -182,7 +182,7 @@ pub struct FinanceBankingProjectionApplication {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinanceBankingProjectionRebuildPreparation {
-    pub holding_ref: String,
+    pub data_profile_key: String,
     pub rows_cleared: u64,
     pub checkpoints_cleared: u64,
 }
@@ -193,34 +193,34 @@ pub struct SqlxFinanceBankingStore {
     // Retained for the later read-projector integration without changing the
     // dependency-injected constructor contract.
     read_pool: PgPool,
-    holding_ref: String,
+    data_profile_key: String,
 }
 
 impl SqlxFinanceBankingStore {
     pub fn new(
         write_pool: PgPool,
         read_pool: PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_holding_ref(&holding_ref)?;
+        let data_profile_key = data_profile_key.into();
+        validate_data_profile_key(&data_profile_key)?;
         Ok(Self {
             write_pool,
             read_pool,
-            holding_ref,
+            data_profile_key,
         })
     }
 
     pub fn from_pools(
         write_pool: &PgPool,
         read_pool: &PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        Self::new(write_pool.clone(), read_pool.clone(), holding_ref)
+        Self::new(write_pool.clone(), read_pool.clone(), data_profile_key)
     }
 
-    pub fn holding_ref(&self) -> &str {
-        &self.holding_ref
+    pub fn data_profile_key(&self) -> &str {
+        &self.data_profile_key
     }
 
     /// Register an opaque provider/account reference. No credentials or
@@ -239,7 +239,7 @@ impl SqlxFinanceBankingStore {
         let mut tx = self.begin_write().await?;
         if let Some(receipt) = find_receipt::<BankAccountWriteReceipt>(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             request_key,
             &request_hash,
         )
@@ -249,11 +249,11 @@ impl SqlxFinanceBankingStore {
             return Ok(receipt.replayed());
         }
         if sqlx::query_scalar::<_, Uuid>(
-            "SELECT account_id FROM erpx_tenant.finance_bank_accounts
-             WHERE account_id=$1 AND holding_ref=$2 FOR UPDATE",
+            "SELECT account_id FROM erpx_holding.finance_bank_accounts
+             WHERE account_id=$1 AND data_profile_key=$2 FOR UPDATE",
         )
         .bind(account.id())
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         .is_some()
@@ -263,13 +263,13 @@ impl SqlxFinanceBankingStore {
             ));
         }
         sqlx::query(
-            "INSERT INTO erpx_tenant.finance_bank_accounts
-                (account_id, holding_ref, holding_id, company_id, scope,
+            "INSERT INTO erpx_holding.finance_bank_accounts
+                (account_id, data_profile_key, holding_id, company_id, scope,
                  currency, account_reference, display_name, version, payload)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,1,$9)",
         )
         .bind(account.id())
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(account.holding_id())
         .bind(account.company_id())
         .bind(serde_json::to_value(account.scope())?)
@@ -281,7 +281,7 @@ impl SqlxFinanceBankingStore {
         .await?;
         persist_source_event(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             "finance_bank_account",
             account.id(),
             1,
@@ -296,7 +296,7 @@ impl SqlxFinanceBankingStore {
         };
         insert_receipt(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             "register_account",
             "finance_bank_account",
             account.id(),
@@ -326,7 +326,7 @@ impl SqlxFinanceBankingStore {
         let mut tx = self.begin_write().await?;
         if let Some(receipt) = find_receipt::<BankImportReceipt>(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             request_key,
             &request_hash,
         )
@@ -335,16 +335,16 @@ impl SqlxFinanceBankingStore {
             tx.commit().await?;
             return Ok(receipt.replayed());
         }
-        let stored_account = load_account(&mut tx, &self.holding_ref, account.id()).await?;
+        let stored_account = load_account(&mut tx, &self.data_profile_key, account.id()).await?;
         import
             .validate_against_account(&stored_account)
             .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
         if sqlx::query_scalar::<_, Uuid>(
-            "SELECT import_id FROM erpx_tenant.finance_bank_statement_imports
-             WHERE import_id=$1 AND holding_ref=$2 FOR UPDATE",
+            "SELECT import_id FROM erpx_holding.finance_bank_statement_imports
+             WHERE import_id=$1 AND data_profile_key=$2 FOR UPDATE",
         )
         .bind(import.id())
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         .is_some()
@@ -356,11 +356,11 @@ impl SqlxFinanceBankingStore {
         }
         for transaction in import.transactions() {
             if sqlx::query_scalar::<_, Uuid>(
-                "SELECT transaction_id FROM erpx_tenant.finance_bank_transactions
-                 WHERE identity_key=$1 AND holding_ref=$2 FOR UPDATE",
+                "SELECT transaction_id FROM erpx_holding.finance_bank_transactions
+                 WHERE identity_key=$1 AND data_profile_key=$2 FOR UPDATE",
             )
             .bind(transaction.identity_key())
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .fetch_optional(&mut *tx)
             .await?
             .is_some()
@@ -372,15 +372,15 @@ impl SqlxFinanceBankingStore {
             }
         }
         sqlx::query(
-            "INSERT INTO erpx_tenant.finance_bank_statement_imports
-                (import_id, holding_ref, bank_account_id, holding_id, company_id,
+            "INSERT INTO erpx_holding.finance_bank_statement_imports
+                (import_id, data_profile_key, bank_account_id, holding_id, company_id,
                  scope, statement_reference, starts_on, ends_on,
                  opening_balance_minor, closing_balance_minor, idempotency_key,
                  content_digest, version, payload)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,1,$14)",
         )
         .bind(import.id())
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(import.bank_account_id())
         .bind(import.holding_id())
         .bind(import.company_id())
@@ -396,11 +396,11 @@ impl SqlxFinanceBankingStore {
         .execute(&mut *tx)
         .await?;
         for transaction in import.transactions() {
-            insert_transaction(&mut tx, &self.holding_ref, import.id(), transaction).await?;
+            insert_transaction(&mut tx, &self.data_profile_key, import.id(), transaction).await?;
         }
         persist_source_event(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             "finance_bank_statement_import",
             import.id(),
             1,
@@ -416,7 +416,7 @@ impl SqlxFinanceBankingStore {
         };
         insert_receipt(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             "import_statement",
             "finance_bank_statement_import",
             import.id(),
@@ -436,25 +436,25 @@ impl SqlxFinanceBankingStore {
     pub async fn reconcile_import(&self, import_id: Uuid) -> Result<(u64, u64), PersistenceError> {
         validate_uuid(import_id, "Finance bank import reconciliation ID")?;
         let mut tx = self.begin_write().await?;
-        let _ = load_import(&mut tx, &self.holding_ref, import_id).await?;
+        let _ = load_import(&mut tx, &self.data_profile_key, import_id).await?;
         let transaction_count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*)
-             FROM erpx_tenant.finance_bank_transactions
-             WHERE import_id=$1 AND holding_ref=$2",
+             FROM erpx_holding.finance_bank_transactions
+             WHERE import_id=$1 AND data_profile_key=$2",
         )
         .bind(import_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_one(&mut *tx)
         .await?;
         let outbox_event_count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*)
-             FROM erpx_tenant.outbox_events
+             FROM erpx_holding.outbox_events
              WHERE aggregate_type='finance_bank_statement_import'
-               AND aggregate_id=$1 AND holding_ref=$2
+               AND aggregate_id=$1 AND data_profile_key=$2
                AND event_type='finance.bank_statement_imported.v1'",
         )
         .bind(import_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_one(&mut *tx)
         .await?;
         let transaction_count = as_u64(
@@ -491,7 +491,7 @@ impl SqlxFinanceBankingStore {
         let mut tx = self.begin_write().await?;
         if let Some(receipt) = find_receipt::<BankReconciliationWriteReceipt>(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             request_key,
             &request_hash,
         )
@@ -500,17 +500,17 @@ impl SqlxFinanceBankingStore {
             tx.commit().await?;
             return Ok(receipt.replayed());
         }
-        let stored_account = load_account(&mut tx, &self.holding_ref, account.id()).await?;
-        let stored_statement = load_import(&mut tx, &self.holding_ref, statement.id()).await?;
+        let stored_account = load_account(&mut tx, &self.data_profile_key, account.id()).await?;
+        let stored_statement = load_import(&mut tx, &self.data_profile_key, statement.id()).await?;
         reconciliation
             .validate_against(&stored_account, &stored_statement)
             .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
         let current = sqlx::query(
-            "SELECT payload FROM erpx_tenant.finance_bank_reconciliations
-             WHERE reconciliation_id=$1 AND holding_ref=$2 FOR UPDATE",
+            "SELECT payload FROM erpx_holding.finance_bank_reconciliations
+             WHERE reconciliation_id=$1 AND data_profile_key=$2 FOR UPDATE",
         )
         .bind(reconciliation.id())
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?;
         let source_version = if let Some(row) = current {
@@ -551,15 +551,15 @@ impl SqlxFinanceBankingStore {
             1
         };
         sqlx::query(
-            "INSERT INTO erpx_tenant.finance_bank_reconciliations
-                (reconciliation_id, holding_ref, bank_account_id, statement_import_id,
+            "INSERT INTO erpx_holding.finance_bank_reconciliations
+                (reconciliation_id, data_profile_key, bank_account_id, statement_import_id,
                  holding_id, company_id, scope, status, version, payload)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
              ON CONFLICT (reconciliation_id) DO UPDATE SET
                  status=$8, version=$9, payload=$10, updated_at=now()",
         )
         .bind(reconciliation.id())
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(reconciliation.bank_account_id())
         .bind(reconciliation.statement_import_id())
         .bind(reconciliation.holding_id())
@@ -575,7 +575,7 @@ impl SqlxFinanceBankingStore {
         .await?;
         persist_source_event(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             "finance_bank_reconciliation",
             reconciliation.id(),
             source_version,
@@ -590,7 +590,7 @@ impl SqlxFinanceBankingStore {
         };
         insert_receipt(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             "save_reconciliation",
             "finance_bank_reconciliation",
             reconciliation.id(),
@@ -609,7 +609,7 @@ impl SqlxFinanceBankingStore {
     ///
     /// The generator is deliberately separate from provider adapters: it
     /// derives candidates only from immutable posted-journal match facts in
-    /// the tenant write database, then routes the resulting proposal through
+    /// the holding write database, then routes the resulting proposal through
     /// the same idempotent SQLx/outbox boundary as an explicit proposal.
     pub async fn generate_match_proposal(
         &self,
@@ -618,14 +618,18 @@ impl SqlxFinanceBankingStore {
     ) -> Result<BankMatchProposalGeneration, PersistenceError> {
         validate_uuid(transaction_id, "bank transaction ID")?;
         let mut tx = self.begin_write().await?;
-        let transaction = load_transaction(&mut tx, &self.holding_ref, transaction_id).await?;
-        let account =
-            load_account(&mut tx, &self.holding_ref, transaction.bank_account_id()).await?;
+        let transaction = load_transaction(&mut tx, &self.data_profile_key, transaction_id).await?;
+        let account = load_account(
+            &mut tx,
+            &self.data_profile_key,
+            transaction.bank_account_id(),
+        )
+        .await?;
         let rows = sqlx::query(
             "SELECT journal_id, holding_id, company_id, currency, total_minor,
                     idempotency_key, payload
-             FROM erpx_tenant.finance_posted_journals
-             WHERE holding_ref=$1
+             FROM erpx_holding.finance_posted_journals
+             WHERE data_profile_key=$1
                AND holding_id=$2
                AND company_id=$3
                AND currency=$4
@@ -635,7 +639,7 @@ impl SqlxFinanceBankingStore {
              LIMIT $7
              FOR SHARE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(account.holding_id())
         .bind(account.company_id())
         .bind(transaction.currency())
@@ -711,10 +715,10 @@ impl SqlxFinanceBankingStore {
         validate_request_key(request_key)?;
         let request_hash = hash_match_proposal_request(proposal, request_key)?;
         let mut tx = self.begin_write().await?;
-        lock_match_request(&mut tx, &self.holding_ref, request_key).await?;
+        lock_match_request(&mut tx, &self.data_profile_key, request_key).await?;
         if let Some(receipt) = find_receipt::<BankMatchProposalWriteReceipt>(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             request_key,
             &request_hash,
         )
@@ -724,11 +728,11 @@ impl SqlxFinanceBankingStore {
             return Ok(receipt.replayed());
         }
         if sqlx::query_scalar::<_, Uuid>(
-            "SELECT proposal_id FROM erpx_tenant.finance_bank_match_proposals
-             WHERE proposal_id=$1 AND holding_ref=$2 FOR UPDATE",
+            "SELECT proposal_id FROM erpx_holding.finance_bank_match_proposals
+             WHERE proposal_id=$1 AND data_profile_key=$2 FOR UPDATE",
         )
         .bind(proposal.id())
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         .is_some()
@@ -737,15 +741,15 @@ impl SqlxFinanceBankingStore {
                 "bank match proposal ID already exists".into(),
             ));
         }
-        validate_authoritative_match_proposal(&mut tx, &self.holding_ref, proposal).await?;
+        validate_authoritative_match_proposal(&mut tx, &self.data_profile_key, proposal).await?;
         sqlx::query(
-            "INSERT INTO erpx_tenant.finance_bank_match_proposals
-                (proposal_id, holding_ref, holding_id, company_id, bank_account_id,
+            "INSERT INTO erpx_holding.finance_bank_match_proposals
+                (proposal_id, data_profile_key, holding_id, company_id, bank_account_id,
                  transaction_id, scope, resolution, idempotency_key, payload)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
         )
         .bind(proposal.id())
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(proposal.holding_id())
         .bind(proposal.company_id())
         .bind(proposal.bank_account_id())
@@ -758,7 +762,7 @@ impl SqlxFinanceBankingStore {
         .await?;
         persist_source_event(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             "finance_bank_match_proposal",
             proposal.id(),
             1,
@@ -773,7 +777,7 @@ impl SqlxFinanceBankingStore {
         };
         insert_receipt(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             "save_match_proposal",
             "finance_bank_match_proposal",
             proposal.id(),
@@ -801,16 +805,16 @@ impl SqlxFinanceBankingStore {
         validate_request_key(request_key)?;
         let request_hash = hash_request("save_match_decision", &payload, request_key);
         let mut tx = self.begin_write().await?;
-        lock_match_request(&mut tx, &self.holding_ref, request_key).await?;
+        lock_match_request(&mut tx, &self.data_profile_key, request_key).await?;
         lock_match_request(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             &format!("proposal:{}", decision.proposal_id()),
         )
         .await?;
         if let Some(receipt) = find_receipt::<BankMatchDecisionWriteReceipt>(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             request_key,
             &request_hash,
         )
@@ -820,11 +824,11 @@ impl SqlxFinanceBankingStore {
             return Ok(receipt.replayed());
         }
         if sqlx::query_scalar::<_, Uuid>(
-            "SELECT decision_id FROM erpx_tenant.finance_bank_match_decisions
-             WHERE decision_id=$1 AND holding_ref=$2 FOR UPDATE",
+            "SELECT decision_id FROM erpx_holding.finance_bank_match_decisions
+             WHERE decision_id=$1 AND data_profile_key=$2 FOR UPDATE",
         )
         .bind(decision.id())
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         .is_some()
@@ -834,11 +838,11 @@ impl SqlxFinanceBankingStore {
             ));
         }
         let proposal_payload = sqlx::query_scalar::<_, Value>(
-            "SELECT payload FROM erpx_tenant.finance_bank_match_proposals
-             WHERE proposal_id=$1 AND holding_ref=$2 FOR SHARE",
+            "SELECT payload FROM erpx_holding.finance_bank_match_proposals
+             WHERE proposal_id=$1 AND data_profile_key=$2 FOR SHARE",
         )
         .bind(decision.proposal_id())
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(PersistenceError::NotFound {
@@ -849,13 +853,13 @@ impl SqlxFinanceBankingStore {
         decision
             .validate_against(&proposal)
             .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
-        validate_authoritative_match_proposal(&mut tx, &self.holding_ref, &proposal).await?;
+        validate_authoritative_match_proposal(&mut tx, &self.data_profile_key, &proposal).await?;
         if sqlx::query_scalar::<_, Uuid>(
-            "SELECT decision_id FROM erpx_tenant.finance_bank_match_decisions
-             WHERE proposal_id=$1 AND holding_ref=$2 FOR SHARE",
+            "SELECT decision_id FROM erpx_holding.finance_bank_match_decisions
+             WHERE proposal_id=$1 AND data_profile_key=$2 FOR SHARE",
         )
         .bind(decision.proposal_id())
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         .is_some()
@@ -865,14 +869,14 @@ impl SqlxFinanceBankingStore {
             ));
         }
         sqlx::query(
-            "INSERT INTO erpx_tenant.finance_bank_match_decisions
-                (decision_id, holding_ref, proposal_id, proposal_idempotency_key,
+            "INSERT INTO erpx_holding.finance_bank_match_decisions
+                (decision_id, data_profile_key, proposal_id, proposal_idempotency_key,
                  holding_id, company_id, bank_account_id, transaction_id, scope,
                  resolution, idempotency_key, payload)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",
         )
         .bind(decision.id())
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(decision.proposal_id())
         .bind(decision.proposal_idempotency_key())
         .bind(decision.holding_id())
@@ -887,7 +891,7 @@ impl SqlxFinanceBankingStore {
         .await?;
         persist_source_event(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             "finance_bank_match_decision",
             decision.id(),
             1,
@@ -903,7 +907,7 @@ impl SqlxFinanceBankingStore {
         };
         insert_receipt(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             "save_match_decision",
             "finance_bank_match_decision",
             decision.id(),
@@ -921,7 +925,7 @@ impl SqlxFinanceBankingStore {
         account_id: Uuid,
     ) -> Result<Option<BankAccount>, PersistenceError> {
         let mut tx = self.begin_write().await?;
-        let result = load_optional_account(&mut tx, &self.holding_ref, account_id).await?;
+        let result = load_optional_account(&mut tx, &self.data_profile_key, account_id).await?;
         tx.commit().await?;
         Ok(result)
     }
@@ -931,7 +935,7 @@ impl SqlxFinanceBankingStore {
         import_id: Uuid,
     ) -> Result<Option<BankStatementImport>, PersistenceError> {
         let mut tx = self.begin_write().await?;
-        let result = load_optional_import(&mut tx, &self.holding_ref, import_id).await?;
+        let result = load_optional_import(&mut tx, &self.data_profile_key, import_id).await?;
         tx.commit().await?;
         Ok(result)
     }
@@ -946,11 +950,11 @@ impl SqlxFinanceBankingStore {
             "SELECT transaction_id, bank_account_id, external_transaction_id,
                     posted_on, amount_minor, currency, description,
                     identity_key, content_digest
-             FROM erpx_tenant.finance_bank_transactions
-             WHERE identity_key=$1 AND holding_ref=$2",
+             FROM erpx_holding.finance_bank_transactions
+             WHERE identity_key=$1 AND data_profile_key=$2",
         )
         .bind(identity_key)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?;
         tx.commit().await?;
@@ -993,7 +997,7 @@ impl SqlxFinanceBankingStore {
         let limit = i64::from(page_size) + 1;
         let mut tx = self.begin_write().await?;
         reject_duplicate_source_event_versions(
-            has_duplicate_source_event_versions(&mut tx, &self.holding_ref).await?,
+            has_duplicate_source_event_versions(&mut tx, &self.data_profile_key).await?,
         )?;
         let rows = if let Some(cursor) = cursor {
             validate_aggregate_type(&cursor.aggregate_type)?;
@@ -1001,8 +1005,8 @@ impl SqlxFinanceBankingStore {
             sqlx::query(
                 "SELECT event_id, event_type, aggregate_type, aggregate_id,
                         aggregate_version, payload, occurred_at
-                 FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1 AND aggregate_type = ANY($2)
+                 FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1 AND aggregate_type = ANY($2)
                    AND (aggregate_type > $3
                         OR (aggregate_type = $3 AND aggregate_id > $4)
                         OR (aggregate_type = $3 AND aggregate_id = $4
@@ -1010,7 +1014,7 @@ impl SqlxFinanceBankingStore {
                  ORDER BY aggregate_type, aggregate_id, aggregate_version
                  LIMIT $6",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(allowed_aggregate_types())
             .bind(&cursor.aggregate_type)
             .bind(cursor.aggregate_id)
@@ -1025,12 +1029,12 @@ impl SqlxFinanceBankingStore {
             sqlx::query(
                 "SELECT event_id, event_type, aggregate_type, aggregate_id,
                         aggregate_version, payload, occurred_at
-                 FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1 AND aggregate_type = ANY($2)
+                 FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1 AND aggregate_type = ANY($2)
                  ORDER BY aggregate_type, aggregate_id, aggregate_version
                  LIMIT $3",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(allowed_aggregate_types())
             .bind(limit)
             .fetch_all(&mut *tx)
@@ -1088,10 +1092,10 @@ impl SqlxFinanceBankingStore {
         let mut tx = self.begin_write().await?;
         let count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*)
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref = $1 AND aggregate_type = ANY($2)",
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key = $1 AND aggregate_type = ANY($2)",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(allowed_aggregate_types())
         .fetch_one(&mut *tx)
         .await?;
@@ -1115,27 +1119,27 @@ impl SqlxFinanceBankingStore {
                 PersistenceError::InvalidData("Finance banking reconciliation bound".into())
             })?;
         let mut source_tx = self.begin_write().await?;
-        sqlx::query("LOCK TABLE erpx_tenant.outbox_events IN SHARE MODE")
+        sqlx::query("LOCK TABLE erpx_holding.outbox_events IN SHARE MODE")
             .execute(&mut *source_tx)
             .await?;
         let source_count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*)
-               FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND aggregate_type = ANY($2)",
+               FROM erpx_holding.outbox_events
+              WHERE data_profile_key=$1 AND aggregate_type = ANY($2)",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(allowed_aggregate_types())
         .fetch_one(&mut *source_tx)
         .await?;
         let source_rows = sqlx::query(
             "SELECT event_id, event_type, aggregate_type, aggregate_id,
                     aggregate_version, payload
-               FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND aggregate_type = ANY($2)
+               FROM erpx_holding.outbox_events
+              WHERE data_profile_key=$1 AND aggregate_type = ANY($2)
               ORDER BY aggregate_type, aggregate_id, aggregate_version, event_id
               LIMIT $3",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(allowed_aggregate_types())
         .bind(i64::try_from(max_events.saturating_add(1)).map_err(|_| {
             PersistenceError::InvalidData("Finance banking reconciliation bound".into())
@@ -1184,10 +1188,10 @@ impl SqlxFinanceBankingStore {
         let mut read_tx = self.begin_read().await?;
         let read_count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*)
-               FROM erpx_tenant.finance_banking_read_rows
-              WHERE holding_ref=$1",
+               FROM erpx_holding.finance_banking_read_rows
+              WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_one(&mut *read_tx)
         .await?;
         let read_rows = sqlx::query(
@@ -1195,16 +1199,16 @@ impl SqlxFinanceBankingStore {
                     read.company_id, read.source_version, read.payload,
                     checkpoint.last_event_id,
                     checkpoint.source_version AS checkpoint_version
-               FROM erpx_tenant.finance_banking_read_rows AS read
-          LEFT JOIN erpx_tenant.finance_banking_projection_checkpoints AS checkpoint
-                 ON checkpoint.holding_ref=read.holding_ref
+               FROM erpx_holding.finance_banking_read_rows AS read
+          LEFT JOIN erpx_holding.finance_banking_projection_checkpoints AS checkpoint
+                 ON checkpoint.data_profile_key=read.data_profile_key
                 AND checkpoint.aggregate_type=read.aggregate_type
                 AND checkpoint.aggregate_id=read.aggregate_id
-              WHERE read.holding_ref=$1
+              WHERE read.data_profile_key=$1
               ORDER BY read.aggregate_type, read.aggregate_id
               LIMIT $2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(i64::try_from(max_events.saturating_add(1)).map_err(|_| {
             PersistenceError::InvalidData("Finance banking reconciliation bound".into())
         })?)
@@ -1308,7 +1312,7 @@ impl SqlxFinanceBankingStore {
         &self,
         aggregate_type: &str,
         aggregate_id: Uuid,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
     ) -> Result<Option<FinanceBankingReadRow>, PersistenceError> {
         validate_aggregate_type(aggregate_type)?;
         validate_uuid(aggregate_id, "Finance banking read aggregate ID")?;
@@ -1324,10 +1328,10 @@ impl SqlxFinanceBankingStore {
         let mut query = QueryBuilder::<Postgres>::new(
             "SELECT aggregate_type, aggregate_id, holding_id, company_id,
                     source_version, payload
-             FROM erpx_tenant.finance_banking_read_rows
-             WHERE holding_ref = ",
+             FROM erpx_holding.finance_banking_read_rows
+             WHERE data_profile_key = ",
         );
-        query.push_bind(&self.holding_ref);
+        query.push_bind(&self.data_profile_key);
         append_read_scope_filter(&mut query, scope)?;
         query
             .push(" AND aggregate_type = ")
@@ -1349,13 +1353,13 @@ impl SqlxFinanceBankingStore {
         Ok(row)
     }
 
-    /// Return a bounded, deterministic keyset page from the tenant read
+    /// Return a bounded, deterministic keyset page from the holding read
     /// database. The write database is never consulted. Scope predicates are
     /// applied in SQL before pagination so inaccessible rows cannot distort a
     /// page or leak through a continuation cursor.
     pub async fn list_read_rows(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         aggregate_type: Option<&str>,
         company_id: Option<Uuid>,
         after: Option<&FinanceBankingReadCursor>,
@@ -1400,10 +1404,10 @@ impl SqlxFinanceBankingStore {
         let mut query = QueryBuilder::<Postgres>::new(
             "SELECT aggregate_type, aggregate_id, holding_id, company_id,
                     source_version, payload
-             FROM erpx_tenant.finance_banking_read_rows
-             WHERE holding_ref = ",
+             FROM erpx_holding.finance_banking_read_rows
+             WHERE data_profile_key = ",
         );
-        query.push_bind(&self.holding_ref);
+        query.push_bind(&self.data_profile_key);
         append_read_scope_filter(&mut query, scope)?;
         if let Some(aggregate_type) = aggregate_type {
             query
@@ -1479,7 +1483,7 @@ impl SqlxFinanceBankingStore {
         )?;
         crate::finance_persistence::verify_authoritative_source_event(
             &self.write_pool,
-            &self.holding_ref,
+            &self.data_profile_key,
             event_id,
             event_type,
             aggregate_type,
@@ -1491,7 +1495,7 @@ impl SqlxFinanceBankingStore {
         let mut tx = self.begin_read().await?;
         let applied = project_event_in_transaction(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             event_id,
             aggregate_type,
             aggregate_id,
@@ -1533,7 +1537,7 @@ impl SqlxFinanceBankingStore {
         &self,
     ) -> Result<FinanceBankingProjectionRebuildPreparation, PersistenceError> {
         let mut tx = self.begin_read().await?;
-        let preparation = clear_projection_in_transaction(&mut tx, &self.holding_ref).await?;
+        let preparation = clear_projection_in_transaction(&mut tx, &self.data_profile_key).await?;
         tx.commit().await?;
         Ok(preparation)
     }
@@ -1555,11 +1559,12 @@ impl SqlxFinanceBankingStore {
         }
 
         let mut source_tx = self.begin_write().await?;
-        sqlx::query("LOCK TABLE erpx_tenant.outbox_events IN SHARE MODE")
+        sqlx::query("LOCK TABLE erpx_holding.outbox_events IN SHARE MODE")
             .execute(&mut *source_tx)
             .await?;
         let actual_source_version =
-            source_event_high_watermark_in_transaction(&mut source_tx, &self.holding_ref).await?;
+            source_event_high_watermark_in_transaction(&mut source_tx, &self.data_profile_key)
+                .await?;
         if let Some(expected) = expected_source_version
             && expected != actual_source_version
         {
@@ -1569,13 +1574,14 @@ impl SqlxFinanceBankingStore {
         }
 
         let mut read_tx = self.begin_read().await?;
-        let preparation = clear_projection_in_transaction(&mut read_tx, &self.holding_ref).await?;
+        let preparation =
+            clear_projection_in_transaction(&mut read_tx, &self.data_profile_key).await?;
         let mut cursor = None;
         let mut events_replayed = 0_u64;
         loop {
             let page = read_source_event_page_in_transaction(
                 &mut source_tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 cursor.as_ref(),
                 page_size,
             )
@@ -1591,7 +1597,7 @@ impl SqlxFinanceBankingStore {
                 )?;
                 if project_event_in_transaction(
                     &mut read_tx,
-                    &self.holding_ref,
+                    &self.data_profile_key,
                     event.event_id,
                     &event.aggregate_type,
                     event.aggregate_id,
@@ -1620,11 +1626,11 @@ impl SqlxFinanceBankingStore {
     }
 
     async fn begin_write(&self) -> Result<Transaction<'_, Postgres>, PersistenceError> {
-        begin_scoped(&self.write_pool, &self.holding_ref, true).await
+        begin_scoped(&self.write_pool, &self.data_profile_key, true).await
     }
 
     async fn begin_read(&self) -> Result<Transaction<'_, Postgres>, PersistenceError> {
-        begin_scoped(&self.read_pool, &self.holding_ref, false).await
+        begin_scoped(&self.read_pool, &self.data_profile_key, false).await
     }
 
     #[allow(dead_code)]
@@ -1674,7 +1680,7 @@ fn decode_projection_event(
 
 async fn project_event_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     event_id: Uuid,
     aggregate_type: &str,
     aggregate_id: Uuid,
@@ -1683,12 +1689,12 @@ async fn project_event_in_transaction(
 ) -> Result<bool, PersistenceError> {
     let current = sqlx::query(
         "SELECT last_event_id, source_version
-         FROM erpx_tenant.finance_banking_projection_checkpoints
-         WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$3 FOR UPDATE",
+         FROM erpx_holding.finance_banking_projection_checkpoints
+         WHERE aggregate_type=$1 AND aggregate_id=$2 AND data_profile_key=$3 FOR UPDATE",
     )
     .bind(aggregate_type)
     .bind(aggregate_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_optional(&mut **tx)
     .await?;
     if let Some(current) = current {
@@ -1718,17 +1724,17 @@ async fn project_event_in_transaction(
 
     let (holding_id, company_id) = read_aggregate_scope(aggregate);
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_banking_read_rows
-            (aggregate_type, aggregate_id, holding_ref, holding_id,
+        "INSERT INTO erpx_holding.finance_banking_read_rows
+            (aggregate_type, aggregate_id, data_profile_key, holding_id,
              company_id, source_version, payload, projected_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,now())
          ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-            holding_ref=$3, holding_id=$4, company_id=$5,
+            data_profile_key=$3, holding_id=$4, company_id=$5,
             source_version=$6, payload=$7, projected_at=now()",
     )
     .bind(aggregate_type)
     .bind(aggregate_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(holding_id)
     .bind(company_id)
     .bind(as_i64(aggregate_version, "Finance banking source version")?)
@@ -1736,16 +1742,16 @@ async fn project_event_in_transaction(
     .execute(&mut **tx)
     .await?;
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_banking_projection_checkpoints
-            (aggregate_type, aggregate_id, holding_ref, last_event_id,
+        "INSERT INTO erpx_holding.finance_banking_projection_checkpoints
+            (aggregate_type, aggregate_id, data_profile_key, last_event_id,
              source_version, projected_at)
          VALUES ($1,$2,$3,$4,$5,now())
          ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-            holding_ref=$3, last_event_id=$4, source_version=$5, projected_at=now()",
+            data_profile_key=$3, last_event_id=$4, source_version=$5, projected_at=now()",
     )
     .bind(aggregate_type)
     .bind(aggregate_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(event_id)
     .bind(as_i64(aggregate_version, "Finance banking source version")?)
     .execute(&mut **tx)
@@ -1755,24 +1761,24 @@ async fn project_event_in_transaction(
 
 async fn clear_projection_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<FinanceBankingProjectionRebuildPreparation, PersistenceError> {
     let rows_cleared =
-        sqlx::query("DELETE FROM erpx_tenant.finance_banking_read_rows WHERE holding_ref=$1")
-            .bind(holding_ref)
+        sqlx::query("DELETE FROM erpx_holding.finance_banking_read_rows WHERE data_profile_key=$1")
+            .bind(data_profile_key)
             .execute(&mut **tx)
             .await?
             .rows_affected();
     let checkpoints_cleared = sqlx::query(
-        "DELETE FROM erpx_tenant.finance_banking_projection_checkpoints
-         WHERE holding_ref=$1",
+        "DELETE FROM erpx_holding.finance_banking_projection_checkpoints
+         WHERE data_profile_key=$1",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .execute(&mut **tx)
     .await?
     .rows_affected();
     Ok(FinanceBankingProjectionRebuildPreparation {
-        holding_ref: holding_ref.into(),
+        data_profile_key: data_profile_key.into(),
         rows_cleared,
         checkpoints_cleared,
     })
@@ -1780,14 +1786,14 @@ async fn clear_projection_in_transaction(
 
 async fn source_event_high_watermark_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<u64, PersistenceError> {
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*)
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref = $1 AND aggregate_type = ANY($2)",
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key = $1 AND aggregate_type = ANY($2)",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(allowed_aggregate_types())
     .fetch_one(&mut **tx)
     .await?;
@@ -1797,13 +1803,13 @@ async fn source_event_high_watermark_in_transaction(
 
 async fn read_source_event_page_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     cursor: Option<&FinanceBankingSourceEventCursor>,
     page_size: u32,
 ) -> Result<FinanceBankingSourceEventPage, PersistenceError> {
     let limit = i64::from(page_size) + 1;
     reject_duplicate_source_event_versions(
-        has_duplicate_source_event_versions(tx, holding_ref).await?,
+        has_duplicate_source_event_versions(tx, data_profile_key).await?,
     )?;
     let rows = if let Some(cursor) = cursor {
         validate_aggregate_type(&cursor.aggregate_type)?;
@@ -1811,8 +1817,8 @@ async fn read_source_event_page_in_transaction(
         sqlx::query(
             "SELECT event_id, event_type, aggregate_type, aggregate_id,
                     aggregate_version, payload, occurred_at
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND aggregate_type = ANY($2)
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND aggregate_type = ANY($2)
                AND (aggregate_type > $3
                     OR (aggregate_type = $3 AND aggregate_id > $4)
                     OR (aggregate_type = $3 AND aggregate_id = $4
@@ -1820,7 +1826,7 @@ async fn read_source_event_page_in_transaction(
              ORDER BY aggregate_type, aggregate_id, aggregate_version
              LIMIT $6",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(allowed_aggregate_types())
         .bind(&cursor.aggregate_type)
         .bind(cursor.aggregate_id)
@@ -1835,12 +1841,12 @@ async fn read_source_event_page_in_transaction(
         sqlx::query(
             "SELECT event_id, event_type, aggregate_type, aggregate_id,
                     aggregate_version, payload, occurred_at
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND aggregate_type = ANY($2)
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND aggregate_type = ANY($2)
              ORDER BY aggregate_type, aggregate_id, aggregate_version
              LIMIT $3",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(allowed_aggregate_types())
         .bind(limit)
         .fetch_all(&mut **tx)
@@ -1891,18 +1897,18 @@ async fn read_source_event_page_in_transaction(
 
 async fn has_duplicate_source_event_versions(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<bool, PersistenceError> {
     sqlx::query_scalar(
         "SELECT EXISTS (
              SELECT 1
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND aggregate_type = ANY($2)
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND aggregate_type = ANY($2)
              GROUP BY aggregate_type, aggregate_id, aggregate_version
              HAVING COUNT(*) > 1
          )",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(allowed_aggregate_types())
     .fetch_one(&mut **tx)
     .await
@@ -1982,19 +1988,19 @@ fn read_aggregate_scope(aggregate: &FinanceBankingReadAggregate) -> (Uuid, Uuid)
     }
 }
 
-fn validate_read_scope(scope: &TenantScope) -> Result<(), PersistenceError> {
+fn validate_read_scope(scope: &AuthorityScope) -> Result<(), PersistenceError> {
     match scope {
-        TenantScope::Holding { holding_id } => {
+        AuthorityScope::Holding { holding_id } => {
             validate_uuid(*holding_id, "Finance banking read holding ID")?
         }
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => {
             validate_uuid(*holding_id, "Finance banking read holding ID")?;
             validate_uuid(*company_id, "Finance banking read company ID")?;
         }
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -2003,7 +2009,7 @@ fn validate_read_scope(scope: &TenantScope) -> Result<(), PersistenceError> {
             validate_uuid(*company_id, "Finance banking read company ID")?;
             validate_uuid(*branch_id, "Finance banking read branch ID")?;
         }
-        TenantScope::Platform | TenantScope::Subtree { .. } => {
+        AuthorityScope::Platform | AuthorityScope::Subtree { .. } => {
             return Err(PersistenceError::InvalidData(
                 "Finance banking reads require a holding, company, or branch scope".into(),
             ));
@@ -2013,42 +2019,44 @@ fn validate_read_scope(scope: &TenantScope) -> Result<(), PersistenceError> {
 }
 
 fn validate_company_filter(
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     company_id: Option<Uuid>,
 ) -> Result<(), PersistenceError> {
     let Some(company_id) = company_id else {
         return Ok(());
     };
     match scope {
-        TenantScope::Holding { .. } => Ok(()),
-        TenantScope::Company {
+        AuthorityScope::Holding { .. } => Ok(()),
+        AuthorityScope::Company {
             company_id: scoped_company,
             ..
         }
-        | TenantScope::Branch {
+        | AuthorityScope::Branch {
             company_id: scoped_company,
             ..
         } if *scoped_company == company_id => Ok(()),
-        TenantScope::Company { .. } | TenantScope::Branch { .. } => {
+        AuthorityScope::Company { .. } | AuthorityScope::Branch { .. } => {
             Err(PersistenceError::InvalidData(
                 "Finance banking company filter is outside the requested scope".into(),
             ))
         }
-        TenantScope::Platform | TenantScope::Subtree { .. } => Err(PersistenceError::InvalidData(
-            "Finance banking reads require a holding, company, or branch scope".into(),
-        )),
+        AuthorityScope::Platform | AuthorityScope::Subtree { .. } => {
+            Err(PersistenceError::InvalidData(
+                "Finance banking reads require a holding, company, or branch scope".into(),
+            ))
+        }
     }
 }
 
 fn append_read_scope_filter(
     query: &mut QueryBuilder<'_, Postgres>,
-    scope: &TenantScope,
+    scope: &AuthorityScope,
 ) -> Result<(), PersistenceError> {
     match scope {
-        TenantScope::Holding { holding_id } => {
+        AuthorityScope::Holding { holding_id } => {
             query.push(" AND holding_id = ").push_bind(*holding_id);
         }
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => {
@@ -2067,7 +2075,7 @@ fn append_read_scope_filter(
                 .push_bind(company_id.to_string())
                 .push("))");
         }
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -2084,7 +2092,7 @@ fn append_read_scope_filter(
                 .push(" AND payload #>> '{scope,Branch,branch_id}' = ")
                 .push_bind(branch_id.to_string());
         }
-        TenantScope::Platform | TenantScope::Subtree { .. } => {
+        AuthorityScope::Platform | AuthorityScope::Subtree { .. } => {
             return Err(PersistenceError::InvalidData(
                 "Finance banking reads require a holding, company, or branch scope".into(),
             ));
@@ -2127,10 +2135,10 @@ fn decode_read_row(row: PgRow) -> Result<FinanceBankingReadRow, PersistenceError
 
 async fn load_account(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     account_id: Uuid,
 ) -> Result<BankAccount, PersistenceError> {
-    load_optional_account(tx, holding_ref, account_id)
+    load_optional_account(tx, data_profile_key, account_id)
         .await?
         .ok_or(PersistenceError::NotFound {
             entity: "bank_account",
@@ -2140,18 +2148,18 @@ async fn load_account(
 
 async fn load_optional_account(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     account_id: Uuid,
 ) -> Result<Option<BankAccount>, PersistenceError> {
     validate_uuid(account_id, "bank account ID")?;
     let row = sqlx::query(
         "SELECT holding_id, company_id, scope, currency, account_reference,
                 display_name, payload
-           FROM erpx_tenant.finance_bank_accounts
-         WHERE account_id=$1 AND holding_ref=$2",
+           FROM erpx_holding.finance_bank_accounts
+         WHERE account_id=$1 AND data_profile_key=$2",
     )
     .bind(account_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_optional(&mut **tx)
     .await?;
     row.map(|row| {
@@ -2183,19 +2191,19 @@ async fn load_optional_account(
 
 async fn load_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     transaction_id: Uuid,
 ) -> Result<ImportedBankTransaction, PersistenceError> {
     validate_uuid(transaction_id, "bank transaction ID")?;
     let row = sqlx::query(
         "SELECT bank_account_id, external_transaction_id, posted_on,
                 amount_minor, currency, description, identity_key, content_digest
-         FROM erpx_tenant.finance_bank_transactions
-         WHERE transaction_id=$1 AND holding_ref=$2
+         FROM erpx_holding.finance_bank_transactions
+         WHERE transaction_id=$1 AND data_profile_key=$2
          FOR SHARE",
     )
     .bind(transaction_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_optional(&mut **tx)
     .await?
     .ok_or(PersistenceError::NotFound {
@@ -2224,11 +2232,11 @@ async fn load_transaction(
 
 async fn validate_authoritative_match_proposal(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     proposal: &BankMatchProposal,
 ) -> Result<(), PersistenceError> {
-    let account = load_account(tx, holding_ref, proposal.bank_account_id()).await?;
-    let transaction = load_transaction(tx, holding_ref, proposal.transaction_id()).await?;
+    let account = load_account(tx, data_profile_key, proposal.bank_account_id()).await?;
+    let transaction = load_transaction(tx, data_profile_key, proposal.transaction_id()).await?;
     let authoritative = BankMatchProposal::new(
         proposal.id(),
         &account,
@@ -2244,7 +2252,7 @@ async fn validate_authoritative_match_proposal(
     }
     verify_posted_journal_candidates(
         tx,
-        holding_ref,
+        data_profile_key,
         proposal.holding_id(),
         proposal.company_id(),
         proposal.candidates(),
@@ -2254,7 +2262,7 @@ async fn validate_authoritative_match_proposal(
 
 async fn verify_posted_journal_candidates(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     holding_id: Uuid,
     company_id: Uuid,
     candidates: &[erpx_domain::finance_banking::PostedJournalMatchReference],
@@ -2262,12 +2270,12 @@ async fn verify_posted_journal_candidates(
     for candidate in candidates {
         let row = sqlx::query(
             "SELECT holding_id, company_id, currency, total_minor, payload
-             FROM erpx_tenant.finance_posted_journals
-             WHERE journal_id=$1 AND holding_ref=$2
+             FROM erpx_holding.finance_posted_journals
+             WHERE journal_id=$1 AND data_profile_key=$2
              FOR SHARE",
         )
         .bind(candidate.journal_id())
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .fetch_optional(&mut **tx)
         .await?
         .ok_or(PersistenceError::NotFound {
@@ -2307,10 +2315,10 @@ async fn verify_posted_journal_candidates(
 
 async fn load_import(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     import_id: Uuid,
 ) -> Result<BankStatementImport, PersistenceError> {
-    load_optional_import(tx, holding_ref, import_id)
+    load_optional_import(tx, data_profile_key, import_id)
         .await?
         .ok_or(PersistenceError::NotFound {
             entity: "bank_statement_import",
@@ -2320,7 +2328,7 @@ async fn load_import(
 
 async fn load_optional_import(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     import_id: Uuid,
 ) -> Result<Option<BankStatementImport>, PersistenceError> {
     validate_uuid(import_id, "bank import ID")?;
@@ -2328,11 +2336,11 @@ async fn load_optional_import(
         "SELECT bank_account_id, holding_id, company_id, scope, statement_reference,
                 starts_on, ends_on, opening_balance_minor, closing_balance_minor,
                 idempotency_key, content_digest, payload
-           FROM erpx_tenant.finance_bank_statement_imports
-         WHERE import_id=$1 AND holding_ref=$2",
+           FROM erpx_holding.finance_bank_statement_imports
+         WHERE import_id=$1 AND data_profile_key=$2",
     )
     .bind(import_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_optional(&mut **tx)
     .await?;
     let Some(row) = row else {
@@ -2373,13 +2381,13 @@ async fn load_optional_import(
         "SELECT transaction_id, bank_account_id, external_transaction_id,
                     posted_on, amount_minor, currency, description,
                     identity_key, content_digest
-               FROM erpx_tenant.finance_bank_transactions
-              WHERE import_id=$1 AND holding_ref=$2
+               FROM erpx_holding.finance_bank_transactions
+              WHERE import_id=$1 AND data_profile_key=$2
               ORDER BY transaction_id
               FOR SHARE",
     )
     .bind(import_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_all(&mut **tx)
     .await?;
     let mut persisted_transactions = BTreeMap::new();
@@ -2426,19 +2434,19 @@ async fn load_optional_import(
 
 async fn insert_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     import_id: Uuid,
     transaction: &ImportedBankTransaction,
 ) -> Result<(), PersistenceError> {
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_bank_transactions
-            (transaction_id, holding_ref, import_id, bank_account_id,
+        "INSERT INTO erpx_holding.finance_bank_transactions
+            (transaction_id, data_profile_key, import_id, bank_account_id,
              external_transaction_id, posted_on, amount_minor, currency,
              description, identity_key, content_digest)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
     )
     .bind(transaction.id())
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(import_id)
     .bind(transaction.bank_account_id())
     .bind(transaction.external_transaction_id())
@@ -2455,7 +2463,7 @@ async fn insert_transaction(
 
 async fn persist_source_event(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     aggregate_type: &str,
     aggregate_id: Uuid,
     version: u64,
@@ -2463,15 +2471,15 @@ async fn persist_source_event(
     event_type: &str,
 ) -> Result<(), PersistenceError> {
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,now())",
     )
     .bind(Uuid::new_v4())
     .bind(aggregate_type)
     .bind(aggregate_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(as_i64(version, "Finance banking event version")?)
     .bind(event_type)
     .bind(serde_json::json!({
@@ -2486,17 +2494,17 @@ async fn persist_source_event(
 
 async fn find_receipt<T: for<'de> Deserialize<'de>>(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     request_key: &str,
     request_hash: &str,
 ) -> Result<Option<T>, PersistenceError> {
     let row = sqlx::query(
         "SELECT request_hash, response, operation, aggregate_type, aggregate_id
-         FROM erpx_tenant.finance_banking_command_idempotency
-         WHERE idempotency_key=$1 AND holding_ref=$2 FOR UPDATE",
+         FROM erpx_holding.finance_banking_command_idempotency
+         WHERE idempotency_key=$1 AND data_profile_key=$2 FOR UPDATE",
     )
     .bind(request_key)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_optional(&mut **tx)
     .await?;
     let Some(row) = row else {
@@ -2510,7 +2518,7 @@ async fn find_receipt<T: for<'de> Deserialize<'de>>(
     }
     validate_banking_receipt_evidence(
         tx,
-        holding_ref,
+        data_profile_key,
         row.try_get("operation")?,
         row.try_get("aggregate_type")?,
         row.try_get("aggregate_id")?,
@@ -2521,7 +2529,7 @@ async fn find_receipt<T: for<'de> Deserialize<'de>>(
 
 async fn validate_banking_receipt_evidence(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     operation: &str,
     aggregate_type: &str,
     aggregate_id: Uuid,
@@ -2530,11 +2538,11 @@ async fn validate_banking_receipt_evidence(
         match (operation, aggregate_type) {
             ("register_account", "finance_bank_account") => {
                 let row = sqlx::query(
-                    "SELECT payload FROM erpx_tenant.finance_bank_accounts
-                     WHERE account_id=$1 AND holding_ref=$2 FOR SHARE",
+                    "SELECT payload FROM erpx_holding.finance_bank_accounts
+                     WHERE account_id=$1 AND data_profile_key=$2 FOR SHARE",
                 )
                 .bind(aggregate_id)
-                .bind(holding_ref)
+                .bind(data_profile_key)
                 .fetch_optional(&mut **tx)
                 .await?
                 .ok_or(PersistenceError::NotFound {
@@ -2550,11 +2558,11 @@ async fn validate_banking_receipt_evidence(
             }
             ("import_statement", "finance_bank_statement_import") => {
                 let row = sqlx::query(
-                    "SELECT payload FROM erpx_tenant.finance_bank_statement_imports
-                     WHERE import_id=$1 AND holding_ref=$2 FOR SHARE",
+                    "SELECT payload FROM erpx_holding.finance_bank_statement_imports
+                     WHERE import_id=$1 AND data_profile_key=$2 FOR SHARE",
                 )
                 .bind(aggregate_id)
-                .bind(holding_ref)
+                .bind(data_profile_key)
                 .fetch_optional(&mut **tx)
                 .await?
                 .ok_or(PersistenceError::NotFound {
@@ -2571,11 +2579,11 @@ async fn validate_banking_receipt_evidence(
             ("save_reconciliation", "finance_bank_reconciliation") => {
                 let row = sqlx::query(
                     "SELECT version, payload
-                       FROM erpx_tenant.finance_bank_reconciliations
-                      WHERE reconciliation_id=$1 AND holding_ref=$2 FOR SHARE",
+                       FROM erpx_holding.finance_bank_reconciliations
+                      WHERE reconciliation_id=$1 AND data_profile_key=$2 FOR SHARE",
                 )
                 .bind(aggregate_id)
-                .bind(holding_ref)
+                .bind(data_profile_key)
                 .fetch_optional(&mut **tx)
                 .await?
                 .ok_or(PersistenceError::NotFound {
@@ -2594,11 +2602,11 @@ async fn validate_banking_receipt_evidence(
             }
             ("save_match_proposal", "finance_bank_match_proposal") => {
                 let row = sqlx::query(
-                    "SELECT payload FROM erpx_tenant.finance_bank_match_proposals
-                     WHERE proposal_id=$1 AND holding_ref=$2 FOR SHARE",
+                    "SELECT payload FROM erpx_holding.finance_bank_match_proposals
+                     WHERE proposal_id=$1 AND data_profile_key=$2 FOR SHARE",
                 )
                 .bind(aggregate_id)
-                .bind(holding_ref)
+                .bind(data_profile_key)
                 .fetch_optional(&mut **tx)
                 .await?
                 .ok_or(PersistenceError::NotFound {
@@ -2614,11 +2622,11 @@ async fn validate_banking_receipt_evidence(
             }
             ("save_match_decision", "finance_bank_match_decision") => {
                 let row = sqlx::query(
-                    "SELECT payload FROM erpx_tenant.finance_bank_match_decisions
-                     WHERE decision_id=$1 AND holding_ref=$2 FOR SHARE",
+                    "SELECT payload FROM erpx_holding.finance_bank_match_decisions
+                     WHERE decision_id=$1 AND data_profile_key=$2 FOR SHARE",
                 )
                 .bind(aggregate_id)
-                .bind(holding_ref)
+                .bind(data_profile_key)
                 .fetch_optional(&mut **tx)
                 .await?
                 .ok_or(PersistenceError::NotFound {
@@ -2640,12 +2648,12 @@ async fn validate_banking_receipt_evidence(
         };
     let events = sqlx::query(
         "SELECT aggregate_version, event_type, payload
-           FROM erpx_tenant.outbox_events
-          WHERE holding_ref=$1 AND aggregate_type=$2 AND aggregate_id=$3
+           FROM erpx_holding.outbox_events
+          WHERE data_profile_key=$1 AND aggregate_type=$2 AND aggregate_id=$3
             AND aggregate_version=$4
           FOR SHARE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(expected_aggregate_type)
     .bind(aggregate_id)
     .bind(as_i64(source_version, "Finance banking event version")?)
@@ -2679,10 +2687,10 @@ async fn validate_banking_receipt_evidence(
 
 async fn lock_match_request(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     request_key: &str,
 ) -> Result<(), PersistenceError> {
-    let lock_name = format!("erpx.finance-bank-match:{holding_ref}:{request_key}");
+    let lock_name = format!("erpx.finance-bank-match:{data_profile_key}:{request_key}");
     sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
         .bind(lock_name)
         .execute(&mut **tx)
@@ -2693,7 +2701,7 @@ async fn lock_match_request(
 #[allow(clippy::too_many_arguments)]
 async fn insert_receipt<T: Serialize>(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     operation: &str,
     aggregate_type: &str,
     aggregate_id: Uuid,
@@ -2702,13 +2710,13 @@ async fn insert_receipt<T: Serialize>(
     receipt: &T,
 ) -> Result<(), PersistenceError> {
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_banking_command_idempotency
-            (idempotency_key, holding_ref, operation, aggregate_type,
+        "INSERT INTO erpx_holding.finance_banking_command_idempotency
+            (idempotency_key, data_profile_key, operation, aggregate_type,
              aggregate_id, request_hash, response)
          VALUES ($1,$2,$3,$4,$5,$6,$7)",
     )
     .bind(request_key)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(operation)
     .bind(aggregate_type)
     .bind(aggregate_id)
@@ -2721,16 +2729,16 @@ async fn insert_receipt<T: Serialize>(
 
 async fn begin_scoped<'a>(
     pool: &'a PgPool,
-    holding_ref: &str,
+    data_profile_key: &str,
     lock_source_writes: bool,
 ) -> Result<Transaction<'a, Postgres>, PersistenceError> {
     let mut tx = pool.begin().await?;
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(data_profile_key)
         .execute(&mut *tx)
         .await?;
     if lock_source_writes {
-        let lock_name = format!("{TENANT_SOURCE_REBUILD_LOCK_PREFIX}{holding_ref}");
+        let lock_name = format!("{HOLDING_SOURCE_REBUILD_LOCK_PREFIX}{data_profile_key}");
         sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
             .bind(lock_name)
             .execute(&mut *tx)
@@ -2791,8 +2799,8 @@ fn validate_text(value: &str, field: &'static str, max: usize) -> Result<(), Per
     Ok(())
 }
 
-fn validate_holding_ref(value: &str) -> Result<(), PersistenceError> {
-    validate_text(value, "holding_ref", 255)
+fn validate_data_profile_key(value: &str) -> Result<(), PersistenceError> {
+    validate_text(value, "data_profile_key", 255)
 }
 
 fn validate_uuid(value: Uuid, field: &'static str) -> Result<(), PersistenceError> {
@@ -2922,16 +2930,15 @@ mod tests {
         assert!(FinanceBankingReadCursor::new("unknown", Uuid::from_u128(42)).is_err());
         assert!(FinanceBankingReadCursor::new("finance_bank_account", Uuid::nil()).is_err());
 
-        assert!(validate_read_scope(&TenantScope::Platform).is_err());
+        assert!(validate_read_scope(&AuthorityScope::Platform).is_err());
         assert!(
-            validate_read_scope(&TenantScope::Subtree {
+            validate_read_scope(&AuthorityScope::Subtree {
                 holding_id: Uuid::from_u128(1),
-                company_ids: vec![Uuid::from_u128(2)],
-                branch_ids: vec![],
+                organization_node_id: Uuid::from_u128(2),
             })
             .is_err()
         );
-        let company = TenantScope::Company {
+        let company = AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         };

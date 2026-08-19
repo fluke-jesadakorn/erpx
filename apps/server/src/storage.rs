@@ -12,8 +12,8 @@ use std::{
 
 use chrono::{DateTime, Utc};
 use erpx_infrastructure::{
-    MinioObjectStore, MinioObjectStoreConfig, ObjectStorageError, PersistenceError,
-    SignedObjectUrl, TenantDatabaseProvisioner, TenantStorageHealth,
+    HoldingDatabaseProvisioner, HoldingStorageHealth, MinioObjectStore, MinioObjectStoreConfig,
+    ObjectStorageError, PersistenceError, SignedObjectUrl,
 };
 use serde::Serialize;
 
@@ -33,8 +33,8 @@ const MAX_DOWNLOAD_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_PRESIGN_EXPIRY_SECONDS: u32 = 3_600;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct TenantObjectUploadRequest {
-    pub(crate) tenant_id: String,
+pub(crate) struct HoldingObjectUploadRequest {
+    pub(crate) holding_id: String,
     pub(crate) storage_namespace: String,
     pub(crate) object_key: String,
     pub(crate) expires_seconds: u32,
@@ -43,8 +43,8 @@ pub(crate) struct TenantObjectUploadRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct TenantObjectDownloadRequest {
-    pub(crate) tenant_id: String,
+pub(crate) struct HoldingObjectDownloadRequest {
+    pub(crate) holding_id: String,
     pub(crate) storage_namespace: String,
     pub(crate) object_key: String,
     pub(crate) expires_seconds: u32,
@@ -53,7 +53,7 @@ pub(crate) struct TenantObjectDownloadRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct TenantSignedObjectUrl {
+pub(crate) struct HoldingSignedObjectUrl {
     pub(crate) url: String,
     pub(crate) method: &'static str,
     pub(crate) expires_at: DateTime<Utc>,
@@ -323,28 +323,28 @@ impl StorageComposition {
                 required: self.required,
                 status: "disabled",
                 live_connectivity: "not_configured",
-                namespace_verification: "per_tenant",
+                namespace_verification: "per_holding",
             },
             StorageProbeState::Unprobed => StorageHealthSignal {
                 configured: true,
                 required: self.required,
                 status: "unprobed",
                 live_connectivity: "not_probed",
-                namespace_verification: "per_tenant",
+                namespace_verification: "per_holding",
             },
             StorageProbeState::Ready => StorageHealthSignal {
                 configured: true,
                 required: self.required,
                 status: "ready",
                 live_connectivity: "verified",
-                namespace_verification: "per_tenant",
+                namespace_verification: "per_holding",
             },
             StorageProbeState::Failed => StorageHealthSignal {
                 configured: true,
                 required: self.required,
                 status: "unavailable",
                 live_connectivity: "failed",
-                namespace_verification: "per_tenant",
+                namespace_verification: "per_holding",
             },
         }
     }
@@ -407,16 +407,16 @@ impl StorageComposition {
         object_store.ensure_namespace(namespace).await
     }
 
-    /// Validate and authorize a tenant upload before returning a bounded
-    /// presigned URL. The authorization callback must validate the tenant and
+    /// Validate and authorize a holding upload before returning a bounded
+    /// presigned URL. The authorization callback must validate the holding and
     /// registered namespace; this composition layer never accepts credentials.
     pub(crate) async fn presign_upload_request<F, Fut>(
         &self,
-        request: TenantObjectUploadRequest,
+        request: HoldingObjectUploadRequest,
         authorize: F,
-    ) -> Result<TenantSignedObjectUrl, ObjectAccessError>
+    ) -> Result<HoldingSignedObjectUrl, ObjectAccessError>
     where
-        F: FnOnce(&TenantObjectUploadRequest) -> Fut,
+        F: FnOnce(&HoldingObjectUploadRequest) -> Fut,
         Fut: Future<Output = Result<(), ObjectAuthorizationError>>,
     {
         validate_upload_request(&request)?;
@@ -435,19 +435,19 @@ impl StorageComposition {
                 Utc::now(),
             )
             .map_err(|_| ObjectAccessError::PresignFailed)?;
-        Ok(TenantSignedObjectUrl::from(signed))
+        Ok(HoldingSignedObjectUrl::from(signed))
     }
 
-    /// Validate and authorize a tenant download before returning a bounded
+    /// Validate and authorize a holding download before returning a bounded
     /// presigned URL. Optional content metadata is policy input for the
     /// authoritative caller; the object-store URL itself carries no secrets.
     pub(crate) async fn presign_download_request<F, Fut>(
         &self,
-        request: TenantObjectDownloadRequest,
+        request: HoldingObjectDownloadRequest,
         authorize: F,
-    ) -> Result<TenantSignedObjectUrl, ObjectAccessError>
+    ) -> Result<HoldingSignedObjectUrl, ObjectAccessError>
     where
-        F: FnOnce(&TenantObjectDownloadRequest) -> Fut,
+        F: FnOnce(&HoldingObjectDownloadRequest) -> Fut,
         Fut: Future<Output = Result<(), ObjectAuthorizationError>>,
     {
         validate_download_request(&request)?;
@@ -466,17 +466,17 @@ impl StorageComposition {
                 Utc::now(),
             )
             .map_err(|_| ObjectAccessError::PresignFailed)?;
-        Ok(TenantSignedObjectUrl::from(signed))
+        Ok(HoldingSignedObjectUrl::from(signed))
     }
 
     /// Registration seam for the existing provisioning gate. The server owns
     /// the object-store boundary; provisioning owns state and activation rules.
     #[allow(dead_code)]
-    pub(crate) async fn provision_tenant_storage(
+    pub(crate) async fn provision_holding_storage(
         &self,
-        provisioner: &TenantDatabaseProvisioner,
-        tenant_id: &str,
-    ) -> Result<TenantStorageHealth, PersistenceError> {
+        provisioner: &HoldingDatabaseProvisioner,
+        holding_id: &str,
+    ) -> Result<HoldingStorageHealth, PersistenceError> {
         if self.object_store.is_none() {
             return Err(PersistenceError::Configuration(
                 "object storage is not configured",
@@ -484,14 +484,14 @@ impl StorageComposition {
         }
         let composition = self.clone();
         provisioner
-            .provision_storage_namespace(tenant_id, move |namespace| async move {
+            .provision_storage_namespace(holding_id, move |namespace| async move {
                 composition.ensure_namespace(&namespace).await
             })
             .await
     }
 }
 
-impl From<SignedObjectUrl> for TenantSignedObjectUrl {
+impl From<SignedObjectUrl> for HoldingSignedObjectUrl {
     fn from(value: SignedObjectUrl) -> Self {
         Self {
             url: value.url,
@@ -501,9 +501,9 @@ impl From<SignedObjectUrl> for TenantSignedObjectUrl {
     }
 }
 
-fn validate_upload_request(request: &TenantObjectUploadRequest) -> Result<(), ObjectAccessError> {
+fn validate_upload_request(request: &HoldingObjectUploadRequest) -> Result<(), ObjectAccessError> {
     validate_object_request(
-        &request.tenant_id,
+        &request.holding_id,
         &request.storage_namespace,
         &request.object_key,
         request.expires_seconds,
@@ -518,10 +518,10 @@ fn validate_upload_request(request: &TenantObjectUploadRequest) -> Result<(), Ob
 }
 
 fn validate_download_request(
-    request: &TenantObjectDownloadRequest,
+    request: &HoldingObjectDownloadRequest,
 ) -> Result<(), ObjectAccessError> {
     validate_object_request(
-        &request.tenant_id,
+        &request.holding_id,
         &request.storage_namespace,
         &request.object_key,
         request.expires_seconds,
@@ -541,12 +541,12 @@ fn validate_download_request(
 }
 
 fn validate_object_request(
-    tenant_id: &str,
+    holding_id: &str,
     storage_namespace: &str,
     object_key: &str,
     expires_seconds: u32,
 ) -> Result<(), ObjectAccessError> {
-    validate_opaque_reference(tenant_id, "tenant_id")?;
+    validate_opaque_reference(holding_id, "holding_id")?;
     validate_namespace(storage_namespace)?;
     if object_key.is_empty()
         || object_key.len() > 1024
@@ -695,10 +695,10 @@ mod tests {
         }
     }
 
-    fn upload_request() -> TenantObjectUploadRequest {
-        TenantObjectUploadRequest {
-            tenant_id: "tenant-a".into(),
-            storage_namespace: "tenant-a-storage".into(),
+    fn upload_request() -> HoldingObjectUploadRequest {
+        HoldingObjectUploadRequest {
+            holding_id: "holding-a".into(),
+            storage_namespace: "holding-a-storage".into(),
             object_key: "documents/report.pdf".into(),
             expires_seconds: 300,
             content_type: "application/pdf".into(),
@@ -706,10 +706,10 @@ mod tests {
         }
     }
 
-    fn download_request() -> TenantObjectDownloadRequest {
-        TenantObjectDownloadRequest {
-            tenant_id: "tenant-a".into(),
-            storage_namespace: "tenant-a-storage".into(),
+    fn download_request() -> HoldingObjectDownloadRequest {
+        HoldingObjectDownloadRequest {
+            holding_id: "holding-a".into(),
+            storage_namespace: "holding-a-storage".into(),
             object_key: "documents/report.pdf".into(),
             expires_seconds: 300,
             content_type: Some("application/pdf".into()),
@@ -728,7 +728,7 @@ mod tests {
                 required: false,
                 status: "disabled",
                 live_connectivity: "not_configured",
-                namespace_verification: "per_tenant",
+                namespace_verification: "per_holding",
             }
         );
         assert!(composition.configuration_ready());
@@ -804,12 +804,12 @@ mod tests {
         let fake = Arc::new(FakeObjectStore::default());
         let composition = StorageComposition::from_boundary(fake.clone());
         composition
-            .ensure_namespace("tenant-storage-test")
+            .ensure_namespace("holding-storage-test")
             .await
             .expect("fake namespace operation");
         assert_eq!(
             fake.namespaces.lock().expect("fake lock").as_slice(),
-            ["tenant-storage-test"]
+            ["holding-storage-test"]
         );
     }
 
@@ -848,7 +848,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn object_access_rejects_traversal_and_cross_tenant_authorization() {
+    async fn object_access_rejects_traversal_and_cross_holding_authorization() {
         let composition = StorageComposition::from_boundary(Arc::new(FakeObjectStore::default()));
         let mut traversal = download_request();
         traversal.object_key = "documents/../secret".into();
@@ -862,12 +862,12 @@ mod tests {
             )
         );
 
-        let mut cross_tenant = download_request();
-        cross_tenant.tenant_id = "tenant-b".into();
+        let mut cross_holding = download_request();
+        cross_holding.holding_id = "holding-b".into();
         let result = composition
-            .presign_download_request(cross_tenant, |request| {
-                let allowed = request.tenant_id == "tenant-a"
-                    && request.storage_namespace == "tenant-a-storage";
+            .presign_download_request(cross_holding, |request| {
+                let allowed = request.holding_id == "holding-a"
+                    && request.storage_namespace == "holding-a-storage";
                 async move {
                     if allowed {
                         Ok(())
@@ -923,7 +923,11 @@ mod tests {
             .await
             .expect("authorized upload");
         assert_eq!(upload.method, "PUT");
-        assert!(upload.url.contains("tenant-a-storage/documents/report.pdf"));
+        assert!(
+            upload
+                .url
+                .contains("holding-a-storage/documents/report.pdf")
+        );
         assert!(!upload.url.contains("secret"));
 
         let download = composition
@@ -934,7 +938,7 @@ mod tests {
         assert!(
             download
                 .url
-                .contains("tenant-a-storage/documents/report.pdf")
+                .contains("holding-a-storage/documents/report.pdf")
         );
         assert!(!download.url.contains("secret"));
     }

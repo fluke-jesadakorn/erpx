@@ -2414,7 +2414,7 @@ mod tests {
     #[test]
     fn checkout_selection_is_server_catalog_owned_usd_only_and_single_currency() {
         let mut base = commercial_price(
-            "tenant-base-monthly",
+            "holding-base-monthly",
             CatalogPriceKind::BaseFee,
             PricingUnit::Flat,
             ChargeKind::Recurring(BillingInterval::Monthly),
@@ -2434,7 +2434,7 @@ mod tests {
             .expect("USD catalog");
         let selection = vec![
             SubscriptionItemSelection {
-                item_key: "tenant-base-monthly".into(),
+                item_key: "holding-base-monthly".into(),
                 quantity: 1,
             },
             SubscriptionItemSelection {
@@ -2450,7 +2450,7 @@ mod tests {
         let thb_catalog = commercial_draft(
             2,
             vec![commercial_price(
-                "tenant-base-monthly",
+                "holding-base-monthly",
                 CatalogPriceKind::BaseFee,
                 PricingUnit::Flat,
                 ChargeKind::Recurring(BillingInterval::Monthly),
@@ -2466,9 +2466,9 @@ mod tests {
     }
 
     #[test]
-    fn catalog_supports_one_monthly_and_one_yearly_tenant_base() {
+    fn catalog_supports_one_monthly_and_one_yearly_holding_base() {
         let mut monthly = commercial_price(
-            "tenant-base-monthly",
+            "holding-base-monthly",
             CatalogPriceKind::BaseFee,
             PricingUnit::Flat,
             ChargeKind::Recurring(BillingInterval::Monthly),
@@ -2476,7 +2476,7 @@ mod tests {
         );
         monthly.amount.currency = "USD".into();
         let mut yearly = commercial_price(
-            "tenant-base-yearly",
+            "holding-base-yearly",
             CatalogPriceKind::BaseFee,
             PricingUnit::Flat,
             ChargeKind::Recurring(BillingInterval::Yearly),
@@ -2489,7 +2489,7 @@ mod tests {
                 .is_ok()
         );
         let mut duplicate_monthly = monthly.clone();
-        duplicate_monthly.item_key = "tenant-base-monthly-duplicate".into();
+        duplicate_monthly.item_key = "holding-base-monthly-duplicate".into();
         assert_eq!(
             commercial_draft(4, vec![monthly, duplicate_monthly])
                 .publish(Utc::now(), "catalog-admin"),

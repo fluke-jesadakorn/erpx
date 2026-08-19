@@ -1,16 +1,16 @@
-//! Bounded tenant-write privacy sweep for Marketing form submissions.
+//! Bounded holding-write privacy sweep for Marketing form submissions.
 //!
-//! This runner deliberately opens only the routed tenant write database. The
+//! This runner deliberately opens only the routed holding write database. The
 //! read pool passed to [`SqlxMarketingContentStore`] is the same write-side
 //! pool handle; no read route, object store, or object bytes are accessed by
 //! the privacy mutation.
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_infrastructure::{
-    MarketingContentPrivacySweepReport, PersistenceError, RoutedDatabaseSide, RoutedTenantDatabase,
-    SqlxMarketingContentStore, TenantDatabaseRouter,
+    HoldingDatabaseRouter, MarketingContentPrivacySweepReport, PersistenceError,
+    RoutedDatabaseSide, RoutedHoldingDatabase, SqlxMarketingContentStore,
 };
 use thiserror::Error;
 use uuid::Uuid;
@@ -96,7 +96,7 @@ impl MarketingContentPrivacyWorkerContext {
                 self.correlation_id.as_hyphenated()
             ),
             actor,
-            TenantScope::Holding { holding_id },
+            AuthorityScope::Holding { holding_id },
             self.purpose.clone(),
         )
         .map_err(|_| {
@@ -112,8 +112,8 @@ impl MarketingContentPrivacyWorkerContext {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MarketingContentPrivacyRequest {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_key: String,
+    pub data_profile_key: String,
     pub holding_id: Uuid,
     pub batch_size: u32,
     pub context: MarketingContentPrivacyWorkerContext,
@@ -121,15 +121,15 @@ pub struct MarketingContentPrivacyRequest {
 
 impl MarketingContentPrivacyRequest {
     pub fn new(
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_key: impl Into<String>,
+        data_profile_key: impl Into<String>,
         holding_id: Uuid,
         batch_size: u32,
         context: MarketingContentPrivacyWorkerContext,
     ) -> Result<Self, MarketingContentPrivacyWorkerError> {
         let request = Self {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+            holding_key: holding_key.into(),
+            data_profile_key: data_profile_key.into(),
             holding_id,
             batch_size,
             context,
@@ -139,8 +139,8 @@ impl MarketingContentPrivacyRequest {
     }
 
     fn validate(&self) -> Result<(), MarketingContentPrivacyWorkerError> {
-        validate_scope_reference(&self.tenant_id, "tenant_id")?;
-        validate_scope_reference(&self.holding_ref, "holding_ref")?;
+        validate_scope_reference(&self.holding_key, "holding_key")?;
+        validate_scope_reference(&self.data_profile_key, "data_profile_key")?;
         if self.holding_id.is_nil() {
             return Err(MarketingContentPrivacyWorkerError::Configuration(
                 "marketing content privacy holding_id is invalid".into(),
@@ -159,21 +159,21 @@ impl MarketingContentPrivacyRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MarketingContentPrivacyRunReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub scanned: u64,
     pub redacted: u64,
 }
 
 #[derive(Debug, Clone)]
 pub struct MarketingContentPrivacyRunner {
-    router: TenantDatabaseRouter,
+    router: HoldingDatabaseRouter,
     request: MarketingContentPrivacyRequest,
 }
 
 impl MarketingContentPrivacyRunner {
     pub fn new(
-        router: TenantDatabaseRouter,
+        router: HoldingDatabaseRouter,
         request: MarketingContentPrivacyRequest,
     ) -> Result<Self, MarketingContentPrivacyWorkerError> {
         request.validate()?;
@@ -188,7 +188,7 @@ impl MarketingContentPrivacyRunner {
         &self.request
     }
 
-    /// Redact only source rows in the routed tenant write database. The route
+    /// Redact only source rows in the routed holding write database. The route
     /// is always closed after the operation, including when store creation or
     /// the SQLx mutation fails.
     pub async fn run_once_at(
@@ -198,8 +198,8 @@ impl MarketingContentPrivacyRunner {
         let write = self
             .router
             .route(
-                &self.request.tenant_id,
-                &self.request.holding_ref,
+                &self.request.holding_key,
+                &self.request.data_profile_key,
                 RoutedDatabaseSide::Write,
             )
             .await
@@ -211,13 +211,13 @@ impl MarketingContentPrivacyRunner {
 
     async fn run_on_write_route(
         &self,
-        write: &RoutedTenantDatabase,
+        write: &RoutedHoldingDatabase,
         now: DateTime<Utc>,
     ) -> Result<MarketingContentPrivacyRunReport, MarketingContentPrivacyWorkerError> {
         let store = SqlxMarketingContentStore::new(
             write.database_pool().clone(),
             write.database_pool().clone(),
-            self.request.holding_ref.clone(),
+            self.request.data_profile_key.clone(),
         )
         .map_err(redacted_persistence_error)?;
         let context = self
@@ -229,8 +229,8 @@ impl MarketingContentPrivacyRunner {
             .await
             .map_err(redacted_persistence_error)?;
         Ok(map_report(
-            &self.request.tenant_id,
-            &self.request.holding_ref,
+            &self.request.holding_key,
+            &self.request.data_profile_key,
             report,
         ))
     }
@@ -259,13 +259,13 @@ impl NamedWorkerHandler for MarketingContentPrivacyRunner {
 }
 
 fn map_report(
-    tenant_id: &str,
-    holding_ref: &str,
+    holding_id: &str,
+    data_profile_key: &str,
     report: MarketingContentPrivacySweepReport,
 ) -> MarketingContentPrivacyRunReport {
     MarketingContentPrivacyRunReport {
-        tenant_id: tenant_id.into(),
-        holding_ref: holding_ref.into(),
+        holding_id: holding_id.into(),
+        data_profile_key: data_profile_key.into(),
         scanned: report.scanned,
         redacted: report.redacted,
     }
@@ -331,12 +331,12 @@ mod tests {
     fn request_rejects_invalid_bounds_and_scope_references() {
         let holding_id = Uuid::new_v4();
         assert!(
-            MarketingContentPrivacyRequest::new("tenant", "holding", holding_id, 0, context())
+            MarketingContentPrivacyRequest::new("holding", "holding", holding_id, 0, context())
                 .is_err()
         );
         assert!(
             MarketingContentPrivacyRequest::new(
-                "tenant",
+                "holding",
                 "holding",
                 holding_id,
                 MARKETING_CONTENT_PRIVACY_MAX_BATCH_SIZE + 1,
@@ -346,7 +346,7 @@ mod tests {
         );
         assert!(
             MarketingContentPrivacyRequest::new(
-                "tenant/unsafe",
+                "holding/unsafe",
                 "holding",
                 holding_id,
                 1,
@@ -355,11 +355,11 @@ mod tests {
             .is_err()
         );
         assert!(
-            MarketingContentPrivacyRequest::new("tenant", "holding ref", holding_id, 1, context(),)
+            MarketingContentPrivacyRequest::new("holding", "holding ref", holding_id, 1, context(),)
                 .is_err()
         );
         assert!(
-            MarketingContentPrivacyRequest::new("tenant", "holding", Uuid::nil(), 1, context(),)
+            MarketingContentPrivacyRequest::new("holding", "holding", Uuid::nil(), 1, context(),)
                 .is_err()
         );
     }
@@ -381,7 +381,7 @@ mod tests {
             .command_context(holding_id)
             .expect("command context");
         assert_eq!(command.actor.kind, ActorKind::SystemWorker);
-        assert_eq!(command.tenant_scope, TenantScope::Holding { holding_id });
+        assert_eq!(command.active_scope, AuthorityScope::Holding { holding_id });
         assert_eq!(command.correlation_id, worker_context.correlation_id);
         assert_eq!(command.audit.correlation_id, worker_context.correlation_id);
     }
@@ -415,7 +415,7 @@ mod tests {
     #[test]
     fn report_mapping_preserves_only_bounded_counts() {
         let mapped = map_report(
-            "tenant",
+            "holding",
             "holding",
             MarketingContentPrivacySweepReport {
                 scanned: 4,
@@ -424,7 +424,7 @@ mod tests {
         );
         assert_eq!(mapped.scanned, 4);
         assert_eq!(mapped.redacted, 3);
-        assert_eq!(mapped.tenant_id, "tenant");
-        assert_eq!(mapped.holding_ref, "holding");
+        assert_eq!(mapped.holding_id, "holding");
+        assert_eq!(mapped.data_profile_key, "holding");
     }
 }

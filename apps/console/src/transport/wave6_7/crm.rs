@@ -4,7 +4,7 @@ use erpx_crm::{
     CrmCommand, CrmLeadId, CrmLeadView, CrmMutationResult, CrmQuery, CrmQueryResponse,
     OpportunityId, OpportunityList, OpportunityStage, OpportunityView,
 };
-use erpx_proto::erpx::crm::v2 as wire;
+use erpx_proto::erpx::crm as wire;
 use erpx_ui_foundation::UiError;
 
 use crate::{features::crm::CrmProtoTransport, transport::typed_cqrs::GrpcChannel};

@@ -974,23 +974,23 @@ fn durable_connector(
     };
     let scope = match &connector.scope {
         erpx_identity::DirectoryScope::Platform => ConnectorScope::Platform,
-        erpx_identity::DirectoryScope::Holding { holding_ref } => {
-            ConnectorScope::Holding(holding_ref.parse().unwrap_or_else(|_| {
+        erpx_identity::DirectoryScope::Holding { data_profile_key } => {
+            ConnectorScope::Holding(data_profile_key.parse().unwrap_or_else(|_| {
                 Uuid::new_v5(
                     &Uuid::NAMESPACE_URL,
-                    format!("erpx:holding-scope:v1:{holding_ref}").as_bytes(),
+                    format!("erpx:holding-scope:{data_profile_key}").as_bytes(),
                 )
             }))
         }
         erpx_identity::DirectoryScope::Branch {
-            holding_ref,
+            data_profile_key,
             company_id,
             branch_id,
         } => ConnectorScope::Branch {
-            holding_id: holding_ref.parse().unwrap_or_else(|_| {
+            holding_id: data_profile_key.parse().unwrap_or_else(|_| {
                 Uuid::new_v5(
                     &Uuid::NAMESPACE_URL,
-                    format!("erpx:holding-scope:v1:{holding_ref}").as_bytes(),
+                    format!("erpx:holding-scope:{data_profile_key}").as_bytes(),
                 )
             }),
             company_id: *company_id,

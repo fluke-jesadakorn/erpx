@@ -4,7 +4,7 @@ use erpx_cqrs_sqlx::{
 };
 use erpx_customer_authority::{CustomerAuthorityView, CustomerStatus};
 use erpx_integration_contracts::{ItemDescriptorDraft, customer};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
@@ -208,7 +208,7 @@ fn validate_event(
     if view.version != event.aggregate_version
         || view.customer_id.as_uuid() != event.aggregate_id.as_uuid()
         || event.partition != customer_partition(view.customer_id)
-        || !event.tenant_scope.contains(&view.primary_authority)
+        || !event.active_scope.contains(&view.primary_authority)
         || !view.authority_links.contains(&view.primary_authority)
         || view
             .authority_links
@@ -222,7 +222,7 @@ fn validate_event(
     Ok(snapshot)
 }
 
-pub(crate) fn scope_key(scope: &TenantScope) -> Result<String, CqrsSqlxError> {
+pub(crate) fn scope_key(scope: &AuthorityScope) -> Result<String, CqrsSqlxError> {
     let (holding_id, company_id, branch_id) = scope_parts(scope)?;
     Ok(match (company_id, branch_id) {
         (None, None) => format!("h:{holding_id}"),
@@ -235,25 +235,25 @@ pub(crate) fn scope_key(scope: &TenantScope) -> Result<String, CqrsSqlxError> {
 }
 
 pub(crate) fn scope_parts(
-    scope: &TenantScope,
+    scope: &AuthorityScope,
 ) -> Result<(Uuid, Option<Uuid>, Option<Uuid>), CqrsSqlxError> {
     scope
         .validate()
         .map_err(|_| CqrsSqlxError::InvalidInput("customer authority scope is invalid"))?;
     match scope {
-        TenantScope::Holding { holding_id } => Ok((*holding_id, None, None)),
-        TenantScope::Company {
+        AuthorityScope::Holding { holding_id } => Ok((*holding_id, None, None)),
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok((*holding_id, Some(*company_id), None)),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         } => Ok((*holding_id, Some(*company_id), Some(*branch_id))),
-        TenantScope::Platform | TenantScope::Subtree { .. } => Err(CqrsSqlxError::InvalidInput(
-            "customer authority link is not exact",
-        )),
+        AuthorityScope::Platform | AuthorityScope::Subtree { .. } => Err(
+            CqrsSqlxError::InvalidInput("customer authority link is not exact"),
+        ),
     }
 }
 
@@ -292,7 +292,7 @@ mod tests {
 
     #[test]
     fn exact_scope_keys_are_stable_and_reject_broad_scopes() {
-        let scope = TenantScope::Branch {
+        let scope = AuthorityScope::Branch {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
             branch_id: Uuid::from_u128(3),
@@ -306,6 +306,6 @@ mod tests {
                 Uuid::from_u128(3)
             )
         );
-        assert!(scope_key(&TenantScope::Platform).is_err());
+        assert!(scope_key(&AuthorityScope::Platform).is_err());
     }
 }

@@ -3,18 +3,18 @@ use std::sync::Arc;
 use chrono::{Duration, Utc};
 use erpx_domain::platform_completion::PitrRecoveryPoint;
 use erpx_infrastructure::{
-    ControlPlaneDatabaseConfig, ControlPlanePools, SqlxControlPlane, SqlxTenantStoreRegistry,
-    TenantBackupJobRequest, TenantProvisioner, TenantStoreRegistration,
+    ControlPlaneDatabaseConfig, ControlPlanePools, HoldingBackupJobRequest, HoldingProvisioner,
+    HoldingStoreRegistration, SqlxControlPlane, SqlxHoldingStoreRegistry,
 };
 use erpx_migration::{migrate_control_plane, migrate_control_read};
 use sqlx::Row;
 use uuid::Uuid;
 
-const TENANT_BACKUP_JOB_AGGREGATE: &str = "platform.tenant_backup_job";
-const TENANT_BACKUP_JOB_SCHEDULED_EVENT: &str = "platform.tenant_backup_job.scheduled";
-const TENANT_BACKUP_JOB_CLAIMED_EVENT: &str = "platform.tenant_backup_job.claimed";
-const TENANT_BACKUP_JOB_COMPLETED_EVENT: &str = "platform.tenant_backup_job.completed";
-const TENANT_BACKUP_JOB_FAILED_EVENT: &str = "platform.tenant_backup_job.failed";
+const HOLDING_BACKUP_JOB_AGGREGATE: &str = "platform.holding_backup_job";
+const HOLDING_BACKUP_JOB_SCHEDULED_EVENT: &str = "platform.holding_backup_job.scheduled";
+const HOLDING_BACKUP_JOB_CLAIMED_EVENT: &str = "platform.holding_backup_job.claimed";
+const HOLDING_BACKUP_JOB_COMPLETED_EVENT: &str = "platform.holding_backup_job.completed";
+const HOLDING_BACKUP_JOB_FAILED_EVENT: &str = "platform.holding_backup_job.failed";
 
 fn test_config() -> ControlPlaneDatabaseConfig {
     ControlPlaneDatabaseConfig {
@@ -39,31 +39,31 @@ async fn backup_jobs_project_all_pages_and_link_claim_attempts_durably() {
         .expect("control read migration");
 
     let store = Arc::new(SqlxControlPlane::new(pools));
-    let registry = SqlxTenantStoreRegistry::new(Arc::clone(&store));
-    let provisioner = TenantProvisioner::new(Arc::clone(&store));
-    let tenant_id = "tenant-backup-jobs-fixture";
-    let holding_ref = "holding-backup-jobs-fixture";
+    let registry = SqlxHoldingStoreRegistry::new(Arc::clone(&store));
+    let provisioner = HoldingProvisioner::new(Arc::clone(&store));
+    let holding_id = "holding-backup-jobs-fixture";
+    let data_profile_key = "holding-backup-jobs-fixture";
     registry
-        .register(TenantStoreRegistration {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
-            write_database_key: "tenant-backup-write-fixture".into(),
-            read_database_key: "tenant-backup-read-fixture".into(),
-            storage_namespace: "tenant-backup-storage-fixture".into(),
-            credential_key_ref: "tenant-backup-credential-fixture".into(),
-            backup_chain_ref: "tenant-backup-chain-fixture".into(),
+        .register(HoldingStoreRegistration {
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
+            write_database_key: "holding-backup-write-fixture".into(),
+            read_database_key: "holding-backup-read-fixture".into(),
+            storage_namespace: "holding-backup-storage-fixture".into(),
+            credential_key_ref: "holding-backup-credential-fixture".into(),
+            backup_chain_ref: "holding-backup-chain-fixture".into(),
             state: "active".into(),
             registry_version: 1,
         })
         .await
-        .expect("active tenant registry");
+        .expect("active holding registry");
 
     let available_at = Utc::now() - Duration::seconds(1);
     for index in 0..1_001_u32 {
         provisioner
-            .schedule_backup_job(TenantBackupJobRequest {
-                tenant_id: tenant_id.into(),
-                holding_ref: holding_ref.into(),
+            .schedule_backup_job(HoldingBackupJobRequest {
+                holding_id: holding_id.into(),
+                data_profile_key: data_profile_key.into(),
                 kind: "full".into(),
                 backup_ref: format!("backup-fixture-{index}"),
                 restore_target_ref: None,
@@ -79,9 +79,9 @@ async fn backup_jobs_project_all_pages_and_link_claim_attempts_durably() {
             .expect("schedule backup job");
     }
     let duplicate = provisioner
-        .schedule_backup_job(TenantBackupJobRequest {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+        .schedule_backup_job(HoldingBackupJobRequest {
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
             kind: "full".into(),
             backup_ref: "backup-fixture-0".into(),
             restore_target_ref: None,
@@ -106,16 +106,16 @@ async fn backup_jobs_project_all_pages_and_link_claim_attempts_durably() {
     .bind(Uuid::new_v4())
     .bind(Uuid::new_v4())
     .bind(Uuid::new_v4())
-    .bind("tenant-backup-job-schedule-conflicting")
+    .bind("holding-backup-job-schedule-conflicting")
     .bind(Utc::now())
     .execute(&store.pools().write)
     .await
     .expect("seed outbox idempotency conflict");
     assert!(
         provisioner
-            .schedule_backup_job(TenantBackupJobRequest {
-                tenant_id: tenant_id.into(),
-                holding_ref: holding_ref.into(),
+            .schedule_backup_job(HoldingBackupJobRequest {
+                holding_id: holding_id.into(),
+                data_profile_key: data_profile_key.into(),
                 kind: "full".into(),
                 backup_ref: "backup-rollback".into(),
                 restore_target_ref: None,
@@ -131,19 +131,19 @@ async fn backup_jobs_project_all_pages_and_link_claim_attempts_durably() {
             .is_err()
     );
     let rolled_back_jobs: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM erpx_control.tenant_backup_jobs
-         WHERE tenant_id = $1 AND backup_ref = 'backup-rollback'",
+        "SELECT COUNT(*) FROM erpx_control.holding_backup_jobs
+         WHERE holding_id = $1 AND backup_ref = 'backup-rollback'",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .fetch_one(&store.pools().write)
     .await
     .expect("check backup schedule rollback");
     assert_eq!(rolled_back_jobs, 0);
     let pitr_available_at = Utc::now() + Duration::hours(1);
     provisioner
-        .schedule_backup_job(TenantBackupJobRequest {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+        .schedule_backup_job(HoldingBackupJobRequest {
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
             kind: "pitr".into(),
             backup_ref: "pitr-backup-fixture".into(),
             restore_target_ref: None,
@@ -161,7 +161,7 @@ async fn backup_jobs_project_all_pages_and_link_claim_attempts_durably() {
             max_attempts: 3,
         })
         .await
-        .expect_err("tenant PITR must be rejected in favor of cluster-scoped recovery");
+        .expect_err("holding PITR must be rejected in favor of cluster-scoped recovery");
 
     assert_eq!(
         provisioner
@@ -171,9 +171,9 @@ async fn backup_jobs_project_all_pages_and_link_claim_attempts_durably() {
         1_001
     );
     let read_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM erpx_control.tenant_backup_jobs WHERE tenant_id = $1",
+        "SELECT COUNT(*) FROM erpx_control.holding_backup_jobs WHERE holding_id = $1",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .fetch_one(&store.pools().read)
     .await
     .expect("count projected backup jobs");
@@ -182,24 +182,24 @@ async fn backup_jobs_project_all_pages_and_link_claim_attempts_durably() {
         "SELECT COUNT(*) FROM erpx_control.outbox_events
          WHERE aggregate_type = $1
            AND event_type = $2
-           AND tenant_scope->>'tenant_id' = $3",
+           AND active_scope->>'holding_id' = $3",
     )
-    .bind(TENANT_BACKUP_JOB_AGGREGATE)
-    .bind(TENANT_BACKUP_JOB_SCHEDULED_EVENT)
-    .bind(tenant_id)
+    .bind(HOLDING_BACKUP_JOB_AGGREGATE)
+    .bind(HOLDING_BACKUP_JOB_SCHEDULED_EVENT)
+    .bind(holding_id)
     .fetch_one(&store.pools().write)
     .await
     .expect("count scheduled backup events");
     assert_eq!(scheduled_events, 1_001);
-    let tenant_pitr_jobs: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM erpx_control.tenant_backup_jobs
-         WHERE tenant_id = $1 AND kind = 'pitr'",
+    let holding_pitr_jobs: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM erpx_control.holding_backup_jobs
+         WHERE holding_id = $1 AND kind = 'pitr'",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .fetch_one(&store.pools().write)
     .await
-    .expect("verify tenant PITR rejection left no durable job");
-    assert_eq!(tenant_pitr_jobs, 0);
+    .expect("verify holding PITR rejection left no durable job");
+    assert_eq!(holding_pitr_jobs, 0);
 
     let worker_id = Uuid::new_v4();
     let claims = provisioner
@@ -208,7 +208,7 @@ async fn backup_jobs_project_all_pages_and_link_claim_attempts_durably() {
         .expect("claim backup jobs");
     assert_eq!(claims.len(), 2);
     sqlx::query(
-        "UPDATE erpx_control.tenant_backup_runs
+        "UPDATE erpx_control.holding_backup_runs
          SET status = 'completed', completed_at = clock_timestamp(), verified = TRUE
          WHERE id = $1",
     )
@@ -229,7 +229,7 @@ async fn backup_jobs_project_all_pages_and_link_claim_attempts_durably() {
 
     let links: Vec<(Uuid, i32, Uuid)> = sqlx::query(
         "SELECT job_id, attempt, run_id
-         FROM erpx_control.tenant_backup_job_runs
+         FROM erpx_control.holding_backup_job_runs
          ORDER BY job_id, attempt",
     )
     .fetch_all(&store.pools().write)
@@ -251,11 +251,11 @@ async fn backup_jobs_project_all_pages_and_link_claim_attempts_durably() {
 
     let linked_runs: i64 = sqlx::query_scalar(
         "SELECT COUNT(*)
-         FROM erpx_control.tenant_backup_job_runs l
-         JOIN erpx_control.tenant_backup_runs r ON r.id = l.run_id
-         WHERE r.tenant_id = $1",
+         FROM erpx_control.holding_backup_job_runs l
+         JOIN erpx_control.holding_backup_runs r ON r.id = l.run_id
+         WHERE r.holding_id = $1",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .fetch_one(&store.pools().write)
     .await
     .expect("verify linked run history");
@@ -264,11 +264,11 @@ async fn backup_jobs_project_all_pages_and_link_claim_attempts_durably() {
     let event_counts: Vec<(String, i64)> = sqlx::query(
         "SELECT event_type, COUNT(*)
          FROM erpx_control.outbox_events
-         WHERE aggregate_type = $1 AND tenant_scope->>'tenant_id' = $2
+         WHERE aggregate_type = $1 AND active_scope->>'holding_id' = $2
          GROUP BY event_type ORDER BY event_type",
     )
-    .bind(TENANT_BACKUP_JOB_AGGREGATE)
-    .bind(tenant_id)
+    .bind(HOLDING_BACKUP_JOB_AGGREGATE)
+    .bind(holding_id)
     .fetch_all(&store.pools().write)
     .await
     .expect("count backup job lifecycle events")
@@ -283,30 +283,30 @@ async fn backup_jobs_project_all_pages_and_link_claim_attempts_durably() {
     assert_eq!(
         event_counts,
         vec![
-            (TENANT_BACKUP_JOB_CLAIMED_EVENT.into(), 2),
-            (TENANT_BACKUP_JOB_COMPLETED_EVENT.into(), 1),
-            (TENANT_BACKUP_JOB_FAILED_EVENT.into(), 1),
-            (TENANT_BACKUP_JOB_SCHEDULED_EVENT.into(), 1_001),
+            (HOLDING_BACKUP_JOB_CLAIMED_EVENT.into(), 2),
+            (HOLDING_BACKUP_JOB_COMPLETED_EVENT.into(), 1),
+            (HOLDING_BACKUP_JOB_FAILED_EVENT.into(), 1),
+            (HOLDING_BACKUP_JOB_SCHEDULED_EVENT.into(), 1_001),
         ]
     );
     let first_job_id = claims[0].id;
     let authority_version: i64 = sqlx::query_scalar(
-        "SELECT aggregate_version FROM erpx_control.tenant_backup_jobs
-         WHERE id = $1 AND tenant_id = $2",
+        "SELECT aggregate_version FROM erpx_control.holding_backup_jobs
+         WHERE id = $1 AND holding_id = $2",
     )
     .bind(first_job_id)
-    .bind(tenant_id)
+    .bind(holding_id)
     .fetch_one(&store.pools().write)
     .await
     .expect("read typed backup job authority version");
     assert_eq!(authority_version, 4);
     let leaked_reference: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM erpx_control.outbox_events
-         WHERE aggregate_type = $1 AND tenant_scope->>'tenant_id' = $2
+         WHERE aggregate_type = $1 AND active_scope->>'holding_id' = $2
            AND payload::text LIKE '%backup-fixture-%'",
     )
-    .bind(TENANT_BACKUP_JOB_AGGREGATE)
-    .bind(tenant_id)
+    .bind(HOLDING_BACKUP_JOB_AGGREGATE)
+    .bind(holding_id)
     .fetch_one(&store.pools().write)
     .await
     .expect("check backup event redaction");

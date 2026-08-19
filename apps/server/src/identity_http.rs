@@ -621,7 +621,7 @@ struct DevelopmentPersonaResponse {
     persona_key: String,
     principal_ref: String,
     directory_username: String,
-    tenant_id: Option<String>,
+    holding_id: Option<String>,
     organization_scope: String,
     role_key: String,
     feature: String,
@@ -692,7 +692,7 @@ pub(crate) fn development_gates() -> Result<(), String> {
     let database_urls = [
         "ERPX_CONTROL_WRITE_DATABASE_URL",
         "ERPX_CONTROL_READ_DATABASE_URL",
-        "ERPX_TENANT_ADMIN_DATABASE_URL",
+        "ERPX_HOLDING_ADMIN_DATABASE_URL",
     ]
     .into_iter()
     .filter_map(|key| environment.get(key).cloned())
@@ -716,7 +716,7 @@ pub(crate) fn development_controller_role_config()
     let database_urls = [
         "ERPX_CONTROL_WRITE_DATABASE_URL",
         "ERPX_CONTROL_READ_DATABASE_URL",
-        "ERPX_TENANT_ADMIN_DATABASE_URL",
+        "ERPX_HOLDING_ADMIN_DATABASE_URL",
     ]
     .into_iter()
     .filter_map(|key| environment.get(key).cloned())
@@ -852,7 +852,7 @@ async fn development_features(
                 "role_key": entry.role_key,
                 "target_scope": entry.target_scope.as_str(),
                 "permissions": entry.permissions,
-                "entitlement": "resolved_by_selected_tenant"
+                "entitlement": "resolved_by_selected_holding"
             })
         })
         .collect::<Vec<_>>();
@@ -995,7 +995,7 @@ fn development_persona_response(persona: &DevelopmentPersona) -> DevelopmentPers
         persona_key: persona.persona_key.clone(),
         principal_ref: persona.principal_ref.clone(),
         directory_username: persona.directory_username.clone(),
-        tenant_id: persona.tenant_id.clone(),
+        holding_id: persona.holding_id.clone(),
         organization_scope: persona.organization_scope.clone(),
         role_key: persona.role_key.clone(),
         feature: persona.feature.clone(),

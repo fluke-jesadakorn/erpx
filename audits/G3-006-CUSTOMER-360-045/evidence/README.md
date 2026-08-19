@@ -81,7 +81,7 @@ No focused test or clippy result is claimed for this interrupted packet.
 - The redactor is deterministic and defensive for common credential/token
   forms, but it is not a substitute for structured secret classification or
   server-side response policy review.
-- No signed object URLs, tenant credentials, storage keys, or raw audit
+- No signed object URLs, holding credentials, storage keys, or raw audit
   payloads are added to the detail model.
 
 ## Integration order

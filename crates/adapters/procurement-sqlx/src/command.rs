@@ -7,7 +7,7 @@ use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
     ItemDescriptorDraft, RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
 };
-use erpx_kernel::{AggregateId, CommandId, DataClassification, EventId, RecordId, TenantScope};
+use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId, RecordId};
 use erpx_procurement::{
     CommandFingerprint, CommandIdentity, CommandUnitOfWork, PortError, ProcurementCommit,
     PurchaseOrder, PurchaseOrderId, PurchaseOrderLine, PurchaseOrderLineId, PurchaseOrderState,
@@ -46,10 +46,10 @@ struct AuthoritySqlScope {
 }
 
 impl AuthoritySqlScope {
-    fn try_from_scope(scope: &TenantScope) -> Result<Self, PortError> {
+    fn try_from_scope(scope: &AuthorityScope) -> Result<Self, PortError> {
         scope.validate().map_err(|_| PortError::Denied)?;
         Ok(match scope {
-            TenantScope::Platform => Self {
+            AuthorityScope::Platform => Self {
                 mode: "platform",
                 holding_id: None,
                 company_id: None,
@@ -57,7 +57,7 @@ impl AuthoritySqlScope {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Holding { holding_id } => Self {
+            AuthorityScope::Holding { holding_id } => Self {
                 mode: "holding",
                 holding_id: Some(*holding_id),
                 company_id: None,
@@ -65,7 +65,7 @@ impl AuthoritySqlScope {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => Self {
@@ -76,7 +76,7 @@ impl AuthoritySqlScope {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -88,17 +88,16 @@ impl AuthoritySqlScope {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Self {
                 mode: "subtree",
                 holding_id: Some(*holding_id),
                 company_id: None,
                 branch_id: None,
-                company_ids: company_ids.clone(),
-                branch_ids: branch_ids.clone(),
+                company_ids: vec![*organization_node_id],
+                branch_ids: Vec::new(),
             },
         })
     }
@@ -108,7 +107,7 @@ impl AuthoritySqlScope {
 impl WriteRepository for ProcurementWriteRepository {
     async fn load(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         purchase_order_id: PurchaseOrderId,
     ) -> Result<Option<PurchaseOrder>, PortError> {
         let authority = AuthoritySqlScope::try_from_scope(authority_scope)?;
@@ -117,7 +116,7 @@ impl WriteRepository for ProcurementWriteRepository {
             "SELECT aggregate_version,holding_id,company_id,branch_id,order_code,supplier_id,
                     currency,order_status,created_at,updated_at
              FROM erpx_procurement_write.purchase_order_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND purchase_order_id=$1
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND purchase_order_id=$1
                AND (
                  $2='platform'
                  OR ($2='holding' AND holding_id=$3)
@@ -148,7 +147,7 @@ impl WriteRepository for ProcurementWriteRepository {
         let line_rows = sqlx::query(
             "SELECT line_id,item_code,ordered_quantity,unit_price_minor,currency,destination_code
              FROM erpx_procurement_write.purchase_order_line_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND purchase_order_id=$1
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND purchase_order_id=$1
              ORDER BY line_position",
         )
         .bind(purchase_order_id.as_uuid())
@@ -163,11 +162,11 @@ impl WriteRepository for ProcurementWriteRepository {
         let company_id = row.try_get("company_id").map_err(|_| PortError::Internal)?;
         let branch_id: Option<Uuid> = row.try_get("branch_id").map_err(|_| PortError::Internal)?;
         let scope = branch_id.map_or(
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             },
-            |branch_id| TenantScope::Branch {
+            |branch_id| AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -313,7 +312,7 @@ impl CommandUnitOfWork for ProcurementCommandAdapter {
             correlation_id: request.correlation_id,
             idempotency_key: request.identity.idempotency_key,
             request_hash: request_hash(&request.identity.fingerprint)?,
-            tenant_scope: aggregate.scope().clone(),
+            active_scope: aggregate.scope().clone(),
             actor: request.actor,
             audit_context: request.audit,
             aggregate_type: AGGREGATE_TYPE.into(),
@@ -384,7 +383,7 @@ impl AtomicCommandGuard for ProcurementGuard {
         guard_context(&self.0, context)?;
         let current: Option<i64> = sqlx::query_scalar(
             "SELECT aggregate_version FROM erpx_procurement_write.purchase_order_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND purchase_order_id=$1
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND purchase_order_id=$1
              FOR UPDATE",
         )
         .bind(self.0.id().as_uuid())
@@ -401,7 +400,7 @@ impl AtomicCommandGuard for ProcurementGuard {
         guard_context(&self.0, context)?;
         let current: Option<i64> = sqlx::query_scalar(
             "SELECT aggregate_version FROM erpx_procurement_write.purchase_order_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND purchase_order_id=$1
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND purchase_order_id=$1
              FOR UPDATE",
         )
         .bind(self.0.id().as_uuid())
@@ -417,7 +416,7 @@ impl AtomicCommandGuard for ProcurementGuard {
         }
         let duplicate: Option<Uuid> = sqlx::query_scalar(
             "SELECT purchase_order_id FROM erpx_procurement_write.purchase_order_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id()
+             WHERE holding_id=erpx_cqrs_write.current_holding_id()
                AND scope_key=$1 AND order_code=$2 AND purchase_order_id<>$3
              ORDER BY purchase_order_id LIMIT 1 FOR UPDATE",
         )
@@ -452,10 +451,10 @@ impl AtomicCommandGuard for ProcurementGuard {
         let (holding_id, company_id, branch_id) = exact_scope_columns(self.0.scope())?;
         let result = sqlx::query(
             "INSERT INTO erpx_procurement_write.purchase_order_authority
-                (tenant_id,purchase_order_id,aggregate_version,scope_key,holding_id,company_id,
+                (holding_id,purchase_order_id,aggregate_version,scope_key,holding_id,company_id,
                  branch_id,order_code,supplier_id,currency,order_status,created_at,updated_at)
-             VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-             ON CONFLICT (tenant_id,purchase_order_id) DO UPDATE SET
+             VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+             ON CONFLICT (holding_id,purchase_order_id) DO UPDATE SET
                 aggregate_version=EXCLUDED.aggregate_version,
                 scope_key=EXCLUDED.scope_key,order_code=EXCLUDED.order_code,
                 holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,
@@ -463,8 +462,8 @@ impl AtomicCommandGuard for ProcurementGuard {
                 supplier_id=EXCLUDED.supplier_id,currency=EXCLUDED.currency,
                 order_status=EXCLUDED.order_status,
                 created_at=EXCLUDED.created_at,updated_at=EXCLUDED.updated_at
-             WHERE erpx_procurement_write.purchase_order_authority.tenant_id=
-                       erpx_cqrs_write.current_tenant_id()
+             WHERE erpx_procurement_write.purchase_order_authority.holding_id=
+                       erpx_cqrs_write.current_holding_id()
                AND erpx_procurement_write.purchase_order_authority.aggregate_version + 1=
                        EXCLUDED.aggregate_version",
         )
@@ -489,7 +488,7 @@ impl AtomicCommandGuard for ProcurementGuard {
         }
         sqlx::query(
             "DELETE FROM erpx_procurement_write.purchase_order_line_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND purchase_order_id=$1",
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND purchase_order_id=$1",
         )
         .bind(self.0.id().as_uuid())
         .execute(&mut **transaction)
@@ -497,9 +496,9 @@ impl AtomicCommandGuard for ProcurementGuard {
         for (position, line) in self.0.lines().iter().enumerate() {
             sqlx::query(
                 "INSERT INTO erpx_procurement_write.purchase_order_line_authority
-                    (tenant_id,purchase_order_id,line_id,line_position,item_code,ordered_quantity,
+                    (holding_id,purchase_order_id,line_id,line_position,item_code,ordered_quantity,
                      unit_price_minor,currency,destination_code)
-                 VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8)",
+                 VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8)",
             )
             .bind(self.0.id().as_uuid())
             .bind(line.line_id.as_uuid())
@@ -616,13 +615,13 @@ fn deterministic_uuid(seed: Uuid, label: &[u8]) -> Uuid {
     Uuid::from_bytes(bytes)
 }
 
-fn scope_key(scope: &TenantScope) -> Result<String, CqrsSqlxError> {
+fn scope_key(scope: &AuthorityScope) -> Result<String, CqrsSqlxError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok(format!("company:{holding_id}:{company_id}")),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -645,20 +644,24 @@ fn from_i64_store(value: i64) -> Result<u64, CqrsSqlxError> {
     u64::try_from(value).map_err(|_| CqrsSqlxError::NumericRange)
 }
 
-fn exact_scope_columns(scope: &TenantScope) -> Result<(Uuid, Uuid, Option<Uuid>), CqrsSqlxError> {
+fn exact_scope_columns(
+    scope: &AuthorityScope,
+) -> Result<(Uuid, Uuid, Option<Uuid>), CqrsSqlxError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok((*holding_id, *company_id, None)),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         } => Ok((*holding_id, *company_id, Some(*branch_id))),
-        TenantScope::Platform | TenantScope::Holding { .. } | TenantScope::Subtree { .. } => Err(
-            CqrsSqlxError::GuardRejected("procurement authority requires company or branch scope"),
-        ),
+        AuthorityScope::Platform
+        | AuthorityScope::Holding { .. }
+        | AuthorityScope::Subtree { .. } => Err(CqrsSqlxError::GuardRejected(
+            "procurement authority requires company or branch scope",
+        )),
     }
 }
 

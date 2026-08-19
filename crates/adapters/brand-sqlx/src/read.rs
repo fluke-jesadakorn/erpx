@@ -11,7 +11,7 @@ use erpx_cqrs::{
     FreshnessState, ProjectionCheckpoint, ProjectionMetadata, ProjectionNotReady, QueryConsistency,
 };
 use erpx_cqrs_sqlx::{CqrsSqlxError, ReadPool, SqlxProjectionWaiter, WaitError, WaiterConfig};
-use erpx_kernel::{RecordId, TenantScope};
+use erpx_kernel::{AuthorityScope, RecordId};
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -116,7 +116,7 @@ impl BrandReadRepository {
 impl ReadRepository for BrandReadRepository {
     async fn get_draft(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         scope: &BrandScope,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<BrandProfileView>>, PortError> {
@@ -170,7 +170,7 @@ impl ReadRepository for BrandReadRepository {
 
     async fn get_resolved(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         scope: &BrandScope,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<ResolvedBrandView>>, PortError> {
@@ -208,7 +208,7 @@ impl ReadRepository for BrandReadRepository {
 
     async fn list_history(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         scope: &BrandScope,
         page_size: u16,
         cursor: Option<&str>,
@@ -269,7 +269,7 @@ impl ReadRepository for BrandReadRepository {
 impl DerivedRecordReadRepository for BrandReadRepository {
     async fn get_asset(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         target_scope: &BrandScope,
         record_id: RecordId,
         consistency: &QueryConsistency,
@@ -306,7 +306,7 @@ impl DerivedRecordReadRepository for BrandReadRepository {
 
     async fn get_publication(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         target_scope: &BrandScope,
         record_id: RecordId,
         consistency: &QueryConsistency,
@@ -394,7 +394,7 @@ fn ensure_partition(
     Ok(())
 }
 
-fn ensure_scope(authority: &TenantScope, target: &BrandScope) -> Result<(), PortError> {
+fn ensure_scope(authority: &AuthorityScope, target: &BrandScope) -> Result<(), PortError> {
     let target = target.authority_scope().map_err(|_| PortError::Denied)?;
     if authority.contains(&target) {
         Ok(())

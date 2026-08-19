@@ -1,40 +1,40 @@
-//! Shared authenticated tenant routing for future-context target transports.
+//! Shared authenticated holding routing for future-context target transports.
 //!
-//! Authentication is deliberately completed before tenant-registry or data
+//! Authentication is deliberately completed before holding-registry or data
 //! plane lookup. Request scopes are treated only as presented claims and are
-//! rebound to the active role and authoritative control-plane tenant route.
+//! rebound to the active role and authoritative control-plane holding route.
 
 use erpx_infrastructure::RoutedDatabaseSide;
-use erpx_kernel::{ActorAttribution, ActorKind, PrincipalId, SessionId, TenantId, TenantScope};
-use erpx_proto::common::v2;
+use erpx_kernel::{ActorAttribution, ActorKind, AuthorityScope, HoldingId, PrincipalId, SessionId};
+use erpx_proto::common as wire;
 use sqlx::PgPool;
 use tonic::{Request, Status, metadata::MetadataMap};
 use uuid::Uuid;
 
-use crate::tenant_workspace::{ResolvedTenantWorkspace, resolve_tenant_workspace};
-use crate::wave4_composition::authenticate_context_for_tenant;
+use crate::holding_workspace::{ResolvedHoldingWorkspace, resolve_holding_workspace};
+use crate::wave4_composition::authenticate_context_for_holding;
 use crate::{AppState, boundary};
 
 #[derive(Debug, Clone)]
 pub(crate) struct FutureInvocation {
     pub principal_id: PrincipalId,
-    pub tenant_id: TenantId,
-    pub scope: TenantScope,
-    pub workspace: ResolvedTenantWorkspace,
+    pub holding_id: HoldingId,
+    pub scope: AuthorityScope,
+    pub workspace: ResolvedHoldingWorkspace,
     pub realm: erpx_identity::AuthenticatedRealm,
 }
 
 pub(crate) async fn command<T>(
     state: &AppState,
     request: &Request<T>,
-    context: Option<&v2::CommandContext>,
+    context: Option<&wire::CommandContext>,
     product: &'static str,
     permission: &'static str,
 ) -> Result<FutureInvocation, Status> {
     // The token/session boundary runs before any protected routing lookup.
     let claims = state.auth.authorize(request).await?;
     let domain = boundary::command_domain(request, context)?;
-    let scope = crate::legacy_kernel_scope(&domain.tenant_scope);
+    let scope = crate::legacy_kernel_scope(&domain.active_scope);
     authorize_presented_context(
         state,
         request.metadata(),
@@ -61,7 +61,7 @@ pub(crate) async fn command<T>(
 pub(crate) async fn query<T>(
     state: &AppState,
     request: &Request<T>,
-    context: Option<&v2::QueryContext>,
+    context: Option<&wire::QueryContext>,
     product: &'static str,
     permission: &'static str,
 ) -> Result<FutureInvocation, Status> {
@@ -70,7 +70,7 @@ pub(crate) async fn query<T>(
     let scope = decode_scope(
         context
             .expect("validated query context")
-            .tenant_scope
+            .active_scope
             .as_ref(),
     )?;
     authorize_presented_context(
@@ -93,7 +93,7 @@ async fn authorize_presented_context(
     metadata: &MetadataMap,
     claims: &erpx_identity::AccessTokenClaims,
     presented_principal: &str,
-    scope: TenantScope,
+    scope: AuthorityScope,
     product: &'static str,
     permission: &'static str,
     write: bool,
@@ -104,13 +104,13 @@ async fn authorize_presented_context(
         presented_principal,
         "future-context actor must match the authenticated principal",
     )?;
-    let workspace = resolve_tenant_workspace(state, &scope, None, None, write).await?;
+    let workspace = resolve_holding_workspace(state, &scope, None, None, write).await?;
     let session_id = SessionId::try_from_uuid(claims.session_id)
         .map_err(|_| Status::internal("authenticated session attribution is invalid"))?;
     let presented_actor = ActorAttribution {
         principal_ref: claims.principal_ref.clone(),
         kind: match claims.principal_kind {
-            erpx_identity::AuthenticatedPrincipalKind::Human => ActorKind::TenantUser,
+            erpx_identity::AuthenticatedPrincipalKind::Human => ActorKind::HoldingUser,
             erpx_identity::AuthenticatedPrincipalKind::Agent
             | erpx_identity::AuthenticatedPrincipalKind::Service => ActorKind::Service,
         },
@@ -119,13 +119,13 @@ async fn authorize_presented_context(
         support_capability_id: None,
     };
     let subscription = workspace.subscription_id.map(|value| value.to_string());
-    let actor = authenticate_context_for_tenant(
+    let actor = authenticate_context_for_holding(
         state,
         metadata,
         &presented_actor,
         &scope,
         &workspace.customer_id.to_string(),
-        &workspace.tenant_id,
+        &workspace.holding_id,
         permission,
         product,
         write,
@@ -138,13 +138,13 @@ async fn authorize_presented_context(
     })?;
     let principal_id = PrincipalId::try_from_uuid(principal_uuid)
         .map_err(|_| Status::permission_denied("future-context principal is invalid"))?;
-    let tenant_uuid = Uuid::parse_str(&workspace.tenant_id)
-        .map_err(|_| Status::failed_precondition("tenant binding is not an opaque UUID"))?;
-    let tenant_id = TenantId::try_from_uuid(tenant_uuid)
-        .map_err(|_| Status::failed_precondition("tenant binding is invalid"))?;
+    let holding_uuid = Uuid::parse_str(&workspace.holding_id)
+        .map_err(|_| Status::failed_precondition("holding binding is not an opaque UUID"))?;
+    let holding_id = HoldingId::try_from_uuid(holding_uuid)
+        .map_err(|_| Status::failed_precondition("holding binding is invalid"))?;
     Ok(FutureInvocation {
         principal_id,
-        tenant_id,
+        holding_id,
         scope,
         workspace,
         realm: claims.realm,
@@ -157,13 +157,13 @@ pub(crate) async fn pool(
     side: RoutedDatabaseSide,
 ) -> Result<PgPool, Status> {
     let router = state
-        .tenant_router
+        .holding_router
         .as_ref()
-        .ok_or_else(|| Status::unavailable("tenant database routing is unavailable"))?;
+        .ok_or_else(|| Status::unavailable("holding database routing is unavailable"))?;
     router
         .route(
-            &invocation.workspace.tenant_id,
-            &invocation.workspace.holding_ref,
+            &invocation.workspace.holding_id,
+            &invocation.workspace.data_profile_key,
             side,
         )
         .await
@@ -171,45 +171,36 @@ pub(crate) async fn pool(
         .map_err(|_| Status::unavailable("future-context storage is unavailable"))
 }
 
-fn decode_scope(scope: Option<&v2::TenantScope>) -> Result<TenantScope, Status> {
-    use v2::tenant_scope::Scope;
+fn decode_scope(scope: Option<&wire::AuthorityScope>) -> Result<AuthorityScope, Status> {
+    use wire::authority_scope::Scope;
     let scope = scope
         .and_then(|scope| scope.scope.as_ref())
-        .ok_or_else(|| Status::permission_denied("tenant scope is required"))?;
+        .ok_or_else(|| Status::permission_denied("holding scope is required"))?;
     let uuid = |value: &str, field: &'static str| {
         Uuid::parse_str(value).map_err(|_| Status::invalid_argument(format!("{field} is invalid")))
     };
     let decoded = match scope {
-        Scope::Platform(_) => TenantScope::Platform,
-        Scope::Holding(value) => TenantScope::Holding {
+        Scope::Platform(_) => AuthorityScope::Platform,
+        Scope::Holding(value) => AuthorityScope::Holding {
             holding_id: uuid(&value.holding_id, "holding_id")?,
         },
-        Scope::Company(value) => TenantScope::Company {
+        Scope::Company(value) => AuthorityScope::Company {
             holding_id: uuid(&value.holding_id, "holding_id")?,
             company_id: uuid(&value.company_id, "company_id")?,
         },
-        Scope::Branch(value) => TenantScope::Branch {
+        Scope::Branch(value) => AuthorityScope::Branch {
             holding_id: uuid(&value.holding_id, "holding_id")?,
             company_id: uuid(&value.company_id, "company_id")?,
             branch_id: uuid(&value.branch_id, "branch_id")?,
         },
-        Scope::Subtree(value) => TenantScope::Subtree {
+        Scope::Subtree(value) => AuthorityScope::Subtree {
             holding_id: uuid(&value.holding_id, "holding_id")?,
-            company_ids: value
-                .company_ids
-                .iter()
-                .map(|value| uuid(value, "company_id"))
-                .collect::<Result<_, _>>()?,
-            branch_ids: value
-                .branch_ids
-                .iter()
-                .map(|value| uuid(value, "branch_id"))
-                .collect::<Result<_, _>>()?,
+            organization_node_id: uuid(&value.organization_node_id, "organization_node_id")?,
         },
     };
     decoded
         .validate()
-        .map_err(|_| Status::permission_denied("tenant scope is invalid"))?;
+        .map_err(|_| Status::permission_denied("holding scope is invalid"))?;
     Ok(decoded)
 }
 
@@ -218,9 +209,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn tenant_scope_decoder_rejects_nil_and_malformed_identifiers() {
-        let nil = v2::TenantScope {
-            scope: Some(v2::tenant_scope::Scope::Holding(v2::HoldingScope {
+    fn holding_scope_decoder_rejects_nil_and_malformed_identifiers() {
+        let nil = wire::AuthorityScope {
+            scope: Some(wire::authority_scope::Scope::Holding(wire::HoldingScope {
                 holding_id: Uuid::nil().to_string(),
             })),
         };
@@ -228,8 +219,8 @@ mod tests {
             decode_scope(Some(&nil)).unwrap_err().code(),
             tonic::Code::PermissionDenied
         );
-        let malformed = v2::TenantScope {
-            scope: Some(v2::tenant_scope::Scope::Holding(v2::HoldingScope {
+        let malformed = wire::AuthorityScope {
+            scope: Some(wire::authority_scope::Scope::Holding(wire::HoldingScope {
                 holding_id: "holding-label".into(),
             })),
         };

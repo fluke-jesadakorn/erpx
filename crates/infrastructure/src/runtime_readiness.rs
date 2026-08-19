@@ -11,8 +11,9 @@ use uuid::Uuid;
 
 use crate::PersistenceError;
 use crate::provisioning::{
-    DatabaseSide, ReadinessObservationPolicy, ReadinessObservationState, TenantBackupRun,
-    TenantDatabaseHealth, TenantDatabaseRouter, TenantReadinessObservation, TenantStorageHealth,
+    DatabaseSide, HoldingBackupRun, HoldingDatabaseHealth, HoldingDatabaseRouter,
+    HoldingReadinessObservation, HoldingStorageHealth, ReadinessObservationPolicy,
+    ReadinessObservationState,
 };
 
 /// Fail-closed state used at runtime composition boundaries.
@@ -160,14 +161,14 @@ impl WorkerHeartbeat {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WorkerLiveReadinessPolicy {
     pub heartbeat_max_age: Duration,
-    pub tenant: ReadinessObservationPolicy,
+    pub holding: ReadinessObservationPolicy,
 }
 
 impl Default for WorkerLiveReadinessPolicy {
     fn default() -> Self {
         Self {
             heartbeat_max_age: Duration::minutes(1),
-            tenant: ReadinessObservationPolicy::default(),
+            holding: ReadinessObservationPolicy::default(),
         }
     }
 }
@@ -175,13 +176,13 @@ impl Default for WorkerLiveReadinessPolicy {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkerLiveReadinessObservation {
     pub heartbeat: WorkerHeartbeatObservation,
-    pub tenant: TenantReadinessObservation,
+    pub holding: HoldingReadinessObservation,
     pub composition: WorkerReadinessComposition,
 }
 
 /// Readiness observer shared by executable composition roots.
 ///
-/// It owns only explicit in-process heartbeat evidence. Tenant observations
+/// It owns only explicit in-process heartbeat evidence. Holding observations
 /// always come from the control-plane registry and live route probes.
 #[derive(Debug, Clone)]
 pub struct WorkerReadinessObserver {
@@ -210,24 +211,24 @@ impl WorkerReadinessObserver {
 
     pub async fn observe_live_readiness(
         &self,
-        router: &TenantDatabaseRouter,
-        tenant_id: &str,
+        router: &HoldingDatabaseRouter,
+        holding_id: &str,
         now: DateTime<Utc>,
         policy: WorkerLiveReadinessPolicy,
     ) -> Result<WorkerLiveReadinessObservation, PersistenceError> {
-        let tenant = router
-            .observe_tenant_readiness(tenant_id, now, policy.tenant)
+        let holding = router
+            .observe_holding_readiness(holding_id, now, policy.holding)
             .await?;
         let heartbeat = self.heartbeat.observe(now, policy.heartbeat_max_age);
         let composition = WorkerReadinessComposition {
             worker_heartbeat: heartbeat.state,
-            tenant_routing: tenant.routing.state.into(),
-            projection_freshness: tenant.projection_freshness.state.into(),
-            backup_pitr: tenant.backup_pitr.state.into(),
+            holding_routing: holding.routing.state.into(),
+            projection_freshness: holding.projection_freshness.state.into(),
+            backup_pitr: holding.backup_pitr.state.into(),
         };
         Ok(WorkerLiveReadinessObservation {
             heartbeat,
-            tenant,
+            holding,
             composition,
         })
     }
@@ -236,27 +237,27 @@ impl WorkerReadinessObserver {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WorkerReadinessComposition {
     pub worker_heartbeat: ReadinessState,
-    pub tenant_routing: ReadinessState,
+    pub holding_routing: ReadinessState,
     pub projection_freshness: ReadinessState,
     pub backup_pitr: ReadinessState,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct WorkerReadinessMetadata<'a> {
-    pub tenant_id: &'a str,
+    pub holding_id: &'a str,
     pub registry_state: Option<&'a str>,
-    pub write_health: Option<&'a TenantDatabaseHealth>,
-    pub read_health: Option<&'a TenantDatabaseHealth>,
-    pub storage_health: Option<&'a TenantStorageHealth>,
+    pub write_health: Option<&'a HoldingDatabaseHealth>,
+    pub read_health: Option<&'a HoldingDatabaseHealth>,
+    pub storage_health: Option<&'a HoldingStorageHealth>,
     pub projection_state: Option<&'a str>,
-    pub latest_backup: Option<&'a TenantBackupRun>,
+    pub latest_backup: Option<&'a HoldingBackupRun>,
 }
 
 impl WorkerReadinessComposition {
     pub const fn not_probed() -> Self {
         Self {
             worker_heartbeat: ReadinessState::NotProbed,
-            tenant_routing: ReadinessState::NotProbed,
+            holding_routing: ReadinessState::NotProbed,
             projection_freshness: ReadinessState::NotProbed,
             backup_pitr: ReadinessState::NotProbed,
         }
@@ -264,14 +265,14 @@ impl WorkerReadinessComposition {
 
     pub const fn is_ready(self) -> bool {
         self.worker_heartbeat.is_ready()
-            && self.tenant_routing.is_ready()
+            && self.holding_routing.is_ready()
             && self.projection_freshness.is_ready()
             && self.backup_pitr.is_ready()
     }
 
     pub const fn overall(self) -> ReadinessState {
         if matches!(self.worker_heartbeat, ReadinessState::Unavailable)
-            || matches!(self.tenant_routing, ReadinessState::Unavailable)
+            || matches!(self.holding_routing, ReadinessState::Unavailable)
             || matches!(self.projection_freshness, ReadinessState::Unavailable)
             || matches!(self.backup_pitr, ReadinessState::Unavailable)
         {
@@ -289,42 +290,42 @@ impl WorkerReadinessComposition {
     ) -> Self {
         Self {
             worker_heartbeat: heartbeat.state,
-            tenant_routing: tenant_routing_readiness(
-                metadata.tenant_id,
+            holding_routing: holding_routing_readiness(
+                metadata.holding_id,
                 metadata.registry_state,
                 metadata.write_health,
                 metadata.read_health,
                 metadata.storage_health,
             ),
             projection_freshness: projection_freshness_readiness(metadata.projection_state),
-            backup_pitr: backup_pitr_readiness(metadata.tenant_id, metadata.latest_backup),
+            backup_pitr: backup_pitr_readiness(metadata.holding_id, metadata.latest_backup),
         }
     }
 }
 
-/// Classify only persisted tenant health evidence. A healthy configuration
+/// Classify only persisted holding health evidence. A healthy configuration
 /// without all three observed health records remains `NotProbed`.
-pub fn tenant_routing_readiness(
-    tenant_id: &str,
+pub fn holding_routing_readiness(
+    holding_id: &str,
     registry_state: Option<&str>,
-    write_health: Option<&TenantDatabaseHealth>,
-    read_health: Option<&TenantDatabaseHealth>,
-    storage_health: Option<&TenantStorageHealth>,
+    write_health: Option<&HoldingDatabaseHealth>,
+    read_health: Option<&HoldingDatabaseHealth>,
+    storage_health: Option<&HoldingStorageHealth>,
 ) -> ReadinessState {
     let Some(registry_state) = registry_state else {
         return ReadinessState::NotProbed;
     };
-    if registry_state != "active" || tenant_id.trim().is_empty() {
+    if registry_state != "active" || holding_id.trim().is_empty() {
         return ReadinessState::Unavailable;
     }
 
     if write_health.is_some_and(|health| {
-        health.tenant_id != tenant_id
+        health.holding_id != holding_id
             || !health.reachable
             || health.side != DatabaseSide::Write
             || health.database_key.trim().is_empty()
     }) || read_health.is_some_and(|health| {
-        health.tenant_id != tenant_id
+        health.holding_id != holding_id
             || !health.reachable
             || health.side != DatabaseSide::Read
             || health.database_key.trim().is_empty()
@@ -332,7 +333,7 @@ pub fn tenant_routing_readiness(
         return ReadinessState::Unavailable;
     }
     if storage_health.is_some_and(|health| {
-        health.tenant_id != tenant_id
+        health.holding_id != holding_id
             || !health.reachable
             || health.storage_namespace.trim().is_empty()
     }) {
@@ -362,13 +363,14 @@ pub fn projection_freshness_readiness(state: Option<&str>) -> ReadinessState {
 }
 
 pub fn backup_pitr_readiness(
-    tenant_id: &str,
-    latest_backup: Option<&TenantBackupRun>,
+    holding_id: &str,
+    latest_backup: Option<&HoldingBackupRun>,
 ) -> ReadinessState {
     let Some(run) = latest_backup else {
         return ReadinessState::NotProbed;
     };
-    if run.tenant_id != tenant_id || !matches!(run.kind.as_str(), "full" | "pitr" | "restore_test")
+    if run.holding_id != holding_id
+        || !matches!(run.kind.as_str(), "full" | "pitr" | "restore_test")
     {
         return ReadinessState::Unavailable;
     }
@@ -393,13 +395,13 @@ mod tests {
     }
 
     fn database_health(
-        tenant_id: &str,
+        holding_id: &str,
         side: DatabaseSide,
         database_key: &str,
         reachable: bool,
-    ) -> TenantDatabaseHealth {
-        TenantDatabaseHealth {
-            tenant_id: tenant_id.into(),
+    ) -> HoldingDatabaseHealth {
+        HoldingDatabaseHealth {
+            holding_id: holding_id.into(),
             side,
             database_key: database_key.into(),
             schema_version: "1".into(),
@@ -409,20 +411,20 @@ mod tests {
         }
     }
 
-    fn storage_health(tenant_id: &str, reachable: bool) -> TenantStorageHealth {
-        TenantStorageHealth {
-            tenant_id: tenant_id.into(),
-            storage_namespace: "tenant-storage".into(),
+    fn storage_health(holding_id: &str, reachable: bool) -> HoldingStorageHealth {
+        HoldingStorageHealth {
+            holding_id: holding_id.into(),
+            storage_namespace: "holding-storage".into(),
             reachable,
             checked_at: now(),
             details: Value::Null,
         }
     }
 
-    fn backup_run(tenant_id: &str, status: &str, verified: bool) -> TenantBackupRun {
-        TenantBackupRun {
+    fn backup_run(holding_id: &str, status: &str, verified: bool) -> HoldingBackupRun {
+        HoldingBackupRun {
             id: Uuid::from_u128(17),
-            tenant_id: tenant_id.into(),
+            holding_id: holding_id.into(),
             kind: "full".into(),
             status: status.into(),
             backup_ref: "backup-chain-1".into(),
@@ -517,10 +519,10 @@ mod tests {
     #[test]
     fn metadata_composition_preserves_existing_runtime_semantics() {
         let observed_at = now();
-        let write = database_health("tenant-test", DatabaseSide::Write, "tenant-write", true);
-        let read = database_health("tenant-test", DatabaseSide::Read, "tenant-read", true);
-        let storage = storage_health("tenant-test", true);
-        let backup = backup_run("tenant-test", "completed", true);
+        let write = database_health("holding-test", DatabaseSide::Write, "holding-write", true);
+        let read = database_health("holding-test", DatabaseSide::Read, "holding-read", true);
+        let storage = storage_health("holding-test", true);
+        let backup = backup_run("holding-test", "completed", true);
         let composition = WorkerReadinessComposition::from_metadata(
             WorkerHeartbeatReadiness::from_last_seen(
                 Some(observed_at - Duration::seconds(1)),
@@ -528,7 +530,7 @@ mod tests {
                 Duration::seconds(30),
             ),
             WorkerReadinessMetadata {
-                tenant_id: "tenant-test",
+                holding_id: "holding-test",
                 registry_state: Some("active"),
                 write_health: Some(&write),
                 read_health: Some(&read),
@@ -541,7 +543,7 @@ mod tests {
         assert_eq!(composition.overall(), ReadinessState::Ready);
 
         let failed = WorkerReadinessComposition {
-            tenant_routing: ReadinessState::Unavailable,
+            holding_routing: ReadinessState::Unavailable,
             ..composition
         };
         assert_eq!(failed.overall(), ReadinessState::Unavailable);
@@ -549,12 +551,12 @@ mod tests {
 
     #[test]
     fn classifiers_do_not_promote_missing_or_failed_metadata() {
-        let write = database_health("tenant-test", DatabaseSide::Write, "tenant-write", true);
-        let read = database_health("tenant-test", DatabaseSide::Read, "tenant-read", true);
-        let storage = storage_health("tenant-test", true);
+        let write = database_health("holding-test", DatabaseSide::Write, "holding-write", true);
+        let read = database_health("holding-test", DatabaseSide::Read, "holding-read", true);
+        let storage = storage_health("holding-test", true);
         assert_eq!(
-            tenant_routing_readiness(
-                "tenant-test",
+            holding_routing_readiness(
+                "holding-test",
                 Some("active"),
                 Some(&write),
                 Some(&read),
@@ -563,8 +565,8 @@ mod tests {
             ReadinessState::NotProbed
         );
         assert_eq!(
-            tenant_routing_readiness(
-                "tenant-test",
+            holding_routing_readiness(
+                "holding-test",
                 Some("active"),
                 Some(&write),
                 Some(&read),
@@ -581,13 +583,13 @@ mod tests {
             ReadinessState::Unavailable
         );
 
-        let completed = backup_run("tenant-test", "completed", true);
+        let completed = backup_run("holding-test", "completed", true);
         assert_eq!(
-            backup_pitr_readiness("tenant-test", Some(&completed)),
+            backup_pitr_readiness("holding-test", Some(&completed)),
             ReadinessState::Ready
         );
         assert_eq!(
-            backup_pitr_readiness("other-tenant", Some(&completed)),
+            backup_pitr_readiness("other-holding", Some(&completed)),
             ReadinessState::Unavailable
         );
     }

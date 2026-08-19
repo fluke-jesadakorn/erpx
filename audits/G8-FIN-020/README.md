@@ -4,7 +4,7 @@
 
 This packet adds a separate SQLx write adapter for authoritative Finance source
 contexts to publish and update rows in the migration-0035
-`erpx_tenant.finance_close_control_evidence` table. Main integration adds
+`erpx_holding.finance_close_control_evidence` table. Main integration adds
 migration 0037 for the positive source version; the Finance close-review
 adapter and domain contracts remain unchanged.
 
@@ -41,7 +41,7 @@ identity validation. The disposable integration test is `#[ignore]`; run:
 ```text
 cargo fmt --all --check
 cargo test -p erpx-infrastructure --test finance_close_control_evidence
-ERPX_TEST_TENANT_WRITE_DATABASE_URL=... cargo test -p erpx-infrastructure --test finance_close_control_evidence -- --ignored --nocapture
+ERPX_TEST_HOLDING_WRITE_DATABASE_URL=... cargo test -p erpx-infrastructure --test finance_close_control_evidence -- --ignored --nocapture
 ```
 
 The test includes the adapter source by path and uses a local test-only copy of

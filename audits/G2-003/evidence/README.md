@@ -19,5 +19,5 @@ tests verify exact role boundaries, parent validation, and high-risk approval.
 
 This is not the complete universal evaluator. Billing state, commercial module
 entitlement, approval limits, segregation of duties, support capabilities,
-represented-user authority, tenant routing, and revocation review workflows
+represented-user authority, holding routing, and revocation review workflows
 must be joined before G2 is accepted.

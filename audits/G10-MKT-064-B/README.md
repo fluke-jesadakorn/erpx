@@ -12,7 +12,7 @@
   bounded by `ERPX_MARKETING_PUBLIC_ABUSE_CLEANUP_BATCH_SIZE` and the worker
   runtime default.
 - The handler rejects a nil worker ID and maps database failures to a generic
-  redacted worker error. It never routes a tenant database.
+  redacted worker error. It never routes a holding database.
 
 ## Files and contracts
 
@@ -31,7 +31,7 @@
 - `cargo fmt --all --check` — PASS.
 - Fresh disposable control-plane PostgreSQL abuse proof — PASS; quota
   allowance/limit/new-window behavior and one-row bounded cleanup passed, with
-  zero table/tenant residue before the database was dropped.
+  zero table/holding residue before the database was dropped.
 
 ## Security and scope notes
 
@@ -43,5 +43,5 @@ remain owned by the broader worker runtime and are not fabricated here.
 ## Rollback
 
 Stop selecting the handler name or remove its registration branch. Existing
-abuse counters remain intact for a later bounded cleanup; no tenant write/read
+abuse counters remain intact for a later bounded cleanup; no holding write/read
 state is changed.

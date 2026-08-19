@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
 use erpx_integration_contracts::{BoundedContext, RecordRef};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -107,7 +107,7 @@ pub enum ApprovalSessionStatus {
 pub struct ApprovalSession {
     id: ApprovalSessionId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     subject: RecordRef,
     policy_version: u32,
     requested_by: String,
@@ -121,7 +121,7 @@ impl ApprovalSession {
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: ApprovalSessionId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         subject: RecordRef,
         policy_version: u32,
         requested_by: String,
@@ -337,7 +337,7 @@ impl ApprovalSession {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn subject(&self) -> &RecordRef {
@@ -411,7 +411,7 @@ mod tests {
     fn session() -> ApprovalSession {
         ApprovalSession::create(
             ApprovalSessionId::try_from_uuid(Uuid::from_u128(1)).unwrap(),
-            TenantScope::Holding {
+            AuthorityScope::Holding {
                 holding_id: Uuid::from_u128(2),
             },
             RecordRef::try_new(BoundedContext::Sales, "quote", Uuid::from_u128(3), 4).unwrap(),

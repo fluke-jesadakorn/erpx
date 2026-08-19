@@ -1,2 +1,2 @@
--- Evidence contract: canonical installation is tenant-read migration 0052.
+-- Evidence contract: canonical installation is holding-read migration 0052.
 -- Projection: erpx_procurement_read.purchase_order_projection.

@@ -655,15 +655,15 @@ fn auth_connector_config(
     }
     let scope = match &connector.scope {
         DirectoryScope::Platform => super::auth::ConnectorScope::Platform,
-        DirectoryScope::Holding { holding_ref } => {
-            super::auth::ConnectorScope::Holding(stable_holding_id(holding_ref))
+        DirectoryScope::Holding { data_profile_key } => {
+            super::auth::ConnectorScope::Holding(stable_holding_id(data_profile_key))
         }
         DirectoryScope::Branch {
-            holding_ref,
+            data_profile_key,
             company_id,
             branch_id,
         } => super::auth::ConnectorScope::Branch {
-            holding_id: stable_holding_id(holding_ref),
+            holding_id: stable_holding_id(data_profile_key),
             company_id: *company_id,
             branch_id: *branch_id,
         },
@@ -686,11 +686,11 @@ fn auth_connector_config(
     .map_err(|_| LiveDirectoryError::Configuration)
 }
 
-fn stable_holding_id(holding_ref: &str) -> uuid::Uuid {
-    holding_ref.parse::<uuid::Uuid>().unwrap_or_else(|_| {
+fn stable_holding_id(data_profile_key: &str) -> uuid::Uuid {
+    data_profile_key.parse::<uuid::Uuid>().unwrap_or_else(|_| {
         uuid::Uuid::new_v5(
             &uuid::Uuid::NAMESPACE_URL,
-            format!("erpx:holding-scope:v1:{holding_ref}").as_bytes(),
+            format!("erpx:holding-scope:{data_profile_key}").as_bytes(),
         )
     })
 }
@@ -829,7 +829,7 @@ fn directory_authority_fingerprint(
     normalized_values.sort_unstable();
     normalized_values.dedup();
     let mut digest = Sha256::new();
-    digest.update(b"erpx-directory-authority-v1\0");
+    digest.update(b"erpx-directory-authority\0");
     digest.update(match connector.provider {
         DirectoryProvider::GenericLdap => b"generic_ldap".as_slice(),
         DirectoryProvider::ActiveDirectoryDomainServices => {

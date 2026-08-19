@@ -1,4 +1,4 @@
-# G14-QA-062 follow-up — scheduler authorization and multi-tenant routing
+# G14-QA-062 follow-up — scheduler authorization and multi-holding routing
 
 Date: 2026-07-25  
 Owner: Main agent  
@@ -10,19 +10,19 @@ inspected and is not rewritten.
 
 ## Integrated corrections
 
-- `TenantProjectionSchedulerRepository` now requires a bounded
+- `HoldingProjectionSchedulerRepository` now requires a bounded
   `ProjectionSchedulerAuthorization` at construction.
 - Every schedule, claim, renewal, completion, failure, and stale-reclaim path
   verifies active registry state and exact holding binding, then evaluates the
-  actor's `tenant.projection.execute` permission through authoritative
+  actor's `holding.projection.execute` permission through authoritative
   control-plane role assignments for the UUID holding scope.
 - Accepted scheduler operations write bounded control-plane audit events with
-  actor, operation, tenant/holding, permission, purpose, timestamp, and
+  actor, operation, holding/holding, permission, purpose, timestamp, and
   correlation ID.
-- `SqlxTenantStoreRegistry::list_active` and the worker's
-  `MultiTenantProjectionSchedulerHandler` re-enumerate active holdings every
-  pass; suspended tenants are not retained in a process-local allow-list.
-- `RoutedTenantProjectionExecutor` resolves server-side write and read routes
+- `SqlxHoldingStoreRegistry::list_active` and the worker's
+  `MultiHoldingProjectionSchedulerHandler` re-enumerate active holdings every
+  pass; suspended holdings are not retained in a process-local allow-list.
+- `RoutedHoldingProjectionExecutor` resolves server-side write and read routes
   for every claim before invoking an explicitly injected routed projector.
 - `WorkerRuntime` exposes a composition helper that builds the scheduler from
   the control pools, registry, authorization context, physical router, and
@@ -38,7 +38,7 @@ The following remain open and prevent G6/G10/G14 acceptance:
   for the full command policy.
 - The shipped worker binary still registers only its default handlers. A real
   production projector implementation and executable composition for the
-  multi-tenant scheduler are not yet wired into `apps/worker/src/main.rs`.
+  multi-holding scheduler are not yet wired into `apps/worker/src/main.rs`.
 - Marketing provider callback ingress is still absent: raw-body provider
   signature verification, provider-account binding, durable callback inbox,
   replay/out-of-window policy, and worker-owned delivery transition remain.
@@ -48,7 +48,7 @@ The following remain open and prevent G6/G10/G14 acceptance:
   receipt that covers a crash after target side effects and before completion.
 - Registry state is checked before the scheduler operation rather than
   serialized with the registry lifecycle mutation; SQLx integration tests for
-  missing, inactive, mismatched, suspended-during-operation, and cross-tenant
+  missing, inactive, mismatched, suspended-during-operation, and cross-holding
   cases remain required.
 
 ## Verification
@@ -62,7 +62,7 @@ The latest focused checks passed:
 - `cargo test -p erpx-worker --lib` — 36 passed, 1 documented disposable-
   PostgreSQL test ignored
 
-The multi-tenant handler has a pure test proving that active-binding
+The multi-holding handler has a pure test proving that active-binding
 enumeration issues one claim pass per binding. No live database was mutated by
 this follow-up.
 

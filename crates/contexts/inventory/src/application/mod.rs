@@ -11,8 +11,8 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::procurement;
 use erpx_kernel::{
-    ActorAttribution, AuditContext, Clock, CorrelationId, ErrorCategory, ErrorContext, EventId,
-    KernelError, TenantScope,
+    ActorAttribution, AuditContext, AuthorityScope, Clock, CorrelationId, ErrorCategory,
+    ErrorContext, EventId, KernelError,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -36,7 +36,7 @@ pub const MAX_LIST_PAGE_SIZE: u16 = 100;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RegisterStockItem {
     pub stock_item_id: StockItemId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub warehouse_id: WarehouseId,
     pub item_code: String,
 }
@@ -87,7 +87,7 @@ pub struct GetStockItem {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GetInventoryReservation {
     pub reservation_id: ReservationId,
-    pub target_scope: TenantScope,
+    pub target_scope: AuthorityScope,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -189,7 +189,7 @@ struct ExistingCommand {
     correlation_id: CorrelationId,
     causation_id: Option<EventId>,
     actor: ActorAttribution,
-    authority_scope: TenantScope,
+    authority_scope: AuthorityScope,
     audit: AuditContext,
     expected_version: Option<u64>,
     identity: CommandIdentity,
@@ -209,8 +209,8 @@ where
     async fn preflight(
         &self,
         actor: &ActorAttribution,
-        authority_scope: &TenantScope,
-        target_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         action: InventoryAction,
     ) -> Result<(), InventoryApplicationError> {
         if !authority_scope.contains(target_scope) {
@@ -362,7 +362,7 @@ where
         {
             self.preflight(
                 &envelope.actor,
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 stored.aggregate.scope(),
                 InventoryAction::RegisterItem,
             )
@@ -376,7 +376,7 @@ where
         }
         self.preflight(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             &command.scope,
             InventoryAction::RegisterItem,
         )
@@ -411,7 +411,7 @@ where
                 correlation_id,
                 causation_id: envelope.causation_id,
                 actor: envelope.actor,
-                authority_scope: envelope.tenant_scope,
+                authority_scope: envelope.active_scope,
                 audit: envelope.audit,
                 expected_version: None,
                 aggregate,
@@ -459,7 +459,7 @@ macro_rules! existing_handler {
                         correlation_id: envelope.correlation_id,
                         causation_id: envelope.causation_id,
                         actor: envelope.actor,
-                        authority_scope: envelope.tenant_scope,
+                        authority_scope: envelope.active_scope,
                         audit: envelope.audit,
                         expected_version: envelope.expected_aggregate_version,
                         identity,
@@ -576,13 +576,13 @@ where
         action: InventoryAction,
     ) -> Result<(), PortError> {
         self.entitlement
-            .ensure_inventory_enabled(&envelope.tenant_scope, false)
+            .ensure_inventory_enabled(&envelope.active_scope, false)
             .await?;
         self.authorization
             .authorize(AuthorizationRequest {
                 actor: &envelope.actor,
-                authority_scope: &envelope.tenant_scope,
-                target_scope: &envelope.tenant_scope,
+                authority_scope: &envelope.active_scope,
+                target_scope: &envelope.active_scope,
                 action,
             })
             .await
@@ -608,7 +608,7 @@ where
         let projection = self
             .read_repository
             .get(
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 envelope.query.stock_item_id,
                 &envelope.consistency,
             )
@@ -617,7 +617,7 @@ where
         if projection
             .value
             .as_ref()
-            .is_some_and(|item| !envelope.tenant_scope.contains(&item.scope))
+            .is_some_and(|item| !envelope.active_scope.contains(&item.scope))
         {
             return Err(to_cqrs(
                 InventoryApplicationError::ScopeOutsideAuthority,
@@ -662,7 +662,7 @@ where
         let projection = self
             .read_repository
             .list(
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 &envelope.query.filter,
                 &envelope.consistency,
             )
@@ -672,7 +672,7 @@ where
             .value
             .items
             .iter()
-            .any(|item| !envelope.tenant_scope.contains(&item.scope))
+            .any(|item| !envelope.active_scope.contains(&item.scope))
         {
             return Err(to_cqrs(
                 InventoryApplicationError::ScopeOutsideAuthority,
@@ -704,7 +704,7 @@ where
         envelope: QueryEnvelope<GetInventoryReservation>,
     ) -> Result<QueryResult<Self::Response>, CqrsError> {
         envelope.validate()?;
-        if !envelope.tenant_scope.contains(&envelope.query.target_scope) {
+        if !envelope.active_scope.contains(&envelope.query.target_scope) {
             return Err(to_cqrs(
                 InventoryApplicationError::ScopeOutsideAuthority,
                 envelope.correlation_id,
@@ -717,7 +717,7 @@ where
         self.authorization
             .authorize(AuthorizationRequest {
                 actor: &envelope.actor,
-                authority_scope: &envelope.tenant_scope,
+                authority_scope: &envelope.active_scope,
                 target_scope: &envelope.query.target_scope,
                 action: InventoryAction::ViewReservation,
             })

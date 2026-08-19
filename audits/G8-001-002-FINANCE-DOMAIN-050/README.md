@@ -21,7 +21,7 @@ statutory reports, and migration/reconciliation remain open.
 
 ## Security and rollback
 
-Commands require a validated command context and tenant scope containment;
+Commands require a validated command context and holding scope containment;
 posted journals cannot be edited and closed periods reject mutation. No
 credentials or payment instruments are present. Rollback is a source-only
 revert until finance persistence migrations are introduced.

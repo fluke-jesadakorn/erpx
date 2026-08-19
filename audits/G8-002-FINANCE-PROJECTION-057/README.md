@@ -4,12 +4,12 @@
 
 - Exported the Finance AP/AR subledger domain module and collected its tests
   in the repository domain crate.
-- Added bounded Finance journal source-event pages from the tenant write
+- Added bounded Finance journal source-event pages from the holding write
   outbox with stable aggregate/version cursors.
-- Added tenant read projection application with identity checks, contiguous
+- Added holding read projection application with identity checks, contiguous
   version enforcement, idempotent replay, forced-RLS checkpoints, and
   holding-scoped rebuild clearing.
-- Added a tenant-routed worker runner for page application and full
+- Added a holding-routed worker runner for page application and full
   clear-and-replay rebuilds with redacted errors and bounded requests.
 - Added the read-side checkpoint migration `0022_finance_projection.sql`.
 

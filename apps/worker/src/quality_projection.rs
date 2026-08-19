@@ -1,7 +1,7 @@
 use erpx_domain::quality::QualityProjectionReconciliation;
 use erpx_infrastructure::{
-    QualityProjectionRebuildPreparation, QualitySourceEventCursor, QualitySourceEventPage,
-    RoutedDatabaseSide, RoutedTenantDatabase, SqlxQualityStore, TenantDatabaseRouter,
+    HoldingDatabaseRouter, QualityProjectionRebuildPreparation, QualitySourceEventCursor,
+    QualitySourceEventPage, RoutedDatabaseSide, RoutedHoldingDatabase, SqlxQualityStore,
 };
 use std::collections::HashSet;
 
@@ -9,22 +9,22 @@ use crate::{QUALITY_PROJECTION_MAX_EVENTS, QUALITY_PROJECTION_MAX_PAGE_SIZE, Wor
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QualityProjectionRequest {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub cursor: Option<QualitySourceEventCursor>,
     pub page_size: u32,
 }
 
 impl QualityProjectionRequest {
     pub fn new(
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         cursor: Option<QualitySourceEventCursor>,
         page_size: u32,
     ) -> Result<Self, WorkerRuntimeError> {
         let request = Self {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
             cursor,
             page_size,
         };
@@ -33,10 +33,10 @@ impl QualityProjectionRequest {
     }
 
     fn validate(&self) -> Result<(), WorkerRuntimeError> {
-        if self.tenant_id.trim().is_empty()
-            || self.tenant_id.len() > 255
-            || self.holding_ref.trim().is_empty()
-            || self.holding_ref.len() > 255
+        if self.holding_id.trim().is_empty()
+            || self.holding_id.len() > 255
+            || self.data_profile_key.trim().is_empty()
+            || self.data_profile_key.len() > 255
             || self.page_size == 0
             || self.page_size > QUALITY_PROJECTION_MAX_PAGE_SIZE
         {
@@ -57,8 +57,8 @@ impl QualityProjectionRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QualityProjectionRunReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub events_seen: u64,
     pub events_applied: u64,
     pub next_cursor: Option<QualitySourceEventCursor>,
@@ -68,28 +68,28 @@ pub struct QualityProjectionRunReport {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QualityProjectionRebuildReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub events_replayed: u64,
     pub source_event_count: u64,
     pub preparation: QualityProjectionRebuildPreparation,
 }
 
-/// Reconciliation evidence returned by the tenant-routed worker boundary.
+/// Reconciliation evidence returned by the holding-routed worker boundary.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QualityProjectionReconciliationReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub reconciliation: QualityProjectionReconciliation,
 }
 
 #[derive(Debug, Clone)]
 pub struct QualityProjectionRunner {
-    router: TenantDatabaseRouter,
+    router: HoldingDatabaseRouter,
 }
 
 impl QualityProjectionRunner {
-    pub fn new(router: TenantDatabaseRouter) -> Self {
+    pub fn new(router: HoldingDatabaseRouter) -> Self {
         Self { router }
     }
 
@@ -98,12 +98,14 @@ impl QualityProjectionRunner {
         request: QualityProjectionRequest,
     ) -> Result<QualityProjectionRunReport, WorkerRuntimeError> {
         request.validate()?;
-        let (write, read) = self.route(&request.tenant_id, &request.holding_ref).await?;
+        let (write, read) = self
+            .route(&request.holding_id, &request.data_profile_key)
+            .await?;
         let result = async {
             let store = SqlxQualityStore::from_pools(
                 write.database_pool(),
                 read.database_pool(),
-                request.holding_ref.clone(),
+                request.data_profile_key.clone(),
             )?;
             let mut cursor = request.cursor.clone();
             let mut events_seen = 0_u64;
@@ -140,8 +142,8 @@ impl QualityProjectionRunner {
                 ));
             }
             Ok::<_, WorkerRuntimeError>(QualityProjectionRunReport {
-                tenant_id: request.tenant_id.clone(),
-                holding_ref: request.holding_ref.clone(),
+                holding_id: request.holding_id.clone(),
+                data_profile_key: request.data_profile_key.clone(),
                 events_seen,
                 events_applied,
                 next_cursor: None,
@@ -157,17 +159,19 @@ impl QualityProjectionRunner {
 
     pub async fn rebuild(
         &self,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         page_size: u32,
     ) -> Result<QualityProjectionRebuildReport, WorkerRuntimeError> {
-        let request = QualityProjectionRequest::new(tenant_id, holding_ref, None, page_size)?;
-        let (write, read) = self.route(&request.tenant_id, &request.holding_ref).await?;
+        let request = QualityProjectionRequest::new(holding_id, data_profile_key, None, page_size)?;
+        let (write, read) = self
+            .route(&request.holding_id, &request.data_profile_key)
+            .await?;
         let result = async {
             let store = SqlxQualityStore::from_pools(
                 write.database_pool(),
                 read.database_pool(),
-                request.holding_ref.clone(),
+                request.data_profile_key.clone(),
             )?;
             let source_event_count = store.source_event_high_watermark().await?;
             if source_event_count > QUALITY_PROJECTION_MAX_EVENTS {
@@ -181,8 +185,8 @@ impl QualityProjectionRunner {
             let reconciliation = store.reconcile_projection().await?;
             require_consistent_rebuild(&reconciliation)?;
             Ok::<_, WorkerRuntimeError>(QualityProjectionRebuildReport {
-                tenant_id: request.tenant_id.clone(),
-                holding_ref: request.holding_ref.clone(),
+                holding_id: request.holding_id.clone(),
+                data_profile_key: request.data_profile_key.clone(),
                 events_replayed,
                 source_event_count,
                 preparation,
@@ -198,21 +202,23 @@ impl QualityProjectionRunner {
     /// read projection without mutating either database.
     pub async fn reconcile(
         &self,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<QualityProjectionReconciliationReport, WorkerRuntimeError> {
-        let request = QualityProjectionRequest::new(tenant_id, holding_ref, None, 1)?;
-        let (write, read) = self.route(&request.tenant_id, &request.holding_ref).await?;
+        let request = QualityProjectionRequest::new(holding_id, data_profile_key, None, 1)?;
+        let (write, read) = self
+            .route(&request.holding_id, &request.data_profile_key)
+            .await?;
         let result = async {
             let store = SqlxQualityStore::from_pools(
                 write.database_pool(),
                 read.database_pool(),
-                request.holding_ref.clone(),
+                request.data_profile_key.clone(),
             )?;
             let reconciliation = store.reconcile_projection().await?;
             Ok::<_, WorkerRuntimeError>(QualityProjectionReconciliationReport {
-                tenant_id: request.tenant_id.clone(),
-                holding_ref: request.holding_ref.clone(),
+                holding_id: request.holding_id.clone(),
+                data_profile_key: request.data_profile_key.clone(),
                 reconciliation,
             })
         }
@@ -222,25 +228,25 @@ impl QualityProjectionRunner {
         result
     }
 
-    /// Read one projected inspection only when the caller's explicit tenant
+    /// Read one projected inspection only when the caller's explicit holding
     /// scope contains the inspection's immutable source scope. The routed
     /// holding is necessary but is not sufficient authorization for an
     /// individual company/branch read.
     pub async fn get_for_scope(
         &self,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         inspection_id: uuid::Uuid,
-        authorizing_scope: &erpx_domain::contracts::TenantScope,
+        authorizing_scope: &erpx_domain::contracts::AuthorityScope,
     ) -> Result<Option<(erpx_domain::quality::QualityInspection, u64)>, WorkerRuntimeError> {
-        let tenant_id = tenant_id.into();
-        let holding_ref = holding_ref.into();
-        let (write, read) = self.route(&tenant_id, &holding_ref).await?;
+        let holding_id = holding_id.into();
+        let data_profile_key = data_profile_key.into();
+        let (write, read) = self.route(&holding_id, &data_profile_key).await?;
         let result = async {
             let store = SqlxQualityStore::from_pools(
                 write.database_pool(),
                 read.database_pool(),
-                holding_ref.clone(),
+                data_profile_key.clone(),
             )?;
             Ok::<_, WorkerRuntimeError>(
                 store
@@ -256,25 +262,25 @@ impl QualityProjectionRunner {
 
     async fn route(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
     ) -> Result<
         (
-            erpx_infrastructure::RoutedTenantDatabase,
-            erpx_infrastructure::RoutedTenantDatabase,
+            erpx_infrastructure::RoutedHoldingDatabase,
+            erpx_infrastructure::RoutedHoldingDatabase,
         ),
         WorkerRuntimeError,
     > {
         let write = self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Write)
             .await
             .map_err(|_| {
                 WorkerRuntimeError::Configuration("Quality write routing failed".into())
             })?;
         let read = match self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Read)
             .await
         {
             Ok(read) => read,
@@ -285,7 +291,7 @@ impl QualityProjectionRunner {
                 ));
             }
         };
-        if !valid_route_fence(tenant_id, holding_ref, &write, &read) {
+        if !valid_route_fence(holding_id, data_profile_key, &write, &read) {
             write.close().await;
             read.close().await;
             return Err(WorkerRuntimeError::Configuration(
@@ -404,17 +410,17 @@ fn next_quality_event_count(events_seen: u64, page_len: usize) -> Result<u64, Wo
 }
 
 fn valid_route_fence(
-    tenant_id: &str,
-    holding_ref: &str,
-    write: &RoutedTenantDatabase,
-    read: &RoutedTenantDatabase,
+    holding_id: &str,
+    data_profile_key: &str,
+    write: &RoutedHoldingDatabase,
+    read: &RoutedHoldingDatabase,
 ) -> bool {
     write.side == RoutedDatabaseSide::Write
         && read.side == RoutedDatabaseSide::Read
-        && write.tenant_id == tenant_id
-        && read.tenant_id == tenant_id
-        && write.holding_ref == holding_ref
-        && read.holding_ref == holding_ref
+        && write.holding_id == holding_id
+        && read.holding_id == holding_id
+        && write.data_profile_key == data_profile_key
+        && read.data_profile_key == data_profile_key
         && !write.database_key.trim().is_empty()
         && !read.database_key.trim().is_empty()
         && write.database_key != read.database_key
@@ -444,11 +450,11 @@ mod tests {
 
     #[test]
     fn projection_requests_are_bounded() {
-        assert!(QualityProjectionRequest::new("tenant", "holding", None, 0).is_err());
-        assert!(QualityProjectionRequest::new("tenant", "holding", None, 1).is_ok());
+        assert!(QualityProjectionRequest::new("holding", "holding", None, 0).is_err());
+        assert!(QualityProjectionRequest::new("holding", "holding", None, 1).is_ok());
         assert!(
             QualityProjectionRequest::new(
-                "tenant",
+                "holding",
                 "holding",
                 Some(QualitySourceEventCursor {
                     aggregate_id: Uuid::nil(),

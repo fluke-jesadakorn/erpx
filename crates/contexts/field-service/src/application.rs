@@ -117,7 +117,7 @@ where
         actor: &ActorContext,
         identity: MutationIdentity,
         order_id: ServiceOrderId,
-        scope: &erpx_kernel::TenantScope,
+        scope: &erpx_kernel::AuthorityScope,
         requested_version: Option<u64>,
         action: FieldServiceAction,
         event_type: &str,
@@ -163,7 +163,7 @@ where
         actor: &ActorContext,
         identity: MutationIdentity,
         order_id: ServiceOrderId,
-        scope: &erpx_kernel::TenantScope,
+        scope: &erpx_kernel::AuthorityScope,
         handoff_id: BillingHandoffId,
         amount: erpx_integration_contracts::MoneyAmount,
         requested_version: Option<u64>,
@@ -257,7 +257,7 @@ where
     pub async fn get_order(
         &self,
         actor: &ActorContext,
-        scope: &erpx_kernel::TenantScope,
+        scope: &erpx_kernel::AuthorityScope,
         id: ServiceOrderId,
     ) -> Result<crate::ports::ServiceOrderProjection, FieldServiceError> {
         let authority = self
@@ -273,7 +273,7 @@ where
     pub async fn get_record(
         &self,
         actor: &ActorContext,
-        scope: &erpx_kernel::TenantScope,
+        scope: &erpx_kernel::AuthorityScope,
         id: uuid::Uuid,
     ) -> Result<crate::ports::FieldServiceRecordProjection, FieldServiceError> {
         let authority = self

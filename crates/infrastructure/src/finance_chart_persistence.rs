@@ -1,11 +1,11 @@
-//! Normalized tenant-write persistence for the authoritative Chart of
+//! Normalized holding-write persistence for the authoritative Chart of
 //! Accounts slice. No transport or authorization decisions live here.
 
 use std::collections::BTreeMap;
 
 use chrono::Utc;
 use erpx_domain::contracts::{
-    ActorAttribution, ActorKind, CONTRACT_VERSION, CommandContext, EventEnvelope, TenantScope,
+    ActorAttribution, ActorKind, AuthorityScope, CONTRACT_VERSION, CommandContext, EventEnvelope,
 };
 use erpx_domain::finance::{AccountKind, ChartOfAccounts};
 use erpx_domain::finance_chart::{
@@ -22,7 +22,7 @@ use crate::finance_persistence::begin_scoped;
 
 pub const FINANCE_CHART_AGGREGATE: &str = "finance_chart_of_accounts";
 pub const FINANCE_CHART_SAVED_EVENT: &str = "finance.chart_of_accounts_saved.v1";
-const MAX_HOLDING_REF_BYTES: usize = 255;
+const MAX_DATA_PROFILE_KEY_BYTES: usize = 255;
 const MAX_DATABASE_VERSION: u64 = i64::MAX as u64;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -51,24 +51,24 @@ pub struct FinanceChartWriteReceipt {
 #[derive(Debug, Clone)]
 pub struct SqlxFinanceChartStore {
     write_pool: PgPool,
-    holding_ref: String,
+    data_profile_key: String,
 }
 
 impl SqlxFinanceChartStore {
     pub fn new(
         write_pool: PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_holding_ref(&holding_ref)?;
+        let data_profile_key = data_profile_key.into();
+        validate_data_profile_key(&data_profile_key)?;
         Ok(Self {
             write_pool,
-            holding_ref,
+            data_profile_key,
         })
     }
 
-    pub fn holding_ref(&self) -> &str {
-        &self.holding_ref
+    pub fn data_profile_key(&self) -> &str {
+        &self.data_profile_key
     }
 
     /// Atomically persists normalized chart state, exact idempotency binding,
@@ -81,12 +81,12 @@ impl SqlxFinanceChartStore {
     ) -> Result<FinanceChartWriteReceipt, PersistenceError> {
         validate_chart_command(chart, context, expected_version)?;
         let hash = request_hash(chart, expected_version)?;
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
         let mut locks = [
-            format!("erpx.finance-chart:{}:{}", self.holding_ref, chart.id),
+            format!("erpx.finance-chart:{}:{}", self.data_profile_key, chart.id),
             format!(
                 "erpx.finance-chart-idempotency:{}:{}",
-                self.holding_ref, context.idempotency_key
+                self.data_profile_key, context.idempotency_key
             ),
         ];
         locks.sort_unstable();
@@ -96,8 +96,13 @@ impl SqlxFinanceChartStore {
                 .execute(&mut *tx)
                 .await?;
         }
-        if let Some(receipt) =
-            find_replay(&mut tx, &self.holding_ref, &context.idempotency_key, &hash).await?
+        if let Some(receipt) = find_replay(
+            &mut tx,
+            &self.data_profile_key,
+            &context.idempotency_key,
+            &hash,
+        )
+        .await?
         {
             tx.commit().await?;
             return Ok(receipt);
@@ -105,11 +110,11 @@ impl SqlxFinanceChartStore {
 
         let current = sqlx::query(
             "SELECT holding_id, company_id, version
-               FROM erpx_tenant.finance_chart_of_accounts
-              WHERE holding_ref=$1 AND chart_id=$2
+               FROM erpx_holding.finance_chart_of_accounts
+              WHERE data_profile_key=$1 AND chart_id=$2
               FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(chart.id)
         .fetch_optional(&mut *tx)
         .await?;
@@ -138,13 +143,13 @@ impl SqlxFinanceChartStore {
             ));
         }
 
-        let existing = load_account_rows(&mut tx, &self.holding_ref, chart.id).await?;
-        validate_persisted_transition(&mut tx, &self.holding_ref, chart, &existing).await?;
-        save_header(&mut tx, &self.holding_ref, chart, expected_version).await?;
-        save_accounts(&mut tx, &self.holding_ref, chart).await?;
+        let existing = load_account_rows(&mut tx, &self.data_profile_key, chart.id).await?;
+        validate_persisted_transition(&mut tx, &self.data_profile_key, chart, &existing).await?;
+        save_header(&mut tx, &self.data_profile_key, chart, expected_version).await?;
+        save_accounts(&mut tx, &self.data_profile_key, chart).await?;
 
         let event = build_event(chart, context)?;
-        append_event(&mut tx, &self.holding_ref, &event).await?;
+        append_event(&mut tx, &self.data_profile_key, &event).await?;
         let receipt = FinanceChartWriteReceipt {
             chart_id: chart.id,
             version: chart.version,
@@ -152,7 +157,7 @@ impl SqlxFinanceChartStore {
             event_id: event.envelope.event_id,
             replayed: false,
         };
-        record_idempotency(&mut tx, &self.holding_ref, &hash, &receipt).await?;
+        record_idempotency(&mut tx, &self.data_profile_key, &hash, &receipt).await?;
         tx.commit().await?;
         Ok(receipt)
     }
@@ -164,14 +169,14 @@ impl SqlxFinanceChartStore {
         if chart_id.is_nil() {
             return Err(invalid("Finance chart ID cannot be nil"));
         }
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
         let row = sqlx::query(
             "SELECT chart_id, holding_id, company_id, chart_name, version,
                     last_command_id, idempotency_key, actor_ref, correlation_id
-               FROM erpx_tenant.finance_chart_of_accounts
-              WHERE holding_ref=$1 AND chart_id=$2",
+               FROM erpx_holding.finance_chart_of_accounts
+              WHERE data_profile_key=$1 AND chart_id=$2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(chart_id)
         .fetch_optional(&mut *tx)
         .await?;
@@ -182,10 +187,10 @@ impl SqlxFinanceChartStore {
         let version = as_u64(row.get("version"), "Finance chart version")?;
         let stale_account_count: i64 = sqlx::query_scalar(
             "SELECT count(*)
-               FROM erpx_tenant.finance_chart_accounts
-              WHERE holding_ref=$1 AND chart_id=$2 AND aggregate_version <> $3",
+               FROM erpx_holding.finance_chart_accounts
+              WHERE data_profile_key=$1 AND chart_id=$2 AND aggregate_version <> $3",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(chart_id)
         .bind(as_i64(version, "Finance chart account version")?)
         .fetch_one(&mut *tx)
@@ -195,7 +200,7 @@ impl SqlxFinanceChartStore {
                 "Finance chart normalized accounts are not at authoritative chart version {version} (stale_rows={stale_account_count})"
             )));
         }
-        let accounts = load_account_rows(&mut tx, &self.holding_ref, chart_id)
+        let accounts = load_account_rows(&mut tx, &self.data_profile_key, chart_id)
             .await?
             .into_values()
             .collect();
@@ -226,13 +231,13 @@ impl SqlxFinanceChartStore {
 /// normalized tables; the legacy payload is never used as a fallback source.
 pub(crate) async fn mirror_legacy_chart_into_normalized(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     legacy: &ChartOfAccounts,
     expected_version: Option<u64>,
     version: u64,
 ) -> Result<(), PersistenceError> {
     let context = legacy_compatibility_context(
-        holding_ref,
+        data_profile_key,
         legacy.id,
         legacy.holding_id,
         legacy.company_id,
@@ -242,11 +247,11 @@ pub(crate) async fn mirror_legacy_chart_into_normalized(
     let chart = normalized_chart_from_legacy(legacy, version, &context)?;
     let current = sqlx::query(
         "SELECT holding_id, company_id, version
-           FROM erpx_tenant.finance_chart_of_accounts
-          WHERE holding_ref=$1 AND chart_id=$2
+           FROM erpx_holding.finance_chart_of_accounts
+          WHERE data_profile_key=$1 AND chart_id=$2
           FOR UPDATE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(legacy.id)
     .fetch_optional(&mut **tx)
     .await?;
@@ -264,8 +269,8 @@ pub(crate) async fn mirror_legacy_chart_into_normalized(
         return Err(invalid("Finance chart holding/company scope is immutable"));
     }
 
-    let existing = load_account_rows(tx, holding_ref, legacy.id).await?;
-    validate_persisted_transition(tx, holding_ref, &chart, &existing).await?;
+    let existing = load_account_rows(tx, data_profile_key, legacy.id).await?;
+    validate_persisted_transition(tx, data_profile_key, &chart, &existing).await?;
     for (account_id, previous) in &existing {
         if let Some(current) = chart.account(*account_id)
             && previous.status != current.status
@@ -275,10 +280,10 @@ pub(crate) async fn mirror_legacy_chart_into_normalized(
             ));
         }
     }
-    save_header(tx, holding_ref, &chart, expected_version).await?;
-    save_accounts(tx, holding_ref, &chart).await?;
+    save_header(tx, data_profile_key, &chart, expected_version).await?;
+    save_accounts(tx, data_profile_key, &chart).await?;
     let event = build_event(&chart, &context)?;
-    append_event(tx, holding_ref, &event).await?;
+    append_event(tx, data_profile_key, &event).await?;
     let receipt = FinanceChartWriteReceipt {
         chart_id: chart.id,
         version: chart.version,
@@ -288,7 +293,7 @@ pub(crate) async fn mirror_legacy_chart_into_normalized(
     };
     record_idempotency(
         tx,
-        holding_ref,
+        data_profile_key,
         &request_hash(&chart, expected_version)?,
         &receipt,
     )
@@ -297,14 +302,14 @@ pub(crate) async fn mirror_legacy_chart_into_normalized(
 }
 
 fn legacy_compatibility_context(
-    holding_ref: &str,
+    data_profile_key: &str,
     chart_id: Uuid,
     holding_id: Uuid,
     company_id: Uuid,
     expected_version: Option<u64>,
     version: u64,
 ) -> Result<CommandContext, PersistenceError> {
-    let key = format!("legacy-finance-chart:{holding_ref}:{chart_id}:{version}");
+    let key = format!("legacy-finance-chart:{data_profile_key}:{chart_id}:{version}");
     let command_id = Uuid::new_v5(&Uuid::NAMESPACE_URL, format!("{key}:command").as_bytes());
     let correlation_id = Uuid::new_v5(
         &Uuid::NAMESPACE_URL,
@@ -319,7 +324,7 @@ fn legacy_compatibility_context(
             represented_principal_ref: None,
             support_capability_id: None,
         },
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -402,19 +407,19 @@ const fn legacy_normal_balance(kind: AccountKind) -> NormalBalance {
 
 async fn save_header(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     chart: &FinanceChart,
     expected_version: Option<u64>,
 ) -> Result<(), PersistenceError> {
     let affected = if let Some(expected) = expected_version {
         sqlx::query(
-            "UPDATE erpx_tenant.finance_chart_of_accounts
+            "UPDATE erpx_holding.finance_chart_of_accounts
                 SET chart_name=$3, version=$4, last_command_id=$5,
                     idempotency_key=$6, actor_ref=$7, correlation_id=$8,
                     updated_at=now()
-              WHERE holding_ref=$1 AND chart_id=$2 AND version=$9",
+              WHERE data_profile_key=$1 AND chart_id=$2 AND version=$9",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(chart.id)
         .bind(&chart.name)
         .bind(as_i64(chart.version, "Finance chart version")?)
@@ -428,14 +433,14 @@ async fn save_header(
         .rows_affected()
     } else {
         sqlx::query(
-            "INSERT INTO erpx_tenant.finance_chart_of_accounts
-                (holding_ref, chart_id, holding_id, company_id, chart_name,
+            "INSERT INTO erpx_holding.finance_chart_of_accounts
+                (data_profile_key, chart_id, holding_id, company_id, chart_name,
                  version, last_command_id, idempotency_key, actor_ref,
                  correlation_id)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
              ON CONFLICT DO NOTHING",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(chart.id)
         .bind(chart.holding_id)
         .bind(chart.company_id)
@@ -457,17 +462,17 @@ async fn save_header(
 
 async fn save_accounts(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     chart: &FinanceChart,
 ) -> Result<(), PersistenceError> {
     for account in &chart.accounts {
         sqlx::query(
-            "INSERT INTO erpx_tenant.finance_chart_accounts
-                (holding_ref, chart_id, holding_id, company_id, account_id,
+            "INSERT INTO erpx_holding.finance_chart_accounts
+                (data_profile_key, chart_id, holding_id, company_id, account_id,
                  account_code, account_name, category, normal_balance,
                  parent_account_id, status, aggregate_version)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-             ON CONFLICT (holding_ref, chart_id, account_id) DO UPDATE SET
+             ON CONFLICT (data_profile_key, chart_id, account_id) DO UPDATE SET
                  account_code=EXCLUDED.account_code,
                  account_name=EXCLUDED.account_name,
                  category=EXCLUDED.category,
@@ -477,7 +482,7 @@ async fn save_accounts(
                  aggregate_version=EXCLUDED.aggregate_version,
                  updated_at=now()",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(chart.id)
         .bind(chart.holding_id)
         .bind(chart.company_id)
@@ -497,17 +502,17 @@ async fn save_accounts(
 
 async fn load_account_rows(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     chart_id: Uuid,
 ) -> Result<BTreeMap<Uuid, FinanceAccount>, PersistenceError> {
     let rows = sqlx::query(
         "SELECT account_id, account_code, account_name, category,
                 normal_balance, parent_account_id, status
-           FROM erpx_tenant.finance_chart_accounts
-          WHERE holding_ref=$1 AND chart_id=$2
+           FROM erpx_holding.finance_chart_accounts
+          WHERE data_profile_key=$1 AND chart_id=$2
           ORDER BY account_id",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(chart_id)
     .fetch_all(&mut **tx)
     .await?;
@@ -532,7 +537,7 @@ async fn load_account_rows(
 
 async fn validate_persisted_transition(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     chart: &FinanceChart,
     existing: &BTreeMap<Uuid, FinanceAccount>,
 ) -> Result<(), PersistenceError> {
@@ -549,7 +554,7 @@ async fn validate_persisted_transition(
             .get(account_id)
             .ok_or_else(|| invalid("Finance chart accounts cannot be removed"))?;
         if structural_change(previous, current)
-            && account_has_postings(tx, holding_ref, chart.company_id, *account_id).await?
+            && account_has_postings(tx, data_profile_key, chart.company_id, *account_id).await?
         {
             return Err(invalid(format!(
                 "posted/used Finance account {account_id} is structurally immutable"
@@ -561,23 +566,23 @@ async fn validate_persisted_transition(
 
 async fn account_has_postings(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     company_id: Uuid,
     account_id: Uuid,
 ) -> Result<bool, PersistenceError> {
     sqlx::query_scalar(
         "SELECT EXISTS (
              SELECT 1
-               FROM erpx_tenant.finance_posted_journals journal
+               FROM erpx_holding.finance_posted_journals journal
                CROSS JOIN LATERAL jsonb_array_elements(
                    COALESCE(journal.payload #> '{entry,lines}', '[]'::jsonb)
                ) AS line
-              WHERE journal.holding_ref=$1
+              WHERE journal.data_profile_key=$1
                 AND journal.company_id=$2
                 AND line ->> 'account_id'=$3
          )",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(company_id)
     .bind(account_id.to_string())
     .fetch_one(&mut **tx)
@@ -614,7 +619,7 @@ fn build_event(
             aggregate_type: FINANCE_CHART_AGGREGATE.into(),
             aggregate_id: chart.id,
             aggregate_version: chart.version,
-            tenant_scope: context.tenant_scope.clone(),
+            active_scope: context.active_scope.clone(),
             actor: context.actor.clone(),
             correlation_id: context.correlation_id,
             causation_id: context.causation_id,
@@ -626,22 +631,22 @@ fn build_event(
 
 async fn append_event(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     event: &FinanceChartOutboxEvent,
 ) -> Result<(), PersistenceError> {
     let envelope = &event.envelope;
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at,
-             contract_version, event_version, tenant_scope, actor,
+             contract_version, event_version, active_scope, actor,
              correlation_id, causation_id, idempotency_key)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)",
     )
     .bind(envelope.event_id)
     .bind(&envelope.aggregate_type)
     .bind(envelope.aggregate_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(as_i64(
         envelope.aggregate_version,
         "Finance chart event aggregate version",
@@ -651,7 +656,7 @@ async fn append_event(
     .bind(envelope.occurred_at)
     .bind(i32::from(envelope.contract_version))
     .bind(i32::from(envelope.event_version))
-    .bind(serde_json::to_value(&envelope.tenant_scope)?)
+    .bind(serde_json::to_value(&envelope.active_scope)?)
     .bind(serde_json::to_value(&envelope.actor)?)
     .bind(envelope.correlation_id)
     .bind(envelope.causation_id)
@@ -692,17 +697,17 @@ fn validate_replay_evidence(
 
 async fn find_replay(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     idempotency_key: &str,
     hash: &str,
 ) -> Result<Option<FinanceChartWriteReceipt>, PersistenceError> {
     let row = sqlx::query(
         "SELECT request_hash, chart_id, aggregate_version, event_id
-           FROM erpx_tenant.finance_chart_command_idempotency
-          WHERE holding_ref=$1 AND idempotency_key=$2
+           FROM erpx_holding.finance_chart_command_idempotency
+          WHERE data_profile_key=$1 AND idempotency_key=$2
           FOR UPDATE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(idempotency_key)
     .fetch_optional(&mut **tx)
     .await?;
@@ -717,11 +722,11 @@ async fn find_replay(
     let event_id: Uuid = row.get("event_id");
     let source = sqlx::query(
         "SELECT version, idempotency_key
-           FROM erpx_tenant.finance_chart_of_accounts
-          WHERE holding_ref=$1 AND chart_id=$2
+           FROM erpx_holding.finance_chart_of_accounts
+          WHERE data_profile_key=$1 AND chart_id=$2
           FOR SHARE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(chart_id)
     .fetch_optional(&mut **tx)
     .await?
@@ -731,11 +736,11 @@ async fn find_replay(
     let outbox = sqlx::query(
         "SELECT aggregate_type, aggregate_id, aggregate_version,
                 event_type, idempotency_key
-           FROM erpx_tenant.outbox_events
-          WHERE holding_ref=$1 AND event_id=$2
+           FROM erpx_holding.outbox_events
+          WHERE data_profile_key=$1 AND event_id=$2
           FOR SHARE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(event_id)
     .fetch_optional(&mut **tx)
     .await?
@@ -766,17 +771,17 @@ async fn find_replay(
 
 async fn record_idempotency(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     hash: &str,
     receipt: &FinanceChartWriteReceipt,
 ) -> Result<(), PersistenceError> {
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_chart_command_idempotency
-            (holding_ref, idempotency_key, request_hash, chart_id,
+        "INSERT INTO erpx_holding.finance_chart_command_idempotency
+            (data_profile_key, idempotency_key, request_hash, chart_id,
              aggregate_version, event_id)
          VALUES ($1,$2,$3,$4,$5,$6)",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(&receipt.idempotency_key)
     .bind(hash)
     .bind(receipt.chart_id)
@@ -813,11 +818,11 @@ fn validate_chart_command(
         MAX_FINANCE_IDEMPOTENCY_KEY_BYTES,
     )?;
     validate_bounded(&context.actor.principal_ref, "Finance chart actor", 255)?;
-    let scope = TenantScope::Company {
+    let scope = AuthorityScope::Company {
         holding_id: chart.holding_id,
         company_id: chart.company_id,
     };
-    if !context.tenant_scope.contains(&scope) {
+    if !context.active_scope.contains(&scope) {
         return Err(invalid(
             "Finance chart command scope does not contain chart company",
         ));
@@ -857,9 +862,9 @@ fn request_hash(
     ))?)))
 }
 
-fn validate_holding_ref(value: &str) -> Result<(), PersistenceError> {
+fn validate_data_profile_key(value: &str) -> Result<(), PersistenceError> {
     if value.trim().is_empty()
-        || value.len() > MAX_HOLDING_REF_BYTES
+        || value.len() > MAX_DATA_PROFILE_KEY_BYTES
         || value.chars().any(char::is_control)
     {
         return Err(PersistenceError::Configuration(
@@ -966,7 +971,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn holding_reference_is_bounded() {
+    async fn data_profile_reference_is_bounded() {
         let pool = PgPool::connect_lazy("postgres://unused").expect("lazy pool");
         assert!(SqlxFinanceChartStore::new(pool.clone(), " ").is_err());
         assert!(SqlxFinanceChartStore::new(pool, "holding-finance").is_ok());

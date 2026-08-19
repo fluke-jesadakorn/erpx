@@ -1,4 +1,4 @@
-//! Tenant-routed SQLx persistence for the Finance write boundary.
+//! Holding-routed SQLx persistence for the Finance write boundary.
 //!
 //! Posted journals are immutable authoritative rows. Trial balance is
 //! calculated from those rows; no balance is accepted from a client or read
@@ -22,7 +22,7 @@ use crate::PersistenceError;
 use crate::finance_chart_persistence::mirror_legacy_chart_into_normalized;
 
 /// A complete report is still bounded to protect the read route, but it is
-/// large enough for the supported tenant book size. The previous 500-row
+/// large enough for the supported holding book size. The previous 500-row
 /// limit silently omitted older posted journals from trial balance totals.
 pub const MAX_FINANCE_TRIAL_BALANCE_JOURNALS: u32 = 1_000_000;
 pub const MAX_FINANCE_SOURCE_EVENT_PAGE_SIZE: u32 = 500;
@@ -50,7 +50,7 @@ pub struct FinanceProjectionApplication {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinanceProjectionRebuildPreparation {
-    pub holding_ref: String,
+    pub data_profile_key: String,
     pub rows_cleared: u64,
     pub checkpoints_cleared: u64,
 }
@@ -98,34 +98,34 @@ pub struct FinanceSourceEventPage {
 pub struct SqlxFinanceStore {
     write_pool: PgPool,
     read_pool: PgPool,
-    holding_ref: String,
+    data_profile_key: String,
 }
 
 impl SqlxFinanceStore {
     pub fn new(
         write_pool: PgPool,
         read_pool: PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_holding_ref(&holding_ref)?;
+        let data_profile_key = data_profile_key.into();
+        validate_data_profile_key(&data_profile_key)?;
         Ok(Self {
             write_pool,
             read_pool,
-            holding_ref,
+            data_profile_key,
         })
     }
 
     pub fn from_pools(
         write_pool: &PgPool,
         read_pool: &PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        Self::new(write_pool.clone(), read_pool.clone(), holding_ref)
+        Self::new(write_pool.clone(), read_pool.clone(), data_profile_key)
     }
 
-    pub fn holding_ref(&self) -> &str {
-        &self.holding_ref
+    pub fn data_profile_key(&self) -> &str {
+        &self.data_profile_key
     }
 
     pub async fn save_chart(
@@ -146,28 +146,28 @@ impl SqlxFinanceStore {
             })?;
         let affected = if expected_version.is_some() {
             sqlx::query(
-                "UPDATE erpx_tenant.finance_charts
+                "UPDATE erpx_holding.finance_charts
                  SET version=$2, payload=$3, updated_at=now()
-                 WHERE chart_id=$1 AND holding_ref=$4 AND version=$5",
+                 WHERE chart_id=$1 AND data_profile_key=$4 AND version=$5",
             )
             .bind(chart.id)
             .bind(as_i64(next, "chart version")?)
             .bind(&payload)
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(as_i64(expected_version.unwrap_or(0), "chart version")?)
             .execute(&mut *tx)
             .await?
             .rows_affected()
         } else {
             sqlx::query(
-                "INSERT INTO erpx_tenant.finance_charts
-                    (chart_id, holding_id, company_id, holding_ref, version, payload)
+                "INSERT INTO erpx_holding.finance_charts
+                    (chart_id, holding_id, company_id, data_profile_key, version, payload)
                  VALUES ($1,$2,$3,$4,1,$5) ON CONFLICT (chart_id) DO NOTHING",
             )
             .bind(chart.id)
             .bind(chart.holding_id)
             .bind(chart.company_id)
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(&payload)
             .execute(&mut *tx)
             .await?
@@ -175,11 +175,11 @@ impl SqlxFinanceStore {
         };
         if affected != 1 {
             let actual = sqlx::query_scalar::<_, i64>(
-                "SELECT version FROM erpx_tenant.finance_charts
-                 WHERE chart_id=$1 AND holding_ref=$2",
+                "SELECT version FROM erpx_holding.finance_charts
+                 WHERE chart_id=$1 AND data_profile_key=$2",
             )
             .bind(chart.id)
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .fetch_optional(&mut *tx)
             .await?
             .map(|value| u64::try_from(value).unwrap_or(u64::MAX));
@@ -192,7 +192,7 @@ impl SqlxFinanceStore {
         }
         mirror_legacy_chart_into_normalized(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             chart,
             expected_version,
             next,
@@ -200,7 +200,7 @@ impl SqlxFinanceStore {
         .await?;
         write_finance_source_event(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             "finance_chart",
             chart.id,
             next,
@@ -232,12 +232,12 @@ impl SqlxFinanceStore {
         let affected = if let Some(expected) = expected_version {
             let current = sqlx::query(
                 "SELECT holding_id, company_id
-                   FROM erpx_tenant.finance_periods
-                  WHERE period_id=$1 AND holding_ref=$2
+                   FROM erpx_holding.finance_periods
+                  WHERE period_id=$1 AND data_profile_key=$2
                   FOR UPDATE",
             )
             .bind(period.id)
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .fetch_optional(&mut *tx)
             .await?;
             if let Some(current) = current
@@ -249,29 +249,29 @@ impl SqlxFinanceStore {
                 ));
             }
             sqlx::query(
-                "UPDATE erpx_tenant.finance_periods
+                "UPDATE erpx_holding.finance_periods
                  SET status=$2, version=$3, payload=$4, updated_at=now()
-                 WHERE period_id=$1 AND holding_ref=$5 AND version=$6",
+                 WHERE period_id=$1 AND data_profile_key=$5 AND version=$6",
             )
             .bind(period.id)
             .bind(status)
             .bind(as_i64(next, "period version")?)
             .bind(&payload)
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(as_i64(expected, "period version")?)
             .execute(&mut *tx)
             .await?
             .rows_affected()
         } else {
             sqlx::query(
-                "INSERT INTO erpx_tenant.finance_periods
-                    (period_id, holding_id, company_id, holding_ref, status, version, payload)
+                "INSERT INTO erpx_holding.finance_periods
+                    (period_id, holding_id, company_id, data_profile_key, status, version, payload)
                  VALUES ($1,$2,$3,$4,$5,1,$6) ON CONFLICT (period_id) DO NOTHING",
             )
             .bind(period.id)
             .bind(period.holding_id)
             .bind(period.company_id)
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(status)
             .bind(&payload)
             .execute(&mut *tx)
@@ -288,7 +288,7 @@ impl SqlxFinanceStore {
         }
         write_finance_source_event(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             "finance_period",
             period.id,
             next,
@@ -320,11 +320,11 @@ impl SqlxFinanceStore {
         let mut tx = self.begin_write().await?;
         if let Some(row) = sqlx::query(
             "SELECT request_hash, journal_id, response
-             FROM erpx_tenant.finance_command_idempotency
-             WHERE idempotency_key=$1 AND holding_ref=$2 FOR UPDATE",
+             FROM erpx_holding.finance_command_idempotency
+             WHERE idempotency_key=$1 AND data_profile_key=$2 FOR UPDATE",
         )
         .bind(entry.idempotency_key())
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         {
@@ -338,7 +338,7 @@ impl SqlxFinanceStore {
             let existing: PostedJournalEntry = serde_json::from_value(existing_response.clone())?;
             validate_posted_journal_replay_evidence(
                 &mut tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 stored_journal_id,
                 &existing,
             )
@@ -351,12 +351,13 @@ impl SqlxFinanceStore {
         }
 
         let authoritative =
-            load_authoritative_posting_chart(&mut tx, &self.holding_ref, &entry, chart).await?;
+            load_authoritative_posting_chart(&mut tx, &self.data_profile_key, &entry, chart)
+                .await?;
         let authoritative_period =
-            load_authoritative_period(&mut tx, &self.holding_ref, period.id).await?;
+            load_authoritative_period(&mut tx, &self.data_profile_key, period.id).await?;
         if authoritative_period != *period {
             return Err(PersistenceError::InvalidData(
-                "Finance accounting period does not match authoritative tenant write state".into(),
+                "Finance accounting period does not match authoritative holding write state".into(),
             ));
         }
         let posted = entry
@@ -364,11 +365,11 @@ impl SqlxFinanceStore {
             .post(&authoritative.chart, &authoritative_period, posted_at)
             .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
         if let Some(existing) = sqlx::query_scalar::<_, Value>(
-            "SELECT payload FROM erpx_tenant.finance_posted_journals
-             WHERE journal_id=$1 AND holding_ref=$2",
+            "SELECT payload FROM erpx_holding.finance_posted_journals
+             WHERE journal_id=$1 AND data_profile_key=$2",
         )
         .bind(posted.id())
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         {
@@ -376,7 +377,7 @@ impl SqlxFinanceStore {
             if existing.idempotency_key() == posted.idempotency_key() {
                 validate_posted_journal_replay_evidence(
                     &mut tx,
-                    &self.holding_ref,
+                    &self.data_profile_key,
                     posted.id(),
                     &existing,
                 )
@@ -400,8 +401,8 @@ impl SqlxFinanceStore {
                 PersistenceError::InvalidData("finance journal total overflowed".into())
             })?;
         sqlx::query(
-            "INSERT INTO erpx_tenant.finance_posted_journals
-                (journal_id, holding_id, company_id, period_id, holding_ref, version,
+            "INSERT INTO erpx_holding.finance_posted_journals
+                (journal_id, holding_id, company_id, period_id, data_profile_key, version,
                  idempotency_key, posted_at, currency, total_minor, payload)
              VALUES ($1,$2,$3,$4,$5,1,$6,$7,$8,$9,$10)",
         )
@@ -409,7 +410,7 @@ impl SqlxFinanceStore {
         .bind(posted.holding_id())
         .bind(posted.company_id())
         .bind(posted.period_id())
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(posted.idempotency_key())
         .bind(posted.posted_at())
         .bind(&authoritative.chart.currency)
@@ -419,7 +420,7 @@ impl SqlxFinanceStore {
         .await?;
         record_authoritative_account_usage(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             &posted,
             authoritative.chart.id,
             authoritative.chart_version,
@@ -431,27 +432,27 @@ impl SqlxFinanceStore {
             "context": posted.context(),
         });
         sqlx::query(
-            "INSERT INTO erpx_tenant.outbox_events
-                (event_id, aggregate_type, aggregate_id, holding_ref,
+            "INSERT INTO erpx_holding.outbox_events
+                (event_id, aggregate_type, aggregate_id, data_profile_key,
                  aggregate_version, event_type, payload, occurred_at)
              VALUES ($1,$2,$3,$4,1,$5,$6,$7)",
         )
         .bind(Uuid::new_v4())
         .bind("finance_journal")
         .bind(posted.id())
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind("finance.journal_posted.v1")
         .bind(event_payload)
         .bind(posted.posted_at())
         .execute(&mut *tx)
         .await?;
         sqlx::query(
-            "INSERT INTO erpx_tenant.finance_command_idempotency
-                (idempotency_key, holding_ref, request_hash, journal_id, response)
+            "INSERT INTO erpx_holding.finance_command_idempotency
+                (idempotency_key, data_profile_key, request_hash, journal_id, response)
              VALUES ($1,$2,$3,$4,$5)",
         )
         .bind(posted.idempotency_key())
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(request_hash)
         .bind(posted.id())
         .bind(response)
@@ -481,11 +482,11 @@ impl SqlxFinanceStore {
         let source_fence = reconciliation.source_event_high_watermark;
         let mut tx = self.begin_read().await?;
         let rows = sqlx::query(
-            "SELECT payload FROM erpx_tenant.finance_posted_journals
-             WHERE holding_ref=$1 AND company_id=$2
+            "SELECT payload FROM erpx_holding.finance_posted_journals
+             WHERE data_profile_key=$1 AND company_id=$2
              ORDER BY posted_at, journal_id LIMIT $3",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(chart.company_id)
         .bind(i64::from(MAX_FINANCE_TRIAL_BALANCE_JOURNALS) + 1)
         .fetch_all(&mut *tx)
@@ -557,11 +558,11 @@ impl SqlxFinanceStore {
         let mut tx = self.begin_write().await?;
         let chart_row = sqlx::query(
             "SELECT holding_id, company_id, chart_name, version
-               FROM erpx_tenant.finance_chart_of_accounts
-              WHERE holding_ref=$1 AND chart_id=$2
+               FROM erpx_holding.finance_chart_of_accounts
+              WHERE data_profile_key=$1 AND chart_id=$2
               FOR SHARE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(supplied_chart.id)
         .fetch_optional(&mut *tx)
         .await?
@@ -581,12 +582,12 @@ impl SqlxFinanceStore {
         let account_rows = sqlx::query(
             "SELECT account_id, account_code, account_name, category,
                     parent_account_id, status
-               FROM erpx_tenant.finance_chart_accounts
-              WHERE holding_ref=$1 AND chart_id=$2
+               FROM erpx_holding.finance_chart_accounts
+              WHERE data_profile_key=$1 AND chart_id=$2
               ORDER BY account_id
               FOR SHARE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(supplied_chart.id)
         .fetch_all(&mut *tx)
         .await?;
@@ -616,11 +617,11 @@ impl SqlxFinanceStore {
         .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
         let legacy = sqlx::query(
             "SELECT holding_id, company_id, version, payload
-               FROM erpx_tenant.finance_charts
-              WHERE holding_ref=$1 AND chart_id=$2
+               FROM erpx_holding.finance_charts
+              WHERE data_profile_key=$1 AND chart_id=$2
               FOR SHARE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(supplied_chart.id)
         .fetch_optional(&mut *tx)
         .await?;
@@ -753,11 +754,11 @@ impl SqlxFinanceStore {
             sqlx::query(
                 "SELECT journal_id, company_id, period_id, source_version,
                         posted_at, payload
-                 FROM erpx_tenant.finance_posted_journals
-                 WHERE holding_ref=$1 AND journal_id < $2
+                 FROM erpx_holding.finance_posted_journals
+                 WHERE data_profile_key=$1 AND journal_id < $2
                  ORDER BY journal_id DESC LIMIT $3",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(before_journal_id)
             .bind(limit)
             .fetch_all(&mut *tx)
@@ -766,11 +767,11 @@ impl SqlxFinanceStore {
             sqlx::query(
                 "SELECT journal_id, company_id, period_id, source_version,
                         posted_at, payload
-                 FROM erpx_tenant.finance_posted_journals
-                 WHERE holding_ref=$1
+                 FROM erpx_holding.finance_posted_journals
+                 WHERE data_profile_key=$1
                  ORDER BY journal_id DESC LIMIT $2",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(limit)
             .fetch_all(&mut *tx)
             .await?
@@ -824,7 +825,7 @@ impl SqlxFinanceStore {
         Ok((rows, has_more))
     }
 
-    /// Read immutable posted-journal source events from the tenant write
+    /// Read immutable posted-journal source events from the holding write
     /// database in stable aggregate/version order. Chart and period state do
     /// not yet emit source events, so this stream is restricted to journals.
     pub async fn read_source_event_page(
@@ -844,14 +845,14 @@ impl SqlxFinanceStore {
             sqlx::query(
                 "SELECT event_id, event_type, aggregate_id,
                         aggregate_version, payload, occurred_at
-                 FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1 AND aggregate_type='finance_journal'
+                 FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1 AND aggregate_type='finance_journal'
                    AND (aggregate_id > $2
                         OR (aggregate_id = $2 AND aggregate_version > $3))
                  ORDER BY aggregate_id, aggregate_version
                  LIMIT $4",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(cursor.aggregate_id)
             .bind(as_i64(
                 cursor.aggregate_version,
@@ -864,12 +865,12 @@ impl SqlxFinanceStore {
             sqlx::query(
                 "SELECT event_id, event_type, aggregate_id,
                         aggregate_version, payload, occurred_at
-                 FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1 AND aggregate_type='finance_journal'
+                 FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1 AND aggregate_type='finance_journal'
                  ORDER BY aggregate_id, aggregate_version
                  LIMIT $2",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(limit)
             .fetch_all(&mut *tx)
             .await?
@@ -922,10 +923,10 @@ impl SqlxFinanceStore {
         let mut tx = self.begin_write().await?;
         let count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*)
-               FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND aggregate_type='finance_journal'",
+               FROM erpx_holding.outbox_events
+              WHERE data_profile_key=$1 AND aggregate_type='finance_journal'",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_one(&mut *tx)
         .await?;
         tx.commit().await?;
@@ -943,27 +944,27 @@ impl SqlxFinanceStore {
         let max_rows = usize::try_from(MAX_FINANCE_PROJECTION_RECONCILIATION_JOURNALS)
             .map_err(|_| PersistenceError::InvalidData("Finance reconciliation bound".into()))?;
         let mut source_tx = self.begin_write().await?;
-        sqlx::query("LOCK TABLE erpx_tenant.outbox_events IN SHARE MODE")
+        sqlx::query("LOCK TABLE erpx_holding.outbox_events IN SHARE MODE")
             .execute(&mut *source_tx)
             .await?;
         let source_count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*)
-               FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND aggregate_type='finance_journal'",
+               FROM erpx_holding.outbox_events
+              WHERE data_profile_key=$1 AND aggregate_type='finance_journal'",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_one(&mut *source_tx)
         .await?;
         let source_rows =
             sqlx::query(
                 "SELECT event_id, aggregate_id, aggregate_version,
                     event_type, payload
-               FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND aggregate_type='finance_journal'
+               FROM erpx_holding.outbox_events
+              WHERE data_profile_key=$1 AND aggregate_type='finance_journal'
               ORDER BY aggregate_id, aggregate_version, event_id
               LIMIT $2",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(i64::try_from(max_rows + 1).map_err(|_| {
                 PersistenceError::InvalidData("Finance reconciliation bound".into())
             })?)
@@ -992,10 +993,10 @@ impl SqlxFinanceStore {
         let mut read_tx = self.begin_read().await?;
         let read_count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*)
-               FROM erpx_tenant.finance_posted_journals
-              WHERE holding_ref=$1",
+               FROM erpx_holding.finance_posted_journals
+              WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_one(&mut *read_tx)
         .await?;
         let read_rows =
@@ -1004,15 +1005,15 @@ impl SqlxFinanceStore {
                     journal.company_id, journal.period_id, journal.payload,
                     checkpoint.last_event_id,
                     checkpoint.source_version AS checkpoint_version
-               FROM erpx_tenant.finance_posted_journals AS journal
-          LEFT JOIN erpx_tenant.finance_projection_checkpoints AS checkpoint
-                 ON checkpoint.holding_ref=journal.holding_ref
+               FROM erpx_holding.finance_posted_journals AS journal
+          LEFT JOIN erpx_holding.finance_projection_checkpoints AS checkpoint
+                 ON checkpoint.data_profile_key=journal.data_profile_key
                 AND checkpoint.journal_id=journal.journal_id
-              WHERE journal.holding_ref=$1
+              WHERE journal.data_profile_key=$1
               ORDER BY journal.journal_id
               LIMIT $2",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(i64::try_from(max_rows + 1).map_err(|_| {
                 PersistenceError::InvalidData("Finance reconciliation bound".into())
             })?)
@@ -1119,11 +1120,12 @@ impl SqlxFinanceStore {
         }
 
         let mut source_tx = self.begin_write().await?;
-        sqlx::query("LOCK TABLE erpx_tenant.outbox_events IN SHARE MODE")
+        sqlx::query("LOCK TABLE erpx_holding.outbox_events IN SHARE MODE")
             .execute(&mut *source_tx)
             .await?;
         let actual_source_version =
-            source_event_high_watermark_in_transaction(&mut source_tx, &self.holding_ref).await?;
+            source_event_high_watermark_in_transaction(&mut source_tx, &self.data_profile_key)
+                .await?;
         if expected_source_version.is_some_and(|expected| expected != actual_source_version) {
             return Err(PersistenceError::InvalidData(
                 "Finance source fence changed before replacement rebuild".into(),
@@ -1131,13 +1133,14 @@ impl SqlxFinanceStore {
         }
 
         let mut read_tx = self.begin_read().await?;
-        let preparation = clear_projection_in_transaction(&mut read_tx, &self.holding_ref).await?;
+        let preparation =
+            clear_projection_in_transaction(&mut read_tx, &self.data_profile_key).await?;
         let mut cursor = None;
         let mut events_replayed = 0_u64;
         loop {
             let page = read_source_event_page_in_transaction(
                 &mut source_tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 cursor.as_ref(),
                 page_size,
             )
@@ -1150,7 +1153,7 @@ impl SqlxFinanceStore {
                 }
                 let application = project_event_in_transaction(
                     &mut read_tx,
-                    &self.holding_ref,
+                    &self.data_profile_key,
                     event.event_id,
                     event.aggregate_id,
                     event.aggregate_version,
@@ -1172,7 +1175,8 @@ impl SqlxFinanceStore {
             }
         }
         let final_source_version =
-            source_event_high_watermark_in_transaction(&mut source_tx, &self.holding_ref).await?;
+            source_event_high_watermark_in_transaction(&mut source_tx, &self.data_profile_key)
+                .await?;
         if final_source_version != actual_source_version {
             return Err(PersistenceError::InvalidData(
                 "Finance source fence changed during replacement rebuild".into(),
@@ -1194,7 +1198,7 @@ impl SqlxFinanceStore {
     ) -> Result<FinanceProjectionApplication, PersistenceError> {
         verify_authoritative_source_event(
             &self.write_pool,
-            &self.holding_ref,
+            &self.data_profile_key,
             event_id,
             "finance.journal_posted.v1",
             "finance_journal",
@@ -1206,7 +1210,7 @@ impl SqlxFinanceStore {
         let mut tx = self.begin_read().await?;
         let result = project_event_in_transaction(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             event_id,
             aggregate_id,
             aggregate_version,
@@ -1221,17 +1225,17 @@ impl SqlxFinanceStore {
         &self,
     ) -> Result<FinanceProjectionRebuildPreparation, PersistenceError> {
         let mut tx = self.begin_read().await?;
-        let preparation = clear_projection_in_transaction(&mut tx, &self.holding_ref).await?;
+        let preparation = clear_projection_in_transaction(&mut tx, &self.data_profile_key).await?;
         tx.commit().await?;
         Ok(preparation)
     }
 
     async fn begin_write(&self) -> Result<Transaction<'_, Postgres>, PersistenceError> {
-        begin_scoped(&self.write_pool, &self.holding_ref).await
+        begin_scoped(&self.write_pool, &self.data_profile_key).await
     }
 
     async fn begin_read(&self) -> Result<Transaction<'_, Postgres>, PersistenceError> {
-        begin_scoped(&self.read_pool, &self.holding_ref).await
+        begin_scoped(&self.read_pool, &self.data_profile_key).await
     }
 }
 
@@ -1242,7 +1246,7 @@ impl SqlxFinanceStore {
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn verify_authoritative_source_event(
     write_pool: &PgPool,
-    holding_ref: &str,
+    data_profile_key: &str,
     event_id: Uuid,
     expected_event_type: &str,
     expected_aggregate_type: &str,
@@ -1262,14 +1266,14 @@ pub(crate) async fn verify_authoritative_source_event(
             "Finance source event metadata is invalid",
         ));
     }
-    let mut tx = begin_scoped(write_pool, holding_ref).await?;
+    let mut tx = begin_scoped(write_pool, data_profile_key).await?;
     let row = sqlx::query(
         "SELECT event_type, aggregate_type, aggregate_id, aggregate_version, payload
-           FROM erpx_tenant.outbox_events
-          WHERE event_id=$1 AND holding_ref=$2",
+           FROM erpx_holding.outbox_events
+          WHERE event_id=$1 AND data_profile_key=$2",
     )
     .bind(event_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_optional(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -1302,14 +1306,14 @@ pub(crate) async fn verify_authoritative_source_event(
 
 async fn source_event_high_watermark_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<u64, PersistenceError> {
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*)
-           FROM erpx_tenant.outbox_events
-          WHERE holding_ref=$1 AND aggregate_type='finance_journal'",
+           FROM erpx_holding.outbox_events
+          WHERE data_profile_key=$1 AND aggregate_type='finance_journal'",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_one(&mut **tx)
     .await?;
     as_u64(count, "Finance source event count")
@@ -1317,7 +1321,7 @@ async fn source_event_high_watermark_in_transaction(
 
 async fn read_source_event_page_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     cursor: Option<&FinanceSourceEventCursor>,
     page_size: u32,
 ) -> Result<FinanceSourceEventPage, PersistenceError> {
@@ -1337,14 +1341,14 @@ async fn read_source_event_page_in_transaction(
         sqlx::query(
             "SELECT event_id, aggregate_id, aggregate_version,
                     event_type, payload, occurred_at
-               FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND aggregate_type='finance_journal'
+               FROM erpx_holding.outbox_events
+              WHERE data_profile_key=$1 AND aggregate_type='finance_journal'
                 AND (aggregate_id > $2
                      OR (aggregate_id=$2 AND aggregate_version > $3))
               ORDER BY aggregate_id, aggregate_version, event_id
               LIMIT $4",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(cursor.aggregate_id)
         .bind(as_i64(
             cursor.aggregate_version,
@@ -1357,12 +1361,12 @@ async fn read_source_event_page_in_transaction(
         sqlx::query(
             "SELECT event_id, aggregate_id, aggregate_version,
                     event_type, payload, occurred_at
-               FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND aggregate_type='finance_journal'
+               FROM erpx_holding.outbox_events
+              WHERE data_profile_key=$1 AND aggregate_type='finance_journal'
               ORDER BY aggregate_id, aggregate_version, event_id
               LIMIT $2",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(limit)
         .fetch_all(&mut **tx)
         .await?
@@ -1409,22 +1413,23 @@ async fn read_source_event_page_in_transaction(
 
 async fn clear_projection_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<FinanceProjectionRebuildPreparation, PersistenceError> {
     let rows_cleared =
-        sqlx::query("DELETE FROM erpx_tenant.finance_posted_journals WHERE holding_ref=$1")
-            .bind(holding_ref)
+        sqlx::query("DELETE FROM erpx_holding.finance_posted_journals WHERE data_profile_key=$1")
+            .bind(data_profile_key)
             .execute(&mut **tx)
             .await?
             .rows_affected();
-    let checkpoints_cleared =
-        sqlx::query("DELETE FROM erpx_tenant.finance_projection_checkpoints WHERE holding_ref=$1")
-            .bind(holding_ref)
-            .execute(&mut **tx)
-            .await?
-            .rows_affected();
+    let checkpoints_cleared = sqlx::query(
+        "DELETE FROM erpx_holding.finance_projection_checkpoints WHERE data_profile_key=$1",
+    )
+    .bind(data_profile_key)
+    .execute(&mut **tx)
+    .await?
+    .rows_affected();
     Ok(FinanceProjectionRebuildPreparation {
-        holding_ref: holding_ref.into(),
+        data_profile_key: data_profile_key.into(),
         rows_cleared,
         checkpoints_cleared,
     })
@@ -1432,7 +1437,7 @@ async fn clear_projection_in_transaction(
 
 async fn project_event_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     event_id: Uuid,
     aggregate_id: Uuid,
     aggregate_version: u64,
@@ -1457,19 +1462,19 @@ async fn project_event_in_transaction(
     }
     let checkpoint = sqlx::query(
         "SELECT last_event_id, source_version
-           FROM erpx_tenant.finance_projection_checkpoints
-          WHERE holding_ref=$1 AND journal_id=$2 FOR UPDATE",
+           FROM erpx_holding.finance_projection_checkpoints
+          WHERE data_profile_key=$1 AND journal_id=$2 FOR UPDATE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(aggregate_id)
     .fetch_optional(&mut **tx)
     .await?;
     let projected = sqlx::query(
         "SELECT source_version, payload
-           FROM erpx_tenant.finance_posted_journals
-          WHERE holding_ref=$1 AND journal_id=$2 FOR UPDATE",
+           FROM erpx_holding.finance_posted_journals
+          WHERE data_profile_key=$1 AND journal_id=$2 FOR UPDATE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(aggregate_id)
     .fetch_optional(&mut **tx)
     .await?;
@@ -1526,8 +1531,8 @@ async fn project_event_in_transaction(
         }
     }
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_posted_journals
-            (journal_id, holding_id, company_id, period_id, holding_ref,
+        "INSERT INTO erpx_holding.finance_posted_journals
+            (journal_id, holding_id, company_id, period_id, data_profile_key,
              source_version, posted_at, payload)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
          ON CONFLICT (journal_id) DO UPDATE SET
@@ -1537,21 +1542,21 @@ async fn project_event_in_transaction(
     .bind(posted.holding_id())
     .bind(posted.company_id())
     .bind(posted.period_id())
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(as_i64(aggregate_version, "Finance source version")?)
     .bind(posted.posted_at())
     .bind(&posted_payload)
     .execute(&mut **tx)
     .await?;
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_projection_checkpoints
-            (journal_id, holding_ref, last_event_id, source_version)
+        "INSERT INTO erpx_holding.finance_projection_checkpoints
+            (journal_id, data_profile_key, last_event_id, source_version)
          VALUES ($1,$2,$3,$4)
          ON CONFLICT (journal_id) DO UPDATE SET
-            holding_ref=$2, last_event_id=$3, source_version=$4, projected_at=now()",
+            data_profile_key=$2, last_event_id=$3, source_version=$4, projected_at=now()",
     )
     .bind(aggregate_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(event_id)
     .bind(as_i64(aggregate_version, "Finance source version")?)
     .execute(&mut **tx)
@@ -1573,17 +1578,17 @@ struct AuthoritativePostingChart {
 
 async fn load_authoritative_period(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     period_id: Uuid,
 ) -> Result<AccountingPeriod, PersistenceError> {
     validate_uuid(period_id, "Finance accounting period ID")?;
     let row: Option<(Uuid, Uuid, String, Value)> = sqlx::query_as(
         "SELECT holding_id, company_id, status, payload
-           FROM erpx_tenant.finance_periods
-          WHERE holding_ref=$1 AND period_id=$2
+           FROM erpx_holding.finance_periods
+          WHERE data_profile_key=$1 AND period_id=$2
           FOR UPDATE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(period_id)
     .fetch_optional(&mut **tx)
     .await?;
@@ -1611,17 +1616,17 @@ async fn load_authoritative_period(
 
 async fn load_authoritative_posting_chart(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     entry: &JournalEntry,
     supplied_chart: &ChartOfAccounts,
 ) -> Result<AuthoritativePostingChart, PersistenceError> {
     let chart_row = sqlx::query(
         "SELECT holding_id, company_id, chart_name, version
-           FROM erpx_tenant.finance_chart_of_accounts
-          WHERE holding_ref=$1 AND chart_id=$2
+           FROM erpx_holding.finance_chart_of_accounts
+          WHERE data_profile_key=$1 AND chart_id=$2
           FOR UPDATE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(supplied_chart.id)
     .fetch_optional(&mut **tx)
     .await?
@@ -1651,11 +1656,11 @@ async fn load_authoritative_posting_chart(
     // row exists, reject any caller-supplied currency or identity drift.
     if let Some(legacy_row) = sqlx::query(
         "SELECT holding_id, company_id, version, payload
-           FROM erpx_tenant.finance_charts
-          WHERE holding_ref=$1 AND chart_id=$2
+           FROM erpx_holding.finance_charts
+          WHERE data_profile_key=$1 AND chart_id=$2
           FOR SHARE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(supplied_chart.id)
     .fetch_optional(&mut **tx)
     .await?
@@ -1685,12 +1690,12 @@ async fn load_authoritative_posting_chart(
     let account_rows = sqlx::query(
         "SELECT holding_id, company_id, account_id, account_code,
                 account_name, category, parent_account_id, status
-           FROM erpx_tenant.finance_chart_accounts
-          WHERE holding_ref=$1 AND chart_id=$2
+           FROM erpx_holding.finance_chart_accounts
+          WHERE data_profile_key=$1 AND chart_id=$2
           ORDER BY account_id
           FOR UPDATE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(supplied_chart.id)
     .fetch_all(&mut **tx)
     .await?;
@@ -1778,7 +1783,7 @@ fn parse_authoritative_account_status(value: &str) -> Result<bool, PersistenceEr
 
 async fn record_authoritative_account_usage(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     posted: &PostedJournalEntry,
     chart_id: Uuid,
     chart_version: u64,
@@ -1786,12 +1791,12 @@ async fn record_authoritative_account_usage(
 ) -> Result<(), PersistenceError> {
     for (account_id, line_count) in line_counts {
         sqlx::query(
-            "INSERT INTO erpx_tenant.finance_posted_journal_account_usage
-                (holding_ref, journal_id, chart_id, holding_id, company_id,
+            "INSERT INTO erpx_holding.finance_posted_journal_account_usage
+                (data_profile_key, journal_id, chart_id, holding_id, company_id,
                  account_id, chart_version, line_count)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(posted.id())
         .bind(chart_id)
         .bind(posted.holding_id())
@@ -1810,7 +1815,7 @@ async fn record_authoritative_account_usage(
 
 pub(crate) async fn write_finance_source_event(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     aggregate_type: &str,
     aggregate_id: Uuid,
     version: u64,
@@ -1818,15 +1823,15 @@ pub(crate) async fn write_finance_source_event(
     event_type: &str,
 ) -> Result<(), PersistenceError> {
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,now())",
     )
     .bind(Uuid::new_v4())
     .bind(aggregate_type)
     .bind(aggregate_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(as_i64(version, "Finance aggregate version")?)
     .bind(event_type)
     .bind(serde_json::json!({
@@ -1841,17 +1846,17 @@ pub(crate) async fn write_finance_source_event(
 
 pub(crate) async fn begin_scoped<'a>(
     pool: &'a PgPool,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<Transaction<'a, Postgres>, PersistenceError> {
     let mut tx = pool.begin().await?;
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(data_profile_key)
         .execute(&mut *tx)
         .await?;
     Ok(tx)
 }
 
-fn validate_holding_ref(value: &str) -> Result<(), PersistenceError> {
+fn validate_data_profile_key(value: &str) -> Result<(), PersistenceError> {
     if value.trim().is_empty()
         || value.len() > 255
         || value.chars().any(|character| character.is_control())
@@ -1919,17 +1924,17 @@ fn validate_journal_replay_evidence(
 
 async fn validate_posted_journal_replay_evidence(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     journal_id: Uuid,
     existing: &PostedJournalEntry,
 ) -> Result<(), PersistenceError> {
     let existing_response = serde_json::to_value(existing)?;
     let source: Option<(Uuid, Uuid, Uuid, Uuid, i64, Value)> = sqlx::query_as(
         "SELECT journal_id, holding_id, company_id, period_id, version, payload
-         FROM erpx_tenant.finance_posted_journals
-         WHERE holding_ref=$1 AND journal_id=$2",
+         FROM erpx_holding.finance_posted_journals
+         WHERE data_profile_key=$1 AND journal_id=$2",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(journal_id)
     .fetch_optional(&mut **tx)
     .await?;
@@ -1946,8 +1951,8 @@ async fn validate_posted_journal_replay_evidence(
     );
     let outbox_event_payloads: Vec<Value> = sqlx::query_scalar(
         "SELECT payload
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1
            AND aggregate_type='finance_journal'
            AND aggregate_id=$2
            AND aggregate_version=1
@@ -1955,7 +1960,7 @@ async fn validate_posted_journal_replay_evidence(
          ORDER BY event_id
          LIMIT 2",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(journal_id)
     .fetch_all(&mut **tx)
     .await?;
@@ -1974,11 +1979,11 @@ async fn validate_posted_journal_replay_evidence(
 mod tests {
     use super::*;
     use chrono::NaiveDate;
-    use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+    use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
     use erpx_domain::finance::{JournalEntry, JournalLine};
 
     #[tokio::test]
-    async fn holding_reference_is_bounded_and_redacted() {
+    async fn data_profile_reference_is_bounded_and_redacted() {
         assert!(
             SqlxFinanceStore::new(
                 PgPool::connect_lazy("postgres://unused").expect("lazy pool"),
@@ -1994,7 +1999,7 @@ mod tests {
                 "holding-safe",
             )
             .expect("valid store")
-            .holding_ref()
+            .data_profile_key()
             .contains("holding-safe")
         );
     }
@@ -2034,16 +2039,16 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires one disposable tenant PostgreSQL write database"]
+    #[ignore = "requires one disposable holding PostgreSQL write database"]
     async fn legacy_chart_save_is_promoted_to_normalized_posting_authority() {
-        let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-            .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+        let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+            .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
         let pool = PgPool::connect(&url).await.expect("write pool");
-        erpx_migration::migrate_tenant_write(&pool)
+        erpx_migration::migrate_holding_write(&pool)
             .await
-            .expect("tenant-write migrations");
+            .expect("holding-write migrations");
 
-        let holding_ref = format!("holding-finance-legacy-{}", Uuid::new_v4());
+        let data_profile_key = format!("holding-finance-legacy-{}", Uuid::new_v4());
         let holding_id = Uuid::new_v4();
         let company_id = Uuid::new_v4();
         let debit_id = Uuid::new_v4();
@@ -2058,8 +2063,8 @@ mod tests {
             NaiveDate::from_ymd_opt(2026, 7, 31).expect("period end"),
         )
         .expect("period");
-        let finance_store =
-            SqlxFinanceStore::new(pool.clone(), pool.clone(), &holding_ref).expect("finance store");
+        let finance_store = SqlxFinanceStore::new(pool.clone(), pool.clone(), &data_profile_key)
+            .expect("finance store");
         finance_store
             .save_period(&period, None)
             .await
@@ -2103,12 +2108,12 @@ mod tests {
             "legacy-chart-posting",
             ActorAttribution {
                 principal_ref: "finance-test".into(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: Some(Uuid::new_v4()),
                 represented_principal_ref: None,
                 support_capability_id: None,
             },
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             },
@@ -2136,16 +2141,16 @@ mod tests {
         assert!(!posted.replayed);
 
         let mut tx = pool.begin().await.expect("inspection transaction");
-        sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-            .bind(&holding_ref)
+        sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+            .bind(&data_profile_key)
             .execute(&mut *tx)
             .await
             .expect("holding scope");
         let normalized: (i64, i64, i64) = sqlx::query_as(
             "SELECT
-                (SELECT count(*) FROM erpx_tenant.finance_chart_of_accounts WHERE chart_id=$1),
-                (SELECT count(*) FROM erpx_tenant.finance_chart_accounts WHERE chart_id=$1),
-                (SELECT count(*) FROM erpx_tenant.finance_posted_journal_account_usage
+                (SELECT count(*) FROM erpx_holding.finance_chart_of_accounts WHERE chart_id=$1),
+                (SELECT count(*) FROM erpx_holding.finance_chart_accounts WHERE chart_id=$1),
+                (SELECT count(*) FROM erpx_holding.finance_posted_journal_account_usage
                   WHERE chart_id=$1)",
         )
         .bind(chart_id)

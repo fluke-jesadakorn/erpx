@@ -113,7 +113,7 @@ pub enum MarketingAbuseDecision {
 /// the policy does not mutate or persist those counters.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AnonymousMarketingAbuseInput {
-    pub tenant_id: Uuid,
+    pub holding_id: Uuid,
     pub form_id: Uuid,
     pub domain_id: Uuid,
     pub request_fingerprint: MarketingRequestFingerprint,
@@ -127,7 +127,7 @@ impl fmt::Debug for AnonymousMarketingAbuseInput {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("AnonymousMarketingAbuseInput")
-            .field("tenant_id", &self.tenant_id)
+            .field("holding_id", &self.holding_id)
             .field("form_id", &self.form_id)
             .field("domain_id", &self.domain_id)
             .field("request_fingerprint", &"REDACTED")
@@ -142,7 +142,7 @@ impl fmt::Debug for AnonymousMarketingAbuseInput {
 impl AnonymousMarketingAbuseInput {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        tenant_id: Uuid,
+        holding_id: Uuid,
         form_id: Uuid,
         domain_id: Uuid,
         request_fingerprint: impl Into<String>,
@@ -152,7 +152,7 @@ impl AnonymousMarketingAbuseInput {
         signal: Option<MarketingAbuseSignal>,
     ) -> Result<Self, MarketingAbusePolicyError> {
         let value = Self {
-            tenant_id,
+            holding_id,
             form_id,
             domain_id,
             request_fingerprint: MarketingRequestFingerprint::new(request_fingerprint)?,
@@ -166,7 +166,7 @@ impl AnonymousMarketingAbuseInput {
     }
 
     pub fn validate(&self) -> Result<(), MarketingAbusePolicyError> {
-        require_identifier(self.tenant_id, "tenant_id")?;
+        require_identifier(self.holding_id, "holding_id")?;
         require_identifier(self.form_id, "form_id")?;
         require_identifier(self.domain_id, "domain_id")?;
         validate_fingerprint(self.request_fingerprint.as_str())?;
@@ -182,10 +182,10 @@ impl AnonymousMarketingAbuseInput {
     }
 }
 
-/// Immutable configuration for one tenant/form/domain submission boundary.
+/// Immutable configuration for one holding/form/domain submission boundary.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AnonymousMarketingAbusePolicy {
-    tenant_id: Uuid,
+    holding_id: Uuid,
     form_id: Uuid,
     domain_id: Uuid,
     window: Duration,
@@ -197,7 +197,7 @@ pub struct AnonymousMarketingAbusePolicy {
 impl AnonymousMarketingAbusePolicy {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        tenant_id: Uuid,
+        holding_id: Uuid,
         form_id: Uuid,
         domain_id: Uuid,
         window: Duration,
@@ -206,7 +206,7 @@ impl AnonymousMarketingAbusePolicy {
         requests_per_burst: u32,
     ) -> Result<Self, MarketingAbusePolicyError> {
         let value = Self {
-            tenant_id,
+            holding_id,
             form_id,
             domain_id,
             window,
@@ -219,12 +219,12 @@ impl AnonymousMarketingAbusePolicy {
     }
 
     pub fn standard(
-        tenant_id: Uuid,
+        holding_id: Uuid,
         form_id: Uuid,
         domain_id: Uuid,
     ) -> Result<Self, MarketingAbusePolicyError> {
         Self::new(
-            tenant_id,
+            holding_id,
             form_id,
             domain_id,
             Duration::seconds(DEFAULT_MARKETING_ABUSE_WINDOW_SECONDS),
@@ -251,7 +251,7 @@ impl AnonymousMarketingAbusePolicy {
     }
 
     pub fn validate(&self) -> Result<(), MarketingAbusePolicyError> {
-        require_identifier(self.tenant_id, "tenant_id")?;
+        require_identifier(self.holding_id, "holding_id")?;
         require_identifier(self.form_id, "form_id")?;
         require_identifier(self.domain_id, "domain_id")?;
         validate_duration(
@@ -334,7 +334,7 @@ impl AnonymousMarketingAbusePolicy {
         input: &AnonymousMarketingAbuseInput,
     ) -> Result<(), MarketingAbusePolicyError> {
         for (field, expected, actual) in [
-            ("tenant_id", self.tenant_id, input.tenant_id),
+            ("holding_id", self.holding_id, input.holding_id),
             ("form_id", self.form_id, input.form_id),
             ("domain_id", self.domain_id, input.domain_id),
         ] {
@@ -421,9 +421,9 @@ mod tests {
     }
 
     fn input(signal: Option<MarketingAbuseSignal>) -> AnonymousMarketingAbuseInput {
-        let (tenant_id, form_id, domain_id) = ids();
+        let (holding_id, form_id, domain_id) = ids();
         AnonymousMarketingAbuseInput::new(
-            tenant_id,
+            holding_id,
             form_id,
             domain_id,
             "fingerprint-opaque-001",
@@ -436,9 +436,9 @@ mod tests {
     }
 
     fn policy() -> AnonymousMarketingAbusePolicy {
-        let (tenant_id, form_id, domain_id) = ids();
+        let (holding_id, form_id, domain_id) = ids();
         AnonymousMarketingAbusePolicy::new(
-            tenant_id,
+            holding_id,
             form_id,
             domain_id,
             Duration::seconds(60),
@@ -451,12 +451,12 @@ mod tests {
 
     #[test]
     fn missing_and_oversized_fingerprints_are_rejected() {
-        let (tenant_id, form_id, domain_id) = ids();
+        let (holding_id, form_id, domain_id) = ids();
         let timestamp = DateTime::from_timestamp(1_700_000_000, 0).expect("fixed timestamp");
 
         assert_eq!(
             AnonymousMarketingAbuseInput::new(
-                tenant_id, form_id, domain_id, "   ", timestamp, 0, 0, None,
+                holding_id, form_id, domain_id, "   ", timestamp, 0, 0, None,
             ),
             Err(MarketingAbusePolicyError::MissingFingerprint)
         );
@@ -469,13 +469,13 @@ mod tests {
     }
 
     #[test]
-    fn tenant_form_and_domain_bindings_are_exact() {
+    fn holding_form_and_domain_bindings_are_exact() {
         let policy = policy();
         for (field, request) in [
             {
                 let mut request = input(None);
-                request.tenant_id = Uuid::from_u128(11);
-                ("tenant_id", request)
+                request.holding_id = Uuid::from_u128(11);
+                ("holding_id", request)
             },
             {
                 let mut request = input(None);
@@ -497,7 +497,7 @@ mod tests {
 
     #[test]
     fn policy_rejects_out_of_bounds_windows_and_limits() {
-        let (tenant_id, form_id, domain_id) = ids();
+        let (holding_id, form_id, domain_id) = ids();
         let invalid_windows = [
             Duration::zero(),
             Duration::seconds(MAX_MARKETING_ABUSE_WINDOW_SECONDS + 1),
@@ -505,7 +505,7 @@ mod tests {
         for window in invalid_windows {
             assert_eq!(
                 AnonymousMarketingAbusePolicy::new(
-                    tenant_id,
+                    holding_id,
                     form_id,
                     domain_id,
                     window,
@@ -519,7 +519,7 @@ mod tests {
 
         assert_eq!(
             AnonymousMarketingAbusePolicy::new(
-                tenant_id,
+                holding_id,
                 form_id,
                 domain_id,
                 Duration::seconds(10),
@@ -531,7 +531,7 @@ mod tests {
         );
         assert_eq!(
             AnonymousMarketingAbusePolicy::new(
-                tenant_id,
+                holding_id,
                 form_id,
                 domain_id,
                 Duration::seconds(10),

@@ -10,8 +10,8 @@ use super::*;
 pub struct FinanceBankProviderAccountBinding {
     pub provider_account_ref: String,
     pub provider_key: String,
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_key: String,
+    pub data_profile_key: String,
     pub holding_id: Uuid,
     pub credential_key_ref: String,
     pub state: String,
@@ -24,8 +24,8 @@ impl fmt::Debug for FinanceBankProviderAccountBinding {
             .debug_struct("FinanceBankProviderAccountBinding")
             .field("provider_account_ref", &self.provider_account_ref)
             .field("provider_key", &self.provider_key)
-            .field("tenant_id", &self.tenant_id)
-            .field("holding_ref", &self.holding_ref)
+            .field("holding_id", &self.holding_id)
+            .field("data_profile_key", &self.data_profile_key)
             .field("holding_id", &self.holding_id)
             .field("credential_key_ref", &"[redacted]")
             .field("state", &self.state)
@@ -43,42 +43,44 @@ impl FinanceBankProviderAccountBinding {
 impl SqlxControlPlane {
     /// Resolve an exact Finance bank-provider route from authoritative
     /// control-plane state. Every route component is matched, and both the
-    /// account and its tenant must be active before the binding is returned.
+    /// account and its holding must be active before the binding is returned.
     /// The credential value is only an opaque secret-manager key reference.
     pub async fn resolve_finance_bank_provider_account(
         &self,
         provider_account_ref: &str,
         provider_key: &str,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         credential_key_ref: &str,
     ) -> Result<Option<FinanceBankProviderAccountBinding>, PersistenceError> {
-        validate_tenant_reference(provider_account_ref, "provider_account_ref")?;
-        validate_tenant_reference(provider_key, "provider_key")?;
-        validate_tenant_reference(tenant_id, "tenant_id")?;
-        validate_tenant_reference(holding_ref, "holding_ref")?;
-        validate_tenant_reference(credential_key_ref, "credential_key_ref")?;
+        validate_data_profile_reference(provider_account_ref, "provider_account_ref")?;
+        validate_data_profile_reference(provider_key, "provider_key")?;
+        validate_data_profile_reference(holding_id, "holding_id")?;
+        validate_data_profile_reference(data_profile_key, "data_profile_key")?;
+        validate_data_profile_reference(credential_key_ref, "credential_key_ref")?;
+        let holding_id = Uuid::parse_str(holding_id)
+            .map_err(|_| PersistenceError::InvalidData("holding_id must be a UUID".into()))?;
 
         let row = sqlx::query(
             "SELECT account.provider_account_ref, account.provider_key,
-                    account.tenant_id, account.holding_ref, account.holding_id,
+                    account.holding_id, account.data_profile_key,
                     account.credential_key_ref, account.state, account.version
              FROM erpx_control.finance_bank_provider_accounts account
-             INNER JOIN erpx_control.tenant_registry tenant
-                 ON tenant.tenant_id = account.tenant_id
-                AND tenant.holding_ref = account.holding_ref
+             INNER JOIN erpx_control.holding_registry holding
+                 ON holding.holding_id = account.holding_id::text
+                AND holding.data_profile_key = account.data_profile_key
              WHERE account.provider_account_ref = $1
                AND account.provider_key = $2
-               AND account.tenant_id = $3
-               AND account.holding_ref = $4
+               AND account.holding_id = $3
+               AND account.data_profile_key = $4
                AND account.credential_key_ref = $5
                AND account.state = 'active'
-               AND tenant.state = 'active'",
+               AND holding.state = 'active'",
         )
         .bind(provider_account_ref)
         .bind(provider_key)
-        .bind(tenant_id)
-        .bind(holding_ref)
+        .bind(holding_id)
+        .bind(data_profile_key)
         .bind(credential_key_ref)
         .fetch_optional(&self.pools.write)
         .await?;
@@ -95,8 +97,8 @@ impl SqlxControlPlane {
             Ok(FinanceBankProviderAccountBinding {
                 provider_account_ref: row.try_get("provider_account_ref")?,
                 provider_key: row.try_get("provider_key")?,
-                tenant_id: row.try_get("tenant_id")?,
-                holding_ref: row.try_get("holding_ref")?,
+                holding_key: holding_id.to_string(),
+                data_profile_key: row.try_get("data_profile_key")?,
                 holding_id,
                 credential_key_ref: row.try_get("credential_key_ref")?,
                 state: row.try_get("state")?,

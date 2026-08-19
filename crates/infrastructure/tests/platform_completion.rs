@@ -4,17 +4,17 @@ use std::sync::Arc;
 
 use chrono::{Duration, Utc};
 use erpx_domain::platform_completion::{
-    PlatformAuthorizationProof, TenantLifecycleAction, TenantLifecycleCommand,
+    HoldingBinding, PlatformReconciliationReport, ReconciliationState, stable_platform_aggregate_id,
 };
 use erpx_domain::platform_completion::{
-    PlatformReconciliationReport, ReconciliationState, TenantBinding, stable_platform_aggregate_id,
+    HoldingLifecycleAction, HoldingLifecycleCommand, PlatformAuthorizationProof,
 };
 use erpx_infrastructure::{
     ControlPlaneDatabaseConfig, ControlPlanePoolSettings, ControlPlanePools, DatabaseSide,
+    HoldingDatabaseHealth, HoldingProvisioner, HoldingStorageHealth, HoldingStoreRegistration,
     PLATFORM_COMPLETION_PROJECTION, PLATFORM_RECONCILIATION_AGGREGATE, PlatformControlStore,
     PlatformPersistenceError, PlatformReadModelWriter, SqlxControlPlane,
-    SqlxPlatformReadModelWriter, TenantDatabaseHealth, TenantProvisioner, TenantStorageHealth,
-    TenantStoreRegistration,
+    SqlxPlatformReadModelWriter,
 };
 use erpx_migration::{migrate_control_plane, migrate_control_read};
 use sqlx::{PgPool, postgres::PgPoolOptions};
@@ -47,22 +47,22 @@ async fn lifecycle_rejects_future_health_observations() {
         .expect("read migration");
 
     let control = Arc::new(SqlxControlPlane::new(pools));
-    let provisioner = TenantProvisioner::new(control.clone());
+    let provisioner = HoldingProvisioner::new(control.clone());
     let suffix = Uuid::new_v4().simple().to_string();
-    let tenant_id = format!("tenant-future-health-{suffix}");
-    let holding_ref = format!("holding-future-health-{suffix}");
-    let write_database_key = format!("tenant-future-health-write-{suffix}");
-    let read_database_key = format!("tenant-future-health-read-{suffix}");
-    let storage_namespace = format!("tenant-future-health-storage-{suffix}");
+    let holding_id = format!("holding-future-health-{suffix}");
+    let data_profile_key = format!("holding-future-health-{suffix}");
+    let write_database_key = format!("holding-future-health-write-{suffix}");
+    let read_database_key = format!("holding-future-health-read-{suffix}");
+    let storage_namespace = format!("holding-future-health-storage-{suffix}");
     provisioner
-        .begin(TenantStoreRegistration {
-            tenant_id: tenant_id.clone(),
-            holding_ref: holding_ref.clone(),
+        .begin(HoldingStoreRegistration {
+            holding_id: holding_id.clone(),
+            data_profile_key: data_profile_key.clone(),
             write_database_key: write_database_key.clone(),
             read_database_key: read_database_key.clone(),
             storage_namespace: storage_namespace.clone(),
-            credential_key_ref: format!("tenant-future-health-credential-{suffix}"),
-            backup_chain_ref: format!("tenant-future-health-backup-{suffix}"),
+            credential_key_ref: format!("holding-future-health-credential-{suffix}"),
+            backup_chain_ref: format!("holding-future-health-backup-{suffix}"),
             state: "provisioning".into(),
             registry_version: 1,
         })
@@ -76,8 +76,8 @@ async fn lifecycle_rejects_future_health_observations() {
         (DatabaseSide::Read, read_database_key),
     ] {
         let error = provisioner
-            .record_database_health(&TenantDatabaseHealth {
-                tenant_id: tenant_id.clone(),
+            .record_database_health(&HoldingDatabaseHealth {
+                holding_id: holding_id.clone(),
                 side,
                 database_key,
                 schema_version: "2026-07-24.0007".into(),
@@ -94,8 +94,8 @@ async fn lifecycle_rejects_future_health_observations() {
         ));
     }
     let error = provisioner
-        .record_storage_health(&TenantStorageHealth {
-            tenant_id: tenant_id.clone(),
+        .record_storage_health(&HoldingStorageHealth {
+            holding_id: holding_id.clone(),
             storage_namespace,
             reachable: true,
             checked_at: future_checked_at,
@@ -109,20 +109,20 @@ async fn lifecycle_rejects_future_health_observations() {
             if message.contains("cannot be from the future")
     ));
 
-    let binding = TenantBinding::new(tenant_id, holding_ref).expect("tenant binding");
+    let binding = HoldingBinding::new(holding_id, data_profile_key).expect("holding binding");
     let proof = PlatformAuthorizationProof {
         principal_ref: "platform-admin".into(),
-        permission: "platform.tenant.provision".into(),
-        scope: erpx_domain::access::Scope::Platform,
+        permission: "platform.holding.provision".into(),
+        scope: erpx_domain::contracts::AuthorityScope::Platform,
         valid_from: at - Duration::minutes(1),
         valid_until: at + Duration::minutes(4),
         mfa_verified: true,
         local_break_glass: false,
         break_glass_ticket_ref: None,
     };
-    let command = TenantLifecycleCommand {
+    let command = HoldingLifecycleCommand {
         binding,
-        action: TenantLifecycleAction::Activate,
+        action: HoldingLifecycleAction::Activate,
         actor_ref: "platform-admin".into(),
         correlation_id: Uuid::new_v4(),
         idempotency_key: format!("future-health-{suffix}"),
@@ -133,7 +133,7 @@ async fn lifecycle_rejects_future_health_observations() {
     let error = PlatformControlStore::new(control)
         .transition_lifecycle(&command, &proof)
         .await
-        .expect_err("future observations must not activate a tenant");
+        .expect_err("future observations must not activate a holding");
     assert!(matches!(
         error,
         PlatformPersistenceError::Invalid(message)
@@ -141,7 +141,7 @@ async fn lifecycle_rejects_future_health_observations() {
     ));
 }
 
-fn reconciliation_report(binding: TenantBinding) -> PlatformReconciliationReport {
+fn reconciliation_report(binding: HoldingBinding) -> PlatformReconciliationReport {
     PlatformReconciliationReport {
         report_id: Uuid::new_v4(),
         binding,
@@ -175,23 +175,23 @@ async fn reconciliation_projection_materializes_nested_scope_and_rejects_identit
 
     let writer = SqlxPlatformReadModelWriter::new(pool.clone());
     let suffix = Uuid::new_v4().simple().to_string();
-    let binding = TenantBinding::new(
-        format!("tenant-platform-scope-{suffix}"),
+    let binding = HoldingBinding::new(
+        format!("holding-platform-scope-{suffix}"),
         format!("holding-platform-scope-{suffix}"),
     )
-    .expect("valid tenant binding");
+    .expect("valid holding binding");
 
     let lifecycle_aggregate_id =
-        stable_platform_aggregate_id("tenant-lifecycle", &binding.tenant_id);
+        stable_platform_aggregate_id("holding-lifecycle", &binding.holding_id);
     let missing_holding = serde_json::json!({
-        "tenant_id": binding.tenant_id.clone(),
+        "holding_id": binding.holding_id.clone(),
         "state": "active",
         "registry_version": 1,
     });
     let error = writer
         .upsert(
             PLATFORM_COMPLETION_PROJECTION,
-            "platform.tenant_lifecycle",
+            "platform.holding_lifecycle",
             lifecycle_aggregate_id,
             1,
             missing_holding,
@@ -201,11 +201,11 @@ async fn reconciliation_projection_materializes_nested_scope_and_rejects_identit
         .expect_err("unscoped lifecycle read model must be rejected");
     assert!(matches!(
         error,
-        PlatformPersistenceError::Invalid(message) if message.contains("holding_ref")
+        PlatformPersistenceError::Invalid(message) if message.contains("data_profile_key")
     ));
 
     let report = reconciliation_report(binding.clone());
-    let aggregate_id = stable_platform_aggregate_id("tenant-reconciliation", &binding.tenant_id);
+    let aggregate_id = stable_platform_aggregate_id("holding-reconciliation", &binding.holding_id);
 
     writer
         .upsert(
@@ -236,7 +236,7 @@ async fn reconciliation_projection_materializes_nested_scope_and_rejects_identit
     ));
 
     let persisted_scope: (String, String) = sqlx::query_as(
-        "SELECT tenant_id, holding_ref
+        "SELECT holding_id, data_profile_key
          FROM erpx_control.platform_completion_read_model
          WHERE projection_name = $1 AND aggregate_type = $2 AND aggregate_id = $3",
     )
@@ -246,12 +246,12 @@ async fn reconciliation_projection_materializes_nested_scope_and_rejects_identit
     .fetch_one(&pool)
     .await
     .expect("persisted reconciliation scope");
-    assert_eq!(persisted_scope.0, binding.tenant_id);
-    assert_eq!(persisted_scope.1, binding.holding_ref);
+    assert_eq!(persisted_scope.0, binding.holding_id);
+    assert_eq!(persisted_scope.1, binding.data_profile_key);
 
     let mut forged = report;
-    forged.binding = TenantBinding::new(
-        format!("tenant-forged-{suffix}"),
+    forged.binding = HoldingBinding::new(
+        format!("holding-forged-{suffix}"),
         format!("holding-forged-{suffix}"),
     )
     .expect("valid forged binding");
@@ -265,7 +265,7 @@ async fn reconciliation_projection_materializes_nested_scope_and_rejects_identit
             forged.observed_at,
         )
         .await
-        .expect_err("cross-tenant reconciliation payload must be rejected");
+        .expect_err("cross-holding reconciliation payload must be rejected");
     assert!(matches!(
         error,
         PlatformPersistenceError::Invalid(message)

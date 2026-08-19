@@ -30,10 +30,10 @@ pub use kit::{
 pub use premium::{
     BarChart, Button, ButtonTone, ChartPoint, ChartSeries, DashboardBreakdown,
     DashboardBreakdownSegment, DashboardMetric, DashboardRange, DashboardRangeSelector,
-    DashboardReadModel, DashboardWorkItem, DataTableV2, DonutChart, Drawer, EmptyState,
-    HeatmapChart, LineAreaChart, MetricCard, PageHero, ProgressRing, ReadModelMeta, SectionCard,
-    Skeleton, Sparkline, StackedBarChart, StatusBadge, StatusTone, TabItem, Tabs, Timeline,
-    TimelineItem, Toast, ToastTone, Toolbar, chart_polyline_points,
+    DashboardReadModel, DashboardWorkItem, DonutChart, Drawer, EmptyState, HeatmapChart,
+    LineAreaChart, MetricCard, PageHero, PremiumDataTable, ProgressRing, ReadModelMeta,
+    SectionCard, Skeleton, Sparkline, StackedBarChart, StatusBadge, StatusTone, TabItem, Tabs,
+    Timeline, TimelineItem, Toast, ToastTone, Toolbar, chart_polyline_points,
 };
 
 /// Shared CSS variables and component styles. Applications can include this once in their root

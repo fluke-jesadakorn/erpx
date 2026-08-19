@@ -6,7 +6,7 @@ Date: 2026-07-26
 
 The authenticated Tonic Marketing content service now exposes administrative commands for issuing and revoking expiring previews, issuing a random 256-bit domain challenge and storing only its SHA-256 digest, verifying a supplied domain proof by digest, and binding a verified domain to an explicitly scoped template revision.
 
-Every command uses the existing authentication interceptor, command-context conversion, explicit tenant scope, entitlement/RBAC authorization, server-side tenant write/read routing, SQLx persistence, customer-visible audit events, and redacted correlation-linked errors. Preview tokens and domain challenges are returned only at issuance and never cross the persistence boundary in raw form. The protobuf service remains additive and backward compatible.
+Every command uses the existing authentication interceptor, command-context conversion, explicit holding scope, entitlement/RBAC authorization, server-side holding write/read routing, SQLx persistence, customer-visible audit events, and redacted correlation-linked errors. Preview tokens and domain challenges are returned only at issuance and never cross the persistence boundary in raw form. The protobuf service remains additive and backward compatible.
 
 An application-layer `MarketingContentWritePort` and transport-neutral command/receipt DTOs now define the orchestration seam for form submission, preview lifecycle, domain verification, and domain binding. The port validates shape, context, scope, bounded values, and digest format while leaving authoritative authorization, re-reads, routing, transactionality, idempotency, audit, and outbox behavior to the adapter.
 

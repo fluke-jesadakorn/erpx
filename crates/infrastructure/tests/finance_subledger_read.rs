@@ -1,7 +1,7 @@
 //! Disposable two-database proof for the Finance AP/AR read boundary.
 
 use chrono::NaiveDate;
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::finance_subledgers::{
     Invoice, InvoiceKind, InvoiceLine, PartyKind, PartyReference,
 };
@@ -12,12 +12,12 @@ use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-fn context(scope: TenantScope, key: &str) -> CommandContext {
+fn context(scope: AuthorityScope, key: &str) -> CommandContext {
     CommandContext::try_new(
         key,
         ActorAttribution {
             principal_ref: "finance-subledger-read-test".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
@@ -36,12 +36,12 @@ fn invoice(
     id: Uuid,
     key: &str,
 ) -> Invoice {
-    let scope = TenantScope::Branch {
+    let scope = AuthorityScope::Branch {
         holding_id,
         company_id,
         branch_id,
     };
-    let party_scope = TenantScope::Company {
+    let party_scope = AuthorityScope::Company {
         holding_id,
         company_id,
     };
@@ -78,22 +78,22 @@ fn invoice(
 }
 
 #[tokio::test]
-#[ignore = "requires disposable tenant write and read PostgreSQL databases"]
+#[ignore = "requires disposable holding write and read PostgreSQL databases"]
 async fn live_finance_subledger_read_is_projected_scoped_paginated_and_rls_forced() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant-write migrations");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding-write migrations");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant-read migrations");
+        .expect("holding-read migrations");
 
-    let holding_ref = format!("holding-finance-subledger-read-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-finance-subledger-read-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let first_company = Uuid::new_v4();
     let first_branch = Uuid::new_v4();
@@ -116,7 +116,7 @@ async fn live_finance_subledger_read_is_projected_scoped_paginated_and_rls_force
         "subledger-read-second",
     );
     let source =
-        SqlxFinanceSubledgerStore::new(write_pool.clone(), read_pool.clone(), &holding_ref)
+        SqlxFinanceSubledgerStore::new(write_pool.clone(), read_pool.clone(), &data_profile_key)
             .expect("source store");
     source
         .save(&FinanceSubledgerAggregate::Invoice(first), None)
@@ -128,7 +128,7 @@ async fn live_finance_subledger_read_is_projected_scoped_paginated_and_rls_force
         .expect("second invoice");
 
     let projection =
-        SqlxFinanceSubledgerStore::new(write_pool.clone(), read_pool.clone(), &holding_ref)
+        SqlxFinanceSubledgerStore::new(write_pool.clone(), read_pool.clone(), &data_profile_key)
             .expect("projection store");
     let source_page = projection
         .read_source_event_page(None, 10)
@@ -205,21 +205,21 @@ async fn live_finance_subledger_read_is_projected_scoped_paginated_and_rls_force
     ));
 
     let mut inspection = read_pool.begin().await.expect("checkpoint inspection");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *inspection)
         .await
         .expect("checkpoint inspection scope");
     let checkpoint: (Uuid, i64, Value) = sqlx::query_as(
         "SELECT c.last_event_id, c.source_version, r.payload
-         FROM erpx_tenant.finance_subledger_projection_checkpoints c
-         JOIN erpx_tenant.finance_subledger_read_rows r
-           ON r.holding_ref = c.holding_ref
+         FROM erpx_holding.finance_subledger_projection_checkpoints c
+         JOIN erpx_holding.finance_subledger_read_rows r
+           ON r.data_profile_key = c.data_profile_key
           AND r.aggregate_type = c.aggregate_type
           AND r.aggregate_id = c.aggregate_id
-         WHERE c.holding_ref=$1 AND c.aggregate_type=$2 AND c.aggregate_id=$3",
+         WHERE c.data_profile_key=$1 AND c.aggregate_type=$2 AND c.aggregate_id=$3",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(&first_event.aggregate_type)
     .bind(first_event.aggregate_id)
     .fetch_one(&mut *inspection)
@@ -236,12 +236,12 @@ async fn live_finance_subledger_read_is_projected_scoped_paginated_and_rls_force
     );
     assert_eq!(checkpoint.2, first_event.payload["aggregate"]);
 
-    let holding_scope = TenantScope::Holding { holding_id };
-    let first_scope = TenantScope::Company {
+    let holding_scope = AuthorityScope::Holding { holding_id };
+    let first_scope = AuthorityScope::Company {
         holding_id,
         company_id: first_company,
     };
-    let first_branch_scope = TenantScope::Branch {
+    let first_branch_scope = AuthorityScope::Branch {
         holding_id,
         company_id: first_company,
         branch_id: first_branch,
@@ -299,7 +299,7 @@ async fn live_finance_subledger_read_is_projected_scoped_paginated_and_rls_force
 
     let forced: bool = sqlx::query_scalar(
         "SELECT relforcerowsecurity FROM pg_class
-         WHERE oid = 'erpx_tenant.finance_subledger_read_rows'::regclass",
+         WHERE oid = 'erpx_holding.finance_subledger_read_rows'::regclass",
     )
     .fetch_one(&read_pool)
     .await

@@ -1,8 +1,8 @@
-//! Target-neutral Console delivery v2 contracts.
+//! Target-neutral Console delivery contracts.
 //!
 //! Web adapters expose these operations as Dioxus Server Functions and derive
 //! authority from the HttpOnly session. Native adapters construct the trusted
-//! contexts after validating their credential and call the gRPC v2 catalog
+//! contexts after validating their credential and call the gRPC catalog
 //! directly. UI code never owns SQLx, generated protobuf, or an arbitrary JSON
 //! RPC envelope.
 
@@ -20,17 +20,17 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub const DELIVERY_CONTRACT_VERSION: u16 = 2;
-pub const SERVICE_ID_FIRST_V2: u16 = 201;
-pub const SERVICE_ID_LAST_V2: u16 = 265;
-pub const SERVICE_COUNT_V2: usize = 65;
+pub const SERVICE_ID_FIRST_: u16 = 201;
+pub const SERVICE_ID_LAST_: u16 = 265;
+pub const SERVICE_COUNT_: usize = 65;
 pub const SESSION_CACHE_MAX_ENTRIES: usize = 64;
 pub const SESSION_CACHE_MAX_BYTES: usize = 32 * 1024 * 1024;
-pub const MAX_PAGE_SIZE_V2: u16 = 200;
+pub const MAX_PAGE_SIZE_: u16 = 200;
 
 /// Canonical UI workspaces. Commerce and Talent intentionally remain Web-only.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum WorkspaceV2 {
+pub enum Workspace {
     Operations,
     Finance,
     Sales,
@@ -54,7 +54,7 @@ pub enum WorkspaceV2 {
     Ai,
 }
 
-impl WorkspaceV2 {
+impl Workspace {
     pub const ALL: [Self; 21] = [
         Self::Operations,
         Self::Finance,
@@ -131,42 +131,42 @@ impl WorkspaceV2 {
         matches!(self, Self::Commerce | Self::Talent)
     }
 
-    pub const fn available_on(self, channel: ClientChannelV2) -> bool {
-        matches!(channel, ClientChannelV2::Web) || !self.is_web_only()
+    pub const fn available_on(self, channel: ClientChannel) -> bool {
+        matches!(channel, ClientChannel::Web) || !self.is_web_only()
     }
 }
 
-impl fmt::Display for WorkspaceV2 {
+impl fmt::Display for Workspace {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(self.slug())
     }
 }
 
-impl FromStr for WorkspaceV2 {
-    type Err = InvalidWorkspaceV2;
+impl FromStr for Workspace {
+    type Err = InvalidWorkspace;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         Self::ALL
             .into_iter()
             .find(|workspace| workspace.slug() == value)
-            .ok_or(InvalidWorkspaceV2)
+            .ok_or(InvalidWorkspace)
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct InvalidWorkspaceV2;
+pub struct InvalidWorkspace;
 
-impl fmt::Display for InvalidWorkspaceV2 {
+impl fmt::Display for InvalidWorkspace {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("workspace is not canonical")
     }
 }
 
-impl std::error::Error for InvalidWorkspaceV2 {}
+impl std::error::Error for InvalidWorkspace {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum ClientChannelV2 {
+pub enum ClientChannel {
     Web,
     MacOs,
     Ios,
@@ -176,13 +176,13 @@ pub enum ClientChannelV2 {
 /// A non-empty, non-nil UUID rendered only in lowercase hyphenated form.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct RouteUuidV2(Uuid);
+pub struct RouteUuid(Uuid);
 
-impl RouteUuidV2 {
-    pub fn try_new(value: Uuid) -> Result<Self, InvalidRouteUuidV2> {
+impl RouteUuid {
+    pub fn try_new(value: Uuid) -> Result<Self, InvalidRouteUuid> {
         (!value.is_nil())
             .then_some(Self(value))
-            .ok_or(InvalidRouteUuidV2)
+            .ok_or(InvalidRouteUuid)
     }
 
     pub const fn get(self) -> Uuid {
@@ -190,42 +190,42 @@ impl RouteUuidV2 {
     }
 }
 
-impl fmt::Display for RouteUuidV2 {
+impl fmt::Display for RouteUuid {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(formatter, "{}", self.0.hyphenated())
     }
 }
 
-impl FromStr for RouteUuidV2 {
-    type Err = InvalidRouteUuidV2;
+impl FromStr for RouteUuid {
+    type Err = InvalidRouteUuid;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        let parsed = Uuid::parse_str(value).map_err(|_| InvalidRouteUuidV2)?;
+        let parsed = Uuid::parse_str(value).map_err(|_| InvalidRouteUuid)?;
         if parsed.is_nil() || parsed.hyphenated().to_string() != value {
-            return Err(InvalidRouteUuidV2);
+            return Err(InvalidRouteUuid);
         }
         Ok(Self(parsed))
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct InvalidRouteUuidV2;
+pub struct InvalidRouteUuid;
 
-impl fmt::Display for InvalidRouteUuidV2 {
+impl fmt::Display for InvalidRouteUuid {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("route UUID must be non-nil lowercase hyphenated UUID")
     }
 }
 
-impl std::error::Error for InvalidRouteUuidV2 {}
+impl std::error::Error for InvalidRouteUuid {}
 
 /// Canonical resource segment: lowercase ASCII words separated by one dash.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct ResourceNameV2(String);
+pub struct ResourceName(String);
 
-impl ResourceNameV2 {
-    pub fn try_new(value: impl Into<String>) -> Result<Self, InvalidResourceNameV2> {
+impl ResourceName {
+    pub fn try_new(value: impl Into<String>) -> Result<Self, InvalidResourceName> {
         let value = value.into();
         let valid = !value.is_empty()
             && value.len() <= 64
@@ -235,7 +235,7 @@ impl ResourceNameV2 {
             && value
                 .bytes()
                 .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-');
-        valid.then_some(Self(value)).ok_or(InvalidResourceNameV2)
+        valid.then_some(Self(value)).ok_or(InvalidResourceName)
     }
 
     pub fn as_str(&self) -> &str {
@@ -243,20 +243,20 @@ impl ResourceNameV2 {
     }
 }
 
-impl Default for ResourceNameV2 {
+impl Default for ResourceName {
     fn default() -> Self {
         Self("overview".to_owned())
     }
 }
 
-impl fmt::Display for ResourceNameV2 {
+impl fmt::Display for ResourceName {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(&self.0)
     }
 }
 
-impl FromStr for ResourceNameV2 {
-    type Err = InvalidResourceNameV2;
+impl FromStr for ResourceName {
+    type Err = InvalidResourceName;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         Self::try_new(value)
@@ -264,41 +264,41 @@ impl FromStr for ResourceNameV2 {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct InvalidResourceNameV2;
+pub struct InvalidResourceName;
 
-impl fmt::Display for InvalidResourceNameV2 {
+impl fmt::Display for InvalidResourceName {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("resource name is not canonical")
     }
 }
 
-impl std::error::Error for InvalidResourceNameV2 {}
+impl std::error::Error for InvalidResourceName {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ValidatedAuthorityV2 {
+pub struct ValidatedAuthority {
     actor_ref: String,
-    tenant_ref: String,
+    data_profile_key: String,
     role_ref: String,
 }
 
-impl ValidatedAuthorityV2 {
+impl ValidatedAuthority {
     /// Called only by a trusted session or native credential adapter after
-    /// authentication and tenant/role authorization have succeeded.
+    /// authentication and holding/role authorization have succeeded.
     pub fn from_trusted_adapter(
         actor_ref: impl Into<String>,
-        tenant_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
         role_ref: impl Into<String>,
-    ) -> Result<Self, DeliveryErrorV2> {
+    ) -> Result<Self, DeliveryError> {
         let value = Self {
             actor_ref: actor_ref.into(),
-            tenant_ref: tenant_ref.into(),
+            data_profile_key: data_profile_key.into(),
             role_ref: role_ref.into(),
         };
-        if [&value.actor_ref, &value.tenant_ref, &value.role_ref]
+        if [&value.actor_ref, &value.data_profile_key, &value.role_ref]
             .into_iter()
             .any(|part| !valid_reference(part))
         {
-            return Err(DeliveryErrorV2::validation("invalid trusted authority"));
+            return Err(DeliveryError::validation("invalid trusted authority"));
         }
         Ok(value)
     }
@@ -307,18 +307,18 @@ impl ValidatedAuthorityV2 {
         &self.actor_ref
     }
 
-    pub fn tenant_ref(&self) -> &str {
-        &self.tenant_ref
+    pub fn data_profile_key(&self) -> &str {
+        &self.data_profile_key
     }
 
     pub fn role_ref(&self) -> &str {
         &self.role_ref
     }
 
-    pub fn cache_scope(&self) -> SessionScopeV2 {
-        SessionScopeV2 {
+    pub fn cache_scope(&self) -> SessionScope {
+        SessionScope {
             actor_ref: self.actor_ref.clone(),
-            tenant_ref: self.tenant_ref.clone(),
+            data_profile_key: self.data_profile_key.clone(),
             role_ref: self.role_ref.clone(),
         }
     }
@@ -332,22 +332,22 @@ fn valid_reference(value: &str) -> bool {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CommandContextV2 {
-    authority: ValidatedAuthorityV2,
+pub struct CommandContext {
+    authority: ValidatedAuthority,
     request_id: Uuid,
     idempotency_key: String,
     expected_version: Option<u64>,
     locale: String,
 }
 
-impl CommandContextV2 {
+impl CommandContext {
     pub fn from_trusted_adapter(
-        authority: ValidatedAuthorityV2,
+        authority: ValidatedAuthority,
         request_id: Uuid,
         idempotency_key: impl Into<String>,
         expected_version: Option<u64>,
         locale: impl Into<String>,
-    ) -> Result<Self, DeliveryErrorV2> {
+    ) -> Result<Self, DeliveryError> {
         let idempotency_key = idempotency_key.into();
         let locale = locale.into();
         if request_id.is_nil()
@@ -355,7 +355,7 @@ impl CommandContextV2 {
             || idempotency_key.len() > 128
             || !valid_locale(&locale)
         {
-            return Err(DeliveryErrorV2::validation("invalid command context"));
+            return Err(DeliveryError::validation("invalid command context"));
         }
         Ok(Self {
             authority,
@@ -366,36 +366,36 @@ impl CommandContextV2 {
         })
     }
 
-    pub const fn authority(&self) -> &ValidatedAuthorityV2 {
+    pub const fn authority(&self) -> &ValidatedAuthority {
         &self.authority
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct QueryContextV2 {
-    authority: ValidatedAuthorityV2,
+pub struct QueryContext {
+    authority: ValidatedAuthority,
     request_id: Uuid,
     cursor: Option<String>,
     limit: u16,
     locale: String,
 }
 
-impl QueryContextV2 {
+impl QueryContext {
     pub fn from_trusted_adapter(
-        authority: ValidatedAuthorityV2,
+        authority: ValidatedAuthority,
         request_id: Uuid,
         cursor: Option<String>,
         limit: u16,
         locale: impl Into<String>,
-    ) -> Result<Self, DeliveryErrorV2> {
+    ) -> Result<Self, DeliveryError> {
         let locale = locale.into();
         if request_id.is_nil()
             || limit == 0
-            || limit > MAX_PAGE_SIZE_V2
+            || limit > MAX_PAGE_SIZE_
             || cursor.as_ref().is_some_and(|value| value.len() > 512)
             || !valid_locale(&locale)
         {
-            return Err(DeliveryErrorV2::validation("invalid query context"));
+            return Err(DeliveryError::validation("invalid query context"));
         }
         Ok(Self {
             authority,
@@ -406,7 +406,7 @@ impl QueryContextV2 {
         })
     }
 
-    pub const fn authority(&self) -> &ValidatedAuthorityV2 {
+    pub const fn authority(&self) -> &ValidatedAuthority {
         &self.authority
     }
 }
@@ -416,21 +416,21 @@ fn valid_locale(value: &str) -> bool {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PageV2<T> {
+pub struct Page<T> {
     pub items: Vec<T>,
     pub next_cursor: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CommandReceiptV2 {
+pub struct CommandReceipt {
     pub command_id: Uuid,
-    pub aggregate_id: RouteUuidV2,
+    pub aggregate_id: RouteUuid,
     pub aggregate_version: u64,
     pub invalidation_tags: BTreeSet<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DeliveryErrorMetaV2 {
+pub struct DeliveryErrorMeta {
     pub correlation_id: Uuid,
     pub retry_after_ms: Option<u64>,
     pub retryable: bool,
@@ -438,20 +438,20 @@ pub struct DeliveryErrorMetaV2 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "meta", rename_all = "snake_case")]
-pub enum DeliveryErrorV2 {
-    Unauthenticated(DeliveryErrorMetaV2),
-    Forbidden(DeliveryErrorMetaV2),
-    NotFound(DeliveryErrorMetaV2),
-    Conflict(DeliveryErrorMetaV2),
-    Validation(DeliveryErrorMetaV2),
-    RateLimited(DeliveryErrorMetaV2),
-    Unavailable(DeliveryErrorMetaV2),
-    Internal(DeliveryErrorMetaV2),
+pub enum DeliveryError {
+    Unauthenticated(DeliveryErrorMeta),
+    Forbidden(DeliveryErrorMeta),
+    NotFound(DeliveryErrorMeta),
+    Conflict(DeliveryErrorMeta),
+    Validation(DeliveryErrorMeta),
+    RateLimited(DeliveryErrorMeta),
+    Unavailable(DeliveryErrorMeta),
+    Internal(DeliveryErrorMeta),
 }
 
-impl DeliveryErrorV2 {
+impl DeliveryError {
     pub fn validation(_safe_reason: &'static str) -> Self {
-        Self::Validation(DeliveryErrorMetaV2 {
+        Self::Validation(DeliveryErrorMeta {
             correlation_id: Uuid::new_v4(),
             retry_after_ms: None,
             retryable: false,
@@ -459,14 +459,14 @@ impl DeliveryErrorV2 {
     }
 
     pub fn unavailable(retry_after_ms: Option<u64>) -> Self {
-        Self::Unavailable(DeliveryErrorMetaV2 {
+        Self::Unavailable(DeliveryErrorMeta {
             correlation_id: Uuid::new_v4(),
             retry_after_ms,
             retryable: true,
         })
     }
 
-    pub const fn meta(&self) -> &DeliveryErrorMetaV2 {
+    pub const fn meta(&self) -> &DeliveryErrorMeta {
         match self {
             Self::Unauthenticated(meta)
             | Self::Forbidden(meta)
@@ -480,86 +480,86 @@ impl DeliveryErrorV2 {
     }
 }
 
-impl fmt::Display for DeliveryErrorV2 {
+impl fmt::Display for DeliveryError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            formatter,
-            "delivery v2 error ({})",
-            self.meta().correlation_id
-        )
+        write!(formatter, "delivery error ({})", self.meta().correlation_id)
     }
 }
 
-impl std::error::Error for DeliveryErrorV2 {}
+impl std::error::Error for DeliveryError {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct BootstrapRequestV2 {
+pub struct BootstrapRequest {
     pub locale: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SessionBootstrapV2 {
+pub struct SessionBootstrap {
     pub authenticated: bool,
     pub actor_ref: Option<String>,
-    pub tenant_ref: Option<String>,
+    pub data_profile_key: Option<String>,
     pub role_ref: Option<String>,
     pub locale: String,
-    pub channel: ClientChannelV2,
+    pub channel: ClientChannel,
     pub catalog_version: u16,
 }
 
-impl SessionBootstrapV2 {
-    pub fn cache_scope(&self) -> Option<SessionScopeV2> {
-        Some(SessionScopeV2 {
+impl SessionBootstrap {
+    pub fn cache_scope(&self) -> Option<SessionScope> {
+        Some(SessionScope {
             actor_ref: self.actor_ref.clone()?,
-            tenant_ref: self.tenant_ref.clone()?,
+            data_profile_key: self.data_profile_key.clone()?,
             role_ref: self.role_ref.clone()?,
         })
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum RouteQueryV2 {
+pub enum RouteQuery {
     Work,
     Processes,
     Insights,
     Modules,
+    PlatformHoldings,
+    PlatformHolding {
+        holding_id: RouteUuid,
+    },
     Workspace {
-        workspace: WorkspaceV2,
-        resource: Option<ResourceNameV2>,
+        workspace: Workspace,
+        resource: Option<ResourceName>,
     },
     Record {
-        workspace: WorkspaceV2,
-        resource: ResourceNameV2,
-        id: RouteUuidV2,
+        workspace: Workspace,
+        resource: ResourceName,
+        id: RouteUuid,
     },
     Reference {
-        id: RouteUuidV2,
+        id: RouteUuid,
     },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct QueryRequestV2 {
-    pub route: RouteQueryV2,
+pub struct QueryRequest {
+    pub route: RouteQuery,
     pub cursor: Option<String>,
     pub limit: u16,
     pub locale: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ResourceSummaryV2 {
-    pub id: RouteUuidV2,
+pub struct ResourceSummary {
+    pub id: RouteUuid,
     pub title: String,
     pub status: String,
     pub version: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RouteDataV2 {
+pub struct RouteData {
     pub canonical_path: String,
     pub title: String,
     pub description: String,
-    pub page: PageV2<ResourceSummaryV2>,
+    pub page: Page<ResourceSummary>,
     pub freshness_tag: String,
     pub invalidation_tags: BTreeSet<String>,
     pub public_validator: Option<String>,
@@ -567,7 +567,7 @@ pub struct RouteDataV2 {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum RecordTransitionV2 {
+pub enum RecordTransition {
     Submit,
     Approve,
     Reject,
@@ -575,49 +575,49 @@ pub enum RecordTransitionV2 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CommandOperationV2 {
+pub enum CommandOperation {
     CreateRecord {
-        workspace: WorkspaceV2,
-        resource: ResourceNameV2,
+        workspace: Workspace,
+        resource: ResourceName,
         title: String,
     },
     UpdateTitle {
-        workspace: WorkspaceV2,
-        resource: ResourceNameV2,
-        id: RouteUuidV2,
+        workspace: Workspace,
+        resource: ResourceName,
+        id: RouteUuid,
         title: String,
     },
     TransitionRecord {
-        workspace: WorkspaceV2,
-        resource: ResourceNameV2,
-        id: RouteUuidV2,
-        transition: RecordTransitionV2,
+        workspace: Workspace,
+        resource: ResourceName,
+        id: RouteUuid,
+        transition: RecordTransition,
     },
     ArchiveRecord {
-        workspace: WorkspaceV2,
-        resource: ResourceNameV2,
-        id: RouteUuidV2,
+        workspace: Workspace,
+        resource: ResourceName,
+        id: RouteUuid,
     },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CommandRequestV2 {
-    pub operation: CommandOperationV2,
+pub struct CommandRequest {
+    pub operation: CommandOperation,
     pub idempotency_key: String,
     pub expected_version: Option<u64>,
     pub locale: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AuthenticationRequestV2 {
+pub struct AuthenticationRequest {
     pub account: String,
     pub proof: String,
     pub return_path: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PublicMarketingFormRequestV2 {
-    pub form_id: RouteUuidV2,
+pub struct PublicMarketingFormRequest {
+    pub form_id: RouteUuid,
     pub name: String,
     pub email: String,
     pub message: String,
@@ -626,20 +626,20 @@ pub struct PublicMarketingFormRequestV2 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PublicMarketingPreviewRequestV2 {
-    pub preview_id: RouteUuidV2,
+pub struct PublicMarketingPreviewRequest {
+    pub preview_id: RouteUuid,
     pub access_code: String,
     pub locale: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CollaborationSubscriptionV2 {
+pub struct CollaborationSubscription {
     pub after_cursor: Option<String>,
-    pub workspace: Option<WorkspaceV2>,
+    pub workspace: Option<Workspace>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CollaborationEventV2 {
+pub struct CollaborationEvent {
     pub cursor: String,
     pub topic: String,
     pub summary: String,
@@ -647,46 +647,43 @@ pub struct CollaborationEventV2 {
 
 #[async_trait(?Send)]
 pub trait ConsoleGateway: Send + Sync {
-    async fn bootstrap(
-        &self,
-        request: BootstrapRequestV2,
-    ) -> Result<SessionBootstrapV2, DeliveryErrorV2>;
+    async fn bootstrap(&self, request: BootstrapRequest)
+    -> Result<SessionBootstrap, DeliveryError>;
 
-    async fn query(&self, request: QueryRequestV2) -> Result<RouteDataV2, DeliveryErrorV2>;
+    async fn query(&self, request: QueryRequest) -> Result<RouteData, DeliveryError>;
 
-    async fn command(&self, request: CommandRequestV2)
-    -> Result<CommandReceiptV2, DeliveryErrorV2>;
+    async fn command(&self, request: CommandRequest) -> Result<CommandReceipt, DeliveryError>;
 
     async fn authenticate(
         &self,
-        request: AuthenticationRequestV2,
-    ) -> Result<SessionBootstrapV2, DeliveryErrorV2>;
+        request: AuthenticationRequest,
+    ) -> Result<SessionBootstrap, DeliveryError>;
 
     async fn submit_public_marketing_form(
         &self,
-        request: PublicMarketingFormRequestV2,
-    ) -> Result<CommandReceiptV2, DeliveryErrorV2>;
+        request: PublicMarketingFormRequest,
+    ) -> Result<CommandReceipt, DeliveryError>;
 
     async fn public_marketing_preview(
         &self,
-        request: PublicMarketingPreviewRequestV2,
-    ) -> Result<RouteDataV2, DeliveryErrorV2>;
+        request: PublicMarketingPreviewRequest,
+    ) -> Result<RouteData, DeliveryError>;
 
     async fn collaboration_stream(
         &self,
-        request: CollaborationSubscriptionV2,
-    ) -> Result<Vec<CollaborationEventV2>, DeliveryErrorV2>;
+        request: CollaborationSubscription,
+    ) -> Result<Vec<CollaborationEvent>, DeliveryError>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct SessionScopeV2 {
+pub struct SessionScope {
     pub actor_ref: String,
-    pub tenant_ref: String,
+    pub data_profile_key: String,
     pub role_ref: String,
 }
 
 #[derive(Debug, Clone)]
-struct CacheEntryV2<V> {
+struct CacheEntry<V> {
     value: V,
     stored_at: Instant,
     fresh_for: Duration,
@@ -696,14 +693,14 @@ struct CacheEntryV2<V> {
 
 /// Session-scoped LRU cache with both entry and byte ceilings.
 #[derive(Debug)]
-pub struct SessionCacheV2<K, V> {
-    scope: Option<SessionScopeV2>,
-    entries: BTreeMap<K, CacheEntryV2<V>>,
+pub struct SessionCache<K, V> {
+    scope: Option<SessionScope>,
+    entries: BTreeMap<K, CacheEntry<V>>,
     lru: VecDeque<K>,
     total_bytes: usize,
 }
 
-impl<K, V> Default for SessionCacheV2<K, V> {
+impl<K, V> Default for SessionCache<K, V> {
     fn default() -> Self {
         Self {
             scope: None,
@@ -714,12 +711,12 @@ impl<K, V> Default for SessionCacheV2<K, V> {
     }
 }
 
-impl<K, V> SessionCacheV2<K, V>
+impl<K, V> SessionCache<K, V>
 where
     K: Clone + Ord,
     V: Clone,
 {
-    pub fn set_scope(&mut self, next: Option<SessionScopeV2>) {
+    pub fn set_scope(&mut self, next: Option<SessionScope>) {
         if self.scope != next {
             self.clear();
             self.scope = next;
@@ -742,7 +739,7 @@ where
         self.lru.push_back(key.clone());
         self.entries.insert(
             key,
-            CacheEntryV2 {
+            CacheEntry {
                 value,
                 stored_at: Instant::now(),
                 fresh_for,
@@ -822,21 +819,21 @@ where
 mod tests {
     use super::*;
 
-    fn scope(role: &str) -> SessionScopeV2 {
-        SessionScopeV2 {
+    fn scope(role: &str) -> SessionScope {
+        SessionScope {
             actor_ref: "actor:one".to_owned(),
-            tenant_ref: "tenant:one".to_owned(),
+            data_profile_key: "holding:one".to_owned(),
             role_ref: role.to_owned(),
         }
     }
 
     #[test]
     fn canonical_workspace_sets_cover_web_and_native_graphs() {
-        assert_eq!(WorkspaceV2::ALL.len(), 21);
-        assert_eq!(WorkspaceV2::NATIVE.len(), 19);
-        assert!(WorkspaceV2::Commerce.is_web_only());
-        assert!(WorkspaceV2::Talent.is_web_only());
-        for workspace in WorkspaceV2::ALL {
+        assert_eq!(Workspace::ALL.len(), 21);
+        assert_eq!(Workspace::NATIVE.len(), 19);
+        assert!(Workspace::Commerce.is_web_only());
+        assert!(Workspace::Talent.is_web_only());
+        for workspace in Workspace::ALL {
             assert_eq!(workspace.slug().parse(), Ok(workspace));
             assert_eq!(workspace.to_string(), workspace.slug());
         }
@@ -848,21 +845,21 @@ mod tests {
         assert_eq!(
             id.hyphenated()
                 .to_string()
-                .parse::<RouteUuidV2>()
+                .parse::<RouteUuid>()
                 .unwrap()
                 .get(),
             id
         );
-        assert!(id.simple().to_string().parse::<RouteUuidV2>().is_err());
-        assert!(Uuid::nil().to_string().parse::<RouteUuidV2>().is_err());
-        assert!("purchase-orders".parse::<ResourceNameV2>().is_ok());
-        assert!("PurchaseOrders".parse::<ResourceNameV2>().is_err());
-        assert!("purchase--orders".parse::<ResourceNameV2>().is_err());
+        assert!(id.simple().to_string().parse::<RouteUuid>().is_err());
+        assert!(Uuid::nil().to_string().parse::<RouteUuid>().is_err());
+        assert!("purchase-orders".parse::<ResourceName>().is_ok());
+        assert!("PurchaseOrders".parse::<ResourceName>().is_err());
+        assert!("purchase--orders".parse::<ResourceName>().is_err());
     }
 
     #[test]
     fn cache_enforces_count_bytes_freshness_tags_and_scope() {
-        let mut cache = SessionCacheV2::<u16, String>::default();
+        let mut cache = SessionCache::<u16, String>::default();
         cache.set_scope(Some(scope("role:one")));
         for key in 0..70 {
             cache.insert(
@@ -896,10 +893,10 @@ mod tests {
     }
 
     #[test]
-    fn service_range_is_exactly_sixty_five_v2_ids() {
+    fn service_range_is_exactly_sixty_five_service_ids() {
         assert_eq!(
-            SERVICE_ID_LAST_V2 - SERVICE_ID_FIRST_V2 + 1,
-            SERVICE_COUNT_V2 as u16
+            SERVICE_ID_LAST_ - SERVICE_ID_FIRST_ + 1,
+            SERVICE_COUNT_ as u16
         );
     }
 }

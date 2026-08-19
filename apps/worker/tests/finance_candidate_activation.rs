@@ -8,23 +8,23 @@ use std::{io, sync::Arc};
 
 use chrono::{Duration, NaiveDate, Utc};
 use erpx_domain::{
-    contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope},
+    contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext},
     finance_subledgers::{Invoice, InvoiceKind, InvoiceLine, PartyKind, PartyReference},
 };
 use erpx_infrastructure::{
     ControlPlaneDatabaseConfig, ControlPlanePools, FINANCE_SUBLEDGER_READ_PROJECTION,
-    FinanceSubledgerAggregate, FinanceSubledgerSourceEvent, ProjectionClaimRecord,
-    ProjectionJobKind, ProjectionJobRecord, ProjectionLease, ProjectionPolicy,
-    ProjectionScheduleRequest, RoutedDatabaseSide, SqlxControlPlane, SqlxFinanceSubledgerStore,
-    SqlxTenantStoreRegistry, TenantDatabaseProvisioner, TenantDatabaseProvisioningConfig,
-    TenantDatabaseRouter, TenantHoldingBinding, TenantProvisioner, TenantStoreRegistration,
+    FinanceSubledgerAggregate, FinanceSubledgerSourceEvent, HoldingDatabaseProvisioner,
+    HoldingDatabaseProvisioningConfig, HoldingDatabaseRouter, HoldingHoldingBinding,
+    HoldingProvisioner, HoldingStoreRegistration, ProjectionClaimRecord, ProjectionJobKind,
+    ProjectionJobRecord, ProjectionLease, ProjectionPolicy, ProjectionScheduleRequest,
+    RoutedDatabaseSide, SqlxControlPlane, SqlxFinanceSubledgerStore, SqlxHoldingStoreRegistry,
 };
 use erpx_migration::{
-    migrate_control_plane, migrate_control_read, migrate_tenant_read, migrate_tenant_write,
+    migrate_control_plane, migrate_control_read, migrate_holding_read, migrate_holding_write,
 };
 use erpx_worker::{
-    FinanceSubledgerTenantProjectionExecutor, RoutedTenantProjectionExecutor,
-    TenantProjectionExecutor,
+    FinanceSubledgerHoldingProjectionExecutor, HoldingProjectionExecutor,
+    RoutedHoldingProjectionExecutor,
 };
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
@@ -70,7 +70,7 @@ fn template_url(
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     if template.matches("{database}").count() != 1 {
         return Err(test_error(
-            "invalid disposable tenant database URL template",
+            "invalid disposable holding database URL template",
         ));
     }
     Ok(template.replace("{database}", database))
@@ -140,12 +140,12 @@ impl DisposableDatabases {
     }
 }
 
-fn context(scope: TenantScope, key: &str) -> CommandContext {
+fn context(scope: AuthorityScope, key: &str) -> CommandContext {
     CommandContext::try_new(
         key,
         ActorAttribution {
             principal_ref: "finance-candidate-activation-test".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
@@ -163,7 +163,7 @@ fn invoice(
     period_id: Uuid,
     id: Uuid,
 ) -> Invoice {
-    let scope = TenantScope::Branch {
+    let scope = AuthorityScope::Branch {
         holding_id,
         company_id,
         branch_id,
@@ -171,7 +171,7 @@ fn invoice(
     let party = PartyReference::new(
         PartyKind::Vendor,
         Uuid::new_v4(),
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -204,14 +204,14 @@ fn invoice(
 }
 
 fn candidate_claim(
-    tenant_id: &str,
-    holding_ref: &str,
+    holding_id: &str,
+    data_profile_key: &str,
     candidate_database_key: &str,
     source_version: u64,
     generation: u64,
 ) -> Result<ProjectionClaimRecord, Box<dyn std::error::Error + Send + Sync>> {
     let now = Utc::now();
-    let binding = TenantHoldingBinding::new(tenant_id, holding_ref)
+    let binding = HoldingHoldingBinding::new(holding_id, data_profile_key)
         .map_err(|_| test_error("construct candidate scheduler binding"))?;
     let policy = ProjectionPolicy::new(1, 1, 3, 1, 1)
         .map_err(|_| test_error("construct candidate scheduler policy"))?;
@@ -245,11 +245,11 @@ fn candidate_claim(
 
 async fn run_candidate_activation(
     admin_url: &str,
-    tenant_template: &str,
+    holding_template: &str,
     control_write_key: &str,
     control_read_key: &str,
-    tenant_write_key: &str,
-    tenant_read_key: &str,
+    holding_write_key: &str,
+    holding_read_key: &str,
     candidate_read_key: &str,
 ) -> TestResult {
     let control_config = ControlPlaneDatabaseConfig {
@@ -267,14 +267,14 @@ async fn run_candidate_activation(
         .map_err(|_| test_error("migrate disposable control read database"))?;
     let control = Arc::new(SqlxControlPlane::new(pools));
 
-    let tenant_id = Uuid::new_v4().to_string();
-    let holding_ref = format!("holding-fin045-{}", Uuid::new_v4().simple());
-    SqlxTenantStoreRegistry::new(Arc::clone(&control))
-        .register(TenantStoreRegistration {
-            tenant_id: tenant_id.clone(),
-            holding_ref: holding_ref.clone(),
-            write_database_key: tenant_write_key.into(),
-            read_database_key: tenant_read_key.into(),
+    let holding_key = Uuid::new_v4().to_string();
+    let data_profile_key = format!("holding-fin045-{}", Uuid::new_v4().simple());
+    SqlxHoldingStoreRegistry::new(Arc::clone(&control))
+        .register(HoldingStoreRegistration {
+            holding_id: holding_key.clone(),
+            data_profile_key: data_profile_key.clone(),
+            write_database_key: holding_write_key.into(),
+            read_database_key: holding_read_key.into(),
             storage_namespace: format!("storage-fin045-{}", Uuid::new_v4().simple()),
             credential_key_ref: "credential-ref-fin045".into(),
             backup_chain_ref: "backup-chain-fin045".into(),
@@ -282,24 +282,24 @@ async fn run_candidate_activation(
             registry_version: 1,
         })
         .await
-        .map_err(|_| test_error("register disposable active tenant"))?;
+        .map_err(|_| test_error("register disposable active holding"))?;
 
     let write_pool = PgPoolOptions::new()
         .max_connections(4)
-        .connect(&template_url(tenant_template, tenant_write_key)?)
+        .connect(&template_url(holding_template, holding_write_key)?)
         .await
-        .map_err(|_| test_error("connect disposable tenant write database"))?;
+        .map_err(|_| test_error("connect disposable holding write database"))?;
     let read_pool = PgPoolOptions::new()
         .max_connections(4)
-        .connect(&template_url(tenant_template, tenant_read_key)?)
+        .connect(&template_url(holding_template, holding_read_key)?)
         .await
-        .map_err(|_| test_error("connect disposable tenant read database"))?;
-    migrate_tenant_write(&write_pool)
+        .map_err(|_| test_error("connect disposable holding read database"))?;
+    migrate_holding_write(&write_pool)
         .await
-        .map_err(|_| test_error("migrate disposable tenant write database"))?;
-    migrate_tenant_read(&read_pool)
+        .map_err(|_| test_error("migrate disposable holding write database"))?;
+    migrate_holding_read(&read_pool)
         .await
-        .map_err(|_| test_error("migrate disposable tenant read database"))?;
+        .map_err(|_| test_error("migrate disposable holding read database"))?;
 
     let holding_id = Uuid::new_v4();
     let invoice = invoice(
@@ -310,7 +310,7 @@ async fn run_candidate_activation(
         Uuid::new_v4(),
     );
     let invoice_id = invoice.metadata.id;
-    let source = SqlxFinanceSubledgerStore::from_pools(&write_pool, &read_pool, &holding_ref)
+    let source = SqlxFinanceSubledgerStore::from_pools(&write_pool, &read_pool, &data_profile_key)
         .map_err(|_| test_error("construct authoritative Finance source store"))?;
     source
         .save(&FinanceSubledgerAggregate::Invoice(invoice), None)
@@ -336,30 +336,30 @@ async fn run_candidate_activation(
         ));
     }
 
-    let config = TenantDatabaseProvisioningConfig::from_values(
+    let config = HoldingDatabaseProvisioningConfig::from_values(
         admin_url.to_owned(),
-        tenant_template.to_owned(),
+        holding_template.to_owned(),
     )
-    .map_err(|_| test_error("construct tenant routing configuration"))?;
-    let provisioner = TenantProvisioner::new(Arc::clone(&control));
+    .map_err(|_| test_error("construct holding routing configuration"))?;
+    let provisioner = HoldingProvisioner::new(Arc::clone(&control));
     let generation = provisioner
-        .begin_read_rebuild_with_generation(&tenant_id, candidate_read_key, source_version)
+        .begin_read_rebuild_with_generation(&holding_key, candidate_read_key, source_version)
         .await
         .map_err(|_| test_error("begin candidate read generation"))?;
-    TenantDatabaseProvisioner::new(Arc::clone(&control), config.clone())
+    HoldingDatabaseProvisioner::new(Arc::clone(&control), config.clone())
         .map_err(|_| test_error("construct candidate database provisioner"))?
-        .provision_replacement_read_database(&tenant_id, &holding_ref, candidate_read_key)
+        .provision_replacement_read_database(&holding_key, &data_profile_key, candidate_read_key)
         .await
         .map_err(|_| test_error("provision and migrate candidate read database"))?;
 
-    let router = TenantDatabaseRouter::new(Arc::clone(&control), config)
-        .map_err(|_| test_error("construct tenant database router"))?;
-    let finance_executor = FinanceSubledgerTenantProjectionExecutor::new(router.clone(), 1)
+    let router = HoldingDatabaseRouter::new(Arc::clone(&control), config)
+        .map_err(|_| test_error("construct holding database router"))?;
+    let finance_executor = FinanceSubledgerHoldingProjectionExecutor::new(router.clone(), 1)
         .map_err(|_| test_error("construct Finance candidate projector"))?;
-    let routed_executor = RoutedTenantProjectionExecutor::new(router.clone(), finance_executor);
+    let routed_executor = RoutedHoldingProjectionExecutor::new(router.clone(), finance_executor);
     let claim = candidate_claim(
-        &tenant_id,
-        &holding_ref,
+        &holding_key,
+        &data_profile_key,
         candidate_read_key,
         source_version,
         generation,
@@ -369,22 +369,22 @@ async fn run_candidate_activation(
         .await
         .map_err(|_| test_error("execute Finance candidate rebuild and activation"))?;
 
-    let registry = SqlxTenantStoreRegistry::new(Arc::clone(&control));
+    let registry = SqlxHoldingStoreRegistry::new(Arc::clone(&control));
     let active_registration = registry
-        .get(&tenant_id)
+        .get(&holding_key)
         .await
-        .map_err(|_| test_error("read activated tenant registry entry"))?
-        .ok_or_else(|| test_error("activated tenant registry entry is missing"))?;
+        .map_err(|_| test_error("read activated holding registry entry"))?
+        .ok_or_else(|| test_error("activated holding registry entry is missing"))?;
     if active_registration.read_database_key != candidate_read_key {
         return Err(test_error("candidate read database was not activated"));
     }
     let (switch_state, switch_version, current_read_database_key): (String, i64, String) =
         sqlx::query_as(
             "SELECT state, version, current_read_database_key
-         FROM erpx_control.tenant_projection_switches
-         WHERE tenant_id = $1 AND state = 'activated'",
+         FROM erpx_control.holding_projection_switches
+         WHERE holding_id = $1 AND state = 'activated'",
         )
-        .bind(&tenant_id)
+        .bind(&holding_key)
         .fetch_one(&control.pools().write)
         .await
         .map_err(|_| test_error("read activated candidate switch state"))?;
@@ -396,13 +396,13 @@ async fn run_candidate_activation(
     }
 
     let active_read = router
-        .route(&tenant_id, &holding_ref, RoutedDatabaseSide::Read)
+        .route(&holding_key, &data_profile_key, RoutedDatabaseSide::Read)
         .await
         .map_err(|_| test_error("route activated candidate read database"))?;
     let active_store = SqlxFinanceSubledgerStore::from_pools(
         &write_pool,
         active_read.database_pool(),
-        &holding_ref,
+        &data_profile_key,
     )
     .map_err(|_| test_error("construct activated Finance read store"))?;
     if active_store
@@ -431,20 +431,20 @@ async fn run_candidate_activation(
         .map_err(|_| test_error("identify activated candidate database"))?;
     let row_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*)
-         FROM erpx_tenant.finance_subledger_read_rows
-         WHERE holding_ref = $1 AND aggregate_type = 'payable_invoice' AND aggregate_id = $2",
+         FROM erpx_holding.finance_subledger_read_rows
+         WHERE data_profile_key = $1 AND aggregate_type = 'payable_invoice' AND aggregate_id = $2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(invoice_id)
     .fetch_one(&mut *scoped)
     .await
     .map_err(|_| test_error("count projected candidate Finance rows"))?;
     let (last_event_id, checkpoint_version): (Uuid, i64) = sqlx::query_as(
         "SELECT last_event_id, source_version
-         FROM erpx_tenant.finance_subledger_projection_checkpoints
-         WHERE holding_ref = $1 AND aggregate_type = 'payable_invoice' AND aggregate_id = $2",
+         FROM erpx_holding.finance_subledger_projection_checkpoints
+         WHERE data_profile_key = $1 AND aggregate_type = 'payable_invoice' AND aggregate_id = $2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(invoice_id)
     .fetch_one(&mut *scoped)
     .await
@@ -472,25 +472,25 @@ async fn run_candidate_activation(
 }
 
 #[tokio::test]
-#[ignore = "requires disposable control, tenant-write, tenant-read, and candidate PostgreSQL databases"]
+#[ignore = "requires disposable control, holding-write, holding-read, and candidate PostgreSQL databases"]
 async fn finance_subledger_candidate_rebuild_activates_generation_and_projects_checkpoint()
 -> TestResult {
     let admin_url = std::env::var("ERPX_TEST_ADMIN_DATABASE_URL")
         .unwrap_or_else(|_| "postgres://localhost/postgres?sslmode=verify-full".into());
-    let tenant_template = std::env::var("ERPX_TEST_TENANT_DATABASE_URL_TEMPLATE")
+    let holding_template = std::env::var("ERPX_TEST_HOLDING_DATABASE_URL_TEMPLATE")
         .unwrap_or_else(|_| "postgres://localhost/{database}?sslmode=verify-full".into());
     let control_write_key = database_name("erpx_fin045_cw");
     let control_read_key = database_name("erpx_fin045_cr");
-    let tenant_write_key = database_name("erpx_fin045_tw");
-    let tenant_read_key = database_name("erpx_fin045_tr");
+    let holding_write_key = database_name("erpx_fin045_tw");
+    let holding_read_key = database_name("erpx_fin045_tr");
     let candidate_read_key = database_name("erpx_fin045_ca");
     let disposable = DisposableDatabases::create(
         admin_url.clone(),
         vec![
             control_write_key.clone(),
             control_read_key.clone(),
-            tenant_write_key.clone(),
-            tenant_read_key.clone(),
+            holding_write_key.clone(),
+            holding_read_key.clone(),
             candidate_read_key.clone(),
         ],
     )
@@ -499,11 +499,11 @@ async fn finance_subledger_candidate_rebuild_activates_generation_and_projects_c
 
     let result = run_candidate_activation(
         &admin_url,
-        &tenant_template,
+        &holding_template,
         &control_write_key,
         &control_read_key,
-        &tenant_write_key,
-        &tenant_read_key,
+        &holding_write_key,
+        &holding_read_key,
         &candidate_read_key,
     )
     .await;

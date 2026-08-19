@@ -9,10 +9,10 @@ claiming, half-open leases, renewal, recurring completion, bounded exponential
 retry, terminal dead-lettering, and explicit dead-letter replay.
 
 The scheduler wrapper renews its control-plane lease while the existing
-multi-tenant delivery pass runs. A successful pass is rescheduled at the
+multi-holding delivery pass runs. A successful pass is rescheduled at the
 configured cadence. A failed pass is recorded as retryable until the bounded
-attempt limit, then remains in the control-plane dead-letter state. Tenant
-delivery claims/results remain in the tenant write database, so the scheduler
+attempt limit, then remains in the control-plane dead-letter state. Holding
+delivery claims/results remain in the holding write database, so the scheduler
 does not become a second business source of truth.
 
 ## Evidence

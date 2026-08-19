@@ -11,7 +11,7 @@ use std::collections::HashSet;
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::contracts::{CommandContext, TenantScope};
+use crate::contracts::{AuthorityScope, CommandContext};
 
 pub const HR_CONTRACT_VERSION: u16 = 1;
 pub const MAX_HR_REFERENCE_BYTES: usize = 128;
@@ -65,7 +65,7 @@ pub enum HrError {
     InvalidVersion,
 }
 
-/// Tenant-scoped source/read reconciliation facts for the disposable HR and
+/// Holding-scoped source/read reconciliation facts for the disposable HR and
 /// payroll projection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct HrProjectionReconciliation {
@@ -109,9 +109,12 @@ fn actor(context: &CommandContext) -> Result<&str, HrError> {
     Ok(principal)
 }
 
-fn command_scope(context: &CommandContext, record_scope: &TenantScope) -> Result<String, HrError> {
+fn command_scope(
+    context: &CommandContext,
+    record_scope: &AuthorityScope,
+) -> Result<String, HrError> {
     actor(context)?;
-    if !context.tenant_scope.contains(record_scope) {
+    if !context.active_scope.contains(record_scope) {
         return Err(HrError::ScopeNotContained);
     }
     Ok(context.actor.principal_ref.clone())
@@ -157,14 +160,14 @@ impl EmploymentScope {
         Ok(())
     }
 
-    pub fn tenant_scope(&self) -> TenantScope {
+    pub fn active_scope(&self) -> AuthorityScope {
         match self.branch_id {
-            Some(branch_id) => TenantScope::Branch {
+            Some(branch_id) => AuthorityScope::Branch {
                 holding_id: self.holding_id,
                 company_id: self.company_id,
                 branch_id,
             },
-            None => TenantScope::Company {
+            None => AuthorityScope::Company {
                 holding_id: self.holding_id,
                 company_id: self.company_id,
             },
@@ -225,7 +228,7 @@ impl EmployeeRecord {
             });
         }
         scope.validate()?;
-        command_scope(context, &scope.tenant_scope())?;
+        command_scope(context, &scope.active_scope())?;
         let employee_ref = bounded(employee_ref.into(), "employee_ref", MAX_HR_REFERENCE_BYTES)?;
         let display_name = bounded(display_name.into(), "display_name", MAX_HR_NAME_BYTES)?;
         Ok(Self {
@@ -292,7 +295,7 @@ impl EmployeeRecord {
         terminated_on: Option<NaiveDate>,
         context: &CommandContext,
     ) -> Result<(), HrError> {
-        command_scope(context, &self.scope.tenant_scope())?;
+        command_scope(context, &self.scope.active_scope())?;
         // Commands operate on deserialized aggregates as well as freshly
         // constructed ones. Revalidate the full state before applying a
         // transition so a damaged read-model fact cannot be "repaired" by a
@@ -387,7 +390,7 @@ impl LeaveRequest {
             return Err(HrError::InvalidDateWindow);
         }
         scope.validate()?;
-        let requested_by = command_scope(context, &scope.tenant_scope())?;
+        let requested_by = command_scope(context, &scope.active_scope())?;
         Ok(Self {
             id,
             employee_id,
@@ -444,7 +447,7 @@ impl LeaveRequest {
     }
 
     pub fn approve(&mut self, context: &CommandContext) -> Result<(), HrError> {
-        let reviewer = command_scope(context, &self.scope.tenant_scope())?;
+        let reviewer = command_scope(context, &self.scope.active_scope())?;
         if reviewer == self.requested_by {
             return Err(HrError::ApprovalSeparation);
         }
@@ -452,17 +455,17 @@ impl LeaveRequest {
     }
 
     pub fn reject(&mut self, context: &CommandContext) -> Result<(), HrError> {
-        command_scope(context, &self.scope.tenant_scope())?;
+        command_scope(context, &self.scope.active_scope())?;
         self.apply(LeaveStatus::Rejected, None, context)
     }
 
     pub fn cancel(&mut self, context: &CommandContext) -> Result<(), HrError> {
-        command_scope(context, &self.scope.tenant_scope())?;
+        command_scope(context, &self.scope.active_scope())?;
         self.apply(LeaveStatus::Cancelled, None, context)
     }
 
     pub fn take(&mut self, context: &CommandContext) -> Result<(), HrError> {
-        command_scope(context, &self.scope.tenant_scope())?;
+        command_scope(context, &self.scope.active_scope())?;
         self.apply(LeaveStatus::Taken, None, context)
     }
 
@@ -472,7 +475,7 @@ impl LeaveRequest {
         approved_by: Option<String>,
         context: &CommandContext,
     ) -> Result<(), HrError> {
-        command_scope(context, &self.scope.tenant_scope())?;
+        command_scope(context, &self.scope.active_scope())?;
         let allowed = matches!(
             (self.status, next),
             (LeaveStatus::Draft, LeaveStatus::Submitted)
@@ -553,7 +556,7 @@ impl ExpenseClaim {
             return Err(HrError::NegativeAmount);
         }
         scope.validate()?;
-        let submitted_by = command_scope(context, &scope.tenant_scope())?;
+        let submitted_by = command_scope(context, &scope.active_scope())?;
         let currency = canonical_currency(currency.into())?;
         Ok(Self {
             id,
@@ -617,7 +620,7 @@ impl ExpenseClaim {
     }
 
     pub fn approve(&mut self, context: &CommandContext) -> Result<(), HrError> {
-        let approver = command_scope(context, &self.scope.tenant_scope())?;
+        let approver = command_scope(context, &self.scope.active_scope())?;
         if approver == self.submitted_by {
             return Err(HrError::ApprovalSeparation);
         }
@@ -625,7 +628,7 @@ impl ExpenseClaim {
     }
 
     pub fn reimburse(&mut self, context: &CommandContext) -> Result<(), HrError> {
-        command_scope(context, &self.scope.tenant_scope())?;
+        command_scope(context, &self.scope.active_scope())?;
         self.transition(ExpenseStatus::Reimbursed, None, context)
     }
 
@@ -635,7 +638,7 @@ impl ExpenseClaim {
         approver: Option<String>,
         context: &CommandContext,
     ) -> Result<(), HrError> {
-        command_scope(context, &self.scope.tenant_scope())?;
+        command_scope(context, &self.scope.active_scope())?;
         self.validate()?;
         let allowed = matches!(
             (self.status, next),
@@ -778,7 +781,7 @@ impl PayrollRun {
             return Err(HrError::TooManyPayrollLines);
         }
         scope.validate()?;
-        let prepared_by = command_scope(context, &scope.tenant_scope())?;
+        let prepared_by = command_scope(context, &scope.active_scope())?;
         validate_payroll_lines(&lines)?;
         let (gross, deductions, net) = totals(&lines)?;
         let run = Self {
@@ -862,12 +865,12 @@ impl PayrollRun {
     }
 
     pub fn submit_for_review(&mut self, context: &CommandContext) -> Result<(), HrError> {
-        command_scope(context, &self.scope.tenant_scope())?;
+        command_scope(context, &self.scope.active_scope())?;
         self.transition(PayrollStatus::Review, context)
     }
 
     pub fn review(&mut self, context: &CommandContext) -> Result<(), HrError> {
-        let reviewer = command_scope(context, &self.scope.tenant_scope())?;
+        let reviewer = command_scope(context, &self.scope.active_scope())?;
         if reviewer == self.prepared_by {
             return Err(HrError::ApprovalSeparation);
         }
@@ -877,7 +880,7 @@ impl PayrollRun {
     }
 
     pub fn post(&mut self, context: &CommandContext) -> Result<(), HrError> {
-        let approver = command_scope(context, &self.scope.tenant_scope())?;
+        let approver = command_scope(context, &self.scope.active_scope())?;
         if self.reviewed_by.as_deref() == Some(approver.as_str()) || self.prepared_by == approver {
             return Err(HrError::ApprovalSeparation);
         }
@@ -980,7 +983,7 @@ impl ExpiredRoleReassignment {
         context: &CommandContext,
     ) -> Result<Self, HrError> {
         scope.validate()?;
-        let actor = command_scope(context, &scope.tenant_scope())?;
+        let actor = command_scope(context, &scope.active_scope())?;
         let expired_principal_ref = bounded(
             expired_principal_ref.into(),
             "expired_principal_ref",
@@ -1039,12 +1042,12 @@ mod tests {
     use super::*;
     use crate::contracts::{ActorAttribution, ActorKind};
 
-    fn context(actor: &str, scope: TenantScope, key: &str) -> CommandContext {
+    fn context(actor: &str, scope: AuthorityScope, key: &str) -> CommandContext {
         CommandContext::try_new(
             key,
             ActorAttribution {
                 principal_ref: actor.into(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: None,
                 represented_principal_ref: None,
                 support_capability_id: None,
@@ -1063,9 +1066,9 @@ mod tests {
     #[test]
     fn employee_and_leave_lifecycles_are_closed_and_scoped() {
         let employment_scope = scope();
-        let tenant_scope = employment_scope.tenant_scope();
-        let owner = context("owner", tenant_scope.clone(), "employee-open");
-        let reviewer = context("reviewer", tenant_scope, "leave-review");
+        let active_scope = employment_scope.active_scope();
+        let owner = context("owner", active_scope.clone(), "employee-open");
+        let reviewer = context("reviewer", active_scope, "leave-review");
         let mut employee = EmployeeRecord::new(
             Uuid::new_v4(),
             "emp-001",
@@ -1103,7 +1106,7 @@ mod tests {
     #[test]
     fn deserialized_hr_aggregates_reject_invalid_read_model_facts() {
         let employment_scope = scope();
-        let owner = context("owner", employment_scope.tenant_scope(), "hr-aggregate");
+        let owner = context("owner", employment_scope.active_scope(), "hr-aggregate");
         let mut employee = EmployeeRecord::new(
             Uuid::new_v4(),
             "emp-001",
@@ -1161,10 +1164,10 @@ mod tests {
     #[test]
     fn payroll_requires_distinct_preparer_reviewer_and_poster() {
         let employment_scope = scope();
-        let tenant_scope = employment_scope.tenant_scope();
-        let preparer = context("preparer", tenant_scope.clone(), "payroll-open");
-        let reviewer = context("reviewer", tenant_scope.clone(), "payroll-review");
-        let poster = context("poster", tenant_scope, "payroll-post");
+        let active_scope = employment_scope.active_scope();
+        let preparer = context("preparer", active_scope.clone(), "payroll-open");
+        let reviewer = context("reviewer", active_scope.clone(), "payroll-review");
+        let poster = context("poster", active_scope, "payroll-post");
         let line = PayrollLine::new(Uuid::new_v4(), 10_000, 1_000).unwrap();
         let mut run = PayrollRun::new(
             Uuid::new_v4(),
@@ -1190,8 +1193,8 @@ mod tests {
     #[test]
     fn payroll_and_reassignment_reject_unsafe_or_cross_scope_values() {
         let employment_scope = scope();
-        let tenant_scope = employment_scope.tenant_scope();
-        let admin_context = context("admin", tenant_scope, "hr-safe");
+        let active_scope = employment_scope.active_scope();
+        let admin_context = context("admin", active_scope, "hr-safe");
         assert_eq!(
             PayrollLine::new(Uuid::new_v4(), 100, 101),
             Err(HrError::NegativeAmount)
@@ -1207,7 +1210,7 @@ mod tests {
             ),
             Err(HrError::ApprovalSeparation)
         );
-        let other_scope = TenantScope::Company {
+        let other_scope = AuthorityScope::Company {
             holding_id: Uuid::new_v4(),
             company_id: Uuid::new_v4(),
         };
@@ -1229,8 +1232,8 @@ mod tests {
     #[test]
     fn payroll_rejects_empty_invalid_and_duplicate_employee_lines() {
         let employment_scope = scope();
-        let tenant_scope = employment_scope.tenant_scope();
-        let preparer = context("preparer", tenant_scope, "payroll-lines");
+        let active_scope = employment_scope.active_scope();
+        let preparer = context("preparer", active_scope, "payroll-lines");
         let date = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
 
         assert_eq!(
@@ -1282,7 +1285,7 @@ mod tests {
         let deserialized_scope = scope();
         let deserialized_preparer = context(
             "preparer",
-            deserialized_scope.tenant_scope(),
+            deserialized_scope.active_scope(),
             "payroll-revalidate",
         );
         let mut deserialized_like = PayrollRun::new(
@@ -1301,10 +1304,10 @@ mod tests {
     #[test]
     fn rejected_payroll_transitions_do_not_mutate_attribution() {
         let employment_scope = scope();
-        let tenant_scope = employment_scope.tenant_scope();
-        let preparer = context("preparer", tenant_scope.clone(), "payroll-atomic-open");
-        let reviewer = context("reviewer", tenant_scope.clone(), "payroll-atomic-review");
-        let poster = context("poster", tenant_scope, "payroll-atomic-post");
+        let active_scope = employment_scope.active_scope();
+        let preparer = context("preparer", active_scope.clone(), "payroll-atomic-open");
+        let reviewer = context("reviewer", active_scope.clone(), "payroll-atomic-review");
+        let poster = context("poster", active_scope, "payroll-atomic-post");
         let line = PayrollLine::new(Uuid::new_v4(), 10_000, 1_000).unwrap();
         let mut run = PayrollRun::new(
             Uuid::new_v4(),
@@ -1335,8 +1338,8 @@ mod tests {
     #[test]
     fn payroll_version_overflow_does_not_mutate_the_aggregate() {
         let employment_scope = scope();
-        let tenant_scope = employment_scope.tenant_scope();
-        let preparer = context("preparer", tenant_scope, "payroll-overflow");
+        let active_scope = employment_scope.active_scope();
+        let preparer = context("preparer", active_scope, "payroll-overflow");
         let line = PayrollLine::new(Uuid::new_v4(), 10_000, 1_000).unwrap();
         let mut run = PayrollRun::new(
             Uuid::new_v4(),
@@ -1360,10 +1363,10 @@ mod tests {
     #[test]
     fn expense_submission_is_scoped_and_overflow_safe() {
         let employment_scope = scope();
-        let owner = context("owner", employment_scope.tenant_scope(), "expense-open");
+        let owner = context("owner", employment_scope.active_scope(), "expense-open");
         let outsider = context(
             "outsider",
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id: Uuid::new_v4(),
                 company_id: Uuid::new_v4(),
             },
@@ -1392,10 +1395,10 @@ mod tests {
     #[test]
     fn expense_lifecycle_rejects_malformed_currency_and_supports_rejection() {
         let employment_scope = scope();
-        let owner = context("owner", employment_scope.tenant_scope(), "expense-owner");
+        let owner = context("owner", employment_scope.active_scope(), "expense-owner");
         let reviewer = context(
             "reviewer",
-            employment_scope.tenant_scope(),
+            employment_scope.active_scope(),
             "expense-reviewer",
         );
         assert_eq!(

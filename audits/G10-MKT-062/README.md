@@ -2,10 +2,10 @@
 
 ## Delivered behavior
 
-- `MarketingProfileErasure` is a typed, tenant-scoped, contact-free erasure
+- `MarketingProfileErasure` is a typed, holding-scoped, contact-free erasure
   command. It validates identity, scope, timestamp, and bounded reason data,
   and exposes `validate_for_scope` for the authoritative command boundary.
-- The tenant-write SQLx store erases the profile in one transaction: contact
+- The holding-write SQLx store erases the profile in one transaction: contact
   fields and attributes are removed, the stable profile identity is retained,
   the profile becomes immutable, and a permanent profile-erasure suppression
   record is written.
@@ -15,7 +15,7 @@
   and audit metadata while preventing replay from restoring contact data.
 - Consent and suppression mutations reject erased profiles. Replaying an
   erasure idempotency key returns the original receipt.
-- The tenant-read projector recognizes both the erasure event and scrubbed
+- The holding-read projector recognizes both the erasure event and scrubbed
   historical profile events. A replacement read projection can therefore be
   rebuilt from an empty database without a prior read-side profile row and
   cannot rehydrate contact or attribute values.
@@ -25,8 +25,8 @@
 - Domain command and redacted projection:
   `crates/domain/src/marketing.rs`.
 - Write/read schema changes:
-  `crates/migration/migrations_tenant_write/0049_marketing_profile_erasure.sql`
-  and `crates/migration/migrations_tenant_read/0039_marketing_profile_erasure.sql`.
+  `crates/migration/migrations_holding_write/0049_marketing_profile_erasure.sql`
+  and `crates/migration/migrations_holding_read/0039_marketing_profile_erasure.sql`.
 - Authoritative persistence and projector:
   `crates/infrastructure/src/marketing_persistence.rs`.
 - Disposable proof:
@@ -60,7 +60,7 @@ retirement remain open.
 
 ## Integration order
 
-1. Apply tenant write/read migrations 0049/0039.
+1. Apply holding write/read migrations 0049/0039.
 2. Deploy domain and SQLx erasure/projector code.
 3. Run the focused unit/static tests and disposable two-database proof.
 4. Run the complete workspace, Dioxus, and Folio verification wave.

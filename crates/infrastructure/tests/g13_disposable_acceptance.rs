@@ -1,7 +1,7 @@
 //! Self-contained G13 disposable PostgreSQL acceptance.
 //!
 //! This test creates six fresh local databases, applies the checked-in
-//! control/tenant migrators, and exercises the real source snapshot, target
+//! control/holding migrators, and exercises the real source snapshot, target
 //! write ledger, separate read model, rollback store, retention, outbox, and
 //! Legacy-write fence. It never changes command ownership or writes to Legacy.
 //!
@@ -22,7 +22,7 @@ use erpx_infrastructure::{
 };
 use erpx_migration::{
     LegacySourceSnapshot, g13::G13StartRunRequest, migrate_control_plane, migrate_control_read,
-    migrate_tenant_read, migrate_tenant_write,
+    migrate_holding_read, migrate_holding_write,
 };
 use sqlx::{
     PgPool,
@@ -32,7 +32,7 @@ use uuid::Uuid;
 
 type TestResult = Result<(), Box<dyn Error + Send + Sync>>;
 
-const HOLDING_REF: &str = "holding-g13-disposable";
+const DATA_PROFILE_KEY: &str = "holding-g13-disposable";
 const SOURCE_FENCE: &str = "post-cutover-legacy-write-fence";
 
 struct DisposableDatabases {
@@ -170,12 +170,12 @@ async fn set_source_fixture(source: &PgPool) -> Result<(), sqlx::Error> {
 
 async fn scoped_count(pool: &PgPool, query: &str, run_id: Uuid) -> Result<i64, sqlx::Error> {
     let mut transaction = pool.begin().await?;
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(HOLDING_REF)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(DATA_PROFILE_KEY)
         .execute(&mut *transaction)
         .await?;
     let count = sqlx::query_scalar::<_, i64>(query)
-        .bind(HOLDING_REF)
+        .bind(DATA_PROFILE_KEY)
         .bind(run_id)
         .fetch_one(&mut *transaction)
         .await?;
@@ -193,9 +193,9 @@ async fn execute_acceptance(cluster: &DisposableDatabases) -> TestResult {
 
     migrate_control_plane(&control_write).await?;
     migrate_control_read(&control_read).await?;
-    migrate_tenant_write(&target).await?;
-    migrate_tenant_read(&read).await?;
-    migrate_tenant_write(&rollback).await?;
+    migrate_holding_write(&target).await?;
+    migrate_holding_read(&read).await?;
+    migrate_holding_write(&rollback).await?;
     set_source_fixture(&source).await?;
 
     let snapshot = source_snapshot("g13-disposable-source")?;
@@ -282,7 +282,7 @@ async fn execute_acceptance(cluster: &DisposableDatabases) -> TestResult {
         target.clone(),
         read.clone(),
         rollback.clone(),
-        HOLDING_REF,
+        DATA_PROFILE_KEY,
     )?;
     for source_kind in ["customers", "users"] {
         let result = importer
@@ -314,7 +314,7 @@ async fn execute_acceptance(cluster: &DisposableDatabases) -> TestResult {
     }
     if scoped_count(
         &target,
-        "SELECT count(*) FROM erpx_tenant.outbox_events WHERE holding_ref=$1 AND event_type IN ('migration.imported', 'migration.shadow_replay_validated') AND payload->>'run_id'=$2::text",
+        "SELECT count(*) FROM erpx_holding.outbox_events WHERE data_profile_key=$1 AND event_type IN ('migration.imported', 'migration.shadow_replay_validated') AND payload->>'run_id'=$2::text",
         run_id,
     )
     .await?
@@ -326,7 +326,7 @@ async fn execute_acceptance(cluster: &DisposableDatabases) -> TestResult {
     if projected.rows_projected != 3
         || scoped_count(
             &read,
-            "SELECT count(*) FROM erpx_tenant.g13_migration_import_read_rows WHERE holding_ref=$1 AND run_id=$2",
+            "SELECT count(*) FROM erpx_holding.g13_migration_import_read_rows WHERE data_profile_key=$1 AND run_id=$2",
             run_id,
         )
         .await?
@@ -397,7 +397,7 @@ async fn execute_acceptance(cluster: &DisposableDatabases) -> TestResult {
     }
     if scoped_count(
         &read,
-        "SELECT count(*) FROM erpx_tenant.g13_migration_import_read_rows WHERE holding_ref=$1 AND run_id=$2",
+        "SELECT count(*) FROM erpx_holding.g13_migration_import_read_rows WHERE data_profile_key=$1 AND run_id=$2",
         run_id,
     )
     .await?
@@ -407,7 +407,7 @@ async fn execute_acceptance(cluster: &DisposableDatabases) -> TestResult {
     }
     if scoped_count(
         &rollback,
-        "SELECT count(*) FROM erpx_tenant.g13_migration_rollback_rows WHERE holding_ref=$1 AND run_id=$2",
+        "SELECT count(*) FROM erpx_holding.g13_migration_rollback_rows WHERE data_profile_key=$1 AND run_id=$2",
         run_id,
     )
     .await?
@@ -444,21 +444,21 @@ async fn execute_acceptance(cluster: &DisposableDatabases) -> TestResult {
     }
     if scoped_count(
         &target,
-        "SELECT count(*) FROM erpx_tenant.g13_migration_import_rows WHERE holding_ref=$1 AND run_id=$2",
+        "SELECT count(*) FROM erpx_holding.g13_migration_import_rows WHERE data_profile_key=$1 AND run_id=$2",
         run_id,
     )
     .await?
         != 0
         || scoped_count(
             &read,
-            "SELECT count(*) FROM erpx_tenant.g13_migration_import_read_rows WHERE holding_ref=$1 AND run_id=$2",
+            "SELECT count(*) FROM erpx_holding.g13_migration_import_read_rows WHERE data_profile_key=$1 AND run_id=$2",
             run_id,
         )
         .await?
             != 0
         || scoped_count(
             &rollback,
-            "SELECT count(*) FROM erpx_tenant.g13_migration_rollback_rows WHERE holding_ref=$1 AND run_id=$2",
+            "SELECT count(*) FROM erpx_holding.g13_migration_rollback_rows WHERE data_profile_key=$1 AND run_id=$2",
             run_id,
         )
         .await?

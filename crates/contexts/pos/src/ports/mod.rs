@@ -9,7 +9,7 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::pos;
 use erpx_kernel::{
-    ActorAttribution, AggregateId, AuditContext, CommandId, CorrelationId, EventId, TenantScope,
+    ActorAttribution, AggregateId, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -51,8 +51,8 @@ impl PosAction {
 
 pub struct AuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
-    pub target_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
+    pub target_scope: &'a AuthorityScope,
     pub action: PosAction,
 }
 
@@ -63,7 +63,11 @@ pub trait AuthorizationPort: Send + Sync {
 
 #[async_trait]
 pub trait EntitlementPort: Send + Sync {
-    async fn ensure_pos_enabled(&self, scope: &TenantScope, write: bool) -> Result<(), PortError>;
+    async fn ensure_pos_enabled(
+        &self,
+        scope: &AuthorityScope,
+        write: bool,
+    ) -> Result<(), PortError>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -71,7 +75,7 @@ pub trait EntitlementPort: Send + Sync {
 pub enum CommandFingerprint {
     CreateSale {
         sale_id: SaleId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         receipt_code: String,
         register_id: RegisterId,
         customer_id: Option<CustomerId>,
@@ -130,13 +134,13 @@ pub struct CommandIdentity {
 pub trait WriteRepository: Send + Sync {
     async fn load_sale(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         sale_id: SaleId,
     ) -> Result<Option<Sale>, PortError>;
 
     async fn load_refund(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         refund_id: RefundId,
     ) -> Result<Option<PosRefund>, PortError>;
 }
@@ -147,7 +151,7 @@ pub struct SaleCommit {
     pub correlation_id: CorrelationId,
     pub causation_id: Option<EventId>,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
     pub aggregate: Sale,
@@ -201,7 +205,7 @@ pub struct RefundCommit {
     pub correlation_id: CorrelationId,
     pub causation_id: Option<EventId>,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
     pub aggregate: PosRefund,
@@ -254,7 +258,7 @@ pub trait RefundUnitOfWork: Send + Sync {
 pub struct SaleView {
     pub sale_id: SaleId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub receipt_code: String,
     pub register_id: RegisterId,
     pub customer_id: Option<CustomerId>,
@@ -311,7 +315,7 @@ pub struct SaleList {
 pub struct RefundView {
     pub refund_id: RefundId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub sale_id: SaleId,
     pub currency: String,
     pub lines: Vec<RefundLine>,
@@ -370,28 +374,28 @@ pub struct ReadProjection<T> {
 pub trait PosReadRepository: Send + Sync {
     async fn get_sale(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         sale_id: SaleId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<SaleView>>, PortError>;
 
     async fn list_sales(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &SaleListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<SaleList>, PortError>;
 
     async fn get_refund(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         refund_id: RefundId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<RefundView>>, PortError>;
 
     async fn list_refunds(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &RefundListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<RefundList>, PortError>;

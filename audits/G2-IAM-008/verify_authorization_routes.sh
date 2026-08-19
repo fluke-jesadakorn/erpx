@@ -24,7 +24,7 @@ check_marker() {
   ' "$server"
 }
 
-# Authenticated tenant mutations must use the single authoritative
+# Authenticated holding mutations must use the single authoritative
 # entitlement/RBAC intersection. The list names the implementation methods,
 # not legacy generated RPC forwarding wrappers.
 for method in \
@@ -46,18 +46,18 @@ done
 
 # Platform/control-plane mutations use the narrower authoritative role policy
 # and an explicit platform/control scope.
-for method in begin_tenant_provisioning provision_tenant_resources \
-  activate_tenant suspend_tenant enter_tenant_recovery \
-  schedule_tenant_backup \
+for method in begin_holding_provisioning provision_holding_resources \
+  activate_holding suspend_holding enter_holding_recovery \
+  schedule_holding_backup \
   start_projection_rebuild activate_projection_rebuild \
   create_incident update_incident revoke_support_session; do
   check_marker "$method" "authorize_role"
 done
 
 # Role lifecycle methods use the dedicated role-lifecycle policy, with the
-# tenant branch delegating into the same entitlement intersection.
+# holding branch delegating into the same entitlement intersection.
 check_marker renew_role "authorize_role_lifecycle_command"
 check_marker recover_final_role "authorize_independent_role"
-check_marker list_tenant_backup_jobs "authorize_role"
+check_marker list_holding_backup_jobs "authorize_role"
 
 echo "G2-IAM-008 authorization route inventory passed"

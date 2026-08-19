@@ -50,7 +50,7 @@ itself. The explicit `save_aggregate_with_source_refs` and `apply_event` paths
 fail closed unless the supplied references exactly match the aggregate's
 declared references. This prevents a caller from persisting a detached source
 reference set while keeping aggregate state and the immutable reference table
-aligned. Existing optimistic versioning, atomic snapshot/event writes, tenant
+aligned. Existing optimistic versioning, atomic snapshot/event writes, holding
 routing, and replay behavior remain unchanged.
 
 ## Changed paths
@@ -80,7 +80,7 @@ All commands below were run from `erpx/` after the final owned-path format:
 The source-referenced disposable PostgreSQL round-trip/replay test is present
 as `source_referenced_operations_aggregate_round_trips_and_replays`, but is
 ignored in this environment because both
-`ERPX_TEST_TENANT_WRITE_DATABASE_URL` and `ERPX_TEST_TENANT_READ_DATABASE_URL`
+`ERPX_TEST_HOLDING_WRITE_DATABASE_URL` and `ERPX_TEST_HOLDING_READ_DATABASE_URL`
 are absent. The non-database provenance mismatch test passes.
 
 ## Residuals / integration order

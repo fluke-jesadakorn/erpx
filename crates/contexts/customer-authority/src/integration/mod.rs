@@ -95,7 +95,7 @@ const fn map_status(status: CustomerStatus) -> customer::CustomerStatus {
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
-    use erpx_kernel::TenantScope;
+    use erpx_kernel::AuthorityScope;
     use uuid::Uuid;
 
     use super::*;
@@ -114,7 +114,7 @@ mod tests {
                 "TH",
             )
             .unwrap(),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id: Uuid::from_u128(2),
                 company_id: Uuid::from_u128(3),
             },

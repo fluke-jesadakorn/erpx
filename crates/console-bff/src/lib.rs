@@ -5,10 +5,10 @@ use std::io;
 pub mod canonical;
 pub mod reference;
 
-pub const SESSION_PATH: &str = "/api/v2/session";
-pub const NAVIGATION_PATH: &str = "/api/v2/navigation";
-pub const DASHBOARD_PATH: &str = "/api/v2/dashboard";
-pub const WORK_ITEMS_PATH: &str = "/api/v2/work-item";
+pub const SESSION_PATH: &str = "/api/session";
+pub const NAVIGATION_PATH: &str = "/api/navigation";
+pub const DASHBOARD_PATH: &str = "/api/dashboard";
+pub const WORK_ITEMS_PATH: &str = "/api/work-item";
 pub const REFERENCE_ROUTE_TEMPLATE: &str = "/reference/item/:id";
 
 pub fn validate_runtime_origins(

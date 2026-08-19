@@ -3,10 +3,10 @@
 use async_trait::async_trait;
 use erpx_cqrs::{CONTRACT_VERSION, CommandEnvelope, CommandHandler, IdempotencyKey};
 use erpx_cqrs_sqlx::WritePool;
-use erpx_infrastructure::{RoutedDatabaseSide, SqlxTenantStoreRegistry, TenantDatabaseRouter};
+use erpx_infrastructure::{HoldingDatabaseRouter, RoutedDatabaseSide, SqlxHoldingStoreRegistry};
 use erpx_integration_contracts::{BoundedContext, IntegrationEvent, operations};
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, EventId, SystemClock, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, EventId, SystemClock,
 };
 use erpx_marketing::{
     ApplyCampaignBudgetDecision, AuthorizationPort, CampaignBudgetId, EntitlementPort,
@@ -21,29 +21,29 @@ use uuid::Uuid;
 
 pub const MARKETING_APPROVAL_DECISIONS_HANDLER_NAME: &str = "marketing_approval_decisions";
 pub const MARKETING_APPROVAL_DECISIONS_MAX_PAGE_SIZE: u32 = 500;
-pub const MARKETING_APPROVAL_DECISIONS_MAX_ACTIVE_TENANTS: usize = 1_000;
+pub const MARKETING_APPROVAL_DECISIONS_MAX_ACTIVE_HOLDINGS: usize = 1_000;
 
 const CONSUMER_NAME: &str = "marketing.operations-approval-decisions.v1";
 
 #[derive(Debug, Clone)]
 pub struct MarketingApprovalDecisionHandler {
-    registry: SqlxTenantStoreRegistry,
-    router: TenantDatabaseRouter,
+    registry: SqlxHoldingStoreRegistry,
+    router: HoldingDatabaseRouter,
     page_size: u32,
-    max_active_tenants: usize,
+    max_active_holdings: usize,
 }
 
 impl MarketingApprovalDecisionHandler {
     pub fn new(
-        registry: SqlxTenantStoreRegistry,
-        router: TenantDatabaseRouter,
+        registry: SqlxHoldingStoreRegistry,
+        router: HoldingDatabaseRouter,
         page_size: u32,
-        max_active_tenants: usize,
+        max_active_holdings: usize,
     ) -> Result<Self, WorkerRuntimeError> {
         if page_size == 0
             || page_size > MARKETING_APPROVAL_DECISIONS_MAX_PAGE_SIZE
-            || max_active_tenants == 0
-            || max_active_tenants > MARKETING_APPROVAL_DECISIONS_MAX_ACTIVE_TENANTS
+            || max_active_holdings == 0
+            || max_active_holdings > MARKETING_APPROVAL_DECISIONS_MAX_ACTIVE_HOLDINGS
         {
             return Err(configuration(
                 "Marketing approval-decision worker bounds are invalid",
@@ -53,21 +53,21 @@ impl MarketingApprovalDecisionHandler {
             registry,
             router,
             page_size,
-            max_active_tenants,
+            max_active_holdings,
         })
     }
 
-    async fn process_tenant(
+    async fn process_holding(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         worker_id: Uuid,
     ) -> Result<WorkerHandlerReport, WorkerRuntimeError> {
         let routed = self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Write)
             .await
-            .map_err(|_| configuration("Marketing approval tenant route is unavailable"))?;
+            .map_err(|_| configuration("Marketing approval holding route is unavailable"))?;
         let pool = routed.database_pool().clone();
         let after = checkpoint(&pool).await?;
         let rows = source_page(&pool, after, self.page_size).await?;
@@ -79,7 +79,7 @@ impl MarketingApprovalDecisionHandler {
         };
         let mut expected_checkpoint = after;
         for row in rows {
-            self.apply_decision(tenant_id, &pool, worker_id, &row)
+            self.apply_decision(holding_id, &pool, worker_id, &row)
                 .await?;
             advance_checkpoint(&pool, expected_checkpoint, &row).await?;
             expected_checkpoint = row.global_sequence;
@@ -91,17 +91,17 @@ impl MarketingApprovalDecisionHandler {
 
     async fn apply_decision(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         pool: &PgPool,
         worker_id: Uuid,
         row: &ApprovalDecisionRow,
     ) -> Result<(), WorkerRuntimeError> {
         let budget_id = CampaignBudgetId::try_from_uuid(row.decision.subject.aggregate_id)
             .map_err(|_| configuration("Operations approval subject is invalid"))?;
-        let tenant_id = Uuid::parse_str(tenant_id)
-            .map_err(|_| configuration("Marketing tenant identity must be a non-nil UUID"))?;
-        let write_pool = WritePool::for_tenant(pool.clone(), tenant_id)
-            .map_err(|_| configuration("Marketing tenant identity must be a non-nil UUID"))?;
+        let holding_id = Uuid::parse_str(holding_id)
+            .map_err(|_| configuration("Marketing holding identity must be a non-nil UUID"))?;
+        let write_pool = WritePool::for_holding(pool.clone(), holding_id)
+            .map_err(|_| configuration("Marketing holding identity must be a non-nil UUID"))?;
         let write = MarketingWriteRepository::new(write_pool.clone());
         let budget = write
             .load_budget(&row.scope, budget_id)
@@ -143,7 +143,7 @@ impl MarketingApprovalDecisionHandler {
                     .map_err(|_| configuration("Operations approval event id is invalid"))?,
             ),
             actor,
-            tenant_scope: row.scope.clone(),
+            active_scope: row.scope.clone(),
             audit: AuditContext {
                 purpose: "apply Operations approval decision to Marketing campaign budget".into(),
                 customer_visible: false,
@@ -173,15 +173,15 @@ impl NamedWorkerHandler for MarketingApprovalDecisionHandler {
                 "Marketing approval-decision worker identity is required",
             ));
         }
-        let tenants = self
+        let holdings = self
             .registry
-            .list_active_bounded(self.max_active_tenants)
+            .list_active_bounded(self.max_active_holdings)
             .await
-            .map_err(|_| configuration("Active tenant registry is unavailable"))?;
+            .map_err(|_| configuration("Active holding registry is unavailable"))?;
         let mut total = WorkerHandlerReport::default();
-        for tenant in tenants {
+        for holding in holdings {
             let report = self
-                .process_tenant(&tenant.tenant_id, &tenant.holding_ref, worker_id)
+                .process_holding(&holding.holding_id, &holding.data_profile_key, worker_id)
                 .await?;
             total.claimed = total.claimed.saturating_add(report.claimed);
             total.processed = total.processed.saturating_add(report.processed);
@@ -217,10 +217,15 @@ impl AuthorizationPort for ApprovalWorkerAccess {
 impl EntitlementPort for ApprovalWorkerAccess {
     async fn ensure_marketing_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         write: bool,
     ) -> Result<(), PortError> {
-        if write && !matches!(scope, TenantScope::Platform | TenantScope::Subtree { .. }) {
+        if write
+            && !matches!(
+                scope,
+                AuthorityScope::Platform | AuthorityScope::Subtree { .. }
+            )
+        {
             Ok(())
         } else {
             Err(PortError::EntitlementDenied)
@@ -233,7 +238,7 @@ struct ApprovalDecisionRow {
     event_id: Uuid,
     global_sequence: u64,
     correlation_id: erpx_kernel::CorrelationId,
-    scope: TenantScope,
+    scope: AuthorityScope,
     decision: operations::ApprovalDecisionFact,
 }
 
@@ -257,7 +262,7 @@ async fn source_page(
     page_size: u32,
 ) -> Result<Vec<ApprovalDecisionRow>, WorkerRuntimeError> {
     let rows = sqlx::query(
-        "SELECT event_id,global_sequence,context_name,event_type,event_version,aggregate_type,aggregate_version,tenant_scope,correlation_id,payload,occurred_at
+        "SELECT event_id,global_sequence,context_name,event_type,event_version,aggregate_type,aggregate_version,active_scope,correlation_id,payload,occurred_at
          FROM erpx_cqrs_write.outbox_events
          WHERE global_sequence > $1 AND available_at <= now()
            AND event_type='operations.approval_decided'
@@ -278,7 +283,7 @@ async fn source_page(
             let event_version: i32 = row.try_get("event_version")?;
             let aggregate_type: String = row.try_get("aggregate_type")?;
             let aggregate_version: i64 = row.try_get("aggregate_version")?;
-            let scope: TenantScope = serde_json::from_value(row.try_get("tenant_scope")?)
+            let scope: AuthorityScope = serde_json::from_value(row.try_get("active_scope")?)
                 .map_err(|_| configuration("Operations approval scope is invalid"))?;
             let correlation_id =
                 erpx_kernel::CorrelationId::try_from_uuid(row.try_get("correlation_id")?)

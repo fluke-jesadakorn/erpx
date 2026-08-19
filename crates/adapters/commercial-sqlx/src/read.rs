@@ -10,7 +10,7 @@ use erpx_cqrs::{
 use erpx_cqrs_sqlx::{
     CqrsSqlxError, ReadPool, ReadSideStore, SqlxProjectionWaiter, WaitError, WaiterConfig,
 };
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -24,7 +24,7 @@ const CURSOR_SEPARATOR: char = '|';
 #[derive(Debug, Clone)]
 pub struct CommercialReadRepository {
     control: ReadPlane,
-    tenant: ReadPlane,
+    holding: ReadPlane,
 }
 
 #[derive(Debug, Clone)]
@@ -35,18 +35,18 @@ struct ReadPlane {
 }
 
 impl CommercialReadRepository {
-    pub fn new(control_read: ReadPool, tenant_read: ReadPool) -> Result<Self, CqrsSqlxError> {
-        Self::with_waiter_config(control_read, tenant_read, WaiterConfig::default())
+    pub fn new(control_read: ReadPool, holding_read: ReadPool) -> Result<Self, CqrsSqlxError> {
+        Self::with_waiter_config(control_read, holding_read, WaiterConfig::default())
     }
 
     pub fn with_waiter_config(
         control_read: ReadPool,
-        tenant_read: ReadPool,
+        holding_read: ReadPool,
         waiter_config: WaiterConfig,
     ) -> Result<Self, CqrsSqlxError> {
         Ok(Self {
             control: ReadPlane::new(control_read, waiter_config)?,
-            tenant: ReadPlane::new(tenant_read, waiter_config)?,
+            holding: ReadPlane::new(holding_read, waiter_config)?,
         })
     }
 
@@ -144,7 +144,7 @@ impl ReadPlane {
 impl ReadRepository for CommercialReadRepository {
     async fn get_catalog_plan(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: CatalogPlanId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<CatalogPlanView>>, PortError> {
@@ -158,7 +158,7 @@ impl ReadRepository for CommercialReadRepository {
                 Some(&partition),
             )
             .await?;
-        let value = if scope == &TenantScope::Platform {
+        let value = if scope == &AuthorityScope::Platform {
             sqlx::query("SELECT projection.state FROM erpx_commercial_read.catalog_plan_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND projection.catalog_plan_id=$2 AND projection.partition_key=$3")
                 .bind(CATALOG_PLAN_PROJECTION).bind(id.as_uuid()).bind(&partition).fetch_optional(&mut *self.control.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_| PortError::Unavailable)?.map(decode).transpose()?
         } else {
@@ -174,7 +174,7 @@ impl ReadRepository for CommercialReadRepository {
 
     async fn list_catalog_plans(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         filter: &PageFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Page<CatalogPlanView>>, PortError> {
@@ -187,7 +187,7 @@ impl ReadRepository for CommercialReadRepository {
                 None,
             )
             .await?;
-        if scope != &TenantScope::Platform {
+        if scope != &AuthorityScope::Platform {
             return Ok(ReadProjection {
                 value: Page {
                     records: vec![],
@@ -222,14 +222,14 @@ impl ReadRepository for CommercialReadRepository {
 
     async fn get_subscription(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: SubscriptionId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<SubscriptionView>>, PortError> {
         let partition = subscription_partition(id);
         let checkpoint = self
             .checkpoint(
-                &self.tenant,
+                &self.holding,
                 SUBSCRIPTION_PROJECTION,
                 "commercial.subscription:",
                 consistency,
@@ -238,7 +238,7 @@ impl ReadRepository for CommercialReadRepository {
             .await?;
         let authority = Authority::from_scope(scope);
         let row=sqlx::query("SELECT projection.state FROM erpx_commercial_read.subscription_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND projection.subscription_id=$2 AND projection.partition_key=$3 AND ($4 OR ($5::text IS NOT NULL AND projection.scope_key=$5))")
-            .bind(SUBSCRIPTION_PROJECTION).bind(id.as_uuid()).bind(&partition).bind(authority.platform).bind(authority.scope_key).fetch_optional(&mut *self.tenant.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
+            .bind(SUBSCRIPTION_PROJECTION).bind(id.as_uuid()).bind(&partition).bind(authority.platform).bind(authority.scope_key).fetch_optional(&mut *self.holding.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let value = row.map(decode).transpose()?;
         if value
             .as_ref()
@@ -249,20 +249,20 @@ impl ReadRepository for CommercialReadRepository {
         Ok(ReadProjection {
             value,
             metadata: self
-                .metadata(&self.tenant, SUBSCRIPTION_PROJECTION, checkpoint)
+                .metadata(&self.holding, SUBSCRIPTION_PROJECTION, checkpoint)
                 .await?,
         })
     }
 
     async fn list_subscriptions(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         filter: &PageFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Page<SubscriptionView>>, PortError> {
         let checkpoint = self
             .checkpoint(
-                &self.tenant,
+                &self.holding,
                 SUBSCRIPTION_PROJECTION,
                 "commercial.subscription:",
                 consistency,
@@ -272,7 +272,7 @@ impl ReadRepository for CommercialReadRepository {
         let authority = Authority::from_scope(scope);
         let cursor = filter.cursor.as_deref().map(decode_cursor).transpose()?;
         let rows=sqlx::query("SELECT projection.state FROM erpx_commercial_read.subscription_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND ($2 OR ($3::text IS NOT NULL AND projection.scope_key=$3)) AND ($4::timestamptz IS NULL OR (projection.aggregate_updated_at,projection.subscription_id)<($4,$5)) ORDER BY projection.aggregate_updated_at DESC,projection.subscription_id DESC LIMIT $6")
-            .bind(SUBSCRIPTION_PROJECTION).bind(authority.platform).bind(authority.scope_key).bind(cursor.map(|v|v.0)).bind(cursor.map(|v|v.1)).bind(i64::from(filter.page_size)+1).fetch_all(&mut *self.tenant.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
+            .bind(SUBSCRIPTION_PROJECTION).bind(authority.platform).bind(authority.scope_key).bind(cursor.map(|v|v.0)).bind(cursor.map(|v|v.1)).bind(i64::from(filter.page_size)+1).fetch_all(&mut *self.holding.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let mut records = rows
             .into_iter()
             .map(decode)
@@ -294,21 +294,21 @@ impl ReadRepository for CommercialReadRepository {
                 next_cursor,
             },
             metadata: self
-                .metadata(&self.tenant, SUBSCRIPTION_PROJECTION, checkpoint)
+                .metadata(&self.holding, SUBSCRIPTION_PROJECTION, checkpoint)
                 .await?,
         })
     }
 
     async fn get_entitlement(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: EntitlementId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<EntitlementView>>, PortError> {
         let partition = entitlement_partition(id);
         let checkpoint = self
             .checkpoint(
-                &self.tenant,
+                &self.holding,
                 ENTITLEMENT_PROJECTION,
                 "commercial.entitlement:",
                 consistency,
@@ -317,7 +317,7 @@ impl ReadRepository for CommercialReadRepository {
             .await?;
         let authority = Authority::from_scope(scope);
         let row=sqlx::query("SELECT projection.state FROM erpx_commercial_read.entitlement_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND projection.entitlement_id=$2 AND projection.partition_key=$3 AND ($4 OR ($5::text IS NOT NULL AND projection.scope_key=$5))")
-            .bind(ENTITLEMENT_PROJECTION).bind(id.as_uuid()).bind(&partition).bind(authority.platform).bind(authority.scope_key).fetch_optional(&mut *self.tenant.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
+            .bind(ENTITLEMENT_PROJECTION).bind(id.as_uuid()).bind(&partition).bind(authority.platform).bind(authority.scope_key).fetch_optional(&mut *self.holding.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let value = row.map(decode).transpose()?;
         if value
             .as_ref()
@@ -328,20 +328,20 @@ impl ReadRepository for CommercialReadRepository {
         Ok(ReadProjection {
             value,
             metadata: self
-                .metadata(&self.tenant, ENTITLEMENT_PROJECTION, checkpoint)
+                .metadata(&self.holding, ENTITLEMENT_PROJECTION, checkpoint)
                 .await?,
         })
     }
 
     async fn list_entitlements(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         filter: &PageFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Page<EntitlementView>>, PortError> {
         let checkpoint = self
             .checkpoint(
-                &self.tenant,
+                &self.holding,
                 ENTITLEMENT_PROJECTION,
                 "commercial.entitlement:",
                 consistency,
@@ -351,7 +351,7 @@ impl ReadRepository for CommercialReadRepository {
         let authority = Authority::from_scope(scope);
         let cursor = filter.cursor.as_deref().map(decode_cursor).transpose()?;
         let rows=sqlx::query("SELECT projection.state FROM erpx_commercial_read.entitlement_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND ($2 OR ($3::text IS NOT NULL AND projection.scope_key=$3)) AND ($4::timestamptz IS NULL OR (projection.aggregate_updated_at,projection.entitlement_id)<($4,$5)) ORDER BY projection.aggregate_updated_at DESC,projection.entitlement_id DESC LIMIT $6")
-            .bind(ENTITLEMENT_PROJECTION).bind(authority.platform).bind(authority.scope_key).bind(cursor.map(|v|v.0)).bind(cursor.map(|v|v.1)).bind(i64::from(filter.page_size)+1).fetch_all(&mut *self.tenant.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
+            .bind(ENTITLEMENT_PROJECTION).bind(authority.platform).bind(authority.scope_key).bind(cursor.map(|v|v.0)).bind(cursor.map(|v|v.1)).bind(i64::from(filter.page_size)+1).fetch_all(&mut *self.holding.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let mut records = rows
             .into_iter()
             .map(decode)
@@ -371,7 +371,7 @@ impl ReadRepository for CommercialReadRepository {
                 next_cursor,
             },
             metadata: self
-                .metadata(&self.tenant, ENTITLEMENT_PROJECTION, checkpoint)
+                .metadata(&self.holding, ENTITLEMENT_PROJECTION, checkpoint)
                 .await?,
         })
     }
@@ -383,13 +383,13 @@ struct Authority {
     scope_key: Option<String>,
 }
 impl Authority {
-    fn from_scope(scope: &TenantScope) -> Self {
+    fn from_scope(scope: &AuthorityScope) -> Self {
         match scope {
-            TenantScope::Platform => Self {
+            AuthorityScope::Platform => Self {
                 platform: true,
                 scope_key: None,
             },
-            TenantScope::Holding { holding_id } => Self {
+            AuthorityScope::Holding { holding_id } => Self {
                 platform: false,
                 scope_key: Some(format!("holding:{holding_id}")),
             },
@@ -473,17 +473,17 @@ mod tests {
         );
     }
     #[test]
-    fn only_platform_or_exact_holding_can_select_tenant_rows() {
-        assert!(Authority::from_scope(&TenantScope::Platform).platform);
+    fn only_platform_or_exact_holding_can_select_holding_rows() {
+        assert!(Authority::from_scope(&AuthorityScope::Platform).platform);
         assert_eq!(
-            Authority::from_scope(&TenantScope::Holding {
+            Authority::from_scope(&AuthorityScope::Holding {
                 holding_id: Uuid::from_u128(1)
             })
             .scope_key,
             Some(format!("holding:{}", Uuid::from_u128(1)))
         );
         assert_eq!(
-            Authority::from_scope(&TenantScope::Company {
+            Authority::from_scope(&AuthorityScope::Company {
                 holding_id: Uuid::from_u128(1),
                 company_id: Uuid::from_u128(2)
             })
@@ -493,18 +493,16 @@ mod tests {
     }
 
     #[test]
-    fn repository_source_keeps_control_and_tenant_capabilities_separate() {
+    fn repository_source_keeps_control_and_holding_capabilities_separate() {
         let source = include_str!("read.rs");
         assert!(source.contains("control: ReadPlane"));
-        assert!(source.contains("tenant: ReadPlane"));
+        assert!(source.contains("holding: ReadPlane"));
         assert!(source.contains(
             "&mut *self.control.pool.begin().await.map_err(|_| PortError::Unavailable)?"
         ));
-        assert!(
-            source.contains(
-                "&mut *self.tenant.pool.begin().await.map_err(|_| PortError::Unavailable)?"
-            )
-        );
+        assert!(source.contains(
+            "&mut *self.holding.pool.begin().await.map_err(|_| PortError::Unavailable)?"
+        ));
         assert!(!source.contains(concat!("aggregate_", "snapshots")));
     }
 }

@@ -267,10 +267,10 @@ pub const IDENTITY_FAMILIES: &[CurrentRecordFamilySpec] = &[
 ];
 pub const PLATFORM_FAMILIES: &[CurrentRecordFamilySpec] = &[
     live_family!(
-        "platform.tenant",
+        "platform.holding",
         "/platform",
-        "tenant",
-        "Tenants",
+        "holding",
+        "Holdings",
         "ผู้เช่า",
         ACTIVE
     ),
@@ -994,7 +994,7 @@ pub const LIVE_CURRENT_RECORD_TYPES: [&str; 92] = [
     "identity.grant",
     "identity.access-review",
     "identity.break-glass-session",
-    "platform.tenant",
+    "platform.holding",
     "platform.provider",
     "platform.data-plane-operation",
     "platform.migration",
@@ -1305,7 +1305,7 @@ pub fn render_current_workspace_surface(
 
     rsx! {
         section {
-            class: "feature-owned-surface current-workspace-v2",
+            class: "feature-owned-surface current-workspace",
             role: "region",
             "aria-labelledby": "current-workspace-title",
             "data-feature-root": feature.root(),
@@ -1324,7 +1324,7 @@ pub fn render_current_workspace_surface(
                 )} }
             }
             nav {
-                class: "current-workspace-v2__navigation",
+                class: "current-workspace__navigation",
                 "aria-label": localized(locale, "Record collections", "คอลเลกชันรายการ"),
                 ul {
                     for item in feature.record_families() {
@@ -1354,7 +1354,7 @@ pub fn render_current_workspace_surface(
                 }
             }
             section {
-                class: "current-workspace-v2__state",
+                class: "current-workspace__state",
                 role: accessibility_role,
                 aria_live: if accessibility_role == "alert" { "assertive" } else { "polite" },
                 aria_atomic: "true",
@@ -1374,7 +1374,7 @@ pub fn render_current_workspace_surface(
                 }
             }
             section {
-                class: "current-workspace-v2__record",
+                class: "current-workspace__record",
                 "aria-labelledby": "current-record-title",
                 "data-record-type": family.record_type,
                 "data-publication": publication_key,
@@ -1391,14 +1391,14 @@ pub fn render_current_workspace_surface(
                 }
             }
             section {
-                class: "current-workspace-v2__actions",
+                class: "current-workspace__actions",
                 "aria-labelledby": "current-actions-title",
                 h3 { id: "current-actions-title", {localized(locale, "Governed action cards", "การดำเนินการที่กำกับดูแล")} }
                 ul {
                     for command in commands {
                         li {
                             article {
-                                class: "current-workspace-v2__action-card",
+                                class: "current-workspace__action-card",
                                 "data-command-id": command.command_id,
                                 h4 { {command.label} }
                                 p { {localized(
@@ -1423,7 +1423,7 @@ pub fn render_current_workspace_surface(
                 }
             }
             aside {
-                class: "current-workspace-v2__collaboration",
+                class: "current-workspace__collaboration",
                 "aria-label": localized(locale, "Record collaboration hooks", "จุดเชื่อมการทำงานร่วมกันของรายการ"),
                 section {
                     h3 { {localized(locale, "Approvals", "การอนุมัติ")} }
@@ -1439,7 +1439,7 @@ pub fn render_current_workspace_surface(
                 }
             }
             footer {
-                class: "current-workspace-v2__footer",
+                class: "current-workspace__footer",
                 p { {localized(
                     locale,
                     "Adaptive on Web, Desktop, iOS and Android. Offline is read-only and changes are not queued.",
@@ -1587,7 +1587,7 @@ macro_rules! declare_current_workspace_feature {
             );
 
         #[cfg(test)]
-        mod current_workspace_v2_contract_tests {
+        mod current_workspace_contract_tests {
             use super::*;
 
             #[test]

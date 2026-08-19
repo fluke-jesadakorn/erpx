@@ -30,67 +30,54 @@ pub const SUBSCRIPTION_SNAPSHOT_EVENT: &str = "commercial.subscription_snapshot"
 pub const ENTITLEMENT_SNAPSHOT_EVENT: &str = "commercial.entitlement_snapshot";
 pub const EVENT_VERSION: u32 = 1;
 pub const COMPLETION_WRITE_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0080_current_record_completion.sql");
-pub const COMPLETION_READ_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0071_current_record_completion_projection.sql"
-);
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
+pub const COMPLETION_READ_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 
 /// Control-write foundation plus the authoritative platform catalog guard.
 pub const CONTROL_WRITE_DDL: &str = concat!(
-    include_str!(
-        "../../../migration/migrations/0075_cqrs_control_foundation_and_commercial_catalog.sql"
-    ),
+    include_str!("../../../migration/migrations/0001_baseline.sql"),
     "\n",
-    include_str!("../../../migration/migrations/0082_current_normalized_authority.sql")
+    include_str!("../../../migration/migrations/0001_baseline.sql")
 );
 /// Control-read foundation plus the authoritative platform catalog projection.
-pub const CONTROL_READ_DDL: &str = include_str!(
-    "../../../migration/migrations_read/0015_cqrs_control_foundation_and_commercial_catalog.sql"
+pub const CONTROL_READ_DDL: &str =
+    include_str!("../../../migration/migrations_read/0001_baseline.sql");
+
+/// Holding-write Commercial guards before the catalog cleanup migration.
+pub const HOLDING_WRITE_CONTEXT_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
+/// Removes the obsolete holding-local catalog write table.
+pub const HOLDING_WRITE_CATALOG_CLEANUP_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
+pub const HOLDING_NORMALIZED_AUTHORITY_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
+/// Final ordered holding-write Commercial DDL composition.
+pub const HOLDING_WRITE_DDL: &str = concat!(
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql"),
+    "\n",
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql"),
+    "\n",
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql")
 );
 
-/// Tenant-write Commercial guards before the catalog cleanup migration.
-pub const TENANT_WRITE_CONTEXT_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0058_wave4_context_guards.sql");
-/// Removes the obsolete tenant-local catalog write table.
-pub const TENANT_WRITE_CATALOG_CLEANUP_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_write/0059_move_commercial_catalog_to_control.sql"
-);
-pub const TENANT_NORMALIZED_AUTHORITY_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_write/0081_current_normalized_authority.sql"
-);
-/// Final ordered tenant-write Commercial DDL composition.
-pub const TENANT_WRITE_DDL: &str = concat!(
-    include_str!("../../../migration/migrations_tenant_write/0058_wave4_context_guards.sql"),
+/// Holding-read Commercial projections before the catalog cleanup migration.
+pub const HOLDING_READ_CONTEXT_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
+/// Removes the obsolete holding-local catalog read table.
+pub const HOLDING_READ_CATALOG_CLEANUP_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
+/// Final ordered holding-read Commercial DDL composition.
+pub const HOLDING_READ_DDL: &str = concat!(
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql"),
     "\n",
-    include_str!(
-        "../../../migration/migrations_tenant_write/0059_move_commercial_catalog_to_control.sql"
-    ),
-    "\n",
-    include_str!(
-        "../../../migration/migrations_tenant_write/0081_current_normalized_authority.sql"
-    )
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql")
 );
 
-/// Tenant-read Commercial projections before the catalog cleanup migration.
-pub const TENANT_READ_CONTEXT_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_read/0050_wave4_context_projections.sql");
-/// Removes the obsolete tenant-local catalog read table.
-pub const TENANT_READ_CATALOG_CLEANUP_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0051_move_commercial_catalog_to_control.sql"
-);
-/// Final ordered tenant-read Commercial DDL composition.
-pub const TENANT_READ_DDL: &str = concat!(
-    include_str!("../../../migration/migrations_tenant_read/0050_wave4_context_projections.sql"),
-    "\n",
-    include_str!(
-        "../../../migration/migrations_tenant_read/0051_move_commercial_catalog_to_control.sql"
-    )
-);
-
-// Compatibility aliases retain the original tenant-plane meaning. New
+// Compatibility aliases retain the original holding-plane meaning. New
 // composition code should choose an explicitly capability-scoped constant.
-pub const WRITE_DDL: &str = TENANT_WRITE_DDL;
-pub const READ_DDL: &str = TENANT_READ_DDL;
+pub const WRITE_DDL: &str = HOLDING_WRITE_DDL;
+pub const READ_DDL: &str = HOLDING_READ_DDL;
 
 pub fn catalog_plan_partition(id: erpx_commercial::CatalogPlanId) -> String {
     format!("commercial.catalog_plan:{}", id.as_uuid().simple())
@@ -104,6 +91,9 @@ pub fn entitlement_partition(id: erpx_commercial::EntitlementId) -> String {
     format!("commercial.entitlement:{}", id.as_uuid().simple())
 }
 
+#[cfg(test)]
+#[path = "../../schema_test.rs"]
+mod schema_test;
 #[cfg(test)]
 mod tests {
     use uuid::Uuid;
@@ -132,32 +122,36 @@ mod tests {
 
     #[test]
     fn ddl_points_to_capability_separated_canonical_migrations() {
-        assert!(CONTROL_WRITE_DDL.contains("catalog_plan_guards"));
-        assert!(!CONTROL_WRITE_DDL.contains("subscription_guards"));
-        assert!(!CONTROL_WRITE_DDL.contains("entitlement_guards"));
-        assert!(CONTROL_READ_DDL.contains("catalog_plan_projection"));
-        assert!(!CONTROL_READ_DDL.contains("subscription_projection"));
-        assert!(!CONTROL_READ_DDL.contains("entitlement_projection"));
+        let control_write =
+            schema_test::select_schema_statements(CONTROL_WRITE_DDL, &["erpx_commercial_write"]);
+        let control_read =
+            schema_test::select_schema_statements(CONTROL_READ_DDL, &["erpx_commercial_read"]);
+        assert!(control_write.contains("catalog_plan_guards"));
+        assert!(!control_write.contains("subscription_guards"));
+        assert!(!control_write.contains("entitlement_guards"));
+        assert!(control_read.contains("catalog_plan_projection"));
+        assert!(!control_read.contains("subscription_projection"));
+        assert!(!control_read.contains("entitlement_projection"));
 
-        assert!(TENANT_WRITE_CONTEXT_DDL.contains("subscription_guards"));
-        assert!(TENANT_WRITE_CONTEXT_DDL.contains("entitlement_guards"));
-        assert!(TENANT_READ_CONTEXT_DDL.contains("subscription_projection"));
-        assert!(TENANT_READ_CONTEXT_DDL.contains("entitlement_projection"));
+        assert!(HOLDING_WRITE_CONTEXT_DDL.contains("subscription_guards"));
+        assert!(HOLDING_WRITE_CONTEXT_DDL.contains("entitlement_guards"));
+        assert!(HOLDING_READ_CONTEXT_DDL.contains("subscription_projection"));
+        assert!(HOLDING_READ_CONTEXT_DDL.contains("entitlement_projection"));
 
         assert!(
-            TENANT_WRITE_CATALOG_CLEANUP_DDL
+            HOLDING_WRITE_CATALOG_CLEANUP_DDL
                 .contains("DROP TABLE IF EXISTS erpx_commercial_write.catalog_plan_guards")
         );
         assert!(
-            TENANT_READ_CATALOG_CLEANUP_DDL
+            HOLDING_READ_CATALOG_CLEANUP_DDL
                 .contains("DROP TABLE IF EXISTS erpx_commercial_read.catalog_plan_projection")
         );
-        assert!(TENANT_WRITE_DDL.contains(TENANT_WRITE_CATALOG_CLEANUP_DDL));
-        assert!(TENANT_WRITE_DDL.ends_with(TENANT_NORMALIZED_AUTHORITY_DDL));
-        assert!(TENANT_NORMALIZED_AUTHORITY_DDL.contains("subscription_authority"));
-        assert!(TENANT_NORMALIZED_AUTHORITY_DDL.contains("entitlement_authority"));
-        assert!(TENANT_READ_DDL.ends_with(TENANT_READ_CATALOG_CLEANUP_DDL));
-        assert_eq!(WRITE_DDL, TENANT_WRITE_DDL);
-        assert_eq!(READ_DDL, TENANT_READ_DDL);
+        assert!(HOLDING_WRITE_DDL.contains(HOLDING_WRITE_CATALOG_CLEANUP_DDL));
+        assert!(HOLDING_WRITE_DDL.ends_with(HOLDING_NORMALIZED_AUTHORITY_DDL));
+        assert!(HOLDING_NORMALIZED_AUTHORITY_DDL.contains("subscription_authority"));
+        assert!(HOLDING_NORMALIZED_AUTHORITY_DDL.contains("entitlement_authority"));
+        assert!(HOLDING_READ_DDL.ends_with(HOLDING_READ_CATALOG_CLEANUP_DDL));
+        assert_eq!(WRITE_DDL, HOLDING_WRITE_DDL);
+        assert_eq!(READ_DDL, HOLDING_READ_DDL);
     }
 }

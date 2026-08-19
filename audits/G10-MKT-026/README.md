@@ -23,7 +23,7 @@
   unsupported fields, credential/token/payment markers, and oversized values;
   rejected candidates are counted without being rendered.
 - Kept the module presentation-only: it contains no transport, endpoint,
-  tenant credential, database, or authorization behavior.
+  holding credential, database, or authorization behavior.
 
 ## Evidence
 
@@ -36,11 +36,11 @@
 
 ## Remaining boundary
 
-Client transport adapters, authenticated tenant scope selection, CRM page
+Client transport adapters, authenticated holding scope selection, CRM page
 rendering and commands, journeys, consent/delivery enforcement, Finance
 attribution reconciliation, and the broader G10 gate remain open.
 
 ## Rollback
 
 Remove `crates/ui/src/crm.rs` and its shared export. Existing route metadata,
-server transport, tenant state, and Folio remain unchanged.
+server transport, holding state, and Folio remain unchanged.

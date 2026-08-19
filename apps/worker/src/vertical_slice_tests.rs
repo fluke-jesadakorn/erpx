@@ -8,7 +8,7 @@ use erpx_finance::{
     PostingValidationContext, SalesAccountRoles,
 };
 use erpx_integration_contracts::{BoundedContext, DimensionSet, RecordRef, organization};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use erpx_operations::{
     ApprovalGateKind, ApprovalGateSpec, ApprovalGateStatus, ApprovalSession, ApprovalSessionId,
     ApprovalSessionStatus,
@@ -60,7 +60,7 @@ impl FinancePostingOwnerPort for FinanceOwner {
 
 #[tokio::test]
 async fn quote_to_final_finance_posting_requires_every_human_gate() {
-    let scope = TenantScope::Company {
+    let scope = AuthorityScope::Company {
         holding_id: id(1),
         company_id: id(2),
     };

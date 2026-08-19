@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use erpx_cqrs::{CommandEnvelope, CommandReceipt, QueryEnvelope, QueryResult};
-use erpx_kernel::TenantScope;
-use erpx_proto::erpx::quality::v2 as wire;
+use erpx_kernel::AuthorityScope;
+use erpx_proto::erpx::quality as wire;
 use erpx_quality::{
     CancelInspection, CreateInspection, CreateInspectionResult, GetInspection, GetInspectionResult,
     InspectionId, InspectionKind, InspectionList, InspectionMutationResult, InspectionStatus,
@@ -271,7 +271,7 @@ impl QualityProtoTransport for QualityGrpcTransport {
 }
 
 fn mutation_result(
-    receipt: Option<erpx_proto::common::v2::CommandReceipt>,
+    receipt: Option<erpx_proto::common::CommandReceipt>,
     inspection: Option<wire::QualityInspection>,
     command_id: erpx_kernel::CommandId,
     correlation_id: erpx_kernel::CorrelationId,
@@ -336,7 +336,7 @@ fn decode_inspection(value: wire::QualityInspection) -> Result<InspectionView, U
 }
 
 fn validate_redundant_scope(
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     holding_id: &str,
     company_id: &str,
     branch_id: Option<&str>,
@@ -347,11 +347,11 @@ fn validate_redundant_scope(
         .map(|value| uuid(value, "decode quality scope"))
         .transpose()?;
     let matches = match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => *holding_id == holding && *company_id == company && branch.is_none(),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -444,7 +444,7 @@ fn decode_status(value: i32) -> Result<InspectionStatus, UiError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use erpx_kernel::TenantScope;
+    use erpx_kernel::AuthorityScope;
     use uuid::Uuid;
 
     #[test]
@@ -474,7 +474,7 @@ mod tests {
     fn redundant_scope_must_match_typed_scope() {
         let holding = Uuid::new_v4();
         let company = Uuid::new_v4();
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id: holding,
             company_id: company,
         };

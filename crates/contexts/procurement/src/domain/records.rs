@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -84,7 +84,7 @@ pub struct ProcurementRecord {
     id: Uuid,
     version: u64,
     kind: ProcurementRecordKind,
-    scope: TenantScope,
+    scope: AuthorityScope,
     title: String,
     status: ProcurementRecordStatus,
     created_at: DateTime<Utc>,
@@ -94,7 +94,7 @@ impl ProcurementRecord {
     pub fn create(
         id: Uuid,
         kind: ProcurementRecordKind,
-        scope: TenantScope,
+        scope: AuthorityScope,
         title: String,
         at: DateTime<Utc>,
     ) -> Result<Self, ProcurementRecordError> {
@@ -153,7 +153,7 @@ impl ProcurementRecord {
     pub const fn kind(&self) -> ProcurementRecordKind {
         self.kind
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn title(&self) -> &str {
@@ -194,13 +194,13 @@ const fn allowed(
             | (K::SupplierReturn, S::Shipped, S::Closed)
     )
 }
-fn validate_scope(scope: &TenantScope) -> Result<(), ProcurementRecordError> {
+fn validate_scope(scope: &AuthorityScope) -> Result<(), ProcurementRecordError> {
     scope
         .validate()
         .map_err(|_| ProcurementRecordError::InvalidScope)?;
     if matches!(
         scope,
-        TenantScope::Company { .. } | TenantScope::Branch { .. }
+        AuthorityScope::Company { .. } | AuthorityScope::Branch { .. }
     ) {
         Ok(())
     } else {
@@ -221,7 +221,7 @@ mod tests {
     use chrono::TimeZone;
     #[test]
     fn receiving_and_returning_follow_distinct_lifecycles() {
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         };

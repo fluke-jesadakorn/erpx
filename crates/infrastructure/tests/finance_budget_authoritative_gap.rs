@@ -1,4 +1,4 @@
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::finance_budget::{BudgetLine, FinanceBudget};
 use erpx_infrastructure::{BudgetCommitmentRequest, PersistenceError, SqlxFinanceBudgetStore};
 use sqlx::PgPool;
@@ -9,12 +9,12 @@ fn context(principal: &str, holding_id: Uuid, company_id: Uuid, key: &str) -> Co
         key,
         ActorAttribution {
             principal_ref: principal.into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
         },
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -24,19 +24,19 @@ fn context(principal: &str, holding_id: Uuid, company_id: Uuid, key: &str) -> Co
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn commitment_replay_fails_closed_when_its_outbox_event_is_missing() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let pool = PgPool::connect(&url).await.expect("write pool");
-    erpx_migration::migrate_tenant_write(&pool)
+    erpx_migration::migrate_holding_write(&pool)
         .await
-        .expect("tenant-write migrations");
+        .expect("holding-write migrations");
 
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let account_id = Uuid::new_v4();
-    let holding_ref = format!("holding-budget-gap-{}", Uuid::new_v4().simple());
+    let data_profile_key = format!("holding-budget-gap-{}", Uuid::new_v4().simple());
     let mut budget = FinanceBudget::new(
         Uuid::new_v4(),
         holding_id,
@@ -47,7 +47,7 @@ async fn commitment_replay_fails_closed_when_its_outbox_event_is_missing() {
         context("creator", holding_id, company_id, "budget-gap-create"),
     )
     .expect("budget");
-    let store = SqlxFinanceBudgetStore::new(pool.clone(), &holding_ref).expect("store");
+    let store = SqlxFinanceBudgetStore::new(pool.clone(), &data_profile_key).expect("store");
     store
         .save_budget(&budget, None)
         .await
@@ -91,18 +91,18 @@ async fn commitment_replay_fails_closed_when_its_outbox_event_is_missing() {
         .expect("record commitment");
 
     let mut tamper_tx = pool.begin().await.expect("tamper transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tamper_tx)
         .await
         .expect("tamper scope");
     sqlx::query(
-        "DELETE FROM erpx_tenant.outbox_events
-          WHERE holding_ref=$1
+        "DELETE FROM erpx_holding.outbox_events
+          WHERE data_profile_key=$1
             AND aggregate_type='finance_budget_commitment'
             AND aggregate_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(request.commitment_id)
     .execute(&mut *tamper_tx)
     .await

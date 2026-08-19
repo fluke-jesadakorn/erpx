@@ -5,7 +5,7 @@
 //! database URLs are supplied.
 
 use chrono::Utc;
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::procurement_inventory::{
     GoodsReceipt, GoodsReceiptLine, GoodsReceiptStatus, Product, ProductReference, PurchaseOrder,
     PurchaseOrderLine, PurchaseOrderStatus, PurchaseRequest, PurchaseRequestLine, ScmAggregateKind,
@@ -17,16 +17,16 @@ use erpx_infrastructure::{ScmAggregate, ScmReadScope, SqlxScmStore};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-fn context(scope: TenantScope) -> CommandContext {
+fn context(scope: AuthorityScope) -> CommandContext {
     context_with_key(scope, "scm/e2e-product-1")
 }
 
-fn context_with_key(scope: TenantScope, key: &str) -> CommandContext {
+fn context_with_key(scope: AuthorityScope, key: &str) -> CommandContext {
     CommandContext::try_new(
         key,
         ActorAttribution {
             principal_ref: "scm-e2e-actor".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
@@ -38,25 +38,25 @@ fn context_with_key(scope: TenantScope, key: &str) -> CommandContext {
 }
 
 #[tokio::test]
-#[ignore = "requires two disposable tenant PostgreSQL databases"]
+#[ignore = "requires two disposable holding PostgreSQL databases"]
 async fn live_scm_source_pages_continue_from_the_returned_cursor() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migration");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding write migration");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migration");
+        .expect("holding read migration");
 
-    let holding_ref = format!("holding-scm-page-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-scm-page-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
-    let scope = TenantScope::Company {
+    let scope = AuthorityScope::Company {
         holding_id,
         company_id,
     };
@@ -86,7 +86,8 @@ async fn live_scm_source_pages_continue_from_the_returned_cursor() {
         &context_with_key(scope.clone(), "scm/e2e-page-second"),
     )
     .expect("second product");
-    let store = SqlxScmStore::new(write_pool, read_pool, holding_ref.clone()).expect("SCM store");
+    let store =
+        SqlxScmStore::new(write_pool, read_pool, data_profile_key.clone()).expect("SCM store");
     store
         .save(&ScmAggregate::Product(first), None)
         .await
@@ -106,7 +107,7 @@ async fn live_scm_source_pages_continue_from_the_returned_cursor() {
         .next_cursor
         .clone()
         .expect("first page continuation cursor");
-    assert_eq!(cursor.holding_ref, holding_ref);
+    assert_eq!(cursor.data_profile_key, data_profile_key);
     assert_eq!(cursor.event_id, first_page.events[0].event_id);
 
     let second_page = store
@@ -123,25 +124,25 @@ async fn live_scm_source_pages_continue_from_the_returned_cursor() {
 }
 
 #[tokio::test]
-#[ignore = "requires two disposable tenant PostgreSQL databases"]
+#[ignore = "requires two disposable holding PostgreSQL databases"]
 async fn live_scm_cursor_does_not_skip_same_version_outbox_rows() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migration");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding write migration");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migration");
+        .expect("holding read migration");
 
-    let holding_ref = format!("holding-scm-cursor-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-scm-cursor-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
-    let scope = TenantScope::Company {
+    let scope = AuthorityScope::Company {
         holding_id,
         company_id,
     };
@@ -160,7 +161,8 @@ async fn live_scm_cursor_does_not_skip_same_version_outbox_rows() {
     .expect("product");
     let aggregate_id = product.id;
     let write_pool_for_duplicate = write_pool.clone();
-    let store = SqlxScmStore::new(write_pool, read_pool, holding_ref.clone()).expect("SCM store");
+    let store =
+        SqlxScmStore::new(write_pool, read_pool, data_profile_key.clone()).expect("SCM store");
     store
         .save(&ScmAggregate::Product(product), None)
         .await
@@ -174,23 +176,23 @@ async fn live_scm_cursor_does_not_skip_same_version_outbox_rows() {
         .begin()
         .await
         .expect("duplicate source tx");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tx)
         .await
         .expect("route duplicate source tx");
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at)
-         SELECT $1, aggregate_type, aggregate_id, holding_ref,
+         SELECT $1, aggregate_type, aggregate_id, data_profile_key,
                 aggregate_version, event_type, payload, occurred_at
-         FROM erpx_tenant.outbox_events
-         WHERE aggregate_type='product' AND aggregate_id=$2 AND holding_ref=$3",
+         FROM erpx_holding.outbox_events
+         WHERE aggregate_type='product' AND aggregate_id=$2 AND data_profile_key=$3",
     )
     .bind(duplicate_event_id)
     .bind(aggregate_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .execute(&mut *tx)
     .await
     .expect("duplicate source event");
@@ -222,25 +224,25 @@ async fn live_scm_cursor_does_not_skip_same_version_outbox_rows() {
 }
 
 #[tokio::test]
-#[ignore = "requires two disposable tenant PostgreSQL databases"]
+#[ignore = "requires two disposable holding PostgreSQL databases"]
 async fn live_scm_reconciliation_evidence_is_idempotent_and_rollback_safe() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migration");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding write migration");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migration");
+        .expect("holding read migration");
 
-    let holding_ref = format!("holding-scm-reconcile-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-scm-reconcile-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
-    let scope = TenantScope::Company {
+    let scope = AuthorityScope::Company {
         holding_id,
         company_id,
     };
@@ -257,8 +259,12 @@ async fn live_scm_reconciliation_evidence_is_idempotent_and_rollback_safe() {
         &context_with_key(scope, "scm/e2e-reconciliation-evidence"),
     )
     .expect("product");
-    let store = SqlxScmStore::new(write_pool.clone(), read_pool.clone(), holding_ref.clone())
-        .expect("SCM store");
+    let store = SqlxScmStore::new(
+        write_pool.clone(),
+        read_pool.clone(),
+        data_profile_key.clone(),
+    )
+    .expect("SCM store");
     let source_receipt = store
         .save(&ScmAggregate::Product(product), None)
         .await
@@ -302,22 +308,22 @@ async fn live_scm_reconciliation_evidence_is_idempotent_and_rollback_safe() {
     );
 
     let mut tamper_tx = read_pool.begin().await.expect("tamper tx");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tamper_tx)
         .await
         .expect("route tamper tx");
     let mut tampered_payload = source_event.payload["aggregate"].clone();
     tampered_payload["name"] = serde_json::json!("tampered reconciliation product");
     sqlx::query(
-        "UPDATE erpx_tenant.scm_aggregates
+        "UPDATE erpx_holding.scm_aggregates
          SET payload=$1
-         WHERE aggregate_type=$2 AND aggregate_id=$3 AND holding_ref=$4",
+         WHERE aggregate_type=$2 AND aggregate_id=$3 AND data_profile_key=$4",
     )
     .bind(tampered_payload)
     .bind(&source_event.aggregate_type)
     .bind(source_event.aggregate_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .execute(&mut *tamper_tx)
     .await
     .expect("tamper read model");
@@ -345,21 +351,22 @@ async fn live_scm_reconciliation_evidence_is_idempotent_and_rollback_safe() {
     );
 
     let mut count_tx = write_pool.begin().await.expect("evidence count tx");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *count_tx)
         .await
         .expect("route evidence count tx");
-    let outbox_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM erpx_tenant.outbox_events WHERE holding_ref=$1")
-            .bind(&holding_ref)
-            .fetch_one(&mut *count_tx)
-            .await
-            .expect("count source and evidence outbox");
-    let idempotency_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM erpx_tenant.scm_command_idempotency WHERE holding_ref=$1",
+    let outbox_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM erpx_holding.outbox_events WHERE data_profile_key=$1",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
+    .fetch_one(&mut *count_tx)
+    .await
+    .expect("count source and evidence outbox");
+    let idempotency_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM erpx_holding.scm_command_idempotency WHERE data_profile_key=$1",
+    )
+    .bind(&data_profile_key)
     .fetch_one(&mut *count_tx)
     .await
     .expect("count source and evidence idempotency");
@@ -409,27 +416,27 @@ async fn live_scm_reconciliation_evidence_is_idempotent_and_rollback_safe() {
 }
 
 #[tokio::test]
-#[ignore = "requires two disposable tenant PostgreSQL databases"]
+#[ignore = "requires two disposable holding PostgreSQL databases"]
 async fn live_scm_write_outbox_projection_scoped_read_and_reconciliation() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migration");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding write migration");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migration");
+        .expect("holding read migration");
 
-    let holding_ref = format!("holding-scm-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-scm-{}", Uuid::new_v4());
     let write_pool_for_integrity = write_pool.clone();
     let read_pool_for_integrity = read_pool.clone();
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
-    let scope = TenantScope::Company {
+    let scope = AuthorityScope::Company {
         holding_id,
         company_id,
     };
@@ -447,7 +454,8 @@ async fn live_scm_write_outbox_projection_scoped_read_and_reconciliation() {
     )
     .expect("valid product");
     let product_id = product.id;
-    let store = SqlxScmStore::new(write_pool, read_pool, holding_ref.clone()).expect("SCM store");
+    let store =
+        SqlxScmStore::new(write_pool, read_pool, data_profile_key.clone()).expect("SCM store");
     let aggregate = ScmAggregate::Product(product);
 
     let first = store.save(&aggregate, None).await.expect("source write");
@@ -570,7 +578,7 @@ async fn live_scm_write_outbox_projection_scoped_read_and_reconciliation() {
             .rows
             .is_empty()
     );
-    let wrong_scope = TenantScope::Company {
+    let wrong_scope = AuthorityScope::Company {
         holding_id,
         company_id: Uuid::new_v4(),
     };
@@ -595,18 +603,18 @@ async fn live_scm_write_outbox_projection_scoped_read_and_reconciliation() {
         .begin()
         .await
         .expect("source envelope tamper tx");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *source_tamper_tx)
         .await
         .expect("route source envelope tamper tx");
     sqlx::query(
-        "UPDATE erpx_tenant.outbox_events
+        "UPDATE erpx_holding.outbox_events
          SET event_type='scm.product.invalid'
-         WHERE event_id=$1 AND holding_ref=$2",
+         WHERE event_id=$1 AND data_profile_key=$2",
     )
     .bind(page.events[0].event_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .execute(&mut *source_tamper_tx)
     .await
     .expect("tamper source event type");
@@ -623,19 +631,19 @@ async fn live_scm_write_outbox_projection_scoped_read_and_reconciliation() {
         .begin()
         .await
         .expect("source envelope restore tx");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *source_restore_tx)
         .await
         .expect("route source envelope restore tx");
     sqlx::query(
-        "UPDATE erpx_tenant.outbox_events
+        "UPDATE erpx_holding.outbox_events
          SET event_type=$1
-         WHERE event_id=$2 AND holding_ref=$3",
+         WHERE event_id=$2 AND data_profile_key=$3",
     )
     .bind(&page.events[0].event_type)
     .bind(page.events[0].event_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .execute(&mut *source_restore_tx)
     .await
     .expect("restore source event type");
@@ -656,22 +664,22 @@ async fn live_scm_write_outbox_projection_scoped_read_and_reconciliation() {
     // damaged read model look healthy until a later source event arrives.
     let original_payload = page.events[0].payload["aggregate"].clone();
     let mut tamper_tx = read_pool_for_integrity.begin().await.expect("tamper tx");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tamper_tx)
         .await
         .expect("route payload tamper tx");
     let mut tampered_payload = original_payload.clone();
     tampered_payload["name"] = serde_json::json!("valid but tampered product");
     sqlx::query(
-        "UPDATE erpx_tenant.scm_aggregates
+        "UPDATE erpx_holding.scm_aggregates
          SET payload=$1
-         WHERE aggregate_type=$2 AND aggregate_id=$3 AND holding_ref=$4",
+         WHERE aggregate_type=$2 AND aggregate_id=$3 AND data_profile_key=$4",
     )
     .bind(&tampered_payload)
     .bind(&page.events[0].aggregate_type)
     .bind(page.events[0].aggregate_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .execute(&mut *tamper_tx)
     .await
     .expect("tamper read payload");
@@ -685,38 +693,38 @@ async fn live_scm_write_outbox_projection_scoped_read_and_reconciliation() {
     assert!(!payload_drift.is_consistent());
 
     let mut restore_tx = read_pool_for_integrity.begin().await.expect("restore tx");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *restore_tx)
         .await
         .expect("route payload restore tx");
     sqlx::query(
-        "UPDATE erpx_tenant.scm_aggregates
+        "UPDATE erpx_holding.scm_aggregates
          SET payload=$1
-         WHERE aggregate_type=$2 AND aggregate_id=$3 AND holding_ref=$4",
+         WHERE aggregate_type=$2 AND aggregate_id=$3 AND data_profile_key=$4",
     )
     .bind(&original_payload)
     .bind(&page.events[0].aggregate_type)
     .bind(page.events[0].aggregate_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .execute(&mut *restore_tx)
     .await
     .expect("restore read payload");
     restore_tx.commit().await.expect("commit payload restore");
 
     let mut tamper_tx = read_pool_for_integrity.begin().await.expect("tamper tx");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tamper_tx)
         .await
         .expect("route tamper tx");
     sqlx::query(
-        "DELETE FROM erpx_tenant.scm_projection_checkpoints
-         WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$3",
+        "DELETE FROM erpx_holding.scm_projection_checkpoints
+         WHERE aggregate_type=$1 AND aggregate_id=$2 AND data_profile_key=$3",
     )
     .bind(&page.events[0].aggregate_type)
     .bind(page.events[0].aggregate_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .execute(&mut *tamper_tx)
     .await
     .expect("remove checkpoint for integrity test");
@@ -797,25 +805,25 @@ async fn live_scm_write_outbox_projection_scoped_read_and_reconciliation() {
 }
 
 #[tokio::test]
-#[ignore = "requires two disposable tenant PostgreSQL databases"]
+#[ignore = "requires two disposable holding PostgreSQL databases"]
 async fn live_scm_procurement_lifecycle_transition_projects_and_rebuilds() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migration");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding write migration");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migration");
+        .expect("holding read migration");
 
-    let holding_ref = format!("holding-scm-transition-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-scm-transition-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
-    let scope = TenantScope::Company {
+    let scope = AuthorityScope::Company {
         holding_id,
         company_id,
     };
@@ -856,7 +864,8 @@ async fn live_scm_procurement_lifecycle_transition_projects_and_rebuilds() {
     )
     .expect("purchase request");
     let request_id = request.id;
-    let store = SqlxScmStore::new(write_pool, read_pool, holding_ref.clone()).expect("SCM store");
+    let store =
+        SqlxScmStore::new(write_pool, read_pool, data_profile_key.clone()).expect("SCM store");
     let created = store
         .save(&ScmAggregate::PurchaseRequest(request), None)
         .await
@@ -943,26 +952,26 @@ async fn live_scm_procurement_lifecycle_transition_projects_and_rebuilds() {
 }
 
 #[tokio::test]
-#[ignore = "requires two disposable tenant PostgreSQL databases"]
+#[ignore = "requires two disposable holding PostgreSQL databases"]
 async fn live_scm_draft_stock_movement_cancellation_persists_and_rebuilds() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migration");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding write migration");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migration");
+        .expect("holding read migration");
 
-    let holding_ref = format!("holding-scm-movement-cancel-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-scm-movement-cancel-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let branch_id = Uuid::new_v4();
-    let scope = TenantScope::Branch {
+    let scope = AuthorityScope::Branch {
         holding_id,
         company_id,
         branch_id,
@@ -1001,7 +1010,7 @@ async fn live_scm_draft_stock_movement_cancellation_persists_and_rebuilds() {
     )
     .expect("draft stock movement");
     let movement_id = movement.id;
-    let store = SqlxScmStore::new(write_pool, read_pool, holding_ref).expect("SCM store");
+    let store = SqlxScmStore::new(write_pool, read_pool, data_profile_key).expect("SCM store");
     store
         .save(&ScmAggregate::StockMovement(movement), None)
         .await
@@ -1100,26 +1109,26 @@ async fn live_scm_draft_stock_movement_cancellation_persists_and_rebuilds() {
 }
 
 #[tokio::test]
-#[ignore = "requires two disposable tenant PostgreSQL databases"]
+#[ignore = "requires two disposable holding PostgreSQL databases"]
 async fn live_scm_stock_movement_post_is_atomic_idempotent_and_rebuildable() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migration");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding write migration");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migration");
+        .expect("holding read migration");
 
-    let holding_ref = format!("holding-scm-movement-post-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-scm-movement-post-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let branch_id = Uuid::new_v4();
-    let scope = TenantScope::Branch {
+    let scope = AuthorityScope::Branch {
         holding_id,
         company_id,
         branch_id,
@@ -1158,7 +1167,7 @@ async fn live_scm_stock_movement_post_is_atomic_idempotent_and_rebuildable() {
     )
     .expect("receipt movement");
     let receipt_id = receipt.id;
-    let store = SqlxScmStore::new(write_pool, read_pool, holding_ref).expect("SCM store");
+    let store = SqlxScmStore::new(write_pool, read_pool, data_profile_key).expect("SCM store");
     store
         .save(&ScmAggregate::StockMovement(receipt), None)
         .await
@@ -1438,26 +1447,26 @@ async fn live_scm_stock_movement_post_is_atomic_idempotent_and_rebuildable() {
 }
 
 #[tokio::test]
-#[ignore = "requires two disposable tenant PostgreSQL databases"]
+#[ignore = "requires two disposable holding PostgreSQL databases"]
 async fn live_scm_goods_receipt_post_updates_order_and_receipt_atomically() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
     let write_probe = write_pool.clone();
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migration");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding write migration");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migration");
+        .expect("holding read migration");
 
-    let holding_ref = format!("holding-scm-receipt-post-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-scm-receipt-post-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
-    let scope = TenantScope::Company {
+    let scope = AuthorityScope::Company {
         holding_id,
         company_id,
     };
@@ -1541,7 +1550,8 @@ async fn live_scm_goods_receipt_post_updates_order_and_receipt_atomically() {
     .expect("goods receipt");
     let receipt_id = receipt.id;
 
-    let store = SqlxScmStore::new(write_pool, read_pool, holding_ref.clone()).expect("SCM store");
+    let store =
+        SqlxScmStore::new(write_pool, read_pool, data_profile_key.clone()).expect("SCM store");
     store
         .save(&ScmAggregate::PurchaseRequest(request), None)
         .await
@@ -1616,14 +1626,14 @@ async fn live_scm_goods_receipt_post_updates_order_and_receipt_atomically() {
         .expect("posted receipt source event");
 
     let mut delete_tx = write_probe.begin().await.expect("delete transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *delete_tx)
         .await
         .expect("route delete transaction");
-    sqlx::query("DELETE FROM erpx_tenant.outbox_events WHERE event_id=$1 AND holding_ref=$2")
+    sqlx::query("DELETE FROM erpx_holding.outbox_events WHERE event_id=$1 AND data_profile_key=$2")
         .bind(receipt_event.event_id)
-        .bind(&holding_ref)
+        .bind(&data_profile_key)
         .execute(&mut *delete_tx)
         .await
         .expect("delete receipt outbox event");
@@ -1637,21 +1647,21 @@ async fn live_scm_goods_receipt_post_updates_order_and_receipt_atomically() {
     );
 
     let mut restore_tx = write_probe.begin().await.expect("restore transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *restore_tx)
         .await
         .expect("route restore transaction");
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
     )
     .bind(receipt_event.event_id)
     .bind(&receipt_event.aggregate_type)
     .bind(receipt_event.aggregate_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(i64::try_from(receipt_event.aggregate_version).expect("receipt version"))
     .bind(&receipt_event.event_type)
     .bind(&receipt_event.payload)
@@ -1736,25 +1746,25 @@ async fn live_scm_goods_receipt_post_updates_order_and_receipt_atomically() {
 }
 
 #[tokio::test]
-#[ignore = "requires two disposable tenant PostgreSQL databases"]
+#[ignore = "requires two disposable holding PostgreSQL databases"]
 async fn live_scm_reconciliation_detects_authoritative_version_gaps() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migration");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding write migration");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migration");
+        .expect("holding read migration");
 
-    let holding_ref = format!("holding-scm-gap-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-scm-gap-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
-    let scope = TenantScope::Company {
+    let scope = AuthorityScope::Company {
         holding_id,
         company_id,
     };
@@ -1769,7 +1779,7 @@ async fn live_scm_reconciliation_detects_authoritative_version_gaps() {
         "each",
         Utc::now(),
         &context_with_key(
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             },
@@ -1779,8 +1789,12 @@ async fn live_scm_reconciliation_detects_authoritative_version_gaps() {
     .expect("product");
     let product_id = product.id;
     let product_payload = serde_json::to_value(&product).expect("product payload");
-    let store = SqlxScmStore::new(write_pool.clone(), read_pool.clone(), holding_ref.clone())
-        .expect("SCM store");
+    let store = SqlxScmStore::new(
+        write_pool.clone(),
+        read_pool.clone(),
+        data_profile_key.clone(),
+    )
+    .expect("SCM store");
     store
         .save(&ScmAggregate::Product(product.clone()), None)
         .await
@@ -1804,20 +1818,20 @@ async fn live_scm_reconciliation_detects_authoritative_version_gaps() {
         "version": 3_u64,
     });
     let mut write_tx = write_pool.begin().await.expect("source gap tx");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *write_tx)
         .await
         .expect("route source gap tx");
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at)
          VALUES ($1, 'product', $2, $3, 3, 'scm.product.v1', $4, now())",
     )
     .bind(gap_event_id)
     .bind(product_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(&gap_payload)
     .execute(&mut *write_tx)
     .await
@@ -1825,19 +1839,19 @@ async fn live_scm_reconciliation_detects_authoritative_version_gaps() {
     write_tx.commit().await.expect("commit source gap");
 
     let mut read_tx = read_pool.begin().await.expect("aligned read tx");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *read_tx)
         .await
         .expect("route aligned read tx");
     sqlx::query(
-        "INSERT INTO erpx_tenant.scm_aggregates
-            (aggregate_id, aggregate_type, holding_ref, company_id, branch_id,
+        "INSERT INTO erpx_holding.scm_aggregates
+            (aggregate_id, aggregate_type, data_profile_key, company_id, branch_id,
              reference, source_version, payload)
          VALUES ($1, 'product', $2, $3, NULL, $4, 3, $5)",
     )
     .bind(product_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(company_id)
     .bind(&product.reference)
     .bind(&product_payload)
@@ -1845,13 +1859,13 @@ async fn live_scm_reconciliation_detects_authoritative_version_gaps() {
     .await
     .expect("align read aggregate to version three");
     sqlx::query(
-        "INSERT INTO erpx_tenant.scm_projection_checkpoints
-            (aggregate_type, aggregate_id, holding_ref, last_event_id,
+        "INSERT INTO erpx_holding.scm_projection_checkpoints
+            (aggregate_type, aggregate_id, data_profile_key, last_event_id,
              source_version)
          VALUES ('product', $1, $2, $3, 3)",
     )
     .bind(product_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(gap_event_id)
     .execute(&mut *read_tx)
     .await
@@ -1872,25 +1886,25 @@ async fn live_scm_reconciliation_detects_authoritative_version_gaps() {
 }
 
 #[tokio::test]
-#[ignore = "requires two disposable tenant PostgreSQL databases"]
+#[ignore = "requires two disposable holding PostgreSQL databases"]
 async fn live_scm_reconciliation_cycle_persists_page_evidence_and_replays_idempotently() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migration");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding write migration");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migration");
+        .expect("holding read migration");
 
-    let holding_ref = format!("holding-scm-cycle-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-scm-cycle-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
-    let scope = TenantScope::Company {
+    let scope = AuthorityScope::Company {
         holding_id,
         company_id,
     };
@@ -1907,8 +1921,12 @@ async fn live_scm_reconciliation_cycle_persists_page_evidence_and_replays_idempo
         &context_with_key(scope, "scm/e2e-reconciliation-cycle"),
     )
     .expect("product");
-    let store = SqlxScmStore::new(write_pool.clone(), read_pool.clone(), holding_ref.clone())
-        .expect("SCM store");
+    let store = SqlxScmStore::new(
+        write_pool.clone(),
+        read_pool.clone(),
+        data_profile_key.clone(),
+    )
+    .expect("SCM store");
     let receipt = store
         .save(&ScmAggregate::Product(product), None)
         .await
@@ -1940,22 +1958,23 @@ async fn live_scm_reconciliation_cycle_persists_page_evidence_and_replays_idempo
     assert_eq!(first.source_event_count, 1);
 
     let mut count_tx = write_pool.begin().await.expect("evidence count tx");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *count_tx)
         .await
         .expect("route evidence count tx");
-    let first_outbox_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM erpx_tenant.outbox_events WHERE holding_ref=$1")
-            .bind(&holding_ref)
-            .fetch_one(&mut *count_tx)
-            .await
-            .expect("first outbox count");
-    let first_evidence_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM erpx_tenant.scm_command_idempotency
-         WHERE holding_ref=$1 AND aggregate_type='scm_reconciliation'",
+    let first_outbox_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM erpx_holding.outbox_events WHERE data_profile_key=$1",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
+    .fetch_one(&mut *count_tx)
+    .await
+    .expect("first outbox count");
+    let first_evidence_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM erpx_holding.scm_command_idempotency
+         WHERE data_profile_key=$1 AND aggregate_type='scm_reconciliation'",
+    )
+    .bind(&data_profile_key)
     .fetch_one(&mut *count_tx)
     .await
     .expect("first evidence count");
@@ -1970,22 +1989,23 @@ async fn live_scm_reconciliation_cycle_persists_page_evidence_and_replays_idempo
     assert_eq!(replay, first);
 
     let mut replay_count_tx = write_pool.begin().await.expect("replay count tx");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *replay_count_tx)
         .await
         .expect("route replay count tx");
-    let replay_outbox_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM erpx_tenant.outbox_events WHERE holding_ref=$1")
-            .bind(&holding_ref)
-            .fetch_one(&mut *replay_count_tx)
-            .await
-            .expect("replay outbox count");
-    let replay_evidence_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM erpx_tenant.scm_command_idempotency
-         WHERE holding_ref=$1 AND aggregate_type='scm_reconciliation'",
+    let replay_outbox_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM erpx_holding.outbox_events WHERE data_profile_key=$1",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
+    .fetch_one(&mut *replay_count_tx)
+    .await
+    .expect("replay outbox count");
+    let replay_evidence_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM erpx_holding.scm_command_idempotency
+         WHERE data_profile_key=$1 AND aggregate_type='scm_reconciliation'",
+    )
+    .bind(&data_profile_key)
     .fetch_one(&mut *replay_count_tx)
     .await
     .expect("replay evidence count");

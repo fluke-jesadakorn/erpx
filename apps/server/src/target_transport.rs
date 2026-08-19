@@ -1,4 +1,4 @@
-//! Concrete generation-v2 reference and stream transports.
+//! Concrete current reference and stream transports.
 //!
 //! These adapters authenticate before inspecting protected query inputs. A
 //! missing Item Directory or Collaboration record-policy composition is
@@ -26,16 +26,16 @@ use erpx_collaboration_sqlx::{
     SqlxCollaborationAuthorization, SqlxDraftRepository, SqlxItemDirectory,
     SqlxThreadReadRepository, SqlxThreadWriteRepository,
 };
-use erpx_domain::{access::Scope, data_plane::TENANT_INFRASTRUCTURE_READ};
+use erpx_domain::{contracts::AuthorityScope as Scope, data_plane::HOLDING_INFRASTRUCTURE_READ};
 use erpx_infrastructure::{
-    ReadinessState, RoutedDatabaseSide, SqlxTenantAdministrationStore, TenantDataRouteScope,
+    HoldingDataRouteScope, ReadinessState, RoutedDatabaseSide, SqlxHoldingAdministrationStore,
 };
 use erpx_kernel::{
-    CommandId, CorrelationId, DataClassification, PolicyId, PrincipalId, PrincipalKind, RecordId,
-    TenantId, TenantScope,
+    AuthorityScope, CommandId, CorrelationId, DataClassification, HoldingId, PolicyId, PrincipalId,
+    PrincipalKind, RecordId,
 };
 use erpx_proto::erpx::{
-    collaboration::v2::{
+    collaboration::{
         AddCommentRequest, AudienceRealm, CollaborationStreamRequest, CommentIdentityRequest,
         ConfirmActionCardRequest, CreateThreadRequest, EditCommentRequest, FollowingRequest,
         GetThreadRequest, GetThreadResponse, ListMentionInboxRequest, ListMentionInboxResponse,
@@ -47,14 +47,14 @@ use erpx_proto::erpx::{
         collaboration_query_service_server::CollaborationQueryService,
         collaboration_stream_service_server::CollaborationStreamService,
     },
-    interface::v2::{
-        AuthorityScope, AuthorityScopeLevel, DirectoryFreshness,
+    interface::{
+        AuthorityScope as InterfaceAuthorityScope, AuthorityScopeLevel, DirectoryFreshness,
         ItemDescriptor as ProtoItemDescriptor, ListBacklinksRequest, ListBacklinksResponse,
         RecordRef as ProtoRecordRef, ResolveReferenceRequest, ResolveReferenceResponse,
         SearchItemsRequest, SearchItemsResponse, StreamEvent, StreamRequest,
     },
-    platform_administration::v2::data_plane_stream_service_server::DataPlaneStreamService,
-    reference::v2::reference_query_service_server::ReferenceQueryService,
+    platform_administration::data_plane_stream_service_server::DataPlaneStreamService,
+    reference::reference_query_service_server::ReferenceQueryService,
 };
 use tokio::sync::mpsc;
 use tokio_stream::{Stream, wrappers::ReceiverStream};
@@ -96,14 +96,14 @@ impl ReferenceQueryService for ReferenceQueryRpc {
         )
         .await?;
         validate_purpose(&input.purpose)?;
-        let tenant_ref = authorized.tenant_ref.clone();
+        let data_profile_key = authorized.data_profile_key.clone();
         let directory_access = authorized.directory_access()?;
         let directory = SqlxItemDirectory::new(authorized.read_pool);
         let result = directory
             .resolve(&directory_access, record_id, Utc::now())
             .await
             .map_err(map_directory_error)?;
-        Ok(Response::new(resolve_response(result, &tenant_ref)?))
+        Ok(Response::new(resolve_response(result, &data_profile_key)?))
     }
 
     async fn search(
@@ -123,7 +123,7 @@ impl ReferenceQueryService for ReferenceQueryRpc {
         validate_search(&input.query, input.page_size, input.cursor.as_deref())?;
         let page_size = u16::try_from(input.page_size)
             .map_err(|_| Status::invalid_argument("page_size is invalid"))?;
-        let tenant_ref = authorized.tenant_ref.clone();
+        let data_profile_key = authorized.data_profile_key.clone();
         let directory_access = authorized.directory_access()?;
         let directory = SqlxItemDirectory::new(authorized.read_pool);
         let result = directory
@@ -138,7 +138,7 @@ impl ReferenceQueryService for ReferenceQueryRpc {
             )
             .await
             .map_err(map_directory_error)?;
-        Ok(Response::new(search_response(result, &tenant_ref)?))
+        Ok(Response::new(search_response(result, &data_profile_key)?))
     }
 
     async fn list_backlinks(
@@ -200,7 +200,7 @@ impl CollaborationStreamService for CollaborationStreamRpc {
             &self.state,
             &claims,
             input.authority_scope.as_ref(),
-            Some((&input.tenant_id, &input.actor_principal_id)),
+            Some((&input.holding_id, &input.actor_principal_id)),
             [CollaborationAction::ReadStream],
         )
         .await?;
@@ -296,7 +296,7 @@ impl CollaborationCommandService for CollaborationCommandRpc {
             Audience::ExternalPortal { .. } => runtime.actor.authority_scope.clone(),
         };
         let policy = AnchorPolicy::try_new(
-            runtime.actor.tenant_id,
+            runtime.actor.holding_id,
             anchor.record().clone(),
             visibility_scope,
             external_portal,
@@ -663,7 +663,7 @@ impl CollaborationQueryService for CollaborationQueryRpc {
             &self.state,
             &claims,
             input.authority_scope.as_ref(),
-            Some((&input.tenant_id, &input.actor_principal_id)),
+            Some((&input.holding_id, &input.actor_principal_id)),
             [CollaborationAction::ViewThread],
         )
         .await?;
@@ -692,7 +692,7 @@ impl CollaborationQueryService for CollaborationQueryRpc {
             &self.state,
             &claims,
             input.authority_scope.as_ref(),
-            Some((&input.tenant_id, &input.actor_principal_id)),
+            Some((&input.holding_id, &input.actor_principal_id)),
             [
                 CollaborationAction::SearchThreads,
                 CollaborationAction::ViewThread,
@@ -741,7 +741,7 @@ impl CollaborationQueryService for CollaborationQueryRpc {
             &self.state,
             &claims,
             input.authority_scope.as_ref(),
-            Some((&input.tenant_id, &input.actor_principal_id)),
+            Some((&input.holding_id, &input.actor_principal_id)),
             [
                 CollaborationAction::ListRecordThreads,
                 CollaborationAction::SearchThreads,
@@ -812,7 +812,7 @@ impl CollaborationQueryService for CollaborationQueryRpc {
             &self.state,
             &claims,
             input.authority_scope.as_ref(),
-            Some((&input.tenant_id, &input.actor_principal_id)),
+            Some((&input.holding_id, &input.actor_principal_id)),
             [CollaborationAction::ReadInbox],
         )
         .await?;
@@ -838,22 +838,21 @@ impl CollaborationQueryService for CollaborationQueryRpc {
     }
 }
 
-struct AuthorizedTenantRequest {
-    tenant_ref: String,
-    tenant_id: TenantId,
+struct AuthorizedHoldingRequest {
+    data_profile_key: String,
+    holding_id: HoldingId,
     principal_id: PrincipalId,
-    tenant_scope: TenantScope,
-    holding_ref: String,
-    route_scope: TenantDataRouteScope,
+    active_scope: AuthorityScope,
+    route_scope: HoldingDataRouteScope,
     read_pool: sqlx::PgPool,
 }
 
-impl AuthorizedTenantRequest {
+impl AuthorizedHoldingRequest {
     fn directory_access(&self) -> Result<DirectoryAccess, Status> {
         DirectoryAccess::try_from_authorization(
-            self.tenant_id,
+            self.holding_id,
             self.principal_id,
-            self.tenant_scope.clone(),
+            self.active_scope.clone(),
         )
         .map_err(|_| Status::permission_denied("directory scope is unavailable"))
     }
@@ -927,25 +926,25 @@ struct CollaborationCommandRuntime {
 async fn collaboration_command_runtime(
     state: &AppState,
     claims: &erpx_identity::AccessTokenClaims,
-    metadata: &erpx_proto::erpx::collaboration::v2::CommandMetadata,
+    metadata: &erpx_proto::erpx::collaboration::CommandMetadata,
     actions: impl IntoIterator<Item = CollaborationAction>,
 ) -> Result<CollaborationCommandRuntime, Status> {
-    let authorized = authorize_tenant_request(
+    let authorized = authorize_holding_request(
         state,
         claims,
         metadata.authority_scope.as_ref(),
-        Some((&metadata.tenant_id, &metadata.actor_principal_id)),
+        Some((&metadata.holding_id, &metadata.actor_principal_id)),
         COLLABORATION_WRITE_PERMISSION,
     )
     .await?;
     let router = state
-        .tenant_router
+        .holding_router
         .as_ref()
-        .ok_or_else(|| Status::unavailable("tenant database routing is unavailable"))?;
+        .ok_or_else(|| Status::unavailable("holding database routing is unavailable"))?;
     let write = router
         .route_scoped(
-            &authorized.tenant_ref,
-            &authorized.holding_ref,
+            &authorized.data_profile_key,
+            &authorized.data_profile_key,
             authorized.route_scope,
             RoutedDatabaseSide::Write,
         )
@@ -1002,11 +1001,11 @@ async fn mutate(
 async fn collaboration_query_runtime(
     state: &AppState,
     claims: &erpx_identity::AccessTokenClaims,
-    scope: Option<&AuthorityScope>,
+    scope: Option<&InterfaceAuthorityScope>,
     expected: Option<(&str, &str)>,
     actions: impl IntoIterator<Item = CollaborationAction>,
 ) -> Result<CollaborationQueryRuntime, Status> {
-    let authorized = authorize_tenant_request(
+    let authorized = authorize_holding_request(
         state,
         claims,
         scope,
@@ -1015,13 +1014,13 @@ async fn collaboration_query_runtime(
     )
     .await?;
     let router = state
-        .tenant_router
+        .holding_router
         .as_ref()
-        .ok_or_else(|| Status::unavailable("tenant database routing is unavailable"))?;
+        .ok_or_else(|| Status::unavailable("holding database routing is unavailable"))?;
     let write = router
         .route_scoped(
-            &authorized.tenant_ref,
-            &authorized.holding_ref,
+            &authorized.data_profile_key,
+            &authorized.data_profile_key,
             authorized.route_scope,
             RoutedDatabaseSide::Write,
         )
@@ -1044,33 +1043,33 @@ async fn collaboration_query_runtime(
     })
 }
 
-async fn authorize_tenant_request(
+async fn authorize_holding_request(
     state: &AppState,
     claims: &erpx_identity::AccessTokenClaims,
-    value: Option<&AuthorityScope>,
+    value: Option<&InterfaceAuthorityScope>,
     expected: Option<(&str, &str)>,
     permission: &str,
-) -> Result<AuthorizedTenantRequest, Status> {
-    let (tenant_ref, domain_scope) = authority_scope(value)?;
-    if let Some((expected_tenant, expected_actor)) = expected
-        && (expected_tenant != tenant_ref || expected_actor != claims.principal_ref)
+) -> Result<AuthorizedHoldingRequest, Status> {
+    let (data_profile_key, domain_scope) = authority_scope(value)?;
+    if let Some((expected_holding, expected_actor)) = expected
+        && (expected_holding != data_profile_key || expected_actor != claims.principal_ref)
     {
         return Err(Status::permission_denied(
             "request attribution does not match authenticated authority",
         ));
     }
-    authorize_known_tenant_request(state, claims, tenant_ref, domain_scope, permission).await
+    authorize_known_holding_request(state, claims, data_profile_key, domain_scope, permission).await
 }
 
 fn collaboration_actor(
     claims: &erpx_identity::AccessTokenClaims,
-    authorized: &AuthorizedTenantRequest,
+    authorized: &AuthorizedHoldingRequest,
 ) -> Result<ActorContext, Status> {
     let (principal_kind, external_portal) = collaboration_identity(claims)?;
     Ok(ActorContext {
-        tenant_id: authorized.tenant_id,
+        holding_id: authorized.holding_id,
         principal: CollaborationPrincipalRef::new(authorized.principal_id, principal_kind),
-        authority_scope: authorized.tenant_scope.clone(),
+        authority_scope: authorized.active_scope.clone(),
         external_portal,
     })
 }
@@ -1106,121 +1105,114 @@ fn collaboration_identity(
 }
 
 /// Resolve the selected data plane from the server-owned root-holding binding.
-/// A client may repeat the tenant UUID when it already has an authorized
+/// A client may repeat the holding UUID when it already has an authorized
 /// descriptor, but it is never trusted as routing authority and any mismatch
 /// fails closed. This lets a freshly restored browser session begin with only
-/// its credential-free selected scope and receive the tenant UUID from the
+/// its credential-free selected scope and receive the holding UUID from the
 /// first authorized Reference response.
 async fn authorize_reference_request(
     state: &AppState,
     claims: &erpx_identity::AccessTokenClaims,
-    value: Option<&AuthorityScope>,
+    value: Option<&InterfaceAuthorityScope>,
     permission: &str,
-) -> Result<AuthorizedTenantRequest, Status> {
+) -> Result<AuthorizedHoldingRequest, Status> {
     let value = value.ok_or_else(|| Status::invalid_argument("authority_scope is required"))?;
-    let presented_tenant = (!value.tenant_id.trim().is_empty()).then(|| value.tenant_id.trim());
-    let mut hierarchy = value.clone();
-    if presented_tenant.is_none() {
-        // `authority_scope` validates only the hierarchy after this local,
-        // non-routable marker supplies its mandatory lexical tenant field.
-        hierarchy.tenant_id = "server-derived".into();
-    }
-    let (_, domain_scope) = authority_scope(Some(&hierarchy))?;
-    let root_holding_id = match &domain_scope {
+    let presented_holding = value.holding_id.as_deref().map(str::trim);
+    let (_, domain_scope) = authority_scope(Some(value))?;
+    let canonical_holding_id = match &domain_scope {
         Scope::Holding { holding_id }
         | Scope::Company { holding_id, .. }
         | Scope::Branch { holding_id, .. }
         | Scope::Subtree { holding_id, .. } => *holding_id,
         Scope::Platform => {
             return Err(Status::permission_denied(
-                "tenant Item Directory requires an explicit holding, company, or branch scope",
+                "holding Item Directory requires an explicit holding, company, or branch scope",
             ));
         }
     };
-    let bound_tenant = SqlxTenantAdministrationStore::new(state.store.clone())
-        .tenant_id_for_root_holding(root_holding_id)
+    let bound_holding = SqlxHoldingAdministrationStore::new(state.store.clone())
+        .holding_id_for_root_holding(canonical_holding_id)
         .await
-        .map_err(|_| Status::unavailable("tenant data-plane binding is unavailable"))?
+        .map_err(|_| Status::unavailable("holding data-plane binding is unavailable"))?
         .ok_or_else(|| {
-            Status::failed_precondition("holding is not bound to a tenant data plane")
+            Status::failed_precondition("holding is not bound to a holding data plane")
         })?;
-    if !tenant_binding_matches(presented_tenant, &bound_tenant) {
+    if !holding_binding_matches(presented_holding, &bound_holding) {
         return Err(Status::permission_denied(
-            "presented tenant does not match the authorized data plane",
+            "presented holding does not match the authorized data plane",
         ));
     }
-    authorize_known_tenant_request(state, claims, bound_tenant, domain_scope, permission).await
+    authorize_known_holding_request(state, claims, bound_holding, domain_scope, permission).await
 }
 
-fn tenant_binding_matches(presented: Option<&str>, bound: &str) -> bool {
+fn holding_binding_matches(presented: Option<&str>, bound: &str) -> bool {
     presented.is_none_or(|presented| presented == bound)
 }
 
-async fn authorize_known_tenant_request(
+async fn authorize_known_holding_request(
     state: &AppState,
     claims: &erpx_identity::AccessTokenClaims,
-    tenant_ref: String,
+    data_profile_key: String,
     domain_scope: Scope,
     permission: &str,
-) -> Result<AuthorizedTenantRequest, Status> {
-    let tenant_id = tenant_id(&tenant_ref)?;
+) -> Result<AuthorizedHoldingRequest, Status> {
+    let holding_id = holding_id(&data_profile_key)?;
     let principal_id = principal_id(&claims.principal_ref)?;
     state
         .auth
-        .authorize_role_for_tenant(
+        .authorize_role_for_holding(
             &state.store,
             claims,
             &domain_scope,
             permission,
-            Some(&tenant_ref),
+            Some(&data_profile_key),
         )
         .await?;
-    let (tenant_scope, holding_ref, route_scope) = tenant_route_scope(&domain_scope)?;
+    let (active_scope, data_profile_key, route_scope) = holding_route_scope(&domain_scope)?;
     let router = state
-        .tenant_router
+        .holding_router
         .as_ref()
-        .ok_or_else(|| Status::unavailable("tenant database routing is unavailable"))?;
+        .ok_or_else(|| Status::unavailable("holding database routing is unavailable"))?;
     let read = router
         .route_scoped(
-            &tenant_ref,
-            &holding_ref,
+            &data_profile_key,
+            &data_profile_key,
             route_scope,
             RoutedDatabaseSide::Read,
         )
         .await
-        .map_err(|_| Status::unavailable("tenant read route is unavailable"))?;
-    Ok(AuthorizedTenantRequest {
-        tenant_ref,
-        tenant_id,
+        .map_err(|_| Status::unavailable("holding read route is unavailable"))?;
+    Ok(AuthorizedHoldingRequest {
+        data_profile_key,
+        holding_id,
         principal_id,
-        tenant_scope,
-        holding_ref,
+        active_scope,
         route_scope,
         read_pool: read.database_pool().clone(),
     })
 }
 
-fn tenant_route_scope(
+fn holding_route_scope(
     scope: &Scope,
-) -> Result<(TenantScope, String, TenantDataRouteScope), Status> {
+) -> Result<(AuthorityScope, String, HoldingDataRouteScope), Status> {
     match scope {
         Scope::Holding { holding_id } => Ok((
-            TenantScope::Holding {
+            AuthorityScope::Holding {
                 holding_id: *holding_id,
             },
             holding_id.to_string(),
-            TenantDataRouteScope::Holding,
+            HoldingDataRouteScope::Holding,
         )),
         Scope::Company {
             holding_id,
             company_id,
         } => Ok((
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id: *holding_id,
                 company_id: *company_id,
             },
             holding_id.to_string(),
-            TenantDataRouteScope::Company {
+            HoldingDataRouteScope::Company {
                 company_id: *company_id,
             },
         )),
@@ -1229,44 +1221,42 @@ fn tenant_route_scope(
             company_id,
             branch_id,
         } => Ok((
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id: *holding_id,
                 company_id: *company_id,
                 branch_id: *branch_id,
             },
             holding_id.to_string(),
-            TenantDataRouteScope::Branch {
+            HoldingDataRouteScope::Branch {
                 company_id: *company_id,
                 branch_id: *branch_id,
             },
         )),
         Scope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
+            organization_node_id,
         } => Ok((
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id: *holding_id,
-                company_ids: company_ids.clone(),
-                branch_ids: branch_ids.clone(),
+                organization_node_id: *organization_node_id,
             },
             holding_id.to_string(),
-            TenantDataRouteScope::Holding,
+            HoldingDataRouteScope::Holding,
         )),
         Scope::Platform => Err(Status::permission_denied(
-            "tenant Item Directory requires an explicit holding, company, or branch scope",
+            "holding Item Directory requires an explicit holding, company, or branch scope",
         )),
     }
 }
 
 fn resolve_response(
     value: DirectoryLookup<erpx_integration_contracts::ItemDescriptor>,
-    tenant_ref: &str,
+    data_profile_key: &str,
 ) -> Result<ResolveReferenceResponse, Status> {
     Ok(match value {
         DirectoryLookup::Visible { value, freshness } => ResolveReferenceResponse {
             found: true,
-            descriptor: Some(item_descriptor_to_proto(&value, tenant_ref)?),
+            descriptor: Some(item_descriptor_to_proto(&value, data_profile_key)?),
             freshness: freshness_to_proto(freshness) as i32,
         },
         DirectoryLookup::Neutral => ResolveReferenceResponse {
@@ -1289,14 +1279,14 @@ fn resolve_response(
 
 fn search_response(
     value: DirectoryLookup<erpx_collaboration_sqlx::DirectorySearchPage>,
-    tenant_ref: &str,
+    data_profile_key: &str,
 ) -> Result<SearchItemsResponse, Status> {
     Ok(match value {
         DirectoryLookup::Visible { value, freshness } => SearchItemsResponse {
             items: value
                 .items
                 .iter()
-                .map(|item| item_descriptor_to_proto(item, tenant_ref))
+                .map(|item| item_descriptor_to_proto(item, data_profile_key))
                 .collect::<Result<Vec<_>, _>>()?,
             next_cursor: value.next_cursor,
             authorized_count: value.authorized_count,
@@ -1369,11 +1359,11 @@ fn empty_record_thread_page(freshness: DirectoryFreshness) -> ListThreadsByRecor
 
 fn item_descriptor_to_proto(
     value: &erpx_integration_contracts::ItemDescriptor,
-    tenant_ref: &str,
+    data_profile_key: &str,
 ) -> Result<ProtoItemDescriptor, Status> {
     Ok(ProtoItemDescriptor {
         record: Some(record_ref_to_proto(value.record())),
-        scope: Some(scope_to_proto(value.scope(), tenant_ref)?),
+        scope: Some(scope_to_proto(value.scope(), data_profile_key)?),
         canonical_route: value.canonical_route().into(),
         lifecycle_state: value.lifecycle_state().into(),
         authorization_policy_id: value.authorization_policy().to_string(),
@@ -1391,44 +1381,43 @@ fn record_ref_to_proto(value: &erpx_integration_contracts::StableRecordRef) -> P
     }
 }
 
-fn scope_to_proto(value: &TenantScope, tenant_ref: &str) -> Result<AuthorityScope, Status> {
+fn scope_to_proto(
+    value: &AuthorityScope,
+    _data_profile_key: &str,
+) -> Result<InterfaceAuthorityScope, Status> {
     Ok(match value {
-        TenantScope::Platform => AuthorityScope {
-            tenant_id: tenant_ref.into(),
+        AuthorityScope::Platform => InterfaceAuthorityScope {
             level: AuthorityScopeLevel::Platform as i32,
             holding_id: None,
             company_id: None,
             branch_id: None,
         },
-        TenantScope::Holding { holding_id } => AuthorityScope {
-            tenant_id: tenant_ref.into(),
+        AuthorityScope::Holding { holding_id } => InterfaceAuthorityScope {
             level: AuthorityScopeLevel::Holding as i32,
             holding_id: Some(holding_id.to_string()),
             company_id: None,
             branch_id: None,
         },
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
-        } => AuthorityScope {
-            tenant_id: tenant_ref.into(),
+        } => InterfaceAuthorityScope {
             level: AuthorityScopeLevel::Company as i32,
             holding_id: Some(holding_id.to_string()),
             company_id: Some(company_id.to_string()),
             branch_id: None,
         },
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
-        } => AuthorityScope {
-            tenant_id: tenant_ref.into(),
+        } => InterfaceAuthorityScope {
             level: AuthorityScopeLevel::Branch as i32,
             holding_id: Some(holding_id.to_string()),
             company_id: Some(company_id.to_string()),
             branch_id: Some(branch_id.to_string()),
         },
-        TenantScope::Subtree { .. } => {
+        AuthorityScope::Subtree { .. } => {
             return Err(Status::unavailable(
                 "subtree directory scope is not representable by the current wire contract",
             ));
@@ -1511,7 +1500,7 @@ fn action_card_id(value: &str) -> Result<ActionCardId, Status> {
 }
 
 fn mutation_identity(
-    value: &erpx_proto::erpx::collaboration::v2::CommandMetadata,
+    value: &erpx_proto::erpx::collaboration::CommandMetadata,
 ) -> Result<MutationIdentity, Status> {
     let identity = MutationIdentity {
         command_id: CommandId::try_from_uuid(uuid(&value.command_id, "command_id")?)
@@ -1548,7 +1537,7 @@ fn stable_record_ref(
 }
 
 fn thread_anchor(
-    value: &erpx_proto::erpx::collaboration::v2::ThreadAnchor,
+    value: &erpx_proto::erpx::collaboration::ThreadAnchor,
 ) -> Result<ThreadAnchor, Status> {
     let record = stable_record_ref(required(value.record.as_ref(), "anchor.record")?)?;
     let location = match (
@@ -1582,7 +1571,7 @@ fn thread_anchor(
         .map_err(|_| Status::invalid_argument("thread anchor is invalid"))
 }
 
-fn audience(value: &erpx_proto::erpx::collaboration::v2::Audience) -> Result<Audience, Status> {
+fn audience(value: &erpx_proto::erpx::collaboration::Audience) -> Result<Audience, Status> {
     let realm = AudienceRealm::try_from(value.realm)
         .map_err(|_| Status::invalid_argument("audience realm is invalid"))?;
     let participants = value
@@ -1593,7 +1582,7 @@ fn audience(value: &erpx_proto::erpx::collaboration::v2::Audience) -> Result<Aud
     match realm {
         AudienceRealm::Internal => {
             let (_, scope) = authority_scope(value.scope.as_ref())?;
-            let (scope, _, _) = tenant_route_scope(&scope)?;
+            let (scope, _, _) = holding_route_scope(&scope)?;
             Ok(Audience::Internal {
                 scope,
                 principals: participants,
@@ -1626,18 +1615,18 @@ const fn audience_external_portal(value: &Audience) -> Option<ExternalPortal> {
 }
 
 fn principal_ref(
-    value: &erpx_proto::erpx::collaboration::v2::PrincipalRef,
+    value: &erpx_proto::erpx::collaboration::PrincipalRef,
 ) -> Result<CollaborationPrincipalRef, Status> {
     let id = PrincipalId::try_from_uuid(uuid(&value.principal_id, "principal_id")?)
         .map_err(|_| Status::invalid_argument("principal_id is invalid"))?;
-    let kind = match erpx_proto::erpx::collaboration::v2::PrincipalKind::try_from(value.kind)
+    let kind = match erpx_proto::erpx::collaboration::PrincipalKind::try_from(value.kind)
         .map_err(|_| Status::invalid_argument("principal kind is invalid"))?
     {
-        erpx_proto::erpx::collaboration::v2::PrincipalKind::Human => PrincipalKind::Human,
-        erpx_proto::erpx::collaboration::v2::PrincipalKind::Agent => PrincipalKind::Agent,
-        erpx_proto::erpx::collaboration::v2::PrincipalKind::HumanGroup => PrincipalKind::HumanGroup,
-        erpx_proto::erpx::collaboration::v2::PrincipalKind::AgentPool => PrincipalKind::AgentPool,
-        erpx_proto::erpx::collaboration::v2::PrincipalKind::Unspecified => {
+        erpx_proto::erpx::collaboration::PrincipalKind::Human => PrincipalKind::Human,
+        erpx_proto::erpx::collaboration::PrincipalKind::Agent => PrincipalKind::Agent,
+        erpx_proto::erpx::collaboration::PrincipalKind::HumanGroup => PrincipalKind::HumanGroup,
+        erpx_proto::erpx::collaboration::PrincipalKind::AgentPool => PrincipalKind::AgentPool,
+        erpx_proto::erpx::collaboration::PrincipalKind::Unspecified => {
             return Err(Status::invalid_argument("principal kind is required"));
         }
     };
@@ -1645,7 +1634,7 @@ fn principal_ref(
 }
 
 fn comment_document(
-    value: &erpx_proto::erpx::collaboration::v2::CommentDocument,
+    value: &erpx_proto::erpx::collaboration::CommentDocument,
 ) -> Result<CommentDocument, Status> {
     let blocks = serde_json::from_slice(&value.block_json_utf8)
         .map_err(|_| Status::invalid_argument("comment block JSON is invalid"))?;
@@ -1665,7 +1654,7 @@ fn comment_document(
 }
 
 fn attachment(
-    value: &erpx_proto::erpx::collaboration::v2::AttachmentRef,
+    value: &erpx_proto::erpx::collaboration::AttachmentRef,
 ) -> Result<AttachmentRef, Status> {
     Ok(AttachmentRef {
         object_id: uuid(&value.object_id, "attachment.object_id")?,
@@ -1676,7 +1665,7 @@ fn attachment(
 }
 
 fn mention(
-    value: &erpx_proto::erpx::collaboration::v2::MentionToken,
+    value: &erpx_proto::erpx::collaboration::MentionToken,
 ) -> Result<(MentionEventId, MentionTarget), Status> {
     let value_target = required(value.target.as_ref(), "mention.target")?;
     let target = MentionTarget {
@@ -1790,15 +1779,15 @@ impl DataPlaneStreamService for DataPlaneStreamRpc {
     ) -> Result<Response<Self::SubscribeStream>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let input = request.get_ref();
-        let (tenant_id, scope) = authority_scope(input.authority_scope.as_ref())?;
+        let (holding_id, scope) = authority_scope(input.authority_scope.as_ref())?;
         self.state
             .auth
-            .authorize_role_for_tenant(
+            .authorize_role_for_holding(
                 &self.state.store,
                 &claims,
                 &scope,
-                TENANT_INFRASTRUCTURE_READ,
-                Some(&tenant_id),
+                HOLDING_INFRASTRUCTURE_READ,
+                Some(&holding_id),
             )
             .await?;
         let mut position = validate_cursor(input.cursor.as_deref())?;
@@ -1812,7 +1801,7 @@ impl DataPlaneStreamService for DataPlaneStreamRpc {
                 let observation = readiness.observe().await;
                 let next = [
                     ("worker-heartbeat", observation.worker_heartbeat),
-                    ("tenant-routing", observation.tenant_routing),
+                    ("holding-routing", observation.holding_routing),
                     ("projection-freshness", observation.projection_freshness),
                     ("backup-pitr", observation.backup_pitr),
                 ];
@@ -1822,7 +1811,7 @@ impl DataPlaneStreamService for DataPlaneStreamRpc {
                 previous = Some(next);
                 for (component, state) in next {
                     position = position.saturating_add(1);
-                    let event = readiness_event(&tenant_id, position, component, state);
+                    let event = readiness_event(&holding_id, position, component, state);
                     if sender.send(Ok(event)).await.is_err() {
                         return;
                     }
@@ -1834,24 +1823,21 @@ impl DataPlaneStreamService for DataPlaneStreamRpc {
 }
 
 fn readiness_event(
-    tenant_id: &str,
+    holding_id: &str,
     position: u64,
     component: &str,
     state: ReadinessState,
 ) -> StreamEvent {
     StreamEvent {
-        event_id: format!("{tenant_id}:{position}"),
+        event_id: format!("{holding_id}:{position}"),
         event_type: format!("data-plane.{component}.{}", state.as_str()),
         position,
     }
 }
 
-fn authority_scope(value: Option<&AuthorityScope>) -> Result<(String, Scope), Status> {
+fn authority_scope(value: Option<&InterfaceAuthorityScope>) -> Result<(String, Scope), Status> {
     let value = value.ok_or_else(|| Status::invalid_argument("authority_scope is required"))?;
-    let tenant_id = value.tenant_id.trim();
-    if tenant_id.is_empty() || tenant_id.len() > 255 || tenant_id.chars().any(char::is_control) {
-        return Err(Status::invalid_argument("tenant_id is invalid"));
-    }
+    let holding_id = value.holding_id.as_deref().unwrap_or("").trim();
     let parse = |raw: Option<&String>, field: &'static str| {
         raw.filter(|value| !value.is_empty())
             .ok_or_else(|| Status::invalid_argument(format!("{field} is required")))
@@ -1864,6 +1850,13 @@ fn authority_scope(value: Option<&AuthorityScope>) -> Result<(String, Scope), St
     };
     let level = AuthorityScopeLevel::try_from(value.level)
         .map_err(|_| Status::invalid_argument("authority scope level is invalid"))?;
+    if level != AuthorityScopeLevel::Platform
+        && (holding_id.is_empty()
+            || holding_id.len() > 255
+            || holding_id.chars().any(char::is_control))
+    {
+        return Err(Status::invalid_argument("holding_id is invalid"));
+    }
     let scope = match level {
         AuthorityScopeLevel::Platform => Scope::Platform,
         AuthorityScopeLevel::Holding => Scope::Holding {
@@ -1884,7 +1877,7 @@ fn authority_scope(value: Option<&AuthorityScope>) -> Result<(String, Scope), St
             ));
         }
     };
-    Ok((tenant_id.to_owned(), scope))
+    Ok((holding_id.to_owned(), scope))
 }
 
 fn record_id(value: &str) -> Result<RecordId, Status> {
@@ -1902,11 +1895,11 @@ fn thread_id(value: &str) -> Result<ThreadId, Status> {
         .ok_or_else(|| Status::invalid_argument("thread_id is invalid"))
 }
 
-fn tenant_id(value: &str) -> Result<TenantId, Status> {
+fn holding_id(value: &str) -> Result<HoldingId, Status> {
     Uuid::parse_str(value)
         .ok()
-        .and_then(|id| TenantId::try_from_uuid(id).ok())
-        .ok_or_else(|| Status::invalid_argument("tenant_id is invalid"))
+        .and_then(|id| HoldingId::try_from_uuid(id).ok())
+        .ok_or_else(|| Status::invalid_argument("holding_id is invalid"))
 }
 
 fn principal_id(value: &str) -> Result<PrincipalId, Status> {
@@ -1963,9 +1956,8 @@ mod tests {
     use super::*;
     use erpx_identity::{AuthenticatedPrincipalKind, AuthenticatedRealm};
 
-    fn branch_scope() -> AuthorityScope {
-        AuthorityScope {
-            tenant_id: "tenant-a".into(),
+    fn branch_scope() -> InterfaceAuthorityScope {
+        InterfaceAuthorityScope {
             level: AuthorityScopeLevel::Branch as i32,
             holding_id: Some(Uuid::new_v4().to_string()),
             company_id: Some(Uuid::new_v4().to_string()),
@@ -1991,23 +1983,25 @@ mod tests {
 
     #[test]
     fn authority_scope_is_exact_and_fail_closed() {
+        let scope = branch_scope();
+        let expected_holding = scope.holding_id.clone().unwrap();
         assert!(matches!(
-            authority_scope(Some(&branch_scope())),
-            Ok((tenant, Scope::Branch { .. })) if tenant == "tenant-a"
+            authority_scope(Some(&scope)),
+            Ok((holding, Scope::Branch { .. })) if holding == expected_holding
         ));
         let mut invalid = branch_scope();
         invalid.branch_id = None;
         assert!(authority_scope(Some(&invalid)).is_err());
         invalid = branch_scope();
-        invalid.tenant_id.clear();
+        invalid.holding_id = None;
         assert!(authority_scope(Some(&invalid)).is_err());
     }
 
     #[test]
     fn readiness_events_are_opaque_and_resumable() {
-        let event = readiness_event("tenant-a", 42, "tenant-routing", ReadinessState::Ready);
-        assert_eq!(event.event_id, "tenant-a:42");
-        assert_eq!(event.event_type, "data-plane.tenant-routing.ready");
+        let event = readiness_event("holding-a", 42, "holding-routing", ReadinessState::Ready);
+        assert_eq!(event.event_id, "holding-a:42");
+        assert_eq!(event.event_type, "data-plane.holding-routing.ready");
         assert_eq!(event.position, 42);
         assert_eq!(validate_cursor(Some("42")).expect("valid cursor"), 42);
         assert!(validate_cursor(Some("42:secret")).is_err());
@@ -2015,13 +2009,13 @@ mod tests {
 
     #[test]
     fn reference_denial_and_absence_are_neutral_without_descriptor_or_count() {
-        let resolved = resolve_response(DirectoryLookup::Neutral, "tenant-a")
+        let resolved = resolve_response(DirectoryLookup::Neutral, "holding-a")
             .expect("neutral resolution is representable");
         assert!(!resolved.found);
         assert!(resolved.descriptor.is_none());
         assert_eq!(resolved.freshness, DirectoryFreshness::Unspecified as i32);
 
-        let searched = search_response(DirectoryLookup::Neutral, "tenant-a")
+        let searched = search_response(DirectoryLookup::Neutral, "holding-a")
             .expect("neutral search is representable");
         assert!(searched.items.is_empty());
         assert!(searched.next_cursor.is_none());
@@ -2057,7 +2051,7 @@ mod tests {
         for freshness in [ProjectionFreshness::Stale, ProjectionFreshness::Unavailable] {
             let resolved_lookup: DirectoryLookup<erpx_integration_contracts::ItemDescriptor> =
                 DirectoryLookup::Degraded(freshness);
-            let resolved = resolve_response(resolved_lookup, "tenant-a")
+            let resolved = resolve_response(resolved_lookup, "holding-a")
                 .expect("degraded resolution is representable");
             assert!(!resolved.found);
             assert!(resolved.descriptor.is_none());
@@ -2065,7 +2059,7 @@ mod tests {
 
             let search_lookup: DirectoryLookup<erpx_collaboration_sqlx::DirectorySearchPage> =
                 DirectoryLookup::Degraded(freshness);
-            let searched = search_response(search_lookup, "tenant-a")
+            let searched = search_response(search_lookup, "holding-a")
                 .expect("degraded search is representable");
             assert!(searched.items.is_empty());
             assert_eq!(searched.authorized_count, 0);
@@ -2080,15 +2074,15 @@ mod tests {
     }
 
     #[test]
-    fn tenant_binding_is_server_derived_and_mismatch_or_nil_fails_closed() {
-        let tenant = Uuid::new_v4().to_string();
-        assert!(tenant_binding_matches(None, &tenant));
-        assert!(tenant_binding_matches(Some(&tenant), &tenant));
-        assert!(!tenant_binding_matches(
+    fn holding_binding_is_server_derived_and_mismatch_or_nil_fails_closed() {
+        let holding = Uuid::new_v4().to_string();
+        assert!(holding_binding_matches(None, &holding));
+        assert!(holding_binding_matches(Some(&holding), &holding));
+        assert!(!holding_binding_matches(
             Some(&Uuid::new_v4().to_string()),
-            &tenant
+            &holding
         ));
-        assert!(tenant_id(&Uuid::nil().to_string()).is_err());
+        assert!(holding_id(&Uuid::nil().to_string()).is_err());
     }
 
     #[test]

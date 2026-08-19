@@ -1,6 +1,6 @@
-//! Tenant-routed SQLx persistence for Assets and Maintenance.
+//! Holding-routed SQLx persistence for Assets and Maintenance.
 //!
-//! Asset and maintenance rows are source-owned in the tenant write database.
+//! Asset and maintenance rows are source-owned in the holding write database.
 //! Read rows and custody projections are disposable. Every aggregate mutation
 //! validates its domain payload, binds the holding RLS setting, and commits
 //! source state, shared CQRS snapshot, outbox event, and idempotency receipt in
@@ -46,7 +46,7 @@ pub struct AssetMaintenanceProjectionApplication {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssetMaintenanceProjectionRebuildPreparation {
-    pub holding_ref: String,
+    pub data_profile_key: String,
     pub rows_cleared: u64,
     pub checkpoints_cleared: u64,
     pub custody_rows_cleared: u64,
@@ -197,34 +197,34 @@ impl AssetMaintenanceAggregate {
 pub struct SqlxAssetMaintenanceStore {
     write_pool: PgPool,
     read_pool: PgPool,
-    holding_ref: String,
+    data_profile_key: String,
 }
 
 impl SqlxAssetMaintenanceStore {
     pub fn new(
         write_pool: PgPool,
         read_pool: PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_holding_ref(&holding_ref)?;
+        let data_profile_key = data_profile_key.into();
+        validate_data_profile_key(&data_profile_key)?;
         Ok(Self {
             write_pool,
             read_pool,
-            holding_ref,
+            data_profile_key,
         })
     }
 
     pub fn from_pools(
         write_pool: &PgPool,
         read_pool: &PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        Self::new(write_pool.clone(), read_pool.clone(), holding_ref)
+        Self::new(write_pool.clone(), read_pool.clone(), data_profile_key)
     }
 
-    pub fn holding_ref(&self) -> &str {
-        &self.holding_ref
+    pub fn data_profile_key(&self) -> &str {
+        &self.data_profile_key
     }
 
     pub async fn save(
@@ -249,10 +249,10 @@ impl SqlxAssetMaintenanceStore {
         let mut tx = self.begin_write().await?;
         if let Some(row) = sqlx::query(
             "SELECT request_hash, response
-             FROM erpx_tenant.asset_maintenance_command_idempotency
-             WHERE holding_ref=$1 AND idempotency_key=$2 FOR UPDATE",
+             FROM erpx_holding.asset_maintenance_command_idempotency
+             WHERE data_profile_key=$1 AND idempotency_key=$2 FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(idempotency_key)
         .fetch_optional(&mut *tx)
         .await?
@@ -270,15 +270,15 @@ impl SqlxAssetMaintenanceStore {
             return Ok(receipt);
         }
         if let AssetMaintenanceAggregate::MaintenanceWorkOrder(work_order) = aggregate {
-            validate_work_order_asset_link(&mut tx, &self.holding_ref, work_order).await?;
+            validate_work_order_asset_link(&mut tx, &self.data_profile_key, work_order).await?;
         }
         let current = sqlx::query_scalar::<_, i64>(
-            "SELECT version FROM erpx_tenant.asset_maintenance_aggregates
-             WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$3 FOR UPDATE",
+            "SELECT version FROM erpx_holding.asset_maintenance_aggregates
+             WHERE aggregate_type=$1 AND aggregate_id=$2 AND data_profile_key=$3 FOR UPDATE",
         )
         .bind(aggregate_type)
         .bind(aggregate_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         .map(|value| as_u64(value, "Asset/Maintenance aggregate version"))
@@ -305,10 +305,10 @@ impl SqlxAssetMaintenanceStore {
         }
         if current.is_some() {
             sqlx::query(
-                "UPDATE erpx_tenant.asset_maintenance_aggregates
+                "UPDATE erpx_holding.asset_maintenance_aggregates
                  SET company_id=$3, branch_id=$4, reference=$5, version=$6,
                      idempotency_key=$7, payload=$8, updated_at=now()
-                 WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$9",
+                 WHERE aggregate_type=$1 AND aggregate_id=$2 AND data_profile_key=$9",
             )
             .bind(aggregate_type)
             .bind(aggregate_id)
@@ -318,19 +318,19 @@ impl SqlxAssetMaintenanceStore {
             .bind(as_i64(version, "Asset/Maintenance version")?)
             .bind(idempotency_key)
             .bind(&payload)
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .execute(&mut *tx)
             .await?;
         } else {
             sqlx::query(
-                "INSERT INTO erpx_tenant.asset_maintenance_aggregates
-                    (aggregate_id, aggregate_type, holding_ref, company_id, branch_id,
+                "INSERT INTO erpx_holding.asset_maintenance_aggregates
+                    (aggregate_id, aggregate_type, data_profile_key, company_id, branch_id,
                      reference, version, idempotency_key, payload)
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
             )
             .bind(aggregate_id)
             .bind(aggregate_type)
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(aggregate.company_id())
             .bind(aggregate.branch_id())
             .bind(aggregate.reference())
@@ -341,11 +341,11 @@ impl SqlxAssetMaintenanceStore {
             .await?;
         }
         if let AssetMaintenanceAggregate::Asset(asset) = aggregate {
-            persist_custody_history(&mut tx, &self.holding_ref, asset).await?;
+            persist_custody_history(&mut tx, &self.data_profile_key, asset).await?;
         }
         persist_shared_outbox(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             aggregate_type,
             aggregate_id,
             version,
@@ -361,13 +361,13 @@ impl SqlxAssetMaintenanceStore {
             replayed: false,
         };
         sqlx::query(
-            "INSERT INTO erpx_tenant.asset_maintenance_command_idempotency
-                (idempotency_key, holding_ref, operation, aggregate_type,
+            "INSERT INTO erpx_holding.asset_maintenance_command_idempotency
+                (idempotency_key, data_profile_key, operation, aggregate_type,
                  aggregate_id, request_hash, response)
              VALUES ($1,$2,$3,$4,$5,$6,$7)",
         )
         .bind(idempotency_key)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(aggregate_type)
         .bind(aggregate_type)
         .bind(aggregate_id)
@@ -387,10 +387,10 @@ impl SqlxAssetMaintenanceStore {
         let payload = serde_json::to_value(handoff)?;
         let mut tx = self.begin_write().await?;
         if let Some(row) = sqlx::query(
-            "SELECT source_event_id, payload FROM erpx_tenant.asset_operations_capacity_handoffs
-             WHERE holding_ref=$1 AND idempotency_key=$2 FOR UPDATE",
+            "SELECT source_event_id, payload FROM erpx_holding.asset_operations_capacity_handoffs
+             WHERE data_profile_key=$1 AND idempotency_key=$2 FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(&handoff.idempotency_key)
         .fetch_optional(&mut *tx)
         .await?
@@ -413,15 +413,15 @@ impl SqlxAssetMaintenanceStore {
             });
         }
         sqlx::query(
-            "INSERT INTO erpx_tenant.asset_operations_capacity_handoffs
-                (source_event_id, source_id, holding_ref, company_id, branch_id,
+            "INSERT INTO erpx_holding.asset_operations_capacity_handoffs
+                (source_event_id, source_id, data_profile_key, company_id, branch_id,
                  reference, source_domain, source_type, asset_id, downtime_minutes,
                  occurred_at, idempotency_key, payload)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)",
         )
         .bind(handoff.source.source_event_id)
         .bind(handoff.source.source_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(handoff.scope.company_id)
         .bind(handoff.scope.branch_id)
         .bind(&handoff.reference)
@@ -435,23 +435,23 @@ impl SqlxAssetMaintenanceStore {
         .execute(&mut *tx)
         .await?;
         sqlx::query(
-            "INSERT INTO erpx_tenant.outbox_events
-                (event_id, aggregate_type, aggregate_id, holding_ref,
+            "INSERT INTO erpx_holding.outbox_events
+                (event_id, aggregate_type, aggregate_id, data_profile_key,
                  aggregate_version, event_type, payload, occurred_at,
-                 contract_version, event_version, tenant_scope, actor,
+                 contract_version, event_version, active_scope, actor,
                  correlation_id, causation_id, idempotency_key)
              VALUES ($1,$2,$3,$4,1,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)",
         )
         .bind(handoff.source.source_event_id)
         .bind("operations_capacity_handoff")
         .bind(handoff.source.source_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind("assets.operations_capacity_handoff.v1")
         .bind(&payload)
         .bind(handoff.occurred_at)
         .bind(i32::from(ASSET_MAINTENANCE_CONTRACT_VERSION))
         .bind(i32::from(ASSET_MAINTENANCE_EVENT_VERSION))
-        .bind(serde_json::to_value(handoff.scope.tenant_scope())?)
+        .bind(serde_json::to_value(handoff.scope.active_scope())?)
         .bind(Option::<Value>::None)
         .bind(handoff.source.source_event_id)
         .bind(Option::<Uuid>::None)
@@ -478,23 +478,23 @@ impl SqlxAssetMaintenanceStore {
         )?;
         let mut source_tx = self.begin_write().await?;
         let row = sqlx::query(
-            "SELECT h.source_event_id, h.source_id, h.holding_ref, h.company_id,
+            "SELECT h.source_event_id, h.source_id, h.data_profile_key, h.company_id,
                     h.branch_id, h.reference, h.source_domain, h.source_type,
                     h.asset_id, h.downtime_minutes, h.occurred_at,
                     h.idempotency_key, h.payload,
                     o.aggregate_type, o.aggregate_id, o.aggregate_version,
                     o.event_type, o.payload AS outbox_payload,
-                    o.contract_version, o.event_version, o.tenant_scope,
+                    o.contract_version, o.event_version, o.active_scope,
                     o.actor, o.correlation_id, o.causation_id,
                     o.idempotency_key AS outbox_idempotency_key
-             FROM erpx_tenant.asset_operations_capacity_handoffs h
-             JOIN erpx_tenant.outbox_events o
-               ON o.event_id=h.source_event_id AND o.holding_ref=h.holding_ref
-             WHERE h.source_event_id=$1 AND h.holding_ref=$2
+             FROM erpx_holding.asset_operations_capacity_handoffs h
+             JOIN erpx_holding.outbox_events o
+               ON o.event_id=h.source_event_id AND o.data_profile_key=h.data_profile_key
+             WHERE h.source_event_id=$1 AND h.data_profile_key=$2
              FOR UPDATE",
         )
         .bind(source_event_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *source_tx)
         .await?;
         source_tx.commit().await?;
@@ -504,7 +504,7 @@ impl SqlxAssetMaintenanceStore {
             ));
         };
         let source_id: Uuid = row.try_get("source_id")?;
-        let holding_ref: String = row.try_get("holding_ref")?;
+        let data_profile_key: String = row.try_get("data_profile_key")?;
         let company_id: Uuid = row.try_get("company_id")?;
         let branch_id: Option<Uuid> = row.try_get("branch_id")?;
         let reference: String = row.try_get("reference")?;
@@ -519,7 +519,7 @@ impl SqlxAssetMaintenanceStore {
         validate_capacity_handoff_columns(
             &handoff,
             source_event_id,
-            &holding_ref,
+            &data_profile_key,
             source_id,
             company_id,
             branch_id,
@@ -530,7 +530,7 @@ impl SqlxAssetMaintenanceStore {
             downtime_minutes,
             occurred_at,
             &idempotency_key,
-            &self.holding_ref,
+            &self.data_profile_key,
         )?;
         validate_capacity_handoff_outbox(
             source_event_id,
@@ -541,7 +541,7 @@ impl SqlxAssetMaintenanceStore {
             row.try_get("outbox_payload")?,
             row.try_get("contract_version")?,
             row.try_get("event_version")?,
-            row.try_get("tenant_scope")?,
+            row.try_get("active_scope")?,
             row.try_get("actor")?,
             row.try_get("correlation_id")?,
             row.try_get("causation_id")?,
@@ -551,19 +551,19 @@ impl SqlxAssetMaintenanceStore {
 
         let mut read_tx = self.begin_read().await?;
         if let Some(existing) = sqlx::query(
-            "SELECT source_id, holding_ref, company_id, branch_id, reference,
+            "SELECT source_id, data_profile_key, company_id, branch_id, reference,
                     source_version, payload
-             FROM erpx_tenant.asset_capacity_handoff_read_rows
-             WHERE source_event_id=$1 AND holding_ref=$2
+             FROM erpx_holding.asset_capacity_handoff_read_rows
+             WHERE source_event_id=$1 AND data_profile_key=$2
              FOR UPDATE",
         )
         .bind(source_event_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *read_tx)
         .await?
         {
             let existing_source_id: Uuid = existing.try_get("source_id")?;
-            let existing_holding_ref: String = existing.try_get("holding_ref")?;
+            let existing_data_profile_key: String = existing.try_get("data_profile_key")?;
             let existing_company_id: Uuid = existing.try_get("company_id")?;
             let existing_branch_id: Option<Uuid> = existing.try_get("branch_id")?;
             let existing_reference: String = existing.try_get("reference")?;
@@ -574,7 +574,7 @@ impl SqlxAssetMaintenanceStore {
             let existing_payload: Value = existing.try_get("payload")?;
             if existing_version != 1
                 || existing_source_id != source_id
-                || existing_holding_ref != holding_ref
+                || existing_data_profile_key != data_profile_key
                 || existing_company_id != company_id
                 || existing_branch_id != branch_id
                 || existing_reference != reference
@@ -588,14 +588,14 @@ impl SqlxAssetMaintenanceStore {
             return Ok(false);
         }
         sqlx::query(
-            "INSERT INTO erpx_tenant.asset_capacity_handoff_read_rows
-                (source_event_id, source_id, holding_ref, company_id, branch_id,
+            "INSERT INTO erpx_holding.asset_capacity_handoff_read_rows
+                (source_event_id, source_id, data_profile_key, company_id, branch_id,
                  reference, source_version, payload, projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,1,$7,now())",
         )
         .bind(source_event_id)
         .bind(source_id)
-        .bind(&holding_ref)
+        .bind(&data_profile_key)
         .bind(company_id)
         .bind(branch_id)
         .bind(&reference)
@@ -624,10 +624,10 @@ impl SqlxAssetMaintenanceStore {
             sqlx::query(
                 "SELECT event_id, event_type, aggregate_type, aggregate_id,
                         aggregate_version, payload, occurred_at,
-                        contract_version, event_version, tenant_scope, actor,
+                        contract_version, event_version, active_scope, actor,
                         correlation_id, causation_id, idempotency_key
-                 FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1
+                 FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1
                    AND aggregate_type IN ('asset', 'maintenance_work_order')
                    AND (aggregate_type > $2
                         OR (aggregate_type = $2 AND aggregate_id > $3)
@@ -636,7 +636,7 @@ impl SqlxAssetMaintenanceStore {
                  ORDER BY aggregate_type, aggregate_id, aggregate_version
                  LIMIT $5",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(&cursor.aggregate_type)
             .bind(cursor.aggregate_id)
             .bind(as_i64(
@@ -650,15 +650,15 @@ impl SqlxAssetMaintenanceStore {
             sqlx::query(
                 "SELECT event_id, event_type, aggregate_type, aggregate_id,
                         aggregate_version, payload, occurred_at,
-                        contract_version, event_version, tenant_scope, actor,
+                        contract_version, event_version, active_scope, actor,
                         correlation_id, causation_id, idempotency_key
-                 FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1
+                 FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1
                    AND aggregate_type IN ('asset', 'maintenance_work_order')
                  ORDER BY aggregate_type, aggregate_id, aggregate_version
                  LIMIT $2",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(limit)
             .fetch_all(&mut *tx)
             .await?
@@ -695,7 +695,7 @@ impl SqlxAssetMaintenanceStore {
                     &payload,
                     row.try_get("contract_version")?,
                     row.try_get("event_version")?,
-                    row.try_get("tenant_scope")?,
+                    row.try_get("active_scope")?,
                     row.try_get("actor")?,
                     row.try_get("correlation_id")?,
                     row.try_get("causation_id")?,
@@ -737,11 +737,11 @@ impl SqlxAssetMaintenanceStore {
         let mut tx = self.begin_write().await?;
         let count: i64 = sqlx::query_scalar(
             "SELECT count(*)
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1
                AND aggregate_type IN ('asset', 'maintenance_work_order')",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_one(&mut *tx)
         .await?;
         tx.commit().await?;
@@ -764,12 +764,12 @@ impl SqlxAssetMaintenanceStore {
         let mut tx = self.begin_read().await?;
         let row = sqlx::query(
             "SELECT payload, source_version
-             FROM erpx_tenant.asset_maintenance_read_rows
-             WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$3",
+             FROM erpx_holding.asset_maintenance_read_rows
+             WHERE aggregate_type=$1 AND aggregate_id=$2 AND data_profile_key=$3",
         )
         .bind(aggregate_type)
         .bind(aggregate_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?;
         let result = if let Some(row) = row {
@@ -795,12 +795,12 @@ impl SqlxAssetMaintenanceStore {
             if let AssetMaintenanceAggregate::Asset(asset) = &aggregate {
                 let custody_rows = sqlx::query(
                     "SELECT aggregate_version, transfer
-                     FROM erpx_tenant.asset_custody_transfer_read_rows
-                     WHERE asset_id=$1 AND holding_ref=$2
+                     FROM erpx_holding.asset_custody_transfer_read_rows
+                     WHERE asset_id=$1 AND data_profile_key=$2
                      ORDER BY aggregate_version",
                 )
                 .bind(asset.id)
-                .bind(&self.holding_ref)
+                .bind(&self.data_profile_key)
                 .fetch_all(&mut *tx)
                 .await?;
                 let projected_history = custody_rows
@@ -858,12 +858,12 @@ impl SqlxAssetMaintenanceStore {
                     r.reference, r.source_version, r.payload, r.projected_at,
                     c.source_version AS checkpoint_version,
                     c.last_event_id AS checkpoint_event_id
-             FROM erpx_tenant.asset_maintenance_read_rows r
-             LEFT JOIN erpx_tenant.asset_maintenance_projection_checkpoints c
+             FROM erpx_holding.asset_maintenance_read_rows r
+             LEFT JOIN erpx_holding.asset_maintenance_projection_checkpoints c
                ON c.aggregate_type=r.aggregate_type
               AND c.aggregate_id=r.aggregate_id
-              AND c.holding_ref=r.holding_ref
-             WHERE r.holding_ref=$1 AND r.company_id=$2
+              AND c.data_profile_key=r.data_profile_key
+             WHERE r.data_profile_key=$1 AND r.company_id=$2
                AND ($3::UUID IS NULL OR r.branch_id=$3)
                AND ($4::TIMESTAMPTZ IS NULL OR
                     (r.projected_at, r.aggregate_type, r.aggregate_id)
@@ -871,7 +871,7 @@ impl SqlxAssetMaintenanceStore {
              ORDER BY r.projected_at DESC, r.aggregate_type DESC, r.aggregate_id DESC
              LIMIT $7",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(scope.company_id)
         .bind(scope.branch_id)
         .bind(before.map(|cursor| cursor.projected_at))
@@ -931,12 +931,12 @@ impl SqlxAssetMaintenanceStore {
             if let AssetMaintenanceAggregate::Asset(asset) = &aggregate {
                 let custody_rows = sqlx::query(
                     "SELECT aggregate_version, transfer
-                     FROM erpx_tenant.asset_custody_transfer_read_rows
-                     WHERE asset_id=$1 AND holding_ref=$2
+                     FROM erpx_holding.asset_custody_transfer_read_rows
+                     WHERE asset_id=$1 AND data_profile_key=$2
                      ORDER BY aggregate_version",
                 )
                 .bind(asset.id)
-                .bind(&self.holding_ref)
+                .bind(&self.data_profile_key)
                 .fetch_all(&mut *tx)
                 .await?;
                 let projected_history = custody_rows
@@ -1004,32 +1004,32 @@ impl SqlxAssetMaintenanceStore {
         let source_rows = sqlx::query(
             "SELECT event_id, event_type, aggregate_type, aggregate_id,
                     aggregate_version, payload, contract_version, event_version,
-                    tenant_scope, actor, correlation_id, causation_id, idempotency_key
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1
+                    active_scope, actor, correlation_id, causation_id, idempotency_key
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1
                AND aggregate_type IN ('asset', 'maintenance_work_order')
              ORDER BY aggregate_type, aggregate_id, aggregate_version",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_all(&mut *source_tx)
         .await?;
         let source_handoff_rows = sqlx::query(
-            "SELECT h.source_event_id, h.source_id, h.holding_ref, h.company_id,
+            "SELECT h.source_event_id, h.source_id, h.data_profile_key, h.company_id,
                     h.branch_id, h.reference, h.source_domain, h.source_type,
                     h.asset_id, h.downtime_minutes, h.occurred_at,
                     h.idempotency_key, h.payload,
                     o.aggregate_type, o.aggregate_id, o.aggregate_version,
                     o.event_type, o.payload AS outbox_payload,
-                    o.contract_version, o.event_version, o.tenant_scope,
+                    o.contract_version, o.event_version, o.active_scope,
                     o.actor, o.correlation_id, o.causation_id,
                     o.idempotency_key AS outbox_idempotency_key
-             FROM erpx_tenant.asset_operations_capacity_handoffs h
-             LEFT JOIN erpx_tenant.outbox_events o
-               ON o.event_id=h.source_event_id AND o.holding_ref=h.holding_ref
-             WHERE h.holding_ref=$1
+             FROM erpx_holding.asset_operations_capacity_handoffs h
+             LEFT JOIN erpx_holding.outbox_events o
+               ON o.event_id=h.source_event_id AND o.data_profile_key=h.data_profile_key
+             WHERE h.data_profile_key=$1
              ORDER BY h.source_event_id",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_all(&mut *source_tx)
         .await?;
         source_tx.commit().await?;
@@ -1055,7 +1055,7 @@ impl SqlxAssetMaintenanceStore {
                 &payload,
                 row.try_get("contract_version")?,
                 row.try_get("event_version")?,
-                row.try_get("tenant_scope")?,
+                row.try_get("active_scope")?,
                 row.try_get("actor")?,
                 row.try_get("correlation_id")?,
                 row.try_get("causation_id")?,
@@ -1096,29 +1096,29 @@ impl SqlxAssetMaintenanceStore {
         let mut read_tx = self.begin_read().await?;
         let read_rows = sqlx::query(
             "SELECT aggregate_type, aggregate_id, source_version, payload
-             FROM erpx_tenant.asset_maintenance_read_rows
-             WHERE holding_ref=$1",
+             FROM erpx_holding.asset_maintenance_read_rows
+             WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_all(&mut *read_tx)
         .await?;
         let custody_rows = sqlx::query(
             "SELECT asset_id, aggregate_version, transfer
-             FROM erpx_tenant.asset_custody_transfer_read_rows
-             WHERE holding_ref=$1
+             FROM erpx_holding.asset_custody_transfer_read_rows
+             WHERE data_profile_key=$1
              ORDER BY asset_id, aggregate_version",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_all(&mut *read_tx)
         .await?;
         let handoff_read_rows = sqlx::query(
-            "SELECT source_event_id, source_id, holding_ref, company_id,
+            "SELECT source_event_id, source_id, data_profile_key, company_id,
                     branch_id, reference, source_version, payload
-             FROM erpx_tenant.asset_capacity_handoff_read_rows
-             WHERE holding_ref=$1
+             FROM erpx_holding.asset_capacity_handoff_read_rows
+             WHERE data_profile_key=$1
              ORDER BY source_event_id",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_all(&mut *read_tx)
         .await?;
         read_tx.commit().await?;
@@ -1204,7 +1204,7 @@ impl SqlxAssetMaintenanceStore {
             .map(|row| {
                 let source_event_id: Uuid = row.try_get("source_event_id")?;
                 let source_id: Uuid = row.try_get("source_id")?;
-                let holding_ref: String = row.try_get("holding_ref")?;
+                let data_profile_key: String = row.try_get("data_profile_key")?;
                 let company_id: Uuid = row.try_get("company_id")?;
                 let branch_id: Option<Uuid> = row.try_get("branch_id")?;
                 let reference: String = row.try_get("reference")?;
@@ -1219,7 +1219,7 @@ impl SqlxAssetMaintenanceStore {
                 validate_capacity_handoff_columns(
                     &handoff,
                     source_event_id,
-                    &holding_ref,
+                    &data_profile_key,
                     source_id,
                     company_id,
                     branch_id,
@@ -1230,7 +1230,7 @@ impl SqlxAssetMaintenanceStore {
                     downtime_minutes,
                     occurred_at,
                     &idempotency_key,
-                    &self.holding_ref,
+                    &self.data_profile_key,
                 )?;
                 validate_capacity_handoff_outbox(
                     source_event_id,
@@ -1241,7 +1241,7 @@ impl SqlxAssetMaintenanceStore {
                     row.try_get("outbox_payload")?,
                     row.try_get("contract_version")?,
                     row.try_get("event_version")?,
-                    row.try_get("tenant_scope")?,
+                    row.try_get("active_scope")?,
                     row.try_get("actor")?,
                     row.try_get("correlation_id")?,
                     row.try_get("causation_id")?,
@@ -1266,7 +1266,7 @@ impl SqlxAssetMaintenanceStore {
             .map(|row| {
                 let source_event_id: Uuid = row.try_get("source_event_id")?;
                 let source_id: Uuid = row.try_get("source_id")?;
-                let holding_ref: String = row.try_get("holding_ref")?;
+                let data_profile_key: String = row.try_get("data_profile_key")?;
                 let company_id: Uuid = row.try_get("company_id")?;
                 let branch_id: Option<Uuid> = row.try_get("branch_id")?;
                 let reference: String = row.try_get("reference")?;
@@ -1279,7 +1279,7 @@ impl SqlxAssetMaintenanceStore {
                 validate_capacity_handoff_columns(
                     &handoff,
                     source_event_id,
-                    &holding_ref,
+                    &data_profile_key,
                     source_id,
                     company_id,
                     branch_id,
@@ -1290,7 +1290,7 @@ impl SqlxAssetMaintenanceStore {
                     handoff.downtime_minutes,
                     handoff.occurred_at,
                     &handoff.idempotency_key,
-                    &self.holding_ref,
+                    &self.data_profile_key,
                 )?;
                 if source_version != 1 {
                     return Err(PersistenceError::InvalidData(
@@ -1376,12 +1376,12 @@ impl SqlxAssetMaintenanceStore {
         .await?;
         let mut tx = self.begin_read().await?;
         let current = sqlx::query_scalar::<_, i64>(
-            "SELECT source_version FROM erpx_tenant.asset_maintenance_read_rows
-             WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$3 FOR UPDATE",
+            "SELECT source_version FROM erpx_holding.asset_maintenance_read_rows
+             WHERE aggregate_type=$1 AND aggregate_id=$2 AND data_profile_key=$3 FOR UPDATE",
         )
         .bind(aggregate_type)
         .bind(aggregate_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         .map(|value| as_u64(value, "Asset/Maintenance projection source version"))
@@ -1409,8 +1409,8 @@ impl SqlxAssetMaintenanceStore {
         }
         let read_payload = serde_json::to_value(&event.aggregate)?;
         sqlx::query(
-            "INSERT INTO erpx_tenant.asset_maintenance_read_rows
-                (aggregate_id, aggregate_type, holding_ref, company_id, branch_id,
+            "INSERT INTO erpx_holding.asset_maintenance_read_rows
+                (aggregate_id, aggregate_type, data_profile_key, company_id, branch_id,
                  reference, source_version, payload, projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,now())
              ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
@@ -1419,7 +1419,7 @@ impl SqlxAssetMaintenanceStore {
         )
         .bind(aggregate_id)
         .bind(aggregate_type)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(event.aggregate.company_id())
         .bind(event.aggregate.branch_id())
         .bind(event.aggregate.reference())
@@ -1432,29 +1432,29 @@ impl SqlxAssetMaintenanceStore {
         .await?;
         if let AssetMaintenanceAggregate::Asset(asset) = &event.aggregate {
             sqlx::query(
-                "DELETE FROM erpx_tenant.asset_custody_transfer_read_rows
-                 WHERE asset_id=$1 AND holding_ref=$2",
+                "DELETE FROM erpx_holding.asset_custody_transfer_read_rows
+                 WHERE asset_id=$1 AND data_profile_key=$2",
             )
             .bind(asset.id)
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .execute(&mut *tx)
             .await?;
             for transfer in &asset.custody_history {
-                insert_read_custody_transfer(&mut tx, &self.holding_ref, asset.id, transfer)
+                insert_read_custody_transfer(&mut tx, &self.data_profile_key, asset.id, transfer)
                     .await?;
             }
         }
         sqlx::query(
-            "INSERT INTO erpx_tenant.asset_maintenance_projection_checkpoints
-                (aggregate_type, aggregate_id, holding_ref, last_event_id,
+            "INSERT INTO erpx_holding.asset_maintenance_projection_checkpoints
+                (aggregate_type, aggregate_id, data_profile_key, last_event_id,
                  source_version, projected_at)
              VALUES ($1,$2,$3,$4,$5,now())
              ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-                 holding_ref=$3, last_event_id=$4, source_version=$5, projected_at=now()",
+                 data_profile_key=$3, last_event_id=$4, source_version=$5, projected_at=now()",
         )
         .bind(aggregate_type)
         .bind(aggregate_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(event_id)
         .bind(as_i64(
             aggregate_version,
@@ -1488,13 +1488,13 @@ impl SqlxAssetMaintenanceStore {
         let mut tx = self.begin_write().await?;
         let row = sqlx::query(
             "SELECT event_type, aggregate_type, aggregate_id, aggregate_version, payload,
-                    contract_version, event_version, tenant_scope, actor,
+                    contract_version, event_version, active_scope, actor,
                     correlation_id, causation_id, idempotency_key
-             FROM erpx_tenant.outbox_events
-             WHERE event_id=$1 AND holding_ref=$2",
+             FROM erpx_holding.outbox_events
+             WHERE event_id=$1 AND data_profile_key=$2",
         )
         .bind(event_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?;
         tx.commit().await?;
@@ -1521,7 +1521,7 @@ impl SqlxAssetMaintenanceStore {
             &actual_payload,
             row.try_get("contract_version")?,
             row.try_get("event_version")?,
-            row.try_get("tenant_scope")?,
+            row.try_get("active_scope")?,
             row.try_get("actor")?,
             row.try_get("correlation_id")?,
             row.try_get("causation_id")?,
@@ -1543,36 +1543,37 @@ impl SqlxAssetMaintenanceStore {
         &self,
     ) -> Result<AssetMaintenanceProjectionRebuildPreparation, PersistenceError> {
         let mut tx = self.begin_read().await?;
-        let rows_cleared =
-            sqlx::query("DELETE FROM erpx_tenant.asset_maintenance_read_rows WHERE holding_ref=$1")
-                .bind(&self.holding_ref)
-                .execute(&mut *tx)
-                .await?
-                .rows_affected();
-        let checkpoints_cleared = sqlx::query(
-            "DELETE FROM erpx_tenant.asset_maintenance_projection_checkpoints WHERE holding_ref=$1",
+        let rows_cleared = sqlx::query(
+            "DELETE FROM erpx_holding.asset_maintenance_read_rows WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+        let checkpoints_cleared = sqlx::query(
+            "DELETE FROM erpx_holding.asset_maintenance_projection_checkpoints WHERE data_profile_key=$1",
+        )
+        .bind(&self.data_profile_key)
         .execute(&mut *tx)
         .await?
         .rows_affected();
         let custody_rows_cleared = sqlx::query(
-            "DELETE FROM erpx_tenant.asset_custody_transfer_read_rows WHERE holding_ref=$1",
+            "DELETE FROM erpx_holding.asset_custody_transfer_read_rows WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .execute(&mut *tx)
         .await?
         .rows_affected();
         let handoff_rows_cleared = sqlx::query(
-            "DELETE FROM erpx_tenant.asset_capacity_handoff_read_rows WHERE holding_ref=$1",
+            "DELETE FROM erpx_holding.asset_capacity_handoff_read_rows WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .execute(&mut *tx)
         .await?
         .rows_affected();
         tx.commit().await?;
         Ok(AssetMaintenanceProjectionRebuildPreparation {
-            holding_ref: self.holding_ref.clone(),
+            data_profile_key: self.data_profile_key.clone(),
             rows_cleared,
             checkpoints_cleared,
             custody_rows_cleared,
@@ -1581,11 +1582,11 @@ impl SqlxAssetMaintenanceStore {
     }
 
     async fn begin_write(&self) -> Result<Transaction<'_, Postgres>, PersistenceError> {
-        begin_scoped(&self.write_pool, &self.holding_ref).await
+        begin_scoped(&self.write_pool, &self.data_profile_key).await
     }
 
     async fn begin_read(&self) -> Result<Transaction<'_, Postgres>, PersistenceError> {
-        begin_scoped(&self.read_pool, &self.holding_ref).await
+        begin_scoped(&self.read_pool, &self.data_profile_key).await
     }
 }
 
@@ -1598,17 +1599,17 @@ impl SqlxAssetMaintenanceStore {
 /// remains a replay even if the asset has since been disposed.
 async fn validate_work_order_asset_link(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     work_order: &MaintenanceWorkOrder,
 ) -> Result<(), PersistenceError> {
     let row = sqlx::query(
         "SELECT company_id, branch_id, payload
-         FROM erpx_tenant.asset_maintenance_aggregates
-         WHERE aggregate_type='asset' AND aggregate_id=$1 AND holding_ref=$2
+         FROM erpx_holding.asset_maintenance_aggregates
+         WHERE aggregate_type='asset' AND aggregate_id=$1 AND data_profile_key=$2
          FOR SHARE",
     )
     .bind(work_order.asset_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_optional(&mut **tx)
     .await?;
     let Some(row) = row else {
@@ -1672,7 +1673,7 @@ fn parse_capacity_handoff_payload(
 fn validate_capacity_handoff_columns(
     handoff: &OperationsCapacityImpactHandoff,
     source_event_id: Uuid,
-    holding_ref: &str,
+    data_profile_key: &str,
     source_id: Uuid,
     company_id: Uuid,
     branch_id: Option<Uuid>,
@@ -1683,9 +1684,9 @@ fn validate_capacity_handoff_columns(
     downtime_minutes: i64,
     occurred_at: DateTime<Utc>,
     idempotency_key: &str,
-    expected_holding_ref: &str,
+    expected_data_profile_key: &str,
 ) -> Result<(), PersistenceError> {
-    if holding_ref != expected_holding_ref
+    if data_profile_key != expected_data_profile_key
         || handoff.source.source_event_id != source_event_id
         || handoff.source.source_id != source_id
         || handoff.scope.company_id != company_id
@@ -1715,7 +1716,7 @@ fn validate_capacity_handoff_outbox(
     outbox_payload: Value,
     contract_version: Option<i32>,
     event_version: Option<i32>,
-    tenant_scope: Option<Value>,
+    active_scope: Option<Value>,
     actor: Option<Value>,
     correlation_id: Option<Uuid>,
     causation_id: Option<Uuid>,
@@ -1733,7 +1734,7 @@ fn validate_capacity_handoff_outbox(
         || outbox_payload != expected_payload
         || contract_version != Some(i32::from(ASSET_MAINTENANCE_CONTRACT_VERSION))
         || event_version != Some(i32::from(ASSET_MAINTENANCE_EVENT_VERSION))
-        || tenant_scope != Some(serde_json::to_value(handoff.scope.tenant_scope())?)
+        || active_scope != Some(serde_json::to_value(handoff.scope.active_scope())?)
         || actor.is_some()
         || correlation_id != Some(event_id)
         || causation_id.is_some()
@@ -1810,7 +1811,7 @@ fn validate_outbox_event_envelope(
     payload: &Value,
     contract_version: Option<i32>,
     event_version: Option<i32>,
-    tenant_scope: Option<Value>,
+    active_scope: Option<Value>,
     actor: Option<Value>,
     correlation_id: Option<Uuid>,
     causation_id: Option<Uuid>,
@@ -1852,10 +1853,10 @@ fn validate_outbox_event_envelope(
         512,
     )?;
     let event = parse_event_payload(payload, aggregate_type, aggregate_id, aggregate_version)?;
-    let expected_scope = serde_json::to_value(event.aggregate.scope().tenant_scope())?;
-    if tenant_scope != Some(expected_scope) {
+    let expected_scope = serde_json::to_value(event.aggregate.scope().active_scope())?;
+    if active_scope != Some(expected_scope) {
         return Err(PersistenceError::InvalidData(
-            "Asset/Maintenance outbox tenant scope does not match aggregate".into(),
+            "Asset/Maintenance outbox holding scope does not match aggregate".into(),
         ));
     }
     Ok(event.aggregate)
@@ -1863,18 +1864,18 @@ fn validate_outbox_event_envelope(
 
 async fn persist_custody_history(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     asset: &Asset,
 ) -> Result<(), PersistenceError> {
     for transfer in &asset.custody_history {
         let transfer_payload = serde_json::to_value(transfer)?;
         let existing = sqlx::query_scalar::<_, Value>(
             "SELECT transfer
-             FROM erpx_tenant.asset_custody_transfers
-             WHERE asset_id=$1 AND holding_ref=$2 AND aggregate_version=$3",
+             FROM erpx_holding.asset_custody_transfers
+             WHERE asset_id=$1 AND data_profile_key=$2 AND aggregate_version=$3",
         )
         .bind(asset.id)
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(as_i64(
             transfer.aggregate_version,
             "custody transfer version",
@@ -1890,14 +1891,14 @@ async fn persist_custody_history(
             continue;
         }
         sqlx::query(
-            "INSERT INTO erpx_tenant.asset_custody_transfers
-                (asset_id, holding_ref, aggregate_version, from_scope, to_scope,
+            "INSERT INTO erpx_holding.asset_custody_transfers
+                (asset_id, data_profile_key, aggregate_version, from_scope, to_scope,
                  from_custodian_ref, to_custodian_ref, from_location_ref,
                  to_location_ref, transferred_at, actor_ref, reason, command_id, transfer)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)",
         )
         .bind(asset.id)
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(as_i64(
             transfer.aggregate_version,
             "custody transfer version",
@@ -1921,18 +1922,18 @@ async fn persist_custody_history(
 
 async fn insert_read_custody_transfer(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     asset_id: Uuid,
     transfer: &CustodyTransfer,
 ) -> Result<(), PersistenceError> {
     sqlx::query(
-        "INSERT INTO erpx_tenant.asset_custody_transfer_read_rows
-            (asset_id, aggregate_version, holding_ref, transfer, projected_at)
+        "INSERT INTO erpx_holding.asset_custody_transfer_read_rows
+            (asset_id, aggregate_version, data_profile_key, transfer, projected_at)
          VALUES ($1,$2,$3,$4,now())",
     )
     .bind(asset_id)
     .bind(as_i64(transfer.aggregate_version, "custody read version")?)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(serde_json::to_value(transfer)?)
     .execute(&mut **tx)
     .await?;
@@ -1942,7 +1943,7 @@ async fn insert_read_custody_transfer(
 #[allow(clippy::too_many_arguments)]
 async fn persist_shared_outbox(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     aggregate_type: &str,
     aggregate_id: Uuid,
     version: u64,
@@ -1965,17 +1966,17 @@ async fn persist_shared_outbox(
     });
     let event_id = Uuid::new_v4();
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at,
-             contract_version, event_version, tenant_scope, actor,
+             contract_version, event_version, active_scope, actor,
              correlation_id, causation_id, idempotency_key)
          VALUES ($1,$2,$3,$4,$5,$6,$7,now(),$8,$9,$10,$11,$12,$13,$14)",
     )
     .bind(event_id)
     .bind(aggregate_type)
     .bind(aggregate_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(as_i64(version, "Asset/Maintenance version")?)
     .bind(format!(
         "asset_maintenance.{aggregate_type}.v{ASSET_MAINTENANCE_EVENT_VERSION}"
@@ -1983,7 +1984,7 @@ async fn persist_shared_outbox(
     .bind(event_payload)
     .bind(i32::from(ASSET_MAINTENANCE_CONTRACT_VERSION))
     .bind(i32::from(ASSET_MAINTENANCE_EVENT_VERSION))
-    .bind(serde_json::to_value(scope.tenant_scope())?)
+    .bind(serde_json::to_value(scope.active_scope())?)
     .bind(Option::<Value>::None)
     .bind(event_id)
     .bind(Option::<Uuid>::None)
@@ -2254,7 +2255,7 @@ fn validate_read_page_size(page_size: u32) -> Result<(), PersistenceError> {
     Ok(())
 }
 
-fn validate_holding_ref(value: &str) -> Result<(), PersistenceError> {
+fn validate_data_profile_key(value: &str) -> Result<(), PersistenceError> {
     validate_text(value, "holding reference", 255)
 }
 
@@ -2299,11 +2300,11 @@ fn as_u64(value: i64, field: &'static str) -> Result<u64, PersistenceError> {
 
 async fn begin_scoped<'a>(
     pool: &'a PgPool,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<Transaction<'a, Postgres>, PersistenceError> {
     let mut tx = pool.begin().await?;
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(data_profile_key)
         .execute(&mut *tx)
         .await?;
     Ok(tx)
@@ -2316,7 +2317,7 @@ mod tests {
     use serde_json::json;
 
     #[tokio::test]
-    async fn store_rejects_unsafe_holding_references_without_database_access() {
+    async fn store_rejects_unsafe_data_profile_references_without_database_access() {
         let pool = PgPool::connect_lazy("postgres://unused").expect("lazy pool");
         assert!(SqlxAssetMaintenanceStore::new(pool.clone(), pool, " ").is_err());
     }

@@ -26,21 +26,22 @@ pub const WRITE_DDL: &str = include_str!("../ddl/write.sql");
 /// Version-neutral adapter contract. The migration owner assigns revisions.
 pub const READ_DDL: &str = include_str!("../ddl/read.sql");
 pub const COMPLETION_WRITE_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0080_current_record_completion.sql");
-pub const COMPLETION_READ_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0071_current_record_completion_projection.sql"
-);
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
+pub const COMPLETION_READ_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 /// Typed relational Quality authority introduced after the shared CQRS
 /// foundation. This schema stores scalar domain state, never an aggregate
 /// snapshot or a generic JSON component document.
-pub const NORMALIZED_AUTHORITY_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_write/0081_current_normalized_authority.sql"
-);
+pub const NORMALIZED_AUTHORITY_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 
 pub fn inspection_partition(inspection_id: erpx_quality::domain::InspectionId) -> String {
     format!("quality.inspection:{}", inspection_id.as_uuid().simple())
 }
 
+#[cfg(test)]
+#[path = "../../schema_test.rs"]
+mod schema_test;
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -80,8 +81,13 @@ mod tests {
         assert!(source.contains("commit_normalized"));
         assert!(source.contains("authoritative_version"));
         assert!(!source.contains("load_snapshot"));
+        let owned = schema_test::table_definition(
+            NORMALIZED_AUTHORITY_DDL,
+            "erpx_quality_write.inspection_authority",
+        )
+        .expect("quality inspection authority table");
         assert!(NORMALIZED_AUTHORITY_DDL.contains("inspection_authority"));
-        assert!(!NORMALIZED_AUTHORITY_DDL.contains("JSONB"));
-        assert!(!NORMALIZED_AUTHORITY_DDL.contains("aggregate_components"));
+        assert!(!owned.contains("JSONB"));
+        assert!(!owned.contains("aggregate_components"));
     }
 }

@@ -20,7 +20,7 @@ use erpx_integration_contracts::{
     inventory, legal, marketing, organization, people_payroll, pos, procurement, record_policy_id,
     sales,
 };
-use erpx_kernel::{AggregateId, CommandId, DataClassification, EventId, RecordId, TenantScope};
+use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId, RecordId};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use sqlx::{Postgres, Row, Transaction};
@@ -53,7 +53,7 @@ impl FinanceWriteRepository {
 
     async fn load(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         partition: &str,
         kind: &str,
         id: Uuid,
@@ -65,7 +65,7 @@ impl FinanceWriteRepository {
 
 async fn load_finance_relational(
     pool: &WritePool,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     kind: &str,
     id: Uuid,
 ) -> Result<Option<FinanceAggregate>, PortError> {
@@ -96,7 +96,7 @@ async fn load_finance_relational(
 
 async fn load_chart_relational(
     tx: &mut Transaction<'_, Postgres>,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     id: Uuid,
 ) -> Result<Option<Chart>, PortError> {
     let row=finance_authorized_root(tx,authority,"SELECT aggregate_version,holding_id,company_id,branch_id,chart_code,chart_name,currency,created_at,updated_at FROM erpx_finance_write.chart_guards WHERE chart_id=$1","erpx_finance_write.chart_guards","chart_id",id).await?;
@@ -149,7 +149,7 @@ async fn load_chart_relational(
 
 async fn load_period_relational(
     tx: &mut Transaction<'_, Postgres>,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     id: Uuid,
 ) -> Result<Option<AccountingPeriod>, PortError> {
     let row=finance_authorized_root(tx,authority,"SELECT aggregate_version,holding_id,company_id,branch_id,period_code,starts_on,ends_on,period_status,close_requested_by,closed_by,created_at,updated_at FROM erpx_finance_write.period_guards WHERE period_id=$1","erpx_finance_write.period_guards","period_id",id).await?;
@@ -178,7 +178,7 @@ async fn load_period_relational(
 
 async fn load_subledger_relational(
     tx: &mut Transaction<'_, Postgres>,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     id: Uuid,
 ) -> Result<Option<SubledgerItem>, PortError> {
     let row=finance_authorized_root(tx,authority,"SELECT aggregate_version,holding_id,company_id,branch_id,subledger_kind,party_id,document_code,source_reference,currency,original_minor,outstanding_minor,subledger_status,created_at,updated_at FROM erpx_finance_write.subledger_guards WHERE subledger_id=$1","erpx_finance_write.subledger_guards","subledger_id",id).await?;
@@ -224,7 +224,7 @@ async fn load_subledger_relational(
 
 async fn load_journal_relational(
     tx: &mut Transaction<'_, Postgres>,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     id: Uuid,
 ) -> Result<Option<Journal>, PortError> {
     let row=finance_authorized_root(tx,authority,"SELECT aggregate_version,holding_id,company_id,branch_id,chart_id,period_id,journal_code,entry_date,currency,source_kind,description,journal_status,posted_at,created_at,updated_at FROM erpx_finance_write.journal_guards WHERE journal_id=$1","erpx_finance_write.journal_guards","journal_id",id).await?;
@@ -269,7 +269,7 @@ async fn load_journal_relational(
 
 async fn load_invoice_relational(
     tx: &mut Transaction<'_, Postgres>,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     id: Uuid,
 ) -> Result<Option<CustomerInvoice>, PortError> {
     let row=finance_authorized_root(tx,authority,"SELECT aggregate_version,holding_id,company_id,branch_id,invoice_code,customer_id,billing_event_id,source_aggregate_kind,source_aggregate_id,source_aggregate_version,currency,net_minor,tax_minor,eligible_on,due_on,prepared_by,posted_by,posted_at,invoice_status,created_at,updated_at FROM erpx_finance_write.customer_invoice_guards WHERE invoice_id=$1","erpx_finance_write.customer_invoice_guards","invoice_id",id).await?;
@@ -363,7 +363,7 @@ async fn load_invoice_relational(
 
 async fn load_schedule_relational(
     tx: &mut Transaction<'_, Postgres>,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     id: Uuid,
 ) -> Result<Option<RevenueSchedule>, PortError> {
     let row=finance_authorized_root(tx,authority,"SELECT aggregate_version,holding_id,company_id,branch_id,arrangement_id,sales_order_id,customer_id,legal_contract_id,order_code,source_aggregate_kind,source_aggregate_version,last_source_version,currency,schedule_status,created_at,updated_at FROM erpx_finance_write.revenue_schedule_guards WHERE schedule_id=$1","erpx_finance_write.revenue_schedule_guards","schedule_id",id).await?;
@@ -710,7 +710,7 @@ async fn load_journal_source(
 
 async fn finance_authorized_root(
     tx: &mut Transaction<'_, Postgres>,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     base: &str,
     table: &str,
     id_column: &str,
@@ -755,15 +755,15 @@ type FinanceAuthorityParameters = (
     Vec<Uuid>,
 );
 fn finance_authority_parameters(
-    scope: &TenantScope,
+    scope: &AuthorityScope,
 ) -> Result<FinanceAuthorityParameters, PortError> {
     scope.validate().map_err(|_| PortError::Denied)?;
     Ok(match scope {
-        TenantScope::Platform => ("platform", None, None, None, vec![], vec![]),
-        TenantScope::Holding { holding_id } => {
+        AuthorityScope::Platform => ("platform", None, None, None, vec![], vec![]),
+        AuthorityScope::Holding { holding_id } => {
             ("holding", Some(*holding_id), None, None, vec![], vec![])
         }
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => (
@@ -774,7 +774,7 @@ fn finance_authority_parameters(
             vec![],
             vec![],
         ),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -786,31 +786,30 @@ fn finance_authority_parameters(
             vec![],
             vec![],
         ),
-        TenantScope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
+            organization_node_id,
         } => (
             "subtree",
             Some(*holding_id),
             None,
             None,
-            company_ids.clone(),
-            branch_ids.clone(),
+            vec![*organization_node_id],
+            Vec::new(),
         ),
     })
 }
-fn finance_exact_scope(row: &sqlx::postgres::PgRow) -> Result<TenantScope, PortError> {
+fn finance_exact_scope(row: &sqlx::postgres::PgRow) -> Result<AuthorityScope, PortError> {
     let holding_id = row.try_get("holding_id").map_err(|_| PortError::Internal)?;
     let company_id = row.try_get("company_id").map_err(|_| PortError::Internal)?;
     Ok(
         match row.try_get("branch_id").map_err(|_| PortError::Internal)? {
-            Some(branch_id) => TenantScope::Branch {
+            Some(branch_id) => AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
             },
-            None => TenantScope::Company {
+            None => AuthorityScope::Company {
                 holding_id,
                 company_id,
             },
@@ -985,7 +984,7 @@ fn finance_dimensions_from_row(row: &sqlx::postgres::PgRow) -> Result<DimensionS
 impl WriteRepository for FinanceWriteRepository {
     async fn load_chart(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: ChartId,
     ) -> Result<Option<Chart>, PortError> {
         match self
@@ -1004,7 +1003,7 @@ impl WriteRepository for FinanceWriteRepository {
     }
     async fn load_period(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: erpx_finance::PeriodId,
     ) -> Result<Option<AccountingPeriod>, PortError> {
         match self
@@ -1023,7 +1022,7 @@ impl WriteRepository for FinanceWriteRepository {
     }
     async fn load_journal(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: JournalId,
     ) -> Result<Option<Journal>, PortError> {
         match self
@@ -1042,7 +1041,7 @@ impl WriteRepository for FinanceWriteRepository {
     }
     async fn load_subledger(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: SubledgerId,
     ) -> Result<Option<SubledgerItem>, PortError> {
         match self
@@ -1061,7 +1060,7 @@ impl WriteRepository for FinanceWriteRepository {
     }
     async fn load_customer_invoice(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: CustomerInvoiceId,
     ) -> Result<Option<CustomerInvoice>, PortError> {
         match self
@@ -1080,7 +1079,7 @@ impl WriteRepository for FinanceWriteRepository {
     }
     async fn load_revenue_schedule(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: RevenueScheduleId,
     ) -> Result<Option<RevenueSchedule>, PortError> {
         match self
@@ -1190,7 +1189,7 @@ impl CommandUnitOfWork for FinanceCommandAdapter {
             correlation_id: request.correlation_id,
             idempotency_key: request.identity.idempotency_key,
             request_hash: request_hash(&request.identity.fingerprint)?,
-            tenant_scope: aggregate.scope().clone(),
+            active_scope: aggregate.scope().clone(),
             actor: request.actor,
             audit_context: request.audit,
             aggregate_type: kind.into(),
@@ -1720,14 +1719,14 @@ async fn apply_revenue_schedule(
 }
 
 fn exact_finance_scope_ids(
-    scope: &TenantScope,
+    scope: &AuthorityScope,
 ) -> Result<(Uuid, Uuid, Option<Uuid>), CqrsSqlxError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok((*holding_id, *company_id, None)),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -1740,7 +1739,7 @@ async fn finalize_finance_root(
     table: &str,
     id_column: &str,
     id: Uuid,
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     changed: u64,
 ) -> Result<(), CqrsSqlxError> {
     if changed != 1 {
@@ -2075,13 +2074,13 @@ fn deterministic_uuid(seed: Uuid, label: &[u8]) -> Uuid {
     b[8] = (b[8] & 0x3f) | 0x80;
     Uuid::from_bytes(b)
 }
-pub(crate) fn scope_key(s: &TenantScope) -> Result<String, CqrsSqlxError> {
+pub(crate) fn scope_key(s: &AuthorityScope) -> Result<String, CqrsSqlxError> {
     match s {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok(format!("company:{holding_id}:{company_id}")),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,

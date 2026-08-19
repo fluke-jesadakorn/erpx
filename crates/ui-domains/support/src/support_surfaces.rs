@@ -3,7 +3,7 @@
 //! These components are deliberately transport-neutral. An application owns the conversion from
 //! an authorized gRPC response into the display models in [`crate::support`], and this module only
 //! renders those already-redacted models. There are no command callbacks, credentials, capability
-//! secrets, tenant connection details, or authorization decisions here.
+//! secrets, holding connection details, or authorization decisions here.
 
 use dioxus::prelude::*;
 
@@ -313,7 +313,7 @@ fn support_state_matches_route(route: SupportRoute, state: &SupportState) -> boo
     if model.route != route {
         return false;
     }
-    if route.audience() == crate::SupportRouteAudience::Tenant {
+    if route.audience() == crate::SupportRouteAudience::Holding {
         return state.metadata().is_some_and(|state_metadata| {
             state_metadata.has_scope() && state_metadata.has_same_scope_as(&model.metadata)
         });
@@ -797,14 +797,14 @@ mod tests {
                 .all(|route| route.audience() == SupportRouteAudience::Platform)
         );
 
-        let tenant_routes: Vec<_> = route_definitions_for_audience(SupportRoute::TenantSupport)
+        let holding_routes: Vec<_> = route_definitions_for_audience(SupportRoute::HoldingSupport)
             .map(|definition| definition.route)
             .collect();
-        assert_eq!(tenant_routes.len(), 5);
+        assert_eq!(holding_routes.len(), 5);
         assert!(
-            tenant_routes
+            holding_routes
                 .iter()
-                .all(|route| route.audience() == SupportRouteAudience::Tenant)
+                .all(|route| route.audience() == SupportRouteAudience::Holding)
         );
 
         let ready = SupportState::Ready {
@@ -816,13 +816,13 @@ mod tests {
             &ready
         ));
         assert!(!support_state_matches_route(
-            SupportRoute::TenantSupportDetail,
+            SupportRoute::HoldingSupportDetail,
             &ready
         ));
     }
 
     #[test]
-    fn tenant_support_payloads_fail_closed_without_matching_explicit_scope() {
+    fn holding_support_payloads_fail_closed_without_matching_explicit_scope() {
         let context = SupportContextMetadata::new(
             SupportMode::DiagnosticRead,
             SupportApprovalState::Approved,
@@ -831,32 +831,26 @@ mod tests {
             None::<String>,
         );
         let unscoped = SupportDisplayModel::new(
-            SupportRoute::TenantSupport,
+            SupportRoute::HoldingSupport,
             SupportProjectionMetadata::unknown(),
             context.clone(),
         );
         assert!(!support_state_matches_route(
-            SupportRoute::TenantSupport,
+            SupportRoute::HoldingSupport,
             &SupportState::Ready {
                 data: unscoped,
                 metadata: SupportProjectionMetadata::unknown(),
             }
         ));
 
-        let state_metadata = SupportProjectionMetadata::fresh_for_scope(
-            "holding-1",
-            "tenant-1",
-            "2026-07-24T00:00:00Z",
-        );
-        let model_metadata = SupportProjectionMetadata::fresh_for_scope(
-            "holding-1",
-            "tenant-2",
-            "2026-07-24T00:00:00Z",
-        );
+        let state_metadata =
+            SupportProjectionMetadata::fresh_for_scope("holding-1", "2026-07-24T00:00:00Z");
+        let model_metadata =
+            SupportProjectionMetadata::fresh_for_scope("holding-2", "2026-07-24T00:00:00Z");
         let mismatched =
-            SupportDisplayModel::new(SupportRoute::TenantSupport, model_metadata, context);
+            SupportDisplayModel::new(SupportRoute::HoldingSupport, model_metadata, context);
         assert!(!support_state_matches_route(
-            SupportRoute::TenantSupport,
+            SupportRoute::HoldingSupport,
             &SupportState::Ready {
                 data: mismatched,
                 metadata: state_metadata,

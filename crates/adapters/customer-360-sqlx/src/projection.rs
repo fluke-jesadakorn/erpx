@@ -5,9 +5,9 @@ use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
 use crate::{
-    CONTROL_CUSTOMERS_PROJECTION_NAME, CONTROL_PROFILE_EVENT, EVENT_VERSION, OPPORTUNITY_EVENT,
-    SALES_ORDER_EVENT, SUBSCRIPTION_EVENT, SUPPORT_CASE_EVENT, TENANT_ACTIVITY_PROJECTION_NAME,
-    control_partition,
+    CONTROL_CUSTOMERS_PROJECTION_NAME, CONTROL_PROFILE_EVENT, EVENT_VERSION,
+    HOLDING_ACTIVITY_PROJECTION_NAME, OPPORTUNITY_EVENT, SALES_ORDER_EVENT, SUBSCRIPTION_EVENT,
+    SUPPORT_CASE_EVENT, control_partition,
 };
 
 #[derive(Debug, Clone)]
@@ -30,11 +30,11 @@ impl Default for ControlCustomerProjector {
 }
 
 #[derive(Debug, Clone)]
-pub struct TenantActivityProjector {
+pub struct HoldingActivityProjector {
     events: Vec<String>,
 }
 
-impl TenantActivityProjector {
+impl HoldingActivityProjector {
     pub fn new() -> Self {
         Self {
             events: vec![
@@ -47,7 +47,7 @@ impl TenantActivityProjector {
     }
 }
 
-impl Default for TenantActivityProjector {
+impl Default for HoldingActivityProjector {
     fn default() -> Self {
         Self::new()
     }
@@ -125,9 +125,9 @@ impl Projector for ControlCustomerProjector {
 }
 
 #[async_trait]
-impl Projector for TenantActivityProjector {
+impl Projector for HoldingActivityProjector {
     fn name(&self) -> &str {
-        TENANT_ACTIVITY_PROJECTION_NAME
+        HOLDING_ACTIVITY_PROJECTION_NAME
     }
 
     fn event_types(&self) -> &[String] {
@@ -140,43 +140,43 @@ impl Projector for TenantActivityProjector {
         context: &ProjectorContext<'_>,
         event: &ProjectionEvent,
     ) -> Result<(), ProjectionFailure> {
-        if context.projection != TENANT_ACTIVITY_PROJECTION_NAME
+        if context.projection != HOLDING_ACTIVITY_PROJECTION_NAME
             || event.event_version != EVENT_VERSION
             || event.aggregate_version == 0
             || event.global_sequence == 0
         {
             return Err(ProjectionFailure::new(
-                "Customer 360 tenant projector received incompatible metadata",
+                "Customer 360 holding projector received incompatible metadata",
             ));
         }
         let qualified = QualifiedSource::parse(&event.partition)?;
-        let tenant_scope = serde_json::to_value(&event.tenant_scope).map_err(failure)?;
-        let scope_key = scope_key(&event.tenant_scope)?;
+        let active_scope = serde_json::to_value(&event.active_scope).map_err(failure)?;
+        let scope_key = scope_key(&event.active_scope)?;
         match event.event_type.as_str() {
             SUBSCRIPTION_EVENT => {
                 let fact = subscription_fact(event)?;
-                sqlx::query("INSERT INTO erpx_customer360_read.subscription_projection (projection_name,generation,source_key,partition_key,tenant_id,tenant_scope,scope_key,customer_id,subscription_id,plan_id,subscription_status,recurring_amount_minor,currency,effective_at,source_event_id,source_aggregate_version,source_global_sequence,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now()) ON CONFLICT (projection_name,generation,source_key,subscription_id) DO UPDATE SET partition_key=EXCLUDED.partition_key,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,customer_id=EXCLUDED.customer_id,plan_id=EXCLUDED.plan_id,subscription_status=EXCLUDED.subscription_status,recurring_amount_minor=EXCLUDED.recurring_amount_minor,currency=EXCLUDED.currency,effective_at=EXCLUDED.effective_at,source_event_id=EXCLUDED.source_event_id,source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,projected_at=now() WHERE erpx_customer360_read.subscription_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
-                    .bind(TENANT_ACTIVITY_PROJECTION_NAME).bind(context.generation).bind(&qualified.source_key).bind(&qualified.partition).bind(qualified.tenant_id).bind(&tenant_scope).bind(&scope_key).bind(fact.customer.as_uuid()).bind(fact.subscription.as_uuid()).bind(fact.plan.as_uuid()).bind(subscription_status_name(fact.status)).bind(fact.recurring_amount.minor_units()).bind(fact.recurring_amount.currency().as_str()).bind(fact.effective_at).bind(event.event_id.as_uuid()).bind(to_i64(event.aggregate_version)?).bind(to_i64(event.global_sequence)?).execute(&mut **transaction).await.map_err(failure)?;
+                sqlx::query("INSERT INTO erpx_customer360_read.subscription_projection (projection_name,generation,source_key,partition_key,holding_id,active_scope,scope_key,customer_id,subscription_id,plan_id,subscription_status,recurring_amount_minor,currency,effective_at,source_event_id,source_aggregate_version,source_global_sequence,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now()) ON CONFLICT (projection_name,generation,source_key,subscription_id) DO UPDATE SET partition_key=EXCLUDED.partition_key,active_scope=EXCLUDED.active_scope,scope_key=EXCLUDED.scope_key,customer_id=EXCLUDED.customer_id,plan_id=EXCLUDED.plan_id,subscription_status=EXCLUDED.subscription_status,recurring_amount_minor=EXCLUDED.recurring_amount_minor,currency=EXCLUDED.currency,effective_at=EXCLUDED.effective_at,source_event_id=EXCLUDED.source_event_id,source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,projected_at=now() WHERE erpx_customer360_read.subscription_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
+                    .bind(HOLDING_ACTIVITY_PROJECTION_NAME).bind(context.generation).bind(&qualified.source_key).bind(&qualified.partition).bind(qualified.holding_id).bind(&active_scope).bind(&scope_key).bind(fact.customer.as_uuid()).bind(fact.subscription.as_uuid()).bind(fact.plan.as_uuid()).bind(subscription_status_name(fact.status)).bind(fact.recurring_amount.minor_units()).bind(fact.recurring_amount.currency().as_str()).bind(fact.effective_at).bind(event.event_id.as_uuid()).bind(to_i64(event.aggregate_version)?).bind(to_i64(event.global_sequence)?).execute(&mut **transaction).await.map_err(failure)?;
             }
             OPPORTUNITY_EVENT => {
                 let fact = opportunity_fact(event)?;
-                sqlx::query("INSERT INTO erpx_customer360_read.opportunity_projection (projection_name,generation,source_key,partition_key,tenant_id,tenant_scope,scope_key,customer_id,opportunity_id,opportunity_stage,expected_value_minor,currency,source_event_id,source_aggregate_version,source_global_sequence,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,now()) ON CONFLICT (projection_name,generation,source_key,opportunity_id) DO UPDATE SET partition_key=EXCLUDED.partition_key,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,customer_id=EXCLUDED.customer_id,opportunity_stage=EXCLUDED.opportunity_stage,expected_value_minor=EXCLUDED.expected_value_minor,currency=EXCLUDED.currency,source_event_id=EXCLUDED.source_event_id,source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,projected_at=now() WHERE erpx_customer360_read.opportunity_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
-                    .bind(TENANT_ACTIVITY_PROJECTION_NAME).bind(context.generation).bind(&qualified.source_key).bind(&qualified.partition).bind(qualified.tenant_id).bind(&tenant_scope).bind(&scope_key).bind(fact.customer.as_uuid()).bind(fact.opportunity.as_uuid()).bind(opportunity_stage_name(fact.stage)).bind(fact.expected_value.minor_units()).bind(fact.expected_value.currency().as_str()).bind(event.event_id.as_uuid()).bind(to_i64(event.aggregate_version)?).bind(to_i64(event.global_sequence)?).execute(&mut **transaction).await.map_err(failure)?;
+                sqlx::query("INSERT INTO erpx_customer360_read.opportunity_projection (projection_name,generation,source_key,partition_key,holding_id,active_scope,scope_key,customer_id,opportunity_id,opportunity_stage,expected_value_minor,currency,source_event_id,source_aggregate_version,source_global_sequence,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,now()) ON CONFLICT (projection_name,generation,source_key,opportunity_id) DO UPDATE SET partition_key=EXCLUDED.partition_key,active_scope=EXCLUDED.active_scope,scope_key=EXCLUDED.scope_key,customer_id=EXCLUDED.customer_id,opportunity_stage=EXCLUDED.opportunity_stage,expected_value_minor=EXCLUDED.expected_value_minor,currency=EXCLUDED.currency,source_event_id=EXCLUDED.source_event_id,source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,projected_at=now() WHERE erpx_customer360_read.opportunity_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
+                    .bind(HOLDING_ACTIVITY_PROJECTION_NAME).bind(context.generation).bind(&qualified.source_key).bind(&qualified.partition).bind(qualified.holding_id).bind(&active_scope).bind(&scope_key).bind(fact.customer.as_uuid()).bind(fact.opportunity.as_uuid()).bind(opportunity_stage_name(fact.stage)).bind(fact.expected_value.minor_units()).bind(fact.expected_value.currency().as_str()).bind(event.event_id.as_uuid()).bind(to_i64(event.aggregate_version)?).bind(to_i64(event.global_sequence)?).execute(&mut **transaction).await.map_err(failure)?;
             }
             SALES_ORDER_EVENT => {
                 let fact = sales_order_fact(event)?;
                 let lines = serde_json::to_value(&fact.lines).map_err(failure)?;
-                sqlx::query("INSERT INTO erpx_customer360_read.sales_order_projection (projection_name,generation,source_key,partition_key,tenant_id,tenant_scope,scope_key,customer_id,sales_order_id,order_code,order_status,total_minor,currency,lines,source_event_id,source_aggregate_version,source_global_sequence,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now()) ON CONFLICT (projection_name,generation,source_key,sales_order_id) DO UPDATE SET partition_key=EXCLUDED.partition_key,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,customer_id=EXCLUDED.customer_id,order_code=EXCLUDED.order_code,order_status=EXCLUDED.order_status,total_minor=EXCLUDED.total_minor,currency=EXCLUDED.currency,lines=EXCLUDED.lines,source_event_id=EXCLUDED.source_event_id,source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,projected_at=now() WHERE erpx_customer360_read.sales_order_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
-                    .bind(TENANT_ACTIVITY_PROJECTION_NAME).bind(context.generation).bind(&qualified.source_key).bind(&qualified.partition).bind(qualified.tenant_id).bind(&tenant_scope).bind(&scope_key).bind(fact.customer.as_uuid()).bind(fact.sales_order.as_uuid()).bind(fact.order_code.as_str()).bind(sales_order_status_name(fact.status)).bind(fact.total.minor_units()).bind(fact.total.currency().as_str()).bind(lines).bind(event.event_id.as_uuid()).bind(to_i64(event.aggregate_version)?).bind(to_i64(event.global_sequence)?).execute(&mut **transaction).await.map_err(failure)?;
+                sqlx::query("INSERT INTO erpx_customer360_read.sales_order_projection (projection_name,generation,source_key,partition_key,holding_id,active_scope,scope_key,customer_id,sales_order_id,order_code,order_status,total_minor,currency,lines,source_event_id,source_aggregate_version,source_global_sequence,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now()) ON CONFLICT (projection_name,generation,source_key,sales_order_id) DO UPDATE SET partition_key=EXCLUDED.partition_key,active_scope=EXCLUDED.active_scope,scope_key=EXCLUDED.scope_key,customer_id=EXCLUDED.customer_id,order_code=EXCLUDED.order_code,order_status=EXCLUDED.order_status,total_minor=EXCLUDED.total_minor,currency=EXCLUDED.currency,lines=EXCLUDED.lines,source_event_id=EXCLUDED.source_event_id,source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,projected_at=now() WHERE erpx_customer360_read.sales_order_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
+                    .bind(HOLDING_ACTIVITY_PROJECTION_NAME).bind(context.generation).bind(&qualified.source_key).bind(&qualified.partition).bind(qualified.holding_id).bind(&active_scope).bind(&scope_key).bind(fact.customer.as_uuid()).bind(fact.sales_order.as_uuid()).bind(fact.order_code.as_str()).bind(sales_order_status_name(fact.status)).bind(fact.total.minor_units()).bind(fact.total.currency().as_str()).bind(lines).bind(event.event_id.as_uuid()).bind(to_i64(event.aggregate_version)?).bind(to_i64(event.global_sequence)?).execute(&mut **transaction).await.map_err(failure)?;
             }
             SUPPORT_CASE_EVENT => {
                 let fact = support_case_fact(event)?;
-                sqlx::query("INSERT INTO erpx_customer360_read.support_case_projection (projection_name,generation,source_key,partition_key,tenant_id,tenant_scope,scope_key,customer_id,support_case_id,case_code,case_status,category,aggregate_updated_at,source_event_id,source_aggregate_version,source_global_sequence,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,now()) ON CONFLICT (projection_name,generation,source_key,support_case_id) DO UPDATE SET partition_key=EXCLUDED.partition_key,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,customer_id=EXCLUDED.customer_id,case_code=EXCLUDED.case_code,case_status=EXCLUDED.case_status,category=EXCLUDED.category,aggregate_updated_at=EXCLUDED.aggregate_updated_at,source_event_id=EXCLUDED.source_event_id,source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,projected_at=now() WHERE erpx_customer360_read.support_case_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
-                    .bind(TENANT_ACTIVITY_PROJECTION_NAME).bind(context.generation).bind(&qualified.source_key).bind(&qualified.partition).bind(qualified.tenant_id).bind(&tenant_scope).bind(&scope_key).bind(fact.customer.as_uuid()).bind(fact.support_case.as_uuid()).bind(fact.case_code.as_str()).bind(support_case_status_name(fact.status)).bind(fact.category.as_str()).bind(fact.updated_at).bind(event.event_id.as_uuid()).bind(to_i64(event.aggregate_version)?).bind(to_i64(event.global_sequence)?).execute(&mut **transaction).await.map_err(failure)?;
+                sqlx::query("INSERT INTO erpx_customer360_read.support_case_projection (projection_name,generation,source_key,partition_key,holding_id,active_scope,scope_key,customer_id,support_case_id,case_code,case_status,category,aggregate_updated_at,source_event_id,source_aggregate_version,source_global_sequence,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,now()) ON CONFLICT (projection_name,generation,source_key,support_case_id) DO UPDATE SET partition_key=EXCLUDED.partition_key,active_scope=EXCLUDED.active_scope,scope_key=EXCLUDED.scope_key,customer_id=EXCLUDED.customer_id,case_code=EXCLUDED.case_code,case_status=EXCLUDED.case_status,category=EXCLUDED.category,aggregate_updated_at=EXCLUDED.aggregate_updated_at,source_event_id=EXCLUDED.source_event_id,source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,projected_at=now() WHERE erpx_customer360_read.support_case_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
+                    .bind(HOLDING_ACTIVITY_PROJECTION_NAME).bind(context.generation).bind(&qualified.source_key).bind(&qualified.partition).bind(qualified.holding_id).bind(&active_scope).bind(&scope_key).bind(fact.customer.as_uuid()).bind(fact.support_case.as_uuid()).bind(fact.case_code.as_str()).bind(support_case_status_name(fact.status)).bind(fact.category.as_str()).bind(fact.updated_at).bind(event.event_id.as_uuid()).bind(to_i64(event.aggregate_version)?).bind(to_i64(event.global_sequence)?).execute(&mut **transaction).await.map_err(failure)?;
             }
             _ => {
                 return Err(ProjectionFailure::new(
-                    "Customer 360 tenant projector received an unsubscribed event",
+                    "Customer 360 holding projector received an unsubscribed event",
                 ));
             }
         }
@@ -194,7 +194,13 @@ impl Projector for TenantActivityProjector {
             "erpx_customer360_read.opportunity_projection",
             "erpx_customer360_read.subscription_projection",
         ] {
-            reset_table(transaction, context, table, TENANT_ACTIVITY_PROJECTION_NAME).await?;
+            reset_table(
+                transaction,
+                context,
+                table,
+                HOLDING_ACTIVITY_PROJECTION_NAME,
+            )
+            .await?;
         }
         Ok(())
     }
@@ -300,7 +306,7 @@ fn validate_owner(
         || event.event_type != event_type
     {
         Err(ProjectionFailure::new(
-            "tenant activity owner metadata mismatch",
+            "holding activity owner metadata mismatch",
         ))
     } else {
         Ok(())
@@ -311,7 +317,7 @@ fn validate_aggregate(event: &ProjectionEvent, fact_id: Uuid) -> Result<(), Proj
         Ok(())
     } else {
         Err(ProjectionFailure::new(
-            "tenant activity fact aggregate mismatch",
+            "holding activity fact aggregate mismatch",
         ))
     }
 }
@@ -319,27 +325,27 @@ fn validate_aggregate(event: &ProjectionEvent, fact_id: Uuid) -> Result<(), Proj
 struct QualifiedSource {
     source_key: String,
     partition: String,
-    tenant_id: Uuid,
+    holding_id: Uuid,
 }
 impl QualifiedSource {
     fn parse(value: &str) -> Result<Self, ProjectionFailure> {
         let (source_key, partition) = value.split_once('/').ok_or_else(|| {
-            ProjectionFailure::new("tenant activity partition is not source-qualified")
+            ProjectionFailure::new("holding activity partition is not source-qualified")
         })?;
-        let tenant = source_key
-            .strip_prefix("tenant:")
-            .ok_or_else(|| ProjectionFailure::new("tenant activity source key is invalid"))?;
-        let tenant_id = Uuid::parse_str(tenant)
-            .map_err(|_| ProjectionFailure::new("tenant activity tenant id is invalid"))?;
-        if tenant_id.is_nil() || partition.trim().is_empty() {
+        let holding = source_key
+            .strip_prefix("holding:")
+            .ok_or_else(|| ProjectionFailure::new("holding activity source key is invalid"))?;
+        let holding_id = Uuid::parse_str(holding)
+            .map_err(|_| ProjectionFailure::new("holding activity holding id is invalid"))?;
+        if holding_id.is_nil() || partition.trim().is_empty() {
             return Err(ProjectionFailure::new(
-                "tenant activity source route is invalid",
+                "holding activity source route is invalid",
             ));
         }
         Ok(Self {
             source_key: source_key.into(),
             partition: partition.into(),
-            tenant_id,
+            holding_id,
         })
     }
 }
@@ -363,27 +369,27 @@ async fn reset_table(
     Ok(())
 }
 
-fn scope_key(scope: &erpx_kernel::TenantScope) -> Result<String, ProjectionFailure> {
-    use erpx_kernel::TenantScope;
+fn scope_key(scope: &erpx_kernel::AuthorityScope) -> Result<String, ProjectionFailure> {
+    use erpx_kernel::AuthorityScope;
     scope
         .validate()
-        .map_err(|_| ProjectionFailure::new("tenant activity scope is invalid"))?;
+        .map_err(|_| ProjectionFailure::new("holding activity scope is invalid"))?;
     match scope {
-        TenantScope::Platform => Err(ProjectionFailure::new(
-            "tenant activity event scope must identify a tenant",
+        AuthorityScope::Platform => Err(ProjectionFailure::new(
+            "holding activity event scope must identify a holding",
         )),
-        TenantScope::Holding { holding_id } => Ok(format!("h:{holding_id}")),
-        TenantScope::Company {
+        AuthorityScope::Holding { holding_id } => Ok(format!("h:{holding_id}")),
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok(format!("h:{holding_id}/c:{company_id}")),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         } => Ok(format!("h:{holding_id}/c:{company_id}/b:{branch_id}")),
-        TenantScope::Subtree { .. } => Err(ProjectionFailure::new(
-            "tenant activity event scope must be exact",
+        AuthorityScope::Subtree { .. } => Err(ProjectionFailure::new(
+            "holding activity event scope must be exact",
         )),
     }
 }
@@ -451,7 +457,7 @@ mod tests {
             &[CONTROL_PROFILE_EVENT.to_owned()]
         );
         assert_eq!(
-            TenantActivityProjector::new().event_types(),
+            HoldingActivityProjector::new().event_types(),
             &[
                 SUBSCRIPTION_EVENT.to_owned(),
                 OPPORTUNITY_EVENT.to_owned(),
@@ -463,14 +469,14 @@ mod tests {
     #[test]
     fn qualified_sources_reject_cross_database_cursor_ambiguity() {
         assert!(QualifiedSource::parse("commercial.subscription:x").is_err());
-        assert!(QualifiedSource::parse("tenant:not-a-uuid/commercial.subscription:x").is_err());
+        assert!(QualifiedSource::parse("holding:not-a-uuid/commercial.subscription:x").is_err());
         let value = QualifiedSource::parse(
-            "tenant:00000000-0000-0000-0000-000000000001/commercial.subscription:x",
+            "holding:00000000-0000-0000-0000-000000000001/commercial.subscription:x",
         )
         .unwrap();
         assert_eq!(
             value.source_key,
-            "tenant:00000000-0000-0000-0000-000000000001"
+            "holding:00000000-0000-0000-0000-000000000001"
         );
     }
 }

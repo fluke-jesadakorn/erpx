@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext, ReadPool};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use erpx_legal::{
     LegalDocumentId, PortError, SignatureEnvelopeId, SignatureEnvelopeQueryPort,
     SignatureEnvelopeView, SignatureStatus,
@@ -15,7 +15,7 @@ const SIGNATURE_EVENT: &str = "legal.signature_envelope_changed";
 struct SignatureProjectionFact {
     envelope_id: Uuid,
     envelope_version: u64,
-    tenant_scope: TenantScope,
+    active_scope: AuthorityScope,
     document_id: Uuid,
     document_version: u64,
     envelope_status: String,
@@ -51,7 +51,7 @@ impl SignatureEnvelopeReadAdapter {
 impl SignatureEnvelopeQueryPort for SignatureEnvelopeReadAdapter {
     async fn get_signature_envelope(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         envelope_id: SignatureEnvelopeId,
     ) -> Result<Option<SignatureEnvelopeView>, PortError> {
         let mut tx = self
@@ -59,12 +59,12 @@ impl SignatureEnvelopeQueryPort for SignatureEnvelopeReadAdapter {
             .begin()
             .await
             .map_err(|_| PortError::Unavailable)?;
-        let active:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM erpx_cqrs_read.projection_generations WHERE tenant_id=erpx_cqrs_read.current_tenant_id() AND projection_name=$1 AND status='active')").bind(SIGNATURE_PROJECTION).fetch_one(&mut *tx).await.map_err(|_|PortError::Unavailable)?;
+        let active:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM erpx_cqrs_read.projection_generations WHERE holding_id=erpx_cqrs_read.current_holding_id() AND projection_name=$1 AND status='active')").bind(SIGNATURE_PROJECTION).fetch_one(&mut *tx).await.map_err(|_|PortError::Unavailable)?;
         if !active {
             return Err(PortError::Unavailable);
         }
         let scope_key = serde_json::to_string(authority_scope).map_err(|_| PortError::Internal)?;
-        let row=sqlx::query("SELECT record.envelope_id,record.source_aggregate_version,record.document_id,record.document_version,record.envelope_status,record.retention_until FROM erpx_shared_read.signature_envelope_projection record JOIN erpx_cqrs_read.projection_generations generation ON generation.tenant_id=record.tenant_id AND generation.projection_name=record.projection_name AND generation.generation=record.generation AND generation.status='active' WHERE record.tenant_id=erpx_cqrs_read.current_tenant_id() AND record.projection_name=$1 AND record.scope_key=$2 AND record.envelope_id=$3")
+        let row=sqlx::query("SELECT record.envelope_id,record.source_aggregate_version,record.document_id,record.document_version,record.envelope_status,record.retention_until FROM erpx_shared_read.signature_envelope_projection record JOIN erpx_cqrs_read.projection_generations generation ON generation.holding_id=record.holding_id AND generation.projection_name=record.projection_name AND generation.generation=record.generation AND generation.status='active' WHERE record.holding_id=erpx_cqrs_read.current_holding_id() AND record.projection_name=$1 AND record.scope_key=$2 AND record.envelope_id=$3")
             .bind(SIGNATURE_PROJECTION).bind(scope_key).bind(envelope_id.as_uuid()).fetch_optional(&mut *tx).await.map_err(|_|PortError::Unavailable)?;
         row.map(|row| {
             Ok(SignatureEnvelopeView {
@@ -139,14 +139,14 @@ impl Projector for SignatureEnvelopeProjector {
             serde_json::from_value(e.payload.clone()).map_err(failure)?;
         if f.envelope_id != e.aggregate_id.as_uuid()
             || f.envelope_version != e.aggregate_version
-            || f.tenant_scope != e.tenant_scope
+            || f.active_scope != e.active_scope
             || f.document_version == 0
         {
             return Err(ProjectionFailure::new(
                 "signature projection metadata mismatch",
             ));
         }
-        sqlx::query("INSERT INTO erpx_shared_read.signature_envelope_projection (tenant_id,projection_name,generation,partition_key,envelope_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,document_id,document_version,envelope_status,retention_until,projected_at) VALUES (erpx_cqrs_read.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,envelope_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,envelope_status=EXCLUDED.envelope_status,retention_until=EXCLUDED.retention_until,projected_at=now() WHERE erpx_shared_read.signature_envelope_projection.source_aggregate_version<EXCLUDED.source_aggregate_version").bind(SIGNATURE_PROJECTION).bind(c.generation).bind(&e.partition).bind(f.envelope_id).bind(i64::try_from(f.envelope_version).map_err(failure)?).bind(i64::try_from(e.global_sequence).map_err(failure)?).bind(serde_json::to_value(&f.tenant_scope).map_err(failure)?).bind(serde_json::to_string(&f.tenant_scope).map_err(failure)?).bind(f.document_id).bind(i64::try_from(f.document_version).map_err(failure)?).bind(f.envelope_status).bind(f.retention_until).execute(&mut **tx).await.map_err(failure)?;
+        sqlx::query("INSERT INTO erpx_shared_read.signature_envelope_projection (holding_id,projection_name,generation,partition_key,envelope_id,source_aggregate_version,source_global_sequence,active_scope,scope_key,document_id,document_version,envelope_status,retention_until,projected_at) VALUES (erpx_cqrs_read.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now()) ON CONFLICT (holding_id,projection_name,generation,partition_key,envelope_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,envelope_status=EXCLUDED.envelope_status,retention_until=EXCLUDED.retention_until,projected_at=now() WHERE erpx_shared_read.signature_envelope_projection.source_aggregate_version<EXCLUDED.source_aggregate_version").bind(SIGNATURE_PROJECTION).bind(c.generation).bind(&e.partition).bind(f.envelope_id).bind(i64::try_from(f.envelope_version).map_err(failure)?).bind(i64::try_from(e.global_sequence).map_err(failure)?).bind(serde_json::to_value(&f.active_scope).map_err(failure)?).bind(serde_json::to_string(&f.active_scope).map_err(failure)?).bind(f.document_id).bind(i64::try_from(f.document_version).map_err(failure)?).bind(f.envelope_status).bind(f.retention_until).execute(&mut **tx).await.map_err(failure)?;
         Ok(())
     }
     async fn reset(
@@ -154,7 +154,7 @@ impl Projector for SignatureEnvelopeProjector {
         tx: &mut Transaction<'_, Postgres>,
         c: &ProjectorContext<'_>,
     ) -> Result<(), ProjectionFailure> {
-        sqlx::query("DELETE FROM erpx_shared_read.signature_envelope_projection WHERE tenant_id=erpx_cqrs_read.current_tenant_id() AND projection_name=$1 AND generation=$2").bind(SIGNATURE_PROJECTION).bind(c.generation).execute(&mut **tx).await.map_err(failure)?;
+        sqlx::query("DELETE FROM erpx_shared_read.signature_envelope_projection WHERE holding_id=erpx_cqrs_read.current_holding_id() AND projection_name=$1 AND generation=$2").bind(SIGNATURE_PROJECTION).bind(c.generation).execute(&mut **tx).await.map_err(failure)?;
         Ok(())
     }
 }

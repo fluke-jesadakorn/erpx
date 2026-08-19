@@ -1,8 +1,8 @@
 //! Typed, rebuildable HR/payroll read projection.
 //!
-//! HR source rows and outbox events remain authoritative on the tenant write
+//! HR source rows and outbox events remain authoritative on the holding write
 //! database. This adapter copies only bounded typed fields into the separate
-//! tenant read database and never persists source JSON or command contexts.
+//! holding read database and never persists source JSON or command contexts.
 
 use chrono::{DateTime, NaiveDate, Utc};
 use erpx_domain::hr::{
@@ -150,7 +150,7 @@ pub struct HrProjectionApplication {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HrProjectionRebuildPreparation {
-    pub holding_ref: String,
+    pub data_profile_key: String,
     pub rows_cleared: u64,
     pub checkpoints_cleared: u64,
     pub receipts_cleared: u64,
@@ -352,19 +352,19 @@ pub struct HrReassignmentReadPage {
 #[derive(Debug, Clone)]
 pub struct SqlxHrReadStore {
     read_pool: PgPool,
-    holding_ref: String,
+    data_profile_key: String,
 }
 
 impl SqlxHrReadStore {
     pub fn new(
         read_pool: PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_holding_ref(&holding_ref)?;
+        let data_profile_key = data_profile_key.into();
+        validate_data_profile_key(&data_profile_key)?;
         Ok(Self {
             read_pool,
-            holding_ref,
+            data_profile_key,
         })
     }
 
@@ -386,19 +386,19 @@ impl SqlxHrReadStore {
             return Err(invalid("HR employee read cursor is invalid"));
         }
         let limit = i64::from(page_size) + 1;
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let rows = sqlx::query(
             "SELECT employee_id, holding_id, company_id, branch_id, employee_ref,
                     display_name, status, hired_on, terminated_on, source_version,
                     source_event_id, projected_at
-             FROM erpx_tenant.hr_employee_read_rows
-             WHERE holding_ref=$1 AND holding_id=$2 AND company_id=$3
+             FROM erpx_holding.hr_employee_read_rows
+             WHERE data_profile_key=$1 AND holding_id=$2 AND company_id=$3
                AND ($4::UUID IS NULL OR branch_id=$4)
                AND ($5::UUID IS NULL OR employee_id < $5)
              ORDER BY employee_id DESC
              LIMIT $6",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(scope.holding_id)
         .bind(scope.company_id)
         .bind(scope.branch_id)
@@ -455,19 +455,19 @@ impl SqlxHrReadStore {
         let limit = i64::from(page_size) + 1;
         let before_starts_on = before.map(|cursor| cursor.starts_on);
         let before_leave_id = before.map(|cursor| cursor.leave_id);
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let rows = sqlx::query(
             "SELECT leave_id, holding_id, company_id, branch_id, employee_id,
                     starts_on, ends_on, reason, status, requested_by, approved_by,
                     source_version, source_event_id, projected_at
-             FROM erpx_tenant.hr_leave_request_read_rows
-             WHERE holding_ref=$1 AND holding_id=$2 AND company_id=$3
+             FROM erpx_holding.hr_leave_request_read_rows
+             WHERE data_profile_key=$1 AND holding_id=$2 AND company_id=$3
                AND ($4::UUID IS NULL OR branch_id=$4)
                AND ($5::DATE IS NULL OR (starts_on, leave_id) < ($5, $6))
              ORDER BY starts_on DESC, leave_id DESC
              LIMIT $7",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(scope.holding_id)
         .bind(scope.company_id)
         .bind(scope.branch_id)
@@ -511,19 +511,19 @@ impl SqlxHrReadStore {
         }
         let limit = i64::from(page_size) + 1;
         let before_expense_id = before.map(|cursor| cursor.expense_id);
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let rows = sqlx::query(
             "SELECT expense_id, holding_id, company_id, branch_id, employee_id,
                     currency, amount_minor, status, submitted_by, approved_by,
                     source_version, source_event_id, projected_at
-             FROM erpx_tenant.hr_expense_claim_read_rows
-             WHERE holding_ref=$1 AND holding_id=$2 AND company_id=$3
+             FROM erpx_holding.hr_expense_claim_read_rows
+             WHERE data_profile_key=$1 AND holding_id=$2 AND company_id=$3
                AND ($4::UUID IS NULL OR branch_id=$4)
                AND ($5::UUID IS NULL OR expense_id < $5)
              ORDER BY expense_id DESC
              LIMIT $6",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(scope.holding_id)
         .bind(scope.company_id)
         .bind(scope.branch_id)
@@ -569,20 +569,20 @@ impl SqlxHrReadStore {
         let line_limit = i64::from(line_page_size) + 1;
         let before_starts_on = before.map(|cursor| cursor.starts_on);
         let before_payroll_id = before.map(|cursor| cursor.payroll_id);
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let parent_rows = sqlx::query(
             "SELECT payroll_id, holding_id, company_id, branch_id, starts_on,
                     ends_on, status, prepared_by, reviewed_by, approved_by,
                     total_gross_minor, total_deductions_minor, total_net_minor,
                     source_version, source_event_id, projected_at
-             FROM erpx_tenant.hr_payroll_run_read_rows
-             WHERE holding_ref=$1 AND holding_id=$2 AND company_id=$3
+             FROM erpx_holding.hr_payroll_run_read_rows
+             WHERE data_profile_key=$1 AND holding_id=$2 AND company_id=$3
                AND ($4::UUID IS NULL OR branch_id=$4)
                AND ($5::DATE IS NULL OR (starts_on, payroll_id) < ($5, $6))
              ORDER BY starts_on DESC, payroll_id DESC
              LIMIT $7",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(scope.holding_id)
         .bind(scope.company_id)
         .bind(scope.branch_id)
@@ -600,13 +600,13 @@ impl SqlxHrReadStore {
                 "SELECT line_no, holding_id, company_id, branch_id, employee_id,
                         gross_minor, deductions_minor, net_minor,
                         source_version, source_event_id, projected_at
-                 FROM erpx_tenant.hr_payroll_line_read_rows
-                 WHERE holding_ref=$1 AND payroll_id=$2 AND holding_id=$3
+                 FROM erpx_holding.hr_payroll_line_read_rows
+                 WHERE data_profile_key=$1 AND payroll_id=$2 AND holding_id=$3
                    AND company_id=$4 AND ($5::UUID IS NULL OR branch_id=$5)
                  ORDER BY line_no ASC
                  LIMIT $6",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(payroll_id)
             .bind(scope.holding_id)
             .bind(scope.company_id)
@@ -654,20 +654,20 @@ impl SqlxHrReadStore {
         let limit = i64::from(page_size) + 1;
         let before_reassigned_at = before.map(|cursor| cursor.reassigned_at);
         let before_workflow_ref = before.map(|cursor| cursor.workflow_ref.as_str());
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let rows = sqlx::query(
             "SELECT workflow_ref, holding_id, company_id, branch_id,
                     expired_principal_ref, replacement_principal_ref, reason,
                     reassigned_at, source_version, source_event_id, projected_at
-             FROM erpx_tenant.hr_expired_role_reassignment_read_rows
-             WHERE holding_ref=$1 AND holding_id=$2 AND company_id=$3
+             FROM erpx_holding.hr_expired_role_reassignment_read_rows
+             WHERE data_profile_key=$1 AND holding_id=$2 AND company_id=$3
                AND ($4::UUID IS NULL OR branch_id=$4)
                AND ($5::TIMESTAMPTZ IS NULL
                     OR (reassigned_at, workflow_ref) < ($5, $6))
              ORDER BY reassigned_at DESC, workflow_ref DESC
              LIMIT $7",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(scope.holding_id)
         .bind(scope.company_id)
         .bind(scope.branch_id)
@@ -865,21 +865,21 @@ fn decode_reassignment_read_row(
 pub struct SqlxHrProjectionStore {
     write_pool: PgPool,
     read_pool: PgPool,
-    holding_ref: String,
+    data_profile_key: String,
 }
 
 impl SqlxHrProjectionStore {
     pub fn from_pools(
         write_pool: &PgPool,
         read_pool: &PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_holding_ref(&holding_ref)?;
+        let data_profile_key = data_profile_key.into();
+        validate_data_profile_key(&data_profile_key)?;
         Ok(Self {
             write_pool: write_pool.clone(),
             read_pool: read_pool.clone(),
-            holding_ref,
+            data_profile_key,
         })
     }
 
@@ -897,19 +897,20 @@ impl SqlxHrProjectionStore {
                 "HR source event page size must be 1..={MAX_HR_SOURCE_EVENT_PAGE_SIZE}"
             )));
         }
-        let mut source_tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
-        sqlx::query("LOCK TABLE erpx_tenant.outbox_events IN SHARE MODE")
+        let mut source_tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
+        sqlx::query("LOCK TABLE erpx_holding.outbox_events IN SHARE MODE")
             .execute(&mut *source_tx)
             .await?;
-        validate_source_event_versions(&mut source_tx, &self.holding_ref).await?;
-        let mut read_tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
-        let preparation = clear_projection_in_transaction(&mut read_tx, &self.holding_ref).await?;
+        validate_source_event_versions(&mut source_tx, &self.data_profile_key).await?;
+        let mut read_tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
+        let preparation =
+            clear_projection_in_transaction(&mut read_tx, &self.data_profile_key).await?;
         let mut cursor = None;
         let mut events_replayed = 0_u64;
         loop {
             let page = read_source_event_page_in_transaction(
                 &mut source_tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 cursor.as_ref(),
                 page_size,
             )
@@ -917,7 +918,7 @@ impl SqlxHrProjectionStore {
             for event in &page.events {
                 verify_authoritative_source_event_in_transaction(
                     &mut source_tx,
-                    &self.holding_ref,
+                    &self.data_profile_key,
                     event,
                 )
                 .await?;
@@ -952,10 +953,14 @@ impl SqlxHrProjectionStore {
                 "HR source event page size must be 1..={MAX_HR_SOURCE_EVENT_PAGE_SIZE}"
             )));
         }
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
-        let page =
-            read_source_event_page_in_transaction(&mut tx, &self.holding_ref, cursor, page_size)
-                .await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
+        let page = read_source_event_page_in_transaction(
+            &mut tx,
+            &self.data_profile_key,
+            cursor,
+            page_size,
+        )
+        .await?;
         tx.commit().await?;
         Ok(page)
     }
@@ -967,8 +972,8 @@ impl SqlxHrProjectionStore {
     pub async fn reconcile_projection(
         &self,
     ) -> Result<HrProjectionReconciliation, PersistenceError> {
-        let mut source_tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
-        validate_source_event_versions(&mut source_tx, &self.holding_ref).await?;
+        let mut source_tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
+        validate_source_event_versions(&mut source_tx, &self.data_profile_key).await?;
         let source_rows = sqlx::query(
             "WITH ranked_source AS (
                  SELECT event_type, aggregate_type, aggregate_id, aggregate_version,
@@ -980,8 +985,8 @@ impl SqlxHrProjectionStore {
                             PARTITION BY aggregate_type, aggregate_id
                             ORDER BY aggregate_version DESC, event_id DESC
                         ) AS latest_rank
-                 FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1 AND aggregate_type = ANY($2)
+                 FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1 AND aggregate_type = ANY($2)
              )
              SELECT event_type, aggregate_type, aggregate_id,
                     aggregate_version AS latest_version,
@@ -989,7 +994,7 @@ impl SqlxHrProjectionStore {
              FROM ranked_source
              WHERE latest_rank=1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(HR_AGGREGATES)
         .fetch_all(&mut *source_tx)
         .await?;
@@ -1034,13 +1039,13 @@ impl SqlxHrProjectionStore {
             );
         }
 
-        let mut read_tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut read_tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let read_rows = sqlx::query(
             "SELECT aggregate_type, aggregate_id, source_version, last_event_id
-             FROM erpx_tenant.hr_projection_checkpoints
-             WHERE holding_ref=$1 AND projection_name=$2",
+             FROM erpx_holding.hr_projection_checkpoints
+             WHERE data_profile_key=$1 AND projection_name=$2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(HR_PROJECTION_NAME)
         .fetch_all(&mut *read_tx)
         .await?;
@@ -1056,17 +1061,18 @@ impl SqlxHrProjectionStore {
                 ))
             })
             .collect::<Result<HashMap<(String, Uuid), SourceProjectionIdentity>, _>>()?;
-        let projected_metadata = read_projection_metadata(&mut read_tx, &self.holding_ref).await?;
+        let projected_metadata =
+            read_projection_metadata(&mut read_tx, &self.data_profile_key).await?;
         let projected_employee_facts =
-            read_employee_projection_facts(&mut read_tx, &self.holding_ref).await?;
+            read_employee_projection_facts(&mut read_tx, &self.data_profile_key).await?;
         let projected_leave_facts =
-            read_leave_projection_facts(&mut read_tx, &self.holding_ref).await?;
+            read_leave_projection_facts(&mut read_tx, &self.data_profile_key).await?;
         let projected_expense_facts =
-            read_expense_projection_facts(&mut read_tx, &self.holding_ref).await?;
+            read_expense_projection_facts(&mut read_tx, &self.data_profile_key).await?;
         let projected_payroll_facts =
-            read_payroll_projection_facts(&mut read_tx, &self.holding_ref).await?;
+            read_payroll_projection_facts(&mut read_tx, &self.data_profile_key).await?;
         let projected_reassignment_facts =
-            read_reassignment_projection_facts(&mut read_tx, &self.holding_ref).await?;
+            read_reassignment_projection_facts(&mut read_tx, &self.data_profile_key).await?;
         read_tx.commit().await?;
 
         let mut projected_read_identities = HashSet::new();
@@ -1097,7 +1103,7 @@ impl SqlxHrProjectionStore {
         projected_read_identities.extend(projected_reassignment_facts.keys().map(|workflow_ref| {
             (
                 "hr_expired_role_reassignment".to_owned(),
-                stable_reassignment_id(&self.holding_ref, workflow_ref),
+                stable_reassignment_id(&self.data_profile_key, workflow_ref),
             )
         }));
 
@@ -1161,7 +1167,7 @@ impl SqlxHrProjectionStore {
                 });
             let payload_matches = projected_payload_matches_source(
                 &event,
-                &self.holding_ref,
+                &self.data_profile_key,
                 &projected_employee_facts,
                 &projected_leave_facts,
                 &projected_expense_facts,
@@ -1189,7 +1195,7 @@ impl SqlxHrProjectionStore {
     ) -> Result<HrProjectionApplication, PersistenceError> {
         validate_source_event(event)?;
         self.verify_authoritative_source_event(event).await?;
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let result = self.project_event_in_transaction(&mut tx, event).await?;
         tx.commit().await?;
         Ok(result)
@@ -1203,11 +1209,11 @@ impl SqlxHrProjectionStore {
         validate_source_event(event)?;
         if let Some(receipt) = sqlx::query(
             "SELECT aggregate_type, aggregate_id, aggregate_version
-             FROM erpx_tenant.hr_projection_event_receipts
-             WHERE holding_ref=$1 AND projection_name=$2 AND event_id=$3
+             FROM erpx_holding.hr_projection_event_receipts
+             WHERE data_profile_key=$1 AND projection_name=$2 AND event_id=$3
              FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(HR_PROJECTION_NAME)
         .bind(event.event_id)
         .fetch_optional(&mut **tx)
@@ -1227,12 +1233,12 @@ impl SqlxHrProjectionStore {
         }
         let current = sqlx::query(
             "SELECT source_version, last_event_id
-             FROM erpx_tenant.hr_projection_checkpoints
-             WHERE holding_ref=$1 AND projection_name=$2
+             FROM erpx_holding.hr_projection_checkpoints
+             WHERE data_profile_key=$1 AND projection_name=$2
                AND aggregate_type=$3 AND aggregate_id=$4
              FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(HR_PROJECTION_NAME)
         .bind(&event.aggregate_type)
         .bind(event.aggregate_id)
@@ -1259,27 +1265,27 @@ impl SqlxHrProjectionStore {
         }
 
         match event.aggregate_type.as_str() {
-            "hr_employee" => project_employee(tx, &self.holding_ref, event).await?,
-            "hr_leave_request" => project_leave(tx, &self.holding_ref, event).await?,
-            "hr_expense_claim" => project_expense(tx, &self.holding_ref, event).await?,
-            "hr_payroll_run" => project_payroll(tx, &self.holding_ref, event).await?,
+            "hr_employee" => project_employee(tx, &self.data_profile_key, event).await?,
+            "hr_leave_request" => project_leave(tx, &self.data_profile_key, event).await?,
+            "hr_expense_claim" => project_expense(tx, &self.data_profile_key, event).await?,
+            "hr_payroll_run" => project_payroll(tx, &self.data_profile_key, event).await?,
             "hr_expired_role_reassignment" => {
-                project_reassignment(tx, &self.holding_ref, event).await?
+                project_reassignment(tx, &self.data_profile_key, event).await?
             }
             _ => return Err(invalid("HR aggregate type is unsupported")),
         }
         let (holding_id, company_id, branch_id) = event_scope(event)?;
         sqlx::query(
-            "INSERT INTO erpx_tenant.hr_projection_checkpoints
-                (holding_ref, projection_name, aggregate_type, aggregate_id,
+            "INSERT INTO erpx_holding.hr_projection_checkpoints
+                (data_profile_key, projection_name, aggregate_type, aggregate_id,
                  holding_id, company_id, branch_id, last_event_id, source_version)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-             ON CONFLICT (holding_ref, projection_name, aggregate_type, aggregate_id)
+             ON CONFLICT (data_profile_key, projection_name, aggregate_type, aggregate_id)
              DO UPDATE SET holding_id=EXCLUDED.holding_id, company_id=EXCLUDED.company_id,
                  branch_id=EXCLUDED.branch_id, last_event_id=EXCLUDED.last_event_id,
                  source_version=EXCLUDED.source_version, projected_at=now()",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(HR_PROJECTION_NAME)
         .bind(&event.aggregate_type)
         .bind(event.aggregate_id)
@@ -1291,12 +1297,12 @@ impl SqlxHrProjectionStore {
         .execute(&mut **tx)
         .await?;
         sqlx::query(
-            "INSERT INTO erpx_tenant.hr_projection_event_receipts
-                (holding_ref, projection_name, event_id, aggregate_type,
+            "INSERT INTO erpx_holding.hr_projection_event_receipts
+                (data_profile_key, projection_name, event_id, aggregate_type,
                  aggregate_id, aggregate_version)
              VALUES ($1,$2,$3,$4,$5,$6)",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(HR_PROJECTION_NAME)
         .bind(event.event_id)
         .bind(&event.aggregate_type)
@@ -1310,8 +1316,8 @@ impl SqlxHrProjectionStore {
     pub async fn clear_projection(
         &self,
     ) -> Result<HrProjectionRebuildPreparation, PersistenceError> {
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
-        let preparation = clear_projection_in_transaction(&mut tx, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
+        let preparation = clear_projection_in_transaction(&mut tx, &self.data_profile_key).await?;
         tx.commit().await?;
         Ok(preparation)
     }
@@ -1324,10 +1330,13 @@ impl SqlxHrProjectionStore {
         &self,
         event: &HrSourceEvent,
     ) -> Result<(), PersistenceError> {
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
-        let result =
-            verify_authoritative_source_event_in_transaction(&mut tx, &self.holding_ref, event)
-                .await;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
+        let result = verify_authoritative_source_event_in_transaction(
+            &mut tx,
+            &self.data_profile_key,
+            event,
+        )
+        .await;
         tx.commit().await?;
         result
     }
@@ -1335,7 +1344,7 @@ impl SqlxHrProjectionStore {
 
 async fn clear_projection_in_transaction(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<HrProjectionRebuildPreparation, PersistenceError> {
     let mut rows_cleared = 0_u64;
     for table in [
@@ -1348,28 +1357,29 @@ async fn clear_projection_in_transaction(
     ] {
         rows_cleared = rows_cleared.saturating_add(
             sqlx::query(&format!(
-                "DELETE FROM erpx_tenant.{table} WHERE holding_ref=$1"
+                "DELETE FROM erpx_holding.{table} WHERE data_profile_key=$1"
             ))
-            .bind(holding_ref)
+            .bind(data_profile_key)
             .execute(&mut **tx)
             .await?
             .rows_affected(),
         );
     }
     let checkpoints_cleared =
-        sqlx::query("DELETE FROM erpx_tenant.hr_projection_checkpoints WHERE holding_ref=$1")
-            .bind(holding_ref)
+        sqlx::query("DELETE FROM erpx_holding.hr_projection_checkpoints WHERE data_profile_key=$1")
+            .bind(data_profile_key)
             .execute(&mut **tx)
             .await?
             .rows_affected();
-    let receipts_cleared =
-        sqlx::query("DELETE FROM erpx_tenant.hr_projection_event_receipts WHERE holding_ref=$1")
-            .bind(holding_ref)
-            .execute(&mut **tx)
-            .await?
-            .rows_affected();
+    let receipts_cleared = sqlx::query(
+        "DELETE FROM erpx_holding.hr_projection_event_receipts WHERE data_profile_key=$1",
+    )
+    .bind(data_profile_key)
+    .execute(&mut **tx)
+    .await?
+    .rows_affected();
     Ok(HrProjectionRebuildPreparation {
-        holding_ref: holding_ref.into(),
+        data_profile_key: data_profile_key.into(),
         rows_cleared,
         checkpoints_cleared,
         receipts_cleared,
@@ -1378,7 +1388,7 @@ async fn clear_projection_in_transaction(
 
 async fn read_source_event_page_in_transaction(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     cursor: Option<&HrSourceEventCursor>,
     page_size: u32,
 ) -> Result<HrSourceEventPage, PersistenceError> {
@@ -1395,8 +1405,8 @@ async fn read_source_event_page_in_transaction(
         sqlx::query(
             "SELECT event_id, event_type, aggregate_type, aggregate_id,
                     aggregate_version, payload, occurred_at
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND aggregate_type = ANY($2)
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND aggregate_type = ANY($2)
                AND (aggregate_type > $3
                     OR (aggregate_type=$3 AND aggregate_id > $4)
                     OR (aggregate_type=$3 AND aggregate_id=$4
@@ -1404,7 +1414,7 @@ async fn read_source_event_page_in_transaction(
              ORDER BY aggregate_type, aggregate_id, aggregate_version, event_id
              LIMIT $6",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(HR_AGGREGATES)
         .bind(&cursor.aggregate_type)
         .bind(cursor.aggregate_id)
@@ -1419,12 +1429,12 @@ async fn read_source_event_page_in_transaction(
         sqlx::query(
             "SELECT event_id, event_type, aggregate_type, aggregate_id,
                     aggregate_version, payload, occurred_at
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND aggregate_type = ANY($2)
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND aggregate_type = ANY($2)
              ORDER BY aggregate_type, aggregate_id, aggregate_version, event_id
              LIMIT $3",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(HR_AGGREGATES)
         .bind(limit)
         .fetch_all(&mut **tx)
@@ -1510,7 +1520,7 @@ fn validate_source_event(event: &HrSourceEvent) -> Result<(), PersistenceError> 
 
 async fn validate_source_event_versions(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<(), PersistenceError> {
     let invalid_rows: i64 = sqlx::query_scalar(
         "WITH ordered AS (
@@ -1522,15 +1532,15 @@ async fn validate_source_event_versions(
                     COUNT(*) OVER (
                         PARTITION BY aggregate_type, aggregate_id, aggregate_version
                     ) AS version_count
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND aggregate_type = ANY($2)
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND aggregate_type = ANY($2)
          )
          SELECT COUNT(*)
          FROM ordered
          WHERE aggregate_version <> expected_version
             OR version_count <> 1",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(HR_AGGREGATES)
     .fetch_one(&mut **tx)
     .await?;
@@ -1542,18 +1552,18 @@ async fn validate_source_event_versions(
 
 async fn verify_authoritative_source_event_in_transaction(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     event: &HrSourceEvent,
 ) -> Result<(), PersistenceError> {
     let row = sqlx::query(
         "SELECT event_type, aggregate_type, aggregate_id, aggregate_version,
                 payload, occurred_at
-         FROM erpx_tenant.outbox_events
-         WHERE event_id=$1 AND holding_ref=$2
+         FROM erpx_holding.outbox_events
+         WHERE event_id=$1 AND data_profile_key=$2
          FOR SHARE",
     )
     .bind(event.event_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_optional(&mut **tx)
     .await?;
     let Some(row) = row else {
@@ -1581,40 +1591,40 @@ async fn verify_authoritative_source_event_in_transaction(
 
 async fn read_projection_metadata(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<HashMap<(String, Uuid), Vec<ProjectedReadMetadata>>, PersistenceError> {
     let rows = sqlx::query(
         "SELECT 'hr_employee'::TEXT AS aggregate_type, source_event_id,
                 holding_id, company_id, branch_id, source_version
-         FROM erpx_tenant.hr_employee_read_rows
-         WHERE holding_ref=$1
+         FROM erpx_holding.hr_employee_read_rows
+         WHERE data_profile_key=$1
          UNION ALL
          SELECT 'hr_leave_request'::TEXT AS aggregate_type, source_event_id,
                 holding_id, company_id, branch_id, source_version
-         FROM erpx_tenant.hr_leave_request_read_rows
-         WHERE holding_ref=$1
+         FROM erpx_holding.hr_leave_request_read_rows
+         WHERE data_profile_key=$1
          UNION ALL
          SELECT 'hr_expense_claim'::TEXT AS aggregate_type, source_event_id,
                 holding_id, company_id, branch_id, source_version
-         FROM erpx_tenant.hr_expense_claim_read_rows
-         WHERE holding_ref=$1
+         FROM erpx_holding.hr_expense_claim_read_rows
+         WHERE data_profile_key=$1
          UNION ALL
          SELECT 'hr_payroll_run'::TEXT AS aggregate_type, source_event_id,
                 holding_id, company_id, branch_id, source_version
-         FROM erpx_tenant.hr_payroll_run_read_rows
-         WHERE holding_ref=$1
+         FROM erpx_holding.hr_payroll_run_read_rows
+         WHERE data_profile_key=$1
          UNION ALL
          SELECT 'hr_payroll_run'::TEXT AS aggregate_type, source_event_id,
                 holding_id, company_id, branch_id, source_version
-         FROM erpx_tenant.hr_payroll_line_read_rows
-         WHERE holding_ref=$1
+         FROM erpx_holding.hr_payroll_line_read_rows
+         WHERE data_profile_key=$1
          UNION ALL
          SELECT 'hr_expired_role_reassignment'::TEXT AS aggregate_type,
                 source_event_id, holding_id, company_id, branch_id, source_version
-         FROM erpx_tenant.hr_expired_role_reassignment_read_rows
-         WHERE holding_ref=$1",
+         FROM erpx_holding.hr_expired_role_reassignment_read_rows
+         WHERE data_profile_key=$1",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_all(&mut **tx)
     .await?;
     let mut metadata = HashMap::new();
@@ -1643,16 +1653,16 @@ async fn read_projection_metadata(
 
 async fn read_employee_projection_facts(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<HashMap<Uuid, ProjectedEmployeeFact>, PersistenceError> {
     let rows = sqlx::query(
         "SELECT employee_id, holding_id, company_id, branch_id,
                 employee_ref, display_name, status, hired_on, terminated_on,
                 source_version, source_event_id
-         FROM erpx_tenant.hr_employee_read_rows
-         WHERE holding_ref=$1",
+         FROM erpx_holding.hr_employee_read_rows
+         WHERE data_profile_key=$1",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_all(&mut **tx)
     .await?;
     let mut facts = HashMap::with_capacity(rows.len());
@@ -1690,16 +1700,16 @@ async fn read_employee_projection_facts(
 
 async fn read_leave_projection_facts(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<HashMap<Uuid, ProjectedLeaveFact>, PersistenceError> {
     let rows = sqlx::query(
         "SELECT leave_id, holding_id, company_id, branch_id, employee_id,
                 starts_on, ends_on, reason, status, requested_by, approved_by,
                 source_version, source_event_id
-         FROM erpx_tenant.hr_leave_request_read_rows
-         WHERE holding_ref=$1",
+         FROM erpx_holding.hr_leave_request_read_rows
+         WHERE data_profile_key=$1",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_all(&mut **tx)
     .await?;
     let mut facts = HashMap::with_capacity(rows.len());
@@ -1736,16 +1746,16 @@ async fn read_leave_projection_facts(
 
 async fn read_expense_projection_facts(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<HashMap<Uuid, ProjectedExpenseFact>, PersistenceError> {
     let rows = sqlx::query(
         "SELECT expense_id, holding_id, company_id, branch_id, employee_id,
                 currency, amount_minor, status, submitted_by, approved_by,
                 source_version, source_event_id
-         FROM erpx_tenant.hr_expense_claim_read_rows
-         WHERE holding_ref=$1",
+         FROM erpx_holding.hr_expense_claim_read_rows
+         WHERE data_profile_key=$1",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_all(&mut **tx)
     .await?;
     let mut facts = HashMap::with_capacity(rows.len());
@@ -1781,17 +1791,17 @@ async fn read_expense_projection_facts(
 
 async fn read_payroll_projection_facts(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<HashMap<Uuid, ProjectedPayrollFact>, PersistenceError> {
     let rows = sqlx::query(
         "SELECT payroll_id, holding_id, company_id, branch_id, starts_on,
                 ends_on, status, prepared_by, reviewed_by, approved_by,
                 total_gross_minor, total_deductions_minor, total_net_minor,
                 source_version, source_event_id
-         FROM erpx_tenant.hr_payroll_run_read_rows
-         WHERE holding_ref=$1",
+         FROM erpx_holding.hr_payroll_run_read_rows
+         WHERE data_profile_key=$1",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_all(&mut **tx)
     .await?;
     let mut facts = HashMap::with_capacity(rows.len());
@@ -1828,11 +1838,11 @@ async fn read_payroll_projection_facts(
     }
     let line_rows = sqlx::query(
         "SELECT payroll_id, line_no, employee_id, gross_minor, deductions_minor, net_minor
-         FROM erpx_tenant.hr_payroll_line_read_rows
-         WHERE holding_ref=$1
+         FROM erpx_holding.hr_payroll_line_read_rows
+         WHERE data_profile_key=$1
          ORDER BY payroll_id, line_no",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_all(&mut **tx)
     .await?;
     for row in line_rows {
@@ -1861,16 +1871,16 @@ async fn read_payroll_projection_facts(
 
 async fn read_reassignment_projection_facts(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<HashMap<String, ProjectedReassignmentFact>, PersistenceError> {
     let rows = sqlx::query(
         "SELECT workflow_ref, holding_id, company_id, branch_id,
                 expired_principal_ref, replacement_principal_ref, reason,
                 reassigned_at, source_version, source_event_id
-         FROM erpx_tenant.hr_expired_role_reassignment_read_rows
-         WHERE holding_ref=$1",
+         FROM erpx_holding.hr_expired_role_reassignment_read_rows
+         WHERE data_profile_key=$1",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_all(&mut **tx)
     .await?;
     let mut facts = HashMap::with_capacity(rows.len());
@@ -1926,7 +1936,7 @@ fn employee_projection_matches_source(
 
 fn projected_payload_matches_source(
     event: &HrSourceEvent,
-    holding_ref: &str,
+    data_profile_key: &str,
     employees: &HashMap<Uuid, ProjectedEmployeeFact>,
     leaves: &HashMap<Uuid, ProjectedLeaveFact>,
     expenses: &HashMap<Uuid, ProjectedExpenseFact>,
@@ -2034,7 +2044,7 @@ fn projected_payload_matches_source(
                 .validate()
                 .map_err(|error| invalid(format!("invalid HR reassignment aggregate: {error}")))?;
             Ok(
-                stable_reassignment_id(holding_ref, &reassignment.workflow_ref)
+                stable_reassignment_id(data_profile_key, &reassignment.workflow_ref)
                     == event.aggregate_id
                     && reassignments
                         .get(&reassignment.workflow_ref)
@@ -2107,7 +2117,7 @@ fn expected_projection_row_count(event: &HrSourceEvent) -> Result<u64, Persisten
 
 async fn project_employee(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     event: &HrSourceEvent,
 ) -> Result<(), PersistenceError> {
     let employee: EmployeeRecord = aggregate(event)?;
@@ -2122,18 +2132,18 @@ async fn project_employee(
         "hr_employee_read_rows",
         "employee_id",
         employee.id,
-        holding_ref,
+        data_profile_key,
         &employee.scope,
         "HR employee",
     )
     .await?;
     sqlx::query(
-        "INSERT INTO erpx_tenant.hr_employee_read_rows
-            (holding_ref, employee_id, holding_id, company_id, branch_id,
+        "INSERT INTO erpx_holding.hr_employee_read_rows
+            (data_profile_key, employee_id, holding_id, company_id, branch_id,
              employee_ref, display_name, status, hired_on, terminated_on,
              source_version, source_event_id, projected_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now())
-         ON CONFLICT (holding_ref, employee_id) DO UPDATE SET
+         ON CONFLICT (data_profile_key, employee_id) DO UPDATE SET
              holding_id=EXCLUDED.holding_id, company_id=EXCLUDED.company_id,
              branch_id=EXCLUDED.branch_id, employee_ref=EXCLUDED.employee_ref,
              display_name=EXCLUDED.display_name, status=EXCLUDED.status,
@@ -2141,7 +2151,7 @@ async fn project_employee(
              source_version=EXCLUDED.source_version,
              source_event_id=EXCLUDED.source_event_id, projected_at=now()",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(employee.id)
     .bind(employee.scope.holding_id)
     .bind(employee.scope.company_id)
@@ -2160,7 +2170,7 @@ async fn project_employee(
 
 async fn project_leave(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     event: &HrSourceEvent,
 ) -> Result<(), PersistenceError> {
     let leave: LeaveRequest = aggregate(event)?;
@@ -2175,18 +2185,18 @@ async fn project_leave(
         "hr_leave_request_read_rows",
         "leave_id",
         leave.id,
-        holding_ref,
+        data_profile_key,
         &leave.scope,
         "HR leave request",
     )
     .await?;
     sqlx::query(
-        "INSERT INTO erpx_tenant.hr_leave_request_read_rows
-            (holding_ref, leave_id, holding_id, company_id, branch_id, employee_id,
+        "INSERT INTO erpx_holding.hr_leave_request_read_rows
+            (data_profile_key, leave_id, holding_id, company_id, branch_id, employee_id,
              starts_on, ends_on, reason, status, requested_by, approved_by,
              source_version, source_event_id, projected_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,now())
-         ON CONFLICT (holding_ref, leave_id) DO UPDATE SET
+         ON CONFLICT (data_profile_key, leave_id) DO UPDATE SET
              holding_id=EXCLUDED.holding_id, company_id=EXCLUDED.company_id,
              branch_id=EXCLUDED.branch_id, employee_id=EXCLUDED.employee_id,
              starts_on=EXCLUDED.starts_on, ends_on=EXCLUDED.ends_on,
@@ -2195,7 +2205,7 @@ async fn project_leave(
              source_version=EXCLUDED.source_version, source_event_id=EXCLUDED.source_event_id,
              projected_at=now()",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(leave.id)
     .bind(leave.scope.holding_id)
     .bind(leave.scope.company_id)
@@ -2216,7 +2226,7 @@ async fn project_leave(
 
 async fn project_expense(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     event: &HrSourceEvent,
 ) -> Result<(), PersistenceError> {
     let expense: ExpenseClaim = aggregate(event)?;
@@ -2231,18 +2241,18 @@ async fn project_expense(
         "hr_expense_claim_read_rows",
         "expense_id",
         expense.id,
-        holding_ref,
+        data_profile_key,
         &expense.scope,
         "HR expense claim",
     )
     .await?;
     sqlx::query(
-        "INSERT INTO erpx_tenant.hr_expense_claim_read_rows
-            (holding_ref, expense_id, holding_id, company_id, branch_id, employee_id,
+        "INSERT INTO erpx_holding.hr_expense_claim_read_rows
+            (data_profile_key, expense_id, holding_id, company_id, branch_id, employee_id,
              currency, amount_minor, status, submitted_by, approved_by,
              source_version, source_event_id, projected_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,now())
-         ON CONFLICT (holding_ref, expense_id) DO UPDATE SET
+         ON CONFLICT (data_profile_key, expense_id) DO UPDATE SET
              holding_id=EXCLUDED.holding_id, company_id=EXCLUDED.company_id,
              branch_id=EXCLUDED.branch_id, employee_id=EXCLUDED.employee_id,
              currency=EXCLUDED.currency, amount_minor=EXCLUDED.amount_minor,
@@ -2250,7 +2260,7 @@ async fn project_expense(
              approved_by=EXCLUDED.approved_by, source_version=EXCLUDED.source_version,
              source_event_id=EXCLUDED.source_event_id, projected_at=now()",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(expense.id)
     .bind(expense.scope.holding_id)
     .bind(expense.scope.company_id)
@@ -2270,7 +2280,7 @@ async fn project_expense(
 
 async fn project_payroll(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     event: &HrSourceEvent,
 ) -> Result<(), PersistenceError> {
     let payroll: PayrollRun = aggregate(event)?;
@@ -2285,27 +2295,27 @@ async fn project_payroll(
         "hr_payroll_run_read_rows",
         "payroll_id",
         payroll.id,
-        holding_ref,
+        data_profile_key,
         &payroll.scope,
         "HR payroll run",
     )
     .await?;
     sqlx::query(
-        "DELETE FROM erpx_tenant.hr_payroll_line_read_rows
-         WHERE holding_ref=$1 AND payroll_id=$2",
+        "DELETE FROM erpx_holding.hr_payroll_line_read_rows
+         WHERE data_profile_key=$1 AND payroll_id=$2",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(payroll.id)
     .execute(&mut **tx)
     .await?;
     sqlx::query(
-        "INSERT INTO erpx_tenant.hr_payroll_run_read_rows
-            (holding_ref, payroll_id, holding_id, company_id, branch_id, starts_on,
+        "INSERT INTO erpx_holding.hr_payroll_run_read_rows
+            (data_profile_key, payroll_id, holding_id, company_id, branch_id, starts_on,
              ends_on, status, prepared_by, reviewed_by, approved_by,
              total_gross_minor, total_deductions_minor, total_net_minor,
              source_version, source_event_id, projected_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,now())
-         ON CONFLICT (holding_ref, payroll_id) DO UPDATE SET
+         ON CONFLICT (data_profile_key, payroll_id) DO UPDATE SET
              holding_id=EXCLUDED.holding_id, company_id=EXCLUDED.company_id,
              branch_id=EXCLUDED.branch_id, starts_on=EXCLUDED.starts_on,
              ends_on=EXCLUDED.ends_on, status=EXCLUDED.status,
@@ -2315,7 +2325,7 @@ async fn project_payroll(
              total_net_minor=EXCLUDED.total_net_minor, source_version=EXCLUDED.source_version,
              source_event_id=EXCLUDED.source_event_id, projected_at=now()",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(payroll.id)
     .bind(payroll.scope.holding_id)
     .bind(payroll.scope.company_id)
@@ -2335,13 +2345,13 @@ async fn project_payroll(
     .await?;
     for (line_no, line) in payroll.lines.into_iter().enumerate() {
         sqlx::query(
-            "INSERT INTO erpx_tenant.hr_payroll_line_read_rows
-                (holding_ref, payroll_id, line_no, holding_id, company_id, branch_id,
+            "INSERT INTO erpx_holding.hr_payroll_line_read_rows
+                (data_profile_key, payroll_id, line_no, holding_id, company_id, branch_id,
                  employee_id, gross_minor, deductions_minor, net_minor,
                  source_version, source_event_id, projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now())",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(payroll.id)
         .bind(i32::try_from(line_no).map_err(|_| invalid("HR payroll line number is invalid"))?)
         .bind(payroll.scope.holding_id)
@@ -2361,14 +2371,14 @@ async fn project_payroll(
 
 async fn project_reassignment(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     event: &HrSourceEvent,
 ) -> Result<(), PersistenceError> {
     let reassignment: ExpiredRoleReassignment = aggregate(event)?;
     reassignment
         .validate()
         .map_err(|error| invalid(format!("invalid HR reassignment aggregate: {error}")))?;
-    if stable_reassignment_id(holding_ref, &reassignment.workflow_ref) != event.aggregate_id {
+    if stable_reassignment_id(data_profile_key, &reassignment.workflow_ref) != event.aggregate_id {
         return Err(invalid("HR reassignment event identity is invalid"));
     }
     validate_existing_scope_by_workflow(
@@ -2376,18 +2386,18 @@ async fn project_reassignment(
         "hr_expired_role_reassignment_read_rows",
         "workflow_ref",
         &reassignment.workflow_ref,
-        holding_ref,
+        data_profile_key,
         &reassignment.scope,
         "HR role reassignment",
     )
     .await?;
     sqlx::query(
-        "INSERT INTO erpx_tenant.hr_expired_role_reassignment_read_rows
-            (holding_ref, workflow_ref, holding_id, company_id, branch_id,
+        "INSERT INTO erpx_holding.hr_expired_role_reassignment_read_rows
+            (data_profile_key, workflow_ref, holding_id, company_id, branch_id,
              expired_principal_ref, replacement_principal_ref, reason, reassigned_at,
              source_version, source_event_id, projected_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,now())
-         ON CONFLICT (holding_ref, workflow_ref) DO UPDATE SET
+         ON CONFLICT (data_profile_key, workflow_ref) DO UPDATE SET
              holding_id=EXCLUDED.holding_id, company_id=EXCLUDED.company_id,
              branch_id=EXCLUDED.branch_id, expired_principal_ref=EXCLUDED.expired_principal_ref,
              replacement_principal_ref=EXCLUDED.replacement_principal_ref,
@@ -2395,7 +2405,7 @@ async fn project_reassignment(
              source_version=EXCLUDED.source_version, source_event_id=EXCLUDED.source_event_id,
              projected_at=now()",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(reassignment.workflow_ref)
     .bind(reassignment.scope.holding_id)
     .bind(reassignment.scope.company_id)
@@ -2425,17 +2435,17 @@ async fn validate_existing_scope(
     table: &str,
     id_column: &str,
     aggregate_id: Uuid,
-    holding_ref: &str,
+    data_profile_key: &str,
     requested_scope: &EmploymentScope,
     entity: &'static str,
 ) -> Result<(), PersistenceError> {
     let query = format!(
         "SELECT holding_id, company_id, branch_id
-         FROM erpx_tenant.{table}
-         WHERE holding_ref=$1 AND {id_column}=$2 FOR SHARE"
+         FROM erpx_holding.{table}
+         WHERE data_profile_key=$1 AND {id_column}=$2 FOR SHARE"
     );
     let row = sqlx::query(&query)
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(aggregate_id)
         .fetch_optional(&mut **tx)
         .await?;
@@ -2454,17 +2464,17 @@ async fn validate_existing_scope_by_workflow(
     table: &str,
     id_column: &str,
     workflow_ref: &str,
-    holding_ref: &str,
+    data_profile_key: &str,
     requested_scope: &EmploymentScope,
     entity: &'static str,
 ) -> Result<(), PersistenceError> {
     let query = format!(
         "SELECT holding_id, company_id, branch_id
-         FROM erpx_tenant.{table}
-         WHERE holding_ref=$1 AND {id_column}=$2 FOR SHARE"
+         FROM erpx_holding.{table}
+         WHERE data_profile_key=$1 AND {id_column}=$2 FOR SHARE"
     );
     let row = sqlx::query(&query)
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(workflow_ref)
         .fetch_optional(&mut **tx)
         .await?;
@@ -2532,9 +2542,9 @@ fn payload_version(payload: &Value) -> Result<u64, PersistenceError> {
         .ok_or_else(|| invalid("HR source payload version is invalid"))
 }
 
-fn stable_reassignment_id(holding_ref: &str, workflow_ref: &str) -> Uuid {
+fn stable_reassignment_id(data_profile_key: &str, workflow_ref: &str) -> Uuid {
     let digest = Sha256::digest(
-        format!("hr_expired_role_reassignment:{holding_ref}:{workflow_ref}").as_bytes(),
+        format!("hr_expired_role_reassignment:{data_profile_key}:{workflow_ref}").as_bytes(),
     );
     let mut bytes = [0_u8; 16];
     bytes.copy_from_slice(&digest[..16]);
@@ -2565,7 +2575,7 @@ fn validate_cursor(cursor: &HrSourceEventCursor) -> Result<(), PersistenceError>
     Ok(())
 }
 
-fn validate_holding_ref(value: &str) -> Result<(), PersistenceError> {
+fn validate_data_profile_key(value: &str) -> Result<(), PersistenceError> {
     if value.trim().is_empty() || value.len() > 255 || value.chars().any(char::is_control) {
         return Err(PersistenceError::Configuration(
             "holding reference must be bounded and non-empty",

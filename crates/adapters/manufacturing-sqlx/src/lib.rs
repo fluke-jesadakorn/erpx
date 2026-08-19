@@ -70,11 +70,11 @@ impl ManufacturingWriteRepository for SqlxManufacturingWriteRepository {
         {
             return Err(PortError::Denied);
         }
-        let tenant_id = request.authority.actor.tenant_id;
+        let holding_id = request.authority.actor.holding_id;
         let mut tx = self.pool.begin().await.map_err(map_error)?;
-        set_tenant(&mut tx, tenant_id.as_uuid()).await?;
-        if let Some(row) = sqlx::query("SELECT command_id,request_digest,aggregate_keys,aggregate_versions,committed_at FROM erpx_manufacturing_write.command_receipts WHERE tenant_id=$1 AND idempotency_key=$2")
-            .bind(tenant_id.as_uuid()).bind(&request.identity.idempotency_key).fetch_optional(&mut *tx).await.map_err(map_error)? {
+        set_holding(&mut tx, holding_id.as_uuid()).await?;
+        if let Some(row) = sqlx::query("SELECT command_id,request_digest,aggregate_keys,aggregate_versions,committed_at FROM erpx_manufacturing_write.command_receipts WHERE holding_id=$1 AND idempotency_key=$2")
+            .bind(holding_id.as_uuid()).bind(&request.identity.idempotency_key).fetch_optional(&mut *tx).await.map_err(map_error)? {
             let command_id: uuid::Uuid = row.try_get("command_id").map_err(|_| PortError::Internal)?;
             let digest: String = row.try_get("request_digest").map_err(|_| PortError::Internal)?;
             if command_id != request.identity.command_id.as_uuid() || digest != request.identity.request_digest { return Err(PortError::Conflict); }
@@ -95,7 +95,7 @@ impl ManufacturingWriteRepository for SqlxManufacturingWriteRepository {
             ManufacturingAggregate::Order(value) => ("order", value.id().as_uuid()),
             ManufacturingAggregate::Record(value) => (value.kind().token(), value.id()),
         };
-        let current = sqlx::query_scalar::<_, i64>("SELECT aggregate_version FROM erpx_manufacturing_write.aggregate_versions WHERE tenant_id=$1 AND aggregate_key=$2 FOR UPDATE").bind(tenant_id.as_uuid()).bind(&key).fetch_optional(&mut *tx).await.map_err(map_error)?;
+        let current = sqlx::query_scalar::<_, i64>("SELECT aggregate_version FROM erpx_manufacturing_write.aggregate_versions WHERE holding_id=$1 AND aggregate_key=$2 FOR UPDATE").bind(holding_id.as_uuid()).bind(&key).fetch_optional(&mut *tx).await.map_err(map_error)?;
         match (request.expected_version, current) {
             (None, None) if version == 1 => {}
             (Some(expected), Some(actual))
@@ -113,7 +113,7 @@ impl ManufacturingWriteRepository for SqlxManufacturingWriteRepository {
             serde_json::to_value(request.aggregate.scope()).map_err(|_| PortError::InvalidState)?;
         let projection_document = document.clone();
         sqlx::query("SELECT erpx_manufacturing_write.persist_normalized($1,$2,$3,$4,$5,$6,$7)")
-            .bind(tenant_id.as_uuid())
+            .bind(holding_id.as_uuid())
             .bind(&key)
             .bind(kind)
             .bind(id)
@@ -123,31 +123,31 @@ impl ManufacturingWriteRepository for SqlxManufacturingWriteRepository {
             .execute(&mut *tx)
             .await
             .map_err(map_error)?;
-        sqlx::query("INSERT INTO erpx_manufacturing_write.audit_log (tenant_id,command_id,actor_principal_id,action,authority_scope,aggregate_key,aggregate_version,correlation_id,evidence_digest) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)")
-            .bind(tenant_id.as_uuid()).bind(request.identity.command_id.as_uuid()).bind(request.authority.actor.principal_id.as_uuid())
+        sqlx::query("INSERT INTO erpx_manufacturing_write.audit_log (holding_id,command_id,actor_principal_id,action,authority_scope,aggregate_key,aggregate_version,correlation_id,evidence_digest) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)")
+            .bind(holding_id.as_uuid()).bind(request.identity.command_id.as_uuid()).bind(request.authority.actor.principal_id.as_uuid())
             .bind(&request.event_type).bind(scope).bind(&key).bind(i64::try_from(version).map_err(|_| PortError::InvalidState)?)
             .bind(request.correlation_id.as_uuid()).bind(&request.identity.request_digest).execute(&mut *tx).await.map_err(map_error)?;
-        sqlx::query("INSERT INTO erpx_manufacturing_write.outbox (tenant_id,aggregate_key,aggregate_version,event_type,event_version,correlation_id,payload) VALUES ($1,$2,$3,$4,$5,$6,$7)")
-            .bind(tenant_id.as_uuid()).bind(&key).bind(i64::try_from(version).map_err(|_| PortError::InvalidState)?).bind(&request.event_type).bind(i32::try_from(EVENT_VERSION).map_err(|_| PortError::InvalidState)?).bind(request.correlation_id.as_uuid()).bind(request.event_payload).execute(&mut *tx).await.map_err(map_error)?;
+        sqlx::query("INSERT INTO erpx_manufacturing_write.outbox (holding_id,aggregate_key,aggregate_version,event_type,event_version,correlation_id,payload) VALUES ($1,$2,$3,$4,$5,$6,$7)")
+            .bind(holding_id.as_uuid()).bind(&key).bind(i64::try_from(version).map_err(|_| PortError::InvalidState)?).bind(&request.event_type).bind(i32::try_from(EVENT_VERSION).map_err(|_| PortError::InvalidState)?).bind(request.correlation_id.as_uuid()).bind(request.event_payload).execute(&mut *tx).await.map_err(map_error)?;
         if kind == "specification" {
-            let actor = serde_json::json!({"principal_ref":format!("principal:{}",request.authority.actor.principal_id.as_uuid()),"kind":"tenant_user","session_id":null,"represented_principal_ref":null,"support_capability_id":null});
-            sqlx::query("INSERT INTO erpx_cqrs_write.outbox_events (tenant_id,event_id,context_name,partition_key,command_id,event_type,event_version,aggregate_type,aggregate_id,aggregate_version,tenant_scope,actor,correlation_id,causation_id,payload,occurred_at,available_at) VALUES ($1,$2,'manufacturing',$3,$2,$4,1,'specification',$5,$6,$7,$8,$9,NULL,$10,clock_timestamp(),clock_timestamp())")
-                .bind(tenant_id.as_uuid()).bind(request.identity.command_id.as_uuid()).bind(format!("manufacturing.specification:{}",id.simple())).bind(SPECIFICATION_SNAPSHOT_EVENT_TYPE).bind(id).bind(i64::try_from(version).map_err(|_|PortError::InvalidState)?).bind(serde_json::to_value(&request.authority.target_scope).map_err(|_|PortError::InvalidState)?).bind(actor).bind(request.correlation_id.as_uuid()).bind(serde_json::json!({"specification":projection_document})).execute(&mut *tx).await.map_err(map_error)?;
+            let actor = serde_json::json!({"principal_ref":format!("principal:{}",request.authority.actor.principal_id.as_uuid()),"kind":"holding_user","session_id":null,"represented_principal_ref":null,"support_capability_id":null});
+            sqlx::query("INSERT INTO erpx_cqrs_write.outbox_events (holding_id,event_id,context_name,partition_key,command_id,event_type,event_version,aggregate_type,aggregate_id,aggregate_version,active_scope,actor,correlation_id,causation_id,payload,occurred_at,available_at) VALUES ($1,$2,'manufacturing',$3,$2,$4,1,'specification',$5,$6,$7,$8,$9,NULL,$10,clock_timestamp(),clock_timestamp())")
+                .bind(holding_id.as_uuid()).bind(request.identity.command_id.as_uuid()).bind(format!("manufacturing.specification:{}",id.simple())).bind(SPECIFICATION_SNAPSHOT_EVENT_TYPE).bind(id).bind(i64::try_from(version).map_err(|_|PortError::InvalidState)?).bind(serde_json::to_value(&request.authority.target_scope).map_err(|_|PortError::InvalidState)?).bind(actor).bind(request.correlation_id.as_uuid()).bind(serde_json::json!({"specification":projection_document})).execute(&mut *tx).await.map_err(map_error)?;
         } else if kind == "order" {
             let payload = serde_json::json!({"order":projection_document});
-            let actor = serde_json::json!({"principal_ref":format!("principal:{}",request.authority.actor.principal_id.as_uuid()),"kind":"tenant_user","session_id":null,"represented_principal_ref":null,"support_capability_id":null});
-            sqlx::query("INSERT INTO erpx_cqrs_write.outbox_events (tenant_id,event_id,context_name,partition_key,command_id,event_type,event_version,aggregate_type,aggregate_id,aggregate_version,tenant_scope,actor,correlation_id,causation_id,payload,occurred_at,available_at) VALUES ($1,$2,'manufacturing',$3,$2,$4,1,'order',$5,$6,$7,$8,$9,NULL,$10,clock_timestamp(),clock_timestamp())")
-                .bind(tenant_id.as_uuid()).bind(request.identity.command_id.as_uuid()).bind(format!("manufacturing.order:{}",id.simple())).bind(SNAPSHOT_EVENT_TYPE).bind(id).bind(i64::try_from(version).map_err(|_|PortError::InvalidState)?).bind(serde_json::to_value(&request.authority.target_scope).map_err(|_|PortError::InvalidState)?).bind(actor).bind(request.correlation_id.as_uuid()).bind(payload).execute(&mut *tx).await.map_err(map_error)?;
+            let actor = serde_json::json!({"principal_ref":format!("principal:{}",request.authority.actor.principal_id.as_uuid()),"kind":"holding_user","session_id":null,"represented_principal_ref":null,"support_capability_id":null});
+            sqlx::query("INSERT INTO erpx_cqrs_write.outbox_events (holding_id,event_id,context_name,partition_key,command_id,event_type,event_version,aggregate_type,aggregate_id,aggregate_version,active_scope,actor,correlation_id,causation_id,payload,occurred_at,available_at) VALUES ($1,$2,'manufacturing',$3,$2,$4,1,'order',$5,$6,$7,$8,$9,NULL,$10,clock_timestamp(),clock_timestamp())")
+                .bind(holding_id.as_uuid()).bind(request.identity.command_id.as_uuid()).bind(format!("manufacturing.order:{}",id.simple())).bind(SNAPSHOT_EVENT_TYPE).bind(id).bind(i64::try_from(version).map_err(|_|PortError::InvalidState)?).bind(serde_json::to_value(&request.authority.target_scope).map_err(|_|PortError::InvalidState)?).bind(actor).bind(request.correlation_id.as_uuid()).bind(payload).execute(&mut *tx).await.map_err(map_error)?;
         } else if matches!(kind, "routing" | "batch" | "result") {
-            let actor = serde_json::json!({"principal_ref":format!("principal:{}",request.authority.actor.principal_id.as_uuid()),"kind":"tenant_user","session_id":null,"represented_principal_ref":null,"support_capability_id":null});
-            sqlx::query("INSERT INTO erpx_cqrs_write.outbox_events (tenant_id,event_id,context_name,partition_key,command_id,event_type,event_version,aggregate_type,aggregate_id,aggregate_version,tenant_scope,actor,correlation_id,causation_id,payload,occurred_at,available_at) VALUES ($1,$2,'manufacturing',$3,$2,$4,1,$5,$6,$7,$8,$9,$10,NULL,$11,clock_timestamp(),clock_timestamp())")
-                .bind(tenant_id.as_uuid()).bind(request.identity.command_id.as_uuid()).bind(format!("manufacturing.record:{}",id.simple())).bind(RECORD_SNAPSHOT_EVENT_TYPE).bind(kind).bind(id).bind(i64::try_from(version).map_err(|_|PortError::InvalidState)?).bind(serde_json::to_value(&request.authority.target_scope).map_err(|_|PortError::InvalidState)?).bind(actor).bind(request.correlation_id.as_uuid()).bind(serde_json::json!({"record":projection_document})).execute(&mut *tx).await.map_err(map_error)?;
+            let actor = serde_json::json!({"principal_ref":format!("principal:{}",request.authority.actor.principal_id.as_uuid()),"kind":"holding_user","session_id":null,"represented_principal_ref":null,"support_capability_id":null});
+            sqlx::query("INSERT INTO erpx_cqrs_write.outbox_events (holding_id,event_id,context_name,partition_key,command_id,event_type,event_version,aggregate_type,aggregate_id,aggregate_version,active_scope,actor,correlation_id,causation_id,payload,occurred_at,available_at) VALUES ($1,$2,'manufacturing',$3,$2,$4,1,$5,$6,$7,$8,$9,$10,NULL,$11,clock_timestamp(),clock_timestamp())")
+                .bind(holding_id.as_uuid()).bind(request.identity.command_id.as_uuid()).bind(format!("manufacturing.record:{}",id.simple())).bind(RECORD_SNAPSHOT_EVENT_TYPE).bind(kind).bind(id).bind(i64::try_from(version).map_err(|_|PortError::InvalidState)?).bind(serde_json::to_value(&request.authority.target_scope).map_err(|_|PortError::InvalidState)?).bind(actor).bind(request.correlation_id.as_uuid()).bind(serde_json::json!({"record":projection_document})).execute(&mut *tx).await.map_err(map_error)?;
         }
-        let directory_actor = serde_json::json!({"principal_ref":format!("principal:{}",request.authority.actor.principal_id.as_uuid()),"kind":"tenant_user","session_id":null,"represented_principal_ref":null,"support_capability_id":null});
+        let directory_actor = serde_json::json!({"principal_ref":format!("principal:{}",request.authority.actor.principal_id.as_uuid()),"kind":"holding_user","session_id":null,"represented_principal_ref":null,"support_capability_id":null});
         for draft in directory::manufacturing_directory_drafts(&request.aggregate)? {
             directory::append_directory_draft(
                 &mut tx,
-                tenant_id,
+                holding_id,
                 request.identity.command_id,
                 request.correlation_id,
                 directory_actor.clone(),
@@ -155,8 +155,8 @@ impl ManufacturingWriteRepository for SqlxManufacturingWriteRepository {
             )
             .await?;
         }
-        let committed_at: DateTime<Utc> = sqlx::query_scalar("INSERT INTO erpx_manufacturing_write.command_receipts (tenant_id,idempotency_key,command_id,request_digest,aggregate_keys,aggregate_versions) VALUES ($1,$2,$3,$4,$5,$6) RETURNING committed_at")
-            .bind(tenant_id.as_uuid()).bind(&request.identity.idempotency_key).bind(request.identity.command_id.as_uuid()).bind(&request.identity.request_digest).bind(vec![key.clone()]).bind(vec![i64::try_from(version).map_err(|_| PortError::InvalidState)?]).fetch_one(&mut *tx).await.map_err(map_error)?;
+        let committed_at: DateTime<Utc> = sqlx::query_scalar("INSERT INTO erpx_manufacturing_write.command_receipts (holding_id,idempotency_key,command_id,request_digest,aggregate_keys,aggregate_versions) VALUES ($1,$2,$3,$4,$5,$6) RETURNING committed_at")
+            .bind(holding_id.as_uuid()).bind(&request.identity.idempotency_key).bind(request.identity.command_id.as_uuid()).bind(&request.identity.request_digest).bind(vec![key.clone()]).bind(vec![i64::try_from(version).map_err(|_| PortError::InvalidState)?]).fetch_one(&mut *tx).await.map_err(map_error)?;
         tx.commit().await.map_err(map_error)?;
         Ok(CommitReceipt {
             aggregate_key: key,
@@ -180,14 +180,14 @@ async fn load_aggregate_any_kind<T: serde::de::DeserializeOwned>(
         return Err(PortError::Denied);
     }
     let mut tx = pool.begin().await.map_err(map_error)?;
-    set_tenant(&mut tx, authority.actor.tenant_id.as_uuid()).await?;
-    let row = sqlx::query("SELECT authority_scope,aggregate_document FROM erpx_manufacturing_write.aggregate_rehydration WHERE tenant_id=$1 AND aggregate_kind IN ('routing','batch','result') AND aggregate_id=$2")
-        .bind(authority.actor.tenant_id.as_uuid()).bind(id).fetch_optional(&mut *tx).await.map_err(map_error)?;
+    set_holding(&mut tx, authority.actor.holding_id.as_uuid()).await?;
+    let row = sqlx::query("SELECT authority_scope,aggregate_document FROM erpx_manufacturing_write.aggregate_rehydration WHERE holding_id=$1 AND aggregate_kind IN ('routing','batch','result') AND aggregate_id=$2")
+        .bind(authority.actor.holding_id.as_uuid()).bind(id).fetch_optional(&mut *tx).await.map_err(map_error)?;
     tx.commit().await.map_err(map_error)?;
     let Some(row) = row else {
         return Ok(None);
     };
-    let scope: erpx_kernel::TenantScope = serde_json::from_value(
+    let scope: erpx_kernel::AuthorityScope = serde_json::from_value(
         row.try_get("authority_scope")
             .map_err(|_| PortError::Internal)?,
     )
@@ -217,13 +217,13 @@ async fn load_aggregate<T: serde::de::DeserializeOwned>(
         return Err(PortError::Denied);
     }
     let mut tx = pool.begin().await.map_err(map_error)?;
-    set_tenant(&mut tx, authority.actor.tenant_id.as_uuid()).await?;
-    let row = sqlx::query("SELECT authority_scope,aggregate_document FROM erpx_manufacturing_write.aggregate_rehydration WHERE tenant_id=$1 AND aggregate_kind=$2 AND aggregate_id=$3").bind(authority.actor.tenant_id.as_uuid()).bind(kind).bind(id).fetch_optional(&mut *tx).await.map_err(map_error)?;
+    set_holding(&mut tx, authority.actor.holding_id.as_uuid()).await?;
+    let row = sqlx::query("SELECT authority_scope,aggregate_document FROM erpx_manufacturing_write.aggregate_rehydration WHERE holding_id=$1 AND aggregate_kind=$2 AND aggregate_id=$3").bind(authority.actor.holding_id.as_uuid()).bind(kind).bind(id).fetch_optional(&mut *tx).await.map_err(map_error)?;
     tx.commit().await.map_err(map_error)?;
     let Some(row) = row else {
         return Ok(None);
     };
-    let stored_scope: erpx_kernel::TenantScope = serde_json::from_value(
+    let stored_scope: erpx_kernel::AuthorityScope = serde_json::from_value(
         row.try_get("authority_scope")
             .map_err(|_| PortError::Internal)?,
     )
@@ -242,13 +242,13 @@ async fn load_aggregate<T: serde::de::DeserializeOwned>(
 #[derive(Debug, Clone)]
 pub struct SqlxManufacturingReadRepository {
     pool: ReadPool,
-    tenant_id: erpx_kernel::TenantId,
+    holding_id: erpx_kernel::HoldingId,
 }
 impl SqlxManufacturingReadRepository {
-    pub fn new(pool: PgPool, tenant_id: erpx_kernel::TenantId) -> Result<Self, PortError> {
-        let pool =
-            ReadPool::for_tenant(pool, tenant_id.as_uuid()).map_err(|_| PortError::Unavailable)?;
-        Ok(Self { pool, tenant_id })
+    pub fn new(pool: PgPool, holding_id: erpx_kernel::HoldingId) -> Result<Self, PortError> {
+        let pool = ReadPool::for_holding(pool, holding_id.as_uuid())
+            .map_err(|_| PortError::Unavailable)?;
+        Ok(Self { pool, holding_id })
     }
 }
 #[async_trait]
@@ -262,7 +262,7 @@ impl ManufacturingReadRepository for SqlxManufacturingReadRepository {
             .actor
             .authority_scope
             .contains(&authority.target_scope)
-            || authority.actor.tenant_id != self.tenant_id
+            || authority.actor.holding_id != self.holding_id
         {
             return Err(PortError::Denied);
         }
@@ -272,9 +272,9 @@ impl ManufacturingReadRepository for SqlxManufacturingReadRepository {
             .await
             .map_err(|_| PortError::Unavailable)?;
         let generation: Option<uuid::Uuid> = sqlx::query_scalar(
-            "SELECT generation FROM erpx_cqrs_read.projection_generations WHERE tenant_id=$1 AND projection_name=$2 AND status='active'",
+            "SELECT generation FROM erpx_cqrs_read.projection_generations WHERE holding_id=$1 AND projection_name=$2 AND status='active'",
         )
-        .bind(self.tenant_id.as_uuid())
+        .bind(self.holding_id.as_uuid())
         .bind(PROJECTION_NAME)
         .fetch_optional(&mut *tx)
         .await
@@ -284,15 +284,15 @@ impl ManufacturingReadRepository for SqlxManufacturingReadRepository {
             "SELECT p.authority_scope,p.projection,p.source_position,p.projected_at,
                     c.global_sequence AS checkpoint_position,
                     EXISTS(SELECT 1 FROM erpx_cqrs_read.projection_failures f
-                      WHERE f.tenant_id=p.tenant_id AND f.projection_name=p.projection_name
+                      WHERE f.holding_id=p.holding_id AND f.projection_name=p.projection_name
                         AND f.generation=p.generation AND f.partition_key=p.partition_key) AS has_failure
              FROM erpx_manufacturing_read.specification_projection p
              LEFT JOIN erpx_cqrs_read.projection_checkpoints c
-               ON c.tenant_id=p.tenant_id AND c.projection_name=p.projection_name
+               ON c.holding_id=p.holding_id AND c.projection_name=p.projection_name
               AND c.generation=p.generation AND c.partition_key=p.partition_key
-             WHERE p.tenant_id=$1 AND p.projection_name=$2 AND p.generation=$3 AND p.specification_id=$4",
+             WHERE p.holding_id=$1 AND p.projection_name=$2 AND p.generation=$3 AND p.specification_id=$4",
         )
-        .bind(self.tenant_id.as_uuid())
+        .bind(self.holding_id.as_uuid())
         .bind(PROJECTION_NAME)
         .bind(generation)
         .bind(id.as_uuid())
@@ -302,7 +302,7 @@ impl ManufacturingReadRepository for SqlxManufacturingReadRepository {
         tx.commit().await.map_err(map_error)?;
         let Some(row) = row else { return Ok(None) };
         let (source_position, checkpoint_position) = projection_positions(&row)?;
-        let scope: erpx_kernel::TenantScope = serde_json::from_value(
+        let scope: erpx_kernel::AuthorityScope = serde_json::from_value(
             row.try_get("authority_scope")
                 .map_err(|_| PortError::Internal)?,
         )
@@ -335,7 +335,7 @@ impl ManufacturingReadRepository for SqlxManufacturingReadRepository {
         {
             return Err(PortError::Denied);
         }
-        if authority.actor.tenant_id != self.tenant_id {
+        if authority.actor.holding_id != self.holding_id {
             return Err(PortError::Denied);
         }
         let mut tx = self
@@ -344,11 +344,11 @@ impl ManufacturingReadRepository for SqlxManufacturingReadRepository {
             .await
             .map_err(|_| PortError::Unavailable)?;
         let generation: Option<uuid::Uuid> = sqlx::query_scalar(
-            "SELECT generation FROM erpx_cqrs_read.projection_generations WHERE tenant_id=$1 AND projection_name='manufacturing.orders' AND status='active'"
-        ).bind(self.tenant_id.as_uuid()).fetch_optional(&mut *tx).await.map_err(map_error)?;
+            "SELECT generation FROM erpx_cqrs_read.projection_generations WHERE holding_id=$1 AND projection_name='manufacturing.orders' AND status='active'"
+        ).bind(self.holding_id.as_uuid()).fetch_optional(&mut *tx).await.map_err(map_error)?;
         let generation = generation.ok_or(PortError::Unavailable)?;
-        let row = sqlx::query("SELECT p.authority_scope,p.projection,p.generation,p.partition_key,p.source_position,p.projected_at,c.global_sequence AS checkpoint_position,EXISTS(SELECT 1 FROM erpx_cqrs_read.projection_failures f WHERE f.tenant_id=p.tenant_id AND f.projection_name=p.projection_name AND f.generation=p.generation AND f.partition_key=p.partition_key) AS has_failure FROM erpx_manufacturing_read.order_projection p LEFT JOIN erpx_cqrs_read.projection_checkpoints c ON c.tenant_id=p.tenant_id AND c.projection_name=p.projection_name AND c.generation=p.generation AND c.partition_key=p.partition_key WHERE p.tenant_id=$1 AND p.projection_name='manufacturing.orders' AND p.generation=$2 AND p.order_id=$3")
-            .bind(self.tenant_id.as_uuid()).bind(generation).bind(id.as_uuid()).fetch_optional(&mut *tx).await.map_err(map_error)?;
+        let row = sqlx::query("SELECT p.authority_scope,p.projection,p.generation,p.partition_key,p.source_position,p.projected_at,c.global_sequence AS checkpoint_position,EXISTS(SELECT 1 FROM erpx_cqrs_read.projection_failures f WHERE f.holding_id=p.holding_id AND f.projection_name=p.projection_name AND f.generation=p.generation AND f.partition_key=p.partition_key) AS has_failure FROM erpx_manufacturing_read.order_projection p LEFT JOIN erpx_cqrs_read.projection_checkpoints c ON c.holding_id=p.holding_id AND c.projection_name=p.projection_name AND c.generation=p.generation AND c.partition_key=p.partition_key WHERE p.holding_id=$1 AND p.projection_name='manufacturing.orders' AND p.generation=$2 AND p.order_id=$3")
+            .bind(self.holding_id.as_uuid()).bind(generation).bind(id.as_uuid()).fetch_optional(&mut *tx).await.map_err(map_error)?;
         tx.commit().await.map_err(map_error)?;
         let Some(row) = row else {
             return Ok(None);
@@ -370,7 +370,7 @@ impl ManufacturingReadRepository for SqlxManufacturingReadRepository {
         {
             return Err(PortError::Stale);
         }
-        let scope: erpx_kernel::TenantScope = serde_json::from_value(
+        let scope: erpx_kernel::AuthorityScope = serde_json::from_value(
             row.try_get("authority_scope")
                 .map_err(|_| PortError::Internal)?,
         )
@@ -404,7 +404,7 @@ impl ManufacturingReadRepository for SqlxManufacturingReadRepository {
         {
             return Err(PortError::Denied);
         }
-        if authority.actor.tenant_id != self.tenant_id {
+        if authority.actor.holding_id != self.holding_id {
             return Err(PortError::Denied);
         }
         let mut tx = self
@@ -413,9 +413,9 @@ impl ManufacturingReadRepository for SqlxManufacturingReadRepository {
             .await
             .map_err(|_| PortError::Unavailable)?;
         let generation: Option<uuid::Uuid> = sqlx::query_scalar(
-            "SELECT generation FROM erpx_cqrs_read.projection_generations WHERE tenant_id=$1 AND projection_name=$2 AND status='active'",
+            "SELECT generation FROM erpx_cqrs_read.projection_generations WHERE holding_id=$1 AND projection_name=$2 AND status='active'",
         )
-        .bind(self.tenant_id.as_uuid())
+        .bind(self.holding_id.as_uuid())
         .bind(PROJECTION_NAME)
         .fetch_optional(&mut *tx)
         .await
@@ -425,15 +425,15 @@ impl ManufacturingReadRepository for SqlxManufacturingReadRepository {
             "SELECT p.authority_scope,p.projection,p.source_position,p.projected_at,
                     c.global_sequence AS checkpoint_position,
                     EXISTS(SELECT 1 FROM erpx_cqrs_read.projection_failures f
-                      WHERE f.tenant_id=p.tenant_id AND f.projection_name=p.projection_name
+                      WHERE f.holding_id=p.holding_id AND f.projection_name=p.projection_name
                         AND f.generation=p.generation AND f.partition_key=p.partition_key) AS has_failure
              FROM erpx_manufacturing_read.governed_record_projection p
              LEFT JOIN erpx_cqrs_read.projection_checkpoints c
-               ON c.tenant_id=p.tenant_id AND c.projection_name=p.projection_name
+               ON c.holding_id=p.holding_id AND c.projection_name=p.projection_name
               AND c.generation=p.generation AND c.partition_key=p.partition_key
-             WHERE p.tenant_id=$1 AND p.projection_name=$2 AND p.generation=$3 AND p.record_id=$4",
+             WHERE p.holding_id=$1 AND p.projection_name=$2 AND p.generation=$3 AND p.record_id=$4",
         )
-        .bind(self.tenant_id.as_uuid())
+        .bind(self.holding_id.as_uuid())
         .bind(PROJECTION_NAME)
         .bind(generation)
         .bind(id)
@@ -443,7 +443,7 @@ impl ManufacturingReadRepository for SqlxManufacturingReadRepository {
         tx.commit().await.map_err(map_error)?;
         let Some(row) = row else { return Ok(None) };
         let (source_position, checkpoint_position) = projection_positions(&row)?;
-        let scope: erpx_kernel::TenantScope = serde_json::from_value(
+        let scope: erpx_kernel::AuthorityScope = serde_json::from_value(
             row.try_get("authority_scope")
                 .map_err(|_| PortError::Internal)?,
         )
@@ -487,12 +487,12 @@ fn projection_positions(row: &sqlx::postgres::PgRow) -> Result<(u64, u64), PortE
     Ok((source, checkpoint))
 }
 
-async fn set_tenant(
+async fn set_holding(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: uuid::Uuid,
+    holding_id: uuid::Uuid,
 ) -> Result<(), PortError> {
-    sqlx::query("SELECT set_config('app.tenant_id', $1, true)")
-        .bind(tenant_id.to_string())
+    sqlx::query("SELECT set_config('app.holding_id', $1, true)")
+        .bind(holding_id.to_string())
         .execute(&mut **tx)
         .await
         .map_err(map_error)?;
@@ -508,15 +508,17 @@ fn map_error(error: sqlx::Error) -> PortError {
 }
 
 #[cfg(test)]
+#[path = "../../schema_test.rs"]
+mod schema_test;
+#[cfg(test)]
 mod tests {
+    use crate::schema_test;
     const WRITE_DDL: &str =
-        include_str!("../../../migration/migrations_tenant_write/0075_manufacturing_planning.sql");
-    const READ_DDL: &str = include_str!(
-        "../../../migration/migrations_tenant_read/0066_manufacturing_planning_projection.sql"
-    );
-    const RECORD_READ_DDL: &str = include_str!(
-        "../../../migration/migrations_tenant_read/0075_manufacturing_planning_record_projection.sql"
-    );
+        include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
+    const READ_DDL: &str =
+        include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
+    const RECORD_READ_DDL: &str =
+        include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
     #[test]
     fn schema_preserves_material_genealogy_wip_and_rls() {
         assert!(WRITE_DDL.contains("material_fact_guards"));
@@ -538,8 +540,9 @@ mod tests {
     #[test]
     fn write_authority_is_normalized_and_atomic() {
         let source = include_str!("lib.rs");
-        assert!(!WRITE_DDL.contains("aggregate_snapshots"));
-        assert!(!WRITE_DDL.contains("snapshot jsonb"));
+        let owned = schema_test::select_schema_statements(WRITE_DDL, &["erpx_manufacturing_write"]);
+        assert!(!owned.contains("aggregate_snapshots"));
+        assert!(!owned.contains("snapshot jsonb"));
         for marker in [
             "specifications",
             "production_orders",
@@ -550,7 +553,7 @@ mod tests {
         ] {
             assert!(WRITE_DDL.contains(marker));
         }
-        assert!(source.contains("set_config('app.tenant_id', $1, true)"));
+        assert!(source.contains("set_config('app.holding_id', $1, true)"));
         for marker in [
             "command_id != request.identity.command_id",
             "digest != request.identity.request_digest",
@@ -560,25 +563,33 @@ mod tests {
         }
         assert!(READ_DDL.contains("projection_name text NOT NULL DEFAULT 'manufacturing.orders'"));
         assert!(READ_DDL.contains("source_aggregate_version"));
-        assert!(source.contains("ReadPool::for_tenant"));
+        assert!(source.contains("ReadPool::for_holding"));
         assert!(source.contains("status='active'"));
         let read = source
             .split("pub struct SqlxManufacturingReadRepository")
             .nth(1)
             .unwrap()
-            .split("async fn set_tenant")
+            .split("async fn set_holding")
             .next()
             .unwrap();
         assert!(!read.contains(&["ORDER BY projected_at DESC", " LIMIT 1"].concat()));
     }
     #[test]
     fn every_manufacturing_planning_table_is_forced_under_rls() {
-        assert_eq!(WRITE_DDL.matches("CREATE TABLE").count(), 20);
-        assert_eq!(READ_DDL.matches("CREATE TABLE").count(), 8);
+        let write = schema_test::select_schema_statements(
+            WRITE_DDL,
+            &["erpx_manufacturing_write", "erpx_planning_write"],
+        );
+        let read = schema_test::select_schema_statements(
+            READ_DDL,
+            &["erpx_manufacturing_read", "erpx_planning_read"],
+        );
+        assert_eq!(write.matches("CREATE TABLE").count(), 20);
+        assert_eq!(read.matches("CREATE TABLE").count(), 10);
         for ddl in [WRITE_DDL, READ_DDL] {
             assert!(ddl.contains("ENABLE ROW LEVEL SECURITY"));
             assert!(ddl.contains("FORCE ROW LEVEL SECURITY"));
-            assert!(ddl.contains("current_setting(''app.tenant_id'', true)"));
+            assert!(ddl.contains("current_setting(''app.holding_id'', true)"));
         }
         for marker in [
             "specification_projection",

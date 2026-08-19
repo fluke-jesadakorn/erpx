@@ -12,8 +12,8 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::people_payroll;
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
-    FixedClock, QueryId, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+    ErrorCategory, EventId, FixedClock, QueryId,
 };
 use uuid::Uuid;
 
@@ -35,8 +35,8 @@ fn at() -> chrono::DateTime<Utc> {
 fn date(day: u32) -> NaiveDate {
     NaiveDate::from_ymd_opt(2026, 8, day).unwrap()
 }
-fn scope() -> TenantScope {
-    TenantScope::Company {
+fn scope() -> AuthorityScope {
+    AuthorityScope::Company {
         holding_id: id(1),
         company_id: id(2),
     }
@@ -47,7 +47,7 @@ fn employee_id(value: u128) -> EmployeeId {
 fn actor(name: &str) -> ActorAttribution {
     ActorAttribution {
         principal_ref: name.into(),
-        kind: ActorKind::TenantUser,
+        kind: ActorKind::HoldingUser,
         session_id: None,
         represented_principal_ref: None,
         support_capability_id: None,
@@ -65,7 +65,7 @@ fn envelope(
         correlation_id: CorrelationId::try_from_uuid(id(101)).unwrap(),
         causation_id: None,
         actor: actor(principal),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "people_payroll.test".into(),
             customer_visible: false,
@@ -107,7 +107,7 @@ struct FakeEntitlement(bool);
 impl EntitlementPort for FakeEntitlement {
     async fn ensure_people_payroll_enabled(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _write: bool,
     ) -> Result<(), PortError> {
         if self.0 {
@@ -130,28 +130,28 @@ struct FakeWrite {
 impl WriteRepository for FakeWrite {
     async fn load_employee(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _id: EmployeeId,
     ) -> Result<Option<Employee>, PortError> {
         Ok(self.employee.clone())
     }
     async fn load_leave_request(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _id: LeaveRequestId,
     ) -> Result<Option<LeaveRequest>, PortError> {
         Ok(self.leave.clone())
     }
     async fn load_expense_claim(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _id: ExpenseClaimId,
     ) -> Result<Option<ExpenseClaim>, PortError> {
         Ok(self.expense.clone())
     }
     async fn load_payroll_run(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _id: PayrollRunId,
     ) -> Result<Option<PayrollRun>, PortError> {
         Ok(self.payroll.clone())
@@ -383,7 +383,7 @@ async fn payroll_evidence_pin_requires_version_and_commits_immutable_snapshot() 
         correlation_id: CorrelationId::try_from_uuid(id(111)).unwrap(),
         causation_id: None,
         actor: actor("payroll-preparer"),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "people_payroll.pin_evidence.test".into(),
             customer_visible: false,
@@ -448,7 +448,7 @@ struct NotReadyRead;
 impl ReadRepository for NotReadyRead {
     async fn get_employee(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _id: EmployeeId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<EmployeeView>>, PortError> {
@@ -464,7 +464,7 @@ impl ReadRepository for NotReadyRead {
     }
     async fn list_employees(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _filter: &EmployeeListFilter,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<EmployeeList>, PortError> {
@@ -478,7 +478,7 @@ impl ReadRepository for NotReadyRead {
     }
     async fn get_leave_request(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _id: LeaveRequestId,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<LeaveRequestView>>, PortError> {
@@ -486,7 +486,7 @@ impl ReadRepository for NotReadyRead {
     }
     async fn list_leave_requests(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _filter: &LeaveRequestListFilter,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<LeaveRequestList>, PortError> {
@@ -494,7 +494,7 @@ impl ReadRepository for NotReadyRead {
     }
     async fn get_expense_claim(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _id: ExpenseClaimId,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<ExpenseClaimView>>, PortError> {
@@ -502,7 +502,7 @@ impl ReadRepository for NotReadyRead {
     }
     async fn list_expense_claims(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _filter: &ExpenseClaimListFilter,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<ExpenseClaimList>, PortError> {
@@ -510,7 +510,7 @@ impl ReadRepository for NotReadyRead {
     }
     async fn get_payroll_run(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _id: PayrollRunId,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<PayrollRunView>>, PortError> {
@@ -518,7 +518,7 @@ impl ReadRepository for NotReadyRead {
     }
     async fn list_payroll_runs(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _filter: &PayrollRunListFilter,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<PayrollRunList>, PortError> {
@@ -545,7 +545,7 @@ async fn read_your_writes_not_ready_never_falls_back_to_write_state() {
         query_id: QueryId::try_from_uuid(id(201)).unwrap(),
         correlation_id: CorrelationId::try_from_uuid(id(202)).unwrap(),
         actor: actor("people-reader"),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "people_payroll.test".into(),
             customer_visible: false,
@@ -553,7 +553,7 @@ async fn read_your_writes_not_ready_never_falls_back_to_write_state() {
         },
         consistency: QueryConsistency::ReadYourWrites(ReadYourWrites {
             projection: "people_payroll.employees".into(),
-            partition: "tenant-1".into(),
+            partition: "holding-1".into(),
             target,
             timeout_millis: 100,
         }),
@@ -579,7 +579,7 @@ async fn list_queries_reject_unbounded_page_sizes_before_read_access() {
         query_id: QueryId::try_from_uuid(id(210)).unwrap(),
         correlation_id: CorrelationId::try_from_uuid(id(211)).unwrap(),
         actor: actor("people-reader"),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "people_payroll.test".into(),
             customer_visible: false,

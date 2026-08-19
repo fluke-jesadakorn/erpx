@@ -1,4 +1,4 @@
-//! Tenant People & Payroll projection runtimes.
+//! Holding People & Payroll projection runtimes.
 
 use erpx_cqrs_sqlx::{
     CqrsSqlxError, ProjectionPool, ProjectionRun, ProjectionRunner, ProjectionRunnerConfig,

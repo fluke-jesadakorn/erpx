@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use erpx_cqrs::{ProjectionMetadata, ProjectionNotReady, QueryConsistency};
 use erpx_integration_contracts::customer::CustomerRef;
-use erpx_kernel::{ActorAttribution, TenantScope};
+use erpx_kernel::{ActorAttribution, AuthorityScope};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -27,7 +27,7 @@ pub enum Customer360Action {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
     pub customer: CustomerRef,
     pub action: Customer360Action,
 }
@@ -50,7 +50,7 @@ pub struct ReadProjection<T> {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SourceProjectionMetadata {
     pub control_customers: ProjectionMetadata,
-    pub tenant_activity: ProjectionMetadata,
+    pub holding_activity: ProjectionMetadata,
 }
 
 /// Read-database-only access. There is deliberately no aggregate/write-store
@@ -59,7 +59,7 @@ pub struct SourceProjectionMetadata {
 pub trait ReadRepository: Send + Sync {
     async fn get(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         customer: CustomerRef,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<Customer360View>>, PortError>;
@@ -67,13 +67,13 @@ pub trait ReadRepository: Send + Sync {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectionWriteRequest {
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub input: Customer360ProjectionInput,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RebuildProjectionRequest {
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub stream: Customer360ProjectionStream,
     pub rebuild_generation: Uuid,
     pub projection: Customer360Projection,

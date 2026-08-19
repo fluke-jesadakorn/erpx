@@ -4,7 +4,7 @@ use erpx_cqrs::{
     CommandEnvelope, CommandHandler, CommandReceipt, CqrsError, QueryEnvelope, QueryHandler,
     QueryMetadata, QueryResult,
 };
-use erpx_kernel::{Clock, CorrelationId, ErrorCategory, ErrorContext, KernelError, TenantScope};
+use erpx_kernel::{AuthorityScope, Clock, CorrelationId, ErrorCategory, ErrorContext, KernelError};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -337,8 +337,8 @@ where
     async fn preflight(
         &self,
         actor: &erpx_kernel::ActorAttribution,
-        authority_scope: &TenantScope,
-        target_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         action: PeoplePayrollAction,
     ) -> Result<(), PeoplePayrollApplicationError> {
         if !authority_scope.contains(target_scope) {
@@ -362,7 +362,7 @@ where
         &self,
         identity: &CommandIdentity,
         actor: &erpx_kernel::ActorAttribution,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         action: PeoplePayrollAction,
     ) -> Result<Option<StoredCommit>, PeoplePayrollApplicationError> {
         let Some(mut stored) = self.unit_of_work.find_receipt(identity).await? else {
@@ -378,7 +378,7 @@ where
         &self,
         aggregate: &Aggregate,
         actor: &erpx_kernel::ActorAttribution,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         action: PeoplePayrollAction,
         expected_version: Option<u64>,
     ) -> Result<u64, PeoplePayrollApplicationError> {
@@ -421,7 +421,7 @@ where
             fingerprint: envelope.command.fingerprint(),
         };
         if let Some(stored) = self
-            .replay(&identity, &envelope.actor, &envelope.tenant_scope, action)
+            .replay(&identity, &envelope.actor, &envelope.active_scope, action)
             .await
             .map_err(|error| to_cqrs(error, correlation))?
         {
@@ -441,15 +441,15 @@ where
             PeoplePayrollCommand::HireEmployee(value) => {
                 self.preflight(
                     &envelope.actor,
-                    &envelope.tenant_scope,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
+                    &envelope.active_scope,
                     action,
                 )
                 .await
                 .map_err(|error| to_cqrs(error, correlation))?;
                 let aggregate = Employee::hire(
                     value.employee_id,
-                    envelope.tenant_scope.clone(),
+                    envelope.active_scope.clone(),
                     value.employee_code,
                     value.display_name,
                     value.hired_on,
@@ -461,7 +461,7 @@ where
             PeoplePayrollCommand::TransitionEmployee(value) => {
                 let employee = self
                     .write
-                    .load_employee(&envelope.tenant_scope, value.employee_id)
+                    .load_employee(&envelope.active_scope, value.employee_id)
                     .await
                     .map_err(|error| to_cqrs(error.into(), correlation))?
                     .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
@@ -470,7 +470,7 @@ where
                     .validate_existing(
                         &aggregate,
                         &envelope.actor,
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         action,
                         envelope.expected_aggregate_version,
                     )
@@ -487,15 +487,15 @@ where
             PeoplePayrollCommand::CreateLeaveRequest(value) => {
                 self.preflight(
                     &envelope.actor,
-                    &envelope.tenant_scope,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
+                    &envelope.active_scope,
                     action,
                 )
                 .await
                 .map_err(|error| to_cqrs(error, correlation))?;
                 let aggregate = LeaveRequest::create(
                     value.leave_request_id,
-                    envelope.tenant_scope.clone(),
+                    envelope.active_scope.clone(),
                     value.employee_id,
                     value.starts_on,
                     value.ends_on,
@@ -509,7 +509,7 @@ where
             PeoplePayrollCommand::TransitionLeaveRequest(value) => {
                 let leave = self
                     .write
-                    .load_leave_request(&envelope.tenant_scope, value.leave_request_id)
+                    .load_leave_request(&envelope.active_scope, value.leave_request_id)
                     .await
                     .map_err(|error| to_cqrs(error.into(), correlation))?
                     .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
@@ -518,7 +518,7 @@ where
                     .validate_existing(
                         &aggregate,
                         &envelope.actor,
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         action,
                         envelope.expected_aggregate_version,
                     )
@@ -535,15 +535,15 @@ where
             PeoplePayrollCommand::CreateExpenseClaim(value) => {
                 self.preflight(
                     &envelope.actor,
-                    &envelope.tenant_scope,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
+                    &envelope.active_scope,
                     action,
                 )
                 .await
                 .map_err(|error| to_cqrs(error, correlation))?;
                 let aggregate = ExpenseClaim::create(
                     value.expense_claim_id,
-                    envelope.tenant_scope.clone(),
+                    envelope.active_scope.clone(),
                     value.employee_id,
                     value.currency,
                     value.amount_minor,
@@ -557,7 +557,7 @@ where
             PeoplePayrollCommand::TransitionExpenseClaim(value) => {
                 let expense = self
                     .write
-                    .load_expense_claim(&envelope.tenant_scope, value.expense_claim_id)
+                    .load_expense_claim(&envelope.active_scope, value.expense_claim_id)
                     .await
                     .map_err(|error| to_cqrs(error.into(), correlation))?
                     .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
@@ -566,7 +566,7 @@ where
                     .validate_existing(
                         &aggregate,
                         &envelope.actor,
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         action,
                         envelope.expected_aggregate_version,
                     )
@@ -583,15 +583,15 @@ where
             PeoplePayrollCommand::CreatePayrollRun(value) => {
                 self.preflight(
                     &envelope.actor,
-                    &envelope.tenant_scope,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
+                    &envelope.active_scope,
                     action,
                 )
                 .await
                 .map_err(|error| to_cqrs(error, correlation))?;
                 let aggregate = PayrollRun::create(
                     value.payroll_run_id,
-                    envelope.tenant_scope.clone(),
+                    envelope.active_scope.clone(),
                     value.period_code,
                     value.starts_on,
                     value.ends_on,
@@ -606,7 +606,7 @@ where
             PeoplePayrollCommand::TransitionPayrollRun(value) => {
                 let payroll = self
                     .write
-                    .load_payroll_run(&envelope.tenant_scope, value.payroll_run_id)
+                    .load_payroll_run(&envelope.active_scope, value.payroll_run_id)
                     .await
                     .map_err(|error| to_cqrs(error.into(), correlation))?
                     .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
@@ -615,7 +615,7 @@ where
                     .validate_existing(
                         &aggregate,
                         &envelope.actor,
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         action,
                         envelope.expected_aggregate_version,
                     )
@@ -645,7 +645,7 @@ where
                 correlation_id: correlation,
                 causation_id: envelope.causation_id,
                 actor: envelope.actor,
-                authority_scope: envelope.tenant_scope,
+                authority_scope: envelope.active_scope,
                 audit: envelope.audit,
                 expected_version,
                 aggregate,
@@ -688,7 +688,7 @@ where
             .replay(
                 &identity,
                 &envelope.actor,
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 PeoplePayrollAction::PinPayrollCalculationEvidence,
             )
             .await
@@ -700,7 +700,7 @@ where
 
         let payroll = self
             .write
-            .load_payroll_run(&envelope.tenant_scope, envelope.command.payroll_run_id)
+            .load_payroll_run(&envelope.active_scope, envelope.command.payroll_run_id)
             .await
             .map_err(|error| to_cqrs(error.into(), correlation))?
             .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
@@ -709,7 +709,7 @@ where
             .validate_existing(
                 &aggregate,
                 &envelope.actor,
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 PeoplePayrollAction::PinPayrollCalculationEvidence,
                 envelope.expected_aggregate_version,
             )
@@ -736,7 +736,7 @@ where
                 correlation_id: correlation,
                 causation_id: envelope.causation_id,
                 actor: envelope.actor,
-                authority_scope: envelope.tenant_scope,
+                authority_scope: envelope.active_scope,
                 audit: envelope.audit,
                 expected_version: Some(expected),
                 aggregate,
@@ -782,14 +782,14 @@ where
         let correlation = envelope.correlation_id;
         let action = envelope.query.action();
         self.entitlement
-            .ensure_people_payroll_enabled(&envelope.tenant_scope, false)
+            .ensure_people_payroll_enabled(&envelope.active_scope, false)
             .await
             .map_err(|error| to_cqrs(error.into(), correlation))?;
         self.authorization
             .authorize(AuthorizationRequest {
                 actor: &envelope.actor,
-                authority_scope: &envelope.tenant_scope,
-                target_scope: &envelope.tenant_scope,
+                authority_scope: &envelope.active_scope,
+                target_scope: &envelope.active_scope,
                 action,
             })
             .await
@@ -800,7 +800,7 @@ where
                 let projected = self
                     .read
                     .get_employee(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         value.employee_id,
                         &envelope.consistency,
                     )
@@ -816,7 +816,7 @@ where
                     .map_err(|error| to_cqrs(error, correlation))?;
                 let projected = self
                     .read
-                    .list_employees(&envelope.tenant_scope, &value.filter, &envelope.consistency)
+                    .list_employees(&envelope.active_scope, &value.filter, &envelope.consistency)
                     .await
                     .map_err(|error| port_to_cqrs(error, correlation))?;
                 (
@@ -828,7 +828,7 @@ where
                 let projected = self
                     .read
                     .get_leave_request(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         value.leave_request_id,
                         &envelope.consistency,
                     )
@@ -845,7 +845,7 @@ where
                 let projected = self
                     .read
                     .list_leave_requests(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         &value.filter,
                         &envelope.consistency,
                     )
@@ -860,7 +860,7 @@ where
                 let projected = self
                     .read
                     .get_expense_claim(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         value.expense_claim_id,
                         &envelope.consistency,
                     )
@@ -877,7 +877,7 @@ where
                 let projected = self
                     .read
                     .list_expense_claims(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         &value.filter,
                         &envelope.consistency,
                     )
@@ -892,7 +892,7 @@ where
                 let projected = self
                     .read
                     .get_payroll_run(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         value.payroll_run_id,
                         &envelope.consistency,
                     )
@@ -908,7 +908,7 @@ where
                     .map_err(|error| to_cqrs(error, correlation))?;
                 let projected = self
                     .read
-                    .list_payroll_runs(&envelope.tenant_scope, &value.filter, &envelope.consistency)
+                    .list_payroll_runs(&envelope.active_scope, &value.filter, &envelope.consistency)
                     .await
                     .map_err(|error| port_to_cqrs(error, correlation))?;
                 (

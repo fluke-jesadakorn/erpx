@@ -1,4 +1,4 @@
-//! Tenant worker composition for the Wave 6 paired bounded contexts.
+//! Holding worker composition for the Wave 6 paired bounded contexts.
 
 use std::{
     collections::BTreeMap,
@@ -8,10 +8,10 @@ use std::{
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionPool, ProjectionRun, ProjectionRunnerConfig, WritePool};
 use erpx_infrastructure::{
-    ProjectionClaimRecord, ProjectionJobKind, RoutedDatabaseSide, TenantDatabaseRouter,
+    HoldingDatabaseRouter, ProjectionClaimRecord, ProjectionJobKind, RoutedDatabaseSide,
 };
 use erpx_maintenance::PortError as MaintenancePortError;
-use erpx_worker::{TenantProjectionExecutor, TenantProjectionExecutorError};
+use erpx_worker::{HoldingProjectionExecutor, HoldingProjectionExecutorError};
 
 use crate::contexts::{
     assets::{AssetsProjectionFactory, AssetsProjectionKind, AssetsProjectionRuntime},
@@ -48,13 +48,13 @@ pub enum Wave6ProjectionKind {
 
 #[derive(Debug, Clone)]
 pub struct Wave6ProjectionExecutor {
-    router: TenantDatabaseRouter,
+    router: HoldingDatabaseRouter,
     kind: Wave6ProjectionKind,
     fact_runtimes: Arc<Mutex<BTreeMap<(String, String), MaintenanceAssetFactRuntime>>>,
 }
 
 impl Wave6ProjectionExecutor {
-    pub fn new(router: TenantDatabaseRouter, kind: Wave6ProjectionKind) -> Self {
+    pub fn new(router: HoldingDatabaseRouter, kind: Wave6ProjectionKind) -> Self {
         Self {
             router,
             kind,
@@ -102,33 +102,33 @@ impl Wave6ProjectionExecutor {
 
     async fn route_pools(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
-    ) -> Result<(sqlx::PgPool, sqlx::PgPool), TenantProjectionExecutorError> {
+        holding_id: &str,
+        data_profile_key: &str,
+    ) -> Result<(sqlx::PgPool, sqlx::PgPool), HoldingProjectionExecutorError> {
         let write = self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Write)
             .await
-            .map_err(|_| TenantProjectionExecutorError::Retryable)?;
+            .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
         let read = self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Read)
             .await
-            .map_err(|_| TenantProjectionExecutorError::Retryable)?;
+            .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
         Ok((write.database_pool().clone(), read.database_pool().clone()))
     }
 
     async fn snapshot_runtime(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         page_size: u32,
-    ) -> Result<SnapshotRuntime, TenantProjectionExecutorError> {
-        let (write, read) = self.route_pools(tenant_id, holding_ref).await?;
-        let tenant_id = crate::cqrs_tenant_uuid(tenant_id)?;
+    ) -> Result<SnapshotRuntime, HoldingProjectionExecutorError> {
+        let (write, read) = self.route_pools(holding_id, data_profile_key).await?;
+        let holding_id = crate::cqrs_holding_uuid(holding_id)?;
         let write =
-            WritePool::for_tenant(write, tenant_id).map_err(crate::map_cqrs_projection_error)?;
-        let read = ProjectionPool::for_tenant(read, tenant_id)
+            WritePool::for_holding(write, holding_id).map_err(crate::map_cqrs_projection_error)?;
+        let read = ProjectionPool::for_holding(read, holding_id)
             .map_err(crate::map_cqrs_projection_error)?;
         let config = ProjectionRunnerConfig {
             page_size,
@@ -265,7 +265,7 @@ impl Wave6ProjectionExecutor {
                 SnapshotRuntime::Maintenance(runtime, kind)
             }
             Wave6ProjectionKind::MaintenanceAssetFacts => {
-                return Err(TenantProjectionExecutorError::Permanent);
+                return Err(HoldingProjectionExecutorError::Permanent);
             }
         };
         Ok(runtime)
@@ -273,17 +273,17 @@ impl Wave6ProjectionExecutor {
 
     async fn facts_runtime(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         page_size: u32,
         reset: bool,
-    ) -> Result<MaintenanceAssetFactRuntime, TenantProjectionExecutorError> {
-        let key = (tenant_id.to_owned(), holding_ref.to_owned());
+    ) -> Result<MaintenanceAssetFactRuntime, HoldingProjectionExecutorError> {
+        let key = (holding_id.to_owned(), data_profile_key.to_owned());
         if !reset
             && let Some(runtime) = self
                 .fact_runtimes
                 .lock()
-                .map_err(|_| TenantProjectionExecutorError::Retryable)?
+                .map_err(|_| HoldingProjectionExecutorError::Retryable)?
                 .get(&key)
                 .cloned()
         {
@@ -291,16 +291,16 @@ impl Wave6ProjectionExecutor {
         }
         let write = self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Write)
             .await
-            .map_err(|_| TenantProjectionExecutorError::Retryable)?;
+            .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
         let raw = write.database_pool().clone();
-        let tenant_uuid = crate::cqrs_tenant_uuid(tenant_id)?;
+        let holding_uuid = crate::cqrs_holding_uuid(holding_id)?;
         let runtime = MaintenanceAssetFactRuntime::with_source(
-            WritePool::for_tenant(raw.clone(), tenant_uuid)
+            WritePool::for_holding(raw.clone(), holding_uuid)
                 .map_err(crate::map_cqrs_projection_error)?,
             raw,
-            tenant_uuid,
+            holding_uuid,
             page_size,
         )
         .map_err(map_fact_error)?;
@@ -310,20 +310,20 @@ impl Wave6ProjectionExecutor {
         );
         self.fact_runtimes
             .lock()
-            .map_err(|_| TenantProjectionExecutorError::Retryable)?
+            .map_err(|_| HoldingProjectionExecutorError::Retryable)?
             .insert(key, runtime.clone());
         Ok(runtime)
     }
 
     async fn run_facts(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         page_size: u32,
         rebuild: bool,
-    ) -> Result<(), TenantProjectionExecutorError> {
+    ) -> Result<(), HoldingProjectionExecutorError> {
         let runtime = self
-            .facts_runtime(tenant_id, holding_ref, page_size, rebuild)
+            .facts_runtime(holding_id, data_profile_key, page_size, rebuild)
             .await?;
         loop {
             let run = runtime.run_once().await.map_err(map_fact_error)?;
@@ -335,13 +335,13 @@ impl Wave6ProjectionExecutor {
         // the authoritative Assets event. Project that snapshot before this
         // dependency job completes so a separate projector cannot race ahead
         // of Work Order creation and permanently miss the new write.
-        let (write, read) = self.route_pools(tenant_id, holding_ref).await?;
-        let tenant_id = crate::cqrs_tenant_uuid(tenant_id)?;
+        let (write, read) = self.route_pools(holding_id, data_profile_key).await?;
+        let holding_id = crate::cqrs_holding_uuid(holding_id)?;
         let work_orders = MaintenanceProjectionFactory
             .build(
-                WritePool::for_tenant(write, tenant_id)
+                WritePool::for_holding(write, holding_id)
                     .map_err(crate::map_cqrs_projection_error)?,
-                ProjectionPool::for_tenant(read, tenant_id)
+                ProjectionPool::for_holding(read, holding_id)
                     .map_err(crate::map_cqrs_projection_error)?,
                 ProjectionRunnerConfig {
                     page_size,
@@ -365,7 +365,7 @@ impl Wave6ProjectionExecutor {
 }
 
 #[async_trait]
-impl TenantProjectionExecutor for Wave6ProjectionExecutor {
+impl HoldingProjectionExecutor for Wave6ProjectionExecutor {
     fn projection_name_filter(&self) -> Option<&str> {
         Some(self.projection_name())
     }
@@ -373,30 +373,30 @@ impl TenantProjectionExecutor for Wave6ProjectionExecutor {
     async fn execute(
         &self,
         claim: &ProjectionClaimRecord,
-    ) -> Result<(), TenantProjectionExecutorError> {
+    ) -> Result<(), HoldingProjectionExecutorError> {
         if claim.job.payload.get("after").is_some()
             || claim.job.payload.get("cursor").is_some()
             || claim.job.payload.get("candidate_database_ref").is_some()
             || claim.job.payload.get("source_version").is_some()
             || claim.job.payload.get("generation").is_some()
         {
-            return Err(TenantProjectionExecutorError::Permanent);
+            return Err(HoldingProjectionExecutorError::Permanent);
         }
-        let tenant_id = &claim.job.binding.tenant_id;
-        let holding_ref = &claim.job.binding.holding_ref;
+        let holding_id = &claim.job.binding.holding_id;
+        let data_profile_key = &claim.job.binding.data_profile_key;
         let page_size = crate::projection_page_size(&claim.job.payload, 500)?;
         if self.kind == Wave6ProjectionKind::MaintenanceAssetFacts {
             return self
                 .run_facts(
-                    tenant_id,
-                    holding_ref,
+                    holding_id,
+                    data_profile_key,
                     page_size,
                     claim.job.kind == ProjectionJobKind::Rebuild,
                 )
                 .await;
         }
         let runtime = self
-            .snapshot_runtime(tenant_id, holding_ref, page_size)
+            .snapshot_runtime(holding_id, data_profile_key, page_size)
             .await?;
         match claim.job.kind {
             ProjectionJobKind::Incremental => validate_run(
@@ -432,7 +432,7 @@ impl SnapshotRuntime {
         }
     }
 
-    async fn rebuild(&self, page_size: u32) -> Result<(), TenantProjectionExecutorError> {
+    async fn rebuild(&self, page_size: u32) -> Result<(), HoldingProjectionExecutorError> {
         match self {
             Self::Crm(runtime, kind) => {
                 let handle = runtime
@@ -576,23 +576,23 @@ impl SnapshotRuntime {
     }
 }
 
-fn validate_run(run: ProjectionRun) -> Result<(), TenantProjectionExecutorError> {
+fn validate_run(run: ProjectionRun) -> Result<(), HoldingProjectionExecutorError> {
     if run.retry_scheduled || run.dead_lettered != 0 {
-        return Err(TenantProjectionExecutorError::Retryable);
+        return Err(HoldingProjectionExecutorError::Retryable);
     }
     Ok(())
 }
 
-fn map_fact_error(error: MaintenanceAssetFactRuntimeError) -> TenantProjectionExecutorError {
+fn map_fact_error(error: MaintenanceAssetFactRuntimeError) -> HoldingProjectionExecutorError {
     match error {
         MaintenanceAssetFactRuntimeError::Source(error) => {
             tracing::warn!(error = %error, "Assets fact source poll will be retried");
-            TenantProjectionExecutorError::Retryable
+            HoldingProjectionExecutorError::Retryable
         }
         MaintenanceAssetFactRuntimeError::Inbox(MaintenancePortError::Unavailable)
         | MaintenanceAssetFactRuntimeError::Inbox(MaintenancePortError::AssetFactNotReady)
         | MaintenanceAssetFactRuntimeError::Inbox(MaintenancePortError::NotReady(_)) => {
-            TenantProjectionExecutorError::Retryable
+            HoldingProjectionExecutorError::Retryable
         }
         MaintenanceAssetFactRuntimeError::Command(error)
             if matches!(
@@ -600,12 +600,12 @@ fn map_fact_error(error: MaintenanceAssetFactRuntimeError) -> TenantProjectionEx
                 erpx_kernel::ErrorCategory::NotReady | erpx_kernel::ErrorCategory::Unavailable
             ) =>
         {
-            TenantProjectionExecutorError::Retryable
+            HoldingProjectionExecutorError::Retryable
         }
-        MaintenanceAssetFactRuntimeError::Command(_) => TenantProjectionExecutorError::Permanent,
+        MaintenanceAssetFactRuntimeError::Command(_) => HoldingProjectionExecutorError::Permanent,
         MaintenanceAssetFactRuntimeError::Inbox(_)
         | MaintenanceAssetFactRuntimeError::InvalidContract(_) => {
-            TenantProjectionExecutorError::Permanent
+            HoldingProjectionExecutorError::Permanent
         }
     }
 }

@@ -37,8 +37,8 @@ fn at() -> chrono::DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap()
 }
 
-fn scope() -> TenantScope {
-    TenantScope::Platform
+fn scope() -> AuthorityScope {
+    AuthorityScope::Platform
 }
 
 fn actor() -> ActorAttribution {
@@ -88,7 +88,7 @@ fn command_envelope<C>(sequence: u128, expected: Option<u64>, command: C) -> Com
         correlation_id: CorrelationId::try_from_uuid(id(200 + sequence)).unwrap(),
         causation_id: None,
         actor: actor(),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "brand.test".into(),
             customer_visible: false,
@@ -105,7 +105,7 @@ fn query_envelope<Q>(sequence: u128, consistency: QueryConsistency, query: Q) ->
         query_id: QueryId::try_from_uuid(id(300 + sequence)).unwrap(),
         correlation_id: CorrelationId::try_from_uuid(id(400 + sequence)).unwrap(),
         actor: actor(),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "brand.test.query".into(),
             customer_visible: false,
@@ -143,7 +143,7 @@ struct FakeEntitlement {
 impl EntitlementPort for FakeEntitlement {
     async fn ensure_brand_enabled(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _write: bool,
     ) -> Result<(), PortError> {
         if self.allow {
@@ -179,7 +179,7 @@ struct FakeWriteRepository {
 impl WriteRepository for FakeWriteRepository {
     async fn load(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _profile_id: BrandProfileId,
     ) -> Result<Option<BrandProfile>, PortError> {
         self.loads.fetch_add(1, Ordering::SeqCst);
@@ -188,7 +188,7 @@ impl WriteRepository for FakeWriteRepository {
 
     async fn load_archived_revision(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _profile_id: BrandProfileId,
         _revision: u64,
     ) -> Result<Option<ArchivedBrandRevision>, PortError> {
@@ -255,7 +255,7 @@ struct FakeReadRepository {
 impl ReadRepository for FakeReadRepository {
     async fn get_draft(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _scope: &BrandScope,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<BrandProfileView>>, PortError> {
@@ -271,7 +271,7 @@ impl ReadRepository for FakeReadRepository {
 
     async fn get_resolved(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _scope: &BrandScope,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<ResolvedBrandView>>, PortError> {
@@ -284,7 +284,7 @@ impl ReadRepository for FakeReadRepository {
 
     async fn list_history(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _scope: &BrandScope,
         _page_size: u16,
         _cursor: Option<&str>,
@@ -305,7 +305,7 @@ impl ReadRepository for FakeReadRepository {
 impl DerivedRecordReadRepository for FakeReadRepository {
     async fn get_asset(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _target_scope: &BrandScope,
         _record_id: RecordId,
         _consistency: &QueryConsistency,
@@ -319,7 +319,7 @@ impl DerivedRecordReadRepository for FakeReadRepository {
 
     async fn get_publication(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _target_scope: &BrandScope,
         _record_id: RecordId,
         _consistency: &QueryConsistency,

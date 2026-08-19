@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
 use erpx_integration_contracts::{ItemDescriptorDraft, assets, maintenance};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use erpx_maintenance::{WorkOrderStatus, WorkOrderView};
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
@@ -68,17 +68,17 @@ impl Projector for WorkOrderProjector {
         let result = sqlx::query(
             "INSERT INTO erpx_maintenance_read.work_order_projection
                 (projection_name,generation,partition_key,work_order_id,
-                 source_aggregate_version,source_global_sequence,tenant_scope,
+                 source_aggregate_version,source_global_sequence,active_scope,
                  scope_key,work_order_code,asset_id,request_code,source_event_id,
                  source_asset_version,title,work_order_status,scheduled_for,
                  started_at,completed_at,state,aggregate_created_at,
                  aggregate_updated_at,projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
                      $16,$17,$18,$19,$20,$21,now())
-             ON CONFLICT (tenant_id,projection_name,generation,partition_key,work_order_id)
+             ON CONFLICT (holding_id,projection_name,generation,partition_key,work_order_id)
              DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,
                 source_global_sequence=EXCLUDED.source_global_sequence,
-                tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,
+                active_scope=EXCLUDED.active_scope,scope_key=EXCLUDED.scope_key,
                 work_order_code=EXCLUDED.work_order_code,asset_id=EXCLUDED.asset_id,
                 request_code=EXCLUDED.request_code,source_event_id=EXCLUDED.source_event_id,
                 source_asset_version=EXCLUDED.source_asset_version,title=EXCLUDED.title,
@@ -164,7 +164,7 @@ fn validate_event(
     let view = &snapshot.work_order;
     if view.version != event.aggregate_version
         || view.work_order_id.as_uuid() != event.aggregate_id.as_uuid()
-        || view.scope != event.tenant_scope
+        || view.scope != event.active_scope
         || event.partition != work_order_partition(view.work_order_id)
         || scope_key(&view.scope).is_err()
     {
@@ -175,13 +175,13 @@ fn validate_event(
     Ok(snapshot)
 }
 
-pub(crate) fn scope_key(scope: &TenantScope) -> Result<String, ProjectionFailure> {
+pub(crate) fn scope_key(scope: &AuthorityScope) -> Result<String, ProjectionFailure> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok(format!("holding:{holding_id}/company:{company_id}")),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,

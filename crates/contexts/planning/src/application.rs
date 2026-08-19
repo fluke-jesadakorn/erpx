@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use erpx_kernel::{CorrelationId, TenantScope};
+use erpx_kernel::{AuthorityScope, CorrelationId};
 use thiserror::Error;
 
 use crate::{
@@ -40,7 +40,7 @@ where
         actor: &ActorContext,
         identity: MutationIdentity,
         scenario_id: ScenarioId,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         requested_version: Option<u64>,
         run_id: RunId,
         correlation_id: CorrelationId,
@@ -75,7 +75,7 @@ where
         actor: &ActorContext,
         identity: MutationIdentity,
         recommendation_id: RecommendationId,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         requested_version: Option<u64>,
         release_id: ReleaseId,
         correlation_id: CorrelationId,
@@ -115,7 +115,7 @@ where
         actor: &ActorContext,
         identity: MutationIdentity,
         plan_id: uuid::Uuid,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         correlation_id: CorrelationId,
         event_type: &str,
         change: F,
@@ -193,7 +193,7 @@ where
         actor: &ActorContext,
         identity: MutationIdentity,
         scenario_id: ScenarioId,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         requested_version: Option<u64>,
         correlation_id: CorrelationId,
         action: PlanningAction,
@@ -238,7 +238,7 @@ where
         actor: &ActorContext,
         identity: MutationIdentity,
         recommendation_id: RecommendationId,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         requested_version: Option<u64>,
         correlation_id: CorrelationId,
         action: PlanningAction,
@@ -327,7 +327,7 @@ where
     pub async fn get_run(
         &self,
         actor: &ActorContext,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: RunId,
     ) -> Result<PlanningRunProjection, PlanningError> {
         let authority = self
@@ -343,7 +343,7 @@ where
     pub async fn get_record(
         &self,
         actor: &ActorContext,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: uuid::Uuid,
     ) -> Result<crate::ports::PlanningRecordProjection, PlanningError> {
         let authority = self
@@ -359,7 +359,7 @@ where
     pub async fn get_plan(
         &self,
         actor: &ActorContext,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: uuid::Uuid,
     ) -> Result<crate::ports::PlanningPlanProjection, PlanningError> {
         let authority = self

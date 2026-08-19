@@ -6,7 +6,7 @@ use erpx_cqrs::{
 use erpx_cqrs_sqlx::{
     CqrsSqlxError, ReadPool, ReadSideStore, SqlxProjectionWaiter, WaitError, WaiterConfig,
 };
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use erpx_pos::{
     PortError, PosReadRepository, RefundId, RefundList, RefundListFilter, RefundView, SaleId,
     SaleList, SaleListFilter, SaleView, ports::ReadProjection,
@@ -129,7 +129,7 @@ impl PosSqlxReadRepository {
 impl PosReadRepository for PosSqlxReadRepository {
     async fn get_sale(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         sale_id: SaleId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<SaleView>>, PortError> {
@@ -172,7 +172,7 @@ impl PosReadRepository for PosSqlxReadRepository {
 
     async fn list_sales(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &SaleListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<SaleList>, PortError> {
@@ -239,7 +239,7 @@ impl PosReadRepository for PosSqlxReadRepository {
 
     async fn get_refund(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         refund_id: RefundId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<RefundView>>, PortError> {
@@ -282,7 +282,7 @@ impl PosReadRepository for PosSqlxReadRepository {
 
     async fn list_refunds(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &RefundListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<RefundList>, PortError> {

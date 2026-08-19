@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS erpx_identity.development_persona_manifests (
     persona_key TEXT PRIMARY KEY,
     principal_ref TEXT NOT NULL UNIQUE,
     directory_username TEXT NOT NULL,
-    tenant_id TEXT,
+    holding_id TEXT,
     organization_scope TEXT NOT NULL,
     role_key TEXT NOT NULL,
     feature TEXT NOT NULL,
@@ -26,8 +26,8 @@ CREATE TABLE IF NOT EXISTS erpx_identity.development_persona_manifests (
     updated_at TIMESTAMPTZ NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS development_persona_manifests_tenant_idx
-    ON erpx_identity.development_persona_manifests (tenant_id, organization_scope, role_key);
+CREATE INDEX IF NOT EXISTS development_persona_manifests_holding_idx
+    ON erpx_identity.development_persona_manifests (holding_id, organization_scope, role_key);
 
 CREATE TABLE IF NOT EXISTS erpx_identity.development_persona_contexts (
     id UUID PRIMARY KEY,
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS erpx_identity.development_persona_contexts (
     controller_device_id UUID NOT NULL,
     persona_key TEXT NOT NULL REFERENCES erpx_identity.development_persona_manifests(persona_key),
     role_assignment_ref TEXT NOT NULL,
-    tenant_id TEXT,
+    holding_id TEXT,
     organization_scope TEXT NOT NULL,
     feature TEXT NOT NULL,
     reason TEXT NOT NULL,
@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS erpx_identity.development_audit (
     persona_principal_ref TEXT NOT NULL,
     persona_key TEXT NOT NULL,
     role_key TEXT NOT NULL,
-    tenant_id TEXT,
+    holding_id TEXT,
     organization_scope TEXT NOT NULL,
     feature TEXT NOT NULL,
     correlation_id UUID NOT NULL,
@@ -94,7 +94,7 @@ CREATE TRIGGER development_audit_append_only
 CREATE TABLE IF NOT EXISTS erpx_identity.development_seed_receipts (
     receipt_key TEXT PRIMARY KEY,
     fixture_version TEXT NOT NULL,
-    tenant_id TEXT,
+    holding_id TEXT,
     manifest_digest TEXT NOT NULL CHECK (manifest_digest ~ '^[0-9a-f]{64}$'),
     applied_at TIMESTAMPTZ NOT NULL,
     counts JSONB NOT NULL CHECK (jsonb_typeof(counts) = 'object')

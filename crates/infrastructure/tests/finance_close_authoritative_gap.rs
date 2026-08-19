@@ -1,5 +1,5 @@
 use chrono::NaiveDate;
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::finance::AccountingPeriod;
 use erpx_domain::finance_close::FinanceCloseReview;
 use erpx_infrastructure::{PersistenceError, SqlxFinanceCloseStore};
@@ -11,12 +11,12 @@ fn context(holding_id: Uuid, company_id: Uuid, actor: &str) -> CommandContext {
         format!("finance-close-authoritative-{actor}"),
         ActorAttribution {
             principal_ref: actor.into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
         },
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -26,16 +26,16 @@ fn context(holding_id: Uuid, company_id: Uuid, actor: &str) -> CommandContext {
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn close_review_replay_fails_closed_when_outbox_cardinality_diverges() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let pool = PgPool::connect(&url).await.expect("write pool");
-    erpx_migration::migrate_tenant_write(&pool)
+    erpx_migration::migrate_holding_write(&pool)
         .await
-        .expect("tenant-write migrations");
+        .expect("holding-write migrations");
 
-    let holding_ref = format!("holding-close-replay-gap-{}", Uuid::new_v4().simple());
+    let data_profile_key = format!("holding-close-replay-gap-{}", Uuid::new_v4().simple());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let period_id = Uuid::new_v4();
@@ -52,48 +52,48 @@ async fn close_review_replay_fails_closed_when_outbox_cardinality_diverges() {
     let review = FinanceCloseReview::open(&period, &opener).expect("open review");
 
     let mut seed_tx = pool.begin().await.expect("seed transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *seed_tx)
         .await
         .expect("seed scope");
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_periods
-            (period_id, holding_id, company_id, holding_ref, status, version, payload)
+        "INSERT INTO erpx_holding.finance_periods
+            (period_id, holding_id, company_id, data_profile_key, status, version, payload)
          VALUES ($1,$2,$3,$4,'open',1,$5)",
     )
     .bind(period_id)
     .bind(holding_id)
     .bind(company_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(serde_json::to_value(&period).expect("period payload"))
     .execute(&mut *seed_tx)
     .await
     .expect("seed period");
     seed_tx.commit().await.expect("commit period");
 
-    let store = SqlxFinanceCloseStore::new(pool.clone(), &holding_ref).expect("close store");
+    let store = SqlxFinanceCloseStore::new(pool.clone(), &data_profile_key).expect("close store");
     store
         .save_review(&review, &period, None)
         .await
         .expect("persist open close review");
 
     let mut duplicate_event_tx = pool.begin().await.expect("duplicate event transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *duplicate_event_tx)
         .await
         .expect("duplicate event scope");
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at)
          VALUES ($1,'finance_close_review',$2,$3,1,
                  'finance.close_review_saved.v2','{}',now())",
     )
     .bind(Uuid::new_v4())
     .bind(period_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .execute(&mut *duplicate_event_tx)
     .await
     .expect("insert duplicate close review event");
@@ -109,20 +109,20 @@ async fn close_review_replay_fails_closed_when_outbox_cardinality_diverges() {
     ));
 
     let mut duplicate_event_cleanup_tx = pool.begin().await.expect("duplicate cleanup transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *duplicate_event_cleanup_tx)
         .await
         .expect("duplicate cleanup scope");
     sqlx::query(
-        "DELETE FROM erpx_tenant.outbox_events
-          WHERE holding_ref=$1
+        "DELETE FROM erpx_holding.outbox_events
+          WHERE data_profile_key=$1
             AND aggregate_type='finance_close_review'
             AND aggregate_id=$2
             AND aggregate_version=1
             AND event_type='finance.close_review_saved.v2'",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(period_id)
     .execute(&mut *duplicate_event_cleanup_tx)
     .await
@@ -133,20 +133,20 @@ async fn close_review_replay_fails_closed_when_outbox_cardinality_diverges() {
         .expect("duplicate cleanup commit");
 
     let mut tamper_tx = pool.begin().await.expect("tamper transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tamper_tx)
         .await
         .expect("tamper scope");
     sqlx::query(
-        "DELETE FROM erpx_tenant.outbox_events
-          WHERE holding_ref=$1
+        "DELETE FROM erpx_holding.outbox_events
+          WHERE data_profile_key=$1
             AND aggregate_type='finance_close_review'
             AND aggregate_id=$2
             AND aggregate_version=1
             AND event_type='finance.close_review_saved.v1'",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(period_id)
     .execute(&mut *tamper_tx)
     .await

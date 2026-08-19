@@ -7,7 +7,7 @@
 use std::collections::{BTreeMap, btree_map::Entry};
 
 use erpx_integration_contracts::{ItemDescriptor, StableRecordRef};
-use erpx_kernel::{RecordId, TenantId, TenantScope};
+use erpx_kernel::{AuthorityScope, HoldingId, RecordId};
 
 pub const CACHE_CONTROL_NO_STORE: &str = "no-store";
 pub const MAX_PURPOSE_BYTES: usize = 128;
@@ -17,16 +17,16 @@ pub const MAX_PAGE_SIZE: u32 = 100;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReferenceRequest {
     record_id: RecordId,
-    tenant_id: TenantId,
-    authority_scope: TenantScope,
+    holding_id: HoldingId,
+    authority_scope: AuthorityScope,
     purpose: String,
 }
 
 impl ReferenceRequest {
     pub fn try_new(
         record_id: RecordId,
-        tenant_id: TenantId,
-        authority_scope: TenantScope,
+        holding_id: HoldingId,
+        authority_scope: AuthorityScope,
         purpose: impl Into<String>,
     ) -> Result<Self, DirectoryRequestError> {
         authority_scope
@@ -40,7 +40,7 @@ impl ReferenceRequest {
         )?;
         Ok(Self {
             record_id,
-            tenant_id,
+            holding_id,
             authority_scope,
             purpose,
         })
@@ -50,12 +50,12 @@ impl ReferenceRequest {
         self.record_id
     }
 
-    pub const fn authority_scope(&self) -> &TenantScope {
+    pub const fn authority_scope(&self) -> &AuthorityScope {
         &self.authority_scope
     }
 
-    pub const fn tenant_id(&self) -> TenantId {
-        self.tenant_id
+    pub const fn holding_id(&self) -> HoldingId {
+        self.holding_id
     }
 
     pub fn purpose(&self) -> &str {
@@ -65,8 +65,8 @@ impl ReferenceRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SearchRequest {
-    tenant_id: TenantId,
-    authority_scope: TenantScope,
+    holding_id: HoldingId,
+    authority_scope: AuthorityScope,
     purpose: String,
     query: String,
     page_size: u32,
@@ -75,8 +75,8 @@ pub struct SearchRequest {
 
 impl SearchRequest {
     pub fn try_new(
-        tenant_id: TenantId,
-        authority_scope: TenantScope,
+        holding_id: HoldingId,
+        authority_scope: AuthorityScope,
         purpose: impl Into<String>,
         query: impl Into<String>,
         page_size: u32,
@@ -106,7 +106,7 @@ impl SearchRequest {
             return Err(DirectoryRequestError::InvalidCursor);
         }
         Ok(Self {
-            tenant_id,
+            holding_id,
             authority_scope,
             purpose,
             query,
@@ -156,21 +156,21 @@ pub trait DirectoryAuthorizer: Send + Sync {
 /// authorization phase.
 #[derive(Debug, Clone)]
 pub struct ScopeBoundDirectoryAuthorizer {
-    records: BTreeMap<RecordId, (TenantId, TenantScope)>,
+    records: BTreeMap<RecordId, (HoldingId, AuthorityScope)>,
 }
 
 impl ScopeBoundDirectoryAuthorizer {
     pub fn try_new(
-        records: impl IntoIterator<Item = (RecordId, TenantId, TenantScope)>,
+        records: impl IntoIterator<Item = (RecordId, HoldingId, AuthorityScope)>,
     ) -> Result<Self, DirectoryRequestError> {
         let mut index = BTreeMap::new();
-        for (record_id, tenant_id, scope) in records {
+        for (record_id, holding_id, scope) in records {
             scope
                 .validate()
                 .map_err(|_| DirectoryRequestError::InvalidScope)?;
             match index.entry(record_id) {
                 Entry::Vacant(entry) => {
-                    entry.insert((tenant_id, scope));
+                    entry.insert((holding_id, scope));
                 }
                 Entry::Occupied(_) => return Err(DirectoryRequestError::DuplicateRecord),
             }
@@ -183,8 +183,8 @@ impl DirectoryAuthorizer for ScopeBoundDirectoryAuthorizer {
     fn authorize_record(&self, request: &ReferenceRequest) -> AuthorizationDecision {
         self.records
             .get(&request.record_id)
-            .filter(|(tenant_id, target_scope)| {
-                *tenant_id == request.tenant_id && request.authority_scope.contains(target_scope)
+            .filter(|(holding_id, target_scope)| {
+                *holding_id == request.holding_id && request.authority_scope.contains(target_scope)
             })
             .map_or(AuthorizationDecision::Denied, |_| {
                 AuthorizationDecision::Granted
@@ -192,8 +192,8 @@ impl DirectoryAuthorizer for ScopeBoundDirectoryAuthorizer {
     }
 
     fn authorize_search(&self, request: &SearchRequest) -> AuthorizationDecision {
-        if self.records.values().any(|(tenant_id, target_scope)| {
-            *tenant_id == request.tenant_id && request.authority_scope.contains(target_scope)
+        if self.records.values().any(|(holding_id, target_scope)| {
+            *holding_id == request.holding_id && request.authority_scope.contains(target_scope)
         }) {
             AuthorizationDecision::Granted
         } else {
@@ -207,8 +207,8 @@ impl DirectoryAuthorizer for ScopeBoundDirectoryAuthorizer {
 #[derive(Debug)]
 pub struct AuthorizedReferenceQuery {
     record_id: RecordId,
-    tenant_id: TenantId,
-    authority_scope: TenantScope,
+    holding_id: HoldingId,
+    authority_scope: AuthorityScope,
 }
 
 impl AuthorizedReferenceQuery {
@@ -216,31 +216,31 @@ impl AuthorizedReferenceQuery {
         self.record_id
     }
 
-    pub const fn authority_scope(&self) -> &TenantScope {
+    pub const fn authority_scope(&self) -> &AuthorityScope {
         &self.authority_scope
     }
 
-    pub const fn tenant_id(&self) -> TenantId {
-        self.tenant_id
+    pub const fn holding_id(&self) -> HoldingId {
+        self.holding_id
     }
 }
 
 #[derive(Debug)]
 pub struct AuthorizedSearchQuery {
-    tenant_id: TenantId,
-    authority_scope: TenantScope,
+    holding_id: HoldingId,
+    authority_scope: AuthorityScope,
     query: String,
     page_size: u32,
     cursor: Option<String>,
 }
 
 impl AuthorizedSearchQuery {
-    pub const fn authority_scope(&self) -> &TenantScope {
+    pub const fn authority_scope(&self) -> &AuthorityScope {
         &self.authority_scope
     }
 
-    pub const fn tenant_id(&self) -> TenantId {
-        self.tenant_id
+    pub const fn holding_id(&self) -> HoldingId {
+        self.holding_id
     }
 
     pub fn query(&self) -> &str {
@@ -395,7 +395,7 @@ where
             return SearchResponse::Neutral;
         }
         let query = AuthorizedSearchQuery {
-            tenant_id: request.tenant_id,
+            holding_id: request.holding_id,
             authority_scope: request.authority_scope.clone(),
             query: request.query.clone(),
             page_size: request.page_size,
@@ -424,7 +424,7 @@ where
             .filter(|link| {
                 let request = ReferenceRequest {
                     record_id: link.id(),
-                    tenant_id: anchor.tenant_id,
+                    holding_id: anchor.holding_id,
                     authority_scope: anchor.authority_scope.clone(),
                     purpose: anchor.purpose.clone(),
                 };
@@ -437,7 +437,7 @@ where
 fn authorized_reference(request: &ReferenceRequest) -> AuthorizedReferenceQuery {
     AuthorizedReferenceQuery {
         record_id: request.record_id,
-        tenant_id: request.tenant_id,
+        holding_id: request.holding_id,
         authority_scope: request.authority_scope.clone(),
     }
 }
@@ -533,15 +533,15 @@ mod tests {
         .unwrap()
     }
 
-    fn tenant_id() -> TenantId {
-        TenantId::try_from_uuid(Uuid::new_v4()).unwrap()
+    fn holding_id() -> HoldingId {
+        HoldingId::try_from_uuid(Uuid::new_v4()).unwrap()
     }
 
     fn descriptor(record: StableRecordRef) -> ItemDescriptor {
         let authorization_policy = record_policy_id(&record).unwrap();
         ItemDescriptor::try_new(
             record,
-            TenantScope::Platform,
+            AuthorityScope::Platform,
             "open",
             authorization_policy,
             DataClassification::Internal,
@@ -571,7 +571,7 @@ mod tests {
     fn denial_happens_before_lookup_and_matches_absence() {
         let target = record(ContextId::Finance, "finance.invoice");
         let request =
-            ReferenceRequest::try_new(target.id(), tenant_id(), TenantScope::Platform, "open")
+            ReferenceRequest::try_new(target.id(), holding_id(), AuthorityScope::Platform, "open")
                 .expect("request");
         let denied_projection = projection(Some(ResolvedProjection {
             descriptor: descriptor(target.clone()),
@@ -607,7 +607,7 @@ mod tests {
     fn fresh_resolution_is_303_no_store_and_stale_is_degraded() {
         let target = record(ContextId::Projects, "project.item");
         let request =
-            ReferenceRequest::try_new(target.id(), tenant_id(), TenantScope::Platform, "open")
+            ReferenceRequest::try_new(target.id(), holding_id(), AuthorityScope::Platform, "open")
                 .expect("request");
         let allowed = [target.id()].into_iter().collect();
         let resolver = ReferenceResolver::new(
@@ -649,9 +649,13 @@ mod tests {
         let anchor = record(ContextId::Legal, "legal.contract");
         let visible = record(ContextId::Finance, "finance.invoice");
         let hidden = record(ContextId::Sales, "sales.order");
-        let request =
-            ReferenceRequest::try_new(anchor.id(), tenant_id(), TenantScope::Platform, "backlinks")
-                .expect("request");
+        let request = ReferenceRequest::try_new(
+            anchor.id(),
+            holding_id(),
+            AuthorityScope::Platform,
+            "backlinks",
+        )
+        .expect("request");
         let resolver = ReferenceResolver::new(
             TestAuthorizer {
                 allowed: [anchor.id(), visible.id()].into_iter().collect(),
@@ -689,8 +693,8 @@ mod tests {
     #[test]
     fn search_authorization_precedes_projection_matching() {
         let request = SearchRequest::try_new(
-            tenant_id(),
-            TenantScope::Platform,
+            holding_id(),
+            AuthorityScope::Platform,
             "find",
             "invoice",
             25,
@@ -710,24 +714,25 @@ mod tests {
     }
 
     #[test]
-    fn tenant_and_branch_scope_are_checked_before_directory_lookup() {
-        let tenant = tenant_id();
-        let other_tenant = tenant_id();
+    fn holding_and_branch_scope_are_checked_before_directory_lookup() {
+        let holding = holding_id();
+        let other_holding = holding_id();
         let target = record(ContextId::Inventory, "inventory.document");
         let holding_id = Uuid::new_v4();
         let company_id = Uuid::new_v4();
         let target_branch = Uuid::new_v4();
         let sibling_branch = Uuid::new_v4();
-        let target_scope = TenantScope::Branch {
+        let target_scope = AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id: target_branch,
         };
         let authorizer =
-            ScopeBoundDirectoryAuthorizer::try_new([(target.id(), tenant, target_scope.clone())])
+            ScopeBoundDirectoryAuthorizer::try_new([(target.id(), holding, target_scope.clone())])
                 .unwrap();
 
-        let allowed = ReferenceRequest::try_new(target.id(), tenant, target_scope, "open").unwrap();
+        let allowed =
+            ReferenceRequest::try_new(target.id(), holding, target_scope, "open").unwrap();
         assert_eq!(
             authorizer.authorize_record(&allowed),
             AuthorizationDecision::Granted
@@ -735,8 +740,8 @@ mod tests {
 
         let sibling = ReferenceRequest::try_new(
             target.id(),
-            tenant,
-            TenantScope::Branch {
+            holding,
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id: sibling_branch,
@@ -749,11 +754,11 @@ mod tests {
             AuthorizationDecision::Denied
         );
 
-        let cross_tenant =
-            ReferenceRequest::try_new(target.id(), other_tenant, TenantScope::Platform, "open")
+        let cross_holding =
+            ReferenceRequest::try_new(target.id(), other_holding, AuthorityScope::Platform, "open")
                 .unwrap();
         assert_eq!(
-            authorizer.authorize_record(&cross_tenant),
+            authorizer.authorize_record(&cross_holding),
             AuthorizationDecision::Denied
         );
     }

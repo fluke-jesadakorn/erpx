@@ -2,7 +2,7 @@
 //!
 //! Marketing owns acquisition, segmentation, consent, and qualification. CRM
 //! owns accepted lead records and opportunities. This module only defines a
-//! tenant-scoped journey graph and the facts needed to resume its execution;
+//! holding-scoped journey graph and the facts needed to resume its execution;
 //! it never sends through a channel, calls an integration, or mutates CRM.
 
 use std::collections::{BTreeSet, VecDeque};
@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::contracts::{ActorAttribution, CommandContext, TenantScope};
+use crate::contracts::{ActorAttribution, AuthorityScope, CommandContext};
 use crate::marketing::MarketingChannel;
 use crate::marketing_crm::{AccountReference, ContactReference, MarketingQualifiedSource};
 
@@ -249,7 +249,7 @@ pub struct JourneyConversion {
     pub journey_id: Uuid,
     pub run_id: Uuid,
     pub profile_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub revenue_minor: Option<i64>,
     pub currency: Option<String>,
     pub occurred_at: DateTime<Utc>,
@@ -262,7 +262,7 @@ impl JourneyConversion {
         journey_id: Uuid,
         run_id: Uuid,
         profile_id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         revenue_minor: Option<i64>,
         currency: Option<String>,
         occurred_at: DateTime<Utc>,
@@ -308,7 +308,7 @@ pub struct JourneyOwnerNotification {
     pub journey_id: Uuid,
     pub run_id: Uuid,
     pub profile_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub owner_ref: String,
     pub occurred_at: DateTime<Utc>,
 }
@@ -325,7 +325,7 @@ pub struct JourneyIntegrationInvocation {
     pub run_id: Uuid,
     pub node_id: Uuid,
     pub profile_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub idempotency_key: String,
     pub occurred_at: DateTime<Utc>,
 }
@@ -339,7 +339,7 @@ impl JourneyIntegrationInvocation {
         run_id: Uuid,
         node_id: Uuid,
         profile_id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         idempotency_key: impl Into<String>,
         occurred_at: DateTime<Utc>,
     ) -> Result<Self, MarketingJourneyError> {
@@ -385,7 +385,7 @@ impl JourneyOwnerNotification {
         journey_id: Uuid,
         run_id: Uuid,
         profile_id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         owner_ref: String,
         occurred_at: DateTime<Utc>,
     ) -> Result<Self, MarketingJourneyError> {
@@ -484,7 +484,7 @@ pub enum JourneyNodeDefinition {
 }
 
 impl JourneyNodeDefinition {
-    fn validate(&self, scope: &TenantScope) -> Result<(), MarketingJourneyError> {
+    fn validate(&self, scope: &AuthorityScope) -> Result<(), MarketingJourneyError> {
         match self {
             Self::Trigger { trigger } => match trigger {
                 JourneyTrigger::Enrollment => {}
@@ -600,7 +600,7 @@ impl JourneyNode {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Journey {
     id: Uuid,
-    scope: TenantScope,
+    scope: AuthorityScope,
     name: String,
     status: JourneyStatus,
     nodes: Vec<JourneyNode>,
@@ -612,7 +612,7 @@ pub struct Journey {
 impl Journey {
     pub fn new(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         name: impl Into<String>,
         mut nodes: Vec<JourneyNode>,
         at: DateTime<Utc>,
@@ -735,7 +735,7 @@ impl Journey {
         self.id
     }
 
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
 
@@ -773,8 +773,8 @@ impl Journey {
                 field: "journey_id_mismatch",
             });
         }
-        if !command.context.tenant_scope.contains(&self.scope)
-            || matches!(command.context.tenant_scope, TenantScope::Platform)
+        if !command.context.active_scope.contains(&self.scope)
+            || matches!(command.context.active_scope, AuthorityScope::Platform)
         {
             return Err(MarketingJourneyError::CommandScopeOutside);
         }
@@ -810,7 +810,7 @@ impl Journey {
         self.validate()?;
         Ok(JourneyTransitionFact {
             journey_id: self.id,
-            tenant_scope: self.scope.clone(),
+            active_scope: self.scope.clone(),
             from,
             to: self.status,
             expected_version: expected,
@@ -858,7 +858,7 @@ impl JourneyTransitionCommand {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JourneyTransitionFact {
     pub journey_id: Uuid,
-    pub tenant_scope: TenantScope,
+    pub active_scope: AuthorityScope,
     pub from: JourneyStatus,
     pub to: JourneyStatus,
     pub expected_version: u64,
@@ -944,7 +944,7 @@ pub struct JourneyExecutionCursor {
     journey_id: Uuid,
     run_id: Uuid,
     profile_id: Uuid,
-    scope: TenantScope,
+    scope: AuthorityScope,
     state: JourneyExecutionState,
     next_node_id: Option<Uuid>,
     waiting_until: Option<DateTime<Utc>>,
@@ -1027,7 +1027,7 @@ impl JourneyExecutionCursor {
         self.profile_id
     }
 
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
 
@@ -1309,42 +1309,31 @@ pub struct JourneyExecutionFact {
     pub branch_decision: Option<bool>,
 }
 
-fn validate_scope(scope: &TenantScope) -> Result<(), MarketingJourneyError> {
+fn validate_scope(scope: &AuthorityScope) -> Result<(), MarketingJourneyError> {
     match scope {
-        TenantScope::Platform => Err(MarketingJourneyError::InvalidScope),
-        TenantScope::Holding { holding_id } if holding_id.is_nil() => {
+        AuthorityScope::Platform => Err(MarketingJourneyError::InvalidScope),
+        AuthorityScope::Holding { holding_id } if holding_id.is_nil() => {
             Err(MarketingJourneyError::InvalidScope)
         }
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } if holding_id.is_nil() || company_id.is_nil() => Err(MarketingJourneyError::InvalidScope),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         } if holding_id.is_nil() || company_id.is_nil() || branch_id.is_nil() => {
             Err(MarketingJourneyError::InvalidScope)
         }
-        TenantScope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
-        } if holding_id.is_nil()
-            || (company_ids.is_empty() && branch_ids.is_empty())
-            || company_ids.iter().any(Uuid::is_nil)
-            || branch_ids.iter().any(Uuid::is_nil)
-            || has_duplicates(company_ids)
-            || has_duplicates(branch_ids) =>
-        {
+            organization_node_id,
+        } if holding_id.is_nil() || organization_node_id.is_nil() => {
             Err(MarketingJourneyError::InvalidScope)
         }
         _ => Ok(()),
     }
-}
-
-fn has_duplicates(ids: &[Uuid]) -> bool {
-    ids.iter().collect::<BTreeSet<_>>().len() != ids.len()
 }
 
 fn safe_crm_source_reference(source: &MarketingQualifiedSource) -> bool {
@@ -1433,8 +1422,8 @@ mod tests {
     use super::*;
     use crate::contracts::{ActorKind, AuditContext};
 
-    fn scope() -> TenantScope {
-        TenantScope::Company {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         }
@@ -1443,7 +1432,7 @@ mod tests {
     fn actor() -> ActorAttribution {
         ActorAttribution {
             principal_ref: "marketing-owner".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: Some(Uuid::from_u128(3)),
             represented_principal_ref: None,
             support_capability_id: None,
@@ -1459,7 +1448,7 @@ mod tests {
             correlation_id,
             causation_id: None,
             actor: actor(),
-            tenant_scope: scope(),
+            active_scope: scope(),
             audit: AuditContext {
                 purpose: "journey lifecycle".into(),
                 customer_visible: false,

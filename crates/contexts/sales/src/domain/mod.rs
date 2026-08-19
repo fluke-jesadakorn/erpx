@@ -18,7 +18,7 @@ use std::collections::BTreeSet;
 
 use chrono::{DateTime, NaiveDate, Utc};
 use erpx_integration_contracts::{DimensionSet, crm, customer, legal, sales};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -237,7 +237,7 @@ pub(crate) struct BillingEligibilityFactState {
 pub struct Quote {
     id: QuoteId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     opportunity: crm::OpportunityRef,
     customer: customer::CustomerRef,
     quote_code: String,
@@ -257,7 +257,7 @@ impl Quote {
     pub fn try_rehydrate(
         id: QuoteId,
         version: u64,
-        scope: TenantScope,
+        scope: AuthorityScope,
         opportunity: crm::OpportunityRef,
         customer: customer::CustomerRef,
         quote_code: String,
@@ -292,7 +292,7 @@ impl Quote {
     #[allow(clippy::too_many_arguments)]
     pub fn create_from_opportunity(
         id: QuoteId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         opportunity: crm::OpportunityFact,
         quote_code: String,
         currency: String,
@@ -336,7 +336,7 @@ impl Quote {
     #[allow(clippy::too_many_arguments)]
     pub fn create_from_won_opportunity(
         id: QuoteId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         opportunity: crm::OpportunityFact,
         quote_code: String,
         currency: String,
@@ -428,7 +428,7 @@ impl Quote {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn opportunity(&self) -> crm::OpportunityRef {
@@ -480,7 +480,7 @@ pub enum SalesOrderStatus {
 pub struct SalesOrder {
     id: SalesOrderId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     quote_id: QuoteId,
     opportunity: crm::OpportunityRef,
     customer: customer::CustomerRef,
@@ -500,7 +500,7 @@ impl SalesOrder {
     pub fn try_rehydrate(
         id: SalesOrderId,
         version: u64,
-        scope: TenantScope,
+        scope: AuthorityScope,
         quote_id: QuoteId,
         opportunity: crm::OpportunityRef,
         customer: customer::CustomerRef,
@@ -653,7 +653,7 @@ impl SalesOrder {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn quote_id(&self) -> QuoteId {
@@ -844,7 +844,7 @@ pub enum RevenueArrangementStatus {
 pub struct RevenueArrangement {
     id: RevenueArrangementId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     sales_order_id: SalesOrderId,
     customer: customer::CustomerRef,
     legal_contract: Option<legal::LegalContractRef>,
@@ -865,7 +865,7 @@ impl RevenueArrangement {
     pub fn try_rehydrate(
         id: RevenueArrangementId,
         version: u64,
-        scope: TenantScope,
+        scope: AuthorityScope,
         sales_order_id: SalesOrderId,
         customer: customer::CustomerRef,
         legal_contract: Option<legal::LegalContractRef>,
@@ -1190,7 +1190,7 @@ impl RevenueArrangement {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn sales_order_id(&self) -> SalesOrderId {
@@ -1248,7 +1248,7 @@ impl SalesAggregate {
         }
     }
 
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         match self {
             Self::Quote(value) => value.scope(),
             Self::SalesOrder(value) => value.scope(),
@@ -1290,12 +1290,12 @@ impl SalesAggregate {
 }
 
 fn validate_dimensions(
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     dimensions: &DimensionSet,
 ) -> Result<(), SalesDomainError> {
     let (company_id, branch_id) = match scope {
-        TenantScope::Company { company_id, .. } => (*company_id, None),
-        TenantScope::Branch {
+        AuthorityScope::Company { company_id, .. } => (*company_id, None),
+        AuthorityScope::Branch {
             company_id,
             branch_id,
             ..
@@ -1349,13 +1349,13 @@ const fn fulfillment_kind(model: sales::RevenueModel) -> sales::FulfillmentKind 
     }
 }
 
-fn validate_scope(scope: &TenantScope) -> Result<(), SalesDomainError> {
+fn validate_scope(scope: &AuthorityScope) -> Result<(), SalesDomainError> {
     scope
         .validate()
         .map_err(|_| SalesDomainError::InvalidScope)?;
     if matches!(
         scope,
-        TenantScope::Company { .. } | TenantScope::Branch { .. }
+        AuthorityScope::Company { .. } | AuthorityScope::Branch { .. }
     ) {
         Ok(())
     } else {
@@ -1429,8 +1429,8 @@ mod tests {
             .unwrap()
     }
 
-    fn scope() -> TenantScope {
-        TenantScope::Company {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: id(1),
             company_id: id(2),
         }
@@ -1527,7 +1527,7 @@ mod tests {
 
         let result = Quote::create_from_opportunity(
             QuoteId::try_from_uuid(id(10)).unwrap(),
-            TenantScope::Holding { holding_id: id(1) },
+            AuthorityScope::Holding { holding_id: id(1) },
             opportunity(crm::OpportunityStage::Won),
             "QT-10".into(),
             "THB".into(),

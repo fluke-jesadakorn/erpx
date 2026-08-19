@@ -4,7 +4,7 @@ use std::{error::Error, fmt};
 
 use chrono::{DateTime, Utc};
 use erpx_kernel::{
-    DataClassification, PolicyId, PrincipalId, RecordId, ScopeError, TenantId, TenantScope,
+    AuthorityScope, DataClassification, HoldingId, PolicyId, PrincipalId, RecordId, ScopeError,
     ValidationError, validate_bounded_text,
 };
 use serde::{Deserialize, Serialize};
@@ -484,10 +484,10 @@ pub const CURRENT_RECORD_POLICIES: [RecordPolicyDefinition; 92] = [
         DataClassification::Restricted,
     ),
     policy(
-        "platform.tenant",
+        "platform.holding",
         ContextId::PlatformAdministration,
         35,
-        "platform.tenant.read",
+        "platform.holding.read",
         PLATFORM_REALMS,
         DataClassification::Confidential,
     ),
@@ -1574,9 +1574,6 @@ impl RecordRef {
     }
 
     pub fn validate(&self) -> Result<(), ReferenceValidationError> {
-        if self.id.as_uuid().get_version_num() != 4 {
-            return Err(ReferenceValidationError::RecordIdMustBeUuidV4);
-        }
         if self.record_type.descriptor().owner != self.owner_context {
             return Err(ReferenceValidationError::OwnerMismatch);
         }
@@ -1648,7 +1645,7 @@ impl RecordVersionRef {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ItemDescriptor {
     record: RecordRef,
-    scope: TenantScope,
+    scope: AuthorityScope,
     canonical_route: String,
     lifecycle_state: String,
     authorization_policy: PolicyId,
@@ -1662,7 +1659,7 @@ impl ItemDescriptor {
     #[allow(clippy::too_many_arguments)]
     pub fn try_new(
         record: RecordRef,
-        scope: TenantScope,
+        scope: AuthorityScope,
         lifecycle_state: impl Into<String>,
         authorization_policy: PolicyId,
         classification: DataClassification,
@@ -1693,7 +1690,7 @@ impl ItemDescriptor {
     #[allow(clippy::too_many_arguments)]
     pub fn try_new_with_route(
         record: RecordRef,
-        scope: TenantScope,
+        scope: AuthorityScope,
         canonical_route: impl Into<String>,
         lifecycle_state: impl Into<String>,
         authorization_policy: PolicyId,
@@ -1768,7 +1765,7 @@ impl ItemDescriptor {
         &self.record
     }
 
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
 
@@ -1842,7 +1839,7 @@ pub const MAX_AUTHORIZED_SEARCH_TEXT_BYTES: usize = 4_096;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ItemDescriptorDraft {
     pub record: RecordRef,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub lifecycle_state: String,
     pub authorization_policy: PolicyId,
     pub classification: DataClassification,
@@ -1919,19 +1916,19 @@ impl ItemDirectoryFact {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TenantItemDirectoryFact {
-    pub tenant_id: TenantId,
+pub struct HoldingItemDirectoryFact {
+    pub holding_id: HoldingId,
     pub event_version: u32,
     pub fact: ItemDirectoryFact,
 }
 
-impl TenantItemDirectoryFact {
+impl HoldingItemDirectoryFact {
     pub fn try_new(
-        tenant_id: TenantId,
+        holding_id: HoldingId,
         fact: ItemDirectoryFact,
     ) -> Result<Self, ReferenceValidationError> {
         let value = Self {
-            tenant_id,
+            holding_id,
             event_version: ITEM_DIRECTORY_FACT_VERSION,
             fact,
         };
@@ -2106,7 +2103,6 @@ fn require_nonzero(value: u64, field: &'static str) -> Result<(), ReferenceValid
 pub enum ReferenceValidationError {
     UnknownRecordType,
     UnknownRecordPolicy,
-    RecordIdMustBeUuidV4,
     OwnerMismatch,
     InvalidLifecycleState,
     CanonicalRouteMismatch,
@@ -2129,7 +2125,6 @@ impl fmt::Display for ReferenceValidationError {
             Self::UnknownRecordPolicy => {
                 formatter.write_str("record type has no approved record policy")
             }
-            Self::RecordIdMustBeUuidV4 => formatter.write_str("record ID must be UUID v4"),
             Self::OwnerMismatch => {
                 formatter.write_str("record type is not owned by the declared context")
             }
@@ -2214,17 +2209,14 @@ mod tests {
     }
 
     #[test]
-    fn references_reject_wrong_owner_non_v4_and_zero_version() {
+    fn references_reject_wrong_owner_and_zero_version_but_accept_canonical_uuid_ids() {
         let kind = RecordTypeId::try_new("finance.invoice").unwrap();
         assert_eq!(
             RecordRef::try_new(record_id(), ContextId::Sales, kind.clone()),
             Err(ReferenceValidationError::OwnerMismatch)
         );
         let non_v4 = RecordId::try_from_uuid(Uuid::from_u128(1)).unwrap();
-        assert_eq!(
-            RecordRef::try_new(non_v4, ContextId::Finance, kind),
-            Err(ReferenceValidationError::RecordIdMustBeUuidV4)
-        );
+        RecordRef::try_new(non_v4, ContextId::Finance, kind).unwrap();
         let record = RecordRef::try_new(
             record_id(),
             ContextId::Finance,
@@ -2247,7 +2239,7 @@ mod tests {
         .unwrap();
         let descriptor = ItemDescriptor::try_new(
             record.clone(),
-            TenantScope::Platform,
+            AuthorityScope::Platform,
             "in-progress",
             record_policy_id(&record).unwrap(),
             DataClassification::Confidential,
@@ -2275,7 +2267,7 @@ mod tests {
         let moved = format!("/accounting/invoice/{}", record.id());
         let descriptor = ItemDescriptor::try_new_with_route(
             record.clone(),
-            TenantScope::Platform,
+            AuthorityScope::Platform,
             &moved,
             "posted",
             record_policy_id(&record).unwrap(),

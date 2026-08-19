@@ -26,7 +26,7 @@ const RELEVANT_ROOT_FILES: [&str; 5] = [
 const RELEVANT_DIRECTORIES: [&str; 4] = ["apps", "crates", "fixtures", "xtask"];
 const HARNESSES: [&str; 19] = [
     "infra_platform",
-    "infra_tenant_runtime",
+    "infra_holding_runtime",
     "infra_finance",
     "infra_marketing",
     "infra_operations",
@@ -930,7 +930,7 @@ fn select_harnesses(paths: &[String]) -> BTreeSet<String> {
         }
         if normalized.starts_with("crates/contexts/") || normalized.starts_with("crates/adapters/")
         {
-            selected.insert("infra_tenant_runtime".into());
+            selected.insert("infra_holding_runtime".into());
         }
     }
     selected
@@ -1557,7 +1557,7 @@ mod tests {
     fn domain_paths_select_only_relevant_harness_families() {
         let finance = select_harnesses(&["crates/contexts/finance/src/lib.rs".into()]);
         assert!(finance.contains("infra_finance"));
-        assert!(finance.contains("infra_tenant_runtime"));
+        assert!(finance.contains("infra_holding_runtime"));
         assert!(!finance.contains("infra_marketing"));
         let directory = select_harnesses(&["crates/identity/src/directory/sync.rs".into()]);
         assert!(directory.contains("identity_core"));

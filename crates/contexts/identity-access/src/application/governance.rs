@@ -240,8 +240,8 @@ mod tests {
     use chrono::{Duration, TimeZone, Utc};
     use erpx_cqrs::IdempotencyKey;
     use erpx_kernel::{
-        ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, FixedClock,
-        TenantScope,
+        ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+        FixedClock,
     };
     use uuid::Uuid;
 
@@ -261,8 +261,8 @@ mod tests {
             .unwrap()
     }
 
-    fn scope() -> TenantScope {
-        TenantScope::Holding { holding_id: id(1) }
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Holding { holding_id: id(1) }
     }
 
     fn request(sequence: u128) -> IdentityGovernanceCommandRequest {
@@ -281,7 +281,7 @@ mod tests {
             correlation_id: CorrelationId::try_from_uuid(id(400 + sequence)).unwrap(),
             actor: ActorAttribution {
                 principal_ref: "requester:security".into(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: None,
                 represented_principal_ref: None,
                 support_capability_id: None,
@@ -305,7 +305,7 @@ mod tests {
     impl IdentityGovernanceWriteRepository for FakeRepository {
         async fn load_governance_record(
             &self,
-            _authority_scope: &TenantScope,
+            _authority_scope: &AuthorityScope,
             _record_id: Uuid,
         ) -> Result<Option<IdentityGovernanceRecord>, PortError> {
             Ok(self.record.lock().unwrap().clone())

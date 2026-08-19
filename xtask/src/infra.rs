@@ -39,10 +39,10 @@ const PITR_WAL_BUDGET_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 const PITR_NAMESPACE: &str = "erpx-platform-pitr";
 const PITR_OBJECT_PREFIX: &str = "platform/erpx-local-pg18/chains/local-chain/";
 const RUNTIME_DATABASES: [&str; 4] = [
-    "erpx_control_write",
-    "erpx_control_read",
-    "erpx_tenant_write",
-    "erpx_tenant_read",
+    "erpx_clean_control_write",
+    "erpx_clean_control_read",
+    "erpx_clean_holding_write",
+    "erpx_clean_holding_read",
 ];
 const LOGICAL_PROFILE_SECRET_FILE: &str = "secrets/infra-profiles.json";
 const LOCAL_TOPOLOGY_FILE: &str = "infra/local-topology.json";
@@ -371,7 +371,7 @@ fn write_local_topology(root: &Path) -> TaskResult {
                 profile: PROFILE_PLATFORM,
                 scope: "platform",
                 postgres_role: "erpx_app",
-                databases: &["erpx_control_write", "erpx_control_read"],
+                databases: &["erpx_clean_control_write", "erpx_clean_control_read"],
                 minio_namespaces: &["erpx-platform-assets"],
                 ucs_authority: Some("platform"),
                 credential_ref: "local_shared",
@@ -380,9 +380,9 @@ fn write_local_topology(root: &Path) -> TaskResult {
                 profile: PROFILE_HOLDING_DEMO,
                 scope: "holding",
                 postgres_role: "erpx_app",
-                databases: &["erpx_tenant_write", "erpx_tenant_read"],
+                databases: &["erpx_clean_holding_write", "erpx_clean_holding_read"],
                 minio_namespaces: &["erpx-demo"],
-                ucs_authority: Some("demo-tenant"),
+                ucs_authority: Some("demo-holding"),
                 credential_ref: "local_shared",
             },
             LogicalTopologyProfile {
@@ -390,11 +390,11 @@ fn write_local_topology(root: &Path) -> TaskResult {
                 scope: "holding",
                 postgres_role: "erpx_app",
                 databases: &[
-                    "erpx_restricted_tenant_write",
-                    "erpx_restricted_tenant_read",
+                    "erpx_clean_restricted_holding_write",
+                    "erpx_clean_restricted_holding_read",
                 ],
                 minio_namespaces: &["erpx-demo-restricted"],
-                ucs_authority: Some("demo-tenant-restricted"),
+                ucs_authority: Some("demo-holding-restricted"),
                 credential_ref: "local_shared",
             },
             LogicalTopologyProfile {
@@ -761,7 +761,9 @@ pub(crate) fn ensure_postgres_hba_for_databases(additional: &[String]) -> TaskRe
     let mut found = false;
     let mut updated_lines = Vec::new();
     for line in contents.lines() {
-        if (line.trim_start().starts_with("hostssl erpx_control_write")
+        if (line
+            .trim_start()
+            .starts_with("hostssl erpx_clean_control_write")
             || line.trim_start().starts_with("hostssl all erpx_app"))
             && line.contains(" erpx_app 127.0.0.1/32 scram-sha-256")
         {
@@ -892,11 +894,11 @@ async fn ensure_roles(root: &Path, secrets: &InfraSecrets) -> TaskResult {
 
 fn postgres_profile_databases(profile: &str) -> &'static [&'static str] {
     match profile {
-        PROFILE_PLATFORM => &["erpx_control_write", "erpx_control_read"],
-        PROFILE_HOLDING_DEMO => &["erpx_tenant_write", "erpx_tenant_read"],
+        PROFILE_PLATFORM => &["erpx_clean_control_write", "erpx_clean_control_read"],
+        PROFILE_HOLDING_DEMO => &["erpx_clean_holding_write", "erpx_clean_holding_read"],
         PROFILE_HOLDING_RESTRICTED => &[
-            "erpx_restricted_tenant_write",
-            "erpx_restricted_tenant_read",
+            "erpx_clean_restricted_holding_write",
+            "erpx_clean_restricted_holding_read",
         ],
         _ => &[],
     }
@@ -1063,7 +1065,7 @@ fn wait_minio(root: &Path, secrets: &InfraSecrets) -> TaskResult {
 
 fn ensure_buckets(root: &Path, _secrets: &InfraSecrets) -> TaskResult {
     for bucket in [
-        "erpx-tenant-objects",
+        "erpx-holding-objects",
         "erpx-logical-backups",
         "erpx-platform-pitr",
         "erpx-platform-assets",
@@ -1514,7 +1516,7 @@ pub(crate) async fn migrate_all_erpx_databases(
         migration_root.join("manifest.json"),
         serde_json::to_vec_pretty(&manifest)?,
     )?;
-    write_cutover_config(root, &secrets, "erpx_control_write")?;
+    write_cutover_config(root, &secrets, "erpx_clean_control_write")?;
     println!(
         "Migration complete: {} databases verified; source cluster was not modified.",
         names.len()
@@ -1603,7 +1605,7 @@ fn write_cutover_config(
 }
 
 pub(crate) fn activate_cutover_config(root: &Path) -> TaskResult {
-    write_cutover_config(root, &read_secrets(root)?, "erpx_control_write")?;
+    write_cutover_config(root, &read_secrets(root)?, "erpx_clean_control_write")?;
     println!("ERPX ignored local configuration now targets the dedicated TLS data plane.");
     Ok(())
 }
@@ -1824,11 +1826,11 @@ pub(crate) fn dedicated_common_environment(root: &Path) -> TaskResult<Vec<(&'sta
     Ok(vec![
         (
             "ERPX_CONTROL_WRITE_DATABASE_URL",
-            app_url(root, &secrets, "erpx_control_write"),
+            app_url(root, &secrets, "erpx_clean_control_write"),
         ),
         (
             "ERPX_CONTROL_READ_DATABASE_URL",
-            app_url(root, &secrets, "erpx_control_read"),
+            app_url(root, &secrets, "erpx_clean_control_read"),
         ),
         (
             "ERPX_LOCAL_INFRA_PROFILE_MANIFEST",
@@ -2067,7 +2069,7 @@ pub(crate) async fn pitr_rehearsal(root: &Path) -> TaskResult {
                 "database_inventory",
                 "runtime_migrations",
                 "command_ownership",
-                "tenant_routing",
+                "holding_routing",
                 "forced_rls",
                 "exact_lsn_marker",
                 "exact_time_marker",
@@ -2479,8 +2481,8 @@ async fn verify_restored_cluster(
     )
     .fetch_one(&control)
     .await?;
-    let tenant_routes: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_control.tenant_registry
+    let holding_routes: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM erpx_control.holding_registry
          WHERE write_database_key <> read_database_key",
     )
     .fetch_one(&control)
@@ -2493,7 +2495,7 @@ async fn verify_restored_cluster(
     .fetch_all(&control)
     .await?;
     control.close().await;
-    let tenant = PgPoolOptions::new()
+    let holding = PgPoolOptions::new()
         .max_connections(1)
         .connect(&database_url(RUNTIME_DATABASES[2]))
         .await?;
@@ -2501,15 +2503,13 @@ async fn verify_restored_cluster(
         "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
          WHERE n.nspname LIKE 'erpx%' AND c.relrowsecurity AND c.relforcerowsecurity",
     )
-    .fetch_one(&tenant)
+    .fetch_one(&holding)
     .await?;
-    tenant.close().await;
-    Ok(
-        wrong_owners == 0
-            && tenant_routes > 0
-            && forced_rls > 0
-            && markers == ["before".to_owned()],
-    )
+    holding.close().await;
+    Ok(wrong_owners == 0
+        && holding_routes > 0
+        && forced_rls > 0
+        && markers == ["before".to_owned()])
 }
 
 async fn database_names(url: &str) -> TaskResult<BTreeSet<String>> {
@@ -2766,7 +2766,7 @@ pub(crate) async fn pitr_promote(root: &Path, confirmation: &str) -> TaskResult 
         "server",
         "support-worker",
         "directory-supervisor",
-        "tenant-backup-worker",
+        "holding-backup-worker",
         "backup-retention-worker",
         "pitr-controller",
         "web",

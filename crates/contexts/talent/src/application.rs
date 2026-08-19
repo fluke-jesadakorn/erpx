@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use erpx_integration_contracts::StableRecordRef;
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 
 use uuid::Uuid;
 
@@ -933,7 +933,7 @@ where
     ) -> Result<Option<TalentMutationReceipt>, TalentPortError> {
         let Some(receipt) = self
             .repository
-            .replay(actor.tenant_id, identity, aggregate_type, aggregate_id)
+            .replay(actor.holding_id, identity, aggregate_type, aggregate_id)
             .await?
         else {
             return Ok(None);
@@ -978,7 +978,7 @@ where
     ) -> Result<TalentAggregate, TalentPortError> {
         self.repository
             .load(
-                actor.tenant_id,
+                actor.holding_id,
                 &actor.authority_scope,
                 realm,
                 aggregate_type,
@@ -1121,7 +1121,7 @@ where
         }
         let projection = self
             .repository
-            .get(actor.tenant_id, realm, aggregate_type, id)
+            .get(actor.holding_id, realm, aggregate_type, id)
             .await?
             .ok_or(TalentPortError::NotFound)?;
         if !actor.authority_scope.contains(&projection.scope)
@@ -1318,8 +1318,8 @@ impl<A: AuthorizationPort> TalentPolicyService<A> {
     pub async fn authorize(
         &self,
         principal: &RealmPrincipal,
-        authority_scope: &TenantScope,
-        target_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         action: TalentAction,
     ) -> Result<(), TalentPortError> {
         if !authority_scope.contains(target_scope) {

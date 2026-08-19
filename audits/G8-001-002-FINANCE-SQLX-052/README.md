@@ -2,33 +2,33 @@
 
 ## Objective
 
-Provide the first tenant-routed SQLx persistence boundary for the validated
+Provide the first holding-routed SQLx persistence boundary for the validated
 Finance chart, accounting-period, immutable posted-journal, idempotency, and
 trial-balance contracts while preserving the physical CQRS split.
 
 ## Delivered behavior
 
-- `SqlxFinanceStore` binds every transaction to the validated `holding_ref`
-  through transaction-local `erpx.holding_ref` and uses separate write/read
+- `SqlxFinanceStore` binds every transaction to the validated `data_profile_key`
+  through transaction-local `erpx.data_profile_key` and uses separate write/read
   pools.
 - Charts and periods use optimistic versions and validated JSON payloads.
 - Journal posting validates the domain aggregate, locks the persisted period,
   rejects non-open periods, inserts immutable posted state atomically, and
-  appends the aggregate snapshot and tenant outbox event in the same
+  appends the aggregate snapshot and holding outbox event in the same
   transaction while storing a request hash for replay-safe idempotency.
 - Idempotent replay returns the original posted journal; a changed request for
   the same key fails closed.
-- Trial balance reads only the tenant read projection and recalculates totals
+- Trial balance reads only the holding read projection and recalculates totals
   through the validated chart contract.
-- Tenant write migration `0017_finance.sql` and tenant read migration
+- Holding write migration `0017_finance.sql` and holding read migration
   `0017_finance.sql` are physically separate and force RLS by holding.
 
 ## Files
 
 - `crates/infrastructure/src/finance_persistence.rs`
 - `crates/infrastructure/src/lib.rs`
-- `crates/migration/migrations_tenant_write/0017_finance.sql`
-- `crates/migration/migrations_tenant_read/0017_finance.sql`
+- `crates/migration/migrations_holding_write/0017_finance.sql`
+- `crates/migration/migrations_holding_read/0017_finance.sql`
 - `crates/migration/src/lib.rs`
 
 ## Verification

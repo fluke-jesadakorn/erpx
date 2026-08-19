@@ -1,4 +1,4 @@
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::procurement_inventory::{
     ProductReference, PurchaseOrder, PurchaseOrderLine, PurchaseRequest, PurchaseRequestLine,
     ScmError, VendorReference,
@@ -10,7 +10,7 @@ fn new_purchase_orders_cannot_bypass_goods_receipts_with_prefilled_quantity() {
     let holding_id = Uuid::from_u128(1);
     let company_id = Uuid::from_u128(2);
     let branch_id = Uuid::from_u128(3);
-    let scope = TenantScope::Branch {
+    let scope = AuthorityScope::Branch {
         holding_id,
         company_id,
         branch_id,
@@ -19,7 +19,7 @@ fn new_purchase_orders_cannot_bypass_goods_receipts_with_prefilled_quantity() {
         "procurement-order-create",
         ActorAttribution {
             principal_ref: "procurement-test".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
@@ -40,7 +40,7 @@ fn new_purchase_orders_cannot_bypass_goods_receipts_with_prefilled_quantity() {
     let vendor_id = Uuid::from_u128(11);
     let vendor = VendorReference::new(
         vendor_id,
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },

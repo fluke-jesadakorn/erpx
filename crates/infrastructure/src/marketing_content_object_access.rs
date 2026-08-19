@@ -1,13 +1,13 @@
 //! Marketing-specific signed object access.
 //!
-//! The caller must already have an authoritative, tenant-scoped access
+//! The caller must already have an authoritative, holding-scoped access
 //! decision. This adapter binds that decision to a validated content asset
-//! version and a tenant storage namespace; it never accepts a caller URL,
+//! version and a holding storage namespace; it never accepts a caller URL,
 //! credential, object bytes, or bearer token.
 
 use chrono::{DateTime, Utc};
 use erpx_domain::{
-    contracts::TenantScope,
+    contracts::AuthorityScope,
     marketing_content::{ContentAssetVersion, MarketingContentError},
 };
 use thiserror::Error;
@@ -26,7 +26,7 @@ pub enum MarketingObjectPermission {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MarketingObjectAccessContext {
     pub actor_ref: String,
-    pub requested_scope: TenantScope,
+    pub requested_scope: AuthorityScope,
     pub permission: MarketingObjectPermission,
     pub purpose: String,
     pub correlation_id: Uuid,
@@ -47,7 +47,7 @@ impl MarketingObjectAccessContext {
         {
             return Err(MarketingContentObjectError::InvalidAccessContext);
         }
-        if matches!(self.requested_scope, TenantScope::Platform)
+        if matches!(self.requested_scope, AuthorityScope::Platform)
             || !self.requested_scope.contains(&asset.scope)
         {
             return Err(MarketingContentObjectError::ScopeMismatch);
@@ -163,7 +163,7 @@ mod tests {
     use super::*;
     use erpx_domain::marketing_content::StorageObjectRef;
 
-    fn asset(scope: TenantScope) -> ContentAssetVersion {
+    fn asset(scope: AuthorityScope) -> ContentAssetVersion {
         ContentAssetVersion::new(
             Uuid::new_v4(),
             Uuid::new_v4(),
@@ -180,7 +180,7 @@ mod tests {
     }
 
     fn access(
-        scope: TenantScope,
+        scope: AuthorityScope,
         permission: MarketingObjectPermission,
     ) -> MarketingObjectAccessContext {
         MarketingObjectAccessContext {
@@ -195,7 +195,7 @@ mod tests {
     #[test]
     fn signed_access_binds_scope_permission_and_lifetime() {
         let holding = Uuid::new_v4();
-        let scope = TenantScope::Holding {
+        let scope = AuthorityScope::Holding {
             holding_id: holding,
         };
         let asset = asset(scope.clone());
@@ -225,7 +225,7 @@ mod tests {
                     "holding-content",
                     &asset,
                     &access(
-                        TenantScope::Holding {
+                        AuthorityScope::Holding {
                             holding_id: Uuid::new_v4(),
                         },
                         MarketingObjectPermission::Download,
@@ -239,7 +239,7 @@ mod tests {
 
     #[test]
     fn upload_and_download_permissions_are_not_interchangeable() {
-        let scope = TenantScope::Holding {
+        let scope = AuthorityScope::Holding {
             holding_id: Uuid::new_v4(),
         };
         let asset = asset(scope.clone());
@@ -268,7 +268,7 @@ mod tests {
 
     #[test]
     fn namespace_path_injection_and_control_values_fail_closed() {
-        let scope = TenantScope::Holding {
+        let scope = AuthorityScope::Holding {
             holding_id: Uuid::new_v4(),
         };
         let asset = asset(scope.clone());

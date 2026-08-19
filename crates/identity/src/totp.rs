@@ -48,7 +48,7 @@ impl TotpKeyResolver {
 
     pub fn from_env() -> Result<Self, IdentityError> {
         let reference = env::var("ERPX_IDENTITY_TOTP_KEY_REFERENCE")
-            .unwrap_or_else(|_| "erpx-identity-totp-v1".to_owned());
+            .unwrap_or_else(|_| "erpx-identity-totp".to_owned());
         let encoded = env::var("ERPX_IDENTITY_TOTP_KEY")
             .map_err(|_| IdentityError::KeyReferenceNotFound("ERPX_IDENTITY_TOTP_KEY".into()))?;
         let key = decode_key(&encoded)?;

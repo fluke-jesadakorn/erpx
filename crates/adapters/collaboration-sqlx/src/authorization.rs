@@ -10,7 +10,7 @@ use erpx_collaboration::{
     AuthorizedThreadAccess, CollaborationAction, PortError, ReferenceRelation, ThreadId,
 };
 use erpx_integration_contracts::StableRecordRef;
-use erpx_kernel::{RecordId, TenantId, TenantScope};
+use erpx_kernel::{AuthorityScope, HoldingId, RecordId};
 use sqlx::{PgPool, Postgres, Row, Transaction};
 
 use crate::{DirectoryAccess, DirectoryLookup, ProjectionFreshness, SqlxItemDirectory};
@@ -47,7 +47,7 @@ impl SqlxCollaborationAuthorization {
 
     fn directory_access(&self, actor: &ActorContext) -> Result<DirectoryAccess, PortError> {
         DirectoryAccess::try_from_authorization(
-            actor.tenant_id,
+            actor.holding_id,
             actor.principal.id(),
             actor.authority_scope.clone(),
         )
@@ -74,13 +74,13 @@ impl SqlxCollaborationAuthorization {
         thread_id: ThreadId,
     ) -> Result<RecordId, PortError> {
         let mut tx = self.write_pool.begin().await.map_err(map_database_error)?;
-        set_tenant(&mut tx, actor.tenant_id).await?;
+        set_holding(&mut tx, actor.holding_id).await?;
         let value = sqlx::query_scalar::<_, uuid::Uuid>(
             "SELECT anchor_record_id \
              FROM erpx_collaboration.thread_anchor_authority_index \
-             WHERE tenant_id=$1 AND thread_id=$2",
+             WHERE holding_id=$1 AND thread_id=$2",
         )
-        .bind(actor.tenant_id.as_uuid())
+        .bind(actor.holding_id.as_uuid())
         .bind(thread_id.as_uuid())
         .fetch_optional(&mut *tx)
         .await
@@ -98,18 +98,18 @@ impl SqlxCollaborationAuthorization {
         anchor_record_id: RecordId,
     ) -> Result<(), PortError> {
         let mut tx = self.write_pool.begin().await.map_err(map_database_error)?;
-        set_tenant(&mut tx, actor.tenant_id).await?;
+        set_holding(&mut tx, actor.holding_id).await?;
         let row = sqlx::query(
             "SELECT policy.policy_document->'visibility_scope' AS visibility_scope, \
                     audience.audience_document AS audience \
              FROM erpx_collaboration.threads thread \
              JOIN erpx_collaboration.thread_policies policy \
-               ON policy.tenant_id=thread.tenant_id AND policy.thread_id=thread.thread_id \
+               ON policy.holding_id=thread.holding_id AND policy.thread_id=thread.thread_id \
              JOIN erpx_collaboration.thread_audiences audience \
-               ON audience.tenant_id=thread.tenant_id AND audience.thread_id=thread.thread_id \
-             WHERE thread.tenant_id=$1 AND thread.thread_id=$2 AND thread.anchor_record_id=$3",
+               ON audience.holding_id=thread.holding_id AND audience.thread_id=thread.thread_id \
+             WHERE thread.holding_id=$1 AND thread.thread_id=$2 AND thread.anchor_record_id=$3",
         )
-        .bind(actor.tenant_id.as_uuid())
+        .bind(actor.holding_id.as_uuid())
         .bind(thread_id.as_uuid())
         .bind(anchor_record_id.as_uuid())
         .fetch_optional(&mut *tx)
@@ -119,7 +119,7 @@ impl SqlxCollaborationAuthorization {
         let Some(row) = row else {
             return Err(PortError::Denied);
         };
-        let visibility = serde_json::from_value::<TenantScope>(
+        let visibility = serde_json::from_value::<AuthorityScope>(
             row.try_get("visibility_scope")
                 .map_err(|_| PortError::Unavailable)?,
         )
@@ -144,7 +144,7 @@ impl SqlxCollaborationAuthorization {
         action: CollaborationAction,
     ) -> Result<AuthorizedThreadAccess, PortError> {
         AuthorizedThreadAccess::try_from_authorization(
-            actor.tenant_id,
+            actor.holding_id,
             thread_id,
             anchor_record_id,
             actor.authority_scope.clone(),
@@ -176,7 +176,7 @@ impl AuthorizationPort for SqlxCollaborationAuthorization {
         audience: &Audience,
     ) -> Result<AuthorizedThreadAccess, PortError> {
         self.permits(CollaborationAction::CreateThread)?;
-        if anchor.tenant_id() != actor.tenant_id
+        if anchor.holding_id() != actor.holding_id
             || !actor.authority_scope.contains(anchor.visibility_scope())
             || audience.validate_against(anchor).is_err()
             || !audience_realm_permits(audience, actor.external_portal)
@@ -234,7 +234,7 @@ impl AuthorizationPort for SqlxCollaborationAuthorization {
     ) -> Result<AuthorizedSearchAccess, PortError> {
         self.permits(CollaborationAction::SearchThreads)?;
         AuthorizedSearchAccess::try_from_authorization(
-            actor.tenant_id,
+            actor.holding_id,
             actor.authority_scope.clone(),
             actor.principal,
             actor.external_portal,
@@ -302,13 +302,13 @@ impl AuthorizationPort for SqlxCollaborationAuthorization {
     }
 }
 
-async fn set_tenant(
+async fn set_holding(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
 ) -> Result<(), PortError> {
-    let expected = tenant_id.to_string();
-    let bound = sqlx::query_scalar::<_, String>("SELECT set_config('app.tenant_id', $1, true)")
-        .bind(tenant_id.to_string())
+    let expected = holding_id.to_string();
+    let bound = sqlx::query_scalar::<_, String>("SELECT set_config('app.holding_id', $1, true)")
+        .bind(holding_id.to_string())
         .fetch_one(&mut **tx)
         .await
         .map_err(map_database_error)?;
@@ -322,7 +322,7 @@ fn map_database_error(_: sqlx::Error) -> PortError {
 #[cfg(test)]
 mod tests {
     use erpx_collaboration::{Audience, ExternalPortal, PrincipalRef};
-    use erpx_kernel::{PrincipalId, PrincipalKind, TenantScope};
+    use erpx_kernel::{AuthorityScope, PrincipalId, PrincipalKind};
     use uuid::Uuid;
 
     #[test]
@@ -359,7 +359,7 @@ mod tests {
             Some(ExternalPortal::Commerce)
         ));
         let internal = Audience::Internal {
-            scope: TenantScope::Company {
+            scope: AuthorityScope::Company {
                 holding_id: Uuid::new_v4(),
                 company_id: Uuid::new_v4(),
             },

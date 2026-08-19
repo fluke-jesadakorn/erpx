@@ -77,29 +77,29 @@ impl OpaqueIdentity {
     }
 }
 
-/// Tenant and holding binding for a product-context read.
+/// Holding and holding binding for a product-context read.
 ///
 /// Product contexts are never platform-wide. Platform Operations has a separate model and
 /// adapter set; a product-row response must carry both identities so a holding response cannot
 /// be rendered as a platform response or silently reused for another holding.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ProductContextScope {
-    tenant_id: OpaqueIdentity,
+    holding_id: OpaqueIdentity,
     holding_id: OpaqueIdentity,
 }
 
 impl ProductContextScope {
     /// Construct an explicit holding-bound product scope.
-    pub const fn new(tenant_id: OpaqueIdentity, holding_id: OpaqueIdentity) -> Self {
+    pub const fn new(holding_id: OpaqueIdentity, holding_id: OpaqueIdentity) -> Self {
         Self {
-            tenant_id,
+            holding_id,
             holding_id,
         }
     }
 
-    /// Tenant identity attached to the authoritative response.
-    pub fn tenant_id(&self) -> &OpaqueIdentity {
-        &self.tenant_id
+    /// Holding identity attached to the authoritative response.
+    pub fn holding_id(&self) -> &OpaqueIdentity {
+        &self.holding_id
     }
 
     /// Holding identity attached to the authoritative response.
@@ -110,8 +110,8 @@ impl ProductContextScope {
     /// Safe display label for evidence and QA selectors.
     pub fn label(&self) -> String {
         format!(
-            "Tenant {} · Holding {}",
-            self.tenant_id.as_str(),
+            "Holding {} · Holding {}",
+            self.holding_id.as_str(),
             self.holding_id.as_str()
         )
     }
@@ -1010,8 +1010,8 @@ pub const DIRECTORY_ROLLBACK_BOUNDARY: &str =
 /// Platform Operations areas represented by the read-only console surface.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlatformOperationsArea {
-    /// Tenant registry and safe tenant status.
-    Tenants,
+    /// Holding registry and safe holding status.
+    Holdings,
     /// Projection freshness and bounded retry status.
     Projections,
     /// Backup history metadata.
@@ -1030,7 +1030,7 @@ pub enum PlatformOperationsArea {
 
 /// Stable Platform Operations area order.
 pub const PLATFORM_OPERATIONS_AREAS: &[PlatformOperationsArea] = &[
-    PlatformOperationsArea::Tenants,
+    PlatformOperationsArea::Holdings,
     PlatformOperationsArea::Projections,
     PlatformOperationsArea::Backups,
     PlatformOperationsArea::Providers,
@@ -1049,7 +1049,7 @@ impl PlatformOperationsArea {
     /// Return the safe display label for this authenticated read area.
     pub const fn label(self) -> &'static str {
         match self {
-            Self::Tenants => "Tenants",
+            Self::Holdings => "Holdings",
             Self::Projections => "Projections",
             Self::Backups => "Backups",
             Self::Providers => "Providers",
@@ -1063,7 +1063,7 @@ impl PlatformOperationsArea {
     /// Locale-aware area label while preserving the stable English API.
     pub const fn label_for(self, locale: Locale) -> &'static str {
         match (self, locale) {
-            (Self::Tenants, Locale::Th) => "ผู้เช่า",
+            (Self::Holdings, Locale::Th) => "ผู้เช่า",
             (Self::Projections, Locale::Th) => "โพรเจกชัน",
             (Self::Backups, Locale::Th) => "ข้อมูลสำรอง",
             (Self::Providers, Locale::Th) => "ผู้ให้บริการ",
@@ -1078,7 +1078,7 @@ impl PlatformOperationsArea {
     /// Canonical read path.
     pub const fn path(self) -> &'static str {
         match self {
-            Self::Tenants => "/platform/tenants",
+            Self::Holdings => "/platform/holdings",
             Self::Projections => "/platform/projections",
             Self::Backups => "/platform/backups",
             Self::Providers => "/platform/provider",
@@ -1097,12 +1097,12 @@ impl PlatformOperationsArea {
 /// without naming the real client boundary that supplied it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlatformOperationsAdapter {
-    /// `PlatformOperationsService::ListPlatformTenants`.
-    ListPlatformTenants,
+    /// `PlatformOperationsService::ListPlatformHoldings`.
+    ListPlatformHoldings,
     /// `PlatformOperationsService::ListProjectionStatuses`.
     ListProjectionStatuses,
-    /// `PlatformOperationsService::ListTenantBackupJobs`.
-    ListTenantBackupJobs,
+    /// `PlatformOperationsService::ListHoldingBackupJobs`.
+    ListHoldingBackupJobs,
     /// `PlatformAdministrationQueryService::ListConnectors`.
     ListPlatformConnectors,
     /// `PlatformOperationsService::ListPlatformIntegrations`.
@@ -1119,9 +1119,9 @@ impl PlatformOperationsAdapter {
     /// Return the stable adapter identifier used by QA selectors and audit evidence.
     pub const fn id(self) -> &'static str {
         match self {
-            Self::ListPlatformTenants => "platform.list_tenants",
+            Self::ListPlatformHoldings => "platform.list_holdings",
             Self::ListProjectionStatuses => "platform.list_projection_statuses",
-            Self::ListTenantBackupJobs => "platform.list_tenant_backup_jobs",
+            Self::ListHoldingBackupJobs => "platform.list_holding_backup_jobs",
             Self::ListPlatformConnectors => "platform.list_connectors",
             Self::ListPlatformIntegrations => "platform.list_integrations",
             Self::ListPlatformAudit => "platform.list_audit",
@@ -1133,9 +1133,9 @@ impl PlatformOperationsAdapter {
     /// Return the adapter that must provide the area read model.
     pub const fn for_area(area: PlatformOperationsArea) -> Self {
         match area {
-            PlatformOperationsArea::Tenants => Self::ListPlatformTenants,
+            PlatformOperationsArea::Holdings => Self::ListPlatformHoldings,
             PlatformOperationsArea::Projections => Self::ListProjectionStatuses,
-            PlatformOperationsArea::Backups => Self::ListTenantBackupJobs,
+            PlatformOperationsArea::Backups => Self::ListHoldingBackupJobs,
             PlatformOperationsArea::Providers => Self::ListPlatformConnectors,
             PlatformOperationsArea::Integrations => Self::ListPlatformIntegrations,
             PlatformOperationsArea::Audit => Self::ListPlatformAudit,
@@ -1674,7 +1674,7 @@ pub struct ContextSurfaceModel {
     projection: ProjectionFreshness,
     /// Product-row evidence is absent for the projection-status route.
     visible_row_count: Option<u64>,
-    /// Product-row responses must be bound to one tenant and holding. Projection-status-only
+    /// Product-row responses must be bound to one holding and holding. Projection-status-only
     /// responses intentionally leave this absent because they do not contain product rows.
     scope: Option<ProductContextScope>,
     /// Product-row responses must carry validated pagination metadata.
@@ -1809,7 +1809,7 @@ impl ContextSurfaceModel {
         self.visible_row_count
     }
 
-    /// Holding/tenant binding for product rows, when this is a product read rather than a
+    /// Holding/holding binding for product rows, when this is a product read rather than a
     /// projection-status-only response.
     pub fn scope(&self) -> Option<&ProductContextScope> {
         self.scope.as_ref()
@@ -1976,7 +1976,7 @@ impl ProductSurfaceModel {
         }
     }
 
-    /// Holding/tenant binding for a product-context row model.
+    /// Holding/holding binding for a product-context row model.
     pub fn product_scope(&self) -> Option<&ProductContextScope> {
         match self {
             Self::Context(model) => model.scope(),
@@ -2025,7 +2025,7 @@ impl ProductSurfaceModel {
 pub enum ProductSurface {
     /// Directory connector, role mapping, and identity-link administration.
     DirectoryAdministration,
-    /// Platform tenant/projection/backup/integration/audit/settings reads.
+    /// Platform holding/projection/backup/integration/audit/settings reads.
     PlatformOperations,
     /// One of the ERPX bounded product contexts.
     Context(ProductContext),
@@ -2510,7 +2510,7 @@ fn model_render_guard(
             return Some(ProductSurfaceState::Conflict {
                 surface,
                 reason: SafeDisplayText::new(
-                    "Product rows require an explicit tenant/holding binding and validated pagination metadata.",
+                    "Product rows require an explicit holding/holding binding and validated pagination metadata.",
                 ),
             });
         }
@@ -2835,7 +2835,7 @@ impl ProductRouteStateAdapter {
     /// layer has reduced server rows to the route facts used by the UI.
     ///
     /// Projection status is not product-row data. The resulting model therefore remains an
-    /// explicit status-only read and never fabricates a tenant/holding page. A stale response
+    /// explicit status-only read and never fabricates a holding/holding page. A stale response
     /// without an authoritative age is rejected as a conflict by the same validation boundary
     /// used by every product route.
     pub fn adapt_projection_status(
@@ -3053,7 +3053,7 @@ fn product_state_message(message: &SafeDisplayText, locale: Locale) -> String {
         "Authoritative reconciliation detected drift; this read remains blocked until the worker resolves it." => {
             "การกระทบยอดที่เป็นข้อยุติพบความคลาดเคลื่อน การอ่านนี้จะถูกบล็อกจนกว่าเวิร์กเกอร์จะแก้ไข".into()
         }
-        "Product rows require an explicit tenant/holding binding and validated pagination metadata." => {
+        "Product rows require an explicit holding/holding binding and validated pagination metadata." => {
             "แถวผลิตภัณฑ์ต้องระบุการเชื่อมโยงผู้เช่า/โฮลดิ้งและข้อมูลกำกับการแบ่งหน้าที่ตรวจสอบแล้ว".into()
         }
         "Product row count does not match the authoritative page metadata." => {
@@ -3664,7 +3664,7 @@ pub enum ProductContractError {
     PlatformAdapterCoverageIncomplete,
     /// A Platform Operations attestation must match its area and real adapter.
     PlatformAdapterEvidenceMismatch,
-    /// Product rows must be bound to an explicit tenant and holding.
+    /// Product rows must be bound to an explicit holding and holding.
     ProductContextScopeRequired,
     /// Product rows must carry validated pagination metadata.
     ProductPageMetadataRequired,
@@ -3712,8 +3712,8 @@ impl fmt::Display for ProductContractError {
                 "เครื่องมือ Platform Operations ไม่ตรงกับพื้นที่ของมัน",
             ),
             Self::ProductContextScopeRequired => product_copy(
-                "product rows require an explicit tenant and holding scope",
-                "แถวผลิตภัณฑ์ต้องระบุชัดเจน tenant และขอบเขตการถือครอง",
+                "product rows require an explicit holding and holding scope",
+                "แถวผลิตภัณฑ์ต้องระบุชัดเจน holding และขอบเขตการถือครอง",
             ),
             Self::ProductPageMetadataRequired => product_copy(
                 "product rows require validated pagination metadata",
@@ -3739,7 +3739,7 @@ mod tests {
     }
 
     fn product_scope() -> ProductContextScope {
-        ProductContextScope::new(opaque("tenant-001"), opaque("holding-001"))
+        ProductContextScope::new(opaque("holding-001"), opaque("holding-001"))
     }
 
     fn product_page(returned_count: u32) -> ProductPage {
@@ -4083,9 +4083,9 @@ mod tests {
             scoped
                 .scope()
                 .expect("scope must be attached")
-                .tenant_id()
+                .holding_id()
                 .as_str(),
-            "tenant-001"
+            "holding-001"
         );
         assert_eq!(
             scoped

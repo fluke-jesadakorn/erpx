@@ -34,7 +34,7 @@
   `ListIncidents` RPC without renumbering existing protobuf fields or RPCs.
 - No migration or schema change. The existing `incidents(status, updated_at
   DESC)` index is used by the bounded control-plane query.
-- No tenant credentials, timeline, broadcast, mitigation, root cause,
+- No holding credentials, timeline, broadcast, mitigation, root cause,
   corrective action, secret, or diagnostic payload crosses the transport.
 
 ## Exact verification

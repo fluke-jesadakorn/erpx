@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_cqrs::IdempotencyKey;
 use erpx_integration_contracts::RecordVersionRef;
-use erpx_kernel::{ActorAttribution, CommandId, CorrelationId, PrincipalId, TenantScope};
+use erpx_kernel::{ActorAttribution, AuthorityScope, CommandId, CorrelationId, PrincipalId};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -30,7 +30,7 @@ pub struct PortalBindingProposal {
     pub customer: RecordVersionRef,
     pub portal_principal_id: PrincipalId,
     pub principal_kind: PortalPrincipalKind,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub verified_identity: VerifiedIdentityEvidence,
     pub permitted_use_cases: BTreeSet<PortalUseCase>,
     pub valid_from: DateTime<Utc>,
@@ -93,7 +93,7 @@ pub struct PortalBindingCommandRequest {
     pub correlation_id: CorrelationId,
     pub actor: ActorAttribution,
     pub actor_principal_id: PrincipalId,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub expected_version: Option<u64>,
 }
 
@@ -119,8 +119,8 @@ pub trait PortalBindingAuthorizationPort: Send + Sync {
         &self,
         actor: &ActorAttribution,
         actor_principal_id: PrincipalId,
-        authority_scope: &TenantScope,
-        target_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         action: PortalBindingAction,
     ) -> Result<(), PortError>;
 }
@@ -130,7 +130,7 @@ pub trait CustomerRecordAuthorityPort: Send + Sync {
     async fn ensure_active_customer_version(
         &self,
         customer: &RecordVersionRef,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
     ) -> Result<(), PortError>;
 }
 
@@ -138,7 +138,7 @@ pub trait CustomerRecordAuthorityPort: Send + Sync {
 pub trait PortalBindingWriteRepository: Send + Sync {
     async fn load_portal_binding(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         binding_id: CustomerPortalBindingId,
     ) -> Result<Option<CustomerPortalPrincipalBinding>, PortError>;
 }

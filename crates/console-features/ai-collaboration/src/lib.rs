@@ -52,7 +52,7 @@ fn render_feature_surface(context: &FeatureContext) -> Element {
 pub static REGISTRATION: FeatureRegistration = FeatureRegistration::with_renderer_and_artifact(
     "ai-collaboration",
     FEATURE_ROUTES,
-    "erpx-feature-ai-collaboration-v1",
+    "erpx-feature-ai-collaboration",
     render_feature_surface,
 );
 

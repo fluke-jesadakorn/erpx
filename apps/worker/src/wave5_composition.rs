@@ -55,7 +55,7 @@ impl Wave5ControlProjectionHandler {
             );
         }
         let platform = [
-            PlatformAdministrationProjectionKind::Tenants,
+            PlatformAdministrationProjectionKind::Holdings,
             PlatformAdministrationProjectionKind::Connectors,
             PlatformAdministrationProjectionKind::AdminContexts,
             PlatformAdministrationProjectionKind::GovernanceRecords,

@@ -1,4 +1,4 @@
-//! Tenant-routed SQLx persistence for Finance AP/AR and cash control.
+//! Holding-routed SQLx persistence for Finance AP/AR and cash control.
 //!
 //! The write database is authoritative.  Every successful mutation commits
 //! the Finance aggregate, the shared snapshot, one outbox event, and a
@@ -11,7 +11,7 @@
 use std::collections::BTreeMap;
 
 use chrono::{DateTime, NaiveDate, Utc};
-use erpx_domain::contracts::TenantScope;
+use erpx_domain::contracts::AuthorityScope;
 use erpx_domain::finance::{JournalEntry, PostedJournalEntry};
 use erpx_domain::finance_subledgers::{
     Allocation, AllocationBatch, CashDisbursement, CashReceipt, CashReconciliation,
@@ -61,7 +61,7 @@ pub struct FinanceSubledgerProjectionApplication {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinanceSubledgerProjectionRebuildPreparation {
-    pub holding_ref: String,
+    pub data_profile_key: String,
     pub rows_cleared: u64,
     pub checkpoints_cleared: u64,
 }
@@ -205,7 +205,7 @@ impl FinanceSubledgerAggregate {
         }
     }
 
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.metadata().scope
     }
 
@@ -261,34 +261,34 @@ struct SubledgerFields {
 pub struct SqlxFinanceSubledgerStore {
     write_pool: PgPool,
     read_pool: PgPool,
-    holding_ref: String,
+    data_profile_key: String,
 }
 
 impl SqlxFinanceSubledgerStore {
     pub fn new(
         write_pool: PgPool,
         read_pool: PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_holding_ref(&holding_ref)?;
+        let data_profile_key = data_profile_key.into();
+        validate_data_profile_key(&data_profile_key)?;
         Ok(Self {
             write_pool,
             read_pool,
-            holding_ref,
+            data_profile_key,
         })
     }
 
     pub fn from_pools(
         write_pool: &PgPool,
         read_pool: &PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        Self::new(write_pool.clone(), read_pool.clone(), holding_ref)
+        Self::new(write_pool.clone(), read_pool.clone(), data_profile_key)
     }
 
-    pub fn holding_ref(&self) -> &str {
-        &self.holding_ref
+    pub fn data_profile_key(&self) -> &str {
+        &self.data_profile_key
     }
 
     /// Save one Finance aggregate.  The aggregate metadata's idempotency key
@@ -323,7 +323,7 @@ impl SqlxFinanceSubledgerStore {
         let mut tx = self.begin_write().await?;
         if let Some(receipt) = find_receipt::<FinanceSubledgerWriteReceipt>(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             request_key,
             &request_hash,
             "save",
@@ -334,7 +334,7 @@ impl SqlxFinanceSubledgerStore {
         {
             validate_save_replay_evidence(
                 &mut tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 &receipt,
                 expected_version,
                 fields.aggregate_type,
@@ -344,12 +344,12 @@ impl SqlxFinanceSubledgerStore {
             tx.commit().await?;
             return Ok(receipt.replayed());
         }
-        validate_authoritative_handoff(&mut tx, &self.holding_ref, aggregate).await?;
+        validate_authoritative_handoff(&mut tx, &self.data_profile_key, aggregate).await?;
         let current = current_version(
             &mut tx,
             fields.aggregate_type,
             fields.aggregate_id,
-            &self.holding_ref,
+            &self.data_profile_key,
         )
         .await?;
         ensure_expected_version(
@@ -359,7 +359,14 @@ impl SqlxFinanceSubledgerStore {
             current,
         )?;
         let version = next_version(current, fields.aggregate_type)?;
-        persist_aggregate(&mut tx, &self.holding_ref, &fields, version, request_key).await?;
+        persist_aggregate(
+            &mut tx,
+            &self.data_profile_key,
+            &fields,
+            version,
+            request_key,
+        )
+        .await?;
         let receipt = FinanceSubledgerWriteReceipt {
             aggregate_type: fields.aggregate_type.into(),
             aggregate_id: fields.aggregate_id,
@@ -368,7 +375,7 @@ impl SqlxFinanceSubledgerStore {
         };
         insert_receipt(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             "save",
             fields.aggregate_type,
             fields.aggregate_id,
@@ -422,7 +429,7 @@ impl SqlxFinanceSubledgerStore {
         let mut tx = self.begin_write().await?;
         if let Some(receipt) = find_receipt::<FinanceAllocationBatchReceipt>(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             request_key,
             &request_hash,
             "allocation_batch",
@@ -433,7 +440,7 @@ impl SqlxFinanceSubledgerStore {
         {
             validate_allocation_batch_replay_evidence(
                 &mut tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 &receipt,
                 batch,
                 payment,
@@ -447,7 +454,7 @@ impl SqlxFinanceSubledgerStore {
 
         let current_payment = load_write_aggregate(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             payment.metadata.id,
             payment_type(payment),
         )
@@ -464,7 +471,7 @@ impl SqlxFinanceSubledgerStore {
             &mut tx,
             payment_type(payment),
             payment.metadata.id,
-            &self.holding_ref,
+            &self.data_profile_key,
         )
         .await?
         .ok_or_else(|| PersistenceError::InvalidData("stored payment version is missing".into()))?;
@@ -486,7 +493,7 @@ impl SqlxFinanceSubledgerStore {
         for invoice in invoices {
             let aggregate = load_write_aggregate(
                 &mut tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 invoice.metadata.id,
                 invoice_type(invoice),
             )
@@ -523,11 +530,11 @@ impl SqlxFinanceSubledgerStore {
 
         let payment_version = next_version(Some(stored_payment_version), payment_type(payment))?;
         let next_payment = FinanceSubledgerAggregate::Payment(next_payment);
-        validate_authoritative_handoff(&mut tx, &self.holding_ref, &next_payment).await?;
+        validate_authoritative_handoff(&mut tx, &self.data_profile_key, &next_payment).await?;
         let payment_fields = next_payment.fields()?;
         persist_aggregate(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             &payment_fields,
             payment_version,
             request_key,
@@ -546,7 +553,7 @@ impl SqlxFinanceSubledgerStore {
                 &mut tx,
                 invoice_type(&invoice),
                 invoice.metadata.id,
-                &self.holding_ref,
+                &self.data_profile_key,
             )
             .await?
             .ok_or_else(|| {
@@ -554,9 +561,16 @@ impl SqlxFinanceSubledgerStore {
             })?;
             let version = next_version(Some(stored_version), invoice_type(&invoice))?;
             let invoice = FinanceSubledgerAggregate::Invoice(invoice);
-            validate_authoritative_handoff(&mut tx, &self.holding_ref, &invoice).await?;
+            validate_authoritative_handoff(&mut tx, &self.data_profile_key, &invoice).await?;
             let fields = invoice.fields()?;
-            persist_aggregate(&mut tx, &self.holding_ref, &fields, version, request_key).await?;
+            persist_aggregate(
+                &mut tx,
+                &self.data_profile_key,
+                &fields,
+                version,
+                request_key,
+            )
+            .await?;
             invoice_receipts.push(FinanceSubledgerWriteReceipt {
                 aggregate_type: fields.aggregate_type.into(),
                 aggregate_id: fields.aggregate_id,
@@ -570,7 +584,7 @@ impl SqlxFinanceSubledgerStore {
                 &mut tx,
                 "allocation",
                 allocation.metadata.id,
-                &self.holding_ref,
+                &self.data_profile_key,
             )
             .await?
             .is_some()
@@ -580,7 +594,7 @@ impl SqlxFinanceSubledgerStore {
                 });
             }
             let fields = FinanceSubledgerAggregate::Allocation(allocation.clone()).fields()?;
-            persist_aggregate(&mut tx, &self.holding_ref, &fields, 1, request_key).await?;
+            persist_aggregate(&mut tx, &self.data_profile_key, &fields, 1, request_key).await?;
             allocation_receipts.push(FinanceSubledgerWriteReceipt {
                 aggregate_type: fields.aggregate_type.into(),
                 aggregate_id: fields.aggregate_id,
@@ -596,7 +610,7 @@ impl SqlxFinanceSubledgerStore {
         };
         insert_receipt(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             "allocation_batch",
             "allocation_batch",
             payment.metadata.id,
@@ -620,24 +634,24 @@ impl SqlxFinanceSubledgerStore {
         let row = sqlx::query(
             "SELECT aggregate_type, aggregate_id, company_id, branch_id,
                     payload, source_version
-             FROM erpx_tenant.finance_subledger_read_rows
-             WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$3",
+             FROM erpx_holding.finance_subledger_read_rows
+             WHERE aggregate_type=$1 AND aggregate_id=$2 AND data_profile_key=$3",
         )
         .bind(aggregate_type)
         .bind(aggregate_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?;
         tx.commit().await?;
         row.map(decode_read_row).transpose()
     }
 
-    /// Return a bounded keyset page from the disposable tenant-read database.
+    /// Return a bounded keyset page from the disposable holding-read database.
     /// The write database is never consulted. Scope predicates are applied in
     /// SQL before pagination so inaccessible rows cannot affect cursors.
     pub async fn list_read_rows(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         aggregate_type: Option<&str>,
         company_id: Option<Uuid>,
         after: Option<&FinanceSubledgerReadCursor>,
@@ -674,10 +688,10 @@ impl SqlxFinanceSubledgerStore {
         let mut query = QueryBuilder::<Postgres>::new(
             "SELECT aggregate_type, aggregate_id, company_id, branch_id,
                     source_version, payload
-             FROM erpx_tenant.finance_subledger_read_rows
-             WHERE holding_ref = ",
+             FROM erpx_holding.finance_subledger_read_rows
+             WHERE data_profile_key = ",
         );
-        query.push_bind(&self.holding_ref);
+        query.push_bind(&self.data_profile_key);
         append_read_scope_filter(&mut query, scope)?;
         if let Some(aggregate_type) = aggregate_type {
             query
@@ -744,8 +758,8 @@ impl SqlxFinanceSubledgerStore {
             sqlx::query(
                 "SELECT event_id, event_type, aggregate_type, aggregate_id,
                         aggregate_version, payload, occurred_at
-                 FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1 AND aggregate_type = ANY($2)
+                 FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1 AND aggregate_type = ANY($2)
                    AND (aggregate_type > $3
                         OR (aggregate_type = $3 AND aggregate_id > $4)
                         OR (aggregate_type = $3 AND aggregate_id = $4
@@ -753,7 +767,7 @@ impl SqlxFinanceSubledgerStore {
                  ORDER BY aggregate_type, aggregate_id, aggregate_version
                  LIMIT $6",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(allowed_types())
             .bind(&cursor.aggregate_type)
             .bind(cursor.aggregate_id)
@@ -768,12 +782,12 @@ impl SqlxFinanceSubledgerStore {
             sqlx::query(
                 "SELECT event_id, event_type, aggregate_type, aggregate_id,
                         aggregate_version, payload, occurred_at
-                 FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1 AND aggregate_type = ANY($2)
+                 FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1 AND aggregate_type = ANY($2)
                  ORDER BY aggregate_type, aggregate_id, aggregate_version
                  LIMIT $3",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(allowed_types())
             .bind(limit)
             .fetch_all(&mut *tx)
@@ -827,7 +841,7 @@ impl SqlxFinanceSubledgerStore {
     }
 
     /// Return the holding-scoped count of source events consumed by the
-    /// Finance subledger projection. The source stream is the tenant-write
+    /// Finance subledger projection. The source stream is the holding-write
     /// outbox, and the closed aggregate allow-list must stay identical to the
     /// one used by [`read_source_event_page`]. Replacement-read rebuilds use
     /// this count before and after replay to detect an append-only source that
@@ -836,10 +850,10 @@ impl SqlxFinanceSubledgerStore {
         let mut tx = self.begin_write().await?;
         let count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*)
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref = $1 AND aggregate_type = ANY($2)",
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key = $1 AND aggregate_type = ANY($2)",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(allowed_types())
         .fetch_one(&mut *tx)
         .await?;
@@ -850,7 +864,7 @@ impl SqlxFinanceSubledgerStore {
     }
 
     /// Reconcile the disposable Finance subledger read model against the
-    /// authoritative tenant-write aggregates. This is a read-only operation
+    /// authoritative holding-write aggregates. This is a read-only operation
     /// on both physical databases: it never repairs, deletes, or mutates
     /// source state. A worker can use a report with `is_reconciled()` as the
     /// prerequisite for exposing a fresh read-side result or activating a
@@ -868,22 +882,22 @@ impl SqlxFinanceSubledgerStore {
         let mut write_tx = self.begin_write().await?;
         let source_event_high_watermark: i64 = sqlx::query_scalar(
             "SELECT COUNT(*)
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref = $1 AND aggregate_type = ANY($2)",
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key = $1 AND aggregate_type = ANY($2)",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(allowed_types())
         .fetch_one(&mut *write_tx)
         .await?;
         let source_rows = sqlx::query(
             "SELECT aggregate_type, aggregate_id, company_id, branch_id,
                     version, payload
-             FROM erpx_tenant.finance_subledger_aggregates
-             WHERE holding_ref=$1
+             FROM erpx_holding.finance_subledger_aggregates
+             WHERE data_profile_key=$1
              ORDER BY aggregate_type, aggregate_id
              LIMIT $2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(limit)
         .fetch_all(&mut *write_tx)
         .await?;
@@ -893,12 +907,12 @@ impl SqlxFinanceSubledgerStore {
                     COALESCE(MIN(event.aggregate_version), 0) AS first_event_version,
                     COALESCE(MAX(event.aggregate_version), 0) AS last_event_version,
                     COUNT(DISTINCT event.aggregate_version) AS distinct_event_versions
-             FROM erpx_tenant.finance_subledger_aggregates AS source
-             LEFT JOIN erpx_tenant.outbox_events AS event
-               ON event.holding_ref = source.holding_ref
+             FROM erpx_holding.finance_subledger_aggregates AS source
+             LEFT JOIN erpx_holding.outbox_events AS event
+               ON event.data_profile_key = source.data_profile_key
               AND event.aggregate_type = source.aggregate_type
               AND event.aggregate_id = source.aggregate_id
-             WHERE source.holding_ref=$1
+             WHERE source.data_profile_key=$1
              GROUP BY source.aggregate_type, source.aggregate_id, source.version
              HAVING COUNT(event.event_id) <> source.version
                  OR COALESCE(MIN(event.aggregate_version), 0) <> 1
@@ -906,7 +920,7 @@ impl SqlxFinanceSubledgerStore {
                  OR COUNT(DISTINCT event.aggregate_version) <> source.version
              LIMIT $2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(limit)
         .fetch_all(&mut *write_tx)
         .await?;
@@ -960,12 +974,12 @@ impl SqlxFinanceSubledgerStore {
         let read_rows = sqlx::query(
             "SELECT aggregate_type, aggregate_id, company_id, branch_id,
                     source_version, payload
-             FROM erpx_tenant.finance_subledger_read_rows
-             WHERE holding_ref=$1
+             FROM erpx_holding.finance_subledger_read_rows
+             WHERE data_profile_key=$1
              ORDER BY aggregate_type, aggregate_id
              LIMIT $2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(limit)
         .fetch_all(&mut *read_tx)
         .await?;
@@ -1049,7 +1063,7 @@ impl SqlxFinanceSubledgerStore {
         Ok(FinanceSubledgerReconciliationReport {
             contract_version:
                 erpx_domain::finance_subledgers::FINANCE_SUBLEDGER_RECONCILIATION_CONTRACT_VERSION,
-            holding_ref: self.holding_ref.clone(),
+            data_profile_key: self.data_profile_key.clone(),
             source_aggregate_count: source_rows.len() as u64,
             read_row_count: read_rows.len() as u64,
             source_event_high_watermark,
@@ -1091,7 +1105,7 @@ impl SqlxFinanceSubledgerStore {
         }
         crate::finance_persistence::verify_authoritative_source_event(
             &self.write_pool,
-            &self.holding_ref,
+            &self.data_profile_key,
             event_id,
             &format!("finance.subledger.{aggregate_type}.v1"),
             aggregate_type,
@@ -1104,7 +1118,7 @@ impl SqlxFinanceSubledgerStore {
         let mut tx = self.begin_read().await?;
         let result = project_subledger_event_in_transaction(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             event_id,
             aggregate_type,
             aggregate_id,
@@ -1149,11 +1163,12 @@ impl SqlxFinanceSubledgerStore {
             ));
         }
         let mut source_tx = self.begin_write().await?;
-        sqlx::query("LOCK TABLE erpx_tenant.outbox_events IN SHARE MODE")
+        sqlx::query("LOCK TABLE erpx_holding.outbox_events IN SHARE MODE")
             .execute(&mut *source_tx)
             .await?;
         let actual_source_version =
-            subledger_source_event_count_in_transaction(&mut source_tx, &self.holding_ref).await?;
+            subledger_source_event_count_in_transaction(&mut source_tx, &self.data_profile_key)
+                .await?;
         if expected_source_version.is_some_and(|expected| expected != actual_source_version) {
             return Err(PersistenceError::InvalidData(
                 "Finance subledger source fence changed before replacement rebuild".into(),
@@ -1162,13 +1177,13 @@ impl SqlxFinanceSubledgerStore {
 
         let mut read_tx = self.begin_read().await?;
         let preparation =
-            clear_subledger_projection_in_transaction(&mut read_tx, &self.holding_ref).await?;
+            clear_subledger_projection_in_transaction(&mut read_tx, &self.data_profile_key).await?;
         let mut cursor = None;
         let mut events_replayed = 0_u64;
         loop {
             let page = read_subledger_source_event_page_in_transaction(
                 &mut source_tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 cursor.as_ref(),
                 page_size,
             )
@@ -1199,7 +1214,7 @@ impl SqlxFinanceSubledgerStore {
                 let fields = aggregate.fields()?;
                 if project_subledger_event_in_transaction(
                     &mut read_tx,
-                    &self.holding_ref,
+                    &self.data_profile_key,
                     event.event_id,
                     &event.aggregate_type,
                     event.aggregate_id,
@@ -1223,7 +1238,8 @@ impl SqlxFinanceSubledgerStore {
             }
         }
         let final_source_version =
-            subledger_source_event_count_in_transaction(&mut source_tx, &self.holding_ref).await?;
+            subledger_source_event_count_in_transaction(&mut source_tx, &self.data_profile_key)
+                .await?;
         if final_source_version != actual_source_version {
             return Err(PersistenceError::InvalidData(
                 "Finance subledger source fence changed during replacement rebuild".into(),
@@ -1238,33 +1254,34 @@ impl SqlxFinanceSubledgerStore {
         &self,
     ) -> Result<FinanceSubledgerProjectionRebuildPreparation, PersistenceError> {
         let mut tx = self.begin_read().await?;
-        let rows_cleared =
-            sqlx::query("DELETE FROM erpx_tenant.finance_subledger_read_rows WHERE holding_ref=$1")
-                .bind(&self.holding_ref)
-                .execute(&mut *tx)
-                .await?
-                .rows_affected();
-        let checkpoints_cleared = sqlx::query(
-            "DELETE FROM erpx_tenant.finance_subledger_projection_checkpoints WHERE holding_ref=$1",
+        let rows_cleared = sqlx::query(
+            "DELETE FROM erpx_holding.finance_subledger_read_rows WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+        let checkpoints_cleared = sqlx::query(
+            "DELETE FROM erpx_holding.finance_subledger_projection_checkpoints WHERE data_profile_key=$1",
+        )
+        .bind(&self.data_profile_key)
         .execute(&mut *tx)
         .await?
         .rows_affected();
         tx.commit().await?;
         Ok(FinanceSubledgerProjectionRebuildPreparation {
-            holding_ref: self.holding_ref.clone(),
+            data_profile_key: self.data_profile_key.clone(),
             rows_cleared,
             checkpoints_cleared,
         })
     }
 
     async fn begin_write(&self) -> Result<Transaction<'_, Postgres>, PersistenceError> {
-        begin_scoped(&self.write_pool, &self.holding_ref).await
+        begin_scoped(&self.write_pool, &self.data_profile_key).await
     }
 
     async fn begin_read(&self) -> Result<Transaction<'_, Postgres>, PersistenceError> {
-        begin_scoped(&self.read_pool, &self.holding_ref).await
+        begin_scoped(&self.read_pool, &self.data_profile_key).await
     }
 }
 
@@ -1298,7 +1315,7 @@ impl FinanceAllocationBatchReceipt {
 
 async fn project_subledger_event_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     event_id: Uuid,
     aggregate_type: &str,
     aggregate_id: Uuid,
@@ -1321,11 +1338,11 @@ async fn project_subledger_event_in_transaction(
 
     let checkpoint = sqlx::query(
         "SELECT last_event_id, source_version
-         FROM erpx_tenant.finance_subledger_projection_checkpoints
-         WHERE holding_ref=$1 AND aggregate_type=$2 AND aggregate_id=$3
+         FROM erpx_holding.finance_subledger_projection_checkpoints
+         WHERE data_profile_key=$1 AND aggregate_type=$2 AND aggregate_id=$3
          FOR UPDATE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(aggregate_type)
     .bind(aggregate_id)
     .fetch_optional(&mut **tx)
@@ -1359,12 +1376,12 @@ async fn project_subledger_event_in_transaction(
     }
 
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_subledger_read_rows
-            (aggregate_id, aggregate_type, holding_ref, company_id, branch_id,
+        "INSERT INTO erpx_holding.finance_subledger_read_rows
+            (aggregate_id, aggregate_type, data_profile_key, company_id, branch_id,
              period_id, accounting_date, reference, source_version, payload)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
          ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-             holding_ref=EXCLUDED.holding_ref, company_id=EXCLUDED.company_id,
+             data_profile_key=EXCLUDED.data_profile_key, company_id=EXCLUDED.company_id,
              branch_id=EXCLUDED.branch_id, period_id=EXCLUDED.period_id,
              accounting_date=EXCLUDED.accounting_date, reference=EXCLUDED.reference,
              source_version=EXCLUDED.source_version, payload=EXCLUDED.payload,
@@ -1372,7 +1389,7 @@ async fn project_subledger_event_in_transaction(
     )
     .bind(fields.aggregate_id)
     .bind(fields.aggregate_type)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(fields.company_id)
     .bind(fields.branch_id)
     .bind(fields.period_id)
@@ -1386,16 +1403,16 @@ async fn project_subledger_event_in_transaction(
     .execute(&mut **tx)
     .await?;
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_subledger_projection_checkpoints
-            (aggregate_type, aggregate_id, holding_ref, last_event_id, source_version)
+        "INSERT INTO erpx_holding.finance_subledger_projection_checkpoints
+            (aggregate_type, aggregate_id, data_profile_key, last_event_id, source_version)
          VALUES ($1,$2,$3,$4,$5)
          ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-             holding_ref=EXCLUDED.holding_ref, last_event_id=EXCLUDED.last_event_id,
+             data_profile_key=EXCLUDED.data_profile_key, last_event_id=EXCLUDED.last_event_id,
              source_version=EXCLUDED.source_version, projected_at=now()",
     )
     .bind(aggregate_type)
     .bind(aggregate_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(event_id)
     .bind(as_i64(
         aggregate_version,
@@ -1414,7 +1431,7 @@ async fn project_subledger_event_in_transaction(
 
 async fn read_subledger_source_event_page_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     cursor: Option<&FinanceSubledgerSourceEventCursor>,
     page_size: u32,
 ) -> Result<FinanceSubledgerSourceEventPage, PersistenceError> {
@@ -1435,8 +1452,8 @@ async fn read_subledger_source_event_page_in_transaction(
         sqlx::query(
             "SELECT event_id,event_type,aggregate_type,aggregate_id,
                     aggregate_version,payload,occurred_at
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND aggregate_type=ANY($2)
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND aggregate_type=ANY($2)
                AND (aggregate_type>$3
                     OR (aggregate_type=$3 AND aggregate_id>$4)
                     OR (aggregate_type=$3 AND aggregate_id=$4
@@ -1444,7 +1461,7 @@ async fn read_subledger_source_event_page_in_transaction(
              ORDER BY aggregate_type,aggregate_id,aggregate_version
              LIMIT $6",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(allowed_types())
         .bind(&cursor.aggregate_type)
         .bind(cursor.aggregate_id)
@@ -1459,12 +1476,12 @@ async fn read_subledger_source_event_page_in_transaction(
         sqlx::query(
             "SELECT event_id,event_type,aggregate_type,aggregate_id,
                     aggregate_version,payload,occurred_at
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND aggregate_type=ANY($2)
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND aggregate_type=ANY($2)
              ORDER BY aggregate_type,aggregate_id,aggregate_version
              LIMIT $3",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(allowed_types())
         .bind(limit)
         .fetch_all(&mut **tx)
@@ -1516,14 +1533,14 @@ async fn read_subledger_source_event_page_in_transaction(
 
 async fn subledger_source_event_count_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<u64, PersistenceError> {
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*)
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type=ANY($2)",
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type=ANY($2)",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(allowed_types())
     .fetch_one(&mut **tx)
     .await?;
@@ -1532,23 +1549,24 @@ async fn subledger_source_event_count_in_transaction(
 
 async fn clear_subledger_projection_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<FinanceSubledgerProjectionRebuildPreparation, PersistenceError> {
-    let rows_cleared =
-        sqlx::query("DELETE FROM erpx_tenant.finance_subledger_read_rows WHERE holding_ref=$1")
-            .bind(holding_ref)
-            .execute(&mut **tx)
-            .await?
-            .rows_affected();
-    let checkpoints_cleared = sqlx::query(
-        "DELETE FROM erpx_tenant.finance_subledger_projection_checkpoints WHERE holding_ref=$1",
+    let rows_cleared = sqlx::query(
+        "DELETE FROM erpx_holding.finance_subledger_read_rows WHERE data_profile_key=$1",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
+    .execute(&mut **tx)
+    .await?
+    .rows_affected();
+    let checkpoints_cleared = sqlx::query(
+        "DELETE FROM erpx_holding.finance_subledger_projection_checkpoints WHERE data_profile_key=$1",
+    )
+    .bind(data_profile_key)
     .execute(&mut **tx)
     .await?
     .rows_affected();
     Ok(FinanceSubledgerProjectionRebuildPreparation {
-        holding_ref: holding_ref.into(),
+        data_profile_key: data_profile_key.into(),
         rows_cleared,
         checkpoints_cleared,
     })
@@ -1556,7 +1574,7 @@ async fn clear_subledger_projection_in_transaction(
 
 async fn persist_aggregate(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     fields: &SubledgerFields,
     version: u64,
     request_key: &str,
@@ -1567,18 +1585,18 @@ async fn persist_aggregate(
         fields.aggregate_id.simple()
     );
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_subledger_aggregates
-            (aggregate_id, aggregate_type, holding_ref, company_id, branch_id,
+        "INSERT INTO erpx_holding.finance_subledger_aggregates
+            (aggregate_id, aggregate_type, data_profile_key, company_id, branch_id,
              period_id, accounting_date, reference, version, idempotency_key, payload)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
          ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-             holding_ref=$3, company_id=$4, branch_id=$5, period_id=$6,
+             data_profile_key=$3, company_id=$4, branch_id=$5, period_id=$6,
              accounting_date=$7, reference=$8, version=$9, idempotency_key=$10,
              payload=$11, updated_at=now()",
     )
     .bind(fields.aggregate_id)
     .bind(fields.aggregate_type)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(fields.company_id)
     .bind(fields.branch_id)
     .bind(fields.period_id)
@@ -1590,15 +1608,15 @@ async fn persist_aggregate(
     .execute(&mut **tx)
     .await?;
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,now())",
     )
     .bind(Uuid::new_v4())
     .bind(fields.aggregate_type)
     .bind(fields.aggregate_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(as_i64(version, "Finance subledger aggregate version")?)
     .bind(format!("finance.subledger.{}.v1", fields.aggregate_type))
     .bind(serde_json::json!({
@@ -1613,23 +1631,23 @@ async fn persist_aggregate(
 
 async fn load_write_aggregate(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     aggregate_id: Uuid,
     aggregate_type: &str,
 ) -> Result<FinanceSubledgerAggregate, PersistenceError> {
     let row = sqlx::query(
-        "SELECT payload FROM erpx_tenant.finance_subledger_aggregates
-         WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$3 FOR UPDATE",
+        "SELECT payload FROM erpx_holding.finance_subledger_aggregates
+         WHERE aggregate_type=$1 AND aggregate_id=$2 AND data_profile_key=$3 FOR UPDATE",
     )
     .bind(aggregate_type)
     .bind(aggregate_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_optional(&mut **tx)
     .await?
     .ok_or_else(|| PersistenceError::InvalidData("Finance aggregate not found".into()))?;
     let aggregate = decode_aggregate(aggregate_type, row.try_get("payload")?)?;
     aggregate.validate()?;
-    validate_authoritative_handoff(tx, holding_ref, &aggregate).await?;
+    validate_authoritative_handoff(tx, data_profile_key, &aggregate).await?;
     Ok(aggregate)
 }
 
@@ -1644,7 +1662,7 @@ struct AuthoritativePostedJournalRow {
 
 async fn validate_authoritative_handoff(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     aggregate: &FinanceSubledgerAggregate,
 ) -> Result<(), PersistenceError> {
     let Some(handoff) = aggregate.journal_handoff() else {
@@ -1652,12 +1670,12 @@ async fn validate_authoritative_handoff(
     };
     let row = sqlx::query(
         "SELECT journal_id, holding_id, company_id, period_id, payload
-         FROM erpx_tenant.finance_posted_journals
-         WHERE journal_id=$1 AND holding_ref=$2
+         FROM erpx_holding.finance_posted_journals
+         WHERE journal_id=$1 AND data_profile_key=$2
          FOR SHARE",
     )
     .bind(handoff.journal_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_optional(&mut **tx)
     .await?;
     let row = match row {
@@ -1714,15 +1732,15 @@ async fn current_version(
     tx: &mut Transaction<'_, Postgres>,
     aggregate_type: &str,
     aggregate_id: Uuid,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<Option<u64>, PersistenceError> {
     sqlx::query_scalar::<_, i64>(
-        "SELECT version FROM erpx_tenant.finance_subledger_aggregates
-         WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$3 FOR UPDATE",
+        "SELECT version FROM erpx_holding.finance_subledger_aggregates
+         WHERE aggregate_type=$1 AND aggregate_id=$2 AND data_profile_key=$3 FOR UPDATE",
     )
     .bind(aggregate_type)
     .bind(aggregate_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_optional(&mut **tx)
     .await?
     .map(|value| as_u64(value, "Finance subledger aggregate version"))
@@ -1731,7 +1749,7 @@ async fn current_version(
 
 async fn validate_save_replay_evidence(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     receipt: &FinanceSubledgerWriteReceipt,
     expected_version: Option<u64>,
     aggregate_type: &str,
@@ -1751,12 +1769,12 @@ async fn validate_save_replay_evidence(
         "aggregate": aggregate_payload,
         "version": receipt.version,
     });
-    validate_replay_outbox_evidence(tx, holding_ref, receipt, Some(&expected_payload)).await
+    validate_replay_outbox_evidence(tx, data_profile_key, receipt, Some(&expected_payload)).await
 }
 
 async fn validate_allocation_batch_replay_evidence(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     receipt: &FinanceAllocationBatchReceipt,
     batch: &AllocationBatch,
     payment: &Payment,
@@ -1787,7 +1805,7 @@ async fn validate_allocation_batch_replay_evidence(
     let expected_payment_payload = serde_json::to_value(&expected_payment)?;
     validate_replay_outbox_evidence(
         tx,
-        holding_ref,
+        data_profile_key,
         &receipt.payment,
         Some(&serde_json::json!({
             "aggregate_type": receipt.payment.aggregate_type,
@@ -1815,7 +1833,7 @@ async fn validate_allocation_batch_replay_evidence(
         let expected_invoice_payload = serde_json::to_value(expected_invoice)?;
         validate_replay_outbox_evidence(
             tx,
-            holding_ref,
+            data_profile_key,
             receipt,
             Some(&serde_json::json!({
                 "aggregate_type": receipt.aggregate_type,
@@ -1837,7 +1855,7 @@ async fn validate_allocation_batch_replay_evidence(
         let expected_allocation_payload = serde_json::to_value(allocation)?;
         validate_replay_outbox_evidence(
             tx,
-            holding_ref,
+            data_profile_key,
             receipt,
             Some(&serde_json::json!({
                 "aggregate_type": "allocation",
@@ -1852,20 +1870,20 @@ async fn validate_allocation_batch_replay_evidence(
 
 async fn validate_replay_outbox_evidence(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     receipt: &FinanceSubledgerWriteReceipt,
     expected_payload: Option<&Value>,
 ) -> Result<(), PersistenceError> {
     let rows: Vec<ReplayOutboxRecord> = sqlx::query_as(
         "SELECT event_type, payload
-           FROM erpx_tenant.outbox_events
-          WHERE holding_ref=$1
+           FROM erpx_holding.outbox_events
+          WHERE data_profile_key=$1
             AND aggregate_type=$2
             AND aggregate_id=$3
             AND aggregate_version=$4
           FOR SHARE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(&receipt.aggregate_type)
     .bind(receipt.aggregate_id)
     .bind(as_i64(
@@ -1924,7 +1942,7 @@ fn validate_replay_outbox_rows(
 
 async fn find_receipt<T: for<'de> Deserialize<'de>>(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     request_key: &str,
     request_hash: &str,
     expected_operation: &str,
@@ -1933,11 +1951,11 @@ async fn find_receipt<T: for<'de> Deserialize<'de>>(
 ) -> Result<Option<T>, PersistenceError> {
     let row = sqlx::query(
         "SELECT operation, aggregate_type, aggregate_id, request_hash, response
-         FROM erpx_tenant.finance_subledger_command_idempotency
-         WHERE idempotency_key=$1 AND holding_ref=$2 FOR UPDATE",
+         FROM erpx_holding.finance_subledger_command_idempotency
+         WHERE idempotency_key=$1 AND data_profile_key=$2 FOR UPDATE",
     )
     .bind(request_key)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_optional(&mut **tx)
     .await?;
     row.map(|row| {
@@ -1985,7 +2003,7 @@ fn validate_receipt_binding(
 #[allow(clippy::too_many_arguments)]
 async fn insert_receipt<T: Serialize>(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     operation: &str,
     aggregate_type: &str,
     aggregate_id: Uuid,
@@ -1994,13 +2012,13 @@ async fn insert_receipt<T: Serialize>(
     receipt: &T,
 ) -> Result<(), PersistenceError> {
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_subledger_command_idempotency
-            (idempotency_key, holding_ref, operation, aggregate_type,
+        "INSERT INTO erpx_holding.finance_subledger_command_idempotency
+            (idempotency_key, data_profile_key, operation, aggregate_type,
              aggregate_id, request_hash, response)
          VALUES ($1,$2,$3,$4,$5,$6,$7)",
     )
     .bind(request_key)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(operation)
     .bind(aggregate_type)
     .bind(aggregate_id)
@@ -2161,7 +2179,7 @@ fn validate_aggregate_type(value: &str) -> Result<(), PersistenceError> {
     }
 }
 
-fn validate_holding_ref(value: &str) -> Result<(), PersistenceError> {
+fn validate_data_profile_key(value: &str) -> Result<(), PersistenceError> {
     if value.trim().is_empty() || value.len() > 255 || value.chars().any(char::is_control) {
         Err(PersistenceError::Configuration(
             "holding reference must be bounded and non-empty",
@@ -2191,19 +2209,19 @@ fn validate_uuid(value: Uuid, field: &'static str) -> Result<(), PersistenceErro
     }
 }
 
-fn validate_read_scope(scope: &TenantScope) -> Result<(), PersistenceError> {
+fn validate_read_scope(scope: &AuthorityScope) -> Result<(), PersistenceError> {
     match scope {
-        TenantScope::Holding { holding_id } => {
+        AuthorityScope::Holding { holding_id } => {
             validate_uuid(*holding_id, "Finance subledger read holding ID")?
         }
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => {
             validate_uuid(*holding_id, "Finance subledger read holding ID")?;
             validate_uuid(*company_id, "Finance subledger read company ID")?;
         }
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -2212,7 +2230,7 @@ fn validate_read_scope(scope: &TenantScope) -> Result<(), PersistenceError> {
             validate_uuid(*company_id, "Finance subledger read company ID")?;
             validate_uuid(*branch_id, "Finance subledger read branch ID")?;
         }
-        TenantScope::Subtree { .. } | TenantScope::Platform => {
+        AuthorityScope::Subtree { .. } | AuthorityScope::Platform => {
             return Err(PersistenceError::InvalidData(
                 "Finance subledger reads require a holding, company, or branch scope".into(),
             ));
@@ -2222,19 +2240,19 @@ fn validate_read_scope(scope: &TenantScope) -> Result<(), PersistenceError> {
 }
 
 fn validate_company_filter(
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     company_id: Option<Uuid>,
 ) -> Result<(), PersistenceError> {
     let Some(company_id) = company_id else {
         return Ok(());
     };
     match scope {
-        TenantScope::Holding { .. } => Ok(()),
-        TenantScope::Company {
+        AuthorityScope::Holding { .. } => Ok(()),
+        AuthorityScope::Company {
             company_id: scope_company_id,
             ..
         }
-        | TenantScope::Branch {
+        | AuthorityScope::Branch {
             company_id: scope_company_id,
             ..
         } if *scope_company_id == company_id => Ok(()),
@@ -2246,14 +2264,14 @@ fn validate_company_filter(
 
 fn append_read_scope_filter(
     query: &mut QueryBuilder<'_, Postgres>,
-    scope: &TenantScope,
+    scope: &AuthorityScope,
 ) -> Result<(), PersistenceError> {
     match scope {
-        TenantScope::Holding { .. } => {}
-        TenantScope::Company { company_id, .. } => {
+        AuthorityScope::Holding { .. } => {}
+        AuthorityScope::Company { company_id, .. } => {
             query.push(" AND company_id = ").push_bind(*company_id);
         }
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             company_id,
             branch_id,
             ..
@@ -2264,7 +2282,7 @@ fn append_read_scope_filter(
                 .push(" AND branch_id = ")
                 .push_bind(*branch_id);
         }
-        TenantScope::Subtree { .. } | TenantScope::Platform => {
+        AuthorityScope::Subtree { .. } | AuthorityScope::Platform => {
             return Err(PersistenceError::InvalidData(
                 "Finance subledger reads require a holding, company, or branch scope".into(),
             ));
@@ -2273,12 +2291,10 @@ fn append_read_scope_filter(
     Ok(())
 }
 
-fn branch_from_scope(scope: &TenantScope) -> Option<Uuid> {
+fn branch_from_scope(scope: &AuthorityScope) -> Option<Uuid> {
     match scope {
-        TenantScope::Branch { branch_id, .. } => Some(*branch_id),
-        TenantScope::Subtree { branch_ids, .. } if branch_ids.len() == 1 => {
-            branch_ids.first().copied()
-        }
+        AuthorityScope::Branch { branch_id, .. } => Some(*branch_id),
+        AuthorityScope::Subtree { .. } => None,
         _ => None,
     }
 }
@@ -2359,11 +2375,11 @@ fn as_u64(value: i64, field: &'static str) -> Result<u64, PersistenceError> {
 
 async fn begin_scoped<'a>(
     pool: &'a PgPool,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<Transaction<'a, Postgres>, PersistenceError> {
     let mut tx = pool.begin().await?;
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(data_profile_key)
         .execute(&mut *tx)
         .await?;
     Ok(tx)
@@ -2392,7 +2408,7 @@ mod tests {
         let holding = Uuid::new_v4();
         let company = Uuid::new_v4();
         assert_eq!(
-            branch_from_scope(&TenantScope::Branch {
+            branch_from_scope(&AuthorityScope::Branch {
                 holding_id: holding,
                 company_id: company,
                 branch_id: branch,
@@ -2400,12 +2416,11 @@ mod tests {
             Some(branch)
         );
         assert_eq!(
-            branch_from_scope(&TenantScope::Subtree {
+            branch_from_scope(&AuthorityScope::Subtree {
                 holding_id: holding,
-                company_ids: vec![company],
-                branch_ids: vec![branch],
+                organization_node_id: branch,
             }),
-            Some(branch)
+            None
         );
     }
 
@@ -2440,7 +2455,7 @@ mod tests {
     fn replay_outbox_matching_requires_one_exact_authoritative_event() {
         let holding_id = Uuid::new_v4();
         let company_id = Uuid::new_v4();
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id,
             company_id,
         };
@@ -2448,7 +2463,7 @@ mod tests {
             "subledger-replay-evidence-test",
             ActorAttribution {
                 principal_ref: "subledger-test".into(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: None,
                 represented_principal_ref: None,
                 support_capability_id: None,

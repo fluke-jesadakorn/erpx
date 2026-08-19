@@ -5,7 +5,7 @@
 //! main integration agent. It writes only to the control-plane write pool.
 
 use chrono::{DateTime, Utc};
-use erpx_domain::contracts::TenantScope;
+use erpx_domain::contracts::AuthorityScope;
 use erpx_domain::support::{
     CustomerVisibleSupportAttachment, Incident, IncidentStatus, MAX_SUPPORT_ATTACHMENTS_PER_TICKET,
     SupportAttachment, SupportAttachmentSet, SupportAttachmentVisibility, SupportCapability,
@@ -18,15 +18,6 @@ use serde_json::{Value, json};
 use sqlx::{PgPool, Postgres, Row, Transaction, postgres::PgRow};
 use thiserror::Error;
 use uuid::Uuid;
-
-const SUPPORT_MIGRATION: &str =
-    include_str!("../../migration/migrations/0005_support_incidents.sql");
-const SUPPORT_ATTACHMENT_MIGRATION: &str =
-    include_str!("../../migration/migrations/0016_support_attachments.sql");
-const SUPPORT_SLA_NOTIFICATION_MIGRATION: &str =
-    include_str!("../../migration/migrations/0017_support_sla_notifications.sql");
-const SUPPORT_SLA_CLAIM_IDENTITY_MIGRATION: &str =
-    include_str!("../../migration/migrations/0060_support_sla_claim_identity.sql");
 
 /// Maximum number of capabilities changed by one expiration sweep.
 ///
@@ -224,21 +215,11 @@ impl SupportPersistence {
         Self { write }
     }
 
-    /// Apply this packet's additive migration. The production migrator must
-    /// register the same file before this repository is composed at runtime.
+    /// Retained for callers that used to apply packet-local upgrades.
+    ///
+    /// The clean-slate control-write baseline is now the sole schema owner,
+    /// so repositories never replay DDL against an already initialized pool.
     pub async fn apply_migration(&self) -> Result<(), SupportPersistenceError> {
-        sqlx::raw_sql(SUPPORT_MIGRATION)
-            .execute(&self.write)
-            .await?;
-        sqlx::raw_sql(SUPPORT_ATTACHMENT_MIGRATION)
-            .execute(&self.write)
-            .await?;
-        sqlx::raw_sql(SUPPORT_SLA_NOTIFICATION_MIGRATION)
-            .execute(&self.write)
-            .await?;
-        sqlx::raw_sql(SUPPORT_SLA_CLAIM_IDENTITY_MIGRATION)
-            .execute(&self.write)
-            .await?;
         Ok(())
     }
 
@@ -466,7 +447,7 @@ impl SupportPersistence {
         ticket: &SupportTicket,
         attachment: &SupportAttachment,
         expected_ticket_version: u64,
-        actor_scope: &TenantScope,
+        actor_scope: &AuthorityScope,
         now: DateTime<Utc>,
         idempotency: &IdempotencyKey,
     ) -> Result<PersistedSupportAttachment, SupportPersistenceError> {
@@ -615,7 +596,7 @@ impl SupportPersistence {
         &self,
         ticket_id: Uuid,
         customer_account_id: Uuid,
-        actor_scope: &TenantScope,
+        actor_scope: &AuthorityScope,
         now: DateTime<Utc>,
         page_size: u32,
     ) -> Result<SupportAttachmentPage, SupportPersistenceError> {
@@ -744,7 +725,7 @@ impl SupportPersistence {
         attachment_id: Uuid,
         expected_ticket_version: u64,
         expected_attachment_version: u64,
-        actor_scope: &TenantScope,
+        actor_scope: &AuthorityScope,
         at: DateTime<Utc>,
         idempotency: &IdempotencyKey,
     ) -> Result<PersistedSupportAttachment, SupportPersistenceError> {
@@ -1387,7 +1368,7 @@ impl SupportPersistence {
             sqlx::query(
                 "INSERT INTO erpx_control.support_access_requests
                     (id, ticket_id, customer_account_id, agent_ref,
-                     represented_tenant_user, mode, permissions, scope, reason,
+                     represented_holding_user, mode, permissions, scope, reason,
                      requested_at, expires_at, status, version, payload)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'requested', 1, $12)",
             )
@@ -1395,7 +1376,7 @@ impl SupportPersistence {
             .bind(session.ticket_id)
             .bind(session.customer_account_id)
             .bind(&session.agent_ref)
-            .bind(&session.represented_tenant_user)
+            .bind(&session.represented_holding_user)
             .bind(support_mode(session.mode))
             .bind(serde_json::to_value(&session.permissions)?)
             .bind(&session.scope)
@@ -2302,8 +2283,8 @@ fn ensure_attachment_binding(
 }
 
 fn ensure_attachment_scope(
-    actor_scope: &TenantScope,
-    attachment_scope: &TenantScope,
+    actor_scope: &AuthorityScope,
+    attachment_scope: &AuthorityScope,
 ) -> Result<(), SupportPersistenceError> {
     if actor_scope.contains(attachment_scope) {
         Ok(())
@@ -2459,7 +2440,7 @@ async fn append_capability_issued_event(
             "support capability issuance event identity is invalid".into(),
         ));
     }
-    let tenant_scope = json!({ "support_scope": metadata.binding.scope });
+    let active_scope = json!({ "support_scope": metadata.binding.scope });
     let actor = json!({ "principal_ref": "support-capability-issuance" });
     let idempotency_key = format!(
         "support-capability-issued:{}:{}",
@@ -2471,7 +2452,7 @@ async fn append_capability_issued_event(
     let inserted = sqlx::query(
         "INSERT INTO erpx_control.outbox_events
             (id, event_type, event_version, aggregate_type, aggregate_id,
-             aggregate_version, tenant_scope, actor, correlation_id,
+             aggregate_version, active_scope, actor, correlation_id,
              idempotency_key, payload, occurred_at, available_at)
          VALUES ($1, 'support_capability.issued', 1, 'support_capability',
                  $2, $3, $4, $5, $1, $6, $7, $8, $8)
@@ -2480,7 +2461,7 @@ async fn append_capability_issued_event(
     .bind(event_id)
     .bind(metadata.id)
     .bind(as_i64(metadata.version, "capability event version")?)
-    .bind(&tenant_scope)
+    .bind(&active_scope)
     .bind(&actor)
     .bind(&idempotency_key)
     .bind(&payload)
@@ -2493,7 +2474,7 @@ async fn append_capability_issued_event(
 
     let existing = sqlx::query(
         "SELECT event_type, event_version, aggregate_type, aggregate_id,
-                aggregate_version, tenant_scope, actor, payload, occurred_at
+                aggregate_version, active_scope, actor, payload, occurred_at
          FROM erpx_control.outbox_events
          WHERE idempotency_key = $1
          FOR SHARE",
@@ -2510,7 +2491,7 @@ async fn append_capability_issued_event(
             existing.try_get("aggregate_version")?,
             "capability event version",
         )? == metadata.version
-        && existing.try_get::<Value, _>("tenant_scope")? == tenant_scope
+        && existing.try_get::<Value, _>("active_scope")? == active_scope
         && existing.try_get::<Value, _>("actor")? == actor
         && existing.try_get::<Value, _>("payload")? == payload
         && existing.try_get::<DateTime<Utc>, _>("occurred_at")? == occurred_at;
@@ -2561,7 +2542,7 @@ async fn append_capability_revocation_event(
     sqlx::query(
         "INSERT INTO erpx_control.outbox_events
             (id, event_type, event_version, aggregate_type, aggregate_id,
-             aggregate_version, tenant_scope, actor, correlation_id,
+             aggregate_version, active_scope, actor, correlation_id,
              idempotency_key, payload,
              occurred_at, available_at)
          VALUES ($1, 'support_capability.revoked', 1, 'support_capability',
@@ -2669,7 +2650,7 @@ async fn append_support_attachment_event(
     sqlx::query(
         "INSERT INTO erpx_control.outbox_events
             (id, event_type, event_version, aggregate_type, aggregate_id,
-             aggregate_version, tenant_scope, actor, correlation_id,
+             aggregate_version, active_scope, actor, correlation_id,
              idempotency_key, payload, occurred_at, available_at)
          VALUES ($1, $2, 1, 'support_attachment', $3, $4, $5, $6, $1, $7, $8, $9, $9)",
     )
@@ -3082,7 +3063,7 @@ fn parse_attachment_visibility(
 fn support_mode(mode: SupportMode) -> &'static str {
     match mode {
         SupportMode::DiagnosticRead => "diagnostic_read",
-        SupportMode::TenantMutation => "tenant_mutation",
+        SupportMode::HoldingMutation => "holding_mutation",
         SupportMode::Impersonation => "impersonation",
     }
 }
@@ -3090,7 +3071,7 @@ fn support_mode(mode: SupportMode) -> &'static str {
 fn parse_support_mode(mode: &str) -> Result<SupportMode, SupportPersistenceError> {
     match mode {
         "diagnostic_read" => Ok(SupportMode::DiagnosticRead),
-        "tenant_mutation" => Ok(SupportMode::TenantMutation),
+        "holding_mutation" => Ok(SupportMode::HoldingMutation),
         "impersonation" => Ok(SupportMode::Impersonation),
         _ => Err(SupportPersistenceError::InvalidData(format!(
             "unknown support mode {mode}"
@@ -3262,8 +3243,8 @@ mod attachment_tests {
         let holding_id = Uuid::new_v4();
         let company_id = Uuid::new_v4();
         let branch_id = Uuid::new_v4();
-        let holding = TenantScope::Holding { holding_id };
-        let branch = TenantScope::Branch {
+        let holding = AuthorityScope::Holding { holding_id };
+        let branch = AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -3302,7 +3283,7 @@ mod capability_tests {
                 "device-1",
                 Uuid::from_u128(3),
                 Uuid::from_u128(4),
-                SupportMode::TenantMutation,
+                SupportMode::HoldingMutation,
                 vec!["support:read".into(), "support:write".into()],
                 "holding-1/company-1",
                 "support",

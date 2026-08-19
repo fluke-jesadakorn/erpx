@@ -12,5 +12,5 @@ erpx_ui_kit::declare_current_workspace_feature!(
     erpx_ui_kit::CurrentFeatureKind::Organization,
     "organization",
     [("organization.workspace", "/organization", "platform")],
-    "erpx-feature-organization-v2"
+    "erpx-feature-organization"
 );

@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_cqrs::{IdempotencyKey, QueryConsistency};
-use erpx_kernel::{ActorAttribution, AuditContext, CommandId, CorrelationId, TenantScope};
+use erpx_kernel::{ActorAttribution, AuditContext, AuthorityScope, CommandId, CorrelationId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -22,7 +22,7 @@ pub enum InventoryLifecycleRecordAction {
 pub enum InventoryLifecycleRecordCommand {
     Create {
         kind: InventoryLifecycleRecordKind,
-        scope: TenantScope,
+        scope: AuthorityScope,
         title: String,
     },
     Transition {
@@ -52,15 +52,15 @@ pub struct InventoryLifecycleRecordCommandRequest {
     pub identity: InventoryLifecycleRecordCommandIdentity,
     pub correlation_id: CorrelationId,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
 }
 
 pub struct InventoryLifecycleRecordAuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
-    pub target_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
+    pub target_scope: &'a AuthorityScope,
     pub action: InventoryLifecycleRecordAction,
     pub kind: InventoryLifecycleRecordKind,
 }
@@ -77,7 +77,7 @@ pub trait InventoryLifecycleRecordAuthorizationPort: Send + Sync {
 pub trait InventoryLifecycleRecordWriteRepository: Send + Sync {
     async fn load_inventory_lifecycle_record(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         record_id: Uuid,
     ) -> Result<Option<InventoryLifecycleRecord>, super::PortError>;
 }
@@ -115,7 +115,7 @@ pub trait InventoryLifecycleRecordUnitOfWork: Send + Sync {
 pub trait InventoryLifecycleRecordReadRepository: Send + Sync {
     async fn get_inventory_lifecycle_record(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         record_id: Uuid,
         consistency: &QueryConsistency,
     ) -> Result<super::ReadProjection<Option<InventoryLifecycleRecord>>, super::PortError>;

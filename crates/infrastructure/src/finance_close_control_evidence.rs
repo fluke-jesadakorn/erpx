@@ -97,24 +97,24 @@ pub struct FinanceCloseControlEvidenceWriteReceipt {
 #[derive(Debug, Clone)]
 pub struct SqlxFinanceCloseControlEvidenceStore {
     write_pool: PgPool,
-    holding_ref: String,
+    data_profile_key: String,
 }
 
 impl SqlxFinanceCloseControlEvidenceStore {
     pub fn new(
         write_pool: PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_holding_ref(&holding_ref)?;
+        let data_profile_key = data_profile_key.into();
+        validate_data_profile_key(&data_profile_key)?;
         Ok(Self {
             write_pool,
-            holding_ref,
+            data_profile_key,
         })
     }
 
-    pub fn holding_ref(&self) -> &str {
-        &self.holding_ref
+    pub fn data_profile_key(&self) -> &str {
+        &self.data_profile_key
     }
 
     /// Publish the current result for one source control.
@@ -129,21 +129,21 @@ impl SqlxFinanceCloseControlEvidenceStore {
         record: &FinanceCloseControlEvidenceSourceRecord,
     ) -> Result<FinanceCloseControlEvidenceWriteReceipt, PersistenceError> {
         validate_record(record)?;
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
-        lock_control(&mut tx, &self.holding_ref, record).await?;
-        validate_period_identity(&mut tx, &self.holding_ref, record).await?;
-        reject_closed_period(&mut tx, &self.holding_ref, record).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
+        lock_control(&mut tx, &self.data_profile_key, record).await?;
+        validate_period_identity(&mut tx, &self.data_profile_key, record).await?;
+        reject_closed_period(&mut tx, &self.data_profile_key, record).await?;
 
         let existing: Option<ExistingEvidenceRow> = sqlx::query_as(
             "SELECT holding_id, company_id, control_code, source_type,
                     source_aggregate_id, source_version, evidence_ref,
                     resolved, observed_at, payload
-             FROM erpx_tenant.finance_close_control_evidence
-             WHERE holding_ref=$1 AND holding_id=$2 AND company_id=$3
+             FROM erpx_holding.finance_close_control_evidence
+             WHERE data_profile_key=$1 AND holding_id=$2 AND company_id=$3
                AND period_id=$4 AND control_code=$5
              FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(record.holding_id)
         .bind(record.company_id)
         .bind(record.period_id)
@@ -176,17 +176,17 @@ impl SqlxFinanceCloseControlEvidenceStore {
                 }
                 let outbox_event_count: i64 = sqlx::query_scalar(
                     "SELECT COUNT(*)
-                     FROM erpx_tenant.outbox_events
-                     WHERE holding_ref=$1
+                     FROM erpx_holding.outbox_events
+                     WHERE data_profile_key=$1
                        AND aggregate_type=$2
                        AND aggregate_id=$3
                        AND aggregate_version=$4
                        AND event_type=$5",
                 )
-                .bind(&self.holding_ref)
+                .bind(&self.data_profile_key)
                 .bind(FINANCE_CLOSE_CONTROL_AGGREGATE_TYPE)
                 .bind(deterministic_control_aggregate_id(
-                    &self.holding_ref,
+                    &self.data_profile_key,
                     record,
                 ))
                 .bind(as_i64(record.source_version)?)
@@ -203,17 +203,17 @@ impl SqlxFinanceCloseControlEvidenceStore {
             } else {
                 let target_outbox_event_count: i64 = sqlx::query_scalar(
                     "SELECT COUNT(*)
-                     FROM erpx_tenant.outbox_events
-                     WHERE holding_ref=$1
+                     FROM erpx_holding.outbox_events
+                     WHERE data_profile_key=$1
                        AND aggregate_type=$2
                        AND aggregate_id=$3
                        AND aggregate_version=$4
                        AND event_type=$5",
                 )
-                .bind(&self.holding_ref)
+                .bind(&self.data_profile_key)
                 .bind(FINANCE_CLOSE_CONTROL_AGGREGATE_TYPE)
                 .bind(deterministic_control_aggregate_id(
-                    &self.holding_ref,
+                    &self.data_profile_key,
                     record,
                 ))
                 .bind(as_i64(record.source_version)?)
@@ -222,13 +222,13 @@ impl SqlxFinanceCloseControlEvidenceStore {
                 .await?;
                 validate_new_source_outbox_slot(record.source_version, target_outbox_event_count)?;
                 sqlx::query(
-                    "UPDATE erpx_tenant.finance_close_control_evidence
+                    "UPDATE erpx_holding.finance_close_control_evidence
                      SET source_version=$6, evidence_ref=$7, resolved=$8,
                          observed_at=$9, payload=$10, updated_at=now()
-                     WHERE holding_ref=$1 AND holding_id=$2 AND company_id=$3
+                     WHERE data_profile_key=$1 AND holding_id=$2 AND company_id=$3
                        AND period_id=$4 AND control_code=$5",
                 )
-                .bind(&self.holding_ref)
+                .bind(&self.data_profile_key)
                 .bind(record.holding_id)
                 .bind(record.company_id)
                 .bind(record.period_id)
@@ -249,13 +249,13 @@ impl SqlxFinanceCloseControlEvidenceStore {
             }
         } else {
             sqlx::query(
-                "INSERT INTO erpx_tenant.finance_close_control_evidence
-                     (holding_ref, holding_id, company_id, period_id,
+                "INSERT INTO erpx_holding.finance_close_control_evidence
+                     (data_profile_key, holding_id, company_id, period_id,
                      control_code, source_type, source_aggregate_id,
                      source_version, evidence_ref, resolved, observed_at, payload)
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(record.holding_id)
             .bind(record.company_id)
             .bind(record.period_id)
@@ -278,7 +278,7 @@ impl SqlxFinanceCloseControlEvidenceStore {
         };
 
         if !receipt.replayed {
-            append_source_outbox_event(&mut tx, &self.holding_ref, record).await?;
+            append_source_outbox_event(&mut tx, &self.data_profile_key, record).await?;
         }
         tx.commit().await?;
         Ok(receipt)
@@ -287,20 +287,20 @@ impl SqlxFinanceCloseControlEvidenceStore {
 
 async fn append_source_outbox_event(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     record: &FinanceCloseControlEvidenceSourceRecord,
 ) -> Result<(), PersistenceError> {
-    let event_payload = build_source_outbox_payload(holding_ref, record)?;
+    let event_payload = build_source_outbox_payload(data_profile_key, record)?;
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,now())",
     )
     .bind(Uuid::new_v4())
     .bind(FINANCE_CLOSE_CONTROL_AGGREGATE_TYPE)
-    .bind(deterministic_control_aggregate_id(holding_ref, record))
-    .bind(holding_ref)
+    .bind(deterministic_control_aggregate_id(data_profile_key, record))
+    .bind(data_profile_key)
     .bind(as_i64(record.source_version)?)
     .bind(FINANCE_CLOSE_CONTROL_EVENT_TYPE)
     .bind(event_payload)
@@ -310,11 +310,11 @@ async fn append_source_outbox_event(
 }
 
 fn build_source_outbox_payload(
-    holding_ref: &str,
+    data_profile_key: &str,
     record: &FinanceCloseControlEvidenceSourceRecord,
 ) -> Result<Value, PersistenceError> {
     let source_event_key = format!(
-        "{holding_ref}:{FINANCE_CLOSE_CONTROL_AGGREGATE_TYPE}:{}:{}:{}:{}:{}:{}",
+        "{data_profile_key}:{FINANCE_CLOSE_CONTROL_AGGREGATE_TYPE}:{}:{}:{}:{}:{}:{}",
         record.holding_id,
         record.company_id,
         record.period_id,
@@ -357,11 +357,11 @@ fn build_source_outbox_payload(
 }
 
 fn deterministic_control_aggregate_id(
-    holding_ref: &str,
+    data_profile_key: &str,
     record: &FinanceCloseControlEvidenceSourceRecord,
 ) -> Uuid {
     deterministic_control_aggregate_id_for_scope(
-        holding_ref,
+        data_profile_key,
         record.holding_id,
         record.company_id,
         record.period_id,
@@ -370,7 +370,7 @@ fn deterministic_control_aggregate_id(
 }
 
 pub(crate) fn deterministic_control_aggregate_id_for_scope(
-    holding_ref: &str,
+    data_profile_key: &str,
     holding_id: Uuid,
     company_id: Uuid,
     period_id: Uuid,
@@ -380,7 +380,7 @@ pub(crate) fn deterministic_control_aggregate_id_for_scope(
 
     let digest = Sha256::digest(
         format!(
-            "erpx/finance/close-control/v1/{holding_ref}/{}/{}/{}/{}",
+            "erpx/finance/close-control/{data_profile_key}/{}/{}/{}/{}",
             holding_id, company_id, period_id, control_code,
         )
         .as_bytes(),
@@ -394,12 +394,12 @@ pub(crate) fn deterministic_control_aggregate_id_for_scope(
 
 async fn lock_control(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     record: &FinanceCloseControlEvidenceSourceRecord,
 ) -> Result<(), PersistenceError> {
     sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
         .bind(format!(
-            "{holding_ref}:finance-close-control:{}:{}:{}",
+            "{data_profile_key}:finance-close-control:{}:{}:{}",
             record.company_id, record.period_id, record.control_code
         ))
         .execute(&mut **tx)
@@ -409,16 +409,16 @@ async fn lock_control(
 
 async fn validate_period_identity(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     record: &FinanceCloseControlEvidenceSourceRecord,
 ) -> Result<(), PersistenceError> {
     let period: Option<(Uuid, Uuid, String)> = sqlx::query_as(
         "SELECT holding_id, company_id, status
-         FROM erpx_tenant.finance_periods
-         WHERE holding_ref=$1 AND period_id=$2
+         FROM erpx_holding.finance_periods
+         WHERE data_profile_key=$1 AND period_id=$2
          FOR UPDATE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(record.period_id)
     .fetch_optional(&mut **tx)
     .await?;
@@ -443,18 +443,18 @@ async fn validate_period_identity(
 
 async fn reject_closed_period(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     record: &FinanceCloseControlEvidenceSourceRecord,
 ) -> Result<(), PersistenceError> {
     let closed_review: bool = sqlx::query_scalar(
         "SELECT EXISTS(
              SELECT 1
-             FROM erpx_tenant.finance_close_reviews
-             WHERE holding_ref=$1 AND company_id=$2 AND period_id=$3
+             FROM erpx_holding.finance_close_reviews
+             WHERE data_profile_key=$1 AND company_id=$2 AND period_id=$3
                AND status='closed'
          )",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(record.company_id)
     .bind(record.period_id)
     .fetch_one(&mut **tx)
@@ -584,7 +584,7 @@ fn validate_optional_source_identity(
     Ok(())
 }
 
-fn validate_holding_ref(value: &str) -> Result<(), PersistenceError> {
+fn validate_data_profile_key(value: &str) -> Result<(), PersistenceError> {
     if value.trim().is_empty() || value.len() > 255 || value.chars().any(char::is_control) {
         return Err(PersistenceError::Configuration(
             "holding reference must be bounded and non-empty",
@@ -681,8 +681,9 @@ mod tests {
     #[test]
     fn source_outbox_payload_is_bounded_and_keyed_by_source_version() {
         let record = sample_record();
-        let holding_ref = "holding-test";
-        let payload = build_source_outbox_payload(holding_ref, &record).expect("event payload");
+        let data_profile_key = "holding-test";
+        let payload =
+            build_source_outbox_payload(data_profile_key, &record).expect("event payload");
         assert_eq!(
             payload["aggregate_type"],
             FINANCE_CLOSE_CONTROL_AGGREGATE_TYPE
@@ -705,7 +706,7 @@ mod tests {
         assert_eq!(
             payload["aggregate"]["event_key"],
             format!(
-                "{holding_ref}:{FINANCE_CLOSE_CONTROL_AGGREGATE_TYPE}:{}:{}:{}:{}:{}:{}",
+                "{data_profile_key}:{FINANCE_CLOSE_CONTROL_AGGREGATE_TYPE}:{}:{}:{}:{}:{}:{}",
                 record.holding_id,
                 record.company_id,
                 record.period_id,

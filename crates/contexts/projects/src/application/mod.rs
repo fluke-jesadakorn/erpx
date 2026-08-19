@@ -1,7 +1,7 @@
 use erpx_cqrs::{CommandReceipt, IdempotencyKey};
 use erpx_integration_contracts::StableRecordRef;
 use erpx_kernel::{
-    ActorAttribution, AuditContext, Clock, CommandId, CorrelationId, EventId, TenantScope,
+    ActorAttribution, AuditContext, AuthorityScope, Clock, CommandId, CorrelationId, EventId,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -29,7 +29,7 @@ pub struct CommandContext {
     pub correlation_id: CorrelationId,
     pub causation_id: Option<EventId>,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
 }
@@ -37,7 +37,7 @@ pub struct CommandContext {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateProject {
     pub project_id: ProjectId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub code: String,
     pub name: String,
     pub class: ProjectClass,
@@ -145,7 +145,7 @@ pub struct ProposeHandoff {
     pub handoff_id: HandoffId,
     pub project_id: ProjectId,
     pub item_id: crate::domain::ProjectNodeId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub kind: HandoffKind,
     pub payload_digest: String,
     pub owner_id: Uuid,
@@ -192,7 +192,7 @@ where
     async fn preflight(
         &self,
         context: &CommandContext,
-        target: &TenantScope,
+        target: &AuthorityScope,
         action: ProjectAction,
     ) -> Result<(), ProjectApplicationError> {
         if !context.authority_scope.contains(target) {
@@ -810,7 +810,7 @@ mod tests {
     fn fingerprint_digest_is_stable_and_payload_sensitive() {
         let base = CreateProject {
             project_id: ProjectId::try_from_uuid(Uuid::from_u128(1)).unwrap(),
-            scope: TenantScope::Company {
+            scope: AuthorityScope::Company {
                 holding_id: Uuid::from_u128(2),
                 company_id: Uuid::from_u128(3),
             },

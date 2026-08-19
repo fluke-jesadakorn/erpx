@@ -17,23 +17,23 @@ mod owned_record;
 pub use owned_record::{Customer360OwnedRecord, Customer360RecordKind, Customer360RecordStatus};
 
 /// Customer Authority facts are sourced from control-write and therefore own
-/// a checkpoint that cannot be compared with a tenant-write sequence.
+/// a checkpoint that cannot be compared with a holding-write sequence.
 pub const CONTROL_CUSTOMERS_PROJECTION_NAME: &str = "customer360.control_customers";
-/// Commercial, CRM, Sales, and Support facts share the tenant activity stream.
-pub const TENANT_ACTIVITY_PROJECTION_NAME: &str = "customer360.tenant_activity";
+/// Commercial, CRM, Sales, and Support facts share the holding activity stream.
+pub const HOLDING_ACTIVITY_PROJECTION_NAME: &str = "customer360.holding_activity";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Customer360ProjectionStream {
     ControlCustomers,
-    TenantActivity,
+    HoldingActivity,
 }
 
 impl Customer360ProjectionStream {
     pub const fn projection_name(self) -> &'static str {
         match self {
             Self::ControlCustomers => CONTROL_CUSTOMERS_PROJECTION_NAME,
-            Self::TenantActivity => TENANT_ACTIVITY_PROJECTION_NAME,
+            Self::HoldingActivity => HOLDING_ACTIVITY_PROJECTION_NAME,
         }
     }
 }
@@ -95,7 +95,7 @@ impl Customer360ProjectionInput {
             Customer360SourceFact::Commercial(_)
             | Customer360SourceFact::Crm(_)
             | Customer360SourceFact::Sales(_)
-            | Customer360SourceFact::Support(_) => Customer360ProjectionStream::TenantActivity,
+            | Customer360SourceFact::Support(_) => Customer360ProjectionStream::HoldingActivity,
         };
         if self.stream == expected {
             Ok(())
@@ -108,14 +108,14 @@ impl Customer360ProjectionInput {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectionPositions {
     pub control_customers: Option<ProjectionPosition>,
-    pub tenant_activity: Option<ProjectionPosition>,
+    pub holding_activity: Option<ProjectionPosition>,
 }
 
 impl ProjectionPositions {
     pub const fn get(self, stream: Customer360ProjectionStream) -> Option<ProjectionPosition> {
         match stream {
             Customer360ProjectionStream::ControlCustomers => self.control_customers,
-            Customer360ProjectionStream::TenantActivity => self.tenant_activity,
+            Customer360ProjectionStream::HoldingActivity => self.holding_activity,
         }
     }
 
@@ -124,8 +124,8 @@ impl ProjectionPositions {
             Customer360ProjectionStream::ControlCustomers => {
                 self.control_customers = Some(position);
             }
-            Customer360ProjectionStream::TenantActivity => {
-                self.tenant_activity = Some(position);
+            Customer360ProjectionStream::HoldingActivity => {
+                self.holding_activity = Some(position);
             }
         }
     }
@@ -241,7 +241,7 @@ impl Customer360SectionAvailability {
     pub fn from_source_freshness(
         coverage: SourceCoverage,
         control: SourceFreshness,
-        tenant: SourceFreshness,
+        holding: SourceFreshness,
     ) -> Self {
         let section = |observed: bool, freshness: SourceFreshness| match freshness {
             SourceFreshness::Current if observed => SectionAvailability::Ready,
@@ -251,10 +251,10 @@ impl Customer360SectionAvailability {
         };
         Self {
             overview: section(coverage.customer_profile, control),
-            commercial: section(coverage.commercial_subscriptions, tenant),
-            relationship_activity: section(coverage.crm_opportunities, tenant),
-            sales_activity: section(coverage.sales_orders, tenant),
-            support: section(coverage.support_cases, tenant),
+            commercial: section(coverage.commercial_subscriptions, holding),
+            relationship_activity: section(coverage.crm_opportunities, holding),
+            sales_activity: section(coverage.sales_orders, holding),
+            support: section(coverage.support_cases, holding),
             organization: SectionAvailability::NotProjected,
             contacts: SectionAvailability::NotProjected,
             entitlements: SectionAvailability::NotProjected,
@@ -304,7 +304,7 @@ impl Customer360Projection {
             },
             positions: ProjectionPositions {
                 control_customers: None,
-                tenant_activity: None,
+                holding_activity: None,
             },
         }
     }
@@ -398,7 +398,7 @@ impl Customer360Projection {
 
     /// Rebuild one independently switched source generation. The returned
     /// projection contains only facts from that stream so an adapter cannot
-    /// accidentally copy facts across the control/tenant database boundary.
+    /// accidentally copy facts across the control/holding database boundary.
     pub fn rebuild_stream(
         customer: CustomerRef,
         stream: Customer360ProjectionStream,
@@ -466,7 +466,7 @@ impl Customer360Projection {
         }
         if [
             self.positions.control_customers,
-            self.positions.tenant_activity,
+            self.positions.holding_activity,
         ]
         .into_iter()
         .flatten()
@@ -554,7 +554,7 @@ pub enum Customer360DomainError {
     CustomerMismatch,
     #[error("different events reuse the same global sequence")]
     ConflictingGlobalSequence,
-    #[error("source fact was routed to the wrong control/tenant projection stream")]
+    #[error("source fact was routed to the wrong control/holding projection stream")]
     IncorrectProjectionStream,
     #[error("persisted projection position is invalid")]
     InvalidPersistedPosition,

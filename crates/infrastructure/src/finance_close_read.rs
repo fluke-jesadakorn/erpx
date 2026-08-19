@@ -1,7 +1,7 @@
 //! Bounded read composition for Finance close reviews.
 //!
-//! Close reviews are authoritative on the tenant write database and are
-//! projected into the disposable tenant read database by the Finance close
+//! Close reviews are authoritative on the holding write database and are
+//! projected into the disposable holding read database by the Finance close
 //! worker. This adapter only performs bounded read-side composition from that
 //! projection before returning a safe DTO.
 
@@ -26,7 +26,7 @@ pub const MAX_FINANCE_CLOSE_REPORT_CONTROLS: usize = 4_096;
 pub const MAX_FINANCE_CLOSE_REPORT_ACCOUNTS: usize = 8_192;
 const MAX_FINANCE_CLOSE_ACTOR_BYTES: usize = 255;
 
-/// Errors deliberately contain no SQL, JSON, credentials, or tenant payload.
+/// Errors deliberately contain no SQL, JSON, credentials, or holding payload.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
 pub enum FinanceCloseReadError {
     #[error("Finance close read request is invalid")]
@@ -197,29 +197,29 @@ pub enum FinanceCloseReadResult {
 #[derive(Debug, Clone)]
 pub struct SqlxFinanceCloseReadAdapter {
     read_pool: PgPool,
-    holding_ref: String,
+    data_profile_key: String,
 }
 
 impl SqlxFinanceCloseReadAdapter {
     pub fn new(
         read_pool: PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, FinanceCloseReadError> {
-        let holding_ref = holding_ref.into();
-        if holding_ref.trim().is_empty()
-            || holding_ref.len() > 255
-            || holding_ref.chars().any(char::is_control)
+        let data_profile_key = data_profile_key.into();
+        if data_profile_key.trim().is_empty()
+            || data_profile_key.len() > 255
+            || data_profile_key.chars().any(char::is_control)
         {
             return Err(FinanceCloseReadError::InvalidRequest);
         }
         Ok(Self {
             read_pool,
-            holding_ref,
+            data_profile_key,
         })
     }
 
-    pub fn holding_ref(&self) -> &str {
-        &self.holding_ref
+    pub fn data_profile_key(&self) -> &str {
+        &self.data_profile_key
     }
 
     pub async fn read_review(
@@ -231,7 +231,7 @@ impl SqlxFinanceCloseReadAdapter {
         if period_id.is_nil() || scope.holding_id.is_nil() || scope.company_id.is_nil() {
             return Err(FinanceCloseReadError::InvalidRequest);
         }
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref)
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key)
             .await
             .map_err(map_persistence_error)?;
         let row = sqlx::query(
@@ -244,10 +244,10 @@ impl SqlxFinanceCloseReadAdapter {
                     expected_fact_count, observed_fact_count, missing_fact_count,
                     account_summary_count, source_version, source_event_id,
                     review_updated_at, projected_at
-             FROM erpx_tenant.finance_close_review_read_rows
-             WHERE holding_ref=$1 AND period_id=$2",
+             FROM erpx_holding.finance_close_review_read_rows
+             WHERE data_profile_key=$1 AND period_id=$2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(period_id)
         .fetch_optional(&mut *tx)
         .await
@@ -317,10 +317,10 @@ impl SqlxFinanceCloseReadAdapter {
         }
         let checkpoint = sqlx::query(
             "SELECT last_event_id, source_version
-             FROM erpx_tenant.finance_close_projection_checkpoints
-             WHERE holding_ref=$1 AND period_id=$2",
+             FROM erpx_holding.finance_close_projection_checkpoints
+             WHERE data_profile_key=$1 AND period_id=$2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(period_id)
         .fetch_optional(&mut *tx)
         .await
@@ -357,12 +357,12 @@ impl SqlxFinanceCloseReadAdapter {
             "SELECT holding_id, company_id, period_id, account_id,
                     debit_minor, credit_minor, net_minor,
                     source_version, source_event_id
-             FROM erpx_tenant.finance_close_account_read_rows
-             WHERE holding_ref=$1 AND period_id=$2
+             FROM erpx_holding.finance_close_account_read_rows
+             WHERE data_profile_key=$1 AND period_id=$2
              ORDER BY account_id
              LIMIT $3",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(period_id)
         .bind(
             i64::try_from(MAX_FINANCE_CLOSE_REPORT_ACCOUNTS.saturating_add(1))
@@ -564,7 +564,7 @@ impl SqlxFinanceCloseReadAdapter {
         if page_size == 0 || page_size > MAX_FINANCE_CLOSE_READ_PAGE_SIZE {
             return Err(FinanceCloseReadError::InvalidRequest);
         }
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref)
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key)
             .await
             .map_err(map_persistence_error)?;
         let limit = i64::from(page_size) + 1;
@@ -576,16 +576,16 @@ impl SqlxFinanceCloseReadAdapter {
                     r.control_unresolved_count, r.missing_fact_count,
                     c.last_event_id,
                     c.source_version AS checkpoint_source_version
-             FROM erpx_tenant.finance_close_review_read_rows r
-             JOIN erpx_tenant.finance_close_projection_checkpoints c
-               ON c.holding_ref = r.holding_ref AND c.period_id = r.period_id
-             WHERE r.holding_ref=$1 AND r.holding_id=$2 AND r.company_id=$3
+             FROM erpx_holding.finance_close_review_read_rows r
+             JOIN erpx_holding.finance_close_projection_checkpoints c
+               ON c.data_profile_key = r.data_profile_key AND c.period_id = r.period_id
+             WHERE r.data_profile_key=$1 AND r.holding_id=$2 AND r.company_id=$3
                AND ($4::timestamptz IS NULL
                     OR (r.projected_at, r.period_id) < ($4::timestamptz, $5::uuid))
              ORDER BY r.projected_at DESC, r.period_id DESC
              LIMIT $6",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(scope.holding_id)
         .bind(scope.company_id)
         .bind(before.as_ref().map(|cursor| cursor.projected_at))
@@ -937,7 +937,7 @@ fn map_persistence_error(error: PersistenceError) -> FinanceCloseReadError {
 #[cfg(test)]
 mod tests {
     use chrono::NaiveDate;
-    use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+    use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
     use erpx_domain::finance::AccountingPeriod;
     use erpx_domain::finance_close::{
         CloseControlFlag, CloseInput, CloseJournalFact, CloseJournalLine,
@@ -954,12 +954,12 @@ mod tests {
             format!("close-read-{actor}"),
             ActorAttribution {
                 principal_ref: actor.into(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: None,
                 represented_principal_ref: None,
                 support_capability_id: None,
             },
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             },

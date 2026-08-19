@@ -6,7 +6,7 @@ use erpx_customer_authority::{
     CustomerStatus, GetCustomer, GetCustomerResult, LinkCustomerAuthority, ListCustomers,
     MergeCustomer, UnlinkCustomerAuthority, UpdateCustomerIdentity,
 };
-use erpx_proto::erpx::customer_authority::v2 as platform;
+use erpx_proto::erpx::customer_authority as platform;
 use erpx_ui_foundation::UiError;
 
 use crate::{
@@ -35,13 +35,13 @@ impl CustomerAuthorityGrpcTransport {
     pub(crate) fn try_new(
         channel: GrpcChannel,
         access_token: impl AsRef<str>,
-        tenant_id: impl AsRef<str>,
-        holding_ref: impl AsRef<str>,
+        holding_id: impl AsRef<str>,
+        data_profile_key: impl AsRef<str>,
     ) -> Result<Self, UiError> {
         Ok(Self {
             command: platform::customer_authority_command_service_client::CustomerAuthorityCommandServiceClient::new(channel.clone()),
             query: platform::customer_authority_query_service_client::CustomerAuthorityQueryServiceClient::new(channel),
-            authority: RpcAuthority::tenant(access_token, tenant_id, holding_ref)?,
+            authority: RpcAuthority::holding(access_token, holding_id, data_profile_key)?,
         })
     }
 }

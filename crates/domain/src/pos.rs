@@ -1,4 +1,4 @@
-//! Tenant-scoped point-of-sale sale rules.
+//! Holding-scoped point-of-sale sale rules.
 //!
 //! This module is deliberately transport- and persistence-free.  A sale owns
 //! only typed commercial facts: lines, payment method/amount/timestamp, scope,
@@ -11,7 +11,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::contracts::{ActorAttribution, AuditContext, CommandContext, TenantScope};
+use crate::contracts::{ActorAttribution, AuditContext, AuthorityScope, CommandContext};
 
 pub const POS_CONTRACT_VERSION: u16 = 1;
 pub const POS_EVENT_VERSION: u16 = 1;
@@ -86,7 +86,7 @@ pub enum PosError {
     InvalidEventMetadata,
 }
 
-/// Tenant-scoped source/read reconciliation facts for the disposable POS
+/// Holding-scoped source/read reconciliation facts for the disposable POS
 /// sale projection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct PosProjectionReconciliation {
@@ -120,11 +120,11 @@ pub enum PosReferenceKind {
 pub struct PosScopedReference {
     pub id: Uuid,
     pub kind: PosReferenceKind,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
 }
 
 impl PosScopedReference {
-    pub fn new(id: Uuid, kind: PosReferenceKind, scope: TenantScope) -> Result<Self, PosError> {
+    pub fn new(id: Uuid, kind: PosReferenceKind, scope: AuthorityScope) -> Result<Self, PosError> {
         let reference = Self { id, kind, scope };
         reference.validate()?;
         Ok(reference)
@@ -137,7 +137,7 @@ impl PosScopedReference {
 
     fn validate_for_sale(
         &self,
-        sale_scope: &TenantScope,
+        sale_scope: &AuthorityScope,
         reference_type: &'static str,
         expected_kind: PosReferenceKind,
     ) -> Result<(), PosError> {
@@ -395,7 +395,7 @@ pub struct PosEventMetadata {
     pub aggregate_type: String,
     pub aggregate_id: Uuid,
     pub aggregate_version: u64,
-    pub tenant_scope: TenantScope,
+    pub active_scope: AuthorityScope,
     pub actor: ActorAttribution,
     pub audit: AuditContext,
     pub correlation_id: Uuid,
@@ -432,7 +432,7 @@ impl PosEventMetadata {
             return Err(PosError::InvalidEventMetadata);
         }
         validate_audit_actor(&self.actor)?;
-        validate_reference_scope(&self.tenant_scope)
+        validate_reference_scope(&self.active_scope)
     }
 }
 
@@ -497,7 +497,7 @@ pub struct Sale {
     pub reference: String,
     pub idempotency_key: String,
     pub command_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub holding_id: Uuid,
     pub company_id: Uuid,
     pub branch_id: Option<Uuid>,
@@ -521,7 +521,7 @@ impl Sale {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         currency: impl Into<String>,
         lines: Vec<SaleLine>,
         at: DateTime<Utc>,
@@ -533,7 +533,7 @@ impl Sale {
     #[allow(clippy::too_many_arguments)]
     pub fn new_with_references(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         currency: impl Into<String>,
         lines: Vec<SaleLine>,
         customer: Option<PosScopedReference>,
@@ -546,7 +546,7 @@ impl Sale {
             return Err(PosError::UnexpectedExpectedVersion);
         }
         validate_sale_scope(&scope)?;
-        if !context.tenant_scope.contains(&scope) {
+        if !context.active_scope.contains(&scope) {
             return Err(PosError::CommandScopeOutside);
         }
         let (holding_id, company_id, branch_id) = scope_parts(&scope)?;
@@ -705,7 +705,7 @@ impl Sale {
             let expected_version =
                 u64::try_from(index + 1).map_err(|_| PosError::InvalidEventMetadata)?;
             if command.event.aggregate_id != self.id
-                || command.event.tenant_scope != self.scope
+                || command.event.active_scope != self.scope
                 || command.event.aggregate_version != expected_version
                 || (index == 0 && command.command_kind != SaleCommandKind::Create)
                 || (index > 0 && command.event.causation_id != Some(command.command_id))
@@ -761,7 +761,7 @@ impl Sale {
     ) -> Result<SaleCommandResult, PosError> {
         self.validate()?;
         validate_context(context)?;
-        if !context.tenant_scope.contains(&self.scope) {
+        if !context.active_scope.contains(&self.scope) {
             return Err(PosError::CommandScopeOutside);
         }
         if at < self.updated_at {
@@ -951,7 +951,7 @@ fn event_metadata(
     event_type: PosEventType,
     aggregate_id: Uuid,
     aggregate_version: u64,
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     context: &CommandContext,
     causation_id: Option<Uuid>,
     idempotency_key: String,
@@ -965,7 +965,7 @@ fn event_metadata(
         aggregate_type: "pos_sale".into(),
         aggregate_id,
         aggregate_version,
-        tenant_scope: scope.clone(),
+        active_scope: scope.clone(),
         actor: context.actor.clone(),
         audit: context.audit.clone(),
         correlation_id: context.correlation_id,
@@ -979,7 +979,7 @@ fn event_metadata(
 
 fn command_fingerprint(command: &SaleCommand) -> Result<[u8; 32], PosError> {
     let mut hasher = Sha256::new();
-    hasher.update(b"erpx/pos/sale-command/v1/");
+    hasher.update(b"erpx/pos/sale-command/");
     match command {
         SaleCommand::Open => hasher.update(b"open"),
         SaleCommand::Hold => hasher.update(b"hold"),
@@ -1002,12 +1002,12 @@ fn command_fingerprint(command: &SaleCommand) -> Result<[u8; 32], PosError> {
 
 fn creation_fingerprint(
     id: Uuid,
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     currency: &str,
     lines: &[SaleLine],
 ) -> [u8; 32] {
     let mut hasher = Sha256::new();
-    hasher.update(b"erpx/pos/sale-create/v1/");
+    hasher.update(b"erpx/pos/sale-create/");
     hasher.update(id.as_bytes());
     hasher.update(currency.as_bytes());
     hasher.update(scope_key(scope).as_bytes());
@@ -1063,13 +1063,13 @@ fn validate_audit_actor(actor: &ActorAttribution) -> Result<(), PosError> {
     Ok(())
 }
 
-fn validate_sale_scope(scope: &TenantScope) -> Result<(), PosError> {
+fn validate_sale_scope(scope: &AuthorityScope) -> Result<(), PosError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } if !holding_id.is_nil() && !company_id.is_nil() => Ok(()),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -1078,14 +1078,14 @@ fn validate_sale_scope(scope: &TenantScope) -> Result<(), PosError> {
     }
 }
 
-fn validate_reference_scope(scope: &TenantScope) -> Result<(), PosError> {
+fn validate_reference_scope(scope: &AuthorityScope) -> Result<(), PosError> {
     match scope {
-        TenantScope::Holding { holding_id } if !holding_id.is_nil() => Ok(()),
-        TenantScope::Company {
+        AuthorityScope::Holding { holding_id } if !holding_id.is_nil() => Ok(()),
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } if !holding_id.is_nil() && !company_id.is_nil() => Ok(()),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -1094,13 +1094,13 @@ fn validate_reference_scope(scope: &TenantScope) -> Result<(), PosError> {
     }
 }
 
-fn scope_parts(scope: &TenantScope) -> Result<(Uuid, Uuid, Option<Uuid>), PosError> {
+fn scope_parts(scope: &AuthorityScope) -> Result<(Uuid, Uuid, Option<Uuid>), PosError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok((*holding_id, *company_id, None)),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -1111,7 +1111,7 @@ fn scope_parts(scope: &TenantScope) -> Result<(Uuid, Uuid, Option<Uuid>), PosErr
 
 fn validate_optional_reference(
     reference: Option<&PosScopedReference>,
-    sale_scope: &TenantScope,
+    sale_scope: &AuthorityScope,
     reference_type: &'static str,
     expected_kind: PosReferenceKind,
 ) -> Result<(), PosError> {
@@ -1187,24 +1187,23 @@ fn bounded(value: &str, field: &'static str, max: usize) -> Result<(), PosError>
     Ok(())
 }
 
-fn scope_key(scope: &TenantScope) -> String {
+fn scope_key(scope: &AuthorityScope) -> String {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => format!("company:{holding_id}:{company_id}"),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         } => format!("branch:{holding_id}:{company_id}:{branch_id}"),
-        TenantScope::Holding { holding_id } => format!("holding:{holding_id}"),
-        TenantScope::Platform => "platform".into(),
-        TenantScope::Subtree {
+        AuthorityScope::Holding { holding_id } => format!("holding:{holding_id}"),
+        AuthorityScope::Platform => "platform".into(),
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
-        } => format!("subtree:{holding_id}:{company_ids:?}:{branch_ids:?}"),
+            organization_node_id,
+        } => format!("subtree:{holding_id}:{organization_node_id}"),
     }
 }
 
@@ -1213,27 +1212,27 @@ mod tests {
     use super::*;
     use crate::contracts::ActorKind;
 
-    fn company_scope() -> TenantScope {
-        TenantScope::Company {
+    fn company_scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         }
     }
 
-    fn branch_scope(branch_id: u128) -> TenantScope {
-        TenantScope::Branch {
+    fn branch_scope(branch_id: u128) -> AuthorityScope {
+        AuthorityScope::Branch {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
             branch_id: Uuid::from_u128(branch_id),
         }
     }
 
-    fn context(scope: TenantScope, key: &str, expected: Option<u64>) -> CommandContext {
+    fn context(scope: AuthorityScope, key: &str, expected: Option<u64>) -> CommandContext {
         let mut context = CommandContext::try_new(
             key,
             ActorAttribution {
                 principal_ref: "pos-test-user".into(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: Some(Uuid::from_u128(90)),
                 represented_principal_ref: None,
                 support_capability_id: None,

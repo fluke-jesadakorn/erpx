@@ -4,14 +4,14 @@
 
 The authenticated Dioxus HR & Payroll route now consumes the existing typed
 HrService read RPCs for employees, leave requests, expense claims, payroll
-runs/lines, and expired-role reassignments under one explicit tenant, holding,
+runs/lines, and expired-role reassignments under one explicit holding, holding,
 company, and optional branch scope.
 
 ## Authoritative path
 
 - Each request carries an authenticated query context and platform metadata.
 - The server remains authoritative for hr.read authorization, customer-scope
-  audit, tenant-read routing, SQLx projection state, source versions, and
+  audit, holding-read routing, SQLx projection state, source versions, and
   rebuildable outbox history.
 - The console retains only bounded scalar fields, opaque identifiers, lifecycle
   statuses, reconciled payroll amounts, and safe projection metadata.

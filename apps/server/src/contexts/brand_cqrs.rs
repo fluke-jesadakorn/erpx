@@ -21,10 +21,10 @@ use erpx_cqrs::{
     QueryResult, ReadYourWrites,
 };
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
-    QueryId, SessionId, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+    ErrorCategory, EventId, QueryId, SessionId,
 };
-use erpx_proto::{common, erpx::brand::v2 as platform};
+use erpx_proto::{common, erpx::brand as platform};
 use tonic::{Request, Response, Status, metadata::MetadataMap};
 use uuid::Uuid;
 
@@ -35,9 +35,9 @@ const MAX_ROUTE_LENGTH: usize = 255;
 const MAX_SECURITY_INPUT_LENGTH: usize = 512;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BrandTenantRoute {
-    pub tenant_id: String,
-    pub holding_ref: String,
+pub struct BrandHoldingRoute {
+    pub holding_id: String,
+    pub data_profile_key: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,8 +49,8 @@ pub enum BrandAccessMode {
 pub struct BrandAuthenticationRequest {
     transport_metadata: MetadataMap,
     presented_actor: ActorAttribution,
-    presented_scope: TenantScope,
-    presented_route: BrandTenantRoute,
+    presented_scope: AuthorityScope,
+    presented_route: BrandHoldingRoute,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
     access_mode: BrandAccessMode,
@@ -63,10 +63,10 @@ impl BrandAuthenticationRequest {
     pub const fn presented_actor(&self) -> &ActorAttribution {
         &self.presented_actor
     }
-    pub const fn presented_scope(&self) -> &TenantScope {
+    pub const fn presented_scope(&self) -> &AuthorityScope {
         &self.presented_scope
     }
-    pub const fn presented_route(&self) -> &BrandTenantRoute {
+    pub const fn presented_route(&self) -> &BrandHoldingRoute {
         &self.presented_route
     }
     pub fn subscription_id(&self) -> Option<&str> {
@@ -83,40 +83,40 @@ impl BrandAuthenticationRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthenticatedBrandRequest {
     actor: ActorAttribution,
-    tenant_scope: TenantScope,
-    tenant_route: BrandTenantRoute,
+    active_scope: AuthorityScope,
+    holding_route: BrandHoldingRoute,
 }
 
 impl AuthenticatedBrandRequest {
     pub fn try_new(
         actor: ActorAttribution,
-        tenant_scope: TenantScope,
-        tenant_route: BrandTenantRoute,
+        active_scope: AuthorityScope,
+        holding_route: BrandHoldingRoute,
     ) -> Result<Self, BrandAuthenticationError> {
         actor
             .validate()
             .map_err(|_| BrandAuthenticationError::Internal)?;
-        tenant_scope
+        active_scope
             .validate()
             .map_err(|_| BrandAuthenticationError::Internal)?;
-        validate_route(&tenant_route).map_err(|_| BrandAuthenticationError::Internal)?;
-        validate_route_scope(&tenant_route, &tenant_scope)
+        validate_route(&holding_route).map_err(|_| BrandAuthenticationError::Internal)?;
+        validate_route_scope(&holding_route, &active_scope)
             .map_err(|_| BrandAuthenticationError::Internal)?;
         Ok(Self {
             actor,
-            tenant_scope,
-            tenant_route,
+            active_scope,
+            holding_route,
         })
     }
 
     pub const fn actor(&self) -> &ActorAttribution {
         &self.actor
     }
-    pub const fn tenant_scope(&self) -> &TenantScope {
-        &self.tenant_scope
+    pub const fn active_scope(&self) -> &AuthorityScope {
+        &self.active_scope
     }
-    pub const fn tenant_route(&self) -> &BrandTenantRoute {
-        &self.tenant_route
+    pub const fn holding_route(&self) -> &BrandHoldingRoute {
+        &self.holding_route
     }
 }
 
@@ -140,27 +140,27 @@ pub trait BrandRequestAuthenticator: Send + Sync + 'static {
 pub trait BrandCommandApplication: Send + Sync + 'static {
     async fn create_draft(
         &self,
-        route: BrandTenantRoute,
+        route: BrandHoldingRoute,
         command: CommandEnvelope<CreateBrandDraft>,
     ) -> Result<CommandReceipt<CreateBrandDraftResult>, CqrsError>;
     async fn save_draft(
         &self,
-        route: BrandTenantRoute,
+        route: BrandHoldingRoute,
         command: CommandEnvelope<SaveBrandDraft>,
     ) -> Result<CommandReceipt<BrandMutationResult>, CqrsError>;
     async fn publish_draft(
         &self,
-        route: BrandTenantRoute,
+        route: BrandHoldingRoute,
         command: CommandEnvelope<PublishBrandDraft>,
     ) -> Result<CommandReceipt<BrandMutationResult>, CqrsError>;
     async fn rollback(
         &self,
-        route: BrandTenantRoute,
+        route: BrandHoldingRoute,
         command: CommandEnvelope<RollbackBrand>,
     ) -> Result<CommandReceipt<BrandMutationResult>, CqrsError>;
     async fn set_category_locks(
         &self,
-        route: BrandTenantRoute,
+        route: BrandHoldingRoute,
         command: CommandEnvelope<SetBrandCategoryLocks>,
     ) -> Result<CommandReceipt<BrandMutationResult>, CqrsError>;
 }
@@ -169,17 +169,17 @@ pub trait BrandCommandApplication: Send + Sync + 'static {
 pub trait BrandQueryApplication: Send + Sync + 'static {
     async fn get_draft(
         &self,
-        route: BrandTenantRoute,
+        route: BrandHoldingRoute,
         query: QueryEnvelope<GetBrandDraft>,
     ) -> Result<QueryResult<GetBrandDraftResult>, CqrsError>;
     async fn get_resolved(
         &self,
-        route: BrandTenantRoute,
+        route: BrandHoldingRoute,
         query: QueryEnvelope<GetResolvedBrand>,
     ) -> Result<QueryResult<GetResolvedBrandResult>, CqrsError>;
     async fn list_history(
         &self,
-        route: BrandTenantRoute,
+        route: BrandHoldingRoute,
         query: QueryEnvelope<ListBrandHistory>,
     ) -> Result<QueryResult<BrandHistory>, CqrsError>;
 }
@@ -238,7 +238,7 @@ where
         )?;
         let (route, envelope) =
             authenticate_command(self.authenticator.as_ref(), transport, decoded).await?;
-        validate_target_authority(&route, &envelope.tenant_scope, &scope)?;
+        validate_target_authority(&route, &envelope.active_scope, &scope)?;
         let receipt = self
             .application
             .create_draft(route, envelope)
@@ -379,7 +379,7 @@ where
         )?;
         let (route, envelope) =
             authenticate_query(self.authenticator.as_ref(), transport, decoded).await?;
-        validate_target_authority(&route, &envelope.tenant_scope, &scope)?;
+        validate_target_authority(&route, &envelope.active_scope, &scope)?;
         let result = self
             .application
             .get_draft(route, envelope)
@@ -406,7 +406,7 @@ where
         )?;
         let (route, envelope) =
             authenticate_query(self.authenticator.as_ref(), transport, decoded).await?;
-        validate_target_authority(&route, &envelope.tenant_scope, &scope)?;
+        validate_target_authority(&route, &envelope.active_scope, &scope)?;
         let result = self
             .application
             .get_resolved(route, envelope)
@@ -436,7 +436,7 @@ where
         )?;
         let (route, envelope) =
             authenticate_query(self.authenticator.as_ref(), transport, decoded).await?;
-        validate_target_authority(&route, &envelope.tenant_scope, &scope)?;
+        validate_target_authority(&route, &envelope.active_scope, &scope)?;
         let result = self
             .application
             .list_history(route, envelope)
@@ -451,14 +451,14 @@ where
 }
 
 struct DecodedCommand<C> {
-    presented_route: BrandTenantRoute,
+    presented_route: BrandHoldingRoute,
     envelope: CommandEnvelope<C>,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
 }
 
 struct DecodedQuery<Q> {
-    presented_route: BrandTenantRoute,
+    presented_route: BrandHoldingRoute,
     envelope: QueryEnvelope<Q>,
 }
 
@@ -466,12 +466,12 @@ async fn authenticate_command<C, G: BrandRequestAuthenticator>(
     authenticator: &G,
     transport_metadata: MetadataMap,
     decoded: DecodedCommand<C>,
-) -> Result<(BrandTenantRoute, CommandEnvelope<C>), Status> {
+) -> Result<(BrandHoldingRoute, CommandEnvelope<C>), Status> {
     let authenticated = authenticator
         .authenticate(BrandAuthenticationRequest {
             transport_metadata,
             presented_actor: decoded.envelope.actor.clone(),
-            presented_scope: decoded.envelope.tenant_scope.clone(),
+            presented_scope: decoded.envelope.active_scope.clone(),
             presented_route: decoded.presented_route,
             subscription_id: decoded.subscription_id,
             mfa_code: decoded.mfa_code,
@@ -481,23 +481,23 @@ async fn authenticate_command<C, G: BrandRequestAuthenticator>(
         .map_err(status_from_authentication)?;
     let mut envelope = decoded.envelope;
     envelope.actor = authenticated.actor().clone();
-    envelope.tenant_scope = authenticated.tenant_scope().clone();
+    envelope.active_scope = authenticated.active_scope().clone();
     envelope
         .validate()
         .map_err(|_| Status::internal("authenticated Brand authority is invalid"))?;
-    Ok((authenticated.tenant_route().clone(), envelope))
+    Ok((authenticated.holding_route().clone(), envelope))
 }
 
 async fn authenticate_query<Q, G: BrandRequestAuthenticator>(
     authenticator: &G,
     transport_metadata: MetadataMap,
     decoded: DecodedQuery<Q>,
-) -> Result<(BrandTenantRoute, QueryEnvelope<Q>), Status> {
+) -> Result<(BrandHoldingRoute, QueryEnvelope<Q>), Status> {
     let authenticated = authenticator
         .authenticate(BrandAuthenticationRequest {
             transport_metadata,
             presented_actor: decoded.envelope.actor.clone(),
-            presented_scope: decoded.envelope.tenant_scope.clone(),
+            presented_scope: decoded.envelope.active_scope.clone(),
             presented_route: decoded.presented_route,
             subscription_id: None,
             mfa_code: None,
@@ -507,11 +507,11 @@ async fn authenticate_query<Q, G: BrandRequestAuthenticator>(
         .map_err(status_from_authentication)?;
     let mut envelope = decoded.envelope;
     envelope.actor = authenticated.actor().clone();
-    envelope.tenant_scope = authenticated.tenant_scope().clone();
+    envelope.active_scope = authenticated.active_scope().clone();
     envelope
         .validate()
         .map_err(|_| Status::internal("authenticated Brand authority is invalid"))?;
-    Ok((authenticated.tenant_route().clone(), envelope))
+    Ok((authenticated.holding_route().clone(), envelope))
 }
 
 fn decode_command<C>(
@@ -519,7 +519,7 @@ fn decode_command<C>(
     command: C,
 ) -> Result<DecodedCommand<C>, Status> {
     let metadata = metadata.ok_or_else(|| invalid("command metadata is required"))?;
-    let route = decode_route(metadata.tenant_route)?;
+    let route = decode_route(metadata.holding_route)?;
     let correlation_id = parse_correlation_id(&metadata.correlation_id)?;
     let subscription_id = normalize_security_input(metadata.subscription_id)?;
     let mfa_code = normalize_security_input(metadata.mfa_code)?;
@@ -536,10 +536,10 @@ fn decode_command<C>(
             .map(|value| parse_event_id(&value))
             .transpose()?,
         actor: decode_actor(metadata.actor)?,
-        tenant_scope: decode_scope(
+        active_scope: decode_scope(
             metadata
-                .tenant_scope
-                .ok_or_else(|| invalid("tenant_scope is required"))?,
+                .active_scope
+                .ok_or_else(|| invalid("active_scope is required"))?,
         )?,
         audit: decode_audit(metadata.audit, correlation_id)?,
         expected_aggregate_version: metadata.expected_aggregate_version,
@@ -548,7 +548,7 @@ fn decode_command<C>(
     envelope
         .validate()
         .map_err(|_| invalid("command metadata is invalid"))?;
-    validate_route_scope(&route, &envelope.tenant_scope)?;
+    validate_route_scope(&route, &envelope.active_scope)?;
     Ok(DecodedCommand {
         presented_route: route,
         envelope,
@@ -562,7 +562,7 @@ fn decode_query<Q>(
     query: Q,
 ) -> Result<DecodedQuery<Q>, Status> {
     let metadata = metadata.ok_or_else(|| invalid("query metadata is required"))?;
-    let route = decode_route(metadata.tenant_route)?;
+    let route = decode_route(metadata.holding_route)?;
     let correlation_id = parse_correlation_id(&metadata.correlation_id)?;
     let envelope = QueryEnvelope {
         contract_version: u16::try_from(metadata.contract_version)
@@ -571,10 +571,10 @@ fn decode_query<Q>(
             .map_err(|_| invalid("query_id is invalid"))?,
         correlation_id,
         actor: decode_actor(metadata.actor)?,
-        tenant_scope: decode_scope(
+        active_scope: decode_scope(
             metadata
-                .tenant_scope
-                .ok_or_else(|| invalid("tenant_scope is required"))?,
+                .active_scope
+                .ok_or_else(|| invalid("active_scope is required"))?,
         )?,
         audit: decode_audit(metadata.audit, correlation_id)?,
         consistency: decode_consistency(metadata.consistency)?,
@@ -583,7 +583,7 @@ fn decode_query<Q>(
     envelope
         .validate()
         .map_err(|_| invalid("query metadata is invalid"))?;
-    validate_route_scope(&route, &envelope.tenant_scope)?;
+    validate_route_scope(&route, &envelope.active_scope)?;
     Ok(DecodedQuery {
         presented_route: route,
         envelope,
@@ -598,11 +598,9 @@ fn decode_brand_scope(value: Option<platform::BrandTargetScope>) -> Result<Brand
     {
         Target::Platform(_) => BrandScope::Platform,
         Target::Holding(value) => BrandScope::Holding {
-            tenant_id: required_text(value.tenant_id, "tenant_id")?,
             holding_id: parse_uuid(&value.holding_id, "holding_id")?,
         },
         Target::BusinessUnit(value) => BrandScope::BusinessUnit {
-            tenant_id: required_text(value.tenant_id, "tenant_id")?,
             holding_id: parse_uuid(&value.holding_id, "holding_id")?,
             business_unit: decode_business_unit(value.business_unit)?,
         },
@@ -618,19 +616,13 @@ fn encode_brand_scope(value: &BrandScope) -> platform::BrandTargetScope {
     platform::BrandTargetScope {
         target: Some(match value {
             BrandScope::Platform => Target::Platform(platform::BrandPlatformTarget {}),
-            BrandScope::Holding {
-                tenant_id,
-                holding_id,
-            } => Target::Holding(platform::BrandHoldingTarget {
-                tenant_id: tenant_id.clone(),
+            BrandScope::Holding { holding_id } => Target::Holding(platform::BrandHoldingTarget {
                 holding_id: holding_id.to_string(),
             }),
             BrandScope::BusinessUnit {
-                tenant_id,
                 holding_id,
                 business_unit,
             } => Target::BusinessUnit(platform::BrandBusinessUnitTarget {
-                tenant_id: tenant_id.clone(),
                 holding_id: holding_id.to_string(),
                 business_unit: encode_business_unit(*business_unit),
             }),
@@ -981,8 +973,8 @@ const fn encode_lifecycle(value: BrandLifecycle) -> i32 {
 }
 
 fn validate_target_authority(
-    route: &BrandTenantRoute,
-    authority: &TenantScope,
+    route: &BrandHoldingRoute,
+    authority: &AuthorityScope,
     target: &BrandScope,
 ) -> Result<(), Status> {
     let target_authority = target
@@ -995,7 +987,7 @@ fn validate_target_authority(
     }
     match target {
         BrandScope::Platform => {
-            if matches!(authority, TenantScope::Platform) {
+            if matches!(authority, AuthorityScope::Platform) {
                 Ok(())
             } else {
                 Err(Status::permission_denied(
@@ -1003,19 +995,9 @@ fn validate_target_authority(
                 ))
             }
         }
-        BrandScope::Holding {
-            tenant_id,
-            holding_id,
-        }
-        | BrandScope::BusinessUnit {
-            tenant_id,
-            holding_id,
-            ..
-        } => {
-            if route.tenant_id != *tenant_id
-                || parse_uuid(&route.holding_ref, "holding_ref")? != *holding_id
-            {
-                Err(invalid("tenant route does not match Brand target"))
+        BrandScope::Holding { holding_id } | BrandScope::BusinessUnit { holding_id, .. } => {
+            if parse_uuid(&route.holding_id, "holding_id")? != *holding_id {
+                Err(invalid("holding route does not match Brand target"))
             } else {
                 Ok(())
             }
@@ -1023,39 +1005,39 @@ fn validate_target_authority(
     }
 }
 
-fn decode_route(route: Option<common::TenantRoute>) -> Result<BrandTenantRoute, Status> {
-    let route = route.ok_or_else(|| invalid("tenant route is required"))?;
-    let route = BrandTenantRoute {
-        tenant_id: route.tenant_id.trim().to_owned(),
-        holding_ref: route.holding_ref.trim().to_owned(),
+fn decode_route(route: Option<common::HoldingRoute>) -> Result<BrandHoldingRoute, Status> {
+    let route = route.ok_or_else(|| invalid("holding route is required"))?;
+    let route = BrandHoldingRoute {
+        holding_id: route.holding_id.trim().to_owned(),
+        data_profile_key: route.data_profile_key.trim().to_owned(),
     };
     validate_route(&route)?;
     Ok(route)
 }
 
-fn validate_route(route: &BrandTenantRoute) -> Result<(), Status> {
-    if [&route.tenant_id, &route.holding_ref]
+fn validate_route(route: &BrandHoldingRoute) -> Result<(), Status> {
+    if [&route.holding_id, &route.data_profile_key]
         .iter()
         .any(|value| value.trim().is_empty() || value.len() > MAX_ROUTE_LENGTH)
     {
-        Err(invalid("tenant route is invalid"))
+        Err(invalid("holding route is invalid"))
     } else {
         Ok(())
     }
 }
 
-fn validate_route_scope(route: &BrandTenantRoute, scope: &TenantScope) -> Result<(), Status> {
+fn validate_route_scope(route: &BrandHoldingRoute, scope: &AuthorityScope) -> Result<(), Status> {
     let holding = match scope {
-        TenantScope::Platform => return Ok(()),
-        TenantScope::Holding { holding_id }
-        | TenantScope::Company { holding_id, .. }
-        | TenantScope::Branch { holding_id, .. }
-        | TenantScope::Subtree { holding_id, .. } => holding_id,
+        AuthorityScope::Platform => return Ok(()),
+        AuthorityScope::Holding { holding_id }
+        | AuthorityScope::Company { holding_id, .. }
+        | AuthorityScope::Branch { holding_id, .. }
+        | AuthorityScope::Subtree { holding_id, .. } => holding_id,
     };
-    if parse_uuid(&route.holding_ref, "holding_ref")? == *holding {
+    if parse_uuid(&route.data_profile_key, "data_profile_key")? == *holding {
         Ok(())
     } else {
-        Err(invalid("tenant route does not match scope"))
+        Err(invalid("holding route does not match scope"))
     }
 }
 
@@ -1063,7 +1045,7 @@ fn decode_actor(actor: Option<common::ActorAttribution>) -> Result<ActorAttribut
     let actor = actor.ok_or_else(|| invalid("actor is required"))?;
     let kind = match common::ActorKind::try_from(actor.kind).ok() {
         Some(common::ActorKind::PlatformUser) => ActorKind::PlatformUser,
-        Some(common::ActorKind::TenantUser) => ActorKind::TenantUser,
+        Some(common::ActorKind::HoldingUser) => ActorKind::HoldingUser,
         Some(common::ActorKind::Service) => ActorKind::Service,
         Some(common::ActorKind::SystemWorker) => ActorKind::SystemWorker,
         _ => return Err(invalid("actor kind is invalid")),
@@ -1100,37 +1082,28 @@ fn decode_audit(
     })
 }
 
-fn decode_scope(scope: common::TenantScope) -> Result<TenantScope, Status> {
-    use common::tenant_scope::Scope;
+fn decode_scope(scope: common::AuthorityScope) -> Result<AuthorityScope, Status> {
+    use common::authority_scope::Scope;
     match scope
         .scope
-        .ok_or_else(|| invalid("tenant scope is empty"))?
+        .ok_or_else(|| invalid("holding scope is empty"))?
     {
-        Scope::Platform(_) => Ok(TenantScope::Platform),
-        Scope::Holding(value) => Ok(TenantScope::Holding {
+        Scope::Platform(_) => Ok(AuthorityScope::Platform),
+        Scope::Holding(value) => Ok(AuthorityScope::Holding {
             holding_id: parse_uuid(&value.holding_id, "holding_id")?,
         }),
-        Scope::Company(value) => Ok(TenantScope::Company {
+        Scope::Company(value) => Ok(AuthorityScope::Company {
             holding_id: parse_uuid(&value.holding_id, "holding_id")?,
             company_id: parse_uuid(&value.company_id, "company_id")?,
         }),
-        Scope::Branch(value) => Ok(TenantScope::Branch {
+        Scope::Branch(value) => Ok(AuthorityScope::Branch {
             holding_id: parse_uuid(&value.holding_id, "holding_id")?,
             company_id: parse_uuid(&value.company_id, "company_id")?,
             branch_id: parse_uuid(&value.branch_id, "branch_id")?,
         }),
-        Scope::Subtree(value) => Ok(TenantScope::Subtree {
+        Scope::Subtree(value) => Ok(AuthorityScope::Subtree {
             holding_id: parse_uuid(&value.holding_id, "holding_id")?,
-            company_ids: value
-                .company_ids
-                .iter()
-                .map(|id| parse_uuid(id, "company_id"))
-                .collect::<Result<_, _>>()?,
-            branch_ids: value
-                .branch_ids
-                .iter()
-                .map(|id| parse_uuid(id, "branch_id"))
-                .collect::<Result<_, _>>()?,
+            organization_node_id: parse_uuid(&value.organization_node_id, "organization_node_id")?,
         }),
     }
 }
@@ -1263,14 +1236,6 @@ fn parse_correlation_id(value: &str) -> Result<CorrelationId, Status> {
         .map_err(|_| invalid("correlation_id is invalid"))
 }
 
-fn required_text(value: String, field: &'static str) -> Result<String, Status> {
-    if value.trim().is_empty() {
-        Err(invalid(field))
-    } else {
-        Ok(value)
-    }
-}
-
 fn optional_nonempty(value: String) -> Option<String> {
     (!value.trim().is_empty()).then_some(value)
 }
@@ -1323,7 +1288,6 @@ mod tests {
     #[test]
     fn typed_scope_round_trips_without_json() {
         let scope = BrandScope::BusinessUnit {
-            tenant_id: "tenant-a".into(),
             holding_id: Uuid::from_u128(7),
             business_unit: BusinessUnitKey::Quality,
         };
@@ -1338,16 +1302,13 @@ mod tests {
     #[test]
     fn target_route_mismatch_is_rejected() {
         let holding_id = Uuid::from_u128(7);
-        let route = BrandTenantRoute {
-            tenant_id: "tenant-a".into(),
-            holding_ref: holding_id.to_string(),
+        let route = BrandHoldingRoute {
+            holding_id: "holding-a".into(),
+            data_profile_key: holding_id.to_string(),
         };
-        let target = BrandScope::Holding {
-            tenant_id: "tenant-b".into(),
-            holding_id,
-        };
+        let target = BrandScope::Holding { holding_id };
         assert!(
-            validate_target_authority(&route, &TenantScope::Holding { holding_id }, &target)
+            validate_target_authority(&route, &AuthorityScope::Holding { holding_id }, &target)
                 .is_err()
         );
     }

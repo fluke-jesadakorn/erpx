@@ -19,7 +19,7 @@ pub struct MarketingContentWriteReceipt {
 
 /// Application commands for the Marketing content write port. Constructors
 /// validate shape, bounded inputs, and domain invariants available from the
-/// supplied snapshot. Authorization, tenant routing, entitlement, current
+/// supplied snapshot. Authorization, holding routing, entitlement, current
 /// aggregate state, and persistence policy remain at the authoritative
 /// boundary that implements [`MarketingContentWritePort`].
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -117,7 +117,7 @@ impl IssuePreviewCommand {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RevokePreviewCommand {
     pub preview_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub revoked_at: DateTime<Utc>,
     pub context: CommandContext,
 }
@@ -125,12 +125,12 @@ pub struct RevokePreviewCommand {
 impl RevokePreviewCommand {
     pub fn new(
         preview_id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         revoked_at: DateTime<Utc>,
         context: CommandContext,
     ) -> Result<Self, ApplicationError> {
         identifier_is_present(preview_id, "preview_id")?;
-        tenant_scope_is_valid(&scope)?;
+        holding_scope_is_valid(&scope)?;
         command_context_is_valid(&context)?;
         Ok(Self {
             preview_id,
@@ -152,7 +152,7 @@ impl RevokePreviewCommand {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExpirePreviewCommand {
     pub preview_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub expired_at: DateTime<Utc>,
     pub context: CommandContext,
 }
@@ -160,12 +160,12 @@ pub struct ExpirePreviewCommand {
 impl ExpirePreviewCommand {
     pub fn new(
         preview_id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         expired_at: DateTime<Utc>,
         context: CommandContext,
     ) -> Result<Self, ApplicationError> {
         identifier_is_present(preview_id, "preview_id")?;
-        tenant_scope_is_valid(&scope)?;
+        holding_scope_is_valid(&scope)?;
         command_context_is_valid(&context)?;
         Ok(Self {
             preview_id,
@@ -187,7 +187,7 @@ impl ExpirePreviewCommand {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IssueDomainVerificationCommand {
     pub domain_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     /// A SHA-256 digest produced by the DNS/HTTP challenge boundary. Raw
     /// challenge material is intentionally not represented here.
     pub verification_hash: String,
@@ -197,12 +197,12 @@ pub struct IssueDomainVerificationCommand {
 impl IssueDomainVerificationCommand {
     pub fn new(
         domain_id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         verification_hash: impl Into<String>,
         context: CommandContext,
     ) -> Result<Self, ApplicationError> {
         identifier_is_present(domain_id, "custom_domain_id")?;
-        tenant_scope_is_valid(&scope)?;
+        holding_scope_is_valid(&scope)?;
         let verification_hash = sha256_hex(verification_hash.into(), "domain verification hash")?;
         command_context_is_valid(&context)?;
         Ok(Self {
@@ -225,7 +225,7 @@ impl IssueDomainVerificationCommand {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifyDomainCommand {
     pub domain_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     /// A SHA-256 digest of the observed challenge proof. Raw proof material
     /// is intentionally not represented here.
     pub proof_hash: String,
@@ -235,12 +235,12 @@ pub struct VerifyDomainCommand {
 impl VerifyDomainCommand {
     pub fn new(
         domain_id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         proof_hash: impl Into<String>,
         context: CommandContext,
     ) -> Result<Self, ApplicationError> {
         identifier_is_present(domain_id, "custom_domain_id")?;
-        tenant_scope_is_valid(&scope)?;
+        holding_scope_is_valid(&scope)?;
         let proof_hash = sha256_hex(proof_hash.into(), "domain verification proof hash")?;
         command_context_is_valid(&context)?;
         Ok(Self {
@@ -312,7 +312,7 @@ pub type BindDomainRequest = BindDomainCommand;
 
 /// Transport-neutral orchestration port for Marketing content writes.
 /// Implementations own authoritative authorization/context enforcement,
-/// tenant routing, aggregate re-read, transactionality, idempotency, and
+/// holding routing, aggregate re-read, transactionality, idempotency, and
 /// audit/outbox persistence. This trait intentionally exposes no database,
 /// object-storage, or transport types.
 #[async_trait]
@@ -372,8 +372,8 @@ fn identifier_is_present(value: Uuid, field: &'static str) -> Result<(), Applica
     Ok(())
 }
 
-fn tenant_scope_is_valid(scope: &TenantScope) -> Result<(), ApplicationError> {
-    // The domain exposes validation through its tenant-bound references rather
+fn holding_scope_is_valid(scope: &AuthorityScope) -> Result<(), ApplicationError> {
+    // The domain exposes validation through its holding-bound references rather
     // than a public free function. A synthetic reference keeps this check
     // structural without adding authorization policy to the application port.
     ContentFormRef::new(Uuid::from_u128(1), scope.clone())
@@ -419,7 +419,7 @@ fn sha256_hex(value: String, field: &'static str) -> Result<String, ApplicationE
 
 fn binding_is_valid(binding: &CustomDomainBinding) -> Result<(), ApplicationError> {
     identifier_is_present(binding.domain_id, "custom_domain_id")?;
-    tenant_scope_is_valid(&binding.domain_scope)?;
+    holding_scope_is_valid(&binding.domain_scope)?;
     binding
         .template
         .validate()
@@ -438,8 +438,8 @@ mod marketing_content_write_contract_tests {
     use erpx_domain::contracts::{ActorAttribution, ActorKind};
     use erpx_domain::marketing_content::{FormField, FormFieldKind, LocalizedText};
 
-    fn scope() -> TenantScope {
-        TenantScope::Holding {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Holding {
             holding_id: Uuid::from_u128(0x5_001),
         }
     }
@@ -449,7 +449,7 @@ mod marketing_content_write_contract_tests {
             idempotency_key,
             ActorAttribution {
                 principal_ref: "marketing-operator".into(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: Some(Uuid::from_u128(0x5_002)),
                 represented_principal_ref: None,
                 support_capability_id: None,
@@ -570,7 +570,7 @@ mod marketing_content_write_contract_tests {
         assert!(
             RevokePreviewCommand::new(
                 Uuid::from_u128(0x5_00b),
-                TenantScope::Platform,
+                AuthorityScope::Platform,
                 Utc::now(),
                 context("marketing-revoke-platform"),
             )

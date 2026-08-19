@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use erpx_kernel::{ActorAttribution, AuditContext, TenantScope};
+use erpx_kernel::{ActorAttribution, AuditContext, AuthorityScope};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -40,8 +40,8 @@ pub enum OrchestrationAction {
 #[derive(Debug, Clone, Copy)]
 pub struct AuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
-    pub target_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
+    pub target_scope: &'a AuthorityScope,
     pub action: OrchestrationAction,
     pub agent_definition_id: Option<AgentDefinitionId>,
     pub assignment_id: Option<AssignmentId>,
@@ -56,7 +56,7 @@ pub trait AgentAuthorizationPort: Send + Sync {
 pub trait AgentDefinitionRepository: Send + Sync {
     async fn load_definition(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: AgentDefinitionId,
     ) -> Result<Option<AgentDefinition>, PortError>;
 }
@@ -65,7 +65,7 @@ pub trait AgentDefinitionRepository: Send + Sync {
 pub trait AssignmentRepository: Send + Sync {
     async fn load_assignment(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: AssignmentId,
     ) -> Result<Option<Assignment>, PortError>;
 
@@ -80,13 +80,13 @@ pub trait AssignmentRepository: Send + Sync {
 pub trait AgentExperienceRepository: Send + Sync {
     async fn load_pool(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: AgentPoolId,
     ) -> Result<Option<AgentPool>, PortError>;
 
     async fn load_session(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: AgentSessionId,
     ) -> Result<Option<AgentSession>, PortError>;
 }
@@ -98,10 +98,10 @@ pub trait PoolCandidatePort: Send + Sync {
     /// domain aggregate before a routing fact can be committed.
     async fn eligible_candidates(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         pool: &AgentPool,
         capability: &str,
-        requested_scope: &TenantScope,
+        requested_scope: &AuthorityScope,
     ) -> Result<Vec<PoolCandidate>, PortError>;
 }
 
@@ -137,20 +137,20 @@ pub struct InvocationEvidenceSummary {
 pub trait AgentExperienceQueryPort: Send + Sync {
     async fn routing_summary(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: PoolRoutingDecisionId,
     ) -> Result<Option<PoolRoutingSummary>, PortError>;
 
     async fn invocation_summary(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: ProviderInvocationId,
     ) -> Result<Option<InvocationEvidenceSummary>, PortError>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BudgetSubjects {
-    pub tenant_ref: String,
+    pub data_profile_key: String,
     pub workspace_ref: String,
     pub agent_ref: String,
     pub principal_ref: String,
@@ -177,7 +177,7 @@ pub trait BudgetLedgerPort: Send + Sync {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DefinitionCommit {
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
     pub idempotency_key: String,
@@ -187,7 +187,7 @@ pub struct DefinitionCommit {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssignmentCommit {
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
     pub assignment: Assignment,
@@ -196,7 +196,7 @@ pub struct AssignmentCommit {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RootAssignmentCommit {
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub assignment: Assignment,
     pub reservation: BudgetReservation,
@@ -207,7 +207,7 @@ pub struct RootAssignmentCommit {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DelegationCommit {
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub parent_expected_version: u64,
     pub parent_assignment_id: AssignmentId,
@@ -222,7 +222,7 @@ pub struct DelegationCommit {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PoolCommit {
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
     pub idempotency_key: String,
@@ -232,7 +232,7 @@ pub struct PoolCommit {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PoolRoutingCommit {
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub idempotency_key: String,
     pub decision: PoolRoutingDecision,
@@ -241,7 +241,7 @@ pub struct PoolRoutingCommit {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SessionCommit {
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
     pub idempotency_key: String,
@@ -251,7 +251,7 @@ pub struct SessionCommit {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InvocationEvidenceCommit {
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
     pub idempotency_key: String,
@@ -290,7 +290,7 @@ pub trait OrchestrationUnitOfWork: Send + Sync {
 pub trait ProviderPolicyPort: Send + Sync {
     async fn load_policy(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         pin: &AgentPin,
         at: DateTime<Utc>,
     ) -> Result<ProviderPolicy, PortError>;
@@ -317,7 +317,7 @@ pub struct ProviderInvocationRequest {
     pub assignment_id: AssignmentId,
     pub assignment_version: u64,
     pub attempt: u32,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub lease_token: Uuid,
     pub pin: AgentPin,
     pub prompt_material: String,
@@ -401,7 +401,7 @@ pub trait AgentNotificationPort: Send + Sync {
     /// an in-app notification.
     async fn publish_state(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         assignment_id: AssignmentId,
         aggregate_version: u64,
         recipient_principal_ref: &str,
@@ -412,8 +412,8 @@ pub trait AgentNotificationPort: Send + Sync {
 
 #[derive(Debug, Clone)]
 pub struct GovernanceRecordCommit {
-    pub tenant_id: Uuid,
-    pub authority_scope: TenantScope,
+    pub holding_id: Uuid,
+    pub authority_scope: AuthorityScope,
     pub actor: ActorAttribution,
     pub correlation_id: Uuid,
     pub idempotency_key: String,
@@ -443,7 +443,7 @@ pub struct GovernanceRecordProjection {
 pub trait AgentGovernanceRepository: Send + Sync {
     async fn load(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: Uuid,
     ) -> Result<Option<AgentGovernanceRecord>, PortError>;
     async fn commit(
@@ -456,7 +456,7 @@ pub trait AgentGovernanceRepository: Send + Sync {
 pub trait AgentGovernanceQueryPort: Send + Sync {
     async fn get(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: Uuid,
     ) -> Result<Option<GovernanceRecordProjection>, PortError>;
 }

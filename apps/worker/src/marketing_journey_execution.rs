@@ -108,7 +108,7 @@ pub trait MarketingJourneyExecutionDecisionSource: Send + Sync + 'static {
     ) -> Result<JourneyNodeOutcome, MarketingJourneyExecutionDecisionError>;
 }
 
-/// Production decision source for tenant-routed journey execution. It reads
+/// Production decision source for holding-routed journey execution. It reads
 /// branch attributes and channel contact facts from the authoritative write
 /// database; it never treats a missing provider or missing recipient as a
 /// successful effect.
@@ -540,7 +540,7 @@ fn redacted_execution_persistence_error(error: PersistenceError) -> WorkerRuntim
 mod tests {
     use std::sync::{Arc, Mutex};
 
-    use erpx_domain::contracts::TenantScope;
+    use erpx_domain::contracts::AuthorityScope;
     use erpx_domain::marketing_journey::{
         Journey, JourneyExecutionCursor, JourneyNode, JourneyNodeDefinition, JourneyTrigger,
     };
@@ -641,7 +641,7 @@ mod tests {
     }
 
     fn runnable_journey(seed: u128) -> Journey {
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id: Uuid::from_u128(seed),
             company_id: Uuid::from_u128(seed + 1),
         };
@@ -737,7 +737,7 @@ mod tests {
 
     #[test]
     fn domain_only_decisions_fail_closed_for_external_effect_nodes() {
-        use erpx_domain::contracts::TenantScope;
+        use erpx_domain::contracts::AuthorityScope;
         use erpx_domain::marketing::MarketingChannel;
         use erpx_domain::marketing_crm::{
             AccountReference, ContactReference, MarketingAcquisitionReference,
@@ -746,7 +746,7 @@ mod tests {
         use erpx_domain::marketing_journey::{
             JourneyAction, JourneyChannelPayload, JourneyNodeDefinition,
         };
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id: Uuid::new_v4(),
             company_id: Uuid::new_v4(),
         };

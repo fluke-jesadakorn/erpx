@@ -12,8 +12,8 @@ use erpx_cqrs::{
     QueryResult, ReadYourWrites,
 };
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
-    QueryId, SessionId, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+    ErrorCategory, EventId, QueryId, SessionId,
 };
 use erpx_organization::{
     ActivateOrganizationNode, ArchiveOrganizationNode, ChangeOrganizationCode,
@@ -23,7 +23,7 @@ use erpx_organization::{
     OrganizationPlacement, RenameOrganizationNode, ReparentOrganizationNode,
     SuspendOrganizationNode,
 };
-use erpx_proto::{common, erpx::organization::v2 as platform};
+use erpx_proto::{common, erpx::organization as platform};
 use tonic::{Request, Response, Status, metadata::MetadataMap};
 use uuid::Uuid;
 
@@ -34,9 +34,9 @@ const MAX_ROUTE_LENGTH: usize = 255;
 const MAX_SECURITY_INPUT_LENGTH: usize = 512;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OrganizationTenantRoute {
-    pub tenant_id: String,
-    pub holding_ref: String,
+pub struct OrganizationHoldingRoute {
+    pub holding_id: String,
+    pub data_profile_key: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -48,8 +48,8 @@ pub enum OrganizationAccessMode {
 pub struct OrganizationAuthenticationRequest {
     transport_metadata: MetadataMap,
     presented_actor: ActorAttribution,
-    presented_scope: TenantScope,
-    presented_route: Option<OrganizationTenantRoute>,
+    presented_scope: AuthorityScope,
+    presented_route: Option<OrganizationHoldingRoute>,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
     access_mode: OrganizationAccessMode,
@@ -62,10 +62,10 @@ impl OrganizationAuthenticationRequest {
     pub const fn presented_actor(&self) -> &ActorAttribution {
         &self.presented_actor
     }
-    pub const fn presented_scope(&self) -> &TenantScope {
+    pub const fn presented_scope(&self) -> &AuthorityScope {
         &self.presented_scope
     }
-    pub const fn presented_route(&self) -> Option<&OrganizationTenantRoute> {
+    pub const fn presented_route(&self) -> Option<&OrganizationHoldingRoute> {
         self.presented_route.as_ref()
     }
     pub fn subscription_id(&self) -> Option<&str> {
@@ -82,38 +82,38 @@ impl OrganizationAuthenticationRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthenticatedOrganizationRequest {
     actor: ActorAttribution,
-    tenant_scope: TenantScope,
-    tenant_route: OrganizationTenantRoute,
+    active_scope: AuthorityScope,
+    holding_route: OrganizationHoldingRoute,
 }
 
 impl AuthenticatedOrganizationRequest {
     pub fn try_new(
         actor: ActorAttribution,
-        tenant_scope: TenantScope,
-        tenant_route: OrganizationTenantRoute,
+        active_scope: AuthorityScope,
+        holding_route: OrganizationHoldingRoute,
     ) -> Result<Self, OrganizationAuthenticationError> {
         actor
             .validate()
             .map_err(|_| OrganizationAuthenticationError::Internal)?;
-        tenant_scope
+        active_scope
             .validate()
             .map_err(|_| OrganizationAuthenticationError::Internal)?;
-        validate_route(&tenant_route).map_err(|_| OrganizationAuthenticationError::Internal)?;
+        validate_route(&holding_route).map_err(|_| OrganizationAuthenticationError::Internal)?;
         Ok(Self {
             actor,
-            tenant_scope,
-            tenant_route,
+            active_scope,
+            holding_route,
         })
     }
 
     pub const fn actor(&self) -> &ActorAttribution {
         &self.actor
     }
-    pub const fn tenant_scope(&self) -> &TenantScope {
-        &self.tenant_scope
+    pub const fn active_scope(&self) -> &AuthorityScope {
+        &self.active_scope
     }
-    pub const fn tenant_route(&self) -> &OrganizationTenantRoute {
-        &self.tenant_route
+    pub const fn holding_route(&self) -> &OrganizationHoldingRoute {
+        &self.holding_route
     }
 }
 
@@ -137,37 +137,37 @@ pub trait OrganizationRequestAuthenticator: Send + Sync + 'static {
 pub trait OrganizationCommandApplication: Send + Sync + 'static {
     async fn create(
         &self,
-        route: OrganizationTenantRoute,
+        route: OrganizationHoldingRoute,
         command: CommandEnvelope<CreateOrganizationNode>,
     ) -> Result<CommandReceipt<CreateOrganizationNodeResult>, CqrsError>;
     async fn rename(
         &self,
-        route: OrganizationTenantRoute,
+        route: OrganizationHoldingRoute,
         command: CommandEnvelope<RenameOrganizationNode>,
     ) -> Result<CommandReceipt<OrganizationMutationResult>, CqrsError>;
     async fn change_code(
         &self,
-        route: OrganizationTenantRoute,
+        route: OrganizationHoldingRoute,
         command: CommandEnvelope<ChangeOrganizationCode>,
     ) -> Result<CommandReceipt<OrganizationMutationResult>, CqrsError>;
     async fn reparent(
         &self,
-        route: OrganizationTenantRoute,
+        route: OrganizationHoldingRoute,
         command: CommandEnvelope<ReparentOrganizationNode>,
     ) -> Result<CommandReceipt<OrganizationMutationResult>, CqrsError>;
     async fn suspend(
         &self,
-        route: OrganizationTenantRoute,
+        route: OrganizationHoldingRoute,
         command: CommandEnvelope<SuspendOrganizationNode>,
     ) -> Result<CommandReceipt<OrganizationMutationResult>, CqrsError>;
     async fn activate(
         &self,
-        route: OrganizationTenantRoute,
+        route: OrganizationHoldingRoute,
         command: CommandEnvelope<ActivateOrganizationNode>,
     ) -> Result<CommandReceipt<OrganizationMutationResult>, CqrsError>;
     async fn archive(
         &self,
-        route: OrganizationTenantRoute,
+        route: OrganizationHoldingRoute,
         command: CommandEnvelope<ArchiveOrganizationNode>,
     ) -> Result<CommandReceipt<OrganizationMutationResult>, CqrsError>;
 }
@@ -176,12 +176,12 @@ pub trait OrganizationCommandApplication: Send + Sync + 'static {
 pub trait OrganizationQueryApplication: Send + Sync + 'static {
     async fn get(
         &self,
-        route: OrganizationTenantRoute,
+        route: OrganizationHoldingRoute,
         query: QueryEnvelope<GetOrganizationNode>,
     ) -> Result<QueryResult<GetOrganizationNodeResult>, CqrsError>;
     async fn list(
         &self,
-        route: OrganizationTenantRoute,
+        route: OrganizationHoldingRoute,
         query: QueryEnvelope<ListOrganizationNodes>,
     ) -> Result<QueryResult<NodeList>, CqrsError>;
 }
@@ -373,13 +373,13 @@ where
         let input = request.into_inner();
         let node_id = decode_node_id(&input.node_id)?;
         let (route, metadata) = (decode_command(input.metadata, ())?, transport);
-        let (tenant_route, envelope) =
+        let (holding_route, envelope) =
             authenticate_command(self.authenticator.as_ref(), metadata, route).await?;
         let receipt = match action {
             Lifecycle::Suspend => {
                 self.application
                     .suspend(
-                        tenant_route,
+                        holding_route,
                         envelope.map(|_| SuspendOrganizationNode { node_id }),
                     )
                     .await
@@ -387,7 +387,7 @@ where
             Lifecycle::Activate => {
                 self.application
                     .activate(
-                        tenant_route,
+                        holding_route,
                         envelope.map(|_| ActivateOrganizationNode { node_id }),
                     )
                     .await
@@ -395,7 +395,7 @@ where
             Lifecycle::Archive => {
                 self.application
                     .archive(
-                        tenant_route,
+                        holding_route,
                         envelope.map(|_| ArchiveOrganizationNode { node_id }),
                     )
                     .await
@@ -422,7 +422,7 @@ impl<C> MapCommandEnvelope<C> for CommandEnvelope<C> {
             correlation_id: self.correlation_id,
             causation_id: self.causation_id,
             actor: self.actor,
-            tenant_scope: self.tenant_scope,
+            active_scope: self.active_scope,
             audit: self.audit,
             expected_aggregate_version: self.expected_aggregate_version,
             command: map(self.command),
@@ -502,14 +502,14 @@ where
 }
 
 struct DecodedCommand<C> {
-    presented_route: Option<OrganizationTenantRoute>,
+    presented_route: Option<OrganizationHoldingRoute>,
     envelope: CommandEnvelope<C>,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
 }
 
 struct DecodedQuery<Q> {
-    presented_route: Option<OrganizationTenantRoute>,
+    presented_route: Option<OrganizationHoldingRoute>,
     envelope: QueryEnvelope<Q>,
 }
 
@@ -517,12 +517,12 @@ async fn authenticate_command<C, G: OrganizationRequestAuthenticator>(
     authenticator: &G,
     transport_metadata: MetadataMap,
     decoded: DecodedCommand<C>,
-) -> Result<(OrganizationTenantRoute, CommandEnvelope<C>), Status> {
+) -> Result<(OrganizationHoldingRoute, CommandEnvelope<C>), Status> {
     let authenticated = authenticator
         .authenticate(OrganizationAuthenticationRequest {
             transport_metadata,
             presented_actor: decoded.envelope.actor.clone(),
-            presented_scope: decoded.envelope.tenant_scope.clone(),
+            presented_scope: decoded.envelope.active_scope.clone(),
             presented_route: decoded.presented_route,
             subscription_id: decoded.subscription_id,
             mfa_code: decoded.mfa_code,
@@ -532,23 +532,23 @@ async fn authenticate_command<C, G: OrganizationRequestAuthenticator>(
         .map_err(status_from_authentication)?;
     let mut envelope = decoded.envelope;
     envelope.actor = authenticated.actor().clone();
-    envelope.tenant_scope = authenticated.tenant_scope().clone();
+    envelope.active_scope = authenticated.active_scope().clone();
     envelope
         .validate()
         .map_err(|_| Status::internal("authenticated Organization authority is invalid"))?;
-    Ok((authenticated.tenant_route().clone(), envelope))
+    Ok((authenticated.holding_route().clone(), envelope))
 }
 
 async fn authenticate_query<Q, G: OrganizationRequestAuthenticator>(
     authenticator: &G,
     transport_metadata: MetadataMap,
     decoded: DecodedQuery<Q>,
-) -> Result<(OrganizationTenantRoute, QueryEnvelope<Q>), Status> {
+) -> Result<(OrganizationHoldingRoute, QueryEnvelope<Q>), Status> {
     let authenticated = authenticator
         .authenticate(OrganizationAuthenticationRequest {
             transport_metadata,
             presented_actor: decoded.envelope.actor.clone(),
-            presented_scope: decoded.envelope.tenant_scope.clone(),
+            presented_scope: decoded.envelope.active_scope.clone(),
             presented_route: decoded.presented_route,
             subscription_id: None,
             mfa_code: None,
@@ -558,11 +558,11 @@ async fn authenticate_query<Q, G: OrganizationRequestAuthenticator>(
         .map_err(status_from_authentication)?;
     let mut envelope = decoded.envelope;
     envelope.actor = authenticated.actor().clone();
-    envelope.tenant_scope = authenticated.tenant_scope().clone();
+    envelope.active_scope = authenticated.active_scope().clone();
     envelope
         .validate()
         .map_err(|_| Status::internal("authenticated Organization authority is invalid"))?;
-    Ok((authenticated.tenant_route().clone(), envelope))
+    Ok((authenticated.holding_route().clone(), envelope))
 }
 
 fn decode_command<C>(
@@ -570,7 +570,7 @@ fn decode_command<C>(
     command: C,
 ) -> Result<DecodedCommand<C>, Status> {
     let metadata = metadata.ok_or_else(|| invalid("command metadata is required"))?;
-    let route = decode_route(metadata.tenant_route)?;
+    let route = decode_route(metadata.holding_route)?;
     let correlation_id = parse_correlation_id(&metadata.correlation_id)?;
     let subscription_id = normalize_security_input(metadata.subscription_id)?;
     let mfa_code = normalize_security_input(metadata.mfa_code)?;
@@ -587,10 +587,10 @@ fn decode_command<C>(
             .map(|value| parse_event_id(&value))
             .transpose()?,
         actor: decode_actor(metadata.actor)?,
-        tenant_scope: decode_scope(
+        active_scope: decode_scope(
             metadata
-                .tenant_scope
-                .ok_or_else(|| invalid("tenant_scope is required"))?,
+                .active_scope
+                .ok_or_else(|| invalid("active_scope is required"))?,
         )?,
         audit: decode_audit(metadata.audit, correlation_id)?,
         expected_aggregate_version: metadata.expected_aggregate_version,
@@ -612,7 +612,7 @@ fn decode_query<Q>(
     query: Q,
 ) -> Result<DecodedQuery<Q>, Status> {
     let metadata = metadata.ok_or_else(|| invalid("query metadata is required"))?;
-    let route = decode_route(metadata.tenant_route)?;
+    let route = decode_route(metadata.holding_route)?;
     let correlation_id = parse_correlation_id(&metadata.correlation_id)?;
     let envelope = QueryEnvelope {
         contract_version: u16::try_from(metadata.contract_version)
@@ -621,10 +621,10 @@ fn decode_query<Q>(
             .map_err(|_| invalid("query_id is invalid"))?,
         correlation_id,
         actor: decode_actor(metadata.actor)?,
-        tenant_scope: decode_scope(
+        active_scope: decode_scope(
             metadata
-                .tenant_scope
-                .ok_or_else(|| invalid("tenant_scope is required"))?,
+                .active_scope
+                .ok_or_else(|| invalid("active_scope is required"))?,
         )?,
         audit: decode_audit(metadata.audit, correlation_id)?,
         consistency: decode_consistency(metadata.consistency)?,
@@ -640,10 +640,10 @@ fn decode_query<Q>(
 }
 
 fn decode_placement(
-    value: Option<platform::OrganizationPlacementV1>,
+    value: Option<platform::OrganizationPlacement>,
     node_id: OrganizationNodeId,
 ) -> Result<OrganizationPlacement, Status> {
-    use platform::organization_placement_v1::Placement;
+    use platform::organization_placement::Placement;
     match value
         .and_then(|value| value.placement)
         .ok_or_else(|| invalid("placement is required"))?
@@ -692,8 +692,8 @@ fn decode_placement(
 fn encode_placement(
     value: &OrganizationPlacement,
     node_id: OrganizationNodeId,
-) -> platform::OrganizationPlacementV1 {
-    use platform::organization_placement_v1::Placement;
+) -> platform::OrganizationPlacement {
+    use platform::organization_placement::Placement;
     let placement = match value {
         OrganizationPlacement::Holding => {
             Placement::Holding(platform::OrganizationHoldingPlacement {})
@@ -739,7 +739,7 @@ fn encode_placement(
             team_id: node_id.as_uuid().to_string(),
         }),
     };
-    platform::OrganizationPlacementV1 {
+    platform::OrganizationPlacement {
         placement: Some(placement),
     }
 }
@@ -772,67 +772,65 @@ fn encode_node(view: &NodeView) -> platform::OrganizationNodeRecord {
 }
 
 fn decode_kind(value: i32) -> Result<OrganizationNodeKind, Status> {
-    match platform::OrganizationNodeKindV1::try_from(value).ok() {
-        Some(platform::OrganizationNodeKindV1::Holding) => Ok(OrganizationNodeKind::Holding),
-        Some(platform::OrganizationNodeKindV1::Company) => Ok(OrganizationNodeKind::Company),
-        Some(platform::OrganizationNodeKindV1::Headquarters) => {
+    match platform::OrganizationNodeKind::try_from(value).ok() {
+        Some(platform::OrganizationNodeKind::Holding) => Ok(OrganizationNodeKind::Holding),
+        Some(platform::OrganizationNodeKind::Company) => Ok(OrganizationNodeKind::Company),
+        Some(platform::OrganizationNodeKind::Headquarters) => {
             Ok(OrganizationNodeKind::Headquarters)
         }
-        Some(platform::OrganizationNodeKindV1::Branch) => Ok(OrganizationNodeKind::Branch),
-        Some(platform::OrganizationNodeKindV1::Department) => Ok(OrganizationNodeKind::Department),
-        Some(platform::OrganizationNodeKindV1::Team) => Ok(OrganizationNodeKind::Team),
+        Some(platform::OrganizationNodeKind::Branch) => Ok(OrganizationNodeKind::Branch),
+        Some(platform::OrganizationNodeKind::Department) => Ok(OrganizationNodeKind::Department),
+        Some(platform::OrganizationNodeKind::Team) => Ok(OrganizationNodeKind::Team),
         _ => Err(invalid("organization node kind is invalid")),
     }
 }
 
 fn decode_status(value: i32) -> Result<OrganizationNodeStatus, Status> {
-    match platform::OrganizationNodeStatusV1::try_from(value).ok() {
-        Some(platform::OrganizationNodeStatusV1::Active) => Ok(OrganizationNodeStatus::Active),
-        Some(platform::OrganizationNodeStatusV1::Suspended) => {
-            Ok(OrganizationNodeStatus::Suspended)
-        }
-        Some(platform::OrganizationNodeStatusV1::Archived) => Ok(OrganizationNodeStatus::Archived),
+    match platform::OrganizationNodeStatus::try_from(value).ok() {
+        Some(platform::OrganizationNodeStatus::Active) => Ok(OrganizationNodeStatus::Active),
+        Some(platform::OrganizationNodeStatus::Suspended) => Ok(OrganizationNodeStatus::Suspended),
+        Some(platform::OrganizationNodeStatus::Archived) => Ok(OrganizationNodeStatus::Archived),
         _ => Err(invalid("organization node status is invalid")),
     }
 }
 
 const fn encode_kind(value: OrganizationNodeKind) -> i32 {
     match value {
-        OrganizationNodeKind::Holding => platform::OrganizationNodeKindV1::Holding as i32,
-        OrganizationNodeKind::Company => platform::OrganizationNodeKindV1::Company as i32,
-        OrganizationNodeKind::Headquarters => platform::OrganizationNodeKindV1::Headquarters as i32,
-        OrganizationNodeKind::Branch => platform::OrganizationNodeKindV1::Branch as i32,
-        OrganizationNodeKind::Department => platform::OrganizationNodeKindV1::Department as i32,
-        OrganizationNodeKind::Team => platform::OrganizationNodeKindV1::Team as i32,
+        OrganizationNodeKind::Holding => platform::OrganizationNodeKind::Holding as i32,
+        OrganizationNodeKind::Company => platform::OrganizationNodeKind::Company as i32,
+        OrganizationNodeKind::Headquarters => platform::OrganizationNodeKind::Headquarters as i32,
+        OrganizationNodeKind::Branch => platform::OrganizationNodeKind::Branch as i32,
+        OrganizationNodeKind::Department => platform::OrganizationNodeKind::Department as i32,
+        OrganizationNodeKind::Team => platform::OrganizationNodeKind::Team as i32,
     }
 }
 const fn encode_status(value: OrganizationNodeStatus) -> i32 {
     match value {
-        OrganizationNodeStatus::Active => platform::OrganizationNodeStatusV1::Active as i32,
-        OrganizationNodeStatus::Suspended => platform::OrganizationNodeStatusV1::Suspended as i32,
-        OrganizationNodeStatus::Archived => platform::OrganizationNodeStatusV1::Archived as i32,
+        OrganizationNodeStatus::Active => platform::OrganizationNodeStatus::Active as i32,
+        OrganizationNodeStatus::Suspended => platform::OrganizationNodeStatus::Suspended as i32,
+        OrganizationNodeStatus::Archived => platform::OrganizationNodeStatus::Archived as i32,
     }
 }
 
 fn decode_route(
-    route: Option<common::TenantRoute>,
-) -> Result<Option<OrganizationTenantRoute>, Status> {
+    route: Option<common::HoldingRoute>,
+) -> Result<Option<OrganizationHoldingRoute>, Status> {
     let Some(route) = route else {
         return Ok(None);
     };
-    let route = OrganizationTenantRoute {
-        tenant_id: route.tenant_id.trim().to_owned(),
-        holding_ref: route.holding_ref.trim().to_owned(),
+    let route = OrganizationHoldingRoute {
+        holding_id: route.holding_id.trim().to_owned(),
+        data_profile_key: route.data_profile_key.trim().to_owned(),
     };
     validate_route(&route)?;
     Ok(Some(route))
 }
-fn validate_route(route: &OrganizationTenantRoute) -> Result<(), Status> {
-    if [&route.tenant_id, &route.holding_ref]
+fn validate_route(route: &OrganizationHoldingRoute) -> Result<(), Status> {
+    if [&route.holding_id, &route.data_profile_key]
         .iter()
         .any(|value| value.trim().is_empty() || value.len() > MAX_ROUTE_LENGTH)
     {
-        Err(invalid("tenant route is invalid"))
+        Err(invalid("holding route is invalid"))
     } else {
         Ok(())
     }
@@ -841,7 +839,7 @@ fn decode_actor(actor: Option<common::ActorAttribution>) -> Result<ActorAttribut
     let actor = actor.ok_or_else(|| invalid("actor is required"))?;
     let kind = match common::ActorKind::try_from(actor.kind).ok() {
         Some(common::ActorKind::PlatformUser) => ActorKind::PlatformUser,
-        Some(common::ActorKind::TenantUser) => ActorKind::TenantUser,
+        Some(common::ActorKind::HoldingUser) => ActorKind::HoldingUser,
         Some(common::ActorKind::Service) => ActorKind::Service,
         Some(common::ActorKind::SystemWorker) => ActorKind::SystemWorker,
         _ => return Err(invalid("actor kind is invalid")),
@@ -876,56 +874,47 @@ fn decode_audit(
         module: optional_nonempty(audit.module),
     })
 }
-fn decode_scope(scope: common::TenantScope) -> Result<TenantScope, Status> {
-    use common::tenant_scope::Scope;
+fn decode_scope(scope: common::AuthorityScope) -> Result<AuthorityScope, Status> {
+    use common::authority_scope::Scope;
     match scope
         .scope
-        .ok_or_else(|| invalid("tenant scope is empty"))?
+        .ok_or_else(|| invalid("holding scope is empty"))?
     {
-        Scope::Platform(_) => Ok(TenantScope::Platform),
-        Scope::Holding(v) => Ok(TenantScope::Holding {
+        Scope::Platform(_) => Ok(AuthorityScope::Platform),
+        Scope::Holding(v) => Ok(AuthorityScope::Holding {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
         }),
-        Scope::Company(v) => Ok(TenantScope::Company {
+        Scope::Company(v) => Ok(AuthorityScope::Company {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
             company_id: parse_uuid(&v.company_id, "company_id")?,
         }),
-        Scope::Branch(v) => Ok(TenantScope::Branch {
+        Scope::Branch(v) => Ok(AuthorityScope::Branch {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
             company_id: parse_uuid(&v.company_id, "company_id")?,
             branch_id: parse_uuid(&v.branch_id, "branch_id")?,
         }),
-        Scope::Subtree(v) => Ok(TenantScope::Subtree {
+        Scope::Subtree(v) => Ok(AuthorityScope::Subtree {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
-            company_ids: v
-                .company_ids
-                .iter()
-                .map(|id| parse_uuid(id, "company_id"))
-                .collect::<Result<_, _>>()?,
-            branch_ids: v
-                .branch_ids
-                .iter()
-                .map(|id| parse_uuid(id, "branch_id"))
-                .collect::<Result<_, _>>()?,
+            organization_node_id: parse_uuid(&v.organization_node_id, "organization_node_id")?,
         }),
     }
 }
-fn encode_scope(scope: &TenantScope) -> common::TenantScope {
-    use common::tenant_scope::Scope;
-    common::TenantScope {
+fn encode_scope(scope: &AuthorityScope) -> common::AuthorityScope {
+    use common::authority_scope::Scope;
+    common::AuthorityScope {
         scope: Some(match scope {
-            TenantScope::Platform => Scope::Platform(common::PlatformScope {}),
-            TenantScope::Holding { holding_id } => Scope::Holding(common::HoldingScope {
+            AuthorityScope::Platform => Scope::Platform(common::PlatformScope {}),
+            AuthorityScope::Holding { holding_id } => Scope::Holding(common::HoldingScope {
                 holding_id: holding_id.to_string(),
             }),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => Scope::Company(common::CompanyScope {
                 holding_id: holding_id.to_string(),
                 company_id: company_id.to_string(),
             }),
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -934,14 +923,12 @@ fn encode_scope(scope: &TenantScope) -> common::TenantScope {
                 company_id: company_id.to_string(),
                 branch_id: branch_id.to_string(),
             }),
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Scope::Subtree(common::SubtreeScope {
                 holding_id: holding_id.to_string(),
-                company_ids: company_ids.iter().map(ToString::to_string).collect(),
-                branch_ids: branch_ids.iter().map(ToString::to_string).collect(),
+                organization_node_id: organization_node_id.to_string(),
             }),
         }),
     }

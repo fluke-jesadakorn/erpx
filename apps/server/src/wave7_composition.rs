@@ -1,4 +1,4 @@
-//! Runtime composition for the Wave 7 transactional tenant bounded contexts.
+//! Runtime composition for the Wave 7 transactional holding bounded contexts.
 
 use std::sync::Arc;
 
@@ -8,10 +8,10 @@ use erpx_cqrs::{
     QueryResult,
 };
 use erpx_cqrs_sqlx::{ReadPool, WritePool};
-use erpx_infrastructure::{RoutedDatabaseSide, TenantDatabaseRouter};
+use erpx_infrastructure::{HoldingDatabaseRouter, RoutedDatabaseSide};
 use erpx_kernel::{
-    ActorAttribution, CorrelationId, ErrorCategory, ErrorContext, KernelError, SystemClock,
-    TenantScope,
+    ActorAttribution, AuthorityScope, CorrelationId, ErrorCategory, ErrorContext, KernelError,
+    SystemClock,
 };
 use erpx_people_payroll as people_payroll;
 use erpx_people_payroll_sqlx as people_payroll_sqlx;
@@ -27,17 +27,17 @@ use crate::contexts::{
     people_payroll_cqrs::{
         AuthenticatedPeoplePayrollRequest, PeoplePayrollAccessMode,
         PeoplePayrollAuthenticationError, PeoplePayrollAuthenticationRequest,
-        PeoplePayrollCommandApplication, PeoplePayrollQueryApplication,
-        PeoplePayrollRequestAuthenticator, PeoplePayrollTenantRoute,
+        PeoplePayrollCommandApplication, PeoplePayrollHoldingRoute, PeoplePayrollQueryApplication,
+        PeoplePayrollRequestAuthenticator,
     },
     pos_cqrs::{
         AuthenticatedPosRequest, PosAccessMode, PosAuthenticationError, PosAuthenticationRequest,
-        PosCommandApplication, PosQueryApplication, PosRequestAuthenticator, PosTenantRoute,
+        PosCommandApplication, PosHoldingRoute, PosQueryApplication, PosRequestAuthenticator,
     },
     sales_cqrs::{
         AuthenticatedSalesRequest, SalesAccessMode, SalesAuthenticationError,
-        SalesAuthenticationRequest, SalesCommandApplication, SalesQueryApplication,
-        SalesRequestAuthenticator, SalesTenantRoute,
+        SalesAuthenticationRequest, SalesCommandApplication, SalesHoldingRoute,
+        SalesQueryApplication, SalesRequestAuthenticator,
     },
 };
 use crate::wave4_composition::authenticate_context;
@@ -51,7 +51,7 @@ enum AccessMode {
 #[derive(Debug, Clone)]
 struct PreauthorizedAccess {
     principal_ref: String,
-    authority_scope: TenantScope,
+    authority_scope: AuthorityScope,
     mode: AccessMode,
 }
 
@@ -59,8 +59,8 @@ impl PreauthorizedAccess {
     fn permits(
         &self,
         actor: &ActorAttribution,
-        authority_scope: &TenantScope,
-        target_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         write: bool,
     ) -> bool {
         actor.principal_ref == self.principal_ref
@@ -69,7 +69,7 @@ impl PreauthorizedAccess {
             && write == (self.mode == AccessMode::Write)
     }
 
-    fn entitled(&self, scope: &TenantScope, write: bool) -> bool {
+    fn entitled(&self, scope: &AuthorityScope, write: bool) -> bool {
         self.authority_scope.contains(scope) && write == (self.mode == AccessMode::Write)
     }
 }
@@ -98,7 +98,7 @@ macro_rules! access_ports {
         impl $module::EntitlementPort for PreauthorizedAccess {
             async fn $entitlement_method(
                 &self,
-                scope: &TenantScope,
+                scope: &AuthorityScope,
                 write: bool,
             ) -> Result<(), $module::PortError> {
                 if !self.entitled(scope, write) {
@@ -115,61 +115,67 @@ access_ports!(people_payroll, ensure_people_payroll_enabled);
 access_ports!(pos, ensure_pos_enabled);
 
 #[derive(Clone)]
-pub(crate) struct Wave7TenantApplication {
-    router: Option<Arc<TenantDatabaseRouter>>,
+pub(crate) struct Wave7HoldingApplication {
+    router: Option<Arc<HoldingDatabaseRouter>>,
 }
 
-impl Wave7TenantApplication {
+impl Wave7HoldingApplication {
     pub(crate) fn new(state: &AppState) -> Self {
         Self {
-            router: state.tenant_router.clone(),
+            router: state.holding_router.clone(),
         }
     }
 
     async fn write_pool(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         correlation_id: CorrelationId,
         context: &'static str,
     ) -> Result<WritePool, CqrsError> {
         let pool = self
             .route_pool(
-                tenant_id,
-                holding_ref,
+                holding_id,
+                data_profile_key,
                 RoutedDatabaseSide::Write,
                 correlation_id,
                 context,
             )
             .await?;
-        WritePool::for_tenant(pool, cqrs_tenant_uuid(tenant_id, correlation_id, context)?)
-            .map_err(|_| invalid_tenant_binding(correlation_id, context))
+        WritePool::for_holding(
+            pool,
+            cqrs_holding_uuid(holding_id, correlation_id, context)?,
+        )
+        .map_err(|_| invalid_holding_binding(correlation_id, context))
     }
 
     async fn read_pool(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         correlation_id: CorrelationId,
         context: &'static str,
     ) -> Result<ReadPool, CqrsError> {
         let pool = self
             .route_pool(
-                tenant_id,
-                holding_ref,
+                holding_id,
+                data_profile_key,
                 RoutedDatabaseSide::Read,
                 correlation_id,
                 context,
             )
             .await?;
-        ReadPool::for_tenant(pool, cqrs_tenant_uuid(tenant_id, correlation_id, context)?)
-            .map_err(|_| invalid_tenant_binding(correlation_id, context))
+        ReadPool::for_holding(
+            pool,
+            cqrs_holding_uuid(holding_id, correlation_id, context)?,
+        )
+        .map_err(|_| invalid_holding_binding(correlation_id, context))
     }
 
     async fn route_pool(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         side: RoutedDatabaseSide,
         correlation_id: CorrelationId,
         context: &'static str,
@@ -179,12 +185,12 @@ impl Wave7TenantApplication {
                 correlation_id,
                 format!("{context}.routing_unavailable"),
                 ErrorCategory::Unavailable,
-                "Tenant database routing is unavailable.",
+                "Holding database routing is unavailable.",
                 true,
             )
         })?;
         let routed = router
-            .route(tenant_id, holding_ref, side)
+            .route(holding_id, data_profile_key, side)
             .await
             .map_err(|_| {
                 context_failure(
@@ -200,7 +206,7 @@ impl Wave7TenantApplication {
 
     fn access(
         envelope_actor: &ActorAttribution,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         mode: AccessMode,
     ) -> PreauthorizedAccess {
         PreauthorizedAccess {
@@ -212,21 +218,21 @@ impl Wave7TenantApplication {
 }
 
 #[async_trait]
-impl SalesCommandApplication for Wave7TenantApplication {
+impl SalesCommandApplication for Wave7HoldingApplication {
     async fn execute(
         &self,
-        route: SalesTenantRoute,
+        route: SalesHoldingRoute,
         envelope: CommandEnvelope<sales::SalesCommand>,
     ) -> Result<CommandReceipt<sales::SalesMutationResult>, CqrsError> {
         let pool = self
             .write_pool(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 envelope.correlation_id,
                 "sales",
             )
             .await?;
-        let access = Self::access(&envelope.actor, &envelope.tenant_scope, AccessMode::Write);
+        let access = Self::access(&envelope.actor, &envelope.active_scope, AccessMode::Write);
         sales::SalesCommandHandler::new(
             sales_sqlx::SalesWriteRepository::new(pool.clone()),
             sales_sqlx::SalesCommandAdapter::new(pool),
@@ -240,23 +246,23 @@ impl SalesCommandApplication for Wave7TenantApplication {
 }
 
 #[async_trait]
-impl SalesQueryApplication for Wave7TenantApplication {
+impl SalesQueryApplication for Wave7HoldingApplication {
     async fn execute(
         &self,
-        route: SalesTenantRoute,
+        route: SalesHoldingRoute,
         envelope: QueryEnvelope<sales::SalesQuery>,
     ) -> Result<QueryResult<sales::SalesQueryResponse>, CqrsError> {
         let pool = self
             .read_pool(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 envelope.correlation_id,
                 "sales",
             )
             .await?;
         let read = sales_sqlx::SalesReadRepository::new(pool)
             .map_err(|_| storage_configuration_error(envelope.correlation_id, "sales"))?;
-        let access = Self::access(&envelope.actor, &envelope.tenant_scope, AccessMode::Read);
+        let access = Self::access(&envelope.actor, &envelope.active_scope, AccessMode::Read);
         sales::SalesQueryHandler::new(read, access.clone(), access)
             .handle(envelope)
             .await
@@ -264,21 +270,21 @@ impl SalesQueryApplication for Wave7TenantApplication {
 }
 
 #[async_trait]
-impl PeoplePayrollCommandApplication for Wave7TenantApplication {
+impl PeoplePayrollCommandApplication for Wave7HoldingApplication {
     async fn execute(
         &self,
-        route: PeoplePayrollTenantRoute,
+        route: PeoplePayrollHoldingRoute,
         envelope: CommandEnvelope<people_payroll::PeoplePayrollCommand>,
     ) -> Result<CommandReceipt<people_payroll::PeoplePayrollMutationResult>, CqrsError> {
         let pool = self
             .write_pool(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 envelope.correlation_id,
                 "people_payroll",
             )
             .await?;
-        let access = Self::access(&envelope.actor, &envelope.tenant_scope, AccessMode::Write);
+        let access = Self::access(&envelope.actor, &envelope.active_scope, AccessMode::Write);
         people_payroll::PeoplePayrollCommandHandler::new(
             people_payroll_sqlx::PeoplePayrollWriteRepository::new(pool.clone()),
             people_payroll_sqlx::PeoplePayrollCommandAdapter::new(pool),
@@ -292,23 +298,23 @@ impl PeoplePayrollCommandApplication for Wave7TenantApplication {
 }
 
 #[async_trait]
-impl PeoplePayrollQueryApplication for Wave7TenantApplication {
+impl PeoplePayrollQueryApplication for Wave7HoldingApplication {
     async fn execute(
         &self,
-        route: PeoplePayrollTenantRoute,
+        route: PeoplePayrollHoldingRoute,
         envelope: QueryEnvelope<people_payroll::PeoplePayrollQuery>,
     ) -> Result<QueryResult<people_payroll::PeoplePayrollQueryResponse>, CqrsError> {
         let pool = self
             .read_pool(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 envelope.correlation_id,
                 "people_payroll",
             )
             .await?;
         let read = people_payroll_sqlx::PeoplePayrollReadRepository::new(pool)
             .map_err(|_| storage_configuration_error(envelope.correlation_id, "people_payroll"))?;
-        let access = Self::access(&envelope.actor, &envelope.tenant_scope, AccessMode::Read);
+        let access = Self::access(&envelope.actor, &envelope.active_scope, AccessMode::Read);
         people_payroll::PeoplePayrollQueryHandler::new(read, access.clone(), access)
             .handle(envelope)
             .await
@@ -316,21 +322,21 @@ impl PeoplePayrollQueryApplication for Wave7TenantApplication {
 }
 
 #[async_trait]
-impl PosCommandApplication for Wave7TenantApplication {
+impl PosCommandApplication for Wave7HoldingApplication {
     async fn execute_sale(
         &self,
-        route: PosTenantRoute,
+        route: PosHoldingRoute,
         envelope: CommandEnvelope<pos::PosSaleCommand>,
     ) -> Result<CommandReceipt<pos::PosSaleMutationResult>, CqrsError> {
         let pool = self
             .write_pool(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 envelope.correlation_id,
                 "pos",
             )
             .await?;
-        let access = Self::access(&envelope.actor, &envelope.tenant_scope, AccessMode::Write);
+        let access = Self::access(&envelope.actor, &envelope.active_scope, AccessMode::Write);
         pos::PosSaleCommandHandler::new(
             pos_sqlx::PosWriteRepository::new(pool.clone()),
             pos_sqlx::PosCommandAdapter::new(pool),
@@ -344,18 +350,18 @@ impl PosCommandApplication for Wave7TenantApplication {
 
     async fn execute_refund(
         &self,
-        route: PosTenantRoute,
+        route: PosHoldingRoute,
         envelope: CommandEnvelope<pos::PosRefundCommand>,
     ) -> Result<CommandReceipt<pos::PosRefundMutationResult>, CqrsError> {
         let pool = self
             .write_pool(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 envelope.correlation_id,
                 "pos",
             )
             .await?;
-        let access = Self::access(&envelope.actor, &envelope.tenant_scope, AccessMode::Write);
+        let access = Self::access(&envelope.actor, &envelope.active_scope, AccessMode::Write);
         pos::PosRefundCommandHandler::new(
             pos_sqlx::PosWriteRepository::new(pool.clone()),
             pos_sqlx::PosCommandAdapter::new(pool),
@@ -369,23 +375,23 @@ impl PosCommandApplication for Wave7TenantApplication {
 }
 
 #[async_trait]
-impl PosQueryApplication for Wave7TenantApplication {
+impl PosQueryApplication for Wave7HoldingApplication {
     async fn execute_query(
         &self,
-        route: PosTenantRoute,
+        route: PosHoldingRoute,
         envelope: QueryEnvelope<pos::PosQuery>,
     ) -> Result<QueryResult<pos::PosQueryResponse>, CqrsError> {
         let pool = self
             .read_pool(
-                &route.tenant_id,
-                &route.holding_ref,
+                &route.holding_id,
+                &route.data_profile_key,
                 envelope.correlation_id,
                 "pos",
             )
             .await?;
         let read = pos_sqlx::PosSqlxReadRepository::new(pool)
             .map_err(|_| storage_configuration_error(envelope.correlation_id, "pos"))?;
-        let access = Self::access(&envelope.actor, &envelope.tenant_scope, AccessMode::Read);
+        let access = Self::access(&envelope.actor, &envelope.active_scope, AccessMode::Read);
         pos::PosQueryHandler::new(read, access.clone(), access)
             .handle(envelope)
             .await
@@ -408,8 +414,8 @@ impl Wave7ServerAuthenticator {
         &self,
         metadata: &tonic::metadata::MetadataMap,
         actor: &ActorAttribution,
-        scope: &TenantScope,
-        tenant_id: &str,
+        scope: &AuthorityScope,
+        holding_id: &str,
         subscription_id: Option<&str>,
         mfa_code: Option<&str>,
         mode: AccessMode,
@@ -421,7 +427,7 @@ impl Wave7ServerAuthenticator {
             metadata,
             actor,
             scope,
-            tenant_id,
+            holding_id,
             if write {
                 write_permission(context)
             } else {
@@ -451,7 +457,7 @@ macro_rules! authenticator {
                         request.transport_metadata(),
                         request.presented_actor(),
                         request.presented_scope(),
-                        &request.presented_route().tenant_id,
+                        &request.presented_route().holding_id,
                         request.subscription_id(),
                         request.mfa_code(),
                         mode,
@@ -570,20 +576,20 @@ fn storage_configuration_error(correlation_id: CorrelationId, context: &'static 
     )
 }
 
-fn cqrs_tenant_uuid(
-    tenant_id: &str,
+fn cqrs_holding_uuid(
+    holding_id: &str,
     correlation_id: CorrelationId,
     context: &'static str,
 ) -> Result<Uuid, CqrsError> {
-    Uuid::parse_str(tenant_id).map_err(|_| invalid_tenant_binding(correlation_id, context))
+    Uuid::parse_str(holding_id).map_err(|_| invalid_holding_binding(correlation_id, context))
 }
 
-fn invalid_tenant_binding(correlation_id: CorrelationId, context: &'static str) -> CqrsError {
+fn invalid_holding_binding(correlation_id: CorrelationId, context: &'static str) -> CqrsError {
     context_failure(
         correlation_id,
-        format!("{context}.invalid_tenant_identity"),
+        format!("{context}.invalid_holding_identity"),
         ErrorCategory::Internal,
-        "The routed tenant identity is invalid.",
+        "The routed holding identity is invalid.",
         false,
     )
 }

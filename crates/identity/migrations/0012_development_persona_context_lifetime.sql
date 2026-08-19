@@ -1,5 +1,5 @@
 -- Development persona contexts are available only behind the complete local
--- development gate. Keep production tenant-administration contexts at their
+-- development gate. Keep production holding-administration contexts at their
 -- existing 30-minute lifetime while allowing a selected local QA persona to
 -- remain active for up to 30 days.
 

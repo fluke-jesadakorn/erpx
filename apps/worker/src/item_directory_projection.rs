@@ -1,29 +1,29 @@
-//! Typed owner-fact consumption for the tenant-local Item Directory.
+//! Typed owner-fact consumption for the holding-local Item Directory.
 //!
 //! This projector never examines an aggregate snapshot. Descriptor content is
 //! accepted only from the shared, validated owner draft contract and is fenced
-//! by the immutable tenant capability supplied by routing composition.
+//! by the immutable holding capability supplied by routing composition.
 
 use async_trait::async_trait;
 use chrono::Utc;
 use erpx_collaboration_sqlx::{DirectoryAdapterError, ItemDirectoryProjectionAdapter};
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionPool, ProjectionSource, WritePool};
 use erpx_infrastructure::{
-    ProjectionClaimRecord, ProjectionJobKind, RoutedDatabaseSide, RoutedTenantDatabase,
+    ProjectionClaimRecord, ProjectionJobKind, RoutedDatabaseSide, RoutedHoldingDatabase,
 };
 use erpx_integration_contracts::{
-    AUTHORITY_EVIDENCE_EVENT_TYPE, ITEM_DIRECTORY_FACT_EVENT_TYPE, ITEM_DIRECTORY_FACT_VERSION,
-    ITEM_DIRECTORY_OWNER_EVENT_TYPE, ITEM_DIRECTORY_PROJECTION_NAME, ItemDescriptorDraft,
-    ItemDirectoryFact, TenantItemDirectoryFact,
+    AUTHORITY_EVIDENCE_EVENT_TYPE, HoldingItemDirectoryFact, ITEM_DIRECTORY_FACT_EVENT_TYPE,
+    ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, ITEM_DIRECTORY_PROJECTION_NAME,
+    ItemDescriptorDraft, ItemDirectoryFact,
 };
-use erpx_kernel::TenantId;
+use erpx_kernel::HoldingId;
 use serde::Deserialize;
 use thiserror::Error;
 use uuid::Uuid;
 
 use crate::{
-    TenantAuthorityEvidenceProjection, TenantProjectionExecutorError,
-    TenantProjectionRoutedExecutor,
+    HoldingAuthorityEvidenceProjection, HoldingProjectionExecutorError,
+    HoldingProjectionRoutedExecutor,
 };
 
 pub const ITEM_DIRECTORY_PROJECTION_MAX_PAGE_SIZE: u32 = 1_000;
@@ -96,21 +96,21 @@ pub const UNROUTED_FUTURE_AUTHORITY: &[&str] = &[
 ];
 
 #[derive(Debug, Clone)]
-pub struct TenantItemDirectoryProjector {
-    tenant_id: TenantId,
+pub struct HoldingItemDirectoryProjector {
+    holding_id: HoldingId,
     directory: ItemDirectoryProjectionAdapter,
 }
 
-impl TenantItemDirectoryProjector {
-    pub const fn new(tenant_id: TenantId, directory: ItemDirectoryProjectionAdapter) -> Self {
+impl HoldingItemDirectoryProjector {
+    pub const fn new(holding_id: HoldingId, directory: ItemDirectoryProjectionAdapter) -> Self {
         Self {
-            tenant_id,
+            holding_id,
             directory,
         }
     }
 
     pub async fn apply(&self, event: &ProjectionEvent) -> Result<(), ItemDirectoryProjectionError> {
-        let publication = decode_item_directory_owner_event(self.tenant_id, event)?;
+        let publication = decode_item_directory_owner_event(self.holding_id, event)?;
         self.directory
             .apply_fact(&publication, Utc::now())
             .await
@@ -119,9 +119,9 @@ impl TenantItemDirectoryProjector {
 }
 
 pub fn decode_item_directory_owner_event(
-    tenant_id: TenantId,
+    holding_id: HoldingId,
     event: &ProjectionEvent,
-) -> Result<TenantItemDirectoryFact, ItemDirectoryProjectionError> {
+) -> Result<HoldingItemDirectoryFact, ItemDirectoryProjectionError> {
     if event.event_type != ITEM_DIRECTORY_OWNER_EVENT_TYPE
         || event.event_version != ITEM_DIRECTORY_FACT_VERSION
     {
@@ -140,16 +140,16 @@ pub fn decode_item_directory_owner_event(
     let fact = draft
         .materialize(event.global_sequence)
         .map_err(|_| ItemDirectoryProjectionError::MalformedOwnerFact)?;
-    TenantItemDirectoryFact::try_new(tenant_id, fact)
+    HoldingItemDirectoryFact::try_new(holding_id, fact)
         .map_err(|_| ItemDirectoryProjectionError::MalformedOwnerFact)
 }
 
 pub fn decode_item_directory_event(
-    tenant_id: TenantId,
+    holding_id: HoldingId,
     event: &ProjectionEvent,
-) -> Result<TenantItemDirectoryFact, ItemDirectoryProjectionError> {
+) -> Result<HoldingItemDirectoryFact, ItemDirectoryProjectionError> {
     if event.event_type == ITEM_DIRECTORY_OWNER_EVENT_TYPE {
-        return decode_item_directory_owner_event(tenant_id, event);
+        return decode_item_directory_owner_event(holding_id, event);
     }
     if event.event_type != ITEM_DIRECTORY_FACT_EVENT_TYPE
         || event.event_version != ITEM_DIRECTORY_FACT_VERSION
@@ -165,7 +165,7 @@ pub fn decode_item_directory_event(
     if fact.source_event_position() > event.global_sequence {
         return Err(ItemDirectoryProjectionError::OwnerEnvelopeMismatch);
     }
-    TenantItemDirectoryFact::try_new(tenant_id, fact)
+    HoldingItemDirectoryFact::try_new(holding_id, fact)
         .map_err(|_| ItemDirectoryProjectionError::MalformedOwnerFact)
 }
 
@@ -236,11 +236,11 @@ fn decode_final_fact(
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct ItemDirectoryTenantProjectionExecutor {
+pub struct ItemDirectoryHoldingProjectionExecutor {
     page_size: u32,
 }
 
-impl ItemDirectoryTenantProjectionExecutor {
+impl ItemDirectoryHoldingProjectionExecutor {
     pub fn new(page_size: u32) -> Result<Self, ItemDirectoryProjectionError> {
         if page_size == 0 || page_size > ITEM_DIRECTORY_PROJECTION_MAX_PAGE_SIZE {
             return Err(ItemDirectoryProjectionError::InvalidConfiguration);
@@ -251,23 +251,24 @@ impl ItemDirectoryTenantProjectionExecutor {
     async fn execute_store(
         &self,
         claim: &ProjectionClaimRecord,
-        write: &RoutedTenantDatabase,
-        read: &RoutedTenantDatabase,
-    ) -> Result<(), TenantProjectionExecutorError> {
+        write: &RoutedHoldingDatabase,
+        read: &RoutedHoldingDatabase,
+    ) -> Result<(), HoldingProjectionExecutorError> {
         validate_routed_claim(claim, write, read)?;
-        let tenant_uuid = Uuid::parse_str(&claim.job.binding.tenant_id)
-            .map_err(|_| TenantProjectionExecutorError::Permanent)?;
-        let tenant_id = TenantId::try_from_uuid(tenant_uuid)
-            .map_err(|_| TenantProjectionExecutorError::Permanent)?;
-        let write_pool = WritePool::for_tenant(write.database_pool().clone(), tenant_uuid)
-            .map_err(|_| TenantProjectionExecutorError::Permanent)?;
+        let holding_uuid = Uuid::parse_str(&claim.job.binding.holding_id)
+            .map_err(|_| HoldingProjectionExecutorError::Permanent)?;
+        let holding_id = HoldingId::try_from_uuid(holding_uuid)
+            .map_err(|_| HoldingProjectionExecutorError::Permanent)?;
+        let write_pool = WritePool::for_holding(write.database_pool().clone(), holding_uuid)
+            .map_err(|_| HoldingProjectionExecutorError::Permanent)?;
         let authority_write = write_pool.clone();
         let source = ProjectionSource::new(write_pool);
         let directory = ItemDirectoryProjectionAdapter::new(read.database_pool().clone());
-        let authority_pool = ProjectionPool::for_tenant(read.database_pool().clone(), tenant_uuid)
-            .map_err(|_| TenantProjectionExecutorError::Permanent)?;
+        let authority_pool =
+            ProjectionPool::for_holding(read.database_pool().clone(), holding_uuid)
+                .map_err(|_| HoldingProjectionExecutorError::Permanent)?;
         let authority =
-            TenantAuthorityEvidenceProjection::new(tenant_id, authority_pool, authority_write);
+            HoldingAuthorityEvidenceProjection::new(holding_id, authority_pool, authority_write);
         let event_types = vec![
             ITEM_DIRECTORY_OWNER_EVENT_TYPE.to_owned(),
             ITEM_DIRECTORY_FACT_EVENT_TYPE.to_owned(),
@@ -277,20 +278,20 @@ impl ItemDirectoryTenantProjectionExecutor {
             ProjectionJobKind::Rebuild => {
                 let (generation, source_high_watermark) = rebuild_fence(claim)?;
                 let cursor = directory
-                    .begin_rebuild(tenant_id, generation, source_high_watermark, Utc::now())
+                    .begin_rebuild(holding_id, generation, source_high_watermark, Utc::now())
                     .await
-                    .map_err(|_| TenantProjectionExecutorError::Retryable)?;
+                    .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
                 (generation, source_high_watermark, cursor)
             }
             ProjectionJobKind::Incremental => {
                 let source_high_watermark = source
                     .high_watermark(&event_types)
                     .await
-                    .map_err(|_| TenantProjectionExecutorError::Retryable)?;
+                    .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
                 let checkpoint = directory
-                    .begin_incremental(tenant_id, source_high_watermark, Utc::now())
+                    .begin_incremental(holding_id, source_high_watermark, Utc::now())
                     .await
-                    .map_err(|_| TenantProjectionExecutorError::Retryable)?;
+                    .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
                 (
                     checkpoint.generation,
                     checkpoint.source_high_watermark,
@@ -308,101 +309,101 @@ impl ItemDirectoryTenantProjectionExecutor {
                     self.page_size,
                 )
                 .await
-                .map_err(|_| TenantProjectionExecutorError::Retryable)?;
+                .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
             if page.events.is_empty() {
-                return Err(TenantProjectionExecutorError::Retryable);
+                return Err(HoldingProjectionExecutorError::Retryable);
             }
             events_seen = events_seen.saturating_add(page.events.len() as u64);
             if events_seen > MAX_ITEM_DIRECTORY_EVENTS_PER_PASS {
-                return Err(TenantProjectionExecutorError::Permanent);
+                return Err(HoldingProjectionExecutorError::Permanent);
             }
             let previous = cursor;
             for event in page.events {
                 if event.event_type == AUTHORITY_EVIDENCE_EVENT_TYPE {
                     authority.apply(&event).await.map_err(|error| match error {
                         crate::AuthorityProjectionError::Unavailable => {
-                            TenantProjectionExecutorError::Retryable
+                            HoldingProjectionExecutorError::Retryable
                         }
-                        _ => TenantProjectionExecutorError::Permanent,
+                        _ => HoldingProjectionExecutorError::Permanent,
                     })?;
                 } else {
-                    let fact = decode_item_directory_event(tenant_id, &event)
-                        .map_err(|_| TenantProjectionExecutorError::Permanent)?;
+                    let fact = decode_item_directory_event(holding_id, &event)
+                        .map_err(|_| HoldingProjectionExecutorError::Permanent)?;
                     directory
                         .apply_fact(&fact, Utc::now())
                         .await
-                        .map_err(|_| TenantProjectionExecutorError::Retryable)?;
+                        .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
                 }
                 cursor = event.global_sequence;
             }
             directory
-                .advance_checkpoint(tenant_id, generation, previous, cursor, Utc::now())
+                .advance_checkpoint(holding_id, generation, previous, cursor, Utc::now())
                 .await
-                .map_err(|_| TenantProjectionExecutorError::Retryable)?;
+                .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
         }
         authority
             .reconcile_grants(&directory, source_high_watermark, Utc::now())
             .await
             .map_err(|error| match error {
                 crate::AuthorityProjectionError::Unavailable => {
-                    TenantProjectionExecutorError::Retryable
+                    HoldingProjectionExecutorError::Retryable
                 }
-                _ => TenantProjectionExecutorError::Permanent,
+                _ => HoldingProjectionExecutorError::Permanent,
             })?;
         directory
-            .complete_rebuild(tenant_id, generation, source_high_watermark, Utc::now())
+            .complete_rebuild(holding_id, generation, source_high_watermark, Utc::now())
             .await
-            .map_err(|_| TenantProjectionExecutorError::Retryable)
+            .map_err(|_| HoldingProjectionExecutorError::Retryable)
     }
 }
 
 #[async_trait]
-impl TenantProjectionRoutedExecutor for ItemDirectoryTenantProjectionExecutor {
+impl HoldingProjectionRoutedExecutor for ItemDirectoryHoldingProjectionExecutor {
     async fn execute_routed(
         &self,
         claim: &ProjectionClaimRecord,
-        write: &RoutedTenantDatabase,
-        read: &RoutedTenantDatabase,
-    ) -> Result<(), TenantProjectionExecutorError> {
+        write: &RoutedHoldingDatabase,
+        read: &RoutedHoldingDatabase,
+    ) -> Result<(), HoldingProjectionExecutorError> {
         self.execute_store(claim, write, read).await
     }
 }
 
 fn validate_routed_claim(
     claim: &ProjectionClaimRecord,
-    write: &RoutedTenantDatabase,
-    read: &RoutedTenantDatabase,
-) -> Result<(), TenantProjectionExecutorError> {
+    write: &RoutedHoldingDatabase,
+    read: &RoutedHoldingDatabase,
+) -> Result<(), HoldingProjectionExecutorError> {
     if claim.job.projection_name != ITEM_DIRECTORY_PROJECTION_NAME
         || write.side != RoutedDatabaseSide::Write
         || read.side != RoutedDatabaseSide::Read
-        || write.tenant_id != claim.job.binding.tenant_id
-        || read.tenant_id != claim.job.binding.tenant_id
-        || write.holding_ref != claim.job.binding.holding_ref
-        || read.holding_ref != claim.job.binding.holding_ref
+        || write.holding_id != claim.job.binding.holding_id
+        || read.holding_id != claim.job.binding.holding_id
+        || write.data_profile_key != claim.job.binding.data_profile_key
+        || read.data_profile_key != claim.job.binding.data_profile_key
     {
-        return Err(TenantProjectionExecutorError::Permanent);
+        return Err(HoldingProjectionExecutorError::Permanent);
     }
     Ok(())
 }
 
 fn rebuild_fence(
     claim: &ProjectionClaimRecord,
-) -> Result<(u64, u64), TenantProjectionExecutorError> {
+) -> Result<(u64, u64), HoldingProjectionExecutorError> {
     let payload = claim
         .job
         .payload
         .as_object()
-        .ok_or(TenantProjectionExecutorError::Permanent)?;
+        .ok_or(HoldingProjectionExecutorError::Permanent)?;
     let generation = payload
         .get("generation")
         .and_then(serde_json::Value::as_u64)
         .filter(|value| *value > 0)
-        .ok_or(TenantProjectionExecutorError::Permanent)?;
+        .ok_or(HoldingProjectionExecutorError::Permanent)?;
     let source = payload
         .get("source_version")
         .and_then(serde_json::Value::as_u64)
-        .ok_or(TenantProjectionExecutorError::Permanent)?;
+        .ok_or(HoldingProjectionExecutorError::Permanent)?;
     Ok((generation, source))
 }
 
@@ -429,8 +430,8 @@ mod tests {
         reference::RecordTypeId,
     };
     use erpx_kernel::{
-        ActorAttribution, ActorKind, AggregateId, CommandId, CorrelationId, DataClassification,
-        EventId, PrincipalId, RecordId, TenantScope,
+        ActorAttribution, ActorKind, AggregateId, AuthorityScope, CommandId, CorrelationId,
+        DataClassification, EventId, PrincipalId, RecordId,
     };
     use uuid::Uuid;
 
@@ -450,7 +451,7 @@ mod tests {
         .unwrap();
         let draft = ItemDescriptorDraft {
             record,
-            scope: TenantScope::Platform,
+            scope: AuthorityScope::Platform,
             lifecycle_state: "posted".into(),
             authorization_policy: erpx_integration_contracts::record_policy("finance.invoice")
                 .unwrap()
@@ -470,7 +471,7 @@ mod tests {
             aggregate_type: "customer_invoice".into(),
             aggregate_id: AggregateId::try_from_uuid(aggregate_id).unwrap(),
             aggregate_version: 4,
-            tenant_scope: TenantScope::Platform,
+            active_scope: AuthorityScope::Platform,
             actor: ActorAttribution {
                 principal_ref: "worker:item-directory".into(),
                 kind: ActorKind::SystemWorker,
@@ -487,39 +488,39 @@ mod tests {
 
     #[test]
     fn typed_draft_uses_committed_outbox_position() {
-        let tenant_id = TenantId::try_from_uuid(id()).unwrap();
-        let publication = decode_item_directory_owner_event(tenant_id, &event()).unwrap();
+        let holding_id = HoldingId::try_from_uuid(id()).unwrap();
+        let publication = decode_item_directory_owner_event(holding_id, &event()).unwrap();
         assert_eq!(publication.fact.source_event_position(), 81);
     }
 
     #[test]
     fn snapshot_like_json_and_owner_mismatch_are_rejected() {
-        let tenant_id = TenantId::try_from_uuid(id()).unwrap();
+        let holding_id = HoldingId::try_from_uuid(id()).unwrap();
         let mut value = event();
         value.payload = serde_json::json!({"aggregate": "invoice", "state": {}});
         assert!(matches!(
-            decode_item_directory_owner_event(tenant_id, &value),
+            decode_item_directory_owner_event(holding_id, &value),
             Err(ItemDirectoryProjectionError::MalformedOwnerFact)
         ));
 
         let mut value = event();
         value.context = "sales".into();
         assert!(matches!(
-            decode_item_directory_owner_event(tenant_id, &value),
+            decode_item_directory_owner_event(holding_id, &value),
             Err(ItemDirectoryProjectionError::OwnerEnvelopeMismatch)
         ));
     }
 
     #[test]
     fn tagged_owner_payload_is_decoded_without_snapshot_inference() {
-        let tenant_id = TenantId::try_from_uuid(id()).unwrap();
+        let holding_id = HoldingId::try_from_uuid(id()).unwrap();
         let mut value = event();
         value.payload = serde_json::json!({
             "payload_kind": "directory",
             "payload": value.payload,
         });
         assert_eq!(
-            decode_item_directory_owner_event(tenant_id, &value)
+            decode_item_directory_owner_event(holding_id, &value)
                 .unwrap()
                 .fact
                 .source_event_position(),
@@ -529,7 +530,7 @@ mod tests {
 
     #[test]
     fn final_revocation_facts_accept_committed_past_positions_and_reject_future_claims() {
-        let tenant_id = TenantId::try_from_uuid(id()).unwrap();
+        let holding_id = HoldingId::try_from_uuid(id()).unwrap();
         let mut value = event();
         value.event_type = ITEM_DIRECTORY_FACT_EVENT_TYPE.into();
         value.payload = serde_json::to_value(ItemDirectoryFact::Tombstoned(ItemTombstoned {
@@ -539,7 +540,9 @@ mod tests {
         }))
         .unwrap();
         assert!(matches!(
-            decode_item_directory_event(tenant_id, &value).unwrap().fact,
+            decode_item_directory_event(holding_id, &value)
+                .unwrap()
+                .fact,
             ItemDirectoryFact::Tombstoned(_)
         ));
 
@@ -550,14 +553,14 @@ mod tests {
         }))
         .unwrap();
         assert!(matches!(
-            decode_item_directory_event(tenant_id, &value),
+            decode_item_directory_event(holding_id, &value),
             Err(ItemDirectoryProjectionError::OwnerEnvelopeMismatch)
         ));
     }
 
     #[test]
     fn worker_decodes_only_typed_grant_relation_route_and_tombstone_mutations() {
-        let tenant_id = TenantId::try_from_uuid(id()).unwrap();
+        let holding_id = HoldingId::try_from_uuid(id()).unwrap();
         let invoice = StableRecordRef::try_new(
             RecordId::try_from_uuid(id()).unwrap(),
             ContextId::Finance,
@@ -620,19 +623,23 @@ mod tests {
             value.event_type = ITEM_DIRECTORY_FACT_EVENT_TYPE.into();
             value.payload = serde_json::to_value(&fact).unwrap();
             assert_eq!(
-                decode_item_directory_event(tenant_id, &value).unwrap().fact,
+                decode_item_directory_event(holding_id, &value)
+                    .unwrap()
+                    .fact,
                 fact
             );
         }
     }
 
     #[test]
-    fn production_composition_is_routed_and_never_reads_a_tenant_from_environment() {
-        assert!(ItemDirectoryTenantProjectionExecutor::new(1).is_ok());
-        assert!(ItemDirectoryTenantProjectionExecutor::new(0).is_err());
+    fn production_composition_is_routed_and_never_reads_a_holding_from_environment() {
+        assert!(ItemDirectoryHoldingProjectionExecutor::new(1).is_ok());
+        assert!(ItemDirectoryHoldingProjectionExecutor::new(0).is_err());
         assert!(
-            ItemDirectoryTenantProjectionExecutor::new(ITEM_DIRECTORY_PROJECTION_MAX_PAGE_SIZE + 1)
-                .is_err()
+            ItemDirectoryHoldingProjectionExecutor::new(
+                ITEM_DIRECTORY_PROJECTION_MAX_PAGE_SIZE + 1
+            )
+            .is_err()
         );
 
         let app = include_str!("app.rs");
@@ -645,10 +652,10 @@ mod tests {
             .expect("bounded branch");
         assert!(
             branch
-                .contains("handler_registry_with_control_plane_multi_tenant_projection_scheduler")
+                .contains("handler_registry_with_control_plane_multi_holding_projection_scheduler")
         );
-        assert!(!branch.contains("ERPX_TENANT_ID"));
-        assert!(!branch.contains("ERPX_HOLDING_REF"));
+        assert!(!branch.contains("ERPX_HOLDING_ID"));
+        assert!(!branch.contains("ERPX_DATA_PROFILE_KEY"));
     }
 
     #[test]

@@ -7,7 +7,7 @@
 - Worker registered-handler passes persist the configured worker identity's
   heartbeat only after a successful handler pass.
 - The server `/readyz` path reads the durable heartbeat, probes the explicitly
-  configured tenant write/read routes, and evaluates projection and backup/PITR
+  configured holding write/read routes, and evaluates projection and backup/PITR
   observations through the existing bounded freshness policies.
 - Missing, stale, future, failed, or unconfigured observations remain
   `not_ready`; readiness no longer uses a per-request green default.
@@ -27,7 +27,7 @@
 ## Remaining concerns
 
 - A live green `/readyz` response still requires deployment configuration for
-  an expected readiness tenant, tenant routing template/admin connection,
+  an expected readiness holding, holding routing template/admin connection,
   expected worker UUID, fresh projection metadata, and verified backup/PITR.
 - This packet does not make an unconfigured deployment ready and does not
   replace the worker's eventual production scheduler/backup implementation.

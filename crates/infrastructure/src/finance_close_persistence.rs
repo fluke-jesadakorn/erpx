@@ -3,7 +3,7 @@
 //! The close aggregate intentionally has no independent identifier or version
 //! field.  A period can have one close review, so `period_id` is the aggregate
 //! identity and this adapter owns the monotonically increasing persistence
-//! version. Every accepted domain transition updates the normalized tenant
+//! version. Every accepted domain transition updates the normalized holding
 //! write row and outbox event in one holding-scoped transaction.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -178,24 +178,24 @@ impl FinanceCloseControlEvidence {
 #[derive(Debug, Clone)]
 pub struct SqlxFinanceCloseStore {
     write_pool: PgPool,
-    holding_ref: String,
+    data_profile_key: String,
 }
 
 impl SqlxFinanceCloseStore {
     pub fn new(
         write_pool: PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_holding_ref(&holding_ref)?;
+        let data_profile_key = data_profile_key.into();
+        validate_data_profile_key(&data_profile_key)?;
         Ok(Self {
             write_pool,
-            holding_ref,
+            data_profile_key,
         })
     }
 
-    pub fn holding_ref(&self) -> &str {
-        &self.holding_ref
+    pub fn data_profile_key(&self) -> &str {
+        &self.data_profile_key
     }
 
     /// Persist an open, review, or closed candidate after replaying the
@@ -220,23 +220,23 @@ impl SqlxFinanceCloseStore {
         let payload = serde_json::to_value(review)?;
         let review_id = review.period_id();
 
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
         let authoritative_period =
-            load_authoritative_period(&mut tx, &self.holding_ref, period.id).await?;
+            load_authoritative_period(&mut tx, &self.data_profile_key, period.id).await?;
         if authoritative_period != *period {
             return Err(invalid(
-                "Finance close period does not match authoritative tenant write state",
+                "Finance close period does not match authoritative holding write state",
             ));
         }
-        lock_review(&mut tx, &self.holding_ref, review_id).await?;
+        lock_review(&mut tx, &self.data_profile_key, review_id).await?;
         let stored: Option<CloseReviewRow> = sqlx::query_as(
             "SELECT version, payload, holding_id, company_id, period_id, status,
                     idempotency_key, opened_by, reviewed_by, closed_by
-             FROM erpx_tenant.finance_close_reviews
-             WHERE holding_ref=$1 AND period_id=$2
+             FROM erpx_holding.finance_close_reviews
+             WHERE data_profile_key=$1 AND period_id=$2
              FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(review_id)
         .fetch_optional(&mut *tx)
         .await?;
@@ -263,10 +263,10 @@ impl SqlxFinanceCloseStore {
                 }
                 let conflicting_id: Option<Uuid> = sqlx::query_scalar(
                     "SELECT period_id
-                     FROM erpx_tenant.finance_close_reviews
-                     WHERE holding_ref=$1 AND idempotency_key=$2",
+                     FROM erpx_holding.finance_close_reviews
+                     WHERE data_profile_key=$1 AND idempotency_key=$2",
                 )
-                .bind(&self.holding_ref)
+                .bind(&self.data_profile_key)
                 .bind(&context.idempotency_key)
                 .fetch_optional(&mut *tx)
                 .await?;
@@ -277,15 +277,15 @@ impl SqlxFinanceCloseStore {
                 }
                 ensure_close_review_next_version_is_unclaimed(
                     &mut tx,
-                    &self.holding_ref,
+                    &self.data_profile_key,
                     review_id,
                     1,
                 )
                 .await?;
-                insert_review(&mut tx, &self.holding_ref, review, 1, &payload).await?;
+                insert_review(&mut tx, &self.data_profile_key, review, 1, &payload).await?;
                 write_finance_source_event(
                     &mut tx,
-                    &self.holding_ref,
+                    &self.data_profile_key,
                     CLOSE_REVIEW_AGGREGATE,
                     review_id,
                     1,
@@ -311,7 +311,7 @@ impl SqlxFinanceCloseStore {
                     if row.1 == payload {
                         validate_close_review_persistence_evidence(
                             &mut tx,
-                            &self.holding_ref,
+                            &self.data_profile_key,
                             review_id,
                             stored_version,
                             &payload,
@@ -335,7 +335,7 @@ impl SqlxFinanceCloseStore {
                 // predecessor would silently hide an authoritative gap.
                 validate_close_review_persistence_evidence(
                     &mut tx,
-                    &self.holding_ref,
+                    &self.data_profile_key,
                     review_id,
                     stored_version,
                     &row.1,
@@ -344,7 +344,7 @@ impl SqlxFinanceCloseStore {
                 if let Some(input) = review.input() {
                     let control_reconciliation = validate_authoritative_input(
                         &mut tx,
-                        &self.holding_ref,
+                        &self.data_profile_key,
                         &authoritative_period,
                         input,
                     )
@@ -382,19 +382,19 @@ impl SqlxFinanceCloseStore {
                     .ok_or_else(|| invalid("Finance close review version overflow"))?;
                 ensure_close_review_next_version_is_unclaimed(
                     &mut tx,
-                    &self.holding_ref,
+                    &self.data_profile_key,
                     review_id,
                     next_version,
                 )
                 .await?;
                 let affected = sqlx::query(
-                    "UPDATE erpx_tenant.finance_close_reviews
+                    "UPDATE erpx_holding.finance_close_reviews
                      SET holding_id=$3, company_id=$4, status=$5, version=$6,
                          idempotency_key=$7, opened_by=$8, reviewed_by=$9,
                          closed_by=$10, payload=$11, updated_at=now()
-                     WHERE holding_ref=$1 AND period_id=$2 AND version=$12",
+                     WHERE data_profile_key=$1 AND period_id=$2 AND version=$12",
                 )
-                .bind(&self.holding_ref)
+                .bind(&self.data_profile_key)
                 .bind(review_id)
                 .bind(review.holding_id())
                 .bind(review.company_id())
@@ -419,7 +419,7 @@ impl SqlxFinanceCloseStore {
                 }
                 write_finance_source_event(
                     &mut tx,
-                    &self.holding_ref,
+                    &self.data_profile_key,
                     CLOSE_REVIEW_AGGREGATE,
                     review_id,
                     next_version,
@@ -460,15 +460,15 @@ impl SqlxFinanceCloseStore {
         if period_id.is_nil() {
             return Err(invalid("period_id cannot be nil"));
         }
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
         let row: Option<CloseReviewSnapshotRow> = sqlx::query_as(
             "SELECT version, payload, holding_id, company_id, period_id, status,
                     idempotency_key, opened_by, reviewed_by, closed_by, updated_at
-             FROM erpx_tenant.finance_close_reviews
-             WHERE holding_ref=$1 AND period_id=$2
+             FROM erpx_holding.finance_close_reviews
+             WHERE data_profile_key=$1 AND period_id=$2
              FOR SHARE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(period_id)
         .fetch_optional(&mut *tx)
         .await?;
@@ -495,7 +495,7 @@ impl SqlxFinanceCloseStore {
         validate_persisted_identity(&base_row, &review)?;
         validate_close_review_persistence_evidence(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             period_id,
             version,
             &row.1,
@@ -513,16 +513,16 @@ impl SqlxFinanceCloseStore {
 
 async fn load_authoritative_period(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     period_id: Uuid,
 ) -> Result<AccountingPeriod, PersistenceError> {
     let row: Option<(Uuid, Uuid, String, Value)> = sqlx::query_as(
         "SELECT holding_id, company_id, status, payload
-         FROM erpx_tenant.finance_periods
-         WHERE holding_ref=$1 AND period_id=$2
+         FROM erpx_holding.finance_periods
+         WHERE data_profile_key=$1 AND period_id=$2
          FOR SHARE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(period_id)
     .fetch_optional(&mut **tx)
     .await?;
@@ -555,11 +555,13 @@ fn accounting_period_status(status: PeriodStatus) -> &'static str {
 
 async fn lock_review(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     review_id: Uuid,
 ) -> Result<(), PersistenceError> {
     sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
-        .bind(format!("{holding_ref}:finance-close-review:{review_id}"))
+        .bind(format!(
+            "{data_profile_key}:finance-close-review:{review_id}"
+        ))
         .execute(&mut **tx)
         .await?;
     Ok(())
@@ -567,19 +569,19 @@ async fn lock_review(
 
 async fn insert_review(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     review: &FinanceCloseReview,
     version: u64,
     payload: &Value,
 ) -> Result<(), PersistenceError> {
     let context = mutation_context(review)?;
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_close_reviews
-            (holding_ref, holding_id, company_id, period_id, status, version,
+        "INSERT INTO erpx_holding.finance_close_reviews
+            (data_profile_key, holding_id, company_id, period_id, status, version,
              idempotency_key, opened_by, reviewed_by, closed_by, payload)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(review.holding_id())
     .bind(review.company_id())
     .bind(review.period_id())
@@ -654,11 +656,11 @@ fn validate_transition(
 
 async fn validate_authoritative_input(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     period: &AccountingPeriod,
     input: &CloseInput,
 ) -> Result<FinanceCloseControlReconciliation, PersistenceError> {
-    let reconciliation = reconcile_authoritative_input(tx, holding_ref, period, input).await?;
+    let reconciliation = reconcile_authoritative_input(tx, data_profile_key, period, input).await?;
     if !reconciliation.is_exact() {
         return Err(invalid(format!(
             "Finance close facts do not exactly reconcile with the immutable journal source (source_version={}, authoritative={}, submitted={}, missing={}, unsubmitted={})",
@@ -669,7 +671,7 @@ async fn validate_authoritative_input(
             reconciliation.unsubmitted_authoritative_fact_count,
         )));
     }
-    validate_authoritative_controls(tx, holding_ref, period, input).await
+    validate_authoritative_controls(tx, data_profile_key, period, input).await
 }
 
 /// Reconcile a close candidate against one immutable source snapshot.
@@ -682,7 +684,7 @@ async fn validate_authoritative_input(
 /// bounded to the same 4,096-fact reporting limit as the close projection.
 async fn reconcile_authoritative_input(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     period: &AccountingPeriod,
     input: &CloseInput,
 ) -> Result<FinanceCloseSourceReconciliation, PersistenceError> {
@@ -692,17 +694,17 @@ async fn reconcile_authoritative_input(
         ));
     }
 
-    sqlx::query("LOCK TABLE erpx_tenant.finance_posted_journals IN SHARE MODE")
+    sqlx::query("LOCK TABLE erpx_holding.finance_posted_journals IN SHARE MODE")
         .execute(&mut **tx)
         .await?;
     let rows: Vec<AuthoritativeJournalRow> = sqlx::query_as(
         "SELECT journal_id, holding_id, company_id, period_id, version, payload
-         FROM erpx_tenant.finance_posted_journals
-         WHERE holding_ref=$1 AND period_id=$2
+         FROM erpx_holding.finance_posted_journals
+         WHERE data_profile_key=$1 AND period_id=$2
          ORDER BY journal_id
          LIMIT $3",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(period.id)
     .bind(
         i64::try_from(MAX_AUTHORITATIVE_CLOSE_FACTS + 1)
@@ -867,7 +869,7 @@ fn validate_posted_journal_source(
 
 async fn validate_authoritative_controls(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     period: &AccountingPeriod,
     input: &CloseInput,
 ) -> Result<FinanceCloseControlReconciliation, PersistenceError> {
@@ -875,11 +877,11 @@ async fn validate_authoritative_controls(
         "SELECT holding_id, company_id, period_id, control_code, source_type,
                 source_aggregate_id, source_version, evidence_ref, resolved,
                 observed_at, payload
-         FROM erpx_tenant.finance_close_control_evidence
-         WHERE holding_ref=$1 AND holding_id=$2 AND company_id=$3 AND period_id=$4
+         FROM erpx_holding.finance_close_control_evidence
+         WHERE data_profile_key=$1 AND holding_id=$2 AND company_id=$3 AND period_id=$4
          ORDER BY control_code",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(period.holding_id)
     .bind(period.company_id)
     .bind(period.id)
@@ -894,12 +896,12 @@ async fn validate_authoritative_controls(
         "SELECT holding_id, company_id, period_id, control_code, source_type,
                 source_aggregate_id, source_version, evidence_ref, resolved,
                 observed_at, payload
-         FROM erpx_tenant.finance_close_control_evidence
-         WHERE holding_ref=$1 AND holding_id=$2 AND company_id=$3 AND period_id=$4
+         FROM erpx_holding.finance_close_control_evidence
+         WHERE data_profile_key=$1 AND holding_id=$2 AND company_id=$3 AND period_id=$4
          ORDER BY control_code
          FOR SHARE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(period.holding_id)
     .bind(period.company_id)
     .bind(period.id)
@@ -920,7 +922,7 @@ async fn validate_authoritative_controls(
             unresolved_authoritative_control_count =
                 unresolved_authoritative_control_count.saturating_add(1);
         }
-        validate_authoritative_control_event(tx, holding_ref, row).await?;
+        validate_authoritative_control_event(tx, data_profile_key, row).await?;
     }
 
     if rows.len() != input.controls().len()
@@ -957,22 +959,22 @@ async fn validate_authoritative_controls(
 
 async fn validate_authoritative_control_event(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     row: &CloseControlEvidenceRow,
 ) -> Result<(), PersistenceError> {
     let expected_aggregate_id =
-        deterministic_control_aggregate_id_for_scope(holding_ref, row.0, row.1, row.2, &row.3);
+        deterministic_control_aggregate_id_for_scope(data_profile_key, row.0, row.1, row.2, &row.3);
     let events: Vec<CloseControlEvidenceEventRow> = sqlx::query_as(
         "SELECT aggregate_id, aggregate_version, event_type, payload
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type=$2
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type=$2
            AND aggregate_id=$3 AND aggregate_version=$4
            AND event_type=$5
          ORDER BY event_id
          LIMIT 2
          FOR SHARE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(FINANCE_CLOSE_CONTROL_AGGREGATE_TYPE)
     .bind(expected_aggregate_id)
     .bind(row.6)
@@ -1016,7 +1018,7 @@ async fn validate_authoritative_control_event(
         .and_then(Value::as_object)
         .ok_or_else(|| invalid("Finance close control source event evidence is invalid"))?;
     let expected_event_key = format!(
-        "{holding_ref}:{FINANCE_CLOSE_CONTROL_AGGREGATE_TYPE}:{}:{}:{}:{}:{}:{}",
+        "{data_profile_key}:{FINANCE_CLOSE_CONTROL_AGGREGATE_TYPE}:{}:{}:{}:{}:{}:{}",
         row.0, row.1, row.2, row.3, row.5, row.6,
     );
     let event_observed_at: DateTime<Utc> = evidence
@@ -1207,7 +1209,7 @@ fn validate_control_evidence(
     Ok(())
 }
 
-fn validate_holding_ref(value: &str) -> Result<(), PersistenceError> {
+fn validate_data_profile_key(value: &str) -> Result<(), PersistenceError> {
     if value.trim().is_empty() || value.len() > 255 || value.chars().any(char::is_control) {
         return Err(PersistenceError::Configuration(
             "holding reference must be bounded and non-empty",
@@ -1235,15 +1237,15 @@ fn domain_error(error: impl std::fmt::Display) -> PersistenceError {
 
 async fn validate_close_review_persistence_evidence(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     review_id: Uuid,
     review_version: u64,
     expected_payload: &Value,
 ) -> Result<(), PersistenceError> {
     let outbox_rows: Vec<CloseReviewOutboxRow> = sqlx::query_as(
         "SELECT event_type, payload
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1
            AND aggregate_type=$2
            AND aggregate_id=$3
            AND aggregate_version=$4
@@ -1251,7 +1253,7 @@ async fn validate_close_review_persistence_evidence(
          LIMIT 2
          FOR SHARE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(CLOSE_REVIEW_AGGREGATE)
     .bind(review_id)
     .bind(as_i64(review_version, "Finance close review version")?)
@@ -1262,19 +1264,19 @@ async fn validate_close_review_persistence_evidence(
 
 async fn ensure_close_review_next_version_is_unclaimed(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     review_id: Uuid,
     next_version: u64,
 ) -> Result<(), PersistenceError> {
     let outbox_event_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*)
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1
            AND aggregate_type=$2
            AND aggregate_id=$3
            AND aggregate_version=$4",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(CLOSE_REVIEW_AGGREGATE)
     .bind(review_id)
     .bind(as_i64(next_version, "Finance close review version")?)
@@ -1341,7 +1343,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn constructor_rejects_unbounded_holding_references() {
+    async fn constructor_rejects_unbounded_data_profile_references() {
         let pool = PgPool::connect_lazy("postgres://unused").expect("lazy pool");
         assert!(SqlxFinanceCloseStore::new(pool.clone(), " ").is_err());
         assert!(SqlxFinanceCloseStore::new(pool.clone(), "hold\nref").is_err());

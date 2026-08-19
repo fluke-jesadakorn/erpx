@@ -15,14 +15,14 @@ mixed below `.runtime/erpx`.
 Local credential/TLS replacement is performed only by
 `cargo xtask reconfigure-local`. The command requires a dry-run-visible target
 inventory, exact loopback and fixed-root fences, inactive PITR, a matching
-complete bootstrap receipt and active tenant, and the literal confirmation
+complete bootstrap receipt and active holding, and the literal confirmation
 `RECONFIGURE_ERPX_LOCAL`. It retains all PostgreSQL databases and MinIO objects,
 rotates the four managed PostgreSQL roles and MinIO root credentials, replaces
 the local CA/server certificates and managed environment keys, probes the
 retained resources, and rolls configuration and credentials back if a probe
 fails.
 
-**Consequences:** Runtime manifest version 3 and service-catalog generation 3
+**Consequences:** The current runtime manifest and service catalog
 contain no n8n fingerprint. Bootstrap progress version 2 contains no n8n phase.
 The one-time successful local reconfiguration removes `.runtime/n8n` and the
 superseded `.runtime/erpx` contents, then performs a clean workspace rebuild.

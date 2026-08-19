@@ -5,7 +5,7 @@
 - Added a typed `SqlxOperationsStore::save_exception_case` entry point that
   uses the existing validated aggregate/source-reference transaction path.
 - Added `read_active_exception_page`, scoped to the routed holding and the
-  rebuildable tenant read database.
+  rebuildable holding read database.
 - Active reads allow only `detected`, `assigned`, `acknowledged`, and
   `escalated` states, use deterministic newest-update ordering with aggregate
   ID tie-breaking, return `has_more`/resume metadata, and cap one page at 100.
@@ -33,7 +33,7 @@ cargo clippy -p erpx-infrastructure --all-targets -- -D warnings  PASS
 ```
 
 The existing disposable Operations write/read integration suite remains the
-independent evidence for tenant RLS, event idempotency, projection replay,
+independent evidence for holding RLS, event idempotency, projection replay,
 ordered event pages, and replacement-read preparation.
 
 ## Unfinished work

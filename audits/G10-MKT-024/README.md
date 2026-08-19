@@ -4,7 +4,7 @@
 
 - **Owner:** main agent
 - **Dependencies:** G10-MKT-019 domain handoff/attribution contract,
-  G10-MKT-020 tenant write persistence, G10-MKT-021 read projection, and the
+  G10-MKT-020 holding write persistence, G10-MKT-021 read projection, and the
   shared authenticated command boundary.
 - **Allowed paths:** CRM protobuf/server transport and focused transport tests,
   this audit, and plan/ledger records.
@@ -22,7 +22,7 @@
   command context and their scopes must be contained by the command scope.
 - Every mutation requires authenticated actor binding, explicit
   holding/company/branch scope, active customer scope binding, the `crm.write`
-  role, CRM entitlement, and routed tenant write access.
+  role, CRM entitlement, and routed holding write access.
 - Persistence remains authoritative for immutable handoffs, optimistic
   opportunity transitions, attribution recomputation, idempotency, outbox, and
   replay behavior. Audit records are written after successful mutations.
@@ -47,5 +47,5 @@ completion.
 ## Rollback
 
 Remove the additive CRM command methods and server handlers while retaining the
-existing write adapter. No tenant rows, Folio state, or external provider
+existing write adapter. No holding rows, Folio state, or external provider
 state are changed by rollback.

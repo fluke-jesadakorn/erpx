@@ -9,8 +9,9 @@ use async_trait::async_trait;
 use chrono::{Duration, Utc};
 use erpx_domain::access::{
     RiskTier, RoleAssignment, RoleExpiryNotification, RoleExpiryNotificationKind,
-    RoleReviewClassification, RoleReviewItem, RoleReviewQueue, Scope,
+    RoleReviewClassification, RoleReviewItem, RoleReviewQueue,
 };
+use erpx_domain::contracts::AuthorityScope as Scope;
 use erpx_infrastructure::{
     ClaimedRoleExpiryNotification, RoleReviewPersistence, RoleReviewPersistenceError,
 };

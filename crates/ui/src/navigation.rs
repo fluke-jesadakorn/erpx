@@ -209,8 +209,8 @@ pub fn localized_navigation_label(key: &str, fallback: &str, locale: Locale) -> 
     let translated = match (key, locale) {
         ("nav.group.customer_operations", Locale::En) => "Customer Operations",
         ("nav.group.customer_operations", Locale::Th) => "การดำเนินงานลูกค้า",
-        ("nav.group.tenant_administration", Locale::En) => "Tenant Administration",
-        ("nav.group.tenant_administration", Locale::Th) => "การดูแลผู้เช่า",
+        ("nav.group.holding_administration", Locale::En) => "Holding Administration",
+        ("nav.group.holding_administration", Locale::Th) => "การดูแลผู้เช่า",
         ("nav.group.business_modules", Locale::En) => "Business Modules",
         ("nav.group.business_modules", Locale::Th) => "โมดูลธุรกิจ",
         ("nav.group.platform_administration", Locale::En) => "Platform Administration",
@@ -223,22 +223,22 @@ pub fn localized_navigation_label(key: &str, fallback: &str, locale: Locale) -> 
         ("nav.route.support", Locale::Th) => "ฝ่ายสนับสนุน",
         ("nav.route.billing", Locale::En) => "Billing",
         ("nav.route.billing", Locale::Th) => "การเรียกเก็บเงิน",
-        ("nav.route.tenant_organization", Locale::En) => "Organization",
-        ("nav.route.tenant_organization", Locale::Th) => "องค์กร",
-        ("nav.route.tenant_branches", Locale::En) => "Branches",
-        ("nav.route.tenant_branches", Locale::Th) => "สาขา",
-        ("nav.route.tenant_identity_access", Locale::En) => "Identity & Access",
-        ("nav.route.tenant_identity_access", Locale::Th) => "ตัวตนและสิทธิ์เข้าถึง",
-        ("nav.route.tenant_infrastructure", Locale::En) => "Infrastructure",
-        ("nav.route.tenant_infrastructure", Locale::Th) => "โครงสร้างพื้นฐาน",
-        ("nav.route.tenant_configuration", Locale::En) => "Configuration",
-        ("nav.route.tenant_configuration", Locale::Th) => "การกำหนดค่า",
-        ("nav.route.tenant_root_access", Locale::En) => "Root Access",
-        ("nav.route.tenant_root_access", Locale::Th) => "สิทธิ์ Root",
-        ("nav.route.tenant_corporate_identity", Locale::En) => "Corporate Identity",
-        ("nav.route.tenant_corporate_identity", Locale::Th) => "อัตลักษณ์องค์กร",
-        ("nav.route.tenants", Locale::En) => "Tenants",
-        ("nav.route.tenants", Locale::Th) => "ผู้เช่า",
+        ("nav.route.holding_organization", Locale::En) => "Organization",
+        ("nav.route.holding_organization", Locale::Th) => "องค์กร",
+        ("nav.route.holding_branches", Locale::En) => "Branches",
+        ("nav.route.holding_branches", Locale::Th) => "สาขา",
+        ("nav.route.holding_identity_access", Locale::En) => "Identity & Access",
+        ("nav.route.holding_identity_access", Locale::Th) => "ตัวตนและสิทธิ์เข้าถึง",
+        ("nav.route.holding_infrastructure", Locale::En) => "Infrastructure",
+        ("nav.route.holding_infrastructure", Locale::Th) => "โครงสร้างพื้นฐาน",
+        ("nav.route.holding_configuration", Locale::En) => "Configuration",
+        ("nav.route.holding_configuration", Locale::Th) => "การกำหนดค่า",
+        ("nav.route.holding_root_access", Locale::En) => "Root Access",
+        ("nav.route.holding_root_access", Locale::Th) => "สิทธิ์ Root",
+        ("nav.route.holding_corporate_identity", Locale::En) => "Corporate Identity",
+        ("nav.route.holding_corporate_identity", Locale::Th) => "อัตลักษณ์องค์กร",
+        ("nav.route.holdings", Locale::En) => "Holdings",
+        ("nav.route.holdings", Locale::Th) => "ผู้เช่า",
         ("nav.route.projections", Locale::En) => "Projections",
         ("nav.route.projections", Locale::Th) => "โพรเจกชัน",
         ("nav.route.backups", Locale::En) => "Backups",
@@ -275,8 +275,8 @@ pub fn localized_role_label(role_key: &str, locale: Locale) -> String {
         ("platform_auditor", Locale::Th) => "ผู้ตรวจสอบแพลตฟอร์ม",
         ("platform_role_reviewer", Locale::En) => "Platform Role Reviewer",
         ("platform_role_reviewer", Locale::Th) => "ผู้ทบทวนบทบาทแพลตฟอร์ม",
-        ("platform_tenant_administrator", Locale::En) => "Platform Tenant Administrator",
-        ("platform_tenant_administrator", Locale::Th) => "ผู้ดูแล Tenant ของแพลตฟอร์ม",
+        ("platform_holding_administrator", Locale::En) => "Platform Holding Administrator",
+        ("platform_holding_administrator", Locale::Th) => "ผู้ดูแล Holding ของแพลตฟอร์ม",
         ("holding_owner", Locale::En) => "Holding Owner",
         ("holding_owner", Locale::Th) => "เจ้าของโฮลดิ้ง",
         ("holding_admin", Locale::En) => "Holding Administrator",
@@ -420,7 +420,7 @@ mod tests {
         assert_eq!(normalize_path("/platform/"), "/platform");
         assert_eq!(normalize_path("platform"), "platform");
 
-        let mut state = NavigationState::new("/platform/customers/123/");
+        let mut state = NavigationState::new("/platform/holdings/123/");
         let platform = NavItem::new("Platform", "/platform", "▦");
         let operations = NavItem::new("Operations", "/operations", "⌁");
         assert!(state.is_active(&platform));
@@ -435,7 +435,7 @@ mod tests {
     fn navigation_groups_preserve_explicit_work_area_counts() {
         let group = NavGroup::new(
             "Customer Operations",
-            vec![NavItem::new("Customer 360", "/platform/customers", "◎")],
+            vec![NavItem::new("Customer 360", "/platform/holdings", "◎")],
         );
         assert_eq!(group.label, "Customer Operations");
         assert_eq!(group.items.len(), 1);
@@ -466,7 +466,7 @@ mod tests {
     fn navigation_targets_redact_credentials_before_reaching_the_shell() {
         let credential_bearing = NavItem::new(
             "Customer 360",
-            "/platform/customers?access_token=secret#details",
+            "/platform/holdings?access_token=secret#details",
             "◎",
         );
         assert_eq!(credential_bearing.path, "/");
@@ -474,10 +474,10 @@ mod tests {
 
         let query_only = NavItem::new(
             "Customer 360",
-            "/platform/customers?view=health#details",
+            "/platform/holdings?view=health#details",
             "◎",
         );
-        assert_eq!(query_only.path, "/platform/customers");
+        assert_eq!(query_only.path, "/platform/holdings");
     }
 
     #[test]

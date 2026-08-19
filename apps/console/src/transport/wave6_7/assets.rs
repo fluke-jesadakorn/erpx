@@ -6,7 +6,7 @@ use erpx_assets::{
 };
 use erpx_cqrs::{CommandEnvelope, CommandReceipt, QueryEnvelope, QueryResult};
 use erpx_integration_contracts::assets::AssetCondition;
-use erpx_proto::erpx::assets::v2 as wire;
+use erpx_proto::erpx::assets as wire;
 use erpx_ui_foundation::UiError;
 
 use super::common::{
@@ -84,7 +84,7 @@ impl AssetsProtoTransport for AssetsGrpcTransport {
                     asset_id: value.asset_id.as_uuid().to_string(),
                     code: value.code,
                     name: value.name,
-                    scope: Some(encode_scope(value.scope.tenant_scope())),
+                    scope: Some(encode_scope(value.scope.active_scope())),
                     location_id: value.location_id.to_string(),
                 },
                 &actor,
@@ -284,7 +284,7 @@ impl AssetsProtoTransport for AssetsGrpcTransport {
 }
 
 fn identity(
-    metadata: erpx_proto::common::v2::CommandRequestMetadata,
+    metadata: erpx_proto::common::CommandRequestMetadata,
     asset_id: AssetId,
 ) -> wire::AssetIdentityCommandRequest {
     wire::AssetIdentityCommandRequest {

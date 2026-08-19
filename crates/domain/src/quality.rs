@@ -1,4 +1,4 @@
-//! Tenant-scoped Quality Inspection contracts.
+//! Holding-scoped Quality Inspection contracts.
 //!
 //! Quality owns inspection disposition and traceability facts. Product master,
 //! inventory quantity, and manufacturing execution remain references owned by
@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::contracts::{CommandContext, TenantScope};
+use crate::contracts::{AuthorityScope, CommandContext};
 
 pub const QUALITY_CONTRACT_VERSION: u16 = 1;
 pub const MAX_QUALITY_TEXT_BYTES: usize = 255;
@@ -31,8 +31,8 @@ pub enum QualityError {
     InvalidScope,
     #[error("command scope {command_scope:?} does not contain record scope {record_scope:?}")]
     CommandScopeOutside {
-        command_scope: Box<TenantScope>,
-        record_scope: Box<TenantScope>,
+        command_scope: Box<AuthorityScope>,
+        record_scope: Box<AuthorityScope>,
     },
     #[error("command context is invalid: {0}")]
     InvalidCommandContext(String),
@@ -166,7 +166,7 @@ pub struct QualityInspection {
     pub reference: String,
     pub idempotency_key: String,
     pub command_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub holding_id: Uuid,
     pub company_id: Uuid,
     pub branch_id: Option<Uuid>,
@@ -186,7 +186,7 @@ impl QualityInspection {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         holding_id: Uuid,
         company_id: Uuid,
         branch_id: Option<Uuid>,
@@ -411,7 +411,7 @@ fn validate_context(context: &CommandContext) -> Result<(), QualityError> {
 
 fn validate_context_for_scope(
     context: &CommandContext,
-    record_scope: &TenantScope,
+    record_scope: &AuthorityScope,
 ) -> Result<(), QualityError> {
     validate_context(context)?;
     validate_command_scope(context, record_scope)
@@ -419,20 +419,20 @@ fn validate_context_for_scope(
 
 fn validate_command_scope(
     context: &CommandContext,
-    record_scope: &TenantScope,
+    record_scope: &AuthorityScope,
 ) -> Result<(), QualityError> {
-    if context.tenant_scope.contains(record_scope) {
+    if context.active_scope.contains(record_scope) {
         Ok(())
     } else {
         Err(QualityError::CommandScopeOutside {
-            command_scope: Box::new(context.tenant_scope.clone()),
+            command_scope: Box::new(context.active_scope.clone()),
             record_scope: Box::new(record_scope.clone()),
         })
     }
 }
 
 fn validate_scope_binding(
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     holding_id: Uuid,
     company_id: Uuid,
     branch_id: Option<Uuid>,
@@ -443,11 +443,11 @@ fn validate_scope_binding(
         return Err(QualityError::NilIdentifier { field: "branch_id" });
     }
     let matches_scope = match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id: scope_holding,
             company_id: scope_company,
         } => *scope_holding == holding_id && *scope_company == company_id && branch_id.is_none(),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id: scope_holding,
             company_id: scope_company,
             branch_id: scope_branch,
@@ -456,8 +456,8 @@ fn validate_scope_binding(
                 && *scope_company == company_id
                 && branch_id == Some(*scope_branch)
         }
-        TenantScope::Subtree { .. } => branch_id.is_none(),
-        TenantScope::Platform | TenantScope::Holding { .. } => false,
+        AuthorityScope::Subtree { .. } => branch_id.is_none(),
+        AuthorityScope::Platform | AuthorityScope::Holding { .. } => false,
     };
     if matches_scope {
         Ok(())
@@ -496,12 +496,12 @@ mod tests {
     use super::*;
     use crate::contracts::{ActorAttribution, ActorKind};
 
-    fn context(scope: TenantScope, key: &str) -> CommandContext {
+    fn context(scope: AuthorityScope, key: &str) -> CommandContext {
         CommandContext::try_new(
             key,
             ActorAttribution {
                 principal_ref: "quality-test-actor".into(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: None,
                 represented_principal_ref: None,
                 support_capability_id: None,
@@ -516,7 +516,7 @@ mod tests {
     fn inspection_requires_scope_and_has_deterministic_identity() {
         let holding_id = Uuid::new_v4();
         let company_id = Uuid::new_v4();
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id,
             company_id,
         };
@@ -544,7 +544,7 @@ mod tests {
     fn result_and_release_follow_quality_lifecycle() {
         let holding_id = Uuid::new_v4();
         let company_id = Uuid::new_v4();
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id,
             company_id,
         };
@@ -584,7 +584,7 @@ mod tests {
     fn mixed_result_is_failed_but_must_account_for_the_lot() {
         let holding_id = Uuid::new_v4();
         let company_id = Uuid::new_v4();
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id,
             company_id,
         };
@@ -618,7 +618,7 @@ mod tests {
 
     #[test]
     fn result_identity_and_timestamp_are_immutable_on_rejected_write() {
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id: Uuid::from_u128(101),
             company_id: Uuid::from_u128(102),
         };
@@ -689,7 +689,7 @@ mod tests {
     fn result_quantity_overflow_is_rejected_without_mutation() {
         let holding_id = Uuid::from_u128(201);
         let company_id = Uuid::from_u128(202);
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id,
             company_id,
         };

@@ -72,7 +72,7 @@ impl ControlPlanePools {
     /// Connect the worker's always-used write pool eagerly while keeping its
     /// control-read pool lazy. ERPX runs one bounded process per worker kind;
     /// eagerly reserving an otherwise-unused read connection in every process
-    /// can exhaust the database before tenant projection routes are opened.
+    /// can exhaust the database before holding projection routes are opened.
     /// Handlers that need the read side still establish and validate that
     /// connection on their first query.
     pub async fn connect_worker(

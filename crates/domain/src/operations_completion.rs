@@ -4,7 +4,7 @@
 // the operational control loop to an authoritative authorization proof,
 // active principal windows, and a delegated manager chain. The infrastructure
 // adapter persists the resulting commands through the existing Operations
-// snapshots/events and tenant outbox; no client-supplied role state is trusted.
+// snapshots/events and holding outbox; no client-supplied role state is trusted.
 
 use std::collections::BTreeSet;
 
@@ -15,13 +15,13 @@ use uuid::Uuid;
 
 use super::{
     ExceptionCase, ExceptionLifecycleAction, ExceptionLifecycleCommand,
-    ExceptionPrincipalReference, ExceptionSlaMetadata, OperationsSourceDomain,
-    OperationsSourceEvent, SourceTransactionRef, MAX_EXCEPTION_REFERENCE_BYTES,
-    MAX_EXCEPTION_TEXT_BYTES, MAX_OPERATIONS_POLICY_DOMAINS,
+    ExceptionPrincipalReference, ExceptionSlaMetadata, MAX_EXCEPTION_REFERENCE_BYTES,
+    MAX_EXCEPTION_TEXT_BYTES, MAX_OPERATIONS_POLICY_DOMAINS, OperationsSourceDomain,
+    OperationsSourceEvent, SourceTransactionRef,
 };
 use crate::{
-    access::{RoleAssignment, Scope},
-    contracts::ActorAttribution,
+    access::RoleAssignment,
+    contracts::{ActorAttribution, AuthorityScope},
 };
 
 pub const OPERATIONS_COMPLETION_CONTRACT_VERSION: u16 = 1;
@@ -178,7 +178,7 @@ impl OperationsBreakGlassProof {
 pub struct OperationsAuthorizationProof {
     pub principal_ref: String,
     pub permission: OperationsPermission,
-    pub scope: Scope,
+    pub scope: AuthorityScope,
     pub valid_from: DateTime<Utc>,
     pub valid_until: DateTime<Utc>,
     pub mfa_verified: bool,
@@ -189,7 +189,7 @@ impl OperationsAuthorizationProof {
     pub fn validate_for(
         &self,
         action: OperationsWorkflowAction,
-        requested_scope: &Scope,
+        requested_scope: &AuthorityScope,
         at: DateTime<Utc>,
     ) -> Result<(), OperationsCompletionError> {
         bounded(&self.principal_ref, "authorization.principal_ref", 255)?;
@@ -280,7 +280,7 @@ impl OperationsDetectionPolicy {
 pub struct OperationsManagerChainProof {
     pub subject_principal_ref: String,
     pub manager_principal_ref: String,
-    pub scope: Scope,
+    pub scope: AuthorityScope,
     pub evaluated_at: DateTime<Utc>,
     pub assignments: Vec<RoleAssignment>,
     pub authority_source_ref: String,
@@ -502,7 +502,10 @@ pub struct OperationsExpiredPrincipalReassignment {
 }
 
 impl OperationsExpiredPrincipalReassignment {
-    pub fn validate(&self, exception_scope: &Scope) -> Result<(), OperationsCompletionError> {
+    pub fn validate(
+        &self,
+        exception_scope: &AuthorityScope,
+    ) -> Result<(), OperationsCompletionError> {
         identifier(self.exception_id, "exception_id")?;
         identifier(self.correlation_id, "correlation_id")?;
         if self.expected_version == 0 {
@@ -709,7 +712,7 @@ impl OperationsQueueItemState {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OperationsQueueState {
-    pub holding_ref: String,
+    pub data_profile_key: String,
     pub projection_name: String,
     pub as_of: DateTime<Utc>,
     pub freshness: OperationsProjectionFreshnessState,
@@ -720,7 +723,7 @@ pub struct OperationsQueueState {
 
 impl OperationsQueueState {
     pub fn validate(&self) -> Result<(), OperationsCompletionError> {
-        bounded(&self.holding_ref, "holding_ref", 255)?;
+        bounded(&self.data_profile_key, "data_profile_key", 255)?;
         bounded(&self.projection_name, "projection_name", 255)?;
         if self.items.len() > OPERATIONS_MAX_QUEUE_ITEMS {
             return Err(OperationsCompletionError::FieldTooLong {
@@ -747,10 +750,10 @@ impl OperationsQueueState {
 mod tests {
     use super::*;
     use crate::access::RiskTier;
-    use crate::contracts::{ActorKind, TenantScope};
+    use crate::contracts::{ActorKind, AuthorityScope};
 
-    fn scope() -> Scope {
-        Scope::Holding {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Holding {
             holding_id: Uuid::from_u128(0x7100),
         }
     }
@@ -771,25 +774,29 @@ mod tests {
     #[test]
     fn high_risk_operations_requires_mfa_and_scope() {
         let at = DateTime::UNIX_EPOCH + Duration::hours(1);
-        let requested = Scope::Branch {
+        let requested = AuthorityScope::Branch {
             holding_id: Uuid::from_u128(0x7100),
             company_id: Uuid::from_u128(0x7101),
             branch_id: Uuid::from_u128(0x7102),
         };
-        assert!(proof(OperationsPermission::ExceptionManage, false)
-            .validate_for(
-                OperationsWorkflowAction::ReassignExpiredPrincipal,
-                &requested,
-                at
-            )
-            .is_err());
-        assert!(proof(OperationsPermission::ExceptionManage, true)
-            .validate_for(
-                OperationsWorkflowAction::ReassignExpiredPrincipal,
-                &requested,
-                at
-            )
-            .is_ok());
+        assert!(
+            proof(OperationsPermission::ExceptionManage, false)
+                .validate_for(
+                    OperationsWorkflowAction::ReassignExpiredPrincipal,
+                    &requested,
+                    at
+                )
+                .is_err()
+        );
+        assert!(
+            proof(OperationsPermission::ExceptionManage, true)
+                .validate_for(
+                    OperationsWorkflowAction::ReassignExpiredPrincipal,
+                    &requested,
+                    at
+                )
+                .is_ok()
+        );
     }
 
     fn detection_request_for_time_checks(
@@ -805,7 +812,7 @@ mod tests {
                 source_version: 1,
                 event_type: "order.delivery_breached".into(),
                 event_version: 1,
-                holding_ref: "holding-operations-test".into(),
+                data_profile_key: "holding-operations-test".into(),
                 scope: scope(),
                 actor: ActorAttribution {
                     principal_ref: "sales-source".into(),
@@ -1020,28 +1027,34 @@ mod tests {
     fn local_break_glass_is_explicitly_bounded() {
         let at = DateTime::UNIX_EPOCH + Duration::hours(1);
         let mut authorization = proof(OperationsPermission::BreakGlass, true);
-        assert!(authorization
-            .validate_for(OperationsWorkflowAction::Reconcile, &scope(), at)
-            .is_err());
+        assert!(
+            authorization
+                .validate_for(OperationsWorkflowAction::Reconcile, &scope(), at)
+                .is_err()
+        );
         authorization.break_glass = Some(OperationsBreakGlassProof {
             ticket_ref: "ticket-1".into(),
             reason: "expired manager".into(),
             expires_at: at + Duration::minutes(5),
             local_only: true,
         });
-        assert!(authorization
-            .validate_for(OperationsWorkflowAction::Reconcile, &scope(), at)
-            .is_ok());
+        assert!(
+            authorization
+                .validate_for(OperationsWorkflowAction::Reconcile, &scope(), at)
+                .is_ok()
+        );
         authorization.break_glass.as_mut().unwrap().local_only = false;
-        assert!(authorization
-            .validate_for(OperationsWorkflowAction::Reconcile, &scope(), at)
-            .is_err());
+        assert!(
+            authorization
+                .validate_for(OperationsWorkflowAction::Reconcile, &scope(), at)
+                .is_err()
+        );
     }
 
     #[test]
     fn queue_state_does_not_accept_unbounded_items() {
         let state = OperationsQueueState {
-            holding_ref: "holding".into(),
+            data_profile_key: "holding".into(),
             projection_name: "operations_read_model".into(),
             as_of: Utc::now(),
             freshness: OperationsProjectionFreshnessState::at(None, None, Utc::now()),
@@ -1055,7 +1068,7 @@ mod tests {
     #[test]
     fn queue_cursor_presence_must_match_the_has_more_flag() {
         let mut state = OperationsQueueState {
-            holding_ref: "holding".into(),
+            data_profile_key: "holding".into(),
             projection_name: "operations_read_model".into(),
             as_of: Utc::now(),
             freshness: OperationsProjectionFreshnessState::at(None, None, Utc::now()),
@@ -1103,7 +1116,7 @@ mod tests {
     #[test]
     fn queue_state_rejects_unversioned_or_untrusted_items() {
         let mut state = OperationsQueueState {
-            holding_ref: "holding".into(),
+            data_profile_key: "holding".into(),
             projection_name: "operations_read_model".into(),
             as_of: Utc::now(),
             freshness: OperationsProjectionFreshnessState::at(None, None, Utc::now()),
@@ -1132,12 +1145,12 @@ mod tests {
     fn _actor_shape_is_serializable() {
         let _ = ActorAttribution {
             principal_ref: "operator".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
         };
-        let _ = TenantScope::Holding {
+        let _ = AuthorityScope::Holding {
             holding_id: Uuid::from_u128(0x7100),
         };
     }

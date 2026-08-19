@@ -3,7 +3,7 @@
 ## Contract
 
 - **Owner:** main agent
-- **Dependencies:** shared tenant contracts, scope containment, and G11
+- **Dependencies:** shared holding contracts, scope containment, and G11
   Legal/document requirements.
 - **Allowed paths:** `crates/domain/src/legal.rs`, its domain export, this
   audit, and plan/ledger records.
@@ -12,7 +12,7 @@
 
 ## Delivered behavior
 
-- Added bounded holding/company/branch legal scope with explicit tenant-scope
+- Added bounded holding/company/branch legal scope with explicit holding-scope
   conversion and command containment.
 - Added contract parties and a closed draft → review → approved → active →
   expired/terminated → archived lifecycle with reviewer separation and

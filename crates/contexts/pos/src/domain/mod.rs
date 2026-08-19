@@ -7,7 +7,7 @@ pub use records::{
 use std::collections::BTreeSet;
 
 use chrono::{DateTime, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -228,7 +228,7 @@ pub(crate) enum DomainEvent {
 pub struct Sale {
     id: SaleId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     receipt_code: String,
     register_id: RegisterId,
     customer_id: Option<CustomerId>,
@@ -251,7 +251,7 @@ impl Sale {
     pub fn try_rehydrate(
         id: SaleId,
         version: u64,
-        scope: TenantScope,
+        scope: AuthorityScope,
         receipt_code: String,
         register_id: RegisterId,
         customer_id: Option<CustomerId>,
@@ -294,7 +294,7 @@ impl Sale {
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: SaleId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         receipt_code: String,
         register_id: RegisterId,
         customer_id: Option<CustomerId>,
@@ -479,7 +479,7 @@ impl Sale {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn receipt_code(&self) -> &str {
@@ -536,7 +536,7 @@ pub struct RefundLine {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct CompletedSaleFact {
     sale_id: SaleId,
-    scope: TenantScope,
+    scope: AuthorityScope,
     currency: String,
     lines: Vec<SaleLine>,
 }
@@ -569,7 +569,7 @@ pub enum RefundStatus {
 pub struct PosRefund {
     id: RefundId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     completed_sale: CompletedSaleFact,
     lines: Vec<RefundLine>,
     total_amount_minor: i64,
@@ -785,7 +785,7 @@ impl PosRefund {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn sale_id(&self) -> SaleId {
@@ -823,11 +823,11 @@ impl PosRefund {
     }
 }
 
-fn validate_scope(scope: &TenantScope) -> Result<(), PosDomainError> {
+fn validate_scope(scope: &AuthorityScope) -> Result<(), PosDomainError> {
     scope.validate().map_err(|_| PosDomainError::InvalidScope)?;
     if matches!(
         scope,
-        TenantScope::Company { .. } | TenantScope::Branch { .. }
+        AuthorityScope::Company { .. } | AuthorityScope::Branch { .. }
     ) {
         Ok(())
     } else {
@@ -929,8 +929,8 @@ mod tests {
     fn at() -> DateTime<Utc> {
         Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap()
     }
-    fn scope() -> TenantScope {
-        TenantScope::Company {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: id(1),
             company_id: id(2),
         }

@@ -206,8 +206,8 @@ mod tests {
         RecordTypeId, RecordVersionRef, StableRecordRef, catalog::ContextId,
     };
     use erpx_kernel::{
-        ActorAttribution, ActorKind, CommandId, CorrelationId, FixedClock, PrincipalId, RecordId,
-        TenantScope,
+        ActorAttribution, ActorKind, AuthorityScope, CommandId, CorrelationId, FixedClock,
+        PrincipalId, RecordId,
     };
     use uuid::Uuid;
 
@@ -228,8 +228,8 @@ mod tests {
         Utc.with_ymd_and_hms(2026, 8, 16, 8, 0, 0).single().unwrap()
     }
 
-    fn scope() -> TenantScope {
-        TenantScope::Company {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: id(1),
             company_id: id(2),
         }
@@ -303,7 +303,7 @@ mod tests {
     impl PortalBindingWriteRepository for MemoryStore {
         async fn load_portal_binding(
             &self,
-            _authority_scope: &TenantScope,
+            _authority_scope: &AuthorityScope,
             binding_id: CustomerPortalBindingId,
         ) -> Result<Option<CustomerPortalPrincipalBinding>, PortError> {
             Ok(self
@@ -372,8 +372,8 @@ mod tests {
             &self,
             _actor: &ActorAttribution,
             _actor_principal_id: PrincipalId,
-            authority_scope: &TenantScope,
-            target_scope: &TenantScope,
+            authority_scope: &AuthorityScope,
+            target_scope: &AuthorityScope,
             _action: PortalBindingAction,
         ) -> Result<(), PortError> {
             (self.0 && authority_scope.contains(target_scope))
@@ -390,7 +390,7 @@ mod tests {
         async fn ensure_active_customer_version(
             &self,
             value: &RecordVersionRef,
-            _scope: &TenantScope,
+            _scope: &AuthorityScope,
         ) -> Result<(), PortError> {
             (self.0 && value == &customer())
                 .then_some(())

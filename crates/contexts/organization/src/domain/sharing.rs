@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -66,8 +66,8 @@ pub enum SharingMutation {
 pub struct OrganizationSharingAgreement {
     id: SharingAgreementId,
     version: u64,
-    source_scope: TenantScope,
-    target_scope: TenantScope,
+    source_scope: AuthorityScope,
+    target_scope: AuthorityScope,
     direction: SharingDirection,
     capabilities: Vec<SharingCapability>,
     reason: String,
@@ -87,8 +87,8 @@ pub struct OrganizationSharingAgreement {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProposeSharingAgreement {
     pub id: SharingAgreementId,
-    pub source_scope: TenantScope,
-    pub target_scope: TenantScope,
+    pub source_scope: AuthorityScope,
+    pub target_scope: AuthorityScope,
     pub direction: SharingDirection,
     pub capabilities: Vec<SharingCapability>,
     pub reason: String,
@@ -291,8 +291,8 @@ impl OrganizationSharingAgreement {
 
     pub fn permits(
         &self,
-        actor_scope: &TenantScope,
-        target_scope: &TenantScope,
+        actor_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         capability: SharingCapability,
         at: DateTime<Utc>,
     ) -> bool {
@@ -329,10 +329,10 @@ impl OrganizationSharingAgreement {
     pub const fn status(&self) -> SharingStatus {
         self.status
     }
-    pub const fn source_scope(&self) -> &TenantScope {
+    pub const fn source_scope(&self) -> &AuthorityScope {
         &self.source_scope
     }
-    pub const fn target_scope(&self) -> &TenantScope {
+    pub const fn target_scope(&self) -> &AuthorityScope {
         &self.target_scope
     }
     pub const fn direction(&self) -> SharingDirection {
@@ -371,8 +371,8 @@ impl OrganizationSharingAgreement {
 }
 
 pub fn can_discover_across_hierarchy(
-    actor_scope: &TenantScope,
-    target_scope: &TenantScope,
+    actor_scope: &AuthorityScope,
+    target_scope: &AuthorityScope,
     visibility: DirectoryVisibility,
     capability: SharingCapability,
     agreements: &[OrganizationSharingAgreement],
@@ -392,8 +392,8 @@ pub fn can_discover_across_hierarchy(
 }
 
 fn validate_branch_pair(
-    source: &TenantScope,
-    target: &TenantScope,
+    source: &AuthorityScope,
+    target: &AuthorityScope,
 ) -> Result<(), OrganizationDomainError> {
     source
         .validate()
@@ -402,12 +402,12 @@ fn validate_branch_pair(
         .validate()
         .map_err(|_| OrganizationDomainError::InvalidScope)?;
     let (
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id: source_holding,
             branch_id: source_branch,
             ..
         },
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id: target_holding,
             branch_id: target_branch,
             ..
@@ -417,7 +417,7 @@ fn validate_branch_pair(
         return Err(OrganizationDomainError::SharingRequiresBranches);
     };
     if source_holding != target_holding {
-        return Err(OrganizationDomainError::CrossTenantSharingDenied);
+        return Err(OrganizationDomainError::CrossHoldingSharingDenied);
     }
     if source_branch == target_branch {
         return Err(OrganizationDomainError::SelfSharingDenied);
@@ -455,8 +455,8 @@ mod tests {
             .single()
             .unwrap()
     }
-    fn branch(branch_id: u128) -> TenantScope {
-        TenantScope::Branch {
+    fn branch(branch_id: u128) -> AuthorityScope {
+        AuthorityScope::Branch {
             holding_id: id(1),
             company_id: id(2),
             branch_id: id(branch_id),
@@ -503,7 +503,7 @@ mod tests {
 
     #[test]
     fn holding_descendant_and_published_ancestor_paths_are_distinct() {
-        let holding = TenantScope::Holding { holding_id: id(1) };
+        let holding = AuthorityScope::Holding { holding_id: id(1) };
         assert!(can_discover_across_hierarchy(
             &holding,
             &branch(3),
@@ -559,7 +559,7 @@ mod tests {
         let error = OrganizationSharingAgreement::propose(ProposeSharingAgreement {
             id: SharingAgreementId::try_from_uuid(id(10)).unwrap(),
             source_scope: branch(3),
-            target_scope: TenantScope::Branch {
+            target_scope: AuthorityScope::Branch {
                 holding_id: id(99),
                 company_id: id(98),
                 branch_id: id(97),
@@ -573,7 +573,7 @@ mod tests {
         });
         assert_eq!(
             error,
-            Err(OrganizationDomainError::CrossTenantSharingDenied)
+            Err(OrganizationDomainError::CrossHoldingSharingDenied)
         );
     }
 }

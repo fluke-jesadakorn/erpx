@@ -11,8 +11,8 @@ use erpx_cqrs_sqlx::{
     ReadPool, WritePool,
 };
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, FixedClock, QueryId,
-    TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+    FixedClock, QueryId,
 };
 use erpx_quality::{
     application::{CreateInspection, GetInspection, QualityCommandHandler, QualityQueryHandler},
@@ -30,8 +30,8 @@ use erpx_quality_sqlx::{
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use uuid::Uuid;
 
-const WRITE_DATABASE_URL: &str = "ERPX_TEST_TENANT_WRITE_DATABASE_URL";
-const READ_DATABASE_URL: &str = "ERPX_TEST_TENANT_READ_DATABASE_URL";
+const WRITE_DATABASE_URL: &str = "ERPX_TEST_HOLDING_WRITE_DATABASE_URL";
+const READ_DATABASE_URL: &str = "ERPX_TEST_HOLDING_READ_DATABASE_URL";
 
 #[test]
 fn quality_cqrs_sqlx_acceptance() {
@@ -66,10 +66,10 @@ async fn run_acceptance(write_url: &str, read_url: &str) -> Result<(), Box<dyn E
         .await?;
     install_contracts(&write_database, &read_database).await?;
 
-    let tenant_id = Uuid::new_v4();
-    let write_pool = WritePool::for_tenant(write_database.clone(), tenant_id)?;
-    let projection_pool = ProjectionPool::for_tenant(read_database.clone(), tenant_id)?;
-    let read_pool = ReadPool::for_tenant(read_database.clone(), tenant_id)?;
+    let holding_id = Uuid::new_v4();
+    let write_pool = WritePool::for_holding(write_database.clone(), holding_id)?;
+    let projection_pool = ProjectionPool::for_holding(read_database.clone(), holding_id)?;
+    let read_pool = ReadPool::for_holding(read_database.clone(), holding_id)?;
     let write_repository = QualityWriteRepository::new(write_pool.clone());
     let command_adapter = QualityCommandAdapter::new(write_pool.clone());
 
@@ -80,7 +80,7 @@ async fn run_acceptance(write_url: &str, read_url: &str) -> Result<(), Box<dyn E
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let product_id = Uuid::new_v4();
-    let scope = TenantScope::Company {
+    let scope = AuthorityScope::Company {
         holding_id,
         company_id,
     };
@@ -94,7 +94,7 @@ async fn run_acceptance(write_url: &str, read_url: &str) -> Result<(), Box<dyn E
         correlation_id,
         causation_id: None,
         actor: actor.clone(),
-        tenant_scope: scope.clone(),
+        active_scope: scope.clone(),
         audit: audit.clone(),
         expected_aggregate_version: None,
         command: CreateInspection {
@@ -438,7 +438,7 @@ async fn run_rebuild_through(
 
 fn get_query(
     inspection_id: InspectionId,
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     actor: &ActorAttribution,
     audit: &AuditContext,
     consistency: QueryConsistency,
@@ -449,7 +449,7 @@ fn get_query(
         correlation_id: CorrelationId::try_from_uuid(Uuid::new_v4())
             .expect("non-nil correlation id"),
         actor: actor.clone(),
-        tenant_scope: scope.clone(),
+        active_scope: scope.clone(),
         audit: audit.clone(),
         consistency,
         query: GetInspection { inspection_id },
@@ -503,7 +503,7 @@ impl AuthorizationPort for AcceptanceAccess {
 impl EntitlementPort for AcceptanceAccess {
     async fn ensure_quality_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         _write: bool,
     ) -> Result<(), PortError> {
         scope.validate().map_err(|_| PortError::EntitlementDenied)

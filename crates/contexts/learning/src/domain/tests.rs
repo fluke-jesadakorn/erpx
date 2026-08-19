@@ -2,7 +2,7 @@ use chrono::{NaiveDate, TimeZone, Utc};
 use erpx_integration_contracts::{
     RecordVersionRef, StableRecordRef, catalog::ContextId, reference::RecordTypeId,
 };
-use erpx_kernel::{PrincipalId, RecordId, TenantScope};
+use erpx_kernel::{AuthorityScope, PrincipalId, RecordId};
 use uuid::Uuid;
 
 use super::*;
@@ -17,8 +17,8 @@ fn at(hour: u32) -> chrono::DateTime<Utc> {
         .single()
         .unwrap()
 }
-fn scope() -> TenantScope {
-    TenantScope::Branch {
+fn scope() -> AuthorityScope {
+    AuthorityScope::Branch {
         holding_id: uuid(1),
         company_id: uuid(2),
         branch_id: uuid(3),

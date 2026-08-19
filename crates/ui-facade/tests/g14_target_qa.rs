@@ -60,10 +60,10 @@ fn g14_dialog_accessibility_contract_is_rendered_by_the_shared_ui() {
 fn g14_deep_link_restoration_is_canonical_and_same_origin() {
     let cases = [
         ("/platform", "/platform"),
-        ("#/platform/customers", "/platform/customers"),
+        ("#/platform/holdings", "/platform/holdings"),
         (
-            "/#/platform/customers/cus_123/health?tab=summary",
-            "/platform/customers/cus_123/health",
+            "/#/platform/holdings/60cd3a03-a19a-55b3-a52e-a772f4e8d90e/health?tab=summary",
+            "/platform/holdings/60cd3a03-a19a-55b3-a52e-a772f4e8d90e/health",
         ),
     ];
 
@@ -91,12 +91,12 @@ fn g14_deep_link_restoration_is_canonical_and_same_origin() {
 
     for unsafe_input in [
         "https://outside.example/platform",
-        "/#/platform/customers?access_token=should-not-persist",
-        "/#/platform/customers?refresh_token=should-not-persist",
-        "/#/platform/customers?id_token=should-not-persist",
-        "/#/platform/customers?client_secret=should-not-persist",
-        "/#/platform/customers?authorization=Bearer-should-not-persist",
-        "/#/platform/customers#password=should-not-persist",
+        "/#/platform/holdings?access_token=should-not-persist",
+        "/#/platform/holdings?refresh_token=should-not-persist",
+        "/#/platform/holdings?id_token=should-not-persist",
+        "/#/platform/holdings?client_secret=should-not-persist",
+        "/#/platform/holdings?authorization=Bearer-should-not-persist",
+        "/#/platform/holdings#password=should-not-persist",
         "/platform/../customers",
         "/platform/%2Fcustomers",
     ] {

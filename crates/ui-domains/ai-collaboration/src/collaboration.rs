@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use erpx_integration_contracts::{RecordVersionRef, StableRecordRef};
-use erpx_kernel::{PrincipalId, TenantId};
+use erpx_kernel::{HoldingId, PrincipalId};
 use erpx_ui_core::Locale;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -316,7 +316,7 @@ pub enum ActivityReferenceGate {
     NotRecordRoute,
     Resolving,
     Authorized {
-        tenant_id: TenantId,
+        holding_id: HoldingId,
         record: StableRecordRef,
         canonical_route: String,
     },
@@ -518,7 +518,7 @@ mod tests {
         .unwrap();
         let canonical_route = format!("/finance/invoice/{id}");
         let authorized = ActivityReferenceGate::Authorized {
-            tenant_id: erpx_kernel::TenantId::try_from_uuid(Uuid::new_v4()).unwrap(),
+            holding_id: erpx_kernel::HoldingId::try_from_uuid(Uuid::new_v4()).unwrap(),
             record,
             canonical_route: canonical_route.clone(),
         };

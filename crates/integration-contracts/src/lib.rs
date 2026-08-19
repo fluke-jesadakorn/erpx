@@ -51,13 +51,13 @@ pub use foundation::{
 };
 pub use reference::{
     CURRENT_RECORD_POLICIES, CanonicalRouteMoved, EffectiveGrantChanged, EffectiveGrantRevoked,
-    FUTURE_RECORD_POLICIES, ITEM_DIRECTORY_FACT_EVENT_TYPE, ITEM_DIRECTORY_FACT_VERSION,
-    ITEM_DIRECTORY_OWNER_EVENT_TYPE, ITEM_DIRECTORY_PROJECTION_NAME, ItemDescriptor,
-    ItemDescriptorChanged, ItemDescriptorDraft, ItemDirectoryFact, ItemTombstoned,
+    FUTURE_RECORD_POLICIES, HoldingItemDirectoryFact, ITEM_DIRECTORY_FACT_EVENT_TYPE,
+    ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, ITEM_DIRECTORY_PROJECTION_NAME,
+    ItemDescriptor, ItemDescriptorChanged, ItemDescriptorDraft, ItemDirectoryFact, ItemTombstoned,
     RecordPolicyAccessRule, RecordPolicyDefinition, RecordPolicyPrincipalKind, RecordPolicyRealm,
     RecordPolicyScopeRule, RecordRef as StableRecordRef, RecordTypeId, RecordVersionRef,
-    ReferenceRelationChanged, ReferenceRelationRevoked, ReferenceValidationError,
-    TenantItemDirectoryFact, record_policies, record_policy, record_policy_id,
+    ReferenceRelationChanged, ReferenceRelationRevoked, ReferenceValidationError, record_policies,
+    record_policy, record_policy_id,
 };
 
 #[cfg(test)]

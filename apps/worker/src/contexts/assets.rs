@@ -1,4 +1,4 @@
-//! Assets projection runtime. Composition supplies capability-separated tenant pools.
+//! Assets projection runtime. Composition supplies capability-separated holding pools.
 
 use erpx_assets_sqlx::{AssetLifecycleRecordProjector, AssetProjector};
 use erpx_cqrs_sqlx::{

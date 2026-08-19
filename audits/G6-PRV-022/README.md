@@ -29,16 +29,16 @@ database untouched.
 
 ## Files and interfaces
 
-- crates/infrastructure/src/tenant_projection_scheduler.rs
+- crates/infrastructure/src/holding_projection_scheduler.rs
 - crates/infrastructure/src/provisioning.rs
 - apps/server/src/main.rs
-- apps/worker/src/tenant_projection_scheduler.rs
+- apps/worker/src/holding_projection_scheduler.rs
 - apps/worker/src/lib.rs
 - apps/worker/src/finance_banking_projection.rs
-- crates/infrastructure/tests/tenant_projection_scheduler.rs
+- crates/infrastructure/tests/holding_projection_scheduler.rs
 - crates/infrastructure/tests/provisioning_replacement.rs
 
-No tenant credentials, URLs, payload secrets, or connection pools cross the
+No holding credentials, URLs, payload secrets, or connection pools cross the
 protobuf or worker error boundary.
 
 ## Verification
@@ -57,18 +57,18 @@ protobuf or worker error boundary.
 ## Remaining requirements
 
 External backup/PITR execution, complete Platform Operations actions, broader
-tenant contexts, full migration/cutover, native target evidence, hardening,
+holding contexts, full migration/cutover, native target evidence, hardening,
 and Folio write retirement remain open. Scheduler retries after a failed
 candidate generation require a new authenticated rebuild intent; no stale
 generation is automatically reused.
 
 ## Amendment — source fence and terminal stale handling
 
-The candidate worker now rejects an untyped rebuild before opening any tenant
+The candidate worker now rejects an untyped rebuild before opening any holding
 route. Operations and Finance Banking source-write transactions acquire the
 same holding-scoped transaction advisory lock used by the candidate worker.
 After replay succeeds, the worker holds that lock while reading the source
-watermark from the tenant write database, completing the candidate, and
+watermark from the holding write database, completing the candidate, and
 activating the exact generation. Commit or rollback releases the lock
 automatically. A source move is classified as `CandidateSourceMoved`, fails
 the candidate generation, and is dead-lettered immediately instead of
@@ -76,8 +76,8 @@ consuming the ordinary retry budget. Transition failures remain retryable.
 
 Additional verification:
 
-- `cargo test -p erpx-infrastructure tenant_projection_scheduler::tests::stale_candidate_failure_is_terminal_without_consuming_retry_budget` — PASS.
-- `cargo test -p erpx-worker --lib tenant_projection_scheduler::tests` — PASS; 7 tests.
+- `cargo test -p erpx-infrastructure holding_projection_scheduler::tests::stale_candidate_failure_is_terminal_without_consuming_retry_budget` — PASS.
+- `cargo test -p erpx-worker --lib holding_projection_scheduler::tests` — PASS; 7 tests.
 - `cargo clippy --workspace --all-targets -- -D warnings` — PASS.
 - Disposable Operations routed projection — PASS; all disposable databases
   were dropped afterward.
@@ -104,7 +104,7 @@ ownership may have been lost.
 
 Additional verification:
 
-- `cargo test -p erpx-worker --lib tenant_projection_scheduler::tests` — PASS;
+- `cargo test -p erpx-worker --lib holding_projection_scheduler::tests` — PASS;
   8 tests, including long-running claim renewal.
 - `cargo clippy --workspace --all-targets -- -D warnings` — PASS.
 - `cargo test --workspace` — PASS in the integration wave.
@@ -118,19 +118,19 @@ state and scheduler terminal acknowledgement are separate control transactions
 and need crash-injection evidence; source high-watermarks remain bounded raw
 event counts rather than durable monotonic source versions; and backup/PITR
 execution is still an adapter seam. The legacy metadata-only backup activation
-entry point now fails closed because it cannot hold a tenant source fence;
+entry point now fails closed because it cannot hold a holding source fence;
 route-aware restore activation remains an open requirement.
 
 ## Amendment — route-aware restore-test activation
 
-`TenantProvisioner::execute_restore_test_with_routed_read_replacement` now
-composes the injected restore executor with a `TenantDatabaseRouter`. It
+`HoldingProvisioner::execute_restore_test_with_routed_read_replacement` now
+composes the injected restore executor with a `HoldingDatabaseRouter`. It
 requires the provisioner and router to share the same control plane, validates
-the tenant holding binding and opaque candidate key, acquires the routed write
+the holding holding binding and opaque candidate key, acquires the routed write
 database's holding-scoped transaction advisory lock, and compares the exact
 source watermark before and after candidate route verification.
 
-The candidate is routed only through the exact tenant/candidate/generation/
+The candidate is routed only through the exact holding/candidate/generation/
 source fence. After the replacement route probe succeeds, completion and
 promotion occur only through `activate_read_database_if_generation` while the
 source lock remains held. Source mismatch, route mismatch, stale generation,
@@ -158,5 +158,5 @@ bounded watermark implementation before using this API.
 ## Rollback
 
 Remove only the additive atomic dispatch method, candidate scheduler branch,
-fenced route helpers, and this audit. Existing active tenant read routing is
+fenced route helpers, and this audit. Existing active holding read routing is
 unchanged by rollback.

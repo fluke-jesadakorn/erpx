@@ -48,7 +48,7 @@ type BudgetRow = (
 #[derive(Debug, Clone)]
 pub struct SqlxFinanceBudgetStore {
     write_pool: PgPool,
-    holding_ref: String,
+    data_profile_key: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -66,18 +66,18 @@ pub struct BudgetCommitmentRequest {
 impl SqlxFinanceBudgetStore {
     pub fn new(
         write_pool: PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_holding_ref(&holding_ref)?;
+        let data_profile_key = data_profile_key.into();
+        validate_data_profile_key(&data_profile_key)?;
         Ok(Self {
             write_pool,
-            holding_ref,
+            data_profile_key,
         })
     }
 
-    pub fn holding_ref(&self) -> &str {
-        &self.holding_ref
+    pub fn data_profile_key(&self) -> &str {
+        &self.data_profile_key
     }
 
     pub async fn save_budget(
@@ -94,21 +94,21 @@ impl SqlxFinanceBudgetStore {
             ));
         }
         let payload = serde_json::to_value(budget)?;
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
         let current_row: Option<BudgetRow> = sqlx::query_as(
-            "SELECT budget_id, holding_ref, holding_id, company_id, fiscal_year,
+            "SELECT budget_id, data_profile_key, holding_id, company_id, fiscal_year,
                     currency, status, version, idempotency_key, approved_by,
                     approval_limit_minor, payload
-             FROM erpx_tenant.finance_budgets
-             WHERE budget_id=$1 AND holding_ref=$2 FOR UPDATE",
+             FROM erpx_holding.finance_budgets
+             WHERE budget_id=$1 AND data_profile_key=$2 FOR UPDATE",
         )
         .bind(budget.id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?;
         let current_budget = current_row
             .as_ref()
-            .map(|row| validate_persisted_budget_row(row, &self.holding_ref, budget.id))
+            .map(|row| validate_persisted_budget_row(row, &self.data_profile_key, budget.id))
             .transpose()?;
         let current = current_row.as_ref().map(|row| row.7);
         if let (Some(current_row), Some(current_budget)) = (&current_row, &current_budget)
@@ -124,7 +124,7 @@ impl SqlxFinanceBudgetStore {
             })?;
             validate_budget_replay_evidence(
                 &mut tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 budget.id,
                 current_version,
                 &payload,
@@ -136,14 +136,14 @@ impl SqlxFinanceBudgetStore {
         let version = i64_version(budget.version)?;
         let affected = match (current, expected_version) {
             (None, None) if budget.version == 1 => sqlx::query(
-                "INSERT INTO erpx_tenant.finance_budgets
-                     (budget_id, holding_ref, holding_id, company_id, fiscal_year,
+                "INSERT INTO erpx_holding.finance_budgets
+                     (budget_id, data_profile_key, holding_id, company_id, fiscal_year,
                      currency, status, version, idempotency_key, approved_by,
                      approval_limit_minor, payload)
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",
             )
             .bind(budget.id)
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(budget.holding_id)
             .bind(budget.company_id)
             .bind(i16::try_from(budget.fiscal_year).map_err(|_| {
@@ -178,11 +178,11 @@ impl SqlxFinanceBudgetStore {
                     });
                 }
                 sqlx::query(
-                    "UPDATE erpx_tenant.finance_budgets
+                    "UPDATE erpx_holding.finance_budgets
                      SET holding_id=$2, company_id=$3, fiscal_year=$4, currency=$5,
                          status=$6, version=$7, idempotency_key=$8, approved_by=$9,
                          approval_limit_minor=$10, payload=$11, updated_at=now()
-                     WHERE budget_id=$1 AND holding_ref=$12 AND version=$13",
+                     WHERE budget_id=$1 AND data_profile_key=$12 AND version=$13",
                 )
                 .bind(budget.id)
                 .bind(budget.holding_id)
@@ -197,7 +197,7 @@ impl SqlxFinanceBudgetStore {
                 .bind(&budget.approved_by)
                 .bind(budget.approval_limit_minor)
                 .bind(&payload)
-                .bind(&self.holding_ref)
+                .bind(&self.data_profile_key)
                 .bind(actual)
                 .execute(&mut *tx)
                 .await?
@@ -222,7 +222,7 @@ impl SqlxFinanceBudgetStore {
         }
         write_finance_source_event(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             "finance_budget",
             budget.id,
             budget.version,
@@ -243,20 +243,20 @@ impl SqlxFinanceBudgetStore {
                 "Finance budget ID is required".into(),
             ));
         }
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
         let row: Option<BudgetRow> = sqlx::query_as(
-            "SELECT budget_id, holding_ref, holding_id, company_id, fiscal_year,
+            "SELECT budget_id, data_profile_key, holding_id, company_id, fiscal_year,
                     currency, status, version, idempotency_key, approved_by,
                     approval_limit_minor, payload
-             FROM erpx_tenant.finance_budgets
-             WHERE budget_id=$1 AND holding_ref=$2",
+             FROM erpx_holding.finance_budgets
+             WHERE budget_id=$1 AND data_profile_key=$2",
         )
         .bind(budget_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?;
         tx.commit().await?;
-        row.map(|row| validate_persisted_budget_row(&row, &self.holding_ref, budget_id))
+        row.map(|row| validate_persisted_budget_row(&row, &self.data_profile_key, budget_id))
             .transpose()
     }
 
@@ -275,10 +275,15 @@ impl SqlxFinanceBudgetStore {
                 entity: "finance budget",
                 id: budget_id,
             })?;
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
-        let authoritative_actual =
-            authoritative_actual_minor(&mut tx, &self.holding_ref, &budget, account_id, period)
-                .await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
+        let authoritative_actual = authoritative_actual_minor(
+            &mut tx,
+            &self.data_profile_key,
+            &budget,
+            account_id,
+            period,
+        )
+        .await?;
         if actual_minor != authoritative_actual {
             return Err(PersistenceError::InvalidData(
                 "budget actuals must match posted Finance journal facts".into(),
@@ -286,11 +291,11 @@ impl SqlxFinanceBudgetStore {
         }
         let committed: i64 = sqlx::query_scalar(
             "SELECT COALESCE(SUM(amount_minor), 0)::BIGINT
-             FROM erpx_tenant.finance_budget_commitments
-             WHERE budget_id=$1 AND holding_ref=$2 AND account_id=$3 AND period=$4",
+             FROM erpx_holding.finance_budget_commitments
+             WHERE budget_id=$1 AND data_profile_key=$2 AND account_id=$3 AND period=$4",
         )
         .bind(budget_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(account_id)
         .bind(i16::from(period))
         .fetch_one(&mut *tx)
@@ -325,18 +330,18 @@ impl SqlxFinanceBudgetStore {
                 "budget commitment account and period are invalid".into(),
             ));
         }
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
         let control_lock = format!(
             "erpx.finance-budget:{}:{}:{}:{}",
-            self.holding_ref, request.budget_id, request.account_id, request.period
+            self.data_profile_key, request.budget_id, request.account_id, request.period
         );
         let source_lock = format!(
             "erpx.finance-budget-source:{}:{}",
-            self.holding_ref, request.source_ref
+            self.data_profile_key, request.source_ref
         );
         let idempotency_lock = format!(
             "erpx.finance-budget-idempotency:{}:{}",
-            self.holding_ref, request.idempotency_key
+            self.data_profile_key, request.idempotency_key
         );
         let mut locks = [control_lock, source_lock, idempotency_lock];
         locks.sort_unstable();
@@ -347,30 +352,31 @@ impl SqlxFinanceBudgetStore {
                 .await?;
         }
         let row: BudgetRow = sqlx::query_as(
-            "SELECT budget_id, holding_ref, holding_id, company_id, fiscal_year,
+            "SELECT budget_id, data_profile_key, holding_id, company_id, fiscal_year,
                     currency, status, version, idempotency_key, approved_by,
                     approval_limit_minor, payload
-             FROM erpx_tenant.finance_budgets
-             WHERE budget_id=$1 AND holding_ref=$2 FOR UPDATE",
+             FROM erpx_holding.finance_budgets
+             WHERE budget_id=$1 AND data_profile_key=$2 FOR UPDATE",
         )
         .bind(request.budget_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(PersistenceError::NotFound {
             entity: "finance budget",
             id: request.budget_id,
         })?;
-        let budget = validate_persisted_budget_row(&row, &self.holding_ref, request.budget_id)?;
+        let budget =
+            validate_persisted_budget_row(&row, &self.data_profile_key, request.budget_id)?;
         let existing: Vec<CommitmentRecord> = sqlx::query_as(
             "SELECT commitment_id, budget_id, company_id, amount_minor, account_id, period,
                     idempotency_key, actual_minor, source_ref,
                     decision_budget_minor, decision_new_commitment_minor,
                     decision_remaining_minor, payload
-             FROM erpx_tenant.finance_budget_commitments
-             WHERE holding_ref=$1 AND (source_ref=$2 OR idempotency_key=$3)",
+             FROM erpx_holding.finance_budget_commitments
+             WHERE data_profile_key=$1 AND (source_ref=$2 OR idempotency_key=$3)",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(&request.source_ref)
         .bind(&request.idempotency_key)
         .fetch_all(&mut *tx)
@@ -409,7 +415,7 @@ impl SqlxFinanceBudgetStore {
             }
             validate_commitment_outbox_evidence(
                 &mut tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 request.commitment_id,
                 &commitment_payload,
             )
@@ -419,7 +425,7 @@ impl SqlxFinanceBudgetStore {
         }
         let authoritative_actual = authoritative_actual_minor(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             &budget,
             request.account_id,
             request.period,
@@ -432,11 +438,11 @@ impl SqlxFinanceBudgetStore {
         }
         let committed: i64 = sqlx::query_scalar(
             "SELECT COALESCE(SUM(amount_minor), 0)::BIGINT
-             FROM erpx_tenant.finance_budget_commitments
-             WHERE budget_id=$1 AND holding_ref=$2 AND account_id=$3 AND period=$4",
+             FROM erpx_holding.finance_budget_commitments
+             WHERE budget_id=$1 AND data_profile_key=$2 AND account_id=$3 AND period=$4",
         )
         .bind(request.budget_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(request.account_id)
         .bind(i16::from(request.period))
         .fetch_one(&mut *tx)
@@ -459,17 +465,17 @@ impl SqlxFinanceBudgetStore {
         }
         let commitment_payload = build_commitment_payload(request, &decision);
         let inserted = sqlx::query(
-            "INSERT INTO erpx_tenant.finance_budget_commitments
-                (commitment_id, budget_id, holding_ref, company_id, account_id,
+            "INSERT INTO erpx_holding.finance_budget_commitments
+                (commitment_id, budget_id, data_profile_key, company_id, account_id,
                  period, amount_minor, actual_minor, source_ref, idempotency_key,
                  decision_budget_minor, decision_new_commitment_minor,
                  decision_remaining_minor, payload)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-             ON CONFLICT (holding_ref, source_ref) DO NOTHING",
+             ON CONFLICT (data_profile_key, source_ref) DO NOTHING",
         )
         .bind(request.commitment_id)
         .bind(request.budget_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(budget.company_id)
         .bind(request.account_id)
         .bind(i16::from(request.period))
@@ -490,10 +496,10 @@ impl SqlxFinanceBudgetStore {
                         idempotency_key, actual_minor, source_ref,
                         decision_budget_minor, decision_new_commitment_minor,
                         decision_remaining_minor, payload
-                 FROM erpx_tenant.finance_budget_commitments
-                 WHERE holding_ref=$1 AND source_ref=$2",
+                 FROM erpx_holding.finance_budget_commitments
+                 WHERE data_profile_key=$1 AND source_ref=$2",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(&request.source_ref)
             .fetch_optional(&mut *tx)
             .await?;
@@ -520,7 +526,7 @@ impl SqlxFinanceBudgetStore {
         } else {
             write_finance_source_event(
                 &mut tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 "finance_budget_commitment",
                 request.commitment_id,
                 1,
@@ -536,7 +542,7 @@ impl SqlxFinanceBudgetStore {
 
 async fn authoritative_actual_minor(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     budget: &FinanceBudget,
     account_id: Uuid,
     period: u8,
@@ -568,7 +574,7 @@ async fn authoritative_actual_minor(
              COUNT(*) FILTER (
                  WHERE line.value->>'account_id' = $7
              ) AS matching_line_count
-         FROM erpx_tenant.finance_posted_journals AS journal
+         FROM erpx_holding.finance_posted_journals AS journal
          CROSS JOIN LATERAL jsonb_array_elements(
              CASE
                  WHEN jsonb_typeof(journal.payload #> '{entry,lines}') = 'array'
@@ -576,14 +582,14 @@ async fn authoritative_actual_minor(
                  ELSE '[]'::jsonb
              END
          ) AS line(value)
-         WHERE journal.holding_ref=$1
+         WHERE journal.data_profile_key=$1
            AND journal.holding_id=$2
            AND journal.company_id=$3
            AND journal.currency=$4
            AND EXTRACT(YEAR FROM journal.posted_at)::INT=$5
            AND EXTRACT(MONTH FROM journal.posted_at)::INT=$6",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(budget.holding_id)
         .bind(budget.company_id)
         .bind(&budget.currency)
@@ -608,10 +614,10 @@ async fn authoritative_actual_minor(
     })?;
     let (account_count, normal_balance): (i64, Option<String>) = sqlx::query_as(
         "SELECT COUNT(*)::BIGINT, MIN(normal_balance)
-           FROM erpx_tenant.finance_chart_accounts
-          WHERE holding_ref=$1 AND company_id=$2 AND account_id=$3",
+           FROM erpx_holding.finance_chart_accounts
+          WHERE data_profile_key=$1 AND company_id=$2 AND account_id=$3",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(budget.company_id)
     .bind(account_id)
     .fetch_one(&mut **tx)
@@ -656,12 +662,12 @@ fn budget_status(status: BudgetStatus) -> &'static str {
 
 fn validate_persisted_budget_row(
     row: &BudgetRow,
-    holding_ref: &str,
+    data_profile_key: &str,
     budget_id: Uuid,
 ) -> Result<FinanceBudget, PersistenceError> {
     let (
         row_budget_id,
-        row_holding_ref,
+        row_data_profile_key,
         row_holding_id,
         row_company_id,
         row_fiscal_year,
@@ -673,7 +679,7 @@ fn validate_persisted_budget_row(
         row_approval_limit_minor,
         payload,
     ) = row;
-    if *row_budget_id != budget_id || row_holding_ref != holding_ref {
+    if *row_budget_id != budget_id || row_data_profile_key != data_profile_key {
         return Err(PersistenceError::InvalidData(
             "persisted Finance budget identity does not match its requested scope".into(),
         ));
@@ -770,7 +776,7 @@ fn i64_version(value: u64) -> Result<i64, PersistenceError> {
         .map_err(|_| PersistenceError::InvalidData("budget version exceeds database range".into()))
 }
 
-fn validate_holding_ref(value: &str) -> Result<(), PersistenceError> {
+fn validate_data_profile_key(value: &str) -> Result<(), PersistenceError> {
     if value.trim().is_empty() || value.len() > 200 || value.chars().any(char::is_control) {
         return Err(PersistenceError::InvalidData(
             "holding reference is invalid".into(),
@@ -790,19 +796,19 @@ fn validate_commitment_reference(value: &str, field: &'static str) -> Result<(),
 
 async fn validate_budget_replay_evidence(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     budget_id: Uuid,
     version: u64,
     payload: &Value,
 ) -> Result<(), PersistenceError> {
     let events = sqlx::query(
         "SELECT aggregate_version, event_type, payload
-           FROM erpx_tenant.outbox_events
-          WHERE holding_ref=$1 AND aggregate_type='finance_budget'
+           FROM erpx_holding.outbox_events
+          WHERE data_profile_key=$1 AND aggregate_type='finance_budget'
             AND aggregate_id=$2 AND aggregate_version=$3
           FOR SHARE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(budget_id)
     .bind(i64_version(version)?)
     .fetch_all(&mut **tx)
@@ -853,20 +859,20 @@ fn validate_commitment_outbox_cardinality(
 
 async fn validate_commitment_outbox_evidence(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     commitment_id: Uuid,
     commitment_payload: &Value,
 ) -> Result<(), PersistenceError> {
     let rows: Vec<CommitmentOutboxRecord> = sqlx::query_as(
         "SELECT event_type, payload
-           FROM erpx_tenant.outbox_events
-          WHERE holding_ref=$1
+           FROM erpx_holding.outbox_events
+          WHERE data_profile_key=$1
             AND aggregate_type='finance_budget_commitment'
             AND aggregate_id=$2
             AND aggregate_version=1
           FOR SHARE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(commitment_id)
     .fetch_all(&mut **tx)
     .await?;

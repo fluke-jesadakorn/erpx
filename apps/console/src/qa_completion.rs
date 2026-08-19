@@ -105,7 +105,7 @@ fn directory_model() -> DirectoryAdministrationModel {
 
 fn platform_model() -> PlatformOperationsModel {
     let areas = vec![
-        PlatformOperationsArea::Tenants,
+        PlatformOperationsArea::Holdings,
         PlatformOperationsArea::Projections,
         PlatformOperationsArea::Backups,
         PlatformOperationsArea::Providers,
@@ -146,7 +146,7 @@ fn scoped_context_model(
     redacted_field_count: u32,
     reconciliation: ReconciliationEvidence,
 ) -> ContextSurfaceModel {
-    let scope = ProductContextScope::new(opaque("tenant-001"), opaque("holding-001"));
+    let scope = ProductContextScope::new(opaque("holding-001"), opaque("holding-001"));
     let page = ProductPage::new(returned_count, returned_count.max(1), None)
         .expect("QA page must satisfy product pagination contract");
     ContextSurfaceModel::from_authoritative_scoped_read_model(
@@ -615,9 +615,9 @@ mod tests {
         assert_eq!(
             adapter_ids,
             vec![
-                "platform.list_tenants",
+                "platform.list_holdings",
                 "platform.list_projection_statuses",
-                "platform.list_tenant_backup_jobs",
+                "platform.list_holding_backup_jobs",
                 "platform.list_connectors",
                 "platform.list_integrations",
                 "platform.list_audit",
@@ -629,7 +629,7 @@ mod tests {
             assert_eq!(
                 evidence.area().path(),
                 match evidence.area() {
-                    PlatformOperationsArea::Tenants => "/platform/tenants",
+                    PlatformOperationsArea::Holdings => "/platform/holdings",
                     PlatformOperationsArea::Projections => "/platform/projections",
                     PlatformOperationsArea::Backups => "/platform/backups",
                     PlatformOperationsArea::Providers => "/platform/provider",
@@ -770,7 +770,7 @@ mod tests {
         let model = ContextSurfaceModel::from_authoritative_scoped_read_model(
             ProductContext::Sales,
             ProjectionFreshness::Fresh,
-            ProductContextScope::new(opaque("tenant-001"), opaque("holding-001")),
+            ProductContextScope::new(opaque("holding-001"), opaque("holding-001")),
             page,
             0,
             ReconciliationEvidence::Reconciled,
@@ -779,9 +779,9 @@ mod tests {
             model
                 .scope()
                 .expect("scope must be bound")
-                .tenant_id()
+                .holding_id()
                 .as_str(),
-            "tenant-001"
+            "holding-001"
         );
         assert_eq!(
             model
@@ -1379,10 +1379,10 @@ mod tests {
         assert!(!debug.contains("access_token=secret"));
 
         for hash_path in [
-            "/#/platform/customers?access_token=secret",
-            "/#/platform/customers?refresh_token=secret",
-            "/#/platform/customers?client_secret=secret",
-            "/#/platform/customers#password=secret",
+            "/#/platform/holdings?access_token=secret",
+            "/#/platform/holdings?refresh_token=secret",
+            "/#/platform/holdings?client_secret=secret",
+            "/#/platform/holdings#password=secret",
         ] {
             assert_eq!(
                 safe_return_path(hash_path).as_str(),
@@ -1535,7 +1535,7 @@ mod tests {
             );
         }
         let credential_bearing_hash =
-            "/#/platform/customers?access_token=should-not-enter-the-route-registry";
+            "/#/platform/holdings?access_token=should-not-enter-the-route-registry";
         assert_eq!(
             erpx_ui_core::redact_deep_link(credential_bearing_hash),
             "/",

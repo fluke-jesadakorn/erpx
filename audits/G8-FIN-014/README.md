@@ -10,16 +10,16 @@ The Finance Tonic service now exposes authenticated, typed banking operations:
 - `GetFinanceBankingReadRow` for one projected account/import/reconciliation row.
 
 Command handlers require an authenticated actor, command context, explicit
-tenant scope, Finance role, customer scope, billing/entitlement/SoD checks from
-the authoritative command policy, and tenant routing. Typed JSON payloads are
+holding scope, Finance role, customer scope, billing/entitlement/SoD checks from
+the authoritative command policy, and holding routing. Typed JSON payloads are
 bounded and validated before persistence. Write operations use the existing
 atomic SQLx store and audit the actor, customer, purpose, action, and
-correlation ID. Read operations use only the tenant read projection and record a
-customer-scoped audit event. No credentials, payment instruments, tenant
+correlation ID. Read operations use only the holding read projection and record a
+customer-scoped audit event. No credentials, payment instruments, holding
 database URLs, or raw provider payloads cross the transport.
 
-The worker executable can select `ERPX_TENANT_PROJECTION_KIND=finance_banking`
-under the existing durable multi-tenant scheduler. The executor validates the
+The worker executable can select `ERPX_HOLDING_PROJECTION_KIND=finance_banking`
+under the existing durable multi-holding scheduler. The executor validates the
 projection name and payload, consumes bounded write-side source pages, applies
 idempotent read checkpoints, and supports clear/replay rebuilds. The default
 kind remains Operations; no implicit scheduler claiming was introduced.

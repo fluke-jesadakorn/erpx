@@ -12,5 +12,5 @@ erpx_ui_kit::declare_current_workspace_feature!(
     erpx_ui_kit::CurrentFeatureKind::Crm,
     "crm",
     [("crm.workspace", "/crm", "customer")],
-    "erpx-feature-crm-v2"
+    "erpx-feature-crm"
 );

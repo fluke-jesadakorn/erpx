@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -108,7 +108,7 @@ pub struct PlatformGovernanceRecord {
     id: Uuid,
     version: u64,
     kind: PlatformGovernanceRecordKind,
-    scope: TenantScope,
+    scope: AuthorityScope,
     title: String,
     subject_ref: String,
     evidence_ref: Option<String>,
@@ -121,7 +121,7 @@ impl PlatformGovernanceRecord {
     pub fn create(
         id: Uuid,
         kind: PlatformGovernanceRecordKind,
-        scope: TenantScope,
+        scope: AuthorityScope,
         title: String,
         subject_ref: String,
         at: DateTime<Utc>,
@@ -206,7 +206,7 @@ impl PlatformGovernanceRecord {
     pub const fn kind(&self) -> PlatformGovernanceRecordKind {
         self.kind
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn title(&self) -> &str {
@@ -312,11 +312,14 @@ const fn allowed(
     )
 }
 
-fn validate_scope(scope: &TenantScope) -> Result<(), PlatformGovernanceRecordError> {
+fn validate_scope(scope: &AuthorityScope) -> Result<(), PlatformGovernanceRecordError> {
     scope
         .validate()
         .map_err(|_| PlatformGovernanceRecordError::InvalidScope)?;
-    if matches!(scope, TenantScope::Platform | TenantScope::Holding { .. }) {
+    if matches!(
+        scope,
+        AuthorityScope::Platform | AuthorityScope::Holding { .. }
+    ) {
         Ok(())
     } else {
         Err(PlatformGovernanceRecordError::InvalidScope)
@@ -364,8 +367,8 @@ mod tests {
         let mut migration = PlatformGovernanceRecord::create(
             Uuid::new_v4(),
             PlatformGovernanceRecordKind::Migration,
-            TenantScope::Platform,
-            "Generation two cutover".into(),
+            AuthorityScope::Platform,
+            "current cutover".into(),
             "manifest:g2:abc".into(),
             at(8),
         )

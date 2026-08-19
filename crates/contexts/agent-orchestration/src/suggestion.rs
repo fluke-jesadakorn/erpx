@@ -5,7 +5,7 @@
 //! draft only after the owner validates the source version and payload digest.
 
 use chrono::{DateTime, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -39,31 +39,29 @@ pub enum SuggestionOwner {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SuggestionCapability {
     #[serde(rename = "sales.quote.compose.v1")]
-    SalesQuoteComposeV1,
+    SalesQuoteCompose,
     #[serde(rename = "sales.revenue-arrangement.v1")]
-    SalesRevenueArrangementV1,
+    SalesRevenueArrangement,
     #[serde(rename = "finance.accounting-plan.v1")]
-    FinanceAccountingPlanV1,
+    FinanceAccountingPlan,
     #[serde(rename = "finance.posting-review.v1")]
-    FinancePostingReviewV1,
+    FinancePostingReview,
 }
 
 impl SuggestionCapability {
     pub const fn owner(self) -> SuggestionOwner {
         match self {
-            Self::SalesQuoteComposeV1 | Self::SalesRevenueArrangementV1 => SuggestionOwner::Sales,
-            Self::FinanceAccountingPlanV1 | Self::FinancePostingReviewV1 => {
-                SuggestionOwner::Finance
-            }
+            Self::SalesQuoteCompose | Self::SalesRevenueArrangement => SuggestionOwner::Sales,
+            Self::FinanceAccountingPlan | Self::FinancePostingReview => SuggestionOwner::Finance,
         }
     }
 
     pub const fn token(self) -> &'static str {
         match self {
-            Self::SalesQuoteComposeV1 => "sales.quote.compose.v1",
-            Self::SalesRevenueArrangementV1 => "sales.revenue-arrangement.v1",
-            Self::FinanceAccountingPlanV1 => "finance.accounting-plan.v1",
-            Self::FinancePostingReviewV1 => "finance.posting-review.v1",
+            Self::SalesQuoteCompose => "sales.quote.compose.v1",
+            Self::SalesRevenueArrangement => "sales.revenue-arrangement.v1",
+            Self::FinanceAccountingPlan => "finance.accounting-plan.v1",
+            Self::FinancePostingReview => "finance.posting-review.v1",
         }
     }
 }
@@ -144,7 +142,7 @@ pub enum SuggestionStatus {
 pub struct SuggestionEnvelope {
     id: SuggestionId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     owner: SuggestionOwner,
     capability: SuggestionCapability,
     source: SuggestionSource,
@@ -165,7 +163,7 @@ impl SuggestionEnvelope {
     #[allow(clippy::too_many_arguments)]
     pub fn request(
         id: SuggestionId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         capability: SuggestionCapability,
         source: SuggestionSource,
         policy_version: u32,
@@ -306,7 +304,7 @@ impl SuggestionEnvelope {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn owner(&self) -> SuggestionOwner {
@@ -397,10 +395,10 @@ mod tests {
     fn envelope() -> SuggestionEnvelope {
         SuggestionEnvelope::request(
             SuggestionId::try_from_uuid(Uuid::from_u128(1)).unwrap(),
-            TenantScope::Holding {
+            AuthorityScope::Holding {
                 holding_id: Uuid::from_u128(2),
             },
-            SuggestionCapability::SalesQuoteComposeV1,
+            SuggestionCapability::SalesQuoteCompose,
             SuggestionSource {
                 record_kind: "quote".into(),
                 record_id: Uuid::from_u128(3),

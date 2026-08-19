@@ -42,7 +42,7 @@ The main agent's transport adapter should authenticate the customer security adm
 
 - Scope is explicit in the application contract, while authorization remains at the authoritative transport/application boundary.
 - The source query is customer-keyed and checks the row customer ID before constructing DTOs.
-- Read projection access uses the read pool; authoritative audit detail uses the write pool; no tenant credentials or secrets cross the DTO boundary.
+- Read projection access uses the read pool; authoritative audit detail uses the write pool; no holding credentials or secrets cross the DTO boundary.
 - Raw `global_read_audits.payload` is excluded from SQL selection and serialization. The service audit itself contains only actor, customer, action, purpose, and correlation metadata.
 - The repository is read-only with respect to global-read source rows and notes.
 

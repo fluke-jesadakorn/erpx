@@ -1,4 +1,4 @@
-//! Durable tenant-write persistence for resume-safe Marketing journey cursors.
+//! Durable holding-write persistence for resume-safe Marketing journey cursors.
 //!
 //! The initial cursor is a durable version-zero seed. Every execution fact
 //! after that is committed atomically with the cursor, a complete shared
@@ -6,7 +6,7 @@
 
 use chrono::{DateTime, Duration, Utc};
 use erpx_domain::contracts::{
-    ActorAttribution, ActorKind, CONTRACT_VERSION, CommandContext, EventEnvelope, TenantScope,
+    ActorAttribution, ActorKind, AuthorityScope, CONTRACT_VERSION, CommandContext, EventEnvelope,
 };
 use erpx_domain::marketing::{MarketingChannel, MarketingPurpose};
 use erpx_domain::marketing_crm::AcceptedLeadHandoff;
@@ -49,7 +49,7 @@ pub struct MarketingJourneyExecutionClaim {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MarketingJourneyProfileContext {
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub email: Option<String>,
     pub phone: Option<String>,
     pub attributes: BTreeMap<String, String>,
@@ -100,20 +100,20 @@ struct ReplaySourceEvent {
 #[derive(Debug, Clone)]
 pub struct SqlxMarketingJourneyExecutionStore {
     write_pool: PgPool,
-    holding_ref: String,
+    data_profile_key: String,
     control: Option<Arc<crate::SqlxControlPlane>>,
 }
 
 impl SqlxMarketingJourneyExecutionStore {
     pub fn new(
         write_pool: PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_holding_ref(&holding_ref)?;
+        let data_profile_key = data_profile_key.into();
+        validate_data_profile_key(&data_profile_key)?;
         Ok(Self {
             write_pool,
-            holding_ref,
+            data_profile_key,
             control: None,
         })
     }
@@ -123,10 +123,10 @@ impl SqlxMarketingJourneyExecutionStore {
     /// that only execute internal journey nodes remain valid through `new`.
     pub fn new_with_control(
         write_pool: PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
         control: Arc<crate::SqlxControlPlane>,
     ) -> Result<Self, PersistenceError> {
-        let mut store = Self::new(write_pool, holding_ref)?;
+        let mut store = Self::new(write_pool, data_profile_key)?;
         store.control = Some(control);
         Ok(store)
     }
@@ -137,16 +137,18 @@ impl SqlxMarketingJourneyExecutionStore {
     pub async fn ensure_approved_integration(
         &self,
         integration_ref: &str,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
     ) -> Result<(), PersistenceError> {
         let holding_id = match scope {
-            TenantScope::Platform => {
-                return Err(invalid("platform scope cannot invoke a tenant integration"));
+            AuthorityScope::Platform => {
+                return Err(invalid(
+                    "platform scope cannot invoke a holding integration",
+                ));
             }
-            TenantScope::Holding { holding_id }
-            | TenantScope::Company { holding_id, .. }
-            | TenantScope::Branch { holding_id, .. }
-            | TenantScope::Subtree { holding_id, .. } => *holding_id,
+            AuthorityScope::Holding { holding_id }
+            | AuthorityScope::Company { holding_id, .. }
+            | AuthorityScope::Branch { holding_id, .. }
+            | AuthorityScope::Subtree { holding_id, .. } => *holding_id,
         };
         let control = self.control.as_ref().ok_or_else(|| {
             PersistenceError::Configuration(
@@ -165,7 +167,7 @@ impl SqlxMarketingJourneyExecutionStore {
                 .channel_routes
                 .iter()
                 .any(|route| route.channel == "webhook" && route.endpoint.starts_with("https://"));
-        if binding.holding_ref != self.holding_ref
+        if binding.data_profile_key != self.data_profile_key
             || binding.holding_id != holding_id
             || !has_webhook
         {
@@ -184,14 +186,14 @@ impl SqlxMarketingJourneyExecutionStore {
         profile_id: Uuid,
     ) -> Result<Option<MarketingJourneyProfileContext>, PersistenceError> {
         validate_uuid(profile_id, "Marketing journey profile ID")?;
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
         let row = sqlx::query(
             "SELECT scope, email, phone, attributes
-               FROM erpx_tenant.marketing_profiles
-              WHERE holding_ref=$1 AND profile_id=$2 AND erased_at IS NULL
+               FROM erpx_holding.marketing_profiles
+              WHERE data_profile_key=$1 AND profile_id=$2 AND erased_at IS NULL
               FOR SHARE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(profile_id)
         .fetch_optional(&mut *tx)
         .await?;
@@ -207,8 +209,8 @@ impl SqlxMarketingJourneyExecutionStore {
         .transpose()
     }
 
-    pub fn holding_ref(&self) -> &str {
-        &self.holding_ref
+    pub fn data_profile_key(&self) -> &str {
+        &self.data_profile_key
     }
 
     /// Persist the version-zero cursor seed. Execution facts begin at version
@@ -225,9 +227,9 @@ impl SqlxMarketingJourneyExecutionStore {
                 "journey execution cursor must start at version zero on a running journey",
             ));
         }
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
         let authoritative_journey =
-            load_authoritative_journey(&mut tx, &self.holding_ref, journey.id()).await?;
+            load_authoritative_journey(&mut tx, &self.data_profile_key, journey.id()).await?;
         if authoritative_journey != *journey {
             return Err(invalid(
                 "Marketing journey execution start does not match the authoritative journey",
@@ -235,14 +237,14 @@ impl SqlxMarketingJourneyExecutionStore {
         }
         let payload = serde_json::to_value(cursor)?;
         let inserted = sqlx::query(
-            "INSERT INTO erpx_tenant.marketing_journey_execution_cursors
-                (holding_ref, run_id, journey_id, profile_id, scope, state,
+            "INSERT INTO erpx_holding.marketing_journey_execution_cursors
+                (data_profile_key, run_id, journey_id, profile_id, scope, state,
                 next_node_id, waiting_until, version, cursor, next_attempt_at,
                 created_at, updated_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-             ON CONFLICT (holding_ref, run_id) DO NOTHING",
+             ON CONFLICT (data_profile_key, run_id) DO NOTHING",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(cursor.run_id())
         .bind(cursor.journey_id())
         .bind(cursor.profile_id())
@@ -272,12 +274,12 @@ impl SqlxMarketingJourneyExecutionStore {
         if run_id.is_nil() {
             return Err(invalid("Marketing journey execution run ID cannot be nil"));
         }
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
         let row = sqlx::query(
-            "SELECT cursor FROM erpx_tenant.marketing_journey_execution_cursors
-              WHERE holding_ref=$1 AND run_id=$2",
+            "SELECT cursor FROM erpx_holding.marketing_journey_execution_cursors
+              WHERE data_profile_key=$1 AND run_id=$2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(run_id)
         .fetch_optional(&mut *tx)
         .await?;
@@ -298,10 +300,11 @@ impl SqlxMarketingJourneyExecutionStore {
         context: &CommandContext,
     ) -> Result<MarketingJourneyExecutionWriteReceipt, PersistenceError> {
         let request_hash = request_hash("advance", run_id, expected_version, &outcome, context)?;
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
-        let mut cursor = load_for_update(&mut tx, &self.holding_ref, run_id).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
+        let mut cursor = load_for_update(&mut tx, &self.data_profile_key, run_id).await?;
         let authoritative_journey =
-            load_authoritative_journey(&mut tx, &self.holding_ref, cursor.journey_id()).await?;
+            load_authoritative_journey(&mut tx, &self.data_profile_key, cursor.journey_id())
+                .await?;
         if authoritative_journey != *journey {
             return Err(invalid(
                 "Marketing journey execution command does not match the authoritative journey",
@@ -313,7 +316,7 @@ impl SqlxMarketingJourneyExecutionStore {
             .map_err(domain_error)?;
         if let Some(receipt) = find_replay(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             context.idempotency_key.as_str(),
             &request_hash,
             run_id,
@@ -327,12 +330,12 @@ impl SqlxMarketingJourneyExecutionStore {
             .advance(&authoritative_journey, expected_version, outcome, at)
             .map_err(domain_error)?;
         let event = build_event(context, &cursor, &fact)?;
-        update_cursor(&mut tx, &self.holding_ref, &cursor, expected_version).await?;
-        append_event(&mut tx, &self.holding_ref, &event).await?;
+        update_cursor(&mut tx, &self.data_profile_key, &cursor, expected_version).await?;
+        append_event(&mut tx, &self.data_profile_key, &event).await?;
         let receipt = make_receipt(&event, cursor.journey_id(), cursor.version(), false);
         record_idempotency(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             context.idempotency_key.as_str(),
             run_id,
             &request_hash,
@@ -378,10 +381,11 @@ impl SqlxMarketingJourneyExecutionStore {
     ) -> Result<MarketingJourneyExecutionWriteReceipt, PersistenceError> {
         let operation = if pause { "pause" } else { "resume" };
         let request_hash = request_hash(operation, run_id, expected_version, &(), context)?;
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
-        let mut cursor = load_for_update(&mut tx, &self.holding_ref, run_id).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
+        let mut cursor = load_for_update(&mut tx, &self.data_profile_key, run_id).await?;
         let authoritative_journey =
-            load_authoritative_journey(&mut tx, &self.holding_ref, cursor.journey_id()).await?;
+            load_authoritative_journey(&mut tx, &self.data_profile_key, cursor.journey_id())
+                .await?;
         if authoritative_journey != *journey {
             return Err(invalid(
                 "Marketing journey execution control command does not match the authoritative journey",
@@ -393,7 +397,7 @@ impl SqlxMarketingJourneyExecutionStore {
             .map_err(domain_error)?;
         if let Some(receipt) = find_replay(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             context.idempotency_key.as_str(),
             &request_hash,
             run_id,
@@ -410,12 +414,12 @@ impl SqlxMarketingJourneyExecutionStore {
         }
         .map_err(domain_error)?;
         let event = build_event(context, &cursor, &fact)?;
-        update_cursor(&mut tx, &self.holding_ref, &cursor, expected_version).await?;
-        append_event(&mut tx, &self.holding_ref, &event).await?;
+        update_cursor(&mut tx, &self.data_profile_key, &cursor, expected_version).await?;
+        append_event(&mut tx, &self.data_profile_key, &event).await?;
         let receipt = make_receipt(&event, cursor.journey_id(), cursor.version(), false);
         record_idempotency(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             context.idempotency_key.as_str(),
             run_id,
             &request_hash,
@@ -448,14 +452,14 @@ impl SqlxMarketingJourneyExecutionStore {
                 "Marketing journey execution lease is outside its bound",
             ));
         }
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
         let rows = sqlx::query(
             "SELECT c.run_id, c.journey_id, c.cursor
-               FROM erpx_tenant.marketing_journey_execution_cursors AS c
-               JOIN erpx_tenant.marketing_journeys AS j
-                 ON j.holding_ref = c.holding_ref
+               FROM erpx_holding.marketing_journey_execution_cursors AS c
+               JOIN erpx_holding.marketing_journeys AS j
+                 ON j.data_profile_key = c.data_profile_key
                 AND j.journey_id = c.journey_id
-              WHERE c.holding_ref=$1
+              WHERE c.data_profile_key=$1
                 AND j.status='running'
                 AND c.state IN ('ready', 'running', 'waiting')
                 AND c.next_attempt_at <= $2
@@ -466,7 +470,7 @@ impl SqlxMarketingJourneyExecutionStore {
               LIMIT $3
               FOR UPDATE OF c, j SKIP LOCKED",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(now)
         .bind(i64::from(limit))
         .fetch_all(&mut *tx)
@@ -478,10 +482,10 @@ impl SqlxMarketingJourneyExecutionStore {
             let journey_id: Uuid = row.get("journey_id");
             let cursor: JourneyExecutionCursor = serde_json::from_value(row.get("cursor"))?;
             let journey_row = sqlx::query(
-                "SELECT journey FROM erpx_tenant.marketing_journeys
-                  WHERE holding_ref=$1 AND journey_id=$2",
+                "SELECT journey FROM erpx_holding.marketing_journeys
+                  WHERE data_profile_key=$1 AND journey_id=$2",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(journey_id)
             .fetch_optional(&mut *tx)
             .await?
@@ -500,12 +504,12 @@ impl SqlxMarketingJourneyExecutionStore {
                 .map_err(domain_error)?;
             let claim_id = Uuid::new_v4();
             sqlx::query(
-                "UPDATE erpx_tenant.marketing_journey_execution_cursors
+                "UPDATE erpx_holding.marketing_journey_execution_cursors
                     SET current_claim_id=$3, claimed_by=$4, claim_until=$5,
                         attempts=attempts+1, updated_at=updated_at
-                  WHERE holding_ref=$1 AND run_id=$2",
+                  WHERE data_profile_key=$1 AND run_id=$2",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(run_id)
             .bind(claim_id)
             .bind(worker_id)
@@ -548,13 +552,13 @@ impl SqlxMarketingJourneyExecutionStore {
             &outcome,
             &context,
         )?;
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
         let row = sqlx::query(
             "SELECT cursor, current_claim_id, claimed_by, claim_until
-               FROM erpx_tenant.marketing_journey_execution_cursors
-              WHERE holding_ref=$1 AND run_id=$2 FOR UPDATE",
+               FROM erpx_holding.marketing_journey_execution_cursors
+              WHERE data_profile_key=$1 AND run_id=$2 FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(claim.cursor.run_id())
         .fetch_optional(&mut *tx)
         .await?
@@ -564,10 +568,10 @@ impl SqlxMarketingJourneyExecutionStore {
         })?;
         let mut cursor: JourneyExecutionCursor = serde_json::from_value(row.get("cursor"))?;
         let journey_row = sqlx::query(
-            "SELECT journey FROM erpx_tenant.marketing_journeys
-              WHERE holding_ref=$1 AND journey_id=$2 FOR SHARE",
+            "SELECT journey FROM erpx_holding.marketing_journeys
+              WHERE data_profile_key=$1 AND journey_id=$2 FOR SHARE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(cursor.journey_id())
         .fetch_optional(&mut *tx)
         .await?
@@ -581,7 +585,7 @@ impl SqlxMarketingJourneyExecutionStore {
             .map_err(domain_error)?;
         if let Some(receipt) = find_replay(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             context.idempotency_key.as_str(),
             &request_hash,
             cursor.run_id(),
@@ -617,7 +621,7 @@ impl SqlxMarketingJourneyExecutionStore {
                 let notification_at =
                     crate::marketing_persistence::apply_journey_owner_notification_in_transaction(
                         &mut tx,
-                        &self.holding_ref,
+                        &self.data_profile_key,
                         claim.cursor.scope(),
                         notification_ref,
                         claim.cursor.journey_id(),
@@ -636,7 +640,7 @@ impl SqlxMarketingJourneyExecutionStore {
                 )?;
                 crate::marketing_delivery_persistence::enqueue_in_transaction(
                     &mut tx,
-                    &self.holding_ref,
+                    &self.data_profile_key,
                     &delivery,
                 )
                 .await?;
@@ -676,7 +680,7 @@ impl SqlxMarketingJourneyExecutionStore {
         if let Some(handoff) = crm_handoff.as_ref() {
             crate::marketing_crm_persistence::SqlxMarketingCrmStore::persist_handoff_in_transaction(
                 &mut tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 handoff,
                 &context,
                 None,
@@ -685,7 +689,7 @@ impl SqlxMarketingJourneyExecutionStore {
         }
         if let Some(dispatch) = journey_channel_delivery(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             claim,
             &authoritative_journey,
             at,
@@ -694,7 +698,7 @@ impl SqlxMarketingJourneyExecutionStore {
         {
             crate::marketing_delivery_persistence::enqueue_in_transaction(
                 &mut tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 &dispatch,
             )
             .await?;
@@ -703,7 +707,7 @@ impl SqlxMarketingJourneyExecutionStore {
         {
             crate::marketing_persistence::apply_journey_segment_change_in_transaction(
                 &mut tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 claim.cursor.scope(),
                 audience_id,
                 claim.cursor.profile_id(),
@@ -715,7 +719,7 @@ impl SqlxMarketingJourneyExecutionStore {
         if let Some((tag_ref, add)) = journey_profile_tag_action(claim, &authoritative_journey)? {
             crate::marketing_persistence::apply_journey_profile_tag_in_transaction(
                 &mut tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 claim.cursor.scope(),
                 claim.cursor.profile_id(),
                 &tag_ref,
@@ -729,7 +733,7 @@ impl SqlxMarketingJourneyExecutionStore {
         {
             crate::marketing_persistence::apply_journey_conversion_in_transaction(
                 &mut tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 claim.cursor.scope(),
                 conversion_ref,
                 claim.cursor.journey_id(),
@@ -747,7 +751,7 @@ impl SqlxMarketingJourneyExecutionStore {
             let notification_at =
                 crate::marketing_persistence::apply_journey_owner_notification_in_transaction(
                     &mut tx,
-                    &self.holding_ref,
+                    &self.data_profile_key,
                     claim.cursor.scope(),
                     notification_ref,
                     claim.cursor.journey_id(),
@@ -766,7 +770,7 @@ impl SqlxMarketingJourneyExecutionStore {
             )?;
             crate::marketing_delivery_persistence::enqueue_in_transaction(
                 &mut tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 &delivery,
             )
             .await?;
@@ -774,7 +778,7 @@ impl SqlxMarketingJourneyExecutionStore {
         if let Some(invocation) = integration_invocation.as_ref() {
             crate::marketing_journey_integration_persistence::SqlxMarketingJourneyIntegrationStore::enqueue_in_transaction(
                 &mut tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 invocation,
                 &context,
             )
@@ -783,16 +787,16 @@ impl SqlxMarketingJourneyExecutionStore {
         let event = build_event(&context, &cursor, &fact)?;
         update_cursor(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             &cursor,
             fact.expected_cursor_version,
         )
         .await?;
-        append_event(&mut tx, &self.holding_ref, &event).await?;
+        append_event(&mut tx, &self.data_profile_key, &event).await?;
         let receipt = make_receipt(&event, cursor.journey_id(), cursor.version(), false);
         record_idempotency(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             context.idempotency_key.as_str(),
             cursor.run_id(),
             &request_hash,
@@ -820,7 +824,7 @@ impl SqlxMarketingJourneyExecutionStore {
                 event_id: claim.cursor.run_id(),
             });
         }
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
         let error = match failure {
             MarketingJourneyExecutionFailure::Retryable => "retryable_execution_failure",
             MarketingJourneyExecutionFailure::Permanent => "permanent_execution_failure",
@@ -834,13 +838,13 @@ impl SqlxMarketingJourneyExecutionStore {
             MarketingJourneyExecutionFailure::Permanent => Some(at),
         };
         let affected = sqlx::query(
-            "UPDATE erpx_tenant.marketing_journey_execution_cursors
+            "UPDATE erpx_holding.marketing_journey_execution_cursors
                 SET current_claim_id=NULL, claimed_by=NULL, claim_until=NULL,
                     next_attempt_at=$5, last_error=$6, dead_lettered_at=$7
-              WHERE holding_ref=$1 AND run_id=$2 AND current_claim_id=$3
+              WHERE data_profile_key=$1 AND run_id=$2 AND current_claim_id=$3
                 AND claimed_by=$4 AND claim_until > $8",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(claim.cursor.run_id())
         .bind(claim.claim_id)
         .bind(worker_id)
@@ -864,14 +868,14 @@ impl SqlxMarketingJourneyExecutionStore {
 
 async fn load_for_update(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     run_id: Uuid,
 ) -> Result<JourneyExecutionCursor, PersistenceError> {
     let row = sqlx::query(
-        "SELECT cursor FROM erpx_tenant.marketing_journey_execution_cursors
-          WHERE holding_ref=$1 AND run_id=$2 FOR UPDATE",
+        "SELECT cursor FROM erpx_holding.marketing_journey_execution_cursors
+          WHERE data_profile_key=$1 AND run_id=$2 FOR UPDATE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(run_id)
     .fetch_optional(&mut **tx)
     .await?
@@ -884,15 +888,15 @@ async fn load_for_update(
 
 async fn load_authoritative_journey(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     journey_id: Uuid,
 ) -> Result<Journey, PersistenceError> {
     let row = sqlx::query(
         "SELECT journey
-           FROM erpx_tenant.marketing_journeys
-          WHERE holding_ref=$1 AND journey_id=$2 FOR SHARE",
+           FROM erpx_holding.marketing_journeys
+          WHERE data_profile_key=$1 AND journey_id=$2 FOR SHARE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(journey_id)
     .fetch_optional(&mut **tx)
     .await?
@@ -905,18 +909,18 @@ async fn load_authoritative_journey(
 
 async fn update_cursor(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     cursor: &JourneyExecutionCursor,
     expected_version: u64,
 ) -> Result<(), PersistenceError> {
     let affected = sqlx::query(
-        "UPDATE erpx_tenant.marketing_journey_execution_cursors
+        "UPDATE erpx_holding.marketing_journey_execution_cursors
             SET state=$3, next_node_id=$4, waiting_until=$5, version=$6,
                 cursor=$7, next_attempt_at=$8, current_claim_id=NULL,
                 claimed_by=NULL, claim_until=NULL, last_error=NULL, updated_at=$9
-          WHERE holding_ref=$1 AND run_id=$2 AND version=$10",
+          WHERE data_profile_key=$1 AND run_id=$2 AND version=$10",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(cursor.run_id())
     .bind(state_text(cursor.state()))
     .bind(cursor.next_node_id())
@@ -957,7 +961,7 @@ fn build_event(
         aggregate_type: MARKETING_JOURNEY_EXECUTION_AGGREGATE.into(),
         aggregate_id: cursor.run_id(),
         aggregate_version: fact.cursor_version,
-        tenant_scope: cursor.scope().clone(),
+        active_scope: cursor.scope().clone(),
         actor: context.actor.clone(),
         correlation_id: context.correlation_id,
         causation_id: context.causation_id,
@@ -968,28 +972,28 @@ fn build_event(
 
 async fn append_event(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     event: &EventEnvelope,
 ) -> Result<(), PersistenceError> {
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at,
-             contract_version, event_version, tenant_scope, actor,
+             contract_version, event_version, active_scope, actor,
              correlation_id, causation_id, idempotency_key)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)",
     )
     .bind(event.event_id)
     .bind(&event.aggregate_type)
     .bind(event.aggregate_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(as_i64(event.aggregate_version, "execution event version")?)
     .bind(&event.event_type)
     .bind(&event.payload)
     .bind(event.occurred_at)
     .bind(i32::from(event.contract_version))
     .bind(i32::from(event.event_version))
-    .bind(serde_json::to_value(&event.tenant_scope)?)
+    .bind(serde_json::to_value(&event.active_scope)?)
     .bind(serde_json::to_value(&event.actor)?)
     .bind(event.correlation_id)
     .bind(event.causation_id)
@@ -1001,17 +1005,17 @@ async fn append_event(
 
 async fn find_replay(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     idempotency_key: &str,
     request_hash: &str,
     run_id: Uuid,
 ) -> Result<Option<MarketingJourneyExecutionWriteReceipt>, PersistenceError> {
     let row = sqlx::query(
         "SELECT request_hash, run_id, response
-           FROM erpx_tenant.marketing_journey_execution_idempotency
-          WHERE holding_ref=$1 AND idempotency_key=$2 FOR UPDATE",
+           FROM erpx_holding.marketing_journey_execution_idempotency
+          WHERE data_profile_key=$1 AND idempotency_key=$2 FOR UPDATE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(idempotency_key)
     .fetch_optional(&mut **tx)
     .await?;
@@ -1028,10 +1032,10 @@ async fn find_replay(
     let source = sqlx::query(
         "SELECT aggregate_type, aggregate_id, aggregate_version, event_type,
                 idempotency_key, payload
-           FROM erpx_tenant.outbox_events
-          WHERE holding_ref=$1 AND event_id=$2",
+           FROM erpx_holding.outbox_events
+          WHERE data_profile_key=$1 AND event_id=$2",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(receipt.event_id)
     .fetch_optional(&mut **tx)
     .await?
@@ -1084,18 +1088,18 @@ fn validate_replay_source_event(
 
 async fn record_idempotency(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     idempotency_key: &str,
     run_id: Uuid,
     request_hash: &str,
     receipt: &MarketingJourneyExecutionWriteReceipt,
 ) -> Result<(), PersistenceError> {
     sqlx::query(
-        "INSERT INTO erpx_tenant.marketing_journey_execution_idempotency
-            (holding_ref, idempotency_key, run_id, request_hash, version, event_id, response)
+        "INSERT INTO erpx_holding.marketing_journey_execution_idempotency
+            (data_profile_key, idempotency_key, run_id, request_hash, version, event_id, response)
          VALUES ($1,$2,$3,$4,$5,$6,$7)",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(idempotency_key)
     .bind(run_id)
     .bind(request_hash)
@@ -1125,15 +1129,15 @@ fn request_hash<T: Serialize>(
 
 fn validate_context(
     context: &CommandContext,
-    cursor_scope: &TenantScope,
+    cursor_scope: &AuthorityScope,
     expected: Option<u64>,
 ) -> Result<(), PersistenceError> {
     context
         .validate()
         .map_err(|error| invalid(format!("invalid Marketing execution context: {error}")))?;
     if context.contract_version != CONTRACT_VERSION
-        || matches!(context.tenant_scope, TenantScope::Platform)
-        || !context.tenant_scope.contains(cursor_scope)
+        || matches!(context.active_scope, AuthorityScope::Platform)
+        || !context.active_scope.contains(cursor_scope)
         || context.expected_aggregate_version != expected
         || context.idempotency_key.trim().is_empty()
         || context.idempotency_key.len() > 255
@@ -1225,7 +1229,7 @@ fn journey_crm_handoff(
 /// the journey advance share one commit boundary.
 async fn journey_channel_delivery(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     claim: &MarketingJourneyExecutionClaim,
     journey: &Journey,
     at: DateTime<Utc>,
@@ -1243,11 +1247,11 @@ async fn journey_channel_delivery(
     };
     let profile_row = sqlx::query(
         "SELECT scope, email, phone, attributes
-           FROM erpx_tenant.marketing_profiles
-          WHERE holding_ref=$1 AND profile_id=$2 AND erased_at IS NULL
+           FROM erpx_holding.marketing_profiles
+          WHERE data_profile_key=$1 AND profile_id=$2 AND erased_at IS NULL
           FOR SHARE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(claim.cursor.profile_id())
     .fetch_optional(&mut **tx)
     .await?
@@ -1255,7 +1259,7 @@ async fn journey_channel_delivery(
         entity: "Marketing journey profile",
         id: claim.cursor.profile_id(),
     })?;
-    let profile_scope: TenantScope = serde_json::from_value(profile_row.try_get("scope")?)?;
+    let profile_scope: AuthorityScope = serde_json::from_value(profile_row.try_get("scope")?)?;
     if !claim.cursor.scope().contains(&profile_scope) {
         return Err(invalid(
             "Marketing journey profile scope is outside the execution scope",
@@ -1567,7 +1571,7 @@ fn state_text(state: erpx_domain::marketing_journey::JourneyExecutionState) -> &
     }
 }
 
-fn validate_holding_ref(value: &str) -> Result<(), PersistenceError> {
+fn validate_data_profile_key(value: &str) -> Result<(), PersistenceError> {
     if value.trim().is_empty() || value.len() > 255 || value.chars().any(char::is_control) {
         return Err(PersistenceError::Configuration(
             "holding reference must be bounded and non-empty",
@@ -1644,7 +1648,7 @@ mod tests {
             "journey_id": journey_id,
             "run_id": run_id,
             "profile_id": Uuid::from_u128(5),
-            "scope": serde_json::to_value(TenantScope::Holding { holding_id })
+            "scope": serde_json::to_value(AuthorityScope::Holding { holding_id })
                 .expect("scope"),
             "state": "running",
             "next_node_id": Uuid::from_u128(6),
@@ -1670,7 +1674,7 @@ mod tests {
 
     #[test]
     fn notify_owner_delivery_is_deterministic_and_provider_safe() {
-        let scope = TenantScope::Holding {
+        let scope = AuthorityScope::Holding {
             holding_id: Uuid::from_u128(3),
         };
         let node_id = Uuid::from_u128(6);

@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use erpx_infrastructure::{
-    ControlPlaneDatabaseConfig, ControlPlanePools, SqlxControlPlane, SqlxTenantStoreRegistry,
-    TenantStoreRegistration,
+    ControlPlaneDatabaseConfig, ControlPlanePools, HoldingStoreRegistration, SqlxControlPlane,
+    SqlxHoldingStoreRegistry,
 };
 use erpx_migration::{migrate_control_plane, migrate_control_read};
 use sqlx::Row;
@@ -17,26 +17,26 @@ fn test_config() -> ControlPlaneDatabaseConfig {
     }
 }
 
-async fn register_tenant(
-    registry: &SqlxTenantStoreRegistry,
-    tenant_id: &str,
-    holding_ref: &str,
+async fn register_holding(
+    registry: &SqlxHoldingStoreRegistry,
+    holding_id: &str,
+    data_profile_key: &str,
     state: &str,
 ) {
     registry
-        .register(TenantStoreRegistration {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
-            write_database_key: format!("{tenant_id}-write"),
-            read_database_key: format!("{tenant_id}-read"),
-            storage_namespace: format!("{tenant_id}-storage"),
-            credential_key_ref: format!("{tenant_id}-registry-key"),
-            backup_chain_ref: format!("{tenant_id}-backup"),
+        .register(HoldingStoreRegistration {
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
+            write_database_key: format!("{holding_id}-write"),
+            read_database_key: format!("{holding_id}-read"),
+            storage_namespace: format!("{holding_id}-storage"),
+            credential_key_ref: format!("{holding_id}-registry-key"),
+            backup_chain_ref: format!("{holding_id}-backup"),
             state: state.into(),
             registry_version: 1,
         })
         .await
-        .expect("tenant registration");
+        .expect("holding registration");
 }
 
 #[tokio::test]
@@ -55,18 +55,25 @@ async fn finance_provider_account_resolution_is_exact_and_fail_closed() {
         .expect("control read migrations");
 
     let control = Arc::new(SqlxControlPlane::new(pools));
-    let registry = SqlxTenantStoreRegistry::new(Arc::clone(&control));
-    let active_tenant = "finance-provider-active";
-    let inactive_tenant = "finance-provider-inactive";
+    let registry = SqlxHoldingStoreRegistry::new(Arc::clone(&control));
     let active_holding_id = Uuid::new_v4();
     let inactive_holding_id = Uuid::new_v4();
-    let active_holding_ref = active_holding_id.to_string();
-    let inactive_holding_ref = inactive_holding_id.to_string();
-    register_tenant(&registry, active_tenant, &active_holding_ref, "active").await;
-    register_tenant(
+    let active_holding = active_holding_id.to_string();
+    let inactive_holding = inactive_holding_id.to_string();
+    let active_data_profile_key = active_holding_id.to_string();
+    let inactive_data_profile_key = inactive_holding_id.to_string();
+    let wrong_holding = Uuid::new_v4().to_string();
+    register_holding(
         &registry,
-        inactive_tenant,
-        &inactive_holding_ref,
+        &active_holding,
+        &active_data_profile_key,
+        "active",
+    )
+    .await;
+    register_holding(
+        &registry,
+        &inactive_holding,
+        &inactive_data_profile_key,
         "suspended",
     )
     .await;
@@ -78,15 +85,14 @@ async fn finance_provider_account_resolution_is_exact_and_fail_closed() {
     sqlx::query(
         "INSERT INTO erpx_control.finance_bank_provider_accounts
             (finance_bank_provider_account_id, provider_account_ref, provider_key,
-             tenant_id, holding_ref, holding_id, credential_key_ref, state, version)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,'active',1)",
+             holding_id, data_profile_key, credential_key_ref, state, version)
+         VALUES ($1,$2,$3,$4,$5,$6,'active',1)",
     )
     .bind(Uuid::new_v4())
     .bind(active_account_ref)
     .bind(provider_key)
-    .bind(active_tenant)
-    .bind(&active_holding_ref)
     .bind(active_holding_id)
+    .bind(&active_data_profile_key)
     .bind(credential_key_ref)
     .execute(&control.pools().write)
     .await
@@ -96,8 +102,8 @@ async fn finance_provider_account_resolution_is_exact_and_fail_closed() {
         .resolve_finance_bank_provider_account(
             active_account_ref,
             provider_key,
-            active_tenant,
-            &active_holding_ref,
+            &active_holding,
+            &active_data_profile_key,
             credential_key_ref,
         )
         .await
@@ -105,8 +111,8 @@ async fn finance_provider_account_resolution_is_exact_and_fail_closed() {
         .expect("active exact binding");
     assert_eq!(resolved.provider_account_ref, active_account_ref);
     assert_eq!(resolved.provider_key, provider_key);
-    assert_eq!(resolved.tenant_id, active_tenant);
-    assert_eq!(resolved.holding_ref, active_holding_ref);
+    assert_eq!(resolved.holding_key, active_holding);
+    assert_eq!(resolved.data_profile_key, active_data_profile_key);
     assert_eq!(resolved.holding_id, active_holding_id);
     assert_eq!(resolved.credential_key_ref(), credential_key_ref);
     assert_eq!(resolved.state, "active");
@@ -116,32 +122,32 @@ async fn finance_provider_account_resolution_is_exact_and_fail_closed() {
     assert!(!debug.contains(credential_key_ref));
     assert!(!debug.contains(secret_material));
 
-    for (provider, tenant, holding, credential, label) in [
+    for (provider, holding_key, data_profile_key, credential, label) in [
         (
             "different-provider",
-            active_tenant,
-            active_holding_ref.as_str(),
+            active_holding.as_str(),
+            active_data_profile_key.as_str(),
             credential_key_ref,
             "wrong provider",
         ),
         (
             provider_key,
-            "different-tenant",
-            active_holding_ref.as_str(),
+            wrong_holding.as_str(),
+            active_data_profile_key.as_str(),
             credential_key_ref,
-            "wrong tenant",
+            "wrong holding",
         ),
         (
             provider_key,
-            active_tenant,
+            active_holding.as_str(),
             "different-holding",
             credential_key_ref,
             "wrong holding",
         ),
         (
             provider_key,
-            active_tenant,
-            active_holding_ref.as_str(),
+            active_holding.as_str(),
+            active_data_profile_key.as_str(),
             "different-credential",
             "wrong credential",
         ),
@@ -151,8 +157,8 @@ async fn finance_provider_account_resolution_is_exact_and_fail_closed() {
                 .resolve_finance_bank_provider_account(
                     active_account_ref,
                     provider,
-                    tenant,
-                    holding,
+                    holding_key,
+                    data_profile_key,
                     credential,
                 )
                 .await
@@ -176,8 +182,8 @@ async fn finance_provider_account_resolution_is_exact_and_fail_closed() {
             .resolve_finance_bank_provider_account(
                 active_account_ref,
                 provider_key,
-                active_tenant,
-                &active_holding_ref,
+                &active_holding,
+                &active_data_profile_key,
                 credential_key_ref,
             )
             .await
@@ -185,41 +191,40 @@ async fn finance_provider_account_resolution_is_exact_and_fail_closed() {
             .is_none()
     );
 
-    let inactive_account_ref = "finance-bank-account-inactive-tenant";
+    let inactive_account_ref = "finance-bank-account-inactive-holding";
     sqlx::query(
         "INSERT INTO erpx_control.finance_bank_provider_accounts
             (finance_bank_provider_account_id, provider_account_ref, provider_key,
-             tenant_id, holding_ref, holding_id, credential_key_ref, state, version)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,'active',1)",
+             holding_id, data_profile_key, credential_key_ref, state, version)
+         VALUES ($1,$2,$3,$4,$5,$6,'active',1)",
     )
     .bind(Uuid::new_v4())
     .bind(inactive_account_ref)
     .bind(provider_key)
-    .bind(inactive_tenant)
-    .bind(&inactive_holding_ref)
     .bind(inactive_holding_id)
-    .bind("inactive-tenant-key-ref")
+    .bind(&inactive_data_profile_key)
+    .bind("inactive-holding-key-ref")
     .execute(&control.pools().write)
     .await
-    .expect("inactive-tenant provider account");
+    .expect("inactive-holding provider account");
     assert!(
         control
             .resolve_finance_bank_provider_account(
                 inactive_account_ref,
                 provider_key,
-                inactive_tenant,
-                &inactive_holding_ref,
-                "inactive-tenant-key-ref",
+                &inactive_holding,
+                &inactive_data_profile_key,
+                "inactive-holding-key-ref",
             )
             .await
-            .expect("inactive tenant lookup")
+            .expect("inactive holding lookup")
             .is_none()
     );
 
     for (field, value) in [
         ("provider account", ""),
         ("provider key", "bad/provider"),
-        ("tenant", "bad tenant"),
+        ("holding", "bad holding"),
         ("holding", "bad:holding"),
         ("credential", "bad\\credential"),
     ] {
@@ -235,15 +240,15 @@ async fn finance_provider_account_resolution_is_exact_and_fail_closed() {
                 } else {
                     provider_key
                 },
-                if field == "tenant" {
+                if field == "holding" {
                     value
                 } else {
-                    active_tenant
+                    &active_holding
                 },
                 if field == "holding" {
                     value
                 } else {
-                    &active_holding_ref
+                    &active_data_profile_key
                 },
                 if field == "credential" {
                     value

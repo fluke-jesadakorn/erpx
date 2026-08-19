@@ -4,7 +4,7 @@ pub use records::{
 };
 
 use chrono::{DateTime, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -138,7 +138,7 @@ pub(crate) enum DomainEvent {
 pub struct PurchaseOrder {
     id: PurchaseOrderId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     order_code: String,
     supplier_id: SupplierId,
     currency: String,
@@ -154,7 +154,7 @@ pub struct PurchaseOrder {
 pub struct PurchaseOrderState {
     pub id: PurchaseOrderId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub order_code: String,
     pub supplier_id: SupplierId,
     pub currency: String,
@@ -186,7 +186,7 @@ impl PurchaseOrder {
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: PurchaseOrderId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         order_code: String,
         supplier_id: SupplierId,
         currency: String,
@@ -278,7 +278,7 @@ impl PurchaseOrder {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn order_code(&self) -> &str {
@@ -314,13 +314,13 @@ impl PurchaseOrder {
     }
 }
 
-fn validate_record_scope(scope: &TenantScope) -> Result<(), ProcurementDomainError> {
+fn validate_record_scope(scope: &AuthorityScope) -> Result<(), ProcurementDomainError> {
     scope
         .validate()
         .map_err(|_| ProcurementDomainError::InvalidScope)?;
     if matches!(
         scope,
-        TenantScope::Company { .. } | TenantScope::Branch { .. }
+        AuthorityScope::Company { .. } | AuthorityScope::Branch { .. }
     ) {
         Ok(())
     } else {
@@ -377,8 +377,8 @@ mod tests {
         Uuid::from_u128(value)
     }
 
-    fn scope() -> TenantScope {
-        TenantScope::Company {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: id(1),
             company_id: id(2),
         }
@@ -419,7 +419,7 @@ mod tests {
         assert_eq!(
             PurchaseOrder::create(
                 PurchaseOrderId::try_from_uuid(id(10)).unwrap(),
-                TenantScope::Holding { holding_id: id(1) },
+                AuthorityScope::Holding { holding_id: id(1) },
                 "PO-1".into(),
                 SupplierId::try_from_uuid(id(11)).unwrap(),
                 "THB".into(),

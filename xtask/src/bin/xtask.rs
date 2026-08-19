@@ -55,7 +55,7 @@ const SERVICES: [ServiceRecord; 99] = [
         expected_command: "erpx-worker",
     },
     ServiceRecord {
-        name: "agent-tenant-operations-worker",
+        name: "agent-holding-operations-worker",
         expected_command: "erpx-worker",
     },
     ServiceRecord {
@@ -395,7 +395,7 @@ const SERVICES: [ServiceRecord; 99] = [
         expected_command: "erpx-worker",
     },
     ServiceRecord {
-        name: "customer360-tenant-activity-projector",
+        name: "customer360-holding-activity-projector",
         expected_command: "erpx-worker",
     },
     ServiceRecord {
@@ -403,7 +403,7 @@ const SERVICES: [ServiceRecord; 99] = [
         expected_command: "erpx-worker",
     },
     ServiceRecord {
-        name: "tenant-projection-status-projector",
+        name: "holding-projection-status-projector",
         expected_command: "erpx-worker",
     },
     ServiceRecord {
@@ -423,7 +423,7 @@ const SERVICES: [ServiceRecord; 99] = [
         expected_command: "erpx-worker",
     },
     ServiceRecord {
-        name: "tenant-backup-worker",
+        name: "holding-backup-worker",
         expected_command: "erpx-worker",
     },
     ServiceRecord {
@@ -452,7 +452,7 @@ const HARNESSES: [Harness; 19] = [
         package: "erpx-infrastructure",
     },
     Harness {
-        name: "infra_tenant_runtime",
+        name: "infra_holding_runtime",
         package: "erpx-infrastructure",
     },
     Harness {
@@ -786,7 +786,7 @@ fn workspace_root() -> TaskResult<PathBuf> {
 fn print_help() {
     println!(
         "ERPX development tasks\n\n\
-         cargo xtask dev --detach [--fresh] [--no-hot-patch] [--web-debug]\n\
+         cargo xtask dev --detach [--fresh] [--hot-patch|--no-hot-patch] [--web-debug]\n\
          cargo xtask status\n\
          cargo xtask stop\n\
          cargo xtask test <harness> [filter]\n\
@@ -1077,7 +1077,7 @@ fn status(root: &Path) -> TaskResult {
     let dev_artifacts = wasm::artifact_readiness(root, wasm::WasmProfile::Dev);
     let toolchain = web_toolchain::status(root)?;
     println!(
-        "web-toolchain: {} (version={}, standard-contract=v{}, path={})",
+        "web-toolchain: {} (version={}, standard-contract-revision={}, path={})",
         if toolchain.ready {
             "ready"
         } else {
@@ -1090,6 +1090,15 @@ fn status(root: &Path) -> TaskResult {
             .unwrap_or("missing"),
         toolchain.contract_version,
         toolchain.dx_path.display(),
+    );
+    println!(
+        "public-origin: {}",
+        env::var("ERPX_PUBLIC_ORIGIN").unwrap_or_else(|_| "http://127.0.0.1:3004".into())
+    );
+    println!(
+        "platform-origin: {}",
+        env::var("ERPX_PLATFORM_ORIGIN")
+            .unwrap_or_else(|_| "https://console.tailb48369.ts.net".into())
     );
     for service in SERVICES {
         let pid = read_pid(&runtime.join(format!("{}.pid", service.name)))?;
@@ -1465,7 +1474,7 @@ mod tests {
             .collect::<BTreeSet<_>>();
         assert_eq!(names.len(), SERVICES.len());
         for required in [
-            "agent-tenant-operations-worker",
+            "agent-holding-operations-worker",
             "commercial-catalog-projector",
             "quality-projector",
             "identity-access-principals-projector",
@@ -1486,7 +1495,7 @@ mod tests {
             "learning-enrollments-projector",
             "benefits-enrollments-projector",
             "field-service-orders-projector",
-            "tenant-projection-status-projector",
+            "holding-projection-status-projector",
         ] {
             assert!(names.contains(required));
         }

@@ -18,7 +18,7 @@ pub struct CommandMutation {
     pub expected_aggregate_version: Option<u64>,
     pub event: OutboxEvent,
     pub event_version: u32,
-    pub tenant_scope: Option<Value>,
+    pub active_scope: Option<Value>,
     pub actor: Option<Value>,
     pub causation_id: Option<Uuid>,
     pub audit: AuditEvent,
@@ -141,7 +141,7 @@ mod command_tests {
                 occurred_at: Utc::now(),
             },
             event_version: 1,
-            tenant_scope: None,
+            active_scope: None,
             actor: None,
             causation_id: None,
             audit: AuditEvent {

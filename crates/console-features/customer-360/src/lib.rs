@@ -12,5 +12,5 @@ erpx_ui_kit::declare_current_workspace_feature!(
     erpx_ui_kit::CurrentFeatureKind::Customer360,
     "customer-360",
     [("customer-360.workspace", "/customer-360", "customer")],
-    "erpx-feature-customer-360-v2"
+    "erpx-feature-customer-360"
 );

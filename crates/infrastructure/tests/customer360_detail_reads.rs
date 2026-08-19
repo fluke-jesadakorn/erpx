@@ -5,8 +5,8 @@ use erpx_application::{
     CustomerSecurityAdminScope,
 };
 use erpx_domain::{
-    access::Scope,
     commercial::BillingState,
+    contracts::AuthorityScope as Scope,
     customer::{
         BillingAddress, Customer360Projection, CustomerAccountProjection,
         CustomerCommercialProjection, CustomerHealthProjection, CustomerOnboardingProjection,
@@ -494,7 +494,7 @@ async fn customer_scope_reconciliation_revokes_removed_and_empty_bindings_atomic
         !store
             .customer_scope_contains(
                 customer_id,
-                &erpx_domain::access::Scope::Holding { holding_id },
+                &erpx_domain::contracts::AuthorityScope::Holding { holding_id },
             )
             .await
             .expect("fully revoked holding lookup")
@@ -600,8 +600,7 @@ async fn subtree_branch_authorization_requires_the_requested_company() {
                 customer_id,
                 &Scope::Subtree {
                     holding_id,
-                    company_ids: vec![requested_company],
-                    branch_ids: vec![foreign_branch],
+                    organization_node_id: Uuid::new_v4(),
                 },
             )
             .await
@@ -613,8 +612,7 @@ async fn subtree_branch_authorization_requires_the_requested_company() {
                 customer_id,
                 &Scope::Subtree {
                     holding_id,
-                    company_ids: vec![requested_company],
-                    branch_ids: vec![requested_branch],
+                    organization_node_id: requested_branch,
                 },
             )
             .await

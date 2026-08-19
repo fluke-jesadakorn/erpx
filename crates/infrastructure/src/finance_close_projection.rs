@@ -1,8 +1,8 @@
 //! SQLx source-event and read-model adapter for Finance close reviews.
 //!
-//! Close-review rows are authoritative on the tenant write database. This
+//! Close-review rows are authoritative on the holding write database. This
 //! adapter reads their immutable outbox events from that database and writes
-//! only the bounded, rebuildable projection on the physically separate tenant
+//! only the bounded, rebuildable projection on the physically separate holding
 //! read database. No aggregate payload is persisted in the read model.
 
 use chrono::{DateTime, Utc};
@@ -29,7 +29,7 @@ pub struct FinanceCloseProjectionApplication {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinanceCloseProjectionRebuildPreparation {
-    pub holding_ref: String,
+    pub data_profile_key: String,
     pub rows_cleared: u64,
     pub checkpoints_cleared: u64,
 }
@@ -61,26 +61,26 @@ pub struct FinanceCloseSourceEventPage {
 pub struct SqlxFinanceCloseProjectionStore {
     write_pool: PgPool,
     read_pool: PgPool,
-    holding_ref: String,
+    data_profile_key: String,
 }
 
 impl SqlxFinanceCloseProjectionStore {
     pub fn from_pools(
         write_pool: &PgPool,
         read_pool: &PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_holding_ref(&holding_ref)?;
+        let data_profile_key = data_profile_key.into();
+        validate_data_profile_key(&data_profile_key)?;
         Ok(Self {
             write_pool: write_pool.clone(),
             read_pool: read_pool.clone(),
-            holding_ref,
+            data_profile_key,
         })
     }
 
-    pub fn holding_ref(&self) -> &str {
-        &self.holding_ref
+    pub fn data_profile_key(&self) -> &str {
+        &self.data_profile_key
     }
 
     pub async fn read_source_event_page(
@@ -93,13 +93,17 @@ impl SqlxFinanceCloseProjectionStore {
                 "Finance close source event page size must be 1..={MAX_FINANCE_CLOSE_SOURCE_EVENT_PAGE_SIZE}"
             )));
         }
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
         reject_duplicate_source_versions(
-            has_duplicate_source_versions(&mut tx, &self.holding_ref).await?,
+            has_duplicate_source_versions(&mut tx, &self.data_profile_key).await?,
         )?;
-        let page =
-            read_source_event_page_in_transaction(&mut tx, &self.holding_ref, cursor, page_size)
-                .await?;
+        let page = read_source_event_page_in_transaction(
+            &mut tx,
+            &self.data_profile_key,
+            cursor,
+            page_size,
+        )
+        .await?;
         tx.commit().await?;
         Ok(page)
     }
@@ -110,8 +114,9 @@ impl SqlxFinanceCloseProjectionStore {
     /// rebuilds use the count before and after replay to detect source
     /// movement while the candidate is being built.
     pub async fn source_event_high_watermark(&self) -> Result<u64, PersistenceError> {
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
-        let count = source_event_high_watermark_in_transaction(&mut tx, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
+        let count =
+            source_event_high_watermark_in_transaction(&mut tx, &self.data_profile_key).await?;
         tx.commit().await?;
         Ok(count)
     }
@@ -137,12 +142,13 @@ impl SqlxFinanceCloseProjectionStore {
             )));
         }
 
-        let mut source_tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
-        sqlx::query("LOCK TABLE erpx_tenant.outbox_events IN SHARE MODE")
+        let mut source_tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
+        sqlx::query("LOCK TABLE erpx_holding.outbox_events IN SHARE MODE")
             .execute(&mut *source_tx)
             .await?;
         let actual_source_version =
-            source_event_high_watermark_in_transaction(&mut source_tx, &self.holding_ref).await?;
+            source_event_high_watermark_in_transaction(&mut source_tx, &self.data_profile_key)
+                .await?;
         if let Some(expected) = expected_source_version
             && expected != actual_source_version
         {
@@ -151,14 +157,15 @@ impl SqlxFinanceCloseProjectionStore {
             ));
         }
 
-        let mut read_tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
-        let preparation = clear_projection_in_transaction(&mut read_tx, &self.holding_ref).await?;
+        let mut read_tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
+        let preparation =
+            clear_projection_in_transaction(&mut read_tx, &self.data_profile_key).await?;
         let mut cursor = None;
         let mut events_replayed = 0_u64;
         loop {
             let page = read_source_event_page_in_transaction(
                 &mut source_tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 cursor.as_ref(),
                 page_size,
             )
@@ -174,7 +181,7 @@ impl SqlxFinanceCloseProjectionStore {
                 )?;
                 if project_event_in_transaction(
                     &mut read_tx,
-                    &self.holding_ref,
+                    &self.data_profile_key,
                     event.event_id,
                     event.aggregate_id,
                     event.aggregate_version,
@@ -218,7 +225,7 @@ impl SqlxFinanceCloseProjectionStore {
         )?;
         crate::finance_persistence::verify_authoritative_source_event(
             &self.write_pool,
-            &self.holding_ref,
+            &self.data_profile_key,
             event_id,
             CLOSE_REVIEW_EVENT,
             CLOSE_REVIEW_AGGREGATE,
@@ -228,10 +235,10 @@ impl SqlxFinanceCloseProjectionStore {
         )
         .await?;
 
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let applied = project_event_in_transaction(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             event_id,
             aggregate_id,
             aggregate_version,
@@ -250,8 +257,8 @@ impl SqlxFinanceCloseProjectionStore {
     pub async fn clear_projection(
         &self,
     ) -> Result<FinanceCloseProjectionRebuildPreparation, PersistenceError> {
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
-        let preparation = clear_projection_in_transaction(&mut tx, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
+        let preparation = clear_projection_in_transaction(&mut tx, &self.data_profile_key).await?;
         tx.commit().await?;
         Ok(preparation)
     }
@@ -259,7 +266,7 @@ impl SqlxFinanceCloseProjectionStore {
 
 async fn read_source_event_page_in_transaction(
     tx: &mut sqlx::Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     cursor: Option<&FinanceCloseSourceEventCursor>,
     page_size: u32,
 ) -> Result<FinanceCloseSourceEventPage, PersistenceError> {
@@ -269,20 +276,20 @@ async fn read_source_event_page_in_transaction(
         )));
     }
     let limit = i64::from(page_size) + 1;
-    reject_duplicate_source_versions(has_duplicate_source_versions(tx, holding_ref).await?)?;
+    reject_duplicate_source_versions(has_duplicate_source_versions(tx, data_profile_key).await?)?;
     let rows = if let Some(cursor) = cursor {
         validate_uuid(cursor.aggregate_id, "Finance close cursor aggregate ID")?;
         sqlx::query(
             "SELECT event_id, event_type, aggregate_id, aggregate_version,
                     payload, occurred_at
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND aggregate_type=$2
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND aggregate_type=$2
                AND (aggregate_id > $3
                     OR (aggregate_id = $3 AND aggregate_version > $4))
              ORDER BY aggregate_id, aggregate_version
              LIMIT $5",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(CLOSE_REVIEW_AGGREGATE)
         .bind(cursor.aggregate_id)
         .bind(as_i64(
@@ -296,12 +303,12 @@ async fn read_source_event_page_in_transaction(
         sqlx::query(
             "SELECT event_id, event_type, aggregate_id, aggregate_version,
                     payload, occurred_at
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND aggregate_type=$2
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND aggregate_type=$2
              ORDER BY aggregate_id, aggregate_version
              LIMIT $3",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(CLOSE_REVIEW_AGGREGATE)
         .bind(limit)
         .fetch_all(&mut **tx)
@@ -353,18 +360,18 @@ async fn read_source_event_page_in_transaction(
 
 async fn has_duplicate_source_versions(
     tx: &mut sqlx::Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<bool, PersistenceError> {
     sqlx::query_scalar(
         "SELECT EXISTS (
              SELECT 1
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND aggregate_type=$2
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND aggregate_type=$2
              GROUP BY aggregate_id, aggregate_version
              HAVING COUNT(*) > 1
          )",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(CLOSE_REVIEW_AGGREGATE)
     .fetch_one(&mut **tx)
     .await
@@ -382,14 +389,14 @@ fn reject_duplicate_source_versions(duplicate: bool) -> Result<(), PersistenceEr
 
 async fn source_event_high_watermark_in_transaction(
     tx: &mut sqlx::Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<u64, PersistenceError> {
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*)
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type=$2",
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type=$2",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(CLOSE_REVIEW_AGGREGATE)
     .fetch_one(&mut **tx)
     .await?;
@@ -400,28 +407,31 @@ async fn source_event_high_watermark_in_transaction(
 
 async fn clear_projection_in_transaction(
     tx: &mut sqlx::Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<FinanceCloseProjectionRebuildPreparation, PersistenceError> {
-    let rows_cleared =
-        sqlx::query("DELETE FROM erpx_tenant.finance_close_review_read_rows WHERE holding_ref=$1")
-            .bind(holding_ref)
-            .execute(&mut **tx)
-            .await?
-            .rows_affected();
-    sqlx::query("DELETE FROM erpx_tenant.finance_close_account_read_rows WHERE holding_ref=$1")
-        .bind(holding_ref)
-        .execute(&mut **tx)
-        .await?;
-    let checkpoints_cleared = sqlx::query(
-        "DELETE FROM erpx_tenant.finance_close_projection_checkpoints
-         WHERE holding_ref=$1",
+    let rows_cleared = sqlx::query(
+        "DELETE FROM erpx_holding.finance_close_review_read_rows WHERE data_profile_key=$1",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
+    .execute(&mut **tx)
+    .await?
+    .rows_affected();
+    sqlx::query(
+        "DELETE FROM erpx_holding.finance_close_account_read_rows WHERE data_profile_key=$1",
+    )
+    .bind(data_profile_key)
+    .execute(&mut **tx)
+    .await?;
+    let checkpoints_cleared = sqlx::query(
+        "DELETE FROM erpx_holding.finance_close_projection_checkpoints
+         WHERE data_profile_key=$1",
+    )
+    .bind(data_profile_key)
     .execute(&mut **tx)
     .await?
     .rows_affected();
     Ok(FinanceCloseProjectionRebuildPreparation {
-        holding_ref: holding_ref.to_owned(),
+        data_profile_key: data_profile_key.to_owned(),
         rows_cleared,
         checkpoints_cleared,
     })
@@ -465,7 +475,7 @@ fn projection_values_for_event(
 
 async fn project_event_in_transaction(
     tx: &mut sqlx::Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     event_id: Uuid,
     aggregate_id: Uuid,
     aggregate_version: u64,
@@ -473,11 +483,11 @@ async fn project_event_in_transaction(
 ) -> Result<bool, PersistenceError> {
     let current = sqlx::query(
         "SELECT last_event_id, source_version
-         FROM erpx_tenant.finance_close_projection_checkpoints
-         WHERE holding_ref=$1 AND period_id=$2
+         FROM erpx_holding.finance_close_projection_checkpoints
+         WHERE data_profile_key=$1 AND period_id=$2
          FOR UPDATE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(aggregate_id)
     .fetch_optional(&mut **tx)
     .await?;
@@ -504,16 +514,16 @@ async fn project_event_in_transaction(
     }
 
     sqlx::query(
-        "DELETE FROM erpx_tenant.finance_close_account_read_rows
-         WHERE holding_ref=$1 AND period_id=$2",
+        "DELETE FROM erpx_holding.finance_close_account_read_rows
+         WHERE data_profile_key=$1 AND period_id=$2",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(aggregate_id)
     .execute(&mut **tx)
     .await?;
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_close_review_read_rows
-            (holding_ref, holding_id, company_id, period_id, status,
+        "INSERT INTO erpx_holding.finance_close_review_read_rows
+            (data_profile_key, holding_id, company_id, period_id, status,
              idempotency_key, opened_by, reviewed_by, closed_by,
              statement_present, statement_debit_minor, statement_credit_minor,
              statement_net_minor, statement_balanced, control_total_count,
@@ -523,7 +533,7 @@ async fn project_event_in_transaction(
              review_updated_at, projected_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
                  $17,$18,$19,$20,$21,$22,$23,$24,now())
-         ON CONFLICT (holding_ref, period_id) DO UPDATE SET
+         ON CONFLICT (data_profile_key, period_id) DO UPDATE SET
              holding_id=EXCLUDED.holding_id, company_id=EXCLUDED.company_id,
              status=EXCLUDED.status, idempotency_key=EXCLUDED.idempotency_key,
              opened_by=EXCLUDED.opened_by, reviewed_by=EXCLUDED.reviewed_by,
@@ -544,7 +554,7 @@ async fn project_event_in_transaction(
              review_updated_at=EXCLUDED.review_updated_at,
              projected_at=now()",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(values.holding_id)
     .bind(values.company_id)
     .bind(values.period_id)
@@ -572,13 +582,13 @@ async fn project_event_in_transaction(
     .await?;
     for account in values.accounts {
         sqlx::query(
-            "INSERT INTO erpx_tenant.finance_close_account_read_rows
-                (holding_ref, holding_id, company_id, period_id, account_id,
+            "INSERT INTO erpx_holding.finance_close_account_read_rows
+                (data_profile_key, holding_id, company_id, period_id, account_id,
                  debit_minor, credit_minor, net_minor, source_version,
                  source_event_id, projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now())",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(values.holding_id)
         .bind(values.company_id)
         .bind(values.period_id)
@@ -592,16 +602,16 @@ async fn project_event_in_transaction(
         .await?;
     }
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_close_projection_checkpoints
-            (holding_ref, holding_id, company_id, period_id, last_event_id,
+        "INSERT INTO erpx_holding.finance_close_projection_checkpoints
+            (data_profile_key, holding_id, company_id, period_id, last_event_id,
              source_version, projected_at)
          VALUES ($1,$2,$3,$4,$5,$6,now())
-         ON CONFLICT (holding_ref, period_id) DO UPDATE SET
+         ON CONFLICT (data_profile_key, period_id) DO UPDATE SET
              holding_id=EXCLUDED.holding_id, company_id=EXCLUDED.company_id,
              last_event_id=EXCLUDED.last_event_id,
              source_version=EXCLUDED.source_version, projected_at=now()",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(values.holding_id)
     .bind(values.company_id)
     .bind(values.period_id)
@@ -752,7 +762,7 @@ fn close_status(status: CloseStatus) -> &'static str {
     }
 }
 
-fn validate_holding_ref(value: &str) -> Result<(), PersistenceError> {
+fn validate_data_profile_key(value: &str) -> Result<(), PersistenceError> {
     if value.trim().is_empty() || value.len() > 255 || value.chars().any(char::is_control) {
         return Err(PersistenceError::Configuration(
             "holding reference must be bounded and non-empty",
@@ -796,7 +806,7 @@ mod tests {
         assert_eq!(close_status(CloseStatus::Open), "open");
         assert_eq!(close_status(CloseStatus::Review), "review");
         assert_eq!(close_status(CloseStatus::Closed), "closed");
-        assert!(validate_holding_ref("").is_err());
+        assert!(validate_data_profile_key("").is_err());
         assert!(validate_uuid(Uuid::nil(), "id").is_err());
         assert!(bounded_text("actor\n", "actor").is_err());
     }

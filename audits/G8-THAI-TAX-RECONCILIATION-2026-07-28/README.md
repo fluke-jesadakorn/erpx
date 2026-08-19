@@ -3,7 +3,7 @@
 ## Bounded gap closed
 
 The authenticated Thai VAT/WHT report already had an authoritative Finance
-fact write boundary, append-only outbox event, rebuildable tenant-read
+fact write boundary, append-only outbox event, rebuildable holding-read
 projection, MFA/RBAC scope checks, API response validation, and a read-only
 Dioxus surface. It did not verify that the source event feed and read model
 were exactly aligned before serving a statutory report.
@@ -14,8 +14,8 @@ protobuf or migration ownership:
 - `SqlxFinanceThaiTaxStore::reconcile_projection` compares the complete,
   bounded holding source sequence with the complete read sequence using fact
   identity, source event identity, aggregate version, and event type.
-- The comparison reads source data only from the tenant-write database and
-  projection data only from the tenant-read database. It accepts at most the
+- The comparison reads source data only from the holding-write database and
+  projection data only from the holding-read database. It accepts at most the
   existing one-million-fact bound and reports missing, extra, reordered, or
   replaced rows as drift.
 - The Thai tax worker requires reconciliation after the final incremental page
@@ -40,7 +40,7 @@ protobuf or migration ownership:
 
 ## Verification
 
-The ignored SQLx acceptance creates and migrates disposable tenant write/read
+The ignored SQLx acceptance creates and migrates disposable holding write/read
 databases, projects one authoritative tax event, verifies exact reconciliation,
 verifies the report, deletes only the disposable projected row, and verifies
 that reconciliation reports drift. Worker unit coverage verifies that a
@@ -62,8 +62,8 @@ packet.
 - PASS: `cargo fmt --all --check`.
 - PASS: `cargo test -p erpx-worker --lib finance_tax_projection --offline` —
   2/2, including completed-page drift rejection.
-- PASS: disposable PostgreSQL SQLx acceptance — 1/1. It applied tenant-write
-  and tenant-read migrations, projected one source event, verified exact
+- PASS: disposable PostgreSQL SQLx acceptance — 1/1. It applied holding-write
+  and holding-read migrations, projected one source event, verified exact
   reconciliation and report totals, removed the disposable read row, and
   verified non-reconciled drift.
 - PASS: `cargo test -p erpx-console --offline -- --test-threads=1` — 108/108.

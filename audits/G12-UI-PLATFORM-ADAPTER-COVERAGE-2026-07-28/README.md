@@ -15,7 +15,7 @@ read.
 ## Delivered slice
 
 - Added an allow-listed `PlatformOperationsAdapter` identity for the six safe
-  Platform Operations areas: tenants, projections, backups, integrations,
+  Platform Operations areas: holdings, projections, backups, integrations,
   audit, and settings.
 - Added `PlatformOperationsAreaEvidence` so each displayed area carries its
   matching adapter, authoritative persistence, reconciliation, and server

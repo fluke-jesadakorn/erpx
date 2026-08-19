@@ -1,6 +1,6 @@
-//! Focused and disposable verification for the tenant-read Finance Chart projection.
+//! Focused and disposable verification for the holding-read Finance Chart projection.
 
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::finance_chart::{AccountCategory, FinanceAccount, FinanceChart};
 use erpx_infrastructure::{
     FinanceChartReadScope, SqlxFinanceChartProjectionStore, SqlxFinanceChartReadStore,
@@ -14,12 +14,12 @@ fn context(holding_id: Uuid, company_id: Uuid, key: &str) -> CommandContext {
         key,
         ActorAttribution {
             principal_ref: "finance-read-projector-test".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
         },
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -30,16 +30,16 @@ fn context(holding_id: Uuid, company_id: Uuid, key: &str) -> CommandContext {
 
 #[test]
 fn migration_has_normalized_rows_metadata_indexes_and_forced_rls() {
-    let sql = include_str!("../../migration/migrations_tenant_read/0035_finance_chart.sql");
+    let sql = include_str!("../../migration/migrations_holding_read/0001_baseline.sql");
     for table in [
         "finance_chart_read_rows",
         "finance_chart_account_read_rows",
         "finance_chart_projection_checkpoints",
         "finance_chart_projection_event_receipts",
     ] {
-        assert!(sql.contains(&format!("CREATE TABLE IF NOT EXISTS erpx_tenant.{table}")));
+        assert!(sql.contains(&format!("CREATE TABLE IF NOT EXISTS erpx_holding.{table}")));
         assert!(sql.contains(&format!(
-            "ALTER TABLE erpx_tenant.{table} FORCE ROW LEVEL SECURITY"
+            "ALTER TABLE erpx_holding.{table} FORCE ROW LEVEL SECURITY"
         )));
     }
     for column in [
@@ -53,27 +53,27 @@ fn migration_has_normalized_rows_metadata_indexes_and_forced_rls() {
     ] {
         assert!(sql.contains(column), "missing envelope column {column}");
     }
-    assert!(sql.contains("UNIQUE (holding_ref, chart_id, code)"));
-    assert!(sql.contains("current_setting('erpx.holding_ref', true)"));
+    assert!(sql.contains("UNIQUE (data_profile_key, chart_id, code)"));
+    assert!(sql.contains("current_setting('erpx.data_profile_key', true)"));
 }
 
 #[tokio::test]
-#[ignore = "requires disposable tenant write and read PostgreSQL databases"]
+#[ignore = "requires disposable holding write and read PostgreSQL databases"]
 async fn live_finance_chart_projection_is_typed_scoped_idempotent_and_rebuildable() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant-write migrations");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding-write migrations");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant-read migrations");
+        .expect("holding-read migrations");
 
-    let holding_ref = format!("holding-finance-chart-read-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-finance-chart-read-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let parent_id = Uuid::new_v4();
@@ -107,14 +107,14 @@ async fn live_finance_chart_projection_is_typed_scoped_idempotent_and_rebuildabl
         &create_context,
     )
     .expect("chart");
-    let source = SqlxFinanceChartStore::new(write_pool.clone(), &holding_ref).expect("source");
+    let source = SqlxFinanceChartStore::new(write_pool.clone(), &data_profile_key).expect("source");
     source
         .save_chart(&chart, &create_context, None)
         .await
         .expect("source chart");
 
     let projection =
-        SqlxFinanceChartProjectionStore::from_pools(&write_pool, &read_pool, &holding_ref)
+        SqlxFinanceChartProjectionStore::from_pools(&write_pool, &read_pool, &data_profile_key)
             .expect("projection");
     let page = projection
         .read_source_event_page(None, 10)
@@ -138,7 +138,7 @@ async fn live_finance_chart_projection_is_typed_scoped_idempotent_and_rebuildabl
             .applied
     );
 
-    let read = SqlxFinanceChartReadStore::new(read_pool.clone(), &holding_ref).expect("read");
+    let read = SqlxFinanceChartReadStore::new(read_pool.clone(), &data_profile_key).expect("read");
     let scope = FinanceChartReadScope {
         holding_id,
         company_id,
@@ -182,10 +182,10 @@ async fn live_finance_chart_projection_is_typed_scoped_idempotent_and_rebuildabl
     let mut tx = read_pool.begin().await.expect("inspection transaction");
     let forced: Vec<(String, bool)> = sqlx::query_as(
         "SELECT relname, relforcerowsecurity FROM pg_class WHERE oid IN (
-            'erpx_tenant.finance_chart_read_rows'::regclass,
-            'erpx_tenant.finance_chart_account_read_rows'::regclass,
-            'erpx_tenant.finance_chart_projection_checkpoints'::regclass,
-            'erpx_tenant.finance_chart_projection_event_receipts'::regclass
+            'erpx_holding.finance_chart_read_rows'::regclass,
+            'erpx_holding.finance_chart_account_read_rows'::regclass,
+            'erpx_holding.finance_chart_projection_checkpoints'::regclass,
+            'erpx_holding.finance_chart_projection_event_receipts'::regclass
         ) ORDER BY relname",
     )
     .fetch_all(&mut *tx)

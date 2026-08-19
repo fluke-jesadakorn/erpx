@@ -1,6 +1,6 @@
 -- Serialize first-use bootstrap when multiple identity workers start together.
 -- The lock is transaction-scoped and does not affect normal identity queries.
-SELECT pg_advisory_xact_lock(hashtextextended('erpx_identity_schema_v1', 0));
+SELECT pg_advisory_xact_lock(hashtextextended('erpx_identity_schema', 0));
 
 CREATE SCHEMA IF NOT EXISTS erpx_identity;
 
@@ -174,7 +174,7 @@ CREATE TABLE IF NOT EXISTS erpx_identity.directory_connectors (
     scope_key TEXT NOT NULL,
     scope_kind TEXT NOT NULL DEFAULT 'platform' CHECK (scope_kind IN ('platform', 'holding')),
     scope_id UUID,
-    holding_ref TEXT,
+    data_profile_key TEXT,
     endpoint TEXT NOT NULL CHECK (endpoint LIKE 'ldaps://%' OR endpoint LIKE 'ldap://%' OR endpoint LIKE 'ldap+starttls://%' OR endpoint LIKE 'https://%'),
     base_dn TEXT NOT NULL,
     tls_mode TEXT NOT NULL CHECK (tls_mode IN ('ldaps', 'start_tls', 'https')),

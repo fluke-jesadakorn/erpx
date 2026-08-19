@@ -7,7 +7,8 @@ use erpx_brand_sqlx::{BrandCommandAdapter, BrandParentAuthorityRepository, Brand
 use erpx_cqrs::{CONTRACT_VERSION, CommandEnvelope, CommandHandler, IdempotencyKey};
 use erpx_cqrs_sqlx::WritePool;
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, SystemClock, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+    SystemClock,
 };
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -27,7 +28,7 @@ impl AuthorizationPort for BootstrapBrandAccess {
     ) -> std::result::Result<(), PortError> {
         let root_is_authoritative = request.actor.principal_ref == self.root_principal
             && request.actor.kind == ActorKind::PlatformUser
-            && matches!(request.authority_scope, TenantScope::Platform)
+            && matches!(request.authority_scope, AuthorityScope::Platform)
             && matches!(request.target, BrandScope::Platform)
             && matches!(
                 request.action,
@@ -45,10 +46,10 @@ impl AuthorizationPort for BootstrapBrandAccess {
 impl EntitlementPort for BootstrapBrandAccess {
     async fn ensure_brand_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         write: bool,
     ) -> std::result::Result<(), PortError> {
-        if write && matches!(scope, TenantScope::Platform) {
+        if write && matches!(scope, AuthorityScope::Platform) {
             Ok(())
         } else {
             Err(PortError::Denied)
@@ -165,7 +166,7 @@ fn command_envelope<C>(
             represented_principal_ref: None,
             support_capability_id: None,
         },
-        tenant_scope: TenantScope::Platform,
+        active_scope: AuthorityScope::Platform,
         audit: AuditContext {
             purpose: "fresh-state neutral brand seed".into(),
             customer_visible: false,

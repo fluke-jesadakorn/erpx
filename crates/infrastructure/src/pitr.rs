@@ -2,7 +2,7 @@
 //!
 //! This module owns durable PITR artifacts and an explicit isolated physical
 //! restore/verification seam. The restore executor starts only the resolved
-//! disposable PostgreSQL instance and never performs tenant-route activation.
+//! disposable PostgreSQL instance and never performs holding-route activation.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -25,8 +25,8 @@ use crate::{
     object_storage::{MinioObjectStore, MinioObjectStoreConfig},
     provisioning::{
         BackupAdapterError, BackupObjectTransport, BackupProcessCommand, BackupProcessRunner,
-        MinioBackupObjectTransport, PostgresMinioBackupConfig, SystemBackupProcessRunner,
-        TenantDatabaseProvisioningConfig, render_database_url,
+        HoldingDatabaseProvisioningConfig, MinioBackupObjectTransport, PostgresMinioBackupConfig,
+        SystemBackupProcessRunner, render_database_url,
     },
 };
 
@@ -39,7 +39,7 @@ const PITR_DATABASE_CA_CERT_PATH_ENV: &str = "ERPX_BACKUP_DATABASE_CA_CERT_PATH"
 
 #[derive(Clone)]
 pub struct PitrBackupAdapterConfig {
-    pub database_config: TenantDatabaseProvisioningConfig,
+    pub database_config: HoldingDatabaseProvisioningConfig,
     pub object_store_config: MinioObjectStoreConfig,
     pub object_namespace: String,
     pub pg_basebackup_program: String,
@@ -120,7 +120,7 @@ impl PitrBackupAdapterConfig {
 
     #[allow(clippy::too_many_arguments)]
     pub fn from_values(
-        database_config: TenantDatabaseProvisioningConfig,
+        database_config: HoldingDatabaseProvisioningConfig,
         object_store_config: MinioObjectStoreConfig,
         object_namespace: impl Into<String>,
         pg_basebackup_program: impl Into<String>,
@@ -171,7 +171,7 @@ impl PitrBackupAdapterConfig {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PitrBackupTarget {
-    pub tenant_id: String,
+    pub holding_id: String,
     pub source_database_key: String,
     pub storage_namespace: String,
     pub backup_chain_ref: String,
@@ -181,7 +181,7 @@ pub struct PitrBackupTarget {
 
 impl PitrBackupTarget {
     pub fn new(
-        tenant_id: impl Into<String>,
+        holding_id: impl Into<String>,
         source_database_key: impl Into<String>,
         storage_namespace: impl Into<String>,
         backup_chain_ref: impl Into<String>,
@@ -189,7 +189,7 @@ impl PitrBackupTarget {
         recovery_point: PitrRecoveryPoint,
     ) -> Result<Self, BackupAdapterError> {
         let target = Self {
-            tenant_id: tenant_id.into(),
+            holding_id: holding_id.into(),
             source_database_key: source_database_key.into(),
             storage_namespace: storage_namespace.into(),
             backup_chain_ref: backup_chain_ref.into(),
@@ -202,7 +202,7 @@ impl PitrBackupTarget {
 
     fn validate(&self) -> Result<(), BackupAdapterError> {
         for value in [
-            self.tenant_id.as_str(),
+            self.holding_id.as_str(),
             self.source_database_key.as_str(),
             self.backup_chain_ref.as_str(),
             self.backup_ref.as_str(),
@@ -220,7 +220,7 @@ impl PitrBackupTarget {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct PitrArtifactManifest {
     format: String,
-    tenant_id: String,
+    holding_id: String,
     source_database_key: String,
     backup_chain_ref: String,
     backup_ref: String,
@@ -237,7 +237,7 @@ struct PitrArtifactEntry {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PitrBackupResult {
-    pub tenant_id: String,
+    pub holding_id: String,
     pub backup_ref: String,
     pub manifest_object_key: String,
     pub artifact_count: u32,
@@ -301,8 +301,8 @@ impl PitrBackupAdapter {
     }
 
     /// Compose the physical restore verifier without registering a route or
-    /// mutating tenant control-plane state. The caller must supply the
-    /// tenant-bound resolver and an isolated restore root.
+    /// mutating holding control-plane state. The caller must supply the
+    /// holding-bound resolver and an isolated restore root.
     pub async fn restore_physical_without_activation(
         &self,
         target: &PitrBackupTarget,
@@ -434,8 +434,8 @@ impl PitrBackupAdapter {
             });
         }
         let manifest = PitrArtifactManifest {
-            format: "erpx-pitr-v1".into(),
-            tenant_id: target.tenant_id.clone(),
+            format: "erpx-pitr".into(),
+            holding_id: target.holding_id.clone(),
             source_database_key: target.source_database_key.clone(),
             backup_chain_ref: target.backup_chain_ref.clone(),
             backup_ref: target.backup_ref.clone(),
@@ -455,7 +455,7 @@ impl PitrBackupAdapter {
         )
         .await?;
         Ok(PitrBackupResult {
-            tenant_id: target.tenant_id.clone(),
+            holding_id: target.holding_id.clone(),
             backup_ref: target.backup_ref.clone(),
             manifest_object_key,
             artifact_count: manifest.objects.len() as u32,
@@ -777,8 +777,8 @@ impl PostgresPhysicalPitrRestoreExecutor {
     ) -> Result<(), BackupAdapterError> {
         let base_archive_path = staging_directory.join("base.tar");
         let artifact_prefix = format!(
-            "tenants/{}/backup-chains/{}/pitr/{}/",
-            target.tenant_id, target.backup_chain_ref, target.backup_ref
+            "holdings/{}/backup-chains/{}/pitr/{}/",
+            target.holding_id, target.backup_chain_ref, target.backup_ref
         );
         let mut wal_files = Vec::new();
         for entry in &manifest.objects {
@@ -928,8 +928,8 @@ fn validate_manifest(
     target: &PitrBackupTarget,
     manifest: &PitrArtifactManifest,
 ) -> Result<(), BackupAdapterError> {
-    if manifest.format != "erpx-pitr-v1"
-        || manifest.tenant_id != target.tenant_id
+    if manifest.format != "erpx-pitr"
+        || manifest.holding_id != target.holding_id
         || manifest.source_database_key != target.source_database_key
         || manifest.backup_chain_ref != target.backup_chain_ref
         || manifest.backup_ref != target.backup_ref
@@ -939,8 +939,8 @@ fn validate_manifest(
         return Err(BackupAdapterError::IdempotencyConflict);
     }
     let artifact_prefix = format!(
-        "tenants/{}/backup-chains/{}/pitr/{}/",
-        target.tenant_id, target.backup_chain_ref, target.backup_ref
+        "holdings/{}/backup-chains/{}/pitr/{}/",
+        target.holding_id, target.backup_chain_ref, target.backup_ref
     );
     let mut object_keys = BTreeSet::new();
     let mut has_base_archive = false;
@@ -1249,8 +1249,8 @@ fn artifact_object_key(
         return Err(BackupAdapterError::Configuration);
     }
     Ok(format!(
-        "tenants/{}/backup-chains/{}/pitr/{}/{}",
-        target.tenant_id, target.backup_chain_ref, target.backup_ref, relative_name
+        "holdings/{}/backup-chains/{}/pitr/{}/{}",
+        target.holding_id, target.backup_chain_ref, target.backup_ref, relative_name
     ))
 }
 
@@ -1497,8 +1497,8 @@ mod tests {
 
     fn target() -> PitrBackupTarget {
         PitrBackupTarget::new(
-            "tenant-1",
-            "tenant_db_1",
+            "holding-1",
+            "holding_db_1",
             "backup-namespace",
             "chain-1",
             "backup-1",
@@ -1510,23 +1510,23 @@ mod tests {
     #[test]
     fn pitr_target_rejects_path_like_references() {
         let error = PitrBackupTarget::new(
-            "tenant/1",
-            "tenant_db_1",
+            "holding/1",
+            "holding_db_1",
             "backup-namespace",
             "chain-1",
             "backup-1",
             recovery_point(),
         )
-        .expect_err("path-like tenant reference must be rejected");
+        .expect_err("path-like holding reference must be rejected");
         assert_eq!(error, BackupAdapterError::Configuration);
     }
 
     #[test]
-    fn pitr_object_keys_are_tenant_chain_and_backup_scoped() {
+    fn pitr_object_keys_are_holding_chain_and_backup_scoped() {
         let target = target();
         assert_eq!(
             artifact_object_key(&target, "wal/000000010000000000000001").expect("safe key"),
-            "tenants/tenant-1/backup-chains/chain-1/pitr/backup-1/wal/000000010000000000000001"
+            "holdings/holding-1/backup-chains/chain-1/pitr/backup-1/wal/000000010000000000000001"
         );
         assert_eq!(
             artifact_object_key(&target, "../escape").expect_err("path traversal"),
@@ -1631,7 +1631,7 @@ mod tests {
         );
         assert_eq!(
             database_url_with_private_ca(
-                "postgresql://backup@db.internal/tenant_db",
+                "postgresql://backup@db.internal/holding_db",
                 &certificate_path,
             )
             .expect("render private CA options")
@@ -1695,8 +1695,8 @@ mod tests {
     fn manifest_validation_rejects_duplicates_missing_artifacts_and_shell_paths() {
         let target = target();
         let prefix = format!(
-            "tenants/{}/backup-chains/{}/pitr/{}/",
-            target.tenant_id, target.backup_chain_ref, target.backup_ref
+            "holdings/{}/backup-chains/{}/pitr/{}/",
+            target.holding_id, target.backup_chain_ref, target.backup_ref
         );
         let entry = |name: &str| PitrArtifactEntry {
             object_key: format!("{prefix}{name}"),
@@ -1704,8 +1704,8 @@ mod tests {
             sha256_hex: "00".repeat(32),
         };
         let valid = PitrArtifactManifest {
-            format: "erpx-pitr-v1".into(),
-            tenant_id: target.tenant_id.clone(),
+            format: "erpx-pitr".into(),
+            holding_id: target.holding_id.clone(),
             source_database_key: target.source_database_key.clone(),
             backup_chain_ref: target.backup_chain_ref.clone(),
             backup_ref: target.backup_ref.clone(),
@@ -1719,7 +1719,7 @@ mod tests {
         assert!(validate_manifest(&target, &valid).is_ok());
 
         let mut source_mismatch = valid.clone();
-        source_mismatch.source_database_key = "tenant_db_other".into();
+        source_mismatch.source_database_key = "holding_db_other".into();
         assert_eq!(
             validate_manifest(&target, &source_mismatch)
                 .expect_err("cross-source manifest must fail closed"),

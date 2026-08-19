@@ -17,5 +17,5 @@ erpx_ui_kit::declare_current_workspace_feature!(
     erpx_ui_kit::CurrentFeatureKind::Operations,
     "operations",
     [("operations.workspace", "/operations", "operations")],
-    "erpx-feature-operations-v2"
+    "erpx-feature-operations"
 );

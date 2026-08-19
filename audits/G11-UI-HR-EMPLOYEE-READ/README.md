@@ -3,7 +3,7 @@
 ## Scope
 
 The Dioxus HR & Payroll route now exposes the existing authenticated
-HrService::ListHrEmployees projection for an explicit tenant, holding,
+HrService::ListHrEmployees projection for an explicit holding, holding,
 company, and optional branch UUID scope. The adapter is read-only and
 deliberately excludes payroll amounts, credentials, identity-proof material,
 and HR mutation controls.
@@ -13,7 +13,7 @@ and HR mutation controls.
 - The console sends an authenticated/audited query context to the existing HR
   service.
 - The server performs explicit company/branch containment, hr.read
-  authorization, customer-scope containment, tenant-read routing, bounded
+  authorization, customer-scope containment, holding-read routing, bounded
   pagination, SQLx projection access, and audit persistence.
 - The client retains only employee UUID/reference, display name, lifecycle
   status, scoped company/branch, dates, source version, projection timestamp,
@@ -25,7 +25,7 @@ and HR mutation controls.
 
 ## Fail-closed boundary
 
-HrEmployeeScope rejects invalid tenant/holding/company/branch references.
+HrEmployeeScope rejects invalid holding/holding/company/branch references.
 HrEmployeeReadModel::from_wire rejects oversized pages, malformed or
 contradictory UUID cursors, scope escapes, unsafe values, unknown lifecycle
 statuses, invalid dates, inconsistent terminated-state/date combinations,

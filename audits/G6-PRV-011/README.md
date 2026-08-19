@@ -1,9 +1,9 @@
-# G6-PRV-011 — bounded tenant projection status adapter
+# G6-PRV-011 — bounded holding projection status adapter
 
 ## Delivered behavior
 
 Added a bounded control-plane projection-status read adapter to the durable
-tenant scheduler. It validates optional tenant, holding, and projection
+holding scheduler. It validates optional holding, holding, and projection
 filters, rejects ambiguous holding-only requests, applies deterministic
 keyset pagination, and returns only scheduler state/checkpoint metadata. Job
 payloads, claim IDs, worker IDs, and credentials are not represented in the
@@ -17,12 +17,12 @@ not bypassed by this lower-level repository method.
 
 ## Files changed
 
-- `crates/infrastructure/src/tenant_projection_scheduler.rs`
+- `crates/infrastructure/src/holding_projection_scheduler.rs`
 - `crates/infrastructure/src/lib.rs`
-- `crates/infrastructure/tests/tenant_projection_status.rs`
+- `crates/infrastructure/tests/holding_projection_status.rs`
 - `audits/G6-PRV-011/README.md`
 
-No migration, tenant database, Folio route, environment file, or runtime
+No migration, holding database, Folio route, environment file, or runtime
 service state changed.
 
 ## Verification
@@ -31,7 +31,7 @@ From `erpx/`:
 
 ```text
 cargo fmt --all — PASS
-cargo test -p erpx-infrastructure --test tenant_projection_status — PASS: 4 tests
+cargo test -p erpx-infrastructure --test holding_projection_status — PASS: 4 tests
 cargo clippy -p erpx-infrastructure --all-targets -- -D warnings — PASS
 ```
 
@@ -43,7 +43,7 @@ database access.
 
 The adapter does not accept credentials or arbitrary SQL fragments. Filter
 values are validated, page size is capped at 100, holding scope cannot be
-specified without its tenant, and continuation state is limited to validated
+specified without its holding, and continuation state is limited to validated
 ordering fields. The packet can be rolled back by removing the additive DTO,
 repository method, export, focused test, and this audit; no schema rollback is
 required.

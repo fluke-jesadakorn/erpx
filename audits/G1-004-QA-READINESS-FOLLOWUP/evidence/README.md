@@ -41,16 +41,16 @@ Remaining common gaps:
 | Error context wire contract | `errors::enrich` emits JSON in `x-erpx-error-context`, but `ErrorContext.details` is always an empty map (`errors.rs:33-62`); no protobuf `Status::details` payload is emitted. Dynamic permission, conflict, assignment, and support text remains public through `errors.rs:86-106` and `safe_message` only forces fallback for internal/unavailable/deadline statuses (`:65-83`). | Medium |
 | HTTP tracing | `HttpRequestTrace` records method, path, correlation, and latency only (`errors.rs:182-212`), with no status/outcome. Parser failures and malformed correlation return before the trace starts (`main.rs:1752-1777`, `read_http_request` at `:2359+`). | Medium |
 | Identity error parity | gRPC identity database failures map to `internal` (`main.rs:630-644`), while HTTP identity database failures map to 503 (`main.rs:1695-1708`). | Medium |
-| Object authorization | Signed upload/download HTTP handlers now exist (`main.rs:2064-2156`), but authorization checks only an active registry row, namespace equality, and a Holding-scope role (`main.rs:2158-2218`). It does not evaluate customer/resource binding, branch scope, billing, entitlement, SoD, or support capability. It also parses the registry’s opaque `holding_ref` as a UUID (`:2209-2215`), which is a compatibility/functionality risk for non-UUID opaque references. There are storage seam tests, but no handler-level HTTP tests. | High |
+| Object authorization | Signed upload/download HTTP handlers now exist (`main.rs:2064-2156`), but authorization checks only an active registry row, namespace equality, and a Holding-scope role (`main.rs:2158-2218`). It does not evaluate customer/resource binding, branch scope, billing, entitlement, SoD, or support capability. It also parses the registry’s opaque `data_profile_key` as a UUID (`:2209-2215`), which is a compatibility/functionality risk for non-UUID opaque references. There are storage seam tests, but no handler-level HTTP tests. | High |
 
-## Worker, tenant, commercial, and readiness gaps
+## Worker, holding, commercial, and readiness gaps
 
 | Boundary | Delivered evidence | Concrete remaining gap |
 |---|---|---|
-| Worker executable | Startup selects only `customer_360` or `stripe_semantic` and initializes basic formatting (`apps/worker/src/main.rs:5-54`). Runtime connects and migrates only control write/read pools (`apps/worker/src/lib.rs:163-180`). | No worker heartbeat/readiness contract, worker lease health, tenant-database routing, commercial inbox readiness, or correlation span for successful passes. `WorkerErrorContext` omits tenant scope, actor, and causation even though the envelope contains them (`crates/infrastructure/src/worker.rs:23-44`; `outbox.rs:30-52`). |
-| Outbox/projector | Retry/DLQ tracing now includes sanitized context (`crates/infrastructure/src/worker.rs:191-253`); projection claim/checkpoint ordering remains present (`:331-405`). | Durable `last_error` receives unsanitized handler text (`outbox.rs:348-420`). Projection/rebuild converts errors back to `error.to_string()` (`worker.rs:337-402`), and customer projection trusts event payload/scope while writing bindings (`apps/worker/src/lib.rs:302-327`) without an explicit tenant/resource consistency check. `replay_dead_letter` is a storage/runtime method with no authenticated, audited operator boundary (`apps/worker/src/lib.rs:265-273`; `outbox.rs:380-401`). |
-| Tenant routing/provisioning | The infrastructure router validates opaque references, active state, holding match, and selects server-side write/read pools (`crates/infrastructure/src/provisioning.rs:132-184`). Provisioning creates/migrates both databases and records health (`:216-272`); activation is health-gated (`:813-858`); replacement-read state transitions exist (`:861-1001`). | The server composition creates only `SqlxTenantStoreRegistry` for object authorization (`apps/server/src/main.rs:2286-2295`); no `TenantDatabaseRouter` or `TenantDatabaseProvisioner` is composed into `AppState` or any typed tenant command/query. Backup/restore is still an injected executor seam and explicitly does not invoke real pg backup/restore (`provisioning.rs:537-541`). No server readiness probe aggregates tenant registry, physical write/read health, or projection switch state. |
-| `/readyz` | It checks control write/read `SELECT 1` (`repositories.rs:268-272`), identity readiness, and storage configuration (`main.rs:1828-1857`). | `registry` is passed to the HTTP listener but is not used in the readiness calculation. Commercial inbox/worker health, tenant physical databases, projection lag/checkpoints, and live MinIO connectivity are absent. Storage reports `live_connectivity: "not_probed"` and readiness checks configuration only (`storage.rs:249-274`). A configured-but-unreachable dependency can therefore coexist with HTTP 200 readiness. |
+| Worker executable | Startup selects only `customer_360` or `stripe_semantic` and initializes basic formatting (`apps/worker/src/main.rs:5-54`). Runtime connects and migrates only control write/read pools (`apps/worker/src/lib.rs:163-180`). | No worker heartbeat/readiness contract, worker lease health, holding-database routing, commercial inbox readiness, or correlation span for successful passes. `WorkerErrorContext` omits holding scope, actor, and causation even though the envelope contains them (`crates/infrastructure/src/worker.rs:23-44`; `outbox.rs:30-52`). |
+| Outbox/projector | Retry/DLQ tracing now includes sanitized context (`crates/infrastructure/src/worker.rs:191-253`); projection claim/checkpoint ordering remains present (`:331-405`). | Durable `last_error` receives unsanitized handler text (`outbox.rs:348-420`). Projection/rebuild converts errors back to `error.to_string()` (`worker.rs:337-402`), and customer projection trusts event payload/scope while writing bindings (`apps/worker/src/lib.rs:302-327`) without an explicit holding/resource consistency check. `replay_dead_letter` is a storage/runtime method with no authenticated, audited operator boundary (`apps/worker/src/lib.rs:265-273`; `outbox.rs:380-401`). |
+| Holding routing/provisioning | The infrastructure router validates opaque references, active state, holding match, and selects server-side write/read pools (`crates/infrastructure/src/provisioning.rs:132-184`). Provisioning creates/migrates both databases and records health (`:216-272`); activation is health-gated (`:813-858`); replacement-read state transitions exist (`:861-1001`). | The server composition creates only `SqlxHoldingStoreRegistry` for object authorization (`apps/server/src/main.rs:2286-2295`); no `HoldingDatabaseRouter` or `HoldingDatabaseProvisioner` is composed into `AppState` or any typed holding command/query. Backup/restore is still an injected executor seam and explicitly does not invoke real pg backup/restore (`provisioning.rs:537-541`). No server readiness probe aggregates holding registry, physical write/read health, or projection switch state. |
+| `/readyz` | It checks control write/read `SELECT 1` (`repositories.rs:268-272`), identity readiness, and storage configuration (`main.rs:1828-1857`). | `registry` is passed to the HTTP listener but is not used in the readiness calculation. Commercial inbox/worker health, holding physical databases, projection lag/checkpoints, and live MinIO connectivity are absent. Storage reports `live_connectivity: "not_probed"` and readiness checks configuration only (`storage.rs:249-274`). A configured-but-unreachable dependency can therefore coexist with HTTP 200 readiness. |
 | Commercial/Stripe | Raw bodies are persisted and duplicate event IDs are idempotent (`commercial.rs:1337-1369`); claims intentionally exclude raw body (`:1371-1440`). Provider adapter errors have deterministic redaction tests (`commercial.rs:1982+`). | `StripeInboxEvent` stores event/type/time/payload/raw body only (`commercial.rs:16-23`); the HTTP digest is computed and discarded (`main.rs:1753`), and no correlation ID, signature metadata, provider delivery metadata, or audit record is retained (`main.rs:2260-2290`). `last_error` is only truncated to 4096 characters (`commercial.rs:1759-1761`). Semantic persistence classification still stores `PersistenceError::to_string()` (`:1736-1750`), and dead-letter replay is a direct store method (`:1585-1607`) without an authenticated/audited platform command boundary. |
 
 ## Verification evidence
@@ -76,16 +76,16 @@ database test was enabled and no runtime/database mutation was performed.
 ## Dependency-ready next packets
 
 1. **G1-004-WORKER-DURABLE-CONTEXT (AG-FND):** make sanitized structured
-   context the durable outbox/Stripe failure contract; carry tenant scope,
-   causation, actor, and correlation; add tenant-mismatch, replay authorization,
+   context the durable outbox/Stripe failure contract; carry holding scope,
+   causation, actor, and correlation; add holding-mismatch, replay authorization,
    and no-secret persistence tests. Depends on the existing envelope and worker
    context primitives.
 2. **G1-004-READINESS-COMPOSITION (AG-FND + AG-PRV):** define server/worker
-   readiness providers for worker heartbeat, commercial inbox, tenant registry
+   readiness providers for worker heartbeat, commercial inbox, holding registry
    and physical write/read probes, projection freshness, and live MinIO; wire
    them into `/readyz`; test each dependency failing independently.
 3. **G6-OBJECT-AUTHORITY-BOUNDARY (main + AG-PRV):** bind object access to the
-   opaque tenant registry, customer/branch resource scope, billing/entitlement,
+   opaque holding registry, customer/branch resource scope, billing/entitlement,
    SoD, and support capability where applicable; add handler tests and fix the
    clippy failure. Keep this separate from worker/readiness changes.
 4. **G5-WEBHOOK-AUDIT-RETENTION (AG-BIL):** retain correlation, raw-body
@@ -105,10 +105,10 @@ database test was enabled and no runtime/database mutation was performed.
   and scope direction, not the full `RenewRole` commercial-policy matrix or
   object HTTP handler.
 - Passing infrastructure provisioning tests use injected executors; they do not
-  prove real physical tenant creation, restore, or server routing.
+  prove real physical holding creation, restore, or server routing.
 - Provider-error redaction tests do not cover raw `PersistenceError` strings
   written by worker and Stripe semantic paths.
-- `/readyz` can report ready while worker, commercial processing, tenant
+- `/readyz` can report ready while worker, commercial processing, holding
   databases, projection state, or MinIO is unavailable.
 - `ErrorContext` metadata presence does not prove complete wire compatibility or
   safe dynamic messages.

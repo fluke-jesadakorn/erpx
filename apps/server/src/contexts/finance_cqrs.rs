@@ -19,10 +19,10 @@ use erpx_finance::{
     },
 };
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
-    QueryId, SessionId, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+    ErrorCategory, EventId, QueryId, SessionId,
 };
-use erpx_proto::{common, erpx::finance::v2 as platform};
+use erpx_proto::{common, erpx::finance as platform};
 use platform::finance_command_service_server::FinanceCommandService;
 use platform::finance_query_service_server::FinanceQueryService;
 use std::sync::Arc;
@@ -31,9 +31,9 @@ use uuid::Uuid;
 const MAX_ROUTE_LENGTH: usize = 255;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FinanceTenantRoute {
-    pub tenant_id: String,
-    pub holding_ref: String,
+pub struct FinanceHoldingRoute {
+    pub holding_id: String,
+    pub data_profile_key: String,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FinanceAccessMode {
@@ -43,8 +43,8 @@ pub enum FinanceAccessMode {
 pub struct FinanceAuthenticationRequest {
     transport_metadata: MetadataMap,
     presented_actor: ActorAttribution,
-    presented_scope: TenantScope,
-    presented_route: FinanceTenantRoute,
+    presented_scope: AuthorityScope,
+    presented_route: FinanceHoldingRoute,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
     access_mode: FinanceAccessMode,
@@ -56,10 +56,10 @@ impl FinanceAuthenticationRequest {
     pub const fn presented_actor(&self) -> &ActorAttribution {
         &self.presented_actor
     }
-    pub const fn presented_scope(&self) -> &TenantScope {
+    pub const fn presented_scope(&self) -> &AuthorityScope {
         &self.presented_scope
     }
-    pub const fn presented_route(&self) -> &FinanceTenantRoute {
+    pub const fn presented_route(&self) -> &FinanceHoldingRoute {
         &self.presented_route
     }
     pub fn subscription_id(&self) -> Option<&str> {
@@ -75,14 +75,14 @@ impl FinanceAuthenticationRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthenticatedFinanceRequest {
     actor: ActorAttribution,
-    scope: TenantScope,
-    route: FinanceTenantRoute,
+    scope: AuthorityScope,
+    route: FinanceHoldingRoute,
 }
 impl AuthenticatedFinanceRequest {
     pub fn try_new(
         actor: ActorAttribution,
-        scope: TenantScope,
-        route: FinanceTenantRoute,
+        scope: AuthorityScope,
+        route: FinanceHoldingRoute,
     ) -> Result<Self, FinanceAuthenticationError> {
         actor
             .validate()
@@ -101,10 +101,10 @@ impl AuthenticatedFinanceRequest {
     pub const fn actor(&self) -> &ActorAttribution {
         &self.actor
     }
-    pub const fn tenant_scope(&self) -> &TenantScope {
+    pub const fn active_scope(&self) -> &AuthorityScope {
         &self.scope
     }
-    pub const fn route(&self) -> &FinanceTenantRoute {
+    pub const fn route(&self) -> &FinanceHoldingRoute {
         &self.route
     }
 }
@@ -126,7 +126,7 @@ pub trait FinanceRequestAuthenticator: Send + Sync + 'static {
 pub trait FinanceCommandApplication: Send + Sync + 'static {
     async fn execute(
         &self,
-        route: FinanceTenantRoute,
+        route: FinanceHoldingRoute,
         command: CommandEnvelope<FinanceCommand>,
     ) -> Result<CommandReceipt<FinanceMutationResult>, CqrsError>;
 }
@@ -134,7 +134,7 @@ pub trait FinanceCommandApplication: Send + Sync + 'static {
 pub trait FinanceQueryApplication: Send + Sync + 'static {
     async fn execute(
         &self,
-        route: FinanceTenantRoute,
+        route: FinanceHoldingRoute,
         query: QueryEnvelope<FinanceQuery>,
     ) -> Result<QueryResult<FinanceQueryResponse>, CqrsError>;
 }
@@ -762,25 +762,25 @@ impl<A: FinanceQueryApplication, G: FinanceRequestAuthenticator> FinanceQueryRpc
 }
 
 struct DecodedCommand<C> {
-    route: FinanceTenantRoute,
+    route: FinanceHoldingRoute,
     envelope: CommandEnvelope<C>,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
 }
 struct DecodedQuery<Q> {
-    route: FinanceTenantRoute,
+    route: FinanceHoldingRoute,
     envelope: QueryEnvelope<Q>,
 }
 async fn authenticate_command<C, G: FinanceRequestAuthenticator>(
     auth: &G,
     t: MetadataMap,
     d: DecodedCommand<C>,
-) -> Result<(FinanceTenantRoute, CommandEnvelope<C>), Status> {
+) -> Result<(FinanceHoldingRoute, CommandEnvelope<C>), Status> {
     let a = auth
         .authenticate(FinanceAuthenticationRequest {
             transport_metadata: t,
             presented_actor: d.envelope.actor.clone(),
-            presented_scope: d.envelope.tenant_scope.clone(),
+            presented_scope: d.envelope.active_scope.clone(),
             presented_route: d.route,
             subscription_id: d.subscription_id,
             mfa_code: d.mfa_code,
@@ -790,19 +790,19 @@ async fn authenticate_command<C, G: FinanceRequestAuthenticator>(
         .map_err(status_from_auth)?;
     let mut e = d.envelope;
     e.actor = a.actor().clone();
-    e.tenant_scope = a.tenant_scope().clone();
+    e.active_scope = a.active_scope().clone();
     Ok((a.route().clone(), e))
 }
 async fn authenticate_query<Q, G: FinanceRequestAuthenticator>(
     auth: &G,
     t: MetadataMap,
     d: DecodedQuery<Q>,
-) -> Result<(FinanceTenantRoute, QueryEnvelope<Q>), Status> {
+) -> Result<(FinanceHoldingRoute, QueryEnvelope<Q>), Status> {
     let a = auth
         .authenticate(FinanceAuthenticationRequest {
             transport_metadata: t,
             presented_actor: d.envelope.actor.clone(),
-            presented_scope: d.envelope.tenant_scope.clone(),
+            presented_scope: d.envelope.active_scope.clone(),
             presented_route: d.route,
             subscription_id: None,
             mfa_code: None,
@@ -812,7 +812,7 @@ async fn authenticate_query<Q, G: FinanceRequestAuthenticator>(
         .map_err(status_from_auth)?;
     let mut e = d.envelope;
     e.actor = a.actor().clone();
-    e.tenant_scope = a.tenant_scope().clone();
+    e.active_scope = a.active_scope().clone();
     Ok((a.route().clone(), e))
 }
 
@@ -821,12 +821,12 @@ async fn authenticate_query_with_mfa<Q, G: FinanceRequestAuthenticator>(
     t: MetadataMap,
     d: DecodedQuery<Q>,
     mfa_code: Option<String>,
-) -> Result<(FinanceTenantRoute, QueryEnvelope<Q>), Status> {
+) -> Result<(FinanceHoldingRoute, QueryEnvelope<Q>), Status> {
     let a = auth
         .authenticate(FinanceAuthenticationRequest {
             transport_metadata: t,
             presented_actor: d.envelope.actor.clone(),
-            presented_scope: d.envelope.tenant_scope.clone(),
+            presented_scope: d.envelope.active_scope.clone(),
             presented_route: d.route,
             subscription_id: None,
             mfa_code,
@@ -836,7 +836,7 @@ async fn authenticate_query_with_mfa<Q, G: FinanceRequestAuthenticator>(
         .map_err(status_from_auth)?;
     let mut e = d.envelope;
     e.actor = a.actor().clone();
-    e.tenant_scope = a.tenant_scope().clone();
+    e.active_scope = a.active_scope().clone();
     Ok((a.route().clone(), e))
 }
 fn decode_command<C>(
@@ -844,7 +844,7 @@ fn decode_command<C>(
     command: C,
 ) -> Result<DecodedCommand<C>, Status> {
     let m = m.ok_or_else(|| invalid("command metadata is required"))?;
-    let route = decode_route(m.tenant_route)?;
+    let route = decode_route(m.holding_route)?;
     let envelope = CommandEnvelope {
         contract_version: u16::try_from(m.contract_version)
             .map_err(|_| invalid("contract version is invalid"))?,
@@ -855,9 +855,9 @@ fn decode_command<C>(
         correlation_id: correlation(&m.correlation_id)?,
         causation_id: m.causation_id.as_deref().map(event_id).transpose()?,
         actor: decode_actor(m.actor)?,
-        tenant_scope: decode_scope(
-            m.tenant_scope
-                .ok_or_else(|| invalid("tenant_scope is required"))?,
+        active_scope: decode_scope(
+            m.active_scope
+                .ok_or_else(|| invalid("active_scope is required"))?,
         )?,
         audit: decode_audit(m.audit)?,
         expected_aggregate_version: m.expected_aggregate_version,
@@ -878,7 +878,7 @@ fn decode_query<Q>(
     query: Q,
 ) -> Result<DecodedQuery<Q>, Status> {
     let m = m.ok_or_else(|| invalid("query metadata is required"))?;
-    let route = decode_route(m.tenant_route)?;
+    let route = decode_route(m.holding_route)?;
     let envelope = QueryEnvelope {
         contract_version: u16::try_from(m.contract_version)
             .map_err(|_| invalid("contract version is invalid"))?,
@@ -886,9 +886,9 @@ fn decode_query<Q>(
             .map_err(|_| invalid("query_id is invalid"))?,
         correlation_id: correlation(&m.correlation_id)?,
         actor: decode_actor(m.actor)?,
-        tenant_scope: decode_scope(
-            m.tenant_scope
-                .ok_or_else(|| invalid("tenant_scope is required"))?,
+        active_scope: decode_scope(
+            m.active_scope
+                .ok_or_else(|| invalid("active_scope is required"))?,
         )?,
         audit: decode_audit(m.audit)?,
         consistency: decode_consistency(m.consistency)?,
@@ -1223,44 +1223,44 @@ fn encode_consistency(v: &QueryConsistency) -> common::QueryConsistency {
         }),
     }
 }
-fn decode_route(v: Option<common::TenantRoute>) -> Result<FinanceTenantRoute, Status> {
-    let v = v.ok_or_else(|| invalid("tenant route is required"))?;
-    let r = FinanceTenantRoute {
-        tenant_id: v.tenant_id.trim().into(),
-        holding_ref: v.holding_ref.trim().into(),
+fn decode_route(v: Option<common::HoldingRoute>) -> Result<FinanceHoldingRoute, Status> {
+    let v = v.ok_or_else(|| invalid("holding route is required"))?;
+    let r = FinanceHoldingRoute {
+        holding_id: v.holding_id.trim().into(),
+        data_profile_key: v.data_profile_key.trim().into(),
     };
     validate_route(&r)?;
     Ok(r)
 }
-fn validate_route(v: &FinanceTenantRoute) -> Result<(), Status> {
-    if [&v.tenant_id, &v.holding_ref]
+fn validate_route(v: &FinanceHoldingRoute) -> Result<(), Status> {
+    if [&v.holding_id, &v.data_profile_key]
         .iter()
         .any(|x| x.is_empty() || x.len() > MAX_ROUTE_LENGTH)
     {
-        Err(invalid("tenant route is invalid"))
+        Err(invalid("holding route is invalid"))
     } else {
         Ok(())
     }
 }
-fn validate_route_scope(r: &FinanceTenantRoute, s: &TenantScope) -> Result<(), Status> {
+fn validate_route_scope(r: &FinanceHoldingRoute, s: &AuthorityScope) -> Result<(), Status> {
     let h = match s {
-        TenantScope::Platform => return Ok(()),
-        TenantScope::Holding { holding_id }
-        | TenantScope::Company { holding_id, .. }
-        | TenantScope::Branch { holding_id, .. }
-        | TenantScope::Subtree { holding_id, .. } => holding_id,
+        AuthorityScope::Platform => return Ok(()),
+        AuthorityScope::Holding { holding_id }
+        | AuthorityScope::Company { holding_id, .. }
+        | AuthorityScope::Branch { holding_id, .. }
+        | AuthorityScope::Subtree { holding_id, .. } => holding_id,
     };
-    if parse_uuid(&r.holding_ref, "holding_ref")? == *h {
+    if parse_uuid(&r.data_profile_key, "data_profile_key")? == *h {
         Ok(())
     } else {
-        Err(invalid("tenant route does not match Finance scope"))
+        Err(invalid("holding route does not match Finance scope"))
     }
 }
 fn decode_actor(v: Option<common::ActorAttribution>) -> Result<ActorAttribution, Status> {
     let v = v.ok_or_else(|| invalid("actor is required"))?;
     let kind = match common::ActorKind::try_from(v.kind).ok() {
         Some(common::ActorKind::PlatformUser) => ActorKind::PlatformUser,
-        Some(common::ActorKind::TenantUser) => ActorKind::TenantUser,
+        Some(common::ActorKind::HoldingUser) => ActorKind::HoldingUser,
         Some(common::ActorKind::Service) => ActorKind::Service,
         Some(common::ActorKind::SystemWorker) => ActorKind::SystemWorker,
         _ => return Err(invalid("actor kind is invalid")),
@@ -1284,53 +1284,44 @@ fn decode_audit(v: Option<common::AuditContext>) -> Result<AuditContext, Status>
         module: nonempty(v.module),
     })
 }
-fn decode_scope(v: common::TenantScope) -> Result<TenantScope, Status> {
-    use common::tenant_scope::Scope;
+fn decode_scope(v: common::AuthorityScope) -> Result<AuthorityScope, Status> {
+    use common::authority_scope::Scope;
     match v.scope.ok_or_else(|| invalid("scope is required"))? {
-        Scope::Platform(_) => Ok(TenantScope::Platform),
-        Scope::Holding(x) => Ok(TenantScope::Holding {
+        Scope::Platform(_) => Ok(AuthorityScope::Platform),
+        Scope::Holding(x) => Ok(AuthorityScope::Holding {
             holding_id: parse_uuid(&x.holding_id, "holding_id")?,
         }),
-        Scope::Company(x) => Ok(TenantScope::Company {
+        Scope::Company(x) => Ok(AuthorityScope::Company {
             holding_id: parse_uuid(&x.holding_id, "holding_id")?,
             company_id: parse_uuid(&x.company_id, "company_id")?,
         }),
-        Scope::Branch(x) => Ok(TenantScope::Branch {
+        Scope::Branch(x) => Ok(AuthorityScope::Branch {
             holding_id: parse_uuid(&x.holding_id, "holding_id")?,
             company_id: parse_uuid(&x.company_id, "company_id")?,
             branch_id: parse_uuid(&x.branch_id, "branch_id")?,
         }),
-        Scope::Subtree(x) => Ok(TenantScope::Subtree {
+        Scope::Subtree(x) => Ok(AuthorityScope::Subtree {
             holding_id: parse_uuid(&x.holding_id, "holding_id")?,
-            company_ids: x
-                .company_ids
-                .iter()
-                .map(|v| parse_uuid(v, "company_id"))
-                .collect::<Result<_, _>>()?,
-            branch_ids: x
-                .branch_ids
-                .iter()
-                .map(|v| parse_uuid(v, "branch_id"))
-                .collect::<Result<_, _>>()?,
+            organization_node_id: parse_uuid(&x.organization_node_id, "organization_node_id")?,
         }),
     }
 }
-fn encode_scope(v: &TenantScope) -> common::TenantScope {
-    use common::tenant_scope::Scope;
-    common::TenantScope {
+fn encode_scope(v: &AuthorityScope) -> common::AuthorityScope {
+    use common::authority_scope::Scope;
+    common::AuthorityScope {
         scope: Some(match v {
-            TenantScope::Platform => Scope::Platform(common::PlatformScope {}),
-            TenantScope::Holding { holding_id } => Scope::Holding(common::HoldingScope {
+            AuthorityScope::Platform => Scope::Platform(common::PlatformScope {}),
+            AuthorityScope::Holding { holding_id } => Scope::Holding(common::HoldingScope {
                 holding_id: holding_id.to_string(),
             }),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => Scope::Company(common::CompanyScope {
                 holding_id: holding_id.to_string(),
                 company_id: company_id.to_string(),
             }),
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -1339,14 +1330,12 @@ fn encode_scope(v: &TenantScope) -> common::TenantScope {
                 company_id: company_id.to_string(),
                 branch_id: branch_id.to_string(),
             }),
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Scope::Subtree(common::SubtreeScope {
                 holding_id: holding_id.to_string(),
-                company_ids: company_ids.iter().map(ToString::to_string).collect(),
-                branch_ids: branch_ids.iter().map(ToString::to_string).collect(),
+                organization_node_id: organization_node_id.to_string(),
             }),
         }),
     }
@@ -1415,7 +1404,7 @@ mod tests {
     fn actor() -> ActorAttribution {
         ActorAttribution {
             principal_ref: "finance-route-test".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
@@ -1424,7 +1413,7 @@ mod tests {
     #[test]
     fn route_holding_must_match_scope() {
         let h = Uuid::from_u128(1);
-        let s = TenantScope::Company {
+        let s = AuthorityScope::Company {
             holding_id: h,
             company_id: Uuid::from_u128(2),
         };
@@ -1432,9 +1421,9 @@ mod tests {
             AuthenticatedFinanceRequest::try_new(
                 actor(),
                 s.clone(),
-                FinanceTenantRoute {
-                    tenant_id: "tenant".into(),
-                    holding_ref: h.to_string()
+                FinanceHoldingRoute {
+                    holding_id: "holding".into(),
+                    data_profile_key: h.to_string()
                 }
             )
             .is_ok()
@@ -1443,9 +1432,9 @@ mod tests {
             AuthenticatedFinanceRequest::try_new(
                 actor(),
                 s,
-                FinanceTenantRoute {
-                    tenant_id: "tenant".into(),
-                    holding_ref: Uuid::from_u128(9).to_string()
+                FinanceHoldingRoute {
+                    holding_id: "holding".into(),
+                    data_profile_key: Uuid::from_u128(9).to_string()
                 }
             )
             .is_err()

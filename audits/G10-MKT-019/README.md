@@ -9,7 +9,7 @@ attribution inputs.
 ## Packet contract
 
 - **Owner:** AG-MKT; main agent independently integrated the domain export.
-- **Dependencies:** G0 tenant scope/idempotency contracts and existing
+- **Dependencies:** G0 holding scope/idempotency contracts and existing
   Marketing/Sales domain conventions.
 - **Allowed path:** `crates/domain/src/marketing_crm.rs`; main integration also
   exports `marketing_crm` from `crates/domain/src/lib.rs`.
@@ -30,7 +30,7 @@ attribution inputs.
 - First-touch, last-touch, linear, U-shaped, and weighted attribution use
   canonical touch order, exact integer revenue totals, bounded inputs, and
   deterministic remainder allocation.
-- Negative revenue/cost, invalid weights, duplicate touches, cross-tenant
+- Negative revenue/cost, invalid weights, duplicate touches, cross-holding
   references, and conflicting idempotency/reference bindings are rejected.
 
 ## Verification

@@ -1,14 +1,14 @@
 use std::collections::BTreeSet;
 
 use chrono::{DateTime, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
 pub const MAX_DISPLAY_NAME_BYTES: usize = 96;
 pub const MAX_SHORT_NAME_BYTES: usize = 24;
-pub const MAX_TENANT_REFERENCE_BYTES: usize = 128;
+pub const MAX_DATA_PROFILE_REFERENCE_BYTES: usize = 128;
 pub const MAX_ACTOR_REFERENCE_BYTES: usize = 255;
 pub const MAX_OBJECT_KEY_BYTES: usize = 512;
 pub const MAX_BRAND_ASSET_BYTES: u64 = 5 * 1024 * 1024;
@@ -88,11 +88,9 @@ impl BusinessUnitKey {
 pub enum BrandScope {
     Platform,
     Holding {
-        tenant_id: String,
         holding_id: Uuid,
     },
     BusinessUnit {
-        tenant_id: String,
         holding_id: Uuid,
         business_unit: BusinessUnitKey,
     },
@@ -102,16 +100,7 @@ impl BrandScope {
     pub fn validate(&self) -> Result<(), BrandDomainError> {
         match self {
             Self::Platform => Ok(()),
-            Self::Holding {
-                tenant_id,
-                holding_id,
-            }
-            | Self::BusinessUnit {
-                tenant_id,
-                holding_id,
-                ..
-            } => {
-                validate_reference(tenant_id, MAX_TENANT_REFERENCE_BYTES, "tenant_id")?;
+            Self::Holding { holding_id } | Self::BusinessUnit { holding_id, .. } => {
                 if holding_id.is_nil() {
                     return Err(BrandDomainError::NilIdentifier {
                         field: "holding_id",
@@ -122,12 +111,12 @@ impl BrandScope {
         }
     }
 
-    pub fn authority_scope(&self) -> Result<TenantScope, BrandDomainError> {
+    pub fn authority_scope(&self) -> Result<AuthorityScope, BrandDomainError> {
         self.validate()?;
         match self {
-            Self::Platform => Ok(TenantScope::Platform),
+            Self::Platform => Ok(AuthorityScope::Platform),
             Self::Holding { holding_id, .. } | Self::BusinessUnit { holding_id, .. } => {
-                Ok(TenantScope::Holding {
+                Ok(AuthorityScope::Holding {
                     holding_id: *holding_id,
                 })
             }
@@ -143,15 +132,6 @@ impl BrandScope {
         }
     }
 
-    pub fn tenant_id(&self) -> Option<&str> {
-        match self {
-            Self::Platform => None,
-            Self::Holding { tenant_id, .. } | Self::BusinessUnit { tenant_id, .. } => {
-                Some(tenant_id)
-            }
-        }
-    }
-
     pub const fn business_unit(&self) -> Option<BusinessUnitKey> {
         match self {
             Self::BusinessUnit { business_unit, .. } => Some(*business_unit),
@@ -162,18 +142,11 @@ impl BrandScope {
     pub fn canonical_key(&self) -> String {
         match self {
             Self::Platform => "platform".into(),
-            Self::Holding {
-                tenant_id,
-                holding_id,
-            } => format!("holding:{tenant_id}:{holding_id}"),
+            Self::Holding { holding_id } => format!("holding:{holding_id}"),
             Self::BusinessUnit {
-                tenant_id,
                 holding_id,
                 business_unit,
-            } => format!(
-                "business-unit:{tenant_id}:{holding_id}:{}",
-                business_unit.as_str()
-            ),
+            } => format!("business-unit:{holding_id}:{}", business_unit.as_str()),
         }
     }
 
@@ -182,15 +155,10 @@ impl BrandScope {
             (Self::Platform, Self::Holding { .. }) => true,
             (
                 Self::Holding {
-                    tenant_id: parent_tenant,
                     holding_id: parent_holding,
                 },
-                Self::BusinessUnit {
-                    tenant_id,
-                    holding_id,
-                    ..
-                },
-            ) => parent_tenant == tenant_id && parent_holding == holding_id,
+                Self::BusinessUnit { holding_id, .. },
+            ) => parent_holding == holding_id,
             _ => false,
         }
     }

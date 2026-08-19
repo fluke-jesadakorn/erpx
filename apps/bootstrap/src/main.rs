@@ -5,18 +5,19 @@ use std::{
 use chrono::{Duration, Utc};
 use erpx_application::{RoleLifecycleService, SystemClock};
 use erpx_domain::{
-    access::{RiskTier, RoleAssignment, Scope},
+    access::{RiskTier, RoleAssignment},
+    contracts::AuthorityScope as Scope,
     data_plane::BusinessUnitId,
-    tenant_administration::CustomerTenantBinding,
+    holding_administration::HoldingRegistryBinding,
 };
 use erpx_identity::{SqlxIdentityStore, apply_identity_migration};
 use erpx_infrastructure::{
-    ControlPlanePools, DatabaseProfileRegistration, FRESH_INITIAL_TENANT_PROJECTIONS,
-    MinioObjectStoreConfig, ProjectionJobKind, ProjectionPolicy, ProjectionScheduleRequest,
-    ProjectionSchedulerAuthorization, SqlxBranchProvisioningStore, SqlxControlPlane,
-    SqlxTenantAdministrationStore, SqlxTenantStoreRegistry, TenantDatabaseHealth,
-    TenantHoldingBinding, TenantProjectionSchedulerRepository, TenantProvisioner,
-    TenantStorageHealth, initialize_tenant_organization_in_pools,
+    ControlPlanePools, DatabaseProfileRegistration, FRESH_INITIAL_HOLDING_PROJECTIONS,
+    HoldingDatabaseHealth, HoldingHoldingBinding, HoldingProjectionSchedulerRepository,
+    HoldingProvisioner, HoldingStorageHealth, MinioObjectStoreConfig, ProjectionJobKind,
+    ProjectionPolicy, ProjectionScheduleRequest, ProjectionSchedulerAuthorization,
+    SqlxBranchProvisioningStore, SqlxControlPlane, SqlxHoldingAdministrationStore,
+    SqlxHoldingStoreRegistry, initialize_holding_organization_in_pools,
 };
 use serde::Serialize;
 use sqlx::{
@@ -48,7 +49,7 @@ USAGE:\n  erpx-bootstrap <check|bootstrap|status>\n\n\
 The command reads ERPX_SETUP_PREFIX, ERPX_DATABASE_PROFILE_DEFAULT_URL,\n\
 ERPX_DATABASE_PROFILE_DEFAULT_USERNAME, ERPX_DATABASE_PROFILE_DEFAULT_PASSWORD,\n\
 ERPX_SETUP_DATABASE_ADMIN_USERNAME, ERPX_SETUP_DATABASE_ADMIN_PASSWORD,\n\
-ERPX_SETUP_TENANT_NAME, ERPX_SETUP_HOLDING_NAME, ERPX_SETUP_ROOT_PRINCIPAL, and\n\
+ERPX_SETUP_HOLDING_NAME, ERPX_SETUP_HOLDING_NAME, ERPX_SETUP_ROOT_PRINCIPAL, and\n\
 ERPX_SETUP_HOLDING_OWNER_PRINCIPAL from the environment. Fresh object storage\n\
 also requires ERPX_SETUP_MINIO_ENDPOINT, credentials, ERPX_SETUP_WORKSPACE_ROOT,\n\
 and the ERPX_SETUP_RETAINED_* rollback inventory. Database URLs must not contain\n\
@@ -72,12 +73,12 @@ const ROOT_PERMISSIONS: &[&str] = &[
     "platform.directory.read",
     "platform.outbox.replay",
     "platform.projection.rebuild",
-    "platform.tenant.backup",
-    "platform.tenant.provision",
-    "platform.tenant.read",
-    "platform.tenant.recovery",
-    "platform.tenant.suspend",
-    "tenant.projection.execute",
+    "platform.holding.backup",
+    "platform.holding.provision",
+    "platform.holding.read",
+    "platform.holding.recovery",
+    "platform.holding.suspend",
+    "holding.projection.execute",
 ];
 
 const OWNER_PERMISSIONS: &[&str] = &[
@@ -94,13 +95,13 @@ const OWNER_PERMISSIONS: &[&str] = &[
     "role.assignment.recover",
     "role.assignment.renew",
     "role.assignment.review",
-    "tenant.directory.activate",
-    "tenant.directory.manage",
-    "tenant.directory.read",
-    "tenant.infrastructure.apply",
-    "tenant.infrastructure.approve",
-    "tenant.infrastructure.propose",
-    "tenant.infrastructure.read",
+    "holding.directory.activate",
+    "holding.directory.manage",
+    "holding.directory.read",
+    "holding.infrastructure.apply",
+    "holding.infrastructure.approve",
+    "holding.infrastructure.propose",
+    "holding.infrastructure.read",
 ];
 
 #[derive(Debug)]
@@ -123,18 +124,17 @@ struct SetupConfig {
     admin_options: PgConnectOptions,
     runtime_options: PgConnectOptions,
     runtime_database_owner: String,
-    tenant_name: String,
     holding_name: String,
     root_principal: String,
     owner_principal: String,
-    tenant_id: String,
-    holding_ref: String,
+    holding_key: String,
+    data_profile_key: String,
     holding_id: Uuid,
     customer_id: Uuid,
     control_write: String,
     control_read: String,
-    tenant_write: String,
-    tenant_read: String,
+    holding_write: String,
+    holding_read: String,
 }
 
 impl std::fmt::Debug for SetupConfig {
@@ -142,8 +142,8 @@ impl std::fmt::Debug for SetupConfig {
         formatter
             .debug_struct("SetupConfig")
             .field("prefix", &self.prefix)
-            .field("tenant_id", &self.tenant_id)
-            .field("holding_ref", &self.holding_ref)
+            .field("holding_id", &self.holding_id)
+            .field("data_profile_key", &self.data_profile_key)
             .finish_non_exhaustive()
     }
 }
@@ -151,11 +151,11 @@ impl std::fmt::Debug for SetupConfig {
 #[derive(Serialize)]
 struct CheckReport<'a> {
     valid: bool,
-    schema_generation: i16,
+    schema_revision: i16,
     prefix: &'a str,
     installation_generation: Uuid,
-    tenant_id: &'a str,
-    holding_ref: &'a str,
+    holding_id: &'a str,
+    data_profile_key: &'a str,
     tls: &'static str,
     database_create_allowed: bool,
     runtime_database_role_ready: bool,
@@ -170,12 +170,12 @@ struct CheckReport<'a> {
 #[derive(Serialize)]
 struct BootstrapCompleteReport<'a> {
     state: &'static str,
-    schema_generation: i16,
+    schema_revision: i16,
     service_catalog_generation: u16,
     service_id_range: &'static str,
     installation_generation: Uuid,
-    tenant_id: &'a str,
-    holding_ref: &'a str,
+    holding_id: &'a str,
+    data_profile_key: &'a str,
     resources: &'a FreshResourcePlan,
     object_namespace: &'a NamespaceVerificationReceipt,
     rollback: &'a RollbackMetadata,
@@ -200,8 +200,8 @@ struct StatusReport {
     installed: bool,
     state: String,
     prefix: String,
-    tenant_id: Option<String>,
-    holding_ref: Option<String>,
+    holding_id: Option<String>,
+    data_profile_key: Option<String>,
     completed_steps: Vec<String>,
     failure_category: Option<String>,
     bootstrap_version: Option<u64>,
@@ -287,11 +287,11 @@ async fn check() -> Result<()> {
         && object_namespace_fresh;
     emit(&CheckReport {
         valid,
-        schema_generation: erpx_migration::SCHEMA_GENERATION,
+        schema_revision: erpx_migration::SCHEMA_REVISION,
         prefix: &config.prefix,
         installation_generation: config.resources.installation_generation,
-        tenant_id: &config.tenant_id,
-        holding_ref: &config.holding_ref,
+        holding_id: &config.holding_key,
+        data_profile_key: &config.data_profile_key,
         tls: if is_local_host(config.admin_options.get_host()) {
             "loopback"
         } else {
@@ -387,8 +387,8 @@ async fn bootstrap() -> Result<()> {
 
     let control_write = connect_database(&config, &config.control_write).await?;
     let control_read = connect_database(&config, &config.control_read).await?;
-    let tenant_write = connect_database(&config, &config.tenant_write).await?;
-    let tenant_read = connect_database(&config, &config.tenant_read).await?;
+    let holding_write = connect_database(&config, &config.holding_write).await?;
+    let holding_read = connect_database(&config, &config.holding_read).await?;
     erpx_migration::migrate_control_plane(&control_write)
         .await
         .map_err(|_| BootstrapError("control write migration failed"))?;
@@ -398,13 +398,13 @@ async fn bootstrap() -> Result<()> {
     apply_identity_migration(&control_write)
         .await
         .map_err(|_| BootstrapError("identity migration failed"))?;
-    erpx_migration::migrate_tenant_write(&tenant_write)
+    erpx_migration::migrate_holding_write(&holding_write)
         .await
-        .map_err(|_| BootstrapError("tenant write migration failed"))?;
-    erpx_migration::migrate_tenant_read(&tenant_read)
+        .map_err(|_| BootstrapError("holding write migration failed"))?;
+    erpx_migration::migrate_holding_read(&holding_read)
         .await
-        .map_err(|_| BootstrapError("tenant read migration failed"))?;
-    verify_generation_v2_database_roles(&control_write, &control_read, &tenant_write, &tenant_read)
+        .map_err(|_| BootstrapError("holding read migration failed"))?;
+    verify_current_database_roles(&control_write, &control_read, &holding_write, &holding_read)
         .await?;
 
     progress.update_phase(BootstrapPhase::ObjectNamespaceCreation, Utc::now())?;
@@ -428,7 +428,7 @@ async fn bootstrap() -> Result<()> {
         write: control_write.clone(),
         read: control_read.clone(),
     }));
-    register_tenant_and_receipt(&config, &control_write).await?;
+    register_holding_and_receipt(&config, &control_write).await?;
     let profiles = SqlxBranchProvisioningStore::new(control.clone());
     profiles
         .register_profile(&DatabaseProfileRegistration {
@@ -443,7 +443,7 @@ async fn bootstrap() -> Result<()> {
         .await
         .map_err(|_| BootstrapError("default database profile registration failed"))?;
     profiles
-        .bind_profile(&config.tenant_id, "default", &config.root_principal)
+        .bind_profile(&config.holding_key, "default", &config.root_principal)
         .await
         .map_err(|_| BootstrapError("default database profile binding failed"))?;
     upsert_receipt(&config, &control_write, "profiles_registered").await?;
@@ -482,11 +482,11 @@ async fn bootstrap() -> Result<()> {
     )
     .await?;
     progress.update_phase(BootstrapPhase::OrganizationSeed, Utc::now())?;
-    initialize_tenant_organization_in_pools(
-        &tenant_write,
-        &tenant_read,
-        &config.tenant_id,
-        &config.holding_ref,
+    initialize_holding_organization_in_pools(
+        &holding_write,
+        &holding_read,
+        &config.holding_key,
+        &config.data_profile_key,
         config.holding_id,
         &config.owner_principal,
         Utc::now(),
@@ -495,9 +495,9 @@ async fn bootstrap() -> Result<()> {
     .map_err(|_| BootstrapError("holding organization initialization failed"))?;
     upsert_receipt(&config, &control_write, "organization_seeded").await?;
 
-    progress.update_phase(BootstrapPhase::TenantActivation, Utc::now())?;
+    progress.update_phase(BootstrapPhase::HoldingActivation, Utc::now())?;
 
-    activate_tenant(&config, control.clone(), &namespace_receipt).await?;
+    activate_holding(&config, control.clone(), &namespace_receipt).await?;
     schedule_initial_projection_jobs(&config, control.clone()).await?;
     upsert_receipt(&config, &control_write, "initial_projection_jobs_scheduled").await?;
 
@@ -514,7 +514,7 @@ async fn bootstrap() -> Result<()> {
         "UPDATE erpx_control.platform_bootstrap_receipts
          SET state='complete', completed_at=COALESCE(completed_at, now()),
              completed_steps=(SELECT ARRAY(SELECT DISTINCT value FROM unnest(
-                 completed_steps || ARRAY['tenant_activated']) AS value ORDER BY value)),
+                 completed_steps || ARRAY['holding_activated']) AS value ORDER BY value)),
              failure_category=NULL, updated_at=now()
          WHERE installation_prefix=$1",
     )
@@ -525,12 +525,12 @@ async fn bootstrap() -> Result<()> {
     progress.complete(Utc::now())?;
     emit(&BootstrapCompleteReport {
         state: "complete",
-        schema_generation: erpx_migration::SCHEMA_GENERATION,
+        schema_revision: erpx_migration::SCHEMA_REVISION,
         service_catalog_generation: 4,
         service_id_range: "IFC-SVC-201..265",
         installation_generation: config.resources.installation_generation,
-        tenant_id: &config.tenant_id,
-        holding_ref: &config.holding_ref,
+        holding_id: &config.holding_key,
+        data_profile_key: &config.data_profile_key,
         resources: &config.resources,
         object_namespace: &namespace_receipt,
         rollback: &rollback,
@@ -538,7 +538,7 @@ async fn bootstrap() -> Result<()> {
         seed_policy: [
             "platform_root",
             "holding_owner",
-            "tenant_holding_registry",
+            "holding_holding_registry",
             "canonical_business_units",
             "neutral_brand",
         ],
@@ -550,21 +550,21 @@ async fn bootstrap() -> Result<()> {
     Ok(())
 }
 
-async fn verify_generation_v2_database_roles(
+async fn verify_current_database_roles(
     control_write: &PgPool,
     control_read: &PgPool,
-    tenant_write: &PgPool,
-    tenant_read: &PgPool,
+    holding_write: &PgPool,
+    holding_read: &PgPool,
 ) -> Result<()> {
     for (pool, role) in [
         (control_write, erpx_migration::DatabaseRole::ControlWrite),
         (control_read, erpx_migration::DatabaseRole::ControlRead),
-        (tenant_write, erpx_migration::DatabaseRole::TenantWrite),
-        (tenant_read, erpx_migration::DatabaseRole::TenantRead),
+        (holding_write, erpx_migration::DatabaseRole::HoldingWrite),
+        (holding_read, erpx_migration::DatabaseRole::HoldingRead),
     ] {
         erpx_migration::verify_schema_manifest(pool, role)
             .await
-            .map_err(|_| BootstrapError("database schema generation verification failed"))?;
+            .map_err(|_| BootstrapError("database schema revision verification failed"))?;
     }
     Ok(())
 }
@@ -590,8 +590,8 @@ async fn status() -> Result<()> {
             installed: false,
             state: "not_started".into(),
             prefix: config.prefix,
-            tenant_id: None,
-            holding_ref: None,
+            holding_id: None,
+            data_profile_key: None,
             completed_steps: Vec::new(),
             failure_category: None,
             bootstrap_version: None,
@@ -618,8 +618,8 @@ async fn status() -> Result<()> {
             installed: false,
             state: "database_created".into(),
             prefix: config.prefix,
-            tenant_id: None,
-            holding_ref: None,
+            holding_id: None,
+            data_profile_key: None,
             completed_steps: vec!["control_database_created".into()],
             failure_category: None,
             bootstrap_version: None,
@@ -635,7 +635,7 @@ async fn status() -> Result<()> {
         });
     }
     let row = sqlx::query(
-        "SELECT tenant_id, holding_ref, state, completed_steps,
+        "SELECT holding_id, data_profile_key, state, completed_steps,
                 failure_category, bootstrap_version
          FROM erpx_control.platform_bootstrap_receipts
          WHERE installation_prefix=$1",
@@ -649,8 +649,8 @@ async fn status() -> Result<()> {
             installed: false,
             state: "migrated".into(),
             prefix: config.prefix,
-            tenant_id: None,
-            holding_ref: None,
+            holding_id: None,
+            data_profile_key: None,
             completed_steps: vec!["control_schema_migrated".into()],
             failure_category: None,
             bootstrap_version: None,
@@ -669,8 +669,8 @@ async fn status() -> Result<()> {
         installed: row.get::<String, _>("state") == "complete",
         state: row.get("state"),
         prefix: config.prefix,
-        tenant_id: Some(row.get("tenant_id")),
-        holding_ref: Some(row.get("holding_ref")),
+        holding_id: Some(row.get("holding_id")),
+        data_profile_key: Some(row.get("data_profile_key")),
         completed_steps: row.get("completed_steps"),
         failure_category: row.get("failure_category"),
         bootstrap_version: u64::try_from(row.get::<i64, _>("bootstrap_version")).ok(),
@@ -725,11 +725,9 @@ impl SetupConfig {
             runtime_options = runtime_options.ssl_mode(PgSslMode::VerifyFull);
             admin_options = admin_options.ssl_mode(PgSslMode::VerifyFull);
         }
-        let tenant_name = required("ERPX_SETUP_TENANT_NAME")?;
         let holding_name = required("ERPX_SETUP_HOLDING_NAME")?;
         let root_principal = required("ERPX_SETUP_ROOT_PRINCIPAL")?;
         let owner_principal = required("ERPX_SETUP_HOLDING_OWNER_PRINCIPAL")?;
-        validate_field(&tenant_name, 255, "tenant name is invalid")?;
         validate_field(&holding_name, 255, "holding name is invalid")?;
         validate_principal(&root_principal)?;
         validate_principal(&owner_principal)?;
@@ -738,27 +736,26 @@ impl SetupConfig {
                 "root and Holding Owner principals must differ",
             ));
         }
-        let resources = FreshResourcePlan::new(&prefix, &tenant_name, &holding_name);
-        let customer_id = stable_uuid("customer", &format!("{prefix}:{tenant_name}"));
-        let tenant_id = resources.tenant_id.to_string();
-        let holding_ref = resources.holding_ref.to_string();
+        let resources = FreshResourcePlan::new(&prefix, &holding_name);
+        let customer_id = stable_uuid("customer", &format!("{prefix}:{holding_name}"));
+        let holding_key = resources.holding_id.to_string();
+        let data_profile_key = resources.data_profile_key.to_string();
         let holding_id = resources.holding_id;
         Ok(Self {
             control_write: resources.databases[0].name.clone(),
             control_read: resources.databases[1].name.clone(),
-            tenant_write: resources.databases[2].name.clone(),
-            tenant_read: resources.databases[3].name.clone(),
+            holding_write: resources.databases[2].name.clone(),
+            holding_read: resources.databases[3].name.clone(),
             resources,
             prefix,
             admin_options,
             runtime_options,
             runtime_database_owner: runtime_username,
-            tenant_name,
             holding_name,
             root_principal,
             owner_principal,
-            tenant_id,
-            holding_ref,
+            holding_key,
+            data_profile_key,
             holding_id,
             customer_id,
         })
@@ -906,7 +903,6 @@ fn required(name: &'static str) -> Result<String> {
             "ERPX_DATABASE_PROFILE_DEFAULT_PASSWORD" => {
                 "ERPX_DATABASE_PROFILE_DEFAULT_PASSWORD is required"
             }
-            "ERPX_SETUP_TENANT_NAME" => "ERPX_SETUP_TENANT_NAME is required",
             "ERPX_SETUP_HOLDING_NAME" => "ERPX_SETUP_HOLDING_NAME is required",
             "ERPX_SETUP_ROOT_PRINCIPAL" => "ERPX_SETUP_ROOT_PRINCIPAL is required",
             _ => "ERPX_SETUP_HOLDING_OWNER_PRINCIPAL is required",
@@ -986,7 +982,7 @@ fn is_local_host(host: &str) -> bool {
 fn stable_uuid(kind: &str, source: &str) -> Uuid {
     Uuid::new_v5(
         &Uuid::NAMESPACE_URL,
-        format!("erpx:bootstrap:{kind}:v1:{source}").as_bytes(),
+        format!("erpx:bootstrap:{kind}:{source}").as_bytes(),
     )
 }
 
@@ -1054,84 +1050,84 @@ async fn connect_database(config: &SetupConfig, name: &str) -> Result<PgPool> {
         .map_err(|_| BootstrapError("database connection failed"))
 }
 
-async fn register_tenant_and_receipt(config: &SetupConfig, pool: &PgPool) -> Result<()> {
+async fn register_holding_and_receipt(config: &SetupConfig, pool: &PgPool) -> Result<()> {
     let storage_namespace = &config.resources.storage_namespace;
     let credential_key = "database-profile:default";
     let backup_chain = format!("{}-bootstrap-backup", config.prefix.replace('_', "-"));
     let mut transaction = pool
         .begin()
         .await
-        .map_err(|_| BootstrapError("tenant registration transaction failed"))?;
+        .map_err(|_| BootstrapError("holding registration transaction failed"))?;
     let row = sqlx::query(
-        "INSERT INTO erpx_control.tenant_registry
-            (tenant_id, holding_ref, write_database_key, read_database_key,
+        "INSERT INTO erpx_control.holding_registry
+            (holding_id, data_profile_key, write_database_key, read_database_key,
              storage_namespace, credential_key_ref, backup_chain_ref, state,
              registry_version, isolation_mode)
          VALUES ($1,$2,$3,$4,$5,$6,$7,'provisioning',1,'holding_and_branch_pairs')
-         ON CONFLICT (tenant_id) DO UPDATE SET updated_at=now()
-         WHERE erpx_control.tenant_registry.holding_ref=EXCLUDED.holding_ref
-           AND erpx_control.tenant_registry.write_database_key=EXCLUDED.write_database_key
-           AND erpx_control.tenant_registry.read_database_key=EXCLUDED.read_database_key
-           AND erpx_control.tenant_registry.storage_namespace=EXCLUDED.storage_namespace
-           AND erpx_control.tenant_registry.isolation_mode='holding_and_branch_pairs'
-         RETURNING tenant_id",
+         ON CONFLICT (holding_id) DO UPDATE SET updated_at=now()
+         WHERE erpx_control.holding_registry.data_profile_key=EXCLUDED.data_profile_key
+           AND erpx_control.holding_registry.write_database_key=EXCLUDED.write_database_key
+           AND erpx_control.holding_registry.read_database_key=EXCLUDED.read_database_key
+           AND erpx_control.holding_registry.storage_namespace=EXCLUDED.storage_namespace
+           AND erpx_control.holding_registry.isolation_mode='holding_and_branch_pairs'
+         RETURNING holding_id",
     )
-    .bind(&config.tenant_id)
-    .bind(&config.holding_ref)
-    .bind(&config.tenant_write)
-    .bind(&config.tenant_read)
+    .bind(config.holding_id)
+    .bind(&config.data_profile_key)
+    .bind(&config.holding_write)
+    .bind(&config.holding_read)
     .bind(storage_namespace)
     .bind(credential_key)
     .bind(&backup_chain)
     .fetch_optional(&mut *transaction)
     .await
-    .map_err(|_| BootstrapError("tenant registration failed"))?;
+    .map_err(|_| BootstrapError("holding registration failed"))?;
     if row.is_none() {
         return Err(BootstrapError(
-            "tenant registration conflicts with an existing installation",
+            "holding registration conflicts with an existing installation",
         ));
     }
     sqlx::query(
-        "INSERT INTO erpx_control.tenant_provisioning
-            (tenant_id, state, write_database_key, read_database_key, storage_namespace, version)
+        "INSERT INTO erpx_control.holding_provisioning
+            (holding_id, state, write_database_key, read_database_key, storage_namespace, version)
          VALUES ($1,'provisioning',$2,$3,$4,1)
-         ON CONFLICT (tenant_id) DO UPDATE SET updated_at=now()
-         WHERE erpx_control.tenant_provisioning.write_database_key=EXCLUDED.write_database_key
-           AND erpx_control.tenant_provisioning.read_database_key=EXCLUDED.read_database_key
-           AND erpx_control.tenant_provisioning.storage_namespace=EXCLUDED.storage_namespace",
+         ON CONFLICT (holding_id) DO UPDATE SET updated_at=now()
+         WHERE erpx_control.holding_provisioning.write_database_key=EXCLUDED.write_database_key
+           AND erpx_control.holding_provisioning.read_database_key=EXCLUDED.read_database_key
+           AND erpx_control.holding_provisioning.storage_namespace=EXCLUDED.storage_namespace",
     )
-    .bind(&config.tenant_id)
-    .bind(&config.tenant_write)
-    .bind(&config.tenant_read)
+    .bind(config.holding_id)
+    .bind(&config.holding_write)
+    .bind(&config.holding_read)
     .bind(storage_namespace)
     .execute(&mut *transaction)
     .await
-    .map_err(|_| BootstrapError("tenant provisioning registration failed"))?;
+    .map_err(|_| BootstrapError("holding provisioning registration failed"))?;
     transaction
         .commit()
         .await
-        .map_err(|_| BootstrapError("tenant registration commit failed"))?;
+        .map_err(|_| BootstrapError("holding registration commit failed"))?;
     Ok(())
 }
 
 async fn upsert_receipt(config: &SetupConfig, pool: &PgPool, step: &str) -> Result<()> {
     sqlx::query(
         "INSERT INTO erpx_control.platform_bootstrap_receipts
-            (installation_prefix, tenant_id, holding_ref, root_principal_ref,
+            (installation_prefix, holding_id, data_profile_key, root_principal_ref,
              owner_principal_ref, profile_key, state, completed_steps, bootstrap_version)
          VALUES ($1,$2,$3,$4,$5,'default','provisioning',ARRAY[$6],1)
          ON CONFLICT (installation_prefix) DO UPDATE
          SET completed_steps=(SELECT ARRAY(SELECT DISTINCT value FROM unnest(
                  erpx_control.platform_bootstrap_receipts.completed_steps || ARRAY[$6]) AS value
                  ORDER BY value)), updated_at=now()
-         WHERE erpx_control.platform_bootstrap_receipts.tenant_id=EXCLUDED.tenant_id
-           AND erpx_control.platform_bootstrap_receipts.holding_ref=EXCLUDED.holding_ref
+         WHERE erpx_control.platform_bootstrap_receipts.holding_id=EXCLUDED.holding_id
+           AND erpx_control.platform_bootstrap_receipts.data_profile_key=EXCLUDED.data_profile_key
            AND erpx_control.platform_bootstrap_receipts.root_principal_ref=EXCLUDED.root_principal_ref
            AND erpx_control.platform_bootstrap_receipts.owner_principal_ref=EXCLUDED.owner_principal_ref",
     )
     .bind(&config.prefix)
-    .bind(&config.tenant_id)
-    .bind(&config.holding_ref)
+    .bind(config.holding_id)
+    .bind(&config.data_profile_key)
     .bind(&config.root_principal)
     .bind(&config.owner_principal)
     .bind(step)
@@ -1308,12 +1304,12 @@ async fn seed_customer_and_units(
     )
     .bind(config.customer_id)
     .bind(account_code)
-    .bind(&config.tenant_name)
+    .bind(&config.holding_name)
     .bind(&config.holding_name)
     .bind(serde_json::json!({
         "id": config.customer_id,
         "account_code": format!("BOOTSTRAP-{}", config.customer_id.simple()),
-        "trading_name": config.tenant_name,
+        "trading_name": config.holding_name,
         "legal_name": config.holding_name,
         "country": "UN",
         "status": "active",
@@ -1333,26 +1329,26 @@ async fn seed_customer_and_units(
     .execute(pool)
     .await
     .map_err(|_| BootstrapError("customer root holding scope seed failed"))?;
-    let binding = CustomerTenantBinding::new(
+    let binding = HoldingRegistryBinding::new(
         config.customer_id,
-        config.tenant_id.clone(),
         config.holding_id,
-        config.holding_ref.clone(),
+        config.holding_id,
+        config.data_profile_key.clone(),
     )
-    .map_err(|_| BootstrapError("customer tenant binding is invalid"))?;
-    SqlxTenantAdministrationStore::new(control.clone())
-        .bind_customer_tenant(&binding, &config.root_principal)
+    .map_err(|_| BootstrapError("customer holding binding is invalid"))?;
+    SqlxHoldingAdministrationStore::new(control.clone())
+        .bind_customer_holding(&binding, &config.root_principal)
         .await
-        .map_err(|_| BootstrapError("customer tenant binding failed"))?;
+        .map_err(|_| BootstrapError("customer holding binding failed"))?;
     for unit in BusinessUnitId::ALL {
         sqlx::query(
             "INSERT INTO erpx_control.business_unit_configurations
-                (tenant_id, root_holding_id, business_unit, configuration_version,
+                (holding_id, canonical_holding_id, business_unit, configuration_version,
                  active, organization_scope, updated_by)
              VALUES ($1,$2,$3,1,TRUE,$4,$5)
-             ON CONFLICT (tenant_id, business_unit) DO NOTHING",
+             ON CONFLICT (holding_id, business_unit) DO NOTHING",
         )
-        .bind(&config.tenant_id)
+        .bind(config.holding_id)
         .bind(config.holding_id)
         .bind(unit.as_str())
         .bind(serde_json::json!({"Holding": {"holding_id": config.holding_id}}))
@@ -1363,9 +1359,9 @@ async fn seed_customer_and_units(
     }
     let mut actual: Vec<String> = sqlx::query_scalar(
         "SELECT business_unit FROM erpx_control.business_unit_configurations
-         WHERE tenant_id=$1 ORDER BY business_unit",
+         WHERE holding_id=$1 ORDER BY business_unit",
     )
-    .bind(&config.tenant_id)
+    .bind(config.holding_id)
     .fetch_all(pool)
     .await
     .map_err(|_| BootstrapError("business unit seed inventory could not be read"))?;
@@ -1383,23 +1379,23 @@ async fn seed_customer_and_units(
     let registry_shape_valid: bool = sqlx::query_scalar(
         "SELECT
              (SELECT count(*) FROM erpx_control.customers) = 1
-             AND (SELECT count(*) FROM erpx_control.customer_tenant_bindings) = 1
+             AND (SELECT count(*) FROM erpx_control.customer_holding_bindings) = 1
              AND EXISTS(
-                 SELECT 1 FROM erpx_control.customer_tenant_bindings
-                 WHERE customer_id=$1 AND tenant_id=$2 AND root_holding_id=$3
-                   AND holding_ref=$4
+                 SELECT 1 FROM erpx_control.customer_holding_bindings
+                 WHERE customer_id=$1 AND holding_id=$2 AND canonical_holding_id=$3
+                   AND data_profile_key=$4
              )",
     )
     .bind(config.customer_id)
-    .bind(&config.tenant_id)
     .bind(config.holding_id)
-    .bind(&config.holding_ref)
+    .bind(config.holding_id)
+    .bind(&config.data_profile_key)
     .fetch_one(pool)
     .await
-    .map_err(|_| BootstrapError("tenant/holding registry seed could not be read"))?;
+    .map_err(|_| BootstrapError("holding/holding registry seed could not be read"))?;
     if !registry_shape_valid {
         return Err(BootstrapError(
-            "fresh-state tenant/holding registry seed contains unexpected records",
+            "fresh-state holding/holding registry seed contains unexpected records",
         ));
     }
     Ok(())
@@ -1437,12 +1433,12 @@ async fn verify_neutral_brand_seed(pool: &PgPool) -> Result<()> {
     Ok(())
 }
 
-async fn activate_tenant(
+async fn activate_holding(
     config: &SetupConfig,
     control: Arc<SqlxControlPlane>,
     namespace_receipt: &NamespaceVerificationReceipt,
 ) -> Result<()> {
-    let provisioner = TenantProvisioner::new(control.clone());
+    let provisioner = HoldingProvisioner::new(control.clone());
     let checked_at = namespace_receipt.verified_at();
     config.resources.require_matching_storage_receipt(
         namespace_receipt.prefix(),
@@ -1451,13 +1447,16 @@ async fn activate_tenant(
     for (side, key) in [
         (
             erpx_infrastructure::DatabaseSide::Write,
-            &config.tenant_write,
+            &config.holding_write,
         ),
-        (erpx_infrastructure::DatabaseSide::Read, &config.tenant_read),
+        (
+            erpx_infrastructure::DatabaseSide::Read,
+            &config.holding_read,
+        ),
     ] {
         provisioner
-            .record_database_health(&TenantDatabaseHealth {
-                tenant_id: config.tenant_id.clone(),
+            .record_database_health(&HoldingDatabaseHealth {
+                holding_id: config.holding_key.clone(),
                 side,
                 database_key: key.clone(),
                 schema_version: "bootstrap-current".into(),
@@ -1466,11 +1465,11 @@ async fn activate_tenant(
                 details: serde_json::json!({"migration": "applied", "rls": "forced"}),
             })
             .await
-            .map_err(|_| BootstrapError("tenant database readiness record failed"))?;
+            .map_err(|_| BootstrapError("holding database readiness record failed"))?;
     }
     provisioner
-        .record_storage_health(&TenantStorageHealth {
-            tenant_id: config.tenant_id.clone(),
+        .record_storage_health(&HoldingStorageHealth {
+            holding_id: config.holding_key.clone(),
             storage_namespace: namespace_receipt.namespace().to_owned(),
             reachable: true,
             checked_at,
@@ -1481,18 +1480,18 @@ async fn activate_tenant(
             }),
         })
         .await
-        .map_err(|_| BootstrapError("tenant storage readiness record failed"))?;
+        .map_err(|_| BootstrapError("holding storage readiness record failed"))?;
     let state: String =
-        sqlx::query_scalar("SELECT state FROM erpx_control.tenant_registry WHERE tenant_id=$1")
-            .bind(&config.tenant_id)
+        sqlx::query_scalar("SELECT state FROM erpx_control.holding_registry WHERE holding_id=$1")
+            .bind(config.holding_id)
             .fetch_one(&control.pools().write)
             .await
-            .map_err(|_| BootstrapError("tenant lifecycle state could not be read"))?;
+            .map_err(|_| BootstrapError("holding lifecycle state could not be read"))?;
     if state != "active" {
         provisioner
-            .activate(&config.tenant_id)
+            .activate(&config.holding_key)
             .await
-            .map_err(|_| BootstrapError("tenant activation failed"))?;
+            .map_err(|_| BootstrapError("holding activation failed"))?;
     }
     Ok(())
 }
@@ -1503,21 +1502,21 @@ async fn schedule_initial_projection_jobs(
 ) -> Result<()> {
     let authorization = ProjectionSchedulerAuthorization::new(
         config.root_principal.clone(),
-        "establish initial generation-v2 read-model checkpoints",
+        "establish initial current read-model checkpoints",
         config.resources.installation_generation,
     )
     .map_err(|_| BootstrapError("initial projection authorization is invalid"))?;
-    let repository = TenantProjectionSchedulerRepository::new(
+    let repository = HoldingProjectionSchedulerRepository::new(
         control.pools().write.clone(),
-        Arc::new(SqlxTenantStoreRegistry::new(control)),
+        Arc::new(SqlxHoldingStoreRegistry::new(control)),
         authorization,
     );
-    let binding = TenantHoldingBinding::new(&config.tenant_id, &config.holding_ref)
+    let binding = HoldingHoldingBinding::new(&config.holding_key, &config.data_profile_key)
         .map_err(|_| BootstrapError("initial projection binding is invalid"))?;
     let policy = ProjectionPolicy::new(500, 10, 10, 1, 60)
         .map_err(|_| BootstrapError("initial projection policy is invalid"))?;
     let now = Utc::now();
-    for projection_name in FRESH_INITIAL_TENANT_PROJECTIONS {
+    for projection_name in FRESH_INITIAL_HOLDING_PROJECTIONS {
         repository
             .schedule(
                 ProjectionScheduleRequest {

@@ -3,23 +3,23 @@
 ## Result
 
 The Sales context now has a real, bounded company/branch read list over the
-separate tenant read projection. This packet closes the Sales list-read
+separate holding read projection. This packet closes the Sales list-read
 implementation slice; it does not claim the full G9 or G11 gate.
 
 ## Authoritative path
 
-- `SqlxSalesStore::list_for_scope` reads only the tenant read pool, keyset
+- `SqlxSalesStore::list_for_scope` reads only the holding read pool, keyset
   paginates by projected timestamp, allow-listed aggregate type, and UUID, and
   rejects missing or mismatched checkpoints.
 - Every row re-decodes the projected Sales aggregate, validates domain identity
   and company/branch containment, and compares typed scope columns with the
   decoded aggregate. Platform, holding, and subtree payloads fail closed.
 - `ListSalesAggregates` requires an authenticated explicit product scope,
-  `sales.read`, customer-scope containment, tenant read routing, bounded opaque
+  `sales.read`, customer-scope containment, holding read routing, bounded opaque
   cursors, and an append-only audit event. The response exposes metadata only;
   aggregate payload bytes never cross this list boundary.
 - The console renders an authenticated read-only Sales table with explicit
-  tenant/holding/company/branch scope, loading, empty, denied/offline/error,
+  holding/holding/company/branch scope, loading, empty, denied/offline/error,
   and continuation states. It retains the existing source-owned Sales
   commands and single-aggregate read surface separately.
 

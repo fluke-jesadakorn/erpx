@@ -14,8 +14,8 @@ use erpx_cqrs::{
     IdempotencyKey, ProjectionMetadata, QueryConsistency, QueryEnvelope, QueryHandler,
 };
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
-    FixedClock, QueryId, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+    ErrorCategory, EventId, FixedClock, QueryId,
 };
 
 use super::*;
@@ -29,8 +29,8 @@ fn at() -> chrono::DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap()
 }
 
-fn scope() -> TenantScope {
-    TenantScope::Company {
+fn scope() -> AuthorityScope {
+    AuthorityScope::Company {
         holding_id: id(1),
         company_id: id(2),
     }
@@ -39,7 +39,7 @@ fn scope() -> TenantScope {
 fn actor() -> ActorAttribution {
     ActorAttribution {
         principal_ref: "quality-test-actor".into(),
-        kind: ActorKind::TenantUser,
+        kind: ActorKind::HoldingUser,
         session_id: None,
         represented_principal_ref: None,
         support_capability_id: None,
@@ -54,7 +54,7 @@ fn command_envelope<C>(sequence: u128, expected: Option<u64>, command: C) -> Com
         correlation_id: CorrelationId::try_from_uuid(id(200 + sequence)).unwrap(),
         causation_id: None,
         actor: actor(),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "quality.test".into(),
             customer_visible: false,
@@ -71,7 +71,7 @@ fn query_envelope<Q>(sequence: u128, query: Q) -> QueryEnvelope<Q> {
         query_id: QueryId::try_from_uuid(id(300 + sequence)).unwrap(),
         correlation_id: CorrelationId::try_from_uuid(id(400 + sequence)).unwrap(),
         actor: actor(),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "quality.test.query".into(),
             customer_visible: false,
@@ -124,7 +124,7 @@ struct FakeEntitlement {
 impl EntitlementPort for FakeEntitlement {
     async fn ensure_quality_enabled(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _write: bool,
     ) -> Result<(), PortError> {
         if self.allow {
@@ -145,7 +145,7 @@ struct FakeWriteRepository {
 impl WriteRepository for FakeWriteRepository {
     async fn load(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _inspection_id: InspectionId,
     ) -> Result<Option<QualityInspection>, PortError> {
         self.loads.fetch_add(1, Ordering::SeqCst);
@@ -211,7 +211,7 @@ struct FakeReadRepository {
 impl ReadRepository for FakeReadRepository {
     async fn get(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _inspection_id: InspectionId,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<InspectionView>>, PortError> {
@@ -224,7 +224,7 @@ impl ReadRepository for FakeReadRepository {
 
     async fn list(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _filter: &InspectionListFilter,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<InspectionList>, PortError> {

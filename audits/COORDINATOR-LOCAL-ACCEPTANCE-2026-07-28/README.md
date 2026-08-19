@@ -24,7 +24,7 @@ process transport was injected.
   Marketing CRM/content/journey/delivery/consent/erasure/provider/onboarding,
   Customer 360, access audit, support expiry, role review, Stripe semantic
   handling, scheduler/projector routing, backup jobs/retention, platform
-  completion, and tenant registry pagination.
+  completion, and holding registry pagination.
 
 All focused tests passed with fresh database names per test. Temporary
 databases and the disposable MinIO instance were removed after the runs.

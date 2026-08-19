@@ -8,13 +8,13 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Duration, Utc};
 use erpx_domain::{
-    access::Scope,
+    contracts::AuthorityScope as Scope,
     data_plane::{
         ApprovalPolicy, BusinessUnitConfiguration, BusinessUnitDirectoryRoleMapping,
         BusinessUnitId, ConfigurationLayer, ConfigurationLifecycle, DataPlaneAgentBinding,
-        DataPlaneAgentState, DataPlaneContractError, DesiredConfiguration, ObservedDataPlaneState,
+        DataPlaneAgentState, DataPlaneContractError, DesiredConfiguration, HoldingDeploymentMode,
+        HoldingExecutionRoute, HoldingInfrastructureProfile, ObservedDataPlaneState,
         RootAccessApproval, RootAccessCapability, RootAccessMode, RootAccessRequest,
-        TenantDeploymentMode, TenantExecutionRoute, TenantInfrastructureProfile,
     },
 };
 use serde_json::{Value, json};
@@ -32,8 +32,8 @@ const MAX_ENROLLMENT_LIFETIME: Duration = Duration::minutes(30);
 #[derive(Clone)]
 pub struct DataPlaneEnrollmentIssue {
     pub enrollment_id: Uuid,
-    pub tenant_id: String,
-    pub root_holding_id: Uuid,
+    pub holding_id: String,
+    pub canonical_holding_id: Uuid,
     /// SHA-256 of the one-time bootstrap token. Never the bearer token.
     pub token_hash: [u8; 32],
     /// SHA-256 of the signed installation manifest.
@@ -75,10 +75,10 @@ pub struct RootAccessQueueRecord {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TenantInfrastructureSummary {
-    pub tenant_id: String,
-    pub root_holding_id: Uuid,
-    pub deployment_mode: TenantDeploymentMode,
+pub struct HoldingInfrastructureSummary {
+    pub holding_id: String,
+    pub canonical_holding_id: Uuid,
+    pub deployment_mode: HoldingDeploymentMode,
     pub profile_version: u64,
     pub agent_id: Option<Uuid>,
     pub agent_state: Option<DataPlaneAgentState>,
@@ -129,7 +129,7 @@ impl SqlxDataPlaneControlStore {
             return Err(PersistenceError::OptimisticConcurrency {
                 aggregate_type: "business-unit configuration".into(),
                 aggregate_id: configuration_id(
-                    &configuration.tenant_id,
+                    &configuration.holding_id,
                     configuration.business_unit,
                 ),
                 expected: Some(expected_version.saturating_add(1)),
@@ -144,13 +144,13 @@ impl SqlxDataPlaneControlStore {
         let mut tx = self.control.pools.write.begin().await?;
         let saved = sqlx::query(
             "INSERT INTO erpx_control.business_unit_configurations
-                (tenant_id, root_holding_id, business_unit, configuration_version,
+                (holding_id, canonical_holding_id, business_unit, configuration_version,
                  active, organization_scope, directory_role_mappings,
                  integration_references, retention_policy, projection_policy,
                  workflow_policy, updated_by, updated_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-             ON CONFLICT (tenant_id, business_unit) DO UPDATE SET
-                 root_holding_id = EXCLUDED.root_holding_id,
+             ON CONFLICT (holding_id, business_unit) DO UPDATE SET
+                 canonical_holding_id = EXCLUDED.canonical_holding_id,
                  configuration_version = EXCLUDED.configuration_version,
                  active = EXCLUDED.active,
                  organization_scope = EXCLUDED.organization_scope,
@@ -164,7 +164,7 @@ impl SqlxDataPlaneControlStore {
              WHERE erpx_control.business_unit_configurations.configuration_version = $14
              RETURNING configuration_version",
         )
-        .bind(&configuration.tenant_id)
+        .bind(configuration.holding_id)
         .bind(configuration.holding_id)
         .bind(configuration.business_unit.as_str())
         .bind(checked_i64(
@@ -190,7 +190,7 @@ impl SqlxDataPlaneControlStore {
             return Err(PersistenceError::OptimisticConcurrency {
                 aggregate_type: "business-unit configuration".into(),
                 aggregate_id: configuration_id(
-                    &configuration.tenant_id,
+                    &configuration.holding_id,
                     configuration.business_unit,
                 ),
                 expected: Some(expected_version),
@@ -201,15 +201,15 @@ impl SqlxDataPlaneControlStore {
             &mut tx,
             "business_unit.configuration.saved",
             "business_unit_configuration",
-            configuration_id(&configuration.tenant_id, configuration.business_unit),
+            configuration_id(&configuration.holding_id, configuration.business_unit),
             configuration.configuration_version,
-            &configuration.tenant_id,
+            &configuration.holding_id,
             configuration.holding_id,
             &configuration.updated_by,
             "versioned business-unit configuration update",
             correlation_id,
             json!({
-                "tenant_id": configuration.tenant_id,
+                "holding_id": configuration.holding_id,
                 "business_unit": configuration.business_unit.as_str(),
                 "configuration_version": configuration.configuration_version,
                 "active": configuration.active,
@@ -223,26 +223,25 @@ impl SqlxDataPlaneControlStore {
 
     pub async fn business_unit_configuration(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         business_unit: BusinessUnitId,
     ) -> Result<Option<BusinessUnitConfiguration>, PersistenceError> {
-        validate_reference(tenant_id, "tenant_id", 128)?;
+        validate_reference(holding_id, "holding_id", 128)?;
         let row = sqlx::query(
-            "SELECT root_holding_id, configuration_version, active,
+            "SELECT canonical_holding_id, configuration_version, active,
                     organization_scope, directory_role_mappings,
                     integration_references, retention_policy, projection_policy,
                     workflow_policy, updated_by, updated_at
              FROM erpx_control.business_unit_configurations
-             WHERE tenant_id = $1 AND business_unit = $2",
+             WHERE holding_id = $1 AND business_unit = $2",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(business_unit.as_str())
         .fetch_optional(&self.control.pools.write)
         .await?;
         row.map(|row| {
             let configuration = BusinessUnitConfiguration {
-                tenant_id: tenant_id.to_owned(),
-                holding_id: row.try_get("root_holding_id")?,
+                holding_id: row.try_get("canonical_holding_id")?,
                 business_unit,
                 configuration_version: required_u64(&row, "configuration_version")?,
                 active: row.try_get("active")?,
@@ -263,12 +262,12 @@ impl SqlxDataPlaneControlStore {
         .transpose()
     }
 
-    /// Replace a tenant infrastructure profile using exact-version optimistic
+    /// Replace a holding infrastructure profile using exact-version optimistic
     /// concurrency. The referenced secret names are stored; secret values are
     /// not accepted by the domain type.
     pub async fn save_infrastructure_profile(
         &self,
-        profile: &TenantInfrastructureProfile,
+        profile: &HoldingInfrastructureProfile,
         expected_version: u64,
         actor_ref: &str,
         reason: &str,
@@ -287,7 +286,7 @@ impl SqlxDataPlaneControlStore {
 
         let mut tx = self.control.pools.write.begin().await?;
         let result = sqlx::query(
-            "UPDATE erpx_control.tenant_infrastructure_profiles
+            "UPDATE erpx_control.holding_infrastructure_profiles
              SET deployment_mode = $4,
                  write_database_ref = $5,
                  read_database_ref = $6,
@@ -297,11 +296,11 @@ impl SqlxDataPlaneControlStore {
                  profile_version = $10,
                  updated_by = $11,
                  updated_at = $12
-             WHERE tenant_id = $1
-               AND root_holding_id = $2
+             WHERE holding_id = $1
+               AND canonical_holding_id = $2
                AND profile_version = $3",
         )
-        .bind(&profile.tenant_id)
+        .bind(profile.holding_id)
         .bind(profile.holding_id)
         .bind(checked_i64(expected_version, "expected profile version")?)
         .bind(profile.deployment_mode.as_str())
@@ -324,16 +323,16 @@ impl SqlxDataPlaneControlStore {
         if result.rows_affected() != 1 {
             let actual = sqlx::query_scalar::<_, i64>(
                 "SELECT profile_version
-                 FROM erpx_control.tenant_infrastructure_profiles
-                 WHERE tenant_id = $1 AND root_holding_id = $2",
+                 FROM erpx_control.holding_infrastructure_profiles
+                 WHERE holding_id = $1 AND canonical_holding_id = $2",
             )
-            .bind(&profile.tenant_id)
+            .bind(profile.holding_id)
             .bind(profile.holding_id)
             .fetch_optional(&mut *tx)
             .await?
             .and_then(|version| u64::try_from(version).ok());
             return Err(PersistenceError::OptimisticConcurrency {
-                aggregate_type: "tenant_infrastructure_profile".into(),
+                aggregate_type: "holding_infrastructure_profile".into(),
                 aggregate_id: profile.holding_id,
                 expected: Some(expected_version),
                 actual,
@@ -342,17 +341,17 @@ impl SqlxDataPlaneControlStore {
 
         append_control_event(
             &mut tx,
-            "tenant.infrastructure.profile.updated",
-            "tenant_infrastructure_profile",
+            "holding.infrastructure.profile.updated",
+            "holding_infrastructure_profile",
             profile.holding_id,
             profile.version,
-            &profile.tenant_id,
+            &profile.holding_id,
             profile.holding_id,
             actor_ref,
             reason,
             correlation_id,
             json!({
-                "tenant_id": profile.tenant_id,
+                "holding_id": profile.holding_id,
                 "deployment_mode": profile.deployment_mode.as_str(),
                 "profile_version": profile.version,
                 "secret_values_persisted": false,
@@ -374,14 +373,14 @@ impl SqlxDataPlaneControlStore {
         let customer_hosted: bool = sqlx::query_scalar(
             "SELECT EXISTS (
                 SELECT 1
-                FROM erpx_control.tenant_infrastructure_profiles
-                WHERE tenant_id = $1
-                  AND root_holding_id = $2
+                FROM erpx_control.holding_infrastructure_profiles
+                WHERE holding_id = $1
+                  AND canonical_holding_id = $2
                   AND deployment_mode = 'customer_data_plane'
              )",
         )
-        .bind(&issue.tenant_id)
-        .bind(issue.root_holding_id)
+        .bind(&issue.holding_id)
+        .bind(issue.canonical_holding_id)
         .fetch_one(&mut *tx)
         .await?;
         if !customer_hosted {
@@ -391,13 +390,13 @@ impl SqlxDataPlaneControlStore {
         }
         sqlx::query(
             "INSERT INTO erpx_control.data_plane_agent_enrollments
-                (enrollment_id, tenant_id, root_holding_id, token_hash,
+                (enrollment_id, holding_id, canonical_holding_id, token_hash,
                  manifest_hash, issued_by, issued_at, expires_at, correlation_id)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
         )
         .bind(issue.enrollment_id)
-        .bind(&issue.tenant_id)
-        .bind(issue.root_holding_id)
+        .bind(&issue.holding_id)
+        .bind(issue.canonical_holding_id)
         .bind(issue.token_hash.as_slice())
         .bind(issue.manifest_hash.as_slice())
         .bind(&issue.issued_by)
@@ -408,17 +407,17 @@ impl SqlxDataPlaneControlStore {
         .await?;
         append_control_event(
             &mut tx,
-            "tenant.agent.enrollment.issued",
+            "holding.agent.enrollment.issued",
             "data_plane_agent_enrollment",
             issue.enrollment_id,
             1,
-            &issue.tenant_id,
-            issue.root_holding_id,
+            &issue.holding_id,
+            issue.canonical_holding_id,
             &issue.issued_by,
             "customer data-plane enrollment",
             issue.correlation_id,
             json!({
-                "tenant_id": issue.tenant_id,
+                "holding_id": issue.holding_id,
                 "expires_at": issue.expires_at,
                 "hash_only": true,
             }),
@@ -430,7 +429,7 @@ impl SqlxDataPlaneControlStore {
     }
 
     /// Consume an enrollment exactly once and bind the certificate fingerprint
-    /// to one tenant/holding/agent tuple.
+    /// to one holding/holding/agent tuple.
     pub async fn consume_agent_enrollment(
         &self,
         consumption: &DataPlaneEnrollmentConsumption,
@@ -455,7 +454,7 @@ impl SqlxDataPlaneControlStore {
 
         let mut tx = self.control.pools.write.begin().await?;
         let row = sqlx::query(
-            "SELECT tenant_id, root_holding_id, token_hash, manifest_hash,
+            "SELECT holding_id, canonical_holding_id, token_hash, manifest_hash,
                     expires_at, correlation_id, issued_by
              FROM erpx_control.data_plane_agent_enrollments
              WHERE enrollment_id = $1
@@ -470,15 +469,15 @@ impl SqlxDataPlaneControlStore {
             entity: "active data-plane enrollment",
             id: consumption.enrollment_id,
         })?;
-        let tenant_id: String = row.try_get("tenant_id")?;
-        let root_holding_id: Uuid = row.try_get("root_holding_id")?;
+        let _holding_key: String = row.try_get("holding_id")?;
+        let canonical_holding_id: Uuid = row.try_get("canonical_holding_id")?;
         let expected_token_hash: Vec<u8> = row.try_get("token_hash")?;
         let expected_manifest_hash: Vec<u8> = row.try_get("manifest_hash")?;
         let expires_at: DateTime<Utc> = row.try_get("expires_at")?;
         let correlation_id: Uuid = row.try_get("correlation_id")?;
         let issued_by: String = row.try_get("issued_by")?;
-        if tenant_id != consumption.binding.tenant_id
-            || root_holding_id != consumption.binding.holding_id
+        if _holding_key != consumption.binding.holding_id.to_string()
+            || canonical_holding_id != consumption.binding.holding_id
             || consumption.enrolled_at >= expires_at
             || !constant_time_hash_eq(&expected_token_hash, &consumption.presented_token_hash)
             || !constant_time_hash_eq(
@@ -487,7 +486,7 @@ impl SqlxDataPlaneControlStore {
             )
         {
             return Err(PersistenceError::InvalidData(
-                "enrollment proof or tenant binding is invalid".into(),
+                "enrollment proof or holding binding is invalid".into(),
             ));
         }
 
@@ -503,13 +502,13 @@ impl SqlxDataPlaneControlStore {
         .await?;
         sqlx::query(
             "INSERT INTO erpx_control.data_plane_agents
-                (agent_id, tenant_id, root_holding_id, certificate_fingerprint,
+                (agent_id, holding_id, canonical_holding_id, certificate_fingerprint,
                  capabilities, state, observed_version, agent_version,
                  certificate_expires_at, enrolled_at, last_heartbeat_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)",
         )
         .bind(consumption.binding.agent_id)
-        .bind(&consumption.binding.tenant_id)
+        .bind(consumption.binding.holding_id)
         .bind(consumption.binding.holding_id)
         .bind(&consumption.binding.certificate_fingerprint)
         .bind(agent_capability_keys(&consumption.binding.capabilities))
@@ -525,17 +524,17 @@ impl SqlxDataPlaneControlStore {
         .await?;
         append_control_event(
             &mut tx,
-            "tenant.agent.enrolled",
+            "holding.agent.enrolled",
             "data_plane_agent",
             consumption.binding.agent_id,
             1,
-            &consumption.binding.tenant_id,
+            &consumption.binding.holding_id,
             consumption.binding.holding_id,
             &issued_by,
             "customer data-plane enrollment consumed",
             correlation_id,
             json!({
-                "tenant_id": consumption.binding.tenant_id,
+                "holding_id": consumption.binding.holding_id,
                 "agent_id": consumption.binding.agent_id,
                 "certificate_fingerprint": consumption.binding.certificate_fingerprint,
                 "bootstrap_secret_persisted": false,
@@ -558,7 +557,7 @@ impl SqlxDataPlaneControlStore {
         validate_reference(agent_version, "agent_version", 128)?;
         let mut tx = self.control.pools.write.begin().await?;
         let row = sqlx::query(
-            "SELECT tenant_id, root_holding_id, observed_version,
+            "SELECT holding_id, canonical_holding_id, observed_version,
                     last_heartbeat_at, state
              FROM erpx_control.data_plane_agents
              WHERE agent_id = $1
@@ -571,8 +570,8 @@ impl SqlxDataPlaneControlStore {
             entity: "data-plane agent",
             id: observation.agent_id,
         })?;
-        let tenant_id: String = row.try_get("tenant_id")?;
-        let holding_id: Uuid = row.try_get("root_holding_id")?;
+        let _holding_key: String = row.try_get("holding_id")?;
+        let holding_id: Uuid = row.try_get("canonical_holding_id")?;
         let stored_version: i64 = row.try_get("observed_version")?;
         let last_heartbeat: Option<DateTime<Utc>> = row.try_get("last_heartbeat_at")?;
         let stored_state: String = row.try_get("state")?;
@@ -581,12 +580,12 @@ impl SqlxDataPlaneControlStore {
                 "suspended agent cannot publish observations".into(),
             ));
         }
-        if tenant_id != observation.tenant_id
+        if holding_id.to_string() != observation.holding_id
             || i64::try_from(observation.observed_version).ok() < Some(stored_version)
             || last_heartbeat.is_some_and(|last| observation.observed_at <= last)
         {
             return Err(PersistenceError::InvalidData(
-                "out-of-order or wrong-tenant observation rejected".into(),
+                "out-of-order or wrong-holding observation rejected".into(),
             ));
         }
 
@@ -617,7 +616,7 @@ impl SqlxDataPlaneControlStore {
         .await?;
         sqlx::query(
             "INSERT INTO erpx_control.data_plane_observations
-                (agent_id, tenant_id, observed_version, desired_version,
+                (agent_id, holding_id, observed_version, desired_version,
                  write_schema_version, read_schema_version, write_healthy,
                  read_healthy, storage_healthy, directory_ready,
                  projections_healthy, backup_verified, failure_category,
@@ -639,7 +638,7 @@ impl SqlxDataPlaneControlStore {
                  observed_at = EXCLUDED.observed_at",
         )
         .bind(observation.agent_id)
-        .bind(&observation.tenant_id)
+        .bind(&observation.holding_id)
         .bind(checked_i64(
             observation.observed_version,
             "observed version",
@@ -661,15 +660,15 @@ impl SqlxDataPlaneControlStore {
 
         if observation.is_healthy() && observation.observed_version == observation.desired_version {
             let activated = sqlx::query(
-                "UPDATE erpx_control.tenant_desired_configurations
+                "UPDATE erpx_control.holding_desired_configurations
                  SET lifecycle = 'active', applied_at = $4
-                 WHERE tenant_id = $1
+                 WHERE holding_id = $1
                    AND target_agent_id = $2
                    AND desired_version = $3
                    AND lifecycle IN ('approved', 'applying', 'verified')
                  RETURNING configuration_id",
             )
-            .bind(&observation.tenant_id)
+            .bind(&observation.holding_id)
             .bind(observation.agent_id)
             .bind(checked_i64(
                 observation.observed_version,
@@ -682,17 +681,17 @@ impl SqlxDataPlaneControlStore {
                 let configuration_id: Uuid = activated.try_get("configuration_id")?;
                 append_control_event(
                     &mut tx,
-                    "tenant.configuration.active",
-                    "tenant_desired_configuration",
+                    "holding.configuration.active",
+                    "holding_desired_configuration",
                     configuration_id,
                     event_sequence(observation.observed_at)?,
-                    &observation.tenant_id,
+                    &observation.holding_id,
                     holding_id,
                     "data-plane-agent",
                     "customer agent verified desired configuration",
                     observation.correlation_id,
                     json!({
-                        "tenant_id": observation.tenant_id,
+                        "holding_id": observation.holding_id,
                         "configuration_id": configuration_id,
                         "desired_version": observation.desired_version,
                     }),
@@ -707,17 +706,17 @@ impl SqlxDataPlaneControlStore {
         // remain bound to the newly observed state and expiry checks.
         append_control_event(
             &mut tx,
-            "tenant.agent.observation.recorded",
+            "holding.agent.observation.recorded",
             "data_plane_agent",
             observation.agent_id,
             event_sequence(observation.observed_at)?,
-            &observation.tenant_id,
+            &observation.holding_id,
             holding_id,
             "data-plane-agent",
             "redacted data-plane health observation",
             observation.correlation_id,
             json!({
-                "tenant_id": observation.tenant_id,
+                "holding_id": observation.holding_id,
                 "agent_id": observation.agent_id,
                 "state": state.as_str(),
                 "observed_version": observation.observed_version,
@@ -768,11 +767,11 @@ impl SqlxDataPlaneControlStore {
                 "SELECT observed_version
                      FROM erpx_control.data_plane_agents
                      WHERE agent_id = $1
-                       AND tenant_id = $2
-                       AND root_holding_id = $3",
+                       AND holding_id = $2
+                       AND canonical_holding_id = $3",
             )
             .bind(agent_id)
-            .bind(&desired.tenant_id)
+            .bind(desired.holding_id)
             .bind(desired.holding_id)
             .fetch_optional(&mut *tx)
             .await?
@@ -783,10 +782,10 @@ impl SqlxDataPlaneControlStore {
             None => {
                 sqlx::query_scalar(
                     "SELECT COALESCE(MAX(desired_version), 0)
-                 FROM erpx_control.tenant_desired_configurations
-                 WHERE tenant_id = $1",
+                 FROM erpx_control.holding_desired_configurations
+                 WHERE holding_id = $1",
                 )
-                .bind(&desired.tenant_id)
+                .bind(desired.holding_id)
                 .fetch_one(&mut *tx)
                 .await?
             }
@@ -798,15 +797,15 @@ impl SqlxDataPlaneControlStore {
             )?
         {
             return Err(PersistenceError::OptimisticConcurrency {
-                aggregate_type: "tenant_desired_configuration".into(),
+                aggregate_type: "holding_desired_configuration".into(),
                 aggregate_id: desired.holding_id,
                 expected: Some(desired.expected_observed_version),
                 actual: u64::try_from(actual_observed).ok(),
             });
         }
         sqlx::query(
-            "INSERT INTO erpx_control.tenant_desired_configurations
-                (configuration_id, tenant_id, root_holding_id, target_agent_id,
+            "INSERT INTO erpx_control.holding_desired_configurations
+                (configuration_id, holding_id, canonical_holding_id, target_agent_id,
                  deployment_mode, configuration_layer, business_unit,
                  expected_observed_version, desired_version, lifecycle,
                  configuration_hash, desired_state, secret_references,
@@ -816,7 +815,7 @@ impl SqlxDataPlaneControlStore {
                      $13, $14, $15, $16, $17, $18, $19)",
         )
         .bind(desired.id)
-        .bind(&desired.tenant_id)
+        .bind(desired.holding_id)
         .bind(desired.holding_id)
         .bind(desired.target_agent_id)
         .bind(desired.deployment_mode.as_str())
@@ -847,17 +846,17 @@ impl SqlxDataPlaneControlStore {
         .await?;
         append_control_event(
             &mut tx,
-            "tenant.configuration.proposed",
-            "tenant_desired_configuration",
+            "holding.configuration.proposed",
+            "holding_desired_configuration",
             desired.id,
             desired.desired_version,
-            &desired.tenant_id,
+            &desired.holding_id,
             desired.holding_id,
             &desired.requester,
             &desired.reason,
             correlation_id,
             json!({
-                "tenant_id": desired.tenant_id,
+                "holding_id": desired.holding_id,
                 "configuration_id": desired.id,
                 "layer": desired.layer.canonical_key(),
                 "desired_version": desired.desired_version,
@@ -911,9 +910,9 @@ impl SqlxDataPlaneControlStore {
         }
         let mut tx = self.control.pools.write.begin().await?;
         let row = sqlx::query(
-            "SELECT tenant_id, root_holding_id, requester, desired_version,
+            "SELECT holding_id, canonical_holding_id, requester, desired_version,
                     expires_at, lifecycle
-             FROM erpx_control.tenant_desired_configurations
+             FROM erpx_control.holding_desired_configurations
              WHERE configuration_id = $1
              FOR UPDATE",
         )
@@ -935,12 +934,12 @@ impl SqlxDataPlaneControlStore {
                 "configuration is not eligible for customer approval".into(),
             ));
         }
-        let tenant_id: String = row.try_get("tenant_id")?;
-        let holding_id: Uuid = row.try_get("root_holding_id")?;
+        let _holding_key: String = row.try_get("holding_id")?;
+        let holding_id: Uuid = row.try_get("canonical_holding_id")?;
         let version = u64::try_from(row.try_get::<i64, _>("desired_version")?)
             .map_err(|_| PersistenceError::InvalidData("invalid desired version".into()))?;
         sqlx::query(
-            "UPDATE erpx_control.tenant_desired_configurations
+            "UPDATE erpx_control.holding_desired_configurations
              SET lifecycle = 'approved',
                  customer_approver = $2,
                  customer_approved_at = $3
@@ -953,17 +952,17 @@ impl SqlxDataPlaneControlStore {
         .await?;
         append_control_event(
             &mut tx,
-            "tenant.configuration.approved",
-            "tenant_desired_configuration",
+            "holding.configuration.approved",
+            "holding_desired_configuration",
             configuration_id,
             version,
-            &tenant_id,
+            &holding_id,
             holding_id,
             approver,
             "customer-approved configuration",
             correlation_id,
             json!({
-                "tenant_id": tenant_id,
+                "holding_id": holding_id,
                 "configuration_id": configuration_id,
                 "desired_version": version,
                 "fresh_mfa": true,
@@ -986,8 +985,8 @@ impl SqlxDataPlaneControlStore {
             ));
         }
         let row = sqlx::query(
-            "SELECT tenant_id, root_holding_id, requester
-             FROM erpx_control.tenant_desired_configurations
+            "SELECT holding_id, canonical_holding_id, requester
+             FROM erpx_control.holding_desired_configurations
              WHERE configuration_id=$1",
         )
         .bind(configuration_id)
@@ -998,8 +997,8 @@ impl SqlxDataPlaneControlStore {
             id: configuration_id,
         })?;
         Ok((
-            row.try_get("tenant_id")?,
-            row.try_get("root_holding_id")?,
+            row.try_get("holding_id")?,
+            row.try_get("canonical_holding_id")?,
             row.try_get("requester")?,
         ))
     }
@@ -1010,13 +1009,13 @@ impl SqlxDataPlaneControlStore {
         at: DateTime<Utc>,
     ) -> Result<ApprovedDesiredConfiguration, PersistenceError> {
         let row = sqlx::query(
-            "SELECT configuration_id, tenant_id, root_holding_id,
+            "SELECT configuration_id, holding_id, canonical_holding_id,
                     target_agent_id, deployment_mode, configuration_layer,
                     business_unit, expected_observed_version, desired_version,
                     configuration_hash, desired_state, secret_references,
                     required_capabilities, requester, reason, expires_at,
                     correlation_id
-             FROM erpx_control.tenant_desired_configurations
+             FROM erpx_control.holding_desired_configurations
              WHERE configuration_id = $1 AND lifecycle = 'approved'",
         )
         .bind(configuration_id)
@@ -1036,13 +1035,13 @@ impl SqlxDataPlaneControlStore {
         at: DateTime<Utc>,
     ) -> Result<Option<ApprovedDesiredConfiguration>, PersistenceError> {
         let row = sqlx::query(
-            "SELECT configuration_id, tenant_id, root_holding_id,
+            "SELECT configuration_id, holding_id, canonical_holding_id,
                     target_agent_id, deployment_mode, configuration_layer,
                     business_unit, expected_observed_version, desired_version,
                     configuration_hash, desired_state, secret_references,
                     required_capabilities, requester, reason, expires_at,
                     correlation_id
-             FROM erpx_control.tenant_desired_configurations
+             FROM erpx_control.holding_desired_configurations
              WHERE target_agent_id = $1
                AND lifecycle = 'approved'
                AND expected_observed_version = $2
@@ -1073,10 +1072,10 @@ impl SqlxDataPlaneControlStore {
         validate_correlation_id(correlation_id)?;
         let mut tx = self.control.pools.write.begin().await?;
         let row = sqlx::query(
-            "UPDATE erpx_control.tenant_desired_configurations
+            "UPDATE erpx_control.holding_desired_configurations
              SET lifecycle = 'rejected', rejected_at = $2
              WHERE configuration_id = $1 AND lifecycle = 'awaiting_approval'
-             RETURNING tenant_id, root_holding_id, desired_version",
+             RETURNING holding_id, canonical_holding_id, desired_version",
         )
         .bind(configuration_id)
         .bind(at)
@@ -1086,23 +1085,23 @@ impl SqlxDataPlaneControlStore {
             entity: "configuration awaiting approval",
             id: configuration_id,
         })?;
-        let tenant_id: String = row.try_get("tenant_id")?;
-        let holding_id: Uuid = row.try_get("root_holding_id")?;
+        let _holding_key: String = row.try_get("holding_id")?;
+        let holding_id: Uuid = row.try_get("canonical_holding_id")?;
         let version = u64::try_from(row.try_get::<i64, _>("desired_version")?)
             .map_err(|_| PersistenceError::InvalidData("invalid desired version".into()))?;
         append_control_event(
             &mut tx,
-            "tenant.configuration.rejected",
-            "tenant_desired_configuration",
+            "holding.configuration.rejected",
+            "holding_desired_configuration",
             configuration_id,
             version,
-            &tenant_id,
+            &holding_id,
             holding_id,
             rejected_by,
             reason,
             correlation_id,
             json!({
-                "tenant_id": tenant_id,
+                "holding_id": holding_id,
                 "configuration_id": configuration_id,
                 "desired_version": version,
             }),
@@ -1116,14 +1115,16 @@ impl SqlxDataPlaneControlStore {
     pub async fn request_root_access(
         &self,
         request: &RootAccessRequest,
-        root_holding_id: Uuid,
+        canonical_holding_id: Uuid,
         correlation_id: Uuid,
     ) -> Result<(), PersistenceError> {
         request.validate().map_err(contract_error)?;
         validate_correlation_id(correlation_id)?;
-        if root_holding_id.is_nil() || scope_holding_id(&request.tenant_scope) != root_holding_id {
+        if canonical_holding_id.is_nil()
+            || scope_holding_id(&request.active_scope) != canonical_holding_id
+        {
             return Err(PersistenceError::InvalidData(
-                "Root access scope must match the exact tenant holding".into(),
+                "Root access scope must match the exact holding holding".into(),
             ));
         }
         let mut tx = self.control.pools.write.begin().await?;
@@ -1131,25 +1132,25 @@ impl SqlxDataPlaneControlStore {
             "SELECT EXISTS (
                 SELECT 1 FROM erpx_control.data_plane_agents
                 WHERE agent_id = $1
-                  AND tenant_id = $2
-                  AND root_holding_id = $3
+                  AND holding_id = $2
+                  AND canonical_holding_id = $3
                   AND state <> 'suspended'
              )",
         )
         .bind(request.agent_id)
-        .bind(&request.tenant_id)
-        .bind(root_holding_id)
+        .bind(&request.holding_id)
+        .bind(canonical_holding_id)
         .fetch_one(&mut *tx)
         .await?;
         if !eligible_agent {
             return Err(PersistenceError::InvalidData(
-                "Root access request has no eligible tenant agent".into(),
+                "Root access request has no eligible holding agent".into(),
             ));
         }
         sqlx::query(
-            "INSERT INTO erpx_control.tenant_root_access_requests
-                (request_id, requester_ref, device_ref, tenant_id,
-                 root_holding_id, agent_id, tenant_scope, mode,
+            "INSERT INTO erpx_control.holding_root_access_requests
+                (request_id, requester_ref, device_ref, holding_id,
+                 canonical_holding_id, agent_id, active_scope, mode,
                  allowed_actions, business_units, reason, ticket_reference,
                  requested_at, requested_until, correlation_id)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
@@ -1158,10 +1159,10 @@ impl SqlxDataPlaneControlStore {
         .bind(request.id)
         .bind(&request.requester)
         .bind(&request.device_ref)
-        .bind(&request.tenant_id)
-        .bind(root_holding_id)
+        .bind(&request.holding_id)
+        .bind(canonical_holding_id)
         .bind(request.agent_id)
-        .bind(serde_json::to_value(&request.tenant_scope)?)
+        .bind(serde_json::to_value(&request.active_scope)?)
         .bind(root_access_mode_key(request.mode))
         .bind(&request.allowed_actions)
         .bind(business_unit_keys(&request.business_units))
@@ -1174,21 +1175,21 @@ impl SqlxDataPlaneControlStore {
         .await?;
         append_control_event(
             &mut tx,
-            "tenant.root_access.requested",
-            "tenant_root_access_request",
+            "holding.root_access.requested",
+            "holding_root_access_request",
             request.id,
             1,
-            &request.tenant_id,
-            root_holding_id,
+            &request.holding_id,
+            canonical_holding_id,
             &request.requester,
             &request.reason,
             correlation_id,
             json!({
-                "tenant_id": request.tenant_id,
+                "holding_id": request.holding_id,
                 "request_id": request.id,
                 "agent_id": request.agent_id,
                 "mode": root_access_mode_key(request.mode),
-                "scope": request.tenant_scope.canonical_key(),
+                "scope": request.active_scope.canonical_key(),
                 "allowed_actions": request.allowed_actions,
                 "business_units": business_unit_keys(&request.business_units),
                 "requested_until": request.requested_until,
@@ -1202,30 +1203,30 @@ impl SqlxDataPlaneControlStore {
 
     pub async fn list_root_access_requests(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         include_closed: bool,
         page_size: u32,
     ) -> Result<Vec<RootAccessQueueRecord>, PersistenceError> {
-        validate_reference(tenant_id, "tenant_id", 128)?;
+        validate_reference(holding_id, "holding_id", 128)?;
         if page_size == 0 || page_size > 100 {
             return Err(PersistenceError::InvalidData(
                 "Root access request page size is outside 1..=100".into(),
             ));
         }
         let rows = sqlx::query(
-            "SELECT request_id, requester_ref, device_ref, tenant_id,
-                    agent_id, tenant_scope, mode, allowed_actions,
+            "SELECT request_id, requester_ref, device_ref, holding_id,
+                    agent_id, active_scope, mode, allowed_actions,
                     business_units, reason, ticket_reference, requested_at,
                     requested_until, state, customer_approver_ref,
                     customer_approved_at, rejected_at, revoked_at,
                     revocation_reason
-             FROM erpx_control.tenant_root_access_requests
-             WHERE tenant_id = $1
+             FROM erpx_control.holding_root_access_requests
+             WHERE holding_id = $1
                AND ($2 OR state IN ('awaiting_customer_approval', 'approved', 'active'))
              ORDER BY requested_at DESC, request_id DESC
              LIMIT $3",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(include_closed)
         .bind(i64::from(page_size))
         .fetch_all(&self.control.pools.write)
@@ -1259,11 +1260,11 @@ impl SqlxDataPlaneControlStore {
         }
         let mut tx = self.control.pools.write.begin().await?;
         let row = sqlx::query(
-            "SELECT requester_ref, device_ref, tenant_id, root_holding_id,
-                    agent_id, tenant_scope, mode, allowed_actions,
+            "SELECT requester_ref, device_ref, holding_id, canonical_holding_id,
+                    agent_id, active_scope, mode, allowed_actions,
                     business_units, reason, ticket_reference, requested_at,
                     requested_until, state
-             FROM erpx_control.tenant_root_access_requests
+             FROM erpx_control.holding_root_access_requests
              WHERE request_id = $1
              FOR UPDATE",
         )
@@ -1285,15 +1286,15 @@ impl SqlxDataPlaneControlStore {
             .approval
             .validate_for_with_policy(&request, approval_policy)
             .map_err(contract_error)?;
-        let holding_id: Uuid = row.try_get("root_holding_id")?;
+        let holding_id: Uuid = row.try_get("canonical_holding_id")?;
         let agent_state: String = sqlx::query_scalar(
             "SELECT state
              FROM erpx_control.data_plane_agents
-             WHERE agent_id = $1 AND tenant_id = $2 AND root_holding_id = $3
+             WHERE agent_id = $1 AND holding_id = $2 AND canonical_holding_id = $3
              FOR UPDATE",
         )
         .bind(request.agent_id)
-        .bind(&request.tenant_id)
+        .bind(&request.holding_id)
         .bind(holding_id)
         .fetch_optional(&mut *tx)
         .await?
@@ -1313,9 +1314,9 @@ impl SqlxDataPlaneControlStore {
             token_hash: grant.capability_token_hash,
             root_principal: request.requester.clone(),
             device_ref: request.device_ref.clone(),
-            tenant_id: request.tenant_id.clone(),
+            holding_id: request.holding_id.clone(),
             agent_id: request.agent_id,
-            scope: request.tenant_scope.clone(),
+            scope: request.active_scope.clone(),
             allowed_actions: request.allowed_actions.clone(),
             business_units: request.business_units.clone(),
             issued_at: grant.approval.approved_at,
@@ -1323,7 +1324,7 @@ impl SqlxDataPlaneControlStore {
             revoked_at: None,
         };
         sqlx::query(
-            "UPDATE erpx_control.tenant_root_access_requests
+            "UPDATE erpx_control.holding_root_access_requests
              SET state = 'active',
                  customer_approver_ref = $2,
                  customer_approved_at = $3,
@@ -1336,9 +1337,9 @@ impl SqlxDataPlaneControlStore {
         .execute(&mut *tx)
         .await?;
         sqlx::query(
-            "INSERT INTO erpx_control.tenant_root_access_capabilities
+            "INSERT INTO erpx_control.holding_root_access_capabilities
                 (capability_id, request_id, token_hash, root_principal_ref,
-                 device_ref, tenant_id, agent_id, tenant_scope,
+                 device_ref, holding_id, agent_id, active_scope,
                  allowed_actions, business_units, issued_at, expires_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
         )
@@ -1347,7 +1348,7 @@ impl SqlxDataPlaneControlStore {
         .bind(capability.token_hash.as_slice())
         .bind(&capability.root_principal)
         .bind(&capability.device_ref)
-        .bind(&capability.tenant_id)
+        .bind(&capability.holding_id)
         .bind(capability.agent_id)
         .bind(serde_json::to_value(&capability.scope)?)
         .bind(&capability.allowed_actions)
@@ -1358,17 +1359,17 @@ impl SqlxDataPlaneControlStore {
         .await?;
         append_control_event(
             &mut tx,
-            "tenant.root_access.activated",
-            "tenant_root_access_request",
+            "holding.root_access.activated",
+            "holding_root_access_request",
             request.id,
             2,
-            &request.tenant_id,
+            &request.holding_id,
             holding_id,
             &grant.approval.approver,
             "customer-approved Root access",
             correlation_id,
             json!({
-                "tenant_id": request.tenant_id,
+                "holding_id": request.holding_id,
                 "request_id": request.id,
                 "capability_id": capability.id,
                 "root_principal": request.requester,
@@ -1396,8 +1397,8 @@ impl SqlxDataPlaneControlStore {
             ));
         }
         let row = sqlx::query(
-            "SELECT tenant_id, root_holding_id, requester_ref
-             FROM erpx_control.tenant_root_access_requests
+            "SELECT holding_id, canonical_holding_id, requester_ref
+             FROM erpx_control.holding_root_access_requests
              WHERE request_id=$1",
         )
         .bind(request_id)
@@ -1408,8 +1409,8 @@ impl SqlxDataPlaneControlStore {
             id: request_id,
         })?;
         Ok((
-            row.try_get("tenant_id")?,
-            row.try_get("root_holding_id")?,
+            row.try_get("holding_id")?,
+            row.try_get("canonical_holding_id")?,
             row.try_get("requester_ref")?,
         ))
     }
@@ -1427,11 +1428,11 @@ impl SqlxDataPlaneControlStore {
         validate_correlation_id(correlation_id)?;
         let mut tx = self.control.pools.write.begin().await?;
         let row = sqlx::query(
-            "UPDATE erpx_control.tenant_root_access_requests
+            "UPDATE erpx_control.holding_root_access_requests
              SET state = 'revoked', revoked_at = $2, revocation_reason = $3
              WHERE request_id = $1
                AND state IN ('approved', 'active')
-             RETURNING tenant_id, root_holding_id",
+             RETURNING holding_id, canonical_holding_id",
         )
         .bind(request_id)
         .bind(at)
@@ -1442,10 +1443,10 @@ impl SqlxDataPlaneControlStore {
             entity: "active Root access request",
             id: request_id,
         })?;
-        let tenant_id: String = row.try_get("tenant_id")?;
-        let holding_id: Uuid = row.try_get("root_holding_id")?;
+        let _holding_key: String = row.try_get("holding_id")?;
+        let holding_id: Uuid = row.try_get("canonical_holding_id")?;
         sqlx::query(
-            "UPDATE erpx_control.tenant_root_access_capabilities
+            "UPDATE erpx_control.holding_root_access_capabilities
              SET revoked_at = $2
              WHERE request_id = $1 AND revoked_at IS NULL",
         )
@@ -1455,17 +1456,17 @@ impl SqlxDataPlaneControlStore {
         .await?;
         append_control_event(
             &mut tx,
-            "tenant.root_access.revoked",
-            "tenant_root_access_request",
+            "holding.root_access.revoked",
+            "holding_root_access_request",
             request_id,
             3,
-            &tenant_id,
+            &holding_id,
             holding_id,
             revoked_by,
             reason,
             correlation_id,
             json!({
-                "tenant_id": tenant_id,
+                "holding_id": holding_id,
                 "request_id": request_id,
                 "revoked_at": at,
             }),
@@ -1482,10 +1483,10 @@ impl SqlxDataPlaneControlStore {
     ) -> Result<RootAccessCapability, PersistenceError> {
         let row = sqlx::query(
             "SELECT capability_id, request_id, token_hash,
-                    root_principal_ref, device_ref, tenant_id, agent_id,
-                    tenant_scope, allowed_actions, business_units,
+                    root_principal_ref, device_ref, holding_id, agent_id,
+                    active_scope, allowed_actions, business_units,
                     issued_at, expires_at, revoked_at
-             FROM erpx_control.tenant_root_access_capabilities
+             FROM erpx_control.holding_root_access_capabilities
              WHERE request_id = $1",
         )
         .bind(request_id)
@@ -1506,9 +1507,9 @@ impl SqlxDataPlaneControlStore {
             token_hash,
             root_principal: row.try_get("root_principal_ref")?,
             device_ref: row.try_get("device_ref")?,
-            tenant_id: row.try_get("tenant_id")?,
+            holding_id: row.try_get("holding_id")?,
             agent_id: row.try_get("agent_id")?,
-            scope: serde_json::from_value(row.try_get("tenant_scope")?)?,
+            scope: serde_json::from_value(row.try_get("active_scope")?)?,
             allowed_actions: row.try_get("allowed_actions")?,
             business_units: business_units
                 .iter()
@@ -1533,10 +1534,10 @@ impl SqlxDataPlaneControlStore {
         validate_correlation_id(correlation_id)?;
         let mut tx = self.control.pools.write.begin().await?;
         let row = sqlx::query(
-            "UPDATE erpx_control.tenant_root_access_requests
+            "UPDATE erpx_control.holding_root_access_requests
              SET state = 'rejected', rejected_at = $2
              WHERE request_id = $1 AND state = 'awaiting_customer_approval'
-             RETURNING tenant_id, root_holding_id",
+             RETURNING holding_id, canonical_holding_id",
         )
         .bind(request_id)
         .bind(at)
@@ -1546,20 +1547,20 @@ impl SqlxDataPlaneControlStore {
             entity: "Root access request awaiting approval",
             id: request_id,
         })?;
-        let tenant_id: String = row.try_get("tenant_id")?;
-        let holding_id: Uuid = row.try_get("root_holding_id")?;
+        let _holding_key: String = row.try_get("holding_id")?;
+        let holding_id: Uuid = row.try_get("canonical_holding_id")?;
         append_control_event(
             &mut tx,
-            "tenant.root_access.rejected",
-            "tenant_root_access_request",
+            "holding.root_access.rejected",
+            "holding_root_access_request",
             request_id,
             2,
-            &tenant_id,
+            &holding_id,
             holding_id,
             rejected_by,
             reason,
             correlation_id,
-            json!({"tenant_id": tenant_id, "request_id": request_id}),
+            json!({"holding_id": holding_id, "request_id": request_id}),
             at,
         )
         .await?;
@@ -1581,7 +1582,7 @@ impl SqlxDataPlaneControlStore {
             "UPDATE erpx_control.data_plane_agents
              SET state = 'offline'
              WHERE agent_id = $1 AND state <> 'suspended'
-             RETURNING tenant_id, root_holding_id",
+             RETURNING holding_id, canonical_holding_id",
         )
         .bind(agent_id)
         .fetch_optional(&mut *tx)
@@ -1590,10 +1591,10 @@ impl SqlxDataPlaneControlStore {
             entity: "active data-plane agent",
             id: agent_id,
         })?;
-        let tenant_id: String = row.try_get("tenant_id")?;
-        let holding_id: Uuid = row.try_get("root_holding_id")?;
+        let _holding_key: String = row.try_get("holding_id")?;
+        let holding_id: Uuid = row.try_get("canonical_holding_id")?;
         let revoked = sqlx::query(
-            "UPDATE erpx_control.tenant_root_access_capabilities
+            "UPDATE erpx_control.holding_root_access_capabilities
              SET revoked_at = $2
              WHERE agent_id = $1 AND revoked_at IS NULL AND expires_at > $2",
         )
@@ -1603,7 +1604,7 @@ impl SqlxDataPlaneControlStore {
         .await?
         .rows_affected();
         sqlx::query(
-            "UPDATE erpx_control.tenant_root_access_requests
+            "UPDATE erpx_control.holding_root_access_requests
              SET state = 'revoked',
                  revoked_at = $2,
                  revocation_reason = 'customer data-plane agent disconnected'
@@ -1615,17 +1616,17 @@ impl SqlxDataPlaneControlStore {
         .await?;
         append_control_event(
             &mut tx,
-            "tenant.agent.offline",
+            "holding.agent.offline",
             "data_plane_agent",
             agent_id,
             event_sequence(at)?,
-            &tenant_id,
+            &holding_id,
             holding_id,
             "data-plane-broker",
             "outbound agent connection closed",
             correlation_id,
             json!({
-                "tenant_id": tenant_id,
+                "holding_id": holding_id,
                 "agent_id": agent_id,
                 "root_sessions_revoked": revoked,
             }),
@@ -1639,10 +1640,10 @@ impl SqlxDataPlaneControlStore {
     pub async fn authenticate_agent_certificate(
         &self,
         agent_id: Uuid,
-        tenant_id: &str,
+        holding_id: &str,
         certificate_fingerprint: &str,
     ) -> Result<DataPlaneAgentBinding, PersistenceError> {
-        validate_reference(tenant_id, "tenant_id", 128)?;
+        validate_reference(holding_id, "holding_id", 128)?;
         if agent_id.is_nil()
             || certificate_fingerprint.len() != 64
             || !certificate_fingerprint
@@ -1654,13 +1655,13 @@ impl SqlxDataPlaneControlStore {
             ));
         }
         let row = sqlx::query(
-            "SELECT root_holding_id, certificate_fingerprint, capabilities,
+            "SELECT canonical_holding_id, certificate_fingerprint, capabilities,
                     state, observed_version
              FROM erpx_control.data_plane_agents
-             WHERE agent_id = $1 AND tenant_id = $2",
+             WHERE agent_id = $1 AND holding_id = $2",
         )
         .bind(agent_id)
-        .bind(tenant_id)
+        .bind(holding_id)
         .fetch_optional(&self.control.pools.write)
         .await?
         .ok_or(PersistenceError::NotFound {
@@ -1680,8 +1681,7 @@ impl SqlxDataPlaneControlStore {
         }
         let capability_keys: Vec<String> = row.try_get("capabilities")?;
         let binding = DataPlaneAgentBinding {
-            tenant_id: tenant_id.to_owned(),
-            holding_id: row.try_get("root_holding_id")?,
+            holding_id: row.try_get("canonical_holding_id")?,
             agent_id,
             certificate_fingerprint: stored_fingerprint,
             capabilities: capability_keys
@@ -1702,12 +1702,12 @@ impl SqlxDataPlaneControlStore {
 
     pub async fn infrastructure_summary(
         &self,
-        tenant_id: &str,
+        holding_id: &str,
         at: DateTime<Utc>,
-    ) -> Result<TenantInfrastructureSummary, PersistenceError> {
-        validate_reference(tenant_id, "tenant_id", 128)?;
+    ) -> Result<HoldingInfrastructureSummary, PersistenceError> {
+        validate_reference(holding_id, "holding_id", 128)?;
         let row = sqlx::query(
-            "SELECT profile.tenant_id, profile.root_holding_id,
+            "SELECT profile.holding_id, profile.canonical_holding_id,
                     profile.deployment_mode, profile.profile_version,
                     agent.agent_id, agent.state AS agent_state,
                     agent.agent_version, agent.last_heartbeat_at,
@@ -1719,24 +1719,24 @@ impl SqlxDataPlaneControlStore {
                     observation.projections_healthy, observation.backup_verified,
                     EXISTS (
                         SELECT 1
-                        FROM erpx_control.tenant_root_access_capabilities capability
-                        WHERE capability.tenant_id = profile.tenant_id
+                        FROM erpx_control.holding_root_access_capabilities capability
+                        WHERE capability.holding_id = profile.holding_id
                           AND capability.revoked_at IS NULL
                           AND capability.expires_at > $2
                     ) AS root_access_active
-             FROM erpx_control.tenant_infrastructure_profiles profile
+             FROM erpx_control.holding_infrastructure_profiles profile
              LEFT JOIN erpx_control.data_plane_agents agent
-                    ON agent.tenant_id = profile.tenant_id
+                    ON agent.holding_id = profile.holding_id
              LEFT JOIN erpx_control.data_plane_observations observation
                     ON observation.agent_id = agent.agent_id
-             WHERE profile.tenant_id = $1",
+             WHERE profile.holding_id = $1",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(at)
         .fetch_optional(&self.control.pools.write)
         .await?
         .ok_or_else(|| {
-            PersistenceError::InvalidData("tenant infrastructure profile was not found".into())
+            PersistenceError::InvalidData("holding infrastructure profile was not found".into())
         })?;
         let mode: String = row.try_get("deployment_mode")?;
         let agent_state = row
@@ -1746,9 +1746,9 @@ impl SqlxDataPlaneControlStore {
             .transpose()?;
         let observed_version = optional_u64(&row, "observed_version")?;
         let desired_version = optional_u64(&row, "desired_version")?;
-        Ok(TenantInfrastructureSummary {
-            tenant_id: row.try_get("tenant_id")?,
-            root_holding_id: row.try_get("root_holding_id")?,
+        Ok(HoldingInfrastructureSummary {
+            holding_id: row.try_get("holding_id")?,
+            canonical_holding_id: row.try_get("canonical_holding_id")?,
             deployment_mode: parse_deployment_mode(&mode)?,
             profile_version: required_u64(&row, "profile_version")?,
             agent_id: row.try_get("agent_id")?,
@@ -1776,52 +1776,52 @@ impl SqlxDataPlaneControlStore {
     /// failure, never a reason to route into an ERPX-managed database.
     pub async fn execution_route(
         &self,
-        tenant_id: &str,
-    ) -> Result<TenantExecutionRoute, PersistenceError> {
-        validate_reference(tenant_id, "tenant_id", 128)?;
+        holding_id: &str,
+    ) -> Result<HoldingExecutionRoute, PersistenceError> {
+        validate_reference(holding_id, "holding_id", 128)?;
         let row = sqlx::query(
             "SELECT profile.deployment_mode, profile.write_database_ref,
                     profile.read_database_ref, profile.storage_ref,
                     agent.agent_id, agent.state AS agent_state
-             FROM erpx_control.tenant_infrastructure_profiles profile
+             FROM erpx_control.holding_infrastructure_profiles profile
              LEFT JOIN erpx_control.data_plane_agents agent
-                    ON agent.tenant_id = profile.tenant_id
-             WHERE profile.tenant_id = $1",
+                    ON agent.holding_id = profile.holding_id
+             WHERE profile.holding_id = $1",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .fetch_optional(&self.control.pools.write)
         .await?;
         let Some(row) = row else {
             // Only an unbound legacy registry row may use the managed
-            // compatibility route. Once a tenant has a customer binding, a
+            // compatibility route. Once a holding has a customer binding, a
             // missing profile is drift and cannot silently become managed.
             let has_customer_binding: bool = sqlx::query_scalar(
                 "SELECT EXISTS (
                      SELECT 1
-                     FROM erpx_control.customer_tenant_bindings
-                     WHERE tenant_id = $1
+                     FROM erpx_control.customer_holding_bindings
+                     WHERE holding_id = $1
                  )",
             )
-            .bind(tenant_id)
+            .bind(holding_id)
             .fetch_one(&self.control.pools.write)
             .await?;
             if has_customer_binding {
                 return Err(PersistenceError::InvalidData(
-                    "tenant execution route was not found".into(),
+                    "holding execution route was not found".into(),
                 ));
             }
             let legacy = sqlx::query(
                 "SELECT write_database_key, read_database_key, storage_namespace
-                 FROM erpx_control.tenant_registry
-                 WHERE tenant_id = $1 AND state = 'active'",
+                 FROM erpx_control.holding_registry
+                 WHERE holding_id = $1 AND state = 'active'",
             )
-            .bind(tenant_id)
+            .bind(holding_id)
             .fetch_optional(&self.control.pools.write)
             .await?
             .ok_or_else(|| {
-                PersistenceError::InvalidData("tenant execution route was not found".into())
+                PersistenceError::InvalidData("holding execution route was not found".into())
             })?;
-            return Ok(TenantExecutionRoute::ErpxManaged {
+            return Ok(HoldingExecutionRoute::ErpxManaged {
                 write_database_key: legacy.try_get("write_database_key")?,
                 read_database_key: legacy.try_get("read_database_key")?,
                 storage_namespace: legacy.try_get("storage_namespace")?,
@@ -1829,12 +1829,12 @@ impl SqlxDataPlaneControlStore {
         };
         let deployment_mode: String = row.try_get("deployment_mode")?;
         match parse_deployment_mode(&deployment_mode)? {
-            TenantDeploymentMode::ErpxManaged => Ok(TenantExecutionRoute::ErpxManaged {
+            HoldingDeploymentMode::ErpxManaged => Ok(HoldingExecutionRoute::ErpxManaged {
                 write_database_key: row.try_get("write_database_ref")?,
                 read_database_key: row.try_get("read_database_ref")?,
                 storage_namespace: row.try_get("storage_ref")?,
             }),
-            TenantDeploymentMode::CustomerDataPlane => {
+            HoldingDeploymentMode::CustomerDataPlane => {
                 let agent_id: Option<Uuid> = row.try_get("agent_id")?;
                 let agent_state: Option<String> = row.try_get("agent_state")?;
                 let Some(agent_id) = agent_id else {
@@ -1856,7 +1856,7 @@ impl SqlxDataPlaneControlStore {
                         "customer data plane unavailable".into(),
                     ));
                 }
-                Ok(TenantExecutionRoute::CustomerAgent { agent_id })
+                Ok(HoldingExecutionRoute::CustomerAgent { agent_id })
             }
         }
     }
@@ -1869,12 +1869,12 @@ fn event_sequence(at: DateTime<Utc>) -> Result<u64, PersistenceError> {
 }
 
 fn validate_enrollment_issue(issue: &DataPlaneEnrollmentIssue) -> Result<(), PersistenceError> {
-    validate_reference(&issue.tenant_id, "tenant_id", 128)?;
+    validate_reference(&issue.holding_id, "holding_id", 128)?;
     validate_reference(&issue.issued_by, "issued_by", 255)?;
     validate_correlation_id(issue.correlation_id)?;
     let lifetime = issue.expires_at - issue.issued_at;
     if issue.enrollment_id.is_nil()
-        || issue.root_holding_id.is_nil()
+        || issue.canonical_holding_id.is_nil()
         || issue.token_hash == [0; 32]
         || issue.manifest_hash == [0; 32]
         || lifetime <= Duration::zero()
@@ -1959,7 +1959,7 @@ async fn append_control_event(
     aggregate_type: &str,
     aggregate_id: Uuid,
     aggregate_version: u64,
-    tenant_id: &str,
+    holding_key: impl ToString,
     holding_id: Uuid,
     actor_ref: &str,
     purpose: &str,
@@ -1972,7 +1972,7 @@ async fn append_control_event(
     sqlx::query(
         "INSERT INTO erpx_control.outbox_events
             (id, event_type, event_version, aggregate_type, aggregate_id,
-             aggregate_version, tenant_scope, actor, correlation_id,
+             aggregate_version, active_scope, actor, correlation_id,
              idempotency_key, payload, occurred_at)
          VALUES ($1, $2, 1, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
     )
@@ -1981,7 +1981,7 @@ async fn append_control_event(
     .bind(aggregate_type)
     .bind(aggregate_id)
     .bind(checked_i64(aggregate_version, "aggregate version")?)
-    .bind(json!({"tenant_id": tenant_id, "holding_id": holding_id}))
+    .bind(json!({"holding_key": holding_key.to_string(), "holding_id": holding_id}))
     .bind(json!({"principal_ref": actor_ref}))
     .bind(correlation_id)
     .bind(format!(
@@ -2019,9 +2019,9 @@ fn decode_root_access_request(
         id: request_id,
         requester: row.try_get("requester_ref")?,
         device_ref: row.try_get("device_ref")?,
-        tenant_id: row.try_get("tenant_id")?,
+        holding_id: row.try_get("holding_id")?,
         agent_id: row.try_get("agent_id")?,
-        tenant_scope: serde_json::from_value(row.try_get("tenant_scope")?)?,
+        active_scope: serde_json::from_value(row.try_get("active_scope")?)?,
         mode: parse_root_access_mode(&mode)?,
         allowed_actions: row.try_get("allowed_actions")?,
         business_units: business_units
@@ -2072,7 +2072,7 @@ fn decode_approved_configuration(
     let deployment_mode = parse_deployment_mode(&row.try_get::<String, _>("deployment_mode")?)?;
     let layer = match row.try_get::<String, _>("configuration_layer")?.as_str() {
         "platform" => ConfigurationLayer::Platform,
-        "tenant" => ConfigurationLayer::Tenant,
+        "holding" => ConfigurationLayer::Holding,
         "business_unit" => ConfigurationLayer::BusinessUnit(
             BusinessUnitId::parse(&row.try_get::<String, _>("business_unit")?)
                 .map_err(contract_error)?,
@@ -2087,8 +2087,7 @@ fn decode_approved_configuration(
     let required_capabilities: Vec<String> = row.try_get("required_capabilities")?;
     let desired = DesiredConfiguration {
         id: row.try_get("configuration_id")?,
-        tenant_id: row.try_get("tenant_id")?,
-        holding_id: row.try_get("root_holding_id")?,
+        holding_id: row.try_get("canonical_holding_id")?,
         deployment_mode,
         target_agent_id: row.try_get("target_agent_id")?,
         layer,
@@ -2123,7 +2122,7 @@ fn decode_approved_configuration(
 fn configuration_layer_parts(layer: ConfigurationLayer) -> (&'static str, Option<&'static str>) {
     match layer {
         ConfigurationLayer::Platform => ("platform", None),
-        ConfigurationLayer::Tenant => ("tenant", None),
+        ConfigurationLayer::Holding => ("holding", None),
         ConfigurationLayer::BusinessUnit(unit) => ("business_unit", Some(unit.as_str())),
     }
 }
@@ -2151,12 +2150,12 @@ fn parse_root_access_mode(value: &str) -> Result<RootAccessMode, PersistenceErro
     }
 }
 
-fn parse_deployment_mode(value: &str) -> Result<TenantDeploymentMode, PersistenceError> {
+fn parse_deployment_mode(value: &str) -> Result<HoldingDeploymentMode, PersistenceError> {
     match value {
-        "erpx_managed" => Ok(TenantDeploymentMode::ErpxManaged),
-        "customer_data_plane" => Ok(TenantDeploymentMode::CustomerDataPlane),
+        "erpx_managed" => Ok(HoldingDeploymentMode::ErpxManaged),
+        "customer_data_plane" => Ok(HoldingDeploymentMode::CustomerDataPlane),
         _ => Err(PersistenceError::InvalidData(
-            "unknown persisted tenant deployment mode".into(),
+            "unknown persisted holding deployment mode".into(),
         )),
     }
 }
@@ -2190,8 +2189,8 @@ fn parse_agent_capability(
 ) -> Result<erpx_domain::data_plane::AgentCapability, PersistenceError> {
     use erpx_domain::data_plane::AgentCapability;
     match value {
-        "typed_tenant_queries" => Ok(AgentCapability::TypedTenantQueries),
-        "typed_tenant_commands" => Ok(AgentCapability::TypedTenantCommands),
+        "typed_holding_queries" => Ok(AgentCapability::TypedHoldingQueries),
+        "typed_holding_commands" => Ok(AgentCapability::TypedHoldingCommands),
         "directory_sync" => Ok(AgentCapability::DirectorySync),
         "projection_worker" => Ok(AgentCapability::ProjectionWorker),
         "backup" => Ok(AgentCapability::Backup),
@@ -2209,11 +2208,11 @@ fn business_unit_keys(values: &[BusinessUnitId]) -> Vec<String> {
     values.iter().map(|unit| unit.as_str().to_owned()).collect()
 }
 
-fn configuration_id(tenant_id: &str, business_unit: BusinessUnitId) -> Uuid {
+fn configuration_id(holding_id: &Uuid, business_unit: BusinessUnitId) -> Uuid {
     Uuid::new_v5(
         &Uuid::NAMESPACE_URL,
         format!(
-            "erpx://tenant/{tenant_id}/business-unit/{}",
+            "erpx://holding/{holding_id}/business-unit/{}",
             business_unit.as_str()
         )
         .as_bytes(),
@@ -2283,7 +2282,8 @@ mod tests {
     fn desired_state_rejects_embedded_secret_material() {
         assert!(validate_desired_state(&json!({"database_password": "hidden"})).is_err());
         assert!(
-            validate_desired_state(&json!({"database": "postgres://user:pass@db/tenant"})).is_err()
+            validate_desired_state(&json!({"database": "postgres://user:pass@db/holding"}))
+                .is_err()
         );
         assert!(validate_desired_state(&json!({"token": "opaque"})).is_err());
     }

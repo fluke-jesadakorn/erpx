@@ -9,7 +9,7 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::{inventory, procurement};
 use erpx_kernel::{
-    ActorAttribution, AggregateId, AuditContext, CommandId, CorrelationId, EventId, TenantScope,
+    ActorAttribution, AggregateId, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -44,8 +44,8 @@ impl InventoryAction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
-    pub target_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
+    pub target_scope: &'a AuthorityScope,
     pub action: InventoryAction,
 }
 
@@ -58,7 +58,7 @@ pub trait AuthorizationPort: Send + Sync {
 pub trait EntitlementPort: Send + Sync {
     async fn ensure_inventory_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         write: bool,
     ) -> Result<(), PortError>;
 }
@@ -68,7 +68,7 @@ pub trait EntitlementPort: Send + Sync {
 pub enum CommandFingerprint {
     RegisterItem {
         stock_item_id: StockItemId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         warehouse_id: WarehouseId,
         item_code: String,
     },
@@ -111,7 +111,7 @@ pub struct CommandIdentity {
 pub trait WriteRepository: Send + Sync {
     async fn load(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         stock_item_id: StockItemId,
     ) -> Result<Option<StockItem>, PortError>;
 }
@@ -122,7 +122,7 @@ pub struct InventoryCommit {
     pub correlation_id: CorrelationId,
     pub causation_id: Option<EventId>,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
     pub aggregate: StockItem,
@@ -173,7 +173,7 @@ pub trait CommandUnitOfWork: Send + Sync {
 pub struct StockItemView {
     pub stock_item_id: StockItemId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub warehouse_id: WarehouseId,
     pub item_code: String,
     pub on_hand: i64,
@@ -189,7 +189,7 @@ pub struct ReservationView {
     pub reservation_id: ReservationId,
     pub stock_item_id: StockItemId,
     pub source_item_version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub warehouse_id: WarehouseId,
     pub item_code: String,
     pub quantity: i64,
@@ -202,7 +202,7 @@ pub struct ReservationView {
 pub trait ReservationReadRepository: Send + Sync {
     async fn get_reservation(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         reservation_id: ReservationId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<ReservationView>>, PortError>;
@@ -252,13 +252,13 @@ pub struct ReadProjection<T> {
 pub trait ReadRepository: Send + Sync {
     async fn get(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         stock_item_id: StockItemId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<StockItemView>>, PortError>;
     async fn list(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &StockItemListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<StockItemList>, PortError>;

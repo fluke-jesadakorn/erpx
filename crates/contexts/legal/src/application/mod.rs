@@ -5,7 +5,7 @@ use erpx_cqrs::{
     QueryMetadata, QueryResult,
 };
 use erpx_integration_contracts::RecordRef;
-use erpx_kernel::{Clock, CorrelationId, ErrorCategory, ErrorContext, KernelError, TenantScope};
+use erpx_kernel::{AuthorityScope, Clock, CorrelationId, ErrorCategory, ErrorContext, KernelError};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -33,7 +33,7 @@ pub const MAX_LEGAL_PAGE_SIZE: u16 = 100;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateContract {
     pub contract_id: LegalContractId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub reference: String,
     pub title: String,
     pub object_ref: String,
@@ -56,7 +56,7 @@ pub struct TransitionContract {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateDocument {
     pub document_id: LegalDocumentId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub title: String,
 }
 
@@ -85,7 +85,7 @@ pub struct RecordDocumentAccess {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateMatter {
     pub matter_id: LegalMatterId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub reference: String,
     pub title: String,
 }
@@ -95,7 +95,7 @@ pub struct LinkMatterRecord {
     pub matter_id: LegalMatterId,
     pub relation: RecordRelation,
     pub target: RecordRef,
-    pub target_scope: TenantScope,
+    pub target_scope: AuthorityScope,
     pub target_digest: String,
 }
 
@@ -369,8 +369,8 @@ where
     async fn preflight(
         &self,
         actor: &erpx_kernel::ActorAttribution,
-        authority_scope: &TenantScope,
-        target_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         action: LegalAction,
     ) -> Result<(), LegalApplicationError> {
         if !authority_scope.contains(target_scope) {
@@ -394,7 +394,7 @@ where
         &self,
         identity: &CommandIdentity,
         actor: &erpx_kernel::ActorAttribution,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         action: LegalAction,
     ) -> Result<Option<StoredCommit>, LegalApplicationError> {
         let Some(mut stored) = self.unit_of_work.find_receipt(identity).await? else {
@@ -410,7 +410,7 @@ where
         &self,
         aggregate: &LegalAggregate,
         actor: &erpx_kernel::ActorAttribution,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         action: LegalAction,
         expected: Option<u64>,
     ) -> Result<u64, LegalApplicationError> {
@@ -451,7 +451,7 @@ where
             fingerprint: envelope.command.fingerprint(),
         };
         if let Some(stored) = self
-            .replay(&identity, &envelope.actor, &envelope.tenant_scope, action)
+            .replay(&identity, &envelope.actor, &envelope.active_scope, action)
             .await
             .map_err(|error| to_cqrs(error, correlation))?
         {
@@ -471,7 +471,7 @@ where
             LegalCommand::CreateContract(value) => {
                 self.preflight(
                     &envelope.actor,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
                     &value.scope,
                     action,
                 )
@@ -494,7 +494,7 @@ where
             LegalCommand::AddContractParty(value) => {
                 let contract = self
                     .write
-                    .load_contract(&envelope.tenant_scope, value.contract_id)
+                    .load_contract(&envelope.active_scope, value.contract_id)
                     .await
                     .map_err(|error| to_cqrs(error.into(), correlation))?
                     .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
@@ -503,7 +503,7 @@ where
                     .existing(
                         &aggregate,
                         &envelope.actor,
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         action,
                         envelope.expected_aggregate_version,
                     )
@@ -520,7 +520,7 @@ where
             LegalCommand::TransitionContract(value) => {
                 let contract = self
                     .write
-                    .load_contract(&envelope.tenant_scope, value.contract_id)
+                    .load_contract(&envelope.active_scope, value.contract_id)
                     .await
                     .map_err(|error| to_cqrs(error.into(), correlation))?
                     .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
@@ -529,7 +529,7 @@ where
                     .existing(
                         &aggregate,
                         &envelope.actor,
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         action,
                         envelope.expected_aggregate_version,
                     )
@@ -546,7 +546,7 @@ where
             LegalCommand::CreateDocument(value) => {
                 self.preflight(
                     &envelope.actor,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
                     &value.scope,
                     action,
                 )
@@ -560,7 +560,7 @@ where
             LegalCommand::AddDocumentVersion(value) => {
                 let document = self
                     .write
-                    .load_document(&envelope.tenant_scope, value.document_id)
+                    .load_document(&envelope.active_scope, value.document_id)
                     .await
                     .map_err(|error| to_cqrs(error.into(), correlation))?
                     .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
@@ -569,7 +569,7 @@ where
                     .existing(
                         &aggregate,
                         &envelope.actor,
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         action,
                         envelope.expected_aggregate_version,
                     )
@@ -586,7 +586,7 @@ where
             LegalCommand::ArchiveDocument(value) => {
                 let document = self
                     .write
-                    .load_document(&envelope.tenant_scope, value.document_id)
+                    .load_document(&envelope.active_scope, value.document_id)
                     .await
                     .map_err(|error| to_cqrs(error.into(), correlation))?
                     .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
@@ -595,7 +595,7 @@ where
                     .existing(
                         &aggregate,
                         &envelope.actor,
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         action,
                         envelope.expected_aggregate_version,
                     )
@@ -612,13 +612,13 @@ where
             LegalCommand::RecordDocumentAccess(value) => {
                 let document = self
                     .write
-                    .load_document(&envelope.tenant_scope, value.document_id)
+                    .load_document(&envelope.active_scope, value.document_id)
                     .await
                     .map_err(|error| to_cqrs(error.into(), correlation))?
                     .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
                 self.preflight(
                     &envelope.actor,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
                     document.scope(),
                     action,
                 )
@@ -649,7 +649,7 @@ where
             LegalCommand::CreateMatter(value) => {
                 self.preflight(
                     &envelope.actor,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
                     &value.scope,
                     action,
                 )
@@ -669,7 +669,7 @@ where
             LegalCommand::LinkMatterRecord(value) => {
                 let matter = self
                     .write
-                    .load_matter(&envelope.tenant_scope, value.matter_id)
+                    .load_matter(&envelope.active_scope, value.matter_id)
                     .await
                     .map_err(|error| to_cqrs(error.into(), correlation))?
                     .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
@@ -678,7 +678,7 @@ where
                     .existing(
                         &aggregate,
                         &envelope.actor,
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         action,
                         envelope.expected_aggregate_version,
                     )
@@ -688,7 +688,7 @@ where
                 // a company authority therefore cannot create a sibling-company edge.
                 self.preflight(
                     &envelope.actor,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
                     &value.target_scope,
                     action,
                 )
@@ -712,7 +712,7 @@ where
             LegalCommand::PlaceLegalHold(value) => {
                 let matter = self
                     .write
-                    .load_matter(&envelope.tenant_scope, value.matter_id)
+                    .load_matter(&envelope.active_scope, value.matter_id)
                     .await
                     .map_err(|error| to_cqrs(error.into(), correlation))?
                     .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
@@ -721,7 +721,7 @@ where
                     .existing(
                         &aggregate,
                         &envelope.actor,
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         action,
                         envelope.expected_aggregate_version,
                     )
@@ -738,7 +738,7 @@ where
             LegalCommand::ReleaseLegalHold(value) => {
                 let matter = self
                     .write
-                    .load_matter(&envelope.tenant_scope, value.matter_id)
+                    .load_matter(&envelope.active_scope, value.matter_id)
                     .await
                     .map_err(|error| to_cqrs(error.into(), correlation))?
                     .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
@@ -747,7 +747,7 @@ where
                     .existing(
                         &aggregate,
                         &envelope.actor,
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         action,
                         envelope.expected_aggregate_version,
                     )
@@ -764,7 +764,7 @@ where
             LegalCommand::CloseMatter(value) => {
                 let matter = self
                     .write
-                    .load_matter(&envelope.tenant_scope, value.matter_id)
+                    .load_matter(&envelope.active_scope, value.matter_id)
                     .await
                     .map_err(|error| to_cqrs(error.into(), correlation))?
                     .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
@@ -773,7 +773,7 @@ where
                     .existing(
                         &aggregate,
                         &envelope.actor,
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         action,
                         envelope.expected_aggregate_version,
                     )
@@ -798,7 +798,7 @@ where
                 correlation_id: correlation,
                 causation_id: envelope.causation_id,
                 actor: envelope.actor,
-                authority_scope: envelope.tenant_scope,
+                authority_scope: envelope.active_scope,
                 audit: envelope.audit,
                 expected_version,
                 aggregate,
@@ -844,14 +844,14 @@ where
         let correlation = envelope.correlation_id;
         let action = envelope.query.action();
         self.entitlement
-            .ensure_legal_enabled(&envelope.tenant_scope, false)
+            .ensure_legal_enabled(&envelope.active_scope, false)
             .await
             .map_err(|error| to_cqrs(error.into(), correlation))?;
         self.authorization
             .authorize(AuthorizationRequest {
                 actor: &envelope.actor,
-                authority_scope: &envelope.tenant_scope,
-                target_scope: &envelope.tenant_scope,
+                authority_scope: &envelope.active_scope,
+                target_scope: &envelope.active_scope,
                 action,
             })
             .await
@@ -862,7 +862,7 @@ where
                 let projected = self
                     .read
                     .get_contract(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         value.contract_id,
                         &envelope.consistency,
                     )
@@ -878,7 +878,7 @@ where
                     .map_err(|error| to_cqrs(error, correlation))?;
                 let projected = self
                     .read
-                    .list_contracts(&envelope.tenant_scope, &value.filter, &envelope.consistency)
+                    .list_contracts(&envelope.active_scope, &value.filter, &envelope.consistency)
                     .await
                     .map_err(|error| port_to_cqrs(error, correlation))?;
                 (
@@ -890,7 +890,7 @@ where
                 let projected = self
                     .read
                     .get_document(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         value.document_id,
                         &envelope.consistency,
                     )
@@ -906,7 +906,7 @@ where
                     .map_err(|error| to_cqrs(error, correlation))?;
                 let projected = self
                     .read
-                    .list_documents(&envelope.tenant_scope, &value.filter, &envelope.consistency)
+                    .list_documents(&envelope.active_scope, &value.filter, &envelope.consistency)
                     .await
                     .map_err(|error| port_to_cqrs(error, correlation))?;
                 (
@@ -920,7 +920,7 @@ where
                 let projected = self
                     .read
                     .list_access_history(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         &value.filter,
                         &envelope.consistency,
                     )
@@ -935,7 +935,7 @@ where
                 let projected = self
                     .read
                     .get_matter(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         value.matter_id,
                         &envelope.consistency,
                     )

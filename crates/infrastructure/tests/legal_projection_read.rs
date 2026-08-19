@@ -1,7 +1,7 @@
 //! Focused and disposable verification for the typed Legal read projection.
 
 use chrono::{Duration, Utc};
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::legal::{LegalAccessHistoryEntry, LegalContract, LegalDocument, LegalScope};
 use erpx_infrastructure::{
     LegalReadScope, SqlxLegalPersistence, SqlxLegalProjectionStore, SqlxLegalReadStore,
@@ -9,12 +9,12 @@ use erpx_infrastructure::{
 use sqlx::PgPool;
 use uuid::Uuid;
 
-fn context(actor: &str, scope: TenantScope, key: &str) -> CommandContext {
+fn context(actor: &str, scope: AuthorityScope, key: &str) -> CommandContext {
     CommandContext::try_new(
         key,
         ActorAttribution {
             principal_ref: actor.into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: Some(Uuid::new_v4()),
             represented_principal_ref: None,
             support_capability_id: None,
@@ -27,7 +27,11 @@ fn context(actor: &str, scope: TenantScope, key: &str) -> CommandContext {
 
 #[test]
 fn migration_has_exact_digest_constraints_envelope_metadata_and_forced_rls() {
-    let sql = include_str!("../../migration/migrations_tenant_read/0034_legal_documents.sql");
+    let sql = include_str!("../../migration/migrations_holding_read/0001_baseline.sql");
+    let legal_sql = sql
+        .split_inclusive(';')
+        .filter(|statement| statement.contains("erpx_holding.legal_"))
+        .collect::<String>();
     for table in [
         "legal_contract_read_rows",
         "legal_contract_party_read_rows",
@@ -39,13 +43,13 @@ fn migration_has_exact_digest_constraints_envelope_metadata_and_forced_rls() {
         "legal_projection_checkpoints",
         "legal_projection_event_receipts",
     ] {
-        assert!(sql.contains(&format!("CREATE TABLE IF NOT EXISTS erpx_tenant.{table}")));
+        assert!(sql.contains(&format!("CREATE TABLE IF NOT EXISTS erpx_holding.{table}")));
         assert!(sql.contains(&format!(
-            "ALTER TABLE erpx_tenant.{table} FORCE ROW LEVEL SECURITY"
+            "ALTER TABLE erpx_holding.{table} FORCE ROW LEVEL SECURITY"
         )));
     }
     assert_eq!(
-        sql.matches("^sha256:[0-9A-Fa-f]{64}$").count(),
+        legal_sql.matches("^sha256:[0-9A-Fa-f]{64}$").count(),
         2,
         "contract and document-version digests must be exact SHA-256 references"
     );
@@ -59,37 +63,37 @@ fn migration_has_exact_digest_constraints_envelope_metadata_and_forced_rls() {
         "source_idempotency_key",
     ] {
         assert!(
-            sql.contains(column),
+            legal_sql.contains(column),
             "missing read envelope column {column}"
         );
     }
-    let lower = sql.to_ascii_lowercase();
+    let lower = legal_sql.to_ascii_lowercase();
     assert!(!lower.contains("bytea"));
     assert!(!lower.contains("document_bytes"));
     assert!(!lower.contains("payload json"));
 }
 
 #[tokio::test]
-#[ignore = "requires disposable tenant write and read PostgreSQL databases"]
+#[ignore = "requires disposable holding write and read PostgreSQL databases"]
 async fn live_legal_projection_is_typed_scoped_idempotent_and_rebuildable() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migration");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding write migration");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migration");
+        .expect("holding read migration");
 
-    let holding_ref = format!("holding-legal-read-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-legal-read-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let scope = LegalScope::new(holding_id, company_id, None).expect("legal scope");
-    let contract_context = context("creator", scope.tenant_scope(), "legal-contract-1");
+    let contract_context = context("creator", scope.active_scope(), "legal-contract-1");
     let contract = LegalContract::new(
         Uuid::new_v4(),
         "contract-read-001",
@@ -101,7 +105,7 @@ async fn live_legal_projection_is_typed_scoped_idempotent_and_rebuildable() {
         &contract_context,
     )
     .expect("contract");
-    let document_context = context("creator", scope.tenant_scope(), "legal-document-1");
+    let document_context = context("creator", scope.active_scope(), "legal-document-1");
     let mut document = LegalDocument::new(
         Uuid::new_v4(),
         scope.clone(),
@@ -116,7 +120,7 @@ async fn live_legal_projection_is_typed_scoped_idempotent_and_rebuildable() {
             &document_context,
         )
         .expect("document version");
-    let access_context = context("creator", scope.tenant_scope(), "legal-access-1");
+    let access_context = context("creator", scope.active_scope(), "legal-access-1");
     let access = LegalAccessHistoryEntry::new(
         document.id,
         1,
@@ -128,7 +132,7 @@ async fn live_legal_projection_is_typed_scoped_idempotent_and_rebuildable() {
     )
     .expect("access history");
 
-    let source = SqlxLegalPersistence::new(write_pool.clone(), &holding_ref).expect("source");
+    let source = SqlxLegalPersistence::new(write_pool.clone(), &data_profile_key).expect("source");
     source
         .save_contract(&contract, &contract_context, None)
         .await
@@ -150,18 +154,18 @@ async fn live_legal_projection_is_typed_scoped_idempotent_and_rebuildable() {
         .begin()
         .await
         .expect("retention corruption transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *corrupt_retention_tx)
         .await
         .expect("retention corruption holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.legal_contract_retention
+        "UPDATE erpx_holding.legal_contract_retention
          SET holding_id=$1
-         WHERE holding_ref=$2 AND contract_id=$3",
+         WHERE data_profile_key=$2 AND contract_id=$3",
     )
     .bind(wrong_holding_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(contract.id)
     .execute(&mut *corrupt_retention_tx)
     .await
@@ -175,7 +179,7 @@ async fn live_legal_projection_is_typed_scoped_idempotent_and_rebuildable() {
     changed_contract.title = "retention integrity mutation".into();
     let changed_context = context(
         "creator",
-        scope.tenant_scope(),
+        scope.active_scope(),
         "legal-contract-retention-integrity",
     );
     changed_contract.version = 2;
@@ -192,16 +196,16 @@ async fn live_legal_projection_is_typed_scoped_idempotent_and_rebuildable() {
     );
     let (source_version, source_event_count, idempotency_count): (i64, i64, i64) = sqlx::query_as(
         "SELECT contracts.version,
-                    (SELECT count(*) FROM erpx_tenant.outbox_events
-                     WHERE holding_ref=$1 AND aggregate_type='legal_contract'
+                    (SELECT count(*) FROM erpx_holding.outbox_events
+                     WHERE data_profile_key=$1 AND aggregate_type='legal_contract'
                        AND aggregate_id=$2),
-                    (SELECT count(*) FROM erpx_tenant.legal_command_idempotency
-                     WHERE holding_ref=$1 AND aggregate_type='legal_contract'
+                    (SELECT count(*) FROM erpx_holding.legal_command_idempotency
+                     WHERE data_profile_key=$1 AND aggregate_type='legal_contract'
                        AND aggregate_id=$2)
-             FROM erpx_tenant.legal_contracts AS contracts
-             WHERE contracts.holding_ref=$1 AND contracts.contract_id=$2",
+             FROM erpx_holding.legal_contracts AS contracts
+             WHERE contracts.data_profile_key=$1 AND contracts.contract_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(contract.id)
     .fetch_one(&write_pool)
     .await
@@ -214,18 +218,18 @@ async fn live_legal_projection_is_typed_scoped_idempotent_and_rebuildable() {
         .begin()
         .await
         .expect("retention repair transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *repair_retention_tx)
         .await
         .expect("retention repair holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.legal_contract_retention
+        "UPDATE erpx_holding.legal_contract_retention
          SET holding_id=$1
-         WHERE holding_ref=$2 AND contract_id=$3",
+         WHERE data_profile_key=$2 AND contract_id=$3",
     )
     .bind(holding_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(contract.id)
     .execute(&mut *repair_retention_tx)
     .await
@@ -235,8 +239,9 @@ async fn live_legal_projection_is_typed_scoped_idempotent_and_rebuildable() {
         .await
         .expect("retention repair commit");
 
-    let projection = SqlxLegalProjectionStore::from_pools(&write_pool, &read_pool, &holding_ref)
-        .expect("projection store");
+    let projection =
+        SqlxLegalProjectionStore::from_pools(&write_pool, &read_pool, &data_profile_key)
+            .expect("projection store");
     let page = projection
         .read_source_event_page(None, 100)
         .await
@@ -290,7 +295,7 @@ async fn live_legal_projection_is_typed_scoped_idempotent_and_rebuildable() {
     let mut contract_v2 = contract.clone();
     let contract_v2_context = context(
         "creator",
-        contract.scope.tenant_scope(),
+        contract.scope.active_scope(),
         "legal-contract-source-gap-v2",
     );
     contract_v2.title = "Anonymized contract revision".into();
@@ -337,19 +342,19 @@ async fn live_legal_projection_is_typed_scoped_idempotent_and_rebuildable() {
         .begin()
         .await
         .expect("checkpoint corruption transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *checkpoint_corruption_tx)
         .await
         .expect("checkpoint holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.legal_projection_checkpoints
+        "UPDATE erpx_holding.legal_projection_checkpoints
          SET last_event_id=$1
-         WHERE holding_ref=$2 AND projection_name='legal_documents'
+         WHERE data_profile_key=$2 AND projection_name='legal_documents'
            AND aggregate_type='legal_contract' AND aggregate_id=$3",
     )
     .bind(forged_checkpoint_event_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(contract.id)
     .execute(&mut *checkpoint_corruption_tx)
     .await
@@ -369,19 +374,19 @@ async fn live_legal_projection_is_typed_scoped_idempotent_and_rebuildable() {
         .begin()
         .await
         .expect("checkpoint repair transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *checkpoint_repair_tx)
         .await
         .expect("checkpoint repair holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.legal_projection_checkpoints
+        "UPDATE erpx_holding.legal_projection_checkpoints
          SET last_event_id=$1
-         WHERE holding_ref=$2 AND projection_name='legal_documents'
+         WHERE data_profile_key=$2 AND projection_name='legal_documents'
            AND aggregate_type='legal_contract' AND aggregate_id=$3",
     )
     .bind(contract_source_event_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(contract.id)
     .execute(&mut *checkpoint_repair_tx)
     .await
@@ -403,18 +408,18 @@ async fn live_legal_projection_is_typed_scoped_idempotent_and_rebuildable() {
         .begin()
         .await
         .expect("source retention corruption transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *corrupt_source_retention_tx)
         .await
         .expect("source retention holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.legal_contract_retention
+        "UPDATE erpx_holding.legal_contract_retention
          SET holding_id=$1
-         WHERE holding_ref=$2 AND contract_id=$3",
+         WHERE data_profile_key=$2 AND contract_id=$3",
     )
     .bind(wrong_source_holding_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(contract.id)
     .execute(&mut *corrupt_source_retention_tx)
     .await
@@ -434,18 +439,18 @@ async fn live_legal_projection_is_typed_scoped_idempotent_and_rebuildable() {
         .begin()
         .await
         .expect("source retention repair transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *repair_source_retention_tx)
         .await
         .expect("source retention repair holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.legal_contract_retention
+        "UPDATE erpx_holding.legal_contract_retention
          SET holding_id=$1
-         WHERE holding_ref=$2 AND contract_id=$3",
+         WHERE data_profile_key=$2 AND contract_id=$3",
     )
     .bind(holding_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(contract.id)
     .execute(&mut *repair_source_retention_tx)
     .await
@@ -460,24 +465,24 @@ async fn live_legal_projection_is_typed_scoped_idempotent_and_rebuildable() {
         .begin()
         .await
         .expect("duplicate source transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *duplicate_source_tx)
         .await
         .expect("duplicate source holding scope");
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref, aggregate_version,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key, aggregate_version,
              event_type, payload, occurred_at, contract_version, event_version,
-             tenant_scope, actor, correlation_id, causation_id, idempotency_key)
-         SELECT $1, aggregate_type, aggregate_id, holding_ref, aggregate_version,
+             active_scope, actor, correlation_id, causation_id, idempotency_key)
+         SELECT $1, aggregate_type, aggregate_id, data_profile_key, aggregate_version,
                 event_type, payload, occurred_at, contract_version, event_version,
-                tenant_scope, actor, correlation_id, causation_id, idempotency_key
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$2 AND event_id=$3",
+                active_scope, actor, correlation_id, causation_id, idempotency_key
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$2 AND event_id=$3",
     )
     .bind(duplicate_event_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(contract_source_event_id)
     .execute(&mut *duplicate_source_tx)
     .await
@@ -497,12 +502,12 @@ async fn live_legal_projection_is_typed_scoped_idempotent_and_rebuildable() {
         .begin()
         .await
         .expect("duplicate source cleanup transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *remove_duplicate_source_tx)
         .await
         .expect("duplicate source cleanup holding scope");
-    sqlx::query("DELETE FROM erpx_tenant.outbox_events WHERE event_id=$1")
+    sqlx::query("DELETE FROM erpx_holding.outbox_events WHERE event_id=$1")
         .bind(duplicate_event_id)
         .execute(&mut *remove_duplicate_source_tx)
         .await
@@ -523,17 +528,17 @@ async fn live_legal_projection_is_typed_scoped_idempotent_and_rebuildable() {
         .begin()
         .await
         .expect("retention corruption transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *corrupt_read_tx)
         .await
         .expect("retention read holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.legal_contract_retention_read_rows
+        "UPDATE erpx_holding.legal_contract_retention_read_rows
          SET retention_state='ended'
-         WHERE holding_ref=$1 AND contract_id=$2",
+         WHERE data_profile_key=$1 AND contract_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(contract.id)
     .execute(&mut *corrupt_read_tx)
     .await
@@ -549,7 +554,7 @@ async fn live_legal_projection_is_typed_scoped_idempotent_and_rebuildable() {
     assert!(!retention_mismatch.is_consistent());
     assert_eq!(retention_mismatch.retention_mismatch_count, 1);
 
-    let read = SqlxLegalReadStore::from_pools(&read_pool, &write_pool, &holding_ref)
+    let read = SqlxLegalReadStore::from_pools(&read_pool, &write_pool, &data_profile_key)
         .expect("read adapter");
     let read_scope = LegalReadScope {
         holding_id,
@@ -623,17 +628,17 @@ async fn live_legal_projection_is_typed_scoped_idempotent_and_rebuildable() {
     assert_eq!(replayed, 4);
 
     let mut source_gap_tx = write_pool.begin().await.expect("source gap transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *source_gap_tx)
         .await
         .expect("source gap holding scope");
     sqlx::query(
-        "DELETE FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type='legal_contract'
+        "DELETE FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type='legal_contract'
            AND aggregate_id=$2 AND aggregate_version=1",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(contract.id)
     .execute(&mut *source_gap_tx)
     .await
@@ -647,16 +652,16 @@ async fn live_legal_projection_is_typed_scoped_idempotent_and_rebuildable() {
     assert_eq!(source_gap.stale_aggregate_count, 1);
 
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref, aggregate_version,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key, aggregate_version,
              event_type, payload, occurred_at, contract_version, event_version,
-             tenant_scope, actor, correlation_id, idempotency_key)
+             active_scope, actor, correlation_id, idempotency_key)
          VALUES ($1,'legal_contract',$2,$3,1,'legacy.legal', $4, now(), NULL, NULL,
                  NULL, NULL, NULL, NULL)",
     )
     .bind(Uuid::new_v4())
     .bind(Uuid::new_v4())
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(serde_json::json!({"legacy": true}))
     .execute(&write_pool)
     .await

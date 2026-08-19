@@ -27,7 +27,7 @@ ALTER TABLE erpx_identity.directory_connectors
         CHECK (scope_kind IN ('platform', 'holding', 'branch')),
     ADD CONSTRAINT directory_connectors_branch_scope_check CHECK (
         (scope_kind = 'branch'
-            AND holding_ref IS NOT NULL
+            AND data_profile_key IS NOT NULL
             AND scope_id IS NOT NULL
             AND company_id IS NOT NULL
             AND branch_id IS NOT NULL
@@ -54,7 +54,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS directory_connectors_active_holding_idx
     WHERE scope_kind = 'holding' AND lifecycle = 'active';
 
 CREATE UNIQUE INDEX IF NOT EXISTS directory_connectors_active_branch_idx
-    ON erpx_identity.directory_connectors (holding_ref, company_id, branch_id)
+    ON erpx_identity.directory_connectors (data_profile_key, company_id, branch_id)
     WHERE scope_kind = 'branch' AND lifecycle = 'active';
 
 CREATE TABLE IF NOT EXISTS erpx_identity.directory_connector_hostnames (

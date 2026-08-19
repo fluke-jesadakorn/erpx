@@ -239,7 +239,7 @@ mod tests {
     use erpx_integration_contracts::{
         AggregateKind, CurrencyCode, IntegrationEvent, MoneyAmount, customer,
     };
-    use erpx_kernel::{AggregateId, CorrelationId, EventId, TenantScope};
+    use erpx_kernel::{AggregateId, AuthorityScope, CorrelationId, EventId};
     use uuid::Uuid;
 
     use super::*;
@@ -248,7 +248,7 @@ mod tests {
         let currency = CurrencyCode::try_new("THB").unwrap();
         IntegrationEventEnvelope::try_new(
             EventId::try_from_uuid(Uuid::from_u128(1)).unwrap(),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id: Uuid::from_u128(2),
                 company_id: Uuid::from_u128(3),
             },
@@ -293,7 +293,7 @@ mod tests {
     fn irrelevant_owner_event_is_not_coerced_into_a_source_fact() {
         let envelope = IntegrationEventEnvelope::try_new(
             EventId::try_from_uuid(Uuid::from_u128(11)).unwrap(),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id: Uuid::from_u128(2),
                 company_id: Uuid::from_u128(3),
             },
@@ -342,7 +342,7 @@ mod tests {
     fn pos_emitted_events_map_to_their_exact_operations_fact_variants() {
         let at = Utc.with_ymd_and_hms(2026, 8, 5, 11, 0, 0).single().unwrap();
         let currency = CurrencyCode::try_new("THB").unwrap();
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id: Uuid::from_u128(2),
             company_id: Uuid::from_u128(3),
         };

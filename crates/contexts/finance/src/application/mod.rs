@@ -5,7 +5,7 @@ use erpx_cqrs::{
     QueryMetadata, QueryResult,
 };
 use erpx_integration_contracts::{RecordRef, finance, procurement, sales};
-use erpx_kernel::{Clock, CorrelationId, ErrorCategory, ErrorContext, KernelError, TenantScope};
+use erpx_kernel::{AuthorityScope, Clock, CorrelationId, ErrorCategory, ErrorContext, KernelError};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -31,7 +31,7 @@ pub const MAX_FINANCE_PAGE_SIZE: u16 = 100;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateChart {
     pub chart_id: ChartId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub code: String,
     pub name: String,
     pub currency: String,
@@ -51,7 +51,7 @@ pub struct ChangeAccountStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreatePeriod {
     pub period_id: PeriodId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub code: String,
     pub starts_on: NaiveDate,
     pub ends_on: NaiveDate,
@@ -71,7 +71,7 @@ pub struct ReopenPeriod {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateJournal {
     pub journal_id: JournalId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub chart_id: ChartId,
     pub period_id: PeriodId,
     pub journal_code: String,
@@ -90,7 +90,7 @@ pub struct PostJournal {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateCustomerInvoiceFromBilling {
     pub invoice_id: CustomerInvoiceId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub invoice_code: String,
     pub source: RecordRef,
     pub fact: sales::BillingEligibilityFact,
@@ -107,7 +107,7 @@ pub struct CancelCustomerInvoice {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateRevenueScheduleFromArrangement {
     pub schedule_id: RevenueScheduleId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub source: RecordRef,
     pub fact: sales::RevenueArrangementFact,
 }
@@ -120,13 +120,13 @@ pub struct RecognizeRevenueFromFulfillment {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateReceivableFromInvoice {
     pub subledger_id: SubledgerId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub fact: finance::CustomerInvoicePostedFact,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreatePayableFromProcurement {
     pub subledger_id: SubledgerId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub fact: procurement::ReleasedPurchaseOrderFact,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -484,8 +484,8 @@ where
     async fn preflight(
         &self,
         actor: &erpx_kernel::ActorAttribution,
-        authority_scope: &TenantScope,
-        target_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         action: FinanceAction,
     ) -> Result<(), FinanceApplicationError> {
         if !authority_scope.contains(target_scope) {
@@ -509,7 +509,7 @@ where
         &self,
         identity: &CommandIdentity,
         actor: &erpx_kernel::ActorAttribution,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         action: FinanceAction,
     ) -> Result<Option<StoredCommit>, FinanceApplicationError> {
         let Some(mut stored) = self.unit_of_work.find_receipt(identity).await? else {
@@ -525,7 +525,7 @@ where
         &self,
         aggregate: &FinanceAggregate,
         actor: &erpx_kernel::ActorAttribution,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         action: FinanceAction,
         expected: Option<u64>,
     ) -> Result<u64, FinanceApplicationError> {
@@ -566,7 +566,7 @@ where
             fingerprint: envelope.command.fingerprint(),
         };
         if let Some(stored) = self
-            .replay(&identity, &envelope.actor, &envelope.tenant_scope, action)
+            .replay(&identity, &envelope.actor, &envelope.active_scope, action)
             .await
             .map_err(|e| to_cqrs(e, correlation))?
         {
@@ -584,7 +584,7 @@ where
         let mut reference_versions = Vec::new();
         let (mut aggregate, expected_version) = match envelope.command {
             FinanceCommand::CreateChart(v) => {
-                self.preflight(&envelope.actor, &envelope.tenant_scope, &v.scope, action)
+                self.preflight(&envelope.actor, &envelope.active_scope, &v.scope, action)
                     .await
                     .map_err(|e| to_cqrs(e, correlation))?;
                 (
@@ -600,7 +600,7 @@ where
             FinanceCommand::AddAccount(v) => {
                 let mut value = FinanceAggregate::Chart(
                     self.write
-                        .load_chart(&envelope.tenant_scope, v.chart_id)
+                        .load_chart(&envelope.active_scope, v.chart_id)
                         .await
                         .map_err(|e| to_cqrs(e.into(), correlation))?
                         .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?,
@@ -609,7 +609,7 @@ where
                     .validate_existing(
                         &value,
                         &envelope.actor,
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         action,
                         envelope.expected_aggregate_version,
                     )
@@ -626,7 +626,7 @@ where
             FinanceCommand::ChangeAccountStatus(v) => {
                 let mut value = FinanceAggregate::Chart(
                     self.write
-                        .load_chart(&envelope.tenant_scope, v.chart_id)
+                        .load_chart(&envelope.active_scope, v.chart_id)
                         .await
                         .map_err(|e| to_cqrs(e.into(), correlation))?
                         .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?,
@@ -635,7 +635,7 @@ where
                     .validate_existing(
                         &value,
                         &envelope.actor,
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         action,
                         envelope.expected_aggregate_version,
                     )
@@ -650,7 +650,7 @@ where
                 (value, Some(expected))
             }
             FinanceCommand::CreatePeriod(v) => {
-                self.preflight(&envelope.actor, &envelope.tenant_scope, &v.scope, action)
+                self.preflight(&envelope.actor, &envelope.active_scope, &v.scope, action)
                     .await
                     .map_err(|e| to_cqrs(e, correlation))?;
                 (
@@ -671,7 +671,7 @@ where
             FinanceCommand::BeginPeriodClose(v) => {
                 let mut value = FinanceAggregate::Period(
                     self.write
-                        .load_period(&envelope.tenant_scope, v.period_id)
+                        .load_period(&envelope.active_scope, v.period_id)
                         .await
                         .map_err(|e| to_cqrs(e.into(), correlation))?
                         .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?,
@@ -680,7 +680,7 @@ where
                     .validate_existing(
                         &value,
                         &envelope.actor,
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         action,
                         envelope.expected_aggregate_version,
                     )
@@ -697,7 +697,7 @@ where
             FinanceCommand::ClosePeriod(v) => {
                 let mut value = FinanceAggregate::Period(
                     self.write
-                        .load_period(&envelope.tenant_scope, v.period_id)
+                        .load_period(&envelope.active_scope, v.period_id)
                         .await
                         .map_err(|e| to_cqrs(e.into(), correlation))?
                         .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?,
@@ -706,7 +706,7 @@ where
                     .validate_existing(
                         &value,
                         &envelope.actor,
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         action,
                         envelope.expected_aggregate_version,
                     )
@@ -723,7 +723,7 @@ where
             FinanceCommand::ReopenPeriod(v) => {
                 let mut value = FinanceAggregate::Period(
                     self.write
-                        .load_period(&envelope.tenant_scope, v.period_id)
+                        .load_period(&envelope.active_scope, v.period_id)
                         .await
                         .map_err(|e| to_cqrs(e.into(), correlation))?
                         .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?,
@@ -732,7 +732,7 @@ where
                     .validate_existing(
                         &value,
                         &envelope.actor,
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         action,
                         envelope.expected_aggregate_version,
                     )
@@ -747,7 +747,7 @@ where
                 (value, Some(expected))
             }
             FinanceCommand::CreateJournal(v) => {
-                self.preflight(&envelope.actor, &envelope.tenant_scope, &v.scope, action)
+                self.preflight(&envelope.actor, &envelope.active_scope, &v.scope, action)
                     .await
                     .map_err(|e| to_cqrs(e, correlation))?;
                 (
@@ -773,19 +773,19 @@ where
             FinanceCommand::PostJournal(v) => {
                 let journal = self
                     .write
-                    .load_journal(&envelope.tenant_scope, v.journal_id)
+                    .load_journal(&envelope.active_scope, v.journal_id)
                     .await
                     .map_err(|e| to_cqrs(e.into(), correlation))?
                     .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
                 let chart = self
                     .write
-                    .load_chart(&envelope.tenant_scope, journal.chart_id())
+                    .load_chart(&envelope.active_scope, journal.chart_id())
                     .await
                     .map_err(|e| to_cqrs(e.into(), correlation))?
                     .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
                 let period = self
                     .write
-                    .load_period(&envelope.tenant_scope, journal.period_id())
+                    .load_period(&envelope.active_scope, journal.period_id())
                     .await
                     .map_err(|e| to_cqrs(e.into(), correlation))?
                     .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
@@ -802,7 +802,7 @@ where
                     .validate_existing(
                         &value,
                         &envelope.actor,
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         action,
                         envelope.expected_aggregate_version,
                     )
@@ -827,7 +827,7 @@ where
                 (value, Some(expected))
             }
             FinanceCommand::CreateCustomerInvoiceFromBilling(v) => {
-                self.preflight(&envelope.actor, &envelope.tenant_scope, &v.scope, action)
+                self.preflight(&envelope.actor, &envelope.active_scope, &v.scope, action)
                     .await
                     .map_err(|e| to_cqrs(e, correlation))?;
                 (
@@ -850,7 +850,7 @@ where
             FinanceCommand::PostCustomerInvoice(v) => {
                 let mut value = FinanceAggregate::CustomerInvoice(
                     self.write
-                        .load_customer_invoice(&envelope.tenant_scope, v.invoice_id)
+                        .load_customer_invoice(&envelope.active_scope, v.invoice_id)
                         .await
                         .map_err(|e| to_cqrs(e.into(), correlation))?
                         .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?,
@@ -859,7 +859,7 @@ where
                     .validate_existing(
                         &value,
                         &envelope.actor,
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         action,
                         envelope.expected_aggregate_version,
                     )
@@ -876,7 +876,7 @@ where
             FinanceCommand::CancelCustomerInvoice(v) => {
                 let mut value = FinanceAggregate::CustomerInvoice(
                     self.write
-                        .load_customer_invoice(&envelope.tenant_scope, v.invoice_id)
+                        .load_customer_invoice(&envelope.active_scope, v.invoice_id)
                         .await
                         .map_err(|e| to_cqrs(e.into(), correlation))?
                         .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?,
@@ -885,7 +885,7 @@ where
                     .validate_existing(
                         &value,
                         &envelope.actor,
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         action,
                         envelope.expected_aggregate_version,
                     )
@@ -900,7 +900,7 @@ where
                 (value, Some(expected))
             }
             FinanceCommand::CreateRevenueScheduleFromArrangement(v) => {
-                self.preflight(&envelope.actor, &envelope.tenant_scope, &v.scope, action)
+                self.preflight(&envelope.actor, &envelope.active_scope, &v.scope, action)
                     .await
                     .map_err(|e| to_cqrs(e, correlation))?;
                 (
@@ -920,7 +920,7 @@ where
             FinanceCommand::RecognizeRevenueFromFulfillment(v) => {
                 let mut value = FinanceAggregate::RevenueSchedule(
                     self.write
-                        .load_revenue_schedule(&envelope.tenant_scope, v.schedule_id)
+                        .load_revenue_schedule(&envelope.active_scope, v.schedule_id)
                         .await
                         .map_err(|e| to_cqrs(e.into(), correlation))?
                         .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?,
@@ -929,7 +929,7 @@ where
                     .validate_existing(
                         &value,
                         &envelope.actor,
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         action,
                         envelope.expected_aggregate_version,
                     )
@@ -944,7 +944,7 @@ where
                 (value, Some(expected))
             }
             FinanceCommand::CreateReceivableFromInvoice(v) => {
-                self.preflight(&envelope.actor, &envelope.tenant_scope, &v.scope, action)
+                self.preflight(&envelope.actor, &envelope.active_scope, &v.scope, action)
                     .await
                     .map_err(|e| to_cqrs(e, correlation))?;
                 let mut item =
@@ -954,7 +954,7 @@ where
                 (FinanceAggregate::Subledger(item), None)
             }
             FinanceCommand::CreatePayableFromProcurement(v) => {
-                self.preflight(&envelope.actor, &envelope.tenant_scope, &v.scope, action)
+                self.preflight(&envelope.actor, &envelope.active_scope, &v.scope, action)
                     .await
                     .map_err(|e| to_cqrs(e, correlation))?;
                 (
@@ -973,7 +973,7 @@ where
             FinanceCommand::ApplySubledgerSettlement(v) => {
                 let mut value = FinanceAggregate::Subledger(
                     self.write
-                        .load_subledger(&envelope.tenant_scope, v.subledger_id)
+                        .load_subledger(&envelope.active_scope, v.subledger_id)
                         .await
                         .map_err(|e| to_cqrs(e.into(), correlation))?
                         .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?,
@@ -982,7 +982,7 @@ where
                     .validate_existing(
                         &value,
                         &envelope.actor,
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         action,
                         envelope.expected_aggregate_version,
                     )
@@ -1005,7 +1005,7 @@ where
                 correlation_id: correlation,
                 causation_id: envelope.causation_id,
                 actor: envelope.actor,
-                authority_scope: envelope.tenant_scope,
+                authority_scope: envelope.active_scope,
                 audit: envelope.audit,
                 expected_version,
                 reference_versions,
@@ -1050,14 +1050,14 @@ where
         let correlation = envelope.correlation_id;
         let action = envelope.query.action();
         self.entitlement
-            .ensure_finance_enabled(&envelope.tenant_scope, false)
+            .ensure_finance_enabled(&envelope.active_scope, false)
             .await
             .map_err(|e| to_cqrs(e.into(), correlation))?;
         self.authorization
             .authorize(AuthorizationRequest {
                 actor: &envelope.actor,
-                authority_scope: &envelope.tenant_scope,
-                target_scope: &envelope.tenant_scope,
+                authority_scope: &envelope.active_scope,
+                target_scope: &envelope.active_scope,
                 action,
             })
             .await
@@ -1066,7 +1066,7 @@ where
             FinanceQuery::GetChart(v) => {
                 let p = self
                     .read
-                    .get_chart(&envelope.tenant_scope, v.chart_id, &envelope.consistency)
+                    .get_chart(&envelope.active_scope, v.chart_id, &envelope.consistency)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?;
                 (FinanceQueryResponse::Chart(p.value), p.metadata)
@@ -1075,7 +1075,7 @@ where
                 validate_page(v.filter.page_size).map_err(|e| to_cqrs(e, correlation))?;
                 let p = self
                     .read
-                    .list_charts(&envelope.tenant_scope, &v.filter, &envelope.consistency)
+                    .list_charts(&envelope.active_scope, &v.filter, &envelope.consistency)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?;
                 (FinanceQueryResponse::Charts(p.value), p.metadata)
@@ -1083,7 +1083,7 @@ where
             FinanceQuery::GetPeriod(v) => {
                 let p = self
                     .read
-                    .get_period(&envelope.tenant_scope, v.period_id, &envelope.consistency)
+                    .get_period(&envelope.active_scope, v.period_id, &envelope.consistency)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?;
                 (FinanceQueryResponse::Period(p.value), p.metadata)
@@ -1091,7 +1091,7 @@ where
             FinanceQuery::GetJournal(v) => {
                 let p = self
                     .read
-                    .get_journal(&envelope.tenant_scope, v.journal_id, &envelope.consistency)
+                    .get_journal(&envelope.active_scope, v.journal_id, &envelope.consistency)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?;
                 (FinanceQueryResponse::Journal(p.value), p.metadata)
@@ -1100,7 +1100,7 @@ where
                 validate_page(v.filter.page_size).map_err(|e| to_cqrs(e, correlation))?;
                 let p = self
                     .read
-                    .list_journals(&envelope.tenant_scope, &v.filter, &envelope.consistency)
+                    .list_journals(&envelope.active_scope, &v.filter, &envelope.consistency)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?;
                 (FinanceQueryResponse::Journals(p.value), p.metadata)
@@ -1109,7 +1109,7 @@ where
                 let p = self
                     .read
                     .get_subledger(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         v.subledger_id,
                         &envelope.consistency,
                     )
@@ -1121,7 +1121,7 @@ where
                 let p = self
                     .read
                     .get_customer_invoice(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         v.invoice_id,
                         &envelope.consistency,
                     )
@@ -1133,7 +1133,7 @@ where
                 let p = self
                     .read
                     .get_revenue_schedule(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         v.schedule_id,
                         &envelope.consistency,
                     )
@@ -1145,7 +1145,7 @@ where
                 validate_page(v.filter.page_size).map_err(|e| to_cqrs(e, correlation))?;
                 let p = self
                     .read
-                    .list_subledger(&envelope.tenant_scope, &v.filter, &envelope.consistency)
+                    .list_subledger(&envelope.active_scope, &v.filter, &envelope.consistency)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?;
                 (FinanceQueryResponse::SubledgerList(p.value), p.metadata)
@@ -1153,7 +1153,7 @@ where
             FinanceQuery::GetTrialBalance(v) => {
                 let p = self
                     .read
-                    .get_trial_balance(&envelope.tenant_scope, v.chart_id, &envelope.consistency)
+                    .get_trial_balance(&envelope.active_scope, v.chart_id, &envelope.consistency)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?;
                 (FinanceQueryResponse::TrialBalance(p.value), p.metadata)
@@ -1163,7 +1163,7 @@ where
                 let p = self
                     .read
                     .list_bank_transactions(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         &v.filter,
                         &envelope.consistency,
                     )
@@ -1175,7 +1175,7 @@ where
                 let p = self
                     .read
                     .get_statutory_tax_report(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         &v.tax_period,
                         &v.currency,
                         &envelope.consistency,
@@ -1188,7 +1188,7 @@ where
                 )
             }
         };
-        if !response_within_scope(&value, &envelope.tenant_scope) {
+        if !response_within_scope(&value, &envelope.active_scope) {
             return Err(to_cqrs(
                 FinanceApplicationError::ScopeOutsideAuthority,
                 correlation,
@@ -1205,7 +1205,7 @@ where
     }
 }
 
-fn response_within_scope(value: &FinanceQueryResponse, authority: &TenantScope) -> bool {
+fn response_within_scope(value: &FinanceQueryResponse, authority: &AuthorityScope) -> bool {
     match value {
         FinanceQueryResponse::Chart(value) => value
             .as_ref()

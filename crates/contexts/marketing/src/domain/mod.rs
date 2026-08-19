@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use erpx_integration_contracts::{
     BoundedContext, DimensionSet, MoneyAmount, RecordRef, marketing, operations,
 };
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -142,7 +142,7 @@ pub enum MarketingDomainError {
 pub struct LeadCandidate {
     id: LeadCandidateId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     campaign_id: CampaignId,
     audience_member_id: AudienceMemberId,
     source: String,
@@ -162,7 +162,7 @@ pub struct LeadCandidate {
 pub struct LeadCandidateState {
     pub id: LeadCandidateId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub campaign_id: CampaignId,
     pub audience_member_id: AudienceMemberId,
     pub source: String,
@@ -198,7 +198,7 @@ impl LeadCandidate {
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: LeadCandidateId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         campaign_id: CampaignId,
         audience_member_id: AudienceMemberId,
         source: String,
@@ -332,7 +332,7 @@ impl LeadCandidate {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn campaign_id(&self) -> CampaignId {
@@ -434,7 +434,7 @@ pub struct SpendReservation {
 pub struct CampaignBudget {
     id: CampaignBudgetId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     campaign_id: CampaignId,
     code: String,
     name: String,
@@ -461,7 +461,7 @@ pub struct CampaignBudget {
 pub struct CampaignBudgetState {
     pub id: CampaignBudgetId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub campaign_id: CampaignId,
     pub code: String,
     pub name: String,
@@ -511,7 +511,7 @@ impl CampaignBudget {
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: CampaignBudgetId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         campaign_id: CampaignId,
         code: String,
         name: String,
@@ -868,7 +868,7 @@ impl CampaignBudget {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn campaign_id(&self) -> CampaignId {
@@ -957,7 +957,7 @@ impl MarketingAggregate {
             Self::CampaignBudget(value) => value.version(),
         }
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         match self {
             Self::LeadCandidate(value) => value.scope(),
             Self::CampaignBudget(value) => value.scope(),
@@ -984,13 +984,13 @@ impl MarketingAggregate {
 }
 
 fn validate_budget_dimensions(
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     campaign_id: CampaignId,
     dimensions: &DimensionSet,
 ) -> Result<(), MarketingDomainError> {
     let (company_id, branch_id) = match scope {
-        TenantScope::Company { company_id, .. } => (*company_id, None),
-        TenantScope::Branch {
+        AuthorityScope::Company { company_id, .. } => (*company_id, None),
+        AuthorityScope::Branch {
             company_id,
             branch_id,
             ..
@@ -1015,13 +1015,13 @@ fn validate_budget_dimensions(
     }
 }
 
-fn exact_scope(scope: &TenantScope) -> Result<(), MarketingDomainError> {
+fn exact_scope(scope: &AuthorityScope) -> Result<(), MarketingDomainError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } if !holding_id.is_nil() && !company_id.is_nil() => Ok(()),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -1052,8 +1052,8 @@ mod tests {
     use chrono::Duration;
     use erpx_integration_contracts::{CostCenterRef, CurrencyCode, ReferenceCode, organization};
 
-    fn scope() -> TenantScope {
-        TenantScope::Company {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         }
@@ -1180,7 +1180,7 @@ mod tests {
         assert!(matches!(
             LeadCandidate::create(
                 LeadCandidateId::try_from_uuid(Uuid::from_u128(9)).unwrap(),
-                TenantScope::Platform,
+                AuthorityScope::Platform,
                 CampaignId::try_from_uuid(Uuid::from_u128(4)).unwrap(),
                 AudienceMemberId::try_from_uuid(Uuid::from_u128(5)).unwrap(),
                 "x".into(),

@@ -12,7 +12,7 @@ use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
     ItemDescriptorDraft, record_policy_id,
 };
-use erpx_kernel::{AggregateId, CommandId, DataClassification, EventId, TenantScope};
+use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use sqlx::{Postgres, Row, Transaction};
@@ -41,7 +41,7 @@ impl CustomerAuthorityWriteRepository {
 impl WriteRepository for CustomerAuthorityWriteRepository {
     async fn load(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         customer_id: CustomerId,
     ) -> Result<Option<CustomerAccount>, PortError> {
         load_customer_relational(&self.write, authority_scope, customer_id).await
@@ -145,7 +145,7 @@ impl CommandUnitOfWork for CustomerAuthorityCommandAdapter {
             correlation_id: request.correlation_id,
             idempotency_key,
             request_hash,
-            tenant_scope: authority_scope,
+            active_scope: authority_scope,
             actor: request.actor,
             audit_context: request.audit,
             aggregate_type: AGGREGATE_TYPE.into(),
@@ -465,7 +465,7 @@ fn fingerprint_customer_id(fingerprint: &CommandFingerprint) -> CustomerId {
     }
 }
 
-fn fingerprint_scope(fingerprint: &CommandFingerprint) -> Option<&TenantScope> {
+fn fingerprint_scope(fingerprint: &CommandFingerprint) -> Option<&AuthorityScope> {
     match fingerprint {
         CommandFingerprint::Create {
             primary_authority, ..
@@ -578,14 +578,14 @@ fn map_store_error(error: CqrsSqlxError) -> PortError {
     }
 }
 
-fn scope_kind(scope: &TenantScope) -> Result<&'static str, CqrsSqlxError> {
+fn scope_kind(scope: &AuthorityScope) -> Result<&'static str, CqrsSqlxError> {
     match scope {
-        TenantScope::Holding { .. } => Ok("holding"),
-        TenantScope::Company { .. } => Ok("company"),
-        TenantScope::Branch { .. } => Ok("branch"),
-        TenantScope::Platform | TenantScope::Subtree { .. } => Err(CqrsSqlxError::GuardRejected(
-            "customer authority link is not exact",
-        )),
+        AuthorityScope::Holding { .. } => Ok("holding"),
+        AuthorityScope::Company { .. } => Ok("company"),
+        AuthorityScope::Branch { .. } => Ok("branch"),
+        AuthorityScope::Platform | AuthorityScope::Subtree { .. } => Err(
+            CqrsSqlxError::GuardRejected("customer authority link is not exact"),
+        ),
     }
 }
 
@@ -599,7 +599,7 @@ fn from_i64(value: i64) -> Result<u64, CqrsSqlxError> {
 
 async fn load_customer_relational(
     write: &WritePool,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     customer_id: CustomerId,
 ) -> Result<Option<CustomerAccount>, PortError> {
     authority.validate().map_err(|_| PortError::Denied)?;
@@ -711,18 +711,18 @@ async fn load_customer_relational(
     .map_err(|_| PortError::Internal)
 }
 
-fn exact_scope_from_row(row: &sqlx::postgres::PgRow) -> Result<TenantScope, PortError> {
+fn exact_scope_from_row(row: &sqlx::postgres::PgRow) -> Result<AuthorityScope, PortError> {
     let kind: String = row.try_get("scope_kind").map_err(|_| PortError::Internal)?;
     let holding_id: Uuid = row.try_get("holding_id").map_err(|_| PortError::Internal)?;
     let company_id: Option<Uuid> = row.try_get("company_id").map_err(|_| PortError::Internal)?;
     let branch_id: Option<Uuid> = row.try_get("branch_id").map_err(|_| PortError::Internal)?;
     match (kind.as_str(), company_id, branch_id) {
-        ("holding", None, None) => Ok(TenantScope::Holding { holding_id }),
-        ("company", Some(company_id), None) => Ok(TenantScope::Company {
+        ("holding", None, None) => Ok(AuthorityScope::Holding { holding_id }),
+        ("company", Some(company_id), None) => Ok(AuthorityScope::Company {
             holding_id,
             company_id,
         }),
-        ("branch", Some(company_id), Some(branch_id)) => Ok(TenantScope::Branch {
+        ("branch", Some(company_id), Some(branch_id)) => Ok(AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -770,7 +770,7 @@ mod tests {
                 "TH",
             )
             .unwrap(),
-            primary_authority: TenantScope::Company {
+            primary_authority: AuthorityScope::Company {
                 holding_id: Uuid::from_u128(2),
                 company_id: Uuid::from_u128(3),
             },
@@ -783,12 +783,11 @@ mod tests {
 
     #[test]
     fn exact_scope_parts_fail_closed_for_platform_and_subtree() {
-        assert!(scope_kind(&TenantScope::Platform).is_err());
+        assert!(scope_kind(&AuthorityScope::Platform).is_err());
         assert!(
-            scope_kind(&TenantScope::Subtree {
+            scope_kind(&AuthorityScope::Subtree {
                 holding_id: Uuid::from_u128(1),
-                company_ids: vec![Uuid::from_u128(2)],
-                branch_ids: Vec::new(),
+                organization_node_id: Uuid::from_u128(2),
             })
             .is_err()
         );

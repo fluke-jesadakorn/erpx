@@ -4,7 +4,7 @@ use erpx_cqrs_sqlx::{
     CommandStore, CqrsSqlxError, GuardCommandContext, OutboxEventWrite, RequestHash, WritePool,
 };
 use erpx_kernel::{
-    ActorAttribution, AggregateId, CommandId, CorrelationId, EventId, TenantId, TenantScope,
+    ActorAttribution, AggregateId, AuthorityScope, CommandId, CorrelationId, EventId, HoldingId,
 };
 use erpx_projects::{
     CommandFingerprint, CommandIdentity, CommandUnitOfWork, DependencyAgreement, DependencyId,
@@ -35,7 +35,7 @@ impl ProjectsWriteRepository {
 
     async fn load(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         partition: &str,
         aggregate_type: &str,
         id: Uuid,
@@ -69,7 +69,7 @@ impl ProjectsWriteRepository {
 impl WriteRepository for ProjectsWriteRepository {
     async fn load_project(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: ProjectId,
     ) -> Result<Option<Project>, PortError> {
         match self
@@ -89,7 +89,7 @@ impl WriteRepository for ProjectsWriteRepository {
 
     async fn load_workflow(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: WorkflowTemplateId,
     ) -> Result<Option<WorkflowTemplate>, PortError> {
         match self
@@ -109,7 +109,7 @@ impl WriteRepository for ProjectsWriteRepository {
 
     async fn load_dependency(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: DependencyId,
     ) -> Result<Option<DependencyAgreement>, PortError> {
         match self
@@ -129,7 +129,7 @@ impl WriteRepository for ProjectsWriteRepository {
 
     async fn load_handoff(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: HandoffId,
     ) -> Result<Option<ProjectHandoff>, PortError> {
         match self
@@ -180,7 +180,7 @@ async fn load_normalized_aggregate(
 
 const PROJECT_DOCUMENT_SQL: &str = r#"
 SELECT jsonb_build_object('Project', jsonb_build_object(
- 'id',p.project_id,'version',p.aggregate_version,'scope',p.tenant_scope,
+ 'id',p.project_id,'version',p.aggregate_version,'scope',p.active_scope,
  'code',p.project_code,'name',p.project_name,'class',p.project_class,
  'policy_ref',p.policy_ref,
  'workflow',jsonb_build_object('template_id',p.workflow_template_id,'version',p.workflow_version),
@@ -188,29 +188,29 @@ SELECT jsonb_build_object('Project', jsonb_build_object(
  'nodes',COALESCE((SELECT jsonb_object_agg(n.node_id::text,jsonb_build_object(
    'id',n.node_id,'parent_id',n.parent_node_id,'kind',n.node_kind,'title',n.title,
    'owner_id',n.owner_id,
-   'assignees',COALESCE((SELECT jsonb_agg(a.assignee_id ORDER BY a.assignee_id) FROM erpx_projects_write.project_node_assignees a WHERE a.tenant_id=n.tenant_id AND a.project_id=n.project_id AND a.node_id=n.node_id),'[]'::jsonb),
+   'assignees',COALESCE((SELECT jsonb_agg(a.assignee_id ORDER BY a.assignee_id) FROM erpx_projects_write.project_node_assignees a WHERE a.holding_id=n.holding_id AND a.project_id=n.project_id AND a.node_id=n.node_id),'[]'::jsonb),
    'planned_start',n.planned_start,'planned_end',n.planned_end,'actual_start',n.actual_start,'actual_end',n.actual_end,
    'workflow_state',n.workflow_state,'core_state',n.core_state,
    'promotion_source',CASE WHEN n.promotion_thread_id IS NULL THEN NULL ELSE jsonb_build_object('thread_id',n.promotion_thread_id,'comment_id',n.promotion_comment_id,'revision',n.promotion_revision,'content_digest',n.promotion_digest) END,
-   'attachments',COALESCE((SELECT jsonb_agg(jsonb_build_object('attachment_id',a.attachment_id,'object_ref',a.object_ref,'content_digest',a.content_digest) ORDER BY a.attachment_id) FROM erpx_projects_write.project_node_attachments a WHERE a.tenant_id=n.tenant_id AND a.project_id=n.project_id AND a.node_id=n.node_id),'[]'::jsonb),
-   'references',COALESCE((SELECT jsonb_agg(r.reference_document ORDER BY r.record_id,r.owner_context,r.record_type) FROM erpx_projects_write.project_node_references r WHERE r.tenant_id=n.tenant_id AND r.project_id=n.project_id AND r.node_id=n.node_id),'[]'::jsonb),
-   'time_facts',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',f.fact_id,'worker_id',f.worker_id,'work_date',f.work_date,'minutes',f.minutes,'source',f.source_record,'source_version',f.source_version) ORDER BY f.fact_id) FROM erpx_projects_write.project_time_facts f WHERE f.tenant_id=n.tenant_id AND f.project_id=n.project_id AND f.node_id=n.node_id),'[]'::jsonb),
-   'cost_facts',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',f.fact_id,'amount',jsonb_build_object('minor_units',f.amount_minor,'currency',f.currency),'source',f.source_record,'source_version',f.source_version,'reversed_fact',f.reversed_fact_id) ORDER BY f.fact_id) FROM erpx_projects_write.project_cost_facts f WHERE f.tenant_id=n.tenant_id AND f.project_id=n.project_id AND f.node_id=n.node_id),'[]'::jsonb),
+   'attachments',COALESCE((SELECT jsonb_agg(jsonb_build_object('attachment_id',a.attachment_id,'object_ref',a.object_ref,'content_digest',a.content_digest) ORDER BY a.attachment_id) FROM erpx_projects_write.project_node_attachments a WHERE a.holding_id=n.holding_id AND a.project_id=n.project_id AND a.node_id=n.node_id),'[]'::jsonb),
+   'references',COALESCE((SELECT jsonb_agg(r.reference_document ORDER BY r.record_id,r.owner_context,r.record_type) FROM erpx_projects_write.project_node_references r WHERE r.holding_id=n.holding_id AND r.project_id=n.project_id AND r.node_id=n.node_id),'[]'::jsonb),
+   'time_facts',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',f.fact_id,'worker_id',f.worker_id,'work_date',f.work_date,'minutes',f.minutes,'source',f.source_record,'source_version',f.source_version) ORDER BY f.fact_id) FROM erpx_projects_write.project_time_facts f WHERE f.holding_id=n.holding_id AND f.project_id=n.project_id AND f.node_id=n.node_id),'[]'::jsonb),
+   'cost_facts',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',f.fact_id,'amount',jsonb_build_object('minor_units',f.amount_minor,'currency',f.currency),'source',f.source_record,'source_version',f.source_version,'reversed_fact',f.reversed_fact_id) ORDER BY f.fact_id) FROM erpx_projects_write.project_cost_facts f WHERE f.holding_id=n.holding_id AND f.project_id=n.project_id AND f.node_id=n.node_id),'[]'::jsonb),
    'version',n.node_version,'created_at',n.created_at,'updated_at',n.updated_at
- )) FROM erpx_projects_write.project_node_guards n WHERE n.tenant_id=p.tenant_id AND n.project_id=p.project_id),'{}'::jsonb),
+ )) FROM erpx_projects_write.project_node_guards n WHERE n.holding_id=p.holding_id AND n.project_id=p.project_id),'{}'::jsonb),
  'created_at',p.created_at,'updated_at',p.updated_at
 )) FROM erpx_projects_write.project_guards p
-WHERE p.tenant_id=erpx_projects_write.current_tenant_id() AND p.project_id=$1
+WHERE p.holding_id=erpx_projects_write.current_holding_id() AND p.project_id=$1
 "#;
 
 const WORKFLOW_DOCUMENT_SQL: &str = r#"
 SELECT jsonb_build_object('Workflow',jsonb_build_object(
- 'id',w.template_id,'version',w.template_version,'scope',w.tenant_scope,'name',w.template_name,
- 'states',COALESCE((SELECT jsonb_agg(jsonb_build_object('code',s.state_code,'core_state',s.core_state) ORDER BY s.state_code) FROM erpx_projects_write.workflow_states s WHERE s.tenant_id=w.tenant_id AND s.template_id=w.template_id AND s.template_version=w.template_version),'[]'::jsonb),
- 'transitions',COALESCE((SELECT jsonb_agg(jsonb_build_object('from',t.from_state,'to',t.to_state) ORDER BY t.from_state,t.to_state) FROM erpx_projects_write.workflow_transitions t WHERE t.tenant_id=w.tenant_id AND t.template_id=w.template_id AND t.template_version=w.template_version),'[]'::jsonb),
+ 'id',w.template_id,'version',w.template_version,'scope',w.active_scope,'name',w.template_name,
+ 'states',COALESCE((SELECT jsonb_agg(jsonb_build_object('code',s.state_code,'core_state',s.core_state) ORDER BY s.state_code) FROM erpx_projects_write.workflow_states s WHERE s.holding_id=w.holding_id AND s.template_id=w.template_id AND s.template_version=w.template_version),'[]'::jsonb),
+ 'transitions',COALESCE((SELECT jsonb_agg(jsonb_build_object('from',t.from_state,'to',t.to_state) ORDER BY t.from_state,t.to_state) FROM erpx_projects_write.workflow_transitions t WHERE t.holding_id=w.holding_id AND t.template_id=w.template_id AND t.template_version=w.template_version),'[]'::jsonb),
  'status',w.template_status,'created_at',w.created_at,'updated_at',w.published_at
 )) FROM erpx_projects_write.workflow_template_versions w
-WHERE w.tenant_id=erpx_projects_write.current_tenant_id() AND w.template_id=$1
+WHERE w.holding_id=erpx_projects_write.current_holding_id() AND w.template_id=$1
 ORDER BY w.template_version DESC LIMIT 1
 "#;
 
@@ -220,38 +220,38 @@ SELECT jsonb_build_object('Dependency',jsonb_build_object(
  'source',jsonb_build_object('project_id',d.source_project_id,'project_version',d.source_project_version,'node_id',d.source_node_id,'node_version',d.source_node_version,'scope',d.source_scope,'owner_id',d.source_owner_id),
  'target',jsonb_build_object('project_id',d.target_project_id,'project_version',d.target_project_version,'node_id',d.target_node_id,'node_version',d.target_node_version,'scope',d.target_scope,'owner_id',d.target_owner_id),
  'kind',d.dependency_kind,'status',d.dependency_status,
- 'source_acceptance',(SELECT jsonb_build_object('side',a.dependency_side,'owner_id',a.owner_id,'terms_version',a.terms_version,'accepted_at',a.accepted_at) FROM erpx_projects_write.dependency_acceptances a WHERE a.tenant_id=d.tenant_id AND a.dependency_id=d.dependency_id AND a.dependency_side='source'),
- 'target_acceptance',(SELECT jsonb_build_object('side',a.dependency_side,'owner_id',a.owner_id,'terms_version',a.terms_version,'accepted_at',a.accepted_at) FROM erpx_projects_write.dependency_acceptances a WHERE a.tenant_id=d.tenant_id AND a.dependency_id=d.dependency_id AND a.dependency_side='target'),
+ 'source_acceptance',(SELECT jsonb_build_object('side',a.dependency_side,'owner_id',a.owner_id,'terms_version',a.terms_version,'accepted_at',a.accepted_at) FROM erpx_projects_write.dependency_acceptances a WHERE a.holding_id=d.holding_id AND a.dependency_id=d.dependency_id AND a.dependency_side='source'),
+ 'target_acceptance',(SELECT jsonb_build_object('side',a.dependency_side,'owner_id',a.owner_id,'terms_version',a.terms_version,'accepted_at',a.accepted_at) FROM erpx_projects_write.dependency_acceptances a WHERE a.holding_id=d.holding_id AND a.dependency_id=d.dependency_id AND a.dependency_side='target'),
  'proposed_by',d.proposed_by,'created_at',d.created_at,'updated_at',d.updated_at
 )) FROM erpx_projects_write.dependency_guards d
-WHERE d.tenant_id=erpx_projects_write.current_tenant_id() AND d.dependency_id=$1
+WHERE d.holding_id=erpx_projects_write.current_holding_id() AND d.dependency_id=$1
 "#;
 
 const HANDOFF_DOCUMENT_SQL: &str = r#"
 SELECT jsonb_build_object('Handoff',jsonb_build_object(
  'id',h.handoff_id,'version',h.aggregate_version,'project_id',h.project_id,'item_id',h.item_id,
- 'scope',h.tenant_scope,'kind',h.handoff_kind,'payload_digest',h.payload_digest,
+ 'scope',h.active_scope,'kind',h.handoff_kind,'payload_digest',h.payload_digest,
  'idempotency_key',h.idempotency_key,'correlation_id',h.correlation_id,'proposed_by',h.proposed_by,
  'approved_by',h.approved_by,'status',h.handoff_status,
  'outcome',CASE WHEN h.outcome_receipt_id IS NULL THEN NULL ELSE jsonb_build_object('owner_context',h.outcome_owner_context,'owner_receipt_id',h.outcome_receipt_id,'owner_record',h.outcome_record,'accepted',h.outcome_accepted,'reason_code',h.outcome_reason_code,'reconciled_at',h.reconciled_at) END,
  'created_at',h.created_at,'updated_at',h.updated_at
 )) FROM erpx_projects_write.handoff_guards h
-WHERE h.tenant_id=erpx_projects_write.current_tenant_id() AND h.handoff_id=$1
+WHERE h.holding_id=erpx_projects_write.current_holding_id() AND h.handoff_id=$1
 "#;
 
 #[derive(Debug, Clone)]
 pub struct ProjectsCommandAdapter {
     store: CommandStore,
     pool: WritePool,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
 }
 
 impl ProjectsCommandAdapter {
-    pub fn new(pool: WritePool, tenant_id: TenantId) -> Self {
+    pub fn new(pool: WritePool, holding_id: HoldingId) -> Self {
         Self {
             store: CommandStore::new(pool.clone()),
             pool,
-            tenant_id,
+            holding_id,
         }
     }
 }
@@ -347,7 +347,7 @@ impl CommandUnitOfWork for ProjectsCommandAdapter {
             AggregateId::try_from_uuid(aggregate.id_uuid()).map_err(|_| PortError::Internal)?;
         let guard = ProjectsAtomicGuard {
             aggregate: aggregate.clone(),
-            tenant_id: self.tenant_id,
+            holding_id: self.holding_id,
             command_id,
             correlation_id: request.correlation_id,
             actor: request.actor.clone(),
@@ -359,7 +359,7 @@ impl CommandUnitOfWork for ProjectsCommandAdapter {
             correlation_id: request.correlation_id,
             idempotency_key: request.identity.idempotency_key,
             request_hash: request_hash(&request.identity.fingerprint)?,
-            tenant_scope: aggregate.scope().clone(),
+            active_scope: aggregate.scope().clone(),
             actor: request.actor,
             audit_context: request.audit,
             aggregate_type: aggregate_type.into(),
@@ -403,7 +403,7 @@ impl CommandUnitOfWork for ProjectsCommandAdapter {
 
 struct ProjectsAtomicGuard {
     aggregate: ProjectsAggregate,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
     command_id: CommandId,
     correlation_id: CorrelationId,
     actor: ActorAttribution,
@@ -417,8 +417,8 @@ impl AtomicCommandGuard for ProjectsAtomicGuard {
         context: &GuardCommandContext<'_>,
     ) -> Result<Option<u64>, CqrsSqlxError> {
         validate_guard_context(&self.aggregate, context)?;
-        set_tenant(transaction, self.tenant_id).await?;
-        guard_version(transaction, self.tenant_id, &self.aggregate)
+        set_holding(transaction, self.holding_id).await?;
+        guard_version(transaction, self.holding_id, &self.aggregate)
             .await?
             .map(|value| u64::try_from(value).map_err(|_| CqrsSqlxError::NumericRange))
             .transpose()
@@ -430,8 +430,8 @@ impl AtomicCommandGuard for ProjectsAtomicGuard {
         context: &GuardCommandContext<'_>,
     ) -> Result<(), CqrsSqlxError> {
         validate_guard_context(&self.aggregate, context)?;
-        set_tenant(transaction, self.tenant_id).await?;
-        let current = guard_version(transaction, self.tenant_id, &self.aggregate).await?;
+        set_holding(transaction, self.holding_id).await?;
+        let current = guard_version(transaction, self.holding_id, &self.aggregate).await?;
         match (context.expected_version, current) {
             (None, Some(_)) => Err(CqrsSqlxError::GuardRejected(
                 "Projects aggregate already exists",
@@ -448,7 +448,7 @@ impl AtomicCommandGuard for ProjectsAtomicGuard {
         transaction: &mut Transaction<'_, Postgres>,
         context: &AppliedGuardContext<'_>,
     ) -> Result<(), CqrsSqlxError> {
-        set_tenant(transaction, self.tenant_id).await?;
+        set_holding(transaction, self.holding_id).await?;
         if context.context != CONTEXT_NAME
             || context.aggregate_type != self.aggregate.aggregate_type()
             || context.aggregate_id.as_uuid() != self.aggregate.id_uuid()
@@ -462,22 +462,22 @@ impl AtomicCommandGuard for ProjectsAtomicGuard {
         let version = to_i64(context.aggregate_version)?;
         match &self.aggregate {
             ProjectsAggregate::Project(value) => {
-                persist_project(transaction, self.tenant_id, value, version).await?
+                persist_project(transaction, self.holding_id, value, version).await?
             }
             ProjectsAggregate::Workflow(value) => {
-                persist_workflow(transaction, self.tenant_id, value, version).await?
+                persist_workflow(transaction, self.holding_id, value, version).await?
             }
             ProjectsAggregate::Dependency(value) => {
-                persist_dependency(transaction, self.tenant_id, value, version).await?
+                persist_dependency(transaction, self.holding_id, value, version).await?
             }
             ProjectsAggregate::Handoff(value) => {
-                persist_handoff(transaction, self.tenant_id, value, version).await?
+                persist_handoff(transaction, self.holding_id, value, version).await?
             }
         }
         for draft in crate::directory::projects_directory_drafts(&self.aggregate)? {
             crate::directory::append_directory_draft(
                 transaction,
-                self.tenant_id,
+                self.holding_id,
                 self.command_id,
                 self.correlation_id,
                 &self.actor,
@@ -492,18 +492,18 @@ impl AtomicCommandGuard for ProjectsAtomicGuard {
 
 async fn persist_project(
     transaction: &mut Transaction<'_, Postgres>,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
     value: &Project,
     version: i64,
 ) -> Result<(), CqrsSqlxError> {
     let changed = sqlx::query(
         "INSERT INTO erpx_projects_write.project_guards \
-         (tenant_id,project_id,tenant_scope,scope_key,project_code,project_name,project_class,project_status,policy_ref,workflow_template_id,workflow_version,owner_id,aggregate_version,created_at,updated_at) \
+         (holding_id,project_id,active_scope,scope_key,project_code,project_name,project_class,project_status,policy_ref,workflow_template_id,workflow_version,owner_id,aggregate_version,created_at,updated_at) \
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) \
-         ON CONFLICT (tenant_id,project_id) DO UPDATE SET tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,project_code=EXCLUDED.project_code,project_name=EXCLUDED.project_name,project_class=EXCLUDED.project_class,project_status=EXCLUDED.project_status,policy_ref=EXCLUDED.policy_ref,workflow_template_id=EXCLUDED.workflow_template_id,workflow_version=EXCLUDED.workflow_version,owner_id=EXCLUDED.owner_id,aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at \
+         ON CONFLICT (holding_id,project_id) DO UPDATE SET active_scope=EXCLUDED.active_scope,scope_key=EXCLUDED.scope_key,project_code=EXCLUDED.project_code,project_name=EXCLUDED.project_name,project_class=EXCLUDED.project_class,project_status=EXCLUDED.project_status,policy_ref=EXCLUDED.policy_ref,workflow_template_id=EXCLUDED.workflow_template_id,workflow_version=EXCLUDED.workflow_version,owner_id=EXCLUDED.owner_id,aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at \
          WHERE erpx_projects_write.project_guards.aggregate_version + 1 = EXCLUDED.aggregate_version",
     )
-    .bind(tenant_id.as_uuid())
+    .bind(holding_id.as_uuid())
     .bind(value.id().as_uuid())
     .bind(serde_json::to_value(value.scope()).map_err(encoding_error)?)
     .bind(scope_key(value.scope())?)
@@ -530,10 +530,11 @@ async fn persist_project(
         "project_cost_facts",
         "project_node_guards",
     ] {
-        let statement =
-            format!("DELETE FROM erpx_projects_write.{table} WHERE tenant_id=$1 AND project_id=$2");
+        let statement = format!(
+            "DELETE FROM erpx_projects_write.{table} WHERE holding_id=$1 AND project_id=$2"
+        );
         sqlx::query(&statement)
-            .bind(tenant_id.as_uuid())
+            .bind(holding_id.as_uuid())
             .bind(value.id().as_uuid())
             .execute(&mut **transaction)
             .await?;
@@ -542,10 +543,10 @@ async fn persist_project(
         let source = node.promotion_source();
         sqlx::query(
             "INSERT INTO erpx_projects_write.project_node_guards \
-             (tenant_id,project_id,node_id,parent_node_id,node_kind,title,owner_id,planned_start,planned_end,actual_start,actual_end,workflow_state,core_state,promotion_thread_id,promotion_comment_id,promotion_revision,promotion_digest,node_version,created_at,updated_at) \
+             (holding_id,project_id,node_id,parent_node_id,node_kind,title,owner_id,planned_start,planned_end,actual_start,actual_end,workflow_state,core_state,promotion_thread_id,promotion_comment_id,promotion_revision,promotion_digest,node_version,created_at,updated_at) \
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)",
         )
-        .bind(tenant_id.as_uuid()).bind(value.id().as_uuid()).bind(node.id().as_uuid())
+        .bind(holding_id.as_uuid()).bind(value.id().as_uuid()).bind(node.id().as_uuid())
         .bind(node.parent_id().map(|id| id.as_uuid())).bind(enum_name(node.kind())?)
         .bind(node.title()).bind(node.owner_id()).bind(node.planned_start()).bind(node.planned_end())
         .bind(node.actual_start()).bind(node.actual_end()).bind(node.workflow_state())
@@ -554,34 +555,34 @@ async fn persist_project(
         .bind(source.map(|v| v.content_digest.as_str())).bind(to_i64(node.version())?)
         .bind(node.created_at()).bind(node.updated_at()).execute(&mut **transaction).await?;
         for assignee in node.assignees() {
-            sqlx::query("INSERT INTO erpx_projects_write.project_node_assignees (tenant_id,project_id,node_id,assignee_id) VALUES ($1,$2,$3,$4)")
-                .bind(tenant_id.as_uuid()).bind(value.id().as_uuid()).bind(node.id().as_uuid()).bind(assignee)
+            sqlx::query("INSERT INTO erpx_projects_write.project_node_assignees (holding_id,project_id,node_id,assignee_id) VALUES ($1,$2,$3,$4)")
+                .bind(holding_id.as_uuid()).bind(value.id().as_uuid()).bind(node.id().as_uuid()).bind(assignee)
                 .execute(&mut **transaction).await?;
         }
         for attachment in node.attachments() {
-            sqlx::query("INSERT INTO erpx_projects_write.project_node_attachments (tenant_id,project_id,node_id,attachment_id,object_ref,content_digest) VALUES ($1,$2,$3,$4,$5,$6)")
-                .bind(tenant_id.as_uuid()).bind(value.id().as_uuid()).bind(node.id().as_uuid())
+            sqlx::query("INSERT INTO erpx_projects_write.project_node_attachments (holding_id,project_id,node_id,attachment_id,object_ref,content_digest) VALUES ($1,$2,$3,$4,$5,$6)")
+                .bind(holding_id.as_uuid()).bind(value.id().as_uuid()).bind(node.id().as_uuid())
                 .bind(attachment.attachment_id).bind(&attachment.object_ref).bind(&attachment.content_digest)
                 .execute(&mut **transaction).await?;
         }
         for reference in node.references() {
-            sqlx::query("INSERT INTO erpx_projects_write.project_node_references (tenant_id,project_id,node_id,record_id,owner_context,record_type,reference_document) VALUES ($1,$2,$3,$4,$5,$6,$7)")
-                .bind(tenant_id.as_uuid()).bind(value.id().as_uuid()).bind(node.id().as_uuid())
+            sqlx::query("INSERT INTO erpx_projects_write.project_node_references (holding_id,project_id,node_id,record_id,owner_context,record_type,reference_document) VALUES ($1,$2,$3,$4,$5,$6,$7)")
+                .bind(holding_id.as_uuid()).bind(value.id().as_uuid()).bind(node.id().as_uuid())
                 .bind(reference.id().as_uuid()).bind(enum_name(reference.owner_context())?)
                 .bind(reference.record_type().as_str()).bind(serde_json::to_value(reference).map_err(encoding_error)?)
                 .execute(&mut **transaction).await?;
         }
         for fact in node.time_facts() {
-            sqlx::query("INSERT INTO erpx_projects_write.project_time_facts (tenant_id,project_id,node_id,fact_id,worker_id,work_date,minutes,source_record,source_version) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)")
-                .bind(tenant_id.as_uuid()).bind(value.id().as_uuid()).bind(node.id().as_uuid())
+            sqlx::query("INSERT INTO erpx_projects_write.project_time_facts (holding_id,project_id,node_id,fact_id,worker_id,work_date,minutes,source_record,source_version) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)")
+                .bind(holding_id.as_uuid()).bind(value.id().as_uuid()).bind(node.id().as_uuid())
                 .bind(fact.id.as_uuid()).bind(fact.worker_id).bind(fact.work_date)
                 .bind(i32::try_from(fact.minutes).map_err(|_| CqrsSqlxError::NumericRange)?)
                 .bind(serde_json::to_value(&fact.source).map_err(encoding_error)?).bind(to_i64(fact.source_version)?)
                 .execute(&mut **transaction).await?;
         }
         for fact in node.cost_facts() {
-            sqlx::query("INSERT INTO erpx_projects_write.project_cost_facts (tenant_id,project_id,node_id,fact_id,amount_minor,currency,source_record,source_version,reversed_fact_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)")
-                .bind(tenant_id.as_uuid()).bind(value.id().as_uuid()).bind(node.id().as_uuid())
+            sqlx::query("INSERT INTO erpx_projects_write.project_cost_facts (holding_id,project_id,node_id,fact_id,amount_minor,currency,source_record,source_version,reversed_fact_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)")
+                .bind(holding_id.as_uuid()).bind(value.id().as_uuid()).bind(node.id().as_uuid())
                 .bind(fact.id.as_uuid()).bind(fact.amount.minor_units()).bind(fact.amount.currency().as_str())
                 .bind(serde_json::to_value(&fact.source).map_err(encoding_error)?).bind(to_i64(fact.source_version)?)
                 .bind(fact.reversed_fact.map(|id| id.as_uuid())).execute(&mut **transaction).await?;
@@ -592,23 +593,23 @@ async fn persist_project(
 
 async fn persist_workflow(
     transaction: &mut Transaction<'_, Postgres>,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
     value: &WorkflowTemplate,
     version: i64,
 ) -> Result<(), CqrsSqlxError> {
-    sqlx::query("INSERT INTO erpx_projects_write.workflow_template_versions (tenant_id,template_id,template_version,tenant_scope,scope_key,template_name,template_status,created_at,published_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)")
-        .bind(tenant_id.as_uuid()).bind(value.id().as_uuid()).bind(version)
+    sqlx::query("INSERT INTO erpx_projects_write.workflow_template_versions (holding_id,template_id,template_version,active_scope,scope_key,template_name,template_status,created_at,published_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)")
+        .bind(holding_id.as_uuid()).bind(value.id().as_uuid()).bind(version)
         .bind(serde_json::to_value(value.scope()).map_err(encoding_error)?).bind(scope_key(value.scope())?)
         .bind(value.name()).bind(enum_name(value.status())?).bind(value.created_at()).bind(value.updated_at())
         .execute(&mut **transaction).await?;
     for state in value.states() {
-        sqlx::query("INSERT INTO erpx_projects_write.workflow_states (tenant_id,template_id,template_version,state_code,core_state) VALUES ($1,$2,$3,$4,$5)")
-            .bind(tenant_id.as_uuid()).bind(value.id().as_uuid()).bind(version).bind(&state.code)
+        sqlx::query("INSERT INTO erpx_projects_write.workflow_states (holding_id,template_id,template_version,state_code,core_state) VALUES ($1,$2,$3,$4,$5)")
+            .bind(holding_id.as_uuid()).bind(value.id().as_uuid()).bind(version).bind(&state.code)
             .bind(enum_name(state.core_state)?).execute(&mut **transaction).await?;
     }
     for transition in value.transitions() {
-        sqlx::query("INSERT INTO erpx_projects_write.workflow_transitions (tenant_id,template_id,template_version,from_state,to_state) VALUES ($1,$2,$3,$4,$5)")
-            .bind(tenant_id.as_uuid()).bind(value.id().as_uuid()).bind(version)
+        sqlx::query("INSERT INTO erpx_projects_write.workflow_transitions (holding_id,template_id,template_version,from_state,to_state) VALUES ($1,$2,$3,$4,$5)")
+            .bind(holding_id.as_uuid()).bind(value.id().as_uuid()).bind(version)
             .bind(&transition.from).bind(&transition.to).execute(&mut **transaction).await?;
     }
     Ok(())
@@ -616,14 +617,14 @@ async fn persist_workflow(
 
 async fn persist_dependency(
     transaction: &mut Transaction<'_, Postgres>,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
     value: &DependencyAgreement,
     version: i64,
 ) -> Result<(), CqrsSqlxError> {
     let source = value.source();
     let target = value.target();
-    let changed = sqlx::query("INSERT INTO erpx_projects_write.dependency_guards (tenant_id,dependency_id,terms_version,source_project_id,source_project_version,source_node_id,source_node_version,source_scope,source_owner_id,target_project_id,target_project_version,target_node_id,target_node_version,target_scope,target_owner_id,dependency_kind,dependency_status,proposed_by,aggregate_version,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) ON CONFLICT (tenant_id,dependency_id) DO UPDATE SET dependency_status=EXCLUDED.dependency_status,aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at WHERE erpx_projects_write.dependency_guards.aggregate_version + 1 = EXCLUDED.aggregate_version")
-        .bind(tenant_id.as_uuid()).bind(value.id().as_uuid()).bind(to_i64(value.terms_version())?)
+    let changed = sqlx::query("INSERT INTO erpx_projects_write.dependency_guards (holding_id,dependency_id,terms_version,source_project_id,source_project_version,source_node_id,source_node_version,source_scope,source_owner_id,target_project_id,target_project_version,target_node_id,target_node_version,target_scope,target_owner_id,dependency_kind,dependency_status,proposed_by,aggregate_version,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) ON CONFLICT (holding_id,dependency_id) DO UPDATE SET dependency_status=EXCLUDED.dependency_status,aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at WHERE erpx_projects_write.dependency_guards.aggregate_version + 1 = EXCLUDED.aggregate_version")
+        .bind(holding_id.as_uuid()).bind(value.id().as_uuid()).bind(to_i64(value.terms_version())?)
         .bind(source.project_id.as_uuid()).bind(to_i64(source.project_version)?).bind(source.node_id.as_uuid()).bind(to_i64(source.node_version)?)
         .bind(serde_json::to_value(&source.scope).map_err(encoding_error)?).bind(source.owner_id)
         .bind(target.project_id.as_uuid()).bind(to_i64(target.project_version)?).bind(target.node_id.as_uuid()).bind(to_i64(target.node_version)?)
@@ -631,14 +632,14 @@ async fn persist_dependency(
         .bind(enum_name(value.kind())?).bind(enum_name(value.status())?).bind(value.proposed_by()).bind(version)
         .bind(value.created_at()).bind(value.updated_at()).execute(&mut **transaction).await?;
     require_one(changed.rows_affected())?;
-    sqlx::query("DELETE FROM erpx_projects_write.dependency_acceptances WHERE tenant_id=$1 AND dependency_id=$2")
-        .bind(tenant_id.as_uuid()).bind(value.id().as_uuid()).execute(&mut **transaction).await?;
+    sqlx::query("DELETE FROM erpx_projects_write.dependency_acceptances WHERE holding_id=$1 AND dependency_id=$2")
+        .bind(holding_id.as_uuid()).bind(value.id().as_uuid()).execute(&mut **transaction).await?;
     for acceptance in [value.source_acceptance(), value.target_acceptance()]
         .into_iter()
         .flatten()
     {
-        sqlx::query("INSERT INTO erpx_projects_write.dependency_acceptances (tenant_id,dependency_id,dependency_side,owner_id,terms_version,accepted_at) VALUES ($1,$2,$3,$4,$5,$6)")
-            .bind(tenant_id.as_uuid()).bind(value.id().as_uuid()).bind(enum_name(acceptance.side)?)
+        sqlx::query("INSERT INTO erpx_projects_write.dependency_acceptances (holding_id,dependency_id,dependency_side,owner_id,terms_version,accepted_at) VALUES ($1,$2,$3,$4,$5,$6)")
+            .bind(holding_id.as_uuid()).bind(value.id().as_uuid()).bind(enum_name(acceptance.side)?)
             .bind(acceptance.owner_id).bind(to_i64(acceptance.terms_version)?).bind(acceptance.accepted_at)
             .execute(&mut **transaction).await?;
     }
@@ -647,13 +648,13 @@ async fn persist_dependency(
 
 async fn persist_handoff(
     transaction: &mut Transaction<'_, Postgres>,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
     value: &ProjectHandoff,
     version: i64,
 ) -> Result<(), CqrsSqlxError> {
     let outcome = value.outcome();
-    let changed = sqlx::query("INSERT INTO erpx_projects_write.handoff_guards (tenant_id,handoff_id,project_id,item_id,tenant_scope,scope_key,handoff_kind,owner_context,handoff_status,idempotency_key,correlation_id,payload_digest,proposed_by,approved_by,outcome_owner_context,outcome_receipt_id,outcome_record,outcome_accepted,outcome_reason_code,reconciled_at,aggregate_version,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23) ON CONFLICT (tenant_id,handoff_id) DO UPDATE SET handoff_status=EXCLUDED.handoff_status,approved_by=EXCLUDED.approved_by,outcome_owner_context=EXCLUDED.outcome_owner_context,outcome_receipt_id=EXCLUDED.outcome_receipt_id,outcome_record=EXCLUDED.outcome_record,outcome_accepted=EXCLUDED.outcome_accepted,outcome_reason_code=EXCLUDED.outcome_reason_code,reconciled_at=EXCLUDED.reconciled_at,aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at WHERE erpx_projects_write.handoff_guards.aggregate_version + 1 = EXCLUDED.aggregate_version")
-        .bind(tenant_id.as_uuid()).bind(value.id().as_uuid()).bind(value.project_id().as_uuid()).bind(value.item_id().as_uuid())
+    let changed = sqlx::query("INSERT INTO erpx_projects_write.handoff_guards (holding_id,handoff_id,project_id,item_id,active_scope,scope_key,handoff_kind,owner_context,handoff_status,idempotency_key,correlation_id,payload_digest,proposed_by,approved_by,outcome_owner_context,outcome_receipt_id,outcome_record,outcome_accepted,outcome_reason_code,reconciled_at,aggregate_version,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23) ON CONFLICT (holding_id,handoff_id) DO UPDATE SET handoff_status=EXCLUDED.handoff_status,approved_by=EXCLUDED.approved_by,outcome_owner_context=EXCLUDED.outcome_owner_context,outcome_receipt_id=EXCLUDED.outcome_receipt_id,outcome_record=EXCLUDED.outcome_record,outcome_accepted=EXCLUDED.outcome_accepted,outcome_reason_code=EXCLUDED.outcome_reason_code,reconciled_at=EXCLUDED.reconciled_at,aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at WHERE erpx_projects_write.handoff_guards.aggregate_version + 1 = EXCLUDED.aggregate_version")
+        .bind(holding_id.as_uuid()).bind(value.id().as_uuid()).bind(value.project_id().as_uuid()).bind(value.item_id().as_uuid())
         .bind(serde_json::to_value(value.scope()).map_err(encoding_error)?).bind(scope_key(value.scope())?)
         .bind(enum_name(value.kind())?).bind(enum_name(value.kind().owner_context())?).bind(enum_name(value.status())?)
         .bind(value.idempotency_key()).bind(value.correlation_id().as_uuid()).bind(value.payload_digest())
@@ -678,41 +679,41 @@ fn require_one(rows: u64) -> Result<(), CqrsSqlxError> {
 
 async fn guard_version(
     transaction: &mut Transaction<'_, Postgres>,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
     aggregate: &ProjectsAggregate,
 ) -> Result<Option<i64>, CqrsSqlxError> {
     let (statement, id) = match aggregate {
         ProjectsAggregate::Project(value) => (
-            "SELECT aggregate_version FROM erpx_projects_write.project_guards WHERE tenant_id=$1 AND project_id=$2 FOR UPDATE",
+            "SELECT aggregate_version FROM erpx_projects_write.project_guards WHERE holding_id=$1 AND project_id=$2 FOR UPDATE",
             value.id().as_uuid(),
         ),
         ProjectsAggregate::Workflow(value) => (
-            "SELECT template_version FROM erpx_projects_write.workflow_template_versions WHERE tenant_id=$1 AND template_id=$2 ORDER BY template_version DESC LIMIT 1 FOR UPDATE",
+            "SELECT template_version FROM erpx_projects_write.workflow_template_versions WHERE holding_id=$1 AND template_id=$2 ORDER BY template_version DESC LIMIT 1 FOR UPDATE",
             value.id().as_uuid(),
         ),
         ProjectsAggregate::Dependency(value) => (
-            "SELECT aggregate_version FROM erpx_projects_write.dependency_guards WHERE tenant_id=$1 AND dependency_id=$2 FOR UPDATE",
+            "SELECT aggregate_version FROM erpx_projects_write.dependency_guards WHERE holding_id=$1 AND dependency_id=$2 FOR UPDATE",
             value.id().as_uuid(),
         ),
         ProjectsAggregate::Handoff(value) => (
-            "SELECT aggregate_version FROM erpx_projects_write.handoff_guards WHERE tenant_id=$1 AND handoff_id=$2 FOR UPDATE",
+            "SELECT aggregate_version FROM erpx_projects_write.handoff_guards WHERE holding_id=$1 AND handoff_id=$2 FOR UPDATE",
             value.id().as_uuid(),
         ),
     };
     sqlx::query_scalar(statement)
-        .bind(tenant_id.as_uuid())
+        .bind(holding_id.as_uuid())
         .bind(id)
         .fetch_optional(&mut **transaction)
         .await
         .map_err(Into::into)
 }
 
-async fn set_tenant(
+async fn set_holding(
     transaction: &mut Transaction<'_, Postgres>,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
 ) -> Result<(), CqrsSqlxError> {
-    let expected = tenant_id.as_uuid().to_string();
-    let actual: String = sqlx::query_scalar("SELECT set_config('app.tenant_id', $1, true)")
+    let expected = holding_id.as_uuid().to_string();
+    let actual: String = sqlx::query_scalar("SELECT set_config('app.holding_id', $1, true)")
         .bind(&expected)
         .fetch_one(&mut **transaction)
         .await?;
@@ -807,7 +808,7 @@ fn audit_action(value: &CommandFingerprint) -> &'static str {
 
 fn request_hash(value: &CommandFingerprint) -> Result<RequestHash, PortError> {
     let mut digest = Sha256::new();
-    digest.update(b"erpx.projects.command.v1\0");
+    digest.update(b"erpx.projects.command\0");
     digest.update(serde_json::to_vec(value).map_err(|_| PortError::Internal)?);
     Ok(RequestHash::new(digest.finalize().into()))
 }
@@ -841,13 +842,13 @@ fn enum_name<T: serde::Serialize>(value: T) -> Result<String, CqrsSqlxError> {
         ))
 }
 
-pub(crate) fn scope_key(scope: &TenantScope) -> Result<String, CqrsSqlxError> {
+pub(crate) fn scope_key(scope: &AuthorityScope) -> Result<String, CqrsSqlxError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok(format!("h:{holding_id}/c:{company_id}")),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,

@@ -68,7 +68,7 @@ The only remaining lint output is four pre-existing Folio warnings in
 - Console support/incident routes intentionally render typed empty states until that transport
   adapter exists. This is a presentation scaffold, not evidence of a live support backend.
 - Server authorization, customer approval, capability expiry/revocation, audit attribution, and
-  tenant/platform scope remain authoritative outside this crate.
+  holding/platform scope remain authoritative outside this crate.
 - Internal incident timeline, broadcasts, mitigation, root cause, corrective actions, evidence,
   credentials, and secrets are not represented or rendered.
 

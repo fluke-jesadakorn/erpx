@@ -15,7 +15,7 @@ use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
     ItemDescriptorDraft, RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
 };
-use erpx_kernel::{AggregateId, CommandId, DataClassification, EventId, RecordId, TenantScope};
+use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId, RecordId};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Postgres, Row, Transaction};
@@ -43,7 +43,7 @@ impl BrandWriteRepository {
 impl WriteRepository for BrandWriteRepository {
     async fn load(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         profile_id: BrandProfileId,
     ) -> Result<Option<BrandProfile>, PortError> {
         load_brand_relational(&self.revision_pool, authority_scope, profile_id).await
@@ -51,7 +51,7 @@ impl WriteRepository for BrandWriteRepository {
 
     async fn load_archived_revision(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         profile_id: BrandProfileId,
         revision: u64,
     ) -> Result<Option<ArchivedBrandRevision>, PortError> {
@@ -229,7 +229,7 @@ impl CommandUnitOfWork for BrandCommandAdapter {
             correlation_id: request.correlation_id,
             idempotency_key: request.identity.idempotency_key,
             request_hash: request_hash(&request.identity.fingerprint)?,
-            tenant_scope: target_scope,
+            active_scope: target_scope,
             actor: request.actor,
             audit_context: request.audit,
             aggregate_type: AGGREGATE_TYPE.into(),
@@ -452,13 +452,13 @@ impl AtomicCommandGuard for BrandAtomicGuard {
                     .published()
                     .and_then(|value| value.parent_published_revision())
             });
-        let (scope_kind, tenant_ref, holding_id, business_unit) =
+        let (scope_kind, data_profile_key, holding_id, business_unit) =
             brand_scope_parts(self.aggregate.scope());
         sqlx::query(
             "INSERT INTO erpx_brand_write.profile_guards
                 (profile_id, scope_key, draft_revision, published_revision,
                  parent_published_revision, aggregate_version, updated_at,
-                 scope_kind,tenant_ref,holding_id,business_unit,created_at)
+                 scope_kind,data_profile_key,holding_id,business_unit,created_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
              ON CONFLICT (profile_id) DO UPDATE SET
                 scope_key=EXCLUDED.scope_key,
@@ -468,7 +468,7 @@ impl AtomicCommandGuard for BrandAtomicGuard {
                 aggregate_version=EXCLUDED.aggregate_version,
                 updated_at=EXCLUDED.updated_at,
                 scope_kind=EXCLUDED.scope_kind,
-                tenant_ref=EXCLUDED.tenant_ref,
+                data_profile_key=EXCLUDED.data_profile_key,
                 holding_id=EXCLUDED.holding_id,
                 business_unit=EXCLUDED.business_unit,
                 created_at=EXCLUDED.created_at",
@@ -481,7 +481,7 @@ impl AtomicCommandGuard for BrandAtomicGuard {
         .bind(to_i64(self.aggregate.version())?)
         .bind(self.aggregate.updated_at())
         .bind(scope_kind)
-        .bind(tenant_ref)
+        .bind(data_profile_key)
         .bind(holding_id)
         .bind(business_unit)
         .bind(self.aggregate.created_at())
@@ -695,12 +695,12 @@ async fn upsert_revision_definition(
 
 async fn load_brand_relational(
     pool: &PgPool,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     profile_id: BrandProfileId,
 ) -> Result<Option<BrandProfile>, PortError> {
     authority.validate().map_err(|_| PortError::Denied)?;
     let row = sqlx::query(
-        "SELECT aggregate_version,scope_kind,tenant_ref,holding_id,business_unit,
+        "SELECT aggregate_version,scope_kind,data_profile_key,holding_id,business_unit,
                 draft_revision,published_revision,created_at,updated_at
          FROM erpx_brand_write.profile_guards WHERE profile_id=$1",
     )
@@ -948,23 +948,24 @@ fn brand_scope_parts(
     scope: &BrandScope,
 ) -> (
     &'static str,
-    Option<&str>,
+    Option<String>,
     Option<Uuid>,
     Option<&'static str>,
 ) {
     match scope {
         BrandScope::Platform => ("platform", None, None, None),
-        BrandScope::Holding {
-            tenant_id,
-            holding_id,
-        } => ("holding", Some(tenant_id), Some(*holding_id), None),
+        BrandScope::Holding { holding_id } => (
+            "holding",
+            Some(holding_id.to_string()),
+            Some(*holding_id),
+            None,
+        ),
         BrandScope::BusinessUnit {
-            tenant_id,
             holding_id,
             business_unit,
         } => (
             "business_unit",
-            Some(tenant_id),
+            Some(holding_id.to_string()),
             Some(*holding_id),
             Some(business_unit.as_str()),
         ),
@@ -973,24 +974,20 @@ fn brand_scope_parts(
 
 fn brand_scope_from_row(row: &sqlx::postgres::PgRow) -> Result<BrandScope, PortError> {
     let kind: String = row.try_get("scope_kind").map_err(|_| PortError::Internal)?;
-    let tenant: Option<String> = row.try_get("tenant_ref").map_err(|_| PortError::Internal)?;
+    let _partition: Option<String> = row
+        .try_get("data_profile_key")
+        .map_err(|_| PortError::Internal)?;
     let holding: Option<Uuid> = row.try_get("holding_id").map_err(|_| PortError::Internal)?;
     let unit: Option<String> = row
         .try_get("business_unit")
         .map_err(|_| PortError::Internal)?;
-    match (kind.as_str(), tenant, holding, unit) {
-        ("platform", None, None, None) => Ok(BrandScope::Platform),
-        ("holding", Some(tenant_id), Some(holding_id), None) => Ok(BrandScope::Holding {
-            tenant_id,
+    match (kind.as_str(), holding, unit) {
+        ("platform", None, None) => Ok(BrandScope::Platform),
+        ("holding", Some(holding_id), None) => Ok(BrandScope::Holding { holding_id }),
+        ("business_unit", Some(holding_id), Some(unit)) => Ok(BrandScope::BusinessUnit {
             holding_id,
+            business_unit: parse_business_unit(&unit)?,
         }),
-        ("business_unit", Some(tenant_id), Some(holding_id), Some(unit)) => {
-            Ok(BrandScope::BusinessUnit {
-                tenant_id,
-                holding_id,
-                business_unit: parse_business_unit(&unit)?,
-            })
-        }
         _ => Err(PortError::Internal),
     }
 }
@@ -1127,12 +1124,7 @@ fn parent_scope(child: &BrandScope) -> Result<Option<BrandScope>, PortError> {
     Ok(match child {
         BrandScope::Platform => None,
         BrandScope::Holding { .. } => Some(BrandScope::Platform),
-        BrandScope::BusinessUnit {
-            tenant_id,
-            holding_id,
-            ..
-        } => Some(BrandScope::Holding {
-            tenant_id: tenant_id.clone(),
+        BrandScope::BusinessUnit { holding_id, .. } => Some(BrandScope::Holding {
             holding_id: *holding_id,
         }),
     })
@@ -1291,7 +1283,6 @@ mod tests {
     fn parent_scope_is_exact_for_each_brand_layer() {
         assert_eq!(parent_scope(&BrandScope::Platform).unwrap(), None);
         let holding = BrandScope::Holding {
-            tenant_id: "tenant-acme".into(),
             holding_id: Uuid::from_u128(2),
         };
         assert_eq!(parent_scope(&holding).unwrap(), Some(BrandScope::Platform));

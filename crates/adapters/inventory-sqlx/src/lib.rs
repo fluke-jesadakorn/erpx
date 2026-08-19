@@ -21,34 +21,29 @@ pub const PROJECTION_NAME: &str = "inventory.stock_items";
 pub const SNAPSHOT_EVENT_TYPE: &str = "inventory.stock_item_snapshot";
 pub const EVENT_VERSION: u32 = 1;
 pub const COMPLETION_WRITE_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0080_current_record_completion.sql");
-pub const COMPLETION_READ_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0071_current_record_completion_projection.sql"
-);
-pub const NORMALIZED_AUTHORITY_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_write/0081_current_normalized_authority.sql"
-);
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
+pub const COMPLETION_READ_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
+pub const NORMALIZED_AUTHORITY_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 
-pub const TENANT_WRITE_FOUNDATION_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0057_cqrs_foundation.sql");
-pub const TENANT_WRITE_CONTEXT_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0060_wave6_paired_context_guards.sql");
-pub const TENANT_READ_FOUNDATION_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_read/0048_cqrs_foundation.sql");
-pub const TENANT_READ_CONTEXT_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0052_wave6_paired_context_projections.sql"
-);
+pub const HOLDING_WRITE_FOUNDATION_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
+pub const HOLDING_WRITE_CONTEXT_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
+pub const HOLDING_READ_FOUNDATION_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
+pub const HOLDING_READ_CONTEXT_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 pub const WRITE_DDL: &str = concat!(
-    include_str!("../../../migration/migrations_tenant_write/0057_cqrs_foundation.sql"),
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql"),
     "\n",
-    include_str!("../../../migration/migrations_tenant_write/0060_wave6_paired_context_guards.sql")
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql")
 );
 pub const READ_DDL: &str = concat!(
-    include_str!("../../../migration/migrations_tenant_read/0048_cqrs_foundation.sql"),
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql"),
     "\n",
-    include_str!(
-        "../../../migration/migrations_tenant_read/0052_wave6_paired_context_projections.sql"
-    )
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql")
 );
 
 pub fn stock_item_partition(id: erpx_inventory::StockItemId) -> String {
@@ -67,8 +62,8 @@ mod tests {
             stock_item_partition(id),
             "inventory.stock_item:0000000000000000000000000000002a"
         );
-        assert!(TENANT_WRITE_CONTEXT_DDL.contains("movement_guards"));
-        assert!(TENANT_READ_CONTEXT_DDL.contains("inventory.stock_items"));
+        assert!(HOLDING_WRITE_CONTEXT_DDL.contains("movement_guards"));
+        assert!(HOLDING_READ_CONTEXT_DDL.contains("inventory.stock_items"));
     }
 
     #[test]
@@ -86,6 +81,6 @@ mod tests {
         assert!(source.contains("reservation_authority"));
         assert!(source.contains("commit_normalized"));
         assert!(!source.contains("load_snapshot"));
-        assert!(NORMALIZED_AUTHORITY_DDL.contains("FOREIGN KEY (tenant_id,stock_item_id)"));
+        assert!(NORMALIZED_AUTHORITY_DDL.contains("FOREIGN KEY (holding_id,stock_item_id)"));
     }
 }

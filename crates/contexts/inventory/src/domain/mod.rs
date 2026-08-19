@@ -8,7 +8,7 @@ pub use records::{
 use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -113,7 +113,7 @@ pub(crate) enum DomainEvent {
 pub struct StockItem {
     id: StockItemId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     warehouse_id: WarehouseId,
     item_code: String,
     on_hand: i64,
@@ -129,7 +129,7 @@ pub struct StockItem {
 pub struct StockItemState {
     pub id: StockItemId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub warehouse_id: WarehouseId,
     pub item_code: String,
     pub on_hand: i64,
@@ -160,7 +160,7 @@ impl StockItem {
 
     pub fn register(
         id: StockItemId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         warehouse_id: WarehouseId,
         item_code: String,
         at: DateTime<Utc>,
@@ -378,7 +378,7 @@ impl StockItem {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn warehouse_id(&self) -> WarehouseId {
@@ -410,13 +410,13 @@ impl StockItem {
     }
 }
 
-fn validate_record_scope(scope: &TenantScope) -> Result<(), InventoryDomainError> {
+fn validate_record_scope(scope: &AuthorityScope) -> Result<(), InventoryDomainError> {
     scope
         .validate()
         .map_err(|_| InventoryDomainError::InvalidScope)?;
     if matches!(
         scope,
-        TenantScope::Company { .. } | TenantScope::Branch { .. }
+        AuthorityScope::Company { .. } | AuthorityScope::Branch { .. }
     ) {
         Ok(())
     } else {
@@ -457,8 +457,8 @@ mod tests {
             .single()
             .unwrap()
     }
-    fn scope() -> TenantScope {
-        TenantScope::Company {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: id(1),
             company_id: id(2),
         }
@@ -479,7 +479,7 @@ mod tests {
         assert!(matches!(
             StockItem::register(
                 StockItemId::try_from_uuid(id(10)).unwrap(),
-                TenantScope::Holding { holding_id: id(1) },
+                AuthorityScope::Holding { holding_id: id(1) },
                 WarehouseId::try_from_uuid(id(11)).unwrap(),
                 "ITEM-1".into(),
                 at(9),

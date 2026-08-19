@@ -1,6 +1,6 @@
 use chrono::{Duration, TimeZone, Utc};
 use erpx_integration_contracts::CurrencyCode;
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use uuid::Uuid;
 
 use super::*;
@@ -14,8 +14,8 @@ fn at() -> chrono::DateTime<Utc> {
 fn currency() -> CurrencyCode {
     CurrencyCode::try_new("THB").unwrap()
 }
-fn scope() -> TenantScope {
-    TenantScope::Holding { holding_id: id(1) }
+fn scope() -> AuthorityScope {
+    AuthorityScope::Holding { holding_id: id(1) }
 }
 
 #[test]
@@ -39,7 +39,7 @@ fn catalog_plan_is_platform_scoped_and_requires_positive_price() {
 fn published_catalog_plan_is_immutable_by_lifecycle() {
     let mut plan = CatalogPlan::create(
         CatalogPlanId::try_from_uuid(id(10)).unwrap(),
-        TenantScope::Platform,
+        AuthorityScope::Platform,
         "growth".into(),
         "Growth".into(),
         50_000,

@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use erpx_kernel::{CommandId, CorrelationId, PrincipalId, TenantId, TenantScope};
+use erpx_kernel::{AuthorityScope, CommandId, CorrelationId, HoldingId, PrincipalId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -12,9 +12,9 @@ use crate::plan::PlanningPlan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ActorContext {
-    pub tenant_id: TenantId,
+    pub holding_id: HoldingId,
     pub principal_id: PrincipalId,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,7 +34,7 @@ pub enum PlanningAction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorizedPlanningAccess {
     pub actor: ActorContext,
-    pub target_scope: TenantScope,
+    pub target_scope: AuthorityScope,
     pub action: PlanningAction,
 }
 
@@ -43,7 +43,7 @@ pub trait AuthorizationPort: Send + Sync {
     async fn authorize(
         &self,
         actor: &ActorContext,
-        target_scope: &TenantScope,
+        target_scope: &AuthorityScope,
         action: PlanningAction,
     ) -> Result<AuthorizedPlanningAccess, PortError>;
 }

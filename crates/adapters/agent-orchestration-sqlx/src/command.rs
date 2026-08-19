@@ -4,7 +4,7 @@ use erpx_agent_orchestration::{
     AssignmentState, BudgetLayerKind, BudgetReservation, DefinitionCommit, DelegationCommit,
     InvocationOrigin, OrchestrationUnitOfWork, PortError, RootAssignmentCommit,
 };
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use sqlx::{Postgres, Transaction};
@@ -22,11 +22,11 @@ impl OrchestrationUnitOfWork for SqlxAgentRuntime {
         }
         let scope = scope_key(commit.definition.scope());
         let request_digest = digest(&commit.definition)?;
-        let tenant_id = self.tenant_id();
+        let holding_id = self.holding_id();
         let mut tx = self.database.begin().await?;
         if let Some(replayed) = replay_definition(
             &mut tx,
-            tenant_id,
+            holding_id,
             &scope,
             &commit.idempotency_key,
             &request_digest,
@@ -39,9 +39,9 @@ impl OrchestrationUnitOfWork for SqlxAgentRuntime {
         }
         let current: Option<i64> = sqlx::query_scalar(
             "SELECT aggregate_version FROM erpx_agent_write.agent_definitions
-             WHERE tenant_id=$1 AND agent_definition_id=$2 FOR UPDATE",
+             WHERE holding_id=$1 AND agent_definition_id=$2 FOR UPDATE",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(commit.definition.id().as_uuid())
         .fetch_optional(&mut *tx)
         .await
@@ -51,13 +51,13 @@ impl OrchestrationUnitOfWork for SqlxAgentRuntime {
             current,
             commit.definition.version(),
         )?;
-        persist_definition(&mut tx, tenant_id, &scope, &commit.definition).await?;
+        persist_definition(&mut tx, holding_id, &scope, &commit.definition).await?;
         let directory_actor =
             serde_json::to_value(&commit.actor).map_err(|_| PortError::Persistence)?;
         for draft in crate::publication::definition_directory_drafts(&commit.definition)? {
             crate::publication::append_with_idempotency(
                 &mut tx,
-                tenant_id,
+                holding_id,
                 &commit.idempotency_key,
                 directory_actor.clone(),
                 commit.definition.updated_at(),
@@ -67,7 +67,7 @@ impl OrchestrationUnitOfWork for SqlxAgentRuntime {
         }
         insert_receipt(
             &mut tx,
-            tenant_id,
+            holding_id,
             &scope,
             &commit.idempotency_key,
             &request_digest,
@@ -85,13 +85,13 @@ impl OrchestrationUnitOfWork for SqlxAgentRuntime {
         if !commit.authority_scope.contains(commit.assignment.scope()) {
             return Err(PortError::Denied);
         }
-        let tenant_id = self.tenant_id();
+        let holding_id = self.holding_id();
         let mut tx = self.database.begin().await?;
         let current: Option<i64> = sqlx::query_scalar(
             "SELECT aggregate_version FROM erpx_agent_write.agent_assignments
-             WHERE tenant_id=$1 AND assignment_id=$2 FOR UPDATE",
+             WHERE holding_id=$1 AND assignment_id=$2 FOR UPDATE",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(commit.assignment.id().as_uuid())
         .fetch_optional(&mut *tx)
         .await
@@ -101,18 +101,18 @@ impl OrchestrationUnitOfWork for SqlxAgentRuntime {
             current,
             commit.assignment.version(),
         )?;
-        update_assignment(&mut tx, tenant_id, &commit.assignment).await?;
+        update_assignment(&mut tx, holding_id, &commit.assignment).await?;
         if commit.assignment.state() == AssignmentState::Cancelled {
             release_budget(
                 &mut tx,
-                tenant_id,
+                holding_id,
                 commit.assignment.budget_reservation_id(),
             )
             .await?;
         }
         append_assignment_state_fact(
             &mut tx,
-            tenant_id,
+            holding_id,
             &commit.assignment,
             serde_json::to_value(&commit.actor).map_err(|_| PortError::Persistence)?,
             commit.assignment.updated_at(),
@@ -134,11 +134,11 @@ impl OrchestrationUnitOfWork for SqlxAgentRuntime {
             "prompt_ref": &commit.prompt_ref,
             "payload_manifest": &commit.payload_manifest,
         }))?;
-        let tenant_id = self.tenant_id();
+        let holding_id = self.holding_id();
         let mut tx = self.database.begin().await?;
         if let Some(replayed) = replay_assignment(
             &mut tx,
-            tenant_id,
+            holding_id,
             &scope,
             &commit.assignment.root_invocation().idempotency_key,
             &request_digest,
@@ -151,14 +151,14 @@ impl OrchestrationUnitOfWork for SqlxAgentRuntime {
         }
         reserve_budget(
             &mut tx,
-            tenant_id,
+            holding_id,
             &commit.reservation,
             commit.assignment.id(),
         )
         .await?;
         insert_assignment(
             &mut tx,
-            tenant_id,
+            holding_id,
             &scope,
             &commit.assignment,
             &commit.reservation,
@@ -169,7 +169,7 @@ impl OrchestrationUnitOfWork for SqlxAgentRuntime {
         .await?;
         insert_receipt(
             &mut tx,
-            tenant_id,
+            holding_id,
             &scope,
             &commit.assignment.root_invocation().idempotency_key,
             &request_digest,
@@ -181,7 +181,7 @@ impl OrchestrationUnitOfWork for SqlxAgentRuntime {
         .await?;
         append_assignment_state_fact(
             &mut tx,
-            tenant_id,
+            holding_id,
             &commit.assignment,
             serde_json::to_value(&commit.actor).map_err(|_| PortError::Persistence)?,
             commit.assignment.created_at(),
@@ -206,11 +206,11 @@ impl OrchestrationUnitOfWork for SqlxAgentRuntime {
             "prompt_ref": &commit.prompt_ref,
             "payload_manifest": &commit.payload_manifest,
         }))?;
-        let tenant_id = self.tenant_id();
+        let holding_id = self.holding_id();
         let mut tx = self.database.begin().await?;
         if let Some(replayed) = replay_assignment(
             &mut tx,
-            tenant_id,
+            holding_id,
             &scope,
             &commit.idempotency_key,
             &request_digest,
@@ -223,10 +223,10 @@ impl OrchestrationUnitOfWork for SqlxAgentRuntime {
         }
         let parent_locked: Option<i64> = sqlx::query_scalar(
             "SELECT aggregate_version FROM erpx_agent_write.agent_assignments
-             WHERE tenant_id=$1 AND assignment_id=$2 AND aggregate_version=$3
+             WHERE holding_id=$1 AND assignment_id=$2 AND aggregate_version=$3
                AND assignment_status='running' FOR UPDATE",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(commit.parent_assignment_id.as_uuid())
         .bind(to_i64(commit.parent_expected_version)?)
         .fetch_optional(&mut *tx)
@@ -235,7 +235,7 @@ impl OrchestrationUnitOfWork for SqlxAgentRuntime {
         if parent_locked.is_none() {
             return Err(PortError::VersionConflict);
         }
-        let parent = normalized::load_assignment(&mut tx, tenant_id, commit.parent_assignment_id)
+        let parent = normalized::load_assignment(&mut tx, holding_id, commit.parent_assignment_id)
             .await?
             .ok_or(PortError::VersionConflict)?;
         if commit.child.root_assignment_id() != parent.root_assignment_id()
@@ -243,10 +243,10 @@ impl OrchestrationUnitOfWork for SqlxAgentRuntime {
         {
             return Err(PortError::Persistence);
         }
-        reserve_budget(&mut tx, tenant_id, &commit.reservation, commit.child.id()).await?;
+        reserve_budget(&mut tx, holding_id, &commit.reservation, commit.child.id()).await?;
         insert_assignment(
             &mut tx,
-            tenant_id,
+            holding_id,
             &scope,
             &commit.child,
             &commit.reservation,
@@ -257,12 +257,12 @@ impl OrchestrationUnitOfWork for SqlxAgentRuntime {
         .await?;
         sqlx::query(
             "INSERT INTO erpx_agent_write.assignment_delegations
-                (tenant_id,child_assignment_id,root_assignment_id,parent_assignment_id,
+                (holding_id,child_assignment_id,root_assignment_id,parent_assignment_id,
                  parent_agent_definition_id,child_agent_definition_id,reason_digest,
                  scope_key,depth,hops,created_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(commit.child.id().as_uuid())
         .bind(commit.child.root_assignment_id().as_uuid())
         .bind(parent.id().as_uuid())
@@ -278,7 +278,7 @@ impl OrchestrationUnitOfWork for SqlxAgentRuntime {
         .map_err(|_| PortError::Persistence)?;
         insert_receipt(
             &mut tx,
-            tenant_id,
+            holding_id,
             &scope,
             &commit.idempotency_key,
             &request_digest,
@@ -290,7 +290,7 @@ impl OrchestrationUnitOfWork for SqlxAgentRuntime {
         .await?;
         append_assignment_state_fact(
             &mut tx,
-            tenant_id,
+            holding_id,
             &commit.child,
             serde_json::to_value(&commit.actor).map_err(|_| PortError::Persistence)?,
             commit.child.created_at(),
@@ -303,23 +303,23 @@ impl OrchestrationUnitOfWork for SqlxAgentRuntime {
 
 async fn persist_definition(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: uuid::Uuid,
+    holding_id: uuid::Uuid,
     scope: &str,
     definition: &AgentDefinition,
 ) -> Result<(), PortError> {
     sqlx::query(
         "INSERT INTO erpx_agent_write.agent_definitions
-            (tenant_id,agent_definition_id,scope_key,tenant_scope,agent_principal_ref,
+            (holding_id,agent_definition_id,scope_key,active_scope,agent_principal_ref,
              business_owner_ref,technical_owner_ref,agent_name,definition_status,
              aggregate_version,created_at,updated_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-         ON CONFLICT (tenant_id,agent_definition_id) DO UPDATE SET
+         ON CONFLICT (holding_id,agent_definition_id) DO UPDATE SET
             business_owner_ref=EXCLUDED.business_owner_ref,
             technical_owner_ref=EXCLUDED.technical_owner_ref,
             agent_name=EXCLUDED.agent_name,definition_status=EXCLUDED.definition_status,
             aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(definition.id().as_uuid())
     .bind(scope)
     .bind(serde_json::to_value(definition.scope()).map_err(|_| PortError::Persistence)?)
@@ -339,16 +339,16 @@ async fn persist_definition(
         let manifest = &version.manifest;
         sqlx::query(
             "INSERT INTO erpx_agent_write.agent_versions
-                (tenant_id,agent_version_id,agent_definition_id,version_number,version_status,
+                (holding_id,agent_version_id,agent_definition_id,version_number,version_status,
                  purpose,provider_ref,model_ref,use_case,prompt_digest,policy_digest,
                  maximum_classification,security_review_ref,privacy_review_ref,
                  max_attempts,timeout_seconds,approved_by,approved_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
-             ON CONFLICT (tenant_id,agent_version_id) DO UPDATE SET
+             ON CONFLICT (holding_id,agent_version_id) DO UPDATE SET
                 version_status=EXCLUDED.version_status,approved_by=EXCLUDED.approved_by,
                 approved_at=EXCLUDED.approved_at",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(manifest.version_id.as_uuid())
         .bind(definition.id().as_uuid())
         .bind(i32::try_from(manifest.version_number).map_err(|_| PortError::Persistence)?)
@@ -371,7 +371,7 @@ async fn persist_definition(
         .map_err(|_| PortError::Persistence)?;
         replace_text_set(
             tx,
-            tenant_id,
+            holding_id,
             "agent_version_capabilities",
             "capability",
             manifest.version_id,
@@ -380,7 +380,7 @@ async fn persist_definition(
         .await?;
         replace_text_set(
             tx,
-            tenant_id,
+            holding_id,
             "agent_version_tools",
             "tool_ref",
             manifest.version_id,
@@ -389,7 +389,7 @@ async fn persist_definition(
         .await?;
         replace_text_set(
             tx,
-            tenant_id,
+            holding_id,
             "agent_version_knowledge_scopes",
             "knowledge_scope",
             manifest.version_id,
@@ -398,7 +398,7 @@ async fn persist_definition(
         .await?;
         replace_text_set(
             tx,
-            tenant_id,
+            holding_id,
             "agent_version_evaluations",
             "evaluation_ref",
             manifest.version_id,
@@ -407,9 +407,9 @@ async fn persist_definition(
         .await?;
         sqlx::query(
             "DELETE FROM erpx_agent_write.agent_version_organization_scopes
-             WHERE tenant_id=$1 AND agent_version_id=$2",
+             WHERE holding_id=$1 AND agent_version_id=$2",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(manifest.version_id.as_uuid())
         .execute(&mut **tx)
         .await
@@ -417,9 +417,9 @@ async fn persist_definition(
         for organization_scope in &manifest.organization_scopes {
             sqlx::query(
                 "INSERT INTO erpx_agent_write.agent_version_organization_scopes
-                    (tenant_id,agent_version_id,scope_key,tenant_scope) VALUES ($1,$2,$3,$4)",
+                    (holding_id,agent_version_id,scope_key,active_scope) VALUES ($1,$2,$3,$4)",
             )
-            .bind(tenant_id)
+            .bind(holding_id)
             .bind(manifest.version_id.as_uuid())
             .bind(scope_key(organization_scope))
             .bind(serde_json::to_value(organization_scope).map_err(|_| PortError::Persistence)?)
@@ -433,7 +433,7 @@ async fn persist_definition(
 
 async fn replace_text_set(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: uuid::Uuid,
+    holding_id: uuid::Uuid,
     table: &str,
     column: &str,
     version_id: erpx_agent_orchestration::AgentVersionId,
@@ -441,19 +441,19 @@ async fn replace_text_set(
 ) -> Result<(), PortError> {
     // Table and column values are private compile-time call sites, never user input.
     let delete =
-        format!("DELETE FROM erpx_agent_write.{table} WHERE tenant_id=$1 AND agent_version_id=$2");
+        format!("DELETE FROM erpx_agent_write.{table} WHERE holding_id=$1 AND agent_version_id=$2");
     sqlx::query(&delete)
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(version_id.as_uuid())
         .execute(&mut **tx)
         .await
         .map_err(|_| PortError::Persistence)?;
     let insert = format!(
-        "INSERT INTO erpx_agent_write.{table} (tenant_id,agent_version_id,{column}) VALUES ($1,$2,$3)"
+        "INSERT INTO erpx_agent_write.{table} (holding_id,agent_version_id,{column}) VALUES ($1,$2,$3)"
     );
     for value in values {
         sqlx::query(&insert)
-            .bind(tenant_id)
+            .bind(holding_id)
             .bind(version_id.as_uuid())
             .bind(value)
             .execute(&mut **tx)
@@ -465,7 +465,7 @@ async fn replace_text_set(
 
 async fn reserve_budget(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: uuid::Uuid,
+    holding_id: uuid::Uuid,
     reservation: &BudgetReservation,
     assignment_id: erpx_agent_orchestration::AssignmentId,
 ) -> Result<(), PortError> {
@@ -475,7 +475,7 @@ async fn reserve_budget(
              SET remaining_units=remaining_units-$3,
                  remaining_cost_micros=remaining_cost_micros-$4,
                  active_concurrency=active_concurrency+1,updated_at=$5
-             WHERE layer_kind=$1 AND subject_ref=$2 AND tenant_id=$6 AND enabled=TRUE
+             WHERE layer_kind=$1 AND subject_ref=$2 AND holding_id=$6 AND enabled=TRUE
                AND remaining_units >= $3 AND remaining_cost_micros >= $4
                AND active_concurrency < concurrency_limit",
         )
@@ -484,7 +484,7 @@ async fn reserve_budget(
         .bind(to_i64(reservation.request.estimated_units)?)
         .bind(to_i64(reservation.request.estimated_cost_micros)?)
         .bind(reservation.reserved_at)
-        .bind(tenant_id)
+        .bind(holding_id)
         .execute(&mut **tx)
         .await
         .map_err(|_| PortError::Persistence)?;
@@ -494,11 +494,11 @@ async fn reserve_budget(
     }
     sqlx::query(
         "INSERT INTO erpx_agent_write.agent_budget_reservations
-            (tenant_id,reservation_id,assignment_id,estimated_units,estimated_cost_micros,
+            (holding_id,reservation_id,assignment_id,estimated_units,estimated_cost_micros,
              stop_after_units,queue_priority,reservation_status,reserved_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,'reserved',$8)",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(reservation.id.as_uuid())
     .bind(assignment_id.as_uuid())
     .bind(to_i64(reservation.request.estimated_units)?)
@@ -512,10 +512,10 @@ async fn reserve_budget(
     for layer in &reservation.layers {
         sqlx::query(
             "INSERT INTO erpx_agent_write.agent_budget_reservation_layers
-                (tenant_id,reservation_id,layer_kind,subject_ref,reserved_units,reserved_cost_micros)
+                (holding_id,reservation_id,layer_kind,subject_ref,reserved_units,reserved_cost_micros)
              VALUES ($1,$2,$3,$4,$5,$6)",
         )
-        .bind(tenant_id)
+        .bind(holding_id)
         .bind(reservation.id.as_uuid())
         .bind(budget_layer_name(layer.kind))
         .bind(&layer.subject_ref)
@@ -531,7 +531,7 @@ async fn reserve_budget(
 #[allow(clippy::too_many_arguments)]
 async fn insert_assignment(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: uuid::Uuid,
+    holding_id: uuid::Uuid,
     scope: &str,
     assignment: &Assignment,
     reservation: &BudgetReservation,
@@ -546,7 +546,7 @@ async fn insert_assignment(
     };
     sqlx::query(
         "INSERT INTO erpx_agent_write.agent_assignments
-            (tenant_id,assignment_id,root_assignment_id,parent_assignment_id,scope_key,tenant_scope,
+            (holding_id,assignment_id,root_assignment_id,parent_assignment_id,scope_key,active_scope,
              root_action_ref,root_initiating_principal_ref,trigger_kind,requested_agent_ref,
              root_idempotency_key,agent_definition_id,agent_version_id,provider_ref,model_ref,prompt_digest,
              policy_digest,encrypted_prompt_ref,payload_manifest,assignment_status,depth,
@@ -555,7 +555,7 @@ async fn insert_assignment(
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
                  'queued',$20,$21,0,$22,$23,$24,$25,$26)",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(assignment.id().as_uuid())
     .bind(assignment.root_assignment_id().as_uuid())
     .bind(assignment.parent_assignment_id().map(|id| id.as_uuid()))
@@ -598,7 +598,7 @@ async fn insert_assignment(
 
 async fn update_assignment(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: uuid::Uuid,
+    holding_id: uuid::Uuid,
     assignment: &Assignment,
 ) -> Result<(), PortError> {
     let lease = assignment.lease();
@@ -609,9 +609,9 @@ async fn update_assignment(
             lease_acquired_at=$7,lease_expires_at=$8,failure_code=$9,failure_retryable=$10,
             failure_detail_digest=$11,failure_failed_at=$12,output_digest=$13,
             cancellation_reason=$14,aggregate_version=$15,updated_at=$16
-         WHERE tenant_id=$1 AND assignment_id=$2 AND aggregate_version=$17",
+         WHERE holding_id=$1 AND assignment_id=$2 AND aggregate_version=$17",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(assignment.id().as_uuid())
     .bind(assignment_status_name(assignment.state()))
     .bind(i32::from(assignment.attempt()))
@@ -644,15 +644,15 @@ async fn update_assignment(
 
 async fn release_budget(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: uuid::Uuid,
+    holding_id: uuid::Uuid,
     reservation_id: erpx_agent_orchestration::BudgetReservationId,
 ) -> Result<(), PortError> {
     let layers: Vec<(String, String, i64, i64)> = sqlx::query_as(
         "SELECT layer_kind,subject_ref,reserved_units,reserved_cost_micros
          FROM erpx_agent_write.agent_budget_reservation_layers
-         WHERE tenant_id=$1 AND reservation_id=$2 FOR UPDATE",
+         WHERE holding_id=$1 AND reservation_id=$2 FOR UPDATE",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(reservation_id.as_uuid())
     .fetch_all(&mut **tx)
     .await
@@ -660,9 +660,9 @@ async fn release_budget(
     let changed = sqlx::query(
         "UPDATE erpx_agent_write.agent_budget_reservations
          SET reservation_status='cancelled',reconciled_at=now()
-         WHERE tenant_id=$1 AND reservation_id=$2 AND reservation_status='reserved'",
+         WHERE holding_id=$1 AND reservation_id=$2 AND reservation_status='reserved'",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(reservation_id.as_uuid())
     .execute(&mut **tx)
     .await
@@ -674,10 +674,10 @@ async fn release_budget(
                  SET remaining_units=remaining_units+$4,
                      remaining_cost_micros=remaining_cost_micros+$5,
                      active_concurrency=active_concurrency-1,updated_at=now()
-                 WHERE tenant_id=$1 AND layer_kind=$2 AND subject_ref=$3
+                 WHERE holding_id=$1 AND layer_kind=$2 AND subject_ref=$3
                    AND active_concurrency>0",
             )
-            .bind(tenant_id)
+            .bind(holding_id)
             .bind(kind)
             .bind(subject)
             .bind(units)
@@ -692,7 +692,7 @@ async fn release_budget(
 
 async fn replay_definition(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: uuid::Uuid,
+    holding_id: uuid::Uuid,
     scope: &str,
     key: &str,
     request_digest: &str,
@@ -700,9 +700,9 @@ async fn replay_definition(
 ) -> Result<Option<AgentDefinition>, PortError> {
     let receipt: Option<(String, uuid::Uuid)> = sqlx::query_as(
         "SELECT request_digest,aggregate_id FROM erpx_agent_write.agent_command_receipts
-         WHERE tenant_id=$1 AND scope_key=$2 AND idempotency_key=$3 FOR UPDATE",
+         WHERE holding_id=$1 AND scope_key=$2 AND idempotency_key=$3 FOR UPDATE",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(scope)
     .bind(key)
     .fetch_optional(&mut **tx)
@@ -714,12 +714,12 @@ async fn replay_definition(
     if stored_digest != request_digest || stored_id != expected_id.as_uuid() {
         return Err(PortError::IdempotencyConflict);
     }
-    normalized::load_definition(tx, tenant_id, expected_id).await
+    normalized::load_definition(tx, holding_id, expected_id).await
 }
 
 async fn replay_assignment(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: uuid::Uuid,
+    holding_id: uuid::Uuid,
     scope: &str,
     key: &str,
     request_digest: &str,
@@ -727,9 +727,9 @@ async fn replay_assignment(
 ) -> Result<Option<Assignment>, PortError> {
     let receipt: Option<(String, uuid::Uuid)> = sqlx::query_as(
         "SELECT request_digest,aggregate_id FROM erpx_agent_write.agent_command_receipts
-         WHERE tenant_id=$1 AND scope_key=$2 AND idempotency_key=$3 FOR UPDATE",
+         WHERE holding_id=$1 AND scope_key=$2 AND idempotency_key=$3 FOR UPDATE",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(scope)
     .bind(key)
     .fetch_optional(&mut **tx)
@@ -741,13 +741,13 @@ async fn replay_assignment(
     if stored_digest != request_digest || stored_id != expected_id.as_uuid() {
         return Err(PortError::IdempotencyConflict);
     }
-    normalized::load_assignment(tx, tenant_id, expected_id).await
+    normalized::load_assignment(tx, holding_id, expected_id).await
 }
 
 #[allow(clippy::too_many_arguments)]
 async fn insert_receipt(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: uuid::Uuid,
+    holding_id: uuid::Uuid,
     scope: &str,
     key: &str,
     request_digest: &str,
@@ -758,11 +758,11 @@ async fn insert_receipt(
 ) -> Result<(), PortError> {
     sqlx::query(
         "INSERT INTO erpx_agent_write.agent_command_receipts
-            (tenant_id,scope_key,idempotency_key,request_digest,aggregate_type,
+            (holding_id,scope_key,idempotency_key,request_digest,aggregate_type,
              aggregate_id,aggregate_version,committed_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(scope)
     .bind(key)
     .bind(request_digest)
@@ -791,17 +791,17 @@ async fn insert_receipt(
 /// provider output, action payload, and failure details are never copied.
 pub(crate) async fn append_assignment_state_fact(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: uuid::Uuid,
+    holding_id: uuid::Uuid,
     assignment: &Assignment,
     actor: serde_json::Value,
     occurred_at: chrono::DateTime<chrono::Utc>,
 ) -> Result<uuid::Uuid, PortError> {
     let state = assignment_status_name(assignment.state());
-    let event_id = stable_fact_uuid(tenant_id, assignment, state, b"event");
-    let command_id = stable_fact_uuid(tenant_id, assignment, state, b"command");
-    let correlation_id = stable_fact_uuid(tenant_id, assignment, state, b"correlation");
-    let audit_id = stable_fact_uuid(tenant_id, assignment, state, b"audit");
-    let partition_key = format!("tenant:{tenant_id}");
+    let event_id = stable_fact_uuid(holding_id, assignment, state, b"event");
+    let command_id = stable_fact_uuid(holding_id, assignment, state, b"command");
+    let correlation_id = stable_fact_uuid(holding_id, assignment, state, b"correlation");
+    let audit_id = stable_fact_uuid(holding_id, assignment, state, b"audit");
+    let partition_key = format!("holding:{holding_id}");
     let idempotency_key = format!(
         "assignment-state:{}:{}:{state}",
         assignment.id().as_uuid(),
@@ -821,12 +821,12 @@ pub(crate) async fn append_assignment_state_fact(
     );
     sqlx::query(
         "INSERT INTO erpx_agent_write.agent_command_receipts
-            (tenant_id,scope_key,idempotency_key,request_digest,aggregate_type,
+            (holding_id,scope_key,idempotency_key,request_digest,aggregate_type,
              aggregate_id,aggregate_version,committed_at)
          VALUES ($1,$2,$3,$4,'assignment',$5,$6,$7)
-         ON CONFLICT (tenant_id,scope_key,idempotency_key) DO NOTHING",
+         ON CONFLICT (holding_id,scope_key,idempotency_key) DO NOTHING",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(&partition_key)
     .bind(&idempotency_key)
     .bind(&request_digest)
@@ -838,14 +838,14 @@ pub(crate) async fn append_assignment_state_fact(
     .map_err(|_| PortError::Persistence)?;
     sqlx::query(
         "INSERT INTO erpx_cqrs_write.audit_log
-            (tenant_id,audit_id,context_name,partition_key,command_id,correlation_id,
-             tenant_scope,actor,audit_context,action,aggregate_type,aggregate_id,
+            (holding_id,audit_id,context_name,partition_key,command_id,correlation_id,
+             active_scope,actor,audit_context,action,aggregate_type,aggregate_id,
              aggregate_version,details,occurred_at)
          VALUES ($1,$2,'agent_orchestration',$3,$4,$5,$6,$7,$8,$9,
                  'assignment',$10,$11,$12,$13)
-         ON CONFLICT (tenant_id,audit_id) DO NOTHING",
+         ON CONFLICT (holding_id,audit_id) DO NOTHING",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(audit_id)
     .bind(&partition_key)
     .bind(command_id)
@@ -866,15 +866,15 @@ pub(crate) async fn append_assignment_state_fact(
     .map_err(|_| PortError::Persistence)?;
     let inserted = sqlx::query(
         "INSERT INTO erpx_cqrs_write.outbox_events
-            (tenant_id,event_id,context_name,partition_key,command_id,event_type,event_version,
-             aggregate_type,aggregate_id,aggregate_version,tenant_scope,actor,
+            (holding_id,event_id,context_name,partition_key,command_id,event_type,event_version,
+             aggregate_type,aggregate_id,aggregate_version,active_scope,actor,
              correlation_id,causation_id,payload,occurred_at,available_at)
          VALUES ($1,$2,'agent_orchestration',$3,$4,
                  'agent.assignment.state_notification.requested',1,
                  'assignment',$5,$6,$7,$8,$9,NULL,$10,$11,$11)
-         ON CONFLICT (tenant_id,event_id) DO NOTHING",
+         ON CONFLICT (holding_id,event_id) DO NOTHING",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .bind(event_id)
     .bind(partition_key)
     .bind(command_id)
@@ -893,7 +893,7 @@ pub(crate) async fn append_assignment_state_fact(
     }
     crate::publication::append_assignment_directory_draft(
         tx,
-        tenant_id,
+        holding_id,
         assignment,
         actor,
         occurred_at,
@@ -903,15 +903,15 @@ pub(crate) async fn append_assignment_state_fact(
 }
 
 fn stable_fact_uuid(
-    tenant_id: uuid::Uuid,
+    holding_id: uuid::Uuid,
     assignment: &Assignment,
     state: &str,
     purpose: &[u8],
 ) -> uuid::Uuid {
     let mut digest = Sha256::new();
-    digest.update(b"erpx.agent.assignment.state.v1");
+    digest.update(b"erpx.agent.assignment.state");
     digest.update(purpose);
-    digest.update(tenant_id.as_bytes());
+    digest.update(holding_id.as_bytes());
     digest.update(assignment.id().as_uuid().as_bytes());
     digest.update(assignment.version().to_be_bytes());
     digest.update(state.as_bytes());
@@ -960,44 +960,27 @@ fn digest(value: &impl serde::Serialize) -> Result<String, PortError> {
     Ok(format!("{:x}", Sha256::digest(bytes)))
 }
 
-pub(crate) fn scope_key(scope: &TenantScope) -> String {
+pub(crate) fn scope_key(scope: &AuthorityScope) -> String {
     match scope {
-        TenantScope::Platform => "platform".into(),
-        TenantScope::Holding { holding_id } => format!("holding:{holding_id}"),
-        TenantScope::Company {
+        AuthorityScope::Platform => "platform".into(),
+        AuthorityScope::Holding { holding_id } => format!("holding:{holding_id}"),
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => {
             format!("company:{holding_id}:{company_id}")
         }
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         } => {
             format!("branch:{holding_id}:{company_id}:{branch_id}")
         }
-        TenantScope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
-        } => {
-            let mut companies = company_ids
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>();
-            let mut branches = branch_ids
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>();
-            companies.sort_unstable();
-            branches.sort_unstable();
-            format!(
-                "subtree:{holding_id}:companies={}:branches={}",
-                companies.join(","),
-                branches.join(",")
-            )
-        }
+            organization_node_id,
+        } => format!("subtree:{holding_id}:{organization_node_id}"),
     }
 }
 
@@ -1043,7 +1026,7 @@ fn invocation_name(value: InvocationOrigin) -> &'static str {
 
 fn budget_layer_name(value: BudgetLayerKind) -> &'static str {
     match value {
-        BudgetLayerKind::Tenant => "tenant",
+        BudgetLayerKind::Holding => "holding",
         BudgetLayerKind::Workspace => "workspace",
         BudgetLayerKind::Agent => "agent",
         BudgetLayerKind::Principal => "principal",
@@ -1078,8 +1061,8 @@ mod tests {
         assert!(source.contains("assignment_status='running' FOR UPDATE"));
         assert!(source.contains("PortError::IdempotencyConflict"));
         assert!(source.contains("append_assignment_state_fact("));
-        assert!(source.contains("ON CONFLICT (tenant_id,event_id) DO NOTHING"));
-        assert!(source.contains("WHERE tenant_id=$1"));
+        assert!(source.contains("ON CONFLICT (holding_id,event_id) DO NOTHING"));
+        assert!(source.contains("WHERE holding_id=$1"));
     }
 
     #[test]
@@ -1089,8 +1072,7 @@ mod tests {
             invocation_name(InvocationOrigin::Schedule),
             "denied_proactive"
         );
-        let ddl =
-            include_str!("../../../migration/migrations_tenant_write/0073_agent_orchestration.sql");
+        let ddl = include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
         assert!(!ddl.contains("'denied_proactive'"));
     }
 }

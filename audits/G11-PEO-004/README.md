@@ -5,9 +5,9 @@
 - Added protobuf `SaveHrEmployee` and a dedicated `HrService`.
 - Decodes only bounded typed `EmployeeRecord` data; raw JSON is never returned.
 - Requires the shared command context, authenticated actor/session binding,
-  explicit non-platform tenant scope, matching employee scope, command ID,
+  explicit non-platform holding scope, matching employee scope, command ID,
   idempotency key, and expected-version field.
-- Routes only to the tenant write database through the existing router.
+- Routes only to the holding write database through the existing router.
 - Applies customer scope, active RBAC, commercial entitlement, billing,
   segregation-of-duties, and actor authorization before persistence.
 - Emits a customer-auditable `hr.employee.saved` event and typed receipt.
@@ -23,5 +23,5 @@
 
 Leave, expense, payroll, and reassignment command transports, HR read
 projection/projector integration, UI, and live database evidence remain open.
-Rollback removes the additive HR proto/service/handler; existing tenant-write
+Rollback removes the additive HR proto/service/handler; existing holding-write
 state, other services, and Folio remain unchanged.

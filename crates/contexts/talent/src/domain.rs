@@ -4,7 +4,7 @@ use erpx_integration_contracts::{
     catalog::ContextId,
     reference::{RecordTypeId, ReferenceValidationError},
 };
-use erpx_kernel::{RecordId, TenantScope};
+use erpx_kernel::{AuthorityScope, RecordId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -80,7 +80,7 @@ pub enum RequisitionStatus {
 pub struct Requisition {
     id: RequisitionId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     title: String,
     position: StableRecordRef,
     position_version: u64,
@@ -97,7 +97,7 @@ impl Requisition {
     #[allow(clippy::too_many_arguments)]
     pub fn draft(
         id: RequisitionId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         title: impl Into<String>,
         position: StableRecordRef,
         position_version: u64,
@@ -207,7 +207,7 @@ impl Requisition {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn status(&self) -> RequisitionStatus {
@@ -231,7 +231,7 @@ pub enum CandidateStatus {
 pub struct CandidateProfile {
     id: CandidateId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     principal: RealmPrincipal,
     profile_digest: String,
     attachment_digests: Vec<String>,
@@ -246,7 +246,7 @@ impl CandidateProfile {
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: CandidateId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         principal: RealmPrincipal,
         profile_digest: impl Into<String>,
         attachment_digests: Vec<String>,
@@ -349,7 +349,7 @@ impl CandidateProfile {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn principal(&self) -> &RealmPrincipal {
@@ -397,7 +397,7 @@ pub enum ApplicationStatus {
 pub struct Application {
     id: ApplicationId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     candidate_id: CandidateId,
     candidate_principal_id: Uuid,
     profile_version: u64,
@@ -527,7 +527,7 @@ impl Application {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn candidate_id(&self) -> CandidateId {
@@ -562,7 +562,7 @@ pub enum OfferStatus {
 pub struct Offer {
     id: OfferId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     application_id: ApplicationId,
     application_version: u64,
     candidate_principal_id: Uuid,
@@ -682,7 +682,7 @@ impl Offer {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn status(&self) -> OfferStatus {
@@ -711,7 +711,7 @@ pub enum HandoffStatus {
 pub struct HireHandoff {
     id: HireHandoffId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     offer_id: OfferId,
     offer_version: u64,
     idempotency_key: String,
@@ -796,7 +796,7 @@ impl HireHandoff {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn status(&self) -> HandoffStatus {
@@ -830,7 +830,7 @@ pub enum ProposalStatus {
 pub struct TalentProposal {
     id: ProposalId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     kind: ProposalKind,
     employee: StableRecordRef,
     employee_version: u64,
@@ -847,7 +847,7 @@ impl TalentProposal {
     #[allow(clippy::too_many_arguments)]
     pub fn draft(
         id: ProposalId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         kind: ProposalKind,
         employee: StableRecordRef,
         employee_version: u64,
@@ -945,7 +945,7 @@ impl TalentProposal {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn status(&self) -> ProposalStatus {
@@ -990,7 +990,7 @@ impl TalentAggregate {
             Self::Record(v) => v.version(),
         }
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         match self {
             Self::Requisition(v) => &v.scope,
             Self::Candidate(v) => &v.scope,
@@ -1053,10 +1053,10 @@ pub fn talent_record_ref(
         RecordTypeId::try_new(record_type)?,
     )
 }
-fn validate_scope(scope: &TenantScope) -> Result<(), TalentError> {
+fn validate_scope(scope: &AuthorityScope) -> Result<(), TalentError> {
     if matches!(
         scope,
-        TenantScope::Company { .. } | TenantScope::Branch { .. }
+        AuthorityScope::Company { .. } | AuthorityScope::Branch { .. }
     ) {
         Ok(())
     } else {

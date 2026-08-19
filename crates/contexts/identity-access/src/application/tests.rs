@@ -14,8 +14,8 @@ use erpx_cqrs::{
     IdempotencyKey, ProjectionMetadata, QueryConsistency, QueryEnvelope, QueryHandler,
 };
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
-    FixedClock, QueryId, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+    ErrorCategory, EventId, FixedClock, QueryId,
 };
 use uuid::Uuid;
 
@@ -38,14 +38,14 @@ fn at() -> chrono::DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap()
 }
 
-fn scope() -> TenantScope {
-    TenantScope::Holding { holding_id: id(1) }
+fn scope() -> AuthorityScope {
+    AuthorityScope::Holding { holding_id: id(1) }
 }
 
 fn actor() -> ActorAttribution {
     ActorAttribution {
         principal_ref: "identity-access-test-actor".into(),
-        kind: ActorKind::TenantUser,
+        kind: ActorKind::HoldingUser,
         session_id: None,
         represented_principal_ref: None,
         support_capability_id: None,
@@ -61,7 +61,7 @@ fn command_envelope<C>(sequence: u128, expected: Option<u64>, command: C) -> Com
         correlation_id: CorrelationId::try_from_uuid(id(200 + sequence)).unwrap(),
         causation_id: None,
         actor: actor(),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "identity_access.test".into(),
             customer_visible: false,
@@ -78,7 +78,7 @@ fn query_envelope<Q>(sequence: u128, query: Q) -> QueryEnvelope<Q> {
         query_id: QueryId::try_from_uuid(id(300 + sequence)).unwrap(),
         correlation_id: CorrelationId::try_from_uuid(id(400 + sequence)).unwrap(),
         actor: actor(),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "identity_access.test.query".into(),
             customer_visible: false,
@@ -151,7 +151,7 @@ struct FakeEntitlement {
 impl EntitlementPort for FakeEntitlement {
     async fn ensure_identity_access_enabled(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _write: bool,
     ) -> Result<(), PortError> {
         if self.allow {
@@ -172,7 +172,7 @@ struct FakeWriteRepository {
 impl WriteRepository for FakeWriteRepository {
     async fn load(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _key: AggregateKey,
     ) -> Result<Option<IdentityAccessAggregate>, PortError> {
         self.loads.fetch_add(1, Ordering::SeqCst);
@@ -238,7 +238,7 @@ struct FakeReadRepository {
 impl ReadRepository for FakeReadRepository {
     async fn get_principal(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _principal_id: PrincipalId,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<PrincipalView>>, PortError> {
@@ -251,7 +251,7 @@ impl ReadRepository for FakeReadRepository {
 
     async fn list_principals(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _filter: &PrincipalListFilter,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<PrincipalList>, PortError> {
@@ -267,7 +267,7 @@ impl ReadRepository for FakeReadRepository {
 
     async fn get_role(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _role_id: RoleId,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<RoleView>>, PortError> {
@@ -276,7 +276,7 @@ impl ReadRepository for FakeReadRepository {
 
     async fn list_roles(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _filter: &RoleListFilter,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<RoleList>, PortError> {
@@ -445,7 +445,7 @@ fn authority_scope_and_authorization_both_fail_closed() {
         None,
         CreatePrincipal {
             principal_id: PrincipalId::try_from_uuid(id(40)).unwrap(),
-            scope: TenantScope::Holding { holding_id: id(99) },
+            scope: AuthorityScope::Holding { holding_id: id(99) },
             display_name: "Outside authority".into(),
         },
     )))

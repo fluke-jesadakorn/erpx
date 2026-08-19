@@ -10,7 +10,7 @@ use std::{env, net::TcpStream, time::Duration};
 const SALES_DOMAIN: &str = include_str!("../../../crates/domain/src/sales.rs");
 const SALES_PERSISTENCE: &str =
     include_str!("../../../crates/infrastructure/src/sales_persistence.rs");
-const SALES_PROTO: &str = include_str!("../../../crates/proto/proto/erpx/sales/v2/service.proto");
+const SALES_PROTO: &str = include_str!("../../../crates/proto/proto/erpx/sales/service.proto");
 const SERVER_TRANSPORTS: &str = include_str!("../../server/src/lib.rs");
 const SERVER_COMPOSITION: &str = include_str!("../../server/src/lib.rs");
 
@@ -62,7 +62,7 @@ fn sales_source_replay_filter_and_read_model_safety_are_closed() {
         "Sales SQLx source/read persistence",
         &[
             "read_source_event_page",
-            "WHERE holding_ref=$1 AND {SALES_SOURCE_EVENT_TYPE_FILTER}",
+            "WHERE data_profile_key=$1 AND {SALES_SOURCE_EVENT_TYPE_FILTER}",
             "validate_aggregate_type(&cursor.aggregate_type)?",
             "validate_aggregate_type(&aggregate_type)?",
             "get_for_scope",
@@ -114,7 +114,7 @@ fn sales_proto_and_server_transport_surfaces_have_owner_command_query_parity() {
         SALES_PROTO,
         "sales/v1/service.proto",
         &[
-            "package erpx.sales.v2;",
+            "package erpx.sales;",
             "service SalesCommandService",
             "rpc CreateQuote",
             "rpc CreateSalesOrder",
@@ -143,9 +143,9 @@ fn sales_proto_and_server_transport_surfaces_have_owner_command_query_parity() {
 #[test]
 fn sales_live_database_and_vendor_evidence_is_explicitly_queued() {
     let database_references = [
-        "ERPX_TEST_TENANT_WRITE_DATABASE_URL",
-        "ERPX_TEST_TENANT_READ_DATABASE_URL",
-        "ERPX_TEST_TENANT_DATABASE_URL_TEMPLATE",
+        "ERPX_TEST_HOLDING_WRITE_DATABASE_URL",
+        "ERPX_TEST_HOLDING_READ_DATABASE_URL",
+        "ERPX_TEST_HOLDING_DATABASE_URL_TEMPLATE",
     ];
     let missing_database = database_references
         .iter()

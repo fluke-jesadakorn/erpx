@@ -4,7 +4,7 @@ use erpx_integration_contracts::{
     catalog::ContextId,
     reference::{RecordTypeId, ReferenceValidationError},
 };
-use erpx_kernel::{RecordId, TenantScope};
+use erpx_kernel::{AuthorityScope, RecordId};
 use serde::{Deserialize, Serialize};
 
 use super::Customer360DomainError;
@@ -41,7 +41,7 @@ pub struct Customer360OwnedRecord {
     id: RecordId,
     version: u64,
     kind: Customer360RecordKind,
-    scope: TenantScope,
+    scope: AuthorityScope,
     customer_account: StableRecordRef,
     related_customer_account: Option<StableRecordRef>,
     source_version: u64,
@@ -60,7 +60,7 @@ impl Customer360OwnedRecord {
     pub fn create(
         id: RecordId,
         kind: Customer360RecordKind,
-        scope: TenantScope,
+        scope: AuthorityScope,
         customer_account: StableRecordRef,
         related_customer_account: Option<StableRecordRef>,
         source_version: u64,
@@ -139,7 +139,7 @@ impl Customer360OwnedRecord {
             || self.scope.validate().is_err()
             || !matches!(
                 self.scope,
-                TenantScope::Company { .. } | TenantScope::Branch { .. }
+                AuthorityScope::Company { .. } | AuthorityScope::Branch { .. }
             )
             || !customer_ok(&self.customer_account)
             || self.title.trim().is_empty()
@@ -198,7 +198,7 @@ impl Customer360OwnedRecord {
     pub const fn kind(&self) -> Customer360RecordKind {
         self.kind
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn customer_account(&self) -> &StableRecordRef {
@@ -250,8 +250,8 @@ mod tests {
     fn at() -> DateTime<Utc> {
         Utc.with_ymd_and_hms(2026, 8, 16, 9, 0, 0).single().unwrap()
     }
-    fn scope() -> TenantScope {
-        TenantScope::Company {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         }

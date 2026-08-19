@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -46,7 +46,7 @@ pub struct RecordLinkedFact {
     pub matter: LegalMatterRef,
     pub relation: RecordRelation,
     pub target: RecordRef,
-    pub target_scope: TenantScope,
+    pub target_scope: AuthorityScope,
     pub target_digest: ReferenceCode,
 }
 
@@ -115,7 +115,7 @@ impl IntegrationEvent for Event {
                 fact.target.validate()?;
                 fact.target_scope
                     .validate()
-                    .map_err(|_| ContractValidationError::InvalidTenantScope)?;
+                    .map_err(|_| ContractValidationError::InvalidHoldingScope)?;
                 let digest = fact
                     .target_digest
                     .as_str()

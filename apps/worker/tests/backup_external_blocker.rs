@@ -2,12 +2,12 @@ use std::{io, sync::Arc};
 
 use chrono::{Duration, Utc};
 use erpx_infrastructure::{
-    ControlPlaneDatabaseConfig, ControlPlanePools, SqlxControlPlane, SqlxTenantStoreRegistry,
-    TenantBackupJobRequest, TenantDatabaseProvisioner, TenantDatabaseProvisioningConfig,
-    TenantDatabaseRouter, TenantProvisioner, TenantStoreRegistration,
+    ControlPlaneDatabaseConfig, ControlPlanePools, HoldingBackupJobRequest,
+    HoldingDatabaseProvisioner, HoldingDatabaseProvisioningConfig, HoldingDatabaseRouter,
+    HoldingProvisioner, HoldingStoreRegistration, SqlxControlPlane, SqlxHoldingStoreRegistry,
 };
 use erpx_migration::{migrate_control_plane, migrate_control_read};
-use erpx_worker::{NamedWorkerHandler, TenantBackupJobRuntimeHandler};
+use erpx_worker::{HoldingBackupJobRuntimeHandler, NamedWorkerHandler};
 use sqlx::{Row, postgres::PgPoolOptions};
 use uuid::Uuid;
 
@@ -175,12 +175,12 @@ async fn missing_external_backup_credentials_leave_failed_run_and_retryable_bloc
 
     let store = Arc::new(SqlxControlPlane::new(pools));
     let suffix = Uuid::new_v4().simple().to_string();
-    let tenant_id = format!("tenant-backup-blocker-{suffix}");
-    let holding_ref = format!("holding-backup-blocker-{suffix}");
-    SqlxTenantStoreRegistry::new(Arc::clone(&store))
-        .register(TenantStoreRegistration {
-            tenant_id: tenant_id.clone(),
-            holding_ref: holding_ref.clone(),
+    let holding_id = format!("holding-backup-blocker-{suffix}");
+    let data_profile_key = format!("holding-backup-blocker-{suffix}");
+    SqlxHoldingStoreRegistry::new(Arc::clone(&store))
+        .register(HoldingStoreRegistration {
+            holding_id: holding_id.clone(),
+            data_profile_key: data_profile_key.clone(),
             write_database_key: format!("backup-blocker-write-{suffix}"),
             read_database_key: format!("backup-blocker-read-{suffix}"),
             storage_namespace: format!("backup-blocker-storage-{suffix}"),
@@ -190,12 +190,12 @@ async fn missing_external_backup_credentials_leave_failed_run_and_retryable_bloc
             registry_version: 1,
         })
         .await
-        .expect("active tenant registry");
+        .expect("active holding registry");
 
-    let job = TenantProvisioner::new(Arc::clone(&store))
-        .schedule_backup_job(TenantBackupJobRequest {
-            tenant_id: tenant_id.clone(),
-            holding_ref: holding_ref.clone(),
+    let job = HoldingProvisioner::new(Arc::clone(&store))
+        .schedule_backup_job(HoldingBackupJobRequest {
+            holding_id: holding_id.clone(),
+            data_profile_key: data_profile_key.clone(),
             kind: "full".into(),
             backup_ref: format!("backup-blocker-{suffix}"),
             restore_target_ref: None,
@@ -210,16 +210,16 @@ async fn missing_external_backup_credentials_leave_failed_run_and_retryable_bloc
         .await
         .expect("schedule backup job");
 
-    let routing = TenantDatabaseProvisioningConfig::from_values(
+    let routing = HoldingDatabaseProvisioningConfig::from_values(
         "postgres://backup-blocker-admin@localhost/postgres?sslmode=verify-full",
         "postgres://backup-blocker-user@localhost/{database}?sslmode=verify-full",
     )
     .expect("routing config");
-    let database_provisioner = TenantDatabaseProvisioner::new(Arc::clone(&store), routing.clone())
+    let database_provisioner = HoldingDatabaseProvisioner::new(Arc::clone(&store), routing.clone())
         .expect("database provisioner");
-    let router = TenantDatabaseRouter::new(Arc::clone(&store), routing).expect("database router");
-    let provisioner = TenantProvisioner::new(Arc::clone(&store));
-    let handler = TenantBackupJobRuntimeHandler::from_parts_without_external_adapter(
+    let router = HoldingDatabaseRouter::new(Arc::clone(&store), routing).expect("database router");
+    let provisioner = HoldingProvisioner::new(Arc::clone(&store));
+    let handler = HoldingBackupJobRuntimeHandler::from_parts_without_external_adapter(
         provisioner.clone(),
         database_provisioner,
         router,
@@ -239,7 +239,7 @@ async fn missing_external_backup_credentials_leave_failed_run_and_retryable_bloc
 
     let job_row = sqlx::query(
         "SELECT state, last_error
-         FROM erpx_control.tenant_backup_jobs
+         FROM erpx_control.holding_backup_jobs
          WHERE id = $1",
     )
     .bind(job.id)
@@ -259,8 +259,8 @@ async fn missing_external_backup_credentials_leave_failed_run_and_retryable_bloc
 
     let run_row = sqlx::query(
         "SELECT r.status, r.error
-         FROM erpx_control.tenant_backup_job_runs link
-         JOIN erpx_control.tenant_backup_runs r ON r.id = link.run_id
+         FROM erpx_control.holding_backup_job_runs link
+         JOIN erpx_control.holding_backup_runs r ON r.id = link.run_id
          WHERE link.job_id = $1",
     )
     .bind(job.id)
@@ -284,7 +284,7 @@ async fn missing_external_backup_credentials_leave_failed_run_and_retryable_bloc
         .expect("project blocker job");
     let projected: (String, bool) = sqlx::query_as(
         "SELECT state, error_present
-         FROM erpx_control.tenant_backup_jobs
+         FROM erpx_control.holding_backup_jobs
          WHERE id = $1",
     )
     .bind(job.id)

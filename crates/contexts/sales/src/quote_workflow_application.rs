@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -106,7 +106,7 @@ pub struct QuoteWorkflowCommandRequest {
     pub command_id: Uuid,
     pub idempotency_key: String,
     pub payload_digest: String,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub actor_ref: String,
     pub expected_aggregate_version: u64,
     pub command: QuoteWorkflowCommand,
@@ -139,7 +139,7 @@ pub struct QuoteWorkflowPage {
 pub trait QuoteWorkflowAuthorizationPort: Send + Sync {
     async fn authorize(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         actor_ref: &str,
         permission: QuoteWorkflowPermission,
     ) -> Result<bool, QuoteWorkflowApplicationError>;
@@ -149,19 +149,19 @@ pub trait QuoteWorkflowAuthorizationPort: Send + Sync {
 pub trait QuoteWorkflowRepository: Send + Sync {
     async fn load(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         quote_id: QuoteId,
     ) -> Result<Option<QuoteWorkflow>, QuoteWorkflowApplicationError>;
 
     async fn commit(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         commit: QuoteWorkflowCommit,
     ) -> Result<QuoteWorkflowReceipt, QuoteWorkflowApplicationError>;
 
     async fn list(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         cursor: Option<&str>,
         page_size: u16,
     ) -> Result<QuoteWorkflowPage, QuoteWorkflowApplicationError>;
@@ -302,7 +302,7 @@ where
 
     pub async fn get(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         actor_ref: &str,
         quote_id: QuoteId,
     ) -> Result<Option<QuoteWorkflow>, QuoteWorkflowApplicationError> {
@@ -318,7 +318,7 @@ where
 
     pub async fn list(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         actor_ref: &str,
         cursor: Option<&str>,
         page_size: u16,

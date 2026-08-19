@@ -3,10 +3,10 @@
 ## Scope
 
 Support reconciliation now compares bounded authoritative capability
-bindings with the tenant read projection and detects tampered, missing,
+bindings with the holding read projection and detects tampered, missing,
 orphaned, stale, and oversized binding sets. The recovery assertion rebuilds
 the read projection from the authoritative SQLx state through the existing
-outbox/projector path, with tenant and holding scope checks retained.
+outbox/projector path, with holding and holding scope checks retained.
 
 ## Evidence
 

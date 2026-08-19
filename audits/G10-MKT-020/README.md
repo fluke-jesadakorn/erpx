@@ -21,7 +21,7 @@
 - `cargo clippy -p erpx-infrastructure --all-targets -- -D warnings` — pass.
 - `cargo test -p erpx-migration` — 6 passed with migration 0036 assertions.
 - `live_marketing_crm_write_boundary_is_atomic_idempotent_and_scoped` — pass
-  against a disposable PostgreSQL tenant database. The test covers the
+  against a disposable PostgreSQL holding database. The test covers the
   immutable handoff, opportunity creation, a new-context lifecycle transition,
   deterministic attribution, exact replay receipts, four atomic outbox
   events, and forced-RLS metadata; the database was dropped afterward.
@@ -38,8 +38,8 @@ deterministic idempotency key to the new command context before persistence.
 - No CRM read-database migration was added: the shared outbox and snapshots
   are the rebuild source; a read projection belongs to the later UI/read-model
   packet.
-- The configured opaque `holding_ref` is the database route boundary; mapping
-  that reference to control-plane tenant metadata remains outside this packet.
+- The configured opaque `data_profile_key` is the database route boundary; mapping
+  that reference to control-plane holding metadata remains outside this packet.
 
 ## Integration order
 

@@ -1455,7 +1455,7 @@ mod tests {
             collect_billing_address: true,
             collect_tax_id: true,
             metadata: BTreeMap::from([
-                ("erpx_tenant_id".into(), "tenant-test".into()),
+                ("erpx_holding_id".into(), "holding-test".into()),
                 (
                     "erpx_subscription_id".into(),
                     "00000000-0000-4000-8000-000000000001".into(),

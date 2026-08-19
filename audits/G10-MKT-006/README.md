@@ -9,7 +9,7 @@ is implemented by this packet.
 `marketing_callback.rs` adds a transport-independent callback boundary with:
 
 - an explicit `MarketingProviderCallbackBinding` for provider account, opaque
-  tenant ID, holding ID, and exact `TenantScope`;
+  holding ID, holding ID, and exact `HoldingScope`;
 - `MarketingProviderCallbackRequest` and `MarketingProviderCallback`, carrying
   delivery ID, provider message reference, provider event ID, provider event
   timestamp, and the typed `delivered`, `failed`, or `bounced` kind;
@@ -49,7 +49,7 @@ From `erpx/`:
 - `cargo test -p erpx-domain --lib` — passed, 135 passed, 0 failed.
 
 The callback module contributes seven unit tests covering authentication
-decisions, provider-account/tenant/holding/scope binding, deterministic
+decisions, provider-account/holding/holding/scope binding, deterministic
 duplicate identity, lower-inclusive/upper-exclusive timestamps, delivery
 provider-reference binding, bounded/redacted errors, and deterministic
 out-of-order classification.
@@ -61,7 +61,7 @@ The main agent must integrate this contract in this order:
 1. Verify the raw request body and construct `VerifiedProviderAuthentication`
    from the provider adapter result; never pass a raw signature or secret into
    the domain value.
-2. Resolve the provider account to an active control-plane tenant/holding
+2. Resolve the provider account to an active control-plane holding/holding
    binding and resolve the delivery through an authorized write-side lookup.
 3. Construct and `verify` the request using that trusted binding and the
    ingress receipt time.
@@ -81,7 +81,7 @@ provider callback response mapping remain open.
 - The domain contract proves only that an upstream verifier reported success;
   it does not verify signatures. The ingress must authenticate the exact raw
   bytes before parsing and must bind the supplied body digest to those bytes.
-- Provider account and tenant/holding values must come from trusted route and
+- Provider account and holding/holding values must come from trusted route and
   control-plane lookup data, not from untrusted callback JSON. `verify` rejects
   any mismatch with the expected binding.
 - The fixed timestamp window is intentionally strict and half-open. The

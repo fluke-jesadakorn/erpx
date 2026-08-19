@@ -7,7 +7,7 @@ use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
     ItemDescriptorDraft, RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
 };
-use erpx_kernel::{AggregateId, CommandId, DataClassification, EventId, RecordId, TenantScope};
+use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId, RecordId};
 use erpx_organization::{
     CommandFingerprint, CommandIdentity, CommandUnitOfWork, HierarchyGuard, HierarchyPort,
     OrganizationCommit, OrganizationNode, OrganizationNodeId, OrganizationNodeKind,
@@ -46,10 +46,10 @@ struct AuthoritySqlScope {
 }
 
 impl AuthoritySqlScope {
-    fn try_from_scope(scope: &TenantScope) -> Result<Self, PortError> {
+    fn try_from_scope(scope: &AuthorityScope) -> Result<Self, PortError> {
         scope.validate().map_err(|_| PortError::Denied)?;
         Ok(match scope {
-            TenantScope::Platform => Self {
+            AuthorityScope::Platform => Self {
                 mode: "platform",
                 holding_id: None,
                 company_id: None,
@@ -57,7 +57,7 @@ impl AuthoritySqlScope {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Holding { holding_id } => Self {
+            AuthorityScope::Holding { holding_id } => Self {
                 mode: "holding",
                 holding_id: Some(*holding_id),
                 company_id: None,
@@ -65,7 +65,7 @@ impl AuthoritySqlScope {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => Self {
@@ -76,7 +76,7 @@ impl AuthoritySqlScope {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -88,17 +88,16 @@ impl AuthoritySqlScope {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Self {
                 mode: "subtree",
                 holding_id: Some(*holding_id),
                 company_id: None,
                 branch_id: None,
-                company_ids: company_ids.clone(),
-                branch_ids: branch_ids.clone(),
+                company_ids: vec![*organization_node_id],
+                branch_ids: Vec::new(),
             },
         })
     }
@@ -108,7 +107,7 @@ impl AuthoritySqlScope {
 impl WriteRepository for OrganizationWriteRepository {
     async fn load(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         node_id: OrganizationNodeId,
     ) -> Result<Option<OrganizationNode>, PortError> {
         let authority = AuthoritySqlScope::try_from_scope(authority_scope)?;
@@ -117,7 +116,7 @@ impl WriteRepository for OrganizationWriteRepository {
             "SELECT aggregate_version,node_kind,holding_id,company_id,branch_id,
                     department_id,node_code,node_name,node_status,created_at,updated_at
              FROM erpx_organization_write.organization_node_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND node_id=$1
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND node_id=$1
                AND (
                  $2='platform'
                  OR ($2='holding' AND holding_id=$3)
@@ -195,12 +194,12 @@ pub struct OrganizationHierarchyRepository;
 impl HierarchyPort for OrganizationHierarchyRepository {
     async fn validate_placement(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         node_id: OrganizationNodeId,
         placement: &OrganizationPlacement,
     ) -> Result<(), PortError> {
         let scope = placement
-            .tenant_scope(node_id)
+            .active_scope(node_id)
             .map_err(|_| PortError::InvalidParent)?;
         if !authority_scope.contains(&scope) {
             return Err(PortError::Denied);
@@ -210,7 +209,7 @@ impl HierarchyPort for OrganizationHierarchyRepository {
 
     async fn ensure_can_archive(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _node_id: OrganizationNodeId,
     ) -> Result<(), PortError> {
         // The authoritative child lock/check is deliberately deferred to the
@@ -308,7 +307,7 @@ impl CommandUnitOfWork for OrganizationCommandAdapter {
             requirement: request.hierarchy_guard,
         };
         let aggregate_id = aggregate_id(node_id)?;
-        let tenant_scope = request.aggregate.scope().clone();
+        let active_scope = request.aggregate.scope().clone();
         let aggregate = request.aggregate;
         let command = AtomicCommand {
             context: CONTEXT_NAME.into(),
@@ -317,7 +316,7 @@ impl CommandUnitOfWork for OrganizationCommandAdapter {
             correlation_id: request.correlation_id,
             idempotency_key,
             request_hash,
-            tenant_scope,
+            active_scope,
             actor: request.actor,
             audit_context: request.audit,
             aggregate_type: AGGREGATE_TYPE.into(),
@@ -414,7 +413,7 @@ impl AtomicCommandGuard for OrganizationAtomicGuard {
         let current: Option<i64> = sqlx::query_scalar(
             "SELECT aggregate_version
              FROM erpx_organization_write.organization_node_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND node_id=$1
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND node_id=$1
              FOR UPDATE",
         )
         .bind(self.aggregate.id().as_uuid())
@@ -432,7 +431,7 @@ impl AtomicCommandGuard for OrganizationAtomicGuard {
         let current: Option<i64> = sqlx::query_scalar(
             "SELECT aggregate_version
              FROM erpx_organization_write.organization_node_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND node_id=$1
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND node_id=$1
              FOR UPDATE",
         )
         .bind(self.aggregate.id().as_uuid())
@@ -465,7 +464,7 @@ impl AtomicCommandGuard for OrganizationAtomicGuard {
                 let child: Option<Uuid> = sqlx::query_scalar(
                     "SELECT node_id
                      FROM erpx_organization_write.organization_node_authority
-                     WHERE tenant_id=erpx_cqrs_write.current_tenant_id()
+                     WHERE holding_id=erpx_cqrs_write.current_holding_id()
                        AND parent_node_id = $1 AND node_status = 'active'
                      ORDER BY node_id LIMIT 1 FOR UPDATE",
                 )
@@ -485,12 +484,12 @@ impl AtomicCommandGuard for OrganizationAtomicGuard {
         let duplicate: Option<Uuid> = sqlx::query_scalar(
             "SELECT node_id
              FROM erpx_organization_write.organization_node_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND holding_id = $1
-               AND COALESCE(parent_node_id, holding_id) = COALESCE($2, $1)
-               AND node_code = $3 AND node_status <> 'archived' AND node_id <> $4
+             WHERE holding_id=erpx_cqrs_write.current_holding_id()
+               AND COALESCE(parent_node_id, holding_id) =
+                   COALESCE($1, erpx_cqrs_write.current_holding_id())
+               AND node_code = $2 AND node_status <> 'archived' AND node_id <> $3
              ORDER BY node_id LIMIT 1 FOR UPDATE",
         )
-        .bind(self.aggregate.placement().holding_id(self.aggregate.id()))
         .bind(parent_id.map(|id| id.as_uuid()))
         .bind(self.aggregate.code())
         .bind(self.aggregate.id().as_uuid())
@@ -523,16 +522,15 @@ impl AtomicCommandGuard for OrganizationAtomicGuard {
         let node_id = self.aggregate.id();
         let result = sqlx::query(
             "INSERT INTO erpx_organization_write.organization_node_authority
-                (tenant_id,node_id,node_kind,parent_node_id,lineage_node_ids,holding_id,
+                (holding_id,node_id,node_kind,parent_node_id,lineage_node_ids,
                  company_id,branch_id,department_id,node_code,node_name,node_status,
                  aggregate_version,created_at,updated_at)
-             VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,
-                     $9,$10,$11,$12,$13,$14)
-             ON CONFLICT (tenant_id,node_id) DO UPDATE SET
+             VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,
+                     $8,$9,$10,$11,$12,$13)
+             ON CONFLICT (holding_id,node_id) DO UPDATE SET
                 node_kind = EXCLUDED.node_kind,
                 parent_node_id = EXCLUDED.parent_node_id,
                 lineage_node_ids = EXCLUDED.lineage_node_ids,
-                holding_id = EXCLUDED.holding_id,
                 company_id = EXCLUDED.company_id,
                 branch_id = EXCLUDED.branch_id,
                 department_id = EXCLUDED.department_id,
@@ -542,8 +540,8 @@ impl AtomicCommandGuard for OrganizationAtomicGuard {
                 aggregate_version = EXCLUDED.aggregate_version,
                 created_at = EXCLUDED.created_at,
                 updated_at = EXCLUDED.updated_at
-             WHERE erpx_organization_write.organization_node_authority.tenant_id=
-                       erpx_cqrs_write.current_tenant_id()
+             WHERE erpx_organization_write.organization_node_authority.holding_id=
+                       erpx_cqrs_write.current_holding_id()
                AND erpx_organization_write.organization_node_authority.aggregate_version + 1=
                        EXCLUDED.aggregate_version",
         )
@@ -551,7 +549,6 @@ impl AtomicCommandGuard for OrganizationAtomicGuard {
         .bind(kind_name(self.aggregate.kind()))
         .bind(placement.parent_id(node_id).map(|id| id.as_uuid()))
         .bind(lineage_ids(node_id, placement))
-        .bind(placement.holding_id(node_id))
         .bind(placement.company_id(node_id))
         .bind(placement.branch_id(node_id))
         .bind(placement.department_id(node_id))
@@ -587,7 +584,7 @@ async fn validate_parent(
         "SELECT node_kind, node_status, lineage_node_ids, holding_id,
                 company_id, branch_id, department_id
          FROM erpx_organization_write.organization_node_authority
-         WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND node_id=$1
+         WHERE holding_id=erpx_cqrs_write.current_holding_id() AND node_id=$1
          FOR UPDATE",
     )
     .bind(parent_id.as_uuid())
@@ -1018,5 +1015,36 @@ mod tests {
             },
             &parent
         ));
+    }
+
+    #[test]
+    fn holding_directory_draft_uses_the_canonical_holding_scope() {
+        let holding_id = node_id(1);
+        let holding = OrganizationNode::create(
+            holding_id,
+            OrganizationPlacement::Holding,
+            "holding-organization-bootstrap".into(),
+            "holding-organization-bootstrap".into(),
+            chrono::Utc::now(),
+        )
+        .unwrap();
+
+        let record_id = RecordId::try_from_uuid(holding.id().as_uuid()).expect("record id");
+        let record_type =
+            RecordTypeId::try_new("organization.holding").expect("record type policy");
+        let record = StableRecordRef::try_new(record_id, ContextId::Organization, record_type)
+            .expect("stable record");
+        record_policy_id(&record).expect("record policy owner");
+
+        let draft = organization_directory_draft(&holding)
+            .unwrap()
+            .expect("holding directory draft");
+        assert_eq!(
+            draft.scope,
+            AuthorityScope::Holding {
+                holding_id: holding_id.as_uuid(),
+            }
+        );
+        draft.validate().unwrap();
     }
 }

@@ -21,7 +21,7 @@ pub enum ContractValidationError {
     OwnerMismatch,
     EventTypeMismatch,
     EventVersionMismatch,
-    InvalidTenantScope,
+    InvalidHoldingScope,
 }
 
 impl fmt::Display for ContractValidationError {
@@ -50,7 +50,7 @@ impl fmt::Display for ContractValidationError {
             Self::EventVersionMismatch => {
                 formatter.write_str("event version does not match the typed payload schema")
             }
-            Self::InvalidTenantScope => formatter.write_str("tenant scope is invalid"),
+            Self::InvalidHoldingScope => formatter.write_str("holding scope is invalid"),
         }
     }
 }

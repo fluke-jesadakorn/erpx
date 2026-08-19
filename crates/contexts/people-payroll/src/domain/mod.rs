@@ -6,7 +6,7 @@ use erpx_integration_contracts::{
     catalog::ContextId,
     reference::{RecordTypeId, ReferenceValidationError},
 };
-use erpx_kernel::{RecordId, TenantScope};
+use erpx_kernel::{AuthorityScope, RecordId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -234,7 +234,7 @@ pub(crate) enum DomainEvent {
 pub struct Employee {
     id: EmployeeId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     employee_code: String,
     display_name: String,
     hired_on: NaiveDate,
@@ -251,7 +251,7 @@ pub struct Employee {
 pub struct EmployeeState {
     pub id: EmployeeId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub employee_code: String,
     pub display_name: String,
     pub hired_on: NaiveDate,
@@ -285,7 +285,7 @@ impl Employee {
     #[allow(clippy::too_many_arguments)]
     pub fn hire(
         id: EmployeeId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         employee_code: String,
         display_name: String,
         hired_on: NaiveDate,
@@ -396,7 +396,7 @@ impl Employee {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn employee_code(&self) -> &str {
@@ -442,7 +442,7 @@ impl Employee {
 pub struct LeaveRequest {
     id: LeaveRequestId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     employee_id: EmployeeId,
     starts_on: NaiveDate,
     ends_on: NaiveDate,
@@ -460,7 +460,7 @@ pub struct LeaveRequest {
 pub struct LeaveRequestState {
     pub id: LeaveRequestId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub employee_id: EmployeeId,
     pub starts_on: NaiveDate,
     pub ends_on: NaiveDate,
@@ -496,7 +496,7 @@ impl LeaveRequest {
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: LeaveRequestId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         employee_id: EmployeeId,
         starts_on: NaiveDate,
         ends_on: NaiveDate,
@@ -604,7 +604,7 @@ impl LeaveRequest {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn employee_id(&self) -> EmployeeId {
@@ -646,7 +646,7 @@ impl LeaveRequest {
 pub struct ExpenseClaim {
     id: ExpenseClaimId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     employee_id: EmployeeId,
     currency: Currency,
     amount_minor: i64,
@@ -664,7 +664,7 @@ pub struct ExpenseClaim {
 pub struct ExpenseClaimState {
     pub id: ExpenseClaimId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub employee_id: EmployeeId,
     pub currency: Currency,
     pub amount_minor: i64,
@@ -700,7 +700,7 @@ impl ExpenseClaim {
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: ExpenseClaimId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         employee_id: EmployeeId,
         currency: Currency,
         amount_minor: i64,
@@ -809,7 +809,7 @@ impl ExpenseClaim {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn employee_id(&self) -> EmployeeId {
@@ -935,7 +935,7 @@ impl PayrollLine {
 pub struct PayrollRun {
     id: PayrollRunId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     period_code: String,
     starts_on: NaiveDate,
     ends_on: NaiveDate,
@@ -960,7 +960,7 @@ pub struct PayrollRun {
 pub struct PayrollRunState {
     pub id: PayrollRunId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub period_code: String,
     pub starts_on: NaiveDate,
     pub ends_on: NaiveDate,
@@ -1008,7 +1008,7 @@ impl PayrollRun {
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: PayrollRunId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         period_code: String,
         starts_on: NaiveDate,
         ends_on: NaiveDate,
@@ -1193,7 +1193,7 @@ impl PayrollRun {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn period_code(&self) -> &str {
@@ -1292,7 +1292,7 @@ impl Aggregate {
         }
     }
 
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         match self {
             Self::Employee(value) => value.scope(),
             Self::LeaveRequest(value) => value.scope(),
@@ -1338,9 +1338,11 @@ impl Aggregate {
     }
 }
 
-fn validate_scope(scope: &TenantScope) -> Result<(), PeoplePayrollDomainError> {
+fn validate_scope(scope: &AuthorityScope) -> Result<(), PeoplePayrollDomainError> {
     match scope {
-        TenantScope::Company { .. } | TenantScope::Branch { .. } if scope.validate().is_ok() => {
+        AuthorityScope::Company { .. } | AuthorityScope::Branch { .. }
+            if scope.validate().is_ok() =>
+        {
             Ok(())
         }
         _ => Err(PeoplePayrollDomainError::InvalidScope),

@@ -1,4 +1,4 @@
-//! Tenant-scoped Marketing content and digital-experience contracts.
+//! Holding-scoped Marketing content and digital-experience contracts.
 //!
 //! This module contains metadata and validated opaque references only. It
 //! never reads or writes object storage, resolves DNS, serves a preview, or
@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::contracts::TenantScope;
+use crate::contracts::AuthorityScope;
 
 pub const MARKETING_CONTENT_CONTRACT_VERSION: u16 = 1;
 pub const MAX_CONTENT_NAME_BYTES: usize = 255;
@@ -48,9 +48,9 @@ pub enum MarketingContentError {
     UnsafeValue { field: &'static str },
     #[error("identifier cannot be nil: {field}")]
     NilIdentifier { field: &'static str },
-    #[error("content must be tenant-scoped")]
+    #[error("content must be holding-scoped")]
     InvalidScope,
-    #[error("content reference is outside its owning tenant scope")]
+    #[error("content reference is outside its owning holding scope")]
     ScopeMismatch,
     #[error("content reference does not match the owning aggregate")]
     ReferenceMismatch,
@@ -83,7 +83,7 @@ pub enum MarketingContentError {
     PreviewAlreadyRevoked,
     #[error("custom domain hostname is invalid")]
     InvalidHostname,
-    #[error("custom domain cannot serve content outside its tenant scope")]
+    #[error("custom domain cannot serve content outside its holding scope")]
     DomainScopeMismatch,
     #[error("duplicate form field")]
     DuplicateFormField,
@@ -117,18 +117,18 @@ fn identifier(value: Uuid, field: &'static str) -> Result<(), MarketingContentEr
     Ok(())
 }
 
-fn validate_scope(scope: &TenantScope) -> Result<(), MarketingContentError> {
+fn validate_scope(scope: &AuthorityScope) -> Result<(), MarketingContentError> {
     match scope {
-        TenantScope::Platform => Err(MarketingContentError::InvalidScope),
-        TenantScope::Holding { holding_id } => identifier(*holding_id, "holding_id"),
-        TenantScope::Company {
+        AuthorityScope::Platform => Err(MarketingContentError::InvalidScope),
+        AuthorityScope::Holding { holding_id } => identifier(*holding_id, "holding_id"),
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => {
             identifier(*holding_id, "holding_id")?;
             identifier(*company_id, "company_id")
         }
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -137,30 +137,20 @@ fn validate_scope(scope: &TenantScope) -> Result<(), MarketingContentError> {
             identifier(*company_id, "company_id")?;
             identifier(*branch_id, "branch_id")
         }
-        TenantScope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
+            organization_node_id,
         } => {
             identifier(*holding_id, "holding_id")?;
-            if company_ids.is_empty() && branch_ids.is_empty() {
-                return Err(MarketingContentError::InvalidScope);
-            }
-            if company_ids.iter().any(Uuid::is_nil) || branch_ids.iter().any(Uuid::is_nil) {
-                return Err(MarketingContentError::InvalidScope);
-            }
-            let mut seen = BTreeSet::new();
-            if company_ids.iter().any(|id| !seen.insert(*id))
-                || branch_ids.iter().any(|id| !seen.insert(*id))
-            {
-                return Err(MarketingContentError::InvalidScope);
-            }
-            Ok(())
+            identifier(*organization_node_id, "organization_node_id")
         }
     }
 }
 
-fn exact_scope(expected: &TenantScope, actual: &TenantScope) -> Result<(), MarketingContentError> {
+fn exact_scope(
+    expected: &AuthorityScope,
+    actual: &AuthorityScope,
+) -> Result<(), MarketingContentError> {
     validate_scope(expected)?;
     validate_scope(actual)?;
     if expected == actual {
@@ -198,7 +188,7 @@ impl ContentLocale {
 }
 
 /// A required bilingual value. Keeping the two locales explicit prevents a
-/// later adapter from silently falling back to a different tenant's content.
+/// later adapter from silently falling back to a different holding's content.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LocalizedText {
     pub en: String,
@@ -231,17 +221,17 @@ impl LocalizedText {
     }
 }
 
-/// An opaque, tenant-bound pointer to an object stored by a future MinIO
+/// An opaque, holding-bound pointer to an object stored by a future MinIO
 /// adapter. It is not a URL, credential, or downloadable bearer token.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StorageObjectRef {
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub object_key: String,
 }
 
 impl StorageObjectRef {
     pub fn new(
-        scope: TenantScope,
+        scope: AuthorityScope,
         object_key: impl Into<String>,
     ) -> Result<Self, MarketingContentError> {
         let value = Self {
@@ -274,7 +264,7 @@ impl StorageObjectRef {
 pub struct ContentAssetVersion {
     pub id: Uuid,
     pub asset_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub version: u64,
     pub object_ref: StorageObjectRef,
     pub content_sha256: String,
@@ -289,7 +279,7 @@ impl ContentAssetVersion {
     pub fn new(
         id: Uuid,
         asset_id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         version: u64,
         object_ref: StorageObjectRef,
         content_sha256: impl Into<String>,
@@ -348,14 +338,14 @@ impl ContentAssetVersion {
 pub struct ContentAssetRef {
     pub asset_id: Uuid,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
 }
 
 impl ContentAssetRef {
     pub fn new(
         asset_id: Uuid,
         version: u64,
-        scope: TenantScope,
+        scope: AuthorityScope,
     ) -> Result<Self, MarketingContentError> {
         let value = Self {
             asset_id,
@@ -378,7 +368,7 @@ impl ContentAssetRef {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ContentAsset {
     pub id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub name: String,
     pub versions: BTreeMap<u64, ContentAssetVersion>,
 }
@@ -386,7 +376,7 @@ pub struct ContentAsset {
 impl ContentAsset {
     pub fn new(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         name: impl Into<String>,
         initial_version: ContentAssetVersion,
     ) -> Result<Self, MarketingContentError> {
@@ -580,7 +570,7 @@ impl TemplateVariant {
 pub struct ContentTemplateVersion {
     pub id: Uuid,
     pub template_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub version: u64,
     pub variants: BTreeMap<ContentLocale, TemplateVariant>,
     pub seo: SeoMetadata,
@@ -595,7 +585,7 @@ impl ContentTemplateVersion {
     pub fn new(
         id: Uuid,
         template_id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         version: u64,
         variants: BTreeMap<ContentLocale, TemplateVariant>,
         seo: SeoMetadata,
@@ -699,14 +689,14 @@ impl PublicationStatus {
 pub struct ContentTemplateRef {
     pub template_id: Uuid,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
 }
 
 impl ContentTemplateRef {
     pub fn new(
         template_id: Uuid,
         version: u64,
-        scope: TenantScope,
+        scope: AuthorityScope,
     ) -> Result<Self, MarketingContentError> {
         let value = Self {
             template_id,
@@ -729,7 +719,7 @@ impl ContentTemplateRef {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ContentTemplate {
     pub id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub slug: String,
     pub versions: BTreeMap<u64, ContentTemplateVersion>,
     pub status: PublicationStatus,
@@ -743,7 +733,7 @@ pub struct ContentTemplate {
 impl ContentTemplate {
     pub fn new(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         slug: impl Into<String>,
         initial_version: ContentTemplateVersion,
     ) -> Result<Self, MarketingContentError> {
@@ -1219,11 +1209,11 @@ pub enum FormStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ContentFormRef {
     pub form_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
 }
 
 impl ContentFormRef {
-    pub fn new(form_id: Uuid, scope: TenantScope) -> Result<Self, MarketingContentError> {
+    pub fn new(form_id: Uuid, scope: AuthorityScope) -> Result<Self, MarketingContentError> {
         identifier(form_id, "form_id")?;
         validate_scope(&scope)?;
         Ok(Self { form_id, scope })
@@ -1233,7 +1223,7 @@ impl ContentFormRef {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ContentForm {
     pub id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub slug: String,
     pub fields: Vec<FormField>,
     pub status: FormStatus,
@@ -1242,7 +1232,7 @@ pub struct ContentForm {
 impl ContentForm {
     pub fn new(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         slug: impl Into<String>,
         fields: Vec<FormField>,
     ) -> Result<Self, MarketingContentError> {
@@ -1379,7 +1369,7 @@ pub enum CustomDomainStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CustomDomain {
     pub id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub hostname: String,
     pub status: CustomDomainStatus,
 }
@@ -1387,7 +1377,7 @@ pub struct CustomDomain {
 impl CustomDomain {
     pub fn new(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         hostname: impl Into<String>,
     ) -> Result<Self, MarketingContentError> {
         identifier(id, "custom_domain_id")?;
@@ -1462,7 +1452,7 @@ fn normalize_hostname(value: String) -> Result<String, MarketingContentError> {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CustomDomainBinding {
     pub domain_id: Uuid,
-    pub domain_scope: TenantScope,
+    pub domain_scope: AuthorityScope,
     pub template: ContentTemplateRef,
     pub bound_at: DateTime<Utc>,
 }
@@ -1534,13 +1524,13 @@ impl ContentTemplateCommand {
 mod tests {
     use super::*;
 
-    fn scope(holding_id: Uuid) -> TenantScope {
-        TenantScope::Holding { holding_id }
+    fn scope(holding_id: Uuid) -> AuthorityScope {
+        AuthorityScope::Holding { holding_id }
     }
 
     fn template_version(
         template_id: Uuid,
-        tenant_scope: TenantScope,
+        active_scope: AuthorityScope,
         version: u64,
         created_by: &str,
     ) -> ContentTemplateVersion {
@@ -1558,7 +1548,7 @@ mod tests {
         ContentTemplateVersion::new(
             Uuid::new_v4(),
             template_id,
-            tenant_scope,
+            active_scope,
             version,
             variants,
             SeoMetadata::new(
@@ -1579,12 +1569,12 @@ mod tests {
 
     fn template() -> ContentTemplate {
         let id = Uuid::new_v4();
-        let tenant_scope = scope(Uuid::new_v4());
+        let active_scope = scope(Uuid::new_v4());
         ContentTemplate::new(
             id,
-            tenant_scope.clone(),
+            active_scope.clone(),
             "launch-page",
-            template_version(id, tenant_scope, 1, "author"),
+            template_version(id, active_scope, 1, "author"),
         )
         .unwrap()
     }
@@ -1846,7 +1836,7 @@ mod tests {
     }
 
     #[test]
-    fn custom_domain_rejects_cross_tenant_template_scope() {
+    fn custom_domain_rejects_cross_holding_template_scope() {
         let holding_a = Uuid::new_v4();
         let holding_b = Uuid::new_v4();
         let domain =

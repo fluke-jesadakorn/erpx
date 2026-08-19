@@ -9,7 +9,7 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::{identity_access, operations};
 use erpx_kernel::{
-    ActorAttribution, AggregateId, AuditContext, CommandId, CorrelationId, EventId, TenantScope,
+    ActorAttribution, AggregateId, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -59,8 +59,8 @@ impl OperationsAction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
-    pub target_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
+    pub target_scope: &'a AuthorityScope,
     pub action: OperationsAction,
     pub assignee: Option<identity_access::PrincipalRef>,
     pub manager: Option<identity_access::PrincipalRef>,
@@ -77,7 +77,7 @@ pub trait AuthorizationPort: Send + Sync {
 pub trait EntitlementPort: Send + Sync {
     async fn ensure_operations_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         write: bool,
     ) -> Result<(), PortError>;
 }
@@ -88,7 +88,7 @@ pub trait AssignmentPort: Send + Sync {
     /// Identity & Access authority. Client input supplies selectors only.
     async fn resolve_assignment(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         assignee: identity_access::PrincipalRef,
         manager: identity_access::PrincipalRef,
         at: DateTime<Utc>,
@@ -134,13 +134,13 @@ pub struct CommandIdentity {
 pub trait WriteRepository: Send + Sync {
     async fn load_exception(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         exception_id: ExceptionId,
     ) -> Result<Option<OperationsException>, PortError>;
 
     async fn load_work_queue_policy(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         policy_id: WorkQueuePolicyId,
     ) -> Result<Option<WorkQueuePolicy>, PortError>;
 }
@@ -151,7 +151,7 @@ pub struct OperationsCommit {
     pub correlation_id: CorrelationId,
     pub causation_id: Option<EventId>,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: u64,
     pub aggregate: OperationsException,
@@ -221,7 +221,7 @@ pub struct WorkQueuePolicyCommit {
     pub correlation_id: CorrelationId,
     pub causation_id: Option<EventId>,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
     pub aggregate: WorkQueuePolicy,
@@ -292,7 +292,7 @@ pub trait DetectionPolicyPort: Send + Sync {
     ) -> Result<DetectionDecision, PortError>;
 }
 
-/// Tenant-bound source fence for operational rebuild/activation decisions.
+/// Holding-bound source fence for operational rebuild/activation decisions.
 /// The adapter reads only committed Operations outbox evidence; it never
 /// rehydrates write aggregates or crosses into another context repository.
 #[async_trait]
@@ -310,14 +310,14 @@ pub struct SourceIdentity {
 #[serde(rename_all = "snake_case")]
 pub enum SourceDatabase {
     Control,
-    Tenant,
+    Holding,
 }
 
 impl SourceDatabase {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Control => "control",
-            Self::Tenant => "tenant",
+            Self::Holding => "holding",
         }
     }
 }
@@ -337,7 +337,7 @@ impl SourcePosition {
             if source.source_context() == erpx_integration_contracts::BoundedContext::Customer {
                 SourceDatabase::Control
             } else {
-                SourceDatabase::Tenant
+                SourceDatabase::Holding
             };
         if self.database != expected
             || self.source_key.trim().is_empty()
@@ -390,7 +390,7 @@ pub struct ExceptionView {
     pub exception_id: ExceptionId,
     pub version: u64,
     pub reference: String,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub source: SourceReference,
     pub policy_ref: String,
     pub category: String,
@@ -446,7 +446,7 @@ pub struct ExceptionQueue {
 pub struct WorkQueuePolicyView {
     pub policy_id: WorkQueuePolicyId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub name: String,
     pub allowed_sources: Vec<erpx_integration_contracts::BoundedContext>,
     pub escalation_after_minutes: u32,
@@ -512,28 +512,28 @@ pub struct ReadProjection<T> {
 pub trait ReadRepository: Send + Sync {
     async fn get_exception(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         exception_id: ExceptionId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<ExceptionView>>, PortError>;
 
     async fn list_queue(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &QueueFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<ExceptionQueue>, PortError>;
 
     async fn list_work_queue_policies(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &WorkQueuePolicyListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<WorkQueuePolicyList>, PortError>;
 
     async fn get_summary(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<OperationsSummary>, PortError>;
 }

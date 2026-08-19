@@ -1,5 +1,5 @@
 use chrono::{TimeZone, Utc};
-use erpx_kernel::{AggregateId, CorrelationId, EventId, TenantScope};
+use erpx_kernel::{AggregateId, AuthorityScope, CorrelationId, EventId};
 use serde_json::json;
 use uuid::Uuid;
 
@@ -23,7 +23,7 @@ fn marketing_event() -> marketing::Event {
 fn envelope() -> IntegrationEventEnvelope<marketing::Event> {
     IntegrationEventEnvelope::try_new(
         EventId::try_from_uuid(uuid(1)).unwrap(),
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id: uuid(2),
             company_id: uuid(3),
         },
@@ -83,10 +83,9 @@ fn envelope_rejects_zero_versions_and_typed_metadata_mismatches() {
 fn invalid_scope_payload_and_nil_owned_references_fail_closed() {
     let invalid_scope = IntegrationEventEnvelope::try_new(
         EventId::try_from_uuid(uuid(1)).unwrap(),
-        TenantScope::Subtree {
+        AuthorityScope::Subtree {
             holding_id: uuid(2),
-            company_ids: vec![],
-            branch_ids: vec![],
+            organization_node_id: Uuid::nil(),
         },
         AggregateKind::try_new("lead_candidate").unwrap(),
         AggregateId::try_from_uuid(uuid(4)).unwrap(),
@@ -98,7 +97,7 @@ fn invalid_scope_payload_and_nil_owned_references_fail_closed() {
     );
     assert_eq!(
         invalid_scope,
-        Err(ContractValidationError::InvalidTenantScope)
+        Err(ContractValidationError::InvalidHoldingScope)
     );
 
     let mut event = marketing_event();

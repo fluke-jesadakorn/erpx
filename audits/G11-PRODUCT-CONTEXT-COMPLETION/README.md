@@ -27,7 +27,7 @@ the executable verifier rather than inferred as complete:
   read-only console routes for all seven contexts, and the worker composition
   root registers all seven product projection handlers. This is local contract
   evidence, not live workflow acceptance.
-- No disposable, physically distinct tenant write/read PostgreSQL pair was
+- No disposable, physically distinct holding write/read PostgreSQL pair was
   supplied, so live atomic write/outbox, routed scope, projection,
   reconciliation, mismatch, rebuild, and rollback evidence is not claimed.
 - No live product-vendor acceptance was supplied for suppliers, payment
@@ -151,7 +151,7 @@ acceptance, or Folio parity evidence; G11 remains open.
 Sales now has a separate-read-pool, company/branch-scoped, checkpoint-validated
 and keyset-paginated list over the existing authoritative projection. The typed
 `ListSalesAggregates` RPC enforces `sales.read`, explicit product and customer
-scope containment, tenant read routing, bounded opaque cursors, and audit
+scope containment, holding read routing, bounded opaque cursors, and audit
 publication. The console renders validated metadata with loading, empty,
 denied/offline/error, and next-page states; aggregate payloads are discarded at
 the list boundary. Evidence is recorded in

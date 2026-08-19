@@ -9,8 +9,8 @@ use erpx_cqrs::{
     QueryMetadata, QueryResult,
 };
 use erpx_kernel::{
-    ActorAttribution, AuditContext, Clock, CorrelationId, ErrorCategory, ErrorContext, EventId,
-    KernelError, TenantScope,
+    ActorAttribution, AuditContext, AuthorityScope, Clock, CorrelationId, ErrorCategory,
+    ErrorContext, EventId, KernelError,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -38,14 +38,14 @@ pub const MAX_IDENTITY_ACCESS_LIST_PAGE_SIZE: u16 = 100;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreatePrincipal {
     pub principal_id: PrincipalId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub display_name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateAuthorityGroup {
     pub group_id: PrincipalId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub display_name: String,
     pub group_kind: PrincipalKind,
     pub governance: NonHumanPrincipalGovernance,
@@ -76,7 +76,7 @@ pub struct AssignRole {
     pub principal_id: PrincipalId,
     pub assignment_id: RoleAssignmentId,
     pub role_id: RoleId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub risk_tier: RiskTier,
     pub valid_from: DateTime<Utc>,
     pub valid_until: DateTime<Utc>,
@@ -101,7 +101,7 @@ pub struct RecoverRole {
     pub principal_id: PrincipalId,
     pub assignment_id: RoleAssignmentId,
     pub role_id: RoleId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub risk_tier: RiskTier,
     pub valid_from: DateTime<Utc>,
     pub valid_until: DateTime<Utc>,
@@ -134,7 +134,7 @@ pub struct RevokeGroupMember {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DefineRole {
     pub role_id: RoleId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub code: RoleCode,
     pub display_name: String,
     pub risk_tier: RiskTier,
@@ -251,7 +251,7 @@ struct ExistingCommand {
     correlation_id: CorrelationId,
     causation_id: Option<EventId>,
     actor: ActorAttribution,
-    authority_scope: TenantScope,
+    authority_scope: AuthorityScope,
     audit: AuditContext,
     expected_version: Option<u64>,
     identity: CommandIdentity,
@@ -270,8 +270,8 @@ where
     async fn preflight(
         &self,
         actor: &ActorAttribution,
-        authority_scope: &TenantScope,
-        target_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         action: IdentityAccessAction,
     ) -> Result<(), IdentityAccessApplicationError> {
         if !authority_scope.contains(target_scope) {
@@ -391,7 +391,7 @@ where
         {
             self.preflight(
                 &envelope.actor,
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 stored.aggregate.scope(),
                 action,
             )
@@ -402,7 +402,7 @@ where
         }
         self.preflight(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             aggregate.scope(),
             action,
         )
@@ -427,7 +427,7 @@ where
                 correlation_id,
                 causation_id: envelope.causation_id,
                 actor: envelope.actor,
-                authority_scope: envelope.tenant_scope,
+                authority_scope: envelope.active_scope,
                 audit: envelope.audit,
                 expected_version: None,
                 aggregate,
@@ -625,7 +625,7 @@ macro_rules! principal_transition_handler {
                             correlation_id,
                             causation_id: envelope.causation_id,
                             actor: envelope.actor,
-                            authority_scope: envelope.tenant_scope,
+                            authority_scope: envelope.active_scope,
                             audit: envelope.audit,
                             expected_version: envelope.expected_aggregate_version,
                             identity: CommandIdentity {
@@ -717,7 +717,7 @@ where
                     correlation_id,
                     causation_id: envelope.causation_id,
                     actor: envelope.actor,
-                    authority_scope: envelope.tenant_scope,
+                    authority_scope: envelope.active_scope,
                     audit: envelope.audit,
                     expected_version: envelope.expected_aggregate_version,
                     identity: CommandIdentity {
@@ -780,7 +780,7 @@ where
                     correlation_id,
                     causation_id: envelope.causation_id,
                     actor: envelope.actor,
-                    authority_scope: envelope.tenant_scope,
+                    authority_scope: envelope.active_scope,
                     audit: envelope.audit,
                     expected_version: envelope.expected_aggregate_version,
                     identity: CommandIdentity {
@@ -833,7 +833,7 @@ where
                     correlation_id,
                     causation_id: envelope.causation_id,
                     actor: envelope.actor,
-                    authority_scope: envelope.tenant_scope,
+                    authority_scope: envelope.active_scope,
                     audit: envelope.audit,
                     expected_version: envelope.expected_aggregate_version,
                     identity: CommandIdentity {
@@ -910,7 +910,7 @@ where
                     correlation_id,
                     causation_id: envelope.causation_id,
                     actor: envelope.actor,
-                    authority_scope: envelope.tenant_scope,
+                    authority_scope: envelope.active_scope,
                     audit: envelope.audit,
                     expected_version: envelope.expected_aggregate_version,
                     identity: CommandIdentity {
@@ -973,7 +973,7 @@ where
                     correlation_id,
                     causation_id: envelope.causation_id,
                     actor: envelope.actor,
-                    authority_scope: envelope.tenant_scope,
+                    authority_scope: envelope.active_scope,
                     audit: envelope.audit,
                     expected_version: envelope.expected_aggregate_version,
                     identity: CommandIdentity {
@@ -1034,7 +1034,7 @@ where
                     correlation_id,
                     causation_id: envelope.causation_id,
                     actor: envelope.actor,
-                    authority_scope: envelope.tenant_scope,
+                    authority_scope: envelope.active_scope,
                     audit: envelope.audit,
                     expected_version: envelope.expected_aggregate_version,
                     identity: CommandIdentity {
@@ -1092,7 +1092,7 @@ where
                     correlation_id,
                     causation_id: envelope.causation_id,
                     actor: envelope.actor,
-                    authority_scope: envelope.tenant_scope,
+                    authority_scope: envelope.active_scope,
                     audit: envelope.audit,
                     expected_version: envelope.expected_aggregate_version,
                     identity: CommandIdentity {
@@ -1143,7 +1143,7 @@ where
     async fn authorize_query(
         &self,
         actor: &ActorAttribution,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         action: IdentityAccessAction,
     ) -> Result<(), PortError> {
         self.entitlement
@@ -1176,13 +1176,13 @@ macro_rules! get_query_handler {
                 envelope: QueryEnvelope<$query>,
             ) -> Result<QueryResult<Self::Response>, CqrsError> {
                 envelope.validate()?;
-                self.authorize_query(&envelope.actor, &envelope.tenant_scope, $action)
+                self.authorize_query(&envelope.actor, &envelope.active_scope, $action)
                     .await
                     .map_err(|error| to_cqrs(error.into(), envelope.correlation_id))?;
                 let projection = self
                     .read_repository
                     .$method(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         envelope.query.$id,
                         &envelope.consistency,
                     )
@@ -1191,7 +1191,7 @@ macro_rules! get_query_handler {
                 if projection
                     .value
                     .as_ref()
-                    .is_some_and(|view| !envelope.tenant_scope.contains(&view.scope))
+                    .is_some_and(|view| !envelope.active_scope.contains(&view.scope))
                 {
                     return Err(to_cqrs(
                         IdentityAccessApplicationError::ScopeOutsideAuthority,
@@ -1254,13 +1254,13 @@ macro_rules! list_query_handler {
                         envelope.correlation_id,
                     ));
                 }
-                self.authorize_query(&envelope.actor, &envelope.tenant_scope, $action)
+                self.authorize_query(&envelope.actor, &envelope.active_scope, $action)
                     .await
                     .map_err(|error| to_cqrs(error.into(), envelope.correlation_id))?;
                 let projection = self
                     .read_repository
                     .$method(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         &envelope.query.filter,
                         &envelope.consistency,
                     )
@@ -1270,7 +1270,7 @@ macro_rules! list_query_handler {
                     .value
                     .$items
                     .iter()
-                    .any(|view| !envelope.tenant_scope.contains(&view.scope))
+                    .any(|view| !envelope.active_scope.contains(&view.scope))
                 {
                     return Err(to_cqrs(
                         IdentityAccessApplicationError::ScopeOutsideAuthority,

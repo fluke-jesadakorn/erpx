@@ -1,6 +1,6 @@
 use chrono::{Duration, TimeZone, Utc};
 use erpx_integration_contracts::{BoundedContext, RecordRef};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use uuid::Uuid;
 
 use super::*;
@@ -9,8 +9,8 @@ fn at() -> DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap()
 }
 
-fn scope() -> TenantScope {
-    TenantScope::Company {
+fn scope() -> AuthorityScope {
+    AuthorityScope::Company {
         holding_id: Uuid::from_u128(1),
         company_id: Uuid::from_u128(2),
     }
@@ -240,7 +240,7 @@ fn access_history_rejects_nonexistent_version_shape_and_future_clock_skew() {
 fn legal_core_rejects_broad_scope_and_secret_bearing_metadata() {
     let broad = LegalDocument::create(
         LegalDocumentId::try_from_uuid(Uuid::from_u128(20)).unwrap(),
-        TenantScope::Holding {
+        AuthorityScope::Holding {
             holding_id: Uuid::from_u128(1),
         },
         "Opinion".into(),
@@ -267,7 +267,7 @@ fn legal_core_rejects_broad_scope_and_secret_bearing_metadata() {
 }
 
 #[test]
-fn matter_graph_pins_version_digest_scope_and_rejects_cross_tenant_edges() {
+fn matter_graph_pins_version_digest_scope_and_rejects_cross_holding_edges() {
     let mut matter = LegalMatter::create(
         LegalMatterId::try_from_uuid(Uuid::from_u128(40)).unwrap(),
         scope(),
@@ -296,7 +296,7 @@ fn matter_graph_pins_version_digest_scope_and_rejects_cross_tenant_edges() {
             RecordRelation::Disputes,
             RecordRef::try_new(BoundedContext::Sales, "sales_order", Uuid::from_u128(42), 1,)
                 .unwrap(),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id: Uuid::from_u128(99),
                 company_id: Uuid::from_u128(2),
             },
@@ -304,7 +304,7 @@ fn matter_graph_pins_version_digest_scope_and_rejects_cross_tenant_edges() {
             "legal-owner".into(),
             at() + Duration::minutes(2),
         ),
-        Err(LegalDomainError::CrossTenantLink)
+        Err(LegalDomainError::CrossHoldingLink)
     );
 }
 

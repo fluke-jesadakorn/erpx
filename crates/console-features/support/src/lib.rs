@@ -18,7 +18,7 @@ erpx_ui_kit::declare_current_workspace_feature!(
     erpx_ui_kit::CurrentFeatureKind::Support,
     "support",
     [("support.workspace", "/support", "support")],
-    "erpx-feature-support-v2"
+    "erpx-feature-support"
 );
 
 #[cfg(test)]
@@ -28,7 +28,7 @@ mod registration_contract_tests {
     #[test]
     fn web_and_native_share_the_authenticated_canonical_route() {
         assert_eq!(REGISTRATION.id, "support");
-        assert_eq!(REGISTRATION.artifact_key, "erpx-feature-support-v2");
+        assert_eq!(REGISTRATION.artifact_key, "erpx-feature-support");
         assert!(REGISTRATION.routes.iter().all(|route| {
             route.authorization == "authenticated"
                 && route.canonical_path.starts_with('/')

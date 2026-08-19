@@ -7,19 +7,19 @@ use uuid::Uuid;
 
 use crate::{PersistenceError, SqlxControlPlane};
 
-pub const MIN_TENANT_BACKUP_RETENTION_AGE_SECONDS: i64 = 24 * 60 * 60;
-pub const MAX_TENANT_BACKUP_RETENTION_AGE_SECONDS: i64 = 10 * 365 * 24 * 60 * 60;
-pub const MAX_TENANT_BACKUP_RETENTION_ROWS: u32 = 1_000;
-pub const MAX_TENANT_BACKUP_RETENTION_ATTEMPTS: u16 = 3;
-pub const MIN_TENANT_BACKUP_RETENTION_LEASE_SECONDS: i64 = 30;
-pub const MAX_TENANT_BACKUP_RETENTION_LEASE_SECONDS: i64 = 900;
-pub const MAX_TENANT_BACKUP_RETENTION_PAGE_SIZE: u32 = 100;
-pub const MAX_TENANT_BACKUP_INVENTORY_ENTRIES: u32 = 1_000;
+pub const MIN_HOLDING_BACKUP_RETENTION_AGE_SECONDS: i64 = 24 * 60 * 60;
+pub const MAX_HOLDING_BACKUP_RETENTION_AGE_SECONDS: i64 = 10 * 365 * 24 * 60 * 60;
+pub const MAX_HOLDING_BACKUP_RETENTION_ROWS: u32 = 1_000;
+pub const MAX_HOLDING_BACKUP_RETENTION_ATTEMPTS: u16 = 3;
+pub const MIN_HOLDING_BACKUP_RETENTION_LEASE_SECONDS: i64 = 30;
+pub const MAX_HOLDING_BACKUP_RETENTION_LEASE_SECONDS: i64 = 900;
+pub const MAX_HOLDING_BACKUP_RETENTION_PAGE_SIZE: u32 = 100;
+pub const MAX_HOLDING_BACKUP_INVENTORY_ENTRIES: u32 = 1_000;
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct TenantBackupRetentionRequest {
-    pub tenant_id: String,
-    pub holding_ref: String,
+pub struct HoldingBackupRetentionRequest {
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub cutoff_at: DateTime<Utc>,
     pub max_rows: u32,
     pub dry_run: bool,
@@ -27,12 +27,12 @@ pub struct TenantBackupRetentionRequest {
     pub max_attempts: u16,
 }
 
-impl fmt::Debug for TenantBackupRetentionRequest {
+impl fmt::Debug for HoldingBackupRetentionRequest {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("TenantBackupRetentionRequest")
-            .field("tenant_id", &"<opaque>")
-            .field("holding_ref", &"<opaque>")
+            .debug_struct("HoldingBackupRetentionRequest")
+            .field("holding_id", &"<opaque>")
+            .field("data_profile_key", &"<opaque>")
             .field("cutoff_at", &self.cutoff_at)
             .field("max_rows", &self.max_rows)
             .field("dry_run", &self.dry_run)
@@ -43,9 +43,9 @@ impl fmt::Debug for TenantBackupRetentionRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TenantBackupRetentionReceipt {
+pub struct HoldingBackupRetentionReceipt {
     pub id: Uuid,
-    pub tenant_id: String,
+    pub holding_id: String,
     pub state: String,
     pub cutoff_at: DateTime<Utc>,
     pub max_rows: u32,
@@ -55,10 +55,10 @@ pub struct TenantBackupRetentionReceipt {
 }
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct TenantBackupRetentionClaim {
+pub struct HoldingBackupRetentionClaim {
     pub id: Uuid,
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub cutoff_at: DateTime<Utc>,
     pub max_rows: u32,
     pub dry_run: bool,
@@ -72,19 +72,19 @@ pub struct TenantBackupRetentionClaim {
 /// retention claim as the metadata deletion. Debug output never exposes any
 /// storage or artifact reference.
 #[derive(Clone, PartialEq, Eq)]
-pub struct TenantBackupRetentionObject {
-    pub tenant_id: String,
+pub struct HoldingBackupRetentionObject {
+    pub holding_id: String,
     pub storage_namespace: String,
     pub backup_chain_ref: String,
     pub backup_ref: String,
     pub is_pitr: bool,
 }
 
-impl fmt::Debug for TenantBackupRetentionObject {
+impl fmt::Debug for HoldingBackupRetentionObject {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("TenantBackupRetentionObject")
-            .field("tenant_id", &"<opaque>")
+            .debug_struct("HoldingBackupRetentionObject")
+            .field("holding_id", &"<opaque>")
             .field("storage_namespace", &"<opaque>")
             .field("backup_chain_ref", &"<opaque>")
             .field("backup_ref", &"<opaque>")
@@ -93,13 +93,13 @@ impl fmt::Debug for TenantBackupRetentionObject {
     }
 }
 
-impl fmt::Debug for TenantBackupRetentionClaim {
+impl fmt::Debug for HoldingBackupRetentionClaim {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("TenantBackupRetentionClaim")
+            .debug_struct("HoldingBackupRetentionClaim")
             .field("id", &self.id)
-            .field("tenant_id", &"<opaque>")
-            .field("holding_ref", &"<opaque>")
+            .field("holding_id", &"<opaque>")
+            .field("data_profile_key", &"<opaque>")
             .field("cutoff_at", &self.cutoff_at)
             .field("max_rows", &self.max_rows)
             .field("dry_run", &self.dry_run)
@@ -112,10 +112,10 @@ impl fmt::Debug for TenantBackupRetentionClaim {
 }
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct TenantBackupRetentionReport {
+pub struct HoldingBackupRetentionReport {
     pub id: Uuid,
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub cutoff_at: DateTime<Utc>,
     pub max_rows: u32,
     pub dry_run: bool,
@@ -134,11 +134,11 @@ pub struct TenantBackupRetentionReport {
 }
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct TenantBackupInventoryReport {
+pub struct HoldingBackupInventoryReport {
     pub id: Uuid,
     pub retention_action_id: Uuid,
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub expected_objects: u32,
     pub observed_objects: u32,
     pub missing_objects: u32,
@@ -149,7 +149,7 @@ pub struct TenantBackupInventoryReport {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TenantBackupInventoryObservation {
+pub struct HoldingBackupInventoryObservation {
     pub expected_objects: u32,
     pub observed_objects: u32,
     pub missing_objects: u32,
@@ -158,14 +158,14 @@ pub struct TenantBackupInventoryObservation {
     pub error_present: bool,
 }
 
-impl fmt::Debug for TenantBackupInventoryReport {
+impl fmt::Debug for HoldingBackupInventoryReport {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("TenantBackupInventoryReport")
+            .debug_struct("HoldingBackupInventoryReport")
             .field("id", &self.id)
             .field("retention_action_id", &self.retention_action_id)
-            .field("tenant_id", &"<opaque>")
-            .field("holding_ref", &"<opaque>")
+            .field("holding_id", &"<opaque>")
+            .field("data_profile_key", &"<opaque>")
             .field("expected_objects", &self.expected_objects)
             .field("observed_objects", &self.observed_objects)
             .field("missing_objects", &self.missing_objects)
@@ -177,13 +177,13 @@ impl fmt::Debug for TenantBackupInventoryReport {
     }
 }
 
-impl fmt::Debug for TenantBackupRetentionReport {
+impl fmt::Debug for HoldingBackupRetentionReport {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("TenantBackupRetentionReport")
+            .debug_struct("HoldingBackupRetentionReport")
             .field("id", &self.id)
-            .field("tenant_id", &"<opaque>")
-            .field("holding_ref", &"<opaque>")
+            .field("holding_id", &"<opaque>")
+            .field("data_profile_key", &"<opaque>")
             .field("cutoff_at", &self.cutoff_at)
             .field("max_rows", &self.max_rows)
             .field("dry_run", &self.dry_run)
@@ -210,25 +210,25 @@ struct RetentionCandidate {
     run_ids: Vec<Uuid>,
 }
 
-pub fn validate_tenant_backup_retention_request_at(
-    request: &TenantBackupRetentionRequest,
+pub fn validate_holding_backup_retention_request_at(
+    request: &HoldingBackupRetentionRequest,
     now: DateTime<Utc>,
 ) -> Result<(), PersistenceError> {
-    validate_bounded_text(&request.tenant_id, "tenant_id", 200)?;
-    validate_bounded_text(&request.holding_ref, "holding_ref", 200)?;
+    validate_bounded_text(&request.holding_id, "holding_id", 200)?;
+    validate_bounded_text(&request.data_profile_key, "data_profile_key", 200)?;
     validate_bounded_text(&request.idempotency_key, "idempotency_key", 200)?;
-    if request.max_rows == 0 || request.max_rows > MAX_TENANT_BACKUP_RETENTION_ROWS {
+    if request.max_rows == 0 || request.max_rows > MAX_HOLDING_BACKUP_RETENTION_ROWS {
         return Err(PersistenceError::InvalidData(
             "backup retention row bound is invalid".into(),
         ));
     }
-    if request.max_attempts == 0 || request.max_attempts > MAX_TENANT_BACKUP_RETENTION_ATTEMPTS {
+    if request.max_attempts == 0 || request.max_attempts > MAX_HOLDING_BACKUP_RETENTION_ATTEMPTS {
         return Err(PersistenceError::InvalidData(
             "backup retention attempts are outside their bound".into(),
         ));
     }
-    let newest_allowed = now - Duration::seconds(MIN_TENANT_BACKUP_RETENTION_AGE_SECONDS);
-    let oldest_allowed = now - Duration::seconds(MAX_TENANT_BACKUP_RETENTION_AGE_SECONDS);
+    let newest_allowed = now - Duration::seconds(MIN_HOLDING_BACKUP_RETENTION_AGE_SECONDS);
+    let oldest_allowed = now - Duration::seconds(MAX_HOLDING_BACKUP_RETENTION_AGE_SECONDS);
     if request.cutoff_at > newest_allowed || request.cutoff_at < oldest_allowed {
         return Err(PersistenceError::InvalidData(
             "backup retention cutoff is outside its safety window".into(),
@@ -240,21 +240,26 @@ pub fn validate_tenant_backup_retention_request_at(
 impl SqlxControlPlane {
     pub async fn schedule_backup_retention(
         &self,
-        request: TenantBackupRetentionRequest,
-    ) -> Result<TenantBackupRetentionReceipt, PersistenceError> {
-        validate_tenant_backup_retention_request_at(&request, Utc::now())?;
+        request: HoldingBackupRetentionRequest,
+    ) -> Result<HoldingBackupRetentionReceipt, PersistenceError> {
+        validate_holding_backup_retention_request_at(&request, Utc::now())?;
         let request_hash = retention_request_hash(&request);
         let mut transaction = self.pools().write.begin().await?;
-        ensure_tenant_holding(&mut transaction, &request.tenant_id, &request.holding_ref).await?;
+        ensure_holding_holding(
+            &mut transaction,
+            &request.holding_id,
+            &request.data_profile_key,
+        )
+        .await?;
 
         if let Some(row) = sqlx::query(
-            "SELECT id, tenant_id, state, cutoff_at, max_rows, dry_run, max_attempts,
+            "SELECT id, holding_id, state, cutoff_at, max_rows, dry_run, max_attempts,
                     request_hash
-             FROM erpx_control.tenant_backup_retention_actions
-             WHERE tenant_id = $1 AND idempotency_key = $2
+             FROM erpx_control.holding_backup_retention_actions
+             WHERE holding_id = $1 AND idempotency_key = $2
              FOR UPDATE",
         )
-        .bind(&request.tenant_id)
+        .bind(&request.holding_id)
         .bind(&request.idempotency_key)
         .fetch_optional(&mut *transaction)
         .await?
@@ -272,14 +277,14 @@ impl SqlxControlPlane {
 
         let id = Uuid::new_v4();
         sqlx::query(
-            "INSERT INTO erpx_control.tenant_backup_retention_actions
-                (id, tenant_id, holding_ref, cutoff_at, max_rows, dry_run, state,
+            "INSERT INTO erpx_control.holding_backup_retention_actions
+                (id, holding_id, data_profile_key, cutoff_at, max_rows, dry_run, state,
                  attempts, max_attempts, request_hash, idempotency_key)
              VALUES ($1, $2, $3, $4, $5, $6, 'pending', 0, $7, $8, $9)",
         )
         .bind(id)
-        .bind(&request.tenant_id)
-        .bind(&request.holding_ref)
+        .bind(&request.holding_id)
+        .bind(&request.data_profile_key)
         .bind(request.cutoff_at)
         .bind(i32::try_from(request.max_rows).map_err(|_| {
             PersistenceError::InvalidData("backup retention row bound is invalid".into())
@@ -291,9 +296,9 @@ impl SqlxControlPlane {
         .execute(&mut *transaction)
         .await?;
         transaction.commit().await?;
-        Ok(TenantBackupRetentionReceipt {
+        Ok(HoldingBackupRetentionReceipt {
             id,
-            tenant_id: request.tenant_id,
+            holding_id: request.holding_id,
             state: "pending".into(),
             cutoff_at: request.cutoff_at,
             max_rows: request.max_rows,
@@ -305,20 +310,21 @@ impl SqlxControlPlane {
 
     pub async fn claim_backup_retention(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         action_id: Uuid,
         worker_id: Uuid,
         lease: Duration,
-    ) -> Result<Option<TenantBackupRetentionClaim>, PersistenceError> {
-        validate_bounded_text(tenant_id, "tenant_id", 200)?;
-        validate_bounded_text(holding_ref, "holding_ref", 200)?;
+    ) -> Result<Option<HoldingBackupRetentionClaim>, PersistenceError> {
+        validate_bounded_text(holding_id, "holding_id", 200)?;
+        validate_bounded_text(data_profile_key, "data_profile_key", 200)?;
         if action_id.is_nil() || worker_id.is_nil() {
             return Err(PersistenceError::InvalidData(
                 "backup retention action and worker identities are required".into(),
             ));
         }
-        if !(MIN_TENANT_BACKUP_RETENTION_LEASE_SECONDS..=MAX_TENANT_BACKUP_RETENTION_LEASE_SECONDS)
+        if !(MIN_HOLDING_BACKUP_RETENTION_LEASE_SECONDS
+            ..=MAX_HOLDING_BACKUP_RETENTION_LEASE_SECONDS)
             .contains(&lease.num_seconds())
         {
             return Err(PersistenceError::InvalidData(
@@ -326,12 +332,12 @@ impl SqlxControlPlane {
             ));
         }
         let mut transaction = self.pools().write.begin().await?;
-        ensure_tenant_holding(&mut transaction, tenant_id, holding_ref).await?;
+        ensure_holding_holding(&mut transaction, holding_id, data_profile_key).await?;
         let row = sqlx::query(
-            "SELECT id, tenant_id, holding_ref, cutoff_at, max_rows, dry_run,
+            "SELECT id, holding_id, data_profile_key, cutoff_at, max_rows, dry_run,
                     attempts, max_attempts
-             FROM erpx_control.tenant_backup_retention_actions
-             WHERE id = $1 AND tenant_id = $2 AND holding_ref = $3
+             FROM erpx_control.holding_backup_retention_actions
+             WHERE id = $1 AND holding_id = $2 AND data_profile_key = $3
                AND ((state = 'pending') OR
                     (state = 'claimed' AND lease_until IS NOT NULL
                      AND lease_until <= clock_timestamp()))
@@ -339,8 +345,8 @@ impl SqlxControlPlane {
              FOR UPDATE",
         )
         .bind(action_id)
-        .bind(tenant_id)
-        .bind(holding_ref)
+        .bind(holding_id)
+        .bind(data_profile_key)
         .fetch_optional(&mut *transaction)
         .await?;
         let Some(row) = row else {
@@ -353,20 +359,20 @@ impl SqlxControlPlane {
         })?;
         let claim_id = Uuid::new_v4();
         let updated = sqlx::query(
-            "UPDATE erpx_control.tenant_backup_retention_actions
+            "UPDATE erpx_control.holding_backup_retention_actions
              SET state = 'claimed', attempts = $4, worker_id = $5, claim_id = $6,
                  lease_until = clock_timestamp() + ($7::double precision * interval '1 second'),
                  updated_at = clock_timestamp()
-             WHERE id = $1 AND tenant_id = $2 AND holding_ref = $3
+             WHERE id = $1 AND holding_id = $2 AND data_profile_key = $3
                AND (state = 'pending' OR
                     (state = 'claimed' AND lease_until <= clock_timestamp()))
                AND attempts = $8
-             RETURNING id, tenant_id, holding_ref, cutoff_at, max_rows, dry_run,
+             RETURNING id, holding_id, data_profile_key, cutoff_at, max_rows, dry_run,
                        attempts, max_attempts",
         )
         .bind(action_id)
-        .bind(tenant_id)
-        .bind(holding_ref)
+        .bind(holding_id)
+        .bind(data_profile_key)
         .bind(next_attempt)
         .bind(worker_id)
         .bind(claim_id)
@@ -385,28 +391,29 @@ impl SqlxControlPlane {
 
     pub async fn complete_backup_retention(
         &self,
-        claim: &TenantBackupRetentionClaim,
-    ) -> Result<TenantBackupRetentionReport, PersistenceError> {
+        claim: &HoldingBackupRetentionClaim,
+    ) -> Result<HoldingBackupRetentionReport, PersistenceError> {
         validate_retention_claim(claim)?;
         let mut transaction = self.pools().write.begin().await?;
-        ensure_tenant_holding(&mut transaction, &claim.tenant_id, &claim.holding_ref).await?;
+        ensure_holding_holding(&mut transaction, &claim.holding_id, &claim.data_profile_key)
+            .await?;
         let Some(row) = sqlx::query(
-            "SELECT id, tenant_id, holding_ref, cutoff_at, max_rows, dry_run, state,
+            "SELECT id, holding_id, data_profile_key, cutoff_at, max_rows, dry_run, state,
                     attempts, max_attempts, jobs_selected, jobs_deleted, runs_deleted,
                     object_refs_released, remaining_eligible, error_present,
                     created_at, updated_at, completed_at, worker_id, claim_id
-             FROM erpx_control.tenant_backup_retention_actions
-             WHERE id = $1 AND tenant_id = $2 AND holding_ref = $3
+             FROM erpx_control.holding_backup_retention_actions
+             WHERE id = $1 AND holding_id = $2 AND data_profile_key = $3
              FOR UPDATE",
         )
         .bind(claim.id)
-        .bind(&claim.tenant_id)
-        .bind(&claim.holding_ref)
+        .bind(&claim.holding_id)
+        .bind(&claim.data_profile_key)
         .fetch_optional(&mut *transaction)
         .await?
         else {
             return Err(PersistenceError::NotFound {
-                entity: "tenant backup retention action",
+                entity: "holding backup retention action",
                 id: claim.id,
             });
         };
@@ -433,8 +440,8 @@ impl SqlxControlPlane {
         let dry_run: bool = row.try_get("dry_run")?;
         let candidates = retention_candidates(
             &mut transaction,
-            &claim.tenant_id,
-            &claim.holding_ref,
+            &claim.holding_id,
+            &claim.data_profile_key,
             cutoff_at,
             max_rows,
         )
@@ -445,13 +452,13 @@ impl SqlxControlPlane {
             let inventory_row = sqlx::query(
                 "SELECT expected_objects, observed_objects, missing_objects,
                         unexpected_objects, state, error_present
-                 FROM erpx_control.tenant_backup_inventory_reports
+                 FROM erpx_control.holding_backup_inventory_reports
                  WHERE retention_action_id = $1
-                   AND tenant_id = $2 AND holding_ref = $3",
+                   AND holding_id = $2 AND data_profile_key = $3",
             )
             .bind(claim.id)
-            .bind(&claim.tenant_id)
-            .bind(&claim.holding_ref)
+            .bind(&claim.holding_id)
+            .bind(&claim.data_profile_key)
             .fetch_optional(&mut *transaction)
             .await?;
             let Some(inventory_row) = inventory_row else {
@@ -476,25 +483,25 @@ impl SqlxControlPlane {
         };
         let remaining_eligible = count_eligible_jobs(
             &mut transaction,
-            &claim.tenant_id,
-            &claim.holding_ref,
+            &claim.holding_id,
+            &claim.data_profile_key,
             cutoff_at,
         )
         .await?;
         let updated = sqlx::query(
-            "UPDATE erpx_control.tenant_backup_retention_actions
+            "UPDATE erpx_control.holding_backup_retention_actions
              SET state = 'completed', worker_id = NULL, claim_id = NULL,
                  lease_until = NULL, jobs_selected = $4, jobs_deleted = $5,
                  runs_deleted = $6, object_refs_released = $7,
                  remaining_eligible = $8, error_present = FALSE,
                  updated_at = clock_timestamp(), completed_at = clock_timestamp()
-             WHERE id = $1 AND tenant_id = $2 AND holding_ref = $3
+             WHERE id = $1 AND holding_id = $2 AND data_profile_key = $3
                AND state = 'claimed' AND claim_id = $9 AND worker_id = $10
                AND lease_until > clock_timestamp()",
         )
         .bind(claim.id)
-        .bind(&claim.tenant_id)
-        .bind(&claim.holding_ref)
+        .bind(&claim.holding_id)
+        .bind(&claim.data_profile_key)
         .bind(i32::try_from(jobs_selected).unwrap_or(i32::MAX))
         .bind(i32::try_from(jobs_deleted).unwrap_or(i32::MAX))
         .bind(i32::try_from(runs_deleted).unwrap_or(i32::MAX))
@@ -511,11 +518,11 @@ impl SqlxControlPlane {
             });
         }
         let report_row = sqlx::query(
-            "SELECT id, tenant_id, holding_ref, cutoff_at, max_rows, dry_run, state,
+            "SELECT id, holding_id, data_profile_key, cutoff_at, max_rows, dry_run, state,
                     attempts, max_attempts, jobs_selected, jobs_deleted, runs_deleted,
                     object_refs_released, remaining_eligible, error_present,
                     created_at, updated_at, completed_at
-             FROM erpx_control.tenant_backup_retention_actions WHERE id = $1",
+             FROM erpx_control.holding_backup_retention_actions WHERE id = $1",
         )
         .bind(claim.id)
         .fetch_one(&mut *transaction)
@@ -531,22 +538,22 @@ impl SqlxControlPlane {
     /// provider drift.
     pub async fn latest_backup_inventory_report_state(
         &self,
-        claim: &TenantBackupRetentionClaim,
+        claim: &HoldingBackupRetentionClaim,
     ) -> Result<Option<String>, PersistenceError> {
         validate_retention_claim(claim)?;
-        validate_bounded_text(&claim.tenant_id, "tenant_id", 200)?;
-        validate_bounded_text(&claim.holding_ref, "holding_ref", 200)?;
+        validate_bounded_text(&claim.holding_id, "holding_id", 200)?;
+        validate_bounded_text(&claim.data_profile_key, "data_profile_key", 200)?;
         let mut transaction = self.pools().write.begin().await?;
         let active: Option<bool> = sqlx::query_scalar(
             "SELECT TRUE
-             FROM erpx_control.tenant_backup_retention_actions
-             WHERE id = $1 AND tenant_id = $2 AND holding_ref = $3
+             FROM erpx_control.holding_backup_retention_actions
+             WHERE id = $1 AND holding_id = $2 AND data_profile_key = $3
                AND state = 'claimed' AND claim_id = $4 AND worker_id = $5
                AND lease_until > clock_timestamp()",
         )
         .bind(claim.id)
-        .bind(&claim.tenant_id)
-        .bind(&claim.holding_ref)
+        .bind(&claim.holding_id)
+        .bind(&claim.data_profile_key)
         .bind(claim.claim_id)
         .bind(claim.worker_id)
         .fetch_optional(&mut *transaction)
@@ -559,13 +566,13 @@ impl SqlxControlPlane {
         }
         let state = sqlx::query_scalar(
             "SELECT state
-             FROM erpx_control.tenant_backup_inventory_reports
+             FROM erpx_control.holding_backup_inventory_reports
              WHERE retention_action_id = $1
-               AND tenant_id = $2 AND holding_ref = $3",
+               AND holding_id = $2 AND data_profile_key = $3",
         )
         .bind(claim.id)
-        .bind(&claim.tenant_id)
-        .bind(&claim.holding_ref)
+        .bind(&claim.holding_id)
+        .bind(&claim.data_profile_key)
         .fetch_optional(&mut *transaction)
         .await?;
         transaction.commit().await?;
@@ -578,11 +585,12 @@ impl SqlxControlPlane {
     /// be renewed and therefore cannot continue deleting objects.
     pub async fn renew_backup_retention_claim(
         &self,
-        claim: &TenantBackupRetentionClaim,
+        claim: &HoldingBackupRetentionClaim,
         lease: Duration,
     ) -> Result<(), PersistenceError> {
         validate_retention_claim(claim)?;
-        if !(MIN_TENANT_BACKUP_RETENTION_LEASE_SECONDS..=MAX_TENANT_BACKUP_RETENTION_LEASE_SECONDS)
+        if !(MIN_HOLDING_BACKUP_RETENTION_LEASE_SECONDS
+            ..=MAX_HOLDING_BACKUP_RETENTION_LEASE_SECONDS)
             .contains(&lease.num_seconds())
         {
             return Err(PersistenceError::InvalidData(
@@ -590,19 +598,20 @@ impl SqlxControlPlane {
             ));
         }
         let mut transaction = self.pools().write.begin().await?;
-        ensure_tenant_holding(&mut transaction, &claim.tenant_id, &claim.holding_ref).await?;
+        ensure_holding_holding(&mut transaction, &claim.holding_id, &claim.data_profile_key)
+            .await?;
         let updated = sqlx::query(
-            "UPDATE erpx_control.tenant_backup_retention_actions
+            "UPDATE erpx_control.holding_backup_retention_actions
              SET lease_until = clock_timestamp()
                     + ($4::double precision * interval '1 second'),
                  updated_at = clock_timestamp()
-             WHERE id = $1 AND tenant_id = $2 AND holding_ref = $3
+             WHERE id = $1 AND holding_id = $2 AND data_profile_key = $3
                AND state = 'claimed' AND claim_id = $5 AND worker_id = $6
                AND lease_until > clock_timestamp()",
         )
         .bind(claim.id)
-        .bind(&claim.tenant_id)
-        .bind(&claim.holding_ref)
+        .bind(&claim.holding_id)
+        .bind(&claim.data_profile_key)
         .bind(lease.num_seconds() as f64)
         .bind(claim.claim_id)
         .bind(claim.worker_id)
@@ -618,35 +627,36 @@ impl SqlxControlPlane {
         Ok(())
     }
 
-    /// Return the bounded, tenant-bound object locators selected by an active
+    /// Return the bounded, holding-bound object locators selected by an active
     /// retention claim. The worker must delete these objects successfully (or
     /// idempotently observe them missing) before it calls metadata completion.
     pub async fn list_backup_retention_objects(
         &self,
-        claim: &TenantBackupRetentionClaim,
-    ) -> Result<Vec<TenantBackupRetentionObject>, PersistenceError> {
+        claim: &HoldingBackupRetentionClaim,
+    ) -> Result<Vec<HoldingBackupRetentionObject>, PersistenceError> {
         validate_retention_claim(claim)?;
         let mut transaction = self.pools().write.begin().await?;
-        ensure_tenant_holding(&mut transaction, &claim.tenant_id, &claim.holding_ref).await?;
+        ensure_holding_holding(&mut transaction, &claim.holding_id, &claim.data_profile_key)
+            .await?;
         let rows = sqlx::query(
             "WITH claimed_action AS (
-                 SELECT id, tenant_id, holding_ref, cutoff_at, max_rows
-                 FROM erpx_control.tenant_backup_retention_actions
-                 WHERE id = $1 AND tenant_id = $2 AND holding_ref = $3
+                 SELECT id, holding_id, data_profile_key, cutoff_at, max_rows
+                 FROM erpx_control.holding_backup_retention_actions
+                 WHERE id = $1 AND holding_id = $2 AND data_profile_key = $3
                    AND state = 'claimed' AND claim_id = $4 AND worker_id = $5
                    AND lease_until > clock_timestamp()
              ), eligible_jobs AS (
                  SELECT j.id
-                 FROM erpx_control.tenant_backup_jobs j
+                 FROM erpx_control.holding_backup_jobs j
                  JOIN claimed_action action
-                   ON action.tenant_id = j.tenant_id
-                  AND action.holding_ref = j.holding_ref
+                   ON action.holding_id = j.holding_id
+                  AND action.data_profile_key = j.data_profile_key
                  WHERE j.state IN ('completed', 'failed', 'dead_letter')
                    AND j.updated_at < action.cutoff_at
                    AND NOT EXISTS (
                        SELECT 1
-                       FROM erpx_control.tenant_backup_job_runs active_link
-                       JOIN erpx_control.tenant_backup_runs active_run
+                       FROM erpx_control.holding_backup_job_runs active_link
+                       JOIN erpx_control.holding_backup_runs active_run
                          ON active_run.id = active_link.run_id
                        WHERE active_link.job_id = j.id
                          AND active_run.status NOT IN ('completed', 'failed')
@@ -655,42 +665,43 @@ impl SqlxControlPlane {
                  LIMIT (SELECT max_rows FROM claimed_action)
              ), object_refs AS (
                  SELECT (j.kind = 'pitr') AS is_pitr, j.backup_ref
-                 FROM erpx_control.tenant_backup_jobs j
+                 FROM erpx_control.holding_backup_jobs j
                  JOIN eligible_jobs eligible ON eligible.id = j.id
                  UNION
                  SELECT (j.kind = 'pitr') AS is_pitr, j.restore_target_ref
-                 FROM erpx_control.tenant_backup_jobs j
+                 FROM erpx_control.holding_backup_jobs j
                  JOIN eligible_jobs eligible ON eligible.id = j.id
                  WHERE j.restore_target_ref IS NOT NULL
                  UNION
                  SELECT (run.kind = 'pitr') AS is_pitr, run.backup_ref
-                 FROM erpx_control.tenant_backup_job_runs link
+                 FROM erpx_control.holding_backup_job_runs link
                  JOIN eligible_jobs eligible ON eligible.id = link.job_id
-                 JOIN erpx_control.tenant_backup_runs run ON run.id = link.run_id
+                 JOIN erpx_control.holding_backup_runs run ON run.id = link.run_id
                  UNION
                  SELECT (run.kind = 'pitr') AS is_pitr, run.restore_target_ref
-                 FROM erpx_control.tenant_backup_job_runs link
+                 FROM erpx_control.holding_backup_job_runs link
                  JOIN eligible_jobs eligible ON eligible.id = link.job_id
-                 JOIN erpx_control.tenant_backup_runs run ON run.id = link.run_id
+                 JOIN erpx_control.holding_backup_runs run ON run.id = link.run_id
                  WHERE run.restore_target_ref IS NOT NULL
              )
-             SELECT action.tenant_id, registry.storage_namespace,
+             SELECT action.holding_id, registry.storage_namespace,
                     registry.backup_chain_ref, refs.is_pitr, refs.backup_ref
              FROM claimed_action action
-             JOIN erpx_control.tenant_registry registry
-               ON registry.tenant_id = action.tenant_id
-              AND registry.holding_ref = action.holding_ref
+             JOIN erpx_control.holding_registry registry
+               ON registry.holding_id = action.holding_id
+              AND registry.data_profile_key = action.data_profile_key
              CROSS JOIN object_refs refs
              ORDER BY refs.is_pitr, refs.backup_ref",
         )
         .bind(claim.id)
-        .bind(&claim.tenant_id)
-        .bind(&claim.holding_ref)
+        .bind(&claim.holding_id)
+        .bind(&claim.data_profile_key)
         .bind(claim.claim_id)
         .bind(claim.worker_id)
         .fetch_all(&mut *transaction)
         .await?;
-        if rows.len() > usize::try_from(MAX_TENANT_BACKUP_INVENTORY_ENTRIES).unwrap_or(usize::MAX) {
+        if rows.len() > usize::try_from(MAX_HOLDING_BACKUP_INVENTORY_ENTRIES).unwrap_or(usize::MAX)
+        {
             return Err(PersistenceError::InvalidData(
                 "backup object inventory exceeds its bound".into(),
             ));
@@ -698,14 +709,14 @@ impl SqlxControlPlane {
         if rows.is_empty() {
             let active: Option<bool> = sqlx::query_scalar(
                 "SELECT TRUE
-                 FROM erpx_control.tenant_backup_retention_actions
-                 WHERE id = $1 AND tenant_id = $2 AND holding_ref = $3
+                 FROM erpx_control.holding_backup_retention_actions
+                 WHERE id = $1 AND holding_id = $2 AND data_profile_key = $3
                    AND state = 'claimed' AND claim_id = $4 AND worker_id = $5
                    AND lease_until > clock_timestamp()",
             )
             .bind(claim.id)
-            .bind(&claim.tenant_id)
-            .bind(&claim.holding_ref)
+            .bind(&claim.holding_id)
+            .bind(&claim.data_profile_key)
             .bind(claim.claim_id)
             .bind(claim.worker_id)
             .fetch_optional(&mut *transaction)
@@ -719,14 +730,14 @@ impl SqlxControlPlane {
         }
         let mut objects = Vec::with_capacity(rows.len());
         for row in rows {
-            let object = TenantBackupRetentionObject {
-                tenant_id: row.try_get("tenant_id")?,
+            let object = HoldingBackupRetentionObject {
+                holding_id: row.try_get("holding_id")?,
                 storage_namespace: row.try_get("storage_namespace")?,
                 backup_chain_ref: row.try_get("backup_chain_ref")?,
                 backup_ref: row.try_get("backup_ref")?,
                 is_pitr: row.try_get("is_pitr")?,
             };
-            validate_bounded_text(&object.tenant_id, "tenant_id", 200)?;
+            validate_bounded_text(&object.holding_id, "holding_id", 200)?;
             validate_bounded_text(&object.storage_namespace, "storage_namespace", 255)?;
             validate_bounded_text(&object.backup_chain_ref, "backup_chain_ref", 200)?;
             validate_bounded_text(&object.backup_ref, "backup_ref", 200)?;
@@ -737,30 +748,31 @@ impl SqlxControlPlane {
     }
 
     /// Persist the bounded comparison between retention-selected references
-    /// and the tenant-bound object-store inventory. The report is keyed to the
+    /// and the holding-bound object-store inventory. The report is keyed to the
     /// retention action so retries replace one piece of evidence instead of
     /// accumulating duplicate claims. Its expected count is checked against
     /// the current write-side selection before evidence is persisted.
     pub async fn record_backup_inventory_report(
         &self,
-        claim: &TenantBackupRetentionClaim,
-        observation: TenantBackupInventoryObservation,
-    ) -> Result<TenantBackupInventoryReport, PersistenceError> {
+        claim: &HoldingBackupRetentionClaim,
+        observation: HoldingBackupInventoryObservation,
+    ) -> Result<HoldingBackupInventoryReport, PersistenceError> {
         validate_retention_claim(claim)?;
         validate_inventory_observation(&observation)?;
         let mut transaction = self.pools().write.begin().await?;
-        ensure_tenant_holding(&mut transaction, &claim.tenant_id, &claim.holding_ref).await?;
+        ensure_holding_holding(&mut transaction, &claim.holding_id, &claim.data_profile_key)
+            .await?;
         let active: Option<bool> = sqlx::query_scalar(
             "SELECT TRUE
-             FROM erpx_control.tenant_backup_retention_actions
-             WHERE id = $1 AND tenant_id = $2 AND holding_ref = $3
+             FROM erpx_control.holding_backup_retention_actions
+             WHERE id = $1 AND holding_id = $2 AND data_profile_key = $3
                AND state = 'claimed' AND claim_id = $4 AND worker_id = $5
                AND lease_until > clock_timestamp()
              FOR UPDATE",
         )
         .bind(claim.id)
-        .bind(&claim.tenant_id)
-        .bind(&claim.holding_ref)
+        .bind(&claim.holding_id)
+        .bind(&claim.data_profile_key)
         .bind(claim.claim_id)
         .bind(claim.worker_id)
         .fetch_optional(&mut *transaction)
@@ -775,15 +787,15 @@ impl SqlxControlPlane {
         validate_inventory_expected_count(observation.expected_objects, authoritative_expected)?;
         let active: Option<bool> = sqlx::query_scalar(
             "SELECT TRUE
-             FROM erpx_control.tenant_backup_retention_actions
-             WHERE id = $1 AND tenant_id = $2 AND holding_ref = $3
+             FROM erpx_control.holding_backup_retention_actions
+             WHERE id = $1 AND holding_id = $2 AND data_profile_key = $3
                AND state = 'claimed' AND claim_id = $4 AND worker_id = $5
                AND lease_until > clock_timestamp()
              FOR UPDATE",
         )
         .bind(claim.id)
-        .bind(&claim.tenant_id)
-        .bind(&claim.holding_ref)
+        .bind(&claim.holding_id)
+        .bind(&claim.data_profile_key)
         .bind(claim.claim_id)
         .bind(claim.worker_id)
         .fetch_optional(&mut *transaction)
@@ -796,8 +808,8 @@ impl SqlxControlPlane {
         }
         let report_id = Uuid::new_v4();
         let row = sqlx::query(
-            "INSERT INTO erpx_control.tenant_backup_inventory_reports
-                (id, retention_action_id, tenant_id, holding_ref, expected_objects,
+            "INSERT INTO erpx_control.holding_backup_inventory_reports
+                (id, retention_action_id, holding_id, data_profile_key, expected_objects,
                  observed_objects, missing_objects, unexpected_objects, state,
                  error_present, checked_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, clock_timestamp())
@@ -808,16 +820,16 @@ impl SqlxControlPlane {
                 unexpected_objects = EXCLUDED.unexpected_objects,
                 state = EXCLUDED.state, error_present = EXCLUDED.error_present,
                 checked_at = EXCLUDED.checked_at
-             WHERE tenant_backup_inventory_reports.tenant_id = EXCLUDED.tenant_id
-               AND tenant_backup_inventory_reports.holding_ref = EXCLUDED.holding_ref
-             RETURNING id, retention_action_id, tenant_id, holding_ref,
+             WHERE holding_backup_inventory_reports.holding_id = EXCLUDED.holding_id
+               AND holding_backup_inventory_reports.data_profile_key = EXCLUDED.data_profile_key
+             RETURNING id, retention_action_id, holding_id, data_profile_key,
                        expected_objects, observed_objects, missing_objects,
                        unexpected_objects, state, error_present, checked_at",
         )
         .bind(report_id)
         .bind(claim.id)
-        .bind(&claim.tenant_id)
-        .bind(&claim.holding_ref)
+        .bind(&claim.holding_id)
+        .bind(&claim.data_profile_key)
         .bind(i32::try_from(observation.expected_objects).unwrap_or(i32::MAX))
         .bind(i32::try_from(observation.observed_objects).unwrap_or(i32::MAX))
         .bind(i32::try_from(observation.missing_objects).unwrap_or(i32::MAX))
@@ -838,13 +850,13 @@ impl SqlxControlPlane {
         &self,
         page_size: u32,
     ) -> Result<u32, PersistenceError> {
-        if page_size == 0 || page_size > MAX_TENANT_BACKUP_RETENTION_PAGE_SIZE {
+        if page_size == 0 || page_size > MAX_HOLDING_BACKUP_RETENTION_PAGE_SIZE {
             return Err(PersistenceError::InvalidData(
                 "backup inventory projection page size is outside its bound".into(),
             ));
         }
         let mut transaction = self.pools().read.begin().await?;
-        sqlx::query("DELETE FROM erpx_control.tenant_backup_inventory_reports")
+        sqlx::query("DELETE FROM erpx_control.holding_backup_inventory_reports")
             .execute(&mut *transaction)
             .await?;
         let mut after_checked_at: Option<DateTime<Utc>> = None;
@@ -852,10 +864,10 @@ impl SqlxControlPlane {
         let mut projected = 0_u32;
         loop {
             let rows = sqlx::query(
-                "SELECT id, retention_action_id, tenant_id, holding_ref,
+                "SELECT id, retention_action_id, holding_id, data_profile_key,
                         expected_objects, observed_objects, missing_objects,
                         unexpected_objects, state, error_present, checked_at
-                 FROM erpx_control.tenant_backup_inventory_reports
+                 FROM erpx_control.holding_backup_inventory_reports
                  WHERE ($1::timestamptz IS NULL OR (checked_at, id) > ($1, $2))
                  ORDER BY checked_at, id LIMIT $3",
             )
@@ -871,14 +883,14 @@ impl SqlxControlPlane {
                 let observation = inventory_observation_from_row(row)?;
                 validate_inventory_observation(&observation)?;
                 sqlx::query(
-                    "INSERT INTO erpx_control.tenant_backup_inventory_reports
-                        (id, retention_action_id, tenant_id, holding_ref,
+                    "INSERT INTO erpx_control.holding_backup_inventory_reports
+                        (id, retention_action_id, holding_id, data_profile_key,
                          expected_objects, observed_objects, missing_objects,
                          unexpected_objects, state, error_present, checked_at)
                      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                      ON CONFLICT (id) DO UPDATE SET
                         retention_action_id = EXCLUDED.retention_action_id,
-                        tenant_id = EXCLUDED.tenant_id, holding_ref = EXCLUDED.holding_ref,
+                        holding_id = EXCLUDED.holding_id, data_profile_key = EXCLUDED.data_profile_key,
                         expected_objects = EXCLUDED.expected_objects,
                         observed_objects = EXCLUDED.observed_objects,
                         missing_objects = EXCLUDED.missing_objects,
@@ -888,8 +900,8 @@ impl SqlxControlPlane {
                 )
                 .bind(row.try_get::<Uuid, _>("id")?)
                 .bind(row.try_get::<Uuid, _>("retention_action_id")?)
-                .bind(row.try_get::<String, _>("tenant_id")?)
-                .bind(row.try_get::<String, _>("holding_ref")?)
+                .bind(row.try_get::<String, _>("holding_id")?)
+                .bind(row.try_get::<String, _>("data_profile_key")?)
                 .bind(row.try_get::<i32, _>("expected_objects")?)
                 .bind(row.try_get::<i32, _>("observed_objects")?)
                 .bind(row.try_get::<i32, _>("missing_objects")?)
@@ -914,27 +926,28 @@ impl SqlxControlPlane {
     /// attempt bound decides whether a retry becomes terminal failure.
     pub async fn fail_backup_retention(
         &self,
-        claim: &TenantBackupRetentionClaim,
+        claim: &HoldingBackupRetentionClaim,
         retryable: bool,
     ) -> Result<bool, PersistenceError> {
         validate_retention_claim(claim)?;
         let mut transaction = self.pools().write.begin().await?;
-        ensure_tenant_holding(&mut transaction, &claim.tenant_id, &claim.holding_ref).await?;
+        ensure_holding_holding(&mut transaction, &claim.holding_id, &claim.data_profile_key)
+            .await?;
         let row = sqlx::query(
-            "UPDATE erpx_control.tenant_backup_retention_actions
+            "UPDATE erpx_control.holding_backup_retention_actions
              SET state = CASE WHEN NOT $4 OR attempts >= max_attempts
                               THEN 'failed' ELSE 'pending' END,
                  worker_id = NULL, claim_id = NULL, lease_until = NULL,
                  error_present = TRUE, updated_at = clock_timestamp(),
                  completed_at = NULL
-             WHERE id = $1 AND tenant_id = $2 AND holding_ref = $3
+             WHERE id = $1 AND holding_id = $2 AND data_profile_key = $3
                AND state = 'claimed' AND claim_id = $5 AND worker_id = $6
                AND lease_until > clock_timestamp()
              RETURNING state",
         )
         .bind(claim.id)
-        .bind(&claim.tenant_id)
-        .bind(&claim.holding_ref)
+        .bind(&claim.holding_id)
+        .bind(&claim.data_profile_key)
         .bind(retryable)
         .bind(claim.claim_id)
         .bind(claim.worker_id)
@@ -955,13 +968,13 @@ impl SqlxControlPlane {
         &self,
         page_size: u32,
     ) -> Result<u32, PersistenceError> {
-        if page_size == 0 || page_size > MAX_TENANT_BACKUP_RETENTION_PAGE_SIZE {
+        if page_size == 0 || page_size > MAX_HOLDING_BACKUP_RETENTION_PAGE_SIZE {
             return Err(PersistenceError::InvalidData(
                 "backup retention projection page size is outside its bound".into(),
             ));
         }
         let mut transaction = self.pools().read.begin().await?;
-        sqlx::query("DELETE FROM erpx_control.tenant_backup_retention_actions")
+        sqlx::query("DELETE FROM erpx_control.holding_backup_retention_actions")
             .execute(&mut *transaction)
             .await?;
         let mut after_updated_at: Option<DateTime<Utc>> = None;
@@ -969,11 +982,11 @@ impl SqlxControlPlane {
         let mut projected = 0_u32;
         loop {
             let rows = sqlx::query(
-                "SELECT id, tenant_id, holding_ref, cutoff_at, max_rows, dry_run, state,
+                "SELECT id, holding_id, data_profile_key, cutoff_at, max_rows, dry_run, state,
                         attempts, max_attempts, jobs_selected, jobs_deleted, runs_deleted,
                         object_refs_released, remaining_eligible, error_present,
                         created_at, updated_at, completed_at
-                 FROM erpx_control.tenant_backup_retention_actions
+                 FROM erpx_control.holding_backup_retention_actions
                  WHERE ($1::timestamptz IS NULL OR (updated_at, id) > ($1, $2))
                  ORDER BY updated_at, id LIMIT $3",
             )
@@ -988,15 +1001,15 @@ impl SqlxControlPlane {
             for row in &rows {
                 retention_report_from_row(row)?;
                 sqlx::query(
-                    "INSERT INTO erpx_control.tenant_backup_retention_actions
-                    (id, tenant_id, holding_ref, cutoff_at, max_rows, dry_run, state,
+                    "INSERT INTO erpx_control.holding_backup_retention_actions
+                    (id, holding_id, data_profile_key, cutoff_at, max_rows, dry_run, state,
                      attempts, max_attempts, jobs_selected, jobs_deleted, runs_deleted,
                      object_refs_released, remaining_eligible, error_present,
                      created_at, updated_at, completed_at)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
                          $14, $15, $16, $17, $18)
                  ON CONFLICT (id) DO UPDATE SET
-                    tenant_id = EXCLUDED.tenant_id, holding_ref = EXCLUDED.holding_ref,
+                    holding_id = EXCLUDED.holding_id, data_profile_key = EXCLUDED.data_profile_key,
                     cutoff_at = EXCLUDED.cutoff_at, max_rows = EXCLUDED.max_rows,
                     dry_run = EXCLUDED.dry_run, state = EXCLUDED.state,
                     attempts = EXCLUDED.attempts, max_attempts = EXCLUDED.max_attempts,
@@ -1009,8 +1022,8 @@ impl SqlxControlPlane {
                     completed_at = EXCLUDED.completed_at",
                 )
                 .bind(row.try_get::<Uuid, _>("id")?)
-                .bind(row.try_get::<String, _>("tenant_id")?)
-                .bind(row.try_get::<String, _>("holding_ref")?)
+                .bind(row.try_get::<String, _>("holding_id")?)
+                .bind(row.try_get::<String, _>("data_profile_key")?)
                 .bind(row.try_get::<DateTime<Utc>, _>("cutoff_at")?)
                 .bind(row.try_get::<i32, _>("max_rows")?)
                 .bind(row.try_get::<bool, _>("dry_run")?)
@@ -1043,28 +1056,28 @@ impl SqlxControlPlane {
 
     pub async fn list_backup_retention_reports(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         page_size: u32,
-    ) -> Result<Vec<TenantBackupRetentionReport>, PersistenceError> {
-        validate_bounded_text(tenant_id, "tenant_id", 200)?;
-        validate_bounded_text(holding_ref, "holding_ref", 200)?;
-        if page_size == 0 || page_size > MAX_TENANT_BACKUP_RETENTION_PAGE_SIZE {
+    ) -> Result<Vec<HoldingBackupRetentionReport>, PersistenceError> {
+        validate_bounded_text(holding_id, "holding_id", 200)?;
+        validate_bounded_text(data_profile_key, "data_profile_key", 200)?;
+        if page_size == 0 || page_size > MAX_HOLDING_BACKUP_RETENTION_PAGE_SIZE {
             return Err(PersistenceError::InvalidData(
                 "backup retention report page size is outside its bound".into(),
             ));
         }
         let rows = sqlx::query(
-            "SELECT id, tenant_id, holding_ref, cutoff_at, max_rows, dry_run, state,
+            "SELECT id, holding_id, data_profile_key, cutoff_at, max_rows, dry_run, state,
                     attempts, max_attempts, jobs_selected, jobs_deleted, runs_deleted,
                     object_refs_released, remaining_eligible, error_present,
                     created_at, updated_at, completed_at
-             FROM erpx_control.tenant_backup_retention_actions
-             WHERE tenant_id = $1 AND holding_ref = $2
+             FROM erpx_control.holding_backup_retention_actions
+             WHERE holding_id = $1 AND data_profile_key = $2
              ORDER BY created_at DESC, id DESC LIMIT $3",
         )
-        .bind(tenant_id)
-        .bind(holding_ref)
+        .bind(holding_id)
+        .bind(data_profile_key)
         .bind(i64::from(page_size))
         .fetch_all(&self.pools().read)
         .await?;
@@ -1080,27 +1093,27 @@ impl SqlxControlPlane {
 /// partial provider response look matched by supplying a forged count.
 async fn count_claimed_backup_objects(
     transaction: &mut Transaction<'_, Postgres>,
-    claim: &TenantBackupRetentionClaim,
+    claim: &HoldingBackupRetentionClaim,
 ) -> Result<u32, PersistenceError> {
     let count: i64 = sqlx::query_scalar(
         "WITH claimed_action AS (
-             SELECT id, tenant_id, holding_ref, cutoff_at, max_rows
-             FROM erpx_control.tenant_backup_retention_actions
-             WHERE id = $1 AND tenant_id = $2 AND holding_ref = $3
+             SELECT id, holding_id, data_profile_key, cutoff_at, max_rows
+             FROM erpx_control.holding_backup_retention_actions
+             WHERE id = $1 AND holding_id = $2 AND data_profile_key = $3
                AND state = 'claimed' AND claim_id = $4 AND worker_id = $5
                AND lease_until > clock_timestamp()
          ), eligible_jobs AS (
              SELECT j.id
-             FROM erpx_control.tenant_backup_jobs j
+             FROM erpx_control.holding_backup_jobs j
              JOIN claimed_action action
-               ON action.tenant_id = j.tenant_id
-              AND action.holding_ref = j.holding_ref
+               ON action.holding_id = j.holding_id
+              AND action.data_profile_key = j.data_profile_key
              WHERE j.state IN ('completed', 'failed', 'dead_letter')
                AND j.updated_at < action.cutoff_at
                AND NOT EXISTS (
                    SELECT 1
-                   FROM erpx_control.tenant_backup_job_runs active_link
-                   JOIN erpx_control.tenant_backup_runs active_run
+                   FROM erpx_control.holding_backup_job_runs active_link
+                   JOIN erpx_control.holding_backup_runs active_run
                      ON active_run.id = active_link.run_id
                    WHERE active_link.job_id = j.id
                      AND active_run.status NOT IN ('completed', 'failed')
@@ -1109,30 +1122,30 @@ async fn count_claimed_backup_objects(
              LIMIT (SELECT max_rows FROM claimed_action)
          ), object_refs AS (
              SELECT (j.kind = 'pitr') AS is_pitr, j.backup_ref
-             FROM erpx_control.tenant_backup_jobs j
+             FROM erpx_control.holding_backup_jobs j
              JOIN eligible_jobs eligible ON eligible.id = j.id
              UNION
              SELECT (j.kind = 'pitr') AS is_pitr, j.restore_target_ref
-             FROM erpx_control.tenant_backup_jobs j
+             FROM erpx_control.holding_backup_jobs j
              JOIN eligible_jobs eligible ON eligible.id = j.id
              WHERE j.restore_target_ref IS NOT NULL
              UNION
              SELECT (run.kind = 'pitr') AS is_pitr, run.backup_ref
-             FROM erpx_control.tenant_backup_job_runs link
+             FROM erpx_control.holding_backup_job_runs link
              JOIN eligible_jobs eligible ON eligible.id = link.job_id
-             JOIN erpx_control.tenant_backup_runs run ON run.id = link.run_id
+             JOIN erpx_control.holding_backup_runs run ON run.id = link.run_id
              UNION
              SELECT (run.kind = 'pitr') AS is_pitr, run.restore_target_ref
-             FROM erpx_control.tenant_backup_job_runs link
+             FROM erpx_control.holding_backup_job_runs link
              JOIN eligible_jobs eligible ON eligible.id = link.job_id
-             JOIN erpx_control.tenant_backup_runs run ON run.id = link.run_id
+             JOIN erpx_control.holding_backup_runs run ON run.id = link.run_id
              WHERE run.restore_target_ref IS NOT NULL
          )
          SELECT COUNT(*) FROM object_refs",
     )
     .bind(claim.id)
-    .bind(&claim.tenant_id)
-    .bind(&claim.holding_ref)
+    .bind(&claim.holding_id)
+    .bind(&claim.data_profile_key)
     .bind(claim.claim_id)
     .bind(claim.worker_id)
     .fetch_one(&mut **transaction)
@@ -1140,7 +1153,7 @@ async fn count_claimed_backup_objects(
     let count = u32::try_from(count).map_err(|_| {
         PersistenceError::InvalidData("backup object inventory exceeds its bound".into())
     })?;
-    if count > MAX_TENANT_BACKUP_INVENTORY_ENTRIES {
+    if count > MAX_HOLDING_BACKUP_INVENTORY_ENTRIES {
         return Err(PersistenceError::InvalidData(
             "backup object inventory exceeds its bound".into(),
         ));
@@ -1148,24 +1161,24 @@ async fn count_claimed_backup_objects(
     Ok(count)
 }
 
-async fn ensure_tenant_holding(
+async fn ensure_holding_holding(
     transaction: &mut Transaction<'_, Postgres>,
-    tenant_id: &str,
-    holding_ref: &str,
+    holding_id: &str,
+    data_profile_key: &str,
 ) -> Result<(), PersistenceError> {
     let binding: Option<bool> = sqlx::query_scalar(
-        "SELECT TRUE FROM erpx_control.tenant_registry
-         WHERE tenant_id = $1 AND holding_ref = $2
+        "SELECT TRUE FROM erpx_control.holding_registry
+         WHERE holding_id = $1 AND data_profile_key = $2
            AND state IN ('active', 'suspended', 'recovery')
          FOR UPDATE",
     )
-    .bind(tenant_id)
-    .bind(holding_ref)
+    .bind(holding_id)
+    .bind(data_profile_key)
     .fetch_optional(&mut **transaction)
     .await?;
     if binding != Some(true) {
         return Err(PersistenceError::InvalidData(
-            "backup retention tenant and holding binding is invalid".into(),
+            "backup retention holding and holding binding is invalid".into(),
         ));
     }
     Ok(())
@@ -1173,24 +1186,24 @@ async fn ensure_tenant_holding(
 
 async fn retention_candidates(
     transaction: &mut Transaction<'_, Postgres>,
-    tenant_id: &str,
-    holding_ref: &str,
+    holding_id: &str,
+    data_profile_key: &str,
     cutoff_at: DateTime<Utc>,
     max_rows: u32,
 ) -> Result<Vec<RetentionCandidate>, PersistenceError> {
     let job_rows = sqlx::query(
         "SELECT j.id
-         FROM erpx_control.tenant_backup_jobs j
-         JOIN erpx_control.tenant_registry registry
-           ON registry.tenant_id = j.tenant_id AND registry.holding_ref = j.holding_ref
-         WHERE j.tenant_id = $1 AND j.holding_ref = $2
-           AND registry.holding_ref = $2
+         FROM erpx_control.holding_backup_jobs j
+         JOIN erpx_control.holding_registry registry
+           ON registry.holding_id = j.holding_id AND registry.data_profile_key = j.data_profile_key
+         WHERE j.holding_id = $1 AND j.data_profile_key = $2
+           AND registry.data_profile_key = $2
            AND j.state IN ('completed', 'failed', 'dead_letter')
            AND j.updated_at < $3
            AND NOT EXISTS (
                SELECT 1
-               FROM erpx_control.tenant_backup_job_runs active_link
-               JOIN erpx_control.tenant_backup_runs active_run
+               FROM erpx_control.holding_backup_job_runs active_link
+               JOIN erpx_control.holding_backup_runs active_run
                  ON active_run.id = active_link.run_id
                WHERE active_link.job_id = j.id
                  AND active_run.status NOT IN ('completed', 'failed')
@@ -1199,8 +1212,8 @@ async fn retention_candidates(
          LIMIT $4
          FOR UPDATE OF j SKIP LOCKED",
     )
-    .bind(tenant_id)
-    .bind(holding_ref)
+    .bind(holding_id)
+    .bind(data_profile_key)
     .bind(cutoff_at)
     .bind(i64::from(max_rows))
     .fetch_all(&mut **transaction)
@@ -1216,9 +1229,9 @@ async fn retention_candidates(
         "SELECT j.id, j.kind AS job_kind, j.backup_ref, j.restore_target_ref,
                 r.id AS run_id, r.kind AS run_kind, r.backup_ref AS run_backup_ref,
                 r.restore_target_ref AS run_restore_target_ref
-         FROM erpx_control.tenant_backup_jobs j
-         LEFT JOIN erpx_control.tenant_backup_job_runs l ON l.job_id = j.id
-         LEFT JOIN erpx_control.tenant_backup_runs r ON r.id = l.run_id
+         FROM erpx_control.holding_backup_jobs j
+         LEFT JOIN erpx_control.holding_backup_job_runs l ON l.job_id = j.id
+         LEFT JOIN erpx_control.holding_backup_runs r ON r.id = l.run_id
          WHERE j.id = ANY($1::uuid[])
          ORDER BY j.id, r.id",
     )
@@ -1285,14 +1298,14 @@ async fn delete_retention_candidates(
         .flat_map(|candidate| candidate.run_ids.iter().copied())
         .collect();
     sqlx::query(
-        "DELETE FROM erpx_control.tenant_backup_job_runs
+        "DELETE FROM erpx_control.holding_backup_job_runs
          WHERE job_id = ANY($1::uuid[])",
     )
     .bind(&job_ids)
     .execute(&mut **transaction)
     .await?;
     let jobs_deleted = sqlx::query(
-        "DELETE FROM erpx_control.tenant_backup_jobs
+        "DELETE FROM erpx_control.holding_backup_jobs
          WHERE id = ANY($1::uuid[])
            AND state IN ('completed', 'failed', 'dead_letter')",
     )
@@ -1303,10 +1316,10 @@ async fn delete_retention_candidates(
         0
     } else {
         sqlx::query(
-            "DELETE FROM erpx_control.tenant_backup_runs r
+            "DELETE FROM erpx_control.holding_backup_runs r
              WHERE r.id = ANY($1::uuid[])
                AND NOT EXISTS (
-                   SELECT 1 FROM erpx_control.tenant_backup_job_runs link
+                   SELECT 1 FROM erpx_control.holding_backup_job_runs link
                    WHERE link.run_id = r.id
                )",
         )
@@ -1330,29 +1343,29 @@ async fn delete_retention_candidates(
 
 async fn count_eligible_jobs(
     transaction: &mut Transaction<'_, Postgres>,
-    tenant_id: &str,
-    holding_ref: &str,
+    holding_id: &str,
+    data_profile_key: &str,
     cutoff_at: DateTime<Utc>,
 ) -> Result<u32, PersistenceError> {
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*)
-         FROM erpx_control.tenant_backup_jobs j
-         JOIN erpx_control.tenant_registry registry
-           ON registry.tenant_id = j.tenant_id AND registry.holding_ref = j.holding_ref
-         WHERE j.tenant_id = $1 AND j.holding_ref = $2
-           AND registry.holding_ref = $2
+         FROM erpx_control.holding_backup_jobs j
+         JOIN erpx_control.holding_registry registry
+           ON registry.holding_id = j.holding_id AND registry.data_profile_key = j.data_profile_key
+         WHERE j.holding_id = $1 AND j.data_profile_key = $2
+           AND registry.data_profile_key = $2
            AND j.state IN ('completed', 'failed', 'dead_letter')
            AND j.updated_at < $3
            AND NOT EXISTS (
                SELECT 1
-               FROM erpx_control.tenant_backup_job_runs link
-               JOIN erpx_control.tenant_backup_runs run ON run.id = link.run_id
+               FROM erpx_control.holding_backup_job_runs link
+               JOIN erpx_control.holding_backup_runs run ON run.id = link.run_id
                WHERE link.job_id = j.id
                  AND run.status NOT IN ('completed', 'failed')
            )",
     )
-    .bind(tenant_id)
-    .bind(holding_ref)
+    .bind(holding_id)
+    .bind(data_profile_key)
     .bind(cutoff_at)
     .fetch_one(&mut **transaction)
     .await?;
@@ -1361,11 +1374,11 @@ async fn count_eligible_jobs(
     })
 }
 
-fn retention_request_hash(request: &TenantBackupRetentionRequest) -> String {
+fn retention_request_hash(request: &HoldingBackupRetentionRequest) -> String {
     let canonical = format!(
         "{}\n{}\n{}\n{}\n{}\n{}\n{}",
-        request.tenant_id,
-        request.holding_ref,
+        request.holding_id,
+        request.data_profile_key,
         request
             .cutoff_at
             .to_rfc3339_opts(chrono::SecondsFormat::Nanos, true),
@@ -1380,10 +1393,10 @@ fn retention_request_hash(request: &TenantBackupRetentionRequest) -> String {
 fn retention_receipt_from_row(
     row: PgRow,
     duplicate: bool,
-) -> Result<TenantBackupRetentionReceipt, PersistenceError> {
-    Ok(TenantBackupRetentionReceipt {
+) -> Result<HoldingBackupRetentionReceipt, PersistenceError> {
+    Ok(HoldingBackupRetentionReceipt {
         id: row.try_get("id")?,
-        tenant_id: row.try_get("tenant_id")?,
+        holding_id: row.try_get("holding_id")?,
         state: row.try_get("state")?,
         cutoff_at: row.try_get("cutoff_at")?,
         max_rows: bounded_i32(row.try_get("max_rows")?, "retention max rows")?,
@@ -1397,11 +1410,11 @@ fn retention_claim_from_row(
     row: PgRow,
     claim_id: Uuid,
     worker_id: Uuid,
-) -> Result<TenantBackupRetentionClaim, PersistenceError> {
-    Ok(TenantBackupRetentionClaim {
+) -> Result<HoldingBackupRetentionClaim, PersistenceError> {
+    Ok(HoldingBackupRetentionClaim {
         id: row.try_get("id")?,
-        tenant_id: row.try_get("tenant_id")?,
-        holding_ref: row.try_get("holding_ref")?,
+        holding_id: row.try_get("holding_id")?,
+        data_profile_key: row.try_get("data_profile_key")?,
         cutoff_at: row.try_get("cutoff_at")?,
         max_rows: bounded_i32(row.try_get("max_rows")?, "retention max rows")?,
         dry_run: row.try_get("dry_run")?,
@@ -1412,11 +1425,13 @@ fn retention_claim_from_row(
     })
 }
 
-fn retention_report_from_row(row: &PgRow) -> Result<TenantBackupRetentionReport, PersistenceError> {
-    let report = TenantBackupRetentionReport {
+fn retention_report_from_row(
+    row: &PgRow,
+) -> Result<HoldingBackupRetentionReport, PersistenceError> {
+    let report = HoldingBackupRetentionReport {
         id: row.try_get("id")?,
-        tenant_id: row.try_get("tenant_id")?,
-        holding_ref: row.try_get("holding_ref")?,
+        holding_id: row.try_get("holding_id")?,
+        data_profile_key: row.try_get("data_profile_key")?,
         cutoff_at: row.try_get("cutoff_at")?,
         max_rows: bounded_i32(row.try_get("max_rows")?, "retention max rows")?,
         dry_run: row.try_get("dry_run")?,
@@ -1443,16 +1458,18 @@ fn retention_report_from_row(row: &PgRow) -> Result<TenantBackupRetentionReport,
     Ok(report)
 }
 
-fn validate_retention_report(report: &TenantBackupRetentionReport) -> Result<(), PersistenceError> {
-    validate_bounded_text(&report.tenant_id, "tenant_id", 200)?;
-    validate_bounded_text(&report.holding_ref, "holding_ref", 200)?;
-    if report.max_rows == 0 || report.max_rows > MAX_TENANT_BACKUP_RETENTION_ROWS {
+fn validate_retention_report(
+    report: &HoldingBackupRetentionReport,
+) -> Result<(), PersistenceError> {
+    validate_bounded_text(&report.holding_id, "holding_id", 200)?;
+    validate_bounded_text(&report.data_profile_key, "data_profile_key", 200)?;
+    if report.max_rows == 0 || report.max_rows > MAX_HOLDING_BACKUP_RETENTION_ROWS {
         return Err(PersistenceError::InvalidData(
             "retention report row bound is invalid".into(),
         ));
     }
     if report.max_attempts == 0
-        || report.max_attempts > MAX_TENANT_BACKUP_RETENTION_ATTEMPTS
+        || report.max_attempts > MAX_HOLDING_BACKUP_RETENTION_ATTEMPTS
         || report.attempts > report.max_attempts
     {
         return Err(PersistenceError::InvalidData(
@@ -1476,13 +1493,13 @@ fn validate_retention_report(report: &TenantBackupRetentionReport) -> Result<(),
     }
 }
 
-fn inventory_report_from_row(row: PgRow) -> Result<TenantBackupInventoryReport, PersistenceError> {
+fn inventory_report_from_row(row: PgRow) -> Result<HoldingBackupInventoryReport, PersistenceError> {
     let observation = inventory_observation_from_row(&row)?;
-    Ok(TenantBackupInventoryReport {
+    Ok(HoldingBackupInventoryReport {
         id: row.try_get("id")?,
         retention_action_id: row.try_get("retention_action_id")?,
-        tenant_id: row.try_get("tenant_id")?,
-        holding_ref: row.try_get("holding_ref")?,
+        holding_id: row.try_get("holding_id")?,
+        data_profile_key: row.try_get("data_profile_key")?,
         expected_objects: observation.expected_objects,
         observed_objects: observation.observed_objects,
         missing_objects: observation.missing_objects,
@@ -1495,8 +1512,8 @@ fn inventory_report_from_row(row: PgRow) -> Result<TenantBackupInventoryReport, 
 
 fn inventory_observation_from_row(
     row: &PgRow,
-) -> Result<TenantBackupInventoryObservation, PersistenceError> {
-    Ok(TenantBackupInventoryObservation {
+) -> Result<HoldingBackupInventoryObservation, PersistenceError> {
+    Ok(HoldingBackupInventoryObservation {
         expected_objects: nonnegative_i32(row.try_get("expected_objects")?, "expected objects")?,
         observed_objects: nonnegative_i32(row.try_get("observed_objects")?, "observed objects")?,
         missing_objects: nonnegative_i32(row.try_get("missing_objects")?, "missing objects")?,
@@ -1510,7 +1527,7 @@ fn inventory_observation_from_row(
 }
 
 fn validate_inventory_observation(
-    observation: &TenantBackupInventoryObservation,
+    observation: &HoldingBackupInventoryObservation,
 ) -> Result<(), PersistenceError> {
     for (value, label) in [
         (observation.expected_objects, "expected object count"),
@@ -1518,7 +1535,7 @@ fn validate_inventory_observation(
         (observation.missing_objects, "missing object count"),
         (observation.unexpected_objects, "unexpected object count"),
     ] {
-        if value > MAX_TENANT_BACKUP_INVENTORY_ENTRIES {
+        if value > MAX_HOLDING_BACKUP_INVENTORY_ENTRIES {
             return Err(PersistenceError::InvalidData(format!(
                 "{label} exceeds its bound"
             )));
@@ -1582,20 +1599,20 @@ fn validate_inventory_expected_count(
     Ok(())
 }
 
-fn validate_retention_claim(claim: &TenantBackupRetentionClaim) -> Result<(), PersistenceError> {
-    validate_bounded_text(&claim.tenant_id, "tenant_id", 200)?;
-    validate_bounded_text(&claim.holding_ref, "holding_ref", 200)?;
+fn validate_retention_claim(claim: &HoldingBackupRetentionClaim) -> Result<(), PersistenceError> {
+    validate_bounded_text(&claim.holding_id, "holding_id", 200)?;
+    validate_bounded_text(&claim.data_profile_key, "data_profile_key", 200)?;
     if claim.id.is_nil() || claim.claim_id.is_nil() || claim.worker_id.is_nil() {
         return Err(PersistenceError::InvalidData(
             "backup retention claim identities are required".into(),
         ));
     }
-    if claim.max_rows == 0 || claim.max_rows > MAX_TENANT_BACKUP_RETENTION_ROWS {
+    if claim.max_rows == 0 || claim.max_rows > MAX_HOLDING_BACKUP_RETENTION_ROWS {
         return Err(PersistenceError::InvalidData(
             "backup retention row bound is invalid".into(),
         ));
     }
-    if claim.attempt == 0 || claim.attempt > MAX_TENANT_BACKUP_RETENTION_ATTEMPTS {
+    if claim.attempt == 0 || claim.attempt > MAX_HOLDING_BACKUP_RETENTION_ATTEMPTS {
         return Err(PersistenceError::InvalidData(
             "backup retention attempt is outside its bound".into(),
         ));
@@ -1640,15 +1657,15 @@ mod tests {
     const TERMINAL_JOB_STATES: &[&str] = &["completed", "failed", "dead_letter"];
     const TERMINAL_RUN_STATUSES: &[&str] = &["completed", "failed"];
 
-    fn request(now: DateTime<Utc>) -> TenantBackupRetentionRequest {
-        TenantBackupRetentionRequest {
-            tenant_id: "tenant-a".into(),
-            holding_ref: "holding-a".into(),
-            cutoff_at: now - Duration::seconds(MIN_TENANT_BACKUP_RETENTION_AGE_SECONDS),
-            max_rows: MAX_TENANT_BACKUP_RETENTION_ROWS,
+    fn request(now: DateTime<Utc>) -> HoldingBackupRetentionRequest {
+        HoldingBackupRetentionRequest {
+            holding_id: "holding-a".into(),
+            data_profile_key: "holding-a".into(),
+            cutoff_at: now - Duration::seconds(MIN_HOLDING_BACKUP_RETENTION_AGE_SECONDS),
+            max_rows: MAX_HOLDING_BACKUP_RETENTION_ROWS,
             dry_run: false,
             idempotency_key: "retention-1".into(),
-            max_attempts: MAX_TENANT_BACKUP_RETENTION_ATTEMPTS,
+            max_attempts: MAX_HOLDING_BACKUP_RETENTION_ATTEMPTS,
         }
     }
 
@@ -1658,30 +1675,30 @@ mod tests {
             .expect("fixed time")
             .with_timezone(&Utc);
         let valid = request(now);
-        assert!(validate_tenant_backup_retention_request_at(&valid, now).is_ok());
+        assert!(validate_holding_backup_retention_request_at(&valid, now).is_ok());
 
         let mut too_new = valid.clone();
         too_new.cutoff_at += Duration::nanoseconds(1);
-        assert!(validate_tenant_backup_retention_request_at(&too_new, now).is_err());
+        assert!(validate_holding_backup_retention_request_at(&too_new, now).is_err());
 
         let mut too_old = valid.clone();
-        too_old.cutoff_at = now - Duration::seconds(MAX_TENANT_BACKUP_RETENTION_AGE_SECONDS + 1);
-        assert!(validate_tenant_backup_retention_request_at(&too_old, now).is_err());
+        too_old.cutoff_at = now - Duration::seconds(MAX_HOLDING_BACKUP_RETENTION_AGE_SECONDS + 1);
+        assert!(validate_holding_backup_retention_request_at(&too_old, now).is_err());
 
         let mut too_many = valid.clone();
-        too_many.max_rows = MAX_TENANT_BACKUP_RETENTION_ROWS + 1;
-        assert!(validate_tenant_backup_retention_request_at(&too_many, now).is_err());
+        too_many.max_rows = MAX_HOLDING_BACKUP_RETENTION_ROWS + 1;
+        assert!(validate_holding_backup_retention_request_at(&too_many, now).is_err());
         let mut no_attempts = valid;
         no_attempts.max_attempts = 0;
-        assert!(validate_tenant_backup_retention_request_at(&no_attempts, now).is_err());
+        assert!(validate_holding_backup_retention_request_at(&no_attempts, now).is_err());
     }
 
     #[test]
     fn retention_claim_rejects_unbound_or_invalid_terminal_contract_values() {
-        let claim = TenantBackupRetentionClaim {
+        let claim = HoldingBackupRetentionClaim {
             id: Uuid::new_v4(),
-            tenant_id: "tenant-a".into(),
-            holding_ref: "holding-a".into(),
+            holding_id: "holding-a".into(),
+            data_profile_key: "holding-a".into(),
             cutoff_at: Utc::now() - Duration::days(2),
             max_rows: 1,
             dry_run: true,
@@ -1695,7 +1712,7 @@ mod tests {
         invalid.attempt = 0;
         assert!(validate_retention_claim(&invalid).is_err());
         invalid = claim;
-        invalid.holding_ref = " ".into();
+        invalid.data_profile_key = " ".into();
         assert!(validate_retention_claim(&invalid).is_err());
     }
 
@@ -1705,11 +1722,11 @@ mod tests {
         let request = request(now);
         let debug = format!("{request:?}");
         assert!(!debug.contains("retention-1"));
-        assert!(!debug.contains("tenant-a"));
-        let report = TenantBackupRetentionReport {
+        assert!(!debug.contains("holding-a"));
+        let report = HoldingBackupRetentionReport {
             id: Uuid::new_v4(),
-            tenant_id: "tenant-a".into(),
-            holding_ref: "holding-a".into(),
+            holding_id: "holding-a".into(),
+            data_profile_key: "holding-a".into(),
             cutoff_at: now - Duration::days(2),
             max_rows: 1,
             dry_run: false,
@@ -1746,7 +1763,7 @@ mod tests {
 
     #[test]
     fn inventory_evidence_requires_conserved_counts_and_matching_state() {
-        let matched = TenantBackupInventoryObservation {
+        let matched = HoldingBackupInventoryObservation {
             expected_objects: 3,
             observed_objects: 4,
             missing_objects: 0,
@@ -1765,7 +1782,7 @@ mod tests {
         false_match.unexpected_objects = 0;
         assert!(validate_inventory_observation(&false_match).is_err());
 
-        let unavailable = TenantBackupInventoryObservation {
+        let unavailable = HoldingBackupInventoryObservation {
             expected_objects: 3,
             observed_objects: 0,
             missing_objects: 3,
@@ -1789,10 +1806,10 @@ mod tests {
     #[test]
     fn retention_report_rejects_impossible_terminal_state_transitions() {
         let now = Utc::now();
-        let mut report = TenantBackupRetentionReport {
+        let mut report = HoldingBackupRetentionReport {
             id: Uuid::new_v4(),
-            tenant_id: "tenant-a".into(),
-            holding_ref: "holding-a".into(),
+            holding_id: "holding-a".into(),
+            data_profile_key: "holding-a".into(),
             cutoff_at: now - Duration::days(2),
             max_rows: 1,
             dry_run: true,

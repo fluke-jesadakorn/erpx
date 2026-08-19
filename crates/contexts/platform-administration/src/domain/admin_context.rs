@@ -1,9 +1,9 @@
 use chrono::{DateTime, Duration, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{DomainEvent, PlatformAdministrationDomainError, PlatformTenantId, bounded};
+use super::{DomainEvent, PlatformAdministrationDomainError, PlatformHoldingId, bounded};
 
 const MAX_REASON_BYTES: usize = 512;
 const MAX_PRINCIPAL_BYTES: usize = 256;
@@ -49,11 +49,11 @@ pub enum AdminContextStatus {
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TenantAdminContext {
+pub struct HoldingAdminContext {
     id: AdminContextId,
     version: u64,
-    tenant_id: PlatformTenantId,
-    scope: TenantScope,
+    holding_id: PlatformHoldingId,
+    scope: AuthorityScope,
     principal_ref: String,
     device_id: Uuid,
     session_id: Uuid,
@@ -65,12 +65,12 @@ pub struct TenantAdminContext {
     events: Vec<DomainEvent>,
 }
 
-impl std::fmt::Debug for TenantAdminContext {
+impl std::fmt::Debug for HoldingAdminContext {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
-            .debug_struct("TenantAdminContext")
+            .debug_struct("HoldingAdminContext")
             .field("id", &"<redacted>")
-            .field("tenant_id", &self.tenant_id)
+            .field("holding_id", &self.holding_id)
             .field("scope", &self.scope)
             .field("principal_ref", &self.principal_ref)
             .field("reason", &self.reason)
@@ -81,13 +81,13 @@ impl std::fmt::Debug for TenantAdminContext {
     }
 }
 
-impl TenantAdminContext {
+impl HoldingAdminContext {
     #[allow(clippy::too_many_arguments)]
     pub fn try_rehydrate(
         id: AdminContextId,
         version: u64,
-        tenant_id: PlatformTenantId,
-        scope: TenantScope,
+        holding_id: PlatformHoldingId,
+        scope: AuthorityScope,
         principal_ref: String,
         device_id: Uuid,
         session_id: Uuid,
@@ -98,7 +98,7 @@ impl TenantAdminContext {
     ) -> Result<Self, PlatformAdministrationDomainError> {
         let mut value = Self::issue(
             id,
-            tenant_id,
+            holding_id,
             scope,
             principal_ref,
             device_id,
@@ -121,8 +121,8 @@ impl TenantAdminContext {
     #[allow(clippy::too_many_arguments)]
     pub fn issue(
         id: AdminContextId,
-        tenant_id: PlatformTenantId,
-        scope: TenantScope,
+        holding_id: PlatformHoldingId,
+        scope: AuthorityScope,
         principal_ref: String,
         device_id: Uuid,
         session_id: Uuid,
@@ -130,7 +130,7 @@ impl TenantAdminContext {
         issued_at: DateTime<Utc>,
         expires_at: DateTime<Utc>,
     ) -> Result<Self, PlatformAdministrationDomainError> {
-        if !matches!(scope, TenantScope::Holding { .. }) {
+        if !matches!(scope, AuthorityScope::Holding { .. }) {
             return Err(PlatformAdministrationDomainError::InvalidAdminScope);
         }
         scope
@@ -151,7 +151,7 @@ impl TenantAdminContext {
         let mut context = Self {
             id,
             version: 1,
-            tenant_id,
+            holding_id,
             scope,
             principal_ref: bounded(&principal_ref, "principal_ref", MAX_PRINCIPAL_BYTES)?,
             device_id,
@@ -164,7 +164,7 @@ impl TenantAdminContext {
         };
         context.events.push(DomainEvent::AdminContextIssued {
             context_id: id,
-            tenant_id,
+            holding_id,
             at: issued_at,
         });
         Ok(context)
@@ -181,7 +181,7 @@ impl TenantAdminContext {
         self.revoked_at = Some(at);
         self.events.push(DomainEvent::AdminContextRevoked {
             context_id: self.id,
-            tenant_id: self.tenant_id,
+            holding_id: self.holding_id,
             at,
         });
         Ok(())
@@ -203,10 +203,10 @@ impl TenantAdminContext {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn tenant_id(&self) -> PlatformTenantId {
-        self.tenant_id
+    pub const fn holding_id(&self) -> PlatformHoldingId {
+        self.holding_id
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn principal_ref(&self) -> &str {

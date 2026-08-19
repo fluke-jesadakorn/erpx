@@ -17,5 +17,5 @@ erpx_ui_kit::declare_current_workspace_feature!(
     erpx_ui_kit::CurrentFeatureKind::Finance,
     "finance",
     [("finance.workspace", "/finance", "finance")],
-    "erpx-feature-finance-v2"
+    "erpx-feature-finance"
 );

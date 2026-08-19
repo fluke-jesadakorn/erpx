@@ -1,13 +1,13 @@
 //! SQLx source-event and typed read-model adapter for POS sales.
 //!
-//! POS sale rows are authoritative on the tenant write database.  This
+//! POS sale rows are authoritative on the holding write database.  This
 //! adapter consumes the normalized aggregate outbox and writes only bounded
 //! sale, line, and payment facts to the physically separate read database.
 //! Aggregate JSON is decoded at the source boundary and is never persisted in
 //! the read model.
 
 use chrono::{DateTime, Utc};
-use erpx_domain::contracts::TenantScope;
+use erpx_domain::contracts::AuthorityScope;
 use erpx_domain::pos::{
     PaymentMethod, PosEventType, PosProjectionReconciliation, PosScopedReference, Sale, SaleLine,
     SaleStatus,
@@ -60,7 +60,7 @@ pub struct PosProjectionApplication {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PosProjectionRebuildPreparation {
-    pub holding_ref: String,
+    pub data_profile_key: String,
     pub rows_cleared: u64,
     pub checkpoints_cleared: u64,
     pub receipts_cleared: u64,
@@ -89,7 +89,7 @@ pub struct PosSourceEventPage {
     pub has_more: bool,
 }
 
-/// Explicit tenant scope accepted by the POS read gateway.  A company scope
+/// Explicit holding scope accepted by the POS read gateway.  A company scope
 /// includes its branches; a branch scope is exact.  Platform and subtree
 /// scopes are rejected by the transport before this type is constructed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -170,29 +170,29 @@ pub struct PosSaleReadPage {
 pub struct SqlxPosProjectionStore {
     write_pool: PgPool,
     read_pool: PgPool,
-    holding_ref: String,
+    data_profile_key: String,
 }
 
 impl SqlxPosProjectionStore {
     pub fn from_pools(
         write_pool: &PgPool,
         read_pool: &PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_holding_ref(&holding_ref)?;
+        let data_profile_key = data_profile_key.into();
+        validate_data_profile_key(&data_profile_key)?;
         Ok(Self {
             write_pool: write_pool.clone(),
             read_pool: read_pool.clone(),
-            holding_ref,
+            data_profile_key,
         })
     }
 
-    pub fn holding_ref(&self) -> &str {
-        &self.holding_ref
+    pub fn data_profile_key(&self) -> &str {
+        &self.data_profile_key
     }
 
-    /// Read typed POS facts from the physically separate tenant read pool.
+    /// Read typed POS facts from the physically separate holding read pool.
     /// No source aggregate JSON, idempotency key, command history, or payment
     /// instrument is exposed.  Child rows are independently bounded so one
     /// sale cannot create an unbounded response.
@@ -208,20 +208,20 @@ impl SqlxPosProjectionStore {
             validate_uuid(cursor.sale_id, "POS read cursor sale ID")?;
         }
         let limit = i64::from(page_size) + 1;
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let sale_rows = sqlx::query(
             "SELECT sale_id, holding_id, company_id, branch_id, reference,
                     customer_id, register_id, currency, subtotal_minor, tax_minor,
                     total_minor, paid_minor, status, created_at, updated_at,
                     source_version, source_event_id, projected_at
-             FROM erpx_tenant.pos_sale_read_rows
-             WHERE holding_ref=$1 AND holding_id=$2 AND company_id=$3
+             FROM erpx_holding.pos_sale_read_rows
+             WHERE data_profile_key=$1 AND holding_id=$2 AND company_id=$3
                AND ($4::UUID IS NULL OR branch_id=$4)
                AND ($5::TIMESTAMPTZ IS NULL OR (updated_at, sale_id) < ($5, $6))
              ORDER BY updated_at DESC, sale_id DESC
              LIMIT $7",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(scope.holding_id)
         .bind(scope.company_id)
         .bind(scope.branch_id)
@@ -241,12 +241,12 @@ impl SqlxPosProjectionStore {
                 "SELECT line_id, line_no, item_reference, description, quantity,
                         unit_price_minor, tax_minor, subtotal_minor, total_minor,
                         product_id, source_version, source_event_id, projected_at
-                 FROM erpx_tenant.pos_sale_line_read_rows
-                 WHERE holding_ref=$1 AND sale_id=$2
+                 FROM erpx_holding.pos_sale_line_read_rows
+                 WHERE data_profile_key=$1 AND sale_id=$2
                  ORDER BY line_no
                  LIMIT $3",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(sale_id)
             .bind(i64::from(MAX_POS_READ_CHILD_ROWS_PER_SALE) + 1)
             .fetch_all(&mut *tx)
@@ -257,12 +257,12 @@ impl SqlxPosProjectionStore {
             let payments = sqlx::query(
                 "SELECT payment_id, amount_minor, method, received_at,
                         source_version, source_event_id, projected_at
-                 FROM erpx_tenant.pos_sale_payment_read_rows
-                 WHERE holding_ref=$1 AND sale_id=$2
+                 FROM erpx_holding.pos_sale_payment_read_rows
+                 WHERE data_profile_key=$1 AND sale_id=$2
                  ORDER BY received_at, payment_id
                  LIMIT $3",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(sale_id)
             .bind(i64::from(MAX_POS_READ_CHILD_ROWS_PER_SALE) + 1)
             .fetch_all(&mut *tx)
@@ -325,10 +325,14 @@ impl SqlxPosProjectionStore {
         cursor: Option<&PosSourceEventCursor>,
         page_size: u32,
     ) -> Result<PosSourceEventPage, PersistenceError> {
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
-        let page =
-            read_source_event_page_in_transaction(&mut tx, &self.holding_ref, cursor, page_size)
-                .await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
+        let page = read_source_event_page_in_transaction(
+            &mut tx,
+            &self.data_profile_key,
+            cursor,
+            page_size,
+        )
+        .await?;
         tx.commit().await?;
         Ok(page)
     }
@@ -350,17 +354,17 @@ impl SqlxPosProjectionStore {
         if let Some(cursor) = cursor {
             validate_source_cursor(cursor)?;
         }
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
-        validate_source_event_versions(&mut tx, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
+        validate_source_event_versions(&mut tx, &self.data_profile_key).await?;
         let count: i64 = if let Some(cursor) = cursor {
             sqlx::query_scalar(
                 "SELECT COUNT(*)
-                 FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1 AND aggregate_type=$2
+                 FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1 AND aggregate_type=$2
                    AND (aggregate_id > $3
                         OR (aggregate_id = $3 AND aggregate_version > $4))",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(POS_AGGREGATE)
             .bind(cursor.aggregate_id)
             .bind(as_i64(
@@ -372,10 +376,10 @@ impl SqlxPosProjectionStore {
         } else {
             sqlx::query_scalar(
                 "SELECT COUNT(*)
-                 FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1 AND aggregate_type=$2",
+                 FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1 AND aggregate_type=$2",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(POS_AGGREGATE)
             .fetch_one(&mut *tx)
             .await?
@@ -394,16 +398,16 @@ impl SqlxPosProjectionStore {
         page_size: u32,
     ) -> Result<(PosProjectionRebuildPreparation, u64), PersistenceError> {
         validate_page_size(page_size)?;
-        let mut source_tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
-        sqlx::query("LOCK TABLE erpx_tenant.outbox_events IN SHARE MODE")
+        let mut source_tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
+        sqlx::query("LOCK TABLE erpx_holding.outbox_events IN SHARE MODE")
             .execute(&mut *source_tx)
             .await?;
         let source_version: i64 = sqlx::query_scalar(
             "SELECT COUNT(*)
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND aggregate_type=$2",
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND aggregate_type=$2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(POS_AGGREGATE)
         .fetch_one(&mut *source_tx)
         .await?;
@@ -414,18 +418,22 @@ impl SqlxPosProjectionStore {
         if expected_source_version.is_some_and(|expected| expected != source_version) {
             return Err(invalid("POS source fence changed before rebuild"));
         }
-        validate_source_event_versions(&mut source_tx, &self.holding_ref).await?;
-        verify_authoritative_source_snapshots_in_transaction(&mut source_tx, &self.holding_ref)
-            .await?;
+        validate_source_event_versions(&mut source_tx, &self.data_profile_key).await?;
+        verify_authoritative_source_snapshots_in_transaction(
+            &mut source_tx,
+            &self.data_profile_key,
+        )
+        .await?;
 
-        let mut read_tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
-        let preparation = clear_projection_in_transaction(&mut read_tx, &self.holding_ref).await?;
+        let mut read_tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
+        let preparation =
+            clear_projection_in_transaction(&mut read_tx, &self.data_profile_key).await?;
         let mut cursor = None;
         let mut events_replayed = 0_u64;
         loop {
             let page = read_source_event_page_in_transaction(
                 &mut source_tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 cursor.as_ref(),
                 page_size,
             )
@@ -461,10 +469,13 @@ impl SqlxPosProjectionStore {
     pub async fn reconcile_projection(
         &self,
     ) -> Result<PosProjectionReconciliation, PersistenceError> {
-        let mut source_tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
-        validate_source_event_versions(&mut source_tx, &self.holding_ref).await?;
-        verify_authoritative_source_snapshots_in_transaction(&mut source_tx, &self.holding_ref)
-            .await?;
+        let mut source_tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
+        validate_source_event_versions(&mut source_tx, &self.data_profile_key).await?;
+        verify_authoritative_source_snapshots_in_transaction(
+            &mut source_tx,
+            &self.data_profile_key,
+        )
+        .await?;
         let source_rows = sqlx::query(
             "WITH ranked_source AS (
                  SELECT aggregate_id, aggregate_version, event_id,
@@ -473,24 +484,24 @@ impl SqlxPosProjectionStore {
                             PARTITION BY aggregate_id
                             ORDER BY aggregate_version DESC, event_id DESC
                         ) AS latest_rank
-                 FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1 AND aggregate_type=$2
+                 FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1 AND aggregate_type=$2
              )
              SELECT aggregate_id, aggregate_version AS latest_version,
                     event_id AS latest_event_id, event_count
              FROM ranked_source
              WHERE latest_rank=1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(POS_AGGREGATE)
         .fetch_all(&mut *source_tx)
         .await?;
         let source_scope_rows = sqlx::query(
             "SELECT sale_id, holding_id, company_id, branch_id
-             FROM erpx_tenant.pos_sales
-             WHERE holding_ref=$1",
+             FROM erpx_holding.pos_sales
+             WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_all(&mut *source_tx)
         .await?;
         source_tx.commit().await?;
@@ -549,13 +560,13 @@ impl SqlxPosProjectionStore {
             ));
         }
 
-        let mut read_tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut read_tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let read_rows = sqlx::query(
             "SELECT aggregate_id, source_version, last_event_id
-             FROM erpx_tenant.pos_projection_checkpoints
-             WHERE holding_ref=$1 AND projection_name=$2",
+             FROM erpx_holding.pos_projection_checkpoints
+             WHERE data_profile_key=$1 AND projection_name=$2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(POS_PROJECTION_NAME)
         .fetch_all(&mut *read_tx)
         .await?;
@@ -581,14 +592,14 @@ impl SqlxPosProjectionStore {
         // that the checkpoint claims to have applied.  Verify the row itself
         // so a deleted or forged read fact cannot make reconciliation appear
         // healthy.
-        let mut read_tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut read_tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let read_sale_rows = sqlx::query(
             "SELECT sale_id, holding_id, company_id, branch_id,
                     source_version, source_event_id
-             FROM erpx_tenant.pos_sale_read_rows
-             WHERE holding_ref=$1",
+             FROM erpx_holding.pos_sale_read_rows
+             WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_all(&mut *read_tx)
         .await?;
         read_tx.commit().await?;
@@ -683,23 +694,23 @@ impl SqlxPosProjectionStore {
         &self,
         source_events: &HashMap<Uuid, SourceProjectionIdentity>,
     ) -> Result<(), PersistenceError> {
-        let mut source_tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
+        let mut source_tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
         let source_sales = sqlx::query(
             "SELECT sale_id, paid_minor
-             FROM erpx_tenant.pos_sales
-             WHERE holding_ref=$1",
+             FROM erpx_holding.pos_sales
+             WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_all(&mut *source_tx)
         .await?;
         let source_payments = sqlx::query(
             "SELECT sale_id, COUNT(*)::BIGINT AS payment_count,
                     COALESCE(SUM(amount_minor), 0)::BIGINT AS amount_minor
-             FROM erpx_tenant.pos_sale_payments
-             WHERE holding_ref=$1
+             FROM erpx_holding.pos_sale_payments
+             WHERE data_profile_key=$1
              GROUP BY sale_id",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_all(&mut *source_tx)
         .await?;
         source_tx.commit().await?;
@@ -728,13 +739,13 @@ impl SqlxPosProjectionStore {
             );
         }
 
-        let mut read_tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut read_tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let read_sales = sqlx::query(
             "SELECT sale_id, paid_minor
-             FROM erpx_tenant.pos_sale_read_rows
-             WHERE holding_ref=$1",
+             FROM erpx_holding.pos_sale_read_rows
+             WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_all(&mut *read_tx)
         .await?;
         let read_payments = sqlx::query(
@@ -744,11 +755,11 @@ impl SqlxPosProjectionStore {
                     MAX(source_version)::BIGINT AS source_version_max,
                     COUNT(DISTINCT source_event_id)::BIGINT AS source_event_count,
                     MIN(source_event_id::TEXT) AS source_event_id
-             FROM erpx_tenant.pos_sale_payment_read_rows
-             WHERE holding_ref=$1
+             FROM erpx_holding.pos_sale_payment_read_rows
+             WHERE data_profile_key=$1
              GROUP BY sale_id",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_all(&mut *read_tx)
         .await?;
         read_tx.commit().await?;
@@ -866,7 +877,7 @@ impl SqlxPosProjectionStore {
         self.verify_authoritative_source_sale(&sale).await?;
         let values = projection_values(&sale)?;
 
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let result = self
             .project_event_in_transaction(&mut tx, event, &sale, &values)
             .await?;
@@ -883,11 +894,11 @@ impl SqlxPosProjectionStore {
     ) -> Result<PosProjectionApplication, PersistenceError> {
         if let Some(receipt) = sqlx::query(
             "SELECT aggregate_id, aggregate_version
-             FROM erpx_tenant.pos_projection_event_receipts
-             WHERE holding_ref=$1 AND projection_name=$2 AND event_id=$3
+             FROM erpx_holding.pos_projection_event_receipts
+             WHERE data_profile_key=$1 AND projection_name=$2 AND event_id=$3
              FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(POS_PROJECTION_NAME)
         .bind(event.event_id)
         .fetch_optional(&mut **tx)
@@ -911,11 +922,11 @@ impl SqlxPosProjectionStore {
 
         let checkpoint = sqlx::query(
             "SELECT last_event_id, source_version
-             FROM erpx_tenant.pos_projection_checkpoints
-             WHERE holding_ref=$1 AND projection_name=$2 AND aggregate_id=$3
+             FROM erpx_holding.pos_projection_checkpoints
+             WHERE data_profile_key=$1 AND projection_name=$2 AND aggregate_id=$3
              FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(POS_PROJECTION_NAME)
         .bind(event.aggregate_id)
         .fetch_optional(&mut **tx)
@@ -937,7 +948,7 @@ impl SqlxPosProjectionStore {
             CheckpointDecision::Apply
         };
         if checkpoint_decision == CheckpointDecision::Ignore {
-            insert_receipt(tx, &self.holding_ref, event).await?;
+            insert_receipt(tx, &self.data_profile_key, event).await?;
             return Ok(PosProjectionApplication {
                 event_id: event.event_id,
                 aggregate_id: event.aggregate_id,
@@ -947,24 +958,24 @@ impl SqlxPosProjectionStore {
         }
 
         sqlx::query(
-            "DELETE FROM erpx_tenant.pos_sale_line_read_rows
-             WHERE holding_ref=$1 AND sale_id=$2",
+            "DELETE FROM erpx_holding.pos_sale_line_read_rows
+             WHERE data_profile_key=$1 AND sale_id=$2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(event.aggregate_id)
         .execute(&mut **tx)
         .await?;
         sqlx::query(
-            "DELETE FROM erpx_tenant.pos_sale_payment_read_rows
-             WHERE holding_ref=$1 AND sale_id=$2",
+            "DELETE FROM erpx_holding.pos_sale_payment_read_rows
+             WHERE data_profile_key=$1 AND sale_id=$2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(event.aggregate_id)
         .execute(&mut **tx)
         .await?;
         sqlx::query(
-            "INSERT INTO erpx_tenant.pos_sale_read_rows
-                (holding_ref, sale_id, holding_id, company_id, branch_id, reference,
+            "INSERT INTO erpx_holding.pos_sale_read_rows
+                (data_profile_key, sale_id, holding_id, company_id, branch_id, reference,
                  customer_id, customer_scope_kind, customer_scope_holding_id,
                  customer_scope_company_id, customer_scope_branch_id,
                  register_id, register_scope_kind, register_scope_holding_id,
@@ -974,7 +985,7 @@ impl SqlxPosProjectionStore {
                  source_version, source_event_id)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
                      $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)
-             ON CONFLICT (holding_ref, sale_id) DO UPDATE SET
+             ON CONFLICT (data_profile_key, sale_id) DO UPDATE SET
                  holding_id=EXCLUDED.holding_id, company_id=EXCLUDED.company_id,
                  branch_id=EXCLUDED.branch_id, reference=EXCLUDED.reference,
                  customer_id=EXCLUDED.customer_id,
@@ -995,7 +1006,7 @@ impl SqlxPosProjectionStore {
                  source_version=EXCLUDED.source_version,
                  source_event_id=EXCLUDED.source_event_id, projected_at=now()",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(sale_id(sale))
         .bind(values.holding_id)
         .bind(values.company_id)
@@ -1029,15 +1040,15 @@ impl SqlxPosProjectionStore {
         for (line_no, line) in sale.lines.iter().enumerate() {
             let line_values = line_values(line, line_no)?;
             sqlx::query(
-                "INSERT INTO erpx_tenant.pos_sale_line_read_rows
-                    (holding_ref, sale_id, line_id, line_no, item_reference,
+                "INSERT INTO erpx_holding.pos_sale_line_read_rows
+                    (data_profile_key, sale_id, line_id, line_no, item_reference,
                      description, quantity, unit_price_minor, tax_minor,
                      subtotal_minor, total_minor, product_id, product_scope_kind,
                      product_scope_holding_id, product_scope_company_id,
                      product_scope_branch_id, source_version, source_event_id)
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(sale_id(sale))
             .bind(line_values.line_id)
             .bind(line_values.line_no)
@@ -1060,12 +1071,12 @@ impl SqlxPosProjectionStore {
         }
         for payment in &sale.payments {
             sqlx::query(
-                "INSERT INTO erpx_tenant.pos_sale_payment_read_rows
-                    (holding_ref, sale_id, payment_id, amount_minor, method,
+                "INSERT INTO erpx_holding.pos_sale_payment_read_rows
+                    (data_profile_key, sale_id, payment_id, amount_minor, method,
                      received_at, source_version, source_event_id)
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(sale_id(sale))
             .bind(payment.payment_id)
             .bind(payment.amount_minor)
@@ -1077,16 +1088,16 @@ impl SqlxPosProjectionStore {
             .await?;
         }
         sqlx::query(
-            "INSERT INTO erpx_tenant.pos_projection_checkpoints
-                (holding_ref, projection_name, aggregate_id, holding_id,
+            "INSERT INTO erpx_holding.pos_projection_checkpoints
+                (data_profile_key, projection_name, aggregate_id, holding_id,
                  company_id, branch_id, last_event_id, source_version)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-             ON CONFLICT (holding_ref, projection_name, aggregate_id) DO UPDATE SET
+             ON CONFLICT (data_profile_key, projection_name, aggregate_id) DO UPDATE SET
                  holding_id=EXCLUDED.holding_id, company_id=EXCLUDED.company_id,
                  branch_id=EXCLUDED.branch_id, last_event_id=EXCLUDED.last_event_id,
                  source_version=EXCLUDED.source_version, projected_at=now()",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(POS_PROJECTION_NAME)
         .bind(sale_id(sale))
         .bind(values.holding_id)
@@ -1096,7 +1107,7 @@ impl SqlxPosProjectionStore {
         .bind(as_i64(event.aggregate_version, "POS source version")?)
         .execute(&mut **tx)
         .await?;
-        insert_receipt(tx, &self.holding_ref, event).await?;
+        insert_receipt(tx, &self.data_profile_key, event).await?;
         Ok(PosProjectionApplication {
             event_id: event.event_id,
             aggregate_id: event.aggregate_id,
@@ -1108,16 +1119,21 @@ impl SqlxPosProjectionStore {
     pub async fn clear_projection(
         &self,
     ) -> Result<PosProjectionRebuildPreparation, PersistenceError> {
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
-        let preparation = clear_projection_in_transaction(&mut tx, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
+        let preparation = clear_projection_in_transaction(&mut tx, &self.data_profile_key).await?;
         tx.commit().await?;
         Ok(preparation)
     }
 
     async fn verify_authoritative_source_sale(&self, sale: &Sale) -> Result<(), PersistenceError> {
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
-        verify_authoritative_source_sale_in_transaction(&mut tx, &self.holding_ref, sale, None)
-            .await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
+        verify_authoritative_source_sale_in_transaction(
+            &mut tx,
+            &self.data_profile_key,
+            sale,
+            None,
+        )
+        .await?;
         tx.commit().await?;
         Ok(())
     }
@@ -1129,15 +1145,15 @@ impl SqlxPosProjectionStore {
         &self,
         event: &PosSourceEvent,
     ) -> Result<(), PersistenceError> {
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
         let row = sqlx::query(
             "SELECT event_type, aggregate_type, aggregate_id, aggregate_version,
                     payload, occurred_at
-             FROM erpx_tenant.outbox_events
-             WHERE event_id=$1 AND holding_ref=$2",
+             FROM erpx_holding.outbox_events
+             WHERE event_id=$1 AND data_profile_key=$2",
         )
         .bind(event.event_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?;
         tx.commit().await?;
@@ -1168,17 +1184,17 @@ impl SqlxPosProjectionStore {
 
 async fn verify_authoritative_source_snapshots_in_transaction(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<(), PersistenceError> {
     let rows = sqlx::query(
         "SELECT DISTINCT ON (aggregate_id)
                 event_id, event_type, aggregate_id, aggregate_version,
                 payload, occurred_at
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type=$2
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type=$2
          ORDER BY aggregate_id, aggregate_version DESC, event_id DESC",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(POS_AGGREGATE)
     .fetch_all(&mut **tx)
     .await?;
@@ -1200,7 +1216,7 @@ async fn verify_authoritative_source_snapshots_in_transaction(
         let sale = decode_sale(&event)?;
         verify_authoritative_source_sale_in_transaction(
             tx,
-            holding_ref,
+            data_profile_key,
             &sale,
             Some(event.aggregate_version),
         )
@@ -1211,7 +1227,7 @@ async fn verify_authoritative_source_snapshots_in_transaction(
 
 async fn verify_authoritative_source_sale_in_transaction(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     sale: &Sale,
     expected_current_version: Option<u64>,
 ) -> Result<(), PersistenceError> {
@@ -1224,11 +1240,11 @@ async fn verify_authoritative_source_sale_in_transaction(
                 register_scope_company_id, register_scope_branch_id, currency,
                 subtotal_minor, tax_minor, total_minor, paid_minor, status,
                 command_id, idempotency_key, created_at, updated_at
-         FROM erpx_tenant.pos_sales
-         WHERE holding_ref=$1 AND sale_id=$2
+         FROM erpx_holding.pos_sales
+         WHERE data_profile_key=$1 AND sale_id=$2
          FOR SHARE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(sale.id)
     .fetch_optional(&mut **tx)
     .await?
@@ -1273,11 +1289,11 @@ async fn verify_authoritative_source_sale_in_transaction(
                 unit_price_minor, tax_minor, subtotal_minor, total_minor,
                 product_id, product_scope_kind, product_scope_holding_id,
                 product_scope_company_id, product_scope_branch_id
-         FROM erpx_tenant.pos_sale_lines
-         WHERE holding_ref=$1 AND sale_id=$2
+         FROM erpx_holding.pos_sale_lines
+         WHERE data_profile_key=$1 AND sale_id=$2
          ORDER BY line_no",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(sale.id)
     .fetch_all(&mut **tx)
     .await?;
@@ -1305,11 +1321,11 @@ async fn verify_authoritative_source_sale_in_transaction(
 
     let payment_rows = sqlx::query(
         "SELECT payment_id, amount_minor, method, received_at
-         FROM erpx_tenant.pos_sale_payments
-         WHERE holding_ref=$1 AND sale_id=$2
+         FROM erpx_holding.pos_sale_payments
+         WHERE data_profile_key=$1 AND sale_id=$2
          ORDER BY payment_id",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(sale.id)
     .fetch_all(&mut **tx)
     .await?;
@@ -1360,7 +1376,7 @@ fn reference_columns_match(
 
 async fn read_source_event_page_in_transaction(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     cursor: Option<&PosSourceEventCursor>,
     page_size: u32,
 ) -> Result<PosSourceEventPage, PersistenceError> {
@@ -1371,14 +1387,14 @@ async fn read_source_event_page_in_transaction(
         sqlx::query(
             "SELECT event_id, event_type, aggregate_id, aggregate_version,
                     payload, occurred_at
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND aggregate_type=$2
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND aggregate_type=$2
                AND (aggregate_id > $3
                     OR (aggregate_id = $3 AND aggregate_version > $4))
              ORDER BY aggregate_id, aggregate_version
              LIMIT $5",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(POS_AGGREGATE)
         .bind(cursor.aggregate_id)
         .bind(as_i64(
@@ -1392,12 +1408,12 @@ async fn read_source_event_page_in_transaction(
         sqlx::query(
             "SELECT event_id, event_type, aggregate_id, aggregate_version,
                     payload, occurred_at
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND aggregate_type=$2
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND aggregate_type=$2
              ORDER BY aggregate_id, aggregate_version
              LIMIT $3",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(POS_AGGREGATE)
         .bind(limit)
         .fetch_all(&mut **tx)
@@ -1446,36 +1462,38 @@ async fn read_source_event_page_in_transaction(
 
 async fn clear_projection_in_transaction(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<PosProjectionRebuildPreparation, PersistenceError> {
     let rows_cleared =
-        sqlx::query("DELETE FROM erpx_tenant.pos_sale_read_rows WHERE holding_ref=$1")
-            .bind(holding_ref)
+        sqlx::query("DELETE FROM erpx_holding.pos_sale_read_rows WHERE data_profile_key=$1")
+            .bind(data_profile_key)
             .execute(&mut **tx)
             .await?
             .rows_affected();
-    sqlx::query("DELETE FROM erpx_tenant.pos_sale_line_read_rows WHERE holding_ref=$1")
-        .bind(holding_ref)
+    sqlx::query("DELETE FROM erpx_holding.pos_sale_line_read_rows WHERE data_profile_key=$1")
+        .bind(data_profile_key)
         .execute(&mut **tx)
         .await?;
-    sqlx::query("DELETE FROM erpx_tenant.pos_sale_payment_read_rows WHERE holding_ref=$1")
-        .bind(holding_ref)
+    sqlx::query("DELETE FROM erpx_holding.pos_sale_payment_read_rows WHERE data_profile_key=$1")
+        .bind(data_profile_key)
         .execute(&mut **tx)
         .await?;
-    let checkpoints_cleared =
-        sqlx::query("DELETE FROM erpx_tenant.pos_projection_checkpoints WHERE holding_ref=$1")
-            .bind(holding_ref)
-            .execute(&mut **tx)
-            .await?
-            .rows_affected();
-    let receipts_cleared =
-        sqlx::query("DELETE FROM erpx_tenant.pos_projection_event_receipts WHERE holding_ref=$1")
-            .bind(holding_ref)
-            .execute(&mut **tx)
-            .await?
-            .rows_affected();
+    let checkpoints_cleared = sqlx::query(
+        "DELETE FROM erpx_holding.pos_projection_checkpoints WHERE data_profile_key=$1",
+    )
+    .bind(data_profile_key)
+    .execute(&mut **tx)
+    .await?
+    .rows_affected();
+    let receipts_cleared = sqlx::query(
+        "DELETE FROM erpx_holding.pos_projection_event_receipts WHERE data_profile_key=$1",
+    )
+    .bind(data_profile_key)
+    .execute(&mut **tx)
+    .await?
+    .rows_affected();
     Ok(PosProjectionRebuildPreparation {
-        holding_ref: holding_ref.to_owned(),
+        data_profile_key: data_profile_key.to_owned(),
         rows_cleared,
         checkpoints_cleared,
         receipts_cleared,
@@ -1484,17 +1502,17 @@ async fn clear_projection_in_transaction(
 
 async fn insert_receipt(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     event: &PosSourceEvent,
 ) -> Result<(), PersistenceError> {
     sqlx::query(
-        "INSERT INTO erpx_tenant.pos_projection_event_receipts
-            (holding_ref, projection_name, event_id, aggregate_id,
+        "INSERT INTO erpx_holding.pos_projection_event_receipts
+            (data_profile_key, projection_name, event_id, aggregate_id,
              aggregate_version, event_type)
          VALUES ($1,$2,$3,$4,$5,$6)
-         ON CONFLICT (holding_ref, projection_name, event_id) DO NOTHING",
+         ON CONFLICT (data_profile_key, projection_name, event_id) DO NOTHING",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(POS_PROJECTION_NAME)
     .bind(event.event_id)
     .bind(event.aggregate_id)
@@ -1626,7 +1644,7 @@ fn decode_sale(event: &PosSourceEvent) -> Result<Sale, PersistenceError> {
     if metadata.event_id != event.event_id
         || metadata.aggregate_id != event.aggregate_id
         || metadata.aggregate_version != event.aggregate_version
-        || metadata.tenant_scope != sale.scope
+        || metadata.active_scope != sale.scope
         || event_type(metadata.event_type) != event.event_type
     {
         return Err(invalid("POS source event identity is invalid"));
@@ -1638,9 +1656,9 @@ fn sale_id(sale: &Sale) -> Uuid {
     sale.id
 }
 
-fn sale_scope(scope: &TenantScope) -> Result<(Uuid, Uuid, Option<Uuid>), PersistenceError> {
+fn sale_scope(scope: &AuthorityScope) -> Result<(Uuid, Uuid, Option<Uuid>), PersistenceError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => {
@@ -1648,7 +1666,7 @@ fn sale_scope(scope: &TenantScope) -> Result<(Uuid, Uuid, Option<Uuid>), Persist
             validate_uuid(*company_id, "POS company ID")?;
             Ok((*holding_id, *company_id, None))
         }
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -1679,11 +1697,11 @@ fn reference_columns(
         .validate()
         .map_err(|error| invalid(format!("invalid POS {label} reference: {error}")))?;
     let (kind, holding_id, company_id, branch_id) = match &reference.scope {
-        TenantScope::Holding { holding_id } => {
+        AuthorityScope::Holding { holding_id } => {
             validate_uuid(*holding_id, "POS reference holding ID")?;
             ("holding", *holding_id, None, None)
         }
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => {
@@ -1691,7 +1709,7 @@ fn reference_columns(
             validate_uuid(*company_id, "POS reference company ID")?;
             ("company", *holding_id, Some(*company_id), None)
         }
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -1746,7 +1764,7 @@ fn validate_event_type(value: &str) -> Result<(), PersistenceError> {
 
 async fn validate_source_event_versions(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<(), PersistenceError> {
     let rows = sqlx::query(
         "SELECT aggregate_id,
@@ -1754,11 +1772,11 @@ async fn validate_source_event_versions(
                 COUNT(DISTINCT aggregate_version)::BIGINT AS version_count,
                 MIN(aggregate_version)::BIGINT AS first_version,
                 MAX(aggregate_version)::BIGINT AS last_version
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type=$2
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type=$2
          GROUP BY aggregate_id",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(POS_AGGREGATE)
     .fetch_all(&mut **tx)
     .await?;
@@ -1880,7 +1898,7 @@ fn validate_source_cursor(cursor: &PosSourceEventCursor) -> Result<(), Persisten
     Ok(())
 }
 
-fn validate_holding_ref(value: &str) -> Result<(), PersistenceError> {
+fn validate_data_profile_key(value: &str) -> Result<(), PersistenceError> {
     if value.trim().is_empty() || value.len() > 255 || value.chars().any(char::is_control) {
         return Err(PersistenceError::Configuration(
             "holding reference must be bounded and non-empty",
@@ -1959,7 +1977,7 @@ mod tests {
     async fn constructor_and_page_bounds_fail_closed() {
         let pool = PgPool::connect_lazy("postgres://unused").expect("lazy pool");
         assert!(SqlxPosProjectionStore::from_pools(&pool, &pool, " ").is_err());
-        assert!(SqlxPosProjectionStore::from_pools(&pool, &pool, "tenant\nref").is_err());
+        assert!(SqlxPosProjectionStore::from_pools(&pool, &pool, "holding\nref").is_err());
         assert!(
             validate_read_scope(PosReadScope {
                 holding_id: Uuid::nil(),

@@ -11,8 +11,8 @@ name = "infra_platform"
 path = "tests/infra_platform.rs"
 
 [[test]]
-name = "infra_tenant_runtime"
-path = "tests/infra_tenant_runtime.rs"
+name = "infra_holding_runtime"
+path = "tests/infra_holding_runtime.rs"
 
 [[test]]
 name = "infra_finance"

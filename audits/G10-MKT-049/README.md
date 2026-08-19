@@ -4,7 +4,7 @@
 
 This packet adds independent acceptance coverage for the final Marketing
 delivery claim boundary. The existing authoritative implementation loads
-consent and suppression rows from the tenant write database inside the claim
+consent and suppression rows from the holding write database inside the claim
 transaction before `DeliveryDispatch::begin_attempt` can reserve a provider
 attempt.
 

@@ -7,7 +7,7 @@ use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
     ItemDescriptorDraft, record_policy_id,
 };
-use erpx_kernel::{AggregateId, CommandId, DataClassification, EventId, TenantScope};
+use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId};
 use erpx_quality::{
     domain::{
         InspectionId, InspectionKind, InspectionStatus, QualityInspection, QualityInspectionState,
@@ -49,10 +49,10 @@ struct AuthoritySqlScope {
 }
 
 impl AuthoritySqlScope {
-    fn try_from_scope(scope: &TenantScope) -> Result<Self, PortError> {
+    fn try_from_scope(scope: &AuthorityScope) -> Result<Self, PortError> {
         scope.validate().map_err(|_| PortError::Denied)?;
         Ok(match scope {
-            TenantScope::Platform => Self {
+            AuthorityScope::Platform => Self {
                 mode: "platform",
                 holding_id: None,
                 company_id: None,
@@ -60,7 +60,7 @@ impl AuthoritySqlScope {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Holding { holding_id } => Self {
+            AuthorityScope::Holding { holding_id } => Self {
                 mode: "holding",
                 holding_id: Some(*holding_id),
                 company_id: None,
@@ -68,7 +68,7 @@ impl AuthoritySqlScope {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => Self {
@@ -79,7 +79,7 @@ impl AuthoritySqlScope {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -91,17 +91,16 @@ impl AuthoritySqlScope {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Self {
                 mode: "subtree",
                 holding_id: Some(*holding_id),
                 company_id: None,
                 branch_id: None,
-                company_ids: company_ids.clone(),
-                branch_ids: branch_ids.clone(),
+                company_ids: vec![*organization_node_id],
+                branch_ids: Vec::new(),
             },
         })
     }
@@ -123,7 +122,7 @@ impl AtomicCommandGuard for QualityInspectionGuard {
         let current: Option<i64> = sqlx::query_scalar(
             "SELECT aggregate_version
              FROM erpx_quality_write.inspection_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND inspection_id=$1
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND inspection_id=$1
              FOR UPDATE",
         )
         .bind(self.aggregate.id().as_uuid())
@@ -157,12 +156,12 @@ impl AtomicCommandGuard for QualityInspectionGuard {
         }
         let result = sqlx::query(
             "INSERT INTO erpx_quality_write.inspection_authority
-                (tenant_id,inspection_id,aggregate_version,reference,holding_id,company_id,
+                (holding_id,inspection_id,aggregate_version,reference,holding_id,company_id,
                  branch_id,inspection_kind,product_id,lot_reference,quantity,passed_quantity,
                  failed_quantity,inspection_status,disposition_note,created_at,updated_at)
-             VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,
+             VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,
                      $10,$11,$12,$13,$14,$15,$16)
-             ON CONFLICT (tenant_id,inspection_id) DO UPDATE SET
+             ON CONFLICT (holding_id,inspection_id) DO UPDATE SET
                 aggregate_version=EXCLUDED.aggregate_version,
                 reference=EXCLUDED.reference,holding_id=EXCLUDED.holding_id,
                 company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,
@@ -172,8 +171,8 @@ impl AtomicCommandGuard for QualityInspectionGuard {
                 inspection_status=EXCLUDED.inspection_status,
                 disposition_note=EXCLUDED.disposition_note,created_at=EXCLUDED.created_at,
                 updated_at=EXCLUDED.updated_at
-             WHERE erpx_quality_write.inspection_authority.tenant_id=
-                       erpx_cqrs_write.current_tenant_id()
+             WHERE erpx_quality_write.inspection_authority.holding_id=
+                       erpx_cqrs_write.current_holding_id()
                AND erpx_quality_write.inspection_authority.aggregate_version + 1 =
                        EXCLUDED.aggregate_version",
         )
@@ -224,7 +223,7 @@ fn validate_guard_context(
 impl WriteRepository for QualityWriteRepository {
     async fn load(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         inspection_id: InspectionId,
     ) -> Result<Option<QualityInspection>, PortError> {
         let authority = AuthoritySqlScope::try_from_scope(authority_scope)?;
@@ -234,7 +233,7 @@ impl WriteRepository for QualityWriteRepository {
                     inspection_kind,product_id,lot_reference,quantity,passed_quantity,
                     failed_quantity,inspection_status,disposition_note,created_at,updated_at
              FROM erpx_quality_write.inspection_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND inspection_id=$1
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND inspection_id=$1
                AND (
                  $2='platform'
                  OR ($2='holding' AND holding_id=$3)
@@ -266,12 +265,12 @@ impl WriteRepository for QualityWriteRepository {
         let company_id: Uuid = row.try_get("company_id").map_err(|_| PortError::Internal)?;
         let branch_id: Option<Uuid> = row.try_get("branch_id").map_err(|_| PortError::Internal)?;
         let scope = match branch_id {
-            Some(branch_id) => TenantScope::Branch {
+            Some(branch_id) => AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
             },
-            None => TenantScope::Company {
+            None => AuthorityScope::Company {
                 holding_id,
                 company_id,
             },
@@ -406,7 +405,7 @@ impl CommandUnitOfWork for QualityCommandAdapter {
             payload: QualityOutboxPayload::Directory(directory_draft),
         });
 
-        let tenant_scope = request.aggregate.scope().clone();
+        let active_scope = request.aggregate.scope().clone();
         let aggregate = request.aggregate;
         let command = AtomicCommand {
             context: CONTEXT_NAME.into(),
@@ -415,7 +414,7 @@ impl CommandUnitOfWork for QualityCommandAdapter {
             correlation_id: request.correlation_id,
             idempotency_key,
             request_hash,
-            tenant_scope,
+            active_scope,
             actor: request.actor,
             audit_context: request.audit,
             aggregate_type: AGGREGATE_TYPE.into(),
@@ -642,7 +641,7 @@ mod tests {
     fn fingerprint(quantity: u64) -> CommandFingerprint {
         CommandFingerprint::Create {
             inspection_id: inspection_id(1),
-            scope: TenantScope::Company {
+            scope: AuthorityScope::Company {
                 holding_id: Uuid::from_u128(2),
                 company_id: Uuid::from_u128(3),
             },

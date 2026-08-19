@@ -1,12 +1,12 @@
 use std::{io, time::Duration};
 
 use erpx_infrastructure::{
-    ControlPlaneDatabaseConfig, ControlPlanePoolSettings, ControlPlanePools, PersistenceError,
-    RoutedDatabaseSide, SqlxControlPlane, TenantBackupRun, TenantDatabaseProvisioner,
-    TenantDatabaseProvisioningConfig, TenantDatabaseRouter, TenantProvisioner,
-    TenantSourceProjection, TenantStoreRegistration,
+    ControlPlaneDatabaseConfig, ControlPlanePoolSettings, ControlPlanePools, HoldingBackupRun,
+    HoldingDatabaseProvisioner, HoldingDatabaseProvisioningConfig, HoldingDatabaseRouter,
+    HoldingProvisioner, HoldingSourceProjection, HoldingStoreRegistration, PersistenceError,
+    RoutedDatabaseSide, SqlxControlPlane,
 };
-use erpx_migration::{migrate_control_plane, migrate_control_read, migrate_tenant_read};
+use erpx_migration::{migrate_control_plane, migrate_control_read, migrate_holding_read};
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use uuid::Uuid;
 
@@ -64,7 +64,7 @@ fn template_url(
     database: &str,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     if template.matches("{database}").count() != 1 {
-        return Err(test_error("tenant database URL template is invalid"));
+        return Err(test_error("holding database URL template is invalid"));
     }
     Ok(template.replace("{database}", database))
 }
@@ -144,7 +144,7 @@ async fn migrate_candidate_read(url: &str) -> TestResult {
         .connect(url)
         .await
         .map_err(|_| test_error("connect replacement read database"))?;
-    migrate_tenant_read(&pool)
+    migrate_holding_read(&pool)
         .await
         .map_err(|_| test_error("migrate replacement read database"))?;
     pool.close().await;
@@ -156,15 +156,17 @@ async fn assert_forced_rls(pool: &PgPool) -> TestResult {
         "SELECT COUNT(*)
          FROM pg_class AS c
          JOIN pg_namespace AS n ON n.oid = c.relnamespace
-         WHERE n.nspname = 'erpx_tenant'
+         WHERE n.nspname = 'erpx_holding'
            AND c.relkind IN ('r', 'p')
            AND (NOT c.relrowsecurity OR NOT c.relforcerowsecurity)",
     )
     .fetch_one(pool)
     .await
-    .map_err(|_| test_error("inspect tenant RLS metadata"))?;
+    .map_err(|_| test_error("inspect holding RLS metadata"))?;
     if unprotected != 0 {
-        return Err(test_error("tenant relation is not protected by forced RLS"));
+        return Err(test_error(
+            "holding relation is not protected by forced RLS",
+        ));
     }
     Ok(())
 }
@@ -172,20 +174,20 @@ async fn assert_forced_rls(pool: &PgPool) -> TestResult {
 async fn run_real_provisioning_replacement() -> TestResult {
     let admin_url = std::env::var("ERPX_TEST_ADMIN_DATABASE_URL")
         .unwrap_or_else(|_| "postgres://localhost/postgres?sslmode=verify-full".into());
-    let tenant_template = std::env::var("ERPX_TEST_TENANT_DATABASE_URL_TEMPLATE")
+    let holding_template = std::env::var("ERPX_TEST_HOLDING_DATABASE_URL_TEMPLATE")
         .unwrap_or_else(|_| "postgres://localhost/{database}?sslmode=verify-full".into());
     let control_write_key = database_name("erpx_prv007_cw");
     let control_read_key = database_name("erpx_prv007_cr");
-    let tenant_write_key = database_name("erpx_prv007_tw");
-    let tenant_read_key = database_name("erpx_prv007_tr");
+    let holding_write_key = database_name("erpx_prv007_tw");
+    let holding_read_key = database_name("erpx_prv007_tr");
     let managed_candidate_key = database_name("erpx_prv020_rm");
     let failed_candidate_key = database_name("erpx_prv007_rf");
     let successful_candidate_key = database_name("erpx_prv007_rs");
     let database_names = vec![
         control_write_key.clone(),
         control_read_key.clone(),
-        tenant_write_key.clone(),
-        tenant_read_key.clone(),
+        holding_write_key.clone(),
+        holding_read_key.clone(),
         managed_candidate_key.clone(),
         failed_candidate_key.clone(),
         successful_candidate_key.clone(),
@@ -214,15 +216,15 @@ async fn run_real_provisioning_replacement() -> TestResult {
             .await
             .map_err(|_| test_error("migrate disposable control read database"))?;
         let store = std::sync::Arc::new(SqlxControlPlane::new(pools));
-        let provisioner = TenantProvisioner::new(store.clone());
-        let tenant_id = Uuid::new_v4().to_string();
-        let holding_ref = format!("holding-prv007-{}", Uuid::new_v4().simple());
+        let provisioner = HoldingProvisioner::new(store.clone());
+        let holding_id = Uuid::new_v4().to_string();
+        let data_profile_key = format!("holding-prv007-{}", Uuid::new_v4().simple());
         provisioner
-            .begin(TenantStoreRegistration {
-                tenant_id: tenant_id.clone(),
-                holding_ref: holding_ref.clone(),
-                write_database_key: tenant_write_key.clone(),
-                read_database_key: tenant_read_key.clone(),
+            .begin(HoldingStoreRegistration {
+                holding_id: holding_id.clone(),
+                data_profile_key: data_profile_key.clone(),
+                write_database_key: holding_write_key.clone(),
+                read_database_key: holding_read_key.clone(),
                 storage_namespace: format!("storage-prv007-{}", Uuid::new_v4().simple()),
                 credential_key_ref: "credential-ref-prv007".into(),
                 backup_chain_ref: "backup-chain-prv007".into(),
@@ -230,100 +232,100 @@ async fn run_real_provisioning_replacement() -> TestResult {
                 registry_version: 1,
             })
             .await
-            .map_err(|_| test_error("register disposable tenant"))?;
+            .map_err(|_| test_error("register disposable holding"))?;
 
-        let routing_config = TenantDatabaseProvisioningConfig::from_values(
+        let routing_config = HoldingDatabaseProvisioningConfig::from_values(
             admin_url.clone(),
-            tenant_template.clone(),
+            holding_template.clone(),
         )
-        .map_err(|_| test_error("validate tenant routing configuration"))?;
-        let physical = TenantDatabaseProvisioner::new(store.clone(), routing_config.clone())
-            .map_err(|_| test_error("construct tenant database provisioner"))?
-            .provision_databases(&tenant_id)
+        .map_err(|_| test_error("validate holding routing configuration"))?;
+        let physical = HoldingDatabaseProvisioner::new(store.clone(), routing_config.clone())
+            .map_err(|_| test_error("construct holding database provisioner"))?
+            .provision_databases(&holding_id)
             .await
-            .map_err(|_| test_error("provision tenant write and read databases"))?;
-        let repeated = TenantDatabaseProvisioner::new(store.clone(), routing_config.clone())
-            .map_err(|_| test_error("construct idempotent tenant provisioner"))?
-            .provision_databases(&tenant_id)
+            .map_err(|_| test_error("provision holding write and read databases"))?;
+        let repeated = HoldingDatabaseProvisioner::new(store.clone(), routing_config.clone())
+            .map_err(|_| test_error("construct idempotent holding provisioner"))?
+            .provision_databases(&holding_id)
             .await
-            .map_err(|_| test_error("repeat tenant database provisioning"))?;
+            .map_err(|_| test_error("repeat holding database provisioning"))?;
         if physical != repeated {
             return Err(test_error(
-                "repeat provisioning changed tenant database identity",
+                "repeat provisioning changed holding database identity",
             ));
         }
 
-        let write_url = template_url(&tenant_template, &tenant_write_key)?;
-        let read_url = template_url(&tenant_template, &tenant_read_key)?;
+        let write_url = template_url(&holding_template, &holding_write_key)?;
+        let read_url = template_url(&holding_template, &holding_read_key)?;
         let write_pool =
-            connect_database_with_retry(&write_url, "connect provisioned tenant write database")
+            connect_database_with_retry(&write_url, "connect provisioned holding write database")
                 .await?;
         let read_pool =
-            connect_database_with_retry(&read_url, "connect provisioned tenant read database")
+            connect_database_with_retry(&read_url, "connect provisioned holding read database")
                 .await?;
         assert_forced_rls(&write_pool).await?;
         assert_forced_rls(&read_pool).await?;
         let write_database: String = sqlx::query_scalar("SELECT current_database()")
             .fetch_one(&write_pool)
             .await
-            .map_err(|_| test_error("identify tenant write database"))?;
+            .map_err(|_| test_error("identify holding write database"))?;
         let read_database: String = sqlx::query_scalar("SELECT current_database()")
             .fetch_one(&read_pool)
             .await
-            .map_err(|_| test_error("identify tenant read database"))?;
-        if write_database != tenant_write_key || read_database != tenant_read_key {
+            .map_err(|_| test_error("identify holding read database"))?;
+        if write_database != holding_write_key || read_database != holding_read_key {
             return Err(test_error(
-                "tenant write/read route is not physically isolated",
+                "holding write/read route is not physically isolated",
             ));
         }
         write_pool.close().await;
         read_pool.close().await;
 
-        let router = TenantDatabaseRouter::new(store.clone(), routing_config.clone())
-            .map_err(|_| test_error("construct tenant database router"))?;
+        let router = HoldingDatabaseRouter::new(store.clone(), routing_config.clone())
+            .map_err(|_| test_error("construct holding database router"))?;
         if router
-            .route(&tenant_id, &holding_ref, RoutedDatabaseSide::Write)
+            .route(&holding_id, &data_profile_key, RoutedDatabaseSide::Write)
             .await
             .is_ok()
         {
-            return Err(test_error("inactive tenant was routable"));
+            return Err(test_error("inactive holding was routable"));
         }
-        if provisioner.activate(&tenant_id).await.is_ok() {
+        if provisioner.activate(&holding_id).await.is_ok() {
             return Err(test_error("activation bypassed storage health"));
         }
-        let failed_storage = TenantDatabaseProvisioner::new(store.clone(), routing_config.clone())
+        let failed_storage = HoldingDatabaseProvisioner::new(store.clone(), routing_config.clone())
             .map_err(|_| test_error("construct failed storage provisioner"))?
-            .provision_storage_namespace(&tenant_id, |_namespace| async {
+            .provision_storage_namespace(&holding_id, |_namespace| async {
                 Err(erpx_infrastructure::ObjectStorageError::HttpStatus { status: 503 })
             })
             .await;
-        if failed_storage.is_ok() || provisioner.activate(&tenant_id).await.is_ok() {
+        if failed_storage.is_ok() || provisioner.activate(&holding_id).await.is_ok() {
             return Err(test_error(
                 "failed storage verification did not block activation",
             ));
         }
         let successful_storage =
-            TenantDatabaseProvisioner::new(store.clone(), routing_config.clone())
+            HoldingDatabaseProvisioner::new(store.clone(), routing_config.clone())
                 .map_err(|_| test_error("construct successful storage provisioner"))?
-                .provision_storage_namespace(&tenant_id, move |_namespace| async { Ok(()) })
+                .provision_storage_namespace(&holding_id, move |_namespace| async { Ok(()) })
                 .await
-                .map_err(|_| test_error("verify tenant storage namespace"))?;
+                .map_err(|_| test_error("verify holding storage namespace"))?;
         if !successful_storage.reachable {
             return Err(test_error(
                 "successful storage verification was not reachable",
             ));
         }
         provisioner
-            .activate(&tenant_id)
+            .activate(&holding_id)
             .await
-            .map_err(|_| test_error("activate physically provisioned tenant"))?;
+            .map_err(|_| test_error("activate physically provisioned holding"))?;
 
         let owned_candidate_key = format!("erpx_prv020_owned_{}", Uuid::new_v4().simple());
-        let other_tenant_id = Uuid::new_v4().to_string();
+        let other_holding_id = Uuid::new_v4().to_string();
         provisioner
-            .begin(TenantStoreRegistration {
-                tenant_id: other_tenant_id,
-                holding_ref: format!("holding-prv020-owner-{}", Uuid::new_v4().simple()),
+            .begin(HoldingStoreRegistration {
+                holding_id: other_holding_id,
+                data_profile_key: format!("holding-prv020-owner-{}", Uuid::new_v4().simple()),
                 write_database_key: format!("erpx_prv020_other_write_{}", Uuid::new_v4().simple()),
                 read_database_key: owned_candidate_key.clone(),
                 storage_namespace: format!("storage-prv020-owner-{}", Uuid::new_v4().simple()),
@@ -333,56 +335,56 @@ async fn run_real_provisioning_replacement() -> TestResult {
                 registry_version: 1,
             })
             .await
-            .map_err(|_| test_error("register candidate owner tenant"))?;
+            .map_err(|_| test_error("register candidate owner holding"))?;
         if provisioner
-            .begin_read_rebuild(&tenant_id, &owned_candidate_key, 42)
+            .begin_read_rebuild(&holding_id, &owned_candidate_key, 42)
             .await
             .is_ok()
         {
-            return Err(test_error("cross-tenant candidate ownership was accepted"));
+            return Err(test_error("cross-holding candidate ownership was accepted"));
         }
 
         let routed_write = router
-            .route(&tenant_id, &holding_ref, RoutedDatabaseSide::Write)
+            .route(&holding_id, &data_profile_key, RoutedDatabaseSide::Write)
             .await
-            .map_err(|_| test_error("route active tenant write database"))?;
+            .map_err(|_| test_error("route active holding write database"))?;
         routed_write
             .probe()
             .await
-            .map_err(|_| test_error("probe active tenant write database"))?;
+            .map_err(|_| test_error("probe active holding write database"))?;
         if router
-            .route(&tenant_id, "wrong-holding", RoutedDatabaseSide::Write)
+            .route(&holding_id, "wrong-holding", RoutedDatabaseSide::Write)
             .await
             .is_ok()
         {
-            return Err(test_error("tenant route crossed holding scope"));
+            return Err(test_error("holding route crossed holding scope"));
         }
         let mut scoped = routed_write
             .begin_scoped()
             .await
-            .map_err(|_| test_error("begin holding-scoped tenant write"))?;
+            .map_err(|_| test_error("begin holding-scoped holding write"))?;
         let scoped_holding: String =
-            sqlx::query_scalar("SELECT current_setting('erpx.holding_ref')")
+            sqlx::query_scalar("SELECT current_setting('erpx.data_profile_key')")
                 .fetch_one(&mut *scoped)
                 .await
-                .map_err(|_| test_error("read holding-scoped tenant setting"))?;
-        if scoped_holding != holding_ref {
-            return Err(test_error("tenant write transaction lost holding scope"));
+                .map_err(|_| test_error("read holding-scoped holding setting"))?;
+        if scoped_holding != data_profile_key {
+            return Err(test_error("holding write transaction lost holding scope"));
         }
         sqlx::query(
             "INSERT INTO erpx_cqrs_write.outbox_events
                 (event_id, context_name, partition_key, command_id, event_type,
                  event_version, aggregate_type, aggregate_id, aggregate_version,
-                 tenant_scope, actor, correlation_id, causation_id, payload,
+                 active_scope, actor, correlation_id, causation_id, payload,
                  occurred_at, available_at)
              VALUES ($1, 'operations', $2, $3, 'operations.restore-test-fixture',
                      1, 'fixture', $4, 1, $5, $6, $7, NULL, '{}'::jsonb, $8, $8)",
         )
         .bind(Uuid::new_v4())
-        .bind(&holding_ref)
+        .bind(&data_profile_key)
         .bind(Uuid::new_v4())
         .bind(Uuid::new_v4())
-        .bind(serde_json::json!({"holding_ref": holding_ref}))
+        .bind(serde_json::json!({"data_profile_key": data_profile_key}))
         .bind(serde_json::json!({"actor_ref": "restore-test-fixture"}))
         .bind(Uuid::new_v4())
         .bind(chrono::Utc::now())
@@ -392,16 +394,17 @@ async fn run_real_provisioning_replacement() -> TestResult {
         scoped
             .commit()
             .await
-            .map_err(|_| test_error("commit holding-scoped tenant write"))?;
+            .map_err(|_| test_error("commit holding-scoped holding write"))?;
         routed_write.close().await;
 
-        migrate_candidate_read(&template_url(&tenant_template, &failed_candidate_key)?).await?;
-        migrate_candidate_read(&template_url(&tenant_template, &successful_candidate_key)?).await?;
-        let previous_read_key = tenant_read_key.clone();
+        migrate_candidate_read(&template_url(&holding_template, &failed_candidate_key)?).await?;
+        migrate_candidate_read(&template_url(&holding_template, &successful_candidate_key)?)
+            .await?;
+        let previous_read_key = holding_read_key.clone();
         let failed_run_id = Uuid::new_v4();
-        let failed_run = TenantBackupRun {
+        let failed_run = HoldingBackupRun {
             id: failed_run_id,
-            tenant_id: tenant_id.clone(),
+            holding_id: holding_id.clone(),
             kind: "restore_test".into(),
             status: "started".into(),
             backup_ref: "backup-prv007".into(),
@@ -428,7 +431,7 @@ async fn run_real_provisioning_replacement() -> TestResult {
         }
         let failed_state: (String, bool, Option<String>) = sqlx::query_as(
             "SELECT status, verified, error
-             FROM erpx_control.tenant_backup_runs WHERE id = $1",
+             FROM erpx_control.holding_backup_runs WHERE id = $1",
         )
         .bind(failed_run_id)
         .fetch_one(&store.pools().write)
@@ -441,21 +444,21 @@ async fn run_real_provisioning_replacement() -> TestResult {
             return Err(test_error("failed restore test state was not durable"));
         }
         let after_failed_read: String = sqlx::query_scalar(
-            "SELECT read_database_key FROM erpx_control.tenant_registry WHERE tenant_id = $1",
+            "SELECT read_database_key FROM erpx_control.holding_registry WHERE holding_id = $1",
         )
-        .bind(&tenant_id)
+        .bind(&holding_id)
         .fetch_one(&store.pools().write)
         .await
-        .map_err(|_| test_error("read tenant registry after failed restore"))?;
+        .map_err(|_| test_error("read holding registry after failed restore"))?;
         if after_failed_read != previous_read_key {
             return Err(test_error(
                 "failed restore test switched the active read database",
             ));
         }
         let failed_switches: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM erpx_control.tenant_projection_switches WHERE tenant_id = $1",
+            "SELECT COUNT(*) FROM erpx_control.holding_projection_switches WHERE holding_id = $1",
         )
-        .bind(&tenant_id)
+        .bind(&holding_id)
         .fetch_one(&store.pools().write)
         .await
         .map_err(|_| test_error("count failed restore switches"))?;
@@ -466,12 +469,12 @@ async fn run_real_provisioning_replacement() -> TestResult {
         }
 
         let managed_generation = provisioner
-            .begin_read_rebuild_with_generation(&tenant_id, &managed_candidate_key, 42)
+            .begin_read_rebuild_with_generation(&holding_id, &managed_candidate_key, 42)
             .await
             .map_err(|_| test_error("begin managed replacement read rebuild"))?;
         if provisioner
             .complete_read_rebuild_if_generation(
-                &tenant_id,
+                &holding_id,
                 &managed_candidate_key,
                 managed_generation.saturating_add(1),
             )
@@ -480,15 +483,19 @@ async fn run_real_provisioning_replacement() -> TestResult {
         {
             return Err(test_error("stale replacement generation was accepted"));
         }
-        TenantDatabaseProvisioner::new(store.clone(), routing_config.clone())
+        HoldingDatabaseProvisioner::new(store.clone(), routing_config.clone())
             .map_err(|_| test_error("construct managed replacement provisioner"))?
-            .provision_replacement_read_database(&tenant_id, &holding_ref, &managed_candidate_key)
+            .provision_replacement_read_database(
+                &holding_id,
+                &data_profile_key,
+                &managed_candidate_key,
+            )
             .await
             .map_err(|_| test_error("provision managed replacement read database"))?;
         let managed_candidate = router
             .route_replacement_read_for_generation(
-                &tenant_id,
-                &holding_ref,
+                &holding_id,
+                &data_profile_key,
                 &managed_candidate_key,
                 managed_generation,
                 42,
@@ -502,14 +509,14 @@ async fn run_real_provisioning_replacement() -> TestResult {
         managed_candidate.close().await;
         provisioner
             .complete_read_rebuild_if_generation(
-                &tenant_id,
+                &holding_id,
                 &managed_candidate_key,
                 managed_generation,
             )
             .await
             .map_err(|_| test_error("complete managed replacement read rebuild"))?;
         if !router
-            .replacement_read_is_ready(&tenant_id, &managed_candidate_key, managed_generation, 42)
+            .replacement_read_is_ready(&holding_id, &managed_candidate_key, managed_generation, 42)
             .await
             .map_err(|_| test_error("observe ready managed replacement read"))?
         {
@@ -517,23 +524,23 @@ async fn run_real_provisioning_replacement() -> TestResult {
         }
         provisioner
             .activate_read_database_if_generation(
-                &tenant_id,
+                &holding_id,
                 &managed_candidate_key,
                 managed_generation,
             )
             .await
             .map_err(|_| test_error("activate managed replacement read rebuild"))?;
         if !router
-            .replacement_read_is_activated(&tenant_id, &managed_candidate_key, managed_generation)
+            .replacement_read_is_activated(&holding_id, &managed_candidate_key, managed_generation)
             .await
             .map_err(|_| test_error("observe activated managed replacement read"))?
         {
             return Err(test_error("activated replacement was not observed"));
         }
         let active_managed_read: String = sqlx::query_scalar(
-            "SELECT read_database_key FROM erpx_control.tenant_registry WHERE tenant_id = $1",
+            "SELECT read_database_key FROM erpx_control.holding_registry WHERE holding_id = $1",
         )
-        .bind(&tenant_id)
+        .bind(&holding_id)
         .fetch_one(&store.pools().write)
         .await
         .map_err(|_| test_error("read active managed replacement"))?;
@@ -541,9 +548,9 @@ async fn run_real_provisioning_replacement() -> TestResult {
             return Err(test_error("generation-bound replacement did not activate"));
         }
         let stale_run_id = Uuid::new_v4();
-        let stale_run = TenantBackupRun {
+        let stale_run = HoldingBackupRun {
             id: stale_run_id,
-            tenant_id: tenant_id.clone(),
+            holding_id: holding_id.clone(),
             kind: "restore_test".into(),
             status: "started".into(),
             backup_ref: "backup-prv007".into(),
@@ -558,9 +565,9 @@ async fn run_real_provisioning_replacement() -> TestResult {
             .execute_restore_test_with_routed_read_replacement(
                 &router,
                 stale_run,
-                &holding_ref,
+                &data_profile_key,
                 &successful_candidate_key,
-                TenantSourceProjection::Operations,
+                HoldingSourceProjection::Operations,
                 2,
                 |_registration, _run, _candidate, _source_version| async {
                     Ok::<(bool, bool), PersistenceError>((true, true))
@@ -573,7 +580,7 @@ async fn run_real_provisioning_replacement() -> TestResult {
         }
         let stale_state: (String, bool, Option<String>) = sqlx::query_as(
             "SELECT status, verified, error
-             FROM erpx_control.tenant_backup_runs WHERE id = $1",
+             FROM erpx_control.holding_backup_runs WHERE id = $1",
         )
         .bind(stale_run_id)
         .fetch_one(&store.pools().write)
@@ -586,9 +593,9 @@ async fn run_real_provisioning_replacement() -> TestResult {
             return Err(test_error("stale restore test was not durably failed"));
         }
 
-        let successful_run = TenantBackupRun {
+        let successful_run = HoldingBackupRun {
             id: Uuid::new_v4(),
-            tenant_id: tenant_id.clone(),
+            holding_id: holding_id.clone(),
             kind: "restore_test".into(),
             status: "started".into(),
             backup_ref: "backup-prv007".into(),
@@ -603,9 +610,9 @@ async fn run_real_provisioning_replacement() -> TestResult {
             .execute_restore_test_with_routed_read_replacement(
                 &router,
                 successful_run,
-                &holding_ref,
+                &data_profile_key,
                 &successful_candidate_key,
-                TenantSourceProjection::Operations,
+                HoldingSourceProjection::Operations,
                 1,
                 |_registration, _run, _candidate, _source_version| async {
                     Ok::<(bool, bool), PersistenceError>((true, true))
@@ -621,19 +628,19 @@ async fn run_real_provisioning_replacement() -> TestResult {
             return Err(test_error("verified restore test was not marked verified"));
         }
         let switched_read: String = sqlx::query_scalar(
-            "SELECT read_database_key FROM erpx_control.tenant_registry WHERE tenant_id = $1",
+            "SELECT read_database_key FROM erpx_control.holding_registry WHERE holding_id = $1",
         )
-        .bind(&tenant_id)
+        .bind(&holding_id)
         .fetch_one(&store.pools().write)
         .await
-        .map_err(|_| test_error("read tenant registry after successful restore"))?;
+        .map_err(|_| test_error("read holding registry after successful restore"))?;
         if switched_read != successful_candidate_key {
             return Err(test_error(
                 "verified restore did not activate replacement read",
             ));
         }
         let switched_route = router
-            .route(&tenant_id, &holding_ref, RoutedDatabaseSide::Read)
+            .route(&holding_id, &data_profile_key, RoutedDatabaseSide::Read)
             .await
             .map_err(|_| test_error("route replacement read database"))?;
         switched_route

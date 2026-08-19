@@ -98,7 +98,7 @@ fn map_event(
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
-    use erpx_kernel::TenantScope;
+    use erpx_kernel::AuthorityScope;
     use uuid::Uuid;
 
     use super::*;
@@ -109,7 +109,7 @@ mod tests {
         let at = Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap();
         let mut item = StockItem::register(
             StockItemId::try_from_uuid(Uuid::from_u128(1)).unwrap(),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id: Uuid::from_u128(2),
                 company_id: Uuid::from_u128(3),
             },

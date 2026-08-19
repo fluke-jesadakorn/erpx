@@ -1,4 +1,4 @@
-//! Tenant Finance projection runtimes.
+//! Holding Finance projection runtimes.
 
 use erpx_cqrs_sqlx::{
     CqrsSqlxError, ProjectionPool, ProjectionRun, ProjectionRunner, ProjectionRunnerConfig,

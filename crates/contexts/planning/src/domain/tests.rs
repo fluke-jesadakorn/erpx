@@ -4,7 +4,7 @@ use chrono::{NaiveDate, TimeZone, Utc};
 use erpx_integration_contracts::{
     Quantity, RecordVersionRef, StableRecordRef, catalog::ContextId, reference::RecordTypeId,
 };
-use erpx_kernel::{CorrelationId, RecordId, TenantScope};
+use erpx_kernel::{AuthorityScope, CorrelationId, RecordId};
 use uuid::Uuid;
 
 use super::*;
@@ -23,8 +23,8 @@ fn at(hour: u32) -> chrono::DateTime<Utc> {
 fn day(day: u32) -> NaiveDate {
     NaiveDate::from_ymd_opt(2026, 8, day).unwrap()
 }
-fn scope() -> TenantScope {
-    TenantScope::Branch {
+fn scope() -> AuthorityScope {
+    AuthorityScope::Branch {
         holding_id: uuid(1),
         company_id: uuid(2),
         branch_id: uuid(3),

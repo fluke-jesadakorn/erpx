@@ -1,7 +1,7 @@
-//! Tenant-routed generation-v2 projectors for future enterprise contexts.
+//! Holding-routed current projectors for future enterprise contexts.
 //!
-//! Construction requires already tenant-bound CQRS capabilities. The runtime
-//! never discovers tenants from environment input and never reads write models
+//! Construction requires already holding-bound CQRS capabilities. The runtime
+//! never discovers holdings from environment input and never reads write models
 //! as a query fallback.
 
 use erpx_benefits_sqlx::BenefitsProjector;
@@ -16,7 +16,7 @@ use erpx_ecommerce_sqlx::{
     CommerceChannelProjector, CommerceJourneyProjector, CommerceListingProjector,
 };
 use erpx_field_service_sqlx::FieldServiceProjector;
-use erpx_kernel::TenantId;
+use erpx_kernel::HoldingId;
 use erpx_learning_sqlx::LearningProjector;
 use erpx_manufacturing_sqlx::ManufacturingProjector;
 use erpx_planning_sqlx::PlanningProjector;
@@ -76,7 +76,7 @@ impl FutureEnterpriseProjectionRuntime {
     pub fn new(
         write: WritePool,
         read: ProjectionPool,
-        tenant_id: TenantId,
+        holding_id: HoldingId,
         config: ProjectionRunnerConfig,
     ) -> Result<Self, CqrsSqlxError> {
         let store = ProjectionStore::new(read);
@@ -94,12 +94,12 @@ impl FutureEnterpriseProjectionRuntime {
             learning: LearningProjector::new(),
             benefits: BenefitsProjector::new(),
             field_service: FieldServiceProjector::new(),
-            projects: ProjectsProjector::new(tenant_id),
-            projects_hierarchy: ProjectsHierarchyProjector::new(tenant_id),
-            projects_records: ProjectsRecordProjector::new(tenant_id),
-            collaboration_threads: CollaborationThreadProjector::new(tenant_id),
-            collaboration_stream: CollaborationStreamProjector::new(tenant_id),
-            collaboration_inbox: CollaborationInboxProjector::new(tenant_id),
+            projects: ProjectsProjector::new(holding_id),
+            projects_hierarchy: ProjectsHierarchyProjector::new(holding_id),
+            projects_records: ProjectsRecordProjector::new(holding_id),
+            collaboration_threads: CollaborationThreadProjector::new(holding_id),
+            collaboration_stream: CollaborationStreamProjector::new(holding_id),
+            collaboration_inbox: CollaborationInboxProjector::new(holding_id),
         })
     }
     pub fn registrations(&self) -> Vec<FutureEnterpriseProjectionRegistration> {

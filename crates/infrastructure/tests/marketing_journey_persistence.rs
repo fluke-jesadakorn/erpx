@@ -4,7 +4,7 @@
 
 use chrono::{Duration, Utc};
 use erpx_domain::{
-    contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope},
+    contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext},
     marketing::MarketingChannel,
     marketing_journey::{
         Journey, JourneyChannelPayload, JourneyNode, JourneyNodeDefinition, JourneyStatus,
@@ -12,16 +12,16 @@ use erpx_domain::{
     },
 };
 use erpx_infrastructure::SqlxMarketingJourneyStore;
-use erpx_migration::migrate_tenant_write;
+use erpx_migration::migrate_holding_write;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-fn context(scope: TenantScope, key: &str) -> CommandContext {
+fn context(scope: AuthorityScope, key: &str) -> CommandContext {
     CommandContext::try_new(
         key,
         ActorAttribution {
             principal_ref: "marketing-journey-test".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: Some(Uuid::new_v4()),
             represented_principal_ref: None,
             support_capability_id: None,
@@ -32,7 +32,7 @@ fn context(scope: TenantScope, key: &str) -> CommandContext {
     .expect("valid journey test context")
 }
 
-fn journey(scope: TenantScope) -> Journey {
+fn journey(scope: AuthorityScope) -> Journey {
     let first = Uuid::new_v4();
     let second = Uuid::new_v4();
     let at = Utc::now();
@@ -74,13 +74,13 @@ fn journey(scope: TenantScope) -> Journey {
 
 #[test]
 fn migration_defines_journey_state_idempotency_and_forced_rls() {
-    let sql = include_str!("../../migration/migrations_tenant_write/0044_marketing_journeys.sql");
+    let sql = include_str!("../../migration/migrations_holding_write/0001_baseline.sql");
     for required in [
         "marketing_journeys",
         "marketing_journey_command_idempotency",
         "version BIGINT NOT NULL CHECK (version > 0)",
         "FORCE ROW LEVEL SECURITY",
-        "tenant_scope_marketing_journeys",
+        "holding_scope_marketing_journeys",
     ] {
         assert!(
             sql.contains(required),
@@ -90,23 +90,24 @@ fn migration_defines_journey_state_idempotency_and_forced_rls() {
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn journey_write_is_atomic_idempotent_versioned_and_scope_bound() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let pool = PgPool::connect(&url).await.expect("tenant write pool");
-    migrate_tenant_write(&pool)
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let pool = PgPool::connect(&url).await.expect("holding write pool");
+    migrate_holding_write(&pool)
         .await
-        .expect("tenant-write migrations");
+        .expect("holding-write migrations");
 
-    let holding_ref = format!("marketing-journey-{}", Uuid::new_v4());
-    let scope = TenantScope::Company {
+    let data_profile_key = format!("marketing-journey-{}", Uuid::new_v4());
+    let scope = AuthorityScope::Company {
         holding_id: Uuid::new_v4(),
         company_id: Uuid::new_v4(),
     };
     let draft = journey(scope.clone());
     let create_context = context(scope.clone(), "journey-create");
-    let store = SqlxMarketingJourneyStore::new(pool.clone(), &holding_ref).expect("journey store");
+    let store =
+        SqlxMarketingJourneyStore::new(pool.clone(), &data_profile_key).expect("journey store");
 
     let first = store
         .create_journey(&draft, &create_context)
@@ -155,19 +156,19 @@ async fn journey_write_is_atomic_idempotent_versioned_and_scope_bound() {
     assert_eq!(loaded.version(), 2);
 
     let mut tx = pool.begin().await.expect("inspection transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tx)
         .await
         .expect("holding scope");
     let counts: (i64, i64, i64) = sqlx::query_as(
         "SELECT
-            (SELECT count(*) FROM erpx_tenant.marketing_journeys WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.marketing_journey_command_idempotency WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND aggregate_type='marketing_journey')",
+            (SELECT count(*) FROM erpx_holding.marketing_journeys WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.marketing_journey_command_idempotency WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.outbox_events
+              WHERE data_profile_key=$1 AND aggregate_type='marketing_journey')",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .fetch_one(&mut *tx)
     .await
     .expect("durable counts");
@@ -180,12 +181,12 @@ async fn journey_write_is_atomic_idempotent_versioned_and_scope_bound() {
         Uuid,
         Option<String>,
     ) = sqlx::query_as(
-        "SELECT contract_version, event_version, tenant_scope, actor,
+        "SELECT contract_version, event_version, active_scope, actor,
                     correlation_id, idempotency_key
-               FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND event_id=$2",
+               FROM erpx_holding.outbox_events
+              WHERE data_profile_key=$1 AND event_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(first.event_id)
     .fetch_one(&mut *tx)
     .await
@@ -194,7 +195,7 @@ async fn journey_write_is_atomic_idempotent_versioned_and_scope_bound() {
     assert_eq!(envelope.1, 1);
     assert_eq!(
         envelope.2,
-        serde_json::to_value(&create_context.tenant_scope).expect("scope")
+        serde_json::to_value(&create_context.active_scope).expect("scope")
     );
     assert_eq!(
         envelope.3,
@@ -209,8 +210,8 @@ async fn journey_write_is_atomic_idempotent_versioned_and_scope_bound() {
         "SELECT relname, relforcerowsecurity
            FROM pg_class
           WHERE oid IN (
-            'erpx_tenant.marketing_journeys'::regclass,
-            'erpx_tenant.marketing_journey_command_idempotency'::regclass
+            'erpx_holding.marketing_journeys'::regclass,
+            'erpx_holding.marketing_journey_command_idempotency'::regclass
           ) ORDER BY relname",
     )
     .fetch_all(&mut *tx)
@@ -234,25 +235,25 @@ async fn journey_write_is_atomic_idempotent_versioned_and_scope_bound() {
     );
 
     let mut cleanup = pool.begin().await.expect("cleanup transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *cleanup)
         .await
         .expect("cleanup scope");
-    sqlx::query("DELETE FROM erpx_tenant.outbox_events WHERE holding_ref=$1")
-        .bind(&holding_ref)
+    sqlx::query("DELETE FROM erpx_holding.outbox_events WHERE data_profile_key=$1")
+        .bind(&data_profile_key)
         .execute(&mut *cleanup)
         .await
         .expect("cleanup outbox");
     sqlx::query(
-        "DELETE FROM erpx_tenant.marketing_journey_command_idempotency WHERE holding_ref=$1",
+        "DELETE FROM erpx_holding.marketing_journey_command_idempotency WHERE data_profile_key=$1",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .execute(&mut *cleanup)
     .await
     .expect("cleanup idempotency");
-    sqlx::query("DELETE FROM erpx_tenant.marketing_journeys WHERE holding_ref=$1")
-        .bind(&holding_ref)
+    sqlx::query("DELETE FROM erpx_holding.marketing_journeys WHERE data_profile_key=$1")
+        .bind(&data_profile_key)
         .execute(&mut *cleanup)
         .await
         .expect("cleanup journeys");

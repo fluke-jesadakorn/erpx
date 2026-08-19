@@ -131,19 +131,19 @@ fn g12_final_route_states_keep_denied_offline_cache_and_read_only_postures_disti
     let states = [
         (
             RouteState::Unauthenticated {
-                return_to: "/platform/customers".to_owned(),
+                return_to: "/platform/holdings".to_owned(),
             },
             UiStateKind::Denied,
         ),
         (
             RouteState::SessionExpired {
-                return_to: "/platform/customers/".to_owned(),
+                return_to: "/platform/holdings/".to_owned(),
             },
             UiStateKind::Denied,
         ),
         (
             RouteState::SessionRevoked {
-                return_to: "/platform/customers".to_owned(),
+                return_to: "/platform/holdings".to_owned(),
             },
             UiStateKind::Denied,
         ),
@@ -219,9 +219,9 @@ fn g12_final_route_states_keep_denied_offline_cache_and_read_only_postures_disti
     assert!(authenticated.session_metadata().is_some());
 
     let expired = RouteState::SessionExpired {
-        return_to: "/platform/customers/?tab=health".to_owned(),
+        return_to: "/platform/holdings/?tab=health".to_owned(),
     };
-    assert_eq!(expired.return_to().as_deref(), Some("/platform/customers"));
+    assert_eq!(expired.return_to().as_deref(), Some("/platform/holdings"));
 }
 
 #[test]
@@ -273,9 +273,9 @@ fn g12_final_generic_state_machine_preserves_loading_and_ready_boundaries() {
 #[test]
 fn g12_route_state_handoff_rejects_unbounded_or_target_ambiguous_paths() {
     let safe = RouteState::SessionRevoked {
-        return_to: "/platform/customers?tab=health".to_owned(),
+        return_to: "/platform/holdings?tab=health".to_owned(),
     };
-    assert_eq!(safe.return_to().as_deref(), Some("/platform/customers"));
+    assert_eq!(safe.return_to().as_deref(), Some("/platform/holdings"));
 
     let oversized = RouteState::SessionRevoked {
         return_to: format!("/{}", "customer/".repeat(100)),

@@ -19,30 +19,26 @@ pub const PROJECTION_NAME: &str = "procurement.purchase_orders";
 pub const SNAPSHOT_EVENT_TYPE: &str = "procurement.purchase_order_snapshot";
 pub const EVENT_VERSION: u32 = 1;
 
-pub const TENANT_WRITE_FOUNDATION_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0057_cqrs_foundation.sql");
-pub const TENANT_WRITE_CONTEXT_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0060_wave6_paired_context_guards.sql");
-pub const TENANT_READ_FOUNDATION_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_read/0048_cqrs_foundation.sql");
-pub const TENANT_READ_CONTEXT_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0052_wave6_paired_context_projections.sql"
-);
+pub const HOLDING_WRITE_FOUNDATION_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
+pub const HOLDING_WRITE_CONTEXT_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
+pub const HOLDING_READ_FOUNDATION_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
+pub const HOLDING_READ_CONTEXT_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 pub const WRITE_DDL: &str = concat!(
-    include_str!("../../../migration/migrations_tenant_write/0057_cqrs_foundation.sql"),
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql"),
     "\n",
-    include_str!("../../../migration/migrations_tenant_write/0060_wave6_paired_context_guards.sql")
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql")
 );
 pub const READ_DDL: &str = concat!(
-    include_str!("../../../migration/migrations_tenant_read/0048_cqrs_foundation.sql"),
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql"),
     "\n",
-    include_str!(
-        "../../../migration/migrations_tenant_read/0052_wave6_paired_context_projections.sql"
-    )
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql")
 );
-pub const NORMALIZED_AUTHORITY_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_write/0081_current_normalized_authority.sql"
-);
+pub const NORMALIZED_AUTHORITY_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 
 pub fn purchase_order_partition(id: erpx_procurement::PurchaseOrderId) -> String {
     format!("procurement.purchase_order:{}", id.as_uuid().simple())
@@ -60,8 +56,8 @@ mod tests {
             purchase_order_partition(id),
             "procurement.purchase_order:0000000000000000000000000000002a"
         );
-        assert!(TENANT_WRITE_CONTEXT_DDL.contains("purchase_order_guards"));
-        assert!(TENANT_READ_CONTEXT_DDL.contains("procurement.purchase_orders"));
+        assert!(HOLDING_WRITE_CONTEXT_DDL.contains("purchase_order_guards"));
+        assert!(HOLDING_READ_CONTEXT_DDL.contains("procurement.purchase_orders"));
     }
 
     #[test]
@@ -78,6 +74,6 @@ mod tests {
         assert!(source.contains("purchase_order_line_authority"));
         assert!(source.contains("commit_normalized"));
         assert!(!source.contains("load_snapshot"));
-        assert!(NORMALIZED_AUTHORITY_DDL.contains("FOREIGN KEY (tenant_id,purchase_order_id)"));
+        assert!(NORMALIZED_AUTHORITY_DDL.contains("FOREIGN KEY (holding_id,purchase_order_id)"));
     }
 }

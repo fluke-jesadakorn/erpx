@@ -3,7 +3,7 @@ use crate::domain::{Customer360OwnedRecord, Customer360RecordKind, Customer360Re
 use async_trait::async_trait;
 use erpx_cqrs::IdempotencyKey;
 use erpx_kernel::{
-    ActorAttribution, AuditContext, CommandId, CorrelationId, RecordId, TenantScope,
+    ActorAttribution, AuditContext, AuthorityScope, CommandId, CorrelationId, RecordId,
 };
 use serde::{Deserialize, Serialize};
 
@@ -21,7 +21,7 @@ pub struct Customer360OwnedRecordView {
 pub trait Customer360OwnedRecordQueryPort: Send + Sync {
     async fn get_owned_record(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         record_id: RecordId,
     ) -> Result<Option<Customer360OwnedRecordView>, PortError>;
 }
@@ -34,7 +34,7 @@ pub struct Customer360RecordCommand {
     pub expected_version: Option<u64>,
     pub actor: ActorAttribution,
     pub audit: AuditContext,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub record: Customer360OwnedRecord,
 }
 #[derive(Debug, Clone, PartialEq, Eq)]

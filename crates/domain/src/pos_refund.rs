@@ -13,7 +13,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::contracts::{CommandContext, TenantScope};
+use crate::contracts::{AuthorityScope, CommandContext};
 
 /// Version of the public POS refund domain contract.
 pub const POS_REFUND_CONTRACT_VERSION: u16 = 1;
@@ -100,7 +100,7 @@ pub enum PosRefundError {
     InvalidAggregate,
 }
 
-/// A completed POS sale identifier plus its tenant-bound opaque reference.
+/// A completed POS sale identifier plus its holding-bound opaque reference.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CompletedPosSaleReference {
     /// Stable sale identifier from the POS sale aggregate.
@@ -108,7 +108,7 @@ pub struct CompletedPosSaleReference {
     /// Opaque, bounded sale reference; no copied sale payload is accepted.
     pub sale_reference: String,
     /// Exact scope at which the sale was completed.
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
 }
 
 impl CompletedPosSaleReference {
@@ -116,7 +116,7 @@ impl CompletedPosSaleReference {
     pub fn new(
         sale_id: Uuid,
         sale_reference: impl Into<String>,
-        scope: TenantScope,
+        scope: AuthorityScope,
     ) -> Result<Self, PosRefundError> {
         let reference = Self {
             sale_id,
@@ -127,7 +127,7 @@ impl CompletedPosSaleReference {
         Ok(reference)
     }
 
-    /// Validates the reference shape and tenant scope.
+    /// Validates the reference shape and holding scope.
     pub fn validate(&self) -> Result<(), PosRefundError> {
         require_id(self.sale_id, "sale_id")?;
         bounded_opaque(
@@ -299,7 +299,7 @@ impl PosRefundLineInput {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PosRefundRequestInput {
     /// The exact record scope of the refund and completed sale.
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     /// Completed sale and refundable-line facts.
     pub sale: CompletedPosSaleFact,
     /// Requested refund lines.
@@ -398,7 +398,7 @@ impl PosRefundCommandResult {
     }
 }
 
-/// Tenant-scoped POS refund request/review aggregate.
+/// Holding-scoped POS refund request/review aggregate.
 ///
 /// `Posted` is only a domain lifecycle marker indicating that a later
 /// integration may hand off the approved request. It does not execute a
@@ -412,7 +412,7 @@ pub struct PosRefund {
     /// Existing completed sale reference.
     pub sale: CompletedPosSaleReference,
     /// Exact refund record scope, matching the sale scope.
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     /// Explicit holding scope component.
     pub holding_id: Uuid,
     /// Explicit company scope component.
@@ -455,7 +455,7 @@ impl PosRefund {
             return Err(PosRefundError::UnexpectedExpectedVersion);
         }
         require_id(id, "refund_id")?;
-        if !input.context.tenant_scope.contains(&input.scope) {
+        if !input.context.active_scope.contains(&input.scope) {
             return Err(PosRefundError::CommandScopeOutside);
         }
         validate_request_input(&input)?;
@@ -626,7 +626,7 @@ impl PosRefund {
     ) -> Result<PosRefundCommandResult, PosRefundError> {
         self.validate()?;
         validate_context(context, true)?;
-        if !context.tenant_scope.contains(&self.scope) {
+        if !context.active_scope.contains(&self.scope) {
             return Err(PosRefundError::CommandScopeOutside);
         }
         if at < self.updated_at {
@@ -880,13 +880,13 @@ fn validate_context(
     Ok(())
 }
 
-fn validate_refund_scope(scope: &TenantScope) -> Result<(), PosRefundError> {
+fn validate_refund_scope(scope: &AuthorityScope) -> Result<(), PosRefundError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } if !holding_id.is_nil() && !company_id.is_nil() => Ok(()),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -895,13 +895,13 @@ fn validate_refund_scope(scope: &TenantScope) -> Result<(), PosRefundError> {
     }
 }
 
-fn scope_parts(scope: &TenantScope) -> Result<(Uuid, Uuid, Option<Uuid>), PosRefundError> {
+fn scope_parts(scope: &AuthorityScope) -> Result<(Uuid, Uuid, Option<Uuid>), PosRefundError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok((*holding_id, *company_id, None)),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -988,7 +988,7 @@ fn deterministic_reference(id: Uuid) -> String {
 
 fn request_fingerprint(id: Uuid, input: &PosRefundRequestInput) -> [u8; 32] {
     let mut hasher = Sha256::new();
-    hasher.update(b"erpx/pos-refund/request/v1/");
+    hasher.update(b"erpx/pos-refund/request/");
     hasher.update(id.as_bytes());
     update_scope(&mut hasher, &input.scope);
     hasher.update(input.sale.sale.sale_id.as_bytes());
@@ -1020,7 +1020,7 @@ fn lifecycle_fingerprint(
     at: DateTime<Utc>,
 ) -> [u8; 32] {
     let mut hasher = Sha256::new();
-    hasher.update(b"erpx/pos-refund/lifecycle/v1/");
+    hasher.update(b"erpx/pos-refund/lifecycle/");
     hasher.update(id.as_bytes());
     hasher.update([command_kind as u8]);
     if let Some(expected_version) = context.expected_aggregate_version {
@@ -1029,16 +1029,16 @@ fn lifecycle_fingerprint(
     } else {
         hasher.update([0]);
     }
-    update_scope(&mut hasher, &context.tenant_scope);
+    update_scope(&mut hasher, &context.active_scope);
     hasher.update(context.actor.principal_ref.as_bytes());
     hasher.update(at.timestamp().to_be_bytes());
     hasher.update(at.timestamp_subsec_nanos().to_be_bytes());
     hasher.finalize().into()
 }
 
-fn update_scope(hasher: &mut Sha256, scope: &TenantScope) {
+fn update_scope(hasher: &mut Sha256, scope: &AuthorityScope) {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => {
@@ -1046,7 +1046,7 @@ fn update_scope(hasher: &mut Sha256, scope: &TenantScope) {
             hasher.update(holding_id.as_bytes());
             hasher.update(company_id.as_bytes());
         }
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,

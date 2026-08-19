@@ -15,7 +15,7 @@ use erpx_integration_contracts::{
     },
     support::{SupportCaseFact, SupportCaseRef, SupportCaseStatus},
 };
-use erpx_proto::erpx::customer_360::v2 as wire;
+use erpx_proto::erpx::customer_360 as wire;
 use erpx_ui_foundation::UiError;
 
 use crate::{
@@ -63,7 +63,7 @@ impl Customer360QueryTransport for Customer360GrpcTransport {
         let request = wire::GetCustomer360Request {
             metadata: Some(metadata),
             customer_id: envelope.query.customer.as_uuid().to_string(),
-            tenant_id: Some(self.auth.route().tenant_id().to_string()),
+            holding_id: Some(self.auth.route().holding_id().to_string()),
         };
         let mut client = self.queries.clone();
         let response = client
@@ -75,7 +75,7 @@ impl Customer360QueryTransport for Customer360GrpcTransport {
             customer: response.customer.map(decode_customer).transpose()?,
             source_projections: SourceProjectionMetadata {
                 control_customers: projection_metadata(response.control_customers)?,
-                tenant_activity: projection_metadata(response.tenant_activity)?,
+                holding_activity: projection_metadata(response.holding_activity)?,
             },
         };
         query_result(response.metadata, result, expected_correlation, consistency)

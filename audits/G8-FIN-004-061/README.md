@@ -7,7 +7,7 @@ Finance banking implementation:
 
 - Company- or branch-bound `BankAccount` records with explicit holding and
   company bindings.
-- `CommandContext` validation and tenant-scope containment for accounts,
+- `CommandContext` validation and holding-scope containment for accounts,
   statement imports, and reconciliations. Platform, holding-only, subtree, and
   mismatched record scopes fail closed.
 - `ImportedBankTransaction` records with private identity/content fields,
@@ -61,7 +61,7 @@ No database or migration changes were made.
 
 This packet does not complete Finance. The following remain open:
 
-- SQLx control/tenant write and read persistence, unique constraints, RLS,
+- SQLx control/holding write and read persistence, unique constraints, RLS,
   optimistic-concurrency transactions, outbox events, and projection rebuilds.
 - Bank statement parsers/import adapters, provider-specific authentication,
   raw-file/object handling, malware/content validation, and credential/key
@@ -78,7 +78,7 @@ This packet does not complete Finance. The following remain open:
 1. Review and preserve these pure-domain invariants at the SQLx repository
    boundary, including idempotency/content-digest and transaction-identity
    uniqueness in one database transaction.
-2. Add tenant-scoped statement import adapters and durable import/outbox
+2. Add holding-scoped statement import adapters and durable import/outbox
    processing without exposing credentials to domain or client code.
 3. Add authoritative matching and Finance journal handoff only after period,
    entitlement, RBAC, and segregation-of-duties checks are enforced at the

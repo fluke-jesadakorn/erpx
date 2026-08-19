@@ -3,7 +3,7 @@
 //! This packet is read-only and owns only this migrator acceptance test. It
 //! binds the authoritative source/read reconciliation and forged-event guard
 //! to the coordinator transport, while keeping live SQLx evidence explicitly
-//! queued when disposable tenant database references are unavailable.
+//! queued when disposable holding database references are unavailable.
 
 use std::env;
 
@@ -12,9 +12,9 @@ const ASSET_PERSISTENCE: &str =
     include_str!("../../../crates/infrastructure/src/asset_maintenance_persistence.rs");
 const ASSET_LIVE_TEST: &str =
     include_str!("../../../crates/infrastructure/tests/asset_maintenance_persistence.rs");
-const ASSETS_PROTO: &str = include_str!("../../../crates/proto/proto/erpx/assets/v2/service.proto");
+const ASSETS_PROTO: &str = include_str!("../../../crates/proto/proto/erpx/assets/service.proto");
 const MAINTENANCE_PROTO: &str =
-    include_str!("../../../crates/proto/proto/erpx/maintenance/v2/service.proto");
+    include_str!("../../../crates/proto/proto/erpx/maintenance/service.proto");
 const SERVER_RUNTIME: &str = include_str!("../../server/src/lib.rs");
 const SERVER_WAVE6_COMPOSITION: &str = include_str!("../../server/src/wave6_composition.rs");
 const WORKER_APP: &str = include_str!("../../worker/src/app.rs");
@@ -77,9 +77,9 @@ fn asset_source_and_read_reconciliation_is_authoritative_and_fail_closed() {
         &[
             "pub async fn read_source_event_page",
             "pub async fn reconcile_projection",
-            "FROM erpx_tenant.outbox_events",
+            "FROM erpx_holding.outbox_events",
             "aggregate_type IN ('asset', 'maintenance_work_order')",
-            "FROM erpx_tenant.asset_maintenance_read_rows",
+            "FROM erpx_holding.asset_maintenance_read_rows",
             "source_version_gap_count",
             "missing_aggregate_count",
             "stale_aggregate_count",
@@ -92,7 +92,7 @@ fn asset_source_and_read_reconciliation_is_authoritative_and_fail_closed() {
         ASSET_LIVE_TEST,
         "asset_maintenance_persistence.rs integration test",
         &[
-            "#[ignore = \"requires two disposable tenant PostgreSQL databases\"]",
+            "#[ignore = \"requires two disposable holding PostgreSQL databases\"]",
             "live_asset_maintenance_write_outbox_projection_read_reconcile_and_rebuild",
             "reconcile_projection()",
             "is_consistent()",
@@ -118,7 +118,7 @@ fn asset_projector_rejects_forged_or_non_authoritative_events() {
             "Asset/Maintenance projector event is not an authoritative source event",
             "Asset/Maintenance projector event does not match the authoritative outbox",
             "actual_payload != *payload",
-            "WHERE event_id=$1 AND holding_ref=$2",
+            "WHERE event_id=$1 AND data_profile_key=$2",
         ],
     );
     require_markers(
@@ -186,11 +186,11 @@ fn asset_custody_and_disposal_writes_are_atomic_and_prevalidated() {
         &[
             "aggregate.validate()?;",
             "let mut tx = self.begin_write().await?;",
-            "validate_work_order_asset_link(&mut tx, &self.holding_ref, work_order).await?;",
-            "INSERT INTO erpx_tenant.asset_maintenance_aggregates",
-            "persist_custody_history(&mut tx, &self.holding_ref, asset).await?;",
+            "validate_work_order_asset_link(&mut tx, &self.data_profile_key, work_order).await?;",
+            "INSERT INTO erpx_holding.asset_maintenance_aggregates",
+            "persist_custody_history(&mut tx, &self.data_profile_key, asset).await?;",
             "persist_shared_outbox(\n            &mut tx,",
-            "INSERT INTO erpx_tenant.asset_maintenance_command_idempotency",
+            "INSERT INTO erpx_holding.asset_maintenance_command_idempotency",
             "tx.commit().await?;\n        Ok(receipt)",
         ],
     );
@@ -200,9 +200,9 @@ fn asset_custody_and_disposal_writes_are_atomic_and_prevalidated() {
         "asset_maintenance_persistence.rs custody persistence",
         &[
             "async fn persist_custody_history(",
-            "SELECT transfer\n             FROM erpx_tenant.asset_custody_transfers",
-            "WHERE asset_id=$1 AND holding_ref=$2 AND aggregate_version=$3",
-            "INSERT INTO erpx_tenant.asset_custody_transfers",
+            "SELECT transfer\n             FROM erpx_holding.asset_custody_transfers",
+            "WHERE asset_id=$1 AND data_profile_key=$2 AND aggregate_version=$3",
+            "INSERT INTO erpx_holding.asset_custody_transfers",
         ],
     );
     require_markers(
@@ -282,9 +282,9 @@ fn asset_maintenance_coordinator_transport_is_present() {
 #[test]
 fn asset_maintenance_live_database_blocker_is_explicitly_reported() {
     let required = [
-        "ERPX_TEST_TENANT_WRITE_DATABASE_URL",
-        "ERPX_TEST_TENANT_READ_DATABASE_URL",
-        "ERPX_TEST_TENANT_DATABASE_URL_TEMPLATE",
+        "ERPX_TEST_HOLDING_WRITE_DATABASE_URL",
+        "ERPX_TEST_HOLDING_READ_DATABASE_URL",
+        "ERPX_TEST_HOLDING_DATABASE_URL_TEMPLATE",
         "ERPX_TEST_ADMIN_DATABASE_URL",
     ];
     let missing = required

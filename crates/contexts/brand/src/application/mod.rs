@@ -6,8 +6,8 @@ use erpx_cqrs::{
     QueryMetadata, QueryResult,
 };
 use erpx_kernel::{
-    ActorAttribution, AuditContext, Clock, CorrelationId, ErrorCategory, ErrorContext, EventId,
-    KernelError, RecordId, TenantScope,
+    ActorAttribution, AuditContext, AuthorityScope, Clock, CorrelationId, ErrorCategory,
+    ErrorContext, EventId, KernelError, RecordId,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -196,7 +196,7 @@ struct ExistingCommand {
     correlation_id: CorrelationId,
     causation_id: Option<EventId>,
     actor: ActorAttribution,
-    authority_scope: TenantScope,
+    authority_scope: AuthorityScope,
     audit: AuditContext,
     expected_version: Option<u64>,
     identity: CommandIdentity,
@@ -218,7 +218,7 @@ where
     async fn preflight(
         &self,
         actor: &ActorAttribution,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         target: &BrandScope,
         action: BrandAction,
     ) -> Result<(), BrandApplicationError> {
@@ -401,7 +401,7 @@ where
         {
             self.preflight(
                 &envelope.actor,
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 stored.aggregate.scope(),
                 BrandAction::CreateDraft,
             )
@@ -415,7 +415,7 @@ where
         }
         self.preflight(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             &command.scope,
             BrandAction::CreateDraft,
         )
@@ -450,7 +450,7 @@ where
                 correlation_id,
                 causation_id: envelope.causation_id,
                 actor: envelope.actor,
-                authority_scope: envelope.tenant_scope,
+                authority_scope: envelope.active_scope,
                 audit: envelope.audit,
                 reason: command.reason,
                 expected_version: None,
@@ -492,7 +492,7 @@ macro_rules! existing_handler {
                     correlation_id: envelope.correlation_id,
                     causation_id: envelope.causation_id,
                     actor: envelope.actor,
-                    authority_scope: envelope.tenant_scope,
+                    authority_scope: envelope.active_scope,
                     audit: envelope.audit,
                     expected_version: envelope.expected_aggregate_version,
                     identity: CommandIdentity {
@@ -590,7 +590,7 @@ where
     async fn authorize_query(
         &self,
         actor: &ActorAttribution,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         target: &BrandScope,
         action: BrandAction,
     ) -> Result<(), BrandApplicationError> {
@@ -629,7 +629,7 @@ where
         envelope.validate()?;
         self.authorize_query(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             &envelope.query.scope,
             BrandAction::ViewDraft,
         )
@@ -638,7 +638,7 @@ where
         let projection = self
             .read_repository
             .get_draft(
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 &envelope.query.scope,
                 &envelope.consistency,
             )
@@ -683,7 +683,7 @@ where
         envelope.validate()?;
         self.authorize_query(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             &envelope.query.scope,
             BrandAction::ViewResolved,
         )
@@ -692,7 +692,7 @@ where
         let projection = self
             .read_repository
             .get_resolved(
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 &envelope.query.scope,
                 &envelope.consistency,
             )
@@ -743,7 +743,7 @@ where
         }
         self.authorize_query(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             &envelope.query.scope,
             BrandAction::ViewHistory,
         )
@@ -752,7 +752,7 @@ where
         let projection = self
             .read_repository
             .list_history(
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 &envelope.query.scope,
                 envelope.query.page_size,
                 envelope.query.cursor.as_deref(),
@@ -787,7 +787,7 @@ where
         envelope.validate()?;
         self.authorize_query(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             &envelope.query.scope,
             BrandAction::ViewAsset,
         )
@@ -796,7 +796,7 @@ where
         let projection = self
             .read_repository
             .get_asset(
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 &envelope.query.scope,
                 envelope.query.record_id,
                 &envelope.consistency,
@@ -842,7 +842,7 @@ where
         envelope.validate()?;
         self.authorize_query(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             &envelope.query.scope,
             BrandAction::ViewPublication,
         )
@@ -851,7 +851,7 @@ where
         let projection = self
             .read_repository
             .get_publication(
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 &envelope.query.scope,
                 envelope.query.record_id,
                 &envelope.consistency,

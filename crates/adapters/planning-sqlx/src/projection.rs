@@ -68,7 +68,7 @@ impl Projector for PlanningProjector {
                     let record: PlanningScenario =
                         serde_json::from_value(document.clone()).map_err(failure)?;
                     if record.id().as_uuid() != event.aggregate_id.as_uuid()
-                        || record.scope() != &event.tenant_scope
+                        || record.scope() != &event.active_scope
                     {
                         return Err(failure("planning scenario metadata mismatch"));
                     }
@@ -88,14 +88,14 @@ impl Projector for PlanningProjector {
                 return Err(failure("planning governed-record version mismatch"));
             }
             let changed = sqlx::query(
-                "INSERT INTO erpx_planning_read.governed_record_projection(projection_name,generation,partition_key,record_id,record_kind,authority_scope,lifecycle_state,projection,source_aggregate_version,source_position,projected_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,clock_timestamp()) ON CONFLICT(tenant_id,projection_name,generation,partition_key,record_id) DO UPDATE SET record_kind=EXCLUDED.record_kind,authority_scope=EXCLUDED.authority_scope,lifecycle_state=EXCLUDED.lifecycle_state,projection=EXCLUDED.projection,source_aggregate_version=EXCLUDED.source_aggregate_version,source_position=EXCLUDED.source_position,projected_at=clock_timestamp() WHERE erpx_planning_read.governed_record_projection.source_aggregate_version<EXCLUDED.source_aggregate_version",
+                "INSERT INTO erpx_planning_read.governed_record_projection(projection_name,generation,partition_key,record_id,record_kind,authority_scope,lifecycle_state,projection,source_aggregate_version,source_position,projected_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,clock_timestamp()) ON CONFLICT(holding_id,projection_name,generation,partition_key,record_id) DO UPDATE SET record_kind=EXCLUDED.record_kind,authority_scope=EXCLUDED.authority_scope,lifecycle_state=EXCLUDED.lifecycle_state,projection=EXCLUDED.projection,source_aggregate_version=EXCLUDED.source_aggregate_version,source_position=EXCLUDED.source_position,projected_at=clock_timestamp() WHERE erpx_planning_read.governed_record_projection.source_aggregate_version<EXCLUDED.source_aggregate_version",
             )
             .bind(PROJECTION_NAME)
             .bind(ctx.generation)
             .bind(&event.partition)
             .bind(event.aggregate_id.as_uuid())
             .bind(&event.aggregate_type)
-            .bind(serde_json::to_value(&event.tenant_scope).map_err(failure)?)
+            .bind(serde_json::to_value(&event.active_scope).map_err(failure)?)
             .bind(lifecycle)
             .bind(document)
             .bind(i64v(event.aggregate_version)?)
@@ -127,7 +127,7 @@ impl Projector for PlanningProjector {
             .map_err(failure)?;
             if plan.id() != event.aggregate_id.as_uuid()
                 || plan.version() != event.aggregate_version
-                || plan.scope() != &event.tenant_scope
+                || plan.scope() != &event.active_scope
                 || plan.kind().token() != event.aggregate_type
             {
                 return Err(failure("planning plan metadata mismatch"));
@@ -137,7 +137,7 @@ impl Projector for PlanningProjector {
                 .as_str()
                 .map(str::to_owned)
                 .ok_or_else(|| failure("planning plan status missing"))?;
-            let changed=sqlx::query("INSERT INTO erpx_planning_read.plan_projection(projection_name,generation,partition_key,plan_id,plan_kind,authority_scope,lifecycle_state,projection,source_aggregate_version,source_position,projected_at)VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,clock_timestamp())ON CONFLICT(tenant_id,projection_name,generation,partition_key,plan_id)DO UPDATE SET lifecycle_state=EXCLUDED.lifecycle_state,projection=EXCLUDED.projection,source_aggregate_version=EXCLUDED.source_aggregate_version,source_position=EXCLUDED.source_position,projected_at=clock_timestamp()WHERE erpx_planning_read.plan_projection.source_aggregate_version<EXCLUDED.source_aggregate_version").bind(PROJECTION_NAME).bind(ctx.generation).bind(&event.partition).bind(plan.id()).bind(plan.kind().token()).bind(serde_json::to_value(plan.scope()).map_err(failure)?).bind(state).bind(serde_json::to_value(&plan).map_err(failure)?).bind(i64v(event.aggregate_version)?).bind(i64v(event.global_sequence)?).execute(&mut **tx).await.map_err(failure)?;
+            let changed=sqlx::query("INSERT INTO erpx_planning_read.plan_projection(projection_name,generation,partition_key,plan_id,plan_kind,authority_scope,lifecycle_state,projection,source_aggregate_version,source_position,projected_at)VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,clock_timestamp())ON CONFLICT(holding_id,projection_name,generation,partition_key,plan_id)DO UPDATE SET lifecycle_state=EXCLUDED.lifecycle_state,projection=EXCLUDED.projection,source_aggregate_version=EXCLUDED.source_aggregate_version,source_position=EXCLUDED.source_position,projected_at=clock_timestamp()WHERE erpx_planning_read.plan_projection.source_aggregate_version<EXCLUDED.source_aggregate_version").bind(PROJECTION_NAME).bind(ctx.generation).bind(&event.partition).bind(plan.id()).bind(plan.kind().token()).bind(serde_json::to_value(plan.scope()).map_err(failure)?).bind(state).bind(serde_json::to_value(&plan).map_err(failure)?).bind(i64v(event.aggregate_version)?).bind(i64v(event.global_sequence)?).execute(&mut **tx).await.map_err(failure)?;
             if changed.rows_affected() != 1 {
                 return Err(failure("planning plan version did not advance"));
             }
@@ -161,8 +161,8 @@ impl Projector for PlanningProjector {
                 "planning snapshot metadata mismatch",
             ));
         }
-        let result=sqlx::query("INSERT INTO erpx_planning_read.run_projection (projection_name,generation,partition_key,run_id,scenario_id,authority_scope,input_digest,projection,source_aggregate_version,source_position,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,clock_timestamp()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,run_id) DO UPDATE SET scenario_id=EXCLUDED.scenario_id,authority_scope=EXCLUDED.authority_scope,input_digest=EXCLUDED.input_digest,projection=EXCLUDED.projection,source_aggregate_version=EXCLUDED.source_aggregate_version,source_position=EXCLUDED.source_position,projected_at=clock_timestamp() WHERE erpx_planning_read.run_projection.source_aggregate_version<EXCLUDED.source_aggregate_version")
-            .bind(PROJECTION_NAME).bind(ctx.generation).bind(&event.partition).bind(snapshot.run.id.as_uuid()).bind(snapshot.run.scenario_id.as_uuid()).bind(serde_json::to_value(&event.tenant_scope).map_err(failure)?).bind(&snapshot.run.input_digest).bind(serde_json::to_value(&snapshot.run).map_err(failure)?).bind(i64v(event.aggregate_version)?).bind(i64v(event.global_sequence)?).execute(&mut **tx).await.map_err(failure)?;
+        let result=sqlx::query("INSERT INTO erpx_planning_read.run_projection (projection_name,generation,partition_key,run_id,scenario_id,authority_scope,input_digest,projection,source_aggregate_version,source_position,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,clock_timestamp()) ON CONFLICT (holding_id,projection_name,generation,partition_key,run_id) DO UPDATE SET scenario_id=EXCLUDED.scenario_id,authority_scope=EXCLUDED.authority_scope,input_digest=EXCLUDED.input_digest,projection=EXCLUDED.projection,source_aggregate_version=EXCLUDED.source_aggregate_version,source_position=EXCLUDED.source_position,projected_at=clock_timestamp() WHERE erpx_planning_read.run_projection.source_aggregate_version<EXCLUDED.source_aggregate_version")
+            .bind(PROJECTION_NAME).bind(ctx.generation).bind(&event.partition).bind(snapshot.run.id.as_uuid()).bind(snapshot.run.scenario_id.as_uuid()).bind(serde_json::to_value(&event.active_scope).map_err(failure)?).bind(&snapshot.run.input_digest).bind(serde_json::to_value(&snapshot.run).map_err(failure)?).bind(i64v(event.aggregate_version)?).bind(i64v(event.global_sequence)?).execute(&mut **tx).await.map_err(failure)?;
         if result.rows_affected() != 1 {
             return Err(ProjectionFailure::new(
                 "planning snapshot version did not advance",

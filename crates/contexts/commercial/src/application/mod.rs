@@ -11,8 +11,8 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::CurrencyCode;
 use erpx_kernel::{
-    ActorAttribution, AuditContext, Clock, CorrelationId, ErrorCategory, ErrorContext, EventId,
-    KernelError, TenantScope,
+    ActorAttribution, AuditContext, AuthorityScope, Clock, CorrelationId, ErrorCategory,
+    ErrorContext, EventId, KernelError,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -52,7 +52,7 @@ pub struct PublishCatalogPlan {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateSubscription {
     pub subscription_id: SubscriptionId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub customer_id: Uuid,
     pub plan_id: CatalogPlanId,
     pub amount_minor: i64,
@@ -69,7 +69,7 @@ pub struct ApplyBillingEvent {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateEntitlement {
     pub entitlement_id: EntitlementId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub subscription_id: SubscriptionId,
     pub capability: String,
     pub enabled: bool,
@@ -189,8 +189,8 @@ where
     async fn preflight(
         &self,
         actor: &ActorAttribution,
-        authority_scope: &TenantScope,
-        target_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         customer_id: Option<Uuid>,
         action: CommercialAction,
     ) -> Result<(), CommercialApplicationError> {
@@ -260,7 +260,7 @@ struct CommandParts {
     correlation_id: CorrelationId,
     causation_id: Option<EventId>,
     actor: ActorAttribution,
-    authority_scope: TenantScope,
+    authority_scope: AuthorityScope,
     audit: AuditContext,
 }
 
@@ -269,7 +269,7 @@ fn command_parts<C>(envelope: &CommandEnvelope<C>) -> CommandParts {
         correlation_id: envelope.correlation_id,
         causation_id: envelope.causation_id,
         actor: envelope.actor.clone(),
-        authority_scope: envelope.tenant_scope.clone(),
+        authority_scope: envelope.active_scope.clone(),
         audit: envelope.audit.clone(),
     }
 }
@@ -324,7 +324,7 @@ where
         {
             self.preflight(
                 &envelope.actor,
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 stored.aggregate.scope(),
                 None,
                 CommercialAction::CreateCatalogPlan,
@@ -337,8 +337,8 @@ where
         }
         self.preflight(
             &envelope.actor,
-            &envelope.tenant_scope,
-            &TenantScope::Platform,
+            &envelope.active_scope,
+            &AuthorityScope::Platform,
             None,
             CommercialAction::CreateCatalogPlan,
         )
@@ -346,7 +346,7 @@ where
         .map_err(|e| to_cqrs(e, correlation_id))?;
         let aggregate = CatalogPlan::create(
             command.plan_id,
-            TenantScope::Platform,
+            AuthorityScope::Platform,
             command.key,
             command.display_name,
             command.amount_minor,
@@ -397,7 +397,7 @@ where
         {
             self.preflight(
                 &envelope.actor,
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 stored.aggregate.scope(),
                 None,
                 CommercialAction::PublishCatalogPlan,
@@ -410,13 +410,13 @@ where
         }
         let mut aggregate = self
             .write_repository
-            .load_catalog_plan(&envelope.tenant_scope, command.plan_id)
+            .load_catalog_plan(&envelope.active_scope, command.plan_id)
             .await
             .map_err(|e| to_cqrs(e.into(), correlation_id))?
             .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation_id))?;
         self.preflight(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             aggregate.scope(),
             None,
             CommercialAction::PublishCatalogPlan,
@@ -497,7 +497,7 @@ where
             };
             self.preflight(
                 &envelope.actor,
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 stored.aggregate.scope(),
                 customer,
                 CommercialAction::CreateSubscription,
@@ -510,7 +510,7 @@ where
         }
         self.preflight(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             &command.scope,
             Some(command.customer_id),
             CommercialAction::CreateSubscription,
@@ -584,7 +584,7 @@ where
             };
             self.preflight(
                 &envelope.actor,
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 stored.aggregate.scope(),
                 customer,
                 CommercialAction::ApplyBillingEvent,
@@ -597,13 +597,13 @@ where
         }
         let mut aggregate = self
             .write_repository
-            .load_subscription(&envelope.tenant_scope, command.subscription_id)
+            .load_subscription(&envelope.active_scope, command.subscription_id)
             .await
             .map_err(|e| to_cqrs(e.into(), correlation_id))?
             .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation_id))?;
         self.preflight(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             aggregate.scope(),
             Some(aggregate.customer_id()),
             CommercialAction::ApplyBillingEvent,
@@ -683,7 +683,7 @@ where
         {
             self.preflight(
                 &envelope.actor,
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 stored.aggregate.scope(),
                 None,
                 CommercialAction::CreateEntitlement,
@@ -696,7 +696,7 @@ where
         }
         self.preflight(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             &command.scope,
             None,
             CommercialAction::CreateEntitlement,
@@ -762,7 +762,7 @@ where
         {
             self.preflight(
                 &envelope.actor,
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 stored.aggregate.scope(),
                 None,
                 CommercialAction::ApplyEntitlementChange,
@@ -775,13 +775,13 @@ where
         }
         let mut aggregate = self
             .write_repository
-            .load_entitlement(&envelope.tenant_scope, command.entitlement_id)
+            .load_entitlement(&envelope.active_scope, command.entitlement_id)
             .await
             .map_err(|e| to_cqrs(e.into(), correlation_id))?
             .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation_id))?;
         self.preflight(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             aggregate.scope(),
             None,
             CommercialAction::ApplyEntitlementChange,
@@ -845,8 +845,8 @@ impl<R: ReadRepository, A: AuthorizationPort> CommercialQueryHandler<R, A> {
         self.authorization
             .authorize(AuthorizationRequest {
                 actor: &envelope.actor,
-                authority_scope: &envelope.tenant_scope,
-                target_scope: &envelope.tenant_scope,
+                authority_scope: &envelope.active_scope,
+                target_scope: &envelope.active_scope,
                 action,
             })
             .await
@@ -870,7 +870,7 @@ macro_rules! get_query {
                 let projection = self
                     .read_repository
                     .$repo(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         envelope.query.$id,
                         &envelope.consistency,
                     )
@@ -879,7 +879,7 @@ macro_rules! get_query {
                 if projection
                     .value
                     .as_ref()
-                    .is_some_and(|view| ($scope_check)(&envelope.tenant_scope, view))
+                    .is_some_and(|view| ($scope_check)(&envelope.active_scope, view))
                 {
                     return Err(to_cqrs(
                         CommercialApplicationError::ScopeOutsideAuthority,
@@ -906,7 +906,7 @@ get_query!(
     get_catalog_plan,
     plan_id,
     |plan| GetCatalogPlanResult { plan },
-    |scope: &TenantScope, _view: &CatalogPlanView| scope != &TenantScope::Platform
+    |scope: &AuthorityScope, _view: &CatalogPlanView| scope != &AuthorityScope::Platform
 );
 get_query!(
     GetSubscription,
@@ -915,7 +915,7 @@ get_query!(
     get_subscription,
     subscription_id,
     |subscription| GetSubscriptionResult { subscription },
-    |scope: &TenantScope, view: &SubscriptionView| !scope.contains(&view.scope)
+    |scope: &AuthorityScope, view: &SubscriptionView| !scope.contains(&view.scope)
 );
 get_query!(
     GetEntitlement,
@@ -924,7 +924,7 @@ get_query!(
     get_entitlement,
     entitlement_id,
     |entitlement| GetEntitlementResult { entitlement },
-    |scope: &TenantScope, view: &EntitlementView| !scope.contains(&view.scope)
+    |scope: &AuthorityScope, view: &EntitlementView| !scope.contains(&view.scope)
 );
 
 macro_rules! list_query {
@@ -949,7 +949,7 @@ macro_rules! list_query {
                 let projection = self
                     .read_repository
                     .$repo(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         &envelope.query.filter,
                         &envelope.consistency,
                     )
@@ -959,7 +959,7 @@ macro_rules! list_query {
                     .value
                     .records
                     .iter()
-                    .any(|view| ($scope_check)(&envelope.tenant_scope, view))
+                    .any(|view| ($scope_check)(&envelope.active_scope, view))
                 {
                     return Err(to_cqrs(
                         CommercialApplicationError::ScopeOutsideAuthority,
@@ -984,21 +984,21 @@ list_query!(
     CatalogPlanView,
     CommercialAction::ViewCatalog,
     list_catalog_plans,
-    |scope: &TenantScope, _view: &CatalogPlanView| scope != &TenantScope::Platform
+    |scope: &AuthorityScope, _view: &CatalogPlanView| scope != &AuthorityScope::Platform
 );
 list_query!(
     ListSubscriptions,
     SubscriptionView,
     CommercialAction::ViewSubscription,
     list_subscriptions,
-    |scope: &TenantScope, view: &SubscriptionView| !scope.contains(&view.scope)
+    |scope: &AuthorityScope, view: &SubscriptionView| !scope.contains(&view.scope)
 );
 list_query!(
     ListEntitlements,
     EntitlementView,
     CommercialAction::ViewEntitlement,
     list_entitlements,
-    |scope: &TenantScope, view: &EntitlementView| !scope.contains(&view.scope)
+    |scope: &AuthorityScope, view: &EntitlementView| !scope.contains(&view.scope)
 );
 
 fn port_to_cqrs(error: PortError, correlation_id: CorrelationId) -> CqrsError {

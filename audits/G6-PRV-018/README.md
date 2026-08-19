@@ -10,7 +10,7 @@ own bounded failure handling. Projection names remain exact-bound, and all
 errors returned by the SQLx switcher are replaced with safe fixed messages.
 
 This is control-plane state-transition safety only. It does not create a
-candidate database, select tenant credentials, run a context projector against
+candidate database, select holding credentials, run a context projector against
 the candidate pool, expose a server action, or claim that physical replacement
 switching is complete.
 
@@ -40,7 +40,7 @@ cargo test -p erpx-worker replacement_switcher_is_bounded_and_fail_closed_on_pro
 
 ## Security and unfinished work
 
-The switcher validates tenant, candidate database, source-version, and
+The switcher validates holding, candidate database, source-version, and
 projection references; the candidate key cannot contain path, URL, whitespace,
 or control characters. Database errors and connection details are not exposed
 through the worker error boundary. Physical candidate provisioning, migration,

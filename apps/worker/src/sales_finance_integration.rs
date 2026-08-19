@@ -233,7 +233,7 @@ mod tests {
         AggregateKind, CurrencyCode, DimensionSet, MoneyAmount, ReferenceCode, customer,
         organization,
     };
-    use erpx_kernel::{AggregateId, CorrelationId, TenantScope};
+    use erpx_kernel::{AggregateId, AuthorityScope, CorrelationId};
 
     use super::*;
 
@@ -245,7 +245,7 @@ mod tests {
         let currency = CurrencyCode::try_new("THB").unwrap();
         IntegrationEventEnvelope::try_new(
             EventId::try_from_uuid(uuid(event_id)).unwrap(),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id: uuid(2),
                 company_id: uuid(3),
             },

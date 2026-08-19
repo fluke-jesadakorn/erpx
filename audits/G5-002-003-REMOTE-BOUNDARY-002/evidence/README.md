@@ -32,7 +32,7 @@
 - `audits/G5-002-003-REMOTE-BOUNDARY-002/evidence/README.md`
 
 No changes were made to domain, migration, server/HTTP wiring, identity, UI,
-tenant provisioning, protobuf, or Folio paths. `migration 0009` was audited
+holding provisioning, protobuf, or Folio paths. `migration 0009` was audited
 but not modified.
 
 ## Exact verification

@@ -4,13 +4,13 @@ Status: dependency-ready transport-neutral seam delivered; real backup and resto
 
 ## Delivered behavior
 
-- Added a bounded `RestoreTestScheduleRequest` contract bound to one started `TenantBackupRun` and one validated `TenantRestoreTestTarget`.
-- Added tenant-scoped due-time claiming with a maximum batch of 100, a bounded maximum of five attempts, a claim lease, and duplicate/idempotency protection.
+- Added a bounded `RestoreTestScheduleRequest` contract bound to one started `HoldingBackupRun` and one validated `HoldingRestoreTestTarget`.
+- Added holding-scoped due-time claiming with a maximum batch of 100, a bounded maximum of five attempts, a claim lease, and duplicate/idempotency protection.
 - Added typed execution classification for verified restore tests, replacement-read-unverified results, retryable failures, expiry, and terminal failure history.
 - A result is `Verified` only when both the restore target and replacement read target are verified. Failed or unverified work is never marked complete or safe to switch.
-- Added tenant-scoped schedule/history lookup that returns not-found across tenant boundaries.
+- Added holding-scoped schedule/history lookup that returns not-found across holding boundaries.
 - Added redacted `Debug` implementations for schedule requests, schedules, claims, and history entries; credentials, URLs, pools, storage clients, and raw opaque backup/restore/idempotency refs are absent from the contract.
-- Added an explicitly injected worker handler/registry seam. The default worker registry does not register restore-test work and therefore remains fail-closed until a tenant-scoped source is composed.
+- Added an explicitly injected worker handler/registry seam. The default worker registry does not register restore-test work and therefore remains fail-closed until a holding-scoped source is composed.
 
 ## Changed files
 
@@ -19,7 +19,7 @@ Status: dependency-ready transport-neutral seam delivered; real backup and resto
 - `erpx/crates/infrastructure/src/lib.rs`
   - public exports for the new transport-neutral types and bounds.
 - `erpx/apps/worker/src/lib.rs`
-  - `RestoreTestScheduleSource`, tenant-scoped bounded handler, explicit registry composition method, and handler tests.
+  - `RestoreTestScheduleSource`, holding-scoped bounded handler, explicit registry composition method, and handler tests.
 - `erpx/audits/G6-003-BACKUP-RESTORE-045/README.md`
   - this handoff evidence.
 
@@ -47,8 +47,8 @@ errors and are superseded by the independently observed results above.
 ## Security concerns
 
 - The current scheduler is a transport-neutral in-process policy seam, not durable production storage; process loss before adapter integration loses pending claims.
-- The default worker registry intentionally has no restore-test handler. Registering a handler requires an explicit tenant-scoped source and tenant identifier.
-- Cross-tenant claims, schedule reads, history reads, and target/run mismatches fail closed. A worker cannot claim all tenants through this API.
+- The default worker registry intentionally has no restore-test handler. Registering a handler requires an explicit holding-scoped source and holding identifier.
+- Cross-holding claims, schedule reads, history reads, and target/run mismatches fail closed. A worker cannot claim all holdings through this API.
 - Opaque references are validated for non-empty path-safe form and are redacted from the relevant debug output. The contract carries no secrets, database URLs, credentials, SQL pools, or MinIO clients.
 - Replacement-read verification is mandatory for a successful classification; no API in this packet performs activation or permits a failed result to become completed.
 - Lease expiry permits a bounded retry but does not itself mark a restore as recovered. The eventual durable adapter must make claim ownership and replay semantics atomic.
@@ -57,9 +57,9 @@ errors and are superseded by the independently observed results above.
 
 1. Repair the unrelated `erpx-domain` compilation failures and rerun the focused infrastructure/worker tests.
 2. Independently review this seam and its tests; preserve the public types and fail-closed bounds as the adapter contract.
-3. Implement the control-plane PostgreSQL scheduler/claim adapter with atomic idempotency, tenant predicates, leases, retry classification, and history persistence.
+3. Implement the control-plane PostgreSQL scheduler/claim adapter with atomic idempotency, holding predicates, leases, retry classification, and history persistence.
 4. Implement credential-isolated PostgreSQL/MinIO backup and restore-test adapters behind the existing typed executor traits.
-5. Compose the tenant-scoped worker source through `handler_registry_with_restore_test_source`; keep the default registry fail-closed.
+5. Compose the holding-scoped worker source through `handler_registry_with_restore_test_source`; keep the default registry fail-closed.
 6. Integrate replacement-read rebuild/verification and safe switch evidence, then add platform operations/UI and backup/restore integration verification.
 
 ## Rollback
@@ -87,7 +87,7 @@ slice. `crates/infrastructure/tests/backup_live.rs` now performs a credential-
 gated, ignored acceptance against real disposable PostgreSQL and MinIO
 services. It passed with PostgreSQL 18 dump/restore tools and an HTTPS test
 endpoint trusted by a disposable internal CA. The test verifies a read-side
-custom archive, tenant-bound MinIO upload/download, candidate restore, forced
+custom archive, holding-bound MinIO upload/download, candidate restore, forced
 RLS, complete inventory reconciliation, exact artifact deletion, and physical
 database cleanup. No fakes are injected into this path.
 

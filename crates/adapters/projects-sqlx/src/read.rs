@@ -6,7 +6,7 @@ use erpx_cqrs::{
 use erpx_cqrs_sqlx::{
     CqrsSqlxError, ReadPool, ReadSideStore, SqlxProjectionWaiter, WaitError, WaiterConfig,
 };
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use erpx_projects::{
     HierarchyRow, PortError, Project, ProjectGraphView, ProjectId, ProjectList, ProjectListFilter,
     ProjectRecordKind, ProjectRecordView, ProjectView, ProjectsAggregate, ReadProjection,
@@ -86,7 +86,7 @@ impl ProjectsReadRepository {
         let mut tx = self.pool.begin().await.map_err(map_read_error)?;
         let status: Option<String> = sqlx::query_scalar(
             "SELECT status FROM erpx_cqrs_read.projection_generations \
-             WHERE tenant_id=erpx_cqrs_read.current_tenant_id() AND projection_name=$1 \
+             WHERE holding_id=erpx_cqrs_read.current_holding_id() AND projection_name=$1 \
                AND status IN ('active','building') \
              ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END LIMIT 1",
         )
@@ -116,7 +116,7 @@ impl ProjectsReadRepository {
 
     async fn project(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: ProjectId,
     ) -> Result<Option<Project>, PortError> {
         let scope = ScopeFilter::from(authority)?;
@@ -124,10 +124,10 @@ impl ProjectsReadRepository {
         let row = sqlx::query(
             "SELECT item.state FROM erpx_projects_read.project_projection item \
              JOIN erpx_cqrs_read.projection_generations generation \
-               ON generation.tenant_id=item.tenant_id \
+               ON generation.holding_id=item.holding_id \
               AND generation.projection_name=item.projection_name \
               AND generation.generation=item.generation AND generation.status='active' \
-             WHERE item.tenant_id=erpx_projects_read.current_tenant_id() \
+             WHERE item.holding_id=erpx_projects_read.current_holding_id() \
                AND item.projection_name=$1 AND item.partition_key=$2 AND item.project_id=$3 \
                AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[]))",
         )
@@ -160,7 +160,7 @@ impl ProjectsReadRepository {
 
     async fn node_record(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: Uuid,
     ) -> Result<Option<(Project, u64)>, PortError> {
         let scope = ScopeFilter::from(authority)?;
@@ -169,19 +169,19 @@ impl ProjectsReadRepository {
             "SELECT item.state,item.source_global_sequence \
              FROM erpx_projects_read.hierarchy_closure_projection closure \
              JOIN erpx_cqrs_read.projection_generations closure_generation \
-               ON closure_generation.tenant_id=closure.tenant_id \
+               ON closure_generation.holding_id=closure.holding_id \
               AND closure_generation.projection_name=closure.projection_name \
               AND closure_generation.generation=closure.generation \
               AND closure_generation.status='active' \
              JOIN erpx_projects_read.project_projection item \
-               ON item.tenant_id=closure.tenant_id AND item.project_id=closure.project_id \
+               ON item.holding_id=closure.holding_id AND item.project_id=closure.project_id \
               AND item.projection_name=$2 \
              JOIN erpx_cqrs_read.projection_generations item_generation \
-               ON item_generation.tenant_id=item.tenant_id \
+               ON item_generation.holding_id=item.holding_id \
               AND item_generation.projection_name=item.projection_name \
               AND item_generation.generation=item.generation \
               AND item_generation.status='active' \
-             WHERE closure.tenant_id=erpx_projects_read.current_tenant_id() \
+             WHERE closure.holding_id=erpx_projects_read.current_holding_id() \
                AND closure.projection_name=$3 AND closure.descendant_node_id=$1 \
                AND closure.depth=0 \
                AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[])) \
@@ -224,7 +224,7 @@ impl ProjectsReadRepository {
 
     async fn projected_record(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: Uuid,
         kind: ProjectRecordKind,
     ) -> Result<Option<(ProjectsAggregate, u64)>, PortError> {
@@ -239,10 +239,10 @@ impl ProjectsReadRepository {
             "SELECT item.state,item.source_global_sequence \
              FROM erpx_projects_read.project_record_projection item \
              JOIN erpx_cqrs_read.projection_generations generation \
-               ON generation.tenant_id=item.tenant_id \
+               ON generation.holding_id=item.holding_id \
               AND generation.projection_name=item.projection_name \
               AND generation.generation=item.generation AND generation.status='active' \
-             WHERE item.tenant_id=erpx_projects_read.current_tenant_id() \
+             WHERE item.holding_id=erpx_projects_read.current_holding_id() \
                AND item.projection_name=$1 AND item.record_id=$2 AND item.record_kind=$3 \
                AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[]))",
         )
@@ -279,7 +279,7 @@ impl ProjectsReadRepository {
 impl ReadRepository for ProjectsReadRepository {
     async fn get_project(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: ProjectId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<ProjectView>>, PortError> {
@@ -299,7 +299,7 @@ impl ReadRepository for ProjectsReadRepository {
 
     async fn get_graph(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: ProjectId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<ProjectGraphView>>, PortError> {
@@ -318,10 +318,10 @@ impl ReadRepository for ProjectsReadRepository {
             "SELECT closure.descendant_node_id,closure.ancestor_node_id,closure.depth \
              FROM erpx_projects_read.hierarchy_closure_projection closure \
              JOIN erpx_cqrs_read.projection_generations generation \
-               ON generation.tenant_id=closure.tenant_id \
+               ON generation.holding_id=closure.holding_id \
               AND generation.projection_name=closure.projection_name \
               AND generation.generation=closure.generation AND generation.status='active' \
-             WHERE closure.tenant_id=erpx_projects_read.current_tenant_id() \
+             WHERE closure.holding_id=erpx_projects_read.current_holding_id() \
                AND closure.projection_name=$1 AND closure.project_id=$2 \
              ORDER BY closure.descendant_node_id,closure.depth DESC",
         )
@@ -362,7 +362,7 @@ impl ReadRepository for ProjectsReadRepository {
 
     async fn get_record(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: Uuid,
         kind: ProjectRecordKind,
         consistency: &QueryConsistency,
@@ -429,7 +429,7 @@ impl ReadRepository for ProjectsReadRepository {
 
     async fn list_projects(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         filter: &ProjectListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<ProjectList>, PortError> {
@@ -445,9 +445,9 @@ impl ReadRepository for ProjectsReadRepository {
         let rows = sqlx::query(
             "SELECT item.state,item.project_id FROM erpx_projects_read.project_projection item \
              JOIN erpx_cqrs_read.projection_generations generation \
-               ON generation.tenant_id=item.tenant_id AND generation.projection_name=item.projection_name \
+               ON generation.holding_id=item.holding_id AND generation.projection_name=item.projection_name \
               AND generation.generation=item.generation AND generation.status='active' \
-             WHERE item.tenant_id=erpx_projects_read.current_tenant_id() AND item.projection_name=$1 \
+             WHERE item.holding_id=erpx_projects_read.current_holding_id() AND item.projection_name=$1 \
                AND ($2 OR item.scope_key=ANY($3::text[]) OR item.scope_key LIKE ANY($4::text[])) \
                AND ($5::uuid IS NULL OR item.project_id>$5) ORDER BY item.project_id LIMIT $6",
         )
@@ -510,20 +510,20 @@ struct ScopeFilter {
     prefixes: Vec<String>,
 }
 impl ScopeFilter {
-    fn from(scope: &TenantScope) -> Result<Self, PortError> {
+    fn from(scope: &AuthorityScope) -> Result<Self, PortError> {
         scope.validate().map_err(|_| PortError::Denied)?;
         Ok(match scope {
-            TenantScope::Platform => Self {
+            AuthorityScope::Platform => Self {
                 platform: true,
                 exact: vec![],
                 prefixes: vec![],
             },
-            TenantScope::Holding { holding_id } => Self {
+            AuthorityScope::Holding { holding_id } => Self {
                 platform: false,
                 exact: vec![],
                 prefixes: vec![format!("h:{holding_id}/%")],
             },
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => {
@@ -534,7 +534,7 @@ impl ScopeFilter {
                     prefixes: vec![format!("{key}/%")],
                 }
             }
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -543,26 +543,13 @@ impl ScopeFilter {
                 exact: vec![format!("h:{holding_id}/c:{company_id}/b:{branch_id}")],
                 prefixes: vec![],
             },
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Self {
                 platform: false,
-                exact: company_ids
-                    .iter()
-                    .flat_map(|company| {
-                        if branch_ids.is_empty() {
-                            vec![format!("h:{holding_id}/c:{company}")]
-                        } else {
-                            branch_ids
-                                .iter()
-                                .map(|branch| format!("h:{holding_id}/c:{company}/b:{branch}"))
-                                .collect()
-                        }
-                    })
-                    .collect(),
-                prefixes: vec![],
+                exact: vec![format!("h:{holding_id}/c:{organization_node_id}")],
+                prefixes: vec![format!("h:{holding_id}/c:{organization_node_id}/%")],
             },
         })
     }
@@ -578,9 +565,9 @@ fn map_read_error(error: CqrsSqlxError) -> PortError {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn query_source_joins_only_exact_tenant_active_generations() {
+    fn query_source_joins_only_exact_holding_active_generations() {
         let source = include_str!("read.rs");
-        assert!(source.contains("generation.tenant_id=item.tenant_id"));
+        assert!(source.contains("generation.holding_id=item.holding_id"));
         assert!(source.contains("generation.status='active'"));
         assert!(source.contains("FreshnessState::Rebuilding"));
         assert!(source.contains("FreshnessState::Unavailable"));

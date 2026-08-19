@@ -7,7 +7,7 @@
   G8-FIN-022 control-plane provider routing.
 - **Allowed paths:** Finance protobuf/server transport, bounded transport
   tests, this audit, and plan/ledger records.
-- **Forbidden paths:** tenant banking persistence, provider SDKs, credential
+- **Forbidden paths:** holding banking persistence, provider SDKs, credential
   retrieval, worker scheduling, Finance UI, Folio, and unrelated ERP contexts.
 
 ## Delivered behavior
@@ -20,7 +20,7 @@
   and reject Platform/subtree scopes.
 - The server requires an authenticated command context, actor equality with
   the embedded match context, the customer scope binding, the `finance.write`
-  role, the Finance entitlement, and routed tenant write access.
+  role, the Finance entitlement, and routed holding write access.
 - Persistence reloads authoritative bank facts and posted-journal facts and
   remains responsible for atomic idempotency, proposal binding, and immutable
   decisions; matching never posts or mutates a journal.
@@ -50,5 +50,5 @@ and migration reconciliation remain open. This packet does not close G8.
 ## Rollback
 
 Remove the additive RPC methods and server handlers while retaining the
-validated persistence boundary. No tenant write facts, Folio state, or
+validated persistence boundary. No holding write facts, Folio state, or
 provider credentials are changed by rollback.

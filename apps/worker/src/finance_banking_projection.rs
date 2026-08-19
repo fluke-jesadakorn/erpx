@@ -1,19 +1,19 @@
-//! Tenant-routed Finance banking read projection worker seam.
+//! Holding-routed Finance banking read projection worker seam.
 //!
-//! Banking source aggregates are authoritative on the tenant write database.
+//! Banking source aggregates are authoritative on the holding write database.
 //! This runner consumes bounded source outbox pages and applies them to the
-//! replaceable tenant read database through the infrastructure adapter.
+//! replaceable holding read database through the infrastructure adapter.
 
 use erpx_infrastructure::{
     FinanceBankingProjectionRebuildPreparation, FinanceBankingSourceEventCursor,
-    MAX_FINANCE_BANKING_SOURCE_EVENT_PAGE_SIZE, PersistenceError, ProjectionClaimRecord,
-    ProjectionJobKind, RoutedDatabaseSide, RoutedTenantDatabase, SqlxFinanceBankingStore,
-    TenantDatabaseRouter,
+    HoldingDatabaseRouter, MAX_FINANCE_BANKING_SOURCE_EVENT_PAGE_SIZE, PersistenceError,
+    ProjectionClaimRecord, ProjectionJobKind, RoutedDatabaseSide, RoutedHoldingDatabase,
+    SqlxFinanceBankingStore,
 };
 use thiserror::Error;
 
 use super::{
-    CandidateProjectionRebuilder, TenantProjectionExecutorError, TenantProjectionRoutedExecutor,
+    CandidateProjectionRebuilder, HoldingProjectionExecutorError, HoldingProjectionRoutedExecutor,
     WorkerError,
 };
 
@@ -23,11 +23,11 @@ pub const FINANCE_BANKING_PROJECTION_MAX_PAGE_SIZE: u32 =
 const MAX_FINANCE_BANKING_INCREMENTAL_EVENTS: u64 = 1_000_000;
 
 #[derive(Debug, Clone, Copy)]
-pub struct FinanceBankingTenantProjectionExecutor {
+pub struct FinanceBankingHoldingProjectionExecutor {
     default_page_size: u32,
 }
 
-impl FinanceBankingTenantProjectionExecutor {
+impl FinanceBankingHoldingProjectionExecutor {
     pub fn new(page_size: u32) -> Result<Self, FinanceBankingProjectionWorkerError> {
         if page_size == 0 || page_size > FINANCE_BANKING_PROJECTION_MAX_PAGE_SIZE {
             return Err(FinanceBankingProjectionWorkerError::Configuration(format!(
@@ -173,22 +173,22 @@ impl From<PersistenceError> for FinanceBankingProjectionWorkerError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinanceBankingProjectionRequest {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub cursor: Option<FinanceBankingSourceEventCursor>,
     pub page_size: u32,
 }
 
 impl FinanceBankingProjectionRequest {
     pub fn new(
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         cursor: Option<FinanceBankingSourceEventCursor>,
         page_size: u32,
     ) -> Result<Self, FinanceBankingProjectionWorkerError> {
         let request = Self {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
             cursor,
             page_size,
         };
@@ -197,8 +197,8 @@ impl FinanceBankingProjectionRequest {
     }
 
     fn validate(&self) -> Result<(), FinanceBankingProjectionWorkerError> {
-        validate_reference(&self.tenant_id, "tenant_id")?;
-        validate_reference(&self.holding_ref, "holding_ref")?;
+        validate_reference(&self.holding_id, "holding_id")?;
+        validate_reference(&self.data_profile_key, "data_profile_key")?;
         if self.page_size == 0 || self.page_size > FINANCE_BANKING_PROJECTION_MAX_PAGE_SIZE {
             return Err(FinanceBankingProjectionWorkerError::Configuration(format!(
                 "Finance banking projection page size must be 1..={FINANCE_BANKING_PROJECTION_MAX_PAGE_SIZE}"
@@ -223,8 +223,8 @@ impl FinanceBankingProjectionRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinanceBankingProjectionRunReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub events_seen: u64,
     pub events_applied: u64,
     pub next_cursor: Option<FinanceBankingSourceEventCursor>,
@@ -233,19 +233,19 @@ pub struct FinanceBankingProjectionRunReport {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinanceBankingProjectionRebuildReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub events_replayed: u64,
     pub preparation: FinanceBankingProjectionRebuildPreparation,
 }
 
 #[derive(Debug, Clone)]
 pub struct FinanceBankingProjectionRunner {
-    router: TenantDatabaseRouter,
+    router: HoldingDatabaseRouter,
 }
 
 impl FinanceBankingProjectionRunner {
-    pub fn new(router: TenantDatabaseRouter) -> Self {
+    pub fn new(router: HoldingDatabaseRouter) -> Self {
         Self { router }
     }
 
@@ -255,12 +255,12 @@ impl FinanceBankingProjectionRunner {
     ) -> Result<FinanceBankingProjectionRunReport, FinanceBankingProjectionWorkerError> {
         request.validate()?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result = match SqlxFinanceBankingStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            request.holding_ref.clone(),
+            request.data_profile_key.clone(),
         ) {
             Ok(store) => async {
                 let page = store
@@ -284,8 +284,8 @@ impl FinanceBankingProjectionRunner {
                 }
                 Ok::<FinanceBankingProjectionRunReport, PersistenceError>(
                     FinanceBankingProjectionRunReport {
-                        tenant_id: request.tenant_id.clone(),
-                        holding_ref: request.holding_ref.clone(),
+                        holding_id: request.holding_id.clone(),
+                        data_profile_key: request.data_profile_key.clone(),
                         events_seen: page.events.len() as u64,
                         events_applied,
                         next_cursor: page.next_cursor,
@@ -303,23 +303,23 @@ impl FinanceBankingProjectionRunner {
 
     pub async fn rebuild(
         &self,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         page_size: u32,
     ) -> Result<FinanceBankingProjectionRebuildReport, FinanceBankingProjectionWorkerError> {
-        self.rebuild_internal(tenant_id, holding_ref, page_size, None)
+        self.rebuild_internal(holding_id, data_profile_key, page_size, None)
             .await
     }
 
     /// Rebuild the banking read model only from the exact source-event
     /// watermark supplied by the replacement-read or rollback boundary.
     /// Persistence owns the source lock and atomic read transaction; this
-    /// worker method only binds the routed tenant and maps a moved source to a
+    /// worker method only binds the routed holding and maps a moved source to a
     /// retryable, redacted result.
     pub async fn rebuild_with_source_fence(
         &self,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         page_size: u32,
         source_version: u64,
     ) -> Result<FinanceBankingProjectionRebuildReport, FinanceBankingProjectionWorkerError> {
@@ -328,26 +328,31 @@ impl FinanceBankingProjectionRunner {
                 "Finance banking source version is invalid".into(),
             ));
         }
-        self.rebuild_internal(tenant_id, holding_ref, page_size, Some(source_version))
-            .await
+        self.rebuild_internal(
+            holding_id,
+            data_profile_key,
+            page_size,
+            Some(source_version),
+        )
+        .await
     }
 
     async fn rebuild_internal(
         &self,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         page_size: u32,
         source_version: Option<u64>,
     ) -> Result<FinanceBankingProjectionRebuildReport, FinanceBankingProjectionWorkerError> {
         let request =
-            FinanceBankingProjectionRequest::new(tenant_id, holding_ref, None, page_size)?;
+            FinanceBankingProjectionRequest::new(holding_id, data_profile_key, None, page_size)?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result = match SqlxFinanceBankingStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            request.holding_ref.clone(),
+            request.data_profile_key.clone(),
         ) {
             Ok(store) => async {
                 if let Some(expected) = source_version {
@@ -382,8 +387,8 @@ impl FinanceBankingProjectionRunner {
                 }
                 Ok::<FinanceBankingProjectionRebuildReport, FinanceBankingProjectionWorkerError>(
                     FinanceBankingProjectionRebuildReport {
-                        tenant_id: request.tenant_id.clone(),
-                        holding_ref: request.holding_ref.clone(),
+                        holding_id: request.holding_id.clone(),
+                        data_profile_key: request.data_profile_key.clone(),
                         events_replayed,
                         preparation,
                     },
@@ -398,18 +403,18 @@ impl FinanceBankingProjectionRunner {
 
     async fn route_store(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
-    ) -> Result<(RoutedTenantDatabase, RoutedTenantDatabase), FinanceBankingProjectionWorkerError>
+        holding_id: &str,
+        data_profile_key: &str,
+    ) -> Result<(RoutedHoldingDatabase, RoutedHoldingDatabase), FinanceBankingProjectionWorkerError>
     {
         let write = self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Write)
             .await
             .map_err(|_| redacted_error("write database routing"))?;
         let read = match self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Read)
             .await
         {
             Ok(read) => read,
@@ -427,7 +432,7 @@ impl CandidateProjectionRebuilder for FinanceBankingProjectionRunner {
     async fn rebuild_candidate(
         &self,
         projection_name: &str,
-        candidate: &RoutedTenantDatabase,
+        candidate: &RoutedHoldingDatabase,
         source_version: u64,
     ) -> Result<erpx_infrastructure::ProjectionRebuildReport, WorkerError> {
         if projection_name != erpx_infrastructure::FINANCE_BANKING_READ_PROJECTION
@@ -440,8 +445,8 @@ impl CandidateProjectionRebuilder for FinanceBankingProjectionRunner {
         let write = self
             .router
             .route(
-                &candidate.tenant_id,
-                &candidate.holding_ref,
+                &candidate.holding_id,
+                &candidate.data_profile_key,
                 RoutedDatabaseSide::Write,
             )
             .await
@@ -451,7 +456,7 @@ impl CandidateProjectionRebuilder for FinanceBankingProjectionRunner {
         let store = match SqlxFinanceBankingStore::from_pools(
             write.database_pool(),
             candidate.database_pool(),
-            candidate.holding_ref.clone(),
+            candidate.data_profile_key.clone(),
         ) {
             Ok(store) => store,
             Err(_) => {
@@ -499,45 +504,45 @@ impl CandidateProjectionRebuilder for FinanceBankingProjectionRunner {
 }
 
 #[async_trait::async_trait]
-impl TenantProjectionRoutedExecutor for FinanceBankingTenantProjectionExecutor {
+impl HoldingProjectionRoutedExecutor for FinanceBankingHoldingProjectionExecutor {
     async fn execute_routed(
         &self,
         claim: &ProjectionClaimRecord,
-        write: &RoutedTenantDatabase,
-        read: &RoutedTenantDatabase,
-    ) -> Result<(), TenantProjectionExecutorError> {
-        if claim.job.binding.tenant_id != write.tenant_id
-            || claim.job.binding.holding_ref != write.holding_ref
+        write: &RoutedHoldingDatabase,
+        read: &RoutedHoldingDatabase,
+    ) -> Result<(), HoldingProjectionExecutorError> {
+        if claim.job.binding.holding_id != write.holding_id
+            || claim.job.binding.data_profile_key != write.data_profile_key
             || write.side != RoutedDatabaseSide::Write
             || read.side != RoutedDatabaseSide::Read
             || claim.job.projection_name != erpx_infrastructure::FINANCE_BANKING_READ_PROJECTION
         {
-            return Err(TenantProjectionExecutorError::Permanent);
+            return Err(HoldingProjectionExecutorError::Permanent);
         }
         let payload = FinanceBankingProjectionJobPayload::from_claim(claim, self.default_page_size)
-            .map_err(|_| TenantProjectionExecutorError::Permanent)?;
+            .map_err(|_| HoldingProjectionExecutorError::Permanent)?;
         let store = SqlxFinanceBankingStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            claim.job.binding.holding_ref.clone(),
+            claim.job.binding.data_profile_key.clone(),
         )
-        .map_err(|_| TenantProjectionExecutorError::Permanent)?;
+        .map_err(|_| HoldingProjectionExecutorError::Permanent)?;
         match claim.job.kind {
             ProjectionJobKind::Incremental => {
                 let source_before = store
                     .source_event_high_watermark()
                     .await
-                    .map_err(|_| TenantProjectionExecutorError::Retryable)?;
+                    .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
                 let mut cursor = payload.cursor.clone();
                 let mut events_seen = 0_u64;
                 loop {
                     let page = store
                         .read_source_event_page(cursor.as_ref(), payload.page_size)
                         .await
-                        .map_err(|_| TenantProjectionExecutorError::Retryable)?;
+                        .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
                     events_seen = events_seen.saturating_add(page.events.len() as u64);
                     if events_seen > MAX_FINANCE_BANKING_INCREMENTAL_EVENTS {
-                        return Err(TenantProjectionExecutorError::Permanent);
+                        return Err(HoldingProjectionExecutorError::Permanent);
                     }
                     let has_more = page.has_more;
                     let next_cursor = page.next_cursor;
@@ -552,51 +557,51 @@ impl TenantProjectionRoutedExecutor for FinanceBankingTenantProjectionExecutor {
                                 &event.payload,
                             )
                             .await
-                            .map_err(|_| TenantProjectionExecutorError::Retryable)?;
+                            .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
                     }
                     if !has_more {
                         break;
                     }
                     let Some(next_cursor) = next_cursor else {
-                        return Err(TenantProjectionExecutorError::Permanent);
+                        return Err(HoldingProjectionExecutorError::Permanent);
                     };
                     if !banking_cursor_is_after(cursor.as_ref(), &next_cursor) {
-                        return Err(TenantProjectionExecutorError::Permanent);
+                        return Err(HoldingProjectionExecutorError::Permanent);
                     }
                     cursor = Some(next_cursor);
                 }
                 let source_after = store
                     .source_event_high_watermark()
                     .await
-                    .map_err(|_| TenantProjectionExecutorError::Retryable)?;
+                    .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
                 if source_after != source_before {
-                    return Err(TenantProjectionExecutorError::Retryable);
+                    return Err(HoldingProjectionExecutorError::Retryable);
                 }
                 let reconciliation = store
                     .reconcile_projection()
                     .await
-                    .map_err(|_| TenantProjectionExecutorError::Retryable)?;
+                    .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
                 if !reconciliation.is_reconciled() {
-                    return Err(TenantProjectionExecutorError::Retryable);
+                    return Err(HoldingProjectionExecutorError::Retryable);
                 }
             }
             ProjectionJobKind::Rebuild => {
                 if payload.cursor.is_some() {
-                    return Err(TenantProjectionExecutorError::Permanent);
+                    return Err(HoldingProjectionExecutorError::Permanent);
                 }
                 let source_before = match payload.source_version {
                     Some(_) => Some(
                         store
                             .source_event_high_watermark()
                             .await
-                            .map_err(|_| TenantProjectionExecutorError::Retryable)?,
+                            .map_err(|_| HoldingProjectionExecutorError::Retryable)?,
                     ),
                     None => None,
                 };
                 if let (Some(expected), Some(actual)) = (payload.source_version, source_before)
                     && expected != actual
                 {
-                    return Err(TenantProjectionExecutorError::CandidateSourceMoved);
+                    return Err(HoldingProjectionExecutorError::CandidateSourceMoved);
                 }
                 let rebuild = store
                     .rebuild_projection_with_source_fence(payload.source_version, payload.page_size)
@@ -606,22 +611,22 @@ impl TenantProjectionRoutedExecutor for FinanceBankingTenantProjectionExecutor {
                         let reconciliation = store
                             .reconcile_projection()
                             .await
-                            .map_err(|_| TenantProjectionExecutorError::Retryable)?;
+                            .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
                         if !reconciliation.is_reconciled() {
-                            return Err(TenantProjectionExecutorError::Retryable);
+                            return Err(HoldingProjectionExecutorError::Retryable);
                         }
                     }
                     Err(_) if payload.source_version.is_some() => {
                         let source_after = store
                             .source_event_high_watermark()
                             .await
-                            .map_err(|_| TenantProjectionExecutorError::Retryable)?;
+                            .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
                         if Some(source_after) != source_before {
-                            return Err(TenantProjectionExecutorError::CandidateSourceMoved);
+                            return Err(HoldingProjectionExecutorError::CandidateSourceMoved);
                         }
-                        return Err(TenantProjectionExecutorError::Retryable);
+                        return Err(HoldingProjectionExecutorError::Retryable);
                     }
-                    Err(_) => return Err(TenantProjectionExecutorError::Retryable),
+                    Err(_) => return Err(HoldingProjectionExecutorError::Retryable),
                 }
             }
         }
@@ -629,7 +634,7 @@ impl TenantProjectionRoutedExecutor for FinanceBankingTenantProjectionExecutor {
     }
 }
 
-async fn close_routes(write: RoutedTenantDatabase, read: RoutedTenantDatabase) {
+async fn close_routes(write: RoutedHoldingDatabase, read: RoutedHoldingDatabase) {
     write.close().await;
     read.close().await;
 }
@@ -677,20 +682,20 @@ mod tests {
 
     #[test]
     fn requests_enforce_bounds_and_scoped_cursor() {
-        assert!(FinanceBankingProjectionRequest::new("tenant-1", "holding-1", None, 0).is_err());
+        assert!(FinanceBankingProjectionRequest::new("holding-1", "holding-1", None, 0).is_err());
         assert!(
             FinanceBankingProjectionRequest::new(
-                "tenant-1",
+                "holding-1",
                 "holding-1",
                 None,
                 FINANCE_BANKING_PROJECTION_MAX_PAGE_SIZE + 1,
             )
             .is_err()
         );
-        assert!(FinanceBankingProjectionRequest::new("tenant/1", "holding-1", None, 1).is_err());
+        assert!(FinanceBankingProjectionRequest::new("holding/1", "holding-1", None, 1).is_err());
         assert!(
             FinanceBankingProjectionRequest::new(
-                "tenant-1",
+                "holding-1",
                 "holding-1",
                 Some(FinanceBankingSourceEventCursor {
                     aggregate_type: "finance_bank_account".into(),
@@ -703,7 +708,7 @@ mod tests {
         );
         assert!(
             FinanceBankingProjectionRequest::new(
-                "tenant-1",
+                "holding-1",
                 "holding-1",
                 Some(FinanceBankingSourceEventCursor {
                     aggregate_type: "finance_bank_account".into(),
@@ -726,15 +731,15 @@ mod tests {
 
     #[test]
     fn scheduler_executor_bounds_are_fail_closed() {
-        assert!(FinanceBankingTenantProjectionExecutor::new(0).is_err());
+        assert!(FinanceBankingHoldingProjectionExecutor::new(0).is_err());
         assert!(
-            FinanceBankingTenantProjectionExecutor::new(
+            FinanceBankingHoldingProjectionExecutor::new(
                 FINANCE_BANKING_PROJECTION_MAX_PAGE_SIZE + 1
             )
             .is_err()
         );
         assert_eq!(
-            FinanceBankingTenantProjectionExecutor::new(25)
+            FinanceBankingHoldingProjectionExecutor::new(25)
                 .expect("bounded scheduler executor")
                 .page_size(),
             25

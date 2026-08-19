@@ -80,7 +80,7 @@ The blocked results are recorded rather than treated as passing evidence.
   complete snapshot/read contract before final-authority recovery is used as a
   production command boundary.
 - Approver/reviewer strings are command metadata. Authenticated approver role,
-  identity, session, entitlement, SoD, and tenant/scope checks remain required
+  identity, session, entitlement, SoD, and holding/scope checks remain required
   at the server/write boundary.
 - Recovery is command-backed but has no transport, persistence-specific
   idempotency/replay response, audit-read projection, or worker escalation.

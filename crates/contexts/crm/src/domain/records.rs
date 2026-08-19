@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -60,7 +60,7 @@ pub struct CrmRecord {
     id: Uuid,
     version: u64,
     kind: CrmRecordKind,
-    scope: TenantScope,
+    scope: AuthorityScope,
     title: String,
     status: CrmRecordStatus,
     created_at: DateTime<Utc>,
@@ -71,7 +71,7 @@ impl CrmRecord {
     pub fn create(
         id: Uuid,
         kind: CrmRecordKind,
-        scope: TenantScope,
+        scope: AuthorityScope,
         title: String,
         at: DateTime<Utc>,
     ) -> Result<Self, CrmDomainError> {
@@ -132,7 +132,7 @@ impl CrmRecord {
     pub const fn kind(&self) -> CrmRecordKind {
         self.kind
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn title(&self) -> &str {
@@ -161,11 +161,11 @@ const fn allowed(kind: CrmRecordKind, current: CrmRecordStatus, next: CrmRecordS
             | (K::Forecast, S::Approved, S::Superseded)
     )
 }
-fn validate_scope(scope: &TenantScope) -> Result<(), CrmDomainError> {
+fn validate_scope(scope: &AuthorityScope) -> Result<(), CrmDomainError> {
     scope.validate().map_err(|_| CrmDomainError::InvalidScope)?;
     if !matches!(
         scope,
-        TenantScope::Company { .. } | TenantScope::Branch { .. }
+        AuthorityScope::Company { .. } | AuthorityScope::Branch { .. }
     ) {
         Err(CrmDomainError::InvalidScope)
     } else {
@@ -199,7 +199,7 @@ mod tests {
     use chrono::TimeZone;
     #[test]
     fn activity_and_forecast_lifecycles_are_distinct() {
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         };

@@ -1,23 +1,23 @@
-//! Tenant-routed Finance AP/AR and cash-control read projection worker.
+//! Holding-routed Finance AP/AR and cash-control read projection worker.
 //!
 //! The Finance subledger write database is authoritative. This executor reads
 //! only the store's bounded source-event pages and writes the disposable
-//! tenant-read projection through [`SqlxFinanceSubledgerStore`]. It owns no
-//! database credentials and never opens a route outside the supplied tenant
+//! holding-read projection through [`SqlxFinanceSubledgerStore`]. It owns no
+//! database credentials and never opens a route outside the supplied holding
 //! router.
 
 use async_trait::async_trait;
 use erpx_domain::finance_subledgers::FinanceSubledgerReconciliationReport;
 use erpx_infrastructure::{
-    FinanceSubledgerSourceEventCursor, MAX_FINANCE_SUBLEDGER_SOURCE_EVENT_PAGE_SIZE,
-    PersistenceError, ProjectionClaimRecord, ProjectionJobKind, RoutedDatabaseSide,
-    RoutedTenantDatabase, SqlxFinanceSubledgerStore, TenantDatabaseRouter,
+    FinanceSubledgerSourceEventCursor, HoldingDatabaseRouter,
+    MAX_FINANCE_SUBLEDGER_SOURCE_EVENT_PAGE_SIZE, PersistenceError, ProjectionClaimRecord,
+    ProjectionJobKind, RoutedDatabaseSide, RoutedHoldingDatabase, SqlxFinanceSubledgerStore,
 };
 use thiserror::Error;
 use uuid::Uuid;
 
 use super::{
-    TenantProjectionExecutor, TenantProjectionExecutorError, TenantProjectionRoutedExecutor,
+    HoldingProjectionExecutor, HoldingProjectionExecutorError, HoldingProjectionRoutedExecutor,
 };
 
 /// Stable scheduler kind for the Finance AP/AR and cash-control projection.
@@ -49,8 +49,8 @@ impl From<PersistenceError> for FinanceSubledgerProjectionWorkerError {
 }
 
 #[derive(Debug, Clone)]
-pub struct FinanceSubledgerTenantProjectionExecutor {
-    router: TenantDatabaseRouter,
+pub struct FinanceSubledgerHoldingProjectionExecutor {
+    router: HoldingDatabaseRouter,
     default_page_size: u32,
 }
 
@@ -64,24 +64,24 @@ pub enum FinanceSubledgerReconciliationWorkerError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinanceSubledgerReconciliationRequest {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub max_rows: u32,
 }
 
 impl FinanceSubledgerReconciliationRequest {
     pub fn new(
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         max_rows: u32,
     ) -> Result<Self, FinanceSubledgerReconciliationWorkerError> {
         let request = Self {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
             max_rows,
         };
-        validate_reconciliation_reference(&request.tenant_id, "tenant_id")?;
-        validate_reconciliation_reference(&request.holding_ref, "holding_ref")?;
+        validate_reconciliation_reference(&request.holding_id, "holding_id")?;
+        validate_reconciliation_reference(&request.data_profile_key, "data_profile_key")?;
         if request.max_rows == 0 || request.max_rows > FINANCE_SUBLEDGER_RECONCILIATION_MAX_ROWS {
             return Err(FinanceSubledgerReconciliationWorkerError::Configuration(
                 "Finance subledger reconciliation row bound is invalid".into(),
@@ -93,11 +93,11 @@ impl FinanceSubledgerReconciliationRequest {
 
 #[derive(Debug, Clone)]
 pub struct FinanceSubledgerReconciliationRunner {
-    router: TenantDatabaseRouter,
+    router: HoldingDatabaseRouter,
 }
 
 impl FinanceSubledgerReconciliationRunner {
-    pub fn new(router: TenantDatabaseRouter) -> Self {
+    pub fn new(router: HoldingDatabaseRouter) -> Self {
         Self { router }
     }
 
@@ -111,15 +111,15 @@ impl FinanceSubledgerReconciliationRunner {
     ) -> Result<FinanceSubledgerReconciliationReport, FinanceSubledgerReconciliationWorkerError>
     {
         let request = FinanceSubledgerReconciliationRequest::new(
-            request.tenant_id,
-            request.holding_ref,
+            request.holding_id,
+            request.data_profile_key,
             request.max_rows,
         )?;
         let write = self
             .router
             .route(
-                &request.tenant_id,
-                &request.holding_ref,
+                &request.holding_id,
+                &request.data_profile_key,
                 RoutedDatabaseSide::Write,
             )
             .await
@@ -127,8 +127,8 @@ impl FinanceSubledgerReconciliationRunner {
         let read = match self
             .router
             .route(
-                &request.tenant_id,
-                &request.holding_ref,
+                &request.holding_id,
+                &request.data_profile_key,
                 RoutedDatabaseSide::Read,
             )
             .await
@@ -142,7 +142,7 @@ impl FinanceSubledgerReconciliationRunner {
         let result = match SqlxFinanceSubledgerStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            request.holding_ref.clone(),
+            request.data_profile_key.clone(),
         ) {
             Ok(store) => store
                 .reconcile_read_model(request.max_rows)
@@ -156,9 +156,9 @@ impl FinanceSubledgerReconciliationRunner {
     }
 }
 
-impl FinanceSubledgerTenantProjectionExecutor {
+impl FinanceSubledgerHoldingProjectionExecutor {
     pub fn new(
-        router: TenantDatabaseRouter,
+        router: HoldingDatabaseRouter,
         page_size: u32,
     ) -> Result<Self, FinanceSubledgerProjectionWorkerError> {
         validate_page_size(page_size)?;
@@ -263,22 +263,22 @@ impl FinanceSubledgerProjectionJobPayload {
 }
 
 #[async_trait]
-impl TenantProjectionExecutor for FinanceSubledgerTenantProjectionExecutor {
+impl HoldingProjectionExecutor for FinanceSubledgerHoldingProjectionExecutor {
     async fn execute(
         &self,
         claim: &ProjectionClaimRecord,
-    ) -> Result<(), TenantProjectionExecutorError> {
-        validate_claim(claim).map_err(|_| TenantProjectionExecutorError::Permanent)?;
+    ) -> Result<(), HoldingProjectionExecutorError> {
+        validate_claim(claim).map_err(|_| HoldingProjectionExecutorError::Permanent)?;
 
         let payload =
             FinanceSubledgerProjectionJobPayload::from_claim(claim, self.default_page_size)
-                .map_err(|_| TenantProjectionExecutorError::Permanent)?;
+                .map_err(|_| HoldingProjectionExecutorError::Permanent)?;
 
         let write = self
             .router
             .route(
-                &claim.job.binding.tenant_id,
-                &claim.job.binding.holding_ref,
+                &claim.job.binding.holding_id,
+                &claim.job.binding.data_profile_key,
                 RoutedDatabaseSide::Write,
             )
             .await
@@ -286,8 +286,8 @@ impl TenantProjectionExecutor for FinanceSubledgerTenantProjectionExecutor {
         let read = match self
             .router
             .route(
-                &claim.job.binding.tenant_id,
-                &claim.job.binding.holding_ref,
+                &claim.job.binding.holding_id,
+                &claim.job.binding.data_profile_key,
                 RoutedDatabaseSide::Read,
             )
             .await
@@ -306,22 +306,22 @@ impl TenantProjectionExecutor for FinanceSubledgerTenantProjectionExecutor {
     }
 }
 
-impl FinanceSubledgerTenantProjectionExecutor {
+impl FinanceSubledgerHoldingProjectionExecutor {
     async fn execute_store(
         &self,
         claim: &ProjectionClaimRecord,
         payload: &FinanceSubledgerProjectionJobPayload,
-        write: &RoutedTenantDatabase,
-        read: &RoutedTenantDatabase,
-    ) -> Result<(), TenantProjectionExecutorError> {
+        write: &RoutedHoldingDatabase,
+        read: &RoutedHoldingDatabase,
+    ) -> Result<(), HoldingProjectionExecutorError> {
         validate_routed_context(claim, write, read)?;
 
         let store = SqlxFinanceSubledgerStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            claim.job.binding.holding_ref.clone(),
+            claim.job.binding.data_profile_key.clone(),
         )
-        .map_err(|_| TenantProjectionExecutorError::Permanent)?;
+        .map_err(|_| HoldingProjectionExecutorError::Permanent)?;
 
         match claim.job.kind {
             ProjectionJobKind::Incremental => {
@@ -329,7 +329,7 @@ impl FinanceSubledgerTenantProjectionExecutor {
                 // generic scheduler owns candidate activation and source locks.
                 // Incremental jobs must never silently ignore a fence.
                 if payload.source_version.is_some() {
-                    return Err(TenantProjectionExecutorError::Permanent);
+                    return Err(HoldingProjectionExecutorError::Permanent);
                 }
                 let mut cursor = payload.cursor.clone();
                 let mut events_seen = 0_u64;
@@ -340,7 +340,7 @@ impl FinanceSubledgerTenantProjectionExecutor {
                         .map_err(|_| redacted_executor_error("source event page"))?;
                     events_seen = events_seen.saturating_add(page.events.len() as u64);
                     if events_seen > MAX_FINANCE_SUBLEDGER_INCREMENTAL_EVENTS {
-                        return Err(TenantProjectionExecutorError::Permanent);
+                        return Err(HoldingProjectionExecutorError::Permanent);
                     }
                     let has_more = page.has_more;
                     let next_cursor = page.next_cursor;
@@ -360,10 +360,10 @@ impl FinanceSubledgerTenantProjectionExecutor {
                         break;
                     }
                     let Some(next_cursor) = next_cursor else {
-                        return Err(TenantProjectionExecutorError::Permanent);
+                        return Err(HoldingProjectionExecutorError::Permanent);
                     };
                     if !subledger_cursor_is_after(cursor.as_ref(), &next_cursor) {
-                        return Err(TenantProjectionExecutorError::Permanent);
+                        return Err(HoldingProjectionExecutorError::Permanent);
                     }
                     cursor = Some(next_cursor);
                 }
@@ -377,7 +377,7 @@ impl FinanceSubledgerTenantProjectionExecutor {
             }
             ProjectionJobKind::Rebuild => {
                 if payload.cursor.is_some() {
-                    return Err(TenantProjectionExecutorError::Permanent);
+                    return Err(HoldingProjectionExecutorError::Permanent);
                 }
                 let source_before = match payload.source_version {
                     Some(_) => Some(
@@ -413,16 +413,16 @@ impl FinanceSubledgerTenantProjectionExecutor {
 /// source locking, completion, and activation; this adapter owns only the
 /// bounded source replay and read-model writes.
 #[async_trait]
-impl TenantProjectionRoutedExecutor for FinanceSubledgerTenantProjectionExecutor {
+impl HoldingProjectionRoutedExecutor for FinanceSubledgerHoldingProjectionExecutor {
     async fn execute_routed(
         &self,
         claim: &ProjectionClaimRecord,
-        write: &RoutedTenantDatabase,
-        read: &RoutedTenantDatabase,
-    ) -> Result<(), TenantProjectionExecutorError> {
+        write: &RoutedHoldingDatabase,
+        read: &RoutedHoldingDatabase,
+    ) -> Result<(), HoldingProjectionExecutorError> {
         let payload =
             FinanceSubledgerProjectionJobPayload::from_claim(claim, self.default_page_size)
-                .map_err(|_| TenantProjectionExecutorError::Permanent)?;
+                .map_err(|_| HoldingProjectionExecutorError::Permanent)?;
         self.execute_store(claim, &payload, write, read).await
     }
 }
@@ -440,24 +440,24 @@ fn validate_claim(
     if claim.job.projection_name != FINANCE_SUBLEDGER_PROJECTION_NAME {
         return Err(configuration("projection name is invalid"));
     }
-    validate_reference(&claim.job.binding.tenant_id, "tenant reference")?;
-    validate_reference(&claim.job.binding.holding_ref, "holding reference")?;
+    validate_reference(&claim.job.binding.holding_id, "holding reference")?;
+    validate_reference(&claim.job.binding.data_profile_key, "holding reference")?;
     Ok(())
 }
 
 fn validate_routed_context(
     claim: &ProjectionClaimRecord,
-    write: &RoutedTenantDatabase,
-    read: &RoutedTenantDatabase,
-) -> Result<(), TenantProjectionExecutorError> {
-    validate_claim(claim).map_err(|_| TenantProjectionExecutorError::Permanent)?;
+    write: &RoutedHoldingDatabase,
+    read: &RoutedHoldingDatabase,
+) -> Result<(), HoldingProjectionExecutorError> {
+    validate_claim(claim).map_err(|_| HoldingProjectionExecutorError::Permanent)?;
     validate_routed_binding(
         claim,
-        &write.tenant_id,
-        &write.holding_ref,
+        &write.holding_id,
+        &write.data_profile_key,
         write.side,
-        &read.tenant_id,
-        &read.holding_ref,
+        &read.holding_id,
+        &read.data_profile_key,
         read.side,
     )?;
     validate_database_routes(&write.database_key, &read.database_key)
@@ -465,21 +465,21 @@ fn validate_routed_context(
 
 fn validate_routed_binding(
     claim: &ProjectionClaimRecord,
-    write_tenant_id: &str,
-    write_holding_ref: &str,
+    write_holding_id: &str,
+    write_data_profile_key: &str,
     write_side: RoutedDatabaseSide,
-    read_tenant_id: &str,
-    read_holding_ref: &str,
+    read_holding_id: &str,
+    read_data_profile_key: &str,
     read_side: RoutedDatabaseSide,
-) -> Result<(), TenantProjectionExecutorError> {
+) -> Result<(), HoldingProjectionExecutorError> {
     if write_side != RoutedDatabaseSide::Write
         || read_side != RoutedDatabaseSide::Read
-        || write_tenant_id != claim.job.binding.tenant_id
-        || write_holding_ref != claim.job.binding.holding_ref
-        || read_tenant_id != claim.job.binding.tenant_id
-        || read_holding_ref != claim.job.binding.holding_ref
+        || write_holding_id != claim.job.binding.holding_id
+        || write_data_profile_key != claim.job.binding.data_profile_key
+        || read_holding_id != claim.job.binding.holding_id
+        || read_data_profile_key != claim.job.binding.data_profile_key
     {
-        return Err(TenantProjectionExecutorError::Permanent);
+        return Err(HoldingProjectionExecutorError::Permanent);
     }
     Ok(())
 }
@@ -505,12 +505,12 @@ fn is_valid_reference(value: &str) -> bool {
 fn validate_database_routes(
     write_database_key: &str,
     read_database_key: &str,
-) -> Result<(), TenantProjectionExecutorError> {
+) -> Result<(), HoldingProjectionExecutorError> {
     if !is_valid_database_key(write_database_key)
         || !is_valid_database_key(read_database_key)
         || write_database_key == read_database_key
     {
-        return Err(TenantProjectionExecutorError::Permanent);
+        return Err(HoldingProjectionExecutorError::Permanent);
     }
     Ok(())
 }
@@ -543,9 +543,9 @@ fn configuration(message: &'static str) -> FinanceSubledgerProjectionWorkerError
     FinanceSubledgerProjectionWorkerError::Configuration(message.into())
 }
 
-fn redacted_executor_error(operation: &'static str) -> TenantProjectionExecutorError {
+fn redacted_executor_error(operation: &'static str) -> HoldingProjectionExecutorError {
     tracing::error!(operation, "Finance subledger projection worker seam failed");
-    TenantProjectionExecutorError::Retryable
+    HoldingProjectionExecutorError::Retryable
 }
 
 fn subledger_cursor_is_after(
@@ -593,10 +593,10 @@ fn validate_reconciliation_reference(
 fn source_fence_before_rebuild(
     expected: Option<u64>,
     actual: u64,
-) -> Result<Option<u64>, TenantProjectionExecutorError> {
+) -> Result<Option<u64>, HoldingProjectionExecutorError> {
     if let Some(expected) = expected {
         if expected != actual {
-            return Err(TenantProjectionExecutorError::CandidateSourceMoved);
+            return Err(HoldingProjectionExecutorError::CandidateSourceMoved);
         }
         return Ok(Some(actual));
     }
@@ -606,9 +606,9 @@ fn source_fence_before_rebuild(
 fn source_fence_after_rebuild(
     before: Option<u64>,
     actual: u64,
-) -> Result<(), TenantProjectionExecutorError> {
+) -> Result<(), HoldingProjectionExecutorError> {
     if before.is_some() && before != Some(actual) {
-        return Err(TenantProjectionExecutorError::CandidateSourceMoved);
+        return Err(HoldingProjectionExecutorError::CandidateSourceMoved);
     }
     Ok(())
 }
@@ -618,8 +618,8 @@ mod tests {
     use super::*;
     use chrono::Utc;
     use erpx_infrastructure::{
-        ProjectionJobRecord, ProjectionLease, ProjectionPolicy, ProjectionScheduleRequest,
-        TenantHoldingBinding,
+        HoldingHoldingBinding, ProjectionJobRecord, ProjectionLease, ProjectionPolicy,
+        ProjectionScheduleRequest,
     };
 
     fn scheduler_claim(
@@ -628,7 +628,7 @@ mod tests {
         payload: serde_json::Value,
     ) -> ProjectionClaimRecord {
         let now = Utc::now();
-        let binding = TenantHoldingBinding::new("tenant-1", "holding-1").expect("binding");
+        let binding = HoldingHoldingBinding::new("holding-1", "holding-1").expect("binding");
         let policy = ProjectionPolicy::new(10, 10, 3, 1, 10).expect("policy");
         let request = ProjectionScheduleRequest {
             binding,
@@ -688,16 +688,16 @@ mod tests {
     #[test]
     fn reconciliation_request_is_bounded_and_redacted() {
         let request = FinanceSubledgerReconciliationRequest::new(
-            "tenant-1",
+            "holding-1",
             "holding-1",
             FINANCE_SUBLEDGER_RECONCILIATION_MAX_ROWS,
         )
         .expect("bounded reconciliation request");
         assert_eq!(request.max_rows, FINANCE_SUBLEDGER_RECONCILIATION_MAX_ROWS);
-        assert!(FinanceSubledgerReconciliationRequest::new("tenant/1", "holding-1", 1).is_err());
+        assert!(FinanceSubledgerReconciliationRequest::new("holding/1", "holding-1", 1).is_err());
         assert!(
             FinanceSubledgerReconciliationRequest::new(
-                "tenant-1",
+                "holding-1",
                 "holding-1",
                 FINANCE_SUBLEDGER_RECONCILIATION_MAX_ROWS + 1,
             )
@@ -721,9 +721,9 @@ mod tests {
         claim.job.projection_name = FINANCE_SUBLEDGER_PROJECTION_HANDLER_NAME.into();
         assert_ne!(claim.job.projection_name, FINANCE_SUBLEDGER_PROJECTION_NAME);
         assert!(validate_claim(&claim).is_err());
-        assert!(!is_valid_reference("tenant/unsafe"));
+        assert!(!is_valid_reference("holding/unsafe"));
         assert!(!is_valid_reference(" "));
-        assert!(is_valid_reference("tenant-1"));
+        assert!(is_valid_reference("holding-1"));
     }
 
     #[test]
@@ -822,45 +822,52 @@ mod tests {
         assert!(
             validate_routed_binding(
                 &claim,
-                "tenant-1",
+                "holding-1",
                 "holding-1",
                 RoutedDatabaseSide::Write,
-                "tenant-1",
+                "holding-1",
                 "holding-1",
                 RoutedDatabaseSide::Read,
             )
             .is_ok()
         );
-        for (write_tenant, write_holding, write_side, read_tenant, read_holding, read_side) in [
+        for (
+            write_holding_id,
+            write_data_profile_key,
+            write_side,
+            read_holding_id,
+            read_data_profile_key,
+            read_side,
+        ) in [
             (
-                "tenant-2",
+                "holding-2",
                 "holding-1",
                 RoutedDatabaseSide::Write,
-                "tenant-1",
+                "holding-1",
                 "holding-1",
                 RoutedDatabaseSide::Read,
             ),
             (
-                "tenant-1",
+                "holding-1",
                 "holding-2",
                 RoutedDatabaseSide::Write,
-                "tenant-1",
+                "holding-1",
                 "holding-1",
                 RoutedDatabaseSide::Read,
             ),
             (
-                "tenant-1",
+                "holding-1",
                 "holding-1",
                 RoutedDatabaseSide::Read,
-                "tenant-1",
+                "holding-1",
                 "holding-1",
                 RoutedDatabaseSide::Read,
             ),
             (
-                "tenant-1",
+                "holding-1",
                 "holding-1",
                 RoutedDatabaseSide::Write,
-                "tenant-1",
+                "holding-1",
                 "holding-1",
                 RoutedDatabaseSide::Write,
             ),
@@ -868,14 +875,14 @@ mod tests {
             assert_eq!(
                 validate_routed_binding(
                     &claim,
-                    write_tenant,
-                    write_holding,
+                    write_holding_id,
+                    write_data_profile_key,
                     write_side,
-                    read_tenant,
-                    read_holding,
+                    read_holding_id,
+                    read_data_profile_key,
                     read_side,
                 ),
-                Err(TenantProjectionExecutorError::Permanent)
+                Err(HoldingProjectionExecutorError::Permanent)
             );
         }
     }
@@ -893,7 +900,7 @@ mod tests {
         ] {
             assert_eq!(
                 validate_database_routes(write_key, read_key),
-                Err(TenantProjectionExecutorError::Permanent)
+                Err(HoldingProjectionExecutorError::Permanent)
             );
         }
     }
@@ -914,7 +921,7 @@ mod tests {
         );
         assert_eq!(
             source_fence_before_rebuild(payload.source_version, 6),
-            Err(TenantProjectionExecutorError::CandidateSourceMoved)
+            Err(HoldingProjectionExecutorError::CandidateSourceMoved)
         );
 
         let unfenced = scheduler_claim(
@@ -944,7 +951,7 @@ mod tests {
 
         assert_eq!(
             source_fence_after_rebuild(source_before, 8),
-            Err(TenantProjectionExecutorError::CandidateSourceMoved)
+            Err(HoldingProjectionExecutorError::CandidateSourceMoved)
         );
         assert_eq!(source_fence_after_rebuild(source_before, 7), Ok(()));
         assert_eq!(source_fence_after_rebuild(None, 8), Ok(()));
@@ -962,8 +969,8 @@ mod tests {
             FINANCE_SUBLEDGER_PROJECTION_NAME
         );
         assert_eq!(
-            TenantProjectionExecutorError::Permanent,
-            TenantProjectionExecutorError::Permanent
+            HoldingProjectionExecutorError::Permanent,
+            HoldingProjectionExecutorError::Permanent
         );
         assert!(matches!(
             FinanceSubledgerProjectionWorkerError::from(PersistenceError::InvalidData(
@@ -975,7 +982,7 @@ mod tests {
         ));
         assert_eq!(
             redacted_executor_error("source page"),
-            TenantProjectionExecutorError::Retryable
+            HoldingProjectionExecutorError::Retryable
         );
     }
 

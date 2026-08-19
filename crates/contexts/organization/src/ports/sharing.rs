@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_cqrs::{IdempotencyKey, QueryConsistency};
-use erpx_kernel::{ActorAttribution, AuditContext, CommandId, CorrelationId, TenantScope};
+use erpx_kernel::{ActorAttribution, AuditContext, AuthorityScope, CommandId, CorrelationId};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -57,7 +57,7 @@ pub struct SharingCommandRequest {
     pub identity: SharingCommandIdentity,
     pub correlation_id: CorrelationId,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
 }
@@ -81,9 +81,9 @@ pub struct StoredSharingCommit {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SharingAuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
-    pub source_scope: &'a TenantScope,
-    pub target_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
+    pub source_scope: &'a AuthorityScope,
+    pub target_scope: &'a AuthorityScope,
     pub action: SharingAction,
 }
 
@@ -99,7 +99,7 @@ pub trait SharingAuthorizationPort: Send + Sync {
 pub trait SharingWriteRepository: Send + Sync {
     async fn load_sharing_agreement(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         sharing_agreement_id: SharingAgreementId,
     ) -> Result<Option<OrganizationSharingAgreement>, super::PortError>;
 }
@@ -137,14 +137,14 @@ pub struct SharingAgreementList {
 pub trait SharingReadRepository: Send + Sync {
     async fn get_sharing_agreement(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         sharing_agreement_id: SharingAgreementId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<OrganizationSharingAgreement>>, super::PortError>;
 
     async fn list_sharing_agreements(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &SharingListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<SharingAgreementList>, super::PortError>;

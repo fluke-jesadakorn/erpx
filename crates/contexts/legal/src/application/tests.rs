@@ -28,8 +28,8 @@ fn id(value: u128) -> Uuid {
 fn at() -> DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap()
 }
-fn scope() -> TenantScope {
-    TenantScope::Company {
+fn scope() -> AuthorityScope {
+    AuthorityScope::Company {
         holding_id: id(1),
         company_id: id(2),
     }
@@ -37,7 +37,7 @@ fn scope() -> TenantScope {
 fn actor(name: &str) -> ActorAttribution {
     ActorAttribution {
         principal_ref: name.into(),
-        kind: ActorKind::TenantUser,
+        kind: ActorKind::HoldingUser,
         session_id: None,
         represented_principal_ref: None,
         support_capability_id: None,
@@ -71,7 +71,7 @@ fn envelope(
         correlation_id: CorrelationId::try_from_uuid(id(101)).unwrap(),
         causation_id: None,
         actor: actor(principal),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "legal.test".into(),
             customer_visible: false,
@@ -141,7 +141,7 @@ struct FakeEntitlement(bool);
 impl EntitlementPort for FakeEntitlement {
     async fn ensure_legal_enabled(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _write: bool,
     ) -> Result<(), PortError> {
         if self.0 {
@@ -163,7 +163,7 @@ struct FakeWrite {
 impl WriteRepository for FakeWrite {
     async fn load_contract(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _id: LegalContractId,
     ) -> Result<Option<LegalContract>, PortError> {
         Ok(self.contract.clone())
@@ -171,7 +171,7 @@ impl WriteRepository for FakeWrite {
 
     async fn load_document(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _id: LegalDocumentId,
     ) -> Result<Option<LegalDocument>, PortError> {
         Ok(self.document.clone())
@@ -179,7 +179,7 @@ impl WriteRepository for FakeWrite {
 
     async fn load_matter(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _id: LegalMatterId,
     ) -> Result<Option<LegalMatter>, PortError> {
         Ok(self.matter.clone())
@@ -362,7 +362,7 @@ async fn company_authority_cannot_link_a_sibling_company_record() {
             relation: RecordRelation::Disputes,
             target: RecordRef::try_new(BoundedContext::Finance, "customer_invoice", id(41), 3)
                 .unwrap(),
-            target_scope: TenantScope::Company {
+            target_scope: AuthorityScope::Company {
                 holding_id: id(1),
                 company_id: id(3),
             },
@@ -490,7 +490,7 @@ fn metadata() -> ProjectionMetadata {
 impl ReadRepository for FakeRead {
     async fn get_contract(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _id: LegalContractId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<ContractView>>, PortError> {
@@ -502,7 +502,7 @@ impl ReadRepository for FakeRead {
     }
     async fn list_contracts(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _filter: &ContractListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<ContractList>, PortError> {
@@ -517,7 +517,7 @@ impl ReadRepository for FakeRead {
     }
     async fn get_document(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _id: LegalDocumentId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<DocumentView>>, PortError> {
@@ -529,7 +529,7 @@ impl ReadRepository for FakeRead {
     }
     async fn list_documents(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _filter: &DocumentListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<DocumentList>, PortError> {
@@ -544,7 +544,7 @@ impl ReadRepository for FakeRead {
     }
     async fn list_access_history(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _filter: &AccessHistoryFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<AccessHistoryList>, PortError> {
@@ -571,7 +571,7 @@ impl ReadRepository for FakeRead {
 
     async fn get_matter(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _id: LegalMatterId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<MatterView>>, PortError> {
@@ -589,7 +589,7 @@ fn query_envelope(query: LegalQuery, consistency: QueryConsistency) -> QueryEnve
         query_id: QueryId::try_from_uuid(id(200)).unwrap(),
         correlation_id: CorrelationId::try_from_uuid(id(201)).unwrap(),
         actor: actor("legal-reader"),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "legal.query".into(),
             customer_visible: false,
@@ -604,7 +604,7 @@ fn query_envelope(query: LegalQuery, consistency: QueryConsistency) -> QueryEnve
 async fn read_your_writes_is_forwarded_to_projection_and_not_ready_never_falls_back() {
     let consistency = QueryConsistency::ReadYourWrites(ReadYourWrites {
         projection: "legal_access_history".into(),
-        partition: "tenant-1".into(),
+        partition: "holding-1".into(),
         target: ProjectionTarget {
             event_id: EventId::try_from_uuid(id(300)).unwrap(),
             global_sequence: 8,

@@ -8,19 +8,17 @@ mod finance_persistence {
 
     pub(crate) async fn begin_scoped<'a>(
         pool: &'a PgPool,
-        holding_ref: &str,
+        data_profile_key: &str,
     ) -> Result<Transaction<'a, Postgres>, PersistenceError> {
         let mut tx = pool.begin().await?;
-        sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-            .bind(holding_ref)
+        sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+            .bind(data_profile_key)
             .execute(&mut *tx)
             .await?;
         Ok(tx)
     }
 }
 
-#[path = "finance_backfill_upgrade.rs"]
-mod finance_backfill_upgrade;
 #[path = "finance_banking_persistence.rs"]
 mod finance_banking_persistence;
 #[path = "finance_banking_provider.rs"]

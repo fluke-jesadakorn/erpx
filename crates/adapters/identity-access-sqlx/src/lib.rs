@@ -30,10 +30,9 @@ pub const WRITE_DDL: &str = include_str!("../ddl/write.sql");
 pub const READ_DDL: &str = include_str!("../ddl/read.sql");
 /// Typed relational principal/role authority introduced after the shared CQRS
 /// foundation. Child assignments, permissions, and group memberships remain
-/// relational and tenant-composite.
-pub const NORMALIZED_AUTHORITY_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_write/0081_current_normalized_authority.sql"
-);
+/// relational and holding-composite.
+pub const NORMALIZED_AUTHORITY_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 
 pub fn principal_partition(id: erpx_identity_access::PrincipalId) -> String {
     format!("identity_access.principal:{}", id.as_uuid().simple())

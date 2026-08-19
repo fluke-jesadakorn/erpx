@@ -9,7 +9,7 @@ use erpx_integration_contracts::{
     CurrencyCode, MoneyAmount, RecordTypeId, RecordVersionRef, StableRecordRef, catalog::ContextId,
 };
 use erpx_kernel::{CommandId, CorrelationId, RecordId};
-use erpx_proto::{common::v2 as common, erpx::benefits::v2 as wire};
+use erpx_proto::{common, erpx::benefits as wire};
 use prost::Message;
 use sha2::{Digest, Sha256};
 use tonic::{Request, Response, Status};
@@ -54,7 +54,7 @@ impl benefits::AuthorizationPort for BenefitsAccess {
     async fn authorize(
         &self,
         actor: &benefits::ActorContext,
-        target: &erpx_kernel::TenantScope,
+        target: &erpx_kernel::AuthorityScope,
         action: benefits::BenefitsAction,
     ) -> Result<benefits::AuthorizedBenefitsAccess, benefits::PortError> {
         let action_writes = !matches!(action, benefits::BenefitsAction::View);
@@ -88,7 +88,7 @@ impl benefits::PayrollHandoffPort for PayrollHandoffUnavailable {
 
 fn actor(invocation: &FutureInvocation) -> benefits::ActorContext {
     benefits::ActorContext {
-        tenant_id: invocation.tenant_id,
+        holding_id: invocation.holding_id,
         principal_id: invocation.principal_id,
         authority_scope: invocation.scope.clone(),
     }
@@ -98,8 +98,8 @@ async fn command_invocation<T>(
     state: &AppState,
     request: &Request<T>,
     context: Option<&common::CommandContext>,
-    target_scope: Option<&common::TenantScope>,
-) -> Result<(FutureInvocation, erpx_kernel::TenantScope), Status> {
+    target_scope: Option<&common::AuthorityScope>,
+) -> Result<(FutureInvocation, erpx_kernel::AuthorityScope), Status> {
     let invocation =
         future_auth::command(state, request, context, "benefits", BENEFITS_WRITE).await?;
     let target = decode_scope(target_scope)?;
@@ -115,8 +115,8 @@ async fn query_invocation<T>(
     state: &AppState,
     request: &Request<T>,
     context: Option<&common::QueryContext>,
-    target_scope: Option<&common::TenantScope>,
-) -> Result<(FutureInvocation, erpx_kernel::TenantScope), Status> {
+    target_scope: Option<&common::AuthorityScope>,
+) -> Result<(FutureInvocation, erpx_kernel::AuthorityScope), Status> {
     let invocation = future_auth::query(state, request, context, "benefits", BENEFITS_READ).await?;
     let target = decode_scope(target_scope)?;
     if !invocation.scope.contains(&target) {
@@ -144,37 +144,30 @@ fn identity<M: Message>(
     })
 }
 
-fn decode_scope(value: Option<&common::TenantScope>) -> Result<erpx_kernel::TenantScope, Status> {
-    use common::tenant_scope::Scope;
+fn decode_scope(
+    value: Option<&common::AuthorityScope>,
+) -> Result<erpx_kernel::AuthorityScope, Status> {
+    use common::authority_scope::Scope;
     let scope = value
         .and_then(|value| value.scope.as_ref())
         .ok_or_else(|| Status::invalid_argument("record scope is required"))?;
     let result = match scope {
-        Scope::Platform(_) => erpx_kernel::TenantScope::Platform,
-        Scope::Holding(value) => erpx_kernel::TenantScope::Holding {
+        Scope::Platform(_) => erpx_kernel::AuthorityScope::Platform,
+        Scope::Holding(value) => erpx_kernel::AuthorityScope::Holding {
             holding_id: uuid(&value.holding_id, "holding_id")?,
         },
-        Scope::Company(value) => erpx_kernel::TenantScope::Company {
+        Scope::Company(value) => erpx_kernel::AuthorityScope::Company {
             holding_id: uuid(&value.holding_id, "holding_id")?,
             company_id: uuid(&value.company_id, "company_id")?,
         },
-        Scope::Branch(value) => erpx_kernel::TenantScope::Branch {
+        Scope::Branch(value) => erpx_kernel::AuthorityScope::Branch {
             holding_id: uuid(&value.holding_id, "holding_id")?,
             company_id: uuid(&value.company_id, "company_id")?,
             branch_id: uuid(&value.branch_id, "branch_id")?,
         },
-        Scope::Subtree(value) => erpx_kernel::TenantScope::Subtree {
+        Scope::Subtree(value) => erpx_kernel::AuthorityScope::Subtree {
             holding_id: uuid(&value.holding_id, "holding_id")?,
-            company_ids: value
-                .company_ids
-                .iter()
-                .map(|value| uuid(value, "company_id"))
-                .collect::<Result<_, _>>()?,
-            branch_ids: value
-                .branch_ids
-                .iter()
-                .map(|value| uuid(value, "branch_id"))
-                .collect::<Result<_, _>>()?,
+            organization_node_id: uuid(&value.organization_node_id, "organization_node_id")?,
         },
     };
     result
@@ -183,24 +176,24 @@ fn decode_scope(value: Option<&common::TenantScope>) -> Result<erpx_kernel::Tena
     Ok(result)
 }
 
-fn encode_scope(value: &erpx_kernel::TenantScope) -> common::TenantScope {
-    use common::tenant_scope::Scope;
-    common::TenantScope {
+fn encode_scope(value: &erpx_kernel::AuthorityScope) -> common::AuthorityScope {
+    use common::authority_scope::Scope;
+    common::AuthorityScope {
         scope: Some(match value {
-            erpx_kernel::TenantScope::Platform => Scope::Platform(common::PlatformScope {}),
-            erpx_kernel::TenantScope::Holding { holding_id } => {
+            erpx_kernel::AuthorityScope::Platform => Scope::Platform(common::PlatformScope {}),
+            erpx_kernel::AuthorityScope::Holding { holding_id } => {
                 Scope::Holding(common::HoldingScope {
                     holding_id: holding_id.to_string(),
                 })
             }
-            erpx_kernel::TenantScope::Company {
+            erpx_kernel::AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => Scope::Company(common::CompanyScope {
                 holding_id: holding_id.to_string(),
                 company_id: company_id.to_string(),
             }),
-            erpx_kernel::TenantScope::Branch {
+            erpx_kernel::AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -209,14 +202,12 @@ fn encode_scope(value: &erpx_kernel::TenantScope) -> common::TenantScope {
                 company_id: company_id.to_string(),
                 branch_id: branch_id.to_string(),
             }),
-            erpx_kernel::TenantScope::Subtree {
+            erpx_kernel::AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Scope::Subtree(common::SubtreeScope {
                 holding_id: holding_id.to_string(),
-                company_ids: company_ids.iter().map(ToString::to_string).collect(),
-                branch_ids: branch_ids.iter().map(ToString::to_string).collect(),
+                organization_node_id: organization_node_id.to_string(),
             }),
         }),
     }
@@ -709,7 +700,7 @@ impl BenefitsCommandRpc {
         request: &Request<T>,
         context: &common::CommandContext,
         invocation: FutureInvocation,
-        target: erpx_kernel::TenantScope,
+        target: erpx_kernel::AuthorityScope,
         enrollment_id: &str,
         action: benefits::BenefitsAction,
         event_type: &'static str,
@@ -776,7 +767,7 @@ impl wire::benefits_query_service_server::BenefitsQueryService for BenefitsQuery
                 actor: actor.clone(),
                 write: false,
             },
-            benefits_sqlx::SqlxBenefitsReadRepository::new(pool, invocation.tenant_id)
+            benefits_sqlx::SqlxBenefitsReadRepository::new(pool, invocation.holding_id)
                 .map_err(|_| Status::unavailable("benefits read model is unavailable"))?,
         );
         let result = service
@@ -833,7 +824,7 @@ impl wire::benefits_query_service_server::BenefitsQueryService for BenefitsQuery
                 actor: actor.clone(),
                 write: false,
             },
-            benefits_sqlx::SqlxBenefitsReadRepository::new(pool, invocation.tenant_id)
+            benefits_sqlx::SqlxBenefitsReadRepository::new(pool, invocation.holding_id)
                 .map_err(|_| Status::unavailable("benefits read model is unavailable"))?,
         );
         let result = service
@@ -920,7 +911,7 @@ mod tests {
     fn record_version_wire_contract_is_typed() {
         let source = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/proto/proto/erpx/benefits/v2/service.proto"
+            "/../../crates/proto/proto/erpx/benefits/service.proto"
         ));
         assert!(source.contains("string owner_context = 3;"));
         assert!(source.contains("string record_type = 4;"));

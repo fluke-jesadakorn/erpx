@@ -557,7 +557,7 @@ fn connector(config: &LiveConfig, connector_id: Uuid) -> DirectoryConnector {
         id: connector_id,
         provider: config.vendor.provider(),
         scope: DirectoryScope::Holding {
-            holding_ref: format!(
+            data_profile_key: format!(
                 "g14-{}-{}",
                 config.vendor.prefix().to_ascii_lowercase(),
                 connector_id.simple()

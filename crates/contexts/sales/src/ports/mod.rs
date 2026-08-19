@@ -9,7 +9,7 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::{crm, customer, sales};
 use erpx_kernel::{
-    ActorAttribution, AggregateId, AuditContext, CommandId, CorrelationId, EventId, TenantScope,
+    ActorAttribution, AggregateId, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -53,8 +53,8 @@ impl SalesAction {
 
 pub struct AuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
-    pub target_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
+    pub target_scope: &'a AuthorityScope,
     pub action: SalesAction,
 }
 
@@ -65,8 +65,11 @@ pub trait AuthorizationPort: Send + Sync {
 
 #[async_trait]
 pub trait EntitlementPort: Send + Sync {
-    async fn ensure_sales_enabled(&self, scope: &TenantScope, write: bool)
-    -> Result<(), PortError>;
+    async fn ensure_sales_enabled(
+        &self,
+        scope: &AuthorityScope,
+        write: bool,
+    ) -> Result<(), PortError>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -74,7 +77,7 @@ pub trait EntitlementPort: Send + Sync {
 pub enum CommandFingerprint {
     CreateQuote {
         quote_id: QuoteId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         opportunity: crm::OpportunityFact,
         quote_code: String,
         currency: String,
@@ -147,19 +150,19 @@ pub struct CommandIdentity {
 pub trait WriteRepository: Send + Sync {
     async fn load_quote(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         quote_id: QuoteId,
     ) -> Result<Option<Quote>, PortError>;
 
     async fn load_order(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         sales_order_id: SalesOrderId,
     ) -> Result<Option<SalesOrder>, PortError>;
 
     async fn load_revenue_arrangement(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         arrangement_id: RevenueArrangementId,
     ) -> Result<Option<RevenueArrangement>, PortError>;
 }
@@ -170,7 +173,7 @@ pub struct SalesCommit {
     pub correlation_id: CorrelationId,
     pub causation_id: Option<EventId>,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
     pub aggregate: SalesAggregate,
@@ -223,7 +226,7 @@ pub trait CommandUnitOfWork: Send + Sync {
 pub struct QuoteView {
     pub quote_id: QuoteId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub opportunity: crm::OpportunityRef,
     pub customer: customer::CustomerRef,
     pub quote_code: String,
@@ -260,7 +263,7 @@ impl From<&Quote> for QuoteView {
 pub struct SalesOrderView {
     pub sales_order_id: SalesOrderId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub quote_id: QuoteId,
     pub opportunity: crm::OpportunityRef,
     pub customer: customer::CustomerRef,
@@ -297,7 +300,7 @@ impl From<&SalesOrder> for SalesOrderView {
 pub struct RevenueArrangementView {
     pub arrangement_id: RevenueArrangementId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub sales_order_id: SalesOrderId,
     pub customer: customer::CustomerRef,
     pub legal_contract: Option<erpx_integration_contracts::legal::LegalContractRef>,
@@ -358,28 +361,28 @@ pub struct ReadProjection<T> {
 pub trait ReadRepository: Send + Sync {
     async fn get_quote(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         quote_id: QuoteId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<QuoteView>>, PortError>;
 
     async fn get_order(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         sales_order_id: SalesOrderId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<SalesOrderView>>, PortError>;
 
     async fn get_revenue_arrangement(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         arrangement_id: RevenueArrangementId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<RevenueArrangementView>>, PortError>;
 
     async fn list_orders(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &SalesOrderListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<SalesOrderList>, PortError>;

@@ -7,7 +7,7 @@ use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
     ItemDescriptorDraft, RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
 };
-use erpx_kernel::{AggregateId, CommandId, DataClassification, EventId, RecordId, TenantScope};
+use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId, RecordId};
 use erpx_pos::{
     CommandFingerprint, CommandIdentity, CustomerId, Payment, PaymentId, PaymentMethod, PortError,
     PosRefund, RefundCommit, RefundId, RefundLine, RefundStatus, RefundStoredCommit,
@@ -44,7 +44,7 @@ impl PosWriteRepository {
 impl WriteRepository for PosWriteRepository {
     async fn load_sale(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         sale_id: SaleId,
     ) -> Result<Option<Sale>, PortError> {
         load_sale_relational(&self.pool, authority_scope, sale_id).await
@@ -52,7 +52,7 @@ impl WriteRepository for PosWriteRepository {
 
     async fn load_refund(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         refund_id: RefundId,
     ) -> Result<Option<PosRefund>, PortError> {
         load_refund_relational(&self.pool, authority_scope, refund_id).await
@@ -61,7 +61,7 @@ impl WriteRepository for PosWriteRepository {
 
 async fn load_sale_relational(
     pool: &WritePool,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     sale_id: SaleId,
 ) -> Result<Option<Sale>, PortError> {
     authority.validate().map_err(|_| PortError::Denied)?;
@@ -71,7 +71,7 @@ async fn load_sale_relational(
 
 async fn load_sale_in_tx(
     tx: &mut Transaction<'_, Postgres>,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     sale_id: SaleId,
 ) -> Result<Option<Sale>, PortError> {
     let (kind, holding_id, company_id, branch_id, company_ids, branch_ids) =
@@ -177,7 +177,7 @@ async fn load_sale_in_tx(
 
 async fn load_refund_relational(
     pool: &WritePool,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     refund_id: RefundId,
 ) -> Result<Option<PosRefund>, PortError> {
     authority.validate().map_err(|_| PortError::Denied)?;
@@ -336,7 +336,7 @@ impl SaleUnitOfWork for PosCommandAdapter {
             correlation_id: request.correlation_id,
             idempotency_key: request.identity.idempotency_key,
             request_hash: request_hash(&request.identity.fingerprint)?,
-            tenant_scope: aggregate.scope().clone(),
+            active_scope: aggregate.scope().clone(),
             actor: request.actor,
             audit_context: request.audit,
             aggregate_type: SALE_AGGREGATE_TYPE.into(),
@@ -436,7 +436,7 @@ impl RefundUnitOfWork for PosCommandAdapter {
             correlation_id: request.correlation_id,
             idempotency_key: request.identity.idempotency_key,
             request_hash: request_hash(&request.identity.fingerprint)?,
-            tenant_scope: aggregate.scope().clone(),
+            active_scope: aggregate.scope().clone(),
             actor: request.actor,
             audit_context: request.audit,
             aggregate_type: REFUND_AGGREGATE_TYPE.into(),
@@ -516,7 +516,7 @@ fn refund_directory_draft(aggregate: &PosRefund) -> Result<ItemDescriptorDraft, 
 fn item_directory_draft(
     id: Uuid,
     record_type: &str,
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     lifecycle_state: &str,
     descriptor_version: u64,
     search_text: &str,
@@ -985,11 +985,11 @@ type AuthorityPredicate = (
     Vec<Uuid>,
 );
 
-fn authority_predicate(scope: &TenantScope) -> Result<AuthorityPredicate, PortError> {
+fn authority_predicate(scope: &AuthorityScope) -> Result<AuthorityPredicate, PortError> {
     scope.validate().map_err(|_| PortError::Denied)?;
     Ok(match scope {
-        TenantScope::Platform => ("platform", None, None, None, Vec::new(), Vec::new()),
-        TenantScope::Holding { holding_id } => (
+        AuthorityScope::Platform => ("platform", None, None, None, Vec::new(), Vec::new()),
+        AuthorityScope::Holding { holding_id } => (
             "holding",
             Some(*holding_id),
             None,
@@ -997,7 +997,7 @@ fn authority_predicate(scope: &TenantScope) -> Result<AuthorityPredicate, PortEr
             Vec::new(),
             Vec::new(),
         ),
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => (
@@ -1008,7 +1008,7 @@ fn authority_predicate(scope: &TenantScope) -> Result<AuthorityPredicate, PortEr
             Vec::new(),
             Vec::new(),
         ),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -1020,28 +1020,27 @@ fn authority_predicate(scope: &TenantScope) -> Result<AuthorityPredicate, PortEr
             Vec::new(),
             Vec::new(),
         ),
-        TenantScope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
+            organization_node_id,
         } => (
             "subtree",
             Some(*holding_id),
             None,
             None,
-            company_ids.clone(),
-            branch_ids.clone(),
+            vec![*organization_node_id],
+            Vec::new(),
         ),
     })
 }
 
-fn exact_scope_parts(scope: &TenantScope) -> Result<(Uuid, Uuid, Option<Uuid>), PortError> {
+fn exact_scope_parts(scope: &AuthorityScope) -> Result<(Uuid, Uuid, Option<Uuid>), PortError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok((*holding_id, *company_id, None)),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -1050,16 +1049,16 @@ fn exact_scope_parts(scope: &TenantScope) -> Result<(Uuid, Uuid, Option<Uuid>), 
     }
 }
 
-fn exact_scope_from_row(row: &PgRow) -> Result<TenantScope, PortError> {
+fn exact_scope_from_row(row: &PgRow) -> Result<AuthorityScope, PortError> {
     let holding_id = port_uuid(row, "holding_id")?;
     let company_id = port_uuid(row, "company_id")?;
     match port_value::<Option<Uuid>>(row, "branch_id")? {
-        Some(branch_id) => Ok(TenantScope::Branch {
+        Some(branch_id) => Ok(AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         }),
-        None => Ok(TenantScope::Company {
+        None => Ok(AuthorityScope::Company {
             holding_id,
             company_id,
         }),
@@ -1262,7 +1261,7 @@ fn refund_aggregate_id(refund_id: RefundId) -> Result<AggregateId, PortError> {
     AggregateId::try_from_uuid(refund_id.as_uuid()).map_err(|_| PortError::Internal)
 }
 
-fn guard_scope_key(scope: &TenantScope) -> Result<String, CqrsSqlxError> {
+fn guard_scope_key(scope: &AuthorityScope) -> Result<String, CqrsSqlxError> {
     scope_key(scope).map_err(|_| CqrsSqlxError::GuardRejected("POS scope is invalid"))
 }
 
@@ -1330,7 +1329,7 @@ mod tests {
     fn create_fingerprint(receipt_code: &str) -> CommandFingerprint {
         CommandFingerprint::CreateSale {
             sale_id: SaleId::try_from_uuid(Uuid::from_u128(1)).unwrap(),
-            scope: TenantScope::Company {
+            scope: AuthorityScope::Company {
                 holding_id: Uuid::from_u128(2),
                 company_id: Uuid::from_u128(3),
             },

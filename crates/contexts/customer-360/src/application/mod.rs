@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use erpx_cqrs::{CqrsError, QueryEnvelope, QueryHandler, QueryMetadata, QueryResult};
 use erpx_integration_contracts::customer::CustomerRef;
-use erpx_kernel::{CorrelationId, ErrorCategory, ErrorContext, KernelError, TenantScope};
+use erpx_kernel::{AuthorityScope, CorrelationId, ErrorCategory, ErrorContext, KernelError};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -56,7 +56,7 @@ where
         self.authorization
             .authorize(AuthorizationRequest {
                 actor: &envelope.actor,
-                authority_scope: &envelope.tenant_scope,
+                authority_scope: &envelope.active_scope,
                 customer: envelope.query.customer,
                 action: Customer360Action::View,
             })
@@ -66,7 +66,7 @@ where
         let projection = self
             .read
             .get(
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 envelope.query.customer,
                 &envelope.consistency,
             )
@@ -115,7 +115,7 @@ impl<P> Customer360ProjectionHandler<P> {
 impl<P: ProjectionRepository> Customer360ProjectionHandler<P> {
     pub async fn apply(
         &self,
-        scope: TenantScope,
+        scope: AuthorityScope,
         input: Customer360ProjectionInput,
     ) -> Result<ProjectionApplyOutcome, PortError> {
         self.projections

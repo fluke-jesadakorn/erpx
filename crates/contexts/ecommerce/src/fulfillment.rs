@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use erpx_integration_contracts::StableRecordRef;
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -21,7 +21,7 @@ pub enum FulfillmentStatus {
 pub struct FulfillmentRequest {
     id: Uuid,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     owner: CommerceIdentity,
     checkout: StableRecordRef,
     order: StableRecordRef,
@@ -33,7 +33,7 @@ pub struct FulfillmentRequest {
 impl FulfillmentRequest {
     pub fn propose(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         owner: CommerceIdentity,
         checkout: StableRecordRef,
         order: StableRecordRef,
@@ -138,7 +138,7 @@ impl FulfillmentRequest {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn owner(&self) -> &CommerceIdentity {
@@ -166,8 +166,8 @@ mod tests {
     use super::*;
     use erpx_integration_contracts::{RecordTypeId, catalog::ContextId};
     use erpx_kernel::RecordId;
-    fn scope() -> TenantScope {
-        TenantScope::Company {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: Uuid::new_v4(),
             company_id: Uuid::new_v4(),
         }

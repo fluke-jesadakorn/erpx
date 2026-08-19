@@ -129,10 +129,10 @@ impl DirectoryFeedKind {
 pub enum DirectoryScope {
     Platform,
     Holding {
-        holding_ref: String,
+        data_profile_key: String,
     },
     Branch {
-        holding_ref: String,
+        data_profile_key: String,
         company_id: Uuid,
         branch_id: Uuid,
     },
@@ -142,22 +142,24 @@ impl DirectoryScope {
     pub fn canonical_key(&self) -> Result<String, DirectoryError> {
         match self {
             Self::Platform => Ok("platform".to_owned()),
-            Self::Holding { holding_ref } => Ok(format!(
+            Self::Holding { data_profile_key } => Ok(format!(
                 "holding:{}",
-                bounded_ref(holding_ref, "holding_ref")?
+                bounded_ref(data_profile_key, "data_profile_key")?
             )),
             Self::Branch {
-                holding_ref,
+                data_profile_key,
                 company_id,
                 branch_id,
             } => {
-                let holding_ref = bounded_ref(holding_ref, "holding_ref")?;
+                let data_profile_key = bounded_ref(data_profile_key, "data_profile_key")?;
                 if company_id.is_nil() || branch_id.is_nil() {
                     return Err(DirectoryError::InvalidReference(
                         "branch directory scope requires non-nil company and branch IDs".into(),
                     ));
                 }
-                Ok(format!("branch:{holding_ref}:{company_id}:{branch_id}"))
+                Ok(format!(
+                    "branch:{data_profile_key}:{company_id}:{branch_id}"
+                ))
             }
         }
     }
@@ -170,16 +172,17 @@ impl DirectoryScope {
     pub fn holding_id(&self) -> Option<Uuid> {
         match self {
             Self::Platform => None,
-            Self::Holding { holding_ref } | Self::Branch { holding_ref, .. } => {
-                Some(sync::directory_holding_id(holding_ref))
-            }
+            Self::Holding { data_profile_key }
+            | Self::Branch {
+                data_profile_key, ..
+            } => Some(sync::directory_holding_id(data_profile_key)),
         }
     }
 
     /// Returns the stable scope key used by role authorization and role
     /// facts.  The externally supplied holding reference remains available in
     /// connector configuration, but mappings must authorize against the same
-    /// immutable identity used by the tenant scope boundary.
+    /// immutable identity used by the holding scope boundary.
     pub fn authorization_key(&self) -> Result<String, DirectoryError> {
         self.canonical_key()?;
         match self {
@@ -328,7 +331,7 @@ pub struct DirectoryConnectorSnapshot {
     pub parent_connector_id: Option<Uuid>,
     pub directory_authority_fingerprint: Option<String>,
     pub fallback_to_holding: bool,
-    pub holding_ref: Option<String>,
+    pub data_profile_key: Option<String>,
     pub company_id: Option<Uuid>,
     pub branch_id: Option<Uuid>,
 }
@@ -656,7 +659,7 @@ pub fn immutable_identity_link(
 ) -> Result<String, DirectoryError> {
     let external_object_id = bounded_ref(external_object_id, "external_object_id")?;
     let mut digest = Sha256::new();
-    digest.update(b"erpx-directory-identity-v1:");
+    digest.update(b"erpx-directory-identity:");
     digest.update(connector_id.as_bytes());
     digest.update([0]);
     digest.update(external_object_id.as_bytes());
@@ -1034,7 +1037,7 @@ impl DirectoryRoleFact {
         bounded_ref(&role_ref, "role_ref")?;
         bounded_ref(&scope_key, "scope_key")?;
         let mut digest = Sha256::new();
-        digest.update(b"erpx-directory-role-fact-v1:");
+        digest.update(b"erpx-directory-role-fact:");
         digest.update(connector_id.as_bytes());
         digest.update(identity_link.as_bytes());
         digest.update(role_ref.as_bytes());
@@ -1147,7 +1150,10 @@ impl SqlxDirectoryStore {
         connector: &DirectoryConnector,
         require_verified_fingerprint: bool,
     ) -> Result<(), DirectoryError> {
-        let DirectoryScope::Branch { holding_ref, .. } = &connector.scope else {
+        let DirectoryScope::Branch {
+            data_profile_key, ..
+        } = &connector.scope
+        else {
             return Ok(());
         };
         let parent_id = connector.parent_connector_id.ok_or_else(|| {
@@ -1160,7 +1166,7 @@ impl SqlxDirectoryStore {
         }
         let parent = self.connector(parent_id).await?;
         let DirectoryScope::Holding {
-            holding_ref: parent_holding,
+            data_profile_key: parent_holding,
         } = &parent.scope
         else {
             return Err(DirectoryError::InvalidReference(
@@ -1171,7 +1177,7 @@ impl SqlxDirectoryStore {
             .base_dn
             .to_ascii_lowercase()
             .ends_with(&parent.base_dn.to_ascii_lowercase());
-        if parent_holding != holding_ref
+        if parent_holding != data_profile_key
             || parent.provider != connector.provider
             || !naming_context_compatible
             || parent.tls.server_name != connector.tls.server_name
@@ -1506,7 +1512,7 @@ impl SqlxDirectoryStore {
         })?;
         let directory_principal_id = Uuid::new_v5(
             &Uuid::NAMESPACE_URL,
-            format!("erpx:directory-principal:v1:{identity_link}").as_bytes(),
+            format!("erpx:directory-principal:{identity_link}").as_bytes(),
         );
         let directory_principal_ref = format!(
             "directory:{}:{}",
@@ -1688,7 +1694,7 @@ impl SqlxDirectoryStore {
                     s.last_success_at, c.last_preflight_at, c.last_heartbeat_at,
                     c.credential_profile_key, c.parent_connector_id,
                     c.directory_authority_fingerprint, c.fallback_to_holding,
-                    c.holding_ref, c.company_id, c.branch_id,
+                    c.data_profile_key, c.company_id, c.branch_id,
                     (SELECT COUNT(*) FROM erpx_identity.directory_identity_conflicts x
                      WHERE x.connector_id=c.id AND x.state='unresolved') AS unresolved_conflicts
              FROM erpx_identity.directory_connectors c
@@ -1748,7 +1754,7 @@ impl SqlxDirectoryStore {
                         .try_get("directory_authority_fingerprint")
                         .map_err(sqlx_error)?,
                     fallback_to_holding: row.try_get("fallback_to_holding").map_err(sqlx_error)?,
-                    holding_ref: row.try_get("holding_ref").map_err(sqlx_error)?,
+                    data_profile_key: row.try_get("data_profile_key").map_err(sqlx_error)?,
                     company_id: row.try_get("company_id").map_err(sqlx_error)?,
                     branch_id: row.try_get("branch_id").map_err(sqlx_error)?,
                 })
@@ -1875,7 +1881,7 @@ impl SqlxDirectoryStore {
 
     pub async fn connector(&self, id: Uuid) -> Result<DirectoryConnector, DirectoryError> {
         let row = sqlx::query(
-            "SELECT id, provider, scope_key, holding_ref, endpoint, base_dn,
+            "SELECT id, provider, scope_key, data_profile_key, endpoint, base_dn,
                     tls_mode, ca_certificate_sha256, server_name, minimum_tls_version,
                     feed_kind, credential_ref, credential_profile_key,
                     parent_connector_id, directory_authority_fingerprint,
@@ -2561,7 +2567,7 @@ impl SqlxDirectoryStore {
         let mut tx = self.pool.begin().await.map_err(sqlx_error)?;
         let result = sqlx::query(
             "INSERT INTO erpx_identity.directory_connectors
-                (id, provider, vendor, scope_key, scope_kind, scope_id, holding_ref,
+                (id, provider, vendor, scope_key, scope_kind, scope_id, data_profile_key,
                  company_id, branch_id, parent_connector_id,
                  directory_authority_fingerprint, credential_profile_key,
                  fallback_to_holding, endpoint, base_dn,
@@ -2575,7 +2581,7 @@ impl SqlxDirectoryStore {
                 provider=EXCLUDED.provider, vendor=EXCLUDED.vendor,
                 scope_key=EXCLUDED.scope_key, scope_kind=EXCLUDED.scope_kind,
                 scope_id=EXCLUDED.scope_id,
-                holding_ref=EXCLUDED.holding_ref,
+                data_profile_key=EXCLUDED.data_profile_key,
                 company_id=EXCLUDED.company_id, branch_id=EXCLUDED.branch_id,
                 parent_connector_id=EXCLUDED.parent_connector_id,
                 directory_authority_fingerprint=EXCLUDED.directory_authority_fingerprint,
@@ -2604,8 +2610,10 @@ impl SqlxDirectoryStore {
         })
         .bind(scope_id_for(&connector.scope))
         .bind(match &connector.scope {
-            DirectoryScope::Holding { holding_ref }
-            | DirectoryScope::Branch { holding_ref, .. } => Some(holding_ref),
+            DirectoryScope::Holding { data_profile_key }
+            | DirectoryScope::Branch {
+                data_profile_key, ..
+            } => Some(data_profile_key),
             DirectoryScope::Platform => None::<&String>,
         })
         .bind(connector.scope.company_id())
@@ -4373,9 +4381,9 @@ fn parse_scope(value: &str) -> Result<DirectoryScope, DirectoryError> {
     if value == "platform" {
         return Ok(DirectoryScope::Platform);
     }
-    if let Some(holding_ref) = value.strip_prefix("holding:") {
+    if let Some(data_profile_key) = value.strip_prefix("holding:") {
         return Ok(DirectoryScope::Holding {
-            holding_ref: bounded_ref(holding_ref, "holding_ref")?.to_owned(),
+            data_profile_key: bounded_ref(data_profile_key, "data_profile_key")?.to_owned(),
         });
     }
     if let Some(branch_scope) = value.strip_prefix("branch:") {
@@ -4392,11 +4400,11 @@ fn parse_scope(value: &str) -> Result<DirectoryScope, DirectoryError> {
             .ok_or_else(|| {
                 DirectoryError::InvalidReference("stored branch directory scope is invalid".into())
             })?;
-        let holding_ref = parts.next().ok_or_else(|| {
+        let data_profile_key = parts.next().ok_or_else(|| {
             DirectoryError::InvalidReference("stored branch directory scope is invalid".into())
         })?;
         return Ok(DirectoryScope::Branch {
-            holding_ref: bounded_ref(holding_ref, "holding_ref")?.to_owned(),
+            data_profile_key: bounded_ref(data_profile_key, "data_profile_key")?.to_owned(),
             company_id,
             branch_id,
         });
@@ -4421,9 +4429,14 @@ fn parse_role_target_scope(value: &str) -> Result<DirectoryRoleTargetScope, Dire
 fn scope_id_for(scope: &DirectoryScope) -> Option<Uuid> {
     match scope {
         DirectoryScope::Platform => None,
-        DirectoryScope::Holding { holding_ref } => Uuid::parse_str(holding_ref)
-            .ok()
-            .or_else(|| Some(Uuid::new_v5(&Uuid::NAMESPACE_URL, holding_ref.as_bytes()))),
+        DirectoryScope::Holding { data_profile_key } => {
+            Uuid::parse_str(data_profile_key).ok().or_else(|| {
+                Some(Uuid::new_v5(
+                    &Uuid::NAMESPACE_URL,
+                    data_profile_key.as_bytes(),
+                ))
+            })
+        }
         DirectoryScope::Branch { branch_id, .. } => Some(*branch_id),
     }
 }
@@ -4601,20 +4614,20 @@ mod tests {
     #[test]
     fn holding_and_branch_views_share_one_canonical_directory_authority() {
         let fingerprint = "b".repeat(64);
-        let holding_ref = Uuid::from_u128(10).to_string();
+        let data_profile_key = Uuid::from_u128(10).to_string();
         let mut holding = connector(
             DirectoryProvider::ActiveDirectoryDomainServices,
             DirectoryFeedKind::AdDirSync,
         );
         holding.scope = DirectoryScope::Holding {
-            holding_ref: holding_ref.clone(),
+            data_profile_key: data_profile_key.clone(),
         };
         holding.directory_authority_fingerprint = Some(fingerprint.clone());
 
         let mut branch = holding.clone();
         branch.id = Uuid::from_u128(2);
         branch.scope = DirectoryScope::Branch {
-            holding_ref,
+            data_profile_key,
             company_id: Uuid::from_u128(3),
             branch_id: Uuid::from_u128(4),
         };
@@ -4865,35 +4878,32 @@ mod tests {
     fn holding_scope_identity_is_stable_for_uuid_and_opaque_refs() {
         let holding_id = Uuid::from_u128(42);
         let uuid_scope = DirectoryScope::Holding {
-            holding_ref: holding_id.to_string(),
+            data_profile_key: holding_id.to_string(),
         };
         let opaque_scope = DirectoryScope::Holding {
-            holding_ref: "holding-ref-42".into(),
+            data_profile_key: "holding-ref-42".into(),
         };
         assert_eq!(uuid_scope.holding_id(), Some(holding_id));
         assert_eq!(
             opaque_scope.holding_id(),
             Some(Uuid::new_v5(
                 &Uuid::NAMESPACE_URL,
-                b"erpx:holding-scope:v1:holding-ref-42"
+                b"erpx:holding-scope:holding-ref-42"
             ))
         );
         assert_eq!(
             opaque_scope.authorization_key().expect("stable scope key"),
             format!(
                 "holding:{}",
-                Uuid::new_v5(
-                    &Uuid::NAMESPACE_URL,
-                    b"erpx:holding-scope:v1:holding-ref-42"
-                )
+                Uuid::new_v5(&Uuid::NAMESPACE_URL, b"erpx:holding-scope:holding-ref-42")
             )
         );
         assert!(!uuid_scope.permits(&opaque_scope));
         assert!(
             opaque_scope.permits(&DirectoryScope::Holding {
-                holding_ref: Uuid::new_v5(
+                data_profile_key: Uuid::new_v5(
                     &Uuid::NAMESPACE_URL,
-                    b"erpx:holding-scope:v1:holding-ref-42",
+                    b"erpx:holding-scope:holding-ref-42",
                 )
                 .to_string(),
             })

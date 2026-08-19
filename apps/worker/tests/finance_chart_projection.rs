@@ -4,11 +4,11 @@ use uuid::Uuid;
 
 #[test]
 fn request_validation_rejects_unsafe_routes_and_cursors() {
-    assert!(FinanceChartProjectionRequest::new("tenant", "holding", None, 0).is_err());
-    assert!(FinanceChartProjectionRequest::new("tenant/path", "holding", None, 1).is_err());
+    assert!(FinanceChartProjectionRequest::new("holding", "holding", None, 0).is_err());
+    assert!(FinanceChartProjectionRequest::new("holding/path", "holding", None, 1).is_err());
     assert!(
         FinanceChartProjectionRequest::new(
-            "tenant",
+            "holding",
             "holding",
             Some(FinanceChartSourceEventCursor {
                 aggregate_id: Uuid::nil(),

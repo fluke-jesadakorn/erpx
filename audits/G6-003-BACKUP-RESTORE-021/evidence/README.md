@@ -1,13 +1,13 @@
 # G6-003 backup/restore executor seam evidence
 
 This packet adds a typed, injectable backup/restore execution boundary for
-tenant-scoped recovery. It is a production-safety seam, not evidence that
+holding-scoped recovery. It is a production-safety seam, not evidence that
 live PostgreSQL backup/PITR tooling is already enabled.
 
 ## Delivered behavior
 
-- Backup and restore requests are bound to the opaque tenant/holding reference
-  and reject mismatched or cross-tenant results.
+- Backup and restore requests are bound to the opaque holding/holding reference
+  and reject mismatched or cross-holding results.
 - Failed, expired, unverified, and replacement-unverified restore results fail
   closed before a projection switch.
 - A replacement read database can be activated only after the typed executor
@@ -33,4 +33,4 @@ Run from `erpx/`:
 No real `pg_dump`/PITR/object-backup adapter, scheduler, restore-test history
 producer, or platform operations route was added. Folio remains the command
 owner. Rollback is limited to the additive executor seam and its evidence;
-retain existing tenant registry and replacement-read guards.
+retain existing holding registry and replacement-read guards.

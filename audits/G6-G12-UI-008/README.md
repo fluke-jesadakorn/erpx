@@ -3,9 +3,9 @@
 ## Delivered behavior
 
 - Added target-neutral typed metadata for the seven required Platform
-  Operations pages: tenant list/detail, projections, backups, integrations,
+  Operations pages: holding list/detail, projections, backups, integrations,
   audit, and settings.
-- Added platform audience/auth metadata, stable route IDs, opaque tenant
+- Added platform audience/auth metadata, stable route IDs, opaque holding
   segment validation, exact segment-aware matching, query/hash normalization,
   and credential-bearing deep-link rejection.
 - Added bilingual Thai/English labels and target-neutral navigation items.

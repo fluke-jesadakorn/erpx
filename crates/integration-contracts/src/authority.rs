@@ -1,10 +1,10 @@
-//! Versioned, tenant-local authority evidence consumed by the Item Directory.
+//! Versioned, holding-local authority evidence consumed by the Item Directory.
 //!
 //! These facts contain only authorization inputs. They never include record
 //! titles, comment bodies, prompts, or other business payloads.
 
 use chrono::{DateTime, Utc};
-use erpx_kernel::{DataClassification, PrincipalId, TenantScope};
+use erpx_kernel::{AuthorityScope, DataClassification, PrincipalId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -38,7 +38,7 @@ pub struct AuthorityAssignmentEvidence {
     pub assignment_id: Uuid,
     pub role_id: Uuid,
     pub assignment_version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub valid_from: DateTime<Utc>,
     pub valid_until: DateTime<Utc>,
     pub revoked_at: Option<DateTime<Utc>>,
@@ -51,7 +51,7 @@ pub struct PrincipalAuthorityEvidence {
     pub realm: AuthorityRealm,
     pub active: bool,
     pub principal_version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub assignments: Vec<AuthorityAssignmentEvidence>,
     #[serde(default)]
     pub group_memberships: Vec<GroupMembershipAuthorityEvidence>,
@@ -62,7 +62,7 @@ pub struct PrincipalAuthorityEvidence {
 pub struct RoleAuthorityEvidence {
     pub role_id: Uuid,
     pub role_version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub permissions: Vec<String>,
     pub classification_ceiling: DataClassification,
     pub active: bool,
@@ -76,7 +76,7 @@ pub struct GroupMembershipAuthorityEvidence {
     pub group_version: u64,
     pub member_id: PrincipalId,
     pub membership_version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub valid_from: DateTime<Utc>,
     pub valid_until: DateTime<Utc>,
     pub revoked_at: Option<DateTime<Utc>>,
@@ -116,7 +116,7 @@ pub enum AuthorityPortalBindingStatus {
     Expired,
 }
 
-/// Customer Authority's opaque, tenant-local authorization evidence. It never
+/// Customer Authority's opaque, holding-local authorization evidence. It never
 /// carries customer names, support content, or an internal directory entry.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CustomerPortalBindingAuthorityEvidence {
@@ -126,7 +126,7 @@ pub struct CustomerPortalBindingAuthorityEvidence {
     pub portal_principal_id: PrincipalId,
     pub principal_kind: AuthorityPrincipalKind,
     pub realm: AuthorityRealm,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub verified_identity_digest: String,
     pub verified_identity_version: u64,
     pub permitted_use_cases: Vec<AuthorityPortalUseCase>,
@@ -143,8 +143,8 @@ pub struct CustomerPortalBindingAuthorityEvidence {
 pub struct OrganizationSharingAuthorityEvidence {
     pub sharing_agreement_id: Uuid,
     pub agreement_version: u64,
-    pub source_scope: TenantScope,
-    pub target_scope: TenantScope,
+    pub source_scope: AuthorityScope,
+    pub target_scope: AuthorityScope,
     pub direction: AuthoritySharingDirection,
     pub permits_open_record: bool,
     pub source_approved: bool,
@@ -305,15 +305,15 @@ fn validate_group_membership(
     Ok(())
 }
 
-fn same_holding_distinct_branches(source: &TenantScope, target: &TenantScope) -> bool {
+fn same_holding_distinct_branches(source: &AuthorityScope, target: &AuthorityScope) -> bool {
     match (source, target) {
         (
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id: source_holding,
                 branch_id: source_branch,
                 ..
             },
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id: target_holding,
                 branch_id: target_branch,
                 ..
@@ -335,8 +335,8 @@ mod tests {
         Uuid::new_v4()
     }
 
-    fn branch(holding_id: Uuid, branch_id: Uuid) -> TenantScope {
-        TenantScope::Branch {
+    fn branch(holding_id: Uuid, branch_id: Uuid) -> AuthorityScope {
+        AuthorityScope::Branch {
             holding_id,
             company_id: id(),
             branch_id,

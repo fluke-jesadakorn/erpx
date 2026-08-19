@@ -7,7 +7,7 @@ use erpx_cqrs::{
     CommandEnvelope, CommandHandler, CommandReceipt, CqrsError, QueryEnvelope, QueryHandler,
     QueryMetadata, QueryResult,
 };
-use erpx_kernel::{Clock, CorrelationId, ErrorCategory, ErrorContext, KernelError, TenantScope};
+use erpx_kernel::{AuthorityScope, Clock, CorrelationId, ErrorCategory, ErrorContext, KernelError};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -30,7 +30,7 @@ pub const MAX_LIST_PAGE_SIZE: u16 = 100;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateSale {
     pub sale_id: SaleId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub receipt_code: String,
     pub register_id: RegisterId,
     pub customer_id: Option<CustomerId>,
@@ -211,8 +211,8 @@ where
     async fn preflight(
         &self,
         actor: &erpx_kernel::ActorAttribution,
-        authority_scope: &TenantScope,
-        target_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         action: PosAction,
     ) -> Result<(), PosApplicationError> {
         preflight(
@@ -257,7 +257,7 @@ where
         {
             self.preflight(
                 &envelope.actor,
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 stored.aggregate.scope(),
                 action,
             )
@@ -282,7 +282,7 @@ where
                 }
                 self.preflight(
                     &envelope.actor,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
                     &command.scope,
                     action,
                 )
@@ -303,13 +303,13 @@ where
             command => {
                 let mut aggregate = self
                     .write_repository
-                    .load_sale(&envelope.tenant_scope, sale_id)
+                    .load_sale(&envelope.active_scope, sale_id)
                     .await
                     .map_err(|error| to_cqrs(error.into(), correlation_id))?
                     .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation_id))?;
                 self.preflight(
                     &envelope.actor,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
                     aggregate.scope(),
                     action,
                 )
@@ -342,7 +342,7 @@ where
                 correlation_id,
                 causation_id: envelope.causation_id,
                 actor: envelope.actor,
-                authority_scope: envelope.tenant_scope,
+                authority_scope: envelope.active_scope,
                 audit: envelope.audit,
                 expected_version,
                 aggregate,
@@ -415,7 +415,7 @@ where
                 &self.authorization,
                 &self.entitlement,
                 &envelope.actor,
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 stored.aggregate.scope(),
                 action,
             )
@@ -440,7 +440,7 @@ where
                 }
                 let sale = self
                     .write_repository
-                    .load_sale(&envelope.tenant_scope, command.sale_id)
+                    .load_sale(&envelope.active_scope, command.sale_id)
                     .await
                     .map_err(|error| to_cqrs(error.into(), correlation_id))?
                     .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation_id))?;
@@ -448,7 +448,7 @@ where
                     &self.authorization,
                     &self.entitlement,
                     &envelope.actor,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
                     sale.scope(),
                     action,
                 )
@@ -467,7 +467,7 @@ where
             command => {
                 let mut aggregate = self
                     .write_repository
-                    .load_refund(&envelope.tenant_scope, refund_id)
+                    .load_refund(&envelope.active_scope, refund_id)
                     .await
                     .map_err(|error| to_cqrs(error.into(), correlation_id))?
                     .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation_id))?;
@@ -475,7 +475,7 @@ where
                     &self.authorization,
                     &self.entitlement,
                     &envelope.actor,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
                     aggregate.scope(),
                     action,
                 )
@@ -508,7 +508,7 @@ where
                 correlation_id,
                 causation_id: envelope.causation_id,
                 actor: envelope.actor,
-                authority_scope: envelope.tenant_scope,
+                authority_scope: envelope.active_scope,
                 audit: envelope.audit,
                 expected_version,
                 aggregate,
@@ -559,11 +559,11 @@ where
                 self.authorize_query(&envelope, PosAction::ViewSale).await?;
                 let projection = self
                     .read_repository
-                    .get_sale(&envelope.tenant_scope, query.sale_id, &envelope.consistency)
+                    .get_sale(&envelope.active_scope, query.sale_id, &envelope.consistency)
                     .await
                     .map_err(|error| port_to_cqrs(error, correlation_id))?;
                 ensure_sale_scope(
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
                     projection.value.as_ref(),
                     correlation_id,
                 )?;
@@ -578,14 +578,14 @@ where
                     .await?;
                 let projection = self
                     .read_repository
-                    .list_sales(&envelope.tenant_scope, &query.filter, &envelope.consistency)
+                    .list_sales(&envelope.active_scope, &query.filter, &envelope.consistency)
                     .await
                     .map_err(|error| port_to_cqrs(error, correlation_id))?;
                 if projection
                     .value
                     .sales
                     .iter()
-                    .any(|sale| !envelope.tenant_scope.contains(&sale.scope))
+                    .any(|sale| !envelope.active_scope.contains(&sale.scope))
                 {
                     return Err(to_cqrs(
                         PosApplicationError::ScopeOutsideAuthority,
@@ -603,14 +603,14 @@ where
                 let projection = self
                     .read_repository
                     .get_refund(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         query.refund_id,
                         &envelope.consistency,
                     )
                     .await
                     .map_err(|error| port_to_cqrs(error, correlation_id))?;
                 ensure_refund_scope(
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
                     projection.value.as_ref(),
                     correlation_id,
                 )?;
@@ -625,14 +625,14 @@ where
                     .await?;
                 let projection = self
                     .read_repository
-                    .list_refunds(&envelope.tenant_scope, &query.filter, &envelope.consistency)
+                    .list_refunds(&envelope.active_scope, &query.filter, &envelope.consistency)
                     .await
                     .map_err(|error| port_to_cqrs(error, correlation_id))?;
                 if projection
                     .value
                     .refunds
                     .iter()
-                    .any(|refund| !envelope.tenant_scope.contains(&refund.scope))
+                    .any(|refund| !envelope.active_scope.contains(&refund.scope))
                 {
                     return Err(to_cqrs(
                         PosApplicationError::ScopeOutsideAuthority,
@@ -671,8 +671,8 @@ where
             &self.authorization,
             &self.entitlement,
             &envelope.actor,
-            &envelope.tenant_scope,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
+            &envelope.active_scope,
             action,
         )
         .await
@@ -684,8 +684,8 @@ async fn preflight<A, E>(
     authorization: &A,
     entitlement: &E,
     actor: &erpx_kernel::ActorAttribution,
-    authority_scope: &TenantScope,
-    target_scope: &TenantScope,
+    authority_scope: &AuthorityScope,
+    target_scope: &AuthorityScope,
     action: PosAction,
 ) -> Result<(), PosApplicationError>
 where
@@ -863,7 +863,7 @@ fn validate_page_size(page_size: u16, correlation_id: CorrelationId) -> Result<(
 
 #[allow(clippy::result_large_err)]
 fn ensure_sale_scope(
-    authority_scope: &TenantScope,
+    authority_scope: &AuthorityScope,
     sale: Option<&SaleView>,
     correlation_id: CorrelationId,
 ) -> Result<(), CqrsError> {
@@ -879,7 +879,7 @@ fn ensure_sale_scope(
 
 #[allow(clippy::result_large_err)]
 fn ensure_refund_scope(
-    authority_scope: &TenantScope,
+    authority_scope: &AuthorityScope,
     refund: Option<&RefundView>,
     correlation_id: CorrelationId,
 ) -> Result<(), CqrsError> {

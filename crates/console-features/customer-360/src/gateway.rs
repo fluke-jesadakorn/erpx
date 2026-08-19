@@ -233,7 +233,7 @@ fn section(value: SectionAvailability) -> SectionDisplayAvailability {
 fn source_projections(value: &SourceProjectionMetadata) -> Customer360SourceProjectionsDisplay {
     Customer360SourceProjectionsDisplay {
         control_customers: source_projection(&value.control_customers),
-        tenant_activity: source_projection(&value.tenant_activity),
+        holding_activity: source_projection(&value.holding_activity),
     }
 }
 

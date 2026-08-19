@@ -1,18 +1,18 @@
 //! Disposable end-to-end evidence for legal source persistence.
 
 use chrono::{Duration, Utc};
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::legal::{ContractParty, LegalContract, LegalDocument, LegalScope};
 use erpx_infrastructure::SqlxLegalPersistence;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-fn context(actor: &str, scope: TenantScope, key: &str) -> CommandContext {
+fn context(actor: &str, scope: AuthorityScope, key: &str) -> CommandContext {
     CommandContext::try_new(
         key,
         ActorAttribution {
             principal_ref: actor.into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: Some(Uuid::new_v4()),
             represented_principal_ref: None,
             support_capability_id: None,
@@ -24,18 +24,18 @@ fn context(actor: &str, scope: TenantScope, key: &str) -> CommandContext {
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn live_legal_write_is_normalized_scoped_and_idempotent() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let pool = PgPool::connect(&url).await.expect("write pool");
-    erpx_migration::migrate_tenant_write(&pool)
+    erpx_migration::migrate_holding_write(&pool)
         .await
-        .expect("tenant write migration");
+        .expect("holding write migration");
 
-    let holding_ref = format!("holding-legal-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-legal-{}", Uuid::new_v4());
     let scope = LegalScope::new(Uuid::new_v4(), Uuid::new_v4(), None).expect("legal scope");
-    let create_context = context("creator", scope.tenant_scope(), "contract-command-1");
+    let create_context = context("creator", scope.active_scope(), "contract-command-1");
     let mut contract = LegalContract::new(
         Uuid::new_v4(),
         "contract-001",
@@ -47,7 +47,7 @@ async fn live_legal_write_is_normalized_scoped_and_idempotent() {
         &create_context,
     )
     .expect("contract");
-    let document_context = context("creator", scope.tenant_scope(), "document-command-1");
+    let document_context = context("creator", scope.active_scope(), "document-command-1");
     let mut document = LegalDocument::new(
         Uuid::new_v4(),
         scope,
@@ -63,10 +63,10 @@ async fn live_legal_write_is_normalized_scoped_and_idempotent() {
         )
         .expect("document version");
 
-    let store = SqlxLegalPersistence::new(pool.clone(), &holding_ref).expect("legal store");
+    let store = SqlxLegalPersistence::new(pool.clone(), &data_profile_key).expect("legal store");
     let mut unauthenticated_context = context(
         "unauthenticated-creator",
-        contract.scope.tenant_scope(),
+        contract.scope.active_scope(),
         "contract-command-without-session",
     );
     unauthenticated_context.actor.session_id = None;
@@ -106,7 +106,7 @@ async fn live_legal_write_is_normalized_scoped_and_idempotent() {
     let initial_contract = contract.clone();
     let party_context = context(
         "creator",
-        contract.scope.tenant_scope(),
+        contract.scope.active_scope(),
         "contract-command-2",
     );
     contract
@@ -122,7 +122,7 @@ async fn live_legal_write_is_normalized_scoped_and_idempotent() {
     assert_eq!(second.version, 2);
     let mut stale_context = context(
         "creator",
-        initial_contract.scope.tenant_scope(),
+        initial_contract.scope.active_scope(),
         "contract-stale-command",
     );
     stale_context.command_id = initial_contract.last_command_id;
@@ -138,7 +138,7 @@ async fn live_legal_write_is_normalized_scoped_and_idempotent() {
     assert_eq!(document_receipt.version, 1);
     let document_v2_context = context(
         "creator",
-        document.scope.tenant_scope(),
+        document.scope.active_scope(),
         "document-command-2",
     );
     document
@@ -153,7 +153,7 @@ async fn live_legal_write_is_normalized_scoped_and_idempotent() {
         .await
         .expect("second document write");
     assert_eq!(document_v2_receipt.version, 2);
-    let access_context = context("creator", document.scope.tenant_scope(), "access-command-1");
+    let access_context = context("creator", document.scope.active_scope(), "access-command-1");
     let access = erpx_domain::legal::LegalAccessHistoryEntry::new(
         document.id,
         1,
@@ -175,7 +175,7 @@ async fn live_legal_write_is_normalized_scoped_and_idempotent() {
         .expect("access history replay");
     assert!(access_replay.replayed);
     assert_eq!(access_replay.event_id, access_receipt.event_id);
-    let access_v2_context = context("creator", document.scope.tenant_scope(), "access-command-2");
+    let access_v2_context = context("creator", document.scope.active_scope(), "access-command-2");
     let access_v2 = erpx_domain::legal::LegalAccessHistoryEntry::new(
         document.id,
         2,
@@ -193,40 +193,40 @@ async fn live_legal_write_is_normalized_scoped_and_idempotent() {
     assert_eq!(access_v2_receipt.version, 1);
 
     let mut tx = pool.begin().await.expect("inspection transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tx)
         .await
         .expect("holding scope");
     let counts: (i64, i64, i64, i64, i64, i64) = sqlx::query_as(
         "SELECT
-            (SELECT count(*) FROM erpx_tenant.legal_contracts WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.legal_contract_parties WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.legal_documents WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.legal_document_versions WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.legal_access_history WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.outbox_events WHERE holding_ref=$1 AND aggregate_type IN ('legal_contract','legal_document','legal_access_history'))",
+            (SELECT count(*) FROM erpx_holding.legal_contracts WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.legal_contract_parties WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.legal_documents WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.legal_document_versions WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.legal_access_history WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.outbox_events WHERE data_profile_key=$1 AND aggregate_type IN ('legal_contract','legal_document','legal_access_history'))",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .fetch_one(&mut *tx)
     .await
     .expect("normalized legal counts");
     assert_eq!(counts, (1, 1, 1, 2, 2, 6));
     let access_v2_aggregate_version: i64 = sqlx::query_scalar(
-        "SELECT aggregate_version FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND event_id=$2",
+        "SELECT aggregate_version FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND event_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(access_v2_receipt.event_id)
     .fetch_one(&mut *tx)
     .await
     .expect("access history aggregate version");
     assert_eq!(access_v2_aggregate_version, 1);
     let contract_idempotency: String = sqlx::query_scalar(
-        "SELECT idempotency_key FROM erpx_tenant.legal_contracts
-         WHERE holding_ref=$1 AND contract_id=$2",
+        "SELECT idempotency_key FROM erpx_holding.legal_contracts
+         WHERE data_profile_key=$1 AND contract_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(contract.id)
     .fetch_one(&mut *tx)
     .await
@@ -241,12 +241,12 @@ async fn live_legal_write_is_normalized_scoped_and_idempotent() {
         Option<Uuid>,
         Option<String>,
     ) = sqlx::query_as(
-        "SELECT contract_version, event_version, tenant_scope, actor,
+        "SELECT contract_version, event_version, active_scope, actor,
                     correlation_id, causation_id, idempotency_key
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND event_id=$2",
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND event_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(first.event_id)
     .fetch_one(&mut *tx)
     .await
@@ -255,7 +255,7 @@ async fn live_legal_write_is_normalized_scoped_and_idempotent() {
     assert_eq!(envelope.1, 1);
     assert_eq!(
         envelope.2,
-        serde_json::to_value(&create_context.tenant_scope).unwrap()
+        serde_json::to_value(&create_context.active_scope).unwrap()
     );
     assert_eq!(
         envelope.3,
@@ -275,13 +275,13 @@ async fn live_legal_write_is_normalized_scoped_and_idempotent() {
         .await
         .expect("RLS test role");
     sqlx::query(&format!(
-        "GRANT USAGE ON SCHEMA erpx_tenant TO \"{rls_role}\""
+        "GRANT USAGE ON SCHEMA erpx_holding TO \"{rls_role}\""
     ))
     .execute(&pool)
     .await
     .expect("RLS schema grant");
     sqlx::query(&format!(
-        "GRANT SELECT ON erpx_tenant.legal_contracts TO \"{rls_role}\""
+        "GRANT SELECT ON erpx_holding.legal_contracts TO \"{rls_role}\""
     ))
     .execute(&pool)
     .await
@@ -291,16 +291,17 @@ async fn live_legal_write_is_normalized_scoped_and_idempotent() {
         .execute(&mut *wrong_scope_tx)
         .await
         .expect("RLS role");
-    sqlx::query("SELECT set_config('erpx.holding_ref', 'other-holding', true)")
+    sqlx::query("SELECT set_config('erpx.data_profile_key', 'other-holding', true)")
         .execute(&mut *wrong_scope_tx)
         .await
         .expect("wrong holding scope");
-    let visible: i64 =
-        sqlx::query_scalar("SELECT count(*) FROM erpx_tenant.legal_contracts WHERE contract_id=$1")
-            .bind(contract.id)
-            .fetch_one(&mut *wrong_scope_tx)
-            .await
-            .expect("RLS read");
+    let visible: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM erpx_holding.legal_contracts WHERE contract_id=$1",
+    )
+    .bind(contract.id)
+    .fetch_one(&mut *wrong_scope_tx)
+    .await
+    .expect("RLS read");
     assert_eq!(visible, 0);
     wrong_scope_tx.commit().await.expect("wrong scope commit");
     sqlx::query(&format!("DROP OWNED BY \"{rls_role}\""))
@@ -313,17 +314,17 @@ async fn live_legal_write_is_normalized_scoped_and_idempotent() {
         .expect("drop RLS test role");
 
     let mut version_trigger_tx = pool.begin().await.expect("version trigger transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *version_trigger_tx)
         .await
         .expect("holding scope for trigger");
     let version_update = sqlx::query(
-        "UPDATE erpx_tenant.legal_document_versions
+        "UPDATE erpx_holding.legal_document_versions
          SET object_ref='opaque/documents/001-mutated'
-         WHERE holding_ref=$1 AND document_id=$2 AND version=1",
+         WHERE data_profile_key=$1 AND document_id=$2 AND version=1",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(document.id)
     .execute(&mut *version_trigger_tx)
     .await;
@@ -335,18 +336,18 @@ async fn live_legal_write_is_normalized_scoped_and_idempotent() {
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn live_legal_retention_sweep_expires_due_contract_once() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let pool = PgPool::connect(&url).await.expect("write pool");
-    erpx_migration::migrate_tenant_write(&pool)
+    erpx_migration::migrate_holding_write(&pool)
         .await
-        .expect("tenant write migration");
+        .expect("holding write migration");
 
-    let holding_ref = format!("holding-legal-retention-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-legal-retention-{}", Uuid::new_v4());
     let scope = LegalScope::new(Uuid::new_v4(), Uuid::new_v4(), None).expect("legal scope");
-    let create_context = context("creator", scope.tenant_scope(), "retention-create");
+    let create_context = context("creator", scope.active_scope(), "retention-create");
     let mut contract = LegalContract::new(
         Uuid::new_v4(),
         "contract-retention-001",
@@ -358,13 +359,13 @@ async fn live_legal_retention_sweep_expires_due_contract_once() {
         &create_context,
     )
     .expect("contract");
-    let store = SqlxLegalPersistence::new(pool.clone(), &holding_ref).expect("legal store");
+    let store = SqlxLegalPersistence::new(pool.clone(), &data_profile_key).expect("legal store");
     store
         .save_contract(&contract, &create_context, None)
         .await
         .expect("draft contract");
 
-    let review_context = context("creator", scope.tenant_scope(), "retention-review");
+    let review_context = context("creator", scope.active_scope(), "retention-review");
     contract
         .submit_for_review(&review_context)
         .expect("submit for review");
@@ -373,7 +374,7 @@ async fn live_legal_retention_sweep_expires_due_contract_once() {
         .await
         .expect("review contract");
 
-    let approve_context = context("approver", scope.tenant_scope(), "retention-approve");
+    let approve_context = context("approver", scope.active_scope(), "retention-approve");
     contract
         .approve(&approve_context)
         .expect("approve contract");
@@ -382,7 +383,7 @@ async fn live_legal_retention_sweep_expires_due_contract_once() {
         .await
         .expect("approved contract");
 
-    let activate_context = context("approver", scope.tenant_scope(), "retention-activate");
+    let activate_context = context("approver", scope.active_scope(), "retention-activate");
     contract
         .activate(&activate_context)
         .expect("activate contract");
@@ -421,20 +422,20 @@ async fn live_legal_retention_sweep_expires_due_contract_once() {
         .begin()
         .await
         .expect("retention verification transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *verify_tx)
         .await
         .expect("retention verification holding scope");
     let (status, version, event_count): (String, i64, i64) = sqlx::query_as(
         "SELECT status, version,
-                (SELECT count(*) FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1 AND aggregate_type='legal_contract'
+                (SELECT count(*) FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1 AND aggregate_type='legal_contract'
                    AND aggregate_id=$2)
-         FROM erpx_tenant.legal_contracts
-         WHERE holding_ref=$1 AND contract_id=$2",
+         FROM erpx_holding.legal_contracts
+         WHERE data_profile_key=$1 AND contract_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(contract.id)
     .fetch_one(&mut *verify_tx)
     .await
@@ -451,14 +452,14 @@ async fn live_legal_retention_sweep_expires_due_contract_once() {
         Option<String>,
         Uuid,
     ) = sqlx::query_as(
-        "SELECT aggregate_version, event_type, tenant_scope, actor, idempotency_key,
+        "SELECT aggregate_version, event_type, active_scope, actor, idempotency_key,
                 correlation_id
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type='legal_contract' AND aggregate_id=$2
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type='legal_contract' AND aggregate_id=$2
          ORDER BY aggregate_version DESC
          LIMIT 1",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(contract.id)
     .fetch_one(&mut *verify_tx)
     .await
@@ -467,7 +468,7 @@ async fn live_legal_retention_sweep_expires_due_contract_once() {
     assert_eq!(expired_event.1, "legal.contract_saved.v1");
     assert_eq!(
         expired_event.2,
-        serde_json::to_value(&activate_context.tenant_scope).unwrap()
+        serde_json::to_value(&activate_context.active_scope).unwrap()
     );
     assert_eq!(
         expired_event.3,
@@ -494,18 +495,18 @@ async fn live_legal_retention_sweep_expires_due_contract_once() {
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn live_legal_approval_fact_binding_failure_rolls_back_contract_and_outbox() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let pool = PgPool::connect(&url).await.expect("write pool");
-    erpx_migration::migrate_tenant_write(&pool)
+    erpx_migration::migrate_holding_write(&pool)
         .await
-        .expect("tenant write migration");
+        .expect("holding write migration");
 
-    let holding_ref = format!("holding-legal-approval-integrity-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-legal-approval-integrity-{}", Uuid::new_v4());
     let scope = LegalScope::new(Uuid::new_v4(), Uuid::new_v4(), None).expect("legal scope");
-    let create_context = context("creator", scope.tenant_scope(), "approval-integrity-create");
+    let create_context = context("creator", scope.active_scope(), "approval-integrity-create");
     let mut contract = LegalContract::new(
         Uuid::new_v4(),
         "contract-approval-integrity-001",
@@ -517,13 +518,13 @@ async fn live_legal_approval_fact_binding_failure_rolls_back_contract_and_outbox
         &create_context,
     )
     .expect("contract");
-    let store = SqlxLegalPersistence::new(pool.clone(), &holding_ref).expect("legal store");
+    let store = SqlxLegalPersistence::new(pool.clone(), &data_profile_key).expect("legal store");
     store
         .save_contract(&contract, &create_context, None)
         .await
         .expect("draft contract");
 
-    let review_context = context("creator", scope.tenant_scope(), "approval-integrity-review");
+    let review_context = context("creator", scope.active_scope(), "approval-integrity-review");
     contract
         .submit_for_review(&review_context)
         .expect("review transition");
@@ -534,7 +535,7 @@ async fn live_legal_approval_fact_binding_failure_rolls_back_contract_and_outbox
 
     let approve_context = context(
         "approver",
-        scope.tenant_scope(),
+        scope.active_scope(),
         "approval-integrity-approve",
     );
     contract
@@ -552,16 +553,16 @@ async fn live_legal_approval_fact_binding_failure_rolls_back_contract_and_outbox
         i64,
     ) = sqlx::query_as(
         "SELECT contracts.status, contracts.version,
-                (SELECT count(*) FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1 AND aggregate_type='legal_contract'
+                (SELECT count(*) FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1 AND aggregate_type='legal_contract'
                    AND aggregate_id=$2),
-                (SELECT count(*) FROM erpx_tenant.legal_command_idempotency
-                 WHERE holding_ref=$1 AND aggregate_type='legal_contract'
+                (SELECT count(*) FROM erpx_holding.legal_command_idempotency
+                 WHERE data_profile_key=$1 AND aggregate_type='legal_contract'
                    AND aggregate_id=$2)
-         FROM erpx_tenant.legal_contracts AS contracts
-         WHERE contracts.holding_ref=$1 AND contracts.contract_id=$2",
+         FROM erpx_holding.legal_contracts AS contracts
+         WHERE contracts.data_profile_key=$1 AND contracts.contract_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(contract.id)
     .fetch_one(&pool)
     .await
@@ -573,31 +574,31 @@ async fn live_legal_approval_fact_binding_failure_rolls_back_contract_and_outbox
 
     let wrong_holding_id = Uuid::new_v4();
     let mut corrupt_tx = pool.begin().await.expect("corruption transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *corrupt_tx)
         .await
         .expect("holding scope");
     sqlx::query(
-        "ALTER TABLE erpx_tenant.legal_contract_approvals
+        "ALTER TABLE erpx_holding.legal_contract_approvals
          DISABLE TRIGGER legal_contract_approvals_immutable",
     )
     .execute(&mut *corrupt_tx)
     .await
     .expect("disable approval trigger for corruption fixture");
     sqlx::query(
-        "UPDATE erpx_tenant.legal_contract_approvals
+        "UPDATE erpx_holding.legal_contract_approvals
          SET holding_id=$1
-         WHERE holding_ref=$2 AND contract_id=$3",
+         WHERE data_profile_key=$2 AND contract_id=$3",
     )
     .bind(wrong_holding_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(contract.id)
     .execute(&mut *corrupt_tx)
     .await
     .expect("corrupt approval binding");
     sqlx::query(
-        "ALTER TABLE erpx_tenant.legal_contract_approvals
+        "ALTER TABLE erpx_holding.legal_contract_approvals
          ENABLE TRIGGER legal_contract_approvals_immutable",
     )
     .execute(&mut *corrupt_tx)
@@ -610,7 +611,7 @@ async fn live_legal_approval_fact_binding_failure_rolls_back_contract_and_outbox
 
     let activate_context = context(
         "approver",
-        scope.tenant_scope(),
+        scope.active_scope(),
         "approval-integrity-activate",
     );
     contract
@@ -633,16 +634,16 @@ async fn live_legal_approval_fact_binding_failure_rolls_back_contract_and_outbox
         i64,
     ) = sqlx::query_as(
         "SELECT contracts.status, contracts.version,
-                (SELECT count(*) FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1 AND aggregate_type='legal_contract'
+                (SELECT count(*) FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1 AND aggregate_type='legal_contract'
                    AND aggregate_id=$2),
-                (SELECT count(*) FROM erpx_tenant.legal_command_idempotency
-                 WHERE holding_ref=$1 AND aggregate_type='legal_contract'
+                (SELECT count(*) FROM erpx_holding.legal_command_idempotency
+                 WHERE data_profile_key=$1 AND aggregate_type='legal_contract'
                    AND aggregate_id=$2)
-         FROM erpx_tenant.legal_contracts AS contracts
-         WHERE contracts.holding_ref=$1 AND contracts.contract_id=$2",
+         FROM erpx_holding.legal_contracts AS contracts
+         WHERE contracts.data_profile_key=$1 AND contracts.contract_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(contract.id)
     .fetch_one(&pool)
     .await
@@ -654,10 +655,10 @@ async fn live_legal_approval_fact_binding_failure_rolls_back_contract_and_outbox
 
     let (stored_holding_id, stored_contract_version): (Uuid, i64) = sqlx::query_as(
         "SELECT holding_id, contract_version
-         FROM erpx_tenant.legal_contract_approvals
-         WHERE holding_ref=$1 AND contract_id=$2",
+         FROM erpx_holding.legal_contract_approvals
+         WHERE data_profile_key=$1 AND contract_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(contract.id)
     .fetch_one(&pool)
     .await

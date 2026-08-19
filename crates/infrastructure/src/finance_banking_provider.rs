@@ -8,7 +8,7 @@
 
 use async_trait::async_trait;
 use chrono::{DateTime, Duration as ChronoDuration, NaiveDate, Utc};
-use erpx_domain::contracts::{CommandContext, TenantScope};
+use erpx_domain::contracts::{AuthorityScope, CommandContext};
 use erpx_domain::finance_banking::{BankAccount, BankStatementImport, ImportedBankTransaction};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -189,7 +189,7 @@ impl BankProviderAccountRef {
 pub struct BankProviderAccountBinding {
     local_account_id: Uuid,
     account: BankProviderAccountRef,
-    scope: TenantScope,
+    scope: AuthorityScope,
     holding_id: Uuid,
     company_id: Uuid,
     currency: String,
@@ -201,7 +201,7 @@ impl BankProviderAccountBinding {
     pub fn try_new(
         local_account_id: Uuid,
         account: BankProviderAccountRef,
-        scope: TenantScope,
+        scope: AuthorityScope,
         holding_id: Uuid,
         company_id: Uuid,
         currency: impl Into<String>,
@@ -229,7 +229,7 @@ impl BankProviderAccountBinding {
         &self.account
     }
 
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
 
@@ -281,7 +281,7 @@ impl BankProviderCursor {
     }
 }
 
-/// The exact request identity used to bind a provider page to tenant scope,
+/// The exact request identity used to bind a provider page to holding scope,
 /// account, period, cursor, and page size.  It is deterministic and safe to
 /// use as an idempotency correlation value; it is not a secret.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
@@ -832,7 +832,7 @@ fn is_valid_server_name(value: &str) -> bool {
 }
 
 fn validate_account_binding_scope(
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     local_account_id: Uuid,
     holding_id: Uuid,
     company_id: Uuid,
@@ -841,24 +841,24 @@ fn validate_account_binding_scope(
         return Err(BankProviderError::InvalidInput);
     }
     let matches_scope = match scope {
-        TenantScope::Platform => false,
-        TenantScope::Holding {
+        AuthorityScope::Platform => false,
+        AuthorityScope::Holding {
             holding_id: scoped_holding,
         } => scoped_holding == &holding_id,
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id: scoped_holding,
             company_id: scoped_company,
         }
-        | TenantScope::Branch {
+        | AuthorityScope::Branch {
             holding_id: scoped_holding,
             company_id: scoped_company,
             ..
         } => scoped_holding == &holding_id && scoped_company == &company_id,
-        TenantScope::Subtree {
+        AuthorityScope::Subtree {
             holding_id: scoped_holding,
-            company_ids,
+            organization_node_id,
             ..
-        } => scoped_holding == &holding_id && company_ids.contains(&company_id),
+        } => scoped_holding == &holding_id && organization_node_id == &company_id,
     };
     if matches_scope {
         Ok(())
@@ -911,7 +911,7 @@ fn is_currency(value: &str) -> bool {
 
 fn deterministic_transaction_id(account_id: Uuid, transaction_reference: &str) -> Uuid {
     let digest = Sha256::digest(
-        format!("erpx/finance/banking/v1/{account_id}/{transaction_reference}").as_bytes(),
+        format!("erpx/finance/banking/{account_id}/{transaction_reference}").as_bytes(),
     );
     let mut bytes = [0_u8; 16];
     bytes.copy_from_slice(&digest[..16]);
@@ -934,7 +934,7 @@ mod tests {
     fn provider_account_binding_requires_consistent_scope_identity() {
         let holding_id = Uuid::from_u128(1);
         let company_id = Uuid::from_u128(2);
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id,
             company_id,
         };
@@ -984,7 +984,7 @@ mod tests {
             BankProviderAccountBinding::try_new(
                 Uuid::nil(),
                 account.clone(),
-                TenantScope::Platform,
+                AuthorityScope::Platform,
                 Uuid::from_u128(1),
                 Uuid::from_u128(2),
                 "USD",
@@ -996,7 +996,7 @@ mod tests {
             BankProviderAccountBinding::try_new(
                 Uuid::from_u128(3),
                 account,
-                TenantScope::Platform,
+                AuthorityScope::Platform,
                 Uuid::from_u128(1),
                 Uuid::from_u128(2),
                 "USD",

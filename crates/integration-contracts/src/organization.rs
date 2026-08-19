@@ -1,8 +1,8 @@
+use erpx_kernel::HoldingId;
 use serde::{Deserialize, Serialize};
 
 use crate::{BoundedContext, DisplayName, ReferenceCode};
 
-owned_uuid_reference!(HoldingRef);
 owned_uuid_reference!(CompanyRef);
 owned_uuid_reference!(BranchRef);
 owned_uuid_reference!(BusinessUnitRef);
@@ -12,7 +12,7 @@ pub struct OrganizationUnitFact {
     pub business_unit: BusinessUnitRef,
     pub code: ReferenceCode,
     pub name: DisplayName,
-    pub holding: HoldingRef,
+    pub holding: HoldingId,
     pub company: Option<CompanyRef>,
     pub branch: Option<BranchRef>,
     pub active: bool,

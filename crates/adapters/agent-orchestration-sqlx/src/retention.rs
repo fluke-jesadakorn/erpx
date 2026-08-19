@@ -8,27 +8,27 @@ use erpx_agent_orchestration::{
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-use crate::tenant::TenantBoundPool;
+use crate::holding::HoldingBoundPool;
 
 const MAX_RETENTION_FRESHNESS: StdDuration = StdDuration::from_secs(5 * 60);
 
 #[derive(Debug, Clone)]
 pub struct SqlxAgentMaterialRetentionRepository {
-    database: TenantBoundPool,
+    database: HoldingBoundPool,
     max_staleness: Duration,
 }
 
 impl SqlxAgentMaterialRetentionRepository {
     pub fn try_new(
         pool: PgPool,
-        tenant_id: Uuid,
+        holding_id: Uuid,
         max_staleness: StdDuration,
     ) -> Result<Self, PortError> {
         if max_staleness.is_zero() || max_staleness > MAX_RETENTION_FRESHNESS {
             return Err(PortError::Denied);
         }
         Ok(Self {
-            database: TenantBoundPool::try_new(pool, tenant_id)?,
+            database: HoldingBoundPool::try_new(pool, holding_id)?,
             max_staleness: Duration::from_std(max_staleness).map_err(|_| PortError::Denied)?,
         })
     }
@@ -43,20 +43,20 @@ impl AgentMaterialRetentionPort for SqlxAgentMaterialRetentionRepository {
     ) -> Result<AgentMaterialRetention, PortError> {
         let mut tx = self.database.begin().await?;
         let row = sqlx::query(
-            "SELECT p.policy_version,p.ttl_seconds,p.legal_hold_default,a.tenant_scope
+            "SELECT p.policy_version,p.ttl_seconds,p.legal_hold_default,a.active_scope
              FROM erpx_agent_write.agent_material_retention_policies p
              JOIN erpx_agent_write.agent_assignments a
-               ON a.tenant_id=p.tenant_id AND a.assignment_id=$2
+               ON a.holding_id=p.holding_id AND a.assignment_id=$2
              JOIN erpx_agent_write.agent_versions v
-               ON v.tenant_id=a.tenant_id AND v.agent_version_id=a.agent_version_id
+               ON v.holding_id=a.holding_id AND v.agent_version_id=a.agent_version_id
               AND v.use_case=p.use_case
-             WHERE p.tenant_id=$1 AND p.policy_status='approved'
+             WHERE p.holding_id=$1 AND p.policy_status='approved'
                AND p.effective_at<=$3 AND p.expires_at>$3
                AND p.freshness_checked_at BETWEEN $4 AND $3
                AND a.agent_definition_id=$5 AND a.agent_version_id=$6
                AND a.policy_digest=$7 AND a.aggregate_version=$8 AND a.created_at=$9",
         )
-        .bind(self.database.tenant_id())
+        .bind(self.database.holding_id())
         .bind(assignment.id().as_uuid())
         .bind(at)
         .bind(at - self.max_staleness)
@@ -79,8 +79,8 @@ impl AgentMaterialRetentionPort for SqlxAgentMaterialRetentionRepository {
             .ok()
             .filter(|value| *value > 0)
             .ok_or(PortError::Persistence)?;
-        let stored_scope: erpx_kernel::TenantScope = serde_json::from_value(
-            row.try_get("tenant_scope")
+        let stored_scope: erpx_kernel::AuthorityScope = serde_json::from_value(
+            row.try_get("active_scope")
                 .map_err(|_| PortError::Persistence)?,
         )
         .map_err(|_| PortError::Persistence)?;

@@ -6,8 +6,8 @@ use erpx_infrastructure::RoutedDatabaseSide;
 use erpx_integration_contracts::{
     CurrencyCode, MoneyAmount, RecordTypeId, StableRecordRef, catalog::ContextId,
 };
-use erpx_kernel::{CommandId, CorrelationId, RecordId, TenantScope};
-use erpx_proto::{common::v2 as common, erpx::talent::v2 as wire};
+use erpx_kernel::{AuthorityScope, CommandId, CorrelationId, RecordId};
+use erpx_proto::{common, erpx::talent as wire};
 use erpx_talent as talent;
 use erpx_talent_sqlx as talent_sqlx;
 use prost::Message;
@@ -53,8 +53,8 @@ impl talent::AuthorizationPort for TalentAccess {
     async fn authorize(
         &self,
         principal: &talent::RealmPrincipal,
-        authority_scope: &TenantScope,
-        target_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         action: talent::TalentAction,
     ) -> Result<(), talent::TalentPortError> {
         let action_writes = !matches!(
@@ -86,7 +86,7 @@ fn actor(
     }
     .map_err(|_| Status::permission_denied("talent principal is invalid"))?;
     Ok(talent::TalentActor {
-        tenant_id: invocation.tenant_id,
+        holding_id: invocation.holding_id,
         principal,
         authority_scope: invocation.scope.clone(),
     })
@@ -115,7 +115,7 @@ fn query_service(
             actor: actor.clone(),
             write: false,
         },
-        talent_sqlx::SqlxTalentReadRepository::new(pool, actor.tenant_id)
+        talent_sqlx::SqlxTalentReadRepository::new(pool, actor.holding_id)
             .map_err(|_| Status::unavailable("talent read model is unavailable"))?,
     ))
 }
@@ -184,37 +184,28 @@ fn timestamp(value: &str, field: &'static str) -> Result<DateTime<Utc>, Status> 
         .map_err(|_| Status::invalid_argument(format!("{field} is invalid")))
 }
 
-fn decode_scope(value: Option<&common::TenantScope>) -> Result<TenantScope, Status> {
-    use common::tenant_scope::Scope;
+fn decode_scope(value: Option<&common::AuthorityScope>) -> Result<AuthorityScope, Status> {
+    use common::authority_scope::Scope;
     let scope = value
         .and_then(|value| value.scope.as_ref())
         .ok_or_else(|| Status::invalid_argument("talent record scope is required"))?;
     let result = match scope {
-        Scope::Platform(_) => TenantScope::Platform,
-        Scope::Holding(value) => TenantScope::Holding {
+        Scope::Platform(_) => AuthorityScope::Platform,
+        Scope::Holding(value) => AuthorityScope::Holding {
             holding_id: uuid(&value.holding_id, "holding_id")?,
         },
-        Scope::Company(value) => TenantScope::Company {
+        Scope::Company(value) => AuthorityScope::Company {
             holding_id: uuid(&value.holding_id, "holding_id")?,
             company_id: uuid(&value.company_id, "company_id")?,
         },
-        Scope::Branch(value) => TenantScope::Branch {
+        Scope::Branch(value) => AuthorityScope::Branch {
             holding_id: uuid(&value.holding_id, "holding_id")?,
             company_id: uuid(&value.company_id, "company_id")?,
             branch_id: uuid(&value.branch_id, "branch_id")?,
         },
-        Scope::Subtree(value) => TenantScope::Subtree {
+        Scope::Subtree(value) => AuthorityScope::Subtree {
             holding_id: uuid(&value.holding_id, "holding_id")?,
-            company_ids: value
-                .company_ids
-                .iter()
-                .map(|value| uuid(value, "company_id"))
-                .collect::<Result<_, _>>()?,
-            branch_ids: value
-                .branch_ids
-                .iter()
-                .map(|value| uuid(value, "branch_id"))
-                .collect::<Result<_, _>>()?,
+            organization_node_id: uuid(&value.organization_node_id, "organization_node_id")?,
         },
     };
     result
@@ -222,7 +213,7 @@ fn decode_scope(value: Option<&common::TenantScope>) -> Result<TenantScope, Stat
         .map_err(|_| Status::invalid_argument("talent record scope is invalid"))?;
     if !matches!(
         result,
-        TenantScope::Company { .. } | TenantScope::Branch { .. }
+        AuthorityScope::Company { .. } | AuthorityScope::Branch { .. }
     ) {
         return Err(Status::invalid_argument(
             "talent record scope must be an exact company or branch",
@@ -231,22 +222,22 @@ fn decode_scope(value: Option<&common::TenantScope>) -> Result<TenantScope, Stat
     Ok(result)
 }
 
-fn encode_scope(value: &TenantScope) -> common::TenantScope {
-    use common::tenant_scope::Scope;
-    common::TenantScope {
+fn encode_scope(value: &AuthorityScope) -> common::AuthorityScope {
+    use common::authority_scope::Scope;
+    common::AuthorityScope {
         scope: Some(match value {
-            TenantScope::Platform => Scope::Platform(common::PlatformScope {}),
-            TenantScope::Holding { holding_id } => Scope::Holding(common::HoldingScope {
+            AuthorityScope::Platform => Scope::Platform(common::PlatformScope {}),
+            AuthorityScope::Holding { holding_id } => Scope::Holding(common::HoldingScope {
                 holding_id: holding_id.to_string(),
             }),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => Scope::Company(common::CompanyScope {
                 holding_id: holding_id.to_string(),
                 company_id: company_id.to_string(),
             }),
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -255,14 +246,12 @@ fn encode_scope(value: &TenantScope) -> common::TenantScope {
                 company_id: company_id.to_string(),
                 branch_id: branch_id.to_string(),
             }),
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Scope::Subtree(common::SubtreeScope {
                 holding_id: holding_id.to_string(),
-                company_ids: company_ids.iter().map(ToString::to_string).collect(),
-                branch_ids: branch_ids.iter().map(ToString::to_string).collect(),
+                organization_node_id: organization_node_id.to_string(),
             }),
         }),
     }

@@ -28,8 +28,8 @@ fn id(value: u128) -> Uuid {
 fn at() -> chrono::DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap()
 }
-fn scope() -> TenantScope {
-    TenantScope::Company {
+fn scope() -> AuthorityScope {
+    AuthorityScope::Company {
         holding_id: id(1),
         company_id: id(2),
     }
@@ -37,7 +37,7 @@ fn scope() -> TenantScope {
 fn actor(name: &str) -> ActorAttribution {
     ActorAttribution {
         principal_ref: name.into(),
-        kind: ActorKind::TenantUser,
+        kind: ActorKind::HoldingUser,
         session_id: None,
         represented_principal_ref: None,
         support_capability_id: None,
@@ -112,7 +112,7 @@ fn command_envelope<C>(
         correlation_id: CorrelationId::try_from_uuid(id(200 + sequence)).unwrap(),
         causation_id: None,
         actor: actor(principal),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "pos.test".into(),
             customer_visible: false,
@@ -144,7 +144,7 @@ struct FakeEntitlement(bool);
 impl EntitlementPort for FakeEntitlement {
     async fn ensure_pos_enabled(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _write: bool,
     ) -> Result<(), PortError> {
         if self.0 {
@@ -165,7 +165,7 @@ struct FakeWrite {
 impl WriteRepository for FakeWrite {
     async fn load_sale(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _sale_id: SaleId,
     ) -> Result<Option<Sale>, PortError> {
         Ok(self.sale.lock().unwrap().clone())
@@ -173,7 +173,7 @@ impl WriteRepository for FakeWrite {
 
     async fn load_refund(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _refund_id: RefundId,
     ) -> Result<Option<PosRefund>, PortError> {
         Ok(self.refund.lock().unwrap().clone())
@@ -396,7 +396,7 @@ struct NotReadyRead(Arc<AtomicUsize>);
 impl PosReadRepository for NotReadyRead {
     async fn get_sale(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _sale_id: SaleId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<SaleView>>, PortError> {
@@ -414,7 +414,7 @@ impl PosReadRepository for NotReadyRead {
 
     async fn list_sales(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _filter: &SaleListFilter,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<SaleList>, PortError> {
@@ -433,7 +433,7 @@ impl PosReadRepository for NotReadyRead {
 
     async fn get_refund(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _refund_id: RefundId,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<RefundView>>, PortError> {
@@ -442,7 +442,7 @@ impl PosReadRepository for NotReadyRead {
 
     async fn list_refunds(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _filter: &RefundListFilter,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<RefundList>, PortError> {
@@ -464,7 +464,7 @@ async fn read_your_writes_not_ready_is_returned_without_write_fallback() {
             query_id: QueryId::try_from_uuid(id(300)).unwrap(),
             correlation_id: CorrelationId::try_from_uuid(id(301)).unwrap(),
             actor: actor("cashier"),
-            tenant_scope: scope(),
+            active_scope: scope(),
             audit: AuditContext {
                 purpose: "pos.test.query".into(),
                 customer_visible: false,

@@ -1,5 +1,5 @@
 use chrono::{Duration, TimeZone, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use uuid::Uuid;
 
 use super::*;
@@ -13,8 +13,8 @@ fn at() -> DateTime<Utc> {
 fn date(day: u32) -> NaiveDate {
     NaiveDate::from_ymd_opt(2026, 8, day).unwrap()
 }
-fn scope() -> TenantScope {
-    TenantScope::Company {
+fn scope() -> AuthorityScope {
+    AuthorityScope::Company {
         holding_id: id(1),
         company_id: id(2),
     }
@@ -36,7 +36,7 @@ fn payroll_evidence(captured_at: DateTime<Utc>) -> PayrollCalculationEvidence {
 fn records_require_exact_company_or_branch_scope() {
     let result = Employee::hire(
         employee_id(10),
-        TenantScope::Holding { holding_id: id(1) },
+        AuthorityScope::Holding { holding_id: id(1) },
         "EMP-010".into(),
         "Ari".into(),
         date(1),

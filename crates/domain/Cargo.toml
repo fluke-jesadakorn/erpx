@@ -12,6 +12,7 @@ path = "tests/domain_contracts.rs"
 
 [dependencies]
 chrono.workspace = true
+erpx-kernel.workspace = true
 hex.workspace = true
 serde.workspace = true
 serde_json.workspace = true

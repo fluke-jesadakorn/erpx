@@ -1,10 +1,10 @@
 mod admin_context;
 mod connector;
 mod governance;
+mod holding;
 mod routing;
-mod tenant;
 
-pub use admin_context::{AdminContextId, AdminContextStatus, TenantAdminContext};
+pub use admin_context::{AdminContextId, AdminContextStatus, HoldingAdminContext};
 pub use connector::{
     ConnectorBinding, ConnectorBindingId, ConnectorKind, ConnectorReadinessEvidence,
     ConnectorScope, ConnectorState, ConnectorTransition,
@@ -13,12 +13,13 @@ pub use governance::{
     PlatformGovernanceRecord, PlatformGovernanceRecordError, PlatformGovernanceRecordKind,
     PlatformGovernanceRecordStatus,
 };
+pub use holding::{
+    EnvironmentId, HoldingLifecycleAction, HoldingLifecycleState, PlatformHolding,
+    PlatformHoldingId,
+};
 pub use routing::{
     DataPlaneDeploymentMode, DataPlaneRoute, DataPlaneRouteCatalog, DataPlaneRouteState,
-    DataPlaneRouteTarget, DataPlaneTopology, ROUTING_SCHEMA_GENERATION,
-};
-pub use tenant::{
-    EnvironmentId, PlatformTenant, PlatformTenantId, TenantLifecycleAction, TenantLifecycleState,
+    DataPlaneRouteTarget, DataPlaneTopology, ROUTING_SCHEMA_REVISION,
 };
 
 use chrono::{DateTime, Utc};
@@ -35,8 +36,8 @@ pub enum PlatformAdministrationDomainError {
     ControlCharacter { field: &'static str },
     #[error("{field} cannot be nil")]
     NilIdentifier { field: &'static str },
-    #[error("tenant lifecycle transition is not allowed")]
-    InvalidTenantTransition,
+    #[error("holding lifecycle transition is not allowed")]
+    InvalidHoldingTransition,
     #[error("connector lifecycle transition is not allowed")]
     InvalidConnectorTransition,
     #[error("connector kind is not supported")]
@@ -65,13 +66,13 @@ pub enum PlatformAdministrationDomainError {
     StaleRouteObservation,
     #[error("data-plane route is unavailable")]
     RouteUnavailable,
-    #[error("data-plane route requires schema generation 2")]
-    UnsupportedRouteSchemaGeneration,
-    #[error("tenant administration context lifetime is invalid")]
+    #[error("data-plane route requires schema revision 2")]
+    UnsupportedRouteSchemaRevision,
+    #[error("holding administration context lifetime is invalid")]
     InvalidAdminContextLifetime,
-    #[error("tenant administration context has already been revoked")]
+    #[error("holding administration context has already been revoked")]
     AdminContextRevoked,
-    #[error("tenant administration scope must be holding-scoped")]
+    #[error("holding administration scope must be holding-scoped")]
     InvalidAdminScope,
     #[error("aggregate version overflow")]
     VersionOverflow,
@@ -97,8 +98,8 @@ pub(crate) fn bounded(
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum DomainEvent {
-    TenantChanged {
-        state: PublishedTenantState,
+    HoldingChanged {
+        state: PublishedHoldingState,
         at: DateTime<Utc>,
     },
     ConnectorChanged {
@@ -113,23 +114,23 @@ pub(crate) enum DomainEvent {
     },
     AdminContextIssued {
         context_id: AdminContextId,
-        tenant_id: PlatformTenantId,
+        holding_id: PlatformHoldingId,
         at: DateTime<Utc>,
     },
     AdminContextRevoked {
         context_id: AdminContextId,
-        tenant_id: PlatformTenantId,
+        holding_id: PlatformHoldingId,
         at: DateTime<Utc>,
     },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct PublishedTenantState {
-    pub tenant_id: PlatformTenantId,
+pub(crate) struct PublishedHoldingState {
+    pub holding_id: PlatformHoldingId,
     pub code: String,
     pub name: String,
     pub environment_id: EnvironmentId,
-    pub status: TenantLifecycleState,
+    pub status: HoldingLifecycleState,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -139,15 +140,15 @@ pub(crate) struct PublishedTenantState {
     rename_all = "snake_case"
 )]
 pub enum PlatformAggregate {
-    Tenant(PlatformTenant),
+    Holding(PlatformHolding),
     Connector(ConnectorBinding),
-    AdminContext(TenantAdminContext),
+    AdminContext(HoldingAdminContext),
 }
 
 impl PlatformAggregate {
     pub const fn id_uuid(&self) -> uuid::Uuid {
         match self {
-            Self::Tenant(value) => value.id().as_uuid(),
+            Self::Holding(value) => value.id().as_uuid(),
             Self::Connector(value) => value.id().as_uuid(),
             Self::AdminContext(value) => value.id().as_uuid(),
         }
@@ -155,7 +156,7 @@ impl PlatformAggregate {
 
     pub const fn version(&self) -> u64 {
         match self {
-            Self::Tenant(value) => value.version(),
+            Self::Holding(value) => value.version(),
             Self::Connector(value) => value.version(),
             Self::AdminContext(value) => value.version(),
         }
@@ -163,23 +164,23 @@ impl PlatformAggregate {
 
     pub const fn aggregate_type(&self) -> &'static str {
         match self {
-            Self::Tenant(_) => "platform_tenant",
+            Self::Holding(_) => "platform_holding",
             Self::Connector(_) => "connector_binding",
-            Self::AdminContext(_) => "tenant_admin_context",
+            Self::AdminContext(_) => "holding_admin_context",
         }
     }
 
-    pub fn scope(&self) -> erpx_kernel::TenantScope {
+    pub fn scope(&self) -> erpx_kernel::AuthorityScope {
         match self {
-            Self::Tenant(value) => value.scope(),
-            Self::Connector(value) => value.scope().tenant_scope(),
+            Self::Holding(value) => value.scope(),
+            Self::Connector(value) => value.scope().active_scope(),
             Self::AdminContext(value) => value.scope().clone(),
         }
     }
 
     pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
         match self {
-            Self::Tenant(value) => value.take_uncommitted_events(),
+            Self::Holding(value) => value.take_uncommitted_events(),
             Self::Connector(value) => value.take_uncommitted_events(),
             Self::AdminContext(value) => value.take_uncommitted_events(),
         }

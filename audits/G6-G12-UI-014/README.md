@@ -8,13 +8,13 @@ server-owned read models while preserving the fail-closed, read-only boundary.
 ## Delivered behavior
 
 - `ListPlatformIntegrations` requires an authenticated Platform scope and
-  `platform.tenant.read`, records the read, and returns categorical statuses
-  for the control plane, identity, tenant routing, object storage, and billing
+  `platform.holding.read`, records the read, and returns categorical statuses
+  for the control plane, identity, holding routing, object storage, and billing
   boundaries. It carries no endpoint, credential, token, database-key, or
   provider-payload material.
 - `GetPlatformSettings` uses the same authorization and audit boundary and
   returns only architecture metadata: contract version, transport, physical
-  tenant isolation, aggregate authority, billing authority, storage authority,
+  holding isolation, aggregate authority, billing authority, storage authority,
   and command owner.
 - WebAssembly gRPC-Web and native Tonic adapters are implemented for both
   reads.

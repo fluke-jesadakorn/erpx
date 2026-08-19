@@ -6,7 +6,7 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::marketing;
 use erpx_kernel::{
-    ActorAttribution, AggregateId, AuditContext, CommandId, CorrelationId, EventId, TenantScope,
+    ActorAttribution, AggregateId, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -112,8 +112,8 @@ pub struct CommandIdentity {
 
 pub struct AuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
-    pub target_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
+    pub target_scope: &'a AuthorityScope,
     pub action: MarketingAction,
 }
 
@@ -125,7 +125,7 @@ pub trait AuthorizationPort: Send + Sync {
 pub trait EntitlementPort: Send + Sync {
     async fn ensure_marketing_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         write: bool,
     ) -> Result<(), PortError>;
 }
@@ -133,12 +133,12 @@ pub trait EntitlementPort: Send + Sync {
 pub trait WriteRepository: Send + Sync {
     async fn load_lead(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: LeadCandidateId,
     ) -> Result<Option<LeadCandidate>, PortError>;
     async fn load_budget(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: CampaignBudgetId,
     ) -> Result<Option<CampaignBudget>, PortError>;
 }
@@ -149,7 +149,7 @@ pub struct MarketingCommit {
     pub correlation_id: CorrelationId,
     pub causation_id: Option<EventId>,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
     pub aggregate: MarketingAggregate,
@@ -199,7 +199,7 @@ pub trait CommandUnitOfWork: Send + Sync {
 pub struct LeadCandidateView {
     pub id: LeadCandidateId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub campaign_id: crate::domain::CampaignId,
     pub audience_member_id: crate::domain::AudienceMemberId,
     pub source: String,
@@ -233,7 +233,7 @@ impl From<&LeadCandidate> for LeadCandidateView {
 pub struct CampaignBudgetView {
     pub id: CampaignBudgetId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub campaign_id: crate::domain::CampaignId,
     pub code: String,
     pub name: String,
@@ -306,19 +306,19 @@ pub struct ReadProjection<T> {
 pub trait ReadRepository: Send + Sync {
     async fn get_lead(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: LeadCandidateId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<LeadCandidateView>>, PortError>;
     async fn list_leads(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         filter: &LeadCandidateListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<LeadCandidateList>, PortError>;
     async fn get_budget(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: CampaignBudgetId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<CampaignBudgetView>>, PortError>;

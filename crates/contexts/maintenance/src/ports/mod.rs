@@ -9,7 +9,7 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::{assets, maintenance};
 use erpx_kernel::{
-    ActorAttribution, AggregateId, AuditContext, CommandId, CorrelationId, EventId, TenantScope,
+    ActorAttribution, AggregateId, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -41,8 +41,8 @@ impl MaintenanceAction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
-    pub target_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
+    pub target_scope: &'a AuthorityScope,
     pub action: MaintenanceAction,
 }
 
@@ -55,7 +55,7 @@ pub trait AuthorizationPort: Send + Sync {
 pub trait EntitlementPort: Send + Sync {
     async fn ensure_maintenance_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         write: bool,
     ) -> Result<(), PortError>;
 }
@@ -80,7 +80,7 @@ pub enum CommandFingerprint {
         source_aggregate_version: u64,
         asset: assets::AssetRef,
         request_code: String,
-        scope: TenantScope,
+        scope: AuthorityScope,
         title: String,
     },
     Schedule {
@@ -119,7 +119,7 @@ pub struct CommandIdentity {
 pub trait WriteRepository: Send + Sync {
     async fn load(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         work_order_id: WorkOrderId,
     ) -> Result<Option<WorkOrder>, PortError>;
 }
@@ -130,7 +130,7 @@ pub struct MaintenanceCommit {
     pub correlation_id: CorrelationId,
     pub causation_id: Option<EventId>,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
     /// Opening stores the consumed Assets event ID under a unique constraint
@@ -188,7 +188,7 @@ pub struct WorkOrderView {
     pub work_order_id: WorkOrderId,
     pub version: u64,
     pub code: String,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub request: MaintenanceRequest,
     pub asset_fact: assets::AssetConditionFact,
     pub title: String,
@@ -246,14 +246,14 @@ pub struct ReadProjection<T> {
 pub trait ReadRepository: Send + Sync {
     async fn get(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         work_order_id: WorkOrderId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<WorkOrderView>>, PortError>;
 
     async fn list(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &WorkOrderListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<WorkOrderList>, PortError>;

@@ -14,5 +14,5 @@ erpx_ui_kit::declare_current_workspace_feature!(
     erpx_ui_kit::CurrentFeatureKind::IdentityAccess,
     "identity-access",
     [("identity-access.workspace", "/identity", "platform")],
-    "erpx-feature-identity-access-v2"
+    "erpx-feature-identity-access"
 );

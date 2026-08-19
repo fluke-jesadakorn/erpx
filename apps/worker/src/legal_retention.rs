@@ -1,13 +1,13 @@
-//! Tenant-write Legal retention sweep worker.
+//! Holding-write Legal retention sweep worker.
 //!
-//! This seam deliberately routes only the tenant write database. Retention
+//! This seam deliberately routes only the holding write database. Retention
 //! expiry is a source-state mutation; read projections and object storage are
 //! separate concerns and are never opened or touched here.
 
 use chrono::{DateTime, Utc};
 use erpx_infrastructure::{
-    LegalRetentionSweepReport, RoutedDatabaseSide, RoutedTenantDatabase, SqlxLegalPersistence,
-    TenantDatabaseRouter,
+    HoldingDatabaseRouter, LegalRetentionSweepReport, RoutedDatabaseSide, RoutedHoldingDatabase,
+    SqlxLegalPersistence,
 };
 use thiserror::Error;
 use uuid::Uuid;
@@ -76,22 +76,22 @@ impl LegalRetentionWorkerContext {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalRetentionRequest {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub batch_size: u32,
     pub context: LegalRetentionWorkerContext,
 }
 
 impl LegalRetentionRequest {
     pub fn new(
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         batch_size: u32,
         context: LegalRetentionWorkerContext,
     ) -> Result<Self, LegalRetentionWorkerError> {
         let request = Self {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
             batch_size,
             context,
         };
@@ -100,8 +100,8 @@ impl LegalRetentionRequest {
     }
 
     fn validate(&self) -> Result<(), LegalRetentionWorkerError> {
-        validate_scope_reference(&self.tenant_id, "tenant_id")?;
-        validate_scope_reference(&self.holding_ref, "holding_ref")?;
+        validate_scope_reference(&self.holding_id, "holding_id")?;
+        validate_scope_reference(&self.data_profile_key, "data_profile_key")?;
         if self.context.actor_ref != LEGAL_RETENTION_SYSTEM_ACTOR
             || self.context.purpose != LEGAL_RETENTION_PURPOSE
         {
@@ -120,8 +120,8 @@ impl LegalRetentionRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalRetentionRunReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub scanned: u32,
     pub expired: u32,
     pub conflicts: u32,
@@ -129,13 +129,13 @@ pub struct LegalRetentionRunReport {
 
 #[derive(Debug, Clone)]
 pub struct LegalRetentionRunner {
-    router: TenantDatabaseRouter,
+    router: HoldingDatabaseRouter,
     request: LegalRetentionRequest,
 }
 
 impl LegalRetentionRunner {
     pub fn new(
-        router: TenantDatabaseRouter,
+        router: HoldingDatabaseRouter,
         request: LegalRetentionRequest,
     ) -> Result<Self, LegalRetentionWorkerError> {
         request.validate()?;
@@ -150,7 +150,7 @@ impl LegalRetentionRunner {
         &self.request
     }
 
-    /// Execute only against the routed tenant write database. No read route,
+    /// Execute only against the routed holding write database. No read route,
     /// MinIO client, object deletion, or authorization decision exists in this
     /// runner; source persistence remains authoritative for the mutation.
     pub async fn run_once_at(
@@ -160,8 +160,8 @@ impl LegalRetentionRunner {
         let write = self
             .router
             .route(
-                &self.request.tenant_id,
-                &self.request.holding_ref,
+                &self.request.holding_id,
+                &self.request.data_profile_key,
                 RoutedDatabaseSide::Write,
             )
             .await
@@ -173,19 +173,19 @@ impl LegalRetentionRunner {
 
     async fn run_on_write_route(
         &self,
-        write: &RoutedTenantDatabase,
+        write: &RoutedHoldingDatabase,
         now: DateTime<Utc>,
     ) -> Result<LegalRetentionRunReport, LegalRetentionWorkerError> {
         validate_write_route_binding(
-            &self.request.tenant_id,
-            &self.request.holding_ref,
+            &self.request.holding_id,
+            &self.request.data_profile_key,
             write.side,
-            &write.tenant_id,
-            &write.holding_ref,
+            &write.holding_id,
+            &write.data_profile_key,
         )?;
         let source = SqlxLegalPersistence::new(
             write.database_pool().clone(),
-            self.request.holding_ref.clone(),
+            self.request.data_profile_key.clone(),
         )
         .map_err(|_| redacted_error("source construction"))?;
         let report = source
@@ -197,8 +197,8 @@ impl LegalRetentionRunner {
             .await
             .map_err(|_| redacted_error("source expiry"))?;
         Ok(map_report(
-            &self.request.tenant_id,
-            &self.request.holding_ref,
+            &self.request.holding_id,
+            &self.request.data_profile_key,
             report,
         ))
     }
@@ -223,13 +223,13 @@ impl NamedWorkerHandler for LegalRetentionRunner {
 }
 
 fn map_report(
-    tenant_id: &str,
-    holding_ref: &str,
+    holding_id: &str,
+    data_profile_key: &str,
     report: LegalRetentionSweepReport,
 ) -> LegalRetentionRunReport {
     LegalRetentionRunReport {
-        tenant_id: tenant_id.into(),
-        holding_ref: holding_ref.into(),
+        holding_id: holding_id.into(),
+        data_profile_key: data_profile_key.into(),
         scanned: report.scanned,
         expired: report.expired,
         conflicts: report.conflicts,
@@ -261,15 +261,15 @@ fn validate_scope_reference(value: &str, field: &str) -> Result<(), LegalRetenti
 }
 
 fn validate_write_route_binding(
-    expected_tenant_id: &str,
-    expected_holding_ref: &str,
+    expected_holding_id: &str,
+    expected_data_profile_key: &str,
     actual_side: RoutedDatabaseSide,
-    actual_tenant_id: &str,
-    actual_holding_ref: &str,
+    actual_holding_id: &str,
+    actual_data_profile_key: &str,
 ) -> Result<(), LegalRetentionWorkerError> {
     if actual_side != RoutedDatabaseSide::Write
-        || actual_tenant_id != expected_tenant_id
-        || actual_holding_ref != expected_holding_ref
+        || actual_holding_id != expected_holding_id
+        || actual_data_profile_key != expected_data_profile_key
     {
         return Err(LegalRetentionWorkerError::Configuration(
             "Legal retention write route binding is invalid".into(),
@@ -307,17 +307,17 @@ mod tests {
 
     #[test]
     fn request_rejects_unbounded_or_unsafe_values() {
-        assert!(LegalRetentionRequest::new("tenant", "holding", 0, context()).is_err());
+        assert!(LegalRetentionRequest::new("holding", "holding", 0, context()).is_err());
         assert!(
             LegalRetentionRequest::new(
-                "tenant",
+                "holding",
                 "holding",
                 LEGAL_RETENTION_MAX_BATCH_SIZE + 1,
                 context(),
             )
             .is_err()
         );
-        assert!(LegalRetentionRequest::new("tenant/read", "holding", 1, context()).is_err());
+        assert!(LegalRetentionRequest::new("holding/read", "holding", 1, context()).is_err());
     }
 
     #[test]
@@ -328,7 +328,7 @@ mod tests {
             Uuid::new_v4(),
         )
         .expect("bounded context");
-        assert!(LegalRetentionRequest::new("tenant", "holding", 1, context).is_err());
+        assert!(LegalRetentionRequest::new("holding", "holding", 1, context).is_err());
 
         let context = LegalRetentionWorkerContext::new(
             LEGAL_RETENTION_SYSTEM_ACTOR,
@@ -336,7 +336,7 @@ mod tests {
             Uuid::new_v4(),
         )
         .expect("bounded context");
-        assert!(LegalRetentionRequest::new("tenant", "holding", 1, context).is_err());
+        assert!(LegalRetentionRequest::new("holding", "holding", 1, context).is_err());
     }
 
     #[test]
@@ -348,7 +348,7 @@ mod tests {
     #[test]
     fn report_maps_to_worker_counts_without_counting_conflicts_as_expired() {
         let report = map_report(
-            "tenant",
+            "holding",
             "holding",
             LegalRetentionSweepReport {
                 scanned: 4,
@@ -365,21 +365,27 @@ mod tests {
     fn write_route_binding_is_scope_and_side_fenced() {
         assert!(
             validate_write_route_binding(
-                "tenant",
+                "holding",
                 "holding",
                 RoutedDatabaseSide::Write,
-                "tenant",
+                "holding",
                 "holding",
             )
             .is_ok()
         );
-        for (side, tenant_id, holding_ref) in [
-            (RoutedDatabaseSide::Read, "tenant", "holding"),
-            (RoutedDatabaseSide::Write, "other-tenant", "holding"),
-            (RoutedDatabaseSide::Write, "tenant", "other-holding"),
+        for (side, holding_id, data_profile_key) in [
+            (RoutedDatabaseSide::Read, "holding", "holding"),
+            (RoutedDatabaseSide::Write, "other-holding", "holding"),
+            (RoutedDatabaseSide::Write, "holding", "other-holding"),
         ] {
             assert_eq!(
-                validate_write_route_binding("tenant", "holding", side, tenant_id, holding_ref),
+                validate_write_route_binding(
+                    "holding",
+                    "holding",
+                    side,
+                    holding_id,
+                    data_profile_key
+                ),
                 Err(LegalRetentionWorkerError::Configuration(
                     "Legal retention write route binding is invalid".into()
                 ))

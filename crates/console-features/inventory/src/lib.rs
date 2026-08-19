@@ -14,5 +14,5 @@ erpx_ui_kit::declare_current_workspace_feature!(
     erpx_ui_kit::CurrentFeatureKind::Inventory,
     "inventory",
     [("inventory.workspace", "/inventory", "operations")],
-    "erpx-feature-inventory-v2"
+    "erpx-feature-inventory"
 );

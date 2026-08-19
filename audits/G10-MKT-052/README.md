@@ -10,7 +10,7 @@ authenticated callback → delivered state`.
 
 The proof verifies the exact provider reference, claim authorization, delivery
 version progression, callback inbox deduplication boundary, callback outbox
-event, forced-RLS tenant scope, physically distinct write/read database
+event, forced-RLS holding scope, physically distinct write/read database
 migrations, and cleanup that temporarily disables only the append-only consent
 trigger inside one transaction before restoring it.
 

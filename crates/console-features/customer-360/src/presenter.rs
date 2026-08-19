@@ -102,7 +102,7 @@ mod tests {
             },
             projections: Customer360SourceProjectionsDisplay {
                 control_customers: source.clone(),
-                tenant_activity: source,
+                holding_activity: source,
             },
         }
     }

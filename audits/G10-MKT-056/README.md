@@ -1,6 +1,6 @@
 # G10-MKT-056 Marketing workflow read projection and expiry foundation
 
-This packet adds the separate tenant-read workflow projection and the
+This packet adds the separate holding-read workflow projection and the
 registration-ready expiry execution path. It does not claim public transport,
 automatic worker scheduling/registration in the executable, DNS/HTTP
 verification adapters, preview serving, full content audit UI, or the wider
@@ -8,22 +8,22 @@ G10 gate.
 
 ## Integrated behavior
 
-- Tenant-read migration 0037 stores bounded preview metadata, form submission
+- Holding-read migration 0037 stores bounded preview metadata, form submission
   values, domain/binding state, workflow checkpoints, and event receipts under
   forced RLS.
 - Preview token and domain verification hashes are excluded from the read
   schema and replacement rebuild.
-- Replacement rebuild reads workflow facts from tenant-write state, resolves
+- Replacement rebuild reads workflow facts from holding-write state, resolves
   authoritative outbox source metadata, clears only the scoped read rows, and
   repopulates preview, submission, domain, checkpoint, and receipt rows in one
   read transaction.
 - Preview selection is bounded to one holding, due expiry, matching scope,
   and a maximum batch of 100.
-- The expiry worker seam validates one tenant/holding route, uses deterministic
+- The expiry worker seam validates one holding/holding route, uses deterministic
   operation keys, continues after item failures, suppresses duplicates within
   a batch, and reports retryable versus permanent outcomes.
 - The main-owned SQLx adapter derives deterministic command/correlation IDs,
-  invokes the tenant-write expiry command, and maps database failures to
+  invokes the holding-write expiry command, and maps database failures to
   bounded retry behavior.
 
 ## Evidence

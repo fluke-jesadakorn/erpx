@@ -7,7 +7,7 @@ use erpx_cqrs_sqlx::{
     CqrsSqlxError, ReadPool, ReadSideStore, SqlxProjectionWaiter, WaitError, WaiterConfig,
 };
 use erpx_integration_contracts::{customer, identity_access};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use erpx_support::ports::{
     CustomerTicketMessageView, IncidentList, IncidentListFilter, IncidentView,
     InternalTicketMessageView, PortError, ReadProjection, ReadRepository, SupportCapabilityView,
@@ -153,7 +153,7 @@ impl SupportReadRepository {
 impl ReadRepository for SupportReadRepository {
     async fn get_ticket(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: SupportTicketId,
         audience: TicketReadAudience,
         consistency: &QueryConsistency,
@@ -185,7 +185,7 @@ impl ReadRepository for SupportReadRepository {
     }
     async fn list_tickets(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         filter: &SupportTicketListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<SupportTicketList>, PortError> {
@@ -224,7 +224,7 @@ impl ReadRepository for SupportReadRepository {
     }
     async fn get_incident(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: IncidentId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<IncidentView>>, PortError> {
@@ -248,7 +248,7 @@ impl ReadRepository for SupportReadRepository {
     }
     async fn list_incidents(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         filter: &IncidentListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<IncidentList>, PortError> {
@@ -274,7 +274,7 @@ impl ReadRepository for SupportReadRepository {
     }
     async fn get_session(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: SessionId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<SupportSessionView>>, PortError> {
@@ -297,7 +297,7 @@ impl ReadRepository for SupportReadRepository {
     }
     async fn get_capability(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: CapabilityId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<SupportCapabilityView>>, PortError> {
@@ -329,7 +329,7 @@ fn decode_ticket(
         ticket_id: SupportTicketId::try_from_uuid(get(&row, "ticket_id")?)
             .map_err(|_| PortError::Internal)?,
         version: to_u64(get::<i64>(&row, "source_aggregate_version")?)?,
-        scope: json(&row, "tenant_scope")?,
+        scope: json(&row, "active_scope")?,
         customer: customer::CustomerRef::try_from_uuid(get(&row, "customer_id")?)
             .map_err(|_| PortError::Internal)?,
         customer_account: customer::CustomerAccountRef::try_from_uuid(get(
@@ -475,8 +475,8 @@ fn truncate_cursor<T>(
     }
 }
 fn validate_scopes<'a>(
-    authority: &TenantScope,
-    scopes: impl Iterator<Item = &'a TenantScope>,
+    authority: &AuthorityScope,
+    scopes: impl Iterator<Item = &'a AuthorityScope>,
 ) -> Result<(), PortError> {
     if scopes.into_iter().all(|scope| authority.contains(scope)) {
         Ok(())
@@ -503,20 +503,20 @@ struct ScopeFilter {
     prefixes: Vec<String>,
 }
 impl ScopeFilter {
-    fn from(scope: &TenantScope) -> Result<Self, PortError> {
+    fn from(scope: &AuthorityScope) -> Result<Self, PortError> {
         scope.validate().map_err(|_| PortError::Denied)?;
         Ok(match scope {
-            TenantScope::Platform => Self {
+            AuthorityScope::Platform => Self {
                 platform: true,
                 exact: vec![],
                 prefixes: vec![],
             },
-            TenantScope::Holding { holding_id } => Self {
+            AuthorityScope::Holding { holding_id } => Self {
                 platform: false,
                 exact: vec![],
                 prefixes: vec![format!("h:{holding_id}/%")],
             },
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => {
@@ -527,7 +527,7 @@ impl ScopeFilter {
                     prefixes: vec![format!("{key}/%")],
                 }
             }
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -536,26 +536,13 @@ impl ScopeFilter {
                 exact: vec![format!("h:{holding_id}/c:{company_id}/b:{branch_id}")],
                 prefixes: vec![],
             },
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Self {
                 platform: false,
-                exact: company_ids
-                    .iter()
-                    .flat_map(|company| {
-                        if branch_ids.is_empty() {
-                            vec![format!("h:{holding_id}/c:{company}")]
-                        } else {
-                            branch_ids
-                                .iter()
-                                .map(|branch| format!("h:{holding_id}/c:{company}/b:{branch}"))
-                                .collect()
-                        }
-                    })
-                    .collect(),
-                prefixes: vec![],
+                exact: vec![format!("h:{holding_id}/c:{organization_node_id}")],
+                prefixes: vec![format!("h:{holding_id}/c:{organization_node_id}/%")],
             },
         })
     }
@@ -599,7 +586,7 @@ fn parse_message_audience(v: &str) -> Result<MessageAudience, PortError> {
 fn parse_mode(v: &str) -> Result<erpx_support::SupportMode, PortError> {
     match v {
         "diagnostic_read" => Ok(erpx_support::SupportMode::DiagnosticRead),
-        "tenant_mutation" => Ok(erpx_support::SupportMode::TenantMutation),
+        "holding_mutation" => Ok(erpx_support::SupportMode::HoldingMutation),
         "impersonation" => Ok(erpx_support::SupportMode::Impersonation),
         _ => Err(PortError::Internal),
     }

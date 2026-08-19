@@ -69,7 +69,7 @@ impl Projector for ManufacturingProjector {
             .map_err(failure)?;
             if specification.reference().specification_id.as_uuid() != event.aggregate_id.as_uuid()
                 || specification.reference().version != event.aggregate_version
-                || specification.scope() != &event.tenant_scope
+                || specification.scope() != &event.active_scope
             {
                 return Err(failure("manufacturing specification metadata mismatch"));
             }
@@ -79,7 +79,7 @@ impl Projector for ManufacturingProjector {
                 .map(str::to_owned)
                 .ok_or_else(|| failure("manufacturing specification status missing"))?;
             let changed = sqlx::query(
-                "INSERT INTO erpx_manufacturing_read.specification_projection(projection_name,generation,partition_key,specification_id,authority_scope,lifecycle_state,projection,source_aggregate_version,source_position,projected_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,clock_timestamp()) ON CONFLICT(tenant_id,projection_name,generation,partition_key,specification_id) DO UPDATE SET authority_scope=EXCLUDED.authority_scope,lifecycle_state=EXCLUDED.lifecycle_state,projection=EXCLUDED.projection,source_aggregate_version=EXCLUDED.source_aggregate_version,source_position=EXCLUDED.source_position,projected_at=clock_timestamp() WHERE erpx_manufacturing_read.specification_projection.source_aggregate_version<EXCLUDED.source_aggregate_version",
+                "INSERT INTO erpx_manufacturing_read.specification_projection(projection_name,generation,partition_key,specification_id,authority_scope,lifecycle_state,projection,source_aggregate_version,source_position,projected_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,clock_timestamp()) ON CONFLICT(holding_id,projection_name,generation,partition_key,specification_id) DO UPDATE SET authority_scope=EXCLUDED.authority_scope,lifecycle_state=EXCLUDED.lifecycle_state,projection=EXCLUDED.projection,source_aggregate_version=EXCLUDED.source_aggregate_version,source_position=EXCLUDED.source_position,projected_at=clock_timestamp() WHERE erpx_manufacturing_read.specification_projection.source_aggregate_version<EXCLUDED.source_aggregate_version",
             )
             .bind(PROJECTION_NAME)
             .bind(ctx.generation)
@@ -119,7 +119,7 @@ impl Projector for ManufacturingProjector {
             .map_err(failure)?;
             if record.id() != event.aggregate_id.as_uuid()
                 || record.version() != event.aggregate_version
-                || record.scope() != &event.tenant_scope
+                || record.scope() != &event.active_scope
                 || record.kind().token() != event.aggregate_type
             {
                 return Err(failure("manufacturing record metadata mismatch"));
@@ -129,7 +129,7 @@ impl Projector for ManufacturingProjector {
                 .as_str()
                 .map(str::to_owned)
                 .ok_or_else(|| failure("manufacturing record status missing"))?;
-            let changed=sqlx::query("INSERT INTO erpx_manufacturing_read.governed_record_projection(projection_name,generation,partition_key,record_id,record_kind,authority_scope,lifecycle_state,projection,source_aggregate_version,source_position,projected_at)VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,clock_timestamp())ON CONFLICT(tenant_id,projection_name,generation,partition_key,record_id)DO UPDATE SET lifecycle_state=EXCLUDED.lifecycle_state,projection=EXCLUDED.projection,source_aggregate_version=EXCLUDED.source_aggregate_version,source_position=EXCLUDED.source_position,projected_at=clock_timestamp()WHERE erpx_manufacturing_read.governed_record_projection.source_aggregate_version<EXCLUDED.source_aggregate_version").bind(PROJECTION_NAME).bind(ctx.generation).bind(&event.partition).bind(record.id()).bind(record.kind().token()).bind(serde_json::to_value(record.scope()).map_err(failure)?).bind(state).bind(serde_json::to_value(&record).map_err(failure)?).bind(to_i64(event.aggregate_version)?).bind(to_i64(event.global_sequence)?).execute(&mut **tx).await.map_err(failure)?;
+            let changed=sqlx::query("INSERT INTO erpx_manufacturing_read.governed_record_projection(projection_name,generation,partition_key,record_id,record_kind,authority_scope,lifecycle_state,projection,source_aggregate_version,source_position,projected_at)VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,clock_timestamp())ON CONFLICT(holding_id,projection_name,generation,partition_key,record_id)DO UPDATE SET lifecycle_state=EXCLUDED.lifecycle_state,projection=EXCLUDED.projection,source_aggregate_version=EXCLUDED.source_aggregate_version,source_position=EXCLUDED.source_position,projected_at=clock_timestamp()WHERE erpx_manufacturing_read.governed_record_projection.source_aggregate_version<EXCLUDED.source_aggregate_version").bind(PROJECTION_NAME).bind(ctx.generation).bind(&event.partition).bind(record.id()).bind(record.kind().token()).bind(serde_json::to_value(record.scope()).map_err(failure)?).bind(state).bind(serde_json::to_value(&record).map_err(failure)?).bind(to_i64(event.aggregate_version)?).bind(to_i64(event.global_sequence)?).execute(&mut **tx).await.map_err(failure)?;
             if changed.rows_affected() != 1 {
                 return Err(failure("manufacturing record version did not advance"));
             }
@@ -150,7 +150,7 @@ impl Projector for ManufacturingProjector {
         let document = serde_json::to_value(&snapshot.order).map_err(failure)?;
         if snapshot.order.id().as_uuid() != event.aggregate_id.as_uuid()
             || snapshot.order.version() != event.aggregate_version
-            || snapshot.order.scope() != &event.tenant_scope
+            || snapshot.order.scope() != &event.active_scope
         {
             return Err(ProjectionFailure::new(
                 "manufacturing snapshot metadata mismatch",
@@ -161,7 +161,7 @@ impl Projector for ManufacturingProjector {
             .and_then(serde_json::Value::as_str)
             .map(str::to_owned)
             .ok_or_else(|| ProjectionFailure::new("manufacturing status is missing"))?;
-        let changed=sqlx::query("INSERT INTO erpx_manufacturing_read.order_projection (projection_name,generation,partition_key,order_id,authority_scope,lifecycle_state,projection,source_aggregate_version,source_position,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,clock_timestamp()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,order_id) DO UPDATE SET authority_scope=EXCLUDED.authority_scope,lifecycle_state=EXCLUDED.lifecycle_state,projection=EXCLUDED.projection,source_aggregate_version=EXCLUDED.source_aggregate_version,source_position=EXCLUDED.source_position,projected_at=clock_timestamp() WHERE erpx_manufacturing_read.order_projection.source_aggregate_version<EXCLUDED.source_aggregate_version")
+        let changed=sqlx::query("INSERT INTO erpx_manufacturing_read.order_projection (projection_name,generation,partition_key,order_id,authority_scope,lifecycle_state,projection,source_aggregate_version,source_position,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,clock_timestamp()) ON CONFLICT (holding_id,projection_name,generation,partition_key,order_id) DO UPDATE SET authority_scope=EXCLUDED.authority_scope,lifecycle_state=EXCLUDED.lifecycle_state,projection=EXCLUDED.projection,source_aggregate_version=EXCLUDED.source_aggregate_version,source_position=EXCLUDED.source_position,projected_at=clock_timestamp() WHERE erpx_manufacturing_read.order_projection.source_aggregate_version<EXCLUDED.source_aggregate_version")
    .bind(PROJECTION_NAME).bind(ctx.generation).bind(&event.partition).bind(snapshot.order.id().as_uuid()).bind(serde_json::to_value(snapshot.order.scope()).map_err(failure)?).bind(status).bind(document).bind(to_i64(event.aggregate_version)?).bind(to_i64(event.global_sequence)?).execute(&mut **tx).await.map_err(failure)?;
         if changed.rows_affected() != 1 {
             return Err(ProjectionFailure::new(

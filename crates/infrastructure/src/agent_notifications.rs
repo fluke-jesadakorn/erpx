@@ -3,7 +3,7 @@ use erpx_agent_orchestration::{AgentNotificationPort, AssignmentId, AssignmentSt
 use erpx_application::notifications::{
     Notification, NotificationError, NotificationRepositoryPort,
 };
-use erpx_kernel::{DataClassification, TenantId, TenantScope};
+use erpx_kernel::{AuthorityScope, DataClassification, HoldingId};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
@@ -14,21 +14,21 @@ use crate::SqlxSharedEnterpriseServiceStore;
 /// email/SMS/push remain separate notification-authority work.
 #[derive(Debug, Clone)]
 pub struct SqlxAgentNotificationPort {
-    tenant_id: TenantId,
+    holding_id: HoldingId,
     store: SqlxSharedEnterpriseServiceStore,
 }
 
 impl SqlxAgentNotificationPort {
-    pub fn try_new(pool: sqlx::PgPool, tenant_id: Uuid) -> Result<Self, PortError> {
-        let tenant_id = TenantId::try_from_uuid(tenant_id).map_err(|_| PortError::Denied)?;
+    pub fn try_new(pool: sqlx::PgPool, holding_id: Uuid) -> Result<Self, PortError> {
+        let holding_id = HoldingId::try_from_uuid(holding_id).map_err(|_| PortError::Denied)?;
         Ok(Self {
-            tenant_id,
-            store: SqlxSharedEnterpriseServiceStore::new(pool, tenant_id),
+            holding_id,
+            store: SqlxSharedEnterpriseServiceStore::new(pool, holding_id),
         })
     }
 
-    pub const fn tenant_id(&self) -> TenantId {
-        self.tenant_id
+    pub const fn holding_id(&self) -> HoldingId {
+        self.holding_id
     }
 }
 
@@ -36,7 +36,7 @@ impl SqlxAgentNotificationPort {
 impl AgentNotificationPort for SqlxAgentNotificationPort {
     async fn publish_state(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         assignment_id: AssignmentId,
         aggregate_version: u64,
         recipient_principal_ref: &str,
@@ -45,12 +45,12 @@ impl AgentNotificationPort for SqlxAgentNotificationPort {
     ) -> Result<(), PortError> {
         if aggregate_version == 0
             || scope.validate().is_err()
-            || matches!(scope, TenantScope::Platform)
+            || matches!(scope, AuthorityScope::Platform)
         {
             return Err(PortError::Denied);
         }
         let notification_id =
-            notification_id(self.tenant_id, assignment_id, aggregate_version, state);
+            notification_id(self.holding_id, assignment_id, aggregate_version, state);
         let expected = Notification::create(
             notification_id,
             scope.clone(),
@@ -109,14 +109,14 @@ fn exact_replay(stored: &Notification, expected: &Notification) -> bool {
 }
 
 fn notification_id(
-    tenant_id: TenantId,
+    holding_id: HoldingId,
     assignment_id: AssignmentId,
     aggregate_version: u64,
     state: AssignmentState,
 ) -> Uuid {
     let mut digest = Sha256::new();
-    digest.update(b"erpx.agent.assignment.notification.v1");
-    digest.update(tenant_id.as_uuid().as_bytes());
+    digest.update(b"erpx.agent.assignment.notification");
+    digest.update(holding_id.as_uuid().as_bytes());
     digest.update(assignment_id.as_uuid().as_bytes());
     digest.update(aggregate_version.to_be_bytes());
     digest.update(assignment_state_name(state));
@@ -156,20 +156,20 @@ mod tests {
     }
 
     #[test]
-    fn notification_identity_is_tenant_version_and_state_bound() {
-        let tenant = TenantId::try_from_uuid(Uuid::from_u128(1)).expect("tenant");
-        let base = notification_id(tenant, assignment_id(), 2, AssignmentState::Completed);
+    fn notification_identity_is_holding_version_and_state_bound() {
+        let holding = HoldingId::try_from_uuid(Uuid::from_u128(1)).expect("holding");
+        let base = notification_id(holding, assignment_id(), 2, AssignmentState::Completed);
         assert_eq!(
             base,
-            notification_id(tenant, assignment_id(), 2, AssignmentState::Completed)
+            notification_id(holding, assignment_id(), 2, AssignmentState::Completed)
         );
         assert_ne!(
             base,
-            notification_id(tenant, assignment_id(), 3, AssignmentState::Completed)
+            notification_id(holding, assignment_id(), 3, AssignmentState::Completed)
         );
         assert_ne!(
             base,
-            notification_id(tenant, assignment_id(), 2, AssignmentState::Failed)
+            notification_id(holding, assignment_id(), 2, AssignmentState::Failed)
         );
     }
 

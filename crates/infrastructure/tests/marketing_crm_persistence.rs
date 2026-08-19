@@ -3,10 +3,10 @@
 //! The test exercises the complete write-side handoff boundary: immutable
 //! Marketing acceptance, CRM opportunity creation and lifecycle transition,
 //! deterministic attribution, idempotent replay, atomic snapshots/outbox,
-//! and tenant RLS.
+//! and holding RLS.
 
 use chrono::{Duration, Utc};
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::marketing_crm::{
     AcceptedLeadHandoff, AccountReference, AttributionInputs, AttributionModel, AttributionTouch,
     ContactReference, CrmOpportunity, MarketingAcquisitionReference, MarketingLeadReference,
@@ -16,12 +16,12 @@ use erpx_infrastructure::SqlxMarketingCrmStore;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-fn context(scope: TenantScope, key: &str, actor: &str) -> CommandContext {
+fn context(scope: AuthorityScope, key: &str, actor: &str) -> CommandContext {
     CommandContext::try_new(
         key,
         ActorAttribution {
             principal_ref: actor.to_owned(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
@@ -33,19 +33,19 @@ fn context(scope: TenantScope, key: &str, actor: &str) -> CommandContext {
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn live_marketing_crm_write_boundary_is_atomic_idempotent_and_scoped() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let pool = PgPool::connect(&url).await.expect("write pool");
-    erpx_migration::migrate_tenant_write(&pool)
+    erpx_migration::migrate_holding_write(&pool)
         .await
-        .expect("tenant write migration");
+        .expect("holding write migration");
 
-    let holding_ref = format!("holding-crm-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-crm-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
-    let scope = TenantScope::Company {
+    let scope = AuthorityScope::Company {
         holding_id,
         company_id,
     };
@@ -70,7 +70,7 @@ async fn live_marketing_crm_write_boundary_is_atomic_idempotent_and_scoped() {
     )
     .expect("handoff");
 
-    let store = SqlxMarketingCrmStore::new(pool.clone(), &holding_ref).expect("CRM store");
+    let store = SqlxMarketingCrmStore::new(pool.clone(), &data_profile_key).expect("CRM store");
     let first_handoff = store
         .save_handoff(&handoff, &handoff_context, None)
         .await
@@ -130,26 +130,26 @@ async fn live_marketing_crm_write_boundary_is_atomic_idempotent_and_scoped() {
         "source-binding errors must not echo CRM identifiers"
     );
     let mut source_binding_check = pool.begin().await.expect("source binding check");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *source_binding_check)
         .await
-        .expect("tenant scope");
+        .expect("holding scope");
     let forged_rows: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_tenant.crm_opportunities
-         WHERE holding_ref=$1 AND opportunity_id=$2",
+        "SELECT count(*) FROM erpx_holding.crm_opportunities
+         WHERE data_profile_key=$1 AND opportunity_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(forged_opportunity.id)
     .fetch_one(&mut *source_binding_check)
     .await
     .expect("forged opportunity row count");
     assert_eq!(forged_rows, 0);
     let forged_events: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_id=$2",
+        "SELECT count(*) FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(forged_opportunity.id)
     .fetch_one(&mut *source_binding_check)
     .await
@@ -265,22 +265,22 @@ async fn live_marketing_crm_write_boundary_is_atomic_idempotent_and_scoped() {
         .await
         .expect("authoritative attribution reconciliation");
 
-    let unauthorized_event_scope = TenantScope::Company {
+    let unauthorized_event_scope = AuthorityScope::Company {
         holding_id: Uuid::new_v4(),
         company_id: Uuid::new_v4(),
     };
     let mut unauthorized_event = pool.begin().await.expect("event authorization transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *unauthorized_event)
         .await
-        .expect("event authorization tenant scope");
+        .expect("event authorization holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.outbox_events
-         SET tenant_scope=$3
-         WHERE holding_ref=$1 AND aggregate_type=$2 AND aggregate_id=$4",
+        "UPDATE erpx_holding.outbox_events
+         SET active_scope=$3
+         WHERE data_profile_key=$1 AND aggregate_type=$2 AND aggregate_id=$4",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind("marketing_crm_attribution")
     .bind(serde_json::to_value(&unauthorized_event_scope).expect("unauthorized scope JSON"))
     .bind(attribution_receipt.record_id)
@@ -304,17 +304,17 @@ async fn live_marketing_crm_write_boundary_is_atomic_idempotent_and_scoped() {
         .begin()
         .await
         .expect("restore event authorization transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *restore_event)
         .await
-        .expect("restore event tenant scope");
+        .expect("restore event holding scope");
     sqlx::query(
-        "UPDATE erpx_tenant.outbox_events
-         SET tenant_scope=$3
-         WHERE holding_ref=$1 AND aggregate_type=$2 AND aggregate_id=$4",
+        "UPDATE erpx_holding.outbox_events
+         SET active_scope=$3
+         WHERE data_profile_key=$1 AND aggregate_type=$2 AND aggregate_id=$4",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind("marketing_crm_attribution")
     .bind(serde_json::to_value(&scope).expect("scope JSON"))
     .bind(attribution_receipt.record_id)
@@ -327,36 +327,36 @@ async fn live_marketing_crm_write_boundary_is_atomic_idempotent_and_scoped() {
         .expect("commit event authorization restore");
 
     let mut scoped = pool.begin().await.expect("verification transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *scoped)
         .await
-        .expect("tenant scope");
+        .expect("holding scope");
     let status: String = sqlx::query_scalar(
-        "SELECT status FROM erpx_tenant.crm_opportunities
-         WHERE holding_ref=$1 AND opportunity_id=$2",
+        "SELECT status FROM erpx_holding.crm_opportunities
+         WHERE data_profile_key=$1 AND opportunity_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(opportunity.id)
     .fetch_one(&mut *scoped)
     .await
     .expect("qualified opportunity");
     assert_eq!(status, "qualified");
     let attribution_total: i64 = sqlx::query_scalar(
-        "SELECT total_revenue_minor FROM erpx_tenant.crm_attribution_records
-         WHERE holding_ref=$1 AND opportunity_id=$2 AND model='linear'",
+        "SELECT total_revenue_minor FROM erpx_holding.crm_attribution_records
+         WHERE data_profile_key=$1 AND opportunity_id=$2 AND model='linear'",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(opportunity.id)
     .fetch_one(&mut *scoped)
     .await
     .expect("attribution record");
     assert_eq!(attribution_total, 10_001);
     let outbox_count: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_tenant.outbox_events WHERE holding_ref=$1
+        "SELECT count(*) FROM erpx_holding.outbox_events WHERE data_profile_key=$1
          AND aggregate_type IN ($2,$3,$4)",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind("marketing_crm_accepted_lead_handoff")
     .bind("marketing_crm_opportunity")
     .bind("marketing_crm_attribution")
@@ -368,14 +368,14 @@ async fn live_marketing_crm_write_boundary_is_atomic_idempotent_and_scoped() {
         "create, replay-free transition, and attribution"
     );
     let incomplete_envelopes: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1
+        "SELECT count(*) FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1
            AND aggregate_type IN ($2,$3,$4)
            AND (contract_version IS NULL OR event_version IS NULL
-                OR tenant_scope IS NULL OR actor IS NULL
+                OR active_scope IS NULL OR actor IS NULL
                 OR correlation_id IS NULL OR idempotency_key IS NULL)",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind("marketing_crm_accepted_lead_handoff")
     .bind("marketing_crm_opportunity")
     .bind("marketing_crm_attribution")
@@ -387,14 +387,14 @@ async fn live_marketing_crm_write_boundary_is_atomic_idempotent_and_scoped() {
         "CRM events require full provenance"
     );
     let scoped_envelopes: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1
+        "SELECT count(*) FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1
            AND aggregate_type IN ($2,$3,$4)
            AND contract_version=$5 AND event_version=1
-           AND tenant_scope=$6::jsonb
+           AND active_scope=$6::jsonb
            AND idempotency_key IN ($7,$8,$9,$10)",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind("marketing_crm_accepted_lead_handoff")
     .bind("marketing_crm_opportunity")
     .bind("marketing_crm_attribution")
@@ -416,24 +416,24 @@ async fn live_marketing_crm_write_boundary_is_atomic_idempotent_and_scoped() {
     let forced: bool = sqlx::query_scalar(
         "SELECT relforcerowsecurity
          FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-         WHERE n.nspname='erpx_tenant' AND c.relname='crm_opportunities'",
+         WHERE n.nspname='erpx_holding' AND c.relname='crm_opportunities'",
     )
     .fetch_one(&pool)
     .await
     .expect("CRM RLS metadata");
-    assert!(forced, "CRM opportunity rows must force tenant RLS");
+    assert!(forced, "CRM opportunity rows must force holding RLS");
 
     let mut missing_event = pool.begin().await.expect("missing event transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *missing_event)
         .await
-        .expect("missing event tenant scope");
+        .expect("missing event holding scope");
     sqlx::query(
-        "DELETE FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type=$2 AND aggregate_id=$3",
+        "DELETE FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type=$2 AND aggregate_id=$3",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind("marketing_crm_attribution")
     .bind(attribution_receipt.record_id)
     .execute(&mut *missing_event)

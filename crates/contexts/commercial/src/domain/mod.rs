@@ -5,7 +5,7 @@ mod subscription;
 
 use chrono::{DateTime, Utc};
 use erpx_integration_contracts::CurrencyCode;
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -69,8 +69,8 @@ pub enum CommercialDomainError {
     ControlCharacter { field: &'static str },
     #[error("{field} cannot be nil")]
     NilIdentifier { field: &'static str },
-    #[error("commercial tenant records require an exact holding scope")]
-    InvalidTenantScope,
+    #[error("commercial holding records require an exact holding scope")]
+    InvalidHoldingScope,
     #[error("catalog plans are platform scoped")]
     InvalidCatalogScope,
     #[error("commercial amount must be positive")]
@@ -117,7 +117,7 @@ impl CommercialAggregate {
         }
     }
 
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         match self {
             Self::CatalogPlan(value) => value.scope(),
             Self::Subscription(value) => value.scope(),
@@ -202,10 +202,10 @@ pub(crate) const fn next_version(version: u64) -> Result<u64, CommercialDomainEr
     }
 }
 
-pub(crate) fn holding_id(scope: &TenantScope) -> Result<Uuid, CommercialDomainError> {
+pub(crate) fn holding_id(scope: &AuthorityScope) -> Result<Uuid, CommercialDomainError> {
     match scope {
-        TenantScope::Holding { holding_id } if !holding_id.is_nil() => Ok(*holding_id),
-        _ => Err(CommercialDomainError::InvalidTenantScope),
+        AuthorityScope::Holding { holding_id } if !holding_id.is_nil() => Ok(*holding_id),
+        _ => Err(CommercialDomainError::InvalidHoldingScope),
     }
 }
 

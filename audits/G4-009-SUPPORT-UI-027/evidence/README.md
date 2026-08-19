@@ -1,7 +1,7 @@
 # G4-009 shared support UI evidence
 
 The shared Dioxus UI crate now contains a transport-neutral support and
-incident presentation contract for platform and tenant support surfaces.
+incident presentation contract for platform and holding support surfaces.
 
 ## Delivered behavior
 

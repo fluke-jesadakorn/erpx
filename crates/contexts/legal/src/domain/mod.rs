@@ -4,7 +4,7 @@ use erpx_integration_contracts::{
     catalog::ContextId,
     reference::{RecordTypeId, ReferenceValidationError},
 };
-use erpx_kernel::{RecordId, TenantScope};
+use erpx_kernel::{AuthorityScope, RecordId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -103,8 +103,8 @@ pub enum LegalDomainError {
     TimestampRegression,
     #[error("the Legal matter record link is invalid, duplicated, or exceeds the bounded limit")]
     InvalidRecordLink,
-    #[error("the linked record belongs to another tenant holding")]
-    CrossTenantLink,
+    #[error("the linked record belongs to another holding holding")]
+    CrossHoldingLink,
     #[error("the Legal hold transition is not allowed")]
     InvalidLegalHold,
     #[error("the signature recipient or external signatory grant is invalid")]
@@ -174,7 +174,7 @@ pub(crate) enum DomainEvent {
 pub struct LegalContract {
     id: LegalContractId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     reference: String,
     title: String,
     object_ref: String,
@@ -195,7 +195,7 @@ impl LegalContract {
     pub fn try_rehydrate(
         id: LegalContractId,
         version: u64,
-        scope: TenantScope,
+        scope: AuthorityScope,
         reference: String,
         title: String,
         object_ref: String,
@@ -232,7 +232,7 @@ impl LegalContract {
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: LegalContractId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         reference: String,
         title: String,
         object_ref: String,
@@ -408,7 +408,7 @@ impl LegalContract {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn reference(&self) -> &str {
@@ -465,7 +465,7 @@ pub struct DocumentVersion {
 pub struct LegalDocument {
     id: LegalDocumentId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     title: String,
     versions: Vec<DocumentVersion>,
     archived: bool,
@@ -480,7 +480,7 @@ impl LegalDocument {
     pub fn try_rehydrate(
         id: LegalDocumentId,
         version: u64,
-        scope: TenantScope,
+        scope: AuthorityScope,
         title: String,
         versions: Vec<DocumentVersion>,
         archived: bool,
@@ -504,7 +504,7 @@ impl LegalDocument {
 
     pub fn create(
         id: LegalDocumentId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         title: String,
         at: DateTime<Utc>,
     ) -> Result<Self, LegalDomainError> {
@@ -612,7 +612,7 @@ impl LegalDocument {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn title(&self) -> &str {
@@ -642,7 +642,7 @@ impl LegalDocument {
 pub struct AccessEntry {
     id: AccessEntryId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     document_id: LegalDocumentId,
     document_version: u64,
     actor_ref: String,
@@ -658,7 +658,7 @@ impl AccessEntry {
     pub fn try_rehydrate(
         id: AccessEntryId,
         version: u64,
-        scope: TenantScope,
+        scope: AuthorityScope,
         document_id: LegalDocumentId,
         document_version: u64,
         actor_ref: String,
@@ -685,7 +685,7 @@ impl AccessEntry {
     #[allow(clippy::too_many_arguments)]
     pub fn record(
         id: AccessEntryId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         document_id: LegalDocumentId,
         document_version: u64,
         actor_ref: String,
@@ -736,7 +736,7 @@ impl AccessEntry {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn document_id(&self) -> LegalDocumentId {
@@ -787,7 +787,7 @@ pub enum RecordRelation {
 pub struct RecordLink {
     pub relation: RecordRelation,
     pub target: RecordRef,
-    pub target_scope: TenantScope,
+    pub target_scope: AuthorityScope,
     pub target_digest: String,
     pub linked_by: String,
     pub linked_at: DateTime<Utc>,
@@ -807,7 +807,7 @@ pub struct LegalHold {
 pub struct LegalMatter {
     id: LegalMatterId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     reference: String,
     title: String,
     status: MatterStatus,
@@ -825,7 +825,7 @@ impl LegalMatter {
     pub fn try_rehydrate(
         id: LegalMatterId,
         version: u64,
-        scope: TenantScope,
+        scope: AuthorityScope,
         reference: String,
         title: String,
         status: MatterStatus,
@@ -855,7 +855,7 @@ impl LegalMatter {
 
     pub fn create(
         id: LegalMatterId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         reference: String,
         title: String,
         created_by: String,
@@ -887,7 +887,7 @@ impl LegalMatter {
         &mut self,
         relation: RecordRelation,
         target: RecordRef,
-        target_scope: TenantScope,
+        target_scope: AuthorityScope,
         target_digest: String,
         actor: String,
         at: DateTime<Utc>,
@@ -1057,7 +1057,7 @@ impl LegalMatter {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn reference(&self) -> &str {
@@ -1127,7 +1127,7 @@ impl LegalAggregate {
             Self::Matter(value) => value.updated_at(),
         }
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         match self {
             Self::Contract(value) => value.scope(),
             Self::Document(value) => value.scope(),
@@ -1174,7 +1174,7 @@ impl LegalAggregate {
 }
 
 fn validate_record_link(
-    matter_scope: &TenantScope,
+    matter_scope: &AuthorityScope,
     link: &RecordLink,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
@@ -1197,29 +1197,31 @@ fn validate_record_link(
     Ok(())
 }
 
-fn validate_same_holding(left: &TenantScope, right: &TenantScope) -> Result<(), LegalDomainError> {
-    fn holding(scope: &TenantScope) -> Option<Uuid> {
+fn validate_same_holding(
+    left: &AuthorityScope,
+    right: &AuthorityScope,
+) -> Result<(), LegalDomainError> {
+    fn holding(scope: &AuthorityScope) -> Option<Uuid> {
         match scope {
-            TenantScope::Company { holding_id, .. } | TenantScope::Branch { holding_id, .. } => {
-                Some(*holding_id)
-            }
+            AuthorityScope::Company { holding_id, .. }
+            | AuthorityScope::Branch { holding_id, .. } => Some(*holding_id),
             _ => None,
         }
     }
     if holding(left).is_some() && holding(left) == holding(right) {
         Ok(())
     } else {
-        Err(LegalDomainError::CrossTenantLink)
+        Err(LegalDomainError::CrossHoldingLink)
     }
 }
 
-fn validate_scope(scope: &TenantScope) -> Result<(), LegalDomainError> {
+fn validate_scope(scope: &AuthorityScope) -> Result<(), LegalDomainError> {
     scope
         .validate()
         .map_err(|_| LegalDomainError::InvalidScope)?;
     if matches!(
         scope,
-        TenantScope::Company { .. } | TenantScope::Branch { .. }
+        AuthorityScope::Company { .. } | AuthorityScope::Branch { .. }
     ) {
         Ok(())
     } else {

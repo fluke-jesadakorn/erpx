@@ -3,7 +3,7 @@
 ## Objective
 
 Persist deterministic bank-to-GL match proposals and explicit decisions on the
-tenant write database without mutating posted Finance journals. Replays must
+holding write database without mutating posted Finance journals. Replays must
 return the original typed receipt and conflicting requests must fail closed.
 
 ## Packet contract
@@ -11,24 +11,24 @@ return the original typed receipt and conflicting requests must fail closed.
 - **Owner:** AG-FIN for the domain contract; main agent for SQLx integration and
   independent verification.
 - **Dependencies:** G8-001/G8-002 posted-journal persistence, G8-FIN-011
-  banking write boundary, G8-FIN-012 read/projector seam, tenant RLS and
+  banking write boundary, G8-FIN-012 read/projector seam, holding RLS and
   transaction primitives.
 - **Allowed paths:** `crates/domain/src/finance_banking.rs` for the handed-off
   pure contract; `crates/infrastructure/src/finance_banking_persistence.rs`,
-  `crates/infrastructure/src/lib.rs`, the tenant-write migration, migration
+  `crates/infrastructure/src/lib.rs`, the holding-write migration, migration
   assertions, and the banking integration test.
-- **Forbidden shared paths:** server transport, worker routing, active tenant
+- **Forbidden shared paths:** server transport, worker routing, active holding
   switch state, Folio routes, credentials, provider adapters, and posted
   journal mutation code.
 - **Produced interfaces:** `BankMatchProposalWriteReceipt`,
   `BankMatchDecisionWriteReceipt`, `save_match_proposal`, and
   `save_match_decision` on `SqlxFinanceBankingStore`.
-- **Database effects:** migration 0030 adds tenant-local proposal and decision
+- **Database effects:** migration 0030 adds holding-local proposal and decision
   tables, holding-scoped RLS, immutable proposal-to-decision foreign-key
   binding, and bounded scope/idempotency indexes. No read database or Folio
   schema is changed.
 - **Rollback:** remove the additive migration and adapter methods only after
-  draining matching rows; do not delete tenant write facts as part of a code
+  draining matching rows; do not delete holding write facts as part of a code
   rollback.
 
 ## Delivered behavior
@@ -47,7 +47,7 @@ return the original typed receipt and conflicting requests must fail closed.
 - Proposal and decision writes use the existing typed request-hash/idempotency
   table and return replay-marked receipts for exact retries.
 - Matching records contain no bank credentials, payment instruments, or
-  tenant connection material.
+  holding connection material.
 - Migration 0031 persists journal currency/total facts at posting time and
   installs a database trigger rejecting posted-journal updates and deletes.
   Legacy rows without the new facts fail closed for matching until explicitly
@@ -67,13 +67,13 @@ return the original typed receipt and conflicting requests must fail closed.
 - `cargo test -p erpx-infrastructure --lib finance_banking_persistence::tests`
   — PASS; 2 tests.
 - `cargo test -p erpx-migration --lib
-  tenant_write_and_read_migrations_are_separate_and_rls_backed` — PASS.
+  holding_write_and_read_migrations_are_separate_and_rls_backed` — PASS.
 - Disposable live test
   `live_bank_write_boundary_is_idempotent_scoped_and_reconcilable` — PASS;
   fresh write/read databases exercised account/import, posted-journal
   amount/currency matching, exact replay, database-triggered journal mutation
   rejection, and reconciliation, then were dropped.
-- Upgrade-shaped disposable tenant migration — PASS; migrations through 0030
+- Upgrade-shaped disposable holding migration — PASS; migrations through 0030
   were applied using the actual legacy posted-journal payload shape, valid
   debit/credit totals became `NULL:1000` because historical currency is
   absent, invalid amounts remained NULL, partial facts were preserved/

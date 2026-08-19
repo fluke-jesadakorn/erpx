@@ -1,13 +1,13 @@
-//! Generation-v2 product transport acceptance audit.
+//! current product transport acceptance audit.
 
-const SALES_PROTO: &str = include_str!("../../../crates/proto/proto/erpx/sales/v2/service.proto");
+const SALES_PROTO: &str = include_str!("../../../crates/proto/proto/erpx/sales/service.proto");
 const PROCUREMENT_PROTO: &str =
-    include_str!("../../../crates/proto/proto/erpx/procurement/v2/service.proto");
+    include_str!("../../../crates/proto/proto/erpx/procurement/service.proto");
 const INVENTORY_PROTO: &str =
-    include_str!("../../../crates/proto/proto/erpx/inventory/v2/service.proto");
-const ASSETS_PROTO: &str = include_str!("../../../crates/proto/proto/erpx/assets/v2/service.proto");
+    include_str!("../../../crates/proto/proto/erpx/inventory/service.proto");
+const ASSETS_PROTO: &str = include_str!("../../../crates/proto/proto/erpx/assets/service.proto");
 const MAINTENANCE_PROTO: &str =
-    include_str!("../../../crates/proto/proto/erpx/maintenance/v2/service.proto");
+    include_str!("../../../crates/proto/proto/erpx/maintenance/service.proto");
 const SERVER: &str = include_str!("../../server/src/lib.rs");
 
 #[test]

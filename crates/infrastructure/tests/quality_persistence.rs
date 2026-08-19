@@ -1,18 +1,18 @@
 //! Disposable two-database acceptance for the Quality source/read boundary.
 
 use chrono::{Duration, Utc};
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::quality::{QualityInspection, QualityInspectionKind};
 use erpx_infrastructure::{QualityReadScope, SqlxQualityStore};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-fn context(scope: TenantScope, key: &str, expected: Option<u64>) -> CommandContext {
+fn context(scope: AuthorityScope, key: &str, expected: Option<u64>) -> CommandContext {
     let mut value = CommandContext::try_new(
         key,
         ActorAttribution {
             principal_ref: "quality-e2e-actor".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
@@ -26,27 +26,27 @@ fn context(scope: TenantScope, key: &str, expected: Option<u64>) -> CommandConte
 }
 
 #[tokio::test]
-#[ignore = "requires two disposable tenant PostgreSQL databases"]
+#[ignore = "requires two disposable holding PostgreSQL databases"]
 async fn quality_write_outbox_projection_read_reconcile_and_rebuild() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url)
         .await
         .expect("quality write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("quality read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migrations");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding write migrations");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migrations");
+        .expect("holding read migrations");
 
-    let holding_ref = format!("holding-quality-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-quality-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
-    let scope = TenantScope::Company {
+    let scope = AuthorityScope::Company {
         holding_id,
         company_id,
     };
@@ -66,8 +66,12 @@ async fn quality_write_outbox_projection_read_reconcile_and_rebuild() {
         &created_context,
     )
     .expect("quality inspection");
-    let store = SqlxQualityStore::new(write_pool.clone(), read_pool.clone(), holding_ref.clone())
-        .expect("quality store");
+    let store = SqlxQualityStore::new(
+        write_pool.clone(),
+        read_pool.clone(),
+        data_profile_key.clone(),
+    )
+    .expect("quality store");
     let created = store
         .save(&inspection, Some(0), &created_context)
         .await
@@ -222,11 +226,11 @@ async fn quality_write_outbox_projection_read_reconcile_and_rebuild() {
     // transaction back rather than leaving a partially cleared projection.
     let original_source_payload = page.events[0].payload.clone();
     sqlx::query(
-        "UPDATE erpx_tenant.outbox_events
+        "UPDATE erpx_holding.outbox_events
          SET payload=$2
-         WHERE holding_ref=$1 AND event_id=$3",
+         WHERE data_profile_key=$1 AND event_id=$3",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(serde_json::json!({"forged": true}))
     .bind(page.events[0].event_id)
     .execute(&write_pool)
@@ -246,11 +250,11 @@ async fn quality_write_outbox_projection_read_reconcile_and_rebuild() {
     assert_eq!(preserved_version, 2);
     assert_eq!(preserved.status, started.status);
     sqlx::query(
-        "UPDATE erpx_tenant.outbox_events
+        "UPDATE erpx_holding.outbox_events
          SET payload=$2
-         WHERE holding_ref=$1 AND event_id=$3",
+         WHERE data_profile_key=$1 AND event_id=$3",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(original_source_payload)
     .bind(page.events[0].event_id)
     .execute(&write_pool)
@@ -268,22 +272,22 @@ async fn quality_write_outbox_projection_read_reconcile_and_rebuild() {
     tampered_payload["reference"] = serde_json::Value::String("QI-FORGED".into());
     let forged_checkpoint_event_id = Uuid::new_v4();
     sqlx::query(
-        "UPDATE erpx_tenant.quality_inspection_read_rows
+        "UPDATE erpx_holding.quality_inspection_read_rows
          SET payload=$3
-         WHERE holding_ref=$1 AND inspection_id=$2",
+         WHERE data_profile_key=$1 AND inspection_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(inspection_id)
     .bind(&tampered_payload)
     .execute(&read_pool)
     .await
     .expect("tamper quality read payload for reconciliation");
     sqlx::query(
-        "UPDATE erpx_tenant.quality_projection_checkpoints
+        "UPDATE erpx_holding.quality_projection_checkpoints
          SET last_event_id=$3
-         WHERE holding_ref=$1 AND inspection_id=$2",
+         WHERE data_profile_key=$1 AND inspection_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(inspection_id)
     .bind(forged_checkpoint_event_id)
     .execute(&read_pool)
@@ -298,22 +302,22 @@ async fn quality_write_outbox_projection_read_reconcile_and_rebuild() {
     assert_eq!(tampered.invalid_projection_count, 2);
     assert!(!tampered.is_consistent());
     sqlx::query(
-        "UPDATE erpx_tenant.quality_inspection_read_rows
+        "UPDATE erpx_holding.quality_inspection_read_rows
          SET payload=$3
-         WHERE holding_ref=$1 AND inspection_id=$2",
+         WHERE data_profile_key=$1 AND inspection_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(inspection_id)
     .bind(&page.events[1].payload["aggregate"])
     .execute(&read_pool)
     .await
     .expect("restore quality read payload after reconciliation");
     sqlx::query(
-        "UPDATE erpx_tenant.quality_projection_checkpoints
+        "UPDATE erpx_holding.quality_projection_checkpoints
          SET last_event_id=$3
-         WHERE holding_ref=$1 AND inspection_id=$2",
+         WHERE data_profile_key=$1 AND inspection_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(inspection_id)
     .bind(page.events[1].event_id)
     .execute(&read_pool)
@@ -329,27 +333,27 @@ async fn quality_write_outbox_projection_read_reconcile_and_rebuild() {
 }
 
 #[tokio::test]
-#[ignore = "requires two disposable tenant PostgreSQL databases"]
+#[ignore = "requires two disposable holding PostgreSQL databases"]
 async fn quality_scope_is_immutable_across_source_versions() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url)
         .await
         .expect("quality write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("quality read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant write migration");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding write migration");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant read migration");
+        .expect("holding read migration");
 
-    let holding_ref = format!("holding-quality-scope-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-quality-scope-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
-    let scope = TenantScope::Company {
+    let scope = AuthorityScope::Company {
         holding_id,
         company_id,
     };
@@ -368,7 +372,8 @@ async fn quality_scope_is_immutable_across_source_versions() {
         &create_context,
     )
     .expect("quality inspection");
-    let store = SqlxQualityStore::new(write_pool, read_pool, holding_ref).expect("quality store");
+    let store =
+        SqlxQualityStore::new(write_pool, read_pool, data_profile_key).expect("quality store");
     store
         .save(&inspection, Some(0), &create_context)
         .await
@@ -381,7 +386,7 @@ async fn quality_scope_is_immutable_across_source_versions() {
         .expect("next source version");
     let forged_holding_id = Uuid::new_v4();
     let forged_company_id = Uuid::new_v4();
-    forged.scope = TenantScope::Company {
+    forged.scope = AuthorityScope::Company {
         holding_id: forged_holding_id,
         company_id: forged_company_id,
     };

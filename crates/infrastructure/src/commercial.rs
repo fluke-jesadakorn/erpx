@@ -160,7 +160,7 @@ pub struct StripeBillingTransition {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StripeInvoiceProjection {
-    pub tenant_id: String,
+    pub holding_id: String,
     pub invoice_id: String,
     pub state: String,
     pub currency: String,
@@ -198,7 +198,7 @@ pub struct StripeCheckoutBinding {
     pub event_id: String,
     pub event_type: String,
     pub created_at: DateTime<Utc>,
-    pub tenant_id: String,
+    pub holding_id: String,
     pub customer_id: Uuid,
     pub subscription_id: Uuid,
     pub stripe_customer_ref: String,
@@ -407,7 +407,7 @@ fn decode_stripe_semantic_event(
                 event_id,
                 event_type,
                 created_at,
-                tenant_id: required_string_from(object, "erpx_tenant_id")?,
+                holding_id: required_string_from(object, "erpx_holding_id")?,
                 customer_id: required_uuid(&claim.payload, "erpx_customer_id")?,
                 subscription_id: required_uuid(&claim.payload, "erpx_subscription_id")?,
                 stripe_customer_ref: required_string(object, "customer")?,
@@ -528,7 +528,7 @@ fn optional_invoice_projection(
     let Some(invoice_id) = object.get("id").and_then(Value::as_str) else {
         return Ok(None);
     };
-    let Some(tenant_id) = metadata_value(object, "erpx_tenant_id").and_then(Value::as_str) else {
+    let Some(holding_id) = metadata_value(object, "erpx_holding_id").and_then(Value::as_str) else {
         return Ok(None);
     };
     let currency = object
@@ -558,7 +558,7 @@ fn optional_invoice_projection(
         .unwrap_or("unknown")
         .to_owned();
     Ok(Some(StripeInvoiceProjection {
-        tenant_id: tenant_id.to_owned(),
+        holding_id: holding_id.to_owned(),
         invoice_id: invoice_id.to_owned(),
         state,
         currency,
@@ -1066,7 +1066,7 @@ impl StripeCatalogPublishRequest {
         self.validate()?;
         let revision_number = self.local_revision.revision_number();
         let mut digest = Sha256::new();
-        digest.update(b"erpx-stripe-catalog-publish-v1");
+        digest.update(b"erpx-stripe-catalog-publish");
         digest.update([0]);
         digest.update(config.account_ref().as_str().as_bytes());
         digest.update([0]);
@@ -1077,7 +1077,7 @@ impl StripeCatalogPublishRequest {
             operation: StripeCatalogOperation::Publish,
             revision_number,
             provider_key: format!(
-                "erpx-catalog-publish-v1-{revision_number}-{}",
+                "erpx-catalog-publish-{revision_number}-{}",
                 hex::encode(digest.finalize())
             ),
         })
@@ -1205,7 +1205,7 @@ impl StripeCatalogPublicationPlan {
 
             let step_key = |operation: &str| {
                 let mut digest = Sha256::new();
-                digest.update(b"erpx-stripe-catalog-step-v1");
+                digest.update(b"erpx-stripe-catalog-step");
                 digest.update([0]);
                 digest.update(binding.provider_key.as_bytes());
                 digest.update([0]);
@@ -2012,15 +2012,12 @@ fn local_catalog_failure(kind: StripeProviderErrorKind) -> StripeProviderError {
 
 fn catalog_product_rollback_key(provider_key: &str, product: &crate::StripeProductId) -> String {
     let mut digest = Sha256::new();
-    digest.update(b"erpx-stripe-catalog-rollback-v1");
+    digest.update(b"erpx-stripe-catalog-rollback");
     digest.update([0]);
     digest.update(provider_key.as_bytes());
     digest.update([0]);
     digest.update(product.as_str().as_bytes());
-    format!(
-        "erpx-catalog-rollback-v1-{}",
-        hex::encode(digest.finalize())
-    )
+    format!("erpx-catalog-rollback-{}", hex::encode(digest.finalize()))
 }
 
 fn map_stripe_http_error(error: StripeHttpError) -> StripeProviderError {
@@ -2875,7 +2872,7 @@ impl SqlxCommercialStore {
         sqlx::query(
             "INSERT INTO erpx_control.outbox_events
                 (id, event_type, event_version, aggregate_type, aggregate_id,
-                 aggregate_version, tenant_scope, actor, correlation_id,
+                 aggregate_version, active_scope, actor, correlation_id,
                  idempotency_key, payload, occurred_at, available_at)
              VALUES ($1, $2, 1, $3, $4, $5, NULL, $6, $7, $8, $9, $10, $10)",
         )
@@ -2940,7 +2937,7 @@ impl SqlxCommercialStore {
 
     /// Return the latest published catalog that contains at least one price
     /// in the requested ISO currency. Catalog reads remain control-plane
-    /// reads and never route through a tenant database.
+    /// reads and never route through a holding database.
     pub async fn get_latest_catalog_revision(
         &self,
         currency: &str,
@@ -4810,7 +4807,7 @@ async fn append_commercial_state_event(
     sqlx::query(
         "INSERT INTO erpx_control.outbox_events
             (id, event_type, event_version, aggregate_type, aggregate_id,
-             aggregate_version, tenant_scope, actor, correlation_id,
+             aggregate_version, active_scope, actor, correlation_id,
              idempotency_key, payload, occurred_at, available_at)
          VALUES ($1, $2, 1, $3, $4, $5, NULL, $6, $7, $8, $9, $10, $10)",
     )
@@ -5043,7 +5040,7 @@ async fn persist_billing_provider_evidence(
     sqlx::query(
         "INSERT INTO erpx_control.outbox_events
             (id, event_type, event_version, aggregate_type, aggregate_id,
-             aggregate_version, tenant_scope, actor, correlation_id,
+             aggregate_version, active_scope, actor, correlation_id,
              idempotency_key, payload, occurred_at, available_at)
          VALUES ($1, $2, 1, $3, $4, $5, NULL, $6, $7, $8, $9, $10, $10)",
     )
@@ -5121,7 +5118,7 @@ async fn persist_entitlement_provider_evidence(
     sqlx::query(
         "INSERT INTO erpx_control.outbox_events
             (id, event_type, event_version, aggregate_type, aggregate_id,
-             aggregate_version, tenant_scope, actor, correlation_id,
+             aggregate_version, active_scope, actor, correlation_id,
              idempotency_key, payload, occurred_at, available_at)
          VALUES ($1, $2, 1, $3, $4, $5, NULL, $6, $7, $8, $9, $10, $10)",
     )
@@ -5172,7 +5169,7 @@ async fn persist_billing_policy_evidence(
     sqlx::query(
         "INSERT INTO erpx_control.outbox_events
             (id, event_type, event_version, aggregate_type, aggregate_id,
-             aggregate_version, tenant_scope, actor, correlation_id,
+             aggregate_version, active_scope, actor, correlation_id,
              idempotency_key, payload, occurred_at, available_at)
          VALUES ($1, $2, 1, $3, $4, $5, NULL, $6, $7, $8, $9, $10, $10)",
     )
@@ -5286,9 +5283,9 @@ impl SqlxCommercialStore {
         &self,
         event: &StripeCheckoutBinding,
     ) -> Result<StripeSemanticApplyResult, StripeSemanticApplyError> {
-        if event.tenant_id.trim().is_empty()
-            || event.tenant_id.len() > 128
-            || event.tenant_id.chars().any(char::is_control)
+        if event.holding_id.trim().is_empty()
+            || event.holding_id.len() > 128
+            || event.holding_id.chars().any(char::is_control)
             || !event.stripe_customer_ref.starts_with("cus_")
             || !event.stripe_subscription_ref.starts_with("sub_")
             || event.currency != erpx_domain::commercial::ACTIVE_CATALOG_CURRENCY
@@ -5304,23 +5301,23 @@ impl SqlxCommercialStore {
             .map_err(|error| StripeSemanticApplyError::Retryable(error.to_string()))?;
         let exact_binding: bool = sqlx::query_scalar(
             "SELECT EXISTS (
-                SELECT 1 FROM erpx_control.customer_tenant_bindings
-                WHERE customer_id = $1 AND tenant_id = $2
+                SELECT 1 FROM erpx_control.customer_holding_bindings
+                WHERE customer_id = $1 AND holding_id = $2
                   AND binding_state = 'configured'
              )",
         )
         .bind(event.customer_id)
-        .bind(&event.tenant_id)
+        .bind(&event.holding_id)
         .fetch_one(&mut *transaction)
         .await
         .map_err(|error| StripeSemanticApplyError::Retryable(error.to_string()))?;
         if !exact_binding {
             return Err(StripeSemanticApplyError::Permanent(
-                "Checkout metadata does not match a configured tenant".into(),
+                "Checkout metadata does not match a configured holding".into(),
             ));
         }
         let existing = sqlx::query(
-            "SELECT tenant_id, customer_id, subscription_id,
+            "SELECT holding_id, customer_id, subscription_id,
                     currency::text AS currency
              FROM erpx_control.stripe_subscription_bindings
              WHERE stripe_customer_ref = $1
@@ -5334,8 +5331,8 @@ impl SqlxCommercialStore {
         .map_err(|error| StripeSemanticApplyError::Retryable(error.to_string()))?;
         if let Some(existing) = existing {
             let matches = existing
-                .try_get::<String, _>("tenant_id")
-                .is_ok_and(|tenant_id| tenant_id == event.tenant_id)
+                .try_get::<String, _>("holding_id")
+                .is_ok_and(|holding_id| holding_id == event.holding_id)
                 && existing
                     .try_get::<Uuid, _>("customer_id")
                     .is_ok_and(|customer_id| customer_id == event.customer_id)
@@ -5347,7 +5344,7 @@ impl SqlxCommercialStore {
                     .is_ok_and(|currency| currency.trim() == event.currency);
             if !matches {
                 return Err(StripeSemanticApplyError::Permanent(
-                    "Stripe subscription is already bound to another tenant".into(),
+                    "Stripe subscription is already bound to another holding".into(),
                 ));
             }
             transaction
@@ -5358,13 +5355,13 @@ impl SqlxCommercialStore {
         }
         sqlx::query(
             "INSERT INTO erpx_control.stripe_subscription_bindings
-                (customer_id, tenant_id, subscription_id, stripe_customer_ref,
+                (customer_id, holding_id, subscription_id, stripe_customer_ref,
                  stripe_subscription_ref, currency, item_quantities,
                  created_at, updated_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)",
         )
         .bind(event.customer_id)
-        .bind(&event.tenant_id)
+        .bind(&event.holding_id)
         .bind(event.subscription_id)
         .bind(&event.stripe_customer_ref)
         .bind(&event.stripe_subscription_ref)
@@ -5378,11 +5375,11 @@ impl SqlxCommercialStore {
         .await
         .map_err(|error| StripeSemanticApplyError::Retryable(error.to_string()))?;
         sqlx::query(
-            "UPDATE erpx_control.tenant_summary_projection
+            "UPDATE erpx_control.holding_summary_projection
              SET subscription_state = 'pending', projected_at = now()
-             WHERE tenant_id = $1",
+             WHERE holding_id = $1",
         )
-        .bind(&event.tenant_id)
+        .bind(&event.holding_id)
         .execute(&mut *transaction)
         .await
         .map_err(|error| StripeSemanticApplyError::Retryable(error.to_string()))?;
@@ -5401,7 +5398,7 @@ impl SqlxCommercialStore {
             event.event_id.as_bytes(),
         ))
         .bind(serde_json::json!({
-            "tenant_id": event.tenant_id,
+            "holding_id": event.holding_id,
             "subscription_id": event.subscription_id,
             "provider_event_id": event.event_id,
         }))
@@ -5442,14 +5439,14 @@ impl SqlxCommercialStore {
             ));
         };
         sqlx::query(
-            "UPDATE erpx_control.tenant_summary_projection AS summary
+            "UPDATE erpx_control.holding_summary_projection AS summary
              SET subscription_state = $3,
                  overdue = $4,
                  projected_at = now()
              FROM erpx_control.stripe_subscription_bindings AS binding
              WHERE binding.customer_id = $1
                AND binding.subscription_id = $2
-               AND summary.tenant_id = binding.tenant_id",
+               AND summary.holding_id = binding.holding_id",
         )
         .bind(event.customer_id)
         .bind(event.subscription_id)
@@ -5468,16 +5465,16 @@ impl SqlxCommercialStore {
                 ));
             }
             let projected = sqlx::query(
-                "INSERT INTO erpx_control.tenant_invoice_summary_projection
-                    (tenant_id, invoice_id, state, currency,
+                "INSERT INTO erpx_control.holding_invoice_summary_projection
+                    (holding_id, invoice_id, state, currency,
                      amount_due_minor, amount_paid_minor, due_at,
                      hosted_invoice_available, projected_at)
                  SELECT $3, $4, $5, $6, $7, $8, $9, $10, now()
                  FROM erpx_control.stripe_subscription_bindings AS binding
                  WHERE binding.customer_id = $1
                    AND binding.subscription_id = $2
-                   AND binding.tenant_id = $3
-                 ON CONFLICT (tenant_id, invoice_id) DO UPDATE
+                   AND binding.holding_id = $3
+                 ON CONFLICT (holding_id, invoice_id) DO UPDATE
                  SET state = EXCLUDED.state,
                      currency = EXCLUDED.currency,
                      amount_due_minor = EXCLUDED.amount_due_minor,
@@ -5488,7 +5485,7 @@ impl SqlxCommercialStore {
             )
             .bind(event.customer_id)
             .bind(event.subscription_id)
-            .bind(&invoice.tenant_id)
+            .bind(&invoice.holding_id)
             .bind(&invoice.invoice_id)
             .bind(&invoice.state)
             .bind(&invoice.currency)
@@ -5505,7 +5502,7 @@ impl SqlxCommercialStore {
             .map_err(|error| StripeSemanticApplyError::Retryable(error.to_string()))?;
             if projected.rows_affected() != 1 {
                 return Err(StripeSemanticApplyError::Permanent(
-                    "invoice metadata does not match its tenant subscription".into(),
+                    "invoice metadata does not match its holding subscription".into(),
                 ));
             }
         }
@@ -6004,11 +6001,11 @@ mod tests {
         );
         assert!(
             step.product_idempotency_key
-                .starts_with("erpx-catalog-product-v1-")
+                .starts_with("erpx-catalog-product-")
         );
         assert!(
             step.price_idempotency_key
-                .starts_with("erpx-catalog-price-v1-")
+                .starts_with("erpx-catalog-price-")
         );
         let price_request = step.price_request(StripeProductId::try_from("prod_base").unwrap());
         assert_eq!(price_request.unit_amount_minor, 1_000);
@@ -6057,11 +6054,7 @@ mod tests {
         let binding = request.bind_idempotency_key(&config).expect("binding");
         assert_eq!(binding.operation, StripeCatalogOperation::Publish);
         assert_eq!(binding.revision_number, 7);
-        assert!(
-            binding
-                .provider_key
-                .starts_with("erpx-catalog-publish-v1-7-")
-        );
+        assert!(binding.provider_key.starts_with("erpx-catalog-publish-7-"));
         assert_eq!(
             binding.provider_key,
             request
@@ -6969,23 +6962,23 @@ mod tests {
                 "customer": "cus_verified",
                 "subscription": "sub_verified",
                 "metadata": {
-                    "erpx_tenant_id": "tenant-a",
+                    "erpx_holding_id": "holding-a",
                     "erpx_customer_id": Uuid::new_v4().to_string(),
                     "erpx_subscription_id": Uuid::new_v4().to_string(),
                     "erpx_currency": "USD",
-                    "erpx_items": "{\"tenant-base-monthly\":1}"
+                    "erpx_items": "{\"holding-base-monthly\":1}"
                 }
             }),
         );
         assert!(matches!(
             StripeSemanticDispatcher::decode(&checkout).expect("Checkout binding"),
             StripeSemanticEvent::Checkout(StripeCheckoutBinding {
-                tenant_id,
+                holding_id,
                 stripe_customer_ref,
                 stripe_subscription_ref,
                 currency,
                 ..
-            }) if tenant_id == "tenant-a"
+            }) if holding_id == "holding-a"
                 && stripe_customer_ref == "cus_verified"
                 && stripe_subscription_ref == "sub_verified"
                 && currency == "USD"
@@ -7983,7 +7976,7 @@ mod tests {
         let store = SqlxCommercialStore::new(&control);
         let context = Customer360DetailReadContext {
             customer_id,
-            scope: erpx_domain::access::Scope::Holding { holding_id },
+            scope: erpx_domain::contracts::AuthorityScope::Holding { holding_id },
             global_read: erpx_domain::customer::CustomerGlobalReadContext {
                 actor: erpx_domain::customer::GlobalReadActor {
                     principal_ref: "billing-reader".into(),
@@ -8009,7 +8002,7 @@ mod tests {
         );
 
         let unauthorized = Customer360DetailReadContext {
-            scope: erpx_domain::access::Scope::Holding {
+            scope: erpx_domain::contracts::AuthorityScope::Holding {
                 holding_id: Uuid::new_v4(),
             },
             ..context

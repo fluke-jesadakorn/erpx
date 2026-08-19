@@ -13,12 +13,12 @@ use chrono::{DateTime, Utc};
 use erpx_cqrs_sqlx::{
     MultiSourceProjectionRun, ProjectionPool, ProjectionRun, ProjectionRunnerConfig, WritePool,
 };
-use erpx_domain::access::Scope as LegacyScope;
+use erpx_domain::contracts::AuthorityScope as LegacyScope;
 use erpx_infrastructure::{
-    ProjectionClaimRecord, ProjectionJobKind, RoutedDatabaseSide, SqlxControlPlane,
-    SqlxTenantStoreRegistry, TenantDatabaseProvisioningConfig, TenantDatabaseRouter,
+    HoldingDatabaseProvisioningConfig, HoldingDatabaseRouter, ProjectionClaimRecord,
+    ProjectionJobKind, RoutedDatabaseSide, SqlxControlPlane, SqlxHoldingStoreRegistry,
 };
-use erpx_kernel::{ActorAttribution, ActorKind, AuditContext, SystemClock, TenantScope};
+use erpx_kernel::{ActorAttribution, ActorKind, AuditContext, AuthorityScope, SystemClock};
 use erpx_operations::{
     AuthorizationPort, EntitlementPort, OperationsAction, OperationsSourceHandler, PortError,
     PrincipalAssignment, SourceFactMessage, SourceHandlingContext, SourcePosition,
@@ -26,15 +26,15 @@ use erpx_operations::{
 };
 use erpx_operations_sqlx::OperationsSourceAdapter;
 use erpx_worker::{
-    NamedWorkerHandler, TenantProjectionExecutor, TenantProjectionExecutorError,
+    HoldingProjectionExecutor, HoldingProjectionExecutorError, NamedWorkerHandler,
     WorkerHandlerReport, WorkerRuntimeError,
 };
 use uuid::Uuid;
 
 use crate::contexts::{
     customer_360::{
-        Customer360ControlProjectionRuntime, Customer360ProjectionFactory,
-        Customer360TenantProjectionRuntime, TenantActivitySource,
+        Customer360ControlProjectionRuntime, Customer360HoldingProjectionRuntime,
+        Customer360ProjectionFactory, HoldingActivitySource,
     },
     operations::{
         BoxedOperationsSourceApplication, BoxedOperationsSourceDispatch,
@@ -49,10 +49,10 @@ use crate::contexts::{
 
 pub const CUSTOMER360_CONTROL_PROJECTION_HANDLER_NAME: &str =
     "customer360_control_customers_projection";
-pub const CUSTOMER360_TENANT_PROJECTION_HANDLER_NAME: &str =
-    "customer360_tenant_activity_projection";
+pub const CUSTOMER360_HOLDING_PROJECTION_HANDLER_NAME: &str =
+    "customer360_holding_activity_projection";
 
-const MAX_CUSTOMER360_TENANT_SOURCES: usize = 1_000;
+const MAX_CUSTOMER360_HOLDING_SOURCES: usize = 1_000;
 
 #[derive(Debug, Clone, Copy, Default)]
 struct TrustedOperationsSourceAccess;
@@ -81,10 +81,10 @@ impl AuthorizationPort for TrustedOperationsSourceAccess {
 impl EntitlementPort for TrustedOperationsSourceAccess {
     async fn ensure_operations_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         write: bool,
     ) -> Result<(), PortError> {
-        if write && scope.validate().is_ok() && scope != &TenantScope::Platform {
+        if write && scope.validate().is_ok() && scope != &AuthorityScope::Platform {
             Ok(())
         } else {
             Err(PortError::EntitlementDenied)
@@ -139,7 +139,7 @@ where
 
     fn build(
         &self,
-        _tenant: &crate::contexts::operations_source::OperationsSourceTenant,
+        _holding: &crate::contexts::operations_source::OperationsSourceHolding,
         worker_id: Uuid,
         adapter: OperationsSourceAdapter,
         detection: ConfiguredOperationsDetectionPolicy<M>,
@@ -277,20 +277,20 @@ impl OperationsManagerChainSource for IdentityOperationsManagerChain {
     }
 }
 
-fn legacy_scope(scope: &TenantScope) -> LegacyScope {
+fn legacy_scope(scope: &AuthorityScope) -> LegacyScope {
     match scope {
-        TenantScope::Platform => LegacyScope::Platform,
-        TenantScope::Holding { holding_id } => LegacyScope::Holding {
+        AuthorityScope::Platform => LegacyScope::Platform,
+        AuthorityScope::Holding { holding_id } => LegacyScope::Holding {
             holding_id: *holding_id,
         },
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => LegacyScope::Company {
             holding_id: *holding_id,
             company_id: *company_id,
         },
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -299,14 +299,12 @@ fn legacy_scope(scope: &TenantScope) -> LegacyScope {
             company_id: *company_id,
             branch_id: *branch_id,
         },
-        TenantScope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
+            organization_node_id,
         } => LegacyScope::Subtree {
             holding_id: *holding_id,
-            company_ids: company_ids.clone(),
-            branch_ids: branch_ids.clone(),
+            organization_node_id: *organization_node_id,
         },
     }
 }
@@ -314,11 +312,11 @@ fn legacy_scope(scope: &TenantScope) -> LegacyScope {
 pub fn operations_source_ingestion_handler(
     control: Arc<SqlxControlPlane>,
     page_size: u32,
-    max_active_tenants: usize,
+    max_active_holdings: usize,
 ) -> Result<Arc<dyn NamedWorkerHandler>, WorkerRuntimeError> {
-    let registry = SqlxTenantStoreRegistry::new(Arc::clone(&control));
-    let routing = TenantDatabaseProvisioningConfig::from_env()?;
-    let router = TenantDatabaseRouter::new(Arc::clone(&control), routing)?;
+    let registry = SqlxHoldingStoreRegistry::new(Arc::clone(&control));
+    let routing = HoldingDatabaseProvisioningConfig::from_env()?;
+    let router = HoldingDatabaseRouter::new(Arc::clone(&control), routing)?;
     let manager_chain = IdentityOperationsManagerChain::from_env(control)?;
     let detection = ConfiguredOperationsDetectionPolicy::from_env(manager_chain.clone())?;
     if detection.enabled() && !manager_chain.configured() {
@@ -332,7 +330,7 @@ pub fn operations_source_ingestion_handler(
         ProductionOperationsSourceProcessFactory,
         detection,
         page_size,
-        max_active_tenants,
+        max_active_holdings,
     )?))
 }
 
@@ -366,34 +364,34 @@ impl Wave9ProjectionKind {
 
 #[derive(Debug, Clone)]
 pub struct Wave9ProjectionExecutor {
-    router: TenantDatabaseRouter,
+    router: HoldingDatabaseRouter,
     kind: Wave9ProjectionKind,
 }
 
 impl Wave9ProjectionExecutor {
-    pub const fn new(router: TenantDatabaseRouter, kind: Wave9ProjectionKind) -> Self {
+    pub const fn new(router: HoldingDatabaseRouter, kind: Wave9ProjectionKind) -> Self {
         Self { router, kind }
     }
 
     async fn runtime(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
+        holding_id: &str,
+        data_profile_key: &str,
         page_size: u32,
     ) -> Result<
         crate::contexts::operations::OperationsProjectionRuntime,
-        TenantProjectionExecutorError,
+        HoldingProjectionExecutorError,
     > {
         let write = self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Write)
             .await
-            .map_err(|_| TenantProjectionExecutorError::Retryable)?;
+            .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
         let read = self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Read)
             .await
-            .map_err(|_| TenantProjectionExecutorError::Retryable)?;
+            .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
         let factory = OperationsProjectionFactory;
         for registration in factory.registrations() {
             tracing::debug!(
@@ -402,12 +400,12 @@ impl Wave9ProjectionExecutor {
                 "registered typed Operations CQRS projector"
             );
         }
-        let tenant_id = crate::cqrs_tenant_uuid(tenant_id)?;
+        let holding_id = crate::cqrs_holding_uuid(holding_id)?;
         let runtime = factory
             .build(
-                WritePool::for_tenant(write.database_pool().clone(), tenant_id)
+                WritePool::for_holding(write.database_pool().clone(), holding_id)
                     .map_err(crate::map_cqrs_projection_error)?,
-                ProjectionPool::for_tenant(read.database_pool().clone(), tenant_id)
+                ProjectionPool::for_holding(read.database_pool().clone(), holding_id)
                     .map_err(crate::map_cqrs_projection_error)?,
                 ProjectionRunnerConfig {
                     page_size,
@@ -421,7 +419,7 @@ impl Wave9ProjectionExecutor {
 }
 
 #[async_trait]
-impl TenantProjectionExecutor for Wave9ProjectionExecutor {
+impl HoldingProjectionExecutor for Wave9ProjectionExecutor {
     fn projection_name_filter(&self) -> Option<&str> {
         Some(self.kind.projection_name())
     }
@@ -429,7 +427,7 @@ impl TenantProjectionExecutor for Wave9ProjectionExecutor {
     async fn execute(
         &self,
         claim: &ProjectionClaimRecord,
-    ) -> Result<(), TenantProjectionExecutorError> {
+    ) -> Result<(), HoldingProjectionExecutorError> {
         if self.projection_name_filter() != Some(claim.job.projection_name.as_str())
             || claim.job.payload.get("after").is_some()
             || claim.job.payload.get("cursor").is_some()
@@ -437,13 +435,13 @@ impl TenantProjectionExecutor for Wave9ProjectionExecutor {
             || claim.job.payload.get("source_version").is_some()
             || claim.job.payload.get("generation").is_some()
         {
-            return Err(TenantProjectionExecutorError::Permanent);
+            return Err(HoldingProjectionExecutorError::Permanent);
         }
         let page_size = crate::projection_page_size(&claim.job.payload, 500)?;
         let runtime = self
             .runtime(
-                &claim.job.binding.tenant_id,
-                &claim.job.binding.holding_ref,
+                &claim.job.binding.holding_id,
+                &claim.job.binding.data_profile_key,
                 page_size,
             )
             .await?;
@@ -460,7 +458,7 @@ impl TenantProjectionExecutor for Wave9ProjectionExecutor {
                     .job
                     .rebuild_id
                     .filter(|value| !value.is_nil())
-                    .ok_or(TenantProjectionExecutorError::Permanent)?;
+                    .ok_or(HoldingProjectionExecutorError::Permanent)?;
                 let handle = runtime
                     .begin_rebuild(kind, rebuild_id)
                     .await
@@ -493,15 +491,15 @@ impl TenantProjectionExecutor for Wave9ProjectionExecutor {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Customer360ProjectionKind {
     ControlCustomers,
-    TenantActivity,
+    HoldingActivity,
 }
 
 #[derive(Debug)]
 pub struct Customer360ProjectionHandler {
     kind: Customer360ProjectionKind,
     control: Arc<SqlxControlPlane>,
-    registry: Option<SqlxTenantStoreRegistry>,
-    router: Option<TenantDatabaseRouter>,
+    registry: Option<SqlxHoldingStoreRegistry>,
+    router: Option<HoldingDatabaseRouter>,
     page_size: u32,
     rebuild_pending: AtomicBool,
     rebuild_generation: Option<Uuid>,
@@ -520,10 +518,10 @@ impl Customer360ProjectionHandler {
         }
         let (registry, router) = match kind {
             Customer360ProjectionKind::ControlCustomers => (None, None),
-            Customer360ProjectionKind::TenantActivity => {
-                let registry = SqlxTenantStoreRegistry::new(control.clone());
-                let routing = TenantDatabaseProvisioningConfig::from_env()?;
-                let router = TenantDatabaseRouter::new(control.clone(), routing)?;
+            Customer360ProjectionKind::HoldingActivity => {
+                let registry = SqlxHoldingStoreRegistry::new(control.clone());
+                let routing = HoldingDatabaseProvisioningConfig::from_env()?;
+                let router = HoldingDatabaseRouter::new(control.clone(), routing)?;
                 (Some(registry), Some(router))
             }
         };
@@ -580,43 +578,43 @@ impl Customer360ProjectionHandler {
             .map_err(configuration_error)
     }
 
-    async fn tenant_runtime(
+    async fn holding_runtime(
         &self,
-    ) -> Result<Customer360TenantProjectionRuntime, WorkerRuntimeError> {
+    ) -> Result<Customer360HoldingProjectionRuntime, WorkerRuntimeError> {
         let registry = self.registry.as_ref().ok_or_else(|| {
             WorkerRuntimeError::Configuration(
-                "Customer 360 tenant registry is unavailable for this handler".into(),
+                "Customer 360 holding registry is unavailable for this handler".into(),
             )
         })?;
         let router = self.router.as_ref().ok_or_else(|| {
             WorkerRuntimeError::Configuration(
-                "Customer 360 tenant router is unavailable for this handler".into(),
+                "Customer 360 holding router is unavailable for this handler".into(),
             )
         })?;
         let registrations = registry
-            .list_active_bounded(MAX_CUSTOMER360_TENANT_SOURCES)
+            .list_active_bounded(MAX_CUSTOMER360_HOLDING_SOURCES)
             .await
             .map_err(configuration_error)?;
         let mut sources = Vec::with_capacity(registrations.len());
         for registration in registrations {
-            let tenant_id = customer360_projection_tenant_id(&registration.tenant_id)?;
+            let holding_id = customer360_projection_holding_id(&registration.holding_id)?;
             let routed = router
                 .route(
-                    &registration.tenant_id,
-                    &registration.holding_ref,
+                    &registration.holding_id,
+                    &registration.data_profile_key,
                     RoutedDatabaseSide::Write,
                 )
                 .await
                 .map_err(configuration_error)?;
-            sources.push(TenantActivitySource {
-                tenant_id,
-                write_pool: WritePool::for_tenant(routed.database_pool().clone(), tenant_id)
+            sources.push(HoldingActivitySource {
+                holding_id,
+                write_pool: WritePool::for_holding(routed.database_pool().clone(), holding_id)
                     .map_err(configuration_error)?,
             });
         }
         if sources.is_empty() {
             return Err(WorkerRuntimeError::Configuration(
-                "Customer 360 requires at least one active tenant source".into(),
+                "Customer 360 requires at least one active holding source".into(),
             ));
         }
         let source_count = sources.len();
@@ -630,7 +628,7 @@ impl Customer360ProjectionHandler {
             );
         }
         let runtime = factory
-            .build_tenant(
+            .build_holding(
                 ProjectionPool::from_control_pg_pool(self.control.pools().read.clone()),
                 sources,
                 ProjectionRunnerConfig {
@@ -689,9 +687,9 @@ impl Customer360ProjectionHandler {
         Ok(total)
     }
 
-    async fn rebuild_tenant(
+    async fn rebuild_holding(
         &self,
-        runtime: &Customer360TenantProjectionRuntime,
+        runtime: &Customer360HoldingProjectionRuntime,
         generation: Uuid,
     ) -> Result<WorkerHandlerReport, WorkerRuntimeError> {
         if runtime
@@ -741,18 +739,18 @@ impl Customer360ProjectionHandler {
     }
 }
 
-fn customer360_projection_tenant_id(registry_id: &str) -> Result<Uuid, WorkerRuntimeError> {
-    let tenant_id = Uuid::parse_str(registry_id).map_err(|_| {
+fn customer360_projection_holding_id(registry_id: &str) -> Result<Uuid, WorkerRuntimeError> {
+    let holding_id = Uuid::parse_str(registry_id).map_err(|_| {
         WorkerRuntimeError::Configuration(
-            "Customer 360 tenant registry identity must be a non-nil UUID".into(),
+            "Customer 360 holding registry identity must be a non-nil UUID".into(),
         )
     })?;
-    if tenant_id.is_nil() {
+    if holding_id.is_nil() {
         return Err(WorkerRuntimeError::Configuration(
-            "Customer 360 tenant registry identity must be a non-nil UUID".into(),
+            "Customer 360 holding registry identity must be a non-nil UUID".into(),
         ));
     }
-    Ok(tenant_id)
+    Ok(holding_id)
 }
 
 #[async_trait]
@@ -762,7 +760,9 @@ impl NamedWorkerHandler for Customer360ProjectionHandler {
             Customer360ProjectionKind::ControlCustomers => {
                 CUSTOMER360_CONTROL_PROJECTION_HANDLER_NAME
             }
-            Customer360ProjectionKind::TenantActivity => CUSTOMER360_TENANT_PROJECTION_HANDLER_NAME,
+            Customer360ProjectionKind::HoldingActivity => {
+                CUSTOMER360_HOLDING_PROJECTION_HANDLER_NAME
+            }
         }
     }
 
@@ -778,8 +778,8 @@ impl NamedWorkerHandler for Customer360ProjectionHandler {
                     self.rebuild_control(&self.control_runtime()?, generation)
                         .await?
                 }
-                Customer360ProjectionKind::TenantActivity => {
-                    self.rebuild_tenant(&self.tenant_runtime().await?, generation)
+                Customer360ProjectionKind::HoldingActivity => {
+                    self.rebuild_holding(&self.holding_runtime().await?, generation)
                         .await?
                 }
             };
@@ -793,8 +793,8 @@ impl NamedWorkerHandler for Customer360ProjectionHandler {
                 .await
                 .map(report_single)
                 .map_err(configuration_error),
-            Customer360ProjectionKind::TenantActivity => self
-                .tenant_runtime()
+            Customer360ProjectionKind::HoldingActivity => self
+                .holding_runtime()
                 .await?
                 .run_once()
                 .await
@@ -853,9 +853,9 @@ fn validate_multi_handler_run(run: &MultiSourceProjectionRun) -> Result<(), Work
     Ok(())
 }
 
-fn validate_run(run: ProjectionRun) -> Result<(), TenantProjectionExecutorError> {
+fn validate_run(run: ProjectionRun) -> Result<(), HoldingProjectionExecutorError> {
     if run.retry_scheduled || run.dead_lettered != 0 {
-        return Err(TenantProjectionExecutorError::Retryable);
+        return Err(HoldingProjectionExecutorError::Retryable);
     }
     Ok(())
 }
@@ -875,19 +875,19 @@ mod tests {
             "operations.exceptions"
         );
         assert_eq!(
-            CUSTOMER360_TENANT_PROJECTION_HANDLER_NAME,
-            "customer360_tenant_activity_projection"
+            CUSTOMER360_HOLDING_PROJECTION_HANDLER_NAME,
+            "customer360_holding_activity_projection"
         );
     }
 
     #[test]
-    fn customer360_projection_tenant_ids_require_authoritative_non_nil_uuid() {
+    fn customer360_projection_holding_ids_require_authoritative_non_nil_uuid() {
         let current = Uuid::from_u128(41);
         assert_eq!(
-            customer360_projection_tenant_id(&current.to_string()).unwrap(),
+            customer360_projection_holding_id(&current.to_string()).unwrap(),
             current
         );
-        assert!(customer360_projection_tenant_id("demo-tenant").is_err());
-        assert!(customer360_projection_tenant_id(&Uuid::nil().to_string()).is_err());
+        assert!(customer360_projection_holding_id("demo-holding").is_err());
+        assert!(customer360_projection_holding_id(&Uuid::nil().to_string()).is_err());
     }
 }

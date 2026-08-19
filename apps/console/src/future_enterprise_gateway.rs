@@ -1,56 +1,56 @@
 //! Authorization-first transport boundary for the eight future workspaces.
 //!
 //! The gateway remains fail closed until the authenticated Reference lookup
-//! and owner-query mapping below are fully composed. It never accepts a tenant
+//! and owner-query mapping below are fully composed. It never accepts a holding
 //! identifier from a route or other caller-controlled value.
 
 use async_trait::async_trait;
 use chrono::Utc;
 use erpx_proto::erpx::{
-    benefits::v2::{
+    benefits::{
         GetBenefitsRecordRequest, benefits_query_service_client::BenefitsQueryServiceClient,
     },
-    common::v2::{
-        ActorAttribution, ActorKind, AggregateVersionConsistency, AuditContext, CommandContext,
-        EventualConsistency, QueryConsistency as ProtoQueryConsistency, QueryContext, TenantScope,
+    common::{
+        ActorAttribution, ActorKind, AggregateVersionConsistency, AuditContext, AuthorityScope,
+        CommandContext, EventualConsistency, QueryConsistency as ProtoQueryConsistency,
+        QueryContext, authority_scope::Scope as ProtoHoldingScope,
         query_consistency::Requirement as ConsistencyRequirement,
-        tenant_scope::Scope as ProtoTenantScope,
     },
-    ecommerce::v2::{
+    ecommerce::{
         ApproveCommerceListingRequest, CartIdentityRequest, GetCommerceRecordRequest,
         ListingIdentityRequest, ecommerce_command_service_client::EcommerceCommandServiceClient,
         ecommerce_query_service_client::EcommerceQueryServiceClient,
     },
-    field_service::v2::{
+    field_service::{
         GetFieldServiceRecordRequest,
         field_service_query_service_client::FieldServiceQueryServiceClient,
     },
-    interface::v2::{
+    interface::{
         AuthorityScope, AuthorityScopeLevel, DirectoryFreshness, ResolveReferenceRequest,
         SearchItemsRequest,
     },
-    learning::v2::{
+    learning::{
         GetLearningRecordRequest, RetireCourseRequest,
         learning_command_service_client::LearningCommandServiceClient,
         learning_query_service_client::LearningQueryServiceClient,
     },
-    manufacturing::v2::{
+    manufacturing::{
         GetManufacturingRecordRequest, OrderCommandRequest,
         manufacturing_command_service_client::ManufacturingCommandServiceClient,
         manufacturing_query_service_client::ManufacturingQueryServiceClient,
     },
-    planning::v2::{
+    planning::{
         GetPlanningRecordRequest, RecommendationCommandRequest, ScenarioCommandRequest,
         planning_command_service_client::PlanningCommandServiceClient,
         planning_query_service_client::PlanningQueryServiceClient,
     },
-    projects::v2::{
+    projects::{
         GetProjectRecordRequest, GetProjectRequest, ProjectRecordKind, ProjectStatus,
         TransitionProjectRequest, projects_command_service_client::ProjectsCommandServiceClient,
         projects_query_service_client::ProjectsQueryServiceClient,
     },
-    reference::v2::reference_query_service_client::ReferenceQueryServiceClient,
-    talent::v2::{
+    reference::reference_query_service_client::ReferenceQueryServiceClient,
+    talent::{
         ApplicationIdentityRequest, ApproveOfferRequest, ApproveRequisitionRequest,
         ApproveTalentProposalRequest, GetTalentRecordRequest, OfferIdentityRequest,
         RequisitionStatus, TalentProposalIdentityRequest, TalentRealm,
@@ -130,7 +130,7 @@ impl OwnerRecord {
         title: String,
         lifecycle: String,
         version: u64,
-        projection: Option<erpx_proto::erpx::common::v2::ProjectionMetadata>,
+        projection: Option<erpx_proto::erpx::common::ProjectionMetadata>,
         updated_at: String,
         consistency: QueryConsistency,
     ) -> Result<Self, EnterpriseGatewayError> {
@@ -140,7 +140,7 @@ impl OwnerRecord {
             .checkpoint
             .ok_or(EnterpriseGatewayError::Unavailable)?;
         let lag_seconds = projection.lag_millis.unwrap_or_default() / 1_000;
-        use erpx_proto::erpx::common::v2::ProjectionFreshnessState;
+        use erpx_proto::erpx::common::ProjectionFreshnessState;
         let freshness = match ProjectionFreshnessState::try_from(projection.freshness) {
             Ok(ProjectionFreshnessState::Current) => SourceFreshness::Fresh { lag_seconds },
             Ok(ProjectionFreshnessState::Stale | ProjectionFreshnessState::Rebuilding) => {
@@ -292,7 +292,7 @@ impl FutureEnterpriseGrpcGateway {
             || record.record_type != expected_type
             || descriptor.descriptor_version == 0
             || descriptor.source_event_position == 0
-            || Uuid::parse_str(&resolved_scope.tenant_id).is_err()
+            || Uuid::parse_str(&resolved_scope.holding_id).is_err()
             || !same_hierarchy(&requested_scope, &resolved_scope)
         {
             return Err(EnterpriseGatewayError::Unavailable);
@@ -323,7 +323,7 @@ impl FutureEnterpriseGrpcGateway {
             &descriptor.record_id,
             consistency,
         )?;
-        let record_scope = context.tenant_scope.clone();
+        let record_scope = context.active_scope.clone();
         match workspace {
             WorkspaceKind::Manufacturing => {
                 let request = GetManufacturingRecordRequest {
@@ -641,7 +641,7 @@ impl EnterpriseWorkspaceGateway for FutureEnterpriseGrpcGateway {
                 || descriptor.descriptor_version == 0
                 || descriptor.source_event_position == 0
                 || !same_hierarchy(&requested_scope, &scope)
-                || Uuid::parse_str(&scope.tenant_id).is_err()
+                || Uuid::parse_str(&scope.holding_id).is_err()
             {
                 return Err(EnterpriseGatewayError::Unavailable);
             }
@@ -781,7 +781,7 @@ impl EnterpriseWorkspaceGateway for FutureEnterpriseGrpcGateway {
                 current_version: owner.version,
             });
         }
-        let scope = tenant_scope(&descriptor.authority)?;
+        let scope = active_scope(&descriptor.authority)?;
         let (context, command_id, correlation_id) =
             command_context(self, &request, &descriptor.authority)?;
         let channel = self.channel().await?;
@@ -1064,22 +1064,22 @@ impl EnterpriseWorkspaceGateway for FutureEnterpriseGrpcGateway {
     }
 }
 
-fn tenant_scope(authority: &AuthorityScope) -> Result<TenantScope, EnterpriseGatewayError> {
-    use erpx_proto::erpx::common::v2::{BranchScope, CompanyScope, HoldingScope};
+fn active_scope(authority: &AuthorityScope) -> Result<AuthorityScope, EnterpriseGatewayError> {
+    use erpx_proto::erpx::common::{BranchScope, CompanyScope, HoldingScope};
     let holding_id = authority
         .holding_id
         .clone()
         .ok_or(EnterpriseGatewayError::Unavailable)?;
     let scope = match AuthorityScopeLevel::try_from(authority.level) {
-        Ok(AuthorityScopeLevel::Holding) => ProtoTenantScope::Holding(HoldingScope { holding_id }),
-        Ok(AuthorityScopeLevel::Company) => ProtoTenantScope::Company(CompanyScope {
+        Ok(AuthorityScopeLevel::Holding) => ProtoHoldingScope::Holding(HoldingScope { holding_id }),
+        Ok(AuthorityScopeLevel::Company) => ProtoHoldingScope::Company(CompanyScope {
             holding_id,
             company_id: authority
                 .company_id
                 .clone()
                 .ok_or(EnterpriseGatewayError::Unavailable)?,
         }),
-        Ok(AuthorityScopeLevel::Branch) => ProtoTenantScope::Branch(BranchScope {
+        Ok(AuthorityScopeLevel::Branch) => ProtoHoldingScope::Branch(BranchScope {
             holding_id,
             company_id: authority
                 .company_id
@@ -1092,7 +1092,7 @@ fn tenant_scope(authority: &AuthorityScope) -> Result<TenantScope, EnterpriseGat
         }),
         _ => return Err(EnterpriseGatewayError::Unavailable),
     };
-    Ok(TenantScope { scope: Some(scope) })
+    Ok(AuthorityScope { scope: Some(scope) })
 }
 
 fn query_context(
@@ -1118,12 +1118,12 @@ fn query_context(
         correlation_id: request_id,
         actor: Some(ActorAttribution {
             principal_ref: gateway.principal_ref.clone(),
-            kind: ActorKind::TenantUser as i32,
+            kind: ActorKind::HoldingUser as i32,
             session_id: gateway.session_id.clone(),
             represented_principal_ref: String::new(),
             support_capability_id: String::new(),
         }),
-        tenant_scope: Some(tenant_scope(authority)?),
+        active_scope: Some(active_scope(authority)?),
         consistency: Some(ProtoQueryConsistency {
             requirement: Some(requirement),
         }),
@@ -1152,12 +1152,12 @@ fn command_context(
             causation_id: String::new(),
             actor: Some(ActorAttribution {
                 principal_ref: gateway.principal_ref.clone(),
-                kind: ActorKind::TenantUser as i32,
+                kind: ActorKind::HoldingUser as i32,
                 session_id: gateway.session_id.clone(),
                 represented_principal_ref: String::new(),
                 support_capability_id: String::new(),
             }),
-            tenant_scope: Some(tenant_scope(authority)?),
+            active_scope: Some(active_scope(authority)?),
             audit: Some(AuditContext {
                 purpose: "future_workspace_governed_action".into(),
                 customer_visible: true,
@@ -1174,7 +1174,7 @@ fn command_context(
 }
 
 fn common_command_receipt(
-    receipt: Option<erpx_proto::erpx::common::v2::CommandReceipt>,
+    receipt: Option<erpx_proto::erpx::common::CommandReceipt>,
 ) -> Result<GovernedCommandReceipt, EnterpriseGatewayError> {
     let receipt = receipt.ok_or(EnterpriseGatewayError::Unavailable)?;
     let aggregate = receipt
@@ -1195,7 +1195,7 @@ fn common_command_receipt(
 }
 
 fn manufacturing_command_receipt(
-    receipt: erpx_proto::erpx::manufacturing::v2::MutationReceipt,
+    receipt: erpx_proto::erpx::manufacturing::MutationReceipt,
     expected_id: &str,
     command_id: String,
     correlation_ref: String,
@@ -1216,7 +1216,7 @@ fn manufacturing_command_receipt(
 }
 
 fn planning_command_receipt(
-    receipt: erpx_proto::erpx::planning::v2::MutationReceipt,
+    receipt: erpx_proto::erpx::planning::MutationReceipt,
     expected_id: &str,
     command_id: String,
     correlation_ref: String,
@@ -1250,7 +1250,7 @@ fn authenticated_principal_id(value: &str) -> Result<String, EnterpriseGatewayEr
 
 fn authority_scope(scope_key: &str) -> Result<AuthorityScope, EnterpriseGatewayError> {
     let mut scope = AuthorityScope {
-        tenant_id: String::new(),
+        holding_id: String::new(),
         level: AuthorityScopeLevel::Unspecified as i32,
         holding_id: None,
         company_id: None,
@@ -1378,7 +1378,7 @@ fn scope_label(scope: &AuthorityScope) -> &'static str {
 }
 
 fn project_status(value: i32) -> String {
-    use erpx_proto::erpx::projects::v2::ProjectStatus;
+    use erpx_proto::erpx::projects::ProjectStatus;
     match ProjectStatus::try_from(value) {
         Ok(ProjectStatus::Proposed) => "proposed",
         Ok(ProjectStatus::Approved) => "approved",
@@ -1424,13 +1424,13 @@ mod tests {
     }
 
     #[test]
-    fn session_scope_never_accepts_a_tenant_route() {
+    fn session_scope_never_accepts_a_holding_route() {
         assert!(matches!(
             FutureEnterpriseGrpcGateway::try_new(
                 std::sync::Arc::new(FeatureTransportPrimitive::web_same_origin()),
                 "principal".into(),
                 Uuid::new_v4().to_string(),
-                format!("tenant:{}", Uuid::new_v4()),
+                format!("holding:{}", Uuid::new_v4()),
             ),
             Err(EnterpriseGatewayError::Denied)
         ));
@@ -1475,14 +1475,14 @@ mod tests {
     fn holding_authority_accepts_an_authorized_descendant_branch() {
         let holding = Uuid::new_v4().to_string();
         let expected = AuthorityScope {
-            tenant_id: String::new(),
+            holding_id: String::new(),
             level: AuthorityScopeLevel::Holding as i32,
             holding_id: Some(holding.clone()),
             company_id: None,
             branch_id: None,
         };
         let actual = AuthorityScope {
-            tenant_id: Uuid::new_v4().to_string(),
+            holding_id: Uuid::new_v4().to_string(),
             level: AuthorityScopeLevel::Branch as i32,
             holding_id: Some(holding),
             company_id: Some(Uuid::new_v4().to_string()),
@@ -1495,14 +1495,14 @@ mod tests {
     fn company_authority_rejects_a_sibling_company_branch() {
         let holding = Uuid::new_v4().to_string();
         let expected = AuthorityScope {
-            tenant_id: String::new(),
+            holding_id: String::new(),
             level: AuthorityScopeLevel::Company as i32,
             holding_id: Some(holding.clone()),
             company_id: Some(Uuid::new_v4().to_string()),
             branch_id: None,
         };
         let actual = AuthorityScope {
-            tenant_id: Uuid::new_v4().to_string(),
+            holding_id: Uuid::new_v4().to_string(),
             level: AuthorityScopeLevel::Branch as i32,
             holding_id: Some(holding),
             company_id: Some(Uuid::new_v4().to_string()),
@@ -1517,7 +1517,7 @@ mod tests {
         let command_id = Uuid::new_v4().to_string();
         let correlation_id = Uuid::new_v4().to_string();
         let manufacturing = manufacturing_command_receipt(
-            erpx_proto::erpx::manufacturing::v2::MutationReceipt {
+            erpx_proto::erpx::manufacturing::MutationReceipt {
                 aggregate_id: record_id.clone(),
                 aggregate_version: 7,
                 replayed: false,
@@ -1543,7 +1543,7 @@ mod tests {
         );
 
         let planning = planning_command_receipt(
-            erpx_proto::erpx::planning::v2::MutationReceipt {
+            erpx_proto::erpx::planning::MutationReceipt {
                 aggregate_ids: vec![record_id.clone()],
                 replayed: true,
                 aggregate_versions: vec![11],
@@ -1562,7 +1562,7 @@ mod tests {
         let record_id = Uuid::new_v4().to_string();
         assert_eq!(
             planning_command_receipt(
-                erpx_proto::erpx::planning::v2::MutationReceipt {
+                erpx_proto::erpx::planning::MutationReceipt {
                     aggregate_ids: vec![record_id],
                     replayed: false,
                     aggregate_versions: Vec::new(),

@@ -128,7 +128,7 @@ protobuf baseline, live Folio cutover evidence, or production approval.
   the final worker-scope correction; and the clean `cargo test --workspace
   --offline --no-fail-fast` run, including the 84-test identity suite, 239-test
   domain suite, 197 worker tests, and all doc tests.
-- PASS: the fresh ignored workspace run with disposable control, tenant,
+- PASS: the fresh ignored workspace run with disposable control, holding,
   commercial, scheduler, support, and directory databases. Directory SQLx
   import/RBAC/revocation persistence, all local G3–G13/G14 database targets,
   and Marketing callback/provider-flow persistence executed successfully.
@@ -189,7 +189,7 @@ Folio write retirement, or cutover occurred.
 - Directory full-import conversion preserves disabled/deleted identities,
   rejects immutable-envelope mismatches, and live LDAP/RFC4533/AD paths fail
   closed when their native continuation control is missing or duplicated.
-- G7 Operations reconciliation now rejects orphan tenant outbox rows that have
+- G7 Operations reconciliation now rejects orphan holding outbox rows that have
   no authoritative Operations event. G8 journal posting now locks and compares
   the persisted accounting period before emitting journal, usage, outbox, or
   idempotency rows.

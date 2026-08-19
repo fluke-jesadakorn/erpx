@@ -9,10 +9,10 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::{CurrencyCode, MoneyAmount, crm, customer};
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
-    QueryId, SessionId, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+    ErrorCategory, EventId, QueryId, SessionId,
 };
-use erpx_proto::{common, erpx::sales::v2 as platform};
+use erpx_proto::{common, erpx::sales as platform};
 use erpx_sales::{
     AcceptQuote, CancelSalesOrder, ConfirmSalesOrder, CreateQuote, CreateSalesOrder, ExpireQuote,
     GetQuote, GetSalesOrder, ListSalesOrders, MarkSalesOrderFulfilled,
@@ -28,9 +28,9 @@ use uuid::Uuid;
 const MAX_ROUTE_LENGTH: usize = 255;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SalesTenantRoute {
-    pub tenant_id: String,
-    pub holding_ref: String,
+pub struct SalesHoldingRoute {
+    pub holding_id: String,
+    pub data_profile_key: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,8 +42,8 @@ pub enum SalesAccessMode {
 pub struct SalesAuthenticationRequest {
     transport_metadata: MetadataMap,
     presented_actor: ActorAttribution,
-    presented_scope: TenantScope,
-    presented_route: SalesTenantRoute,
+    presented_scope: AuthorityScope,
+    presented_route: SalesHoldingRoute,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
     access_mode: SalesAccessMode,
@@ -56,10 +56,10 @@ impl SalesAuthenticationRequest {
     pub const fn presented_actor(&self) -> &ActorAttribution {
         &self.presented_actor
     }
-    pub const fn presented_scope(&self) -> &TenantScope {
+    pub const fn presented_scope(&self) -> &AuthorityScope {
         &self.presented_scope
     }
-    pub const fn presented_route(&self) -> &SalesTenantRoute {
+    pub const fn presented_route(&self) -> &SalesHoldingRoute {
         &self.presented_route
     }
     pub fn subscription_id(&self) -> Option<&str> {
@@ -76,15 +76,15 @@ impl SalesAuthenticationRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthenticatedSalesRequest {
     actor: ActorAttribution,
-    scope: TenantScope,
-    route: SalesTenantRoute,
+    scope: AuthorityScope,
+    route: SalesHoldingRoute,
 }
 
 impl AuthenticatedSalesRequest {
     pub fn try_new(
         actor: ActorAttribution,
-        scope: TenantScope,
-        route: SalesTenantRoute,
+        scope: AuthorityScope,
+        route: SalesHoldingRoute,
     ) -> Result<Self, SalesAuthenticationError> {
         actor
             .validate()
@@ -104,10 +104,10 @@ impl AuthenticatedSalesRequest {
     pub const fn actor(&self) -> &ActorAttribution {
         &self.actor
     }
-    pub const fn tenant_scope(&self) -> &TenantScope {
+    pub const fn active_scope(&self) -> &AuthorityScope {
         &self.scope
     }
-    pub const fn route(&self) -> &SalesTenantRoute {
+    pub const fn route(&self) -> &SalesHoldingRoute {
         &self.route
     }
 }
@@ -132,7 +132,7 @@ pub trait SalesRequestAuthenticator: Send + Sync + 'static {
 pub trait SalesCommandApplication: Send + Sync + 'static {
     async fn execute(
         &self,
-        route: SalesTenantRoute,
+        route: SalesHoldingRoute,
         command: CommandEnvelope<SalesCommand>,
     ) -> Result<CommandReceipt<SalesMutationResult>, CqrsError>;
 }
@@ -141,7 +141,7 @@ pub trait SalesCommandApplication: Send + Sync + 'static {
 pub trait SalesQueryApplication: Send + Sync + 'static {
     async fn execute(
         &self,
-        route: SalesTenantRoute,
+        route: SalesHoldingRoute,
         query: QueryEnvelope<SalesQuery>,
     ) -> Result<QueryResult<SalesQueryResponse>, CqrsError>;
 }
@@ -479,14 +479,14 @@ impl<A: SalesQueryApplication, G: SalesRequestAuthenticator> SalesQueryRpc<A, G>
 }
 
 struct DecodedCommand<C> {
-    route: SalesTenantRoute,
+    route: SalesHoldingRoute,
     envelope: CommandEnvelope<C>,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
 }
 
 struct DecodedQuery<Q> {
-    route: SalesTenantRoute,
+    route: SalesHoldingRoute,
     envelope: QueryEnvelope<Q>,
 }
 
@@ -494,12 +494,12 @@ async fn authenticate_command<C, G: SalesRequestAuthenticator>(
     auth: &G,
     transport: MetadataMap,
     decoded: DecodedCommand<C>,
-) -> Result<(SalesTenantRoute, CommandEnvelope<C>), Status> {
+) -> Result<(SalesHoldingRoute, CommandEnvelope<C>), Status> {
     let authenticated = auth
         .authenticate(SalesAuthenticationRequest {
             transport_metadata: transport,
             presented_actor: decoded.envelope.actor.clone(),
-            presented_scope: decoded.envelope.tenant_scope.clone(),
+            presented_scope: decoded.envelope.active_scope.clone(),
             presented_route: decoded.route,
             subscription_id: decoded.subscription_id,
             mfa_code: decoded.mfa_code,
@@ -509,7 +509,7 @@ async fn authenticate_command<C, G: SalesRequestAuthenticator>(
         .map_err(status_from_auth)?;
     let mut envelope = decoded.envelope;
     envelope.actor = authenticated.actor().clone();
-    envelope.tenant_scope = authenticated.tenant_scope().clone();
+    envelope.active_scope = authenticated.active_scope().clone();
     Ok((authenticated.route().clone(), envelope))
 }
 
@@ -517,12 +517,12 @@ async fn authenticate_query<Q, G: SalesRequestAuthenticator>(
     auth: &G,
     transport: MetadataMap,
     decoded: DecodedQuery<Q>,
-) -> Result<(SalesTenantRoute, QueryEnvelope<Q>), Status> {
+) -> Result<(SalesHoldingRoute, QueryEnvelope<Q>), Status> {
     let authenticated = auth
         .authenticate(SalesAuthenticationRequest {
             transport_metadata: transport,
             presented_actor: decoded.envelope.actor.clone(),
-            presented_scope: decoded.envelope.tenant_scope.clone(),
+            presented_scope: decoded.envelope.active_scope.clone(),
             presented_route: decoded.route,
             subscription_id: None,
             mfa_code: None,
@@ -532,7 +532,7 @@ async fn authenticate_query<Q, G: SalesRequestAuthenticator>(
         .map_err(status_from_auth)?;
     let mut envelope = decoded.envelope;
     envelope.actor = authenticated.actor().clone();
-    envelope.tenant_scope = authenticated.tenant_scope().clone();
+    envelope.active_scope = authenticated.active_scope().clone();
     Ok((authenticated.route().clone(), envelope))
 }
 
@@ -541,7 +541,7 @@ fn decode_command<C>(
     command: C,
 ) -> Result<DecodedCommand<C>, Status> {
     let metadata = metadata.ok_or_else(|| invalid("command metadata is required"))?;
-    let route = decode_route(metadata.tenant_route)?;
+    let route = decode_route(metadata.holding_route)?;
     let envelope = CommandEnvelope {
         contract_version: u16::try_from(metadata.contract_version)
             .map_err(|_| invalid("contract version is invalid"))?,
@@ -552,10 +552,10 @@ fn decode_command<C>(
         correlation_id: correlation(&metadata.correlation_id)?,
         causation_id: metadata.causation_id.as_deref().map(event_id).transpose()?,
         actor: decode_actor(metadata.actor)?,
-        tenant_scope: decode_scope(
+        active_scope: decode_scope(
             metadata
-                .tenant_scope
-                .ok_or_else(|| invalid("tenant_scope is required"))?,
+                .active_scope
+                .ok_or_else(|| invalid("active_scope is required"))?,
         )?,
         audit: decode_audit(metadata.audit)?,
         expected_aggregate_version: metadata.expected_aggregate_version,
@@ -577,7 +577,7 @@ fn decode_query<Q>(
     query: Q,
 ) -> Result<DecodedQuery<Q>, Status> {
     let metadata = metadata.ok_or_else(|| invalid("query metadata is required"))?;
-    let route = decode_route(metadata.tenant_route)?;
+    let route = decode_route(metadata.holding_route)?;
     let envelope = QueryEnvelope {
         contract_version: u16::try_from(metadata.contract_version)
             .map_err(|_| invalid("contract version is invalid"))?,
@@ -585,10 +585,10 @@ fn decode_query<Q>(
             .map_err(|_| invalid("query_id is invalid"))?,
         correlation_id: correlation(&metadata.correlation_id)?,
         actor: decode_actor(metadata.actor)?,
-        tenant_scope: decode_scope(
+        active_scope: decode_scope(
             metadata
-                .tenant_scope
-                .ok_or_else(|| invalid("tenant_scope is required"))?,
+                .active_scope
+                .ok_or_else(|| invalid("active_scope is required"))?,
         )?,
         audit: decode_audit(metadata.audit)?,
         consistency: decode_consistency(metadata.consistency)?,
@@ -856,39 +856,39 @@ fn encode_consistency(value: &QueryConsistency) -> common::QueryConsistency {
     }
 }
 
-fn decode_route(value: Option<common::TenantRoute>) -> Result<SalesTenantRoute, Status> {
-    let value = value.ok_or_else(|| invalid("tenant route is required"))?;
-    let route = SalesTenantRoute {
-        tenant_id: value.tenant_id.trim().into(),
-        holding_ref: value.holding_ref.trim().into(),
+fn decode_route(value: Option<common::HoldingRoute>) -> Result<SalesHoldingRoute, Status> {
+    let value = value.ok_or_else(|| invalid("holding route is required"))?;
+    let route = SalesHoldingRoute {
+        holding_id: value.holding_id.trim().into(),
+        data_profile_key: value.data_profile_key.trim().into(),
     };
     validate_route(&route)?;
     Ok(route)
 }
 
-fn validate_route(value: &SalesTenantRoute) -> Result<(), Status> {
-    if [&value.tenant_id, &value.holding_ref]
+fn validate_route(value: &SalesHoldingRoute) -> Result<(), Status> {
+    if [&value.holding_id, &value.data_profile_key]
         .iter()
         .any(|value| value.is_empty() || value.len() > MAX_ROUTE_LENGTH)
     {
-        Err(invalid("tenant route is invalid"))
+        Err(invalid("holding route is invalid"))
     } else {
         Ok(())
     }
 }
 
-fn validate_route_scope(route: &SalesTenantRoute, scope: &TenantScope) -> Result<(), Status> {
+fn validate_route_scope(route: &SalesHoldingRoute, scope: &AuthorityScope) -> Result<(), Status> {
     let holding = match scope {
-        TenantScope::Platform => return Ok(()),
-        TenantScope::Holding { holding_id }
-        | TenantScope::Company { holding_id, .. }
-        | TenantScope::Branch { holding_id, .. }
-        | TenantScope::Subtree { holding_id, .. } => holding_id,
+        AuthorityScope::Platform => return Ok(()),
+        AuthorityScope::Holding { holding_id }
+        | AuthorityScope::Company { holding_id, .. }
+        | AuthorityScope::Branch { holding_id, .. }
+        | AuthorityScope::Subtree { holding_id, .. } => holding_id,
     };
-    if parse_uuid(&route.holding_ref, "holding_ref")? == *holding {
+    if parse_uuid(&route.data_profile_key, "data_profile_key")? == *holding {
         Ok(())
     } else {
-        Err(invalid("tenant route does not match Sales scope"))
+        Err(invalid("holding route does not match Sales scope"))
     }
 }
 
@@ -896,7 +896,7 @@ fn decode_actor(value: Option<common::ActorAttribution>) -> Result<ActorAttribut
     let value = value.ok_or_else(|| invalid("actor is required"))?;
     let kind = match common::ActorKind::try_from(value.kind).ok() {
         Some(common::ActorKind::PlatformUser) => ActorKind::PlatformUser,
-        Some(common::ActorKind::TenantUser) => ActorKind::TenantUser,
+        Some(common::ActorKind::HoldingUser) => ActorKind::HoldingUser,
         Some(common::ActorKind::Service) => ActorKind::Service,
         Some(common::ActorKind::SystemWorker) => ActorKind::SystemWorker,
         _ => return Err(invalid("actor kind is invalid")),
@@ -922,54 +922,45 @@ fn decode_audit(value: Option<common::AuditContext>) -> Result<AuditContext, Sta
     })
 }
 
-fn decode_scope(value: common::TenantScope) -> Result<TenantScope, Status> {
-    use common::tenant_scope::Scope;
+fn decode_scope(value: common::AuthorityScope) -> Result<AuthorityScope, Status> {
+    use common::authority_scope::Scope;
     match value.scope.ok_or_else(|| invalid("scope is required"))? {
-        Scope::Platform(_) => Ok(TenantScope::Platform),
-        Scope::Holding(value) => Ok(TenantScope::Holding {
+        Scope::Platform(_) => Ok(AuthorityScope::Platform),
+        Scope::Holding(value) => Ok(AuthorityScope::Holding {
             holding_id: parse_uuid(&value.holding_id, "holding_id")?,
         }),
-        Scope::Company(value) => Ok(TenantScope::Company {
+        Scope::Company(value) => Ok(AuthorityScope::Company {
             holding_id: parse_uuid(&value.holding_id, "holding_id")?,
             company_id: parse_uuid(&value.company_id, "company_id")?,
         }),
-        Scope::Branch(value) => Ok(TenantScope::Branch {
+        Scope::Branch(value) => Ok(AuthorityScope::Branch {
             holding_id: parse_uuid(&value.holding_id, "holding_id")?,
             company_id: parse_uuid(&value.company_id, "company_id")?,
             branch_id: parse_uuid(&value.branch_id, "branch_id")?,
         }),
-        Scope::Subtree(value) => Ok(TenantScope::Subtree {
+        Scope::Subtree(value) => Ok(AuthorityScope::Subtree {
             holding_id: parse_uuid(&value.holding_id, "holding_id")?,
-            company_ids: value
-                .company_ids
-                .iter()
-                .map(|id| parse_uuid(id, "company_id"))
-                .collect::<Result<_, _>>()?,
-            branch_ids: value
-                .branch_ids
-                .iter()
-                .map(|id| parse_uuid(id, "branch_id"))
-                .collect::<Result<_, _>>()?,
+            organization_node_id: parse_uuid(&value.organization_node_id, "organization_node_id")?,
         }),
     }
 }
 
-fn encode_scope(value: &TenantScope) -> common::TenantScope {
-    use common::tenant_scope::Scope;
-    common::TenantScope {
+fn encode_scope(value: &AuthorityScope) -> common::AuthorityScope {
+    use common::authority_scope::Scope;
+    common::AuthorityScope {
         scope: Some(match value {
-            TenantScope::Platform => Scope::Platform(common::PlatformScope {}),
-            TenantScope::Holding { holding_id } => Scope::Holding(common::HoldingScope {
+            AuthorityScope::Platform => Scope::Platform(common::PlatformScope {}),
+            AuthorityScope::Holding { holding_id } => Scope::Holding(common::HoldingScope {
                 holding_id: holding_id.to_string(),
             }),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => Scope::Company(common::CompanyScope {
                 holding_id: holding_id.to_string(),
                 company_id: company_id.to_string(),
             }),
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -978,14 +969,12 @@ fn encode_scope(value: &TenantScope) -> common::TenantScope {
                 company_id: company_id.to_string(),
                 branch_id: branch_id.to_string(),
             }),
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Scope::Subtree(common::SubtreeScope {
                 holding_id: holding_id.to_string(),
-                company_ids: company_ids.iter().map(ToString::to_string).collect(),
-                branch_ids: branch_ids.iter().map(ToString::to_string).collect(),
+                organization_node_id: organization_node_id.to_string(),
             }),
         }),
     }
@@ -1066,7 +1055,7 @@ mod tests {
     fn actor() -> ActorAttribution {
         ActorAttribution {
             principal_ref: "sales-route-test".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
@@ -1076,19 +1065,19 @@ mod tests {
     #[test]
     fn route_holding_must_match_authenticated_scope() {
         let holding = Uuid::from_u128(21);
-        let scope = TenantScope::Branch {
+        let scope = AuthorityScope::Branch {
             holding_id: holding,
             company_id: Uuid::from_u128(22),
             branch_id: Uuid::from_u128(23),
         };
-        let matching = SalesTenantRoute {
-            tenant_id: "tenant-a".into(),
-            holding_ref: holding.to_string(),
+        let matching = SalesHoldingRoute {
+            holding_id: "holding-a".into(),
+            data_profile_key: holding.to_string(),
         };
         assert!(AuthenticatedSalesRequest::try_new(actor(), scope.clone(), matching).is_ok());
-        let mismatched = SalesTenantRoute {
-            tenant_id: "tenant-a".into(),
-            holding_ref: Uuid::from_u128(98).to_string(),
+        let mismatched = SalesHoldingRoute {
+            holding_id: "holding-a".into(),
+            data_profile_key: Uuid::from_u128(98).to_string(),
         };
         assert_eq!(
             AuthenticatedSalesRequest::try_new(actor(), scope, mismatched),

@@ -7,8 +7,9 @@
 use chrono::{DateTime, Duration, Utc};
 use erpx_domain::access::{
     RoleAssignment, RoleExpiryNotificationKind, RoleRecoveryRequest, RoleRecoveryTarget,
-    RoleReviewClassification, RoleReviewQueue, Scope, evaluate_approver_scope_intersection,
+    RoleReviewClassification, RoleReviewQueue, evaluate_approver_scope_intersection,
 };
+use erpx_domain::contracts::AuthorityScope as Scope;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Row};
@@ -626,7 +627,7 @@ impl RoleReviewPersistence {
         let result = sqlx::query(
             "INSERT INTO erpx_control.outbox_events
                 (id, event_type, event_version, aggregate_type, aggregate_id,
-                 aggregate_version, tenant_scope, actor, correlation_id,
+                 aggregate_version, active_scope, actor, correlation_id,
                  idempotency_key, payload, occurred_at, available_at)
              VALUES ($1, $2, 1, $3, $4, 1, NULL, $5, $6, $7, $8, now(), now())
              ON CONFLICT (idempotency_key) DO NOTHING",
@@ -899,15 +900,14 @@ impl ScopeParts {
             },
             Scope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Self {
                 kind: "subtree",
                 holding_id: Some(*holding_id),
                 company_id: None,
                 branch_id: None,
-                company_ids: sorted_ids(company_ids),
-                branch_ids: sorted_ids(branch_ids),
+                company_ids: vec![*organization_node_id],
+                branch_ids: Vec::new(),
             },
         }
     }
@@ -951,17 +951,10 @@ fn scope_from_columns(
             company_id,
             branch_id,
         },
-        ("subtree", Some(holding_id), None, None, company_ids, branch_ids)
-            if !company_ids.is_empty()
-                && sorted_ids(company_ids) == company_ids
-                && sorted_ids(branch_ids) == branch_ids =>
-        {
-            Scope::Subtree {
-                holding_id,
-                company_ids: company_ids.to_vec(),
-                branch_ids: branch_ids.to_vec(),
-            }
-        }
+        ("subtree", Some(holding_id), None, None, [organization_node_id], []) => Scope::Subtree {
+            holding_id,
+            organization_node_id: *organization_node_id,
+        },
         _ => {
             return Err(RoleReviewPersistenceError::InvalidData(
                 "role-review persisted scope columns are inconsistent".into(),
@@ -1097,13 +1090,6 @@ async fn validate_recovery_approver_intersection(
     })
 }
 
-fn sorted_ids(values: &[Uuid]) -> Vec<Uuid> {
-    let mut result = values.to_vec();
-    result.sort_unstable();
-    result.dedup();
-    result
-}
-
 fn risk_tier(value: erpx_domain::access::RiskTier) -> &'static str {
     match value {
         erpx_domain::access::RiskTier::PlatformRoot => "platform_root",
@@ -1183,7 +1169,6 @@ fn validate_reference(value: &str, field: &str) -> Result<(), RoleReviewPersiste
 }
 
 fn validate_scope(scope: &Scope) -> Result<(), RoleReviewPersistenceError> {
-    let ids_are_valid = |ids: &[Uuid]| ids.iter().all(|id| !id.is_nil());
     match scope {
         Scope::Platform => Ok(()),
         Scope::Holding { holding_id } => {
@@ -1219,14 +1204,9 @@ fn validate_scope(scope: &Scope) -> Result<(), RoleReviewPersistenceError> {
         }
         Scope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
+            organization_node_id,
         } => {
-            if holding_id.is_nil()
-                || company_ids.is_empty()
-                || !ids_are_valid(company_ids)
-                || !ids_are_valid(branch_ids)
-            {
+            if holding_id.is_nil() || organization_node_id.is_nil() {
                 return Err(RoleReviewPersistenceError::InvalidData(
                     "subtree scope shape is invalid".into(),
                 ));

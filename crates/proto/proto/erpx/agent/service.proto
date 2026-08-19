@@ -1,0 +1,391 @@
+syntax = "proto3";
+
+package erpx.agent;
+
+import "erpx/common/context.proto";
+
+enum DataClassification {
+  DATA_CLASSIFICATION_UNSPECIFIED = 0;
+  DATA_CLASSIFICATION_PUBLIC = 1;
+  DATA_CLASSIFICATION_INTERNAL = 2;
+  DATA_CLASSIFICATION_CONFIDENTIAL = 3;
+  DATA_CLASSIFICATION_RESTRICTED = 4;
+}
+
+enum AgentDefinitionStatus {
+  AGENT_DEFINITION_STATUS_UNSPECIFIED = 0;
+  AGENT_DEFINITION_STATUS_DRAFT = 1;
+  AGENT_DEFINITION_STATUS_APPROVED = 2;
+  AGENT_DEFINITION_STATUS_SUSPENDED = 3;
+  AGENT_DEFINITION_STATUS_RETIRED = 4;
+}
+
+enum AgentAssignmentState {
+  AGENT_ASSIGNMENT_STATE_UNSPECIFIED = 0;
+  AGENT_ASSIGNMENT_STATE_QUEUED = 1;
+  AGENT_ASSIGNMENT_STATE_RUNNING = 2;
+  AGENT_ASSIGNMENT_STATE_WAITING = 3;
+  AGENT_ASSIGNMENT_STATE_COMPLETED = 4;
+  AGENT_ASSIGNMENT_STATE_FAILED = 5;
+  AGENT_ASSIGNMENT_STATE_CANCELLED = 6;
+}
+
+enum AgentInvocationOrigin {
+  AGENT_INVOCATION_ORIGIN_UNSPECIFIED = 0;
+  AGENT_INVOCATION_ORIGIN_MENTION = 1;
+  AGENT_INVOCATION_ORIGIN_ASSIGN = 2;
+  AGENT_INVOCATION_ORIGIN_RUN = 3;
+  AGENT_INVOCATION_ORIGIN_COMPARE = 4;
+}
+
+enum SessionMessageAuthorKind {
+  SESSION_MESSAGE_AUTHOR_KIND_UNSPECIFIED = 0;
+  SESSION_MESSAGE_AUTHOR_KIND_HUMAN = 1;
+  SESSION_MESSAGE_AUTHOR_KIND_AGENT = 2;
+}
+
+message AgentMutationResponse {
+  erpx.common.CommandReceipt receipt = 1;
+  string record_type = 2;
+  string record_id = 3;
+  string lifecycle_status = 4;
+}
+
+message AgentManifest {
+  string agent_version_id = 1;
+  uint32 version_number = 2;
+  string purpose = 3;
+  string provider_ref = 4;
+  string model_ref = 5;
+  string use_case = 6;
+  string prompt_digest = 7;
+  string policy_digest = 8;
+  repeated string capabilities = 9;
+  repeated string tool_refs = 10;
+  repeated string knowledge_scopes = 11;
+  repeated erpx.common.AuthorityScope organization_scopes = 12;
+  DataClassification maximum_classification = 13;
+  string security_review_ref = 14;
+  string privacy_review_ref = 15;
+  repeated string evaluation_refs = 16;
+  uint32 max_attempts = 17;
+  uint32 timeout_seconds = 18;
+}
+
+message RegisterAgentRequest {
+  erpx.common.CommandContext context = 1;
+  string agent_definition_id = 2;
+  erpx.common.AuthorityScope scope = 3;
+  string agent_principal_ref = 4;
+  string business_owner_ref = 5;
+  string technical_owner_ref = 6;
+  string name = 7;
+}
+
+message AddAgentVersionRequest {
+  erpx.common.CommandContext context = 1;
+  string agent_definition_id = 2;
+  AgentManifest manifest = 3;
+}
+
+message ApproveAgentVersionRequest {
+  erpx.common.CommandContext context = 1;
+  string agent_definition_id = 2;
+  string agent_version_id = 3;
+}
+
+message AgentDefinitionIdentityRequest {
+  erpx.common.CommandContext context = 1;
+  string agent_definition_id = 2;
+}
+
+message AgentBudgetSubjects {
+  string data_profile_key = 1;
+  string workspace_ref = 2;
+  string agent_ref = 3;
+  string principal_ref = 4;
+  string root_assignment_ref = 5;
+}
+
+message AgentBudgetRequest {
+  uint64 estimated_units = 1;
+  uint64 estimated_cost_micros = 2;
+  uint32 queue_priority = 3;
+  uint64 stop_after_units = 4;
+}
+
+message AgentPayloadManifest {
+  string payload_digest = 1;
+  DataClassification classification = 2;
+  repeated string field_refs = 3;
+  repeated string document_record_ids = 4;
+  string authorization_checked_at = 5;
+  bool contains_secret = 6;
+  string residency = 7;
+}
+
+message StartAgentAssignmentRequest {
+  erpx.common.CommandContext context = 1;
+  string assignment_id = 2;
+  string agent_definition_id = 3;
+  string agent_version_id = 4;
+  erpx.common.AuthorityScope assignment_scope = 5;
+  AgentInvocationOrigin origin = 6;
+  string initiating_human_ref = 7;
+  string source_action_ref = 8;
+  string budget_reservation_id = 9;
+  AgentBudgetSubjects budget_subjects = 10;
+  AgentBudgetRequest budget_request = 11;
+  string prompt_ref = 12;
+  AgentPayloadManifest payload = 13;
+}
+
+message AgentDelegationLimits {
+  uint32 max_depth = 1;
+  uint32 max_hops = 2;
+  uint32 max_fan_out = 3;
+  uint32 max_duration_seconds = 4;
+}
+
+message DelegateAgentAssignmentRequest {
+  erpx.common.CommandContext context = 1;
+  string child_assignment_id = 2;
+  string parent_assignment_id = 3;
+  string child_agent_definition_id = 4;
+  string child_agent_version_id = 5;
+  erpx.common.AuthorityScope child_scope = 6;
+  string child_budget_reservation_id = 7;
+  AgentBudgetSubjects budget_subjects = 8;
+  AgentBudgetRequest budget_request = 9;
+  AgentDelegationLimits limits = 10;
+  string reason_digest = 11;
+  string prompt_ref = 12;
+  AgentPayloadManifest payload = 13;
+}
+
+message RetryAgentAssignmentRequest {
+  erpx.common.CommandContext context = 1;
+  string assignment_id = 2;
+  bool security_revoked = 3;
+  bool remaining_budget = 4;
+}
+
+message CancelAgentAssignmentRequest {
+  erpx.common.CommandContext context = 1;
+  string assignment_id = 2;
+  string reason = 3;
+}
+
+message RegisterAgentPoolRequest {
+  erpx.common.CommandContext context = 1;
+  string pool_id = 2;
+  erpx.common.AuthorityScope scope = 3;
+  string name = 4;
+  repeated string member_agent_version_ids = 5;
+}
+
+message ReplaceAgentPoolMembersRequest {
+  erpx.common.CommandContext context = 1;
+  string pool_id = 2;
+  repeated string member_agent_version_ids = 3;
+}
+
+message RouteAgentPoolRequest {
+  erpx.common.CommandContext context = 1;
+  string pool_id = 2;
+  string routing_decision_id = 3;
+  string root_action_ref = 4;
+  string capability = 5;
+  erpx.common.AuthorityScope requested_scope = 6;
+  repeated string compare_agent_version_ids = 7;
+  optional string initiating_human_ref = 8;
+  bool comparison_confirmed = 9;
+  optional uint64 previewed_cost_micros = 10;
+  optional uint32 max_fan_out = 11;
+}
+
+message StartPrivateAgentSessionRequest {
+  erpx.common.CommandContext context = 1;
+  string session_id = 2;
+  erpx.common.AuthorityScope scope = 3;
+  string owner_human_ref = 4;
+  optional string context_record_id = 5;
+  optional uint64 context_descriptor_version = 6;
+  optional uint64 context_source_event_position = 7;
+  string expires_at = 8;
+}
+
+message AppendPrivateAgentSessionMessageRequest {
+  erpx.common.CommandContext context = 1;
+  string session_id = 2;
+  string message_id = 3;
+  SessionMessageAuthorKind author_kind = 4;
+  string author_ref = 5;
+  string encrypted_payload_ref = 6;
+  string content_digest = 7;
+}
+
+message PublishPrivateAgentSessionMessageRequest {
+  erpx.common.CommandContext context = 1;
+  string session_id = 2;
+  string message_id = 3;
+  string approving_human_ref = 4;
+  bool audience_reauthorized = 5;
+  string publication_anchor_ref = 6;
+}
+
+message SetPrivateAgentSessionLegalHoldRequest {
+  erpx.common.CommandContext context = 1;
+  string session_id = 2;
+  bool enabled = 3;
+}
+
+message PrivateAgentSessionIdentityRequest {
+  erpx.common.CommandContext context = 1;
+  string session_id = 2;
+}
+
+message GetAgentRecordRequest {
+  erpx.common.QueryContext context = 1;
+  string record_id = 2;
+}
+
+message AgentDefinitionProjection {
+  string agent_definition_id = 1;
+  uint64 source_version = 2;
+  erpx.common.AuthorityScope scope = 3;
+  string agent_principal_ref = 4;
+  string business_owner_ref = 5;
+  string technical_owner_ref = 6;
+  string name = 7;
+  AgentDefinitionStatus status = 8;
+  repeated AgentManifest versions = 9;
+  string projected_at = 10;
+}
+
+message AgentAssignmentProjection {
+  string assignment_id = 1;
+  uint64 source_version = 2;
+  string root_assignment_id = 3;
+  optional string parent_assignment_id = 4;
+  string agent_definition_id = 5;
+  string agent_version_id = 6;
+  erpx.common.AuthorityScope scope = 7;
+  AgentAssignmentState state = 8;
+  repeated string delegation_lineage_definition_ids = 9;
+  uint32 attempt = 10;
+  uint32 depth = 11;
+  uint32 hops = 12;
+  string budget_reservation_id = 13;
+  optional string output_digest = 14;
+  optional string failure_code = 15;
+  string updated_at = 16;
+}
+
+message AgentPoolProjection {
+  string pool_id = 1;
+  uint64 source_version = 2;
+  erpx.common.AuthorityScope scope = 3;
+  string name = 4;
+  repeated string member_agent_version_ids = 5;
+  bool enabled = 6;
+  string updated_at = 7;
+}
+
+message PrivateAgentSessionProjection {
+  string session_id = 1;
+  uint64 source_version = 2;
+  erpx.common.AuthorityScope scope = 3;
+  string owner_human_ref = 4;
+  optional string context_record_id = 5;
+  uint32 message_count = 6;
+  string expires_at = 7;
+  bool legal_hold = 8;
+  optional string expired_at = 9;
+  string updated_at = 10;
+}
+
+message AgentRoutingDecisionProjection {
+  string routing_decision_id = 1;
+  string pool_id = 2;
+  repeated string selected_agent_version_ids = 3;
+  bool comparison_requested = 4;
+  string decision_digest = 5;
+  string decided_at = 6;
+}
+
+message AgentInvocationEvidenceProjection {
+  string invocation_id = 1;
+  string assignment_id = 2;
+  uint32 attempt = 3;
+  string provider_ref = 4;
+  string model_ref = 5;
+  uint64 policy_version = 6;
+  string policy_digest = 7;
+  string payload_digest = 8;
+  optional string output_digest = 9;
+  optional uint64 provider_units = 10;
+  optional uint64 provider_cost_micros = 11;
+  optional string outcome = 12;
+  string invoked_at = 13;
+  optional string completed_at = 14;
+}
+
+message GetAgentDefinitionResponse {
+  optional AgentDefinitionProjection definition = 1;
+  erpx.common.ProjectionMetadata projection = 2;
+}
+
+message GetAgentAssignmentResponse {
+  optional AgentAssignmentProjection assignment = 1;
+  erpx.common.ProjectionMetadata projection = 2;
+}
+
+message GetAgentPoolResponse {
+  optional AgentPoolProjection pool = 1;
+  erpx.common.ProjectionMetadata projection = 2;
+}
+
+message GetPrivateAgentSessionResponse {
+  optional PrivateAgentSessionProjection session = 1;
+  erpx.common.ProjectionMetadata projection = 2;
+}
+
+message GetAgentRoutingDecisionResponse {
+  optional AgentRoutingDecisionProjection decision = 1;
+  erpx.common.ProjectionMetadata projection = 2;
+}
+
+message GetAgentInvocationEvidenceResponse {
+  optional AgentInvocationEvidenceProjection evidence = 1;
+  erpx.common.ProjectionMetadata projection = 2;
+}
+
+service AgentOrchestrationCommandService {
+  rpc RegisterAgent(RegisterAgentRequest) returns (AgentMutationResponse);
+  rpc AddAgentVersion(AddAgentVersionRequest) returns (AgentMutationResponse);
+  rpc ApproveAgentVersion(ApproveAgentVersionRequest) returns (AgentMutationResponse);
+  rpc SuspendAgent(AgentDefinitionIdentityRequest) returns (AgentMutationResponse);
+  rpc RetireAgent(AgentDefinitionIdentityRequest) returns (AgentMutationResponse);
+  rpc StartAssignment(StartAgentAssignmentRequest) returns (AgentMutationResponse);
+  rpc DelegateAssignment(DelegateAgentAssignmentRequest) returns (AgentMutationResponse);
+  rpc RetryAssignment(RetryAgentAssignmentRequest) returns (AgentMutationResponse);
+  rpc CancelAssignment(CancelAgentAssignmentRequest) returns (AgentMutationResponse);
+  rpc RegisterPool(RegisterAgentPoolRequest) returns (AgentMutationResponse);
+  rpc ReplacePoolMembers(ReplaceAgentPoolMembersRequest) returns (AgentMutationResponse);
+  rpc RoutePool(RouteAgentPoolRequest) returns (AgentMutationResponse);
+  rpc StartPrivateSession(StartPrivateAgentSessionRequest) returns (AgentMutationResponse);
+  rpc AppendPrivateSessionMessage(AppendPrivateAgentSessionMessageRequest) returns (AgentMutationResponse);
+  rpc PublishPrivateSessionMessage(PublishPrivateAgentSessionMessageRequest) returns (AgentMutationResponse);
+  rpc SetPrivateSessionLegalHold(SetPrivateAgentSessionLegalHoldRequest) returns (AgentMutationResponse);
+  rpc ExpirePrivateSession(PrivateAgentSessionIdentityRequest) returns (AgentMutationResponse);
+}
+
+service AgentOrchestrationQueryService {
+  rpc GetAgentDefinition(GetAgentRecordRequest) returns (GetAgentDefinitionResponse);
+  rpc GetAssignment(GetAgentRecordRequest) returns (GetAgentAssignmentResponse);
+  rpc GetPool(GetAgentRecordRequest) returns (GetAgentPoolResponse);
+  rpc GetPrivateSession(GetAgentRecordRequest) returns (GetPrivateAgentSessionResponse);
+  rpc GetRoutingDecision(GetAgentRecordRequest) returns (GetAgentRoutingDecisionResponse);
+  rpc GetInvocationEvidence(GetAgentRecordRequest) returns (GetAgentInvocationEvidenceResponse);
+}

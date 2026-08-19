@@ -2,14 +2,16 @@ use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, ItemDescriptorDraft,
     RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
 };
-use erpx_kernel::{CommandId, CorrelationId, DataClassification, RecordId, TenantId, TenantScope};
+use erpx_kernel::{
+    AuthorityScope, CommandId, CorrelationId, DataClassification, HoldingId, RecordId,
+};
 use erpx_planning::{PlanningAggregate, PortError};
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
 pub(super) fn planning_directory_draft(
     aggregate: &PlanningAggregate,
-    scope: &TenantScope,
+    scope: &AuthorityScope,
 ) -> Result<Option<ItemDescriptorDraft>, PortError> {
     let (record_type, id, state, label) = match aggregate {
         PlanningAggregate::Scenario(value) => (
@@ -62,7 +64,7 @@ fn token(value: impl serde::Serialize) -> Result<String, PortError> {
 
 pub(super) async fn append_directory_draft(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: TenantId,
+    holding_id: HoldingId,
     command_id: CommandId,
     correlation_id: CorrelationId,
     actor: serde_json::Value,
@@ -81,13 +83,13 @@ pub(super) async fn append_directory_draft(
     );
     sqlx::query(
         "INSERT INTO erpx_cqrs_write.outbox_events
-         (tenant_id,event_id,context_name,partition_key,command_id,event_type,event_version,
-          aggregate_type,aggregate_id,aggregate_version,tenant_scope,actor,correlation_id,
+         (holding_id,event_id,context_name,partition_key,command_id,event_type,event_version,
+          aggregate_type,aggregate_id,aggregate_version,active_scope,actor,correlation_id,
           causation_id,payload,occurred_at,available_at)
          VALUES ($1,$2,'planning',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NULL,$13,
                  clock_timestamp(),clock_timestamp())",
     )
-    .bind(tenant_id.as_uuid())
+    .bind(holding_id.as_uuid())
     .bind(event_id)
     .bind(format!("item-directory:{}", record_id.simple()))
     .bind(command_id.as_uuid())

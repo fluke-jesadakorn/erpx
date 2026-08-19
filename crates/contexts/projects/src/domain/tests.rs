@@ -8,8 +8,8 @@ fn id(value: u128) -> Uuid {
 fn at(minute: i64) -> DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 8, 15, 9, 0, 0).single().unwrap() + Duration::minutes(minute)
 }
-fn scope(branch: u128) -> TenantScope {
-    TenantScope::Branch {
+fn scope(branch: u128) -> AuthorityScope {
+    AuthorityScope::Branch {
         holding_id: id(1),
         company_id: id(2),
         branch_id: id(branch),

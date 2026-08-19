@@ -12,8 +12,8 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::{ReferenceCode, customer, marketing};
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
-    FixedClock, QueryId, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+    ErrorCategory, EventId, FixedClock, QueryId,
 };
 use uuid::Uuid;
 
@@ -26,8 +26,8 @@ fn id(v: u128) -> Uuid {
 fn at() -> chrono::DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap()
 }
-fn scope() -> TenantScope {
-    TenantScope::Company {
+fn scope() -> AuthorityScope {
+    AuthorityScope::Company {
         holding_id: id(1),
         company_id: id(2),
     }
@@ -35,7 +35,7 @@ fn scope() -> TenantScope {
 fn actor() -> ActorAttribution {
     ActorAttribution {
         principal_ref: "crm-test".into(),
-        kind: ActorKind::TenantUser,
+        kind: ActorKind::HoldingUser,
         session_id: None,
         represented_principal_ref: None,
         support_capability_id: None,
@@ -49,7 +49,7 @@ fn envelope(command: CrmCommand, expected: Option<u64>) -> CommandEnvelope<CrmCo
         correlation_id: CorrelationId::try_from_uuid(id(11)).unwrap(),
         causation_id: None,
         actor: actor(),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "test".into(),
             customer_visible: false,
@@ -106,7 +106,7 @@ impl AuthorizationPort for Auth {
 struct Entitlement;
 #[async_trait]
 impl EntitlementPort for Entitlement {
-    async fn ensure_crm_enabled(&self, _: &TenantScope, _: bool) -> Result<(), PortError> {
+    async fn ensure_crm_enabled(&self, _: &AuthorityScope, _: bool) -> Result<(), PortError> {
         Ok(())
     }
 }
@@ -135,12 +135,16 @@ impl QualifiedLeadResolverPort for QualifiedLeads {
 struct Write;
 #[async_trait]
 impl WriteRepository for Write {
-    async fn load_lead(&self, _: &TenantScope, _: CrmLeadId) -> Result<Option<CrmLead>, PortError> {
+    async fn load_lead(
+        &self,
+        _: &AuthorityScope,
+        _: CrmLeadId,
+    ) -> Result<Option<CrmLead>, PortError> {
         Ok(Some(lead()))
     }
     async fn load_opportunity(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: OpportunityId,
     ) -> Result<Option<CrmOpportunity>, PortError> {
         Ok(Some(opportunity()))
@@ -265,7 +269,7 @@ struct NotReadyRead;
 impl ReadRepository for NotReadyRead {
     async fn get_lead(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: CrmLeadId,
         _: &QueryConsistency,
     ) -> Result<ReadProjection<Option<CrmLeadView>>, PortError> {
@@ -273,7 +277,7 @@ impl ReadRepository for NotReadyRead {
     }
     async fn get_opportunity(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: OpportunityId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<OpportunityView>>, PortError> {
@@ -289,7 +293,7 @@ impl ReadRepository for NotReadyRead {
     }
     async fn list_opportunities(
         &self,
-        _: &TenantScope,
+        _: &AuthorityScope,
         _: &OpportunityListFilter,
         _: &QueryConsistency,
     ) -> Result<ReadProjection<OpportunityList>, PortError> {
@@ -318,7 +322,7 @@ async fn projection_not_ready_does_not_fall_back_to_write_repository() {
         query_id: QueryId::try_from_uuid(id(61)).unwrap(),
         correlation_id: CorrelationId::try_from_uuid(id(62)).unwrap(),
         actor: actor(),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "test".into(),
             customer_visible: false,
@@ -326,7 +330,7 @@ async fn projection_not_ready_does_not_fall_back_to_write_repository() {
         },
         consistency: QueryConsistency::ReadYourWrites(ReadYourWrites {
             projection: "crm.opportunities".into(),
-            partition: "tenant-1".into(),
+            partition: "holding-1".into(),
             target,
             timeout_millis: 100,
         }),

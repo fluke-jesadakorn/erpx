@@ -1,7 +1,7 @@
 //! Authorized worker composition for Finance bank-provider imports.
 //!
 //! This boundary connects the already-separated control-plane route, secret
-//! manager, provider adapter, bounded pagination coordinator, and tenant
+//! manager, provider adapter, bounded pagination coordinator, and holding
 //! write-side persistence. The scheduler and transport remain outside this
 //! module so an import cannot run without an explicit injected authorization
 //! decision.
@@ -27,8 +27,8 @@ use erpx_infrastructure::{
     BankAccountWriteReceipt, BankProviderAccountBinding, BankProviderAdapter,
     BankProviderCredentialError, BankProviderCredentialKey, BankProviderCredentialResolver,
     BankProviderError, BankStatementPageRequest, FinanceBankProviderAccountBinding,
-    PersistenceError, RoutedDatabaseSide, SqlxControlPlane, SqlxFinanceBankingStore,
-    TenantDatabaseRouter,
+    HoldingDatabaseRouter, PersistenceError, RoutedDatabaseSide, SqlxControlPlane,
+    SqlxFinanceBankingStore,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -192,8 +192,8 @@ impl FinanceBankProviderImportError {
 pub struct FinanceBankProviderImportRequest {
     pub provider_account_ref: String,
     pub provider_key: String,
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub credential_key: BankProviderCredentialKey,
     pub account: BankProviderAccountBinding,
     pub starts_on: NaiveDate,
@@ -207,8 +207,8 @@ impl FinanceBankProviderImportRequest {
     pub fn validate(&self) -> Result<(), FinanceBankProviderImportError> {
         if self.provider_account_ref.trim().is_empty()
             || self.provider_key.trim().is_empty()
-            || self.tenant_id.trim().is_empty()
-            || self.holding_ref.trim().is_empty()
+            || self.holding_id.trim().is_empty()
+            || self.data_profile_key.trim().is_empty()
             || self.starts_on > self.ends_on
             || self.import_id.is_nil()
             || self.account.account().provider() != self.provider_key
@@ -233,9 +233,9 @@ impl FinanceBankProviderImportRequest {
             .validate()
             .map_err(|_| FinanceBankProviderImportError::InvalidRequest)?;
         if matches!(
-            self.context.tenant_scope,
-            erpx_domain::contracts::TenantScope::Platform
-        ) || !self.context.tenant_scope.contains(self.account.scope())
+            self.context.active_scope,
+            erpx_domain::contracts::AuthorityScope::Platform
+        ) || !self.context.active_scope.contains(self.account.scope())
         {
             return Err(FinanceBankProviderImportError::AuthorizationDenied);
         }
@@ -298,21 +298,21 @@ impl FinanceBankProviderImportAuthorization {
             || self.actor_ref.trim().is_empty()
             || !self.mfa_verified
             || matches!(
-                context.tenant_scope,
-                erpx_domain::contracts::TenantScope::Platform
+                context.active_scope,
+                erpx_domain::contracts::AuthorityScope::Platform
             )
         {
             return Err(FinanceBankProviderImportError::AuthorizationDenied);
         }
         if matches!(
             context.actor.kind,
-            ActorKind::TenantUser | ActorKind::PlatformUser
+            ActorKind::HoldingUser | ActorKind::PlatformUser
         ) && context.actor.session_id.is_none()
         {
             return Err(FinanceBankProviderImportError::AuthorizationDenied);
         }
         if let FinanceAccessPath::LocalBreakGlass { evidence_ref } = &self.access_path
-            && (context.actor.kind != ActorKind::TenantUser
+            && (context.actor.kind != ActorKind::HoldingUser
                 || context.actor.represented_principal_ref.is_some()
                 || context.actor.session_id.is_none()
                 || evidence_ref.trim().is_empty()
@@ -332,7 +332,7 @@ pub trait FinanceBankProviderImportAuthorizer: Send + Sync {
     async fn authorize(
         &self,
         context: &CommandContext,
-        account_scope: &erpx_domain::contracts::TenantScope,
+        account_scope: &erpx_domain::contracts::AuthorityScope,
     ) -> Result<(), FinanceBankProviderImportError>;
 }
 
@@ -357,12 +357,12 @@ pub struct FinanceBankProviderImportOutcome {
     /// posted-journal facts. Replayed imports count as materialization work
     /// but remain idempotent in the persistence boundary.
     pub match_proposals_generated: u64,
-    /// Authoritative source-row count observed after the tenant write.
+    /// Authoritative source-row count observed after the holding write.
     pub persisted_transaction_count: u64,
-    /// Exact Finance import outbox-event count observed after the tenant write.
+    /// Exact Finance import outbox-event count observed after the holding write.
     pub outbox_event_count: u64,
     /// The control-plane route version revalidated immediately before the
-    /// tenant write. It is the source fence attached to worker evidence.
+    /// holding write. It is the source fence attached to worker evidence.
     pub source_fence: u64,
 }
 
@@ -383,7 +383,7 @@ impl FinanceBankProviderImportWorkflow {
     pub async fn execute<A, R, F>(
         &self,
         _control: &SqlxControlPlane,
-        _router: &TenantDatabaseRouter,
+        _router: &HoldingDatabaseRouter,
         _authorizer: &A,
         _credential_resolver: &R,
         _adapter_factory: &F,
@@ -400,12 +400,12 @@ impl FinanceBankProviderImportWorkflow {
     /// Execute one import after the shared Finance authorization boundary has
     /// supplied an MFA-bearing decision. The decision is revalidated locally
     /// before control-plane routing, credential resolution, provider I/O, or
-    /// tenant database connections are opened.
+    /// holding database connections are opened.
     #[allow(clippy::too_many_arguments)]
     pub async fn execute_authorized<A, R, F>(
         &self,
         control: &SqlxControlPlane,
-        router: &TenantDatabaseRouter,
+        router: &HoldingDatabaseRouter,
         authorizer: &A,
         credential_resolver: &R,
         adapter_factory: &F,
@@ -434,7 +434,7 @@ impl FinanceBankProviderImportWorkflow {
     async fn execute_authorized_with_source_fence<A, R, F>(
         &self,
         control: &SqlxControlPlane,
-        router: &TenantDatabaseRouter,
+        router: &HoldingDatabaseRouter,
         authorizer: &A,
         credential_resolver: &R,
         adapter_factory: &F,
@@ -457,8 +457,8 @@ impl FinanceBankProviderImportWorkflow {
             .resolve_finance_bank_provider_account(
                 &request.provider_account_ref,
                 &request.provider_key,
-                &request.tenant_id,
-                &request.holding_ref,
+                &request.holding_id,
+                &request.data_profile_key,
                 request.credential_key.as_str(),
             )
             .await?
@@ -491,15 +491,15 @@ impl FinanceBankProviderImportWorkflow {
             .await?;
 
         // Provider I/O can outlive a control-plane route change. Re-read the
-        // exact route and compare its monotonic version before any tenant
+        // exact route and compare its monotonic version before any holding
         // write; a changed credential/account binding is never silently
         // imported under the old claim.
         let fenced_route = control
             .resolve_finance_bank_provider_account(
                 &request.provider_account_ref,
                 &request.provider_key,
-                &request.tenant_id,
-                &request.holding_ref,
+                &request.holding_id,
+                &request.data_profile_key,
                 request.credential_key.as_str(),
             )
             .await?
@@ -511,15 +511,15 @@ impl FinanceBankProviderImportWorkflow {
 
         let write = router
             .route(
-                &request.tenant_id,
-                &request.holding_ref,
+                &request.holding_id,
+                &request.data_profile_key,
                 RoutedDatabaseSide::Write,
             )
             .await?;
         let read = router
             .route(
-                &request.tenant_id,
-                &request.holding_ref,
+                &request.holding_id,
+                &request.data_profile_key,
                 RoutedDatabaseSide::Read,
             )
             .await?;
@@ -527,7 +527,7 @@ impl FinanceBankProviderImportWorkflow {
             let store = SqlxFinanceBankingStore::from_pools(
                 write.database_pool(),
                 read.database_pool(),
-                request.holding_ref.clone(),
+                request.data_profile_key.clone(),
             )?;
             let account_receipt = store
                 .register_account(
@@ -568,7 +568,7 @@ impl FinanceBankProviderImportWorkflow {
 
 /// One durable scheduler claim. The source implementation is responsible for
 /// atomically assigning the lease; the handler rechecks every bounded fact
-/// before it opens a provider or tenant route.
+/// before it opens a provider or holding route.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinanceBankProviderImportClaim {
     pub claim_id: Uuid,
@@ -604,7 +604,7 @@ impl FinanceBankProviderImportClaim {
     }
 }
 
-/// PII-free evidence emitted after the authoritative tenant write. The
+/// PII-free evidence emitted after the authoritative holding write. The
 /// provider-neutral worker retains only immutable identifiers, counts, and
 /// the source fence needed to reconcile or retry the claim.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -778,14 +778,14 @@ pub trait FinanceBankProviderImportJobSource: Send + Sync + 'static {
     ) -> Result<(), PersistenceError>;
 }
 
-/// Claim-driven Finance bank import worker. Registration and tenant
+/// Claim-driven Finance bank import worker. Registration and holding
 /// enumeration stay with the coordinator-owned worker root, which injects
 /// explicit authorization, credential, adapter, and routing boundaries.
 #[derive(Debug, Clone)]
 pub struct FinanceBankProviderImportHandler<S, A, R, F> {
     source: S,
     control: Arc<SqlxControlPlane>,
-    router: TenantDatabaseRouter,
+    router: HoldingDatabaseRouter,
     authorizer: A,
     credential_resolver: R,
     adapter_factory: F,
@@ -804,7 +804,7 @@ where
     pub fn new(
         source: S,
         control: Arc<SqlxControlPlane>,
-        router: TenantDatabaseRouter,
+        router: HoldingDatabaseRouter,
         authorizer: A,
         credential_resolver: R,
         adapter_factory: F,
@@ -1031,8 +1031,8 @@ fn validate_route(
         || route.state != "active"
         || route.provider_account_ref != request.provider_account_ref
         || route.provider_key != request.provider_key
-        || route.tenant_id != request.tenant_id
-        || route.holding_ref != request.holding_ref
+        || route.holding_key != request.holding_id
+        || route.data_profile_key != request.data_profile_key
         || route.holding_id != request.account.holding_id()
         || route.credential_key_ref != request.credential_key.as_str()
     {
@@ -1057,7 +1057,7 @@ fn validate_source_fence(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use erpx_domain::contracts::{ActorAttribution, ActorKind, TenantScope};
+    use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope};
 
     fn request(session_id: Option<Uuid>) -> FinanceBankProviderImportRequest {
         let holding = Uuid::from_u128(1);
@@ -1066,7 +1066,7 @@ mod tests {
             Uuid::from_u128(3),
             erpx_infrastructure::BankProviderAccountRef::try_new("mockbank", "acct-opaque-1")
                 .unwrap(),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id: holding,
                 company_id: company,
             },
@@ -1080,12 +1080,12 @@ mod tests {
             "bank-import-test",
             ActorAttribution {
                 principal_ref: "finance-user".into(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id,
                 represented_principal_ref: None,
                 support_capability_id: None,
             },
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id: holding,
                 company_id: company,
             },
@@ -1095,8 +1095,8 @@ mod tests {
         FinanceBankProviderImportRequest {
             provider_account_ref: "mockbank:acct-opaque-1".into(),
             provider_key: "mockbank".into(),
-            tenant_id: "tenant-opaque-1".into(),
-            holding_ref: "holding-opaque-1".into(),
+            holding_id: "holding-opaque-1".into(),
+            data_profile_key: "holding-opaque-1".into(),
             credential_key: BankProviderCredentialKey::try_new("vault/finance/mockbank").unwrap(),
             account,
             starts_on: NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),

@@ -14,8 +14,8 @@ use erpx_cqrs::{
     IdempotencyKey, ProjectionMetadata, QueryConsistency, QueryEnvelope, QueryHandler,
 };
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
-    FixedClock, QueryId, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+    ErrorCategory, EventId, FixedClock, QueryId,
 };
 use uuid::Uuid;
 
@@ -37,12 +37,12 @@ fn at() -> chrono::DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap()
 }
 
-fn authority_scope() -> TenantScope {
-    TenantScope::Holding { holding_id: id(1) }
+fn authority_scope() -> AuthorityScope {
+    AuthorityScope::Holding { holding_id: id(1) }
 }
 
-fn branch_scope() -> TenantScope {
-    TenantScope::Branch {
+fn branch_scope() -> AuthorityScope {
+    AuthorityScope::Branch {
         holding_id: id(1),
         company_id: id(2),
         branch_id: id(3),
@@ -59,7 +59,7 @@ fn branch_placement() -> OrganizationPlacement {
 fn actor() -> ActorAttribution {
     ActorAttribution {
         principal_ref: "organization-test-actor".into(),
-        kind: ActorKind::TenantUser,
+        kind: ActorKind::HoldingUser,
         session_id: None,
         represented_principal_ref: None,
         support_capability_id: None,
@@ -74,7 +74,7 @@ fn command_envelope<C>(sequence: u128, expected: Option<u64>, command: C) -> Com
         correlation_id: CorrelationId::try_from_uuid(id(200 + sequence)).unwrap(),
         causation_id: None,
         actor: actor(),
-        tenant_scope: authority_scope(),
+        active_scope: authority_scope(),
         audit: AuditContext {
             purpose: "organization.test".into(),
             customer_visible: false,
@@ -91,7 +91,7 @@ fn query_envelope<Q>(sequence: u128, query: Q) -> QueryEnvelope<Q> {
         query_id: QueryId::try_from_uuid(id(300 + sequence)).unwrap(),
         correlation_id: CorrelationId::try_from_uuid(id(400 + sequence)).unwrap(),
         actor: actor(),
-        tenant_scope: authority_scope(),
+        active_scope: authority_scope(),
         audit: AuditContext {
             purpose: "organization.test.query".into(),
             customer_visible: false,
@@ -142,7 +142,7 @@ struct FakeEntitlement {
 impl EntitlementPort for FakeEntitlement {
     async fn ensure_organization_enabled(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _write: bool,
     ) -> Result<(), PortError> {
         if self.allow {
@@ -174,7 +174,7 @@ impl FakeHierarchy {
 impl HierarchyPort for FakeHierarchy {
     async fn validate_placement(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _node_id: OrganizationNodeId,
         _placement: &OrganizationPlacement,
     ) -> Result<(), PortError> {
@@ -187,7 +187,7 @@ impl HierarchyPort for FakeHierarchy {
 
     async fn ensure_can_archive(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _node_id: OrganizationNodeId,
     ) -> Result<(), PortError> {
         self.archive_checks.fetch_add(1, Ordering::SeqCst);
@@ -208,7 +208,7 @@ struct FakeWriteRepository {
 impl WriteRepository for FakeWriteRepository {
     async fn load(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _node_id: OrganizationNodeId,
     ) -> Result<Option<OrganizationNode>, PortError> {
         self.loads.fetch_add(1, Ordering::SeqCst);
@@ -274,7 +274,7 @@ struct FakeReadRepository {
 impl ReadRepository for FakeReadRepository {
     async fn get(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _node_id: OrganizationNodeId,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<NodeView>>, PortError> {
@@ -287,7 +287,7 @@ impl ReadRepository for FakeReadRepository {
 
     async fn list(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _filter: &NodeListFilter,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<NodeList>, PortError> {

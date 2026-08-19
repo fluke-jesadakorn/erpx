@@ -4,7 +4,7 @@
 
 The Finance provider import path is now end-to-end reachable locally:
 
-1. The console submits an explicit tenant/holding scope, validated bank
+1. The console submits an explicit holding/holding scope, validated bank
    account JSON, opaque provider/account and secret-manager references, date
    window, import identity, retry bound, and fresh MFA code.
 2. The Finance gRPC server authenticates the actor, checks effective
@@ -16,10 +16,10 @@ The Finance provider import path is now end-to-end reachable locally:
    appends the audit fact and `finance.bank_provider_import.queued.v1` outbox
    intent. No credentials or provider response payloads are persisted.
 4. The executable worker root registers `finance_bank_provider_import` with
-   explicit authorizer, credential resolver, adapter factory, tenant router,
+   explicit authorizer, credential resolver, adapter factory, holding router,
    batch bound, and lease. The worker rechecks directory/local authorization,
    route version, MFA-derived authorization facts, provider credential, and
-   provider adapter before the tenant write. Retry, dead-letter,
+   provider adapter before the holding write. Retry, dead-letter,
    reconciliation, and rollback evidence remain append-only and source-fenced.
 
 ## Verification

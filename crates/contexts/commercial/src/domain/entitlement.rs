@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -35,7 +35,7 @@ impl EntitlementCapacity {
 pub struct Entitlement {
     id: EntitlementId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     holding_id: Uuid,
     subscription_id: SubscriptionId,
     capability: String,
@@ -54,7 +54,7 @@ pub struct Entitlement {
 pub struct EntitlementState {
     pub id: EntitlementId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub subscription_id: SubscriptionId,
     pub capability: String,
     pub enabled: bool,
@@ -106,7 +106,7 @@ impl Entitlement {
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: EntitlementId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         subscription_id: SubscriptionId,
         capability: String,
         enabled: bool,
@@ -222,7 +222,7 @@ impl Entitlement {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn holding_id(&self) -> Uuid {

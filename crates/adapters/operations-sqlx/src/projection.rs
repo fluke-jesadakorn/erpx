@@ -142,7 +142,7 @@ impl Projector for OperationsExceptionProjector {
         let source_sequence = source_position
             .as_ref()
             .map_or(event.global_sequence, |v| v.sequence);
-        sqlx::query("INSERT INTO erpx_operations_read.exception_projection (projection_name,generation,partition_key,exception_id,aggregate_version,reference,tenant_scope,scope_key,source_context,source_event_id,source_event_type,source_aggregate_type,source_aggregate_id,source_aggregate_version,source_global_sequence,source_correlation_id,policy_ref,category,severity,assignee_id,manager_id,due_at,escalation_after_minutes,exception_status,state,created_at,updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,now()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,exception_id) DO UPDATE SET aggregate_version=EXCLUDED.aggregate_version,reference=EXCLUDED.reference,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,policy_ref=EXCLUDED.policy_ref,category=EXCLUDED.category,severity=EXCLUDED.severity,assignee_id=EXCLUDED.assignee_id,manager_id=EXCLUDED.manager_id,due_at=EXCLUDED.due_at,escalation_after_minutes=EXCLUDED.escalation_after_minutes,exception_status=EXCLUDED.exception_status,state=EXCLUDED.state,updated_at=EXCLUDED.updated_at,projected_at=now() WHERE erpx_operations_read.exception_projection.aggregate_version < EXCLUDED.aggregate_version")
+        sqlx::query("INSERT INTO erpx_operations_read.exception_projection (projection_name,generation,partition_key,exception_id,aggregate_version,reference,active_scope,scope_key,source_context,source_event_id,source_event_type,source_aggregate_type,source_aggregate_id,source_aggregate_version,source_global_sequence,source_correlation_id,policy_ref,category,severity,assignee_id,manager_id,due_at,escalation_after_minutes,exception_status,state,created_at,updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,now()) ON CONFLICT (holding_id,projection_name,generation,partition_key,exception_id) DO UPDATE SET aggregate_version=EXCLUDED.aggregate_version,reference=EXCLUDED.reference,active_scope=EXCLUDED.active_scope,scope_key=EXCLUDED.scope_key,policy_ref=EXCLUDED.policy_ref,category=EXCLUDED.category,severity=EXCLUDED.severity,assignee_id=EXCLUDED.assignee_id,manager_id=EXCLUDED.manager_id,due_at=EXCLUDED.due_at,escalation_after_minutes=EXCLUDED.escalation_after_minutes,exception_status=EXCLUDED.exception_status,state=EXCLUDED.state,updated_at=EXCLUDED.updated_at,projected_at=now() WHERE erpx_operations_read.exception_projection.aggregate_version < EXCLUDED.aggregate_version")
             .bind(EXCEPTION_PROJECTION).bind(context.generation).bind(&event.partition).bind(view.exception_id.as_uuid()).bind(to_i64(view.version)?).bind(&view.reference)
             .bind(serde_json::to_value(&view.scope).map_err(failure)?).bind(scope_key(&view.scope).map_err(failure)?).bind(source_context_name(view.source.context))
             .bind(view.source.event_id.as_uuid()).bind(&view.source.event_type).bind(&view.source.aggregate_kind).bind(view.source.aggregate_id.as_uuid()).bind(to_i64(view.source.aggregate_version)?)
@@ -203,7 +203,7 @@ impl Projector for OperationsSourceSignalProjector {
         let source_sequence = source_position
             .as_ref()
             .map_or(event.global_sequence, |v| v.sequence);
-        sqlx::query("INSERT INTO erpx_operations_read.source_signal_projection (projection_name,generation,partition_key,process_id,source_context,source_event_id,source_event_type,source_event_version,source_aggregate_type,source_aggregate_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,process_code,operational_state,source_fact,observed_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,now()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,process_id) DO UPDATE SET process_code=EXCLUDED.process_code,operational_state=EXCLUDED.operational_state,source_fact=EXCLUDED.source_fact,observed_at=EXCLUDED.observed_at,projected_at=now()")
+        sqlx::query("INSERT INTO erpx_operations_read.source_signal_projection (projection_name,generation,partition_key,process_id,source_context,source_event_id,source_event_type,source_event_version,source_aggregate_type,source_aggregate_id,source_aggregate_version,source_global_sequence,active_scope,scope_key,process_code,operational_state,source_fact,observed_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,now()) ON CONFLICT (holding_id,projection_name,generation,partition_key,process_id) DO UPDATE SET process_code=EXCLUDED.process_code,operational_state=EXCLUDED.operational_state,source_fact=EXCLUDED.source_fact,observed_at=EXCLUDED.observed_at,projected_at=now()")
             .bind(SOURCE_SIGNAL_PROJECTION).bind(context.generation).bind(&event.partition).bind(view.exception_id.as_uuid()).bind(source_context_name(view.source.context))
             .bind(view.source.event_id.as_uuid()).bind(&view.source.event_type).bind(i32::from(source_event_version)).bind(&view.source.aggregate_kind).bind(view.source.aggregate_id.as_uuid())
             .bind(to_i64(view.source.aggregate_version)?).bind(to_i64(source_sequence)?).bind(serde_json::to_value(&view.scope).map_err(failure)?).bind(scope_key(&view.scope).map_err(failure)?)
@@ -254,7 +254,7 @@ impl Projector for OperationsWorkQueuePolicyProjector {
             ));
         };
         let state = serde_json::to_value(&view).map_err(failure)?;
-        sqlx::query("INSERT INTO erpx_operations_read.work_queue_policy_projection (projection_name,generation,partition_key,policy_id,aggregate_version,tenant_scope,scope_key,policy_name,allowed_source_contexts,escalation_after_minutes,policy_status,source_global_sequence,state,created_at,updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,now()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,policy_id) DO UPDATE SET aggregate_version=EXCLUDED.aggregate_version,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,policy_name=EXCLUDED.policy_name,allowed_source_contexts=EXCLUDED.allowed_source_contexts,escalation_after_minutes=EXCLUDED.escalation_after_minutes,policy_status=EXCLUDED.policy_status,source_global_sequence=EXCLUDED.source_global_sequence,state=EXCLUDED.state,updated_at=EXCLUDED.updated_at,projected_at=now() WHERE erpx_operations_read.work_queue_policy_projection.aggregate_version < EXCLUDED.aggregate_version")
+        sqlx::query("INSERT INTO erpx_operations_read.work_queue_policy_projection (projection_name,generation,partition_key,policy_id,aggregate_version,active_scope,scope_key,policy_name,allowed_source_contexts,escalation_after_minutes,policy_status,source_global_sequence,state,created_at,updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,now()) ON CONFLICT (holding_id,projection_name,generation,partition_key,policy_id) DO UPDATE SET aggregate_version=EXCLUDED.aggregate_version,active_scope=EXCLUDED.active_scope,scope_key=EXCLUDED.scope_key,policy_name=EXCLUDED.policy_name,allowed_source_contexts=EXCLUDED.allowed_source_contexts,escalation_after_minutes=EXCLUDED.escalation_after_minutes,policy_status=EXCLUDED.policy_status,source_global_sequence=EXCLUDED.source_global_sequence,state=EXCLUDED.state,updated_at=EXCLUDED.updated_at,projected_at=now() WHERE erpx_operations_read.work_queue_policy_projection.aggregate_version < EXCLUDED.aggregate_version")
             .bind(POLICY_PROJECTION).bind(context.generation).bind(&event.partition).bind(view.policy_id.as_uuid()).bind(to_i64(view.version)?)
             .bind(serde_json::to_value(&view.scope).map_err(failure)?).bind(scope_key(&view.scope).map_err(failure)?).bind(&view.name).bind(serde_json::to_value(&view.allowed_sources).map_err(failure)?)
             .bind(i32::try_from(view.escalation_after_minutes).map_err(|_| ProjectionFailure::new("numeric value is too large"))?).bind(policy_status_name(view.status)).bind(to_i64(event.global_sequence)?)
@@ -306,14 +306,14 @@ fn validate_snapshot(
             aggregate_type == EXCEPTION_AGGREGATE_TYPE
                 && view.version == event.aggregate_version
                 && view.exception_id.as_uuid() == event.aggregate_id.as_uuid()
-                && view.scope == event.tenant_scope
+                && view.scope == event.active_scope
                 && event.partition == exception_partition(view.exception_id)
         }
         OperationsSnapshot::WorkQueuePolicy { view } => {
             aggregate_type == POLICY_AGGREGATE_TYPE
                 && view.version == event.aggregate_version
                 && view.policy_id.as_uuid() == event.aggregate_id.as_uuid()
-                && view.scope == event.tenant_scope
+                && view.scope == event.active_scope
                 && event.partition == policy_partition(view.policy_id)
         }
     };
@@ -419,7 +419,7 @@ mod tests {
     fn human_exception_updates_preserve_immutable_source_provenance() {
         let source = include_str!("projection.rs");
         let update = source
-            .split("ON CONFLICT (tenant_id,projection_name,generation,partition_key,exception_id)")
+            .split("ON CONFLICT (holding_id,projection_name,generation,partition_key,exception_id)")
             .nth(1)
             .unwrap();
         assert!(

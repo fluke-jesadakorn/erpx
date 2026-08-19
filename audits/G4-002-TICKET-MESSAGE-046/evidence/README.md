@@ -34,7 +34,7 @@ full G4 requirement is not closed by this packet.
 ## Security and rollback
 
 Reply and internal-note permissions are distinct. No internal-note field is
-present in the response DTO. Existing authentication, tenant scope,
+present in the response DTO. Existing authentication, holding scope,
 entitlement, and domain terminal-ticket checks remain authoritative. Rollback
 is limited to the two changed source files and this evidence directory.
 

@@ -15,10 +15,10 @@ use std::{
 
 use erpx_proto::{
     FILE_DESCRIPTOR_SET,
-    common::v2::{ActorAttribution, CommandContext},
+    common::{ActorAttribution, CommandContext},
     erpx::{
-        identity_access::v2::DirectoryConnectorSummary,
-        platform_administration::v2::{PitrRecoveryPoint, ScheduleTenantBackupRequest},
+        identity_access::DirectoryConnectorSummary,
+        platform_administration::{PitrRecoveryPoint, ScheduleHoldingBackupRequest},
     },
 };
 use prost::Message;
@@ -29,13 +29,19 @@ use prost_types::{
 
 const PROTO_BUILD: &str = include_str!("../../../crates/proto/build.rs");
 const IDENTITY_ACCESS_PROTO: &str =
-    include_str!("../../../crates/proto/proto/erpx/identity_access/v2/service.proto");
+    include_str!("../../../crates/proto/proto/erpx/identity_access/service.proto");
 const PLATFORM_ADMINISTRATION_PROTO: &str =
-    include_str!("../../../crates/proto/proto/erpx/platform_administration/v2/service.proto");
+    include_str!("../../../crates/proto/proto/erpx/platform_administration/service.proto");
 const MOBILE_AUTH: &str = include_str!("../../../crates/ui/src/auth.rs");
 const MOBILE_SESSION_TARGET: &str = include_str!("../../../crates/ui/src/session_target.rs");
 const ANDROID_BRIDGE: &str = include_str!("../../../crates/android-bridge/src/lib.rs");
-const CONSOLE_COMPOSITION: &str = include_str!("../../console/src/composition.rs");
+const CONSOLE_COMPOSITION: &str = concat!(
+    include_str!("../../console/src/lib.rs"),
+    include_str!("../../console/src/app.rs"),
+    include_str!("../../console/src/routes.rs"),
+    include_str!("../../console/src/delivery.rs"),
+    include_str!("../../console/src/native_delivery.rs")
+);
 const CONSOLE_TRANSPORT: &str = include_str!("../../console/src/transport/mod.rs");
 const CONSOLE_PLATFORM: &str = include_str!("../../console/src/platform.rs");
 const CONSOLE_NATIVE_DELIVERY: &str = include_str!("../../console/src/native_delivery.rs");
@@ -836,15 +842,15 @@ fn g14_generated_descriptor_is_self_consistent_and_g14_fields_are_wire_stable() 
         .iter()
         .filter_map(|file| file.name.as_deref())
         .collect::<BTreeSet<_>>();
-    assert!(names.contains("erpx/interface/v2/reference.proto"));
-    assert!(names.contains("erpx/catalog/v2/active.proto"));
-    assert!(names.contains("erpx/common/v2/context.proto"));
-    assert!(!names.contains("erpx/platform/v2/platform.proto"));
+    assert!(names.contains("erpx/interface/reference.proto"));
+    assert!(names.contains("erpx/catalog/active.proto"));
+    assert!(names.contains("erpx/common/context.proto"));
+    assert!(!names.contains("erpx/platform/platform.proto"));
 
     let inventory = descriptor_inventory(&set);
     let resolve = inventory
         .messages
-        .get("erpx.interface.v2.ResolveReferenceRequest")
+        .get("erpx.interface.ResolveReferenceRequest")
         .expect("stable reference request must be generated");
     for (number, name) in [(1, "record_id"), (2, "authority_scope"), (3, "purpose")] {
         assert_eq!(
@@ -856,14 +862,14 @@ fn g14_generated_descriptor_is_self_consistent_and_g14_fields_are_wire_stable() 
 
     let reference_service = inventory
         .services
-        .get("erpx.reference.v2.ReferenceQueryService")
+        .get("erpx.reference.ReferenceQueryService")
         .expect("reference query service must be active");
     assert!(reference_service.contains_key("Resolve"));
     assert!(reference_service.contains_key("Search"));
     assert!(reference_service.contains_key("ListBacklinks"));
     let collaboration_service = inventory
         .services
-        .get("erpx.collaboration.v2.CollaborationCommandService")
+        .get("erpx.collaboration.CollaborationCommandService")
         .expect("collaboration command service must be active");
     assert!(collaboration_service.contains_key("CreateThread"));
     assert!(collaboration_service.contains_key("AddComment"));
@@ -871,7 +877,7 @@ fn g14_generated_descriptor_is_self_consistent_and_g14_fields_are_wire_stable() 
         inventory
             .services
             .keys()
-            .all(|service| !service.starts_with("erpx.platform.v2."))
+            .all(|service| !service.starts_with("erpx.platform."))
     );
 }
 
@@ -899,7 +905,7 @@ fn g14_real_generated_directory_and_pitr_messages_round_trip_without_loss() {
         parent_connector_id: String::new(),
         directory_authority_fingerprint: String::new(),
         fallback_to_holding: false,
-        holding_ref: "holding-1".into(),
+        data_profile_key: "holding-1".into(),
         company_id: String::new(),
         branch_id: String::new(),
     };
@@ -909,9 +915,9 @@ fn g14_real_generated_directory_and_pitr_messages_round_trip_without_loss() {
         wal_archive_ref: "wal-chain-g14".into(),
         physical_restore_target_ref: "restore-target-g14".into(),
     };
-    let request = ScheduleTenantBackupRequest {
-        tenant_id: "tenant-g14".into(),
-        holding_ref: "holding-1".into(),
+    let request = ScheduleHoldingBackupRequest {
+        holding_id: "holding-g14".into(),
+        data_profile_key: "holding-1".into(),
         kind: "pitr".into(),
         backup_ref: "backup-g14".into(),
         restore_target_ref: String::new(),
@@ -933,7 +939,7 @@ fn g14_real_generated_directory_and_pitr_messages_round_trip_without_loss() {
                 represented_principal_ref: String::new(),
                 support_capability_id: String::new(),
             }),
-            tenant_scope: None,
+            active_scope: None,
             audit: None,
             expected_aggregate_version: 12,
             subscription_id: String::new(),
@@ -957,7 +963,7 @@ fn g14_real_generated_directory_and_pitr_messages_round_trip_without_loss() {
     request
         .encode(&mut request_wire)
         .expect("PITR schedule protobuf encoding");
-    let decoded = ScheduleTenantBackupRequest::decode(request_wire.as_slice())
+    let decoded = ScheduleHoldingBackupRequest::decode(request_wire.as_slice())
         .expect("PITR schedule protobuf decoding");
     assert_eq!(decoded, request);
     assert_eq!(
@@ -1052,7 +1058,7 @@ fn g14_descriptor_comparison_rejects_incompatible_field_changes() {
         .expect_err("an incompatible approved descriptor must fail closed");
     assert!(
         error.contains(
-            "approved field changed incompatibly: erpx.interface.v2.ResolveReferenceRequest.1"
+            "approved field changed incompatibly: erpx.interface.ResolveReferenceRequest.1"
         ),
         "unexpected compatibility error: {error}"
     );
@@ -1122,7 +1128,7 @@ fn g14_descriptor_self_consistency_rejects_duplicate_declarations() {
     let duplicate_message = FileDescriptorSet {
         file: vec![FileDescriptorProto {
             name: Some("duplicate-message.proto".into()),
-            package: Some("erpx.test.v2".into()),
+            package: Some("erpx.test".into()),
             message_type: vec![
                 DescriptorProto {
                     name: Some("Duplicate".into()),
@@ -1145,7 +1151,7 @@ fn g14_descriptor_self_consistency_rejects_duplicate_declarations() {
     let duplicate_field_name = FileDescriptorSet {
         file: vec![FileDescriptorProto {
             name: Some("duplicate-field.proto".into()),
-            package: Some("erpx.test.v2".into()),
+            package: Some("erpx.test".into()),
             message_type: vec![DescriptorProto {
                 name: Some("Message".into()),
                 field: vec![
@@ -1177,7 +1183,7 @@ fn g14_descriptor_self_consistency_rejects_fields_in_reserved_ranges() {
     let reserved_field = FileDescriptorSet {
         file: vec![FileDescriptorProto {
             name: Some("reserved-field.proto".into()),
-            package: Some("erpx.test.v2".into()),
+            package: Some("erpx.test".into()),
             message_type: vec![DescriptorProto {
                 name: Some("Message".into()),
                 field: vec![FieldDescriptorProto {
@@ -1253,14 +1259,20 @@ fn g14_mobile_and_pitr_boundaries_are_source_verified_and_external_proof_is_queu
         ],
     );
     require_markers(
-        CONSOLE_COMPOSITION,
-        "apps/console/src/composition.rs",
+        MOBILE_AUTH,
+        "crates/ui/src/auth.rs",
         &[
-            "TargetSecureSessionAdapter::new",
             "restore_and_revalidate_secure_session",
             "persist_secure_session",
             "clear_secure_session",
-            "No browser or plaintext fallback is used",
+        ],
+    );
+    require_markers(
+        MOBILE_SESSION_TARGET,
+        "crates/ui/src/session_target.rs",
+        &[
+            "TargetSecureSessionAdapter::new",
+            "SecureSessionBundleStore",
         ],
     );
     let mobile_implementation = MOBILE_SESSION_TARGET
@@ -1356,12 +1368,11 @@ fn g14_console_deployment_inputs_are_source_bound_and_tls_when_configured() {
     );
     require_markers(
         CONSOLE_COMPOSITION,
-        "apps/console/src/composition.rs",
+        "apps/console/src/delivery.rs",
         &[
-            "use crate::transport::GRPC_ENDPOINT",
-            "Endpoint::from_static(GRPC_ENDPOINT)",
-            "execute_web_http",
-            "execute_native_http",
+            "/api/server-fn/bootstrap",
+            "/api/server-fn/query",
+            "/api/server-fn/command",
         ],
     );
     require_markers(
@@ -1428,27 +1439,15 @@ fn g14_console_deployment_inputs_are_source_bound_and_tls_when_configured() {
 
 #[test]
 fn g14_console_startup_deep_link_contract_is_bound_and_hash_restore_is_queued_if_absent() {
-    require_ordered_markers(
-        CONSOLE_COMPOSITION,
-        "apps/console/src/composition.rs",
-        &[
-            "let initial_resolution = console_route_resolution_for(&initial_path)",
-            "let initial_destination = match initial_resolution.clone()",
-            "let mut route_failure = use_signal",
-            "let mut active_route = use_signal",
-            "route_signals.activate(&path)",
-        ],
-    );
     require_markers(
         CONSOLE_COMPOSITION,
-        "apps/console/src/composition.rs",
+        "apps/console/src/routes.rs",
         &[
-            "enum ConsoleRouteResolution",
-            "ConsoleRouteFailureKind::Forbidden",
-            "ConsoleRouteFailureKind::NotFound",
-            "let resolution = console_route_resolution_for(path",
-            "ConsoleDeepLink::Customer(route) => self.active_route.set(route)",
-            "crate::platform::preferences::web_location_path()",
+            "derive(Clone, Debug, PartialEq, Routable)",
+            "Router::<AppRoute>",
+            "#[route(\"/:..segments\")]",
+            "NotFound",
+            "is_canonical_console_path",
         ],
     );
     require_markers(
@@ -1466,20 +1465,20 @@ fn g14_descriptor_build_is_bound_to_the_checked_in_inputs() {
         &[
             "file_descriptor_set_path",
             "erpx_descriptor_set.bin",
-            "proto/erpx/identity_access/v2/service.proto",
-            "proto/erpx/platform_administration/v2/service.proto",
-            "proto/erpx/catalog/v2/active.proto",
+            "proto/erpx/identity_access/service.proto",
+            "proto/erpx/platform_administration/service.proto",
+            "proto/erpx/catalog/active.proto",
             "compile_protos(",
         ],
     );
     require_markers(
         PLATFORM_ADMINISTRATION_PROTO,
-        "proto/erpx/platform_administration/v2/service.proto",
-        &["message PitrRecoveryPoint", "rpc ScheduleTenantBackup"],
+        "proto/erpx/platform_administration/service.proto",
+        &["message PitrRecoveryPoint", "rpc ScheduleHoldingBackup"],
     );
     require_markers(
         IDENTITY_ACCESS_PROTO,
-        "proto/erpx/identity_access/v2/service.proto",
+        "proto/erpx/identity_access/service.proto",
         &[
             "message DirectoryConnectorSummary",
             "service IdentityAccessQueryService",

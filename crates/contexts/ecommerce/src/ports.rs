@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use erpx_kernel::{CommandId, CorrelationId, TenantId, TenantScope};
+use erpx_kernel::{AuthorityScope, CommandId, CorrelationId, HoldingId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -9,9 +9,9 @@ use crate::{CommerceAggregate, CommerceIdentity};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommerceActor {
-    pub tenant_id: TenantId,
+    pub holding_id: HoldingId,
     pub principal_id: Uuid,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     /// Present only for guest/customer portal sessions. Workforce callers must
     /// use the internal authorization path and cannot impersonate this value.
     pub external_identity: Option<CommerceIdentity>,
@@ -56,8 +56,8 @@ pub trait AuthorizationPort: Send + Sync {
     async fn authorize(
         &self,
         principal_id: Uuid,
-        authority_scope: &TenantScope,
-        target_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         action: CommerceAction,
     ) -> Result<(), CommercePortError>;
     async fn authorize_owner(
@@ -72,14 +72,14 @@ pub trait AuthorizationPort: Send + Sync {
 pub trait AggregateRepository: Send + Sync {
     async fn load(
         &self,
-        tenant_id: TenantId,
-        authority: &TenantScope,
+        holding_id: HoldingId,
+        authority: &AuthorityScope,
         aggregate_type: &str,
         id: Uuid,
     ) -> Result<Option<CommerceAggregate>, CommercePortError>;
 
     /// Normalized aggregate rows, optimistic guard, audit, receipt, and outbox
-    /// must commit in one tenant-bound transaction.
+    /// must commit in one holding-bound transaction.
     async fn commit(
         &self,
         command: CommerceCommit,
@@ -111,7 +111,7 @@ pub struct CommerceCommitReceipt {
 pub struct CommerceProjection {
     pub aggregate_type: String,
     pub aggregate_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub owner: Option<CommerceIdentity>,
     pub lifecycle_status: String,
     pub generation: Uuid,
@@ -125,7 +125,7 @@ pub struct CommerceProjection {
 pub trait CommerceReadRepository: Send + Sync {
     async fn get(
         &self,
-        tenant_id: TenantId,
+        holding_id: HoldingId,
         aggregate_type: &str,
         id: Uuid,
     ) -> Result<Option<CommerceProjection>, CommercePortError>;

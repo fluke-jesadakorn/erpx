@@ -17,7 +17,7 @@ use erpx_kernel::{IdentifierError, RecordId};
 use url::Url;
 use uuid::Uuid;
 
-const DEFAULT_WEB_BFF_PATH: &str = "/api/v2";
+const DEFAULT_WEB_BFF_PATH: &str = "/api";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CanonicalRoute {
@@ -334,10 +334,13 @@ mod tests {
     }
 
     #[test]
-    fn route_ids_are_strict_uuid_v4_values() {
+    fn route_ids_are_canonical_non_nil_uuid_values() {
         assert!(CanonicalRoute::parse("/finance/invoice/not-a-uuid").is_err());
         assert!(
-            CanonicalRoute::parse("/finance/invoice/00000000-0000-0000-0000-000000000001").is_err()
+            CanonicalRoute::parse("/finance/invoice/00000000-0000-0000-0000-000000000001").is_ok()
+        );
+        assert!(
+            CanonicalRoute::parse("/finance/invoice/00000000-0000-0000-0000-000000000000").is_err()
         );
         assert!(CanonicalRoute::parse("/finance/invoice/").is_err());
     }

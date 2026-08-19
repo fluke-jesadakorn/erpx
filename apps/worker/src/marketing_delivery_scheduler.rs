@@ -1,5 +1,5 @@
-//! Restart-safe control-plane scheduling around the tenant-routed Marketing
-//! delivery pass. The scheduler lease is separate from tenant delivery
+//! Restart-safe control-plane scheduling around the holding-routed Marketing
+//! delivery pass. The scheduler lease is separate from holding delivery
 //! leases; a successful pass is rescheduled, while bounded failures retry and
 //! eventually remain in a durable dead-letter state.
 

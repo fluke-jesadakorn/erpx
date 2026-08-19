@@ -17,6 +17,7 @@ mod password;
 mod recovery;
 mod secret;
 mod session;
+mod signup;
 mod store;
 mod totp;
 mod webauthn;
@@ -39,7 +40,7 @@ pub use development_access::{
     DEVELOPMENT_CONTEXT_LIFETIME, DEVELOPMENT_CONTROLLER_MUTATION_PERMISSIONS,
     DEVELOPMENT_CONTROLLER_PRINCIPAL, DEVELOPMENT_CONTROLLER_READ_PERMISSIONS,
     DEVELOPMENT_CONTROLLER_ROLE, DEVELOPMENT_CONTROLLER_ROLE_PROFILE,
-    DEVELOPMENT_CONTROLLER_TARGET_TENANT, DEVELOPMENT_FRESH_PROFILE,
+    DEVELOPMENT_CONTROLLER_TARGET_HOLDING, DEVELOPMENT_FRESH_PROFILE,
     DEVELOPMENT_MFA_BYPASS_PERMISSION, DEVELOPMENT_PERSONA_MODE, DEVELOPMENT_PROFILE,
     DEVELOPMENT_SOD_BYPASS_PERMISSION, DevelopmentAccessError, DevelopmentAccessGates,
     DevelopmentControllerRoleConfig, DevelopmentPersona, DevelopmentPersonaContext,
@@ -78,6 +79,11 @@ pub use recovery::{RecoveryCodeBatch, RecoveryCodeRecord, RecoveryCodeSet, Recov
 pub use secret::{SecretBytes, SecretValue, TokenHash};
 pub use session::{
     IssuedSession, RefreshRotationOutcome, RotatedSession, SessionRecord, SessionService,
+};
+pub use signup::{
+    InitialOwnerAssignment, SIGNUP_CHALLENGE_LIFETIME, SIGNUP_RATE_LIMIT_ATTEMPTS,
+    SIGNUP_RATE_LIMIT_WINDOW, SignupChallengeSecret, SignupEmailChallenge, SignupEmailDelivery,
+    SignupError, SignupMailAdapter, SignupMailError, SignupRateWindow,
 };
 pub use store::{
     AccountSessionSummary, DeviceSnapshot, DirectoryRoleAccess, IdentityStoreError,

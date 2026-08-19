@@ -64,7 +64,7 @@ impl Projector for BenefitsProjector {
             .map_err(failure)?;
             if record.id() != event.aggregate_id.as_uuid()
                 || record.version() != event.aggregate_version
-                || record.scope() != &event.tenant_scope
+                || record.scope() != &event.active_scope
                 || record.kind().token() != event.aggregate_type
             {
                 return Err(failure("benefits record metadata mismatch"));
@@ -75,7 +75,7 @@ impl Projector for BenefitsProjector {
                 .map(str::to_owned)
                 .ok_or_else(|| failure("benefits record status is missing"))?;
             let changed = sqlx::query(
-                "INSERT INTO erpx_benefits_read.governed_record_projection (projection_name,generation,partition_key,record_id,record_kind,authority_scope,lifecycle_state,projection,source_aggregate_version,source_position,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,clock_timestamp()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,record_id) DO UPDATE SET authority_scope=EXCLUDED.authority_scope,lifecycle_state=EXCLUDED.lifecycle_state,projection=EXCLUDED.projection,source_aggregate_version=EXCLUDED.source_aggregate_version,source_position=EXCLUDED.source_position,projected_at=clock_timestamp() WHERE erpx_benefits_read.governed_record_projection.source_aggregate_version < EXCLUDED.source_aggregate_version",
+                "INSERT INTO erpx_benefits_read.governed_record_projection (projection_name,generation,partition_key,record_id,record_kind,authority_scope,lifecycle_state,projection,source_aggregate_version,source_position,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,clock_timestamp()) ON CONFLICT (holding_id,projection_name,generation,partition_key,record_id) DO UPDATE SET authority_scope=EXCLUDED.authority_scope,lifecycle_state=EXCLUDED.lifecycle_state,projection=EXCLUDED.projection,source_aggregate_version=EXCLUDED.source_aggregate_version,source_position=EXCLUDED.source_position,projected_at=clock_timestamp() WHERE erpx_benefits_read.governed_record_projection.source_aggregate_version < EXCLUDED.source_aggregate_version",
             )
             .bind(PROJECTION_NAME)
             .bind(ctx.generation)
@@ -109,7 +109,7 @@ impl Projector for BenefitsProjector {
             serde_json::from_value(event.payload.clone()).map_err(failure)?;
         if snapshot.enrollment.id().as_uuid() != event.aggregate_id.as_uuid()
             || snapshot.enrollment.version() != event.aggregate_version
-            || snapshot.enrollment.scope() != &event.tenant_scope
+            || snapshot.enrollment.scope() != &event.active_scope
         {
             return Err(ProjectionFailure::new(
                 "benefits snapshot metadata mismatch",
@@ -121,7 +121,7 @@ impl Projector for BenefitsProjector {
             .and_then(serde_json::Value::as_str)
             .map(str::to_owned)
             .ok_or_else(|| ProjectionFailure::new("benefits status is missing"))?;
-        let result = sqlx::query("INSERT INTO erpx_benefits_read.enrollment_projection (projection_name,generation,partition_key,enrollment_id,authority_scope,lifecycle_state,projection,source_aggregate_version,source_position,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,clock_timestamp()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,enrollment_id) DO UPDATE SET authority_scope=EXCLUDED.authority_scope,lifecycle_state=EXCLUDED.lifecycle_state,projection=EXCLUDED.projection,source_aggregate_version=EXCLUDED.source_aggregate_version,source_position=EXCLUDED.source_position,projected_at=clock_timestamp() WHERE erpx_benefits_read.enrollment_projection.source_aggregate_version<EXCLUDED.source_aggregate_version")
+        let result = sqlx::query("INSERT INTO erpx_benefits_read.enrollment_projection (projection_name,generation,partition_key,enrollment_id,authority_scope,lifecycle_state,projection,source_aggregate_version,source_position,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,clock_timestamp()) ON CONFLICT (holding_id,projection_name,generation,partition_key,enrollment_id) DO UPDATE SET authority_scope=EXCLUDED.authority_scope,lifecycle_state=EXCLUDED.lifecycle_state,projection=EXCLUDED.projection,source_aggregate_version=EXCLUDED.source_aggregate_version,source_position=EXCLUDED.source_position,projected_at=clock_timestamp() WHERE erpx_benefits_read.enrollment_projection.source_aggregate_version<EXCLUDED.source_aggregate_version")
             .bind(PROJECTION_NAME).bind(ctx.generation).bind(&event.partition).bind(snapshot.enrollment.id().as_uuid()).bind(serde_json::to_value(snapshot.enrollment.scope()).map_err(failure)?).bind(status).bind(document).bind(i64v(event.aggregate_version)?).bind(i64v(event.global_sequence)?).execute(&mut **tx).await.map_err(failure)?;
         if result.rows_affected() != 1 {
             return Err(ProjectionFailure::new(

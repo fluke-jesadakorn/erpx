@@ -7,7 +7,7 @@ This packet adds transport-neutral write-side contracts in
 
 - bounded ticket/customer-bound attachment metadata;
 - opaque, path-safe object references without signed URLs or credentials;
-- content type, size, canonical SHA-256, visibility, uploader, tenant scope,
+- content type, size, canonical SHA-256, visibility, uploader, holding scope,
   upload time, and expiry;
 - maximum attachment count and size;
 - customer-visible projection that excludes internal and expired attachments;
@@ -50,7 +50,7 @@ persistence packet was intentionally not started.
   suppression after ticket close, and expiry sweeps.
 - Add customer/platform UI projections and notification delivery adapters.
 - Integrate attachment events/audit records into the broader G4 evidence and
-  independently verify global support authorization and tenant isolation.
+  independently verify global support authorization and holding isolation.
 
 ## Security concerns
 

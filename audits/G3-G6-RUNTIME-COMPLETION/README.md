@@ -70,7 +70,7 @@ The current coordinator-owned wiring is:
    platform outbox stream.
 2. `erpx/apps/server/src/main.rs` constructs `PlatformCompletionApi` from
    `PlatformControlStore`, attaches `PlatformOperationsServiceServer`, and
-   calls the authenticated `read_reconciliation_ui` path from the tenant
+   calls the authenticated `read_reconciliation_ui` path from the holding
    detail RPC after platform scope authorization.
 3. `erpx/apps/worker/src/main.rs` keeps Operations and Finance completion
    handlers as explicit `ERPX_WORKER_HANDLER` branches. The platform runtime
@@ -129,7 +129,7 @@ cargo test -p erpx-worker --lib platform_completion_runtime --offline -- --nocap
 # 8 passed, 0 failed
 cargo test -p erpx-worker --lib registry_includes_support_expiry_handler --offline -- --nocapture
 # 1 passed, 0 failed; asserts platform_completion_runtime is in the default registry
-cargo test -p erpx-server --bin erpx-server platform_tenant_page_size_is_defaulted_and_bounded --offline -- --nocapture
+cargo test -p erpx-server --bin erpx-server platform_holding_page_size_is_defaulted_and_bounded --offline -- --nocapture
 # 1 passed, 0 failed
 ```
 

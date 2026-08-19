@@ -14,8 +14,8 @@ use erpx_integration_contracts::{
     AggregateKind, IntegrationEvent, IntegrationEventEnvelope, assets,
 };
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, EventId, SystemClock,
-    TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
+    SystemClock,
 };
 use erpx_maintenance::{
     AuthorizationPort, EntitlementPort, MaintenanceAction, OpenWorkOrder, PortError, WorkOrderId,
@@ -176,7 +176,7 @@ impl AuthorizationPort for TrustedMaintenanceRequestAccess {
             && request.actor.represented_principal_ref.is_none()
             && request.actor.support_capability_id.is_none()
             && request.authority_scope == request.target_scope
-            && request.target_scope != &TenantScope::Platform
+            && request.target_scope != &AuthorityScope::Platform
         {
             Ok(())
         } else {
@@ -189,10 +189,10 @@ impl AuthorizationPort for TrustedMaintenanceRequestAccess {
 impl EntitlementPort for TrustedMaintenanceRequestAccess {
     async fn ensure_maintenance_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         write: bool,
     ) -> Result<(), PortError> {
-        if write && scope.validate().is_ok() && scope != &TenantScope::Platform {
+        if write && scope.validate().is_ok() && scope != &AuthorityScope::Platform {
             Ok(())
         } else {
             Err(PortError::EntitlementDenied)
@@ -205,8 +205,8 @@ impl EntitlementPort for TrustedMaintenanceRequestAccess {
 #[derive(Debug, Clone)]
 pub struct MaintenanceAssetFactRuntime {
     inbox: MaintenanceAssetFactInbox,
-    tenant_write_pool: PgPool,
-    tenant_id: Uuid,
+    holding_write_pool: PgPool,
+    holding_id: Uuid,
     source: Option<ProjectionSource>,
     after_sequence: Arc<AtomicU64>,
     page_size: u32,
@@ -216,11 +216,11 @@ impl MaintenanceAssetFactRuntime {
     /// Manual typed-ingest boundary, useful to composition that already owns a
     /// durable event consumer.
     #[allow(dead_code)] // Manual typed-ingest boundary retained for non-polling consumers.
-    pub fn new(tenant_write_pool: PgPool, tenant_id: Uuid) -> Self {
+    pub fn new(holding_write_pool: PgPool, holding_id: Uuid) -> Self {
         Self {
-            inbox: MaintenanceAssetFactInbox::new(tenant_write_pool.clone()),
-            tenant_write_pool,
-            tenant_id,
+            inbox: MaintenanceAssetFactInbox::new(holding_write_pool.clone()),
+            holding_write_pool,
+            holding_id,
             source: None,
             after_sequence: Arc::new(AtomicU64::new(0)),
             page_size: 100,
@@ -232,8 +232,8 @@ impl MaintenanceAssetFactRuntime {
     /// different event/fact at the same Assets aggregate version.
     pub fn with_source(
         source_write: WritePool,
-        tenant_write_pool: PgPool,
-        tenant_id: Uuid,
+        holding_write_pool: PgPool,
+        holding_id: Uuid,
         page_size: u32,
     ) -> Result<Self, MaintenanceAssetFactRuntimeError> {
         if page_size == 0 || page_size > 1_000 {
@@ -242,9 +242,9 @@ impl MaintenanceAssetFactRuntime {
             ));
         }
         Ok(Self {
-            inbox: MaintenanceAssetFactInbox::new(tenant_write_pool.clone()),
-            tenant_write_pool,
-            tenant_id,
+            inbox: MaintenanceAssetFactInbox::new(holding_write_pool.clone()),
+            holding_write_pool,
+            holding_id,
             source: Some(ProjectionSource::new(source_write)),
             after_sequence: Arc::new(AtomicU64::new(0)),
             page_size,
@@ -265,7 +265,7 @@ impl MaintenanceAssetFactRuntime {
         self.inbox.ingest(event).await
     }
 
-    /// Reads one bounded page from the tenant outbox, decodes only the typed
+    /// Reads one bounded page from the holding outbox, decodes only the typed
     /// Assets condition contract, and writes the Maintenance-owned fact inbox.
     pub async fn run_once(
         &self,
@@ -353,12 +353,12 @@ impl MaintenanceAssetFactRuntime {
                     "Assets correlation ID is invalid",
                 )
             })?;
-        let scope = request.tenant_scope().clone();
+        let scope = request.active_scope().clone();
         let display_title = maintenance_request_title(request_code, title.as_ref());
-        let raw_pool = self.tenant_write_pool.clone();
-        let pool = WritePool::for_tenant(raw_pool.clone(), self.tenant_id).map_err(|_| {
+        let raw_pool = self.holding_write_pool.clone();
+        let pool = WritePool::for_holding(raw_pool.clone(), self.holding_id).map_err(|_| {
             MaintenanceAssetFactRuntimeError::InvalidContract(
-                "Maintenance tenant identity is invalid",
+                "Maintenance holding identity is invalid",
             )
         })?;
         let access = TrustedMaintenanceRequestAccess;
@@ -391,7 +391,7 @@ impl MaintenanceAssetFactRuntime {
                 represented_principal_ref: None,
                 support_capability_id: None,
             },
-            tenant_scope: scope,
+            active_scope: scope,
             audit: AuditContext {
                 purpose: "open work order from Assets maintenance request".into(),
                 customer_visible: true,
@@ -487,7 +487,7 @@ fn decode_projection_event(
     }
     IntegrationEventEnvelope::try_new(
         event.event_id,
-        event.tenant_scope.clone(),
+        event.active_scope.clone(),
         AggregateKind::try_new(event.aggregate_type.clone()).map_err(|_| {
             MaintenanceAssetFactRuntimeError::InvalidContract("Assets aggregate kind is invalid")
         })?,

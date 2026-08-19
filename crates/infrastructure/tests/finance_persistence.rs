@@ -2,7 +2,7 @@
 //! Finance Chart of Accounts source.
 
 use chrono::{NaiveDate, Utc};
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::finance::{
     Account, AccountKind, AccountingPeriod, ChartOfAccounts, JournalEntry, JournalLine,
 };
@@ -16,12 +16,12 @@ fn context(holding_id: Uuid, company_id: Uuid, key: &str) -> CommandContext {
         key,
         ActorAttribution {
             principal_ref: "finance-posting-test".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: Some(Uuid::new_v4()),
             represented_principal_ref: None,
             support_capability_id: None,
         },
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -145,25 +145,25 @@ fn journal_on_date(
     .expect("journal")
 }
 
-async fn counts(pool: &PgPool, holding_ref: &str) -> (i64, i64, i64, i64) {
+async fn counts(pool: &PgPool, data_profile_key: &str) -> (i64, i64, i64, i64) {
     let mut tx = pool.begin().await.expect("counts transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(data_profile_key)
         .execute(&mut *tx)
         .await
         .expect("holding scope");
     let counts = sqlx::query_as(
         "SELECT
-            (SELECT count(*) FROM erpx_tenant.finance_posted_journals
-              WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.finance_posted_journal_account_usage
-              WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND aggregate_type='finance_journal'),
-            (SELECT count(*) FROM erpx_tenant.finance_command_idempotency
-              WHERE holding_ref=$1)",
+            (SELECT count(*) FROM erpx_holding.finance_posted_journals
+              WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.finance_posted_journal_account_usage
+              WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.outbox_events
+              WHERE data_profile_key=$1 AND aggregate_type='finance_journal'),
+            (SELECT count(*) FROM erpx_holding.finance_command_idempotency
+              WHERE data_profile_key=$1)",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_one(&mut *tx)
     .await
     .expect("posting counts");
@@ -173,19 +173,19 @@ async fn counts(pool: &PgPool, holding_ref: &str) -> (i64, i64, i64, i64) {
 
 async fn save_normalized_chart(
     pool: &PgPool,
-    holding_ref: &str,
+    data_profile_key: &str,
     chart: &FinanceChart,
     command_context: &CommandContext,
 ) {
-    SqlxFinanceChartStore::new(pool.clone(), holding_ref)
+    SqlxFinanceChartStore::new(pool.clone(), data_profile_key)
         .expect("chart store")
         .save_chart(chart, command_context, None)
         .await
         .expect("normalized chart source");
 }
 
-async fn save_period(pool: &PgPool, holding_ref: &str, value: &AccountingPeriod) {
-    SqlxFinanceStore::new(pool.clone(), pool.clone(), holding_ref)
+async fn save_period(pool: &PgPool, data_profile_key: &str, value: &AccountingPeriod) {
+    SqlxFinanceStore::new(pool.clone(), pool.clone(), data_profile_key)
         .expect("finance store")
         .save_period(value, None)
         .await
@@ -197,7 +197,7 @@ async fn install_rejecting_usage_trigger(pool: &PgPool) -> (String, String) {
     let function_name = format!("finance_test_reject_usage_{suffix}");
     let trigger_name = format!("finance_test_reject_usage_trigger_{suffix}");
     sqlx::query(&format!(
-        "CREATE FUNCTION erpx_tenant.\"{function_name}\"() RETURNS trigger
+        "CREATE FUNCTION erpx_holding.\"{function_name}\"() RETURNS trigger
          LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test usage rejection'; END; $$"
     ))
     .execute(pool)
@@ -205,8 +205,8 @@ async fn install_rejecting_usage_trigger(pool: &PgPool) -> (String, String) {
     .expect("rejecting test function");
     sqlx::query(&format!(
         "CREATE TRIGGER \"{trigger_name}\"
-         BEFORE INSERT ON erpx_tenant.finance_posted_journal_account_usage
-         FOR EACH ROW EXECUTE FUNCTION erpx_tenant.\"{function_name}\"()"
+         BEFORE INSERT ON erpx_holding.finance_posted_journal_account_usage
+         FOR EACH ROW EXECUTE FUNCTION erpx_holding.\"{function_name}\"()"
     ))
     .execute(pool)
     .await
@@ -217,12 +217,12 @@ async fn install_rejecting_usage_trigger(pool: &PgPool) -> (String, String) {
 async fn remove_rejecting_usage_trigger(pool: &PgPool, function_name: &str, trigger_name: &str) {
     sqlx::query(&format!(
         "DROP TRIGGER \"{trigger_name}\"
-         ON erpx_tenant.finance_posted_journal_account_usage"
+         ON erpx_holding.finance_posted_journal_account_usage"
     ))
     .execute(pool)
     .await
     .expect("drop rejecting test trigger");
-    sqlx::query(&format!("DROP FUNCTION erpx_tenant.\"{function_name}\"()"))
+    sqlx::query(&format!("DROP FUNCTION erpx_holding.\"{function_name}\"()"))
         .execute(pool)
         .await
         .expect("drop rejecting test function");
@@ -230,12 +230,10 @@ async fn remove_rejecting_usage_trigger(pool: &PgPool, function_name: &str, trig
 
 #[test]
 fn migration_declares_immutable_usage_facts_and_scope() {
-    let sql = include_str!(
-        "../../migration/migrations_tenant_write/0043_finance_journal_chart_usage.sql"
-    );
+    let sql = include_str!("../../migration/migrations_holding_write/0001_baseline.sql");
     for required in [
         "finance_posted_journal_account_usage",
-        "FOREIGN KEY (holding_ref, chart_id, account_id)",
+        "FOREIGN KEY (data_profile_key, chart_id, account_id)",
         "FORCE ROW LEVEL SECURITY",
         "Finance journal account usage facts are immutable",
         "posted/used Finance accounts are structurally immutable",
@@ -248,23 +246,23 @@ fn migration_declares_immutable_usage_facts_and_scope() {
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn live_journal_posting_is_authoritative_scoped_idempotent_and_atomic() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let pool = PgPool::connect(&url).await.expect("write pool");
-    erpx_migration::migrate_tenant_write(&pool)
+    erpx_migration::migrate_holding_write(&pool)
         .await
-        .expect("tenant-write migrations");
+        .expect("holding-write migrations");
 
-    let holding_ref = format!("holding-finance-journal-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-finance-journal-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let debit_id = Uuid::new_v4();
     let credit_id = Uuid::new_v4();
     let chart_id = Uuid::new_v4();
     let period = make_period(holding_id, company_id);
-    save_period(&pool, &holding_ref, &period).await;
+    save_period(&pool, &data_profile_key, &period).await;
     let chart_create_context = context(holding_id, company_id, "chart-create");
     let normalized = normalized_chart(
         chart_id,
@@ -276,7 +274,7 @@ async fn live_journal_posting_is_authoritative_scoped_idempotent_and_atomic() {
         ],
         &chart_create_context,
     );
-    save_normalized_chart(&pool, &holding_ref, &normalized, &chart_create_context).await;
+    save_normalized_chart(&pool, &data_profile_key, &normalized, &chart_create_context).await;
     let legacy = legacy_chart(
         chart_id,
         holding_id,
@@ -286,7 +284,8 @@ async fn live_journal_posting_is_authoritative_scoped_idempotent_and_atomic() {
             legacy_account(credit_id, "4000", AccountKind::Revenue),
         ],
     );
-    let store = SqlxFinanceStore::new(pool.clone(), pool.clone(), &holding_ref).expect("store");
+    let store =
+        SqlxFinanceStore::new(pool.clone(), pool.clone(), &data_profile_key).expect("store");
 
     let mut forged_period = period.clone();
     forged_period.starts_on = NaiveDate::from_ymd_opt(2026, 1, 1).expect("forged period start");
@@ -298,7 +297,7 @@ async fn live_journal_posting_is_authoritative_scoped_idempotent_and_atomic() {
         Err(PersistenceError::InvalidData(message))
             if message == "Finance accounting period identity is immutable"
     ));
-    let before_forged_post = counts(&pool, &holding_ref).await;
+    let before_forged_post = counts(&pool, &data_profile_key).await;
     let forged_result = store
         .post_journal(
             journal_on_date(
@@ -318,10 +317,10 @@ async fn live_journal_posting_is_authoritative_scoped_idempotent_and_atomic() {
     assert!(matches!(
         forged_result,
         Err(PersistenceError::InvalidData(message))
-            if message == "Finance accounting period does not match authoritative tenant write state"
+            if message == "Finance accounting period does not match authoritative holding write state"
     ));
     assert_eq!(
-        counts(&pool, &holding_ref).await,
+        counts(&pool, &data_profile_key).await,
         before_forged_post,
         "a period representation mismatch must not emit a journal, usage fact, event, or idempotency row"
     );
@@ -340,27 +339,27 @@ async fn live_journal_posting_is_authoritative_scoped_idempotent_and_atomic() {
         .await
         .expect("authoritative post");
     assert!(!first.replayed);
-    assert_eq!(counts(&pool, &holding_ref).await, (1, 2, 1, 1));
+    assert_eq!(counts(&pool, &data_profile_key).await, (1, 2, 1, 1));
     let replay = store
         .post_journal(entry.clone(), &legacy, &period, posted_at)
         .await
         .expect("idempotent replay");
     assert!(replay.replayed);
     assert_eq!(replay.journal, first.journal);
-    assert_eq!(counts(&pool, &holding_ref).await, (1, 2, 1, 1));
+    assert_eq!(counts(&pool, &data_profile_key).await, (1, 2, 1, 1));
 
     let mut usage_guard_tx = pool.begin().await.expect("usage guard transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *usage_guard_tx)
         .await
         .expect("usage guard scope");
     let structural_update = sqlx::query(
-        "UPDATE erpx_tenant.finance_chart_accounts
+        "UPDATE erpx_holding.finance_chart_accounts
             SET account_name='Used account must remain immutable'
-          WHERE holding_ref=$1 AND chart_id=$2 AND account_id=$3",
+          WHERE data_profile_key=$1 AND chart_id=$2 AND account_id=$3",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(chart_id)
     .bind(debit_id)
     .execute(&mut *usage_guard_tx)
@@ -380,7 +379,7 @@ async fn live_journal_posting_is_authoritative_scoped_idempotent_and_atomic() {
         company_id,
         legacy.accounts.clone(),
     );
-    let before_missing_chart = counts(&pool, &holding_ref).await;
+    let before_missing_chart = counts(&pool, &data_profile_key).await;
     let missing_chart_result = store
         .post_journal(
             journal(
@@ -403,11 +402,11 @@ async fn live_journal_posting_is_authoritative_scoped_idempotent_and_atomic() {
             ..
         })
     ));
-    assert_eq!(counts(&pool, &holding_ref).await, before_missing_chart);
+    assert_eq!(counts(&pool, &data_profile_key).await, before_missing_chart);
 
     let inactive_company_id = Uuid::new_v4();
     let inactive_period = make_period(holding_id, inactive_company_id);
-    save_period(&pool, &holding_ref, &inactive_period).await;
+    save_period(&pool, &data_profile_key, &inactive_period).await;
     let inactive_chart_id = Uuid::new_v4();
     let mut inactive_account =
         normalized_account(Uuid::new_v4(), "2100", AccountCategory::Liability);
@@ -422,7 +421,7 @@ async fn live_journal_posting_is_authoritative_scoped_idempotent_and_atomic() {
         vec![inactive_account.clone(), inactive_credit],
         &inactive_context,
     );
-    save_normalized_chart(&pool, &holding_ref, &inactive_chart, &inactive_context).await;
+    save_normalized_chart(&pool, &data_profile_key, &inactive_chart, &inactive_context).await;
     let inactive_legacy = legacy_chart(
         inactive_chart_id,
         holding_id,
@@ -432,7 +431,7 @@ async fn live_journal_posting_is_authoritative_scoped_idempotent_and_atomic() {
             legacy_account(inactive_credit_id, "4100", AccountKind::Revenue),
         ],
     );
-    let before_inactive = counts(&pool, &holding_ref).await;
+    let before_inactive = counts(&pool, &data_profile_key).await;
     let inactive_result = store
         .post_journal(
             journal(
@@ -453,7 +452,7 @@ async fn live_journal_posting_is_authoritative_scoped_idempotent_and_atomic() {
         Err(PersistenceError::InvalidData(message))
             if message == "authoritative Finance account is inactive"
     ));
-    assert_eq!(counts(&pool, &holding_ref).await, before_inactive);
+    assert_eq!(counts(&pool, &data_profile_key).await, before_inactive);
 
     let mismatched_chart_id = Uuid::new_v4();
     let other_company_id = Uuid::new_v4();
@@ -470,7 +469,13 @@ async fn live_journal_posting_is_authoritative_scoped_idempotent_and_atomic() {
         ],
         &mismatch_context,
     );
-    save_normalized_chart(&pool, &holding_ref, &mismatched_source, &mismatch_context).await;
+    save_normalized_chart(
+        &pool,
+        &data_profile_key,
+        &mismatched_source,
+        &mismatch_context,
+    )
+    .await;
     let mismatched_legacy = legacy_chart(
         mismatched_chart_id,
         holding_id,
@@ -480,7 +485,7 @@ async fn live_journal_posting_is_authoritative_scoped_idempotent_and_atomic() {
             legacy_account(mismatch_credit_id, "4200", AccountKind::Revenue),
         ],
     );
-    let before_scope = counts(&pool, &holding_ref).await;
+    let before_scope = counts(&pool, &data_profile_key).await;
     let scope_result = store
         .post_journal(
             journal(
@@ -501,10 +506,10 @@ async fn live_journal_posting_is_authoritative_scoped_idempotent_and_atomic() {
         Err(PersistenceError::InvalidData(message))
             if message == "authoritative Finance chart scope does not match the journal"
     ));
-    assert_eq!(counts(&pool, &holding_ref).await, before_scope);
+    assert_eq!(counts(&pool, &data_profile_key).await, before_scope);
 
     let missing_account_id = Uuid::new_v4();
-    let before_missing_account = counts(&pool, &holding_ref).await;
+    let before_missing_account = counts(&pool, &data_profile_key).await;
     let missing_account_result = store
         .post_journal(
             journal(
@@ -535,10 +540,13 @@ async fn live_journal_posting_is_authoritative_scoped_idempotent_and_atomic() {
             id
         }) if id == missing_account_id
     ));
-    assert_eq!(counts(&pool, &holding_ref).await, before_missing_account);
+    assert_eq!(
+        counts(&pool, &data_profile_key).await,
+        before_missing_account
+    );
 
     let (function_name, trigger_name) = install_rejecting_usage_trigger(&pool).await;
-    let before_rollback = counts(&pool, &holding_ref).await;
+    let before_rollback = counts(&pool, &data_profile_key).await;
     let rollback_result = store
         .post_journal(
             journal(
@@ -558,34 +566,34 @@ async fn live_journal_posting_is_authoritative_scoped_idempotent_and_atomic() {
         rollback_result.is_err(),
         "usage rejection must fail posting"
     );
-    assert_eq!(counts(&pool, &holding_ref).await, before_rollback);
+    assert_eq!(counts(&pool, &data_profile_key).await, before_rollback);
     remove_rejecting_usage_trigger(&pool, &function_name, &trigger_name).await;
 }
 
 #[tokio::test]
-#[ignore = "requires disposable tenant PostgreSQL write and read databases"]
+#[ignore = "requires disposable holding PostgreSQL write and read databases"]
 async fn live_finance_journal_projection_replay_integrity_is_fail_closed() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant-write migrations");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding-write migrations");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant-read migrations");
+        .expect("holding-read migrations");
 
-    let holding_ref = format!("holding-finance-projection-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-finance-projection-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let debit_id = Uuid::new_v4();
     let credit_id = Uuid::new_v4();
     let chart_id = Uuid::new_v4();
     let period = make_period(holding_id, company_id);
-    save_period(&write_pool, &holding_ref, &period).await;
+    save_period(&write_pool, &data_profile_key, &period).await;
     let chart_context = context(holding_id, company_id, "projection-chart");
     let normalized = normalized_chart(
         chart_id,
@@ -597,7 +605,7 @@ async fn live_finance_journal_projection_replay_integrity_is_fail_closed() {
         ],
         &chart_context,
     );
-    save_normalized_chart(&write_pool, &holding_ref, &normalized, &chart_context).await;
+    save_normalized_chart(&write_pool, &data_profile_key, &normalized, &chart_context).await;
     let legacy = legacy_chart(
         chart_id,
         holding_id,
@@ -607,8 +615,9 @@ async fn live_finance_journal_projection_replay_integrity_is_fail_closed() {
             legacy_account(credit_id, "4000", AccountKind::Revenue),
         ],
     );
-    let write_store = SqlxFinanceStore::new(write_pool.clone(), read_pool.clone(), &holding_ref)
-        .expect("finance store");
+    let write_store =
+        SqlxFinanceStore::new(write_pool.clone(), read_pool.clone(), &data_profile_key)
+            .expect("finance store");
     write_store
         .post_journal(
             journal(
@@ -697,19 +706,19 @@ async fn live_finance_journal_projection_replay_integrity_is_fail_closed() {
     ));
 
     let mut inspection = read_pool.begin().await.expect("projection inspection");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *inspection)
         .await
         .expect("projection inspection scope");
     let persisted: (i64, i64) = sqlx::query_as(
         "SELECT
-            (SELECT count(*) FROM erpx_tenant.finance_posted_journals
-             WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.finance_projection_checkpoints
-             WHERE holding_ref=$1)",
+            (SELECT count(*) FROM erpx_holding.finance_posted_journals
+             WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.finance_projection_checkpoints
+             WHERE data_profile_key=$1)",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .fetch_one(&mut *inspection)
     .await
     .expect("projection remains intact");
@@ -723,17 +732,17 @@ async fn live_finance_journal_projection_replay_integrity_is_fail_closed() {
         .begin()
         .await
         .expect("projection drift transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *drift_tx)
         .await
         .expect("projection drift scope");
     sqlx::query(
-        "UPDATE erpx_tenant.finance_posted_journals
+        "UPDATE erpx_holding.finance_posted_journals
             SET payload='{}'::jsonb
-          WHERE holding_ref=$1 AND journal_id=$2",
+          WHERE data_profile_key=$1 AND journal_id=$2",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(event.aggregate_id)
     .execute(&mut *drift_tx)
     .await
@@ -764,21 +773,21 @@ async fn live_finance_journal_projection_replay_integrity_is_fail_closed() {
         .begin()
         .await
         .expect("malformed source transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *malformed_source)
         .await
         .expect("malformed source scope");
     sqlx::query(
-        r#"INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        r#"INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at)
          VALUES ($1,'finance_journal',$2,$3,1,
                  'finance.journal_posted.v1','{"posted_journal":{}}'::jsonb,now())"#,
     )
     .bind(Uuid::new_v4())
     .bind(Uuid::from_u128(u128::MAX))
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .execute(&mut *malformed_source)
     .await
     .expect("malformed late source event");
@@ -792,19 +801,19 @@ async fn live_finance_journal_projection_replay_integrity_is_fail_closed() {
     assert!(failed.is_err(), "malformed source must fail rebuild");
 
     let mut rollback_inspection = read_pool.begin().await.expect("rollback inspection");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *rollback_inspection)
         .await
         .expect("rollback inspection scope");
     let after_failure: (i64, i64) = sqlx::query_as(
         "SELECT
-            (SELECT count(*) FROM erpx_tenant.finance_posted_journals
-             WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.finance_projection_checkpoints
-             WHERE holding_ref=$1)",
+            (SELECT count(*) FROM erpx_holding.finance_posted_journals
+             WHERE data_profile_key=$1),
+            (SELECT count(*) FROM erpx_holding.finance_projection_checkpoints
+             WHERE data_profile_key=$1)",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .fetch_one(&mut *rollback_inspection)
     .await
     .expect("rollback projection counts");

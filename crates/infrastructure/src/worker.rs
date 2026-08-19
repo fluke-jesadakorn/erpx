@@ -32,7 +32,7 @@ pub struct WorkerErrorContext {
     pub aggregate_type: String,
     pub aggregate_id: Uuid,
     pub aggregate_version: u64,
-    pub tenant_scope: Option<Value>,
+    pub active_scope: Option<Value>,
     pub actor: Option<Value>,
     pub correlation_id: Uuid,
     pub causation_id: Option<Uuid>,
@@ -51,7 +51,7 @@ impl WorkerError {
             aggregate_type: event.aggregate_type.clone(),
             aggregate_id: event.aggregate_id,
             aggregate_version: event.aggregate_version,
-            tenant_scope: sanitize_worker_context_value(event.tenant_scope.as_ref()),
+            active_scope: sanitize_worker_context_value(event.active_scope.as_ref()),
             actor: sanitize_worker_context_value(event.actor.as_ref()),
             correlation_id: event.correlation_id,
             causation_id: event.causation_id,
@@ -70,7 +70,7 @@ impl WorkerError {
 
 impl WorkerErrorContext {
     /// Ensure a durable diagnostic context still describes the exact claimed
-    /// event. This prevents a caller from persisting a different tenant,
+    /// event. This prevents a caller from persisting a different holding,
     /// actor, or correlation context against a valid worker claim.
     pub fn validate_for(
         &self,
@@ -85,7 +85,7 @@ impl WorkerErrorContext {
             aggregate_type: event.aggregate_type.clone(),
             aggregate_id: event.aggregate_id,
             aggregate_version: event.aggregate_version,
-            tenant_scope: sanitize_worker_context_value(event.tenant_scope.as_ref()),
+            active_scope: sanitize_worker_context_value(event.active_scope.as_ref()),
             actor: sanitize_worker_context_value(event.actor.as_ref()),
             correlation_id: event.correlation_id,
             causation_id: event.causation_id,
@@ -108,8 +108,8 @@ impl WorkerErrorContext {
         {
             return Err("aggregate identity does not match the claim");
         }
-        if self.tenant_scope != expected.tenant_scope {
-            return Err("tenant scope does not match the claim");
+        if self.active_scope != expected.active_scope {
+            return Err("holding scope does not match the claim");
         }
         if self.actor != expected.actor {
             return Err("actor does not match the claim");
@@ -662,7 +662,7 @@ mod tests {
             aggregate_type: "unowned_aggregate".into(),
             aggregate_id: Uuid::from_u128(101),
             aggregate_version: 1,
-            tenant_scope: None,
+            active_scope: None,
             actor: None,
             correlation_id: Uuid::from_u128(102),
             causation_id: None,
@@ -724,7 +724,7 @@ mod tests {
             aggregate_type: "fixture".into(),
             aggregate_id: Uuid::from_u128(2),
             aggregate_version: 1,
-            tenant_scope: Some(serde_json::json!({"holding_ref": "holding-1"})),
+            active_scope: Some(serde_json::json!({"data_profile_key": "holding-1"})),
             actor: Some(serde_json::json!({"principal_ref": "worker-1"})),
             correlation_id: Uuid::from_u128(3),
             causation_id: Some(Uuid::from_u128(5)),
@@ -745,7 +745,7 @@ mod tests {
             .context(&event, Uuid::from_u128(4));
         assert_eq!(context.event_id, event.id);
         assert_eq!(context.correlation_id, event.correlation_id);
-        assert_eq!(context.tenant_scope, event.tenant_scope);
+        assert_eq!(context.active_scope, event.active_scope);
         assert_eq!(context.actor, event.actor);
         assert_eq!(context.causation_id, event.causation_id);
         assert_eq!(context.message, "worker handler failed");
@@ -760,7 +760,7 @@ mod tests {
     }
 
     #[test]
-    fn worker_error_context_rejects_tenant_and_correlation_mismatch() {
+    fn worker_error_context_rejects_holding_and_correlation_mismatch() {
         let event = OutboxEnvelope {
             id: Uuid::from_u128(11),
             event_type: "fixture.created".into(),
@@ -768,7 +768,7 @@ mod tests {
             aggregate_type: "fixture".into(),
             aggregate_id: Uuid::from_u128(12),
             aggregate_version: 1,
-            tenant_scope: Some(serde_json::json!({"tenant_id": "tenant-1"})),
+            active_scope: Some(serde_json::json!({"holding_id": "holding-1"})),
             actor: Some(serde_json::json!({"actor_ref": "actor-1"})),
             correlation_id: Uuid::from_u128(13),
             causation_id: None,
@@ -787,12 +787,12 @@ mod tests {
         };
         let mut context =
             WorkerError::Retryable("temporary".into()).context(&event, Uuid::from_u128(14));
-        context.tenant_scope = Some(serde_json::json!({"tenant_id": "tenant-2"}));
+        context.active_scope = Some(serde_json::json!({"holding_id": "holding-2"}));
         assert_eq!(
             context.validate_for(&event, Uuid::from_u128(14)),
-            Err("tenant scope does not match the claim")
+            Err("holding scope does not match the claim")
         );
-        context.tenant_scope = event.tenant_scope.clone();
+        context.active_scope = event.active_scope.clone();
         context.correlation_id = Uuid::from_u128(99);
         assert_eq!(
             context.validate_for(&event, Uuid::from_u128(14)),
@@ -809,7 +809,7 @@ mod tests {
             aggregate_type: "fixture".into(),
             aggregate_id: Uuid::from_u128(22),
             aggregate_version: 1,
-            tenant_scope: Some(serde_json::json!({"tenant_id": "tenant-1"})),
+            active_scope: Some(serde_json::json!({"holding_id": "holding-1"})),
             actor: Some(serde_json::json!({"token": "do-not-persist"})),
             correlation_id: Uuid::from_u128(23),
             causation_id: None,

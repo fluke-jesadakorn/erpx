@@ -561,7 +561,7 @@ fn g14_worker_registrations_match_the_current_composition_root() {
             "handler_name == FINANCE_COMPLETION_HANDLER_NAME",
             "handler_name == FINANCE_SUBLEDGER_RECONCILIATION_HANDLER_NAME",
             "handler_name == LEGAL_RETENTION_HANDLER_NAME",
-            "handler_name == TENANT_PROJECTION_SCHEDULER_HANDLER_NAME",
+            "handler_name == HOLDING_PROJECTION_SCHEDULER_HANDLER_NAME",
             "run_registered_until_shutdown",
             "ProductProjectionExecutor::AssetMaintenance",
             "ProductProjectionExecutor::Legal",
@@ -581,7 +581,7 @@ fn g14_worker_registrations_match_the_current_composition_root() {
 
     // These assertions only bind the acceptance record to the checked-in
     // registration boundary. They do not claim that a worker has connected to
-    // a tenant database or completed a live projection/reconciliation pass.
+    // a holding database or completed a live projection/reconciliation pass.
     assert!(WORKER_APP.contains("DirectorySyncRuntimeHandler::from_env"));
     assert!(WORKER_APP.contains("operations_source_ingestion_handler("));
     assert!(WORKER_APP.contains("FinanceCompletionRuntimeHandler::from_env"));
@@ -660,8 +660,8 @@ fn g14_external_vendor_certification_is_queued_without_environment() {
     const DATABASE_REFERENCES: &[&str] = &[
         "ERPX_CONTROL_WRITE_DATABASE_URL",
         "ERPX_CONTROL_READ_DATABASE_URL",
-        "ERPX_TENANT_ADMIN_DATABASE_URL",
-        "ERPX_TENANT_DATABASE_URL_TEMPLATE",
+        "ERPX_HOLDING_ADMIN_DATABASE_URL",
+        "ERPX_HOLDING_DATABASE_URL_TEMPLATE",
         "ERPX_G14_GENERIC_LDAP_TEST_DATABASE_URL",
         "ERPX_G14_AD_TEST_DATABASE_URL",
         "ERPX_G14_UCS_TEST_DATABASE_URL",
@@ -674,7 +674,7 @@ fn g14_external_vendor_certification_is_queued_without_environment() {
         );
     } else {
         eprintln!(
-            "G14 database acceptance blocker queued: missing control/tenant references: {}",
+            "G14 database acceptance blocker queued: missing control/holding references: {}",
             missing_database_references.join(", ")
         );
     }

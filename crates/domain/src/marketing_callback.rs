@@ -16,12 +16,12 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::contracts::TenantScope;
+use crate::contracts::AuthorityScope;
 use crate::marketing_delivery::DeliveryDispatch;
 
 /// Provider callback fields are opaque references, never provider payloads.
 pub const MAX_CALLBACK_REFERENCE_BYTES: usize = 255;
-pub const MAX_CALLBACK_TENANT_BYTES: usize = 128;
+pub const MAX_CALLBACK_HOLDING_BYTES: usize = 128;
 pub const MAX_CALLBACK_AUTH_SCHEME_BYTES: usize = 64;
 pub const MAX_CALLBACK_AUTH_KEY_REF_BYTES: usize = 255;
 
@@ -30,7 +30,7 @@ pub const MAX_CALLBACK_AUTH_KEY_REF_BYTES: usize = 255;
 pub const CALLBACK_MAX_EVENT_AGE_SECONDS: i64 = 24 * 60 * 60;
 pub const CALLBACK_MAX_FUTURE_SKEW_SECONDS: i64 = 5 * 60;
 
-const CALLBACK_KEY_VERSION: &str = "erpx-marketing-provider-callback-v1";
+const CALLBACK_KEY_VERSION: &str = "erpx-marketing-provider-callback";
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum MarketingProviderCallbackError {
@@ -119,21 +119,18 @@ impl VerifiedProviderAuthentication {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MarketingProviderCallbackBinding {
     pub provider_account_ref: String,
-    pub tenant_id: String,
     pub holding_id: Uuid,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
 }
 
 impl MarketingProviderCallbackBinding {
     pub fn new(
         provider_account_ref: impl Into<String>,
-        tenant_id: impl Into<String>,
         holding_id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
     ) -> Result<Self, MarketingProviderCallbackError> {
         let value = Self {
             provider_account_ref: provider_account_ref.into(),
-            tenant_id: tenant_id.into(),
             holding_id,
             scope,
         };
@@ -147,9 +144,8 @@ impl MarketingProviderCallbackBinding {
             "provider_account_ref",
             MAX_CALLBACK_REFERENCE_BYTES,
         )?;
-        bounded(&self.tenant_id, "tenant_id", MAX_CALLBACK_TENANT_BYTES)?;
         require_id(self.holding_id, "holding_id")?;
-        if self.scope == TenantScope::Platform
+        if self.scope == AuthorityScope::Platform
             || scope_holding_id(&self.scope) != Some(self.holding_id)
         {
             return Err(MarketingProviderCallbackError::InvalidScope);
@@ -408,7 +404,6 @@ impl MarketingProviderCallbackIdempotency {
             CALLBACK_KEY_VERSION,
             "event-fingerprint",
             &binding.provider_account_ref,
-            &binding.tenant_id,
             &binding.holding_id.to_string(),
             &scope,
             &request.delivery_id.to_string(),
@@ -421,7 +416,6 @@ impl MarketingProviderCallbackIdempotency {
             CALLBACK_KEY_VERSION,
             "inbox",
             &binding.provider_account_ref,
-            &binding.tenant_id,
             &binding.holding_id.to_string(),
             &request.provider_event_id,
         ]);
@@ -429,7 +423,6 @@ impl MarketingProviderCallbackIdempotency {
             CALLBACK_KEY_VERSION,
             "delivery",
             &binding.provider_account_ref,
-            &binding.tenant_id,
             &binding.holding_id.to_string(),
             &scope,
             &request.delivery_id.to_string(),
@@ -437,12 +430,9 @@ impl MarketingProviderCallbackIdempotency {
             kind,
         ]);
         Ok(Self {
-            inbox_key: MarketingProviderInboxKey(format!(
-                "mpcb_in_v1_{}",
-                hex::encode(inbox_digest)
-            )),
+            inbox_key: MarketingProviderInboxKey(format!("mpcb_in_{}", hex::encode(inbox_digest))),
             delivery_idempotency_key: MarketingProviderDeliveryKey(format!(
-                "mpcb_del_v1_{}",
+                "mpcb_del_{}",
                 hex::encode(delivery_digest)
             )),
             event_fingerprint,
@@ -466,8 +456,6 @@ fn binding_mismatch(
         MarketingProviderCallbackError::BindingMismatch {
             field: "provider_account_ref",
         }
-    } else if actual.tenant_id != expected.tenant_id {
-        MarketingProviderCallbackError::BindingMismatch { field: "tenant_id" }
     } else if actual.holding_id != expected.holding_id {
         MarketingProviderCallbackError::BindingMismatch {
             field: "holding_id",
@@ -477,44 +465,33 @@ fn binding_mismatch(
     }
 }
 
-fn scope_holding_id(scope: &TenantScope) -> Option<Uuid> {
+fn scope_holding_id(scope: &AuthorityScope) -> Option<Uuid> {
     match scope {
-        TenantScope::Platform => None,
-        TenantScope::Holding { holding_id }
-        | TenantScope::Company { holding_id, .. }
-        | TenantScope::Branch { holding_id, .. }
-        | TenantScope::Subtree { holding_id, .. } => Some(*holding_id),
+        AuthorityScope::Platform => None,
+        AuthorityScope::Holding { holding_id }
+        | AuthorityScope::Company { holding_id, .. }
+        | AuthorityScope::Branch { holding_id, .. }
+        | AuthorityScope::Subtree { holding_id, .. } => Some(*holding_id),
     }
 }
 
-fn scope_key(scope: &TenantScope) -> String {
+fn scope_key(scope: &AuthorityScope) -> String {
     match scope {
-        TenantScope::Platform => "platform".to_owned(),
-        TenantScope::Holding { holding_id } => format!("holding:{holding_id}"),
-        TenantScope::Company {
+        AuthorityScope::Platform => "platform".to_owned(),
+        AuthorityScope::Holding { holding_id } => format!("holding:{holding_id}"),
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => format!("company:{holding_id}:{company_id}"),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         } => format!("branch:{holding_id}:{company_id}:{branch_id}"),
-        TenantScope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
-        } => {
-            let mut company_ids: Vec<_> = company_ids.iter().map(Uuid::to_string).collect();
-            let mut branch_ids: Vec<_> = branch_ids.iter().map(Uuid::to_string).collect();
-            company_ids.sort_unstable();
-            branch_ids.sort_unstable();
-            format!(
-                "subtree:{holding_id}:companies={}:branches={}",
-                company_ids.join(","),
-                branch_ids.join(",")
-            )
-        }
+            organization_node_id,
+        } => format!("subtree:{holding_id}:{organization_node_id}"),
     }
 }
 
@@ -574,9 +551,8 @@ mod tests {
         let (_, holding_id, company_id, _) = ids();
         MarketingProviderCallbackBinding::new(
             "provider-account-1",
-            "tenant-1",
             holding_id,
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             },
@@ -625,27 +601,25 @@ mod tests {
     }
 
     #[test]
-    fn provider_account_tenant_holding_and_scope_must_match_trusted_binding() {
+    fn provider_account_holding_holding_and_scope_must_match_trusted_binding() {
         let now = Utc::now();
         let expected = binding();
         for (field, mut actual) in [
             ("provider_account_ref", expected.clone()),
-            ("tenant_id", expected.clone()),
             ("holding_id", expected.clone()),
             ("scope", expected.clone()),
         ] {
             match field {
                 "provider_account_ref" => actual.provider_account_ref = "other-account".into(),
-                "tenant_id" => actual.tenant_id = "other-tenant".into(),
                 "holding_id" => {
                     actual.holding_id = Uuid::from_u128(999);
-                    actual.scope = TenantScope::Company {
+                    actual.scope = AuthorityScope::Company {
                         holding_id: actual.holding_id,
                         company_id: Uuid::from_u128(2),
                     };
                 }
                 "scope" => {
-                    actual.scope = TenantScope::Holding {
+                    actual.scope = AuthorityScope::Holding {
                         holding_id: actual.holding_id,
                     }
                 }

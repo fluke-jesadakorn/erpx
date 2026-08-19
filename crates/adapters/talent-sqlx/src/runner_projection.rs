@@ -69,7 +69,7 @@ impl Projector for TalentCandidateProjector {
             .candidate_principal_id()
             .ok_or_else(|| ProjectionFailure::new("candidate projection has no owner"))?;
         let status = status(&aggregate)?;
-        changed(sqlx::query("INSERT INTO erpx_talent_read.candidate_projection (projection_name,generation,partition_key,record_id,record_type,scope_key,tenant_scope,authority_realm,candidate_principal_id,lifecycle_status,source_aggregate_version,source_global_sequence,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,'candidate',$8,$9,$10,$11,clock_timestamp()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,record_id) DO UPDATE SET lifecycle_status=EXCLUDED.lifecycle_status,source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,projected_at=clock_timestamp() WHERE erpx_talent_read.candidate_projection.source_aggregate_version<EXCLUDED.source_aggregate_version").bind(CANDIDATE_PROJECTION).bind(ctx.generation).bind(&event.partition).bind(aggregate.id_uuid()).bind(variant(aggregate.aggregate_type())?).bind(scope_key(aggregate.scope())?).bind(serde_json::to_value(aggregate.scope()).map_err(failure)?).bind(principal).bind(status).bind(i64v(event.aggregate_version)?).bind(i64v(event.global_sequence)?).execute(&mut **tx).await.map_err(failure)?,"talent candidate snapshot version did not advance")
+        changed(sqlx::query("INSERT INTO erpx_talent_read.candidate_projection (projection_name,generation,partition_key,record_id,record_type,scope_key,active_scope,authority_realm,candidate_principal_id,lifecycle_status,source_aggregate_version,source_global_sequence,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,'candidate',$8,$9,$10,$11,clock_timestamp()) ON CONFLICT (holding_id,projection_name,generation,partition_key,record_id) DO UPDATE SET lifecycle_status=EXCLUDED.lifecycle_status,source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,projected_at=clock_timestamp() WHERE erpx_talent_read.candidate_projection.source_aggregate_version<EXCLUDED.source_aggregate_version").bind(CANDIDATE_PROJECTION).bind(ctx.generation).bind(&event.partition).bind(aggregate.id_uuid()).bind(variant(aggregate.aggregate_type())?).bind(scope_key(aggregate.scope())?).bind(serde_json::to_value(aggregate.scope()).map_err(failure)?).bind(principal).bind(status).bind(i64v(event.aggregate_version)?).bind(i64v(event.global_sequence)?).execute(&mut **tx).await.map_err(failure)?,"talent candidate snapshot version did not advance")
     }
     async fn reset(
         &self,
@@ -102,7 +102,7 @@ impl Projector for TalentWorkforceProjector {
             TalentRealm::Workforce,
         )?;
         let status = status(&aggregate)?;
-        changed(sqlx::query("INSERT INTO erpx_talent_read.workforce_projection (projection_name,generation,partition_key,record_id,record_type,scope_key,tenant_scope,authority_realm,lifecycle_status,source_aggregate_version,source_global_sequence,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,'workforce',$8,$9,$10,clock_timestamp()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,record_id) DO UPDATE SET lifecycle_status=EXCLUDED.lifecycle_status,source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,projected_at=clock_timestamp() WHERE erpx_talent_read.workforce_projection.source_aggregate_version<EXCLUDED.source_aggregate_version").bind(WORKFORCE_PROJECTION).bind(ctx.generation).bind(&event.partition).bind(aggregate.id_uuid()).bind(variant(aggregate.aggregate_type())?).bind(scope_key(aggregate.scope())?).bind(serde_json::to_value(aggregate.scope()).map_err(failure)?).bind(status).bind(i64v(event.aggregate_version)?).bind(i64v(event.global_sequence)?).execute(&mut **tx).await.map_err(failure)?,"talent workforce snapshot version did not advance")
+        changed(sqlx::query("INSERT INTO erpx_talent_read.workforce_projection (projection_name,generation,partition_key,record_id,record_type,scope_key,active_scope,authority_realm,lifecycle_status,source_aggregate_version,source_global_sequence,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,'workforce',$8,$9,$10,clock_timestamp()) ON CONFLICT (holding_id,projection_name,generation,partition_key,record_id) DO UPDATE SET lifecycle_status=EXCLUDED.lifecycle_status,source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,projected_at=clock_timestamp() WHERE erpx_talent_read.workforce_projection.source_aggregate_version<EXCLUDED.source_aggregate_version").bind(WORKFORCE_PROJECTION).bind(ctx.generation).bind(&event.partition).bind(aggregate.id_uuid()).bind(variant(aggregate.aggregate_type())?).bind(scope_key(aggregate.scope())?).bind(serde_json::to_value(aggregate.scope()).map_err(failure)?).bind(status).bind(i64v(event.aggregate_version)?).bind(i64v(event.global_sequence)?).execute(&mut **tx).await.map_err(failure)?,"talent workforce snapshot version did not advance")
     }
     async fn reset(
         &self,
@@ -135,7 +135,7 @@ fn decode(
     if a.authority_realm() != realm
         || a.id_uuid() != event.aggregate_id.as_uuid()
         || a.version() != event.aggregate_version
-        || a.scope() != &event.tenant_scope
+        || a.scope() != &event.active_scope
         || crate::aggregate_partition(a.aggregate_type(), a.id_uuid()) != event.partition
     {
         return Err(ProjectionFailure::new("talent snapshot metadata mismatch"));
@@ -171,13 +171,13 @@ fn status(a: &TalentAggregate) -> Result<String, ProjectionFailure> {
         .map(str::to_owned)
         .ok_or_else(|| ProjectionFailure::new("talent status is missing"))
 }
-fn scope_key(s: &erpx_kernel::TenantScope) -> Result<String, ProjectionFailure> {
+fn scope_key(s: &erpx_kernel::AuthorityScope) -> Result<String, ProjectionFailure> {
     match s {
-        erpx_kernel::TenantScope::Company {
+        erpx_kernel::AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok(format!("h:{holding_id}/c:{company_id}")),
-        erpx_kernel::TenantScope::Branch {
+        erpx_kernel::AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,

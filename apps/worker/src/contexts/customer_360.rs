@@ -1,7 +1,7 @@
-//! Customer 360 control-source and tenant fan-in projection runtime adapters.
+//! Customer 360 control-source and holding fan-in projection runtime adapters.
 //!
 //! Composition owns pool discovery and scheduler registration. This module
-//! never compares global sequences from different tenant write databases.
+//! never compares global sequences from different holding write databases.
 
 use erpx_cqrs_sqlx::{
     CqrsSqlxError, MultiSourceProjectionRun, MultiSourceProjectionRunner, ProjectionPool,
@@ -9,7 +9,7 @@ use erpx_cqrs_sqlx::{
     ProjectionSourceFence, ProjectionSourceKey, ProjectionStore, Projector, RebuildHandle,
     WritePool,
 };
-use erpx_customer_360_sqlx::{ControlCustomerProjector, TenantActivityProjector};
+use erpx_customer_360_sqlx::{ControlCustomerProjector, HoldingActivityProjector};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -20,20 +20,20 @@ pub struct Customer360ProjectionRegistration {
 }
 
 #[derive(Debug, Clone)]
-pub struct TenantActivitySource {
-    pub tenant_id: Uuid,
+pub struct HoldingActivitySource {
+    pub holding_id: Uuid,
     pub write_pool: WritePool,
 }
 
-impl TenantActivitySource {
+impl HoldingActivitySource {
     fn into_runner_source(self) -> Result<(ProjectionSourceKey, ProjectionSource), CqrsSqlxError> {
-        if self.tenant_id.is_nil() {
+        if self.holding_id.is_nil() {
             return Err(CqrsSqlxError::InvalidInput(
-                "Customer 360 tenant source id is nil",
+                "Customer 360 holding source id is nil",
             ));
         }
         Ok((
-            ProjectionSourceKey::try_new(format!("tenant:{}", self.tenant_id))?,
+            ProjectionSourceKey::try_new(format!("holding:{}", self.holding_id))?,
             ProjectionSource::new(self.write_pool),
         ))
     }
@@ -45,7 +45,7 @@ pub struct Customer360ProjectionFactory;
 impl Customer360ProjectionFactory {
     pub fn registrations(self) -> Vec<Customer360ProjectionRegistration> {
         let control = ControlCustomerProjector::new();
-        let tenant = TenantActivityProjector::new();
+        let holding = HoldingActivityProjector::new();
         vec![
             Customer360ProjectionRegistration {
                 name: control.name().into(),
@@ -53,8 +53,8 @@ impl Customer360ProjectionFactory {
                 multi_source: false,
             },
             Customer360ProjectionRegistration {
-                name: tenant.name().into(),
-                event_types: tenant.event_types().to_vec(),
+                name: holding.name().into(),
+                event_types: holding.event_types().to_vec(),
                 multi_source: true,
             },
         ]
@@ -76,20 +76,20 @@ impl Customer360ProjectionFactory {
         })
     }
 
-    pub fn build_tenant(
+    pub fn build_holding(
         self,
         control_projection: ProjectionPool,
-        tenant_sources: Vec<TenantActivitySource>,
+        holding_sources: Vec<HoldingActivitySource>,
         config: ProjectionRunnerConfig,
-    ) -> Result<Customer360TenantProjectionRuntime, CqrsSqlxError> {
+    ) -> Result<Customer360HoldingProjectionRuntime, CqrsSqlxError> {
         let store = ProjectionStore::new(control_projection);
-        let sources = tenant_sources
+        let sources = holding_sources
             .into_iter()
-            .map(TenantActivitySource::into_runner_source)
+            .map(HoldingActivitySource::into_runner_source)
             .collect::<Result<Vec<_>, _>>()?;
         let runner = MultiSourceProjectionRunner::new(sources, store.clone(), config)?;
-        Ok(Customer360TenantProjectionRuntime {
-            projector: TenantActivityProjector::new(),
+        Ok(Customer360HoldingProjectionRuntime {
+            projector: HoldingActivityProjector::new(),
             runner,
             store,
         })
@@ -152,13 +152,13 @@ impl Customer360ControlProjectionRuntime {
 }
 
 #[derive(Debug, Clone)]
-pub struct Customer360TenantProjectionRuntime {
-    projector: TenantActivityProjector,
+pub struct Customer360HoldingProjectionRuntime {
+    projector: HoldingActivityProjector,
     runner: MultiSourceProjectionRunner,
     store: ProjectionStore,
 }
 
-impl Customer360TenantProjectionRuntime {
+impl Customer360HoldingProjectionRuntime {
     pub fn source_keys(&self) -> Vec<String> {
         self.runner
             .source_keys()
@@ -226,8 +226,8 @@ impl Customer360TenantProjectionRuntime {
 mod tests {
     use super::*;
     use erpx_customer_360_sqlx::{
-        CONTROL_CUSTOMERS_PROJECTION_NAME, CONTROL_PROFILE_EVENT, OPPORTUNITY_EVENT,
-        SALES_ORDER_EVENT, SUBSCRIPTION_EVENT, SUPPORT_CASE_EVENT, TENANT_ACTIVITY_PROJECTION_NAME,
+        CONTROL_CUSTOMERS_PROJECTION_NAME, CONTROL_PROFILE_EVENT, HOLDING_ACTIVITY_PROJECTION_NAME,
+        OPPORTUNITY_EVENT, SALES_ORDER_EVENT, SUBSCRIPTION_EVENT, SUPPORT_CASE_EVENT,
     };
 
     #[test]
@@ -241,7 +241,7 @@ mod tests {
                     multi_source: false,
                 },
                 Customer360ProjectionRegistration {
-                    name: TENANT_ACTIVITY_PROJECTION_NAME.into(),
+                    name: HOLDING_ACTIVITY_PROJECTION_NAME.into(),
                     event_types: vec![
                         SUBSCRIPTION_EVENT.into(),
                         OPPORTUNITY_EVENT.into(),

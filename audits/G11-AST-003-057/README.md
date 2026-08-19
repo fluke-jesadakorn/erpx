@@ -1,11 +1,11 @@
-# G11-AST-003-057 — Asset/Maintenance tenant projector seam
+# G11-AST-003-057 — Asset/Maintenance holding projector seam
 
 ## Scope
 
 Main-agent integration of the bounded Asset/Maintenance source-event page and
-tenant-routed worker projector runner. The runner reads only the tenant write
+holding-routed worker projector runner. The runner reads only the holding write
 outbox, applies idempotent read projections, and supports clear-and-replay
-rebuilds through the routed write/read database pair. Tenant and holding
+rebuilds through the routed write/read database pair. Holding and holding
 references, cursor identity, page size, and worker errors are bounded.
 
 ## Evidence
@@ -30,6 +30,6 @@ Asset/Maintenance write state and migrations.
 
 ## Remaining work
 
-Durable per-tenant scheduling/claiming, transport, GL posting, Operations
+Durable per-holding scheduling/claiming, transport, GL posting, Operations
 consumption, HR/Legal integration, mobile UI, and end-to-end reconciliation
 remain open. This packet does not close the G11 gate.

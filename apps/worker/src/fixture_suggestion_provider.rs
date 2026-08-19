@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 use crate::{
     AgentProviderApproval, AgentProviderLimits, BudgetedAgentProviderPort,
-    TenantBoundAgentProviderPort,
+    HoldingBoundAgentProviderPort,
     agent_provider::{provider_response, validate_invocation},
 };
 
@@ -63,9 +63,9 @@ impl FixtureAgentProvider {
     }
 }
 
-impl TenantBoundAgentProviderPort for FixtureAgentProvider {
-    fn tenant_id(&self) -> Uuid {
-        self.approval.tenant_id()
+impl HoldingBoundAgentProviderPort for FixtureAgentProvider {
+    fn holding_id(&self) -> Uuid {
+        self.approval.holding_id()
     }
 }
 
@@ -145,7 +145,7 @@ mod tests {
         AgentDefinitionId, AgentManifest, AgentPin, AgentVersionId, AssignmentId, PayloadManifest,
         ProviderPolicyDecision,
     };
-    use erpx_kernel::{DataClassification, TenantScope};
+    use erpx_kernel::{AuthorityScope, DataClassification};
     use sha2::{Digest, Sha256};
 
     fn provider(
@@ -173,7 +173,7 @@ mod tests {
         let prompt = "fixture request";
         let payload_digest = format!("{:x}", Sha256::digest(prompt.as_bytes()));
         let policy_digest = "a".repeat(64);
-        let scope = TenantScope::Holding {
+        let scope = AuthorityScope::Holding {
             holding_id: Uuid::from_u128(2),
         };
         ProviderInvocationRequest {

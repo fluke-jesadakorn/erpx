@@ -7,8 +7,8 @@ fn main() {
     for directory in [
         "migrations",
         "migrations_read",
-        "migrations_tenant_write",
-        "migrations_tenant_read",
+        "migrations_holding_write",
+        "migrations_holding_read",
     ] {
         let path = Path::new(directory);
         println!("cargo:rerun-if-changed={}", path.display());

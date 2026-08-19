@@ -1,17 +1,17 @@
 //! Production Operations source-ingestion runtime.
 //!
 //! The scanner reads only the closed inventory of Operations-relevant typed
-//! integration events from active tenant write databases. Applying a fact
+//! integration events from active holding write databases. Applying a fact
 //! delegates to `OperationsSourceProcessManager`; its
 //! `OperationsSourceHandler<OperationsSourceAdapter, ..>` commits the source
-//! receipt and the source cursor in the same tenant-write transaction.
+//! receipt and the source cursor in the same holding-write transaction.
 
 use std::env;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_cqrs_sqlx::WritePool;
-use erpx_infrastructure::{RoutedDatabaseSide, SqlxTenantStoreRegistry, TenantDatabaseRouter};
+use erpx_infrastructure::{HoldingDatabaseRouter, RoutedDatabaseSide, SqlxHoldingStoreRegistry};
 use erpx_integration_contracts::{
     BoundedContext, IntegrationEvent, IntegrationEventEnvelope, assets, commercial, crm, finance,
     inventory, maintenance, marketing, people_payroll, pos, procurement, quality, sales, support,
@@ -35,15 +35,15 @@ use super::operations::{
 
 pub const OPERATIONS_SOURCE_INGESTION_HANDLER_NAME: &str = "operations_source_ingestion";
 pub const OPERATIONS_SOURCE_MAX_PAGE_SIZE: u32 = 500;
-pub const OPERATIONS_SOURCE_MAX_ACTIVE_TENANTS: usize = 1_000;
+pub const OPERATIONS_SOURCE_MAX_ACTIVE_HOLDINGS: usize = 1_000;
 
-const TENANT_SOURCE_PARTITION: &str = "operations-relevant-events-v1";
+const HOLDING_SOURCE_PARTITION: &str = "operations-relevant-events-v1";
 const MAX_CONFIG_TEXT_BYTES: usize = 128;
 
 /// Events in this inventory always map to `Some(SourceFactMessage)`. Events
 /// that `PublishedSourceEvent::try_into_message` classifies as irrelevant are
 /// excluded so every fetched row advances the durable Operations cursor.
-pub const OPERATIONS_RELEVANT_TENANT_EVENT_TYPES: &[&str] = &[
+pub const OPERATIONS_RELEVANT_HOLDING_EVENT_TYPES: &[&str] = &[
     "commercial.subscription_changed",
     "marketing.engagement_captured",
     "marketing.campaign_budget_approval_requested",
@@ -63,19 +63,21 @@ pub const OPERATIONS_RELEVANT_TENANT_EVENT_TYPES: &[&str] = &[
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OperationsSourceTenant {
-    pub tenant_id: String,
-    pub holding_ref: String,
+pub struct OperationsSourceHolding {
+    pub holding_id: String,
+    pub data_profile_key: String,
 }
 
-impl OperationsSourceTenant {
+impl OperationsSourceHolding {
     fn source_key(&self) -> Result<String, WorkerRuntimeError> {
-        let value = format!("tenant:{}", self.tenant_id);
-        if self.tenant_id.trim().is_empty()
-            || self.holding_ref.trim().is_empty()
+        let value = format!("holding:{}", self.holding_id);
+        if self.holding_id.trim().is_empty()
+            || self.data_profile_key.trim().is_empty()
             || value.len() > 255
         {
-            Err(configuration("Operations source tenant binding is invalid"))
+            Err(configuration(
+                "Operations source holding binding is invalid",
+            ))
         } else {
             Ok(value)
         }
@@ -94,7 +96,7 @@ pub trait OperationsSourceProcessFactory<M>: Send + Sync {
 
     fn build(
         &self,
-        tenant: &OperationsSourceTenant,
+        holding: &OperationsSourceHolding,
         worker_id: Uuid,
         adapter: OperationsSourceAdapter,
         detection: ConfiguredOperationsDetectionPolicy<M>,
@@ -106,27 +108,27 @@ pub trait OperationsSourceProcessFactory<M>: Send + Sync {
 
 #[derive(Debug, Clone)]
 pub struct OperationsSourceIngestionHandler<F, M> {
-    registry: SqlxTenantStoreRegistry,
-    router: TenantDatabaseRouter,
+    registry: SqlxHoldingStoreRegistry,
+    router: HoldingDatabaseRouter,
     process_factory: F,
     detection: ConfiguredOperationsDetectionPolicy<M>,
     page_size: u32,
-    max_active_tenants: usize,
+    max_active_holdings: usize,
 }
 
 impl<F, M> OperationsSourceIngestionHandler<F, M> {
     pub fn new(
-        registry: SqlxTenantStoreRegistry,
-        router: TenantDatabaseRouter,
+        registry: SqlxHoldingStoreRegistry,
+        router: HoldingDatabaseRouter,
         process_factory: F,
         detection: ConfiguredOperationsDetectionPolicy<M>,
         page_size: u32,
-        max_active_tenants: usize,
+        max_active_holdings: usize,
     ) -> Result<Self, WorkerRuntimeError> {
         if page_size == 0
             || page_size > OPERATIONS_SOURCE_MAX_PAGE_SIZE
-            || max_active_tenants == 0
-            || max_active_tenants > OPERATIONS_SOURCE_MAX_ACTIVE_TENANTS
+            || max_active_holdings == 0
+            || max_active_holdings > OPERATIONS_SOURCE_MAX_ACTIVE_HOLDINGS
         {
             return Err(configuration(
                 "Operations source ingestion bounds are invalid",
@@ -138,7 +140,7 @@ impl<F, M> OperationsSourceIngestionHandler<F, M> {
             process_factory,
             detection,
             page_size,
-            max_active_tenants,
+            max_active_holdings,
         })
     }
 }
@@ -148,29 +150,33 @@ where
     F: OperationsSourceProcessFactory<M>,
     M: OperationsManagerChainSource + Clone,
 {
-    async fn scan_tenant(
+    async fn scan_holding(
         &self,
-        tenant: OperationsSourceTenant,
+        holding: OperationsSourceHolding,
         worker_id: Uuid,
     ) -> Result<WorkerHandlerReport, WorkerRuntimeError> {
         let routed = self
             .router
             .route(
-                &tenant.tenant_id,
-                &tenant.holding_ref,
+                &holding.holding_id,
+                &holding.data_profile_key,
                 RoutedDatabaseSide::Write,
             )
             .await
-            .map_err(|_| configuration("Operations tenant write route is unavailable"))?;
+            .map_err(|_| configuration("Operations holding write route is unavailable"))?;
         let pool = routed.database_pool().clone();
-        let source_key = tenant.source_key()?;
-        let tenant_id = Uuid::parse_str(&routed.tenant_id)
-            .map_err(|_| configuration("Operations tenant identity must be a non-nil UUID"))?;
-        let write_pool = WritePool::for_tenant(pool.clone(), tenant_id)
-            .map_err(|_| configuration("Operations tenant identity must be a non-nil UUID"))?;
+        let source_key = holding.source_key()?;
+        let holding_id = Uuid::parse_str(&routed.holding_id)
+            .map_err(|_| configuration("Operations holding identity must be a non-nil UUID"))?;
+        let write_pool = WritePool::for_holding(pool.clone(), holding_id)
+            .map_err(|_| configuration("Operations holding identity must be a non-nil UUID"))?;
         let adapter = OperationsSourceAdapter::new(write_pool, pool.clone());
         let after_sequence = adapter
-            .checkpoint(SourceDatabase::Tenant, &source_key, TENANT_SOURCE_PARTITION)
+            .checkpoint(
+                SourceDatabase::Holding,
+                &source_key,
+                HOLDING_SOURCE_PARTITION,
+            )
             .await
             .map_err(map_port_error)?
             .map_or(0, |checkpoint| checkpoint.sequence);
@@ -180,7 +186,7 @@ where
             .map_err(|_| configuration("Operations source page count is invalid"))?;
         let manager =
             self.process_factory
-                .build(&tenant, worker_id, adapter, self.detection.clone())?;
+                .build(&holding, worker_id, adapter, self.detection.clone())?;
         let mut report = WorkerHandlerReport {
             claimed,
             has_work: fetched != 0,
@@ -188,9 +194,9 @@ where
         };
         for row in rows {
             let position = SourcePosition {
-                database: SourceDatabase::Tenant,
+                database: SourceDatabase::Holding,
                 source_key: source_key.clone(),
-                partition: TENANT_SOURCE_PARTITION.into(),
+                partition: HOLDING_SOURCE_PARTITION.into(),
                 sequence: row.global_sequence,
             };
             let event = decode_published_source(row)?;
@@ -232,16 +238,16 @@ where
         }
         let registrations = self
             .registry
-            .list_active_bounded(self.max_active_tenants)
+            .list_active_bounded(self.max_active_holdings)
             .await
-            .map_err(|_| configuration("Operations active tenant registry is unavailable"))?;
+            .map_err(|_| configuration("Operations active holding registry is unavailable"))?;
         let mut total = WorkerHandlerReport::default();
         for registration in registrations {
             let report = self
-                .scan_tenant(
-                    OperationsSourceTenant {
-                        tenant_id: registration.tenant_id,
-                        holding_ref: registration.holding_ref,
+                .scan_holding(
+                    OperationsSourceHolding {
+                        holding_id: registration.holding_id,
+                        data_profile_key: registration.data_profile_key,
                     },
                     worker_id,
                 )
@@ -257,14 +263,14 @@ async fn read_source_page(
     after_sequence: u64,
     page_size: u32,
 ) -> Result<Vec<RawOutboxEvent>, WorkerRuntimeError> {
-    let event_types = OPERATIONS_RELEVANT_TENANT_EVENT_TYPES
+    let event_types = OPERATIONS_RELEVANT_HOLDING_EVENT_TYPES
         .iter()
         .map(|value| (*value).to_owned())
         .collect::<Vec<_>>();
     let rows =
         sqlx::query(
             "SELECT event_id,global_sequence,context_name,event_type,event_version,
-                aggregate_type,aggregate_id,aggregate_version,tenant_scope,
+                aggregate_type,aggregate_id,aggregate_version,active_scope,
                 correlation_id,causation_id,payload,occurred_at
          FROM erpx_cqrs_write.outbox_events
          WHERE global_sequence > $1 AND available_at <= now()
@@ -292,7 +298,7 @@ struct RawOutboxEvent {
     aggregate_type: String,
     aggregate_id: Uuid,
     aggregate_version: u64,
-    tenant_scope: Value,
+    active_scope: Value,
     correlation_id: Uuid,
     causation_id: Option<Uuid>,
     payload: Value,
@@ -310,7 +316,7 @@ impl RawOutboxEvent {
             aggregate_type: row.try_get("aggregate_type")?,
             aggregate_id: non_nil(row.try_get("aggregate_id")?)?,
             aggregate_version: positive_u64(row.try_get("aggregate_version")?)?,
-            tenant_scope: row.try_get("tenant_scope")?,
+            active_scope: row.try_get("active_scope")?,
             correlation_id: non_nil(row.try_get("correlation_id")?)?,
             causation_id: row
                 .try_get::<Option<Uuid>, _>("causation_id")?
@@ -395,7 +401,7 @@ where
         "event_id": row.event_id,
         "event_type": row.event_type,
         "event_version": row.event_version,
-        "tenant_scope": row.tenant_scope,
+        "active_scope": row.active_scope,
         "aggregate_kind": row.aggregate_type,
         "aggregate_id": row.aggregate_id,
         "aggregate_version": row.aggregate_version,
@@ -676,15 +682,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn relevant_inventory_excludes_events_that_cannot_advance_the_tenant_cursor() {
-        assert!(OPERATIONS_RELEVANT_TENANT_EVENT_TYPES.contains(&"sales.order_changed"));
-        assert!(OPERATIONS_RELEVANT_TENANT_EVENT_TYPES.contains(&"pos.refund_approved"));
+    fn relevant_inventory_excludes_events_that_cannot_advance_the_holding_cursor() {
+        assert!(OPERATIONS_RELEVANT_HOLDING_EVENT_TYPES.contains(&"sales.order_changed"));
+        assert!(OPERATIONS_RELEVANT_HOLDING_EVENT_TYPES.contains(&"pos.refund_approved"));
         assert!(
-            OPERATIONS_RELEVANT_TENANT_EVENT_TYPES
+            OPERATIONS_RELEVANT_HOLDING_EVENT_TYPES
                 .contains(&"marketing.campaign_budget_approval_requested")
         );
-        assert!(!OPERATIONS_RELEVANT_TENANT_EVENT_TYPES.contains(&"pos.settlement_closed"));
-        assert!(!OPERATIONS_RELEVANT_TENANT_EVENT_TYPES.contains(&"customer.profile_changed"));
+        assert!(!OPERATIONS_RELEVANT_HOLDING_EVENT_TYPES.contains(&"pos.settlement_closed"));
+        assert!(!OPERATIONS_RELEVANT_HOLDING_EVENT_TYPES.contains(&"customer.profile_changed"));
     }
 
     #[test]

@@ -16,7 +16,7 @@ use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, ItemDescriptorDraft,
     RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
 };
-use erpx_kernel::{DataClassification, RecordId, TenantScope};
+use erpx_kernel::{AuthorityScope, DataClassification, RecordId};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use sqlx::{Postgres, Row, Transaction};
@@ -85,7 +85,7 @@ impl IdentityGovernanceSqlxAdapter {
 impl IdentityGovernanceWriteRepository for IdentityGovernanceSqlxAdapter {
     async fn load_governance_record(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         record_id: Uuid,
     ) -> Result<Option<IdentityGovernanceRecord>, PortError> {
         authority_scope.validate().map_err(|_| PortError::Denied)?;
@@ -188,19 +188,19 @@ impl Projector for IdentityGovernanceProjector {
         let record = validate_projection_event(context, event)?;
         sqlx::query(
             "INSERT INTO erpx_identity_access_read.governance_projection
-                (tenant_id,projection_name,generation,partition_key,record_id,record_type,
-                 source_aggregate_version,source_global_sequence,tenant_scope,lifecycle_state,
+                (holding_id,projection_name,generation,partition_key,record_id,record_type,
+                 source_aggregate_version,source_global_sequence,active_scope,lifecycle_state,
                  state,aggregate_updated_at,projected_at)
-             VALUES (erpx_cqrs_read.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,now())
-             ON CONFLICT (tenant_id,projection_name,generation,partition_key,record_id)
+             VALUES (erpx_cqrs_read.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,now())
+             ON CONFLICT (holding_id,projection_name,generation,partition_key,record_id)
              DO UPDATE SET record_type=EXCLUDED.record_type,
                            source_aggregate_version=EXCLUDED.source_aggregate_version,
                            source_global_sequence=EXCLUDED.source_global_sequence,
-                           tenant_scope=EXCLUDED.tenant_scope,
+                           active_scope=EXCLUDED.active_scope,
                            lifecycle_state=EXCLUDED.lifecycle_state,state=EXCLUDED.state,
                            aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now()
-             WHERE erpx_identity_access_read.governance_projection.tenant_id
-                       = erpx_cqrs_read.current_tenant_id()
+             WHERE erpx_identity_access_read.governance_projection.holding_id
+                       = erpx_cqrs_read.current_holding_id()
                AND erpx_identity_access_read.governance_projection.source_aggregate_version
                        < EXCLUDED.source_aggregate_version",
         )
@@ -228,7 +228,7 @@ impl Projector for IdentityGovernanceProjector {
     ) -> Result<(), ProjectionFailure> {
         sqlx::query(
             "DELETE FROM erpx_identity_access_read.governance_projection
-             WHERE tenant_id=erpx_cqrs_read.current_tenant_id()
+             WHERE holding_id=erpx_cqrs_read.current_holding_id()
                AND projection_name=$1 AND generation=$2",
         )
         .bind(GOVERNANCE_PROJECTION_NAME)
@@ -244,7 +244,7 @@ impl Projector for IdentityGovernanceProjector {
 impl IdentityGovernanceReadRepository for IdentityGovernanceReadAdapter {
     async fn get_governance_record(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         record_id: Uuid,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<IdentityGovernanceRecord>>, PortError> {
@@ -259,11 +259,11 @@ impl IdentityGovernanceReadRepository for IdentityGovernanceReadAdapter {
             "SELECT projection.state
              FROM erpx_identity_access_read.governance_projection projection
              JOIN erpx_cqrs_read.projection_generations generation
-               ON generation.tenant_id=projection.tenant_id
+               ON generation.holding_id=projection.holding_id
               AND generation.projection_name=projection.projection_name
               AND generation.generation=projection.generation
               AND generation.status='active'
-             WHERE projection.tenant_id=erpx_cqrs_read.current_tenant_id()
+             WHERE projection.holding_id=erpx_cqrs_read.current_holding_id()
                AND projection.projection_name=$1 AND projection.partition_key=$2
                AND projection.record_id=$3",
         )
@@ -337,7 +337,7 @@ impl IdentityGovernanceReadAdapter {
         let mut transaction = self.pool.begin().await.map_err(map_database)?;
         let status: Option<String> = sqlx::query_scalar(
             "SELECT status FROM erpx_cqrs_read.projection_generations
-             WHERE tenant_id=erpx_cqrs_read.current_tenant_id()
+             WHERE holding_id=erpx_cqrs_read.current_holding_id()
                AND projection_name=$1 AND status IN ('active','building')
              ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END LIMIT 1",
         )
@@ -385,7 +385,7 @@ fn validate_projection_event(
     if record.id_uuid() != event.aggregate_id.as_uuid()
         || record.version() != event.aggregate_version
         || record.record_type() != event.aggregate_type
-        || record.scope() != &event.tenant_scope
+        || record.scope() != &event.active_scope
         || event.partition != governance_partition(record.id_uuid())
     {
         return Err(ProjectionFailure::new(
@@ -404,7 +404,7 @@ async fn load_record(
     let review_statement = format!(
         "SELECT review_version,review_scope,reviewer_ref,due_at,completed_at
          FROM erpx_authority_write.access_reviews
-         WHERE tenant_id=erpx_authority_write.current_tenant_id()
+         WHERE holding_id=erpx_authority_write.current_holding_id()
            AND access_review_id=$1{lock}"
     );
     if let Some(row) = sqlx::query(&review_statement)
@@ -417,7 +417,7 @@ async fn load_record(
             "SELECT assignment_id,principal_id,principal_kind,owner_ref,grantor_ref,
                     decision,decided_at
              FROM erpx_authority_write.access_review_items
-             WHERE tenant_id=erpx_authority_write.current_tenant_id()
+             WHERE holding_id=erpx_authority_write.current_holding_id()
                AND access_review_id=$1 ORDER BY assignment_id",
         )
         .bind(record_id)
@@ -457,7 +457,7 @@ async fn load_record(
         "SELECT session_version,principal_id,session_scope,reason,requester_ref,approver_ref,
                 requested_at,valid_until,activated_at,closed_at,after_reviewed_at,session_status
          FROM erpx_authority_write.break_glass_sessions
-         WHERE tenant_id=erpx_authority_write.current_tenant_id()
+         WHERE holding_id=erpx_authority_write.current_holding_id()
            AND break_glass_session_id=$1{lock}"
     );
     let Some(row) = sqlx::query(&session_statement)
@@ -499,15 +499,15 @@ async fn persist_record(
         IdentityGovernanceRecord::AccessReview(review) => {
             let result = sqlx::query(
                 "INSERT INTO erpx_authority_write.access_reviews
-                    (tenant_id,access_review_id,review_version,review_scope,reviewer_ref,
+                    (holding_id,access_review_id,review_version,review_scope,reviewer_ref,
                      due_at,completed_at,changed_at)
-                 VALUES (erpx_authority_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7)
-                 ON CONFLICT (tenant_id,access_review_id) DO UPDATE SET
+                 VALUES (erpx_authority_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7)
+                 ON CONFLICT (holding_id,access_review_id) DO UPDATE SET
                     review_version=EXCLUDED.review_version,
                     reviewer_ref=EXCLUDED.reviewer_ref,due_at=EXCLUDED.due_at,
                     completed_at=EXCLUDED.completed_at,changed_at=EXCLUDED.changed_at
-                 WHERE erpx_authority_write.access_reviews.tenant_id
-                        = erpx_authority_write.current_tenant_id()
+                 WHERE erpx_authority_write.access_reviews.holding_id
+                        = erpx_authority_write.current_holding_id()
                    AND erpx_authority_write.access_reviews.review_version + 1
                         = EXCLUDED.review_version",
             )
@@ -524,7 +524,7 @@ async fn persist_record(
             ensure_one(result.rows_affected(), review.version())?;
             sqlx::query(
                 "DELETE FROM erpx_authority_write.access_review_items
-                 WHERE tenant_id=erpx_authority_write.current_tenant_id()
+                 WHERE holding_id=erpx_authority_write.current_holding_id()
                    AND access_review_id=$1",
             )
             .bind(review.id())
@@ -534,9 +534,9 @@ async fn persist_record(
             for item in review.items() {
                 sqlx::query(
                     "INSERT INTO erpx_authority_write.access_review_items
-                        (tenant_id,access_review_id,assignment_id,principal_id,principal_kind,
+                        (holding_id,access_review_id,assignment_id,principal_id,principal_kind,
                          owner_ref,grantor_ref,decision,decided_at)
-                     VALUES (erpx_authority_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8)",
+                     VALUES (erpx_authority_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8)",
                 )
                 .bind(review.id())
                 .bind(item.assignment_id().as_uuid())
@@ -554,18 +554,18 @@ async fn persist_record(
         IdentityGovernanceRecord::BreakGlass(session) => {
             let result = sqlx::query(
                 "INSERT INTO erpx_authority_write.break_glass_sessions
-                    (tenant_id,break_glass_session_id,session_version,principal_id,session_scope,
+                    (holding_id,break_glass_session_id,session_version,principal_id,session_scope,
                      reason,requester_ref,approver_ref,requested_at,valid_until,activated_at,
                      closed_at,after_reviewed_at,session_status,changed_at)
-                 VALUES (erpx_authority_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,
+                 VALUES (erpx_authority_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,
                          $10,$11,$12,$13,$14)
-                 ON CONFLICT (tenant_id,break_glass_session_id) DO UPDATE SET
+                 ON CONFLICT (holding_id,break_glass_session_id) DO UPDATE SET
                     session_version=EXCLUDED.session_version,
                     approver_ref=EXCLUDED.approver_ref,activated_at=EXCLUDED.activated_at,
                     closed_at=EXCLUDED.closed_at,after_reviewed_at=EXCLUDED.after_reviewed_at,
                     session_status=EXCLUDED.session_status,changed_at=EXCLUDED.changed_at
-                 WHERE erpx_authority_write.break_glass_sessions.tenant_id
-                        = erpx_authority_write.current_tenant_id()
+                 WHERE erpx_authority_write.break_glass_sessions.holding_id
+                        = erpx_authority_write.current_holding_id()
                    AND erpx_authority_write.break_glass_sessions.session_version + 1
                         = EXCLUDED.session_version",
             )
@@ -598,10 +598,10 @@ async fn append_projection_event(
 ) -> Result<(), PortError> {
     sqlx::query(
         "INSERT INTO erpx_cqrs_write.outbox_events
-            (tenant_id,event_id,context_name,partition_key,command_id,event_type,event_version,
-             aggregate_type,aggregate_id,aggregate_version,tenant_scope,actor,correlation_id,
+            (holding_id,event_id,context_name,partition_key,command_id,event_type,event_version,
+             aggregate_type,aggregate_id,aggregate_version,active_scope,actor,correlation_id,
              causation_id,payload,occurred_at,available_at)
-         VALUES (erpx_authority_write.current_tenant_id(),$1,'identity_access',$2,$3,$4,$5,
+         VALUES (erpx_authority_write.current_holding_id(),$1,'identity_access',$2,$3,$4,$5,
                  $6,$7,$8,$9,$10,$11,NULL,$12,$13,now())",
     )
     .bind(deterministic_uuid(
@@ -655,10 +655,10 @@ async fn append_directory_event(
     draft.validate().map_err(|_| PortError::Internal)?;
     sqlx::query(
         "INSERT INTO erpx_cqrs_write.outbox_events
-            (tenant_id,event_id,context_name,partition_key,command_id,event_type,event_version,
-             aggregate_type,aggregate_id,aggregate_version,tenant_scope,actor,correlation_id,
+            (holding_id,event_id,context_name,partition_key,command_id,event_type,event_version,
+             aggregate_type,aggregate_id,aggregate_version,active_scope,actor,correlation_id,
              causation_id,payload,occurred_at,available_at)
-         VALUES (erpx_authority_write.current_tenant_id(),$1,'identity_access',$2,$3,$4,$5,
+         VALUES (erpx_authority_write.current_holding_id(),$1,'identity_access',$2,$3,$4,$5,
                  $6,$7,$8,$9,$10,$11,NULL,$12,$13,now())",
     )
     .bind(deterministic_uuid(
@@ -692,9 +692,9 @@ async fn persist_audit(
 ) -> Result<(), PortError> {
     sqlx::query(
         "INSERT INTO erpx_authority_write.identity_governance_audit_log
-            (tenant_id,audit_id,command_id,correlation_id,actor,authority_scope,record_id,
+            (holding_id,audit_id,command_id,correlation_id,actor,authority_scope,record_id,
              record_type,record_version,action,occurred_at)
-         VALUES (erpx_authority_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+         VALUES (erpx_authority_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
     )
     .bind(deterministic_uuid(
         request.request.identity.command_id.as_uuid(),
@@ -721,9 +721,9 @@ async fn persist_receipt(
 ) -> Result<(), PortError> {
     sqlx::query(
         "INSERT INTO erpx_authority_write.identity_governance_command_receipts
-            (tenant_id,idempotency_key,command_id,request_hash,record_id,record_version,
+            (holding_id,idempotency_key,command_id,request_hash,record_id,record_version,
              correlation_id,receipt,committed_at)
-         VALUES (erpx_authority_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8)",
+         VALUES (erpx_authority_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8)",
     )
     .bind(request.request.identity.idempotency_key.as_str())
     .bind(request.request.identity.command_id.as_uuid())
@@ -755,7 +755,7 @@ async fn find_receipt(
     let row = sqlx::query(
         "SELECT command_id,request_hash,record_id,record_version,correlation_id,receipt,committed_at
          FROM erpx_authority_write.identity_governance_command_receipts
-         WHERE tenant_id=erpx_authority_write.current_tenant_id()
+         WHERE holding_id=erpx_authority_write.current_holding_id()
            AND idempotency_key=$1 FOR UPDATE",
     )
     .bind(identity.idempotency_key.as_str())
@@ -899,7 +899,7 @@ mod tests {
     use crate::{GOVERNANCE_PROJECTION_NAME, GOVERNANCE_SNAPSHOT_EVENT_TYPE};
 
     #[test]
-    fn source_contract_is_normalized_tenant_bound_and_atomic() {
+    fn source_contract_is_normalized_holding_bound_and_atomic() {
         let source = include_str!("governance.rs");
         for table in [
             "access_reviews",
@@ -910,7 +910,7 @@ mod tests {
         ] {
             assert!(source.contains(table));
         }
-        assert!(source.contains("tenant_id=erpx_authority_write.current_tenant_id()"));
+        assert!(source.contains("holding_id=erpx_authority_write.current_holding_id()"));
         assert!(source.contains("ITEM_DIRECTORY_OWNER_EVENT_TYPE"));
         assert!(source.contains("GOVERNANCE_SNAPSHOT_EVENT_TYPE"));
         assert!(source.contains("generation.status='active'"));

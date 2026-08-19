@@ -19,8 +19,8 @@ Scope: local development only. This record is not a production-readiness stateme
 - Verified WAL spool: `/Users/fluke/erpx-wal-spool`.
 - HTTPS MinIO: API `9000`, console `9001`, data root `/Users/fluke/erpx-minio-data`.
 - Allow-listed isolated restore root: `/Users/fluke/erpx-pitr-restore`; restore ports are restricted to `55440–55479`.
-- All **392/392** source databases were migrated and checksum-verified. The four authoritative runtime databases are `erpx_control_write`, `erpx_control_read`, `erpx_tenant_write`, and `erpx_tenant_read`; the other **388** databases are archived development fixtures and are denied to the application role.
-- Tenant objects, logical backups, and platform physical PITR use distinct MinIO namespaces.
+- All **392/392** source databases were migrated and checksum-verified. The four authoritative runtime databases are `erpx_control_write`, `erpx_control_read`, `erpx_holding_write`, and `erpx_holding_read`; the other **388** databases are archived development fixtures and are denied to the application role.
+- Holding objects, logical backups, and platform physical PITR use distinct MinIO namespaces.
 - ERPX runtime storage readiness requires a successful certificate-validating HTTPS probe.
 
 ## Directory capability evidence
@@ -38,10 +38,10 @@ Scope: local development only. This record is not a production-readiness stateme
 - Cluster/chain: `erpx-local-pg18` / `local-chain`.
 - Base backup object: `platform/erpx-local-pg18/chains/local-chain/base/68059dc2-092a-4dd5-9bbc-1851ea934b78.tar.gz`.
 - Base backup size: **525,937,224 bytes**; SHA-256: `ff97c234f07f1190321f46c5b58f529ee325c0316149688ad81fc1d16ce7770c`.
-- The rehearsal verified `pg_verifybackup`, all 392 database names, runtime migrations, command ownership, tenant routing, forced RLS, exact LSN recovery, exact timestamp recovery, isolated ports, and cleanup.
+- The rehearsal verified `pg_verifybackup`, all 392 database names, runtime migrations, command ownership, holding routing, forced RLS, exact LSN recovery, exact timestamp recovery, isolated ports, and cleanup.
 - Target LSN: `0/F6002000`; target timestamp: `2026-07-31T18:08:37.899145+00:00`.
 - Restores used ports `55440` and `55441` and were cleaned after verification.
-- Tenant `kind=pitr` remains rejected; physical recovery is cluster-scoped.
+- Holding `kind=pitr` remains rejected; physical recovery is cluster-scoped.
 - Promotion remains local-only, requires the runtime to be stopped and literal confirmation `PROMOTE_ERPX_PITR`, and cannot accept a caller-supplied path, URL, or port.
 
 ## Preservation and rollback

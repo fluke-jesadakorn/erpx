@@ -9,7 +9,7 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::{CurrencyCode, commercial};
 use erpx_kernel::{
-    ActorAttribution, AggregateId, AuditContext, CommandId, CorrelationId, EventId, TenantScope,
+    ActorAttribution, AggregateId, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -37,8 +37,8 @@ pub enum CommercialAction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
-    pub target_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
+    pub target_scope: &'a AuthorityScope,
     pub action: CommercialAction,
 }
 
@@ -48,13 +48,13 @@ pub trait AuthorizationPort: Send + Sync {
 }
 
 /// Resolves customer ownership from the authoritative organization/customer
-/// boundary. Handlers never trust a caller supplied customer-to-tenant link.
+/// boundary. Handlers never trust a caller supplied customer-to-holding link.
 #[async_trait]
 pub trait ScopeAuthorityPort: Send + Sync {
     async fn ensure_customer_in_scope(
         &self,
         customer_id: Uuid,
-        target_scope: &TenantScope,
+        target_scope: &AuthorityScope,
     ) -> Result<(), PortError>;
 }
 
@@ -124,7 +124,7 @@ pub enum CommandFingerprint {
     },
     CreateSubscription {
         subscription_id: SubscriptionId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         customer_id: Uuid,
         plan_id: CatalogPlanId,
         amount_minor: i64,
@@ -140,7 +140,7 @@ pub enum CommandFingerprint {
     },
     CreateEntitlement {
         entitlement_id: EntitlementId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         subscription_id: SubscriptionId,
         capability: String,
         enabled: bool,
@@ -168,19 +168,19 @@ pub struct CommandIdentity {
 pub trait WriteRepository: Send + Sync {
     async fn load_catalog_plan(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: CatalogPlanId,
     ) -> Result<Option<CatalogPlan>, PortError>;
 
     async fn load_subscription(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: SubscriptionId,
     ) -> Result<Option<Subscription>, PortError>;
 
     async fn load_entitlement(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: EntitlementId,
     ) -> Result<Option<Entitlement>, PortError>;
 }
@@ -191,7 +191,7 @@ pub struct CommercialCommit {
     pub correlation_id: CorrelationId,
     pub causation_id: Option<EventId>,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
     pub aggregate: CommercialAggregate,
@@ -271,7 +271,7 @@ impl From<&CatalogPlan> for CatalogPlanView {
 pub struct SubscriptionView {
     pub id: SubscriptionId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub customer_id: Uuid,
     pub plan_id: CatalogPlanId,
     pub status: SubscriptionStatus,
@@ -300,7 +300,7 @@ impl From<&Subscription> for SubscriptionView {
 pub struct EntitlementView {
     pub id: EntitlementId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub subscription_id: SubscriptionId,
     pub capability: String,
     pub enabled: bool,
@@ -367,37 +367,37 @@ pub struct ReadProjection<T> {
 pub trait ReadRepository: Send + Sync {
     async fn get_catalog_plan(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: CatalogPlanId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<CatalogPlanView>>, PortError>;
     async fn list_catalog_plans(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         filter: &PageFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Page<CatalogPlanView>>, PortError>;
     async fn get_subscription(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: SubscriptionId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<SubscriptionView>>, PortError>;
     async fn list_subscriptions(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         filter: &PageFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Page<SubscriptionView>>, PortError>;
     async fn get_entitlement(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: EntitlementId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<EntitlementView>>, PortError>;
     async fn list_entitlements(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         filter: &PageFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Page<EntitlementView>>, PortError>;
@@ -407,7 +407,7 @@ pub trait ReadRepository: Send + Sync {
 pub enum PortError {
     #[error("commercial operation is denied")]
     Denied,
-    #[error("customer is outside the resolved tenant scope")]
+    #[error("customer is outside the resolved holding scope")]
     ScopeMismatch,
     #[error("provider evidence is invalid")]
     ProviderRejected,

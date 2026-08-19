@@ -1,4 +1,4 @@
-//! Tenant-routed authoritative persistence for Marketing delivery dispatches.
+//! Holding-routed authoritative persistence for Marketing delivery dispatches.
 //!
 //! The repository reserves deterministic delivery keys atomically, rechecks
 //! consent and suppression on the write database immediately before a worker
@@ -78,7 +78,7 @@ pub struct MarketingDeliveryClaim {
 pub struct SqlxMarketingDeliveryStore {
     write_pool: PgPool,
     read_pool: PgPool,
-    holding_ref: String,
+    data_profile_key: String,
     allowed_channels: Option<Vec<String>>,
 }
 
@@ -86,35 +86,35 @@ impl SqlxMarketingDeliveryStore {
     pub fn new(
         write_pool: PgPool,
         read_pool: PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_holding_ref(&holding_ref)?;
+        let data_profile_key = data_profile_key.into();
+        validate_data_profile_key(&data_profile_key)?;
         Ok(Self {
             write_pool,
             read_pool,
-            holding_ref,
+            data_profile_key,
             allowed_channels: None,
         })
     }
 
-    /// Constructs a tenant delivery source scoped to one provider account's
+    /// Constructs a holding delivery source scoped to one provider account's
     /// enabled channels. The scope is applied in the authoritative claim SQL,
     /// before a worker lease is created, so an account cannot consume work for
     /// another account's channel.
     pub fn new_for_channels(
         write_pool: PgPool,
         read_pool: PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
         channels: impl IntoIterator<Item = String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_holding_ref(&holding_ref)?;
+        let data_profile_key = data_profile_key.into();
+        validate_data_profile_key(&data_profile_key)?;
         let allowed_channels = normalize_channel_filter(channels)?;
         Ok(Self {
             write_pool,
             read_pool,
-            holding_ref,
+            data_profile_key,
             allowed_channels: Some(allowed_channels),
         })
     }
@@ -122,9 +122,9 @@ impl SqlxMarketingDeliveryStore {
     pub fn from_pools(
         write_pool: &PgPool,
         read_pool: &PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        Self::new(write_pool.clone(), read_pool.clone(), holding_ref)
+        Self::new(write_pool.clone(), read_pool.clone(), data_profile_key)
     }
 
     pub async fn enqueue(
@@ -133,7 +133,7 @@ impl SqlxMarketingDeliveryStore {
     ) -> Result<MarketingDeliveryWriteReceipt, PersistenceError> {
         dispatch.idempotency_key.validate().map_err(domain_error)?;
         let mut tx = self.begin_write().await?;
-        let receipt = enqueue_in_transaction(&mut tx, &self.holding_ref, dispatch).await?;
+        let receipt = enqueue_in_transaction(&mut tx, &self.data_profile_key, dispatch).await?;
         tx.commit().await?;
         Ok(receipt)
     }
@@ -149,11 +149,11 @@ impl SqlxMarketingDeliveryStore {
         let mut tx = self.begin_write().await?;
         let row = sqlx::query(
             "SELECT payload, version
-             FROM erpx_tenant.marketing_deliveries
-             WHERE delivery_id=$1 AND holding_ref=$2",
+             FROM erpx_holding.marketing_deliveries
+             WHERE delivery_id=$1 AND data_profile_key=$2",
         )
         .bind(delivery_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(PersistenceError::NotFound {
@@ -191,8 +191,8 @@ impl SqlxMarketingDeliveryStore {
         let rows = if let Some(allowed_channels) = &self.allowed_channels {
             sqlx::query(
                 "SELECT delivery_id, payload, version, claim_id, claimed_by, claim_until
-                 FROM erpx_tenant.marketing_deliveries
-                 WHERE holding_ref=$1
+                 FROM erpx_holding.marketing_deliveries
+                 WHERE data_profile_key=$1
                    AND payload->>'channel' = ANY($2::text[])
                    AND state IN ('queued', 'retry_scheduled')
                    AND next_attempt_at <= $3
@@ -201,7 +201,7 @@ impl SqlxMarketingDeliveryStore {
                  LIMIT $4
                  FOR UPDATE SKIP LOCKED",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(allowed_channels)
             .bind(now)
             .bind(i64::from(limit))
@@ -210,8 +210,8 @@ impl SqlxMarketingDeliveryStore {
         } else {
             sqlx::query(
                 "SELECT delivery_id, payload, version, claim_id, claimed_by, claim_until
-                 FROM erpx_tenant.marketing_deliveries
-                 WHERE holding_ref=$1
+                 FROM erpx_holding.marketing_deliveries
+                 WHERE data_profile_key=$1
                    AND state IN ('queued', 'retry_scheduled')
                    AND next_attempt_at <= $2
                    AND (claim_until IS NULL OR claim_until <= $2)
@@ -219,7 +219,7 @@ impl SqlxMarketingDeliveryStore {
                  LIMIT $3
                  FOR UPDATE SKIP LOCKED",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(now)
             .bind(i64::from(limit))
             .fetch_all(&mut *tx)
@@ -239,9 +239,9 @@ impl SqlxMarketingDeliveryStore {
                 internal_owner_notification_recheck(now)
             } else {
                 let consents =
-                    load_consents(&mut tx, &self.holding_ref, dispatch.profile_id).await?;
+                    load_consents(&mut tx, &self.data_profile_key, dispatch.profile_id).await?;
                 let suppressions =
-                    load_suppressions(&mut tx, &self.holding_ref, dispatch.profile_id).await?;
+                    load_suppressions(&mut tx, &self.data_profile_key, dispatch.profile_id).await?;
                 dispatch.recheck(&consents, &suppressions, now)
             };
             let version_before_attempt = dispatch.version;
@@ -255,11 +255,18 @@ impl SqlxMarketingDeliveryStore {
                     // read model and every rebuild would retain stale queued
                     // work.
                     if dispatch.state.is_terminal() && dispatch.version != version_before_attempt {
-                        update_dispatch(&mut tx, &self.holding_ref, &dispatch, None, None, None)
-                            .await?;
+                        update_dispatch(
+                            &mut tx,
+                            &self.data_profile_key,
+                            &dispatch,
+                            None,
+                            None,
+                            None,
+                        )
+                        .await?;
                         write_source_event(
                             &mut tx,
-                            &self.holding_ref,
+                            &self.data_profile_key,
                             dispatch.id,
                             dispatch.version,
                             &serde_json::to_value(&dispatch)?,
@@ -274,7 +281,7 @@ impl SqlxMarketingDeliveryStore {
             let claim_until = now + lease;
             update_dispatch(
                 &mut tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 &dispatch,
                 Some(claim_id),
                 Some(worker_id),
@@ -310,11 +317,11 @@ impl SqlxMarketingDeliveryStore {
             .await?;
         let row = sqlx::query(
             "SELECT payload, version, claim_id, claimed_by, claim_until
-             FROM erpx_tenant.marketing_deliveries
-             WHERE delivery_id=$1 AND holding_ref=$2 FOR UPDATE",
+             FROM erpx_holding.marketing_deliveries
+             WHERE delivery_id=$1 AND data_profile_key=$2 FOR UPDATE",
         )
         .bind(delivery_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(PersistenceError::NotFound {
@@ -347,10 +354,10 @@ impl SqlxMarketingDeliveryStore {
             .map_err(domain_error)?;
         let event_type = provider_result_event_type(dispatch.state);
         let receipt =
-            update_dispatch(&mut tx, &self.holding_ref, &dispatch, None, None, None).await?;
+            update_dispatch(&mut tx, &self.data_profile_key, &dispatch, None, None, None).await?;
         write_source_event(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             dispatch.id,
             dispatch.version,
             &serde_json::to_value(&dispatch)?,
@@ -386,15 +393,15 @@ impl SqlxMarketingDeliveryStore {
             .await?;
         let claim_until = authoritative_now + lease;
         let renewed = sqlx::query(
-            "UPDATE erpx_tenant.marketing_deliveries
+            "UPDATE erpx_holding.marketing_deliveries
              SET claim_until=$5, updated_at=$6
-             WHERE delivery_id=$1 AND holding_ref=$2 AND claim_id=$3
+             WHERE delivery_id=$1 AND data_profile_key=$2 AND claim_id=$3
                AND claimed_by=$4 AND claim_until IS NOT NULL
                AND claim_until > $6
              RETURNING claim_until",
         )
         .bind(delivery_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(claim_id)
         .bind(worker_id)
         .bind(claim_until)
@@ -414,7 +421,7 @@ impl SqlxMarketingDeliveryStore {
     /// Atomically persist an already-authenticated provider callback and apply
     /// its ordered outcome to the authoritative delivery aggregate. The raw
     /// body is represented only by its verified digest; duplicate and stale
-    /// callbacks are retained in the tenant inbox without regressing state.
+    /// callbacks are retained in the holding inbox without regressing state.
     pub async fn accept_provider_callback(
         &self,
         callback: &MarketingProviderCallback,
@@ -433,11 +440,11 @@ impl SqlxMarketingDeliveryStore {
         }
         let mut tx = self.begin_write().await?;
         let row = sqlx::query(
-            "SELECT payload FROM erpx_tenant.marketing_deliveries
-             WHERE delivery_id=$1 AND holding_ref=$2 FOR UPDATE",
+            "SELECT payload FROM erpx_holding.marketing_deliveries
+             WHERE delivery_id=$1 AND data_profile_key=$2 FOR UPDATE",
         )
         .bind(callback.delivery_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(PersistenceError::NotFound {
@@ -451,12 +458,12 @@ impl SqlxMarketingDeliveryStore {
 
         let previous = sqlx::query(
             "SELECT provider_event_id, provider_event_at, event_fingerprint
-             FROM erpx_tenant.marketing_provider_callback_inbox
-             WHERE holding_ref=$1 AND provider_account_ref=$2 AND delivery_id=$3
+             FROM erpx_holding.marketing_provider_callback_inbox
+             WHERE data_profile_key=$1 AND provider_account_ref=$2 AND delivery_id=$3
              ORDER BY provider_event_at DESC, provider_event_id DESC
              LIMIT 1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(&callback.binding.provider_account_ref)
         .bind(callback.delivery_id)
         .fetch_optional(&mut *tx)
@@ -469,17 +476,17 @@ impl SqlxMarketingDeliveryStore {
         let raw_body_sha256 = hex::encode(callback.authentication.raw_body_sha256);
         let payload = serde_json::to_value(callback)?;
         let inserted = sqlx::query(
-            "INSERT INTO erpx_tenant.marketing_provider_callback_inbox
-                (inbox_key, holding_ref, provider_account_ref, provider_event_id,
+            "INSERT INTO erpx_holding.marketing_provider_callback_inbox
+                (inbox_key, data_profile_key, provider_account_ref, provider_event_id,
                  delivery_id, provider_message_ref, provider_event_at, received_at,
                  correlation_id, kind, order_class, event_fingerprint, raw_body_sha256,
                  authentication_scheme, verifier_key_ref, payload)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
-             ON CONFLICT (holding_ref, provider_account_ref, provider_event_id)
+             ON CONFLICT (data_profile_key, provider_account_ref, provider_event_id)
              DO NOTHING RETURNING inbox_key",
         )
         .bind(&inbox_key)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(&callback.binding.provider_account_ref)
         .bind(&callback.provider_event_id)
         .bind(callback.delivery_id)
@@ -499,10 +506,10 @@ impl SqlxMarketingDeliveryStore {
         if inserted.is_none() {
             let existing = sqlx::query_scalar::<_, String>(
                 "SELECT event_fingerprint
-                 FROM erpx_tenant.marketing_provider_callback_inbox
-                 WHERE holding_ref=$1 AND provider_account_ref=$2 AND provider_event_id=$3",
+                 FROM erpx_holding.marketing_provider_callback_inbox
+                 WHERE data_profile_key=$1 AND provider_account_ref=$2 AND provider_event_id=$3",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(&callback.binding.provider_account_ref)
             .bind(&callback.provider_event_id)
             .fetch_optional(&mut *tx)
@@ -566,10 +573,10 @@ impl SqlxMarketingDeliveryStore {
             }
         }
         let receipt =
-            update_dispatch(&mut tx, &self.holding_ref, &dispatch, None, None, None).await?;
+            update_dispatch(&mut tx, &self.data_profile_key, &dispatch, None, None, None).await?;
         write_source_event(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             dispatch.id,
             dispatch.version,
             &serde_json::to_value(&dispatch)?,
@@ -585,7 +592,7 @@ impl SqlxMarketingDeliveryStore {
         })
     }
 
-    /// Apply one authoritative delivery state to the disposable tenant read
+    /// Apply one authoritative delivery state to the disposable holding read
     /// model. This method is intentionally separate from enqueue and command
     /// transitions so CQRS projection writes cannot make a read row appear
     /// before the worker consumes the source event. The exact source outbox
@@ -603,19 +610,19 @@ impl SqlxMarketingDeliveryStore {
             .await?;
         let mut tx = self.begin_read().await?;
         let row = sqlx::query(
-            "INSERT INTO erpx_tenant.marketing_delivery_read_rows
-                (delivery_id, holding_ref, profile_id, campaign_id, idempotency_key,
+            "INSERT INTO erpx_holding.marketing_delivery_read_rows
+                (delivery_id, data_profile_key, profile_id, campaign_id, idempotency_key,
                  state, attempt_count, next_attempt_at, expires_at, version, payload)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
              ON CONFLICT (delivery_id) DO UPDATE SET
-                 holding_ref=$2, profile_id=$3, campaign_id=$4, idempotency_key=$5,
+                 data_profile_key=$2, profile_id=$3, campaign_id=$4, idempotency_key=$5,
                  state=$6, attempt_count=$7, next_attempt_at=$8, expires_at=$9,
                  version=$10, payload=$11, projected_at=now()
-             WHERE erpx_tenant.marketing_delivery_read_rows.version <= EXCLUDED.version
+             WHERE erpx_holding.marketing_delivery_read_rows.version <= EXCLUDED.version
              RETURNING version",
         )
         .bind(dispatch.id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(dispatch.profile_id)
         .bind(dispatch.campaign_id)
         .bind(dispatch.idempotency_key.as_str())
@@ -665,13 +672,13 @@ impl SqlxMarketingDeliveryStore {
             sqlx::query(
                 "SELECT event_id, aggregate_id, aggregate_version, event_type,
                         payload, occurred_at
-                 FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1 AND aggregate_type='marketing_delivery'
+                 FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1 AND aggregate_type='marketing_delivery'
                    AND (occurred_at > $2 OR (occurred_at = $2 AND event_id > $3))
                  ORDER BY occurred_at, event_id
                  LIMIT $4",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(last_occurred_at)
             .bind(last_event_id)
             .bind(limit)
@@ -681,12 +688,12 @@ impl SqlxMarketingDeliveryStore {
             sqlx::query(
                 "SELECT event_id, aggregate_id, aggregate_version, event_type,
                         payload, occurred_at
-                 FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1 AND aggregate_type='marketing_delivery'
+                 FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1 AND aggregate_type='marketing_delivery'
                  ORDER BY occurred_at, event_id
                  LIMIT $2",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(limit)
             .fetch_all(&mut *source_tx)
             .await?
@@ -743,19 +750,19 @@ impl SqlxMarketingDeliveryStore {
     pub async fn clear_delivery_read_model(&self) -> Result<u64, PersistenceError> {
         let mut tx = self.begin_read().await?;
         let deleted = sqlx::query(
-            "DELETE FROM erpx_tenant.marketing_delivery_read_rows
-             WHERE holding_ref=$1",
+            "DELETE FROM erpx_holding.marketing_delivery_read_rows
+             WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .execute(&mut *tx)
         .await?
         .rows_affected();
         sqlx::query(
-            "DELETE FROM erpx_tenant.marketing_delivery_projection_checkpoints
-             WHERE projection_name=$1 AND holding_ref=$2",
+            "DELETE FROM erpx_holding.marketing_delivery_projection_checkpoints
+             WHERE projection_name=$1 AND data_profile_key=$2",
         )
         .bind(MARKETING_DELIVERY_PROJECTION_NAME)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .execute(&mut *tx)
         .await?;
         tx.commit().await?;
@@ -768,11 +775,11 @@ impl SqlxMarketingDeliveryStore {
         let mut tx = self.begin_read().await?;
         let row = sqlx::query(
             "SELECT last_occurred_at, last_event_id
-             FROM erpx_tenant.marketing_delivery_projection_checkpoints
-             WHERE projection_name=$1 AND holding_ref=$2",
+             FROM erpx_holding.marketing_delivery_projection_checkpoints
+             WHERE projection_name=$1 AND data_profile_key=$2",
         )
         .bind(MARKETING_DELIVERY_PROJECTION_NAME)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?;
         tx.commit().await?;
@@ -804,27 +811,27 @@ impl SqlxMarketingDeliveryStore {
         // worker. Advance only for a strictly newer source cursor so a replay
         // cannot double-count the checkpoint or move it backwards.
         let affected = sqlx::query(
-            "INSERT INTO erpx_tenant.marketing_delivery_projection_checkpoints
-                (projection_name, holding_ref, last_event_id, last_occurred_at,
+            "INSERT INTO erpx_holding.marketing_delivery_projection_checkpoints
+                (projection_name, data_profile_key, last_event_id, last_occurred_at,
                  source_event_count)
              VALUES ($1,$2,$3,$4,1)
-             ON CONFLICT (projection_name, holding_ref) DO UPDATE SET
-                holding_ref=$2, last_event_id=$3, last_occurred_at=$4,
+             ON CONFLICT (projection_name, data_profile_key) DO UPDATE SET
+                data_profile_key=$2, last_event_id=$3, last_occurred_at=$4,
                 source_event_count=
-                    erpx_tenant.marketing_delivery_projection_checkpoints.source_event_count + 1,
+                    erpx_holding.marketing_delivery_projection_checkpoints.source_event_count + 1,
                 projected_at=now()
-             WHERE erpx_tenant.marketing_delivery_projection_checkpoints.holding_ref=$2
+             WHERE erpx_holding.marketing_delivery_projection_checkpoints.data_profile_key=$2
                AND (
-                    erpx_tenant.marketing_delivery_projection_checkpoints.last_occurred_at IS NULL
-                    OR $4 > erpx_tenant.marketing_delivery_projection_checkpoints.last_occurred_at
+                    erpx_holding.marketing_delivery_projection_checkpoints.last_occurred_at IS NULL
+                    OR $4 > erpx_holding.marketing_delivery_projection_checkpoints.last_occurred_at
                     OR (
-                        $4 = erpx_tenant.marketing_delivery_projection_checkpoints.last_occurred_at
-                        AND $3 > erpx_tenant.marketing_delivery_projection_checkpoints.last_event_id
+                        $4 = erpx_holding.marketing_delivery_projection_checkpoints.last_occurred_at
+                        AND $3 > erpx_holding.marketing_delivery_projection_checkpoints.last_event_id
                     )
                )",
         )
         .bind(MARKETING_DELIVERY_PROJECTION_NAME)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(event_id)
         .bind(occurred_at)
         .execute(&mut *tx)
@@ -833,11 +840,11 @@ impl SqlxMarketingDeliveryStore {
         if affected == 0 {
             let scoped_checkpoint = sqlx::query_scalar::<_, i32>(
                 "SELECT 1
-                 FROM erpx_tenant.marketing_delivery_projection_checkpoints
-                 WHERE projection_name=$1 AND holding_ref=$2",
+                 FROM erpx_holding.marketing_delivery_projection_checkpoints
+                 WHERE projection_name=$1 AND data_profile_key=$2",
             )
             .bind(MARKETING_DELIVERY_PROJECTION_NAME)
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .fetch_optional(&mut *tx)
             .await?;
             if scoped_checkpoint.is_none() {
@@ -858,14 +865,14 @@ impl SqlxMarketingDeliveryStore {
         let mut tx = self.begin_write().await?;
         let rows = sqlx::query(
             "SELECT event_type, payload
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1
                AND aggregate_type='marketing_delivery'
                AND aggregate_id=$2
                AND aggregate_version=$3
              ORDER BY event_id",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(dispatch.id)
         .bind(as_i64(dispatch.version, "Marketing delivery version")?)
         .fetch_all(&mut *tx)
@@ -906,11 +913,11 @@ impl SqlxMarketingDeliveryStore {
         validate_uuid(delivery_id, "Marketing delivery ID")?;
         let mut tx = self.begin_read().await?;
         let row = sqlx::query(
-            "SELECT payload, version FROM erpx_tenant.marketing_delivery_read_rows
-             WHERE delivery_id=$1 AND holding_ref=$2",
+            "SELECT payload, version FROM erpx_holding.marketing_delivery_read_rows
+             WHERE delivery_id=$1 AND data_profile_key=$2",
         )
         .bind(delivery_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?;
         tx.commit().await?;
@@ -936,11 +943,11 @@ impl SqlxMarketingDeliveryStore {
         let source_rows = sqlx::query(
             "SELECT event_id, aggregate_id, aggregate_version, event_type,
                     payload, occurred_at
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND aggregate_type='marketing_delivery'
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND aggregate_type='marketing_delivery'
              ORDER BY occurred_at, event_id",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_all(&mut *source_tx)
         .await?;
         source_tx.commit().await?;
@@ -1008,19 +1015,19 @@ impl SqlxMarketingDeliveryStore {
         let mut read_tx = self.begin_read().await?;
         let read_rows = sqlx::query(
             "SELECT delivery_id, version, payload
-             FROM erpx_tenant.marketing_delivery_read_rows
-             WHERE holding_ref=$1",
+             FROM erpx_holding.marketing_delivery_read_rows
+             WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_all(&mut *read_tx)
         .await?;
         let checkpoint = sqlx::query(
             "SELECT last_event_id, last_occurred_at, source_event_count
-             FROM erpx_tenant.marketing_delivery_projection_checkpoints
-             WHERE projection_name=$1 AND holding_ref=$2",
+             FROM erpx_holding.marketing_delivery_projection_checkpoints
+             WHERE projection_name=$1 AND data_profile_key=$2",
         )
         .bind(MARKETING_DELIVERY_PROJECTION_NAME)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *read_tx)
         .await?;
         read_tx.commit().await?;
@@ -1102,11 +1109,11 @@ impl SqlxMarketingDeliveryStore {
     }
 
     async fn begin_write(&self) -> Result<Transaction<'_, Postgres>, PersistenceError> {
-        begin_scoped(&self.write_pool, &self.holding_ref).await
+        begin_scoped(&self.write_pool, &self.data_profile_key).await
     }
 
     async fn begin_read(&self) -> Result<Transaction<'_, Postgres>, PersistenceError> {
-        begin_scoped(&self.read_pool, &self.holding_ref).await
+        begin_scoped(&self.read_pool, &self.data_profile_key).await
     }
 
     async fn validate_projection_version_fence(
@@ -1117,10 +1124,10 @@ impl SqlxMarketingDeliveryStore {
         let mut tx = self.begin_read().await?;
         let current = sqlx::query_scalar::<_, i64>(
             "SELECT version
-             FROM erpx_tenant.marketing_delivery_read_rows
-             WHERE holding_ref=$1 AND delivery_id=$2",
+             FROM erpx_holding.marketing_delivery_read_rows
+             WHERE data_profile_key=$1 AND delivery_id=$2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(delivery_id)
         .fetch_optional(&mut *tx)
         .await?;
@@ -1143,13 +1150,13 @@ impl SqlxMarketingDeliveryStore {
     }
 }
 
-/// Enqueue a dispatch in a caller-owned tenant-scoped transaction. This is
+/// Enqueue a dispatch in a caller-owned holding-scoped transaction. This is
 /// used by journey execution so the cursor advance, delivery idempotency
 /// reservation, delivery snapshot, and delivery outbox event commit or roll
 /// back together.
 pub(crate) async fn enqueue_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     dispatch: &DeliveryDispatch,
 ) -> Result<MarketingDeliveryWriteReceipt, PersistenceError> {
     dispatch.idempotency_key.validate().map_err(domain_error)?;
@@ -1157,11 +1164,11 @@ pub(crate) async fn enqueue_in_transaction(
     let payload_hash = hash_payload(&payload)?;
     let existing = sqlx::query(
         "SELECT delivery_id, payload_hash
-         FROM erpx_tenant.marketing_delivery_idempotency
-         WHERE idempotency_key=$1 AND holding_ref=$2 FOR UPDATE",
+         FROM erpx_holding.marketing_delivery_idempotency
+         WHERE idempotency_key=$1 AND data_profile_key=$2 FOR UPDATE",
     )
     .bind(dispatch.idempotency_key.as_str())
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_optional(&mut **tx)
     .await?;
     if let Some(row) = existing {
@@ -1173,11 +1180,11 @@ pub(crate) async fn enqueue_in_transaction(
             });
         }
         let version = sqlx::query_scalar::<_, i64>(
-            "SELECT version FROM erpx_tenant.marketing_deliveries
-             WHERE delivery_id=$1 AND holding_ref=$2",
+            "SELECT version FROM erpx_holding.marketing_deliveries
+             WHERE delivery_id=$1 AND data_profile_key=$2",
         )
         .bind(dispatch.id)
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .fetch_one(&mut **tx)
         .await?;
         return Ok(MarketingDeliveryWriteReceipt {
@@ -1187,20 +1194,20 @@ pub(crate) async fn enqueue_in_transaction(
         });
     }
     sqlx::query(
-        "INSERT INTO erpx_tenant.marketing_delivery_idempotency
-            (idempotency_key, holding_ref, delivery_id, payload_hash)
+        "INSERT INTO erpx_holding.marketing_delivery_idempotency
+            (idempotency_key, data_profile_key, delivery_id, payload_hash)
          VALUES ($1,$2,$3,$4)",
     )
     .bind(dispatch.idempotency_key.as_str())
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(dispatch.id)
     .bind(&payload_hash)
     .execute(&mut **tx)
     .await?;
-    insert_dispatch(tx, holding_ref, dispatch, &payload).await?;
+    insert_dispatch(tx, data_profile_key, dispatch, &payload).await?;
     write_source_event(
         tx,
-        holding_ref,
+        data_profile_key,
         dispatch.id,
         dispatch.version,
         &payload,
@@ -1216,18 +1223,18 @@ pub(crate) async fn enqueue_in_transaction(
 
 async fn insert_dispatch(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     dispatch: &DeliveryDispatch,
     payload: &Value,
 ) -> Result<(), PersistenceError> {
     sqlx::query(
-        "INSERT INTO erpx_tenant.marketing_deliveries
-            (delivery_id, holding_ref, profile_id, campaign_id, idempotency_key,
+        "INSERT INTO erpx_holding.marketing_deliveries
+            (delivery_id, data_profile_key, profile_id, campaign_id, idempotency_key,
              state, attempt_count, next_attempt_at, expires_at, version, payload)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
     )
     .bind(dispatch.id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(dispatch.profile_id)
     .bind(dispatch.campaign_id)
     .bind(dispatch.idempotency_key.as_str())
@@ -1246,7 +1253,7 @@ async fn insert_dispatch(
 
 async fn update_dispatch(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     dispatch: &DeliveryDispatch,
     claim_id: Option<Uuid>,
     claimed_by: Option<Uuid>,
@@ -1254,15 +1261,15 @@ async fn update_dispatch(
 ) -> Result<MarketingDeliveryWriteReceipt, PersistenceError> {
     let payload = serde_json::to_value(dispatch)?;
     let affected = sqlx::query(
-        "UPDATE erpx_tenant.marketing_deliveries
+        "UPDATE erpx_holding.marketing_deliveries
          SET state=$3, attempt_count=$4, next_attempt_at=$5, expires_at=$6,
              version=$7, payload=$8, claim_id=$9, claimed_by=$10,
              claim_until=$11, last_failure=$12, terminal_reason=$13,
              updated_at=now()
-         WHERE delivery_id=$1 AND holding_ref=$2 AND version=$14",
+         WHERE delivery_id=$1 AND data_profile_key=$2 AND version=$14",
     )
     .bind(dispatch.id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(delivery_state_text(dispatch.state))
     .bind(i32::try_from(dispatch.attempt_count).map_err(|_| {
         PersistenceError::InvalidData("Marketing delivery attempt count exceeds INTEGER".into())
@@ -1300,21 +1307,21 @@ async fn update_dispatch(
 
 async fn write_source_event(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     delivery_id: Uuid,
     version: u64,
     payload: &Value,
     event_type: &str,
 ) -> Result<(), PersistenceError> {
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at)
          VALUES ($1,'marketing_delivery',$2,$3,$4,$5,$6,now())",
     )
     .bind(Uuid::new_v4())
     .bind(delivery_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(as_i64(version, "Marketing delivery version")?)
     .bind(event_type)
     .bind(serde_json::json!({
@@ -1412,14 +1419,14 @@ fn validate_provider_callback_integrity(
 
 async fn load_consents(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     profile_id: Uuid,
 ) -> Result<Vec<ConsentRecord>, PersistenceError> {
     let rows = sqlx::query(
-        "SELECT payload FROM erpx_tenant.marketing_consents
-         WHERE holding_ref=$1 AND profile_id=$2 ORDER BY recorded_at, consent_id",
+        "SELECT payload FROM erpx_holding.marketing_consents
+         WHERE data_profile_key=$1 AND profile_id=$2 ORDER BY recorded_at, consent_id",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(profile_id)
     .fetch_all(&mut **tx)
     .await?;
@@ -1430,14 +1437,14 @@ async fn load_consents(
 
 async fn load_suppressions(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     profile_id: Uuid,
 ) -> Result<Vec<SuppressionRecord>, PersistenceError> {
     let rows = sqlx::query(
-        "SELECT payload FROM erpx_tenant.marketing_suppressions
-         WHERE holding_ref=$1 AND profile_id=$2 ORDER BY created_at, suppression_id",
+        "SELECT payload FROM erpx_holding.marketing_suppressions
+         WHERE data_profile_key=$1 AND profile_id=$2 ORDER BY created_at, suppression_id",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(profile_id)
     .fetch_all(&mut **tx)
     .await?;
@@ -1529,7 +1536,7 @@ fn validate_uuid(value: Uuid, field: &'static str) -> Result<(), PersistenceErro
     }
 }
 
-fn validate_holding_ref(value: &str) -> Result<(), PersistenceError> {
+fn validate_data_profile_key(value: &str) -> Result<(), PersistenceError> {
     if value.trim().is_empty() || value.len() > 255 || value.chars().any(char::is_control) {
         Err(PersistenceError::Configuration(
             "holding reference must be bounded and non-empty",
@@ -1572,11 +1579,11 @@ fn as_u64(value: i64, field: &'static str) -> Result<u64, PersistenceError> {
 
 async fn begin_scoped<'a>(
     pool: &'a PgPool,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<Transaction<'a, Postgres>, PersistenceError> {
     let mut tx = pool.begin().await?;
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(data_profile_key)
         .execute(&mut *tx)
         .await?;
     Ok(tx)
@@ -1590,8 +1597,8 @@ mod tests {
     fn claim_bounds_and_lease_limits_are_closed() {
         assert!(validate_claim_limit(0).is_err());
         assert!(validate_claim_limit(MAX_MARKETING_DELIVERY_CLAIM_BATCH_SIZE + 1).is_err());
-        assert!(validate_holding_ref(" ").is_err());
-        assert!(validate_holding_ref("holding-a").is_ok());
+        assert!(validate_data_profile_key(" ").is_err());
+        assert!(validate_data_profile_key("holding-a").is_ok());
         assert!(
             Duration::seconds(MIN_MARKETING_DELIVERY_LEASE_SECONDS as i64)
                 < Duration::seconds(MAX_MARKETING_DELIVERY_LEASE_SECONDS as i64)
@@ -1621,7 +1628,7 @@ mod tests {
 
     #[test]
     fn owner_notification_dispatch_is_internal_but_marker_is_strict() {
-        use erpx_domain::contracts::TenantScope;
+        use erpx_domain::contracts::AuthorityScope;
         use erpx_domain::marketing::{MarketingChannel, MarketingPurpose};
         use erpx_domain::marketing_delivery::{
             ChannelDispatchRecord, DeliveryDispatch, RetryPolicy,
@@ -1633,7 +1640,7 @@ mod tests {
             crate::marketing_journey_execution_persistence::journey_owner_notification_delivery_id(
                 notification_ref,
             ),
-            TenantScope::Holding {
+            AuthorityScope::Holding {
                 holding_id: Uuid::from_u128(46),
             },
             Uuid::from_u128(47),
@@ -1663,7 +1670,7 @@ mod tests {
     #[test]
     fn provider_callback_idempotency_envelope_is_recomputed_at_persistence_boundary() {
         use erpx_domain::{
-            contracts::TenantScope,
+            contracts::AuthorityScope,
             marketing_callback::{
                 MarketingProviderCallbackBinding, MarketingProviderCallbackKind,
                 MarketingProviderCallbackRequest, ProviderAuthenticationDecision,
@@ -1674,9 +1681,8 @@ mod tests {
         let holding_id = Uuid::from_u128(1);
         let binding = MarketingProviderCallbackBinding::new(
             "provider-account",
-            "tenant",
             holding_id,
-            TenantScope::Holding { holding_id },
+            AuthorityScope::Holding { holding_id },
         )
         .expect("binding");
         let received_at = Utc::now();

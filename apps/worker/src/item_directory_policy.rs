@@ -12,7 +12,7 @@ use erpx_integration_contracts::{
     EffectiveGrantChanged, EffectiveGrantRevoked, ItemDescriptor, ItemDirectoryFact,
     RecordPolicyPrincipalKind, RecordPolicyRealm, RecordPolicyScopeRule, record_policy,
 };
-use erpx_kernel::{DataClassification, PrincipalId, TenantScope};
+use erpx_kernel::{AuthorityScope, DataClassification, PrincipalId};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -29,7 +29,7 @@ pub struct IamAuthorityEvidence {
     pub role_version: u64,
     pub assignment_version: u64,
     pub permission: String,
-    pub assignment_scope: TenantScope,
+    pub assignment_scope: AuthorityScope,
     pub classification_ceiling: DataClassification,
     pub valid_from: DateTime<Utc>,
     pub valid_until: DateTime<Utc>,
@@ -58,8 +58,8 @@ pub enum OrganizationScopeEvidenceKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OrganizationScopeEvidence {
     pub kind: OrganizationScopeEvidenceKind,
-    pub actor_scope: TenantScope,
-    pub record_scope: TenantScope,
+    pub actor_scope: AuthorityScope,
+    pub record_scope: AuthorityScope,
     pub permits_open_record: bool,
     pub version: u64,
     pub valid_from: DateTime<Utc>,
@@ -261,25 +261,25 @@ fn scope_is_permitted(evaluation: &RecordGrantEvaluation) -> bool {
     }
 }
 
-fn holding_id(scope: &TenantScope) -> Option<Uuid> {
+fn holding_id(scope: &AuthorityScope) -> Option<Uuid> {
     match scope {
-        TenantScope::Platform => None,
-        TenantScope::Holding { holding_id }
-        | TenantScope::Company { holding_id, .. }
-        | TenantScope::Branch { holding_id, .. }
-        | TenantScope::Subtree { holding_id, .. } => Some(*holding_id),
+        AuthorityScope::Platform => None,
+        AuthorityScope::Holding { holding_id }
+        | AuthorityScope::Company { holding_id, .. }
+        | AuthorityScope::Branch { holding_id, .. }
+        | AuthorityScope::Subtree { holding_id, .. } => Some(*holding_id),
     }
 }
 
-fn sibling_branches(left: &TenantScope, right: &TenantScope) -> bool {
+fn sibling_branches(left: &AuthorityScope, right: &AuthorityScope) -> bool {
     match (left, right) {
         (
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id: left_holding,
                 branch_id: left_branch,
                 ..
             },
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id: right_holding,
                 branch_id: right_branch,
                 ..
@@ -476,8 +476,8 @@ mod tests {
         Uuid::new_v4()
     }
 
-    fn branch(holding_id: Uuid, company_id: Uuid, branch_id: Uuid) -> TenantScope {
-        TenantScope::Branch {
+    fn branch(holding_id: Uuid, company_id: Uuid, branch_id: Uuid) -> AuthorityScope {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -488,7 +488,7 @@ mod tests {
         definition: &erpx_integration_contracts::RecordPolicyDefinition,
     ) -> RecordGrantEvaluation {
         let now = Utc::now();
-        let scope = TenantScope::Holding { holding_id: id() };
+        let scope = AuthorityScope::Holding { holding_id: id() };
         let record = StableRecordRef::try_new(
             RecordId::try_from_uuid(id()).unwrap(),
             definition.owner,

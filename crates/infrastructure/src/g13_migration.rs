@@ -338,7 +338,7 @@ impl SqlxG13MigrationStore {
 
     /// Load the retained, bounded source snapshot for an executor. The
     /// control write database is the only source of truth for this payload;
-    /// callers must still validate the source fence before writing tenant
+    /// callers must still validate the source fence before writing holding
     /// state. This method never exposes the snapshot through a read model.
     pub async fn load_source_snapshot(
         &self,

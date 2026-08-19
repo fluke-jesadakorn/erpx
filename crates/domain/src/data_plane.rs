@@ -1,7 +1,7 @@
 //! Three-layer configuration, customer-hosted data-plane, and Root-access rules.
 //!
 //! The control plane may propose configuration for every layer, but a customer-hosted
-//! agent applies tenant configuration and admits interactive ERPX Root sessions only
+//! agent applies holding configuration and admits interactive ERPX Root sessions only
 //! after customer approval. Secret values and generic database/shell access are not
 //! representable by these contracts.
 
@@ -12,20 +12,20 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::access::Scope;
+use crate::contracts::AuthorityScope;
 
 pub const PLATFORM_INFRASTRUCTURE_READ: &str = "platform.infrastructure.read";
 pub const PLATFORM_INFRASTRUCTURE_MANAGE: &str = "platform.infrastructure.manage";
-pub const TENANT_INFRASTRUCTURE_READ: &str = "tenant.infrastructure.read";
-pub const TENANT_INFRASTRUCTURE_PROPOSE: &str = "tenant.infrastructure.propose";
-pub const TENANT_INFRASTRUCTURE_APPROVE: &str = "tenant.infrastructure.approve";
-pub const TENANT_INFRASTRUCTURE_APPLY: &str = "tenant.infrastructure.apply";
-pub const TENANT_AGENT_ENROLL: &str = "tenant.agent.enroll";
-pub const TENANT_AGENT_ROTATE: &str = "tenant.agent.rotate";
-pub const TENANT_ROOT_ACCESS_READ: &str = "tenant.root-access.read";
-pub const TENANT_ROOT_ACCESS_REQUEST: &str = "tenant.root-access.request";
-pub const TENANT_ROOT_ACCESS_APPROVE: &str = "tenant.root-access.approve";
-pub const TENANT_ROOT_ACCESS_REVOKE: &str = "tenant.root-access.revoke";
+pub const HOLDING_INFRASTRUCTURE_READ: &str = "holding.infrastructure.read";
+pub const HOLDING_INFRASTRUCTURE_PROPOSE: &str = "holding.infrastructure.propose";
+pub const HOLDING_INFRASTRUCTURE_APPROVE: &str = "holding.infrastructure.approve";
+pub const HOLDING_INFRASTRUCTURE_APPLY: &str = "holding.infrastructure.apply";
+pub const HOLDING_AGENT_ENROLL: &str = "holding.agent.enroll";
+pub const HOLDING_AGENT_ROTATE: &str = "holding.agent.rotate";
+pub const HOLDING_ROOT_ACCESS_READ: &str = "holding.root-access.read";
+pub const HOLDING_ROOT_ACCESS_REQUEST: &str = "holding.root-access.request";
+pub const HOLDING_ROOT_ACCESS_APPROVE: &str = "holding.root-access.approve";
+pub const HOLDING_ROOT_ACCESS_REVOKE: &str = "holding.root-access.revoke";
 pub const BUSINESS_UNIT_CONFIGURATION_READ: &str = "business-unit.configuration.read";
 pub const BUSINESS_UNIT_CONFIGURATION_MANAGE: &str = "business-unit.configuration.manage";
 
@@ -322,13 +322,13 @@ pub const PLATFORM_DIRECTORY_ROLE_TEMPLATES: [&str; 8] = [
     "platform_operations_administrator",
     "platform_auditor",
     "platform_role_reviewer",
-    "platform_tenant_administrator",
+    "platform_holding_administrator",
 ];
 
 pub fn directory_role_template_is_allowed(layer: ConfigurationLayer, role_key: &str) -> bool {
     match layer {
         ConfigurationLayer::Platform => PLATFORM_DIRECTORY_ROLE_TEMPLATES.contains(&role_key),
-        ConfigurationLayer::Tenant => {
+        ConfigurationLayer::Holding => {
             matches!(role_key, "holding_owner" | "customer_security_head")
         }
         ConfigurationLayer::BusinessUnit(unit) => BusinessUnitRoleTemplate::parse(role_key)
@@ -340,7 +340,7 @@ pub fn directory_role_template_is_allowed(layer: ConfigurationLayer, role_key: &
 pub struct BusinessUnitDirectoryRoleMapping {
     pub group_ref: String,
     pub role_key: String,
-    pub target_scope: Scope,
+    pub target_scope: AuthorityScope,
     pub requires_mfa: bool,
     pub assignment_duration_hours: u32,
     pub approval_limit_minor: u64,
@@ -349,12 +349,11 @@ pub struct BusinessUnitDirectoryRoleMapping {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BusinessUnitConfiguration {
-    pub tenant_id: String,
     pub holding_id: Uuid,
     pub business_unit: BusinessUnitId,
     pub configuration_version: u64,
     pub active: bool,
-    pub organization_scope: Scope,
+    pub organization_scope: AuthorityScope,
     pub directory_role_mappings: Vec<BusinessUnitDirectoryRoleMapping>,
     pub integration_references: Vec<String>,
     pub retention_policy: serde_json::Value,
@@ -366,16 +365,15 @@ pub struct BusinessUnitConfiguration {
 
 impl BusinessUnitConfiguration {
     pub fn validate(&self) -> Result<(), DataPlaneContractError> {
-        validate_reference(&self.tenant_id, "tenant_id")?;
         validate_reference(&self.updated_by, "updated_by")?;
         if self.holding_id.is_nil() || self.configuration_version == 0 {
             return Err(DataPlaneContractError::InvalidBusinessUnitConfiguration);
         }
-        let holding_scope = Scope::Holding {
+        let holding_scope = AuthorityScope::Holding {
             holding_id: self.holding_id,
         };
         if !holding_scope.contains(&self.organization_scope)
-            || matches!(self.organization_scope, Scope::Platform)
+            || matches!(self.organization_scope, AuthorityScope::Platform)
             || !self.retention_policy.is_object()
             || !self.projection_policy.is_object()
             || !self.workflow_policy.is_object()
@@ -419,12 +417,12 @@ impl BusinessUnitConfiguration {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum TenantDeploymentMode {
+pub enum HoldingDeploymentMode {
     ErpxManaged,
     CustomerDataPlane,
 }
 
-impl TenantDeploymentMode {
+impl HoldingDeploymentMode {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::ErpxManaged => "erpx_managed",
@@ -437,7 +435,7 @@ impl TenantDeploymentMode {
 #[serde(rename_all = "snake_case")]
 pub enum ConfigurationLayer {
     Platform,
-    Tenant,
+    Holding,
     BusinessUnit(BusinessUnitId),
 }
 
@@ -445,7 +443,7 @@ impl ConfigurationLayer {
     pub fn canonical_key(self) -> String {
         match self {
             Self::Platform => "platform".into(),
-            Self::Tenant => "tenant".into(),
+            Self::Holding => "holding".into(),
             Self::BusinessUnit(unit) => format!("business-unit:{}", unit.as_str()),
         }
     }
@@ -535,8 +533,8 @@ impl DataPlaneAgentState {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AgentCapability {
-    TypedTenantQueries,
-    TypedTenantCommands,
+    TypedHoldingQueries,
+    TypedHoldingCommands,
     DirectorySync,
     ProjectionWorker,
     Backup,
@@ -549,8 +547,8 @@ pub enum AgentCapability {
 impl AgentCapability {
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::TypedTenantQueries => "typed_tenant_queries",
-            Self::TypedTenantCommands => "typed_tenant_commands",
+            Self::TypedHoldingQueries => "typed_holding_queries",
+            Self::TypedHoldingCommands => "typed_holding_commands",
             Self::DirectorySync => "directory_sync",
             Self::ProjectionWorker => "projection_worker",
             Self::Backup => "backup",
@@ -600,7 +598,6 @@ impl fmt::Debug for SecretReference {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DataPlaneAgentBinding {
-    pub tenant_id: String,
     pub holding_id: Uuid,
     pub agent_id: Uuid,
     pub certificate_fingerprint: String,
@@ -611,7 +608,6 @@ pub struct DataPlaneAgentBinding {
 
 impl DataPlaneAgentBinding {
     pub fn validate(&self) -> Result<(), DataPlaneContractError> {
-        validate_reference(&self.tenant_id, "tenant_id")?;
         if self.holding_id.is_nil() || self.agent_id.is_nil() {
             return Err(DataPlaneContractError::NilIdentifier);
         }
@@ -633,10 +629,9 @@ impl DataPlaneAgentBinding {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TenantInfrastructureProfile {
-    pub tenant_id: String,
+pub struct HoldingInfrastructureProfile {
     pub holding_id: Uuid,
-    pub deployment_mode: TenantDeploymentMode,
+    pub deployment_mode: HoldingDeploymentMode,
     pub write_database_ref: SecretReference,
     pub read_database_ref: SecretReference,
     pub storage_ref: SecretReference,
@@ -645,9 +640,8 @@ pub struct TenantInfrastructureProfile {
     pub version: u64,
 }
 
-impl TenantInfrastructureProfile {
+impl HoldingInfrastructureProfile {
     pub fn validate(&self) -> Result<(), DataPlaneContractError> {
-        validate_reference(&self.tenant_id, "tenant_id")?;
         if self.holding_id.is_nil() || self.version == 0 {
             return Err(DataPlaneContractError::NilIdentifier);
         }
@@ -655,8 +649,8 @@ impl TenantInfrastructureProfile {
             return Err(DataPlaneContractError::WriteReadDatabaseCollision);
         }
         let expected_prefix = match self.deployment_mode {
-            TenantDeploymentMode::ErpxManaged => "erpx-managed:",
-            TenantDeploymentMode::CustomerDataPlane => "customer-secret:",
+            HoldingDeploymentMode::ErpxManaged => "erpx-managed:",
+            HoldingDeploymentMode::CustomerDataPlane => "customer-secret:",
         };
         for reference in [
             &self.write_database_ref,
@@ -706,9 +700,9 @@ pub struct RootAccessRequest {
     pub id: Uuid,
     pub requester: String,
     pub device_ref: String,
-    pub tenant_id: String,
+    pub holding_id: String,
     pub agent_id: Uuid,
-    pub tenant_scope: Scope,
+    pub active_scope: AuthorityScope,
     pub mode: RootAccessMode,
     pub allowed_actions: Vec<String>,
     pub business_units: Vec<BusinessUnitId>,
@@ -725,11 +719,11 @@ impl RootAccessRequest {
         }
         validate_reference(&self.requester, "requester")?;
         validate_reference(&self.device_ref, "device_ref")?;
-        validate_reference(&self.tenant_id, "tenant_id")?;
+        validate_reference(&self.holding_id, "holding_id")?;
         validate_reason(&self.reason)?;
         validate_reference(&self.ticket_reference, "ticket_reference")?;
-        if matches!(self.tenant_scope, Scope::Platform) {
-            return Err(DataPlaneContractError::RootAccessMustBeTenantScoped);
+        if matches!(self.active_scope, AuthorityScope::Platform) {
+            return Err(DataPlaneContractError::RootAccessMustBeHoldingScoped);
         }
         let duration = self.requested_until - self.requested_at;
         if duration <= Duration::zero() || duration > self.mode.maximum_duration() {
@@ -810,9 +804,9 @@ pub struct RootAccessCapability {
     pub token_hash: [u8; 32],
     pub root_principal: String,
     pub device_ref: String,
-    pub tenant_id: String,
+    pub holding_id: String,
     pub agent_id: Uuid,
-    pub scope: Scope,
+    pub scope: AuthorityScope,
     pub allowed_actions: Vec<String>,
     pub business_units: Vec<BusinessUnitId>,
     pub issued_at: DateTime<Utc>,
@@ -829,7 +823,7 @@ impl fmt::Debug for RootAccessCapability {
             .field("token_hash", &"<redacted>")
             .field("root_principal", &self.root_principal)
             .field("device_ref", &"<opaque>")
-            .field("tenant_id", &"<opaque>")
+            .field("holding_id", &"<opaque>")
             .field("agent_id", &self.agent_id)
             .field("scope", &self.scope)
             .field("allowed_actions", &self.allowed_actions)
@@ -848,9 +842,9 @@ impl RootAccessCapability {
         at: DateTime<Utc>,
         root_principal: &str,
         device_ref: &str,
-        tenant_id: &str,
+        holding_id: &str,
         agent_id: Uuid,
-        requested_scope: &Scope,
+        requested_scope: &AuthorityScope,
         action: &str,
         business_unit: Option<BusinessUnitId>,
         agent_state: DataPlaneAgentState,
@@ -873,7 +867,7 @@ impl RootAccessCapability {
         }
         if self.root_principal != root_principal
             || self.device_ref != device_ref
-            || self.tenant_id != tenant_id
+            || self.holding_id != holding_id
             || self.agent_id != agent_id
         {
             return Err(DataPlaneContractError::CapabilityBindingMismatch);
@@ -894,9 +888,8 @@ impl RootAccessCapability {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DesiredConfiguration {
     pub id: Uuid,
-    pub tenant_id: String,
     pub holding_id: Uuid,
-    pub deployment_mode: TenantDeploymentMode,
+    pub deployment_mode: HoldingDeploymentMode,
     pub target_agent_id: Option<Uuid>,
     pub layer: ConfigurationLayer,
     pub expected_observed_version: u64,
@@ -915,7 +908,6 @@ impl DesiredConfiguration {
         if self.id.is_nil() || self.holding_id.is_nil() || self.configuration_hash == [0; 32] {
             return Err(DataPlaneContractError::NilIdentifier);
         }
-        validate_reference(&self.tenant_id, "tenant_id")?;
         validate_reference(&self.requester, "requester")?;
         validate_reason(&self.reason)?;
         if self.expires_at <= at {
@@ -925,8 +917,8 @@ impl DesiredConfiguration {
             return Err(DataPlaneContractError::StaleConfigurationVersion);
         }
         match (self.deployment_mode, self.target_agent_id) {
-            (TenantDeploymentMode::ErpxManaged, None)
-            | (TenantDeploymentMode::CustomerDataPlane, Some(_)) => {}
+            (HoldingDeploymentMode::ErpxManaged, None)
+            | (HoldingDeploymentMode::CustomerDataPlane, Some(_)) => {}
             _ => return Err(DataPlaneContractError::InvalidConfigurationTarget),
         }
         if self.target_agent_id.is_some_and(|id| id.is_nil()) {
@@ -949,7 +941,7 @@ impl DesiredConfiguration {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ObservedDataPlaneState {
-    pub tenant_id: String,
+    pub holding_id: String,
     pub agent_id: Uuid,
     pub observed_version: u64,
     pub desired_version: u64,
@@ -982,7 +974,7 @@ impl ObservedDataPlaneState {
     }
 
     pub fn validate(&self) -> Result<(), DataPlaneContractError> {
-        validate_reference(&self.tenant_id, "tenant_id")?;
+        validate_reference(&self.holding_id, "holding_id")?;
         if self.agent_id.is_nil() || self.correlation_id.is_nil() {
             return Err(DataPlaneContractError::NilIdentifier);
         }
@@ -1003,7 +995,7 @@ impl ObservedDataPlaneState {
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TenantExecutionRoute {
+pub enum HoldingExecutionRoute {
     ErpxManaged {
         write_database_key: String,
         read_database_key: String,
@@ -1014,22 +1006,22 @@ pub enum TenantExecutionRoute {
     },
 }
 
-impl fmt::Debug for TenantExecutionRoute {
+impl fmt::Debug for HoldingExecutionRoute {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ErpxManaged { .. } => formatter
-                .debug_struct("TenantExecutionRoute::ErpxManaged")
+                .debug_struct("HoldingExecutionRoute::ErpxManaged")
                 .field("resources", &"<redacted>")
                 .finish(),
             Self::CustomerAgent { agent_id } => formatter
-                .debug_struct("TenantExecutionRoute::CustomerAgent")
+                .debug_struct("HoldingExecutionRoute::CustomerAgent")
                 .field("agent_id", agent_id)
                 .finish(),
         }
     }
 }
 
-impl TenantExecutionRoute {
+impl HoldingExecutionRoute {
     pub fn validate(&self) -> Result<(), DataPlaneContractError> {
         match self {
             Self::ErpxManaged {
@@ -1146,8 +1138,8 @@ pub enum DataPlaneContractError {
     WriteReadDatabaseCollision,
     #[error("infrastructure reference owner does not match deployment mode")]
     InfrastructureOwnerMismatch,
-    #[error("Root access must target a customer tenant scope")]
-    RootAccessMustBeTenantScoped,
+    #[error("Root access must target a customer holding scope")]
+    RootAccessMustBeHoldingScoped,
     #[error("Root access window is empty or exceeds its mode maximum")]
     InvalidRootAccessWindow,
     #[error("Root access actions must be bounded, explicit, and unique")]
@@ -1168,7 +1160,7 @@ pub enum DataPlaneContractError {
     CapabilityInactive,
     #[error("customer data-plane agent is not connected")]
     AgentUnavailable,
-    #[error("Root capability actor, device, tenant, or agent binding differs")]
+    #[error("Root capability actor, device, holding, or agent binding differs")]
     CapabilityBindingMismatch,
     #[error("Root capability does not contain the requested organization scope")]
     CapabilityScopeDenied,
@@ -1256,8 +1248,8 @@ mod tests {
             .expect("valid time")
     }
 
-    fn branch_scope() -> Scope {
-        Scope::Branch {
+    fn branch_scope() -> AuthorityScope {
+        AuthorityScope::Branch {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
             branch_id: Uuid::from_u128(3),
@@ -1269,13 +1261,13 @@ mod tests {
             id: Uuid::from_u128(10),
             requester: "platform-root-operator".into(),
             device_ref: "device-1".into(),
-            tenant_id: "tenant-1".into(),
+            holding_id: "holding-1".into(),
             agent_id: Uuid::from_u128(20),
-            tenant_scope: Scope::Holding {
+            active_scope: AuthorityScope::Holding {
                 holding_id: Uuid::from_u128(1),
             },
             mode: RootAccessMode::InfrastructureMaintenance,
-            allowed_actions: vec![TENANT_INFRASTRUCTURE_APPLY.into()],
+            allowed_actions: vec![HOLDING_INFRASTRUCTURE_APPLY.into()],
             business_units: vec![],
             reason: "Apply an approved database migration".into(),
             ticket_reference: "CHG-100".into(),
@@ -1360,10 +1352,9 @@ mod tests {
 
     #[test]
     fn customer_profiles_require_distinct_customer_owned_references() {
-        let profile = TenantInfrastructureProfile {
-            tenant_id: "tenant-1".into(),
+        let profile = HoldingInfrastructureProfile {
             holding_id: Uuid::from_u128(1),
-            deployment_mode: TenantDeploymentMode::CustomerDataPlane,
+            deployment_mode: HoldingDeploymentMode::CustomerDataPlane,
             write_database_ref: SecretReference::new("customer-secret:erpx/write").unwrap(),
             read_database_ref: SecretReference::new("customer-secret:erpx/read").unwrap(),
             storage_ref: SecretReference::new("customer-secret:erpx/storage").unwrap(),
@@ -1383,12 +1374,11 @@ mod tests {
     #[test]
     fn business_unit_configuration_stays_logical_and_role_allow_listed() {
         let configuration = BusinessUnitConfiguration {
-            tenant_id: "tenant-1".into(),
             holding_id: Uuid::from_u128(1),
             business_unit: BusinessUnitId::Finance,
             configuration_version: 1,
             active: true,
-            organization_scope: Scope::Holding {
+            organization_scope: AuthorityScope::Holding {
                 holding_id: Uuid::from_u128(1),
             },
             directory_role_mappings: vec![BusinessUnitDirectoryRoleMapping {
@@ -1417,7 +1407,7 @@ mod tests {
         );
 
         let mut sibling_holding = configuration;
-        sibling_holding.directory_role_mappings[0].target_scope = Scope::Holding {
+        sibling_holding.directory_role_mappings[0].target_scope = AuthorityScope::Holding {
             holding_id: Uuid::from_u128(99),
         };
         assert_eq!(
@@ -1442,7 +1432,6 @@ mod tests {
     #[test]
     fn agent_binding_requires_unique_capabilities_and_sha256_fingerprint() {
         let mut binding = DataPlaneAgentBinding {
-            tenant_id: "tenant-1".into(),
             holding_id: Uuid::from_u128(1),
             agent_id: Uuid::from_u128(2),
             certificate_fingerprint: "a".repeat(64),
@@ -1459,7 +1448,7 @@ mod tests {
     }
 
     #[test]
-    fn root_access_is_tenant_scoped_expiring_and_customer_approved() {
+    fn root_access_is_holding_scoped_expiring_and_customer_approved() {
         let request = root_request();
         request.validate().expect("valid request");
         RootAccessApproval {
@@ -1472,10 +1461,10 @@ mod tests {
         .expect("valid approval");
 
         let mut platform_request = request.clone();
-        platform_request.tenant_scope = Scope::Platform;
+        platform_request.active_scope = AuthorityScope::Platform;
         assert_eq!(
             platform_request.validate(),
-            Err(DataPlaneContractError::RootAccessMustBeTenantScoped)
+            Err(DataPlaneContractError::RootAccessMustBeHoldingScoped)
         );
     }
 
@@ -1528,12 +1517,12 @@ mod tests {
             token_hash: [7; 32],
             root_principal: "root-operator".into(),
             device_ref: "device-1".into(),
-            tenant_id: "tenant-1".into(),
+            holding_id: "holding-1".into(),
             agent_id: Uuid::from_u128(20),
-            scope: Scope::Holding {
+            scope: AuthorityScope::Holding {
                 holding_id: Uuid::from_u128(1),
             },
-            allowed_actions: vec![TENANT_INFRASTRUCTURE_APPLY.into()],
+            allowed_actions: vec![HOLDING_INFRASTRUCTURE_APPLY.into()],
             business_units: vec![BusinessUnitId::Finance],
             issued_at: at(8),
             expires_at: at(10),
@@ -1544,10 +1533,10 @@ mod tests {
                 at(9),
                 "root-operator",
                 "device-1",
-                "tenant-1",
+                "holding-1",
                 Uuid::from_u128(20),
                 &branch_scope(),
-                TENANT_INFRASTRUCTURE_APPLY,
+                HOLDING_INFRASTRUCTURE_APPLY,
                 Some(BusinessUnitId::Finance),
                 DataPlaneAgentState::Healthy,
             )
@@ -1557,10 +1546,10 @@ mod tests {
                 at(9),
                 "root-operator",
                 "device-1",
-                "tenant-1",
+                "holding-1",
                 Uuid::from_u128(20),
                 &branch_scope(),
-                TENANT_INFRASTRUCTURE_APPLY,
+                HOLDING_INFRASTRUCTURE_APPLY,
                 Some(BusinessUnitId::Finance),
                 DataPlaneAgentState::Offline,
             ),
@@ -1572,9 +1561,8 @@ mod tests {
     fn desired_configuration_is_versioned_and_target_bound() {
         let desired = DesiredConfiguration {
             id: Uuid::from_u128(40),
-            tenant_id: "tenant-1".into(),
             holding_id: Uuid::from_u128(1),
-            deployment_mode: TenantDeploymentMode::CustomerDataPlane,
+            deployment_mode: HoldingDeploymentMode::CustomerDataPlane,
             target_agent_id: Some(Uuid::from_u128(20)),
             layer: ConfigurationLayer::BusinessUnit(BusinessUnitId::Finance),
             expected_observed_version: 4,
@@ -1599,7 +1587,7 @@ mod tests {
     #[test]
     fn observed_state_reports_drift_without_exposing_sensitive_failure_text() {
         let mut observed = ObservedDataPlaneState {
-            tenant_id: "tenant-1".into(),
+            holding_id: "holding-1".into(),
             agent_id: Uuid::from_u128(20),
             observed_version: 4,
             desired_version: 5,
@@ -1625,8 +1613,8 @@ mod tests {
     }
 
     #[test]
-    fn tenant_execution_route_debug_redacts_managed_resources() {
-        let route = TenantExecutionRoute::ErpxManaged {
+    fn holding_execution_route_debug_redacts_managed_resources() {
+        let route = HoldingExecutionRoute::ErpxManaged {
             write_database_key: "write-secret".into(),
             read_database_key: "read-secret".into(),
             storage_namespace: "storage-secret".into(),

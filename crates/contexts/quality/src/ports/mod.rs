@@ -9,7 +9,7 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::quality;
 use erpx_kernel::{
-    ActorAttribution, AggregateId, AuditContext, CommandId, CorrelationId, EventId, TenantScope,
+    ActorAttribution, AggregateId, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -40,7 +40,7 @@ impl QualityAction {
 pub enum CommandFingerprint {
     Create {
         inspection_id: InspectionId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         kind: InspectionKind,
         product_id: Uuid,
         lot_reference: Option<String>,
@@ -75,8 +75,8 @@ pub struct CommandIdentity {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
-    pub target_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
+    pub target_scope: &'a AuthorityScope,
     pub action: QualityAction,
 }
 
@@ -89,7 +89,7 @@ pub trait AuthorizationPort: Send + Sync {
 pub trait EntitlementPort: Send + Sync {
     async fn ensure_quality_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         write: bool,
     ) -> Result<(), PortError>;
 }
@@ -99,7 +99,7 @@ pub trait EntitlementPort: Send + Sync {
 pub trait WriteRepository: Send + Sync {
     async fn load(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         inspection_id: InspectionId,
     ) -> Result<Option<QualityInspection>, PortError>;
 }
@@ -110,7 +110,7 @@ pub struct QualityCommit {
     pub correlation_id: CorrelationId,
     pub causation_id: Option<EventId>,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
     pub aggregate: QualityInspection,
@@ -165,7 +165,7 @@ pub struct InspectionView {
     pub inspection_id: InspectionId,
     pub version: u64,
     pub reference: String,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub kind: InspectionKind,
     pub product_id: Uuid,
     pub lot_reference: Option<String>,
@@ -225,14 +225,14 @@ pub struct ReadProjection<T> {
 pub trait ReadRepository: Send + Sync {
     async fn get(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         inspection_id: InspectionId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<InspectionView>>, PortError>;
 
     async fn list(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &InspectionListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<InspectionList>, PortError>;

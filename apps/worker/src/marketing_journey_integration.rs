@@ -1,6 +1,6 @@
 //! Durable worker for Marketing journey approved-integration handoffs.
 //!
-//! The worker never accepts a provider account from the tenant payload. It
+//! The worker never accepts a provider account from the holding payload. It
 //! resolves the account from the active control-plane binding immediately
 //! before each request, sends only profile-redacted identifiers, and records a
 //! bounded outcome against the durable invocation idempotency key.
@@ -9,12 +9,12 @@ use std::{env, sync::Arc, time::Duration as StdDuration};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
-use erpx_domain::{contracts::TenantScope, marketing_journey::JourneyIntegrationInvocation};
+use erpx_domain::{contracts::AuthorityScope, marketing_journey::JourneyIntegrationInvocation};
 use erpx_infrastructure::{
-    MarketingJourneyIntegrationClaim, MarketingJourneyIntegrationProviderResult,
-    MarketingJourneyIntegrationWriteReceipt, MarketingProviderAccountBinding, PersistenceError,
-    RoutedDatabaseSide, SqlxControlPlane, SqlxMarketingJourneyIntegrationStore,
-    SqlxTenantStoreRegistry, TenantDatabaseRouter,
+    HoldingDatabaseRouter, MarketingJourneyIntegrationClaim,
+    MarketingJourneyIntegrationProviderResult, MarketingJourneyIntegrationWriteReceipt,
+    MarketingProviderAccountBinding, PersistenceError, RoutedDatabaseSide, SqlxControlPlane,
+    SqlxHoldingStoreRegistry, SqlxMarketingJourneyIntegrationStore,
 };
 use reqwest::{Client, StatusCode, Url, header::HeaderValue, redirect::Policy};
 use serde::{Deserialize, Serialize};
@@ -245,7 +245,7 @@ where
 pub struct HttpMarketingJourneyIntegrationProvider {
     control: Arc<SqlxControlPlane>,
     credentials: MarketingDeliverySecretManagerResolver,
-    expected_holding_ref: String,
+    expected_data_profile_key: String,
     configured_provider_key: Option<String>,
     client: Client,
 }
@@ -254,7 +254,7 @@ impl std::fmt::Debug for HttpMarketingJourneyIntegrationProvider {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("HttpMarketingJourneyIntegrationProvider")
-            .field("expected_holding_ref", &self.expected_holding_ref)
+            .field("expected_data_profile_key", &self.expected_data_profile_key)
             .field("configured_provider_key", &"[redacted]")
             .finish()
     }
@@ -264,7 +264,7 @@ impl HttpMarketingJourneyIntegrationProvider {
     pub fn new(
         control: Arc<SqlxControlPlane>,
         credentials: MarketingDeliverySecretManagerResolver,
-        expected_holding_ref: impl Into<String>,
+        expected_data_profile_key: impl Into<String>,
     ) -> Result<Self, WorkerRuntimeError> {
         let configured_provider_key = env::var("ERPX_MARKETING_PROVIDER_KEY")
             .ok()
@@ -288,7 +288,7 @@ impl HttpMarketingJourneyIntegrationProvider {
         Ok(Self {
             control,
             credentials,
-            expected_holding_ref: expected_holding_ref.into(),
+            expected_data_profile_key: expected_data_profile_key.into(),
             configured_provider_key,
             client,
         })
@@ -297,7 +297,7 @@ impl HttpMarketingJourneyIntegrationProvider {
     async fn binding_for(
         &self,
         integration_ref: &str,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
     ) -> Result<MarketingProviderAccountBinding, MarketingJourneyIntegrationProviderError> {
         let binding = self
             .control
@@ -312,7 +312,7 @@ impl HttpMarketingJourneyIntegrationProvider {
         let holding_id = holding_id_for_scope(scope)
             .ok_or(MarketingJourneyIntegrationProviderError::Permanent)?;
         if binding.provider_key != configured_provider_key
-            || binding.holding_ref != self.expected_holding_ref
+            || binding.data_profile_key != self.expected_data_profile_key
             || binding.holding_id != holding_id
         {
             return Err(MarketingJourneyIntegrationProviderError::Permanent);
@@ -363,13 +363,13 @@ impl HttpMarketingJourneyIntegrationProvider {
                     .map_err(|_| MarketingJourneyIntegrationProviderError::Permanent)?,
             )
             .header(
-                "X-ERPX-Tenant-Id",
-                header_value(&binding.tenant_id)
+                "X-ERPX-Holding-Id",
+                header_value(&binding.holding_id.to_string())
                     .map_err(|_| MarketingJourneyIntegrationProviderError::Permanent)?,
             )
             .header(
                 "X-ERPX-Holding-Ref",
-                header_value(&binding.holding_ref)
+                header_value(&binding.data_profile_key)
                     .map_err(|_| MarketingJourneyIntegrationProviderError::Permanent)?,
             )
             .header("X-ERPX-Holding-Id", binding.holding_id.to_string())
@@ -452,7 +452,7 @@ struct IntegrationRequest {
     run_id: Uuid,
     node_id: Uuid,
     profile_id: Uuid,
-    scope: TenantScope,
+    scope: AuthorityScope,
     idempotency_key: String,
 }
 
@@ -557,13 +557,13 @@ fn header_value(value: &str) -> Result<HeaderValue, ()> {
     HeaderValue::try_from(value).map_err(|_| ())
 }
 
-fn holding_id_for_scope(scope: &TenantScope) -> Option<Uuid> {
+fn holding_id_for_scope(scope: &AuthorityScope) -> Option<Uuid> {
     match scope {
-        TenantScope::Platform => None,
-        TenantScope::Holding { holding_id }
-        | TenantScope::Company { holding_id, .. }
-        | TenantScope::Branch { holding_id, .. }
-        | TenantScope::Subtree { holding_id, .. } => Some(*holding_id),
+        AuthorityScope::Platform => None,
+        AuthorityScope::Holding { holding_id }
+        | AuthorityScope::Company { holding_id, .. }
+        | AuthorityScope::Branch { holding_id, .. }
+        | AuthorityScope::Subtree { holding_id, .. } => Some(*holding_id),
     }
 }
 
@@ -603,23 +603,23 @@ fn redacted_persistence_error(error: PersistenceError) -> WorkerRuntimeError {
 }
 
 /// Multi-holding runtime composition: control-plane registry discovery,
-/// tenant routing, write-side projection, reconciliation, and provider calls
+/// holding routing, write-side projection, reconciliation, and provider calls
 /// are all performed per active holding.
 #[derive(Clone)]
-pub struct MarketingJourneyIntegrationMultiTenantRuntimeHandler {
+pub struct MarketingJourneyIntegrationMultiHoldingRuntimeHandler {
     control: Arc<SqlxControlPlane>,
-    registry: SqlxTenantStoreRegistry,
-    router: TenantDatabaseRouter,
+    registry: SqlxHoldingStoreRegistry,
+    router: HoldingDatabaseRouter,
     credentials: MarketingDeliverySecretManagerResolver,
     batch_size: u32,
     lease: Duration,
 }
 
-impl MarketingJourneyIntegrationMultiTenantRuntimeHandler {
+impl MarketingJourneyIntegrationMultiHoldingRuntimeHandler {
     pub fn new(
         control: Arc<SqlxControlPlane>,
-        registry: SqlxTenantStoreRegistry,
-        router: TenantDatabaseRouter,
+        registry: SqlxHoldingStoreRegistry,
+        router: HoldingDatabaseRouter,
         credentials: MarketingDeliverySecretManagerResolver,
         batch_size: u32,
         lease: Duration,
@@ -648,7 +648,7 @@ impl MarketingJourneyIntegrationMultiTenantRuntimeHandler {
 }
 
 #[async_trait]
-impl NamedWorkerHandler for MarketingJourneyIntegrationMultiTenantRuntimeHandler {
+impl NamedWorkerHandler for MarketingJourneyIntegrationMultiHoldingRuntimeHandler {
     fn name(&self) -> &str {
         MARKETING_JOURNEY_INTEGRATION_HANDLER_NAME
     }
@@ -670,8 +670,8 @@ impl NamedWorkerHandler for MarketingJourneyIntegrationMultiTenantRuntimeHandler
             let write = self
                 .router
                 .route(
-                    &registration.tenant_id,
-                    &registration.holding_ref,
+                    &registration.holding_id,
+                    &registration.data_profile_key,
                     RoutedDatabaseSide::Write,
                 )
                 .await
@@ -679,8 +679,8 @@ impl NamedWorkerHandler for MarketingJourneyIntegrationMultiTenantRuntimeHandler
             let read = self
                 .router
                 .route(
-                    &registration.tenant_id,
-                    &registration.holding_ref,
+                    &registration.holding_id,
+                    &registration.data_profile_key,
                     RoutedDatabaseSide::Read,
                 )
                 .await
@@ -688,7 +688,7 @@ impl NamedWorkerHandler for MarketingJourneyIntegrationMultiTenantRuntimeHandler
             let source = SqlxMarketingJourneyIntegrationStore::new(
                 write.database_pool().clone(),
                 read.database_pool().clone(),
-                registration.holding_ref.clone(),
+                registration.data_profile_key.clone(),
             )
             .map_err(redacted_persistence_error)?;
             let projected = source
@@ -715,7 +715,7 @@ impl NamedWorkerHandler for MarketingJourneyIntegrationMultiTenantRuntimeHandler
             let provider = HttpMarketingJourneyIntegrationProvider::new(
                 Arc::clone(&self.control),
                 self.credentials.clone(),
-                registration.holding_ref.clone(),
+                registration.data_profile_key.clone(),
             )?;
             let handler =
                 MarketingJourneyIntegrationHandler::new(source, provider, remaining, self.lease)?;
@@ -755,7 +755,7 @@ mod tests {
             Uuid::from_u128(3),
             Uuid::from_u128(4),
             Uuid::from_u128(5),
-            TenantScope::Holding {
+            AuthorityScope::Holding {
                 holding_id: Uuid::from_u128(6),
             },
             "idempotency",

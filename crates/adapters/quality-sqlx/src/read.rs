@@ -6,7 +6,7 @@ use erpx_cqrs::{
 use erpx_cqrs_sqlx::{
     CqrsSqlxError, ReadPool, ReadSideStore, SqlxProjectionWaiter, WaitError, WaiterConfig,
 };
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use erpx_quality::{
     application::InspectionView,
     domain::InspectionId,
@@ -129,7 +129,7 @@ impl QualityReadRepository {
 impl ReadRepository for QualityReadRepository {
     async fn get(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         inspection_id: InspectionId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<InspectionView>>, PortError> {
@@ -197,7 +197,7 @@ impl ReadRepository for QualityReadRepository {
 
     async fn list(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &InspectionListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<InspectionList>, PortError> {
@@ -300,10 +300,10 @@ struct ScopeFilter {
 }
 
 impl ScopeFilter {
-    fn from_scope(scope: &TenantScope) -> Result<Self, PortError> {
+    fn from_scope(scope: &AuthorityScope) -> Result<Self, PortError> {
         scope.validate().map_err(|_| PortError::Denied)?;
         Ok(match scope {
-            TenantScope::Platform => Self {
+            AuthorityScope::Platform => Self {
                 kind: "platform",
                 holding_id: None,
                 company_id: None,
@@ -311,7 +311,7 @@ impl ScopeFilter {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Holding { holding_id } => Self {
+            AuthorityScope::Holding { holding_id } => Self {
                 kind: "holding",
                 holding_id: Some(*holding_id),
                 company_id: None,
@@ -319,7 +319,7 @@ impl ScopeFilter {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => Self {
@@ -330,7 +330,7 @@ impl ScopeFilter {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -342,17 +342,16 @@ impl ScopeFilter {
                 company_ids: Vec::new(),
                 branch_ids: Vec::new(),
             },
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Self {
                 kind: "subtree",
                 holding_id: Some(*holding_id),
                 company_id: None,
                 branch_id: None,
-                company_ids: company_ids.clone(),
-                branch_ids: branch_ids.clone(),
+                company_ids: vec![*organization_node_id],
+                branch_ids: Vec::new(),
             },
         })
     }
@@ -437,15 +436,14 @@ mod tests {
 
     #[test]
     fn subtree_filter_preserves_explicit_company_and_branch_sets() {
-        let scope = TenantScope::Subtree {
+        let scope = AuthorityScope::Subtree {
             holding_id: Uuid::from_u128(1),
-            company_ids: vec![Uuid::from_u128(2)],
-            branch_ids: vec![Uuid::from_u128(3)],
+            organization_node_id: Uuid::from_u128(2),
         };
         let filter = ScopeFilter::from_scope(&scope).unwrap();
         assert_eq!(filter.kind, "subtree");
         assert_eq!(filter.company_ids, vec![Uuid::from_u128(2)]);
-        assert_eq!(filter.branch_ids, vec![Uuid::from_u128(3)]);
+        assert!(filter.branch_ids.is_empty());
     }
 
     #[test]

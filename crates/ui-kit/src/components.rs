@@ -130,7 +130,7 @@ const SIDEBAR_GROUP_LIMIT: usize = 5;
 fn is_administration_group(group_id: &str) -> bool {
     matches!(
         group_id,
-        "tenant_administration" | "platform_administration"
+        "holding_administration" | "platform_administration"
     )
 }
 
@@ -191,7 +191,7 @@ impl RoleContextSummary {
 /// A top-level responsive shell shared by web, desktop, and mobile clients.
 #[component]
 pub fn AppShell(
-    /// Product/tenant-facing brand name.
+    /// Product/holding-facing brand name.
     brand: String,
     /// Short context subtitle.
     subtitle: String,
@@ -944,7 +944,7 @@ fn nav_icon_name(path: &str) -> &'static str {
         "database"
     } else if path.contains("projection") {
         "activity"
-    } else if path.contains("tenant") {
+    } else if path.contains("holding") {
         "building"
     } else {
         "module"
@@ -986,7 +986,7 @@ pub fn EnterpriseIcon(name: String) -> Element {
 }
 
 /// A safe scope selector surface. Selecting a value only emits a request to the consuming app;
-/// it does not grant access or place tenant credentials in the client.
+/// it does not grant access or place holding credentials in the client.
 #[component]
 pub fn ScopeSelector(
     label: String,
@@ -2060,7 +2060,7 @@ mod tests {
 
     #[test]
     fn navigation_activation_is_segment_aware() {
-        assert!(is_active("/platform/customers", "/platform"));
+        assert!(is_active("/platform/holdings", "/platform"));
         assert!(!is_active("/platforming", "/platform"));
         assert!(!is_active("/operations", "/"));
     }
@@ -2091,7 +2091,7 @@ mod tests {
             Some("/modules/module-6")
         );
         assert!(visible.iter().all(|item| item.is_authorized()));
-        assert!(is_administration_group("tenant_administration"));
+        assert!(is_administration_group("holding_administration"));
         assert!(!is_administration_group("business_modules"));
     }
 

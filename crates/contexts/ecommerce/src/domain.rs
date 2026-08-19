@@ -4,7 +4,7 @@ use erpx_integration_contracts::{
     catalog::ContextId,
     reference::{RecordTypeId, ReferenceValidationError},
 };
-use erpx_kernel::{RecordId, TenantScope};
+use erpx_kernel::{AuthorityScope, RecordId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -79,7 +79,7 @@ pub enum ChannelStatus {
 pub struct CommerceChannel {
     id: ChannelId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     code: String,
     locales: Vec<String>,
     currencies: Vec<String>,
@@ -91,7 +91,7 @@ pub struct CommerceChannel {
 impl CommerceChannel {
     pub fn draft(
         id: ChannelId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         code: impl Into<String>,
         locales: Vec<String>,
         currencies: Vec<String>,
@@ -170,7 +170,7 @@ impl CommerceChannel {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn status(&self) -> ChannelStatus {
@@ -197,7 +197,7 @@ pub enum ListingStatus {
 pub struct Listing {
     id: ListingId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     channel_id: ChannelId,
     product: StableRecordRef,
     source_versions: [u64; 5],
@@ -212,7 +212,7 @@ impl Listing {
     #[allow(clippy::too_many_arguments)]
     pub fn draft(
         id: ListingId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         channel_id: ChannelId,
         product: StableRecordRef,
         source_versions: [u64; 5],
@@ -298,7 +298,7 @@ impl Listing {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn channel_id(&self) -> ChannelId {
@@ -341,7 +341,7 @@ pub struct CartLine {
 pub struct Cart {
     id: CartId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     channel_id: ChannelId,
     owner: CommerceIdentity,
     marketing_consent: bool,
@@ -352,7 +352,7 @@ pub struct Cart {
 impl Cart {
     pub fn create(
         id: CartId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         channel: &CommerceChannel,
         owner: CommerceIdentity,
         marketing_consent: bool,
@@ -438,7 +438,7 @@ impl Cart {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn owner(&self) -> &CommerceIdentity {
@@ -510,7 +510,7 @@ pub enum CheckoutStatus {
 pub struct Checkout {
     id: CheckoutId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     idempotency_key: String,
     snapshot: CheckoutSnapshot,
     revalidation: AuthorityDecision,
@@ -525,7 +525,7 @@ impl Checkout {
     #[allow(clippy::too_many_arguments)]
     pub fn start(
         id: CheckoutId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         idempotency_key: impl Into<String>,
         cart: &Cart,
         tax: MoneyAmount,
@@ -709,7 +709,7 @@ impl Checkout {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn status(&self) -> CheckoutStatus {
@@ -741,7 +741,7 @@ pub enum ReturnStatus {
 pub struct ReturnRequest {
     id: ReturnId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     checkout_id: CheckoutId,
     order_ref: StableRecordRef,
     owner: CommerceIdentity,
@@ -850,7 +850,7 @@ impl ReturnRequest {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn status(&self) -> ReturnStatus {
@@ -895,7 +895,7 @@ impl CommerceAggregate {
             Self::Fulfillment(v) => v.version(),
         }
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         match self {
             Self::Channel(v) => &v.scope,
             Self::Listing(v) => &v.scope,
@@ -962,10 +962,10 @@ fn external_next(
         DecisionStatus::Pending => Err(CommerceError::InvalidTransition),
     }
 }
-fn validate_scope(scope: &TenantScope) -> Result<(), CommerceError> {
+fn validate_scope(scope: &AuthorityScope) -> Result<(), CommerceError> {
     if matches!(
         scope,
-        TenantScope::Company { .. } | TenantScope::Branch { .. }
+        AuthorityScope::Company { .. } | AuthorityScope::Branch { .. }
     ) {
         Ok(())
     } else {

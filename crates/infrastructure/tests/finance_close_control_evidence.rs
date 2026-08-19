@@ -43,20 +43,20 @@ fn record(
     .expect("valid control evidence")
 }
 
-async fn outbox_events(pool: &PgPool, holding_ref: &str) -> Vec<(String, i64, Value)> {
+async fn outbox_events(pool: &PgPool, data_profile_key: &str) -> Vec<(String, i64, Value)> {
     let mut tx = pool.begin().await.expect("outbox verification transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(data_profile_key)
         .execute(&mut *tx)
         .await
-        .expect("outbox tenant scope");
+        .expect("outbox holding scope");
     let rows = sqlx::query(
         "SELECT event_type, aggregate_version, payload
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type='finance_close_control_evidence'
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type='finance_close_control_evidence'
          ORDER BY event_id",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_all(&mut *tx)
     .await
     .expect("source evidence outbox rows");
@@ -75,43 +75,43 @@ async fn outbox_events(pool: &PgPool, holding_ref: &str) -> Vec<(String, i64, Va
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn live_source_evidence_is_scoped_replayed_and_closed_immutable() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let pool = PgPool::connect(&url).await.expect("write pool");
-    erpx_migration::migrate_tenant_write(&pool)
+    erpx_migration::migrate_holding_write(&pool)
         .await
-        .expect("tenant write migration");
+        .expect("holding write migration");
 
-    let holding_ref = format!("holding-close-evidence-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-close-evidence-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let period_id = Uuid::new_v4();
     let source_aggregate_id = Uuid::new_v4();
     let mut tx = pool.begin().await.expect("seed transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tx)
         .await
-        .expect("tenant scope");
+        .expect("holding scope");
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_periods
-            (period_id, holding_id, company_id, holding_ref, status, version, payload)
+        "INSERT INTO erpx_holding.finance_periods
+            (period_id, holding_id, company_id, data_profile_key, status, version, payload)
          VALUES ($1,$2,$3,$4,'locked',1,'{}')",
     )
     .bind(period_id)
     .bind(holding_id)
     .bind(company_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .execute(&mut *tx)
     .await
     .expect("seed period");
     tx.commit().await.expect("commit period");
 
-    let store = SqlxFinanceCloseControlEvidenceStore::new(pool.clone(), &holding_ref)
+    let store = SqlxFinanceCloseControlEvidenceStore::new(pool.clone(), &data_profile_key)
         .expect("evidence store");
-    assert_eq!(store.holding_ref(), holding_ref);
+    assert_eq!(store.data_profile_key(), data_profile_key);
     let first = record(
         holding_id,
         company_id,
@@ -122,7 +122,7 @@ async fn live_source_evidence_is_scoped_replayed_and_closed_immutable() {
     );
     let first_receipt = store.publish(&first).await.expect("publish evidence");
     assert!(!first_receipt.replayed);
-    let events = outbox_events(&pool, &holding_ref).await;
+    let events = outbox_events(&pool, &data_profile_key).await;
     assert_eq!(events.len(), 1, "first source publication emits one event");
     assert_eq!(events[0].0, "finance.close_control_evidence_published.v1");
     assert_eq!(events[0].1, 1);
@@ -138,7 +138,7 @@ async fn live_source_evidence_is_scoped_replayed_and_closed_immutable() {
     );
     let replay_receipt = store.publish(&first).await.expect("replay evidence");
     assert!(replay_receipt.replayed);
-    assert_eq!(outbox_events(&pool, &holding_ref).await.len(), 1);
+    assert_eq!(outbox_events(&pool, &data_profile_key).await.len(), 1);
 
     let updated = record(
         holding_id,
@@ -150,7 +150,7 @@ async fn live_source_evidence_is_scoped_replayed_and_closed_immutable() {
     );
     let update_receipt = store.publish(&updated).await.expect("update evidence");
     assert!(!update_receipt.replayed);
-    let events = outbox_events(&pool, &holding_ref).await;
+    let events = outbox_events(&pool, &data_profile_key).await;
     assert_eq!(
         events.len(),
         2,
@@ -181,7 +181,7 @@ async fn live_source_evidence_is_scoped_replayed_and_closed_immutable() {
         store.publish(&conflicting_same_version).await.is_err(),
         "a source version must remain bound to exactly one evidence payload"
     );
-    assert_eq!(outbox_events(&pool, &holding_ref).await.len(), 2);
+    assert_eq!(outbox_events(&pool, &data_profile_key).await.len(), 2);
 
     let changed_source = record(
         holding_id,
@@ -208,21 +208,21 @@ async fn live_source_evidence_is_scoped_replayed_and_closed_immutable() {
         store.publish(&bad_company).await.is_err(),
         "company identity must match the authoritative period"
     );
-    assert_eq!(outbox_events(&pool, &holding_ref).await.len(), 2);
+    assert_eq!(outbox_events(&pool, &data_profile_key).await.len(), 2);
 
     let mut close_tx = pool.begin().await.expect("closed review transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *close_tx)
         .await
-        .expect("closed review tenant scope");
+        .expect("closed review holding scope");
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_close_reviews
-            (holding_ref, holding_id, company_id, period_id, status, version,
+        "INSERT INTO erpx_holding.finance_close_reviews
+            (data_profile_key, holding_id, company_id, period_id, status, version,
              idempotency_key, opened_by, payload)
          VALUES ($1,$2,$3,$4,'closed',1,$5,'close-test','{}')",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(holding_id)
     .bind(company_id)
     .bind(period_id)
@@ -235,5 +235,5 @@ async fn live_source_evidence_is_scoped_replayed_and_closed_immutable() {
         store.publish(&updated).await.is_err(),
         "closed close reviews must reject evidence changes"
     );
-    assert_eq!(outbox_events(&pool, &holding_ref).await.len(), 2);
+    assert_eq!(outbox_events(&pool, &data_profile_key).await.len(), 2);
 }

@@ -7,7 +7,7 @@ use erpx_integration_contracts::{
     BoundedContext, CurrencyCode, DimensionSet, IntegrationEvent, MoneyAmount, RecordRef,
     ReferenceCode, assets, legal, marketing, operations, organization, people_payroll,
 };
-use erpx_kernel::{AggregateId, CommandId, EventId, TenantScope};
+use erpx_kernel::{AggregateId, AuthorityScope, CommandId, EventId};
 use erpx_marketing::{
     BudgetAllocation, BudgetAllocationId, CampaignBudget, CampaignBudgetId, CampaignBudgetState,
     CampaignBudgetStatus, CampaignId, CommandUnitOfWork, LeadCandidate, LeadCandidateId,
@@ -51,10 +51,10 @@ struct AuthoritySqlScope {
 }
 
 impl AuthoritySqlScope {
-    fn try_from_scope(scope: &TenantScope) -> Result<Self, PortError> {
+    fn try_from_scope(scope: &AuthorityScope) -> Result<Self, PortError> {
         scope.validate().map_err(|_| PortError::Denied)?;
         Ok(match scope {
-            TenantScope::Platform => Self {
+            AuthorityScope::Platform => Self {
                 mode: "platform",
                 holding_id: None,
                 company_id: None,
@@ -62,7 +62,7 @@ impl AuthoritySqlScope {
                 company_ids: vec![],
                 branch_ids: vec![],
             },
-            TenantScope::Holding { holding_id } => Self {
+            AuthorityScope::Holding { holding_id } => Self {
                 mode: "holding",
                 holding_id: Some(*holding_id),
                 company_id: None,
@@ -70,7 +70,7 @@ impl AuthoritySqlScope {
                 company_ids: vec![],
                 branch_ids: vec![],
             },
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => Self {
@@ -81,7 +81,7 @@ impl AuthoritySqlScope {
                 company_ids: vec![],
                 branch_ids: vec![],
             },
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -93,17 +93,16 @@ impl AuthoritySqlScope {
                 company_ids: vec![],
                 branch_ids: vec![],
             },
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Self {
                 mode: "subtree",
                 holding_id: Some(*holding_id),
                 company_id: None,
                 branch_id: None,
-                company_ids: company_ids.clone(),
-                branch_ids: branch_ids.clone(),
+                company_ids: vec![*organization_node_id],
+                branch_ids: Vec::new(),
             },
         })
     }
@@ -120,7 +119,7 @@ const AUTHORITY_FILTER: &str = "
 impl WriteRepository for MarketingWriteRepository {
     async fn load_lead(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: LeadCandidateId,
     ) -> Result<Option<LeadCandidate>, PortError> {
         let authority = AuthoritySqlScope::try_from_scope(authority_scope)?;
@@ -131,7 +130,7 @@ impl WriteRepository for MarketingWriteRepository {
                     qualification_score_basis_points,lead_status,engagement_count,
                     created_at,updated_at
              FROM erpx_marketing_write.lead_candidate_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND lead_id=$1{AUTHORITY_FILTER}"
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND lead_id=$1{AUTHORITY_FILTER}"
         );
         let row = sqlx::query(&query)
             .bind(id.as_uuid())
@@ -190,7 +189,7 @@ impl WriteRepository for MarketingWriteRepository {
 
     async fn load_budget(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: CampaignBudgetId,
     ) -> Result<Option<CampaignBudget>, PortError> {
         let authority = AuthoritySqlScope::try_from_scope(authority_scope)?;
@@ -205,7 +204,7 @@ impl WriteRepository for MarketingWriteRepository {
                     approval_subject_version,approval_requested_by,approval_requested_at,
                     budget_status,created_at,updated_at
              FROM erpx_marketing_write.campaign_budget_authority
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND budget_id=$1{AUTHORITY_FILTER}"
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND budget_id=$1{AUTHORITY_FILTER}"
         );
         let row = sqlx::query(&query)
             .bind(id.as_uuid())
@@ -387,7 +386,7 @@ impl CommandUnitOfWork for MarketingCommandAdapter {
             correlation_id: request.correlation_id,
             idempotency_key: request.identity.idempotency_key,
             request_hash: request_hash(&request.identity.fingerprint)?,
-            tenant_scope: aggregate.scope().clone(),
+            active_scope: aggregate.scope().clone(),
             actor: request.actor,
             audit_context: request.audit,
             aggregate_type: target.aggregate_type.into(),
@@ -445,7 +444,7 @@ impl AtomicCommandGuard for MarketingAtomicGuard {
         };
         let query = format!(
             "SELECT aggregate_version FROM erpx_marketing_write.{table}
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND {id_column}=$1 FOR UPDATE"
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND {id_column}=$1 FOR UPDATE"
         );
         let current: Option<i64> = sqlx::query_scalar(&query)
             .bind(id)
@@ -463,7 +462,7 @@ impl AtomicCommandGuard for MarketingAtomicGuard {
         if let MarketingAggregate::CampaignBudget(value) = &self.aggregate {
             let allocation_rows = sqlx::query(
                 "SELECT allocation_id FROM erpx_marketing_write.budget_allocation_authority
-                 WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND budget_id=$1
+                 WHERE holding_id=erpx_cqrs_write.current_holding_id() AND budget_id=$1
                  FOR UPDATE",
             )
             .bind(value.id().as_uuid())
@@ -486,7 +485,7 @@ impl AtomicCommandGuard for MarketingAtomicGuard {
             }
             let rows = sqlx::query(
                 "SELECT request_id FROM erpx_marketing_write.spend_reservation_authority
-                 WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND budget_id=$1
+                 WHERE holding_id=erpx_cqrs_write.current_holding_id() AND budget_id=$1
                  FOR UPDATE",
             )
             .bind(value.id().as_uuid())
@@ -517,13 +516,13 @@ impl AtomicCommandGuard for MarketingAtomicGuard {
                 let (holding_id, company_id, branch_id) = exact_scope_ids(value.scope())?;
                 let result = sqlx::query(
                     "INSERT INTO erpx_marketing_write.lead_candidate_authority
-                        (tenant_id,lead_id,aggregate_version,holding_id,company_id,branch_id,
+                        (holding_id,lead_id,aggregate_version,holding_id,company_id,branch_id,
                          campaign_id,audience_member_id,source,existing_customer_id,
                          qualification_score_basis_points,lead_status,engagement_count,
                          created_at,updated_at)
-                     VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,
+                     VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,
                              $10,$11,$12,$13,$14)
-                     ON CONFLICT (tenant_id,lead_id) DO UPDATE SET
+                     ON CONFLICT (holding_id,lead_id) DO UPDATE SET
                         aggregate_version=EXCLUDED.aggregate_version,
                         holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,
                         branch_id=EXCLUDED.branch_id,campaign_id=EXCLUDED.campaign_id,
@@ -532,8 +531,8 @@ impl AtomicCommandGuard for MarketingAtomicGuard {
                         qualification_score_basis_points=EXCLUDED.qualification_score_basis_points,
                         lead_status=EXCLUDED.lead_status,engagement_count=EXCLUDED.engagement_count,
                         created_at=EXCLUDED.created_at,updated_at=EXCLUDED.updated_at
-                     WHERE erpx_marketing_write.lead_candidate_authority.tenant_id=
-                               erpx_cqrs_write.current_tenant_id()
+                     WHERE erpx_marketing_write.lead_candidate_authority.holding_id=
+                               erpx_cqrs_write.current_holding_id()
                        AND erpx_marketing_write.lead_candidate_authority.aggregate_version + 1=
                                EXCLUDED.aggregate_version",
                 )
@@ -560,7 +559,7 @@ impl AtomicCommandGuard for MarketingAtomicGuard {
                 let dimensions = value.dimensions();
                 let result = sqlx::query(
                     "INSERT INTO erpx_marketing_write.campaign_budget_authority
-                        (tenant_id,budget_id,aggregate_version,holding_id,company_id,branch_id,
+                        (holding_id,budget_id,aggregate_version,holding_id,company_id,branch_id,
                          campaign_id,budget_code,budget_name,budget_period,currency,
                          requested_minor,approved_minor,dimension_business_unit_id,
                          dimension_cost_center_id,dimension_location_id,dimension_project_id,
@@ -569,10 +568,10 @@ impl AtomicCommandGuard for MarketingAtomicGuard {
                          dimension_intercompany_partner_id,approval_request_id,
                          approval_subject_version,approval_requested_by,approval_requested_at,
                          budget_status,created_at,updated_at)
-                     VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,
+                     VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,
                              $10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,
                              $26,$27,$28,$29)
-                     ON CONFLICT (tenant_id,budget_id) DO UPDATE SET
+                     ON CONFLICT (holding_id,budget_id) DO UPDATE SET
                         aggregate_version=EXCLUDED.aggregate_version,
                         holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,
                         branch_id=EXCLUDED.branch_id,campaign_id=EXCLUDED.campaign_id,
@@ -595,8 +594,8 @@ impl AtomicCommandGuard for MarketingAtomicGuard {
                         approval_requested_at=EXCLUDED.approval_requested_at,
                         budget_status=EXCLUDED.budget_status,created_at=EXCLUDED.created_at,
                         updated_at=EXCLUDED.updated_at
-                     WHERE erpx_marketing_write.campaign_budget_authority.tenant_id=
-                               erpx_cqrs_write.current_tenant_id()
+                     WHERE erpx_marketing_write.campaign_budget_authority.holding_id=
+                               erpx_cqrs_write.current_holding_id()
                        AND erpx_marketing_write.campaign_budget_authority.aggregate_version + 1=
                                EXCLUDED.aggregate_version",
                 )
@@ -636,10 +635,10 @@ impl AtomicCommandGuard for MarketingAtomicGuard {
                 for allocation in value.allocations() {
                     let result = sqlx::query(
                         "INSERT INTO erpx_marketing_write.budget_allocation_authority
-                            (tenant_id,budget_id,allocation_id,tactic_id,channel_id,currency,
+                            (holding_id,budget_id,allocation_id,tactic_id,channel_id,currency,
                              planned_minor,budget_aggregate_version)
-                         VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7)
-                         ON CONFLICT (tenant_id,budget_id,allocation_id) DO UPDATE SET
+                         VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7)
+                         ON CONFLICT (holding_id,budget_id,allocation_id) DO UPDATE SET
                             budget_aggregate_version=EXCLUDED.budget_aggregate_version
                          WHERE erpx_marketing_write.budget_allocation_authority.tactic_id=
                                    EXCLUDED.tactic_id
@@ -669,7 +668,7 @@ impl AtomicCommandGuard for MarketingAtomicGuard {
                         SpendReservationStatus::Active => "active",
                         SpendReservationStatus::Released => "released",
                     };
-                    let result = sqlx::query("INSERT INTO erpx_marketing_write.spend_reservation_authority (tenant_id,request_id,budget_id,allocation_id,currency,amount_minor,expected_outcome,spend_status,requested_at,released_at,budget_aggregate_version) VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (tenant_id,request_id) DO UPDATE SET spend_status=EXCLUDED.spend_status,released_at=EXCLUDED.released_at,budget_aggregate_version=EXCLUDED.budget_aggregate_version WHERE erpx_marketing_write.spend_reservation_authority.budget_id=EXCLUDED.budget_id AND erpx_marketing_write.spend_reservation_authority.allocation_id=EXCLUDED.allocation_id AND erpx_marketing_write.spend_reservation_authority.currency=EXCLUDED.currency AND erpx_marketing_write.spend_reservation_authority.amount_minor=EXCLUDED.amount_minor AND erpx_marketing_write.spend_reservation_authority.expected_outcome=EXCLUDED.expected_outcome AND erpx_marketing_write.spend_reservation_authority.requested_at=EXCLUDED.requested_at AND (erpx_marketing_write.spend_reservation_authority.spend_status=EXCLUDED.spend_status OR (erpx_marketing_write.spend_reservation_authority.spend_status='active' AND EXCLUDED.spend_status='released'))")
+                    let result = sqlx::query("INSERT INTO erpx_marketing_write.spend_reservation_authority (holding_id,request_id,budget_id,allocation_id,currency,amount_minor,expected_outcome,spend_status,requested_at,released_at,budget_aggregate_version) VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (holding_id,request_id) DO UPDATE SET spend_status=EXCLUDED.spend_status,released_at=EXCLUDED.released_at,budget_aggregate_version=EXCLUDED.budget_aggregate_version WHERE erpx_marketing_write.spend_reservation_authority.budget_id=EXCLUDED.budget_id AND erpx_marketing_write.spend_reservation_authority.allocation_id=EXCLUDED.allocation_id AND erpx_marketing_write.spend_reservation_authority.currency=EXCLUDED.currency AND erpx_marketing_write.spend_reservation_authority.amount_minor=EXCLUDED.amount_minor AND erpx_marketing_write.spend_reservation_authority.expected_outcome=EXCLUDED.expected_outcome AND erpx_marketing_write.spend_reservation_authority.requested_at=EXCLUDED.requested_at AND (erpx_marketing_write.spend_reservation_authority.spend_status=EXCLUDED.spend_status OR (erpx_marketing_write.spend_reservation_authority.spend_status='active' AND EXCLUDED.spend_status='released'))")
                         .bind(reservation.request_id.as_uuid())
                         .bind(value.id().as_uuid())
                         .bind(reservation.allocation_id.as_uuid())
@@ -827,7 +826,7 @@ fn aggregate_id(id: Uuid) -> Result<AggregateId, PortError> {
 
 fn request_hash(value: &CommandFingerprint) -> Result<RequestHash, PortError> {
     let mut digest = Sha256::new();
-    digest.update(b"erpx.marketing.command.v2\0");
+    digest.update(b"erpx.marketing.command\0");
     digest.update(serde_json::to_vec(value).map_err(|_| PortError::Internal)?);
     Ok(RequestHash::new(digest.finalize().into()))
 }
@@ -858,7 +857,7 @@ async fn load_budget_allocations(
     let rows = sqlx::query(
         "SELECT allocation_id,tactic_id,channel_id,currency,planned_minor
          FROM erpx_marketing_write.budget_allocation_authority
-         WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND budget_id=$1
+         WHERE holding_id=erpx_cqrs_write.current_holding_id() AND budget_id=$1
          ORDER BY allocation_id",
     )
     .bind(budget_id.as_uuid())
@@ -909,7 +908,7 @@ async fn load_spend_reservations(
         "SELECT request_id,allocation_id,currency,amount_minor,expected_outcome,
                 spend_status,requested_at,released_at
          FROM erpx_marketing_write.spend_reservation_authority
-         WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND budget_id=$1
+         WHERE holding_id=erpx_cqrs_write.current_holding_id() AND budget_id=$1
          ORDER BY request_id",
     )
     .bind(budget_id.as_uuid())
@@ -1027,17 +1026,17 @@ fn dimensions_from_row(
     })
 }
 
-fn exact_scope_from_row(row: &sqlx::postgres::PgRow) -> Result<TenantScope, PortError> {
+fn exact_scope_from_row(row: &sqlx::postgres::PgRow) -> Result<AuthorityScope, PortError> {
     let holding_id: Uuid = row.try_get("holding_id").map_err(|_| PortError::Internal)?;
     let company_id: Uuid = row.try_get("company_id").map_err(|_| PortError::Internal)?;
     let branch_id: Option<Uuid> = row.try_get("branch_id").map_err(|_| PortError::Internal)?;
     let scope = match branch_id {
-        Some(branch_id) => TenantScope::Branch {
+        Some(branch_id) => AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
         },
-        None => TenantScope::Company {
+        None => AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -1046,13 +1045,13 @@ fn exact_scope_from_row(row: &sqlx::postgres::PgRow) -> Result<TenantScope, Port
     Ok(scope)
 }
 
-fn exact_scope_ids(scope: &TenantScope) -> Result<(Uuid, Uuid, Option<Uuid>), CqrsSqlxError> {
+fn exact_scope_ids(scope: &AuthorityScope) -> Result<(Uuid, Uuid, Option<Uuid>), CqrsSqlxError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok((*holding_id, *company_id, None)),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -1063,9 +1062,9 @@ fn exact_scope_ids(scope: &TenantScope) -> Result<(Uuid, Uuid, Option<Uuid>), Cq
     }
 }
 
-fn scope_company_id(scope: &TenantScope) -> Result<Uuid, PortError> {
+fn scope_company_id(scope: &AuthorityScope) -> Result<Uuid, PortError> {
     match scope {
-        TenantScope::Company { company_id, .. } | TenantScope::Branch { company_id, .. } => {
+        AuthorityScope::Company { company_id, .. } | AuthorityScope::Branch { company_id, .. } => {
             Ok(*company_id)
         }
         _ => Err(PortError::Internal),
@@ -1146,13 +1145,13 @@ fn approval_requested_at(value: &CampaignBudget) -> Option<chrono::DateTime<chro
     value.approval_requested_at()
 }
 
-pub(crate) fn scope_key(scope: &TenantScope) -> Result<String, CqrsSqlxError> {
+pub(crate) fn scope_key(scope: &AuthorityScope) -> Result<String, CqrsSqlxError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok(format!("h:{holding_id}/c:{company_id}")),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,

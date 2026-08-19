@@ -1,17 +1,16 @@
-//! Tenant-routed Finance Chart read projection worker.
+//! Holding-routed Finance Chart read projection worker.
 
 use async_trait::async_trait;
 use erpx_infrastructure::{
-    FinanceChartProjectionRebuildPreparation, FinanceChartSourceEventCursor,
+    FinanceChartProjectionRebuildPreparation, FinanceChartSourceEventCursor, HoldingDatabaseRouter,
     MAX_FINANCE_CHART_SOURCE_EVENT_PAGE_SIZE, PersistenceError, ProjectionClaimRecord,
-    ProjectionJobKind, RoutedDatabaseSide, RoutedTenantDatabase, SqlxFinanceChartProjectionStore,
-    TenantDatabaseRouter,
+    ProjectionJobKind, RoutedDatabaseSide, RoutedHoldingDatabase, SqlxFinanceChartProjectionStore,
 };
 use thiserror::Error;
 
 use uuid::Uuid;
 
-use super::{TenantProjectionExecutor, TenantProjectionExecutorError};
+use super::{HoldingProjectionExecutor, HoldingProjectionExecutorError};
 
 pub const FINANCE_CHART_PROJECTION_HANDLER_NAME: &str = "finance_chart_projection";
 pub const FINANCE_CHART_PROJECTION_NAME: &str = "finance_chart";
@@ -38,22 +37,22 @@ impl From<PersistenceError> for FinanceChartProjectionWorkerError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinanceChartProjectionRequest {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub cursor: Option<FinanceChartSourceEventCursor>,
     pub page_size: u32,
 }
 
 impl FinanceChartProjectionRequest {
     pub fn new(
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         cursor: Option<FinanceChartSourceEventCursor>,
         page_size: u32,
     ) -> Result<Self, FinanceChartProjectionWorkerError> {
         let request = Self {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
             cursor,
             page_size,
         };
@@ -62,8 +61,8 @@ impl FinanceChartProjectionRequest {
     }
 
     fn validate(&self) -> Result<(), FinanceChartProjectionWorkerError> {
-        validate_reference(&self.tenant_id, "tenant_id")?;
-        validate_reference(&self.holding_ref, "holding_ref")?;
+        validate_reference(&self.holding_id, "holding_id")?;
+        validate_reference(&self.data_profile_key, "data_profile_key")?;
         if self.page_size == 0 || self.page_size > FINANCE_CHART_PROJECTION_MAX_PAGE_SIZE {
             return Err(FinanceChartProjectionWorkerError::Configuration(format!(
                 "Finance chart projection page size must be 1..={FINANCE_CHART_PROJECTION_MAX_PAGE_SIZE}"
@@ -82,8 +81,8 @@ impl FinanceChartProjectionRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinanceChartProjectionRunReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub events_seen: u64,
     pub events_applied: u64,
     pub next_cursor: Option<FinanceChartSourceEventCursor>,
@@ -92,19 +91,19 @@ pub struct FinanceChartProjectionRunReport {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinanceChartProjectionRebuildReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub events_replayed: u64,
     pub preparation: FinanceChartProjectionRebuildPreparation,
 }
 
 #[derive(Debug, Clone)]
 pub struct FinanceChartProjectionRunner {
-    router: TenantDatabaseRouter,
+    router: HoldingDatabaseRouter,
 }
 
 impl FinanceChartProjectionRunner {
-    pub fn new(router: TenantDatabaseRouter) -> Self {
+    pub fn new(router: HoldingDatabaseRouter) -> Self {
         Self { router }
     }
 
@@ -114,12 +113,12 @@ impl FinanceChartProjectionRunner {
     ) -> Result<FinanceChartProjectionRunReport, FinanceChartProjectionWorkerError> {
         request.validate()?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result = match SqlxFinanceChartProjectionStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            request.holding_ref.clone(),
+            request.data_profile_key.clone(),
         ) {
             Ok(store) => async {
                 let page = store
@@ -132,8 +131,8 @@ impl FinanceChartProjectionRunner {
                     }
                 }
                 Ok::<_, PersistenceError>(FinanceChartProjectionRunReport {
-                    tenant_id: request.tenant_id.clone(),
-                    holding_ref: request.holding_ref.clone(),
+                    holding_id: request.holding_id.clone(),
+                    data_profile_key: request.data_profile_key.clone(),
                     events_seen: page.events.len() as u64,
                     events_applied,
                     next_cursor: page.next_cursor,
@@ -158,12 +157,12 @@ impl FinanceChartProjectionRunner {
     ) -> Result<FinanceChartProjectionRunReport, FinanceChartProjectionWorkerError> {
         request.validate()?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result = match SqlxFinanceChartProjectionStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            request.holding_ref.clone(),
+            request.data_profile_key.clone(),
         ) {
             Ok(store) => {
                 async {
@@ -220,8 +219,8 @@ impl FinanceChartProjectionRunner {
                         return Err(FinanceChartProjectionWorkerError::CandidateSourceMoved);
                     }
                     Ok(FinanceChartProjectionRunReport {
-                        tenant_id: request.tenant_id.clone(),
-                        holding_ref: request.holding_ref.clone(),
+                        holding_id: request.holding_id.clone(),
+                        data_profile_key: request.data_profile_key.clone(),
                         events_seen,
                         events_applied,
                         next_cursor: None,
@@ -238,18 +237,18 @@ impl FinanceChartProjectionRunner {
 
     pub async fn rebuild(
         &self,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         page_size: u32,
     ) -> Result<FinanceChartProjectionRebuildReport, FinanceChartProjectionWorkerError> {
-        self.rebuild_internal(tenant_id, holding_ref, page_size, None)
+        self.rebuild_internal(holding_id, data_profile_key, page_size, None)
             .await
     }
 
     pub async fn rebuild_with_source_fence(
         &self,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         page_size: u32,
         source_version: u64,
     ) -> Result<FinanceChartProjectionRebuildReport, FinanceChartProjectionWorkerError> {
@@ -258,25 +257,31 @@ impl FinanceChartProjectionRunner {
                 "Finance chart source version is invalid".into(),
             ));
         }
-        self.rebuild_internal(tenant_id, holding_ref, page_size, Some(source_version))
-            .await
+        self.rebuild_internal(
+            holding_id,
+            data_profile_key,
+            page_size,
+            Some(source_version),
+        )
+        .await
     }
 
     async fn rebuild_internal(
         &self,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         page_size: u32,
         source_version: Option<u64>,
     ) -> Result<FinanceChartProjectionRebuildReport, FinanceChartProjectionWorkerError> {
-        let request = FinanceChartProjectionRequest::new(tenant_id, holding_ref, None, page_size)?;
+        let request =
+            FinanceChartProjectionRequest::new(holding_id, data_profile_key, None, page_size)?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result = match SqlxFinanceChartProjectionStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            request.holding_ref.clone(),
+            request.data_profile_key.clone(),
         ) {
             Ok(store) => {
                 async {
@@ -307,8 +312,8 @@ impl FinanceChartProjectionRunner {
                     };
                     Ok::<_, FinanceChartProjectionWorkerError>(
                         FinanceChartProjectionRebuildReport {
-                            tenant_id: request.tenant_id.clone(),
-                            holding_ref: request.holding_ref.clone(),
+                            holding_id: request.holding_id.clone(),
+                            data_profile_key: request.data_profile_key.clone(),
                             events_replayed,
                             preparation,
                         },
@@ -324,18 +329,18 @@ impl FinanceChartProjectionRunner {
 
     async fn route_store(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
-    ) -> Result<(RoutedTenantDatabase, RoutedTenantDatabase), FinanceChartProjectionWorkerError>
+        holding_id: &str,
+        data_profile_key: &str,
+    ) -> Result<(RoutedHoldingDatabase, RoutedHoldingDatabase), FinanceChartProjectionWorkerError>
     {
         let write = self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Write)
             .await
             .map_err(|_| redacted_error("write database routing"))?;
         let read = match self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Read)
             .await
         {
             Ok(read) => read,
@@ -349,14 +354,14 @@ impl FinanceChartProjectionRunner {
 }
 
 #[derive(Debug, Clone)]
-pub struct FinanceChartTenantProjectionExecutor {
-    router: TenantDatabaseRouter,
+pub struct FinanceChartHoldingProjectionExecutor {
+    router: HoldingDatabaseRouter,
     default_page_size: u32,
 }
 
-impl FinanceChartTenantProjectionExecutor {
+impl FinanceChartHoldingProjectionExecutor {
     pub fn new(
-        router: TenantDatabaseRouter,
+        router: HoldingDatabaseRouter,
         page_size: u32,
     ) -> Result<Self, FinanceChartProjectionWorkerError> {
         if page_size == 0 || page_size > FINANCE_CHART_PROJECTION_MAX_PAGE_SIZE {
@@ -376,31 +381,31 @@ impl FinanceChartTenantProjectionExecutor {
 }
 
 #[async_trait]
-impl TenantProjectionExecutor for FinanceChartTenantProjectionExecutor {
+impl HoldingProjectionExecutor for FinanceChartHoldingProjectionExecutor {
     async fn execute(
         &self,
         claim: &ProjectionClaimRecord,
-    ) -> Result<(), TenantProjectionExecutorError> {
+    ) -> Result<(), HoldingProjectionExecutorError> {
         if claim.job.projection_name != FINANCE_CHART_PROJECTION_NAME
-            || claim.job.binding.tenant_id.trim().is_empty()
-            || claim.job.binding.holding_ref.trim().is_empty()
+            || claim.job.binding.holding_id.trim().is_empty()
+            || claim.job.binding.data_profile_key.trim().is_empty()
         {
-            return Err(TenantProjectionExecutorError::Permanent);
+            return Err(HoldingProjectionExecutorError::Permanent);
         }
         let payload = FinanceChartProjectionJobPayload::from_claim(claim, self.default_page_size)
-            .map_err(|_| TenantProjectionExecutorError::Permanent)?;
+            .map_err(|_| HoldingProjectionExecutorError::Permanent)?;
         match claim.job.kind {
             ProjectionJobKind::Incremental => {
                 if payload.source_version.is_some() {
-                    return Err(TenantProjectionExecutorError::Permanent);
+                    return Err(HoldingProjectionExecutorError::Permanent);
                 }
                 let request = FinanceChartProjectionRequest::new(
-                    claim.job.binding.tenant_id.clone(),
-                    claim.job.binding.holding_ref.clone(),
+                    claim.job.binding.holding_id.clone(),
+                    claim.job.binding.data_profile_key.clone(),
                     payload.cursor,
                     payload.page_size,
                 )
-                .map_err(|_| TenantProjectionExecutorError::Permanent)?;
+                .map_err(|_| HoldingProjectionExecutorError::Permanent)?;
                 FinanceChartProjectionRunner::new(self.router.clone())
                     .project_all(request)
                     .await
@@ -408,28 +413,28 @@ impl TenantProjectionExecutor for FinanceChartTenantProjectionExecutor {
             }
             ProjectionJobKind::Rebuild => {
                 if payload.cursor.is_some() {
-                    return Err(TenantProjectionExecutorError::Permanent);
+                    return Err(HoldingProjectionExecutorError::Permanent);
                 }
                 let runner = FinanceChartProjectionRunner::new(self.router.clone());
                 if let Some(source_version) = payload.source_version {
                     runner
                         .rebuild_with_source_fence(
-                            claim.job.binding.tenant_id.clone(),
-                            claim.job.binding.holding_ref.clone(),
+                            claim.job.binding.holding_id.clone(),
+                            claim.job.binding.data_profile_key.clone(),
                             payload.page_size,
                             source_version,
                         )
                         .await
-                        .map_err(|_| TenantProjectionExecutorError::Retryable)?;
+                        .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
                 } else {
                     runner
                         .rebuild(
-                            claim.job.binding.tenant_id.clone(),
-                            claim.job.binding.holding_ref.clone(),
+                            claim.job.binding.holding_id.clone(),
+                            claim.job.binding.data_profile_key.clone(),
                             payload.page_size,
                         )
                         .await
-                        .map_err(|_| TenantProjectionExecutorError::Retryable)?;
+                        .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
                 }
             }
         }
@@ -539,7 +544,7 @@ impl FinanceChartProjectionJobPayload {
     }
 }
 
-async fn close_routes(write: RoutedTenantDatabase, read: RoutedTenantDatabase) {
+async fn close_routes(write: RoutedHoldingDatabase, read: RoutedHoldingDatabase) {
     write.close().await;
     read.close().await;
 }
@@ -565,14 +570,14 @@ fn redacted_error(operation: &'static str) -> FinanceChartProjectionWorkerError 
 
 fn map_chart_executor_error(
     error: FinanceChartProjectionWorkerError,
-) -> TenantProjectionExecutorError {
+) -> HoldingProjectionExecutorError {
     match error {
         FinanceChartProjectionWorkerError::Configuration(_) => {
-            TenantProjectionExecutorError::Permanent
+            HoldingProjectionExecutorError::Permanent
         }
         FinanceChartProjectionWorkerError::Projection { .. }
         | FinanceChartProjectionWorkerError::CandidateSourceMoved => {
-            TenantProjectionExecutorError::Retryable
+            HoldingProjectionExecutorError::Retryable
         }
     }
 }
@@ -597,12 +602,12 @@ mod tests {
     ) -> ProjectionClaimRecord {
         use chrono::Utc;
         use erpx_infrastructure::{
-            ProjectionJobRecord, ProjectionLease, ProjectionPolicy, ProjectionScheduleRequest,
-            TenantHoldingBinding,
+            HoldingHoldingBinding, ProjectionJobRecord, ProjectionLease, ProjectionPolicy,
+            ProjectionScheduleRequest,
         };
 
         let now = Utc::now();
-        let binding = TenantHoldingBinding::new("tenant-1", "holding-1").expect("binding");
+        let binding = HoldingHoldingBinding::new("holding-1", "holding-1").expect("binding");
         let policy = ProjectionPolicy::new(10, 10, 3, 1, 10).expect("policy");
         let request = ProjectionScheduleRequest {
             binding,
@@ -633,11 +638,11 @@ mod tests {
 
     #[test]
     fn request_validation_is_bounded() {
-        assert!(FinanceChartProjectionRequest::new("tenant", "holding", None, 0).is_err());
-        assert!(FinanceChartProjectionRequest::new("tenant/unsafe", "holding", None, 1).is_err());
+        assert!(FinanceChartProjectionRequest::new("holding", "holding", None, 0).is_err());
+        assert!(FinanceChartProjectionRequest::new("holding/unsafe", "holding", None, 1).is_err());
         assert!(
             FinanceChartProjectionRequest::new(
-                "tenant",
+                "holding",
                 "holding",
                 Some(FinanceChartSourceEventCursor {
                     aggregate_id: Uuid::nil(),

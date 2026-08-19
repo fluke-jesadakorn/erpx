@@ -6,12 +6,12 @@ Status: integrated partial packet. This evidence does not close G10.
 
 - **Task ID:** G10-MKT-006-INTEGRATION
 - **Objective:** Carry the authenticated Marketing callback contract through a
-  raw-body HTTP boundary into the tenant write database with deterministic
+  raw-body HTTP boundary into the holding write database with deterministic
   inbox idempotency, provider-reference binding, ordered stale-event handling,
   correlation retention, and an atomic delivery snapshot/outbox transition.
 - **Dependencies:** G10-MKT-005 delivery aggregate/persistence; pure callback
-  contract from G10-MKT-006; tenant write/read routing and migrations.
-- **Allowed paths:** Marketing callback domain integration, tenant delivery
+  contract from G10-MKT-006; holding write/read routing and migrations.
+- **Allowed paths:** Marketing callback domain integration, holding delivery
   persistence and migrations, server HTTP callback boundary, migration tests,
   and this audit.
 - **Forbidden paths:** Folio routes/database, provider credentials, long-lived
@@ -19,7 +19,7 @@ Status: integrated partial packet. This evidence does not close G10.
 - **Produced interfaces:** `POST /webhooks/marketing`,
   `SqlxMarketingDeliveryStore::accept_provider_callback`, migration 0027, and
   `MarketingProviderCallbackReceipt`.
-- **Database effects:** Tenant-write callback inbox with forced holding RLS,
+- **Database effects:** Holding-write callback inbox with forced holding RLS,
   unique provider-event identity, verified-body digest, verifier key reference,
   correlation ID, order classification, and JSON contract metadata. Accepted
   in-order callbacks update the delivery aggregate and append a versioned
@@ -32,13 +32,13 @@ Status: integrated partial packet. This evidence does not close G10.
 
 - The HTTP boundary verifies the exact raw body with HMAC-SHA256 before JSON
   parsing, enforces a bounded timestamp window, and requires a configured
-  provider account, opaque tenant/holding route, and verifier key reference.
-- The control plane resolves the provider account against an active tenant
+  provider account, opaque holding/holding route, and verifier key reference.
+- The control plane resolves the provider account against an active holding
   registry/holding binding and matching verifier-key reference before the
-  callback can route to a tenant database. Suspended accounts fail closed.
+  callback can route to a holding database. Suspended accounts fail closed.
 - The domain callback is bound to the trusted route and exact delivery ID,
   scope, and stored provider message reference.
-- The tenant-write inbox stores only typed callback metadata and the SHA-256
+- The holding-write inbox stores only typed callback metadata and the SHA-256
   body digest; secrets, signatures, and raw provider credentials are not
   persisted.
 - Exact duplicate events are safe no-ops. Same-provider-event fingerprint
@@ -55,7 +55,7 @@ Status: integrated partial packet. This evidence does not close G10.
 - `crates/infrastructure/src/marketing_delivery_persistence.rs`
 - `crates/infrastructure/tests/marketing_delivery_persistence.rs`
 - `crates/infrastructure/tests/marketing_provider_accounts.rs`
-- `crates/migration/migrations_tenant_write/0027_marketing_provider_callback_inbox.sql`
+- `crates/migration/migrations_holding_write/0027_marketing_provider_callback_inbox.sql`
 - `crates/migration/migrations/0026_marketing_provider_accounts.sql`
 - `crates/migration/src/lib.rs`
 - `apps/server/src/main.rs`

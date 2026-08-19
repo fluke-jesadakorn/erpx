@@ -23,17 +23,17 @@ fn operational_urls_are_tls_only_and_namespace_bound() {
         .expect("fixed timestamp");
     let secure = store("https://storage.example.test:9000");
     let signed = secure
-        .presign_download("tenant-abc", "backup/object.dump", 300, at)
+        .presign_download("holding-abc", "backup/object.dump", 300, at)
         .expect("presigned URL");
     assert!(
         signed
             .url
-            .starts_with("https://storage.example.test:9000/tenant-abc/")
+            .starts_with("https://storage.example.test:9000/holding-abc/")
     );
     assert!(signed.url.contains("X-Amz-Signature="));
     assert!(
         secure
-            .presign_download("Tenant-abc", "backup/object.dump", 300, at)
+            .presign_download("Holding-abc", "backup/object.dump", 300, at)
             .is_err()
     );
 

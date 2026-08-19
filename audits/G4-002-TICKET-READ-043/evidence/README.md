@@ -10,7 +10,7 @@ customer-attributed `support.ticket.read` audit event before returning only the
 safe ticket DTO fields (ID, customer, status, severity, and description).
 
 The query does not expose capability secrets, internal notes, raw payloads, or
-tenant credentials. A missing ticket is not converted into an empty success;
+holding credentials. A missing ticket is not converted into an empty success;
 cross-scope access fails closed.
 
 ## Contract changes

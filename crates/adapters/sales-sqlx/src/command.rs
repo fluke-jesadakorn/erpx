@@ -8,7 +8,7 @@ use erpx_integration_contracts::{
     ItemDescriptorDraft, RecordTypeId, StableRecordRef, assets, catalog::ContextId, crm, customer,
     legal, marketing, organization, people_payroll, record_policy_id, sales,
 };
-use erpx_kernel::{AggregateId, CommandId, DataClassification, EventId, RecordId, TenantScope};
+use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId, RecordId};
 use erpx_sales::{
     AcceptedFulfillment, BillingEventId, CommandUnitOfWork, FulfillmentId, PerformanceObligation,
     PerformanceObligationId, PortError, Quote, QuoteId, QuoteStatus, RevenueArrangement,
@@ -45,7 +45,7 @@ impl SalesWriteRepository {
 
     async fn load(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         partition: &str,
         kind: &str,
         id: Uuid,
@@ -57,7 +57,7 @@ impl SalesWriteRepository {
 
 async fn load_sales_relational(
     pool: &WritePool,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     kind: &str,
     id: Uuid,
 ) -> Result<Option<SalesAggregate>, PortError> {
@@ -79,7 +79,7 @@ async fn load_sales_relational(
 
 async fn load_quote_relational(
     tx: &mut Transaction<'_, Postgres>,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     id: Uuid,
 ) -> Result<Option<Quote>, PortError> {
     let row = sales_authorized_root(
@@ -128,7 +128,7 @@ async fn load_quote_relational(
 
 async fn load_order_relational(
     tx: &mut Transaction<'_, Postgres>,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     id: Uuid,
 ) -> Result<Option<SalesOrder>, PortError> {
     let row = sales_authorized_root(
@@ -182,7 +182,7 @@ async fn load_order_relational(
 
 async fn load_arrangement_relational(
     tx: &mut Transaction<'_, Postgres>,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     id: Uuid,
 ) -> Result<Option<RevenueArrangement>, PortError> {
     let row = sales_authorized_root(
@@ -351,7 +351,7 @@ async fn load_sales_lines(
 impl WriteRepository for SalesWriteRepository {
     async fn load_quote(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         quote_id: QuoteId,
     ) -> Result<Option<Quote>, PortError> {
         match self
@@ -371,7 +371,7 @@ impl WriteRepository for SalesWriteRepository {
 
     async fn load_order(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         sales_order_id: SalesOrderId,
     ) -> Result<Option<SalesOrder>, PortError> {
         match self
@@ -391,7 +391,7 @@ impl WriteRepository for SalesWriteRepository {
 
     async fn load_revenue_arrangement(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         arrangement_id: RevenueArrangementId,
     ) -> Result<Option<RevenueArrangement>, PortError> {
         match self
@@ -503,7 +503,7 @@ impl CommandUnitOfWork for SalesCommandAdapter {
             correlation_id: request.correlation_id,
             idempotency_key: request.identity.idempotency_key,
             request_hash: request_hash(&request.identity.fingerprint)?,
-            tenant_scope: aggregate.scope().clone(),
+            active_scope: aggregate.scope().clone(),
             actor: request.actor,
             audit_context: request.audit,
             aggregate_type: kind.into(),
@@ -974,7 +974,7 @@ async fn apply_arrangement(
 
 async fn sales_authorized_root(
     tx: &mut Transaction<'_, Postgres>,
-    authority: &TenantScope,
+    authority: &AuthorityScope,
     base: &str,
     table: &str,
     id_column: &str,
@@ -1020,14 +1020,16 @@ type SalesAuthorityParameters = (
     Vec<Uuid>,
     Vec<Uuid>,
 );
-fn sales_authority_parameters(scope: &TenantScope) -> Result<SalesAuthorityParameters, PortError> {
+fn sales_authority_parameters(
+    scope: &AuthorityScope,
+) -> Result<SalesAuthorityParameters, PortError> {
     scope.validate().map_err(|_| PortError::Denied)?;
     Ok(match scope {
-        TenantScope::Platform => ("platform", None, None, None, vec![], vec![]),
-        TenantScope::Holding { holding_id } => {
+        AuthorityScope::Platform => ("platform", None, None, None, vec![], vec![]),
+        AuthorityScope::Holding { holding_id } => {
             ("holding", Some(*holding_id), None, None, vec![], vec![])
         }
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => (
@@ -1038,7 +1040,7 @@ fn sales_authority_parameters(scope: &TenantScope) -> Result<SalesAuthorityParam
             vec![],
             vec![],
         ),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -1050,31 +1052,30 @@ fn sales_authority_parameters(scope: &TenantScope) -> Result<SalesAuthorityParam
             vec![],
             vec![],
         ),
-        TenantScope::Subtree {
+        AuthorityScope::Subtree {
             holding_id,
-            company_ids,
-            branch_ids,
+            organization_node_id,
         } => (
             "subtree",
             Some(*holding_id),
             None,
             None,
-            company_ids.clone(),
-            branch_ids.clone(),
+            vec![*organization_node_id],
+            Vec::new(),
         ),
     })
 }
-fn sales_exact_scope(row: &sqlx::postgres::PgRow) -> Result<TenantScope, PortError> {
+fn sales_exact_scope(row: &sqlx::postgres::PgRow) -> Result<AuthorityScope, PortError> {
     let holding_id = row.try_get("holding_id").map_err(|_| PortError::Internal)?;
     let company_id = row.try_get("company_id").map_err(|_| PortError::Internal)?;
     Ok(
         match row.try_get("branch_id").map_err(|_| PortError::Internal)? {
-            Some(branch_id) => TenantScope::Branch {
+            Some(branch_id) => AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
             },
-            None => TenantScope::Company {
+            None => AuthorityScope::Company {
                 holding_id,
                 company_id,
             },
@@ -1201,13 +1202,15 @@ fn dimensions_from_row(row: &sqlx::postgres::PgRow) -> Result<DimensionSet, Port
     })
 }
 
-fn exact_sales_scope_ids(scope: &TenantScope) -> Result<(Uuid, Uuid, Option<Uuid>), CqrsSqlxError> {
+fn exact_sales_scope_ids(
+    scope: &AuthorityScope,
+) -> Result<(Uuid, Uuid, Option<Uuid>), CqrsSqlxError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok((*holding_id, *company_id, None)),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -1220,7 +1223,7 @@ async fn write_sales_scope(
     table: &str,
     id_column: &str,
     id: Uuid,
-    scope: &TenantScope,
+    scope: &AuthorityScope,
 ) -> Result<(), CqrsSqlxError> {
     let (h, c, b) = exact_sales_scope_ids(scope)?;
     let query =
@@ -1415,13 +1418,13 @@ fn deterministic_uuid(seed: Uuid, label: &[u8]) -> Uuid {
     Uuid::from_bytes(bytes)
 }
 
-pub(crate) fn scope_key(scope: &TenantScope) -> Result<String, CqrsSqlxError> {
+pub(crate) fn scope_key(scope: &AuthorityScope) -> Result<String, CqrsSqlxError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => Ok(format!("company:{holding_id}:{company_id}")),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,

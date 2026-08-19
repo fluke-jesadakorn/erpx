@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use erpx_integration_contracts::StableRecordRef;
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use uuid::Uuid;
 
 use crate::{
@@ -153,7 +153,7 @@ where
         let channel = self
             .repository
             .load(
-                actor.tenant_id,
+                actor.holding_id,
                 &actor.authority_scope,
                 "commerce_channel",
                 channel_id.as_uuid(),
@@ -214,7 +214,7 @@ where
         actor: CommerceActor,
         identity: MutationIdentity,
         id: CartId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         channel_id: ChannelId,
         exact_channel_version: u64,
         owner: CommerceIdentity,
@@ -224,7 +224,7 @@ where
         let channel = self
             .repository
             .load(
-                actor.tenant_id,
+                actor.holding_id,
                 &actor.authority_scope,
                 "commerce_channel",
                 channel_id.as_uuid(),
@@ -264,7 +264,7 @@ where
         let listing = self
             .repository
             .load(
-                actor.tenant_id,
+                actor.holding_id,
                 &actor.authority_scope,
                 "commerce_listing",
                 listing_id.as_uuid(),
@@ -325,7 +325,7 @@ where
         actor: CommerceActor,
         identity: MutationIdentity,
         id: CheckoutId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         cart_id: CartId,
         exact_cart_version: u64,
         tax: erpx_integration_contracts::MoneyAmount,
@@ -338,7 +338,7 @@ where
         let cart = self
             .repository
             .load(
-                actor.tenant_id,
+                actor.holding_id,
                 &actor.authority_scope,
                 "commerce_cart",
                 cart_id.as_uuid(),
@@ -483,7 +483,7 @@ where
         let checkout = self
             .repository
             .load(
-                actor.tenant_id,
+                actor.holding_id,
                 &actor.authority_scope,
                 "commerce_checkout",
                 checkout_id.as_uuid(),
@@ -679,7 +679,7 @@ where
     {
         let mut aggregate = self
             .repository
-            .load(actor.tenant_id, &actor.authority_scope, aggregate_type, id)
+            .load(actor.holding_id, &actor.authority_scope, aggregate_type, id)
             .await?
             .ok_or(CommercePortError::NotFound)?;
         if aggregate.version() != expected {
@@ -799,7 +799,7 @@ where
     ) -> Result<CommerceProjection, CommercePortError> {
         let projection = self
             .repository
-            .get(actor.tenant_id, aggregate_type, id)
+            .get(actor.holding_id, aggregate_type, id)
             .await?
             .ok_or(CommercePortError::NotFound)?;
         if !actor.authority_scope.contains(&projection.scope) {
@@ -866,8 +866,8 @@ impl<A: AuthorizationPort> CommercePolicyService<A> {
     pub async fn authorize_internal(
         &self,
         principal_id: Uuid,
-        authority_scope: &TenantScope,
-        target_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         action: CommerceAction,
     ) -> Result<(), CommercePortError> {
         if !authority_scope.contains(target_scope) {

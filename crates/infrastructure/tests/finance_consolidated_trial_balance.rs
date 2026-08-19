@@ -1,7 +1,7 @@
 //! Routed Finance consolidation acceptance over immutable journal projections.
 
 use chrono::{NaiveDate, Utc};
-use erpx_domain::contracts::{ActorAttribution, ActorKind, CommandContext, TenantScope};
+use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope, CommandContext};
 use erpx_domain::finance::{
     Account, AccountKind, AccountingPeriod, ChartOfAccounts, ConsolidationEliminationEntry,
     ConsolidationEliminationLine, ConsolidationFxRate, ConsolidationFxRateSet,
@@ -16,12 +16,12 @@ fn context(holding_id: Uuid, company_id: Uuid, key: &str) -> CommandContext {
         key,
         ActorAttribution {
             principal_ref: "finance-consolidation-test".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: Some(Uuid::new_v4()),
             represented_principal_ref: None,
             support_capability_id: None,
         },
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         },
@@ -98,22 +98,22 @@ fn journal(
 }
 
 #[tokio::test]
-#[ignore = "requires disposable tenant PostgreSQL write and read databases"]
+#[ignore = "requires disposable holding PostgreSQL write and read databases"]
 async fn live_consolidated_trial_balance_replays_and_aggregates_two_companies() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant-write migrations");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding-write migrations");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant-read migrations");
+        .expect("holding-read migrations");
 
-    let holding_ref = format!("holding-finance-consolidation-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-finance-consolidation-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let first_company = Uuid::new_v4();
     let second_company = Uuid::new_v4();
@@ -121,8 +121,9 @@ async fn live_consolidated_trial_balance_replays_and_aggregates_two_companies() 
     let second_period = period(holding_id, second_company);
     let first_chart = chart(holding_id, first_company, Uuid::new_v4());
     let second_chart = chart(holding_id, second_company, Uuid::new_v4());
-    let write_store = SqlxFinanceStore::new(write_pool.clone(), read_pool.clone(), &holding_ref)
-        .expect("write store");
+    let write_store =
+        SqlxFinanceStore::new(write_pool.clone(), read_pool.clone(), &data_profile_key)
+            .expect("write store");
     write_store
         .save_period(&first_period, None)
         .await
@@ -193,8 +194,8 @@ async fn live_consolidated_trial_balance_replays_and_aggregates_two_companies() 
         cursor = page.next_cursor;
     }
 
-    let read_store =
-        SqlxFinanceStore::new(write_pool.clone(), read_pool, &holding_ref).expect("read store");
+    let read_store = SqlxFinanceStore::new(write_pool.clone(), read_pool, &data_profile_key)
+        .expect("read store");
     let (report, source_version) = read_store
         .consolidated_trial_balance(&[first_chart, second_chart])
         .await
@@ -206,22 +207,22 @@ async fn live_consolidated_trial_balance_replays_and_aggregates_two_companies() 
 }
 
 #[tokio::test]
-#[ignore = "requires disposable tenant PostgreSQL write and read databases"]
+#[ignore = "requires disposable holding PostgreSQL write and read databases"]
 async fn live_financial_consolidation_publishes_fx_ownership_and_elimination_evidence() {
-    let write_url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
-    let read_url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let write_url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
+    let read_url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let write_pool = PgPool::connect(&write_url).await.expect("write pool");
     let read_pool = PgPool::connect(&read_url).await.expect("read pool");
-    erpx_migration::migrate_tenant_write(&write_pool)
+    erpx_migration::migrate_holding_write(&write_pool)
         .await
-        .expect("tenant-write migrations");
-    erpx_migration::migrate_tenant_read(&read_pool)
+        .expect("holding-write migrations");
+    erpx_migration::migrate_holding_read(&read_pool)
         .await
-        .expect("tenant-read migrations");
+        .expect("holding-read migrations");
 
-    let holding_ref = format!("holding-finance-report-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-finance-report-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let parent_company = Uuid::new_v4();
     let subsidiary_company = Uuid::new_v4();
@@ -230,8 +231,9 @@ async fn live_financial_consolidation_publishes_fx_ownership_and_elimination_evi
     let parent_chart = chart(holding_id, parent_company, Uuid::new_v4());
     let mut subsidiary_chart = chart(holding_id, subsidiary_company, Uuid::new_v4());
     subsidiary_chart.currency = "USD".into();
-    let write_store = SqlxFinanceStore::new(write_pool.clone(), read_pool.clone(), &holding_ref)
-        .expect("write store");
+    let write_store =
+        SqlxFinanceStore::new(write_pool.clone(), read_pool.clone(), &data_profile_key)
+            .expect("write store");
     write_store
         .save_period(&parent_period, None)
         .await
@@ -350,8 +352,8 @@ async fn live_financial_consolidation_publishes_fx_ownership_and_elimination_evi
         )
         .expect("elimination"),
     ];
-    let read_store =
-        SqlxFinanceStore::new(write_pool.clone(), read_pool, &holding_ref).expect("read store");
+    let read_store = SqlxFinanceStore::new(write_pool.clone(), read_pool, &data_profile_key)
+        .expect("read store");
     let report = read_store
         .consolidated_financial_report(
             Uuid::new_v4(),

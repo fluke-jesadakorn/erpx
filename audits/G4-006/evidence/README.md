@@ -26,6 +26,6 @@
 
 ## Open requirements
 
-Universal enforcement at every tenant mutation handler, structured scope
+Universal enforcement at every holding mutation handler, structured scope
 containment, represented-user authorization, worker revocation/expiry
 processing, and support UI are not claimed by this slice.

@@ -1,5 +1,5 @@
 //! Disposable Agent read-model projectors. Authoritative normalized state is
-//! loaded from the tenant write plane for each opaque outbox fact; read-side
+//! loaded from the holding write plane for each opaque outbox fact; read-side
 //! rows never become a command fallback.
 
 use async_trait::async_trait;
@@ -8,7 +8,7 @@ use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorCon
 use sqlx::{PgPool, Postgres, Row, Transaction};
 use uuid::Uuid;
 
-use crate::tenant::TenantBoundPool;
+use crate::holding::HoldingBoundPool;
 
 const ASSIGNMENTS: &str = "agent_orchestration.assignments";
 const POOLS: &str = "agent_orchestration.pools";
@@ -31,7 +31,7 @@ enum ProjectionKind {
 
 #[derive(Debug, Clone)]
 pub struct AgentReadProjector {
-    source: TenantBoundPool,
+    source: HoldingBoundPool,
     kind: ProjectionKind,
     event_types: Vec<String>,
 }
@@ -48,8 +48,8 @@ pub struct AgentProjectionSet {
 }
 
 impl AgentProjectionSet {
-    pub fn try_new(write_pool: PgPool, tenant_id: Uuid) -> Result<Self, PortError> {
-        let source = TenantBoundPool::try_new(write_pool, tenant_id)?;
+    pub fn try_new(write_pool: PgPool, holding_id: Uuid) -> Result<Self, PortError> {
+        let source = HoldingBoundPool::try_new(write_pool, holding_id)?;
         let projector = |kind, event_type: &str| AgentReadProjector {
             source: source.clone(),
             kind,
@@ -198,7 +198,7 @@ impl AgentReadProjector {
     ) -> Result<(), ProjectionFailure> {
         let mut source = self.source.begin().await.map_err(port_failure)?;
         let row = sqlx::query(
-            "SELECT a.scope_key,a.tenant_scope,a.root_assignment_id,a.parent_assignment_id,
+            "SELECT a.scope_key,a.active_scope,a.root_assignment_id,a.parent_assignment_id,
                     a.root_initiating_principal_ref,d.agent_principal_ref,
                     a.agent_definition_id,a.agent_version_id,a.provider_ref,a.model_ref,
                     a.policy_digest,a.assignment_status,a.attempt,a.depth,a.queue_priority,
@@ -207,12 +207,12 @@ impl AgentReadProjector {
                     a.aggregate_version
              FROM erpx_agent_write.agent_assignments a
              JOIN erpx_agent_write.agent_definitions d
-               ON d.tenant_id=a.tenant_id AND d.agent_definition_id=a.agent_definition_id
+               ON d.holding_id=a.holding_id AND d.agent_definition_id=a.agent_definition_id
              JOIN erpx_agent_write.agent_budget_reservations r
-               ON r.tenant_id=a.tenant_id AND r.reservation_id=a.budget_reservation_id
-             WHERE a.tenant_id=$1 AND a.assignment_id=$2",
+               ON r.holding_id=a.holding_id AND r.reservation_id=a.budget_reservation_id
+             WHERE a.holding_id=$1 AND a.assignment_id=$2",
         )
-        .bind(self.source.tenant_id())
+        .bind(self.source.holding_id())
         .bind(event.aggregate_id.as_uuid())
         .fetch_optional(&mut *source)
         .await
@@ -222,8 +222,8 @@ impl AgentReadProjector {
         let source_version = ensure_version(&row, "aggregate_version", event.aggregate_version)?;
         sqlx::query(
             "INSERT INTO erpx_agent_read.assignment_projection
-                (tenant_id,projection_name,generation,partition_key,assignment_id,
-                 source_aggregate_version,source_global_sequence,scope_key,tenant_scope,
+                (holding_id,projection_name,generation,partition_key,assignment_id,
+                 source_aggregate_version,source_global_sequence,scope_key,active_scope,
                  root_assignment_id,parent_assignment_id,initiating_principal_ref,
                  agent_principal_ref,agent_definition_id,agent_version_id,provider_ref,model_ref,
                  policy_digest,assignment_status,attempt,depth,queue_priority,estimated_units,
@@ -231,7 +231,7 @@ impl AgentReadProjector {
                  updated_at,projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,
                      $18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,now())
-             ON CONFLICT (tenant_id,projection_name,generation,partition_key,assignment_id)
+             ON CONFLICT (holding_id,projection_name,generation,partition_key,assignment_id)
              DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,
                  source_global_sequence=EXCLUDED.source_global_sequence,
                  assignment_status=EXCLUDED.assignment_status,attempt=EXCLUDED.attempt,
@@ -240,7 +240,7 @@ impl AgentReadProjector {
              WHERE erpx_agent_read.assignment_projection.source_aggregate_version
                    < EXCLUDED.source_aggregate_version",
         )
-        .bind(self.source.tenant_id())
+        .bind(self.source.holding_id())
         .bind(context.projection)
         .bind(context.generation)
         .bind(&event.partition)
@@ -248,7 +248,7 @@ impl AgentReadProjector {
         .bind(to_i64(source_version)?)
         .bind(to_i64(event.global_sequence)?)
         .bind(value::<String>(&row, "scope_key")?)
-        .bind(value::<serde_json::Value>(&row, "tenant_scope")?)
+        .bind(value::<serde_json::Value>(&row, "active_scope")?)
         .bind(value::<Uuid>(&row, "root_assignment_id")?)
         .bind(value::<Option<Uuid>>(&row, "parent_assignment_id")?)
         .bind(value::<String>(&row, "root_initiating_principal_ref")?)
@@ -287,11 +287,11 @@ impl AgentReadProjector {
                     array_agg(m.agent_version_id ORDER BY m.agent_version_id) AS members
              FROM erpx_agent_write.agent_pools p
              JOIN erpx_agent_write.agent_pool_members m
-               ON m.tenant_id=p.tenant_id AND m.agent_pool_id=p.agent_pool_id
-             WHERE p.tenant_id=$1 AND p.agent_pool_id=$2
+               ON m.holding_id=p.holding_id AND m.agent_pool_id=p.agent_pool_id
+             WHERE p.holding_id=$1 AND p.agent_pool_id=$2
              GROUP BY p.scope_key,p.pool_name,p.pool_version,p.enabled,p.updated_at",
         )
-        .bind(self.source.tenant_id())
+        .bind(self.source.holding_id())
         .bind(event.aggregate_id.as_uuid())
         .fetch_optional(&mut *source)
         .await
@@ -301,11 +301,11 @@ impl AgentReadProjector {
         let source_version = ensure_version(&row, "pool_version", event.aggregate_version)?;
         sqlx::query(
             "INSERT INTO erpx_agent_read.pool_directory_projection
-                (tenant_id,projection_name,generation,partition_key,agent_pool_id,
+                (holding_id,projection_name,generation,partition_key,agent_pool_id,
                  source_aggregate_version,source_global_sequence,scope_key,pool_name,
                  member_version_ids,enabled,updated_at,projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now())
-             ON CONFLICT (tenant_id,projection_name,generation,partition_key,agent_pool_id)
+             ON CONFLICT (holding_id,projection_name,generation,partition_key,agent_pool_id)
              DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,
                  source_global_sequence=EXCLUDED.source_global_sequence,
                  member_version_ids=EXCLUDED.member_version_ids,enabled=EXCLUDED.enabled,
@@ -313,7 +313,7 @@ impl AgentReadProjector {
              WHERE erpx_agent_read.pool_directory_projection.source_aggregate_version
                    < EXCLUDED.source_aggregate_version",
         )
-        .bind(self.source.tenant_id())
+        .bind(self.source.holding_id())
         .bind(context.projection)
         .bind(context.generation)
         .bind(&event.partition)
@@ -343,10 +343,10 @@ impl AgentReadProjector {
                     r.selected_agent_version_ids,r.compare_requested,r.decision_digest,r.decided_at
              FROM erpx_agent_write.agent_pool_routing_decisions r
              JOIN erpx_agent_write.agent_pools p
-               ON p.tenant_id=r.tenant_id AND p.agent_pool_id=r.agent_pool_id
-             WHERE r.tenant_id=$1 AND r.routing_decision_id=$2",
+               ON p.holding_id=r.holding_id AND p.agent_pool_id=r.agent_pool_id
+             WHERE r.holding_id=$1 AND r.routing_decision_id=$2",
         )
-        .bind(self.source.tenant_id())
+        .bind(self.source.holding_id())
         .bind(event.aggregate_id.as_uuid())
         .fetch_optional(&mut *source)
         .await
@@ -355,15 +355,15 @@ impl AgentReadProjector {
         source.commit().await.map_err(database_failure)?;
         sqlx::query(
             "INSERT INTO erpx_agent_read.pool_routing_projection
-                (tenant_id,projection_name,generation,partition_key,routing_decision_id,
+                (holding_id,projection_name,generation,partition_key,routing_decision_id,
                  source_aggregate_version,source_global_sequence,scope_key,requested_scope,
                  agent_pool_id,root_action_ref,capability,selected_agent_version_ids,
                  compare_requested,decision_digest,decided_at,projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,now())
-             ON CONFLICT (tenant_id,projection_name,generation,partition_key,routing_decision_id)
+             ON CONFLICT (holding_id,projection_name,generation,partition_key,routing_decision_id)
              DO NOTHING",
         )
-        .bind(self.source.tenant_id())
+        .bind(self.source.holding_id())
         .bind(context.projection)
         .bind(context.generation)
         .bind(&event.partition)
@@ -398,12 +398,12 @@ impl AgentReadProjector {
                     COUNT(m.published_at)::int AS published
              FROM erpx_agent_write.agent_sessions s
              LEFT JOIN erpx_agent_write.agent_session_messages m
-               ON m.tenant_id=s.tenant_id AND m.agent_session_id=s.agent_session_id
-             WHERE s.tenant_id=$1 AND s.agent_session_id=$2
+               ON m.holding_id=s.holding_id AND m.agent_session_id=s.agent_session_id
+             WHERE s.holding_id=$1 AND s.agent_session_id=$2
              GROUP BY s.scope_key,s.owner_human_ref,s.record_id,s.expires_at,s.legal_hold,
                       s.expired_at,s.session_version,s.updated_at",
         )
-        .bind(self.source.tenant_id())
+        .bind(self.source.holding_id())
         .bind(event.aggregate_id.as_uuid())
         .fetch_optional(&mut *source)
         .await
@@ -413,12 +413,12 @@ impl AgentReadProjector {
         let source_version = ensure_version(&row, "session_version", event.aggregate_version)?;
         sqlx::query(
             "INSERT INTO erpx_agent_read.private_session_projection
-                (tenant_id,projection_name,generation,partition_key,agent_session_id,
+                (holding_id,projection_name,generation,partition_key,agent_session_id,
                  source_aggregate_version,source_global_sequence,scope_key,owner_human_ref,
                  record_id,expires_at,legal_hold,expired_at,message_count,published_message_count,
                  updated_at,projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,now())
-             ON CONFLICT (tenant_id,projection_name,generation,partition_key,agent_session_id)
+             ON CONFLICT (holding_id,projection_name,generation,partition_key,agent_session_id)
              DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,
                  source_global_sequence=EXCLUDED.source_global_sequence,
                  expires_at=EXCLUDED.expires_at,legal_hold=EXCLUDED.legal_hold,
@@ -428,7 +428,7 @@ impl AgentReadProjector {
              WHERE erpx_agent_read.private_session_projection.source_aggregate_version
                    < EXCLUDED.source_aggregate_version",
         )
-        .bind(self.source.tenant_id())
+        .bind(self.source.holding_id())
         .bind(context.projection)
         .bind(context.generation)
         .bind(&event.partition)
@@ -461,16 +461,16 @@ impl AgentReadProjector {
     ) -> Result<(), ProjectionFailure> {
         let mut source = self.source.begin().await.map_err(port_failure)?;
         let row = sqlx::query(
-            "SELECT a.scope_key,a.tenant_scope,e.assignment_id,e.attempt,e.provider_ref,e.model_ref,
+            "SELECT a.scope_key,a.active_scope,e.assignment_id,e.attempt,e.provider_ref,e.model_ref,
                     e.policy_version,e.policy_digest,e.payload_digest,e.output_digest,
                     e.provider_units,e.provider_cost_micros,e.outcome,e.invoked_at,e.completed_at,
                     e.evidence_version
              FROM erpx_agent_write.provider_invocation_evidence e
              JOIN erpx_agent_write.agent_assignments a
-               ON a.tenant_id=e.tenant_id AND a.assignment_id=e.assignment_id
-             WHERE e.tenant_id=$1 AND e.invocation_id=$2",
+               ON a.holding_id=e.holding_id AND a.assignment_id=e.assignment_id
+             WHERE e.holding_id=$1 AND e.invocation_id=$2",
         )
-        .bind(self.source.tenant_id())
+        .bind(self.source.holding_id())
         .bind(event.aggregate_id.as_uuid())
         .fetch_optional(&mut *source)
         .await
@@ -480,14 +480,14 @@ impl AgentReadProjector {
         let source_version = ensure_version(&row, "evidence_version", event.aggregate_version)?;
         sqlx::query(
             "INSERT INTO erpx_agent_read.provider_invocation_projection
-                (tenant_id,projection_name,generation,partition_key,invocation_id,
-                 source_aggregate_version,source_global_sequence,scope_key,tenant_scope,
+                (holding_id,projection_name,generation,partition_key,invocation_id,
+                 source_aggregate_version,source_global_sequence,scope_key,active_scope,
                  assignment_id,attempt,provider_ref,model_ref,policy_version,policy_digest,
                  payload_digest,output_digest,provider_units,provider_cost_micros,outcome,
                  invoked_at,completed_at,projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,
                      $18,$19,$20,$21,$22,now())
-             ON CONFLICT (tenant_id,projection_name,generation,partition_key,invocation_id)
+             ON CONFLICT (holding_id,projection_name,generation,partition_key,invocation_id)
              DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,
                  source_global_sequence=EXCLUDED.source_global_sequence,
                  output_digest=EXCLUDED.output_digest,provider_units=EXCLUDED.provider_units,
@@ -496,7 +496,7 @@ impl AgentReadProjector {
              WHERE erpx_agent_read.provider_invocation_projection.source_aggregate_version
                    < EXCLUDED.source_aggregate_version",
         )
-        .bind(self.source.tenant_id())
+        .bind(self.source.holding_id())
         .bind(context.projection)
         .bind(context.generation)
         .bind(&event.partition)
@@ -504,7 +504,7 @@ impl AgentReadProjector {
         .bind(to_i64(source_version)?)
         .bind(to_i64(event.global_sequence)?)
         .bind(value::<String>(&row, "scope_key")?)
-        .bind(value::<serde_json::Value>(&row, "tenant_scope")?)
+        .bind(value::<serde_json::Value>(&row, "active_scope")?)
         .bind(value::<Uuid>(&row, "assignment_id")?)
         .bind(value::<i32>(&row, "attempt")?)
         .bind(value::<String>(&row, "provider_ref")?)
@@ -536,9 +536,9 @@ impl AgentReadProjector {
         let mut source = self.source.begin().await.map_err(port_failure)?;
         let assignment_version: i64 = sqlx::query_scalar(
             "SELECT aggregate_version FROM erpx_agent_write.agent_assignments
-             WHERE tenant_id=$1 AND assignment_id=$2",
+             WHERE holding_id=$1 AND assignment_id=$2",
         )
-        .bind(self.source.tenant_id())
+        .bind(self.source.holding_id())
         .bind(event.aggregate_id.as_uuid())
         .fetch_optional(&mut *source)
         .await
@@ -554,10 +554,10 @@ impl AgentReadProjector {
                     c.owner_context,c.command_type,c.action_status,c.created_at,c.resolved_at
              FROM erpx_agent_write.agent_assignments a
              JOIN erpx_agent_write.agent_action_cards c
-               ON c.tenant_id=a.tenant_id AND c.assignment_id=a.assignment_id
-             WHERE a.tenant_id=$1 AND a.assignment_id=$2 ORDER BY c.action_card_id",
+               ON c.holding_id=a.holding_id AND c.assignment_id=a.assignment_id
+             WHERE a.holding_id=$1 AND a.assignment_id=$2 ORDER BY c.action_card_id",
         )
-        .bind(self.source.tenant_id())
+        .bind(self.source.holding_id())
         .bind(event.aggregate_id.as_uuid())
         .fetch_all(&mut *source)
         .await
@@ -565,12 +565,12 @@ impl AgentReadProjector {
         for row in rows {
             sqlx::query(
                 "INSERT INTO erpx_agent_read.action_card_projection
-                    (tenant_id,projection_name,generation,partition_key,action_card_id,
+                    (holding_id,projection_name,generation,partition_key,action_card_id,
                      source_aggregate_version,source_global_sequence,scope_key,assignment_id,
                      agent_principal_ref,owner_context,command_type,action_status,created_at,
                      resolved_at,projected_at)
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,now())
-                 ON CONFLICT (tenant_id,projection_name,generation,partition_key,action_card_id)
+                 ON CONFLICT (holding_id,projection_name,generation,partition_key,action_card_id)
                  DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,
                      source_global_sequence=EXCLUDED.source_global_sequence,
                      action_status=EXCLUDED.action_status,resolved_at=EXCLUDED.resolved_at,
@@ -578,7 +578,7 @@ impl AgentReadProjector {
                  WHERE erpx_agent_read.action_card_projection.source_aggregate_version
                        < EXCLUDED.source_aggregate_version",
             )
-            .bind(self.source.tenant_id())
+            .bind(self.source.holding_id())
             .bind(context.projection)
             .bind(context.generation)
             .bind(&event.partition)
@@ -612,12 +612,12 @@ impl AgentReadProjector {
     ) -> Result<(), ProjectionFailure> {
         let mut source = self.source.begin().await.map_err(port_failure)?;
         let row = sqlx::query(
-            "SELECT scope_key,tenant_scope,record_kind,subject_record_id,policy_digest,
+            "SELECT scope_key,active_scope,record_kind,subject_record_id,policy_digest,
                     lifecycle_state,aggregate_version,updated_at
              FROM erpx_agent_write.agent_governance_records
-             WHERE tenant_id=$1 AND record_id=$2",
+             WHERE holding_id=$1 AND record_id=$2",
         )
-        .bind(self.source.tenant_id())
+        .bind(self.source.holding_id())
         .bind(event.aggregate_id.as_uuid())
         .fetch_optional(&mut *source)
         .await
@@ -630,12 +630,12 @@ impl AgentReadProjector {
         }
         sqlx::query(
             "INSERT INTO erpx_agent_read.governance_projection
-                (tenant_id,projection_name,generation,partition_key,record_id,
-                 source_aggregate_version,source_global_sequence,scope_key,tenant_scope,
+                (holding_id,projection_name,generation,partition_key,record_id,
+                 source_aggregate_version,source_global_sequence,scope_key,active_scope,
                  record_kind,subject_record_id,policy_digest,lifecycle_state,updated_at,
                  projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,now())
-             ON CONFLICT (tenant_id,projection_name,generation,partition_key,record_id)
+             ON CONFLICT (holding_id,projection_name,generation,partition_key,record_id)
              DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,
                  source_global_sequence=EXCLUDED.source_global_sequence,
                  policy_digest=EXCLUDED.policy_digest,lifecycle_state=EXCLUDED.lifecycle_state,
@@ -643,7 +643,7 @@ impl AgentReadProjector {
              WHERE erpx_agent_read.governance_projection.source_aggregate_version
                    < EXCLUDED.source_aggregate_version",
         )
-        .bind(self.source.tenant_id())
+        .bind(self.source.holding_id())
         .bind(context.projection)
         .bind(context.generation)
         .bind(&event.partition)
@@ -651,7 +651,7 @@ impl AgentReadProjector {
         .bind(to_i64(source_version)?)
         .bind(to_i64(event.global_sequence)?)
         .bind(value::<String>(&row, "scope_key")?)
-        .bind(value::<serde_json::Value>(&row, "tenant_scope")?)
+        .bind(value::<serde_json::Value>(&row, "active_scope")?)
         .bind(value::<String>(&row, "record_kind")?)
         .bind(value::<Uuid>(&row, "subject_record_id")?)
         .bind(value::<String>(&row, "policy_digest")?)
@@ -708,7 +708,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn projection_set_is_tenant_bound_and_covers_durable_agent_facts() {
+    async fn projection_set_is_holding_bound_and_covers_durable_agent_facts() {
         let pool = PgPoolOptions::new()
             .connect_lazy("postgres://erpx@127.0.0.1/erpx_agent_projection_contract")
             .expect("lazy pool");

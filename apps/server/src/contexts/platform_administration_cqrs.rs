@@ -7,19 +7,20 @@ use erpx_cqrs::{
     QueryResult, ReadYourWrites,
 };
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
-    QueryId, SessionId, TenantScope,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+    ErrorCategory, EventId, QueryId, SessionId,
 };
 use erpx_platform_administration::{
     AdminContextId, AdminContextStatus, AdminContextView, ConnectorBindingId, ConnectorKind,
     ConnectorScope, ConnectorState, ConnectorTransition, ConnectorView, EnvironmentId,
-    GetAdminContext, GetAdminContextResult, GetConnector, GetConnectorResult, GetPlatformTenant,
-    GetPlatformTenantResult, IssueTenantAdminContext, ListConnectors, ListPlatformTenants, Page,
-    PageFilter, PlatformAdministrationMutationResult, PlatformRecordView, PlatformTenantId,
-    RegisterConnector, RegisterPlatformTenant, RevokeTenantAdminContext, TenantLifecycleAction,
-    TenantLifecycleState, TenantView, TransitionConnector, TransitionPlatformTenant,
+    GetAdminContext, GetAdminContextResult, GetConnector, GetConnectorResult, GetPlatformHolding,
+    GetPlatformHoldingResult, HoldingLifecycleAction, HoldingLifecycleState, HoldingView,
+    IssueHoldingAdminContext, ListConnectors, ListPlatformHoldings, Page, PageFilter,
+    PlatformAdministrationMutationResult, PlatformHoldingId, PlatformRecordView, RegisterConnector,
+    RegisterPlatformHolding, RevokeHoldingAdminContext, TransitionConnector,
+    TransitionPlatformHolding,
 };
-use erpx_proto::{common, erpx::platform_administration::v2 as platform};
+use erpx_proto::{common, erpx::platform_administration as platform};
 use std::{collections::BTreeSet, sync::Arc};
 use tonic::{Request, Response, Status, metadata::MetadataMap};
 use uuid::Uuid;
@@ -34,7 +35,7 @@ pub enum PlatformAdministrationAccessMode {
 pub struct PlatformAdministrationAuthenticationRequest {
     transport_metadata: MetadataMap,
     presented_actor: ActorAttribution,
-    presented_scope: TenantScope,
+    presented_scope: AuthorityScope,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
     access_mode: PlatformAdministrationAccessMode,
@@ -46,7 +47,7 @@ impl PlatformAdministrationAuthenticationRequest {
     pub const fn presented_actor(&self) -> &ActorAttribution {
         &self.presented_actor
     }
-    pub const fn presented_scope(&self) -> &TenantScope {
+    pub const fn presented_scope(&self) -> &AuthorityScope {
         &self.presented_scope
     }
     pub fn subscription_id(&self) -> Option<&str> {
@@ -63,29 +64,29 @@ impl PlatformAdministrationAuthenticationRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthenticatedPlatformAdministrationRequest {
     actor: ActorAttribution,
-    tenant_scope: TenantScope,
+    active_scope: AuthorityScope,
 }
 impl AuthenticatedPlatformAdministrationRequest {
     pub fn try_new(
         actor: ActorAttribution,
-        tenant_scope: TenantScope,
+        active_scope: AuthorityScope,
     ) -> Result<Self, PlatformAdministrationAuthenticationError> {
         actor
             .validate()
             .map_err(|_| PlatformAdministrationAuthenticationError::Internal)?;
-        tenant_scope
+        active_scope
             .validate()
             .map_err(|_| PlatformAdministrationAuthenticationError::Internal)?;
         Ok(Self {
             actor,
-            tenant_scope,
+            active_scope,
         })
     }
     pub const fn actor(&self) -> &ActorAttribution {
         &self.actor
     }
-    pub const fn tenant_scope(&self) -> &TenantScope {
-        &self.tenant_scope
+    pub const fn active_scope(&self) -> &AuthorityScope {
+        &self.active_scope
     }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -105,13 +106,13 @@ pub trait PlatformAdministrationRequestAuthenticator: Send + Sync + 'static {
 
 #[async_trait]
 pub trait PlatformAdministrationCommandApplication: Send + Sync + 'static {
-    async fn register_tenant(
+    async fn register_holding(
         &self,
-        command: CommandEnvelope<RegisterPlatformTenant>,
+        command: CommandEnvelope<RegisterPlatformHolding>,
     ) -> Result<CommandReceipt<PlatformAdministrationMutationResult>, CqrsError>;
-    async fn transition_tenant(
+    async fn transition_holding(
         &self,
-        command: CommandEnvelope<TransitionPlatformTenant>,
+        command: CommandEnvelope<TransitionPlatformHolding>,
     ) -> Result<CommandReceipt<PlatformAdministrationMutationResult>, CqrsError>;
     async fn register_connector(
         &self,
@@ -123,23 +124,23 @@ pub trait PlatformAdministrationCommandApplication: Send + Sync + 'static {
     ) -> Result<CommandReceipt<PlatformAdministrationMutationResult>, CqrsError>;
     async fn issue_admin_context(
         &self,
-        command: CommandEnvelope<IssueTenantAdminContext>,
+        command: CommandEnvelope<IssueHoldingAdminContext>,
     ) -> Result<CommandReceipt<PlatformAdministrationMutationResult>, CqrsError>;
     async fn revoke_admin_context(
         &self,
-        command: CommandEnvelope<RevokeTenantAdminContext>,
+        command: CommandEnvelope<RevokeHoldingAdminContext>,
     ) -> Result<CommandReceipt<PlatformAdministrationMutationResult>, CqrsError>;
 }
 #[async_trait]
 pub trait PlatformAdministrationQueryApplication: Send + Sync + 'static {
-    async fn get_tenant(
+    async fn get_holding(
         &self,
-        query: QueryEnvelope<GetPlatformTenant>,
-    ) -> Result<QueryResult<GetPlatformTenantResult>, CqrsError>;
-    async fn list_tenants(
+        query: QueryEnvelope<GetPlatformHolding>,
+    ) -> Result<QueryResult<GetPlatformHoldingResult>, CqrsError>;
+    async fn list_holdings(
         &self,
-        query: QueryEnvelope<ListPlatformTenants>,
-    ) -> Result<QueryResult<Page<TenantView>>, CqrsError>;
+        query: QueryEnvelope<ListPlatformHoldings>,
+    ) -> Result<QueryResult<Page<HoldingView>>, CqrsError>;
     async fn get_connector(
         &self,
         query: QueryEnvelope<GetConnector>,
@@ -184,14 +185,14 @@ impl<A, G> PlatformAdministrationQueryRpc<A, G> {
 impl<A: PlatformAdministrationCommandApplication, G: PlatformAdministrationRequestAuthenticator>
     PlatformAdministrationCommandRpc<A, G>
 {
-    pub async fn register_tenant(
+    pub async fn register_holding(
         &self,
-        request: Request<platform::RegisterPlatformTenantRequest>,
-    ) -> Result<Response<platform::RegisterPlatformTenantResponse>, Status> {
+        request: Request<platform::RegisterPlatformHoldingRequest>,
+    ) -> Result<Response<platform::RegisterPlatformHoldingResponse>, Status> {
         let transport = request.metadata().clone();
         let input = request.into_inner();
-        let command = RegisterPlatformTenant {
-            tenant_id: tenant_id(&input.tenant_id)?,
+        let command = RegisterPlatformHolding {
+            holding_id: holding_id(&input.holding_id)?,
             code: input.code,
             name: input.name,
             environment_id: EnvironmentId::try_from_uuid(parse_uuid(
@@ -200,8 +201,8 @@ impl<A: PlatformAdministrationCommandApplication, G: PlatformAdministrationReque
             )?)
             .map_err(|_| invalid("environment_id"))?,
             customer_id: parse_uuid(&input.customer_id, "customer_id")?,
-            root_holding_id: parse_uuid(&input.root_holding_id, "root_holding_id")?,
-            holding_ref: input.holding_ref,
+            canonical_holding_id: parse_uuid(&input.canonical_holding_id, "canonical_holding_id")?,
+            data_profile_key: input.data_profile_key,
         };
         let envelope = authenticate_command(
             self.authenticator.as_ref(),
@@ -211,26 +212,26 @@ impl<A: PlatformAdministrationCommandApplication, G: PlatformAdministrationReque
         .await?;
         let receipt = self
             .application
-            .register_tenant(envelope)
+            .register_holding(envelope)
             .await
             .map_err(status_from_cqrs)?;
-        let PlatformRecordView::Tenant(record) = &receipt.response.record else {
+        let PlatformRecordView::Holding(record) = &receipt.response.record else {
             return Err(response_type_mismatch());
         };
-        Ok(Response::new(platform::RegisterPlatformTenantResponse {
+        Ok(Response::new(platform::RegisterPlatformHoldingResponse {
             receipt: Some(encode_receipt(&receipt)),
-            tenant: Some(encode_tenant(record)),
+            holding: Some(encode_holding(record)),
         }))
     }
-    pub async fn transition_tenant(
+    pub async fn transition_holding(
         &self,
-        request: Request<platform::TransitionPlatformTenantRequest>,
-    ) -> Result<Response<platform::TransitionPlatformTenantResponse>, Status> {
+        request: Request<platform::TransitionPlatformHoldingRequest>,
+    ) -> Result<Response<platform::TransitionPlatformHoldingResponse>, Status> {
         let transport = request.metadata().clone();
         let input = request.into_inner();
-        let command = TransitionPlatformTenant {
-            tenant_id: tenant_id(&input.tenant_id)?,
-            action: decode_tenant_action(input.action)?,
+        let command = TransitionPlatformHolding {
+            holding_id: holding_id(&input.holding_id)?,
+            action: decode_holding_action(input.action)?,
         };
         let envelope = authenticate_command(
             self.authenticator.as_ref(),
@@ -240,15 +241,15 @@ impl<A: PlatformAdministrationCommandApplication, G: PlatformAdministrationReque
         .await?;
         let receipt = self
             .application
-            .transition_tenant(envelope)
+            .transition_holding(envelope)
             .await
             .map_err(status_from_cqrs)?;
-        let PlatformRecordView::Tenant(record) = &receipt.response.record else {
+        let PlatformRecordView::Holding(record) = &receipt.response.record else {
             return Err(response_type_mismatch());
         };
-        Ok(Response::new(platform::TransitionPlatformTenantResponse {
+        Ok(Response::new(platform::TransitionPlatformHoldingResponse {
             receipt: Some(encode_receipt(&receipt)),
-            tenant: Some(encode_tenant(record)),
+            holding: Some(encode_holding(record)),
         }))
     }
     pub async fn register_connector(
@@ -317,13 +318,13 @@ impl<A: PlatformAdministrationCommandApplication, G: PlatformAdministrationReque
     }
     pub async fn issue_admin_context(
         &self,
-        request: Request<platform::IssuePlatformTenantAdminContextRequest>,
-    ) -> Result<Response<platform::IssuePlatformTenantAdminContextResponse>, Status> {
+        request: Request<platform::IssuePlatformHoldingAdminContextRequest>,
+    ) -> Result<Response<platform::IssuePlatformHoldingAdminContextResponse>, Status> {
         let transport = request.metadata().clone();
         let input = request.into_inner();
-        let command = IssueTenantAdminContext {
+        let command = IssueHoldingAdminContext {
             context_id: context_id(&input.context_id)?,
-            tenant_id: tenant_id(&input.tenant_id)?,
+            holding_id: holding_id(&input.holding_id)?,
             scope: decode_scope(input.scope.ok_or_else(|| invalid("scope is required"))?)?,
             device_id: parse_uuid(&input.device_id, "device_id")?,
             session_id: parse_uuid(&input.session_id, "session_id")?,
@@ -345,7 +346,7 @@ impl<A: PlatformAdministrationCommandApplication, G: PlatformAdministrationReque
             return Err(response_type_mismatch());
         };
         Ok(Response::new(
-            platform::IssuePlatformTenantAdminContextResponse {
+            platform::IssuePlatformHoldingAdminContextResponse {
                 receipt: Some(encode_receipt(&receipt)),
                 context: Some(encode_admin_context(record)),
             },
@@ -353,11 +354,11 @@ impl<A: PlatformAdministrationCommandApplication, G: PlatformAdministrationReque
     }
     pub async fn revoke_admin_context(
         &self,
-        request: Request<platform::RevokePlatformTenantAdminContextRequest>,
-    ) -> Result<Response<platform::RevokePlatformTenantAdminContextResponse>, Status> {
+        request: Request<platform::RevokePlatformHoldingAdminContextRequest>,
+    ) -> Result<Response<platform::RevokePlatformHoldingAdminContextResponse>, Status> {
         let transport = request.metadata().clone();
         let input = request.into_inner();
-        let command = RevokeTenantAdminContext {
+        let command = RevokeHoldingAdminContext {
             context_id: context_id(&input.context_id)?,
         };
         let envelope = authenticate_command(
@@ -375,7 +376,7 @@ impl<A: PlatformAdministrationCommandApplication, G: PlatformAdministrationReque
             return Err(response_type_mismatch());
         };
         Ok(Response::new(
-            platform::RevokePlatformTenantAdminContextResponse {
+            platform::RevokePlatformHoldingAdminContextResponse {
                 receipt: Some(encode_receipt(&receipt)),
                 context: Some(encode_admin_context(record)),
             },
@@ -390,52 +391,52 @@ fn response_type_mismatch() -> Status {
 impl<A: PlatformAdministrationQueryApplication, G: PlatformAdministrationRequestAuthenticator>
     PlatformAdministrationQueryRpc<A, G>
 {
-    pub async fn get_tenant(
+    pub async fn get_holding(
         &self,
-        request: Request<platform::GetPlatformAdministrationTenantRequest>,
-    ) -> Result<Response<platform::GetPlatformAdministrationTenantResponse>, Status> {
+        request: Request<platform::GetPlatformAdministrationHoldingRequest>,
+    ) -> Result<Response<platform::GetPlatformAdministrationHoldingResponse>, Status> {
         let transport = request.metadata().clone();
         let input = request.into_inner();
         let decoded = decode_query(
             input.metadata,
-            GetPlatformTenant {
-                tenant_id: tenant_id(&input.tenant_id)?,
+            GetPlatformHolding {
+                holding_id: holding_id(&input.holding_id)?,
             },
         )?;
         let result = self
             .application
-            .get_tenant(authenticate_query(self.authenticator.as_ref(), transport, decoded).await?)
+            .get_holding(authenticate_query(self.authenticator.as_ref(), transport, decoded).await?)
             .await
             .map_err(status_from_cqrs)?;
         Ok(Response::new(
-            platform::GetPlatformAdministrationTenantResponse {
-                tenant: result.value.tenant.as_ref().map(encode_tenant),
+            platform::GetPlatformAdministrationHoldingResponse {
+                holding: result.value.holding.as_ref().map(encode_holding),
                 metadata: Some(encode_query_metadata(&result.metadata)),
             },
         ))
     }
-    pub async fn list_tenants(
+    pub async fn list_holdings(
         &self,
-        request: Request<platform::ListPlatformAdministrationTenantsRequest>,
-    ) -> Result<Response<platform::ListPlatformAdministrationTenantsResponse>, Status> {
+        request: Request<platform::ListPlatformAdministrationHoldingsRequest>,
+    ) -> Result<Response<platform::ListPlatformAdministrationHoldingsResponse>, Status> {
         let transport = request.metadata().clone();
         let input = request.into_inner();
         let decoded = decode_query(
             input.metadata,
-            ListPlatformTenants {
+            ListPlatformHoldings {
                 filter: decode_page(input.filter)?,
             },
         )?;
         let result = self
             .application
-            .list_tenants(
+            .list_holdings(
                 authenticate_query(self.authenticator.as_ref(), transport, decoded).await?,
             )
             .await
             .map_err(status_from_cqrs)?;
         Ok(Response::new(
-            platform::ListPlatformAdministrationTenantsResponse {
-                tenants: result.value.records.iter().map(encode_tenant).collect(),
+            platform::ListPlatformAdministrationHoldingsResponse {
+                holdings: result.value.records.iter().map(encode_holding).collect(),
                 next_cursor: result.value.next_cursor,
                 metadata: Some(encode_query_metadata(&result.metadata)),
             },
@@ -496,8 +497,8 @@ impl<A: PlatformAdministrationQueryApplication, G: PlatformAdministrationRequest
     }
     pub async fn get_admin_context(
         &self,
-        request: Request<platform::GetPlatformTenantAdminContextRequest>,
-    ) -> Result<Response<platform::GetPlatformTenantAdminContextResponse>, Status> {
+        request: Request<platform::GetPlatformHoldingAdminContextRequest>,
+    ) -> Result<Response<platform::GetPlatformHoldingAdminContextResponse>, Status> {
         let transport = request.metadata().clone();
         let input = request.into_inner();
         let decoded = decode_query(
@@ -514,7 +515,7 @@ impl<A: PlatformAdministrationQueryApplication, G: PlatformAdministrationRequest
             .await
             .map_err(status_from_cqrs)?;
         Ok(Response::new(
-            platform::GetPlatformTenantAdminContextResponse {
+            platform::GetPlatformHoldingAdminContextResponse {
                 context: result.value.context.as_ref().map(encode_admin_context),
                 metadata: Some(encode_query_metadata(&result.metadata)),
             },
@@ -539,7 +540,7 @@ async fn authenticate_command<C, G: PlatformAdministrationRequestAuthenticator>(
         .authenticate(PlatformAdministrationAuthenticationRequest {
             transport_metadata,
             presented_actor: decoded.envelope.actor.clone(),
-            presented_scope: decoded.envelope.tenant_scope.clone(),
+            presented_scope: decoded.envelope.active_scope.clone(),
             subscription_id: decoded.subscription_id,
             mfa_code: decoded.mfa_code,
             access_mode: PlatformAdministrationAccessMode::Write,
@@ -548,7 +549,7 @@ async fn authenticate_command<C, G: PlatformAdministrationRequestAuthenticator>(
         .map_err(status_from_authentication)?;
     let mut envelope = decoded.envelope;
     envelope.actor = authenticated.actor().clone();
-    envelope.tenant_scope = authenticated.tenant_scope().clone();
+    envelope.active_scope = authenticated.active_scope().clone();
     envelope.validate().map_err(|_| {
         Status::internal("authenticated Platform Administration authority is invalid")
     })?;
@@ -563,7 +564,7 @@ async fn authenticate_query<Q, G: PlatformAdministrationRequestAuthenticator>(
         .authenticate(PlatformAdministrationAuthenticationRequest {
             transport_metadata,
             presented_actor: decoded.envelope.actor.clone(),
-            presented_scope: decoded.envelope.tenant_scope.clone(),
+            presented_scope: decoded.envelope.active_scope.clone(),
             subscription_id: None,
             mfa_code: None,
             access_mode: PlatformAdministrationAccessMode::Read,
@@ -572,7 +573,7 @@ async fn authenticate_query<Q, G: PlatformAdministrationRequestAuthenticator>(
         .map_err(status_from_authentication)?;
     let mut envelope = decoded.envelope;
     envelope.actor = authenticated.actor().clone();
-    envelope.tenant_scope = authenticated.tenant_scope().clone();
+    envelope.active_scope = authenticated.active_scope().clone();
     envelope.validate().map_err(|_| {
         Status::internal("authenticated Platform Administration authority is invalid")
     })?;
@@ -598,10 +599,10 @@ fn decode_command<C>(
             .map(|value| parse_event_id(&value))
             .transpose()?,
         actor: decode_actor(metadata.actor)?,
-        tenant_scope: decode_scope(
+        active_scope: decode_scope(
             metadata
-                .tenant_scope
-                .ok_or_else(|| invalid("tenant_scope is required"))?,
+                .active_scope
+                .ok_or_else(|| invalid("active_scope is required"))?,
         )?,
         audit: decode_audit(metadata.audit, correlation_id)?,
         expected_aggregate_version: metadata.expected_aggregate_version,
@@ -629,10 +630,10 @@ fn decode_query<Q>(
             .map_err(|_| invalid("query_id"))?,
         correlation_id,
         actor: decode_actor(metadata.actor)?,
-        tenant_scope: decode_scope(
+        active_scope: decode_scope(
             metadata
-                .tenant_scope
-                .ok_or_else(|| invalid("tenant_scope is required"))?,
+                .active_scope
+                .ok_or_else(|| invalid("active_scope is required"))?,
         )?,
         audit: decode_audit(metadata.audit, correlation_id)?,
         consistency: decode_consistency(metadata.consistency)?,
@@ -644,19 +645,27 @@ fn decode_query<Q>(
     Ok(DecodedQuery { envelope })
 }
 
-fn decode_tenant_action(value: i32) -> Result<TenantLifecycleAction, Status> {
-    match platform::PlatformTenantLifecycleAction::try_from(value).ok() {
-        Some(platform::PlatformTenantLifecycleAction::Activate) => {
-            Ok(TenantLifecycleAction::Activate)
+fn decode_holding_action(value: i32) -> Result<HoldingLifecycleAction, Status> {
+    match platform::PlatformHoldingLifecycleAction::try_from(value).ok() {
+        Some(platform::PlatformHoldingLifecycleAction::BeginProvisioning) => {
+            Ok(HoldingLifecycleAction::BeginProvisioning)
         }
-        Some(platform::PlatformTenantLifecycleAction::Suspend) => {
-            Ok(TenantLifecycleAction::Suspend)
+        Some(platform::PlatformHoldingLifecycleAction::MarkProvisioningFailed) => {
+            Ok(HoldingLifecycleAction::MarkProvisioningFailed)
         }
-        Some(platform::PlatformTenantLifecycleAction::EnterRecovery) => {
-            Ok(TenantLifecycleAction::EnterRecovery)
+        Some(platform::PlatformHoldingLifecycleAction::Activate) => {
+            Ok(HoldingLifecycleAction::Activate)
         }
-        Some(platform::PlatformTenantLifecycleAction::Retire) => Ok(TenantLifecycleAction::Retire),
-        _ => Err(invalid("tenant action")),
+        Some(platform::PlatformHoldingLifecycleAction::Suspend) => {
+            Ok(HoldingLifecycleAction::Suspend)
+        }
+        Some(platform::PlatformHoldingLifecycleAction::EnterRecovery) => {
+            Ok(HoldingLifecycleAction::EnterRecovery)
+        }
+        Some(platform::PlatformHoldingLifecycleAction::Retire) => {
+            Ok(HoldingLifecycleAction::Retire)
+        }
+        _ => Err(invalid("holding action")),
     }
 }
 fn decode_connector_transition(value: i32) -> Result<ConnectorTransition, Status> {
@@ -689,7 +698,7 @@ fn decode_connector_scope(
         .ok_or_else(|| invalid("connector scope"))?
     {
         Target::Platform(_) => Ok(ConnectorScope::Platform),
-        Target::Tenant(value) => Ok(ConnectorScope::Tenant(decode_scope(value)?)),
+        Target::Holding(value) => Ok(ConnectorScope::Holding(decode_scope(value)?)),
     }
 }
 fn decode_page(
@@ -702,28 +711,36 @@ fn decode_page(
     })
 }
 
-fn encode_tenant(v: &TenantView) -> platform::PlatformAdministrationTenantRecord {
-    platform::PlatformAdministrationTenantRecord {
-        tenant_id: v.tenant_id.as_uuid().to_string(),
+fn encode_holding(v: &HoldingView) -> platform::PlatformAdministrationHoldingRecord {
+    platform::PlatformAdministrationHoldingRecord {
+        holding_id: v.holding_id.as_uuid().to_string(),
         aggregate_version: v.version,
         code: v.code.clone(),
         name: v.name.clone(),
         environment_id: v.environment_id.as_uuid().to_string(),
         customer_id: v.customer_id.to_string(),
-        root_holding_id: v.root_holding_id.to_string(),
-        holding_ref: v.holding_ref.clone(),
+        canonical_holding_id: v.canonical_holding_id.to_string(),
+        data_profile_key: v.data_profile_key.clone(),
         status: match v.status {
-            TenantLifecycleState::Provisioning => {
-                platform::PlatformTenantLifecycleState::Provisioning as i32
+            HoldingLifecycleState::PendingSubscription => {
+                platform::PlatformHoldingLifecycleState::PendingSubscription as i32
             }
-            TenantLifecycleState::Active => platform::PlatformTenantLifecycleState::Active as i32,
-            TenantLifecycleState::Suspended => {
-                platform::PlatformTenantLifecycleState::Suspended as i32
+            HoldingLifecycleState::Provisioning => {
+                platform::PlatformHoldingLifecycleState::Provisioning as i32
             }
-            TenantLifecycleState::Recovery => {
-                platform::PlatformTenantLifecycleState::Recovery as i32
+            HoldingLifecycleState::ProvisioningFailed => {
+                platform::PlatformHoldingLifecycleState::ProvisioningFailed as i32
             }
-            TenantLifecycleState::Retired => platform::PlatformTenantLifecycleState::Retired as i32,
+            HoldingLifecycleState::Active => platform::PlatformHoldingLifecycleState::Active as i32,
+            HoldingLifecycleState::Suspended => {
+                platform::PlatformHoldingLifecycleState::Suspended as i32
+            }
+            HoldingLifecycleState::Recovery => {
+                platform::PlatformHoldingLifecycleState::Recovery as i32
+            }
+            HoldingLifecycleState::Retired => {
+                platform::PlatformHoldingLifecycleState::Retired as i32
+            }
         },
         created_at: v.created_at.to_rfc3339(),
         updated_at: v.updated_at.to_rfc3339(),
@@ -763,7 +780,7 @@ fn encode_admin_context(
     platform::PlatformAdministrationAdminContextRecord {
         context_id: v.context_id.as_uuid().to_string(),
         aggregate_version: v.version,
-        tenant_id: v.tenant_id.as_uuid().to_string(),
+        holding_id: v.holding_id.as_uuid().to_string(),
         scope: Some(encode_scope(&v.scope)),
         principal_ref: v.principal_ref.clone(),
         reason: v.reason.clone(),
@@ -782,7 +799,7 @@ fn encode_connector_scope(value: &ConnectorScope) -> platform::PlatformConnector
     platform::PlatformConnectorScope {
         target: Some(match value {
             ConnectorScope::Platform => Target::Platform(common::PlatformScope {}),
-            ConnectorScope::Tenant(scope) => Target::Tenant(encode_scope(scope)),
+            ConnectorScope::Holding(scope) => Target::Holding(encode_scope(scope)),
         }),
     }
 }
@@ -791,7 +808,7 @@ fn decode_actor(value: Option<common::ActorAttribution>) -> Result<ActorAttribut
     let value = value.ok_or_else(|| invalid("actor"))?;
     let kind = match common::ActorKind::try_from(value.kind).ok() {
         Some(common::ActorKind::PlatformUser) => ActorKind::PlatformUser,
-        Some(common::ActorKind::TenantUser) => ActorKind::TenantUser,
+        Some(common::ActorKind::HoldingUser) => ActorKind::HoldingUser,
         Some(common::ActorKind::Service) => ActorKind::Service,
         Some(common::ActorKind::SystemWorker) => ActorKind::SystemWorker,
         _ => return Err(invalid("actor kind")),
@@ -826,53 +843,44 @@ fn decode_audit(
         module: nonempty(value.module),
     })
 }
-fn decode_scope(value: common::TenantScope) -> Result<TenantScope, Status> {
-    use common::tenant_scope::Scope;
+fn decode_scope(value: common::AuthorityScope) -> Result<AuthorityScope, Status> {
+    use common::authority_scope::Scope;
     match value.scope.ok_or_else(|| invalid("scope"))? {
-        Scope::Platform(_) => Ok(TenantScope::Platform),
-        Scope::Holding(v) => Ok(TenantScope::Holding {
+        Scope::Platform(_) => Ok(AuthorityScope::Platform),
+        Scope::Holding(v) => Ok(AuthorityScope::Holding {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
         }),
-        Scope::Company(v) => Ok(TenantScope::Company {
+        Scope::Company(v) => Ok(AuthorityScope::Company {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
             company_id: parse_uuid(&v.company_id, "company_id")?,
         }),
-        Scope::Branch(v) => Ok(TenantScope::Branch {
+        Scope::Branch(v) => Ok(AuthorityScope::Branch {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
             company_id: parse_uuid(&v.company_id, "company_id")?,
             branch_id: parse_uuid(&v.branch_id, "branch_id")?,
         }),
-        Scope::Subtree(v) => Ok(TenantScope::Subtree {
+        Scope::Subtree(v) => Ok(AuthorityScope::Subtree {
             holding_id: parse_uuid(&v.holding_id, "holding_id")?,
-            company_ids: v
-                .company_ids
-                .iter()
-                .map(|v| parse_uuid(v, "company_id"))
-                .collect::<Result<_, _>>()?,
-            branch_ids: v
-                .branch_ids
-                .iter()
-                .map(|v| parse_uuid(v, "branch_id"))
-                .collect::<Result<_, _>>()?,
+            organization_node_id: parse_uuid(&v.organization_node_id, "organization_node_id")?,
         }),
     }
 }
-fn encode_scope(value: &TenantScope) -> common::TenantScope {
-    use common::tenant_scope::Scope;
-    common::TenantScope {
+fn encode_scope(value: &AuthorityScope) -> common::AuthorityScope {
+    use common::authority_scope::Scope;
+    common::AuthorityScope {
         scope: Some(match value {
-            TenantScope::Platform => Scope::Platform(common::PlatformScope {}),
-            TenantScope::Holding { holding_id } => Scope::Holding(common::HoldingScope {
+            AuthorityScope::Platform => Scope::Platform(common::PlatformScope {}),
+            AuthorityScope::Holding { holding_id } => Scope::Holding(common::HoldingScope {
                 holding_id: holding_id.to_string(),
             }),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => Scope::Company(common::CompanyScope {
                 holding_id: holding_id.to_string(),
                 company_id: company_id.to_string(),
             }),
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -881,14 +889,12 @@ fn encode_scope(value: &TenantScope) -> common::TenantScope {
                 company_id: company_id.to_string(),
                 branch_id: branch_id.to_string(),
             }),
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Scope::Subtree(common::SubtreeScope {
                 holding_id: holding_id.to_string(),
-                company_ids: company_ids.iter().map(ToString::to_string).collect(),
-                branch_ids: branch_ids.iter().map(ToString::to_string).collect(),
+                organization_node_id: organization_node_id.to_string(),
             }),
         }),
     }
@@ -1003,8 +1009,9 @@ fn parse_correlation_id(v: &str) -> Result<CorrelationId, Status> {
     CorrelationId::try_from_uuid(parse_uuid(v, "correlation_id")?)
         .map_err(|_| invalid("correlation_id"))
 }
-fn tenant_id(v: &str) -> Result<PlatformTenantId, Status> {
-    PlatformTenantId::try_from_uuid(parse_uuid(v, "tenant_id")?).map_err(|_| invalid("tenant_id"))
+fn holding_id(v: &str) -> Result<PlatformHoldingId, Status> {
+    PlatformHoldingId::try_from_uuid(parse_uuid(v, "holding_id")?)
+        .map_err(|_| invalid("holding_id"))
 }
 fn connector_id(v: &str) -> Result<ConnectorBindingId, Status> {
     ConnectorBindingId::try_from_uuid(parse_uuid(v, "connector_id")?)
@@ -1072,7 +1079,7 @@ mod tests {
     use super::*;
     #[test]
     fn typed_connector_scope_round_trips_without_json() {
-        let scope = ConnectorScope::Tenant(TenantScope::Holding {
+        let scope = ConnectorScope::Holding(AuthorityScope::Holding {
             holding_id: Uuid::from_u128(1),
         });
         assert_eq!(
@@ -1082,22 +1089,22 @@ mod tests {
     }
     #[test]
     fn recovery_is_not_collapsed() {
-        let view = TenantView {
-            tenant_id: PlatformTenantId::try_from_uuid(Uuid::from_u128(1)).unwrap(),
+        let view = HoldingView {
+            holding_id: PlatformHoldingId::try_from_uuid(Uuid::from_u128(1)).unwrap(),
             version: 2,
             code: "t".into(),
-            name: "Tenant".into(),
+            name: "Holding".into(),
             environment_id: EnvironmentId::try_from_uuid(Uuid::from_u128(2)).unwrap(),
             customer_id: Uuid::from_u128(3),
-            root_holding_id: Uuid::from_u128(4),
-            holding_ref: "h".into(),
-            status: TenantLifecycleState::Recovery,
+            canonical_holding_id: Uuid::from_u128(4),
+            data_profile_key: "h".into(),
+            status: HoldingLifecycleState::Recovery,
             created_at: chrono::DateTime::UNIX_EPOCH,
             updated_at: chrono::DateTime::UNIX_EPOCH,
         };
         assert_eq!(
-            encode_tenant(&view).status,
-            platform::PlatformTenantLifecycleState::Recovery as i32
+            encode_holding(&view).status,
+            platform::PlatformHoldingLifecycleState::Recovery as i32
         );
     }
     #[test]

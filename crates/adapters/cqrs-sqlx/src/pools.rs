@@ -5,20 +5,20 @@ use uuid::Uuid;
 
 use crate::CqrsSqlxError;
 
-pub const REQUIRED_SCHEMA_GENERATION: i16 = 2;
+pub const REQUIRED_SCHEMA_REVISION: i16 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DatabasePlane {
     Control,
-    Tenant,
+    Holding,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DatabaseRole {
     ControlWrite,
     ControlRead,
-    TenantWrite,
-    TenantRead,
+    HoldingWrite,
+    HoldingRead,
 }
 
 impl DatabaseRole {
@@ -26,27 +26,27 @@ impl DatabaseRole {
         match self {
             Self::ControlWrite => "control_write",
             Self::ControlRead => "control_read",
-            Self::TenantWrite => "tenant_write",
-            Self::TenantRead => "tenant_read",
+            Self::HoldingWrite => "holding_write",
+            Self::HoldingRead => "holding_read",
         }
     }
 
     pub const fn plane(self) -> DatabasePlane {
         match self {
             Self::ControlWrite | Self::ControlRead => DatabasePlane::Control,
-            Self::TenantWrite | Self::TenantRead => DatabasePlane::Tenant,
+            Self::HoldingWrite | Self::HoldingRead => DatabasePlane::Holding,
         }
     }
 
     const fn is_write(self) -> bool {
-        matches!(self, Self::ControlWrite | Self::TenantWrite)
+        matches!(self, Self::ControlWrite | Self::HoldingWrite)
     }
 
     const fn read_role(self) -> Option<Self> {
         match self {
             Self::ControlWrite => Some(Self::ControlRead),
-            Self::TenantWrite => Some(Self::TenantRead),
-            Self::ControlRead | Self::TenantRead => None,
+            Self::HoldingWrite => Some(Self::HoldingRead),
+            Self::ControlRead | Self::HoldingRead => None,
         }
     }
 
@@ -54,8 +54,8 @@ impl DatabaseRole {
         match value {
             "control_write" => Ok(Self::ControlWrite),
             "control_read" => Ok(Self::ControlRead),
-            "tenant_write" => Ok(Self::TenantWrite),
-            "tenant_read" => Ok(Self::TenantRead),
+            "holding_write" => Ok(Self::HoldingWrite),
+            "holding_read" => Ok(Self::HoldingRead),
             _ => Err(CqrsSqlxError::DatabaseRoleMismatch),
         }
     }
@@ -63,7 +63,7 @@ impl DatabaseRole {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DatabaseManifest {
-    pub schema_generation: i16,
+    pub schema_revision: i16,
     pub role: DatabaseRole,
 }
 
@@ -72,10 +72,10 @@ pub struct CqrsDatabaseConfig {
     pub write_url: String,
     pub projection_url: String,
     pub read_url: String,
-    /// Required when the manifest identifies a tenant data plane. Control
+    /// Required when the manifest identifies a holding data plane. Control
     /// planes must leave this absent so a control pool cannot accidentally
-    /// acquire tenant authority.
-    pub tenant_id: Option<Uuid>,
+    /// acquire holding authority.
+    pub holding_id: Option<Uuid>,
 }
 
 impl CqrsDatabaseConfig {
@@ -93,9 +93,12 @@ impl CqrsDatabaseConfig {
                 "command database must be physically separate from the read database",
             ));
         }
-        if self.tenant_id.is_some_and(|tenant_id| tenant_id.is_nil()) {
+        if self
+            .holding_id
+            .is_some_and(|holding_id| holding_id.is_nil())
+        {
             return Err(CqrsSqlxError::InvalidInput(
-                "tenant database binding must not be nil",
+                "holding database binding must not be nil",
             ));
         }
         Ok(())
@@ -125,7 +128,7 @@ impl Default for CqrsPoolSettings {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PoolAuthority {
     Control,
-    Tenant(Uuid),
+    Holding(Uuid),
 }
 
 #[derive(Debug, Clone)]
@@ -156,21 +159,21 @@ impl WritePool {
         }
     }
 
-    pub fn for_tenant(pool: PgPool, tenant_id: Uuid) -> Result<Self, CqrsSqlxError> {
+    pub fn for_holding(pool: PgPool, holding_id: Uuid) -> Result<Self, CqrsSqlxError> {
         Ok(Self {
             pool,
-            authority: tenant_authority(tenant_id)?,
+            authority: holding_authority(holding_id)?,
         })
     }
 
-    pub(crate) const fn tenant_id(&self) -> Option<Uuid> {
+    pub(crate) const fn holding_id(&self) -> Option<Uuid> {
         match self.authority {
             PoolAuthority::Control => None,
-            PoolAuthority::Tenant(tenant_id) => Some(tenant_id),
+            PoolAuthority::Holding(holding_id) => Some(holding_id),
         }
     }
 
-    /// Begin a command transaction with the immutable tenant authority bound
+    /// Begin a command transaction with the immutable holding authority bound
     /// and verified before any caller-owned context guard executes.
     pub async fn begin(&self) -> Result<Transaction<'_, Postgres>, CqrsSqlxError> {
         begin_bound(&self.pool, self.authority).await
@@ -185,21 +188,21 @@ impl ProjectionPool {
         }
     }
 
-    pub fn for_tenant(pool: PgPool, tenant_id: Uuid) -> Result<Self, CqrsSqlxError> {
+    pub fn for_holding(pool: PgPool, holding_id: Uuid) -> Result<Self, CqrsSqlxError> {
         Ok(Self {
             pool,
-            authority: tenant_authority(tenant_id)?,
+            authority: holding_authority(holding_id)?,
         })
     }
 
-    pub(crate) const fn tenant_id(&self) -> Option<Uuid> {
+    pub(crate) const fn holding_id(&self) -> Option<Uuid> {
         match self.authority {
             PoolAuthority::Control => None,
-            PoolAuthority::Tenant(tenant_id) => Some(tenant_id),
+            PoolAuthority::Holding(holding_id) => Some(holding_id),
         }
     }
 
-    /// Begin a projection transaction with the immutable tenant authority
+    /// Begin a projection transaction with the immutable holding authority
     /// bound and verified before any projector-owned statement executes.
     pub async fn begin(&self) -> Result<Transaction<'_, Postgres>, CqrsSqlxError> {
         begin_bound(&self.pool, self.authority).await
@@ -214,36 +217,36 @@ impl ReadPool {
         }
     }
 
-    pub fn for_tenant(pool: PgPool, tenant_id: Uuid) -> Result<Self, CqrsSqlxError> {
+    pub fn for_holding(pool: PgPool, holding_id: Uuid) -> Result<Self, CqrsSqlxError> {
         Ok(Self {
             pool,
-            authority: tenant_authority(tenant_id)?,
+            authority: holding_authority(holding_id)?,
         })
     }
 
-    pub(crate) const fn tenant_id(&self) -> Option<Uuid> {
+    pub(crate) const fn holding_id(&self) -> Option<Uuid> {
         match self.authority {
             PoolAuthority::Control => None,
-            PoolAuthority::Tenant(tenant_id) => Some(tenant_id),
+            PoolAuthority::Holding(holding_id) => Some(holding_id),
         }
     }
 
     /// Begin a read transaction that is bound to this immutable pool
-    /// authority. Tenant adapters must execute through this boundary so the
-    /// transaction-local tenant setting is installed and read back before the
+    /// authority. Holding adapters must execute through this boundary so the
+    /// transaction-local holding setting is installed and read back before the
     /// first projection query.
     pub async fn begin(&self) -> Result<Transaction<'_, Postgres>, CqrsSqlxError> {
         begin_bound(&self.pool, self.authority).await
     }
 }
 
-fn tenant_authority(tenant_id: Uuid) -> Result<PoolAuthority, CqrsSqlxError> {
-    if tenant_id.is_nil() {
+fn holding_authority(holding_id: Uuid) -> Result<PoolAuthority, CqrsSqlxError> {
+    if holding_id.is_nil() {
         return Err(CqrsSqlxError::InvalidInput(
-            "tenant database binding must not be nil",
+            "holding database binding must not be nil",
         ));
     }
-    Ok(PoolAuthority::Tenant(tenant_id))
+    Ok(PoolAuthority::Holding(holding_id))
 }
 
 async fn begin_bound(
@@ -251,9 +254,9 @@ async fn begin_bound(
     authority: PoolAuthority,
 ) -> Result<Transaction<'_, Postgres>, CqrsSqlxError> {
     let mut transaction = pool.begin().await?;
-    if let PoolAuthority::Tenant(tenant_id) = authority {
-        let expected = tenant_id.to_string();
-        let actual: String = sqlx::query_scalar("SELECT set_config('app.tenant_id',$1,true)")
+    if let PoolAuthority::Holding(holding_id) = authority {
+        let expected = holding_id.to_string();
+        let actual: String = sqlx::query_scalar("SELECT set_config('app.holding_id',$1,true)")
             .bind(&expected)
             .fetch_one(&mut *transaction)
             .await?;
@@ -313,7 +316,7 @@ impl CqrsPools {
         }
         let (write, projection, read) = match write_manifest.role.plane() {
             DatabasePlane::Control => {
-                if config.tenant_id.is_some() {
+                if config.holding_id.is_some() {
                     return Err(CqrsSqlxError::DatabasePlaneMismatch);
                 }
                 (
@@ -322,14 +325,14 @@ impl CqrsPools {
                     ReadPool::from_control_pg_pool(read),
                 )
             }
-            DatabasePlane::Tenant => {
-                let tenant_id = config
-                    .tenant_id
+            DatabasePlane::Holding => {
+                let holding_id = config
+                    .holding_id
                     .ok_or(CqrsSqlxError::DatabasePlaneMismatch)?;
                 (
-                    WritePool::for_tenant(write, tenant_id)?,
-                    ProjectionPool::for_tenant(projection, tenant_id)?,
-                    ReadPool::for_tenant(read, tenant_id)?,
+                    WritePool::for_holding(write, holding_id)?,
+                    ProjectionPool::for_holding(projection, holding_id)?,
+                    ReadPool::for_holding(read, holding_id)?,
                 )
             }
         };
@@ -369,7 +372,7 @@ pub async fn verify_database_role(
 
 async fn verify_manifest(pool: &PgPool) -> Result<DatabaseManifest, CqrsSqlxError> {
     let row = sqlx::query(
-        "SELECT schema_generation, database_role
+        "SELECT schema_revision, database_role
          FROM erpx_meta.schema_manifest WHERE singleton = TRUE",
     )
     .fetch_optional(pool)
@@ -384,13 +387,13 @@ async fn verify_manifest(pool: &PgPool) -> Result<DatabaseManifest, CqrsSqlxErro
         other => CqrsSqlxError::Database(other),
     })?
     .ok_or(CqrsSqlxError::MissingSchemaManifest)?;
-    let generation: i16 = row.try_get("schema_generation")?;
-    if generation != REQUIRED_SCHEMA_GENERATION {
-        return Err(CqrsSqlxError::UnsupportedSchemaGeneration);
+    let generation: i16 = row.try_get("schema_revision")?;
+    if generation != REQUIRED_SCHEMA_REVISION {
+        return Err(CqrsSqlxError::UnsupportedSchemaRevision);
     }
     let role: String = row.try_get("database_role")?;
     Ok(DatabaseManifest {
-        schema_generation: generation,
+        schema_revision: generation,
         role: DatabaseRole::parse(&role)?,
     })
 }
@@ -405,7 +408,7 @@ mod tests {
             write_url: "postgres://same".into(),
             projection_url: "postgres://read-writer".into(),
             read_url: "postgres://same".into(),
-            tenant_id: None,
+            holding_id: None,
         };
         assert!(matches!(
             config.validate(),
@@ -419,7 +422,7 @@ mod tests {
             write_url: "postgres://write".into(),
             projection_url: "postgres://read".into(),
             read_url: "postgres://read".into(),
-            tenant_id: None,
+            holding_id: None,
         };
         assert!(config.validate().is_ok());
     }
@@ -433,9 +436,9 @@ mod tests {
                 DatabasePlane::Control,
             ),
             (
-                DatabaseRole::TenantWrite,
-                DatabaseRole::TenantRead,
-                DatabasePlane::Tenant,
+                DatabaseRole::HoldingWrite,
+                DatabaseRole::HoldingRead,
+                DatabasePlane::Holding,
             ),
         ] {
             assert!(write.is_write());
@@ -450,10 +453,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn tenant_capabilities_reject_nil_authority_without_connecting() {
-        let pool = PgPool::connect_lazy("postgres://localhost/tenant").unwrap();
-        assert!(WritePool::for_tenant(pool.clone(), Uuid::nil()).is_err());
-        assert!(ProjectionPool::for_tenant(pool.clone(), Uuid::nil()).is_err());
-        assert!(ReadPool::for_tenant(pool, Uuid::nil()).is_err());
+    async fn holding_capabilities_reject_nil_authority_without_connecting() {
+        let pool = PgPool::connect_lazy("postgres://localhost/holding").unwrap();
+        assert!(WritePool::for_holding(pool.clone(), Uuid::nil()).is_err());
+        assert!(ProjectionPool::for_holding(pool.clone(), Uuid::nil()).is_err());
+        assert!(ReadPool::for_holding(pool, Uuid::nil()).is_err());
     }
 }

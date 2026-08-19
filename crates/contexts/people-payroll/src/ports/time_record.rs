@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use chrono::NaiveDate;
 use erpx_cqrs::IdempotencyKey;
 use erpx_kernel::{
-    ActorAttribution, AuditContext, CommandId, CorrelationId, RecordId, TenantScope,
+    ActorAttribution, AuditContext, AuthorityScope, CommandId, CorrelationId, RecordId,
 };
 use serde::{Deserialize, Serialize};
 
@@ -23,7 +23,7 @@ pub struct TimeRecordView {
 pub trait TimeRecordQueryPort: Send + Sync {
     async fn get_time_record(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         time_record_id: RecordId,
     ) -> Result<Option<TimeRecordView>, PortError>;
 }
@@ -35,7 +35,7 @@ pub struct TimeRecordCommand {
     pub expected_version: Option<u64>,
     pub actor: ActorAttribution,
     pub audit: AuditContext,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub record: TimeRecord,
 }
 #[derive(Debug, Clone, PartialEq, Eq)]

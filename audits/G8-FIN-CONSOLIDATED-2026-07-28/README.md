@@ -13,10 +13,10 @@ over explicitly supplied company chart snapshots. The domain aggregator:
 - never infers intercompany elimination. Elimination must be an explicit posted
   adjustment journal and remains visible in the authoritative source.
 
-The SQLx adapter walks the bounded tenant-read journal projection, carries the
+The SQLx adapter walks the bounded holding-read journal projection, carries the
 maximum source version, and delegates all arithmetic to the domain. The server
 requires an explicit holding-contained Finance read scope, entitlement/RBAC,
-tenant scope membership, and an auditable correlation context. Before reading
+holding scope membership, and an auditable correlation context. Before reading
 the report it compares each supplied chart against the authoritative Finance
 chart read projection. The Dioxus Finance surface displays typed server lines
 and totals only; it performs no client aggregation.
@@ -36,8 +36,8 @@ two-database execution remain explicit follow-up requirements.
   --offline`: passed before the final formatter pass; re-run in the current
   verification wave.
 - Focused SQLx acceptance compiles and is correctly ignored without disposable
-  tenant URLs. Explicit execution fails closed at the missing
-  `ERPX_TEST_TENANT_WRITE_DATABASE_URL` resource; no database work ran.
+  holding URLs. Explicit execution fails closed at the missing
+  `ERPX_TEST_HOLDING_WRITE_DATABASE_URL` resource; no database work ran.
 
 ## Rollback
 
@@ -55,7 +55,7 @@ retirement, or production cutover occurred.
 
 The real ignored acceptance
 `live_consolidated_trial_balance_replays_and_aggregates_two_companies` passed
-against a fresh tenant write/read PostgreSQL pair. The arrangement persists
+against a fresh holding write/read PostgreSQL pair. The arrangement persists
 both authoritative company chart snapshots, posts immutable journals for two
 companies, projects the source events, and reads a balanced holding-level
 report with total debit/credit 150 and source-version evidence. No database

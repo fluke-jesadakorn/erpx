@@ -6,20 +6,21 @@
 
 use chrono::{DateTime, Duration, Utc};
 use erpx_domain::{
-    access::{HOLDING_OWNER_ROLE, RiskTier, RoleAssignment, Scope},
+    access::{HOLDING_OWNER_ROLE, RiskTier, RoleAssignment},
+    contracts::AuthorityScope as Scope,
     corporate_identity::{
         BUSINESS_UNIT_BRAND_MANAGE, BUSINESS_UNIT_BRAND_PUBLISH, BUSINESS_UNIT_BRAND_READ,
-        TENANT_BRAND_LOCK, TENANT_BRAND_MANAGE, TENANT_BRAND_PUBLISH, TENANT_BRAND_READ,
+        HOLDING_BRAND_LOCK, HOLDING_BRAND_MANAGE, HOLDING_BRAND_PUBLISH, HOLDING_BRAND_READ,
     },
     data_plane::{
-        BUSINESS_UNIT_CONFIGURATION_MANAGE, BUSINESS_UNIT_CONFIGURATION_READ, TENANT_AGENT_ENROLL,
-        TENANT_AGENT_ROTATE, TENANT_INFRASTRUCTURE_APPLY, TENANT_INFRASTRUCTURE_APPROVE,
-        TENANT_INFRASTRUCTURE_PROPOSE, TENANT_INFRASTRUCTURE_READ, TENANT_ROOT_ACCESS_APPROVE,
-        TENANT_ROOT_ACCESS_READ, TENANT_ROOT_ACCESS_REVOKE,
+        BUSINESS_UNIT_CONFIGURATION_MANAGE, BUSINESS_UNIT_CONFIGURATION_READ, HOLDING_AGENT_ENROLL,
+        HOLDING_AGENT_ROTATE, HOLDING_INFRASTRUCTURE_APPLY, HOLDING_INFRASTRUCTURE_APPROVE,
+        HOLDING_INFRASTRUCTURE_PROPOSE, HOLDING_INFRASTRUCTURE_READ, HOLDING_ROOT_ACCESS_APPROVE,
+        HOLDING_ROOT_ACCESS_READ, HOLDING_ROOT_ACCESS_REVOKE,
     },
 };
 use erpx_identity::{PasswordService, RecoveryCodeSet};
-use erpx_infrastructure::{SqlxControlPlane, TenantOwnerSeed};
+use erpx_infrastructure::{HoldingOwnerSeed, SqlxControlPlane};
 use serde_json::Value;
 use sqlx::Row;
 use tonic::Status;
@@ -30,8 +31,8 @@ pub(super) async fn directory_audit_customer(
     holding_id: Uuid,
 ) -> Result<Option<Uuid>, sqlx::Error> {
     sqlx::query_scalar(
-        "SELECT customer_id FROM erpx_control.customer_tenant_bindings
-         WHERE root_holding_id=$1",
+        "SELECT customer_id FROM erpx_control.customer_holding_bindings
+         WHERE canonical_holding_id=$1",
     )
     .bind(holding_id)
     .fetch_optional(&store.pools().write)
@@ -40,15 +41,15 @@ pub(super) async fn directory_audit_customer(
 
 pub(super) async fn branch_capacity_available(
     store: &SqlxControlPlane,
-    tenant_id: &str,
+    holding_id: &str,
 ) -> Result<bool, sqlx::Error> {
     sqlx::query_scalar(
         "SELECT EXISTS (
              SELECT 1
-             FROM erpx_control.customer_tenant_bindings b
+             FROM erpx_control.customer_holding_bindings b
              JOIN erpx_control.entitlement_allocation_books e
                ON e.customer_id=b.customer_id
-             WHERE b.tenant_id=$1 AND e.active
+             WHERE b.holding_id=$1 AND e.active
                AND (e.active_until IS NULL OR e.active_until > now())
                AND COALESCE(
                     CASE WHEN e.payload #>> '{capacity,branches}' ~ '^[0-9]+$'
@@ -56,17 +57,17 @@ pub(super) async fn branch_capacity_available(
                     0
                ) > (
                     SELECT count(*) FROM erpx_control.branch_database_routes r
-                    WHERE r.tenant_id=$1 AND r.state <> 'suspended'
+                    WHERE r.holding_id=$1 AND r.state <> 'suspended'
                )
          )",
     )
-    .bind(tenant_id)
+    .bind(holding_id)
     .fetch_one(&store.pools().write)
     .await
 }
 
 #[derive(Debug)]
-pub(super) struct TenantOwnerSeedReceipt {
+pub(super) struct HoldingOwnerSeedReceipt {
     pub(super) seeded: bool,
     pub(super) principal_ref: String,
     pub(super) recovery_code: Option<String>,
@@ -75,14 +76,14 @@ pub(super) struct TenantOwnerSeedReceipt {
 /// Persist the identity, recovery code, finite holding-owner assignment, and
 /// owner-seed state in one control-write transaction. The plaintext recovery
 /// code is retained only in the returned value and is never logged or stored.
-pub(super) async fn seed_tenant_owner(
+pub(super) async fn seed_holding_owner(
     store: &SqlxControlPlane,
-    seed: &TenantOwnerSeed,
+    seed: &HoldingOwnerSeed,
     grantor_ref: &str,
     at: DateTime<Utc>,
-) -> Result<TenantOwnerSeedReceipt, Status> {
+) -> Result<HoldingOwnerSeedReceipt, Status> {
     if seed.state == "seeded" {
-        return Ok(TenantOwnerSeedReceipt {
+        return Ok(HoldingOwnerSeedReceipt {
             seeded: true,
             principal_ref: seed.principal_ref.clone(),
             recovery_code: None,
@@ -90,7 +91,7 @@ pub(super) async fn seed_tenant_owner(
     }
     if seed.state != "pending" {
         return Err(Status::failed_precondition(
-            "tenant owner seed is in an invalid state",
+            "holding owner seed is in an invalid state",
         ));
     }
     let recovery_batch = RecoveryCodeSet::issue(
@@ -120,23 +121,23 @@ pub(super) async fn seed_tenant_owner(
             "role.assignment.approve".into(),
             "role.assignment.review".into(),
             "role.assignment.renew".into(),
-            super::TENANT_DIRECTORY_ACTIVATE_PERMISSION.into(),
-            super::TENANT_DIRECTORY_MANAGE_PERMISSION.into(),
-            super::TENANT_DIRECTORY_READ_PERMISSION.into(),
+            super::HOLDING_DIRECTORY_ACTIVATE_PERMISSION.into(),
+            super::HOLDING_DIRECTORY_MANAGE_PERMISSION.into(),
+            super::HOLDING_DIRECTORY_READ_PERMISSION.into(),
             "role.assignment.recover".into(),
-            TENANT_AGENT_ENROLL.into(),
-            TENANT_AGENT_ROTATE.into(),
-            TENANT_BRAND_LOCK.into(),
-            TENANT_BRAND_MANAGE.into(),
-            TENANT_BRAND_PUBLISH.into(),
-            TENANT_BRAND_READ.into(),
-            TENANT_INFRASTRUCTURE_APPLY.into(),
-            TENANT_INFRASTRUCTURE_APPROVE.into(),
-            TENANT_INFRASTRUCTURE_PROPOSE.into(),
-            TENANT_INFRASTRUCTURE_READ.into(),
-            TENANT_ROOT_ACCESS_READ.into(),
-            TENANT_ROOT_ACCESS_APPROVE.into(),
-            TENANT_ROOT_ACCESS_REVOKE.into(),
+            HOLDING_AGENT_ENROLL.into(),
+            HOLDING_AGENT_ROTATE.into(),
+            HOLDING_BRAND_LOCK.into(),
+            HOLDING_BRAND_MANAGE.into(),
+            HOLDING_BRAND_PUBLISH.into(),
+            HOLDING_BRAND_READ.into(),
+            HOLDING_INFRASTRUCTURE_APPLY.into(),
+            HOLDING_INFRASTRUCTURE_APPROVE.into(),
+            HOLDING_INFRASTRUCTURE_PROPOSE.into(),
+            HOLDING_INFRASTRUCTURE_READ.into(),
+            HOLDING_ROOT_ACCESS_READ.into(),
+            HOLDING_ROOT_ACCESS_APPROVE.into(),
+            HOLDING_ROOT_ACCESS_REVOKE.into(),
         ],
         functional_domain: "organization".into(),
         authority_level: 100,
@@ -167,29 +168,29 @@ pub(super) async fn seed_tenant_owner(
         .write
         .begin()
         .await
-        .map_err(|_| Status::unavailable("tenant owner seed transaction unavailable"))?;
+        .map_err(|_| Status::unavailable("holding owner seed transaction unavailable"))?;
     let seed_row = sqlx::query(
-        "SELECT holding_ref, holding_id, principal_ref, approver_ref,
+        "SELECT data_profile_key, holding_id, principal_ref, approver_ref,
                 role_assignment_id, state, recovery_issued_at
-         FROM erpx_control.tenant_owner_seeds
-         WHERE tenant_id = $1
+         FROM erpx_control.holding_owner_seeds
+         WHERE holding_id = $1
          FOR UPDATE",
     )
-    .bind(&seed.tenant_id)
+    .bind(seed.holding_id)
     .fetch_optional(&mut *transaction)
     .await
-    .map_err(|_| Status::unavailable("tenant owner seed transaction unavailable"))?
-    .ok_or_else(|| Status::failed_precondition("tenant owner seed is missing"))?;
+    .map_err(|_| Status::unavailable("holding owner seed transaction unavailable"))?
+    .ok_or_else(|| Status::failed_precondition("holding owner seed is missing"))?;
     let stored_state: String = seed_row
         .try_get("state")
-        .map_err(|_| Status::internal("tenant owner seed record is invalid"))?;
+        .map_err(|_| Status::internal("holding owner seed record is invalid"))?;
     let stored_recovery_issued_at: Option<DateTime<Utc>> =
         seed_row
             .try_get("recovery_issued_at")
-            .map_err(|_| Status::internal("tenant owner seed record is invalid"))?;
+            .map_err(|_| Status::internal("holding owner seed record is invalid"))?;
     let immutable_match = seed_row
-        .try_get::<String, _>("holding_ref")
-        .map(|value| value == seed.holding_ref)
+        .try_get::<String, _>("data_profile_key")
+        .map(|value| value == seed.data_profile_key)
         .unwrap_or(false)
         && seed_row
             .try_get::<Uuid, _>("holding_id")
@@ -209,15 +210,15 @@ pub(super) async fn seed_tenant_owner(
             .unwrap_or(false);
     if !immutable_match {
         return Err(Status::failed_precondition(
-            "tenant owner seed immutable references changed",
+            "holding owner seed immutable references changed",
         ));
     }
     if stored_state == "seeded" || stored_recovery_issued_at.is_some() {
         transaction
             .commit()
             .await
-            .map_err(|_| Status::unavailable("tenant owner seed transaction unavailable"))?;
-        return Ok(TenantOwnerSeedReceipt {
+            .map_err(|_| Status::unavailable("holding owner seed transaction unavailable"))?;
+        return Ok(HoldingOwnerSeedReceipt {
             seeded: stored_state == "seeded",
             principal_ref: seed.principal_ref.clone(),
             recovery_code: None,
@@ -226,7 +227,7 @@ pub(super) async fn seed_tenant_owner(
 
     let generated_principal_id = Uuid::new_v5(
         &Uuid::NAMESPACE_URL,
-        format!("erpx:principal:v1:{}", seed.principal_ref).as_bytes(),
+        format!("erpx:principal:{}", seed.principal_ref).as_bytes(),
     );
     sqlx::query(
         "INSERT INTO erpx_identity.principals
@@ -329,24 +330,24 @@ pub(super) async fn seed_tenant_owner(
         ));
     }
     sqlx::query(
-        "UPDATE erpx_control.tenant_owner_seeds
+        "UPDATE erpx_control.holding_owner_seeds
          SET state = 'seeded',
              recovery_issued_at = CASE WHEN $2 THEN $3 ELSE NULL END,
              updated_at = $4
-         WHERE tenant_id = $1",
+         WHERE holding_id = $1",
     )
-    .bind(&seed.tenant_id)
+    .bind(seed.holding_id)
     .bind(needs_recovery)
     .bind(if needs_recovery { Some(at) } else { None })
     .bind(at)
     .execute(&mut *transaction)
     .await
-    .map_err(|_| Status::unavailable("tenant owner seed update unavailable"))?;
+    .map_err(|_| Status::unavailable("holding owner seed update unavailable"))?;
     transaction
         .commit()
         .await
-        .map_err(|_| Status::unavailable("tenant owner seed transaction unavailable"))?;
-    Ok(TenantOwnerSeedReceipt {
+        .map_err(|_| Status::unavailable("holding owner seed transaction unavailable"))?;
+    Ok(HoldingOwnerSeedReceipt {
         seeded: true,
         principal_ref: seed.principal_ref.clone(),
         recovery_code: if needs_recovery { recovery_code } else { None },

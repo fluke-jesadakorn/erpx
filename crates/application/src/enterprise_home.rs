@@ -3,7 +3,7 @@ use std::{collections::HashSet, sync::Arc};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_integration_contracts::StableRecordRef;
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -44,7 +44,7 @@ pub struct WorkItem {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorkQuery {
     pub principal_ref: String,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub kinds: Vec<String>,
     pub stages: Vec<String>,
     pub page_size: u16,
@@ -206,7 +206,7 @@ pub trait SourceWorkCommandPort: Send + Sync {
     async fn execute(
         &self,
         principal_ref: &str,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         command: SourceWorkCommand,
     ) -> Result<SourceWorkReceipt, WorkSourceError>;
 }
@@ -238,8 +238,8 @@ mod tests {
             self.result.clone()
         }
     }
-    fn scope() -> TenantScope {
-        TenantScope::Company {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         }

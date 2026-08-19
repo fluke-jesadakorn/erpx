@@ -7,7 +7,7 @@
 
 use std::collections::BTreeMap;
 
-use erpx_delivery_contract::ClientChannelV2;
+use erpx_delivery_contract::ClientChannel;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -39,16 +39,16 @@ pub enum NativeFeature {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NativeCapabilityMatrix {
-    pub channel: ClientChannelV2,
+    pub channel: ClientChannel,
     pub renderer: String,
     pub features: BTreeMap<NativeFeature, NativeCapability>,
 }
 
 impl NativeCapabilityMatrix {
-    pub fn for_channel(channel: ClientChannelV2) -> Self {
+    pub fn for_channel(channel: ClientChannel) -> Self {
         let mut features = BTreeMap::new();
         match channel {
-            ClientChannelV2::MacOs => {
+            ClientChannel::MacOs => {
                 for feature in [
                     NativeFeature::WindowLifecycle,
                     NativeFeature::KeyboardPointer,
@@ -68,7 +68,7 @@ impl NativeCapabilityMatrix {
                     },
                 );
             }
-            ClientChannelV2::Ios | ClientChannelV2::Android => {
+            ClientChannel::Ios | ClientChannel::Android => {
                 for feature in [
                     NativeFeature::WindowLifecycle,
                     NativeFeature::KeyboardPointer,
@@ -88,7 +88,7 @@ impl NativeCapabilityMatrix {
                     );
                 }
             }
-            ClientChannelV2::Web => {
+            ClientChannel::Web => {
                 for feature in [
                     NativeFeature::WindowLifecycle,
                     NativeFeature::KeyboardPointer,
@@ -110,7 +110,7 @@ impl NativeCapabilityMatrix {
         }
         Self {
             channel,
-            renderer: if matches!(channel, ClientChannelV2::Web) {
+            renderer: if matches!(channel, ClientChannel::Web) {
                 "web-dom".to_owned()
             } else {
                 "dioxus-native-blitz-wgpu".to_owned()
@@ -136,7 +136,7 @@ mod tests {
 
     #[test]
     fn macos_is_native_only_and_every_capability_is_explicit() {
-        let matrix = NativeCapabilityMatrix::for_channel(ClientChannelV2::MacOs);
+        let matrix = NativeCapabilityMatrix::for_channel(ClientChannel::MacOs);
         assert_eq!(matrix.renderer, "dioxus-native-blitz-wgpu");
         assert_eq!(matrix.features.len(), 8);
         assert!(matches!(
@@ -148,7 +148,7 @@ mod tests {
 
     #[test]
     fn mobile_adapters_compile_with_typed_unavailable_status() {
-        for channel in [ClientChannelV2::Ios, ClientChannelV2::Android] {
+        for channel in [ClientChannel::Ios, ClientChannel::Android] {
             let matrix = NativeCapabilityMatrix::for_channel(channel);
             assert!(
                 matrix

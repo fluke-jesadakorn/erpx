@@ -12,22 +12,22 @@ rows and the checkpoint before copying the authoritative control-write source.
 The cursor rejects a nil job identity, page sizes are bounded, and the
 projection writer continues to validate status counters, references, versions,
 and kind/state combinations before persistence. No provider credentials,
-tenant connection details, claim payloads, or worker secrets cross the read
+holding connection details, claim payloads, or worker secrets cross the read
 projection boundary.
 
 ## Files changed
 
-- `crates/migration/migrations_read/0006_tenant_projection_status_checkpoint.sql`
+- `crates/migration/migrations_read/0006_holding_projection_status_checkpoint.sql`
 - `crates/migration/src/lib.rs`
-- `crates/infrastructure/src/tenant_projection_scheduler.rs`
-- `crates/infrastructure/src/tenant_projection_status_projection.rs`
+- `crates/infrastructure/src/holding_projection_scheduler.rs`
+- `crates/infrastructure/src/holding_projection_status_projection.rs`
 - `crates/infrastructure/src/lib.rs`
-- `crates/infrastructure/tests/tenant_projection_status.rs`
-- `crates/infrastructure/tests/tenant_projection_status_incremental.rs`
+- `crates/infrastructure/tests/holding_projection_status.rs`
+- `crates/infrastructure/tests/holding_projection_status_incremental.rs`
 - `MASTER_PLAN.md`
 - `EXECUTION_LEDGER.md`
 
-Migration `0005_tenant_projection_freshness.sql` is the preceding freshness
+Migration `0005_holding_projection_freshness.sql` is the preceding freshness
 packet and is not reimplemented here.
 
 ## Verification
@@ -39,14 +39,14 @@ cargo fmt --all --check — PASS
 cargo test -p erpx-migration --lib — PASS
 cargo clippy -p erpx-infrastructure --all-targets -- -D warnings — PASS
 cargo clippy -p erpx-worker --all-targets -- -D warnings — PASS
-cargo test -p erpx-infrastructure --lib --test tenant_projection_status --test tenant_projection_status_read — PASS
+cargo test -p erpx-infrastructure --lib --test holding_projection_status --test holding_projection_status_read — PASS
 cargo test -p erpx-worker — PASS
 ```
 
 Direct disposable-database evidence:
 
 ```text
-cargo test -p erpx-infrastructure --test tenant_projection_status_incremental -- --ignored --exact incremental_status_publication_advances_a_durable_checkpoint_idempotently — PASS: 1 test
+cargo test -p erpx-infrastructure --test holding_projection_status_incremental -- --ignored --exact incremental_status_publication_advances_a_durable_checkpoint_idempotently — PASS: 1 test
 ```
 
 The disposable write/read databases were explicitly removed after the test.

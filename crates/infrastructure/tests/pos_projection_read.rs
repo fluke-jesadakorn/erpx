@@ -6,16 +6,16 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL read database"]
+#[ignore = "requires one disposable holding PostgreSQL read database"]
 async fn live_pos_read_projection_is_scope_bound_bounded_and_cursor_stable() {
-    let url = std::env::var("ERPX_TEST_TENANT_READ_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_READ_DATABASE_URL is required");
+    let url = std::env::var("ERPX_TEST_HOLDING_READ_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_READ_DATABASE_URL is required");
     let pool = PgPool::connect(&url).await.expect("read pool");
-    erpx_migration::migrate_tenant_read(&pool)
+    erpx_migration::migrate_holding_read(&pool)
         .await
-        .expect("tenant read migration");
+        .expect("holding read migration");
 
-    let holding_ref = format!("holding-pos-read-{}", Uuid::new_v4());
+    let data_profile_key = format!("holding-pos-read-{}", Uuid::new_v4());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let event_id = Uuid::new_v4();
@@ -29,15 +29,15 @@ async fn live_pos_read_projection_is_scope_bound_bounded_and_cursor_stable() {
         (second_sale, second_updated_at, "POS-002", Uuid::new_v4()),
     ] {
         sqlx::query(
-            "INSERT INTO erpx_tenant.pos_sale_read_rows
-                (holding_ref, sale_id, holding_id, company_id, reference, currency,
+            "INSERT INTO erpx_holding.pos_sale_read_rows
+                (data_profile_key, sale_id, holding_id, company_id, reference, currency,
                  subtotal_minor, tax_minor, total_minor, paid_minor, status,
                  command_id, idempotency_key, created_at, updated_at,
                  source_version, source_event_id)
              VALUES ($1,$2,$3,$4,$5,'THB',100,7,107,107,'completed',
                      $6,$7,$8,$9,1,$10)",
         )
-        .bind(&holding_ref)
+        .bind(&data_profile_key)
         .bind(sale_id)
         .bind(holding_id)
         .bind(company_id)
@@ -54,13 +54,13 @@ async fn live_pos_read_projection_is_scope_bound_bounded_and_cursor_stable() {
 
     let line_id = Uuid::new_v4();
     sqlx::query(
-        "INSERT INTO erpx_tenant.pos_sale_line_read_rows
-            (holding_ref, sale_id, line_id, line_no, item_reference, description,
+        "INSERT INTO erpx_holding.pos_sale_line_read_rows
+            (data_profile_key, sale_id, line_id, line_no, item_reference, description,
              quantity, unit_price_minor, tax_minor, subtotal_minor, total_minor,
              source_version, source_event_id)
          VALUES ($1,$2,$3,0,'SKU-001','Anonymized item',1,100,7,100,107,1,$4)",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(first_sale)
     .bind(line_id)
     .bind(event_id)
@@ -68,12 +68,12 @@ async fn live_pos_read_projection_is_scope_bound_bounded_and_cursor_stable() {
     .await
     .expect("sale line read row");
     sqlx::query(
-        "INSERT INTO erpx_tenant.pos_sale_payment_read_rows
-            (holding_ref, sale_id, payment_id, amount_minor, method, received_at,
+        "INSERT INTO erpx_holding.pos_sale_payment_read_rows
+            (data_profile_key, sale_id, payment_id, amount_minor, method, received_at,
              source_version, source_event_id)
          VALUES ($1,$2,$3,107,'cash',$4,1,$5)",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .bind(first_sale)
     .bind(Uuid::new_v4())
     .bind(first_updated_at)
@@ -82,8 +82,8 @@ async fn live_pos_read_projection_is_scope_bound_bounded_and_cursor_stable() {
     .await
     .expect("sale payment read row");
 
-    let store =
-        SqlxPosProjectionStore::from_pools(&pool, &pool, &holding_ref).expect("POS read store");
+    let store = SqlxPosProjectionStore::from_pools(&pool, &pool, &data_profile_key)
+        .expect("POS read store");
     let scope = PosReadScope {
         holding_id,
         company_id,

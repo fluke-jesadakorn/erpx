@@ -3,7 +3,7 @@
 ## Scope
 
 Add the authoritative, read-only ticket queue query needed by the platform and
-tenant Support surfaces.
+holding Support surfaces.
 
 ## Delivered behavior
 

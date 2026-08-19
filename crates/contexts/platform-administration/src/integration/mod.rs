@@ -1,6 +1,6 @@
 use erpx_integration_contracts::{DisplayName, ReferenceCode, platform_administration};
 
-use crate::domain::{DomainEvent, PublishedTenantState, TenantLifecycleState};
+use crate::domain::{DomainEvent, HoldingLifecycleState, PublishedHoldingState};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum IntegrationMappingError {
@@ -19,9 +19,9 @@ fn map_event(
     event: &DomainEvent,
 ) -> Option<Result<platform_administration::Event, IntegrationMappingError>> {
     match event {
-        DomainEvent::TenantChanged { state, at } => {
+        DomainEvent::HoldingChanged { state, at } => {
             let _ = at;
-            Some(tenant_fact(state))
+            Some(holding_fact(state))
         }
         DomainEvent::ConnectorChanged {
             connector_id,
@@ -41,26 +41,26 @@ fn map_event(
         }
         DomainEvent::AdminContextIssued {
             context_id,
-            tenant_id,
+            holding_id,
             at,
         }
         | DomainEvent::AdminContextRevoked {
             context_id,
-            tenant_id,
+            holding_id,
             at,
         } => {
-            let _ = (context_id, tenant_id, at);
+            let _ = (context_id, holding_id, at);
             None
         }
     }
 }
 
-fn tenant_fact(
-    state: &PublishedTenantState,
+fn holding_fact(
+    state: &PublishedHoldingState,
 ) -> Result<platform_administration::Event, IntegrationMappingError> {
-    Ok(platform_administration::Event::TenantLifecycleChanged(
-        platform_administration::TenantLifecycleFact {
-            tenant: platform_administration::TenantRef::try_from_uuid(state.tenant_id.as_uuid())
+    Ok(platform_administration::Event::HoldingLifecycleChanged(
+        platform_administration::HoldingLifecycleFact {
+            holding: erpx_kernel::HoldingId::try_from_uuid(state.holding_id.as_uuid())
                 .map_err(|_| IntegrationMappingError::Identifier)?,
             code: ReferenceCode::try_new(state.code.clone())
                 .map_err(|_| IntegrationMappingError::Code)?,
@@ -71,13 +71,21 @@ fn tenant_fact(
             )
             .map_err(|_| IntegrationMappingError::Identifier)?,
             status: match state.status {
-                TenantLifecycleState::Provisioning => {
-                    platform_administration::TenantStatus::Provisioning
+                HoldingLifecycleState::PendingSubscription => {
+                    platform_administration::HoldingStatus::PendingSubscription
                 }
-                TenantLifecycleState::Active => platform_administration::TenantStatus::Active,
-                TenantLifecycleState::Suspended => platform_administration::TenantStatus::Suspended,
-                TenantLifecycleState::Recovery => platform_administration::TenantStatus::Recovery,
-                TenantLifecycleState::Retired => platform_administration::TenantStatus::Retired,
+                HoldingLifecycleState::Provisioning => {
+                    platform_administration::HoldingStatus::Provisioning
+                }
+                HoldingLifecycleState::ProvisioningFailed => {
+                    platform_administration::HoldingStatus::ProvisioningFailed
+                }
+                HoldingLifecycleState::Active => platform_administration::HoldingStatus::Active,
+                HoldingLifecycleState::Suspended => {
+                    platform_administration::HoldingStatus::Suspended
+                }
+                HoldingLifecycleState::Recovery => platform_administration::HoldingStatus::Recovery,
+                HoldingLifecycleState::Retired => platform_administration::HoldingStatus::Retired,
             },
         },
     ))
@@ -89,12 +97,12 @@ mod tests {
     use uuid::Uuid;
 
     use super::*;
-    use crate::domain::{EnvironmentId, PlatformTenant, PlatformTenantId};
+    use crate::domain::{EnvironmentId, PlatformHolding, PlatformHoldingId};
 
     #[test]
-    fn tenant_registration_maps_to_owner_contract() {
-        let mut tenant = PlatformTenant::register(
-            PlatformTenantId::try_from_uuid(Uuid::from_u128(1)).unwrap(),
+    fn holding_registration_maps_to_owner_contract() {
+        let mut holding = PlatformHolding::register(
+            PlatformHoldingId::try_from_uuid(Uuid::from_u128(1)).unwrap(),
             "ACME".into(),
             "Acme".into(),
             EnvironmentId::try_from_uuid(Uuid::from_u128(2)).unwrap(),
@@ -104,9 +112,9 @@ mod tests {
             Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap(),
         )
         .unwrap();
-        let events = published_events(&tenant.take_uncommitted_events()).unwrap();
+        let events = published_events(&holding.take_uncommitted_events()).unwrap();
         assert!(
-            matches!(events.as_slice(), [platform_administration::Event::TenantLifecycleChanged(fact)] if fact.status == platform_administration::TenantStatus::Provisioning)
+            matches!(events.as_slice(), [platform_administration::Event::HoldingLifecycleChanged(fact)] if fact.status == platform_administration::HoldingStatus::PendingSubscription)
         );
     }
 }

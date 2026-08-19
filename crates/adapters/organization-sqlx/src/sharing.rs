@@ -6,7 +6,7 @@ use erpx_integration_contracts::{
     ITEM_DIRECTORY_OWNER_EVENT_TYPE, ItemDescriptorDraft, OrganizationSharingAuthorityEvidence,
     RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
 };
-use erpx_kernel::{DataClassification, RecordId, TenantScope};
+use erpx_kernel::{AuthorityScope, DataClassification, RecordId};
 use erpx_organization::{
     OrganizationSharingAgreement, PortError, SharingAgreementId, SharingCapability,
     SharingCommandIdentity, SharingCommandPayload, SharingCommandUnitOfWork, SharingCommit,
@@ -34,7 +34,7 @@ impl OrganizationSharingSqlxAdapter {
 impl SharingWriteRepository for OrganizationSharingSqlxAdapter {
     async fn load_sharing_agreement(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         sharing_agreement_id: SharingAgreementId,
     ) -> Result<Option<OrganizationSharingAgreement>, PortError> {
         authority_scope.validate().map_err(|_| PortError::Denied)?;
@@ -127,10 +127,10 @@ async fn append_projection_event(
     let command_id = request.request.identity.command_id;
     sqlx::query(
         "INSERT INTO erpx_cqrs_write.outbox_events
-            (tenant_id,event_id,context_name,partition_key,command_id,event_type,event_version,
-             aggregate_type,aggregate_id,aggregate_version,tenant_scope,actor,correlation_id,
+            (holding_id,event_id,context_name,partition_key,command_id,event_type,event_version,
+             aggregate_type,aggregate_id,aggregate_version,active_scope,actor,correlation_id,
              causation_id,payload,occurred_at,available_at)
-         VALUES (erpx_authority_write.current_tenant_id(),$1,'organization',$2,$3,$4,$5,
+         VALUES (erpx_authority_write.current_holding_id(),$1,'organization',$2,$3,$4,$5,
                  'organization_sharing_agreement',$6,$7,$8,$9,$10,NULL,$11,$12,now())",
     )
     .bind(deterministic_uuid(
@@ -173,7 +173,7 @@ async fn load_agreement(
             'revoked_at',revoked_at,'status',sharing_status
          ) AS state
          FROM erpx_authority_write.organization_sharing_agreements
-         WHERE tenant_id=erpx_authority_write.current_tenant_id()
+         WHERE holding_id=erpx_authority_write.current_holding_id()
            AND sharing_agreement_id=$1{lock}"
     );
     let row = sqlx::query(&statement)
@@ -201,7 +201,7 @@ async fn find_receipt(
         "SELECT command_id,request_hash,sharing_agreement_id,agreement_version,
                 correlation_id,receipt,committed_at
          FROM erpx_authority_write.sharing_command_receipts
-         WHERE tenant_id=erpx_authority_write.current_tenant_id()
+         WHERE holding_id=erpx_authority_write.current_holding_id()
            AND idempotency_key=$1 FOR UPDATE",
     )
     .bind(identity.idempotency_key.as_str())
@@ -251,20 +251,20 @@ async fn persist_agreement(
 ) -> Result<(), PortError> {
     let result = sqlx::query(
         "INSERT INTO erpx_authority_write.organization_sharing_agreements
-            (tenant_id,sharing_agreement_id,agreement_version,source_scope,target_scope,
+            (holding_id,sharing_agreement_id,agreement_version,source_scope,target_scope,
              direction,capabilities,reason,proposed_by,source_approved_by,target_approved_by,
              rejected_by,rejected_at,valid_from,valid_until,revoked_at,sharing_status,changed_at)
-         VALUES (erpx_authority_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,
+         VALUES (erpx_authority_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,
                  $10,$11,$12,$13,$14,$15,$16,$17)
-         ON CONFLICT (tenant_id,sharing_agreement_id) DO UPDATE SET
+         ON CONFLICT (holding_id,sharing_agreement_id) DO UPDATE SET
             agreement_version=EXCLUDED.agreement_version,
             source_approved_by=EXCLUDED.source_approved_by,
             target_approved_by=EXCLUDED.target_approved_by,
             rejected_by=EXCLUDED.rejected_by,rejected_at=EXCLUDED.rejected_at,
             revoked_at=EXCLUDED.revoked_at,sharing_status=EXCLUDED.sharing_status,
             changed_at=EXCLUDED.changed_at
-         WHERE erpx_authority_write.organization_sharing_agreements.tenant_id
-               = erpx_authority_write.current_tenant_id()
+         WHERE erpx_authority_write.organization_sharing_agreements.holding_id
+               = erpx_authority_write.current_holding_id()
            AND erpx_authority_write.organization_sharing_agreements.agreement_version + 1
                = EXCLUDED.agreement_version",
     )
@@ -313,10 +313,10 @@ async fn append_authority_event(
     let event_id = deterministic_uuid(command_id.as_uuid(), b"organization-sharing-authority-v1");
     sqlx::query(
         "INSERT INTO erpx_cqrs_write.outbox_events
-            (tenant_id,event_id,context_name,partition_key,command_id,event_type,event_version,
-             aggregate_type,aggregate_id,aggregate_version,tenant_scope,actor,correlation_id,
+            (holding_id,event_id,context_name,partition_key,command_id,event_type,event_version,
+             aggregate_type,aggregate_id,aggregate_version,active_scope,actor,correlation_id,
              causation_id,payload,occurred_at,available_at)
-         VALUES (erpx_authority_write.current_tenant_id(),$1,'organization',$2,$3,$4,$5,
+         VALUES (erpx_authority_write.current_holding_id(),$1,'organization',$2,$3,$4,$5,
                  'organization_sharing_agreement',$6,$7,$8,$9,$10,NULL,$11,$12,now())",
     )
     .bind(event_id)
@@ -368,10 +368,10 @@ async fn append_directory_event(
     let command_id = request.request.identity.command_id;
     sqlx::query(
         "INSERT INTO erpx_cqrs_write.outbox_events
-            (tenant_id,event_id,context_name,partition_key,command_id,event_type,event_version,
-             aggregate_type,aggregate_id,aggregate_version,tenant_scope,actor,correlation_id,
+            (holding_id,event_id,context_name,partition_key,command_id,event_type,event_version,
+             aggregate_type,aggregate_id,aggregate_version,active_scope,actor,correlation_id,
              causation_id,payload,occurred_at,available_at)
-         VALUES (erpx_authority_write.current_tenant_id(),$1,'organization',$2,$3,$4,$5,
+         VALUES (erpx_authority_write.current_holding_id(),$1,'organization',$2,$3,$4,$5,
                  'organization_sharing_agreement',$6,$7,$8,$9,$10,NULL,$11,$12,now())",
     )
     .bind(deterministic_uuid(
@@ -405,9 +405,9 @@ async fn persist_audit(
     let command_id = request.request.identity.command_id;
     sqlx::query(
         "INSERT INTO erpx_authority_write.sharing_audit_log
-            (tenant_id,audit_id,command_id,correlation_id,actor,authority_scope,
+            (holding_id,audit_id,command_id,correlation_id,actor,authority_scope,
              sharing_agreement_id,agreement_version,action,occurred_at)
-         VALUES (erpx_authority_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9)",
+         VALUES (erpx_authority_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9)",
     )
     .bind(deterministic_uuid(
         command_id.as_uuid(),
@@ -433,9 +433,9 @@ async fn persist_receipt(
 ) -> Result<(), PortError> {
     sqlx::query(
         "INSERT INTO erpx_authority_write.sharing_command_receipts
-            (tenant_id,idempotency_key,command_id,request_hash,sharing_agreement_id,
+            (holding_id,idempotency_key,command_id,request_hash,sharing_agreement_id,
              agreement_version,correlation_id,receipt,committed_at)
-         VALUES (erpx_authority_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8)",
+         VALUES (erpx_authority_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8)",
     )
     .bind(request.request.identity.idempotency_key.as_str())
     .bind(request.request.identity.command_id.as_uuid())
@@ -578,9 +578,9 @@ fn map_database(_error: impl std::fmt::Display) -> PortError {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn source_contract_uses_exact_tenant_predicates_and_atomic_evidence() {
+    fn source_contract_uses_exact_holding_predicates_and_atomic_evidence() {
         let source = include_str!("sharing.rs");
-        assert!(source.contains("tenant_id=erpx_authority_write.current_tenant_id()"));
+        assert!(source.contains("holding_id=erpx_authority_write.current_holding_id()"));
         assert!(source.contains("sharing_command_receipts"));
         assert!(source.contains("sharing_audit_log"));
         assert!(source.contains("erpx_cqrs_write.outbox_events"));

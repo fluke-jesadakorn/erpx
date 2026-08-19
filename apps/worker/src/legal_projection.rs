@@ -1,4 +1,4 @@
-//! Tenant-routed Legal/document read projection worker.
+//! Holding-routed Legal/document read projection worker.
 
 use std::collections::HashSet;
 
@@ -7,10 +7,10 @@ use erpx_domain::legal::{
     MAX_LEGAL_PURPOSE_BYTES, MAX_LEGAL_REFERENCE_BYTES, MAX_LEGAL_TITLE_BYTES,
 };
 use erpx_infrastructure::{
-    LegalAggregateType, LegalEventType, LegalOutboxPayload, LegalProjectionRebuildPreparation,
-    LegalSourceEvent, LegalSourceEventCursor, LegalSourceEventPage,
-    MAX_LEGAL_SOURCE_EVENT_PAGE_SIZE, PersistenceError, RoutedDatabaseSide, RoutedTenantDatabase,
-    SqlxLegalProjectionStore, TenantDatabaseRouter,
+    HoldingDatabaseRouter, LegalAggregateType, LegalEventType, LegalOutboxPayload,
+    LegalProjectionRebuildPreparation, LegalSourceEvent, LegalSourceEventCursor,
+    LegalSourceEventPage, MAX_LEGAL_SOURCE_EVENT_PAGE_SIZE, PersistenceError, RoutedDatabaseSide,
+    RoutedHoldingDatabase, SqlxLegalProjectionStore,
 };
 use thiserror::Error;
 
@@ -36,22 +36,22 @@ impl From<PersistenceError> for LegalProjectionWorkerError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalProjectionRequest {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub cursor: Option<LegalSourceEventCursor>,
     pub page_size: u32,
 }
 
 impl LegalProjectionRequest {
     pub fn new(
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         cursor: Option<LegalSourceEventCursor>,
         page_size: u32,
     ) -> Result<Self, LegalProjectionWorkerError> {
         let request = Self {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
+            holding_id: holding_id.into(),
+            data_profile_key: data_profile_key.into(),
             cursor,
             page_size,
         };
@@ -60,8 +60,8 @@ impl LegalProjectionRequest {
     }
 
     fn validate(&self) -> Result<(), LegalProjectionWorkerError> {
-        validate_reference(&self.tenant_id, "tenant_id")?;
-        validate_reference(&self.holding_ref, "holding_ref")?;
+        validate_reference(&self.holding_id, "holding_id")?;
+        validate_reference(&self.data_profile_key, "data_profile_key")?;
         if self.page_size == 0 || self.page_size > LEGAL_PROJECTION_MAX_PAGE_SIZE {
             return Err(LegalProjectionWorkerError::Configuration(format!(
                 "Legal projection page size must be 1..={LEGAL_PROJECTION_MAX_PAGE_SIZE}"
@@ -87,8 +87,8 @@ impl LegalProjectionRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalProjectionRunReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub events_seen: u64,
     pub events_applied: u64,
     pub next_cursor: Option<LegalSourceEventCursor>,
@@ -97,26 +97,26 @@ pub struct LegalProjectionRunReport {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalProjectionRebuildReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub events_replayed: u64,
     pub preparation: LegalProjectionRebuildPreparation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalProjectionReconciliationReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
+    pub holding_id: String,
+    pub data_profile_key: String,
     pub reconciliation: LegalProjectionReconciliation,
 }
 
 #[derive(Debug, Clone)]
 pub struct LegalProjectionRunner {
-    router: TenantDatabaseRouter,
+    router: HoldingDatabaseRouter,
 }
 
 impl LegalProjectionRunner {
-    pub fn new(router: TenantDatabaseRouter) -> Self {
+    pub fn new(router: HoldingDatabaseRouter) -> Self {
         Self { router }
     }
 
@@ -126,12 +126,12 @@ impl LegalProjectionRunner {
     ) -> Result<LegalProjectionRunReport, LegalProjectionWorkerError> {
         request.validate()?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result = match SqlxLegalProjectionStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            request.holding_ref.clone(),
+            request.data_profile_key.clone(),
         ) {
             Ok(store) => async {
                 let mut cursor = request.cursor.clone();
@@ -155,8 +155,8 @@ impl LegalProjectionRunner {
                     cursor = page.next_cursor;
                 }
                 Ok::<LegalProjectionRunReport, PersistenceError>(LegalProjectionRunReport {
-                    tenant_id: request.tenant_id.clone(),
-                    holding_ref: request.holding_ref.clone(),
+                    holding_id: request.holding_id.clone(),
+                    data_profile_key: request.data_profile_key.clone(),
                     events_seen,
                     events_applied,
                     next_cursor: None,
@@ -173,18 +173,18 @@ impl LegalProjectionRunner {
 
     pub async fn rebuild(
         &self,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
         page_size: u32,
     ) -> Result<LegalProjectionRebuildReport, LegalProjectionWorkerError> {
-        let request = LegalProjectionRequest::new(tenant_id, holding_ref, None, page_size)?;
+        let request = LegalProjectionRequest::new(holding_id, data_profile_key, None, page_size)?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result = match SqlxLegalProjectionStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            request.holding_ref.clone(),
+            request.data_profile_key.clone(),
         ) {
             Ok(store) => async {
                 let source_event_count = store.source_event_high_watermark().await?;
@@ -227,8 +227,8 @@ impl LegalProjectionRunner {
                     ));
                 }
                 Ok::<LegalProjectionRebuildReport, PersistenceError>(LegalProjectionRebuildReport {
-                    tenant_id: request.tenant_id.clone(),
-                    holding_ref: request.holding_ref.clone(),
+                    holding_id: request.holding_id.clone(),
+                    data_profile_key: request.data_profile_key.clone(),
                     events_replayed,
                     preparation,
                 })
@@ -245,24 +245,24 @@ impl LegalProjectionRunner {
     /// disposable read checkpoints without mutating either side.
     pub async fn reconcile(
         &self,
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
+        holding_id: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<LegalProjectionReconciliationReport, LegalProjectionWorkerError> {
-        let request = LegalProjectionRequest::new(tenant_id, holding_ref, None, 1)?;
+        let request = LegalProjectionRequest::new(holding_id, data_profile_key, None, 1)?;
         let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
+            .route_store(&request.holding_id, &request.data_profile_key)
             .await?;
         let result = match SqlxLegalProjectionStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            request.holding_ref.clone(),
+            request.data_profile_key.clone(),
         ) {
             Ok(store) => store
                 .reconcile_projection()
                 .await
                 .map(|reconciliation| LegalProjectionReconciliationReport {
-                    tenant_id: request.tenant_id.clone(),
-                    holding_ref: request.holding_ref.clone(),
+                    holding_id: request.holding_id.clone(),
+                    data_profile_key: request.data_profile_key.clone(),
                     reconciliation,
                 })
                 .map_err(|_| redacted_error("reconciliation")),
@@ -274,17 +274,17 @@ impl LegalProjectionRunner {
 
     async fn route_store(
         &self,
-        tenant_id: &str,
-        holding_ref: &str,
-    ) -> Result<(RoutedTenantDatabase, RoutedTenantDatabase), LegalProjectionWorkerError> {
+        holding_id: &str,
+        data_profile_key: &str,
+    ) -> Result<(RoutedHoldingDatabase, RoutedHoldingDatabase), LegalProjectionWorkerError> {
         let write = self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Write)
             .await
             .map_err(|_| redacted_error("write database routing"))?;
         let read = match self
             .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
+            .route(holding_id, data_profile_key, RoutedDatabaseSide::Read)
             .await
         {
             Ok(read) => read,
@@ -293,7 +293,7 @@ impl LegalProjectionRunner {
                 return Err(redacted_error("read database routing"));
             }
         };
-        if !valid_route_fence(tenant_id, holding_ref, &write, &read) {
+        if !valid_route_fence(holding_id, data_profile_key, &write, &read) {
             write.close().await;
             read.close().await;
             return Err(redacted_error("database route binding"));
@@ -302,7 +302,7 @@ impl LegalProjectionRunner {
     }
 }
 
-async fn close_routes(write: RoutedTenantDatabase, read: RoutedTenantDatabase) {
+async fn close_routes(write: RoutedHoldingDatabase, read: RoutedHoldingDatabase) {
     write.close().await;
     read.close().await;
 }
@@ -322,17 +322,17 @@ fn validate_reference(value: &str, field: &str) -> Result<(), LegalProjectionWor
 }
 
 fn valid_route_fence(
-    tenant_id: &str,
-    holding_ref: &str,
-    write: &RoutedTenantDatabase,
-    read: &RoutedTenantDatabase,
+    holding_id: &str,
+    data_profile_key: &str,
+    write: &RoutedHoldingDatabase,
+    read: &RoutedHoldingDatabase,
 ) -> bool {
     write.side == RoutedDatabaseSide::Write
         && read.side == RoutedDatabaseSide::Read
-        && write.tenant_id == tenant_id
-        && read.tenant_id == tenant_id
-        && write.holding_ref == holding_ref
-        && read.holding_ref == holding_ref
+        && write.holding_id == holding_id
+        && read.holding_id == holding_id
+        && write.data_profile_key == data_profile_key
+        && read.data_profile_key == data_profile_key
         && !write.database_key.trim().is_empty()
         && !read.database_key.trim().is_empty()
         && write.database_key != read.database_key
@@ -425,8 +425,8 @@ fn validate_source_event(event: &LegalSourceEvent) -> Result<(), LegalProjection
         || event.actor.principal_ref.len() > 255
         || event.actor.principal_ref.chars().any(char::is_control)
         || matches!(
-            &event.tenant_scope,
-            erpx_domain::contracts::TenantScope::Platform
+            &event.active_scope,
+            erpx_domain::contracts::AuthorityScope::Platform
         )
     {
         return Err(LegalProjectionWorkerError::Configuration(
@@ -496,13 +496,13 @@ fn validate_scope(
     if holding_id.is_nil()
         || company_id.is_nil()
         || branch_id.is_some_and(|value| value.is_nil())
-        || !event.tenant_scope.contains(&match branch_id {
-            Some(branch_id) => erpx_domain::contracts::TenantScope::Branch {
+        || !event.active_scope.contains(&match branch_id {
+            Some(branch_id) => erpx_domain::contracts::AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
             },
-            None => erpx_domain::contracts::TenantScope::Company {
+            None => erpx_domain::contracts::AuthorityScope::Company {
                 holding_id,
                 company_id,
             },
@@ -708,7 +708,7 @@ fn redacted_error(operation: &'static str) -> LegalProjectionWorkerError {
 mod tests {
     use super::*;
     use chrono::Utc;
-    use erpx_domain::contracts::{ActorAttribution, ActorKind, TenantScope};
+    use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope};
     use erpx_infrastructure::{
         LegalAccessHistoryEvent, LegalAggregateType, LegalEventType, LegalOutboxPayload,
     };
@@ -731,7 +731,7 @@ mod tests {
             aggregate_id,
             aggregate_version,
             occurred_at: now,
-            tenant_scope: TenantScope::Holding { holding_id },
+            active_scope: AuthorityScope::Holding { holding_id },
             actor: ActorAttribution {
                 principal_ref: "legal-worker".into(),
                 kind: ActorKind::SystemWorker,
@@ -759,11 +759,11 @@ mod tests {
 
     #[test]
     fn request_bounds_and_cursor_fail_closed() {
-        assert!(LegalProjectionRequest::new("tenant", "holding", None, 0).is_err());
-        assert!(LegalProjectionRequest::new("tenant/unsafe", "holding", None, 1).is_err());
+        assert!(LegalProjectionRequest::new("holding", "holding", None, 0).is_err());
+        assert!(LegalProjectionRequest::new("holding/unsafe", "holding", None, 1).is_err());
         assert!(
             LegalProjectionRequest::new(
-                "tenant",
+                "holding",
                 "holding",
                 Some(LegalSourceEventCursor {
                     aggregate_type: "legal_contract".into(),
@@ -776,7 +776,7 @@ mod tests {
         );
         assert!(
             LegalProjectionRequest::new(
-                "tenant",
+                "holding",
                 "holding",
                 Some(LegalSourceEventCursor {
                     aggregate_type: "unknown".into(),
@@ -872,7 +872,7 @@ mod tests {
     #[test]
     fn source_page_rejects_scope_and_type_mismatch_before_database_routing() {
         let mut scope_mismatch = source_event(Uuid::from_u128(50), 1, Uuid::from_u128(51));
-        scope_mismatch.tenant_scope = TenantScope::Company {
+        scope_mismatch.active_scope = AuthorityScope::Company {
             holding_id: Uuid::from_u128(999),
             company_id: Uuid::from_u128(2),
         };

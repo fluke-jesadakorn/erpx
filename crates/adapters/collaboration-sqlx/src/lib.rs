@@ -31,20 +31,23 @@ pub const INBOX_PROJECTION_FACT_EVENT: &str = "collaboration.inbox_projection_fa
 
 #[cfg(test)]
 const WRITE_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0072_collaboration.sql");
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 #[cfg(test)]
-const READ_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_read/0063_collaboration_projection.sql");
+const READ_DDL: &str = include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 
+#[cfg(test)]
+#[path = "../../schema_test.rs"]
+mod schema_test;
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn write_schema_keeps_body_in_anchor_plane_and_inbox_opaque() {
-        assert!(WRITE_DDL.contains("threads"));
-        assert!(!WRITE_DDL.contains("thread_snapshots"));
-        assert!(!WRITE_DDL.contains("snapshot JSONB"));
+        let owned = schema_test::select_schema_statements(WRITE_DDL, &["erpx_collaboration"]);
+        assert!(owned.contains("threads"));
+        assert!(!owned.contains("thread_snapshots"));
+        assert!(!owned.contains("snapshot JSONB"));
         assert!(WRITE_DDL.contains("comment_revisions"));
         assert!(WRITE_DDL.contains("encrypted_drafts"));
         assert!(WRITE_DDL.contains("opaque_mention_inbox"));
@@ -99,23 +102,26 @@ mod tests {
     }
 
     #[test]
-    fn cursors_and_unique_identities_are_tenant_prefixed() {
-        for ddl in [WRITE_DDL, READ_DDL] {
+    fn cursors_and_unique_identities_are_holding_prefixed() {
+        let write = schema_test::select_schema_statements(WRITE_DDL, &["erpx_collaboration"]);
+        let read = schema_test::select_schema_statements(READ_DDL, &["erpx_collaboration_read"]);
+        for ddl in [&write, &read] {
             assert!(!ddl.contains("BIGSERIAL PRIMARY KEY"));
             assert!(!ddl.contains("UUID NOT NULL UNIQUE"));
         }
-        assert!(WRITE_DDL.contains("PRIMARY KEY (tenant_id, inbox_cursor)"));
-        assert!(WRITE_DDL.contains("UNIQUE (tenant_id, event_id)"));
+        assert!(WRITE_DDL.contains("PRIMARY KEY (holding_id, inbox_cursor)"));
+        assert!(WRITE_DDL.contains("UNIQUE (holding_id, event_id)"));
         assert!(
-            READ_DDL.contains("PRIMARY KEY (tenant_id, projection_name, generation, inbox_cursor)")
+            READ_DDL
+                .contains("PRIMARY KEY (holding_id, projection_name, generation, inbox_cursor)")
         );
-        assert!(READ_DDL.contains("UNIQUE (tenant_id, projection_name, generation, event_id)"));
-        assert!(WRITE_DDL.contains("PRIMARY KEY (tenant_id, event_cursor)"));
-        assert!(WRITE_DDL.contains("(tenant_id, thread_id, comment_id, revision)"));
+        assert!(READ_DDL.contains("UNIQUE (holding_id, projection_name, generation, event_id)"));
+        assert!(WRITE_DDL.contains("PRIMARY KEY (holding_id, event_cursor)"));
+        assert!(WRITE_DDL.contains("(holding_id, thread_id, comment_id, revision)"));
     }
 
     #[test]
-    fn every_rls_binding_verifies_the_exact_tenant_returned_by_postgres() {
+    fn every_rls_binding_verifies_the_exact_holding_returned_by_postgres() {
         for source in [
             include_str!("authorization.rs"),
             include_str!("directory.rs"),
@@ -137,7 +143,7 @@ mod tests {
     }
 
     #[test]
-    fn item_directory_revocation_barriers_are_tenant_scoped_and_forced_rls() {
+    fn item_directory_revocation_barriers_are_holding_scoped_and_forced_rls() {
         for table in [
             "item_directory_tombstones",
             "item_directory_grant_tombstones",
@@ -151,9 +157,9 @@ mod tests {
             );
         }
         assert!(READ_DDL.contains("FORCE ROW LEVEL SECURITY"));
-        assert!(READ_DDL.contains("PRIMARY KEY (tenant_id, record_id)"));
-        assert!(READ_DDL.contains("PRIMARY KEY (tenant_id, record_id, principal_id)"));
-        assert!(READ_DDL.contains("PRIMARY KEY (tenant_id, relation_id)"));
+        assert!(READ_DDL.contains("PRIMARY KEY (holding_id, record_id)"));
+        assert!(READ_DDL.contains("PRIMARY KEY (holding_id, record_id, principal_id)"));
+        assert!(READ_DDL.contains("PRIMARY KEY (holding_id, relation_id)"));
         assert!(READ_DDL.contains("effective_at TIMESTAMPTZ NOT NULL"));
         assert!(READ_DDL.contains("expires_at TIMESTAMPTZ NOT NULL"));
         assert!(READ_DDL.contains("CHECK (expires_at > effective_at)"));

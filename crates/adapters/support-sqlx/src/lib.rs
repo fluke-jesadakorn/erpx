@@ -31,17 +31,13 @@ pub const AUTHORITY_EFFECT_EVENT: &str = "support.authority_effect";
 pub const EVENT_VERSION: u32 = 1;
 
 #[cfg(test)]
-const WRITE_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_write/0062_wave8_dependent_context_guards.sql"
-);
+const WRITE_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 #[cfg(test)]
-const NORMALIZED_AUTHORITY_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_write/0081_current_normalized_authority.sql"
-);
+const NORMALIZED_AUTHORITY_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 #[cfg(test)]
-const READ_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0054_wave8_dependent_context_projections.sql"
-);
+const READ_DDL: &str = include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 
 pub fn ticket_partition(id: erpx_support::SupportTicketId) -> String {
     format!("support.ticket:{}", id.as_uuid().simple())

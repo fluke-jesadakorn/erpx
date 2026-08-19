@@ -1,7 +1,7 @@
 //! Durable provider-account handoffs emitted by Marketing journey actions.
 //!
 //! The journey cursor and the initial invocation outbox event are committed
-//! in one tenant-write transaction. Provider calls happen only in the
+//! in one holding-write transaction. Provider calls happen only in the
 //! separately claimed invocation worker, after the worker re-resolves the
 //! active, verified holding-bound provider account from the control plane.
 
@@ -86,7 +86,7 @@ pub struct MarketingJourneyIntegrationProjectionReconciliation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MarketingJourneyIntegrationProjectionRebuildPreparation {
-    pub holding_ref: String,
+    pub data_profile_key: String,
     pub rows_cleared: u64,
     pub checkpoints_cleared: u64,
 }
@@ -107,26 +107,26 @@ struct InvocationSnapshot {
 pub struct SqlxMarketingJourneyIntegrationStore {
     write_pool: PgPool,
     read_pool: PgPool,
-    holding_ref: String,
+    data_profile_key: String,
 }
 
 impl SqlxMarketingJourneyIntegrationStore {
     pub fn new(
         write_pool: PgPool,
         read_pool: PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_holding_ref(&holding_ref)?;
+        let data_profile_key = data_profile_key.into();
+        validate_data_profile_key(&data_profile_key)?;
         Ok(Self {
             write_pool,
             read_pool,
-            holding_ref,
+            data_profile_key,
         })
     }
 
-    pub fn holding_ref(&self) -> &str {
-        &self.holding_ref
+    pub fn data_profile_key(&self) -> &str {
+        &self.data_profile_key
     }
 
     /// Queue an invocation as a standalone command boundary. Journey
@@ -138,8 +138,8 @@ impl SqlxMarketingJourneyIntegrationStore {
         invocation: &JourneyIntegrationInvocation,
         context: &CommandContext,
     ) -> Result<(), PersistenceError> {
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
-        Self::enqueue_in_transaction(&mut tx, &self.holding_ref, invocation, context).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
+        Self::enqueue_in_transaction(&mut tx, &self.data_profile_key, invocation, context).await?;
         tx.commit().await?;
         Ok(())
     }
@@ -149,18 +149,18 @@ impl SqlxMarketingJourneyIntegrationStore {
     /// outbox identity, never creating a second provider handoff.
     pub(crate) async fn enqueue_in_transaction(
         tx: &mut Transaction<'_, Postgres>,
-        holding_ref: &str,
+        data_profile_key: &str,
         invocation: &JourneyIntegrationInvocation,
         context: &CommandContext,
     ) -> Result<(), PersistenceError> {
         invocation
             .validate()
             .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
-        validate_holding_ref(holding_ref)?;
+        validate_data_profile_key(data_profile_key)?;
         context
             .validate()
             .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
-        if !context.tenant_scope.contains(&invocation.scope) {
+        if !context.active_scope.contains(&invocation.scope) {
             return Err(PersistenceError::InvalidData(
                 "integration invocation scope is outside command scope".into(),
             ));
@@ -177,17 +177,17 @@ impl SqlxMarketingJourneyIntegrationStore {
         };
         let payload = serde_json::to_value(&snapshot)?;
         let inserted = sqlx::query(
-            "INSERT INTO erpx_tenant.marketing_journey_integration_invocations
-                (holding_ref, invocation_id, integration_ref, journey_id, run_id,
+            "INSERT INTO erpx_holding.marketing_journey_integration_invocations
+                (data_profile_key, invocation_id, integration_ref, journey_id, run_id,
                  node_id, profile_id, scope, idempotency_key, state, attempt_count,
                  version, provider_reference, last_error, next_attempt_at,
                  claim_id, claimed_by, claim_until, completed_at, payload,
                  created_at, updated_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
                      NULL,NULL,NULL,$16,$17,$18,$18)
-             ON CONFLICT (holding_ref, invocation_id) DO NOTHING",
+             ON CONFLICT (data_profile_key, invocation_id) DO NOTHING",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(invocation.invocation_id)
         .bind(&invocation.integration_ref)
         .bind(invocation.journey_id)
@@ -212,11 +212,11 @@ impl SqlxMarketingJourneyIntegrationStore {
             let existing = sqlx::query(
                 "SELECT integration_ref, journey_id, run_id, node_id, profile_id,
                         idempotency_key
-                   FROM erpx_tenant.marketing_journey_integration_invocations
-                  WHERE holding_ref=$1 AND invocation_id=$2
+                   FROM erpx_holding.marketing_journey_integration_invocations
+                  WHERE data_profile_key=$1 AND invocation_id=$2
                   FOR UPDATE",
             )
-            .bind(holding_ref)
+            .bind(data_profile_key)
             .bind(invocation.invocation_id)
             .fetch_optional(&mut **tx)
             .await?
@@ -243,14 +243,14 @@ impl SqlxMarketingJourneyIntegrationStore {
             aggregate_type: MARKETING_JOURNEY_INTEGRATION_AGGREGATE.into(),
             aggregate_id: invocation.invocation_id,
             aggregate_version: 1,
-            tenant_scope: invocation.scope.clone(),
+            active_scope: invocation.scope.clone(),
             actor: context.actor.clone(),
             correlation_id: context.correlation_id,
             causation_id: context.causation_id,
             idempotency_key: Some(invocation.idempotency_key.clone()),
             payload: serde_json::json!({ "aggregate": payload }),
         };
-        append_event(tx, holding_ref, &event).await?;
+        append_event(tx, data_profile_key, &event).await?;
         Ok(())
     }
 
@@ -270,15 +270,15 @@ impl SqlxMarketingJourneyIntegrationStore {
         {
             return Err(invalid("integration claim lease is outside its bound"));
         }
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
         sqlx::query(
-            "UPDATE erpx_tenant.marketing_journey_integration_invocations
+            "UPDATE erpx_holding.marketing_journey_integration_invocations
                 SET state='retry_scheduled', claim_id=NULL, claimed_by=NULL,
                     claim_until=NULL, next_attempt_at=$2, updated_at=$2
-              WHERE holding_ref=$1 AND state='sending'
+              WHERE data_profile_key=$1 AND state='sending'
                 AND claim_until IS NOT NULL AND claim_until <= $2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(now)
         .execute(&mut *tx)
         .await?;
@@ -286,8 +286,8 @@ impl SqlxMarketingJourneyIntegrationStore {
             "SELECT invocation_id, integration_ref, journey_id, run_id, node_id,
                     profile_id, scope, idempotency_key, attempt_count, claim_id,
                     claimed_by, claim_until, created_at
-               FROM erpx_tenant.marketing_journey_integration_invocations
-              WHERE holding_ref=$1
+               FROM erpx_holding.marketing_journey_integration_invocations
+              WHERE data_profile_key=$1
                 AND state IN ('queued', 'retry_scheduled')
                 AND next_attempt_at <= $2
                 AND (claim_until IS NULL OR claim_until <= $2)
@@ -295,7 +295,7 @@ impl SqlxMarketingJourneyIntegrationStore {
               LIMIT $3
               FOR UPDATE SKIP LOCKED",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(now)
         .bind(i64::from(limit))
         .fetch_all(&mut *tx)
@@ -323,12 +323,12 @@ impl SqlxMarketingJourneyIntegrationStore {
             let claim_id = Uuid::new_v4();
             let claim_until = now + lease;
             sqlx::query(
-                "UPDATE erpx_tenant.marketing_journey_integration_invocations
+                "UPDATE erpx_holding.marketing_journey_integration_invocations
                     SET state='sending', attempt_count=$3, claim_id=$4,
                         claimed_by=$5, claim_until=$6, updated_at=$7
-                  WHERE holding_ref=$1 AND invocation_id=$2",
+                  WHERE data_profile_key=$1 AND invocation_id=$2",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(invocation_id)
             .bind(i32::try_from(attempt).map_err(|_| invalid("attempt exceeds INTEGER"))?)
             .bind(claim_id)
@@ -399,16 +399,16 @@ impl SqlxMarketingJourneyIntegrationStore {
                     )
                 }
             };
-        let mut tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
         let row = sqlx::query(
             "SELECT integration_ref, journey_id, run_id, node_id, profile_id,
                     scope, idempotency_key, attempt_count, version, claim_id,
                     claimed_by, claim_until, provider_reference, last_error,
                     created_at
-               FROM erpx_tenant.marketing_journey_integration_invocations
-              WHERE holding_ref=$1 AND invocation_id=$2 FOR UPDATE",
+               FROM erpx_holding.marketing_journey_integration_invocations
+              WHERE data_profile_key=$1 AND invocation_id=$2 FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(claim.invocation.invocation_id)
         .fetch_optional(&mut *tx)
         .await?
@@ -458,13 +458,13 @@ impl SqlxMarketingJourneyIntegrationStore {
         };
         let payload = serde_json::to_value(&snapshot)?;
         let affected = sqlx::query(
-            "UPDATE erpx_tenant.marketing_journey_integration_invocations
+            "UPDATE erpx_holding.marketing_journey_integration_invocations
                 SET state=$3, version=$4, provider_reference=$5, last_error=$6,
                     next_attempt_at=$7, claim_id=NULL, claimed_by=NULL,
                     claim_until=NULL, completed_at=$8, payload=$9, updated_at=$10
-              WHERE holding_ref=$1 AND invocation_id=$2 AND version=$11",
+              WHERE data_profile_key=$1 AND invocation_id=$2 AND version=$11",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(claim.invocation.invocation_id)
         .bind(&snapshot.state)
         .bind(i64::try_from(version).map_err(|_| invalid("version exceeds BIGINT"))?)
@@ -497,7 +497,7 @@ impl SqlxMarketingJourneyIntegrationStore {
             aggregate_type: MARKETING_JOURNEY_INTEGRATION_AGGREGATE.into(),
             aggregate_id: snapshot.invocation.invocation_id,
             aggregate_version: version,
-            tenant_scope: snapshot.invocation.scope.clone(),
+            active_scope: snapshot.invocation.scope.clone(),
             actor: context.actor,
             correlation_id: context.correlation_id,
             causation_id: None,
@@ -507,7 +507,7 @@ impl SqlxMarketingJourneyIntegrationStore {
             )),
             payload: serde_json::json!({ "aggregate": payload }),
         };
-        append_event(&mut tx, &self.holding_ref, &event).await?;
+        append_event(&mut tx, &self.data_profile_key, &event).await?;
         tx.commit().await?;
         Ok(MarketingJourneyIntegrationWriteReceipt {
             invocation_id: snapshot.invocation.invocation_id,
@@ -523,13 +523,13 @@ impl SqlxMarketingJourneyIntegrationStore {
         if page_size == 0 || page_size > MAX_MARKETING_JOURNEY_INTEGRATION_PROJECTION_PAGE_SIZE {
             return Err(invalid("integration projection page is outside its bound"));
         }
-        let mut read_tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut read_tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let checkpoint = sqlx::query(
             "SELECT last_occurred_at, last_event_id
-               FROM erpx_tenant.marketing_journey_integration_projection_checkpoints
-              WHERE holding_ref=$1",
+               FROM erpx_holding.marketing_journey_integration_projection_checkpoints
+              WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *read_tx)
         .await?;
         let (last_at, last_id) = if let Some(row) = checkpoint {
@@ -545,17 +545,17 @@ impl SqlxMarketingJourneyIntegrationStore {
         };
         read_tx.commit().await?;
 
-        let mut source_tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
+        let mut source_tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
         let events = sqlx::query(
             "SELECT event_id, event_type, aggregate_id, aggregate_version,
                     occurred_at, payload
-               FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND aggregate_type=$2
+               FROM erpx_holding.outbox_events
+              WHERE data_profile_key=$1 AND aggregate_type=$2
                 AND (occurred_at > $3 OR (occurred_at = $3 AND event_id > $4))
               ORDER BY occurred_at, event_id
               LIMIT $5",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(MARKETING_JOURNEY_INTEGRATION_AGGREGATE)
         .bind(last_at)
         .bind(last_id)
@@ -566,7 +566,7 @@ impl SqlxMarketingJourneyIntegrationStore {
         if events.is_empty() {
             return Ok(0);
         }
-        let mut read_tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut read_tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let mut projected = 0_u64;
         let mut cursor_at = last_at;
         let mut cursor_id = last_id;
@@ -594,10 +594,10 @@ impl SqlxMarketingJourneyIntegrationStore {
             )?;
             let current: Option<i64> = sqlx::query_scalar(
                 "SELECT source_version
-                   FROM erpx_tenant.marketing_journey_integration_read_rows
-                  WHERE holding_ref=$1 AND invocation_id=$2 FOR UPDATE",
+                   FROM erpx_holding.marketing_journey_integration_read_rows
+                  WHERE data_profile_key=$1 AND invocation_id=$2 FOR UPDATE",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(aggregate_id)
             .fetch_optional(&mut *read_tx)
             .await?;
@@ -605,10 +605,10 @@ impl SqlxMarketingJourneyIntegrationStore {
                 if current == Some(source_version as i64) {
                     let existing_payload: Value = sqlx::query_scalar(
                         "SELECT payload
-                           FROM erpx_tenant.marketing_journey_integration_read_rows
-                          WHERE holding_ref=$1 AND invocation_id=$2",
+                           FROM erpx_holding.marketing_journey_integration_read_rows
+                          WHERE data_profile_key=$1 AND invocation_id=$2",
                     )
-                    .bind(&self.holding_ref)
+                    .bind(&self.data_profile_key)
                     .bind(aggregate_id)
                     .fetch_one(&mut *read_tx)
                     .await?;
@@ -628,13 +628,13 @@ impl SqlxMarketingJourneyIntegrationStore {
                 return Err(invalid("integration projection version is not contiguous"));
             }
             sqlx::query(
-                "INSERT INTO erpx_tenant.marketing_journey_integration_read_rows
-                    (holding_ref, invocation_id, integration_ref, journey_id, run_id,
+                "INSERT INTO erpx_holding.marketing_journey_integration_read_rows
+                    (data_profile_key, invocation_id, integration_ref, journey_id, run_id,
                      node_id, profile_id, scope, idempotency_key, state, attempt_count,
                      version, provider_reference, last_error, next_attempt_at,
                      completed_at, source_version, source_event_id, payload, updated_at)
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
-                 ON CONFLICT (holding_ref, invocation_id) DO UPDATE SET
+                 ON CONFLICT (data_profile_key, invocation_id) DO UPDATE SET
                     integration_ref=EXCLUDED.integration_ref, journey_id=EXCLUDED.journey_id,
                     run_id=EXCLUDED.run_id, node_id=EXCLUDED.node_id, profile_id=EXCLUDED.profile_id,
                     scope=EXCLUDED.scope, idempotency_key=EXCLUDED.idempotency_key,
@@ -645,7 +645,7 @@ impl SqlxMarketingJourneyIntegrationStore {
                     source_event_id=EXCLUDED.source_event_id, payload=EXCLUDED.payload,
                     updated_at=EXCLUDED.updated_at",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(snapshot.invocation.invocation_id)
             .bind(&snapshot.invocation.integration_ref)
             .bind(snapshot.invocation.journey_id)
@@ -672,14 +672,14 @@ impl SqlxMarketingJourneyIntegrationStore {
             cursor_id = event_id;
         }
         sqlx::query(
-            "INSERT INTO erpx_tenant.marketing_journey_integration_projection_checkpoints
-                (holding_ref, last_occurred_at, last_event_id, updated_at)
+            "INSERT INTO erpx_holding.marketing_journey_integration_projection_checkpoints
+                (data_profile_key, last_occurred_at, last_event_id, updated_at)
              VALUES ($1,$2,$3,now())
-             ON CONFLICT (holding_ref) DO UPDATE SET
+             ON CONFLICT (data_profile_key) DO UPDATE SET
                 last_occurred_at=EXCLUDED.last_occurred_at,
                 last_event_id=EXCLUDED.last_event_id, updated_at=now()",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(cursor_at)
         .bind(cursor_id)
         .execute(&mut *read_tx)
@@ -689,7 +689,7 @@ impl SqlxMarketingJourneyIntegrationStore {
     }
 
     /// Atomically rebuild the disposable invocation read model from the
-    /// immutable tenant outbox. The source transaction holds a table fence
+    /// immutable holding outbox. The source transaction holds a table fence
     /// for the whole replacement, while the read transaction keeps the old
     /// projection committed until every event and checkpoint has been
     /// replayed successfully. Any malformed event, source movement, bound
@@ -704,15 +704,15 @@ impl SqlxMarketingJourneyIntegrationStore {
         if page_size == 0 || page_size > MAX_MARKETING_JOURNEY_INTEGRATION_PROJECTION_PAGE_SIZE {
             return Err(invalid("integration rebuild page is outside its bound"));
         }
-        let mut source_tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
-        sqlx::query("LOCK TABLE erpx_tenant.outbox_events IN SHARE MODE")
+        let mut source_tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
+        sqlx::query("LOCK TABLE erpx_holding.outbox_events IN SHARE MODE")
             .execute(&mut *source_tx)
             .await?;
         let actual_source_event_count: i64 = sqlx::query_scalar(
-            "SELECT count(*) FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND aggregate_type=$2",
+            "SELECT count(*) FROM erpx_holding.outbox_events
+              WHERE data_profile_key=$1 AND aggregate_type=$2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(MARKETING_JOURNEY_INTEGRATION_AGGREGATE)
         .fetch_one(&mut *source_tx)
         .await?;
@@ -726,26 +726,26 @@ impl SqlxMarketingJourneyIntegrationStore {
             return Err(invalid("integration rebuild source-event bound exceeded"));
         }
 
-        let mut read_tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
-        lock_integration_projection(&mut read_tx, &self.holding_ref).await?;
+        let mut read_tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
+        lock_integration_projection(&mut read_tx, &self.data_profile_key).await?;
         let rows_cleared = sqlx::query(
-            "DELETE FROM erpx_tenant.marketing_journey_integration_read_rows
-              WHERE holding_ref=$1",
+            "DELETE FROM erpx_holding.marketing_journey_integration_read_rows
+              WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .execute(&mut *read_tx)
         .await?
         .rows_affected();
         let checkpoints_cleared = sqlx::query(
-            "DELETE FROM erpx_tenant.marketing_journey_integration_projection_checkpoints
-              WHERE holding_ref=$1",
+            "DELETE FROM erpx_holding.marketing_journey_integration_projection_checkpoints
+              WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .execute(&mut *read_tx)
         .await?
         .rows_affected();
         let preparation = MarketingJourneyIntegrationProjectionRebuildPreparation {
-            holding_ref: self.holding_ref.clone(),
+            data_profile_key: self.data_profile_key.clone(),
             rows_cleared,
             checkpoints_cleared,
         };
@@ -758,13 +758,13 @@ impl SqlxMarketingJourneyIntegrationStore {
             let events = sqlx::query(
                 "SELECT event_id, event_type, aggregate_id, aggregate_version,
                         occurred_at, payload
-                   FROM erpx_tenant.outbox_events
-                  WHERE holding_ref=$1 AND aggregate_type=$2
+                   FROM erpx_holding.outbox_events
+                  WHERE data_profile_key=$1 AND aggregate_type=$2
                     AND (occurred_at > $3 OR (occurred_at = $3 AND event_id > $4))
                   ORDER BY occurred_at, event_id
                   LIMIT $5",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(MARKETING_JOURNEY_INTEGRATION_AGGREGATE)
             .bind(cursor_at)
             .bind(cursor_id)
@@ -785,7 +785,7 @@ impl SqlxMarketingJourneyIntegrationStore {
                 let payload: Value = event.try_get("payload")?;
                 if apply_integration_event(
                     &mut read_tx,
-                    &self.holding_ref,
+                    &self.data_profile_key,
                     IntegrationOutboxEvent {
                         event_id,
                         event_type: &event_type,
@@ -808,10 +808,10 @@ impl SqlxMarketingJourneyIntegrationStore {
         }
 
         let final_source_event_count: i64 = sqlx::query_scalar(
-            "SELECT count(*) FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND aggregate_type=$2",
+            "SELECT count(*) FROM erpx_holding.outbox_events
+              WHERE data_profile_key=$1 AND aggregate_type=$2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(MARKETING_JOURNEY_INTEGRATION_AGGREGATE)
         .fetch_one(&mut *source_tx)
         .await?;
@@ -822,14 +822,14 @@ impl SqlxMarketingJourneyIntegrationStore {
         }
         if actual_source_event_count > 0 {
             sqlx::query(
-                "INSERT INTO erpx_tenant.marketing_journey_integration_projection_checkpoints
-                    (holding_ref, last_occurred_at, last_event_id, updated_at)
+                "INSERT INTO erpx_holding.marketing_journey_integration_projection_checkpoints
+                    (data_profile_key, last_occurred_at, last_event_id, updated_at)
                  VALUES ($1,$2,$3,now())
-                 ON CONFLICT (holding_ref) DO UPDATE SET
+                 ON CONFLICT (data_profile_key) DO UPDATE SET
                     last_occurred_at=EXCLUDED.last_occurred_at,
                     last_event_id=EXCLUDED.last_event_id, updated_at=now()",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(cursor_at)
             .bind(cursor_id)
             .execute(&mut *read_tx)
@@ -848,18 +848,18 @@ impl SqlxMarketingJourneyIntegrationStore {
         if page_size == 0 || page_size > MAX_MARKETING_JOURNEY_INTEGRATION_PROJECTION_PAGE_SIZE {
             return Err(invalid("integration read page is outside its bound"));
         }
-        let mut tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let rows = sqlx::query(
             "SELECT invocation_id, integration_ref, journey_id, run_id, node_id,
                     profile_id, scope, idempotency_key, state, attempt_count, version,
                     provider_reference, last_error, next_attempt_at, completed_at,
                     source_version, source_event_id, payload
-               FROM erpx_tenant.marketing_journey_integration_read_rows
-              WHERE holding_ref=$1 AND ($2::uuid IS NULL OR invocation_id>$2)
+               FROM erpx_holding.marketing_journey_integration_read_rows
+              WHERE data_profile_key=$1 AND ($2::uuid IS NULL OR invocation_id>$2)
               ORDER BY invocation_id
               LIMIT $3",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(after_id)
         .bind(i64::from(page_size))
         .fetch_all(&mut *tx)
@@ -871,22 +871,22 @@ impl SqlxMarketingJourneyIntegrationStore {
     pub async fn reconcile_projection(
         &self,
     ) -> Result<MarketingJourneyIntegrationProjectionReconciliation, PersistenceError> {
-        let mut source_tx = begin_scoped(&self.write_pool, &self.holding_ref).await?;
-        sqlx::query("LOCK TABLE erpx_tenant.outbox_events IN SHARE MODE")
+        let mut source_tx = begin_scoped(&self.write_pool, &self.data_profile_key).await?;
+        sqlx::query("LOCK TABLE erpx_holding.outbox_events IN SHARE MODE")
             .execute(&mut *source_tx)
             .await?;
         let source_count: i64 = sqlx::query_scalar(
-            "SELECT count(*) FROM erpx_tenant.marketing_journey_integration_invocations
-              WHERE holding_ref=$1",
+            "SELECT count(*) FROM erpx_holding.marketing_journey_integration_invocations
+              WHERE data_profile_key=$1",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_one(&mut *source_tx)
         .await?;
         let event_count: i64 = sqlx::query_scalar(
-            "SELECT count(*) FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND aggregate_type=$2",
+            "SELECT count(*) FROM erpx_holding.outbox_events
+              WHERE data_profile_key=$1 AND aggregate_type=$2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(MARKETING_JOURNEY_INTEGRATION_AGGREGATE)
         .fetch_one(&mut *source_tx)
         .await?;
@@ -899,19 +899,19 @@ impl SqlxMarketingJourneyIntegrationStore {
         }
         let source_rows = sqlx::query(
             "SELECT invocation_id, version, payload
-               FROM erpx_tenant.marketing_journey_integration_invocations
-              WHERE holding_ref=$1 ORDER BY invocation_id",
+               FROM erpx_holding.marketing_journey_integration_invocations
+              WHERE data_profile_key=$1 ORDER BY invocation_id",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_all(&mut *source_tx)
         .await?;
         let event_rows = sqlx::query(
             "SELECT event_id, event_type, aggregate_id, aggregate_version, payload
-               FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND aggregate_type=$2
+               FROM erpx_holding.outbox_events
+              WHERE data_profile_key=$1 AND aggregate_type=$2
               ORDER BY aggregate_id, aggregate_version, event_id",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(MARKETING_JOURNEY_INTEGRATION_AGGREGATE)
         .fetch_all(&mut *source_tx)
         .await?;
@@ -977,13 +977,13 @@ impl SqlxMarketingJourneyIntegrationStore {
             return Err(invalid("integration source and outbox counts disagree"));
         }
         source_tx.commit().await?;
-        let mut read_tx = begin_scoped(&self.read_pool, &self.holding_ref).await?;
+        let mut read_tx = begin_scoped(&self.read_pool, &self.data_profile_key).await?;
         let read_rows = sqlx::query(
             "SELECT invocation_id, source_version, payload
-               FROM erpx_tenant.marketing_journey_integration_read_rows
-              WHERE holding_ref=$1 ORDER BY invocation_id LIMIT $2",
+               FROM erpx_holding.marketing_journey_integration_read_rows
+              WHERE data_profile_key=$1 ORDER BY invocation_id LIMIT $2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(MAX_RECONCILIATION_ROWS + 1)
         .fetch_all(&mut *read_tx)
         .await?;
@@ -1064,7 +1064,7 @@ struct IntegrationOutboxEvent<'a> {
 
 async fn apply_integration_event(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     event: IntegrationOutboxEvent<'_>,
 ) -> Result<bool, PersistenceError> {
     validate_integration_event(
@@ -1083,10 +1083,10 @@ async fn apply_integration_event(
     )?;
     let current: Option<i64> = sqlx::query_scalar(
         "SELECT source_version
-           FROM erpx_tenant.marketing_journey_integration_read_rows
-          WHERE holding_ref=$1 AND invocation_id=$2 FOR UPDATE",
+           FROM erpx_holding.marketing_journey_integration_read_rows
+          WHERE data_profile_key=$1 AND invocation_id=$2 FOR UPDATE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(event.aggregate_id)
     .fetch_optional(&mut **tx)
     .await?;
@@ -1094,10 +1094,10 @@ async fn apply_integration_event(
         if current == Some(event.source_version as i64) {
             let existing_payload: Option<Value> = sqlx::query_scalar(
                 "SELECT payload
-                   FROM erpx_tenant.marketing_journey_integration_read_rows
-                  WHERE holding_ref=$1 AND invocation_id=$2",
+                   FROM erpx_holding.marketing_journey_integration_read_rows
+                  WHERE data_profile_key=$1 AND invocation_id=$2",
             )
-            .bind(holding_ref)
+            .bind(data_profile_key)
             .bind(event.aggregate_id)
             .fetch_optional(&mut **tx)
             .await?;
@@ -1116,13 +1116,13 @@ async fn apply_integration_event(
     }
     let snapshot_payload = serde_json::to_value(&snapshot)?;
     sqlx::query(
-        "INSERT INTO erpx_tenant.marketing_journey_integration_read_rows
-            (holding_ref, invocation_id, integration_ref, journey_id, run_id,
+        "INSERT INTO erpx_holding.marketing_journey_integration_read_rows
+            (data_profile_key, invocation_id, integration_ref, journey_id, run_id,
              node_id, profile_id, scope, idempotency_key, state, attempt_count,
              version, provider_reference, last_error, next_attempt_at,
              completed_at, source_version, source_event_id, payload, updated_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
-         ON CONFLICT (holding_ref, invocation_id) DO UPDATE SET
+         ON CONFLICT (data_profile_key, invocation_id) DO UPDATE SET
             integration_ref=EXCLUDED.integration_ref, journey_id=EXCLUDED.journey_id,
             run_id=EXCLUDED.run_id, node_id=EXCLUDED.node_id, profile_id=EXCLUDED.profile_id,
             scope=EXCLUDED.scope, idempotency_key=EXCLUDED.idempotency_key,
@@ -1133,7 +1133,7 @@ async fn apply_integration_event(
             source_event_id=EXCLUDED.source_event_id, payload=EXCLUDED.payload,
             updated_at=EXCLUDED.updated_at",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(snapshot.invocation.invocation_id)
     .bind(&snapshot.invocation.integration_ref)
     .bind(snapshot.invocation.journey_id)
@@ -1202,11 +1202,11 @@ fn validate_integration_event(
 
 async fn lock_integration_projection(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<(), PersistenceError> {
     sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
         .bind(format!(
-            "marketing-journey-integration:projection:{holding_ref}"
+            "marketing-journey-integration:projection:{data_profile_key}"
         ))
         .execute(&mut **tx)
         .await?;
@@ -1215,14 +1215,14 @@ async fn lock_integration_projection(
 
 async fn append_event(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     event: &EventEnvelope,
 ) -> Result<(), PersistenceError> {
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at,
-             contract_version, event_version, tenant_scope, actor,
+             contract_version, event_version, active_scope, actor,
              correlation_id, causation_id, idempotency_key)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
          ON CONFLICT (event_id) DO NOTHING",
@@ -1230,14 +1230,14 @@ async fn append_event(
     .bind(event.event_id)
     .bind(&event.aggregate_type)
     .bind(event.aggregate_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(i64::try_from(event.aggregate_version).map_err(|_| invalid("event version"))?)
     .bind(&event.event_type)
     .bind(&event.payload)
     .bind(event.occurred_at)
     .bind(i32::from(event.contract_version))
     .bind(i32::from(event.event_version))
-    .bind(serde_json::to_value(&event.tenant_scope)?)
+    .bind(serde_json::to_value(&event.active_scope)?)
     .bind(serde_json::to_value(&event.actor)?)
     .bind(event.correlation_id)
     .bind(event.causation_id)
@@ -1301,7 +1301,7 @@ fn deterministic_event_id(invocation_id: Uuid, version: u64) -> Uuid {
     )
 }
 
-fn validate_holding_ref(value: &str) -> Result<(), PersistenceError> {
+fn validate_data_profile_key(value: &str) -> Result<(), PersistenceError> {
     if value.trim().is_empty() || value.len() > 255 || value.chars().any(char::is_control) {
         return Err(PersistenceError::Configuration(
             "holding reference must be bounded and non-empty",
@@ -1346,7 +1346,7 @@ fn invalid(message: impl Into<String>) -> PersistenceError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use erpx_domain::contracts::TenantScope;
+    use erpx_domain::contracts::AuthorityScope;
     use erpx_domain::marketing_journey::JourneyIntegrationInvocation;
 
     fn invocation() -> JourneyIntegrationInvocation {
@@ -1357,7 +1357,7 @@ mod tests {
             Uuid::from_u128(3),
             Uuid::from_u128(4),
             Uuid::from_u128(5),
-            TenantScope::Holding {
+            AuthorityScope::Holding {
                 holding_id: Uuid::from_u128(6),
             },
             "journey-invocation-1",

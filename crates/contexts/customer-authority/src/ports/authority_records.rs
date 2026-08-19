@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_cqrs::IdempotencyKey;
 use erpx_kernel::{
-    ActorAttribution, AuditContext, CommandId, CorrelationId, RecordId, TenantScope,
+    ActorAttribution, AuditContext, AuthorityScope, CommandId, CorrelationId, RecordId,
 };
 use serde::{Deserialize, Serialize};
 
@@ -27,7 +27,7 @@ pub trait CustomerAuthorityRecordQueryPort: Send + Sync {
     /// generation exists. Authorization is evaluated before this port.
     async fn get_record(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         record_id: RecordId,
     ) -> Result<Option<CustomerAuthorityRecordView>, PortError>;
 }
@@ -40,7 +40,7 @@ pub struct CustomerAuthorityRecordCommand {
     pub expected_version: Option<u64>,
     pub actor: ActorAttribution,
     pub audit: AuditContext,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub record: CustomerAuthorityRecord,
 }
 

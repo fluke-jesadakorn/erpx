@@ -22,7 +22,7 @@ erpx_ui_enterprise_workspaces::declare_enterprise_workspace_feature!(
     "planning.workspace",
     "/planning",
     "operations",
-    "erpx-feature-planning-v2"
+    "erpx-feature-planning"
 );
 
 #[cfg(test)]
@@ -33,7 +33,7 @@ mod tests {
     fn registration_and_record_routes_are_canonical() {
         assert_eq!(REGISTRATION.routes[0].canonical_path, WORKSPACE.root());
         assert_eq!(REGISTRATION.routes[0].authorization, "authenticated");
-        assert_eq!(REGISTRATION.artifact_key, "erpx-feature-planning-v2");
+        assert_eq!(REGISTRATION.artifact_key, "erpx-feature-planning");
         assert!(!REGISTRATION.routes[0].canonical_path.contains("workspaces"));
         assert!(REGISTRATION.matches_path(WORKSPACE.root()));
         assert!(resolve_route(WORKSPACE.root()).is_some());

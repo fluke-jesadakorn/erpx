@@ -280,8 +280,8 @@ where
             expected_aggregate_version: context.expected_aggregate_version,
             event,
             event_version: 1,
-            tenant_scope: Some(
-                serde_json::to_value(&context.tenant_scope)
+            active_scope: Some(
+                serde_json::to_value(&context.active_scope)
                     .map_err(|error| ApplicationError::Repository(error.to_string()))?,
             ),
             actor: Some(
@@ -393,7 +393,7 @@ where
     pub async fn list_expiring_in_scope(
         &self,
         within: Duration,
-        requested_scope: &Scope,
+        requested_scope: &AuthorityScope,
     ) -> Result<Vec<RoleAssignment>, ApplicationError> {
         Ok(self
             .list_expiring(within)
@@ -411,8 +411,9 @@ mod role_lifecycle_tests {
     use std::sync::Mutex;
 
     use erpx_domain::{
-        access::{RiskTier, Scope},
-        contracts::{ActorAttribution, ActorKind, TenantScope},
+        access::RiskTier,
+        contracts::AuthorityScope as Scope,
+        contracts::{ActorAttribution, ActorKind, AuthorityScope},
     };
 
     #[derive(Debug, Default)]
@@ -503,12 +504,12 @@ mod role_lifecycle_tests {
             "role-lifecycle-test",
             ActorAttribution {
                 principal_ref: "operator".into(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: Some(Uuid::new_v4()),
                 represented_principal_ref: None,
                 support_capability_id: None,
             },
-            TenantScope::Platform,
+            AuthorityScope::Platform,
             "role lifecycle test",
         )
         .expect("valid command context")

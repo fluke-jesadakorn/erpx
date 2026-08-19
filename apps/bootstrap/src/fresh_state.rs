@@ -11,9 +11,8 @@ use crate::{BootstrapError, Result, stable_uuid};
 pub(crate) struct FreshResourcePlan {
     pub(crate) installation_generation: Uuid,
     pub(crate) prefix: String,
-    pub(crate) tenant_id: Uuid,
-    pub(crate) holding_ref: Uuid,
     pub(crate) holding_id: Uuid,
+    pub(crate) data_profile_key: Uuid,
     pub(crate) storage_namespace: String,
     pub(crate) databases: [DatabaseResource; 4],
 }
@@ -29,8 +28,8 @@ pub(crate) struct DatabaseResource {
 pub(crate) enum DatabaseRole {
     ControlWrite,
     ControlRead,
-    TenantWrite,
-    TenantRead,
+    HoldingWrite,
+    HoldingRead,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -41,24 +40,20 @@ pub(crate) struct DatabaseInventoryEntry {
 }
 
 impl FreshResourcePlan {
-    pub(crate) fn new(prefix: &str, tenant_name: &str, holding_name: &str) -> Self {
-        let tenant_id = stable_uuid("tenant", &format!("{prefix}:{tenant_name}"));
-        let holding_ref = stable_uuid("holding", &format!("{prefix}:{holding_name}"));
-        // Existing tenant organization routing intentionally derives its
-        // holding scope UUID from the opaque registry reference.
-        let holding_id = erpx_infrastructure::tenant_holding_scope_id(&holding_ref.to_string());
-        let tenant_token = &tenant_id.simple().to_string()[..12];
+    pub(crate) fn new(prefix: &str, holding_name: &str) -> Self {
+        let holding_id = stable_uuid("holding", &format!("{prefix}:{holding_name}"));
+        let data_profile_key = stable_uuid("holding", &format!("{prefix}:{holding_name}"));
+        let holding_token = &holding_id.simple().to_string()[..12];
         let installation_generation = stable_uuid(
             "fresh-installation",
-            &format!("{prefix}:{tenant_id}:{holding_ref}"),
+            &format!("{prefix}:{holding_id}:{data_profile_key}"),
         );
         Self {
             installation_generation,
             prefix: prefix.to_owned(),
-            tenant_id,
-            holding_ref,
             holding_id,
-            storage_namespace: format!("{}-tenant-objects", prefix.replace('_', "-")),
+            data_profile_key,
+            storage_namespace: format!("{}-holding-objects", prefix.replace('_', "-")),
             databases: [
                 DatabaseResource {
                     role: DatabaseRole::ControlWrite,
@@ -69,12 +64,12 @@ impl FreshResourcePlan {
                     name: format!("{prefix}_control_read"),
                 },
                 DatabaseResource {
-                    role: DatabaseRole::TenantWrite,
-                    name: format!("{prefix}_{tenant_token}_tenant_write"),
+                    role: DatabaseRole::HoldingWrite,
+                    name: format!("{prefix}_{holding_token}_holding_write"),
                 },
                 DatabaseResource {
-                    role: DatabaseRole::TenantRead,
-                    name: format!("{prefix}_{tenant_token}_tenant_read"),
+                    role: DatabaseRole::HoldingRead,
+                    name: format!("{prefix}_{holding_token}_holding_read"),
                 },
             ],
         }
@@ -147,32 +142,32 @@ mod tests {
 
     #[test]
     fn plan_has_uuid_registry_ids_and_four_isolated_databases() {
-        let plan = FreshResourcePlan::new("next", "Example tenant", "Example holding");
+        let plan = FreshResourcePlan::new("next", "Example holding");
 
-        assert!(!plan.tenant_id.is_nil());
-        assert!(!plan.holding_ref.is_nil());
+        assert!(!plan.holding_id.is_nil());
+        assert!(!plan.data_profile_key.is_nil());
         assert!(!plan.holding_id.is_nil());
         assert_eq!(plan.database_names().len(), 4);
         assert_eq!(plan.databases[0].name, "next_control_write");
         assert_eq!(plan.databases[1].name, "next_control_read");
-        assert!(plan.databases[2].name.ends_with("_tenant_write"));
-        assert!(plan.databases[3].name.ends_with("_tenant_read"));
-        assert_eq!(plan.storage_namespace, "next-tenant-objects");
+        assert!(plan.databases[2].name.ends_with("_holding_write"));
+        assert!(plan.databases[3].name.ends_with("_holding_read"));
+        assert_eq!(plan.storage_namespace, "next-holding-objects");
         assert!(
-            plan.require_matching_storage_receipt("next", "next-tenant-objects")
+            plan.require_matching_storage_receipt("next", "next-holding-objects")
                 .is_ok()
         );
         assert!(
-            plan.require_matching_storage_receipt("old", "next-tenant-objects")
+            plan.require_matching_storage_receipt("old", "next-holding-objects")
                 .is_err()
         );
     }
 
     #[test]
     fn plan_is_stable_and_prefix_specific() {
-        let first = FreshResourcePlan::new("next", "Tenant", "Holding");
-        let replay = FreshResourcePlan::new("next", "Tenant", "Holding");
-        let other = FreshResourcePlan::new("other", "Tenant", "Holding");
+        let first = FreshResourcePlan::new("next", "Holding");
+        let replay = FreshResourcePlan::new("next", "Holding");
+        let other = FreshResourcePlan::new("other", "Holding");
 
         assert_eq!(first, replay);
         assert_ne!(first.installation_generation, other.installation_generation);
@@ -181,7 +176,7 @@ mod tests {
 
     #[test]
     fn any_existing_target_fails_closed() {
-        let plan = FreshResourcePlan::new("next", "Tenant", "Holding");
+        let plan = FreshResourcePlan::new("next", "Holding");
         let fresh = plan.inventory(&[]);
         assert!(require_fresh_targets(&fresh).is_ok());
 

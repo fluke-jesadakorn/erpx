@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use chrono::{DateTime, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -165,7 +165,7 @@ pub enum CallbackOutcome {
 pub struct SignatureEnvelope {
     id: SignatureEnvelopeId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     document_id: LegalDocumentId,
     document_version: u64,
     document_sha256: String,
@@ -189,7 +189,7 @@ impl SignatureEnvelope {
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: SignatureEnvelopeId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         document_id: LegalDocumentId,
         document_version: u64,
         document_sha256: String,
@@ -422,7 +422,7 @@ impl SignatureEnvelope {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn document_id(&self) -> LegalDocumentId {

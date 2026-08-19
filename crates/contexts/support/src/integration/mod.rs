@@ -99,7 +99,7 @@ const fn map_ticket_status(value: TicketStatus) -> support::SupportCaseStatus {
 mod tests {
     use chrono::{TimeZone, Utc};
     use erpx_integration_contracts::{IntegrationEvent, customer, support};
-    use erpx_kernel::TenantScope;
+    use erpx_kernel::AuthorityScope;
     use uuid::Uuid;
 
     use super::*;
@@ -124,7 +124,7 @@ mod tests {
         let at = Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap();
         let mut ticket = SupportTicket::open(
             SupportTicketId::try_from_uuid(Uuid::from_u128(1)).unwrap(),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id: Uuid::from_u128(1),
                 company_id: Uuid::from_u128(2),
             },
@@ -152,7 +152,7 @@ mod tests {
         let account = customer::CustomerAccountRef::try_from_uuid(Uuid::from_u128(11)).unwrap();
         let mut incident = Incident::open(
             IncidentId::try_from_uuid(Uuid::from_u128(20)).unwrap(),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id: Uuid::from_u128(1),
                 company_id: Uuid::from_u128(2),
             },

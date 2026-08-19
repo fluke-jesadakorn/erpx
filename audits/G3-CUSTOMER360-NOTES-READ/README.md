@@ -42,6 +42,6 @@ cargo check -p erpx-console --features web           PASS
 cargo check -p erpx-server --offline                 PASS
 ```
 
-This is a G3 continuation packet. Live external tenant routing, multi-holding acceptance,
+This is a G3 continuation packet. Live external holding routing, multi-holding acceptance,
 backfill/reconciliation, binding-revocation replay, and native/mobile deep-link acceptance remain
 tracked by the current G14 matrix.

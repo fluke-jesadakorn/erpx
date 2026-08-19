@@ -2,12 +2,12 @@
 
 ## Delivered behavior
 
-- Added tenant-routed SQLx write/read persistence for Product, Warehouse,
+- Added holding-routed SQLx write/read persistence for Product, Warehouse,
   PurchaseRequest, PurchaseOrder, GoodsReceipt, StockMovement, StockTransfer,
   and StockReservation through `SqlxScmStore`.
 - Domain aggregates are validated before serialization.
-- Every transaction installs the routed `erpx.holding_ref` setting and relies
-  on forced RLS for tenant isolation.
+- Every transaction installs the routed `erpx.data_profile_key` setting and relies
+  on forced RLS for holding isolation.
 - Write transactions enforce optimistic aggregate versions and request-bound
   idempotency receipts, then atomically write source state, the shared
   `aggregate_snapshots` row, the shared `outbox_events` row, and the SCM
@@ -19,8 +19,8 @@
 ## Files changed
 
 - `erpx/crates/infrastructure/src/scm_persistence.rs`
-- `erpx/crates/migration/migrations_tenant_write/0020_scm.sql`
-- `erpx/crates/migration/migrations_tenant_read/0020_scm.sql`
+- `erpx/crates/migration/migrations_holding_write/0020_scm.sql`
+- `erpx/crates/migration/migrations_holding_read/0020_scm.sql`
 - `erpx/audits/G9-SCM-003-055/README.md`
 
 ## Contract and migration changes
@@ -51,10 +51,10 @@ composition root when the packet is integrated.
 
 ## Security concerns
 
-- No credentials, secrets, payment instruments, or tenant connection details
+- No credentials, secrets, payment instruments, or holding connection details
   are stored.
 - Forced RLS and transaction-local holding routing must remain enabled in every
-  provisioned tenant write/read database.
+  provisioned holding write/read database.
 - Main-agent integration must keep command authorization on the write side and
   must not use the read projection for authorization decisions.
 

@@ -71,7 +71,7 @@ control write/read database URLs are supplied.
   stable event ID/idempotency key when acknowledging an external delivery.
 - Projection rebuild still depends on a context-owned handler writing to the
   intended replacement read database. The existing
-  `ProjectionReadDatabaseSwitcher` is an integration seam; a physical tenant
+  `ProjectionReadDatabaseSwitcher` is an integration seam; a physical holding
   adapter must bind preparation, target-pool rebuild, readiness verification,
   and activation before production use.
 - Durable replay history is represented by cumulative outbox delivery attempts;
@@ -88,7 +88,7 @@ control write/read database URLs are supplied.
 - Aggregate-version gaps and receipt identity mismatches fail closed.
 - Persisted worker errors are bounded, control-character-free, and redact
   credential-bearing markers, URLs, tokens, and secrets.
-- No payload, tenant credential, storage credential, or database URL is added
+- No payload, holding credential, storage credential, or database URL is added
   to worker errors or diagnostics by this packet.
 - Replay cannot reset the cumulative attempt budget or bypass a non-dead-letter
   state.
@@ -100,7 +100,7 @@ control write/read database URLs are supplied.
 2. Run the ignored SQLx worker tests against disposable, physically distinct
    control write/read databases, including claim lease recovery, replay budget,
    and projection gap cases.
-3. Implement a tenant-scoped replacement-read adapter that rebuilds on the
+3. Implement a holding-scoped replacement-read adapter that rebuilds on the
    candidate pool, records verified source/checkpoint state, and only then
    activates the registry switch.
 4. Integrate authenticated outbox publishers and remaining projector handlers

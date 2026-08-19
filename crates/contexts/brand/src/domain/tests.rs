@@ -53,10 +53,7 @@ fn checked_revision_rehydration_rejects_invalid_wire_state() {
 }
 
 fn holding_scope() -> BrandScope {
-    BrandScope::Holding {
-        tenant_id: "tenant-acme".into(),
-        holding_id: id(10),
-    }
+    BrandScope::Holding { holding_id: id(10) }
 }
 
 fn holding_parent(locked: impl IntoIterator<Item = BrandCategory>) -> ParentBrandWitness {
@@ -81,23 +78,21 @@ fn holding_definition() -> BrandDefinition {
 fn scope_maps_platform_and_business_unit_to_exact_authority() {
     assert_eq!(
         BrandScope::Platform.authority_scope().unwrap(),
-        TenantScope::Platform
+        AuthorityScope::Platform
     );
     let scope = BrandScope::BusinessUnit {
-        tenant_id: "tenant-acme".into(),
         holding_id: id(10),
         business_unit: BusinessUnitKey::Finance,
     };
     assert_eq!(
         scope.authority_scope().unwrap(),
-        TenantScope::Holding { holding_id: id(10) }
+        AuthorityScope::Holding { holding_id: id(10) }
     );
 }
 
 #[test]
 fn holding_and_business_unit_require_direct_parent_witnesses() {
     let unit = BrandScope::BusinessUnit {
-        tenant_id: "tenant-acme".into(),
         holding_id: id(10),
         business_unit: BusinessUnitKey::Finance,
     };
@@ -228,7 +223,6 @@ fn parent_category_lock_prevents_child_override() {
 #[test]
 fn business_unit_cannot_lock_categories() {
     let scope = BrandScope::BusinessUnit {
-        tenant_id: "tenant-acme".into(),
         holding_id: id(10),
         business_unit: BusinessUnitKey::Finance,
     };

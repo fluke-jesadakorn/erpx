@@ -63,7 +63,7 @@ impl Projector for FieldServiceProjector {
             .map_err(failure)?;
             if record.id() != event.aggregate_id.as_uuid()
                 || record.version() != event.aggregate_version
-                || record.scope() != &event.tenant_scope
+                || record.scope() != &event.active_scope
                 || record.kind().token() != event.aggregate_type
             {
                 return Err(failure("field service record metadata mismatch"));
@@ -74,7 +74,7 @@ impl Projector for FieldServiceProjector {
                 .map(str::to_owned)
                 .ok_or_else(|| failure("field service record status is missing"))?;
             let changed = sqlx::query(
-                "INSERT INTO erpx_field_service_read.governed_record_projection (projection_name,generation,partition_key,record_id,record_kind,authority_scope,lifecycle_state,projection,source_aggregate_version,source_position,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,clock_timestamp()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,record_id) DO UPDATE SET authority_scope=EXCLUDED.authority_scope,lifecycle_state=EXCLUDED.lifecycle_state,projection=EXCLUDED.projection,source_aggregate_version=EXCLUDED.source_aggregate_version,source_position=EXCLUDED.source_position,projected_at=clock_timestamp() WHERE erpx_field_service_read.governed_record_projection.source_aggregate_version < EXCLUDED.source_aggregate_version",
+                "INSERT INTO erpx_field_service_read.governed_record_projection (projection_name,generation,partition_key,record_id,record_kind,authority_scope,lifecycle_state,projection,source_aggregate_version,source_position,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,clock_timestamp()) ON CONFLICT (holding_id,projection_name,generation,partition_key,record_id) DO UPDATE SET authority_scope=EXCLUDED.authority_scope,lifecycle_state=EXCLUDED.lifecycle_state,projection=EXCLUDED.projection,source_aggregate_version=EXCLUDED.source_aggregate_version,source_position=EXCLUDED.source_position,projected_at=clock_timestamp() WHERE erpx_field_service_read.governed_record_projection.source_aggregate_version < EXCLUDED.source_aggregate_version",
             )
             .bind(PROJECTION_NAME)
             .bind(ctx.generation)
@@ -108,7 +108,7 @@ impl Projector for FieldServiceProjector {
             serde_json::from_value(event.payload.clone()).map_err(failure)?;
         if snapshot.order.id().as_uuid() != event.aggregate_id.as_uuid()
             || snapshot.order.version() != event.aggregate_version
-            || snapshot.order.scope() != &event.tenant_scope
+            || snapshot.order.scope() != &event.active_scope
         {
             return Err(ProjectionFailure::new(
                 "field service snapshot metadata mismatch",
@@ -120,7 +120,7 @@ impl Projector for FieldServiceProjector {
             .and_then(serde_json::Value::as_str)
             .map(str::to_owned)
             .ok_or_else(|| ProjectionFailure::new("field service status is missing"))?;
-        let result=sqlx::query("INSERT INTO erpx_field_service_read.order_projection (projection_name,generation,partition_key,service_order_id,authority_scope,lifecycle_state,projection,source_aggregate_version,source_position,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,clock_timestamp()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,service_order_id) DO UPDATE SET authority_scope=EXCLUDED.authority_scope,lifecycle_state=EXCLUDED.lifecycle_state,projection=EXCLUDED.projection,source_aggregate_version=EXCLUDED.source_aggregate_version,source_position=EXCLUDED.source_position,projected_at=clock_timestamp() WHERE erpx_field_service_read.order_projection.source_aggregate_version<EXCLUDED.source_aggregate_version")
+        let result=sqlx::query("INSERT INTO erpx_field_service_read.order_projection (projection_name,generation,partition_key,service_order_id,authority_scope,lifecycle_state,projection,source_aggregate_version,source_position,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,clock_timestamp()) ON CONFLICT (holding_id,projection_name,generation,partition_key,service_order_id) DO UPDATE SET authority_scope=EXCLUDED.authority_scope,lifecycle_state=EXCLUDED.lifecycle_state,projection=EXCLUDED.projection,source_aggregate_version=EXCLUDED.source_aggregate_version,source_position=EXCLUDED.source_position,projected_at=clock_timestamp() WHERE erpx_field_service_read.order_projection.source_aggregate_version<EXCLUDED.source_aggregate_version")
             .bind(PROJECTION_NAME).bind(ctx.generation).bind(&event.partition).bind(snapshot.order.id().as_uuid()).bind(serde_json::to_value(snapshot.order.scope()).map_err(failure)?).bind(status).bind(document).bind(i64v(event.aggregate_version)?).bind(i64v(event.global_sequence)?).execute(&mut **tx).await.map_err(failure)?;
         if result.rows_affected() != 1 {
             return Err(ProjectionFailure::new(

@@ -8,7 +8,7 @@ use erpx_identity_access::{
     RoleAssignmentView, RoleCode, RoleId, RoleList, RoleMutationResult, RoleView,
     SetRolePermissions, SuspendPrincipal,
 };
-use erpx_proto::erpx::identity_access::v2 as platform;
+use erpx_proto::erpx::identity_access as platform;
 use erpx_ui_foundation::UiError;
 
 use crate::{
@@ -36,13 +36,13 @@ impl IdentityAccessGrpcTransport {
     pub(crate) fn try_new(
         channel: GrpcChannel,
         access_token: impl AsRef<str>,
-        tenant_id: impl AsRef<str>,
-        holding_ref: impl AsRef<str>,
+        holding_id: impl AsRef<str>,
+        data_profile_key: impl AsRef<str>,
     ) -> Result<Self, UiError> {
         Ok(Self {
             command: platform::identity_access_command_service_client::IdentityAccessCommandServiceClient::new(channel.clone()),
             query: platform::identity_access_query_service_client::IdentityAccessQueryServiceClient::new(channel),
-            authority: RpcAuthority::tenant(access_token, tenant_id, holding_ref)?,
+            authority: RpcAuthority::holding(access_token, holding_id, data_profile_key)?,
         })
     }
 }

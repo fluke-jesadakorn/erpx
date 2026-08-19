@@ -1,15 +1,15 @@
-# G6-PRV-032 — Two-person tenant owner seeding
+# G6-PRV-032 — Two-person holding owner seeding
 
 ## Delivered
 
-- `BeginTenantProvisioning` now requires an owner principal reference and a
+- `BeginHoldingProvisioning` now requires an owner principal reference and a
   distinct owner approver reference.
 - The approver must be an active independent platform principal with the
   provisioning permission.
-- Control migration `0057_tenant_owner_seeding` stores only tenant/holding,
+- Control migration `0057_holding_owner_seeding` stores only holding/holding,
   principal, approver, deterministic assignment, state, and recovery issuance
   metadata. It is not applied to the control read database.
-- The owner seed is tenant-bound and immutable on replay.
+- The owner seed is holding-bound and immutable on replay.
 - Provisioning resources creates, in one control write transaction, a
   recovery-required identity, one Argon2id-hashed recovery code, and a finite
   90-day `holding_owner` role assignment with independent approval.
@@ -29,10 +29,10 @@
   tests.
 - `cargo test -p erpx-identity --lib` — PASS; 20 tests.
 - Disposable two-database provisioning proof
-  `owner_seed_registration_is_tenant_bound_and_idempotent` — PASS; migration
+  `owner_seed_registration_is_holding_bound_and_idempotent` — PASS; migration
   `0057` applied to the write database and absent from the read database.
 - Disposable two-database server proof
-  `tenant_owner_seed_tests::owner_seed_transaction_creates_recovery_identity_and_finite_role`
+  `holding_owner_seed_tests::owner_seed_transaction_creates_recovery_identity_and_finite_role`
   — PASS; identity recovery state, hashed recovery row, finite approved role,
   idempotent replay, and read isolation verified.
 - Full integration wave — PASS: workspace format, clippy, tests, Dioxus
@@ -43,5 +43,5 @@
 
 This packet does not close the G6 gate. Physical credentialed MinIO proof,
 true PostgreSQL PITR/WAL recovery, organization aggregate initialization in the
-per-holding tenant write schema, provider onboarding, device execution, and
+per-holding holding write schema, provider onboarding, device execution, and
 the remaining G6/G12/G14 requirements remain open.

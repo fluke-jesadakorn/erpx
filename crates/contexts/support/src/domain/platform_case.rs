@@ -4,7 +4,7 @@ use erpx_integration_contracts::{
     catalog::ContextId,
     reference::{RecordTypeId, ReferenceValidationError},
 };
-use erpx_kernel::{RecordId, TenantScope};
+use erpx_kernel::{AuthorityScope, RecordId};
 use serde::{Deserialize, Serialize};
 
 use super::SupportDomainError;
@@ -24,7 +24,7 @@ pub enum PlatformCaseStatus {
 pub struct PlatformSupportCase {
     id: RecordId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     case_code: String,
     title: String,
     source_record: Option<StableRecordRef>,
@@ -41,7 +41,7 @@ impl PlatformSupportCase {
     #[allow(clippy::too_many_arguments)]
     pub fn open(
         id: RecordId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         case_code: String,
         title: String,
         source_record: Option<StableRecordRef>,
@@ -117,7 +117,7 @@ impl PlatformSupportCase {
             || self.scope.validate().is_err()
             || !matches!(
                 self.scope,
-                TenantScope::Company { .. } | TenantScope::Branch { .. }
+                AuthorityScope::Company { .. } | AuthorityScope::Branch { .. }
             )
             || self.case_code.trim().is_empty()
             || self.case_code.len() > 128
@@ -151,7 +151,7 @@ impl PlatformSupportCase {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn case_code(&self) -> &str {
@@ -202,12 +202,12 @@ mod tests {
         let at = Utc.with_ymd_and_hms(2026, 8, 16, 9, 0, 0).single().unwrap();
         let mut case = PlatformSupportCase::open(
             RecordId::try_from_uuid(Uuid::new_v4()).unwrap(),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id: Uuid::from_u128(1),
                 company_id: Uuid::from_u128(2),
             },
             "PLT-10".into(),
-            "Tenant incident".into(),
+            "Holding incident".into(),
             None,
             None,
             format!("sha256:{}", "a".repeat(64)),

@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::contracts::{CommandContext, TenantScope};
+use crate::contracts::{AuthorityScope, CommandContext};
 use crate::finance::{AccountingPeriod, PeriodStatus};
 
 pub const FINANCE_CLOSE_CONTRACT_VERSION: u16 = 1;
@@ -702,8 +702,8 @@ fn validate_command_context(
         });
     }
     if !matches!(
-        &context.tenant_scope,
-        TenantScope::Company {
+        &context.active_scope,
+        AuthorityScope::Company {
             holding_id: context_holding_id,
             company_id: context_company_id,
         } if *context_holding_id == holding_id && *context_company_id == company_id
@@ -767,12 +767,12 @@ mod tests {
             format!("close-{actor}"),
             ActorAttribution {
                 principal_ref: actor.to_owned(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: None,
                 represented_principal_ref: None,
                 support_capability_id: None,
             },
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             },
@@ -821,7 +821,7 @@ mod tests {
     fn scope_isolation_rejects_platform_and_other_company_commands() {
         let (period, holding_id, company_id) = period();
         let mut platform = context(holding_id, company_id, "platform");
-        platform.tenant_scope = TenantScope::Platform;
+        platform.active_scope = AuthorityScope::Platform;
         assert_eq!(
             FinanceCloseReview::open(&period, &platform),
             Err(FinanceCloseError::ScopeOutsideCompany)
@@ -834,14 +834,14 @@ mod tests {
         );
 
         let mut holding_scope = context(holding_id, company_id, "holding");
-        holding_scope.tenant_scope = TenantScope::Holding { holding_id };
+        holding_scope.active_scope = AuthorityScope::Holding { holding_id };
         assert_eq!(
             FinanceCloseReview::open(&period, &holding_scope),
             Err(FinanceCloseError::ScopeOutsideCompany)
         );
 
         let mut branch_scope = context(holding_id, company_id, "branch");
-        branch_scope.tenant_scope = TenantScope::Branch {
+        branch_scope.active_scope = AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id: Uuid::from_u128(4),

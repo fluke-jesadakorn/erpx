@@ -11,8 +11,8 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::{IntegrationEventEnvelope, assets};
 use erpx_kernel::{
-    ActorAttribution, AuditContext, Clock, CorrelationId, ErrorCategory, ErrorContext, EventId,
-    KernelError, TenantScope,
+    ActorAttribution, AuditContext, AuthorityScope, Clock, CorrelationId, ErrorCategory,
+    ErrorContext, EventId, KernelError,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -168,7 +168,7 @@ struct ExistingCommand {
     correlation_id: CorrelationId,
     causation_id: Option<EventId>,
     actor: ActorAttribution,
-    authority_scope: TenantScope,
+    authority_scope: AuthorityScope,
     audit: AuditContext,
     expected_version: Option<u64>,
     identity: CommandIdentity,
@@ -189,8 +189,8 @@ where
     async fn preflight(
         &self,
         actor: &ActorAttribution,
-        authority_scope: &TenantScope,
-        target_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         action: MaintenanceAction,
     ) -> Result<(), MaintenanceApplicationError> {
         if !authority_scope.contains(target_scope) {
@@ -346,7 +346,7 @@ where
             }
         };
         let source_version = command.request.aggregate_version();
-        let target_scope = command.request.tenant_scope().clone();
+        let target_scope = command.request.active_scope().clone();
         let identity = CommandIdentity {
             command_id: envelope.command_id,
             idempotency_key: envelope.idempotency_key,
@@ -368,7 +368,7 @@ where
         {
             self.preflight(
                 &envelope.actor,
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 stored.aggregate.scope(),
                 MaintenanceAction::Open,
             )
@@ -382,7 +382,7 @@ where
         }
         self.preflight(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             &target_scope,
             MaintenanceAction::Open,
         )
@@ -427,7 +427,7 @@ where
                 correlation_id,
                 causation_id: Some(source_event_id),
                 actor: envelope.actor,
-                authority_scope: envelope.tenant_scope,
+                authority_scope: envelope.active_scope,
                 audit: envelope.audit,
                 expected_version: None,
                 consumed_source_event: Some(source_event_id),
@@ -469,7 +469,7 @@ macro_rules! existing_handler {
                         correlation_id: envelope.correlation_id,
                         causation_id: envelope.causation_id,
                         actor: envelope.actor,
-                        authority_scope: envelope.tenant_scope,
+                        authority_scope: envelope.active_scope,
                         audit: envelope.audit,
                         expected_version: envelope.expected_aggregate_version,
                         identity: CommandIdentity {
@@ -586,7 +586,7 @@ where
     async fn authorize_query(
         &self,
         actor: &ActorAttribution,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         action: MaintenanceAction,
     ) -> Result<(), PortError> {
         self.entitlement
@@ -619,7 +619,7 @@ where
         envelope.validate()?;
         self.authorize_query(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             MaintenanceAction::View,
         )
         .await
@@ -627,7 +627,7 @@ where
         let projection = self
             .read_repository
             .get(
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 envelope.query.work_order_id,
                 &envelope.consistency,
             )
@@ -636,7 +636,7 @@ where
         if projection
             .value
             .as_ref()
-            .is_some_and(|view| !envelope.tenant_scope.contains(&view.scope))
+            .is_some_and(|view| !envelope.active_scope.contains(&view.scope))
         {
             return Err(to_cqrs(
                 MaintenanceApplicationError::ScopeOutsideAuthority,
@@ -678,7 +678,7 @@ where
         }
         self.authorize_query(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             MaintenanceAction::List,
         )
         .await
@@ -686,7 +686,7 @@ where
         let projection = self
             .read_repository
             .list(
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 &envelope.query.filter,
                 &envelope.consistency,
             )
@@ -696,7 +696,7 @@ where
             .value
             .work_orders
             .iter()
-            .any(|view| !envelope.tenant_scope.contains(&view.scope))
+            .any(|view| !envelope.active_scope.contains(&view.scope))
         {
             return Err(to_cqrs(
                 MaintenanceApplicationError::ScopeOutsideAuthority,

@@ -19,12 +19,12 @@ use erpx_integration_contracts::{
     sales::{SalesOrderFact, SalesOrderLineFact, SalesOrderRef, SalesOrderStatus},
     support::{SupportCaseFact, SupportCaseRef, SupportCaseStatus},
 };
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use sqlx::{Row, postgres::PgRow};
 use uuid::Uuid;
 
 use crate::{
-    CONTROL_CUSTOMERS_PROJECTION_NAME, TENANT_ACTIVITY_PROJECTION_NAME, control_partition,
+    CONTROL_CUSTOMERS_PROJECTION_NAME, HOLDING_ACTIVITY_PROJECTION_NAME, control_partition,
 };
 
 #[derive(Debug, Clone)]
@@ -32,32 +32,32 @@ pub struct Customer360ReadRepository {
     pool: ReadPool,
     read_side: ReadSideStore,
     waiter: SqlxProjectionWaiter,
-    tenant_source: Option<String>,
+    holding_source: Option<String>,
 }
 
 impl Customer360ReadRepository {
-    pub fn new(pool: ReadPool, tenant_id: Option<Uuid>) -> Result<Self, CqrsSqlxError> {
-        Self::with_waiter_config(pool, tenant_id, WaiterConfig::default())
+    pub fn new(pool: ReadPool, holding_id: Option<Uuid>) -> Result<Self, CqrsSqlxError> {
+        Self::with_waiter_config(pool, holding_id, WaiterConfig::default())
     }
 
     pub fn with_waiter_config(
         pool: ReadPool,
-        tenant_id: Option<Uuid>,
+        holding_id: Option<Uuid>,
         config: WaiterConfig,
     ) -> Result<Self, CqrsSqlxError> {
-        if tenant_id.is_some_and(|value| value.is_nil()) {
-            return Err(CqrsSqlxError::InvalidInput("tenant id is nil"));
+        if holding_id.is_some_and(|value| value.is_nil()) {
+            return Err(CqrsSqlxError::InvalidInput("holding id is nil"));
         }
         Ok(Self {
             read_side: ReadSideStore::new(pool.clone()),
             waiter: SqlxProjectionWaiter::new(pool.clone(), config)?,
             pool,
-            tenant_source: tenant_id.map(tenant_source_key),
+            holding_source: holding_id.map(holding_source_key),
         })
     }
 
-    pub fn tenant_source(&self) -> Option<&str> {
-        self.tenant_source.as_deref()
+    pub fn holding_source(&self) -> Option<&str> {
+        self.holding_source.as_deref()
     }
 
     async fn metadata(
@@ -72,13 +72,13 @@ impl Customer360ReadRepository {
                     CONTROL_CUSTOMERS_PROJECTION_NAME => {
                         requirement.partition == control_partition(customer)
                     }
-                    TENANT_ACTIVITY_PROJECTION_NAME => {
-                        self.tenant_source.as_ref().is_none_or(|source| {
+                    HOLDING_ACTIVITY_PROJECTION_NAME => {
+                        self.holding_source.as_ref().is_none_or(|source| {
                             requirement
                                 .partition
                                 .strip_prefix(source)
                                 .is_some_and(|suffix| suffix.starts_with('/'))
-                        }) && requirement.partition.starts_with("tenant:")
+                        }) && requirement.partition.starts_with("holding:")
                     }
                     _ => false,
                 };
@@ -114,18 +114,18 @@ impl Customer360ReadRepository {
                 .await
                 .map_err(|_| PortError::Unavailable)?,
         };
-        let tenant_checkpoint = waited
+        let holding_checkpoint = waited
             .as_ref()
-            .filter(|checkpoint| checkpoint.projection == TENANT_ACTIVITY_PROJECTION_NAME)
+            .filter(|checkpoint| checkpoint.projection == HOLDING_ACTIVITY_PROJECTION_NAME)
             .cloned();
         let control = self
             .projection_metadata(CONTROL_CUSTOMERS_PROJECTION_NAME, control_checkpoint, None)
             .await?;
-        let tenant = self
+        let holding = self
             .projection_metadata(
-                TENANT_ACTIVITY_PROJECTION_NAME,
-                tenant_checkpoint,
-                self.tenant_source.as_deref(),
+                HOLDING_ACTIVITY_PROJECTION_NAME,
+                holding_checkpoint,
+                self.holding_source.as_deref(),
             )
             .await?;
         let query = match consistency {
@@ -135,18 +135,18 @@ impl Customer360ReadRepository {
                 control.clone()
             }
             QueryConsistency::ReadYourWrites(requirement)
-                if requirement.projection == TENANT_ACTIVITY_PROJECTION_NAME =>
+                if requirement.projection == HOLDING_ACTIVITY_PROJECTION_NAME =>
             {
-                tenant.clone()
+                holding.clone()
             }
             QueryConsistency::ReadYourWrites(_) => unreachable!("validated projection name"),
-            QueryConsistency::Eventual => conservative_metadata(&control, &tenant),
+            QueryConsistency::Eventual => conservative_metadata(&control, &holding),
         };
         Ok((
             query,
             SourceProjectionMetadata {
                 control_customers: control,
-                tenant_activity: tenant,
+                holding_activity: holding,
             },
         ))
     }
@@ -179,7 +179,7 @@ impl Customer360ReadRepository {
         };
         let observed_at = if let Some(checkpoint) = &checkpoint {
             Some(checkpoint.updated_at)
-        } else if projection == TENANT_ACTIVITY_PROJECTION_NAME {
+        } else if projection == HOLDING_ACTIVITY_PROJECTION_NAME {
             sqlx::query_scalar::<_, Option<DateTime<Utc>>>(
                 "SELECT min(checkpoint.updated_at)
                  FROM erpx_cqrs_read.projection_source_checkpoints checkpoint
@@ -270,9 +270,9 @@ impl Customer360ReadRepository {
                AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[]))
              ORDER BY item.effective_at DESC,item.subscription_id DESC",
         )
-        .bind(TENANT_ACTIVITY_PROJECTION_NAME)
+        .bind(HOLDING_ACTIVITY_PROJECTION_NAME)
         .bind(customer.as_uuid())
-        .bind(self.tenant_source.as_deref())
+        .bind(self.holding_source.as_deref())
         .bind(scope.platform)
         .bind(&scope.exact)
         .bind(&scope.prefixes)
@@ -294,7 +294,7 @@ impl Customer360ReadRepository {
         scope: &ScopeFilter,
     ) -> Result<Vec<OpportunityFact>, PortError> {
         let rows = sqlx::query("SELECT item.* FROM erpx_customer360_read.opportunity_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND item.customer_id=$2 AND ($3::text IS NULL OR item.source_key=$3) AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[])) ORDER BY item.opportunity_id DESC")
-            .bind(TENANT_ACTIVITY_PROJECTION_NAME).bind(customer.as_uuid()).bind(self.tenant_source.as_deref()).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
+            .bind(HOLDING_ACTIVITY_PROJECTION_NAME).bind(customer.as_uuid()).bind(self.holding_source.as_deref()).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         rows.into_iter().map(decode_opportunity).collect()
     }
 
@@ -304,7 +304,7 @@ impl Customer360ReadRepository {
         scope: &ScopeFilter,
     ) -> Result<Vec<SalesOrderFact>, PortError> {
         let rows = sqlx::query("SELECT item.* FROM erpx_customer360_read.sales_order_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND item.customer_id=$2 AND ($3::text IS NULL OR item.source_key=$3) AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[])) ORDER BY item.sales_order_id DESC")
-            .bind(TENANT_ACTIVITY_PROJECTION_NAME).bind(customer.as_uuid()).bind(self.tenant_source.as_deref()).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
+            .bind(HOLDING_ACTIVITY_PROJECTION_NAME).bind(customer.as_uuid()).bind(self.holding_source.as_deref()).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         rows.into_iter().map(decode_sales_order).collect()
     }
 
@@ -314,20 +314,20 @@ impl Customer360ReadRepository {
         scope: &ScopeFilter,
     ) -> Result<Vec<SupportCaseFact>, PortError> {
         let rows = sqlx::query("SELECT item.* FROM erpx_customer360_read.support_case_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND item.customer_id=$2 AND ($3::text IS NULL OR item.source_key=$3) AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[])) ORDER BY item.aggregate_updated_at DESC,item.support_case_id DESC")
-            .bind(TENANT_ACTIVITY_PROJECTION_NAME).bind(customer.as_uuid()).bind(self.tenant_source.as_deref()).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
+            .bind(HOLDING_ACTIVITY_PROJECTION_NAME).bind(customer.as_uuid()).bind(self.holding_source.as_deref()).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         rows.into_iter().map(decode_support_case).collect()
     }
 }
 
-fn tenant_source_key(tenant_id: Uuid) -> String {
-    format!("tenant:{tenant_id}")
+fn holding_source_key(holding_id: Uuid) -> String {
+    format!("holding:{holding_id}")
 }
 
 #[async_trait]
 impl ReadRepository for Customer360ReadRepository {
     async fn get(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         customer: CustomerRef,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<Customer360View>>, PortError> {
@@ -346,21 +346,21 @@ impl ReadRepository for Customer360ReadRepository {
             sources.control_customers.freshness,
             FreshnessState::Unavailable
         );
-        let tenant_observed = !matches!(
-            sources.tenant_activity.freshness,
+        let holding_observed = !matches!(
+            sources.holding_activity.freshness,
             FreshnessState::Unavailable
         );
         let coverage = SourceCoverage {
             customer_profile: control_observed,
-            commercial_subscriptions: tenant_observed,
-            crm_opportunities: tenant_observed,
-            sales_orders: tenant_observed,
-            support_cases: tenant_observed,
+            commercial_subscriptions: holding_observed,
+            crm_opportunities: holding_observed,
+            sales_orders: holding_observed,
+            support_cases: holding_observed,
         };
         let availability = Customer360SectionAvailability::from_source_freshness(
             coverage,
             domain_freshness(sources.control_customers.freshness),
-            domain_freshness(sources.tenant_activity.freshness),
+            domain_freshness(sources.holding_activity.freshness),
         );
         let value = if profile.is_none()
             && subscriptions.is_empty()
@@ -410,19 +410,19 @@ struct ScopeFilter {
 }
 
 impl ScopeFilter {
-    fn from(scope: &TenantScope) -> Result<Self, PortError> {
+    fn from(scope: &AuthorityScope) -> Result<Self, PortError> {
         let value = match scope {
-            TenantScope::Platform => Self {
+            AuthorityScope::Platform => Self {
                 platform: true,
                 exact: vec![],
                 prefixes: vec![],
             },
-            TenantScope::Holding { holding_id } => Self {
+            AuthorityScope::Holding { holding_id } => Self {
                 platform: false,
                 exact: vec![format!("h:{holding_id}")],
                 prefixes: vec![format!("h:{holding_id}/%")],
             },
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => {
@@ -433,7 +433,7 @@ impl ScopeFilter {
                     prefixes: vec![format!("{key}/%")],
                 }
             }
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -442,26 +442,13 @@ impl ScopeFilter {
                 exact: vec![format!("h:{holding_id}/c:{company_id}/b:{branch_id}")],
                 prefixes: vec![],
             },
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Self {
                 platform: false,
-                exact: company_ids
-                    .iter()
-                    .flat_map(|company| {
-                        if branch_ids.is_empty() {
-                            vec![format!("h:{holding_id}/c:{company}")]
-                        } else {
-                            branch_ids
-                                .iter()
-                                .map(|branch| format!("h:{holding_id}/c:{company}/b:{branch}"))
-                                .collect()
-                        }
-                    })
-                    .collect(),
-                prefixes: vec![],
+                exact: vec![format!("h:{holding_id}/c:{organization_node_id}")],
+                prefixes: vec![format!("h:{holding_id}/c:{organization_node_id}/%")],
             },
         };
         Ok(value)
@@ -654,10 +641,10 @@ mod tests {
         assert!(value.checkpoint.is_none());
     }
     #[test]
-    fn tenant_source_is_uuid_qualified() {
+    fn holding_source_is_uuid_qualified() {
         assert_eq!(
-            tenant_source_key(Uuid::from_u128(7)),
-            "tenant:00000000-0000-0000-0000-000000000007"
+            holding_source_key(Uuid::from_u128(7)),
+            "holding:00000000-0000-0000-0000-000000000007"
         );
     }
     #[test]
@@ -673,25 +660,23 @@ mod tests {
         let holding = Uuid::from_u128(1);
         let company = Uuid::from_u128(2);
         let branch = Uuid::from_u128(3);
-        let filter = ScopeFilter::from(&TenantScope::Subtree {
+        let filter = ScopeFilter::from(&AuthorityScope::Subtree {
             holding_id: holding,
-            company_ids: vec![company],
-            branch_ids: vec![branch],
+            organization_node_id: branch,
         })
         .unwrap();
-        assert_eq!(
-            filter.exact,
-            vec![format!("h:{holding}/c:{company}/b:{branch}")]
-        );
-        assert!(filter.prefixes.is_empty());
+        assert_eq!(filter.exact, vec![format!("h:{holding}/c:{branch}")]);
+        assert_eq!(filter.prefixes, vec![format!("h:{holding}/c:{branch}/%")]);
 
-        let company_only = ScopeFilter::from(&TenantScope::Subtree {
+        let company_only = ScopeFilter::from(&AuthorityScope::Subtree {
             holding_id: holding,
-            company_ids: vec![company],
-            branch_ids: vec![],
+            organization_node_id: company,
         })
         .unwrap();
         assert_eq!(company_only.exact, vec![format!("h:{holding}/c:{company}")]);
-        assert!(company_only.prefixes.is_empty());
+        assert_eq!(
+            company_only.prefixes,
+            vec![format!("h:{holding}/c:{company}/%")]
+        );
     }
 }

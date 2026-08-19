@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_cqrs::{IdempotencyKey, QueryConsistency};
-use erpx_kernel::{ActorAttribution, AuditContext, CommandId, CorrelationId, TenantScope};
+use erpx_kernel::{ActorAttribution, AuditContext, AuthorityScope, CommandId, CorrelationId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -22,7 +22,7 @@ pub enum OperationsLifecycleRecordAction {
 pub enum OperationsLifecycleRecordCommand {
     Create {
         kind: OperationsLifecycleRecordKind,
-        scope: TenantScope,
+        scope: AuthorityScope,
         title: String,
     },
     Transition {
@@ -52,15 +52,15 @@ pub struct OperationsLifecycleRecordCommandRequest {
     pub identity: OperationsLifecycleRecordCommandIdentity,
     pub correlation_id: CorrelationId,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
 }
 
 pub struct OperationsLifecycleRecordAuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
-    pub target_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
+    pub target_scope: &'a AuthorityScope,
     pub action: OperationsLifecycleRecordAction,
     pub kind: OperationsLifecycleRecordKind,
 }
@@ -77,7 +77,7 @@ pub trait OperationsLifecycleRecordAuthorizationPort: Send + Sync {
 pub trait OperationsLifecycleRecordWriteRepository: Send + Sync {
     async fn load_operations_lifecycle_record(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         record_id: Uuid,
     ) -> Result<Option<OperationsLifecycleRecord>, super::PortError>;
 }
@@ -115,7 +115,7 @@ pub trait OperationsLifecycleRecordUnitOfWork: Send + Sync {
 pub trait OperationsLifecycleRecordReadRepository: Send + Sync {
     async fn get_operations_lifecycle_record(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         record_id: Uuid,
         consistency: &QueryConsistency,
     ) -> Result<super::ReadProjection<Option<OperationsLifecycleRecord>>, super::PortError>;

@@ -6,7 +6,7 @@ use erpx_cqrs::{
 use erpx_cqrs_sqlx::{
     CqrsSqlxError, ReadPool, ReadSideStore, SqlxProjectionWaiter, WaitError, WaiterConfig,
 };
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use erpx_marketing::{
     CampaignBudgetId, CampaignBudgetView, LeadCandidateId, LeadCandidateList,
     LeadCandidateListFilter, LeadCandidateView, PortError, ReadRepository, ports::ReadProjection,
@@ -120,7 +120,7 @@ impl MarketingReadRepository {
 impl ReadRepository for MarketingReadRepository {
     async fn get_lead(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: LeadCandidateId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<LeadCandidateView>>, PortError> {
@@ -159,7 +159,7 @@ impl ReadRepository for MarketingReadRepository {
 
     async fn list_leads(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         filter: &LeadCandidateListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<LeadCandidateList>, PortError> {
@@ -205,7 +205,7 @@ impl ReadRepository for MarketingReadRepository {
 
     async fn get_budget(
         &self,
-        authority: &TenantScope,
+        authority: &AuthorityScope,
         id: CampaignBudgetId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<CampaignBudgetView>>, PortError> {
@@ -276,20 +276,20 @@ struct ScopeFilter {
 }
 
 impl ScopeFilter {
-    fn from(scope: &TenantScope) -> Result<Self, PortError> {
+    fn from(scope: &AuthorityScope) -> Result<Self, PortError> {
         scope.validate().map_err(|_| PortError::Denied)?;
         Ok(match scope {
-            TenantScope::Platform => Self {
+            AuthorityScope::Platform => Self {
                 platform: true,
                 exact: vec![],
                 prefixes: vec![],
             },
-            TenantScope::Holding { holding_id } => Self {
+            AuthorityScope::Holding { holding_id } => Self {
                 platform: false,
                 exact: vec![],
                 prefixes: vec![format!("h:{holding_id}/%")],
             },
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => {
@@ -300,7 +300,7 @@ impl ScopeFilter {
                     prefixes: vec![format!("{key}/%")],
                 }
             }
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -309,26 +309,13 @@ impl ScopeFilter {
                 exact: vec![format!("h:{holding_id}/c:{company_id}/b:{branch_id}")],
                 prefixes: vec![],
             },
-            TenantScope::Subtree {
+            AuthorityScope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
+                organization_node_id,
             } => Self {
                 platform: false,
-                exact: company_ids
-                    .iter()
-                    .flat_map(|company| {
-                        if branch_ids.is_empty() {
-                            vec![format!("h:{holding_id}/c:{company}")]
-                        } else {
-                            branch_ids
-                                .iter()
-                                .map(|branch| format!("h:{holding_id}/c:{company}/b:{branch}"))
-                                .collect()
-                        }
-                    })
-                    .collect(),
-                prefixes: vec![],
+                exact: vec![format!("h:{holding_id}/c:{organization_node_id}")],
+                prefixes: vec![format!("h:{holding_id}/c:{organization_node_id}/%")],
             },
         })
     }
@@ -353,7 +340,7 @@ mod tests {
 
     #[test]
     fn holding_scope_uses_descendant_prefix() {
-        let filter = ScopeFilter::from(&TenantScope::Holding {
+        let filter = ScopeFilter::from(&AuthorityScope::Holding {
             holding_id: Uuid::from_u128(1),
         })
         .unwrap();

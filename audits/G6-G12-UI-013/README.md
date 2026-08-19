@@ -11,7 +11,7 @@ Dioxus display model.
 - `SqlxControlPlane::list_platform_audit_page` reads only the allow-listed
   audit columns from the control-plane read pool.
 - The Tonic method requires an active authenticated Platform scope and
-  `platform.tenant.read`, validates the bounded page size and paired
+  `platform.holding.read`, validates the bounded page size and paired
   `(recorded_at, audit_id)` cursor, and records the read as
   `platform.audit.list`.
 - The protobuf response contains only audit ID, actor, action, purpose,

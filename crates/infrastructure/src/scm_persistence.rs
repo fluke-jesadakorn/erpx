@@ -1,4 +1,4 @@
-//! Tenant-routed SQLx persistence for Procurement and Inventory aggregates.
+//! Holding-routed SQLx persistence for Procurement and Inventory aggregates.
 //!
 //! The write database is authoritative.  The read database is a disposable
 //! projection rebuilt from the source outbox.  Every write validates the
@@ -13,7 +13,7 @@ use sqlx::{PgPool, Postgres, Row, Transaction};
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
-use erpx_domain::contracts::TenantScope;
+use erpx_domain::contracts::AuthorityScope;
 use erpx_domain::procurement_inventory::{
     GoodsReceipt, GoodsReceiptStatus, Product, PurchaseOrder, PurchaseOrderStatus, PurchaseRequest,
     PurchaseRequestStatus, ScmAggregateKind, ScmProjectionReconciliation,
@@ -45,7 +45,7 @@ pub struct ScmProjectionApplication {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScmProjectionRebuildPreparation {
-    pub holding_ref: String,
+    pub data_profile_key: String,
     pub rows_cleared: u64,
     pub checkpoints_cleared: u64,
 }
@@ -54,7 +54,7 @@ pub struct ScmProjectionRebuildPreparation {
 pub struct ScmSourceEventCursor {
     /// The routed holding this continuation belongs to. A cursor copied from
     /// another holding must never be allowed to advance this source stream.
-    pub holding_ref: String,
+    pub data_profile_key: String,
     pub aggregate_type: String,
     pub aggregate_id: Uuid,
     pub aggregate_version: u64,
@@ -113,7 +113,7 @@ pub struct ScmReadRow {
     pub aggregate: ScmAggregate,
 }
 
-/// Explicit tenant scope accepted by the SCM read gateway. Company scope
+/// Explicit holding scope accepted by the SCM read gateway. Company scope
 /// includes its branches; branch scope is exact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ScmReadScope {
@@ -260,10 +260,10 @@ impl ScmAggregate {
         }
     }
 
-    /// Returns the immutable tenant scope carried by the source aggregate.
+    /// Returns the immutable holding scope carried by the source aggregate.
     /// Read adapters use this value only after loading from the routed
     /// disposable projection to enforce company/branch containment.
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         match self {
             Self::Product(value) => &value.scope,
             Self::Warehouse(value) => &value.scope,
@@ -389,38 +389,38 @@ fn fields_for<'a, T: Serialize>(
 pub struct SqlxScmStore {
     write_pool: PgPool,
     read_pool: PgPool,
-    holding_ref: String,
+    data_profile_key: String,
 }
 
 impl SqlxScmStore {
     pub fn new(
         write_pool: PgPool,
         read_pool: PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_holding_ref(&holding_ref)?;
+        let data_profile_key = data_profile_key.into();
+        validate_data_profile_key(&data_profile_key)?;
         Ok(Self {
             write_pool,
             read_pool,
-            holding_ref,
+            data_profile_key,
         })
     }
 
     pub fn from_pools(
         write_pool: &PgPool,
         read_pool: &PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        Self::new(write_pool.clone(), read_pool.clone(), holding_ref)
+        Self::new(write_pool.clone(), read_pool.clone(), data_profile_key)
     }
 
-    pub fn holding_ref(&self) -> &str {
-        &self.holding_ref
+    pub fn data_profile_key(&self) -> &str {
+        &self.data_profile_key
     }
 
     /// Persist one validated source aggregate and all its durable delivery
-    /// records in one tenant-scoped transaction.
+    /// records in one holding-scoped transaction.
     pub async fn save(
         &self,
         aggregate: &ScmAggregate,
@@ -441,10 +441,10 @@ impl SqlxScmStore {
         let mut tx = self.begin_write().await?;
         if let Some(row) = sqlx::query(
             "SELECT aggregate_type, aggregate_id, request_hash, response
-             FROM erpx_tenant.scm_command_idempotency
-             WHERE holding_ref=$1 AND idempotency_key=$2 FOR UPDATE",
+             FROM erpx_holding.scm_command_idempotency
+             WHERE data_profile_key=$1 AND idempotency_key=$2 FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(idempotency_key)
         .fetch_optional(&mut *tx)
         .await?
@@ -473,13 +473,13 @@ impl SqlxScmStore {
             let rows = sqlx::query(
                 "SELECT event_id, event_type, aggregate_type, aggregate_id,
                         aggregate_version, payload
-                 FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1 AND aggregate_type=$2 AND aggregate_id=$3
+                 FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1 AND aggregate_type=$2 AND aggregate_id=$3
                    AND aggregate_version=$4
                  ORDER BY event_id
                  FOR SHARE",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(aggregate_type)
             .bind(aggregate_id)
             .bind(as_i64(receipt.version, "SCM replay source version")?)
@@ -514,12 +514,12 @@ impl SqlxScmStore {
         }
 
         let current = sqlx::query_scalar::<_, i64>(
-            "SELECT version FROM erpx_tenant.scm_aggregates
-             WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$3 FOR UPDATE",
+            "SELECT version FROM erpx_holding.scm_aggregates
+             WHERE aggregate_type=$1 AND aggregate_id=$2 AND data_profile_key=$3 FOR UPDATE",
         )
         .bind(aggregate_type)
         .bind(aggregate_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         .map(|value| as_u64(value, "SCM aggregate version"))
@@ -538,10 +538,10 @@ impl SqlxScmStore {
         let branch_id = branch_id.or_else(|| branch_from_scope(aggregate.scope()));
         if current.is_some() {
             sqlx::query(
-                "UPDATE erpx_tenant.scm_aggregates
+                "UPDATE erpx_holding.scm_aggregates
                  SET company_id=$3, branch_id=$4, reference=$5, version=$6,
                      idempotency_key=$7, payload=$8, updated_at=now()
-                 WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$9",
+                 WHERE aggregate_type=$1 AND aggregate_id=$2 AND data_profile_key=$9",
             )
             .bind(aggregate_type)
             .bind(aggregate_id)
@@ -551,19 +551,19 @@ impl SqlxScmStore {
             .bind(as_i64(version, "SCM aggregate version")?)
             .bind(idempotency_key)
             .bind(&payload)
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .execute(&mut *tx)
             .await?;
         } else {
             sqlx::query(
-                "INSERT INTO erpx_tenant.scm_aggregates
-                    (aggregate_id, aggregate_type, holding_ref, company_id, branch_id,
+                "INSERT INTO erpx_holding.scm_aggregates
+                    (aggregate_id, aggregate_type, data_profile_key, company_id, branch_id,
                      reference, version, idempotency_key, payload)
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
             )
             .bind(aggregate_id)
             .bind(aggregate_type)
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(company_id)
             .bind(branch_id)
             .bind(reference)
@@ -580,15 +580,15 @@ impl SqlxScmStore {
             "version": version,
         });
         sqlx::query(
-            "INSERT INTO erpx_tenant.outbox_events
-                (event_id, aggregate_type, aggregate_id, holding_ref,
+            "INSERT INTO erpx_holding.outbox_events
+                (event_id, aggregate_type, aggregate_id, data_profile_key,
                  aggregate_version, event_type, payload, occurred_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,now())",
         )
         .bind(Uuid::new_v4())
         .bind(aggregate_type)
         .bind(aggregate_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(as_i64(version, "SCM aggregate version")?)
         .bind(format!("scm.{aggregate_type}.v1"))
         .bind(event_payload)
@@ -601,11 +601,11 @@ impl SqlxScmStore {
             replayed: false,
         };
         sqlx::query(
-            "INSERT INTO erpx_tenant.scm_command_idempotency
-                (holding_ref, idempotency_key, aggregate_type, aggregate_id, request_hash, response)
+            "INSERT INTO erpx_holding.scm_command_idempotency
+                (data_profile_key, idempotency_key, aggregate_type, aggregate_id, request_hash, response)
              VALUES ($1,$2,$3,$4,$5,$6)",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(idempotency_key)
         .bind(aggregate_type)
         .bind(aggregate_id)
@@ -670,11 +670,11 @@ impl SqlxScmStore {
         let mut tx = self.begin_write().await?;
         if let Some(row) = sqlx::query(
             "SELECT aggregate_type, aggregate_id, request_hash, response
-             FROM erpx_tenant.scm_command_idempotency
-             WHERE holding_ref=$1 AND idempotency_key=$2
+             FROM erpx_holding.scm_command_idempotency
+             WHERE data_profile_key=$1 AND idempotency_key=$2
              FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(&idempotency_key)
         .fetch_optional(&mut *tx)
         .await?
@@ -704,12 +704,12 @@ impl SqlxScmStore {
             let rows = sqlx::query(
                 "SELECT event_id, event_type, aggregate_type, aggregate_id,
                         aggregate_version, payload
-                 FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1 AND aggregate_type=$2 AND aggregate_id=$3
+                 FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1 AND aggregate_type=$2 AND aggregate_id=$3
                    AND aggregate_version=$4
                  ORDER BY event_id",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(aggregate_type)
             .bind(aggregate_id)
             .bind(as_i64(replay_version, "SCM transition replay version")?)
@@ -744,13 +744,13 @@ impl SqlxScmStore {
         }
         let row = sqlx::query(
             "SELECT payload, version
-               FROM erpx_tenant.scm_aggregates
-              WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$3
+               FROM erpx_holding.scm_aggregates
+              WHERE aggregate_type=$1 AND aggregate_id=$2 AND data_profile_key=$3
               FOR UPDATE",
         )
         .bind(aggregate_type)
         .bind(aggregate_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?;
         tx.commit().await?;
@@ -814,10 +814,10 @@ impl SqlxScmStore {
 
         if let Some(row) = sqlx::query(
             "SELECT request_hash, response
-             FROM erpx_tenant.scm_command_idempotency
-             WHERE holding_ref=$1 AND idempotency_key=$2 FOR UPDATE",
+             FROM erpx_holding.scm_command_idempotency
+             WHERE data_profile_key=$1 AND idempotency_key=$2 FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(&idempotency_key)
         .fetch_optional(&mut *tx)
         .await?
@@ -845,12 +845,12 @@ impl SqlxScmStore {
             let receipt_rows = sqlx::query(
                 "SELECT event_id, event_type, aggregate_type, aggregate_id,
                         aggregate_version, payload
-                 FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1 AND aggregate_type='goods_receipt'
+                 FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1 AND aggregate_type='goods_receipt'
                    AND aggregate_id=$2 AND aggregate_version=$3
                  ORDER BY event_id",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(receipt_id)
             .bind(as_i64(replay_version, "SCM goods receipt replay version")?)
             .fetch_all(&mut *tx)
@@ -896,12 +896,12 @@ impl SqlxScmStore {
                 let order_rows = sqlx::query(
                     "SELECT event_id, event_type, aggregate_type, aggregate_id,
                             aggregate_version, payload
-                     FROM erpx_tenant.outbox_events
-                     WHERE holding_ref=$1 AND aggregate_type='purchase_order'
+                     FROM erpx_holding.outbox_events
+                     WHERE data_profile_key=$1 AND aggregate_type='purchase_order'
                        AND aggregate_id=$2 AND aggregate_version=$3
                      ORDER BY event_id",
                 )
-                .bind(&self.holding_ref)
+                .bind(&self.data_profile_key)
                 .bind(order_id)
                 .bind(as_i64(order_version, "SCM purchase order replay version")?)
                 .fetch_all(&mut *tx)
@@ -940,13 +940,13 @@ impl SqlxScmStore {
 
         let receipt_row = sqlx::query(
             "SELECT payload, version
-             FROM erpx_tenant.scm_aggregates
+             FROM erpx_holding.scm_aggregates
              WHERE aggregate_type='goods_receipt'
-               AND aggregate_id=$1 AND holding_ref=$2
+               AND aggregate_id=$1 AND data_profile_key=$2
              FOR UPDATE",
         )
         .bind(receipt_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(PersistenceError::NotFound {
@@ -971,13 +971,13 @@ impl SqlxScmStore {
 
         let order_row = sqlx::query(
             "SELECT payload, version
-             FROM erpx_tenant.scm_aggregates
+             FROM erpx_holding.scm_aggregates
              WHERE aggregate_type='purchase_order'
-               AND aggregate_id=$1 AND holding_ref=$2
+               AND aggregate_id=$1 AND data_profile_key=$2
              FOR UPDATE",
         )
         .bind(purchase_order_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(PersistenceError::NotFound {
@@ -1003,14 +1003,14 @@ impl SqlxScmStore {
             &mut tx,
             &order,
             order_current_version,
-            &self.holding_ref,
+            &self.data_profile_key,
         )
         .await?;
         let (receipt_version, _) = persist_aggregate_update_in_transaction(
             &mut tx,
             &receipt,
             receipt_version,
-            &self.holding_ref,
+            &self.data_profile_key,
         )
         .await?;
 
@@ -1030,12 +1030,12 @@ impl SqlxScmStore {
             "paired_version": order_version,
         });
         sqlx::query(
-            "INSERT INTO erpx_tenant.scm_command_idempotency
-                (holding_ref, idempotency_key, aggregate_type, aggregate_id,
+            "INSERT INTO erpx_holding.scm_command_idempotency
+                (data_profile_key, idempotency_key, aggregate_type, aggregate_id,
                  request_hash, response)
              VALUES ($1,$2,'goods_receipt',$3,$4,$5)",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(idempotency_key)
         .bind(receipt_id)
         .bind(request_hash)
@@ -1085,10 +1085,10 @@ impl SqlxScmStore {
 
         if let Some(row) = sqlx::query(
             "SELECT request_hash, aggregate_type, aggregate_id, response
-             FROM erpx_tenant.scm_command_idempotency
-             WHERE holding_ref=$1 AND idempotency_key=$2 FOR UPDATE",
+             FROM erpx_holding.scm_command_idempotency
+             WHERE data_profile_key=$1 AND idempotency_key=$2 FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(&idempotency_key)
         .fetch_optional(&mut *tx)
         .await?
@@ -1115,12 +1115,12 @@ impl SqlxScmStore {
             let rows = sqlx::query(
                 "SELECT event_id, event_type, aggregate_type, aggregate_id,
                         aggregate_version, payload
-                 FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1 AND aggregate_type='stock_movement'
+                 FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1 AND aggregate_type='stock_movement'
                    AND aggregate_id=$2 AND aggregate_version=$3
                  ORDER BY event_id",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(movement_id)
             .bind(as_i64(
                 expected_version,
@@ -1180,12 +1180,12 @@ impl SqlxScmStore {
         // product/warehouse check serializable without a new schema object.
         let snapshot_rows = sqlx::query(
             "SELECT aggregate_id, version, payload
-             FROM erpx_tenant.scm_aggregates
-             WHERE holding_ref=$1 AND aggregate_type='stock_movement'
+             FROM erpx_holding.scm_aggregates
+             WHERE data_profile_key=$1 AND aggregate_type='stock_movement'
              ORDER BY aggregate_id
              FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_all(&mut *tx)
         .await?;
         let mut snapshots = HashMap::with_capacity(snapshot_rows.len());
@@ -1205,8 +1205,8 @@ impl SqlxScmStore {
                  SELECT DISTINCT ON (aggregate_id)
                         event_id, event_type, aggregate_id, aggregate_version,
                         payload, occurred_at
-                 FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1 AND aggregate_type='stock_movement'
+                 FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1 AND aggregate_type='stock_movement'
                  ORDER BY aggregate_id, aggregate_version DESC, event_id DESC
              )
              SELECT event_id, event_type, aggregate_id, aggregate_version,
@@ -1214,7 +1214,7 @@ impl SqlxScmStore {
              FROM latest
              ORDER BY occurred_at, event_id",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_all(&mut *tx)
         .await?;
         let mut movements = Vec::with_capacity(source_rows.len());
@@ -1307,7 +1307,7 @@ impl SqlxScmStore {
             &mut tx,
             &ScmAggregate::StockMovement(candidate),
             expected_movement_version,
-            &self.holding_ref,
+            &self.data_profile_key,
         )
         .await?;
         let response = ScmWriteReceipt {
@@ -1317,12 +1317,12 @@ impl SqlxScmStore {
             replayed: false,
         };
         sqlx::query(
-            "INSERT INTO erpx_tenant.scm_command_idempotency
-                (holding_ref, idempotency_key, aggregate_type, aggregate_id,
+            "INSERT INTO erpx_holding.scm_command_idempotency
+                (data_profile_key, idempotency_key, aggregate_type, aggregate_id,
                  request_hash, response)
              VALUES ($1,$2,'stock_movement',$3,$4,$5)",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(idempotency_key)
         .bind(movement_id)
         .bind(request_hash)
@@ -1343,7 +1343,7 @@ impl SqlxScmStore {
         let mut tx = self.begin_write().await?;
         let page = read_scm_source_event_page_in_transaction(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             cursor,
             page_size,
         )
@@ -1375,7 +1375,7 @@ impl SqlxScmStore {
                 "SCM reconciliation page size must be 1..={MAX_SCM_READ_PAGE_SIZE}"
             )));
         }
-        validate_reconciliation_cursor(&self.holding_ref, cursor)?;
+        validate_reconciliation_cursor(&self.data_profile_key, cursor)?;
         let (mut facts, has_more) = self.read_source_aggregate_page(cursor, page_size).await?;
         if has_more {
             facts.truncate(page_size as usize);
@@ -1483,7 +1483,7 @@ impl SqlxScmStore {
         let next_cursor = has_more
             .then(|| {
                 facts.last().map(|fact| ScmSourceEventCursor {
-                    holding_ref: self.holding_ref.clone(),
+                    data_profile_key: self.data_profile_key.clone(),
                     aggregate_type: fact.aggregate_type.clone(),
                     aggregate_id: fact.aggregate_id,
                     aggregate_version: fact.aggregate_version,
@@ -1495,7 +1495,7 @@ impl SqlxScmStore {
         let after_event_id = cursor.map(|value| value.event_id);
         let last_event_id = facts.last().map(|fact| fact.event_id);
         let evidence_id = reconciliation_evidence_id(
-            &self.holding_ref,
+            &self.data_profile_key,
             after_event_id,
             last_event_id,
             &source_digest,
@@ -1503,7 +1503,7 @@ impl SqlxScmStore {
         );
         let evidence = ScmReconciliationEvidence {
             evidence_id,
-            holding_ref: self.holding_ref.clone(),
+            data_profile_key: self.data_profile_key.clone(),
             after_event_id,
             first_event_id: facts.first().map(|fact| fact.event_id),
             last_event_id,
@@ -1615,7 +1615,7 @@ impl SqlxScmStore {
     }
 
     /// Persist one page's evidence and its matching immutable outbox fact in
-    /// one tenant-scoped transaction. Repeating the same page is a replay;
+    /// one holding-scoped transaction. Repeating the same page is a replay;
     /// changing the evidence for an existing page identity is rejected.
     pub async fn persist_reconciliation_evidence(
         &self,
@@ -1624,14 +1624,14 @@ impl SqlxScmStore {
         evidence
             .validate()
             .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
-        if evidence.holding_ref != self.holding_ref {
+        if evidence.data_profile_key != self.data_profile_key {
             return Err(PersistenceError::InvalidData(
                 "SCM reconciliation evidence holding does not match the routed store".into(),
             ));
         }
         let idempotency_key = reconciliation_evidence_key(evidence);
         let expected_id = reconciliation_evidence_id(
-            &self.holding_ref,
+            &self.data_profile_key,
             evidence.after_event_id,
             evidence.last_event_id,
             &evidence.source_digest,
@@ -1651,13 +1651,13 @@ impl SqlxScmStore {
         });
         let mut tx = self.begin_write().await?;
         let inserted = sqlx::query(
-            "INSERT INTO erpx_tenant.scm_command_idempotency
-                (holding_ref, idempotency_key, aggregate_type, aggregate_id,
+            "INSERT INTO erpx_holding.scm_command_idempotency
+                (data_profile_key, idempotency_key, aggregate_type, aggregate_id,
                  request_hash, response)
              VALUES ($1,$2,$3,$4,$5,$6)
-             ON CONFLICT (holding_ref, idempotency_key) DO NOTHING",
+             ON CONFLICT (data_profile_key, idempotency_key) DO NOTHING",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(&idempotency_key)
         .bind("scm_reconciliation")
         .bind(evidence.evidence_id)
@@ -1669,10 +1669,10 @@ impl SqlxScmStore {
             == 1;
         let stored = sqlx::query(
             "SELECT request_hash, aggregate_type, aggregate_id, response
-             FROM erpx_tenant.scm_command_idempotency
-             WHERE holding_ref=$1 AND idempotency_key=$2 FOR UPDATE",
+             FROM erpx_holding.scm_command_idempotency
+             WHERE data_profile_key=$1 AND idempotency_key=$2 FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(&idempotency_key)
         .fetch_one(&mut *tx)
         .await?;
@@ -1692,8 +1692,8 @@ impl SqlxScmStore {
         }
         if inserted {
             sqlx::query(
-                "INSERT INTO erpx_tenant.outbox_events
-                    (event_id, aggregate_type, aggregate_id, holding_ref,
+                "INSERT INTO erpx_holding.outbox_events
+                    (event_id, aggregate_type, aggregate_id, data_profile_key,
                      aggregate_version, event_type, payload, occurred_at)
                  VALUES ($1,$2,$3,$4,$5,$6,$7,now())
                  ON CONFLICT (event_id) DO NOTHING",
@@ -1701,7 +1701,7 @@ impl SqlxScmStore {
             .bind(evidence.evidence_id)
             .bind("scm_reconciliation")
             .bind(evidence.evidence_id)
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(1_i64)
             .bind("scm.reconciliation.v1")
             .bind(&outbox_payload)
@@ -1709,13 +1709,13 @@ impl SqlxScmStore {
             .await?;
         }
         let outbox = sqlx::query(
-            "SELECT aggregate_type, aggregate_id, holding_ref,
+            "SELECT aggregate_type, aggregate_id, data_profile_key,
                     aggregate_version, event_type, payload
-             FROM erpx_tenant.outbox_events
-             WHERE event_id=$1 AND holding_ref=$2",
+             FROM erpx_holding.outbox_events
+             WHERE event_id=$1 AND data_profile_key=$2",
         )
         .bind(evidence.evidence_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?;
         let Some(outbox) = outbox else {
@@ -1725,7 +1725,7 @@ impl SqlxScmStore {
         };
         if outbox.try_get::<String, _>("aggregate_type")? != "scm_reconciliation"
             || outbox.try_get::<Uuid, _>("aggregate_id")? != evidence.evidence_id
-            || outbox.try_get::<String, _>("holding_ref")? != self.holding_ref
+            || outbox.try_get::<String, _>("data_profile_key")? != self.data_profile_key
             || as_u64(outbox.try_get("aggregate_version")?, "SCM evidence version")? != 1
             || outbox.try_get::<String, _>("event_type")? != "scm.reconciliation.v1"
             || outbox.try_get::<Value, _>("payload")? != outbox_payload
@@ -1749,8 +1749,8 @@ impl SqlxScmStore {
                 SELECT DISTINCT ON (aggregate_type, aggregate_id)
                        event_id, event_type, aggregate_type, aggregate_id,
                        aggregate_version, payload
-                FROM erpx_tenant.outbox_events
-                WHERE holding_ref=$1
+                FROM erpx_holding.outbox_events
+                WHERE data_profile_key=$1
                   AND aggregate_type IN
                       ('product', 'warehouse', 'purchase_request', 'purchase_order',
                        'goods_receipt', 'stock_movement', 'stock_transfer',
@@ -1766,8 +1766,8 @@ impl SqlxScmStore {
                         MIN(aggregate_version) AS first_version,
                         COUNT(DISTINCT aggregate_version) AS distinct_version_count,
                         COUNT(*) AS event_count
-                 FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1
+                 FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1
                    AND aggregate_type IN
                        ('product', 'warehouse', 'purchase_request', 'purchase_order',
                         'goods_receipt', 'stock_movement', 'stock_transfer',
@@ -1775,8 +1775,8 @@ impl SqlxScmStore {
                  GROUP BY aggregate_type, aggregate_id
              ), conflicting_versions AS (
                  SELECT aggregate_type, aggregate_id, aggregate_version
-                 FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1
+                 FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1
                    AND aggregate_type IN
                        ('product', 'warehouse', 'purchase_request', 'purchase_order',
                         'goods_receipt', 'stock_movement', 'stock_transfer',
@@ -1816,8 +1816,8 @@ impl SqlxScmStore {
                         MIN(aggregate_version) AS first_version,
                         COUNT(DISTINCT aggregate_version) AS distinct_version_count,
                         COUNT(*) AS event_count
-                 FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1
+                 FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1
                    AND aggregate_type IN
                        ('product', 'warehouse', 'purchase_request', 'purchase_order',
                         'goods_receipt', 'stock_movement', 'stock_transfer',
@@ -1825,8 +1825,8 @@ impl SqlxScmStore {
                  GROUP BY aggregate_type, aggregate_id
              ), conflicting_versions AS (
                  SELECT aggregate_type, aggregate_id, aggregate_version
-                 FROM erpx_tenant.outbox_events
-                 WHERE holding_ref=$1
+                 FROM erpx_holding.outbox_events
+                 WHERE data_profile_key=$1
                    AND aggregate_type IN
                        ('product', 'warehouse', 'purchase_request', 'purchase_order',
                         'goods_receipt', 'stock_movement', 'stock_transfer',
@@ -1857,7 +1857,7 @@ impl SqlxScmStore {
              LIMIT $2"
             )
         };
-        let mut query = sqlx::query(&query_text).bind(&self.holding_ref);
+        let mut query = sqlx::query(&query_text).bind(&self.data_profile_key);
         if let Some(cursor) = cursor {
             query = query
                 .bind(&cursor.aggregate_type)
@@ -1923,15 +1923,15 @@ impl SqlxScmStore {
             "SELECT a.aggregate_type, a.aggregate_id, a.source_version, a.payload,
                     c.source_version AS checkpoint_version,
                     c.last_event_id AS checkpoint_event_id
-             FROM erpx_tenant.scm_aggregates AS a
-             LEFT JOIN erpx_tenant.scm_projection_checkpoints AS c
+             FROM erpx_holding.scm_aggregates AS a
+             LEFT JOIN erpx_holding.scm_projection_checkpoints AS c
                ON c.aggregate_type=a.aggregate_type
               AND c.aggregate_id=a.aggregate_id
-              AND c.holding_ref=a.holding_ref
-             WHERE a.holding_ref=$1 AND ({predicates})"
+              AND c.data_profile_key=a.data_profile_key
+             WHERE a.data_profile_key=$1 AND ({predicates})"
         );
         let mut tx = self.begin_read().await?;
-        let mut query = sqlx::query(&query_text).bind(&self.holding_ref);
+        let mut query = sqlx::query(&query_text).bind(&self.data_profile_key);
         for fact in facts {
             query = query.bind(&fact.aggregate_type).bind(fact.aggregate_id);
         }
@@ -1970,26 +1970,26 @@ impl SqlxScmStore {
         let mut tx = self.begin_read().await?;
         let projected_count = as_u64(
             sqlx::query_scalar::<_, i64>(
-                "SELECT COUNT(*) FROM erpx_tenant.scm_aggregates
-                 WHERE holding_ref=$1",
+                "SELECT COUNT(*) FROM erpx_holding.scm_aggregates
+                 WHERE data_profile_key=$1",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .fetch_one(&mut *tx)
             .await?,
             "SCM projected aggregate count",
         )?;
         let orphan_checkpoint_count = as_u64(
             sqlx::query_scalar::<_, i64>(
-                "SELECT COUNT(*) FROM erpx_tenant.scm_projection_checkpoints AS c
-                 WHERE c.holding_ref=$1
+                "SELECT COUNT(*) FROM erpx_holding.scm_projection_checkpoints AS c
+                 WHERE c.data_profile_key=$1
                    AND NOT EXISTS (
-                       SELECT 1 FROM erpx_tenant.scm_aggregates AS p
-                       WHERE p.holding_ref=c.holding_ref
+                       SELECT 1 FROM erpx_holding.scm_aggregates AS p
+                       WHERE p.data_profile_key=c.data_profile_key
                          AND p.aggregate_type=c.aggregate_type
                          AND p.aggregate_id=c.aggregate_id
                    )",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .fetch_one(&mut *tx)
             .await?,
             "SCM orphan checkpoint count",
@@ -2004,19 +2004,19 @@ impl SqlxScmStore {
             let mut read_tx = self.begin_read().await?;
             let query_text = if cursor.is_some() {
                 "SELECT p.aggregate_type, p.aggregate_id, p.source_version, p.payload
-                 FROM erpx_tenant.scm_aggregates AS p
-                 WHERE p.holding_ref=$1
+                 FROM erpx_holding.scm_aggregates AS p
+                 WHERE p.data_profile_key=$1
                    AND (p.aggregate_type, p.aggregate_id) > ($2, $3)
                  ORDER BY p.aggregate_type, p.aggregate_id
                  LIMIT $4"
             } else {
                 "SELECT p.aggregate_type, p.aggregate_id, p.source_version, p.payload
-                 FROM erpx_tenant.scm_aggregates AS p
-                 WHERE p.holding_ref=$1
+                 FROM erpx_holding.scm_aggregates AS p
+                 WHERE p.data_profile_key=$1
                  ORDER BY p.aggregate_type, p.aggregate_id
                  LIMIT $2"
             };
-            let mut query = sqlx::query(query_text).bind(&self.holding_ref);
+            let mut query = sqlx::query(query_text).bind(&self.data_profile_key);
             if let Some((aggregate_type, aggregate_id)) = &cursor {
                 query = query.bind(aggregate_type).bind(*aggregate_id).bind(limit);
             } else {
@@ -2088,8 +2088,8 @@ impl SqlxScmStore {
             .join(" OR ");
         let query_text = format!(
             "SELECT aggregate_type, aggregate_id
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1
                AND aggregate_type IN
                    ('product', 'warehouse', 'purchase_request', 'purchase_order',
                     'goods_receipt', 'stock_movement', 'stock_transfer',
@@ -2097,7 +2097,7 @@ impl SqlxScmStore {
                AND ({predicates})"
         );
         let mut tx = self.begin_write().await?;
-        let mut query = sqlx::query(&query_text).bind(&self.holding_ref);
+        let mut query = sqlx::query(&query_text).bind(&self.data_profile_key);
         for (aggregate_type, aggregate_id) in keys {
             query = query.bind(aggregate_type).bind(*aggregate_id);
         }
@@ -2123,16 +2123,16 @@ impl SqlxScmStore {
             "SELECT a.payload, a.source_version,
                     c.source_version AS checkpoint_version,
                     c.last_event_id AS checkpoint_event_id
-             FROM erpx_tenant.scm_aggregates AS a
-             LEFT JOIN erpx_tenant.scm_projection_checkpoints AS c
+             FROM erpx_holding.scm_aggregates AS a
+             LEFT JOIN erpx_holding.scm_projection_checkpoints AS c
                ON c.aggregate_type=a.aggregate_type
               AND c.aggregate_id=a.aggregate_id
-              AND c.holding_ref=a.holding_ref
-             WHERE a.aggregate_type=$1 AND a.aggregate_id=$2 AND a.holding_ref=$3",
+              AND c.data_profile_key=a.data_profile_key
+             WHERE a.aggregate_type=$1 AND a.aggregate_id=$2 AND a.data_profile_key=$3",
         )
         .bind(aggregate_type)
         .bind(aggregate_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?;
         tx.commit().await?;
@@ -2191,12 +2191,12 @@ impl SqlxScmStore {
             validate_uuid(cursor.aggregate_id, "SCM read cursor aggregate ID")?;
         }
         let requested_scope = match scope.branch_id {
-            Some(branch_id) => TenantScope::Branch {
+            Some(branch_id) => AuthorityScope::Branch {
                 holding_id: scope.holding_id,
                 company_id: scope.company_id,
                 branch_id,
             },
-            None => TenantScope::Company {
+            None => AuthorityScope::Company {
                 holding_id: scope.holding_id,
                 company_id: scope.company_id,
             },
@@ -2207,12 +2207,12 @@ impl SqlxScmStore {
                     a.reference, a.source_version, a.payload, a.projected_at,
                     c.source_version AS checkpoint_version,
                     c.last_event_id AS checkpoint_event_id
-             FROM erpx_tenant.scm_aggregates AS a
-             LEFT JOIN erpx_tenant.scm_projection_checkpoints AS c
+             FROM erpx_holding.scm_aggregates AS a
+             LEFT JOIN erpx_holding.scm_projection_checkpoints AS c
                ON c.aggregate_type=a.aggregate_type
               AND c.aggregate_id=a.aggregate_id
-              AND c.holding_ref=a.holding_ref
-             WHERE a.holding_ref=$1 AND a.company_id=$2
+              AND c.data_profile_key=a.data_profile_key
+             WHERE a.data_profile_key=$1 AND a.company_id=$2
                AND ($3::UUID IS NULL OR a.branch_id=$3)
                AND ($4::TIMESTAMPTZ IS NULL OR
                     (a.projected_at, a.aggregate_type, a.aggregate_id) <
@@ -2220,7 +2220,7 @@ impl SqlxScmStore {
              ORDER BY a.projected_at DESC, a.aggregate_type DESC, a.aggregate_id DESC
              LIMIT $7",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(scope.company_id)
         .bind(scope.branch_id)
         .bind(before.map(|cursor| cursor.projected_at))
@@ -2258,7 +2258,7 @@ impl SqlxScmStore {
             aggregate.validate()?;
             if aggregate.aggregate_type() != aggregate_type
                 || aggregate.aggregate_id() != aggregate_id
-                || aggregate.scope() == &TenantScope::Platform
+                || aggregate.scope() == &AuthorityScope::Platform
                 || !requested_scope.contains(aggregate.scope())
             {
                 return Err(PersistenceError::InvalidData(
@@ -2268,8 +2268,8 @@ impl SqlxScmStore {
             let persisted_company_id: Uuid = row.try_get("company_id")?;
             let persisted_branch_id: Option<Uuid> = row.try_get("branch_id")?;
             let (aggregate_company_id, aggregate_branch_id) = match aggregate.scope() {
-                TenantScope::Company { company_id, .. } => (*company_id, None),
-                TenantScope::Branch {
+                AuthorityScope::Company { company_id, .. } => (*company_id, None),
+                AuthorityScope::Branch {
                     company_id,
                     branch_id,
                     ..
@@ -2339,7 +2339,7 @@ impl SqlxScmStore {
         &self,
         aggregate_type: &str,
         aggregate_id: Uuid,
-        authorizing_scope: &TenantScope,
+        authorizing_scope: &AuthorityScope,
     ) -> Result<Option<ScmReadRow>, PersistenceError> {
         validate_authorizing_scope(authorizing_scope)?;
         let Some(row) = self.get(aggregate_type, aggregate_id).await? else {
@@ -2388,14 +2388,14 @@ impl SqlxScmStore {
         )?;
         let (_, _, company_id, branch_id, reference, _, aggregate_payload) = aggregate.fields()?;
         let mut tx = self.begin_read().await?;
-        lock_scm_projection_transaction(&mut tx, &self.holding_ref).await?;
+        lock_scm_projection_transaction(&mut tx, &self.data_profile_key).await?;
         let current = sqlx::query(
-            "SELECT source_version, payload FROM erpx_tenant.scm_aggregates
-             WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$3 FOR UPDATE",
+            "SELECT source_version, payload FROM erpx_holding.scm_aggregates
+             WHERE aggregate_type=$1 AND aggregate_id=$2 AND data_profile_key=$3 FOR UPDATE",
         )
         .bind(aggregate_type)
         .bind(aggregate_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         .map(|row| {
@@ -2410,12 +2410,12 @@ impl SqlxScmStore {
         .transpose()?;
         let checkpoint = sqlx::query(
             "SELECT source_version, last_event_id
-             FROM erpx_tenant.scm_projection_checkpoints
-             WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$3 FOR UPDATE",
+             FROM erpx_holding.scm_projection_checkpoints
+             WHERE aggregate_type=$1 AND aggregate_id=$2 AND data_profile_key=$3 FOR UPDATE",
         )
         .bind(aggregate_type)
         .bind(aggregate_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?
         .map(|row| {
@@ -2481,17 +2481,17 @@ impl SqlxScmStore {
             ));
         }
         sqlx::query(
-            "INSERT INTO erpx_tenant.scm_aggregates
-                (aggregate_id, aggregate_type, holding_ref, company_id, branch_id,
+            "INSERT INTO erpx_holding.scm_aggregates
+                (aggregate_id, aggregate_type, data_profile_key, company_id, branch_id,
                  reference, source_version, payload, projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,now())
              ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-                 holding_ref=$3, company_id=$4, branch_id=$5, reference=$6,
+                 data_profile_key=$3, company_id=$4, branch_id=$5, reference=$6,
                  source_version=$7, payload=$8, projected_at=now()",
         )
         .bind(aggregate_id)
         .bind(aggregate_type)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(company_id)
         .bind(branch_id)
         .bind(reference)
@@ -2500,16 +2500,16 @@ impl SqlxScmStore {
         .execute(&mut *tx)
         .await?;
         sqlx::query(
-            "INSERT INTO erpx_tenant.scm_projection_checkpoints
-                (aggregate_type, aggregate_id, holding_ref, last_event_id,
+            "INSERT INTO erpx_holding.scm_projection_checkpoints
+                (aggregate_type, aggregate_id, data_profile_key, last_event_id,
                  source_version, projected_at)
              VALUES ($1,$2,$3,$4,$5,now())
              ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-                 holding_ref=$3, last_event_id=$4, source_version=$5, projected_at=now()",
+                 data_profile_key=$3, last_event_id=$4, source_version=$5, projected_at=now()",
         )
         .bind(aggregate_type)
         .bind(aggregate_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(event_id)
         .bind(as_i64(aggregate_version, "SCM projection source version")?)
         .execute(&mut *tx)
@@ -2535,12 +2535,12 @@ impl SqlxScmStore {
     ) -> Result<ScmProjectionApplication, PersistenceError> {
         let (_, _, company_id, branch_id, reference, _, aggregate_payload) = aggregate.fields()?;
         let current = sqlx::query(
-            "SELECT source_version, payload FROM erpx_tenant.scm_aggregates
-             WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$3 FOR UPDATE",
+            "SELECT source_version, payload FROM erpx_holding.scm_aggregates
+             WHERE aggregate_type=$1 AND aggregate_id=$2 AND data_profile_key=$3 FOR UPDATE",
         )
         .bind(aggregate_type)
         .bind(aggregate_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut **tx)
         .await?
         .map(|row| {
@@ -2555,12 +2555,12 @@ impl SqlxScmStore {
         .transpose()?;
         let checkpoint = sqlx::query(
             "SELECT source_version, last_event_id
-             FROM erpx_tenant.scm_projection_checkpoints
-             WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$3 FOR UPDATE",
+             FROM erpx_holding.scm_projection_checkpoints
+             WHERE aggregate_type=$1 AND aggregate_id=$2 AND data_profile_key=$3 FOR UPDATE",
         )
         .bind(aggregate_type)
         .bind(aggregate_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut **tx)
         .await?
         .map(|row| {
@@ -2613,17 +2613,17 @@ impl SqlxScmStore {
             ));
         }
         sqlx::query(
-            "INSERT INTO erpx_tenant.scm_aggregates
-                (aggregate_id, aggregate_type, holding_ref, company_id, branch_id,
+            "INSERT INTO erpx_holding.scm_aggregates
+                (aggregate_id, aggregate_type, data_profile_key, company_id, branch_id,
                  reference, source_version, payload, projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,now())
              ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-                 holding_ref=$3, company_id=$4, branch_id=$5, reference=$6,
+                 data_profile_key=$3, company_id=$4, branch_id=$5, reference=$6,
                  source_version=$7, payload=$8, projected_at=now()",
         )
         .bind(aggregate_id)
         .bind(aggregate_type)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(company_id)
         .bind(branch_id)
         .bind(reference)
@@ -2632,16 +2632,16 @@ impl SqlxScmStore {
         .execute(&mut **tx)
         .await?;
         sqlx::query(
-            "INSERT INTO erpx_tenant.scm_projection_checkpoints
-                (aggregate_type, aggregate_id, holding_ref, last_event_id,
+            "INSERT INTO erpx_holding.scm_projection_checkpoints
+                (aggregate_type, aggregate_id, data_profile_key, last_event_id,
                  source_version, projected_at)
              VALUES ($1,$2,$3,$4,$5,now())
              ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-                 holding_ref=$3, last_event_id=$4, source_version=$5, projected_at=now()",
+                 data_profile_key=$3, last_event_id=$4, source_version=$5, projected_at=now()",
         )
         .bind(aggregate_type)
         .bind(aggregate_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(event_id)
         .bind(as_i64(aggregate_version, "SCM projection source version")?)
         .execute(&mut **tx)
@@ -2691,11 +2691,11 @@ impl SqlxScmStore {
             )));
         }
         let mut source_tx = self.begin_write().await?;
-        sqlx::query("LOCK TABLE erpx_tenant.outbox_events IN SHARE MODE")
+        sqlx::query("LOCK TABLE erpx_holding.outbox_events IN SHARE MODE")
             .execute(&mut *source_tx)
             .await?;
         let source_count =
-            scm_source_event_count_in_transaction(&mut source_tx, &self.holding_ref).await?;
+            scm_source_event_count_in_transaction(&mut source_tx, &self.data_profile_key).await?;
         if expected_source_event_count.is_some_and(|expected| expected != source_count) {
             return Err(PersistenceError::InvalidData(
                 "SCM source fence changed before replacement rebuild".into(),
@@ -2708,21 +2708,22 @@ impl SqlxScmStore {
         }
 
         let mut read_tx = self.begin_read().await?;
-        lock_scm_projection_transaction(&mut read_tx, &self.holding_ref).await?;
+        lock_scm_projection_transaction(&mut read_tx, &self.data_profile_key).await?;
         let rows_cleared =
-            sqlx::query("DELETE FROM erpx_tenant.scm_aggregates WHERE holding_ref=$1")
-                .bind(&self.holding_ref)
+            sqlx::query("DELETE FROM erpx_holding.scm_aggregates WHERE data_profile_key=$1")
+                .bind(&self.data_profile_key)
                 .execute(&mut *read_tx)
                 .await?
                 .rows_affected();
-        let checkpoints_cleared =
-            sqlx::query("DELETE FROM erpx_tenant.scm_projection_checkpoints WHERE holding_ref=$1")
-                .bind(&self.holding_ref)
-                .execute(&mut *read_tx)
-                .await?
-                .rows_affected();
+        let checkpoints_cleared = sqlx::query(
+            "DELETE FROM erpx_holding.scm_projection_checkpoints WHERE data_profile_key=$1",
+        )
+        .bind(&self.data_profile_key)
+        .execute(&mut *read_tx)
+        .await?
+        .rows_affected();
         let preparation = ScmProjectionRebuildPreparation {
-            holding_ref: self.holding_ref.clone(),
+            data_profile_key: self.data_profile_key.clone(),
             rows_cleared,
             checkpoints_cleared,
         };
@@ -2734,7 +2735,7 @@ impl SqlxScmStore {
             pages_read = pages_read.saturating_add(1);
             let page = read_scm_source_event_page_in_transaction(
                 &mut source_tx,
-                &self.holding_ref,
+                &self.data_profile_key,
                 cursor.as_ref(),
                 page_size,
             )
@@ -2746,8 +2747,13 @@ impl SqlxScmStore {
                     event.aggregate_version,
                     &event.payload,
                 )?;
-                validate_scm_source_snapshot(&mut source_tx, &self.holding_ref, event, &aggregate)
-                    .await?;
+                validate_scm_source_snapshot(
+                    &mut source_tx,
+                    &self.data_profile_key,
+                    event,
+                    &aggregate,
+                )
+                .await?;
                 if self
                     .project_event_in_transaction(
                         &mut read_tx,
@@ -2774,7 +2780,7 @@ impl SqlxScmStore {
             }
         }
         let final_source_count =
-            scm_source_event_count_in_transaction(&mut source_tx, &self.holding_ref).await?;
+            scm_source_event_count_in_transaction(&mut source_tx, &self.data_profile_key).await?;
         if final_source_count != source_count {
             return Err(PersistenceError::InvalidData(
                 "SCM source fence changed during replacement rebuild".into(),
@@ -2790,20 +2796,21 @@ impl SqlxScmStore {
     ) -> Result<ScmProjectionRebuildPreparation, PersistenceError> {
         let mut tx = self.begin_read().await?;
         let rows_cleared =
-            sqlx::query("DELETE FROM erpx_tenant.scm_aggregates WHERE holding_ref=$1")
-                .bind(&self.holding_ref)
+            sqlx::query("DELETE FROM erpx_holding.scm_aggregates WHERE data_profile_key=$1")
+                .bind(&self.data_profile_key)
                 .execute(&mut *tx)
                 .await?
                 .rows_affected();
-        let checkpoints_cleared =
-            sqlx::query("DELETE FROM erpx_tenant.scm_projection_checkpoints WHERE holding_ref=$1")
-                .bind(&self.holding_ref)
-                .execute(&mut *tx)
-                .await?
-                .rows_affected();
+        let checkpoints_cleared = sqlx::query(
+            "DELETE FROM erpx_holding.scm_projection_checkpoints WHERE data_profile_key=$1",
+        )
+        .bind(&self.data_profile_key)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
         tx.commit().await?;
         Ok(ScmProjectionRebuildPreparation {
-            holding_ref: self.holding_ref.clone(),
+            data_profile_key: self.data_profile_key.clone(),
             rows_cleared,
             checkpoints_cleared,
         })
@@ -2826,15 +2833,15 @@ impl SqlxScmStore {
             "SELECT e.event_type, e.aggregate_type, e.aggregate_id,
                     e.aggregate_version, e.payload,
                     a.version AS source_version, a.payload AS source_payload
-             FROM erpx_tenant.outbox_events AS e
-             JOIN erpx_tenant.scm_aggregates AS a
+             FROM erpx_holding.outbox_events AS e
+             JOIN erpx_holding.scm_aggregates AS a
                ON a.aggregate_type=e.aggregate_type
               AND a.aggregate_id=e.aggregate_id
-              AND a.holding_ref=e.holding_ref
-             WHERE e.event_id=$1 AND e.holding_ref=$2",
+              AND a.data_profile_key=e.data_profile_key
+             WHERE e.event_id=$1 AND e.data_profile_key=$2",
         )
         .bind(event_id)
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .fetch_optional(&mut *tx)
         .await?;
         tx.commit().await?;
@@ -2880,11 +2887,11 @@ impl SqlxScmStore {
     }
 
     async fn begin_write(&self) -> Result<Transaction<'_, Postgres>, PersistenceError> {
-        begin_scoped(&self.write_pool, &self.holding_ref).await
+        begin_scoped(&self.write_pool, &self.data_profile_key).await
     }
 
     async fn begin_read(&self) -> Result<Transaction<'_, Postgres>, PersistenceError> {
-        begin_scoped(&self.read_pool, &self.holding_ref).await
+        begin_scoped(&self.read_pool, &self.data_profile_key).await
     }
 }
 
@@ -2892,18 +2899,18 @@ const SCM_MAX_REBUILD_EVENTS: u64 = 1_000_000;
 
 async fn scm_source_event_count_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<u64, PersistenceError> {
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*)
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1
            AND aggregate_type IN
                ('product', 'warehouse', 'purchase_request', 'purchase_order',
                 'goods_receipt', 'stock_movement', 'stock_transfer',
                 'stock_reservation')",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .fetch_one(&mut **tx)
     .await?;
     as_u64(count, "SCM source event count")
@@ -2911,17 +2918,17 @@ async fn scm_source_event_count_in_transaction(
 
 async fn validate_scm_source_snapshot(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     event: &ScmSourceEvent,
     aggregate: &ScmAggregate,
 ) -> Result<(), PersistenceError> {
     let row = sqlx::query(
         "SELECT version, payload
-         FROM erpx_tenant.scm_aggregates
-         WHERE holding_ref=$1 AND aggregate_type=$2 AND aggregate_id=$3
+         FROM erpx_holding.scm_aggregates
+         WHERE data_profile_key=$1 AND aggregate_type=$2 AND aggregate_id=$3
          FOR SHARE",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(&event.aggregate_type)
     .bind(event.aggregate_id)
     .fetch_optional(&mut **tx)
@@ -2944,10 +2951,10 @@ async fn validate_scm_source_snapshot(
 
 async fn lock_scm_projection_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<(), PersistenceError> {
     sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
-        .bind(format!("scm:projection:{holding_ref}"))
+        .bind(format!("scm:projection:{data_profile_key}"))
         .execute(&mut **tx)
         .await?;
     Ok(())
@@ -2955,7 +2962,7 @@ async fn lock_scm_projection_transaction(
 
 async fn read_scm_source_event_page_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     cursor: Option<&ScmSourceEventCursor>,
     page_size: u32,
 ) -> Result<ScmSourceEventPage, PersistenceError> {
@@ -2964,11 +2971,11 @@ async fn read_scm_source_event_page_in_transaction(
             "SCM source event page size must be 1..={MAX_SCM_SOURCE_EVENT_PAGE_SIZE}"
         )));
     }
-    validate_holding_ref(holding_ref)?;
+    validate_data_profile_key(data_profile_key)?;
     let limit = i64::from(page_size) + 1;
     let rows = if let Some(cursor) = cursor {
-        validate_holding_ref(&cursor.holding_ref)?;
-        if cursor.holding_ref != holding_ref {
+        validate_data_profile_key(&cursor.data_profile_key)?;
+        if cursor.data_profile_key != data_profile_key {
             return Err(PersistenceError::InvalidData(
                 "SCM source cursor holding does not match the routed holding".into(),
             ));
@@ -2984,8 +2991,8 @@ async fn read_scm_source_event_page_in_transaction(
         sqlx::query(
             "SELECT event_id, event_type, aggregate_type, aggregate_id,
                     aggregate_version, payload, occurred_at
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1
                AND aggregate_type IN
                    ('product', 'warehouse', 'purchase_request', 'purchase_order',
                     'goods_receipt', 'stock_movement', 'stock_transfer',
@@ -2999,7 +3006,7 @@ async fn read_scm_source_event_page_in_transaction(
              ORDER BY aggregate_type, aggregate_id, aggregate_version, event_id
              LIMIT $6",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(&cursor.aggregate_type)
         .bind(cursor.aggregate_id)
         .bind(as_i64(
@@ -3014,8 +3021,8 @@ async fn read_scm_source_event_page_in_transaction(
         sqlx::query(
             "SELECT event_id, event_type, aggregate_type, aggregate_id,
                     aggregate_version, payload, occurred_at
-             FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1
+             FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1
                AND aggregate_type IN
                    ('product', 'warehouse', 'purchase_request', 'purchase_order',
                     'goods_receipt', 'stock_movement', 'stock_transfer',
@@ -3023,7 +3030,7 @@ async fn read_scm_source_event_page_in_transaction(
              ORDER BY aggregate_type, aggregate_id, aggregate_version, event_id
              LIMIT $2",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(limit)
         .fetch_all(&mut **tx)
         .await?
@@ -3068,7 +3075,7 @@ async fn read_scm_source_event_page_in_transaction(
     let next_cursor = has_more
         .then(|| {
             events.last().map(|event| ScmSourceEventCursor {
-                holding_ref: holding_ref.to_owned(),
+                data_profile_key: data_profile_key.to_owned(),
                 aggregate_type: event.aggregate_type.clone(),
                 aggregate_id: event.aggregate_id,
                 aggregate_version: event.aggregate_version,
@@ -3087,7 +3094,7 @@ async fn persist_aggregate_update_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
     aggregate: &ScmAggregate,
     current_version: u64,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<(u64, Uuid), PersistenceError> {
     let next_version = current_version
         .checked_add(1)
@@ -3097,10 +3104,10 @@ async fn persist_aggregate_update_in_transaction(
         aggregate.fields()?;
     let branch_id = branch_id.or_else(|| branch_from_scope(aggregate.scope()));
     sqlx::query(
-        "UPDATE erpx_tenant.scm_aggregates
+        "UPDATE erpx_holding.scm_aggregates
          SET company_id=$3, branch_id=$4, reference=$5, version=$6,
              idempotency_key=$7, payload=$8, updated_at=now()
-         WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$9",
+         WHERE aggregate_type=$1 AND aggregate_id=$2 AND data_profile_key=$9",
     )
     .bind(aggregate_type)
     .bind(aggregate_id)
@@ -3110,7 +3117,7 @@ async fn persist_aggregate_update_in_transaction(
     .bind(as_i64(next_version, "SCM aggregate version")?)
     .bind(idempotency_key)
     .bind(&payload)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .execute(&mut **tx)
     .await?;
     let event_id = Uuid::new_v4();
@@ -3120,15 +3127,15 @@ async fn persist_aggregate_update_in_transaction(
         "version": next_version,
     });
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,now())",
     )
     .bind(event_id)
     .bind(aggregate_type)
     .bind(aggregate_id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(as_i64(next_version, "SCM aggregate version")?)
     .bind(format!("scm.{aggregate_type}.v1"))
     .bind(event_payload)
@@ -3553,9 +3560,9 @@ fn validate_projected_aggregate(
     Ok(())
 }
 
-fn branch_from_scope(scope: &TenantScope) -> Option<Uuid> {
+fn branch_from_scope(scope: &AuthorityScope) -> Option<Uuid> {
     match scope {
-        TenantScope::Branch { branch_id, .. } => Some(*branch_id),
+        AuthorityScope::Branch { branch_id, .. } => Some(*branch_id),
         _ => None,
     }
 }
@@ -3599,13 +3606,13 @@ fn validate_read_scope(scope: ScmReadScope) -> Result<(), PersistenceError> {
     Ok(())
 }
 
-fn validate_authorizing_scope(scope: &TenantScope) -> Result<(), PersistenceError> {
+fn validate_authorizing_scope(scope: &AuthorityScope) -> Result<(), PersistenceError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } if !holding_id.is_nil() && !company_id.is_nil() => Ok(()),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -3629,7 +3636,7 @@ fn validate_source_event_type(
     }
 }
 
-fn validate_holding_ref(value: &str) -> Result<(), PersistenceError> {
+fn validate_data_profile_key(value: &str) -> Result<(), PersistenceError> {
     if value.trim().is_empty() || value.len() > 255 || value.chars().any(char::is_control) {
         return Err(PersistenceError::Configuration(
             "holding reference must be bounded and non-empty",
@@ -3648,13 +3655,13 @@ fn validate_uuid(value: Uuid, field: &'static str) -> Result<(), PersistenceErro
 }
 
 fn validate_reconciliation_cursor(
-    holding_ref: &str,
+    data_profile_key: &str,
     cursor: Option<&ScmSourceEventCursor>,
 ) -> Result<(), PersistenceError> {
     let Some(cursor) = cursor else {
         return Ok(());
     };
-    if cursor.holding_ref != holding_ref {
+    if cursor.data_profile_key != data_profile_key {
         return Err(PersistenceError::InvalidData(
             "SCM reconciliation cursor holding does not match the routed store".into(),
         ));
@@ -3730,7 +3737,7 @@ fn reconciliation_evidence_key(evidence: &ScmReconciliationEvidence) -> String {
 }
 
 fn reconciliation_evidence_id(
-    holding_ref: &str,
+    data_profile_key: &str,
     after_event_id: Option<Uuid>,
     last_event_id: Option<Uuid>,
     source_digest: &str,
@@ -3738,7 +3745,7 @@ fn reconciliation_evidence_id(
 ) -> Uuid {
     let key = serde_json::to_vec(&(
         "scm-reconciliation-v1",
-        holding_ref,
+        data_profile_key,
         optional_event_id(after_event_id),
         optional_event_id(last_event_id),
         source_digest,
@@ -3831,11 +3838,11 @@ fn as_u64(value: i64, field: &'static str) -> Result<u64, PersistenceError> {
 
 async fn begin_scoped<'a>(
     pool: &'a PgPool,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<Transaction<'a, Postgres>, PersistenceError> {
     let mut tx = pool.begin().await?;
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(data_profile_key)
         .execute(&mut *tx)
         .await?;
     Ok(tx)
@@ -3849,7 +3856,7 @@ mod tests {
     use erpx_domain::procurement_inventory::Product;
 
     #[tokio::test]
-    async fn store_rejects_unsafe_holding_references_without_database_access() {
+    async fn store_rejects_unsafe_data_profile_references_without_database_access() {
         let pool = PgPool::connect_lazy("postgres://unused").expect("lazy pool");
         assert!(SqlxScmStore::new(pool.clone(), pool, " ").is_err());
     }
@@ -3906,7 +3913,7 @@ mod tests {
     #[test]
     fn source_cursor_fence_binds_holding_and_positive_source_identity() {
         let mut cursor = ScmSourceEventCursor {
-            holding_ref: "holding-scm-a".into(),
+            data_profile_key: "holding-scm-a".into(),
             aggregate_type: "product".into(),
             aggregate_id: Uuid::new_v4(),
             aggregate_version: 1,
@@ -3914,10 +3921,10 @@ mod tests {
         };
         assert!(validate_reconciliation_cursor("holding-scm-a", Some(&cursor)).is_ok());
 
-        cursor.holding_ref = "holding-scm-b".into();
+        cursor.data_profile_key = "holding-scm-b".into();
         assert!(validate_reconciliation_cursor("holding-scm-a", Some(&cursor)).is_err());
 
-        cursor.holding_ref = "holding-scm-a".into();
+        cursor.data_profile_key = "holding-scm-a".into();
         cursor.aggregate_version = 0;
         assert!(validate_reconciliation_cursor("holding-scm-a", Some(&cursor)).is_err());
     }
@@ -3927,7 +3934,7 @@ mod tests {
         let holding_id = Uuid::new_v4();
         let company_id = Uuid::new_v4();
         let sibling_company_id = Uuid::new_v4();
-        let scope = TenantScope::Company {
+        let scope = AuthorityScope::Company {
             holding_id,
             company_id,
         };
@@ -3935,7 +3942,7 @@ mod tests {
             "scm/product-read-boundary",
             ActorAttribution {
                 principal_ref: "scm-test-actor".into(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: None,
                 represented_principal_ref: None,
                 support_capability_id: None,
@@ -3962,7 +3969,7 @@ mod tests {
 
         assert!(scope.contains(aggregate.scope()));
         assert!(
-            !TenantScope::Company {
+            !AuthorityScope::Company {
                 holding_id,
                 company_id: sibling_company_id,
             }
@@ -3976,27 +3983,26 @@ mod tests {
         let company_id = Uuid::new_v4();
         let branch_id = Uuid::new_v4();
         assert!(
-            validate_authorizing_scope(&TenantScope::Company {
+            validate_authorizing_scope(&AuthorityScope::Company {
                 holding_id,
                 company_id,
             })
             .is_ok()
         );
         assert!(
-            validate_authorizing_scope(&TenantScope::Branch {
+            validate_authorizing_scope(&AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
             })
             .is_ok()
         );
-        assert!(validate_authorizing_scope(&TenantScope::Platform).is_err());
-        assert!(validate_authorizing_scope(&TenantScope::Holding { holding_id }).is_err());
+        assert!(validate_authorizing_scope(&AuthorityScope::Platform).is_err());
+        assert!(validate_authorizing_scope(&AuthorityScope::Holding { holding_id }).is_err());
         assert!(
-            validate_authorizing_scope(&TenantScope::Subtree {
+            validate_authorizing_scope(&AuthorityScope::Subtree {
                 holding_id,
-                company_ids: vec![company_id],
-                branch_ids: vec![branch_id],
+                organization_node_id: branch_id,
             })
             .is_err()
         );

@@ -4,7 +4,7 @@
 //! adapters remain in the server composition root.
 
 // Historical G11/G14 source-bound acceptance tests still exercise the retired
-// façade helpers. The v2 server router does not register those handlers.
+// façade helpers. The current server router does not register those handlers.
 #![allow(dead_code)]
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -175,6 +175,7 @@ pub(crate) async fn session_middleware(
             .body(Body::empty())
             .unwrap_or_else(|_| unavailable());
     }
+    let request_path = request.uri().path().to_owned();
     let page_request = is_console_page_request(&request);
     let mut route_status = console_document_route_status(&request);
     let mut clear_stale_cookie = false;
@@ -231,6 +232,9 @@ pub(crate) async fn session_middleware(
     let secure_cookie = request_is_https(request.headers());
     request.extensions_mut().insert(context);
     let mut response = next.run(request).await;
+    if static_asset_fell_back_to_html(&request_path, &response) {
+        response = missing_static_asset(&request_path);
+    }
     if let Some(status) = route_status
         && status != StatusCode::OK
         && response.status().is_success()
@@ -248,6 +252,38 @@ pub(crate) async fn session_middleware(
     }
     apply_web_security_headers(&mut response, secure_cookie);
     response
+}
+
+fn static_asset_fell_back_to_html(path: &str, response: &Response) -> bool {
+    let static_namespace = path.starts_with("/assets/")
+        || path.starts_with("/wasm/")
+        || path.starts_with("/auth/assets/")
+        || path.starts_with("/auth/wasm/");
+    static_namespace
+        && response.status().is_success()
+        && response
+            .headers()
+            .get(header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| value.starts_with("text/html"))
+}
+
+fn missing_static_asset(path: &str) -> Response {
+    let content_type = if path.ends_with(".wasm") {
+        "application/wasm"
+    } else if path.ends_with(".js") {
+        "text/javascript; charset=utf-8"
+    } else if path.ends_with(".css") {
+        "text/css; charset=utf-8"
+    } else {
+        "application/octet-stream"
+    };
+    Response::builder()
+        .status(StatusCode::NOT_FOUND)
+        .header(header::CONTENT_TYPE, content_type)
+        .header(header::CACHE_CONTROL, PRIVATE_NO_STORE)
+        .body(Body::empty())
+        .unwrap_or_else(|_| unavailable())
 }
 
 fn apply_web_security_headers(response: &mut Response, https: bool) {
@@ -1001,7 +1037,7 @@ async fn fetch_platform_work_sources(
         contributions.push(unavailable_contribution(
             domain,
             label,
-            "This source needs an explicit server-authorized tenant routing context.",
+            "This source needs an explicit server-authorized holding routing context.",
         ));
     }
     AuthorizedWorkSources {
@@ -1955,7 +1991,7 @@ fn safe_development_persona_list(value: serde_json::Value) -> Option<serde_json:
                 })
                 .map(str::to_owned)
         };
-        let tenant_id = match object.get("tenant_id")? {
+        let holding_id = match object.get("holding_id")? {
             serde_json::Value::Null => None,
             serde_json::Value::String(value)
                 if !value.trim().is_empty()
@@ -1969,7 +2005,7 @@ fn safe_development_persona_list(value: serde_json::Value) -> Option<serde_json:
         safe.push(serde_json::json!({
             "persona_key": string("persona_key")?,
             "principal_ref": string("principal_ref")?,
-            "tenant_id": tenant_id,
+            "holding_id": holding_id,
             "organization_scope": string("organization_scope")?,
             "role_key": string("role_key")?,
             "feature": string("feature")?,
@@ -1987,7 +2023,7 @@ pub(crate) async fn public_branding_proxy(
     let request = forwarded_brand_request(
         state
             .auth_http
-            .get(format!("{}/branding/v1/bootstrap", state.auth_http_origin))
+            .get(format!("{}/branding/bootstrap", state.auth_http_origin))
             .header("accept", "application/json"),
         &headers,
     );
@@ -2005,7 +2041,7 @@ pub(crate) async fn public_brand_asset_proxy(
     let bootstrap = forwarded_brand_request(
         state
             .auth_http
-            .get(format!("{}/branding/v1/bootstrap", state.auth_http_origin))
+            .get(format!("{}/branding/bootstrap", state.auth_http_origin))
             .header("accept", "application/json"),
         &headers,
     )
@@ -2029,7 +2065,7 @@ pub(crate) async fn public_brand_asset_proxy(
     if let Some(reference) = reference {
         let upstream = forwarded_brand_request(
             state.auth_http.get(format!(
-                "{}/branding/v1/assets/{}",
+                "{}/branding/assets/{}",
                 state.auth_http_origin,
                 brand_asset_kind_path(kind)
             )),
@@ -2162,7 +2198,7 @@ pub(crate) async fn public_marketing_proxy(
         .header("accept", "application/json");
     for name in [
         header::HOST.as_str(),
-        "x-erpx-tenant-id",
+        "x-erpx-holding-id",
         "idempotency-key",
         "x-erpx-preview-token",
     ] {
@@ -2728,7 +2764,7 @@ mod tests {
 
         headers.insert(
             header::COOKIE,
-            HeaderValue::from_static("erpx_web_session_v2=short"),
+            HeaderValue::from_static("erpx_web_session=short"),
         );
         assert!(selector_from_headers(&headers).is_none());
     }
@@ -2756,7 +2792,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
         assert_eq!(
             response.headers().get(header::SET_COOKIE).unwrap(),
-            "erpx_web_session_v2=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict"
+            "erpx_web_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict"
         );
     }
 
@@ -2766,7 +2802,7 @@ mod tests {
             "persona_key": "demo:finance_operator",
             "principal_ref": "dev:demo:finance_operator",
             "directory_username": "must-not-cross-the-bff@example.test",
-            "tenant_id": "demo",
+            "holding_id": "demo",
             "organization_scope": "branch:00000000-0000-0000-0000-000000000001:00000000-0000-0000-0000-000000000002:00000000-0000-0000-0000-000000000003",
             "role_key": "finance_operator",
             "feature": "finance",
@@ -2860,8 +2896,17 @@ mod tests {
             Some(StatusCode::OK)
         );
 
+        let platform_holdings = Request::builder()
+            .uri("/platform/holdings")
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(
+            console_document_route_status(&platform_holdings),
+            Some(StatusCode::OK)
+        );
+
         let legacy = Request::builder()
-            .uri("/platform/tenants/demo-tenant/workspace/finance")
+            .uri("/platform/holdings/demo-holding/workspace/finance")
             .body(Body::empty())
             .unwrap();
         assert_eq!(
@@ -2883,6 +2928,30 @@ mod tests {
             .body(Body::empty())
             .unwrap();
         assert_eq!(console_document_route_status(&asset), None);
+    }
+
+    #[test]
+    fn missing_static_assets_never_fall_back_to_an_html_document() {
+        for path in [
+            "/assets/stale.css",
+            "/wasm/stale.js",
+            "/wasm/stale-patch.wasm",
+            "/auth/assets/stale.css",
+            "/auth/wasm/stale-patch.wasm",
+        ] {
+            let html = Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+                .body(Body::from("<!doctype html>"))
+                .expect("html fallback");
+            assert!(static_asset_fell_back_to_html(path, &html));
+            let response = missing_static_asset(path);
+            assert_eq!(response.status(), StatusCode::NOT_FOUND);
+            assert_ne!(
+                response.headers().get(header::CONTENT_TYPE),
+                Some(&HeaderValue::from_static("text/html; charset=utf-8"))
+            );
+        }
     }
 
     #[test]
@@ -2919,7 +2988,7 @@ mod tests {
         let mut login_response = StatusCode::OK.into_response();
         append_cookie(
             &mut login_response,
-            "erpx_web_session_v2=opaque; Path=/; HttpOnly; SameSite=Strict",
+            "erpx_web_session=opaque; Path=/; HttpOnly; SameSite=Strict",
         );
         let mut headers = HeaderMap::new();
         headers.insert(
@@ -2936,7 +3005,7 @@ mod tests {
         );
         assert_eq!(
             response.headers().get(header::SET_COOKIE).unwrap(),
-            "erpx_web_session_v2=opaque; Path=/; HttpOnly; SameSite=Strict"
+            "erpx_web_session=opaque; Path=/; HttpOnly; SameSite=Strict"
         );
 
         headers.insert(
@@ -3130,7 +3199,7 @@ mod tests {
             .get(header::SET_COOKIE)
             .and_then(|value| value.to_str().ok())
             .unwrap();
-        assert!(cookie.starts_with("erpx_web_session_v2="));
+        assert!(cookie.starts_with("erpx_web_session="));
         assert!(cookie.contains("Path=/"));
         assert!(cookie.contains("HttpOnly"));
         assert!(cookie.contains("SameSite=Strict"));
@@ -3179,7 +3248,7 @@ mod tests {
             NavGroup::new(
                 "Finance",
                 vec![
-                    erpx_ui_core::NavItem::new("Customers", "/platform/customers", "customers")
+                    erpx_ui_core::NavItem::new("Customers", "/platform/holdings", "customers")
                         .with_action_capabilities(vec!["customer.read".to_owned()]),
                     erpx_ui_core::NavItem::new("Unknown", "/internal/raw", "unknown"),
                 ],

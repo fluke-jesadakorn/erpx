@@ -50,22 +50,22 @@ synchronously by the Support authorization adapter, and Commercial entitlement
 must be checked by the entitlement adapter. Neither check may use a stale
 Support snapshot or import a foreign core.
 
-## Protobuf delta (`service.proto`, target package `erpx.support.v1`)
+## Protobuf delta (`service.proto`, target package `erpx.support`)
 
 Keep the legacy `SupportService` only as a temporary cutover seam. Append typed
 `SupportCommandService` and `SupportQueryService`; remove the legacy service and
 messages at final coordinated cutover. All command requests start with
-`erpx.common.v1.CommandRequestMetadata metadata = 1`; all query requests start
-with `erpx.common.v1.QueryRequestMetadata metadata = 1`. Mutation responses have
-`erpx.common.v1.CommandReceipt receipt = 1`; query responses end with
-`erpx.common.v1.QueryMetadata metadata`.
+`erpx.common.CommandRequestMetadata metadata = 1`; all query requests start
+with `erpx.common.QueryRequestMetadata metadata = 1`. Mutation responses have
+`erpx.common.CommandReceipt receipt = 1`; query responses end with
+`erpx.common.QueryMetadata metadata`.
 
 Enums (use the exact domain variants plus `UNSPECIFIED = 0`):
 
 - `SupportTicketStatus`: NEW, TRIAGED, WAITING_FOR_CUSTOMER, ACCESS_REQUESTED,
   APPROVED, IN_PROGRESS, RESOLVED, CUSTOMER_CONFIRMED, CLOSED.
 - `SupportMessageAudience`: CUSTOMER_VISIBLE, INTERNAL.
-- `SupportMode`: DIAGNOSTIC_READ, TENANT_MUTATION, IMPERSONATION.
+- `SupportMode`: DIAGNOSTIC_READ, HOLDING_MUTATION, IMPERSONATION.
 - `SupportSessionStatus`: REQUESTED, APPROVED, REVOKED.
 - `SupportCapabilityRevocationReason`: CUSTOMER_REQUESTED, AGENT_DISABLED,
   DEVICE_REVOKED, SESSION_REVOKED, TICKET_CLOSED, ADMINISTRATIVE.
@@ -84,28 +84,28 @@ message SupportInternalMessageRecord {
   string body = 4; string created_at = 5;
 }
 message SupportCustomerTicketRecord {
-  string ticket_id = 1; uint64 source_version = 2; erpx.common.v1.TenantScope scope = 3;
+  string ticket_id = 1; uint64 source_version = 2; erpx.common.AuthorityScope scope = 3;
   string customer_id = 4; string customer_account_id = 5; string case_code = 6;
   string category = 7; string severity = 8; string description = 9;
   SupportTicketStatus status = 10; repeated SupportCustomerMessageRecord messages = 11;
   string created_at = 12; string updated_at = 13; string projected_at = 14;
 }
 message SupportInternalTicketRecord {
-  string ticket_id = 1; uint64 source_version = 2; erpx.common.v1.TenantScope scope = 3;
+  string ticket_id = 1; uint64 source_version = 2; erpx.common.AuthorityScope scope = 3;
   string customer_id = 4; string customer_account_id = 5; string case_code = 6;
   string category = 7; string severity = 8; string description = 9;
   SupportTicketStatus status = 10; repeated SupportInternalMessageRecord messages = 11;
   string created_at = 12; string updated_at = 13; string projected_at = 14;
 }
 message SupportIncidentRecord {
-  string incident_id = 1; uint64 source_version = 2; erpx.common.v1.TenantScope scope = 3;
+  string incident_id = 1; uint64 source_version = 2; erpx.common.AuthorityScope scope = 3;
   string incident_code = 4; string severity = 5; string commander_ref = 6;
   repeated string affected_services = 7; repeated string affected_customer_accounts = 8;
   SupportIncidentStatus status = 9; string created_at = 10; string updated_at = 11;
   string projected_at = 12;
 }
 message SupportSessionRecord {
-  string session_id = 1; uint64 source_version = 2; erpx.common.v1.TenantScope approved_scope = 3;
+  string session_id = 1; uint64 source_version = 2; erpx.common.AuthorityScope approved_scope = 3;
   string ticket_id = 4; string customer_id = 5; string customer_account_id = 6;
   string agent_principal_id = 7; optional string represented_principal_id = 8;
   SupportMode mode = 9; repeated string permissions = 10; string module = 11;
@@ -117,7 +117,7 @@ message SupportCapabilityRecord {
   string capability_id = 1; uint64 source_version = 2; string session_id = 3;
   string ticket_id = 4; string customer_id = 5; string customer_account_id = 6;
   string agent_principal_id = 7; string device_ref = 8; SupportMode mode = 9;
-  repeated string permissions = 10; erpx.common.v1.TenantScope approved_scope = 11;
+  repeated string permissions = 10; erpx.common.AuthorityScope approved_scope = 11;
   string module = 12; string issued_at = 13; string expires_at = 14;
   optional SupportCapabilityRevocationReason revocation_reason = 15;
   optional string revoked_at = 16; string projected_at = 17;
@@ -163,7 +163,7 @@ encode an internal note:
 
 ## Exact write DDL
 
-Allocate the next tenant-write migration number and apply this schema.
+Allocate the next holding-write migration number and apply this schema.
 
 ```sql
 CREATE SCHEMA IF NOT EXISTS erpx_support_write;
@@ -198,7 +198,7 @@ CREATE TABLE erpx_support_write.incident_guards (
 CREATE TABLE erpx_support_write.session_guards (
   session_id UUID PRIMARY KEY, scope_key TEXT NOT NULL, ticket_id UUID NOT NULL,
   customer_id UUID NOT NULL, customer_account_id UUID NOT NULL, agent_principal_id UUID NOT NULL,
-  represented_principal_id UUID, support_mode TEXT NOT NULL CHECK (support_mode IN ('diagnostic_read','tenant_mutation','impersonation')),
+  represented_principal_id UUID, support_mode TEXT NOT NULL CHECK (support_mode IN ('diagnostic_read','holding_mutation','impersonation')),
   permissions JSONB NOT NULL, module TEXT NOT NULL, reason TEXT NOT NULL,
   session_status TEXT NOT NULL CHECK (session_status IN ('requested','approved','revoked')),
   aggregate_version BIGINT NOT NULL CHECK (aggregate_version > 0), requested_at TIMESTAMPTZ NOT NULL,
@@ -217,7 +217,7 @@ CREATE TABLE erpx_support_write.session_guards (
 CREATE TABLE erpx_support_write.capability_guards (
   capability_id UUID PRIMARY KEY, session_id UUID NOT NULL, ticket_id UUID NOT NULL,
   customer_id UUID NOT NULL, customer_account_id UUID NOT NULL, agent_principal_id UUID NOT NULL,
-  device_ref TEXT NOT NULL, support_mode TEXT NOT NULL CHECK (support_mode IN ('diagnostic_read','tenant_mutation','impersonation')),
+  device_ref TEXT NOT NULL, support_mode TEXT NOT NULL CHECK (support_mode IN ('diagnostic_read','holding_mutation','impersonation')),
   permissions JSONB NOT NULL, approved_scope JSONB NOT NULL, scope_key TEXT NOT NULL,
   module TEXT NOT NULL, secret_hash_sha256 BYTEA NOT NULL CHECK (octet_length(secret_hash_sha256)=32),
   aggregate_version BIGINT NOT NULL CHECK (aggregate_version > 0),
@@ -238,7 +238,7 @@ CREATE INDEX support_capability_scope_session_expiry ON erpx_support_write.capab
 
 ## Exact disposable read DDL
 
-Allocate the next tenant-read migration number. Every table below uses the
+Allocate the next holding-read migration number. Every table below uses the
 standard FK `(projection_name,generation) ->
 erpx_cqrs_read.projection_generations` with `ON DELETE CASCADE`.
 
@@ -248,7 +248,7 @@ CREATE TABLE erpx_support_read.ticket_projection (
   projection_name TEXT NOT NULL DEFAULT 'support.tickets' CHECK (projection_name='support.tickets'),
   generation UUID NOT NULL, partition_key TEXT NOT NULL, ticket_id UUID NOT NULL,
   source_aggregate_version BIGINT NOT NULL CHECK (source_aggregate_version>0), source_global_sequence BIGINT NOT NULL CHECK (source_global_sequence>0),
-  tenant_scope JSONB NOT NULL, scope_key TEXT NOT NULL, customer_id UUID NOT NULL,
+  holding_scope JSONB NOT NULL, scope_key TEXT NOT NULL, customer_id UUID NOT NULL,
   customer_account_id UUID NOT NULL, case_code TEXT NOT NULL, category TEXT NOT NULL,
   severity TEXT NOT NULL, description TEXT NOT NULL, ticket_status TEXT NOT NULL,
   aggregate_created_at TIMESTAMPTZ NOT NULL, aggregate_updated_at TIMESTAMPTZ NOT NULL,
@@ -275,7 +275,7 @@ CREATE TABLE erpx_support_read.incident_projection (
   projection_name TEXT NOT NULL DEFAULT 'support.incidents' CHECK (projection_name='support.incidents'),
   generation UUID NOT NULL, partition_key TEXT NOT NULL, incident_id UUID NOT NULL,
   source_aggregate_version BIGINT NOT NULL CHECK(source_aggregate_version>0), source_global_sequence BIGINT NOT NULL CHECK(source_global_sequence>0),
-  tenant_scope JSONB NOT NULL, scope_key TEXT NOT NULL, incident_code TEXT NOT NULL,
+  holding_scope JSONB NOT NULL, scope_key TEXT NOT NULL, incident_code TEXT NOT NULL,
   severity TEXT NOT NULL, commander_ref TEXT NOT NULL, affected_services JSONB NOT NULL,
   affected_customer_accounts JSONB NOT NULL, incident_status TEXT NOT NULL,
   state JSONB NOT NULL, aggregate_created_at TIMESTAMPTZ NOT NULL, aggregate_updated_at TIMESTAMPTZ NOT NULL,
@@ -345,6 +345,6 @@ table.
   all-target tests pass.
 
 The Phase B barrier is frozen at descriptor
-`34da323cdfa1c092601a7494cdc865be94e1cb6c707f3c4a8b53b784f7bacd22`, tenant
-write migration `0062`, and tenant read migration `0054`. Phase B proceeds
+`34da323cdfa1c092601a7494cdc865be94e1cb6c707f3c4a8b53b784f7bacd22`, holding
+write migration `0062`, and holding read migration `0054`. Phase B proceeds
 against those contracts without changing shared registrations.

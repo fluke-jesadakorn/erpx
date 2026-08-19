@@ -3330,6 +3330,7 @@ name = "erpx-domain"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "erpx-kernel",
  "hex",
  "serde",
  "serde_json",
@@ -4351,6 +4352,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "serde",
+ "uuid",
 ]
 
 [[package]]
@@ -4438,6 +4440,7 @@ version = "0.1.0"
 dependencies = [
  "erpx-domain",
  "erpx-ui-core",
+ "uuid",
 ]
 
 [[package]]

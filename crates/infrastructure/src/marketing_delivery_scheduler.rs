@@ -2,7 +2,7 @@
 //!
 //! The scheduler owns only worker leases, cadence, retry state, and a
 //! dead-letter record. Delivery claims, consent checks, provider results, and
-//! tenant business state remain in the physically separate tenant write
+//! holding business state remain in the physically separate holding write
 //! databases handled by `SqlxMarketingDeliveryStore`.
 
 use chrono::{DateTime, Duration, Utc};

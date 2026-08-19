@@ -17,7 +17,7 @@ pub use outbox::{
 };
 pub use pools::{
     CqrsDatabaseConfig, CqrsPoolSettings, CqrsPools, DatabaseManifest, DatabasePlane, DatabaseRole,
-    ProjectionPool, REQUIRED_SCHEMA_GENERATION, ReadPool, WritePool, verify_database_role,
+    ProjectionPool, REQUIRED_SCHEMA_REVISION, ReadPool, WritePool, verify_database_role,
 };
 pub use projection::{
     ApplyDisposition, EventPage, MultiSourceProjectionRun, MultiSourceProjectionRunner,
@@ -53,13 +53,13 @@ mod ddl_contract_tests {
             );
         }
         for contract in [
-            "PRIMARY KEY (tenant_id",
+            "PRIMARY KEY (holding_id",
             "FORCE ROW LEVEL SECURITY",
-            "WITH CHECK (tenant_id =",
+            "WITH CHECK (holding_id =",
         ] {
             assert!(
                 WRITE_DDL.contains(contract),
-                "missing tenant write contract: {contract}"
+                "missing holding write contract: {contract}"
             );
         }
     }
@@ -77,23 +77,23 @@ mod ddl_contract_tests {
         }
         assert!(READ_DDL.contains("status = 'active'"));
         for contract in [
-            "PRIMARY KEY (tenant_id",
-            "FOREIGN KEY (tenant_id, projection_name, generation)",
+            "PRIMARY KEY (holding_id",
+            "FOREIGN KEY (holding_id, projection_name, generation)",
             "FORCE ROW LEVEL SECURITY",
-            "WITH CHECK (tenant_id =",
+            "WITH CHECK (holding_id =",
         ] {
             assert!(
                 READ_DDL.contains(contract),
-                "missing tenant read contract: {contract}"
+                "missing holding read contract: {contract}"
             );
         }
     }
 
     #[test]
-    fn pool_capabilities_do_not_expose_a_raw_tenant_connection() {
+    fn pool_capabilities_do_not_expose_a_raw_holding_connection() {
         let source = include_str!("pools.rs");
         assert!(!source.contains(concat!("as_pg_", "pool")));
-        assert!(source.contains("SELECT set_config('app.tenant_id',$1,true)"));
+        assert!(source.contains("SELECT set_config('app.holding_id',$1,true)"));
         assert!(source.contains("if actual != expected"));
     }
 

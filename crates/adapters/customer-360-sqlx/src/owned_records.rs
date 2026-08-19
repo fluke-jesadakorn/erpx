@@ -13,7 +13,7 @@ use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, ItemDescriptorDraft,
     record_policy_id,
 };
-use erpx_kernel::{AggregateId, DataClassification, EventId, RecordId, TenantScope};
+use erpx_kernel::{AggregateId, AuthorityScope, DataClassification, EventId, RecordId};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::{Postgres, Row, Transaction};
@@ -33,7 +33,7 @@ struct Customer360ProjectionFact {
     record_id: Uuid,
     record_kind: Customer360RecordKind,
     record_version: u64,
-    tenant_scope: TenantScope,
+    active_scope: AuthorityScope,
     customer_account_id: Uuid,
     title: String,
     record_status: Customer360RecordStatus,
@@ -44,7 +44,7 @@ impl From<&Customer360OwnedRecord> for Customer360ProjectionFact {
             record_id: record.id().as_uuid(),
             record_kind: record.kind(),
             record_version: record.version(),
-            tenant_scope: record.scope().clone(),
+            active_scope: record.scope().clone(),
             customer_account_id: record.customer_account().id().as_uuid(),
             title: record.title().into(),
             record_status: record.status(),
@@ -76,7 +76,7 @@ impl Customer360OwnedRecordReadAdapter {
 impl Customer360OwnedRecordQueryPort for Customer360OwnedRecordReadAdapter {
     async fn get_owned_record(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         record_id: RecordId,
     ) -> Result<Option<Customer360OwnedRecordView>, PortError> {
         let mut tx = self
@@ -90,11 +90,11 @@ impl Customer360OwnedRecordQueryPort for Customer360OwnedRecordReadAdapter {
                     record.customer_account_id,record.title,record.record_status
              FROM erpx_customer_360_read.owned_record_projection record
              JOIN erpx_cqrs_read.projection_generations generation
-               ON generation.tenant_id=record.tenant_id
+               ON generation.holding_id=record.holding_id
               AND generation.projection_name=record.projection_name
               AND generation.generation=record.generation
               AND generation.status='active'
-             WHERE record.tenant_id=erpx_cqrs_read.current_tenant_id()
+             WHERE record.holding_id=erpx_cqrs_read.current_holding_id()
                AND record.projection_name=$1 AND record.scope_key=$2 AND record.record_id=$3",
         )
         .bind(PROJECTION)
@@ -134,7 +134,7 @@ impl Customer360OwnedRecordQueryPort for Customer360OwnedRecordReadAdapter {
     }
 }
 async fn require_active_generation(tx: &mut Transaction<'_, Postgres>) -> Result<(), PortError> {
-    let active: bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM erpx_cqrs_read.projection_generations WHERE tenant_id=erpx_cqrs_read.current_tenant_id() AND projection_name=$1 AND status='active')").bind(PROJECTION).fetch_one(&mut **tx).await.map_err(|_|PortError::Unavailable)?;
+    let active: bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM erpx_cqrs_read.projection_generations WHERE holding_id=erpx_cqrs_read.current_holding_id() AND projection_name=$1 AND status='active')").bind(PROJECTION).fetch_one(&mut **tx).await.map_err(|_|PortError::Unavailable)?;
     if active {
         Ok(())
     } else {
@@ -197,7 +197,7 @@ impl Customer360RecordUnitOfWork for Customer360RecordSqlxAdapter {
             correlation_id: c.correlation_id,
             idempotency_key: c.idempotency_key,
             request_hash: hash,
-            tenant_scope: c.record.scope().clone(),
+            active_scope: c.record.scope().clone(),
             actor: c.actor,
             audit_context: c.audit,
             aggregate_type: AGGREGATE.into(),
@@ -234,7 +234,7 @@ impl AtomicCommandGuard for Guard {
         let current: Option<i64> = sqlx::query_scalar(
             "SELECT record_version
              FROM erpx_customer_360_write.owned_records
-             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND record_id=$1
+             WHERE holding_id=erpx_cqrs_write.current_holding_id() AND record_id=$1
              FOR UPDATE",
         )
         .bind(self.0.id().as_uuid())
@@ -250,7 +250,7 @@ impl AtomicCommandGuard for Guard {
         tx: &mut Transaction<'_, Postgres>,
         c: &GuardCommandContext<'_>,
     ) -> Result<(), CqrsSqlxError> {
-        let current:Option<i64>=sqlx::query_scalar("SELECT record_version FROM erpx_customer_360_write.owned_records WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND record_id=$1 FOR UPDATE").bind(self.0.id().as_uuid()).fetch_optional(&mut **tx).await?;
+        let current:Option<i64>=sqlx::query_scalar("SELECT record_version FROM erpx_customer_360_write.owned_records WHERE holding_id=erpx_cqrs_write.current_holding_id() AND record_id=$1 FOR UPDATE").bind(self.0.id().as_uuid()).fetch_optional(&mut **tx).await?;
         match (c.expected_version, current) {
             (None, None) => Ok(()),
             (Some(e), Some(a)) if i64::try_from(e).ok() == Some(a) => Ok(()),
@@ -269,7 +269,7 @@ impl AtomicCommandGuard for Guard {
                 "customer 360 record metadata mismatch",
             ));
         }
-        let changed=sqlx::query("INSERT INTO erpx_customer_360_write.owned_records (tenant_id,record_id,record_kind,record_version,tenant_scope,scope_key,customer_account_id,related_customer_account_id,source_version,title,content_object_ref,content_sha256,record_status,created_by,closed_by,created_at,updated_at) VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) ON CONFLICT (tenant_id,record_id) DO UPDATE SET record_version=EXCLUDED.record_version,title=EXCLUDED.title,content_object_ref=EXCLUDED.content_object_ref,content_sha256=EXCLUDED.content_sha256,record_status=EXCLUDED.record_status,closed_by=EXCLUDED.closed_by,updated_at=EXCLUDED.updated_at WHERE erpx_customer_360_write.owned_records.record_version+1=EXCLUDED.record_version").bind(self.0.id().as_uuid()).bind(kind(self.0.kind())).bind(to_i64(self.0.version())?).bind(serde_json::to_value(self.0.scope())?).bind(scope_key(self.0.scope())).bind(self.0.customer_account().id().as_uuid()).bind(self.0.related_customer_account().map(|v|v.id().as_uuid())).bind(to_i64(self.0.source_version())?).bind(self.0.title()).bind(self.0.content_object_ref()).bind(self.0.content_sha256()).bind(status(self.0.status())).bind(self.0.created_by()).bind(self.0.closed_by()).bind(self.0.created_at()).bind(self.0.updated_at()).execute(&mut **tx).await?.rows_affected();
+        let changed=sqlx::query("INSERT INTO erpx_customer_360_write.owned_records (holding_id,record_id,record_kind,record_version,active_scope,scope_key,customer_account_id,related_customer_account_id,source_version,title,content_object_ref,content_sha256,record_status,created_by,closed_by,created_at,updated_at) VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) ON CONFLICT (holding_id,record_id) DO UPDATE SET record_version=EXCLUDED.record_version,title=EXCLUDED.title,content_object_ref=EXCLUDED.content_object_ref,content_sha256=EXCLUDED.content_sha256,record_status=EXCLUDED.record_status,closed_by=EXCLUDED.closed_by,updated_at=EXCLUDED.updated_at WHERE erpx_customer_360_write.owned_records.record_version+1=EXCLUDED.record_version").bind(self.0.id().as_uuid()).bind(kind(self.0.kind())).bind(to_i64(self.0.version())?).bind(serde_json::to_value(self.0.scope())?).bind(scope_key(self.0.scope())).bind(self.0.customer_account().id().as_uuid()).bind(self.0.related_customer_account().map(|v|v.id().as_uuid())).bind(to_i64(self.0.source_version())?).bind(self.0.title()).bind(self.0.content_object_ref()).bind(self.0.content_sha256()).bind(status(self.0.status())).bind(self.0.created_by()).bind(self.0.closed_by()).bind(self.0.created_at()).bind(self.0.updated_at()).execute(&mut **tx).await?.rows_affected();
         if changed != 1 {
             return Err(CqrsSqlxError::GuardRejected(
                 "customer 360 record write conflict",
@@ -307,7 +307,7 @@ fn status(v: Customer360RecordStatus) -> &'static str {
         Customer360RecordStatus::Cancelled => "cancelled",
     }
 }
-fn scope_key(v: &erpx_kernel::TenantScope) -> String {
+fn scope_key(v: &erpx_kernel::AuthorityScope) -> String {
     serde_json::to_string(v).expect("scope")
 }
 fn to_i64(v: u64) -> Result<i64, CqrsSqlxError> {
@@ -380,15 +380,15 @@ impl Projector for Customer360OwnedRecordProjector {
             serde_json::from_value(e.payload.clone()).map_err(pfailure)?;
         if r.record_id != e.aggregate_id.as_uuid()
             || r.record_version != e.aggregate_version
-            || r.tenant_scope != e.tenant_scope
-            || r.tenant_scope.validate().is_err()
+            || r.active_scope != e.active_scope
+            || r.active_scope.validate().is_err()
             || r.title.trim().is_empty()
         {
             return Err(ProjectionFailure::new(
                 "customer 360 owned record metadata mismatch",
             ));
         }
-        sqlx::query("INSERT INTO erpx_customer_360_read.owned_record_projection (tenant_id,projection_name,generation,partition_key,record_id,record_kind,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,customer_account_id,title,record_status,projected_at) VALUES (erpx_cqrs_read.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,record_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,title=EXCLUDED.title,record_status=EXCLUDED.record_status,projected_at=now() WHERE erpx_customer_360_read.owned_record_projection.source_aggregate_version<EXCLUDED.source_aggregate_version").bind(PROJECTION).bind(c.generation).bind(&e.partition).bind(r.record_id).bind(kind(r.record_kind)).bind(pi64(r.record_version)?).bind(pi64(e.global_sequence)?).bind(serde_json::to_value(&r.tenant_scope).map_err(pfailure)?).bind(scope_key(&r.tenant_scope)).bind(r.customer_account_id).bind(&r.title).bind(status(r.record_status)).execute(&mut **tx).await.map_err(pfailure)?;
+        sqlx::query("INSERT INTO erpx_customer_360_read.owned_record_projection (holding_id,projection_name,generation,partition_key,record_id,record_kind,source_aggregate_version,source_global_sequence,active_scope,scope_key,customer_account_id,title,record_status,projected_at) VALUES (erpx_cqrs_read.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now()) ON CONFLICT (holding_id,projection_name,generation,partition_key,record_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,title=EXCLUDED.title,record_status=EXCLUDED.record_status,projected_at=now() WHERE erpx_customer_360_read.owned_record_projection.source_aggregate_version<EXCLUDED.source_aggregate_version").bind(PROJECTION).bind(c.generation).bind(&e.partition).bind(r.record_id).bind(kind(r.record_kind)).bind(pi64(r.record_version)?).bind(pi64(e.global_sequence)?).bind(serde_json::to_value(&r.active_scope).map_err(pfailure)?).bind(scope_key(&r.active_scope)).bind(r.customer_account_id).bind(&r.title).bind(status(r.record_status)).execute(&mut **tx).await.map_err(pfailure)?;
         Ok(())
     }
     async fn reset(
@@ -396,7 +396,7 @@ impl Projector for Customer360OwnedRecordProjector {
         tx: &mut Transaction<'_, Postgres>,
         c: &ProjectorContext<'_>,
     ) -> Result<(), ProjectionFailure> {
-        sqlx::query("DELETE FROM erpx_customer_360_read.owned_record_projection WHERE tenant_id=erpx_cqrs_read.current_tenant_id() AND projection_name=$1 AND generation=$2").bind(PROJECTION).bind(c.generation).execute(&mut **tx).await.map_err(pfailure)?;
+        sqlx::query("DELETE FROM erpx_customer_360_read.owned_record_projection WHERE holding_id=erpx_cqrs_read.current_holding_id() AND projection_name=$1 AND generation=$2").bind(PROJECTION).bind(c.generation).execute(&mut **tx).await.map_err(pfailure)?;
         Ok(())
     }
 }

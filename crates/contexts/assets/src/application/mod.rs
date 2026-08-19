@@ -4,8 +4,8 @@ use erpx_cqrs::{
     QueryMetadata, QueryResult,
 };
 use erpx_kernel::{
-    ActorAttribution, AuditContext, Clock, CorrelationId, ErrorCategory, ErrorContext, EventId,
-    KernelError, TenantScope,
+    ActorAttribution, AuditContext, AuthorityScope, Clock, CorrelationId, ErrorCategory,
+    ErrorContext, EventId, KernelError,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -145,7 +145,7 @@ struct ExistingCommand {
     correlation_id: CorrelationId,
     causation_id: Option<EventId>,
     actor: ActorAttribution,
-    authority_scope: TenantScope,
+    authority_scope: AuthorityScope,
     audit: AuditContext,
     expected_version: Option<u64>,
     identity: CommandIdentity,
@@ -165,8 +165,8 @@ where
     async fn preflight(
         &self,
         actor: &ActorAttribution,
-        authority_scope: &TenantScope,
-        target_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         action: AssetAction,
     ) -> Result<(), AssetApplicationError> {
         if !authority_scope.contains(target_scope) {
@@ -199,7 +199,7 @@ where
             self.preflight(
                 &command.actor,
                 &command.authority_scope,
-                stored.aggregate.scope().tenant_scope(),
+                stored.aggregate.scope().active_scope(),
                 command.action,
             )
             .await
@@ -217,7 +217,7 @@ where
         self.preflight(
             &command.actor,
             &command.authority_scope,
-            aggregate.scope().tenant_scope(),
+            aggregate.scope().active_scope(),
             command.action,
         )
         .await
@@ -310,8 +310,8 @@ where
         {
             self.preflight(
                 &envelope.actor,
-                &envelope.tenant_scope,
-                stored.aggregate.scope().tenant_scope(),
+                &envelope.active_scope,
+                stored.aggregate.scope().active_scope(),
                 AssetAction::Create,
             )
             .await
@@ -324,8 +324,8 @@ where
         }
         self.preflight(
             &envelope.actor,
-            &envelope.tenant_scope,
-            command.scope.tenant_scope(),
+            &envelope.active_scope,
+            command.scope.active_scope(),
             AssetAction::Create,
         )
         .await
@@ -355,7 +355,7 @@ where
                 correlation_id,
                 causation_id: envelope.causation_id,
                 actor: envelope.actor,
-                authority_scope: envelope.tenant_scope,
+                authority_scope: envelope.active_scope,
                 audit: envelope.audit,
                 expected_version: None,
                 aggregate,
@@ -394,7 +394,7 @@ macro_rules! existing_handler {
                         correlation_id: envelope.correlation_id,
                         causation_id: envelope.causation_id,
                         actor: envelope.actor,
-                        authority_scope: envelope.tenant_scope,
+                        authority_scope: envelope.active_scope,
                         audit: envelope.audit,
                         expected_version: envelope.expected_aggregate_version,
                         identity: CommandIdentity {
@@ -492,7 +492,7 @@ where
     async fn authorize_query(
         &self,
         actor: &ActorAttribution,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         action: AssetAction,
     ) -> Result<(), PortError> {
         self.entitlement.ensure_assets_enabled(scope, false).await?;
@@ -521,13 +521,13 @@ where
         envelope: QueryEnvelope<GetAsset>,
     ) -> Result<QueryResult<Self::Response>, CqrsError> {
         envelope.validate()?;
-        self.authorize_query(&envelope.actor, &envelope.tenant_scope, AssetAction::View)
+        self.authorize_query(&envelope.actor, &envelope.active_scope, AssetAction::View)
             .await
             .map_err(|error| to_cqrs(error.into(), envelope.correlation_id))?;
         let projection = self
             .read_repository
             .get(
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 envelope.query.asset_id,
                 &envelope.consistency,
             )
@@ -536,7 +536,7 @@ where
         if projection
             .value
             .as_ref()
-            .is_some_and(|view| !envelope.tenant_scope.contains(view.scope.tenant_scope()))
+            .is_some_and(|view| !envelope.active_scope.contains(view.scope.active_scope()))
         {
             return Err(to_cqrs(
                 AssetApplicationError::ScopeOutsideAuthority,
@@ -576,13 +576,13 @@ where
                 envelope.correlation_id,
             ));
         }
-        self.authorize_query(&envelope.actor, &envelope.tenant_scope, AssetAction::List)
+        self.authorize_query(&envelope.actor, &envelope.active_scope, AssetAction::List)
             .await
             .map_err(|error| to_cqrs(error.into(), envelope.correlation_id))?;
         let projection = self
             .read_repository
             .list(
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 &envelope.query.filter,
                 &envelope.consistency,
             )
@@ -592,7 +592,7 @@ where
             .value
             .assets
             .iter()
-            .any(|view| !envelope.tenant_scope.contains(view.scope.tenant_scope()))
+            .any(|view| !envelope.active_scope.contains(view.scope.active_scope()))
         {
             return Err(to_cqrs(
                 AssetApplicationError::ScopeOutsideAuthority,

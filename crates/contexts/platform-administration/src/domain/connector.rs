@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use chrono::{DateTime, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -42,24 +42,24 @@ impl TryFrom<Uuid> for ConnectorBindingId {
 #[serde(tag = "kind", content = "scope", rename_all = "snake_case")]
 pub enum ConnectorScope {
     Platform,
-    Tenant(TenantScope),
+    Holding(AuthorityScope),
 }
 
 impl ConnectorScope {
-    pub fn tenant_scope(&self) -> TenantScope {
+    pub fn active_scope(&self) -> AuthorityScope {
         match self {
-            Self::Platform => TenantScope::Platform,
-            Self::Tenant(scope) => scope.clone(),
+            Self::Platform => AuthorityScope::Platform,
+            Self::Holding(scope) => scope.clone(),
         }
     }
 
     fn validate(&self) -> Result<(), PlatformAdministrationDomainError> {
         match self {
             Self::Platform => Ok(()),
-            Self::Tenant(TenantScope::Platform) => {
+            Self::Holding(AuthorityScope::Platform) => {
                 Err(PlatformAdministrationDomainError::InvalidAdminScope)
             }
-            Self::Tenant(scope) => scope
+            Self::Holding(scope) => scope
                 .validate()
                 .map_err(|_| PlatformAdministrationDomainError::InvalidAdminScope),
         }

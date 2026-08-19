@@ -1,6 +1,6 @@
 # G7-004-EXCEPTION-LIFECYCLE-039 evidence
 
-Status: implemented as a transport-neutral domain and tenant write-persistence packet. No route, worker, protobuf, UI, or source-transaction ownership was added.
+Status: implemented as a transport-neutral domain and holding write-persistence packet. No route, worker, protobuf, UI, or source-transaction ownership was added.
 
 ## Delivered behavior
 
@@ -11,9 +11,9 @@ Status: implemented as a transport-neutral domain and tenant write-persistence p
 - Added explicit half-open validity proofs for actor, assignee, and manager references. `valid_from` is inclusive and `valid_until` is exclusive; expired or future principals fail closed.
 - Reassignment is a versioned mutation that preserves lifecycle status and requires active assignee and manager proofs.
 - Manager escalation requires an active manager proof before the command reaches persistence.
-- Added `SqlxOperationsStore::apply_exception_lifecycle_command`, which locks the tenant snapshot, checks the routed holding, rechecks idempotency, enforces optimistic versioning, and atomically inserts the Operations event and snapshot.
+- Added `SqlxOperationsStore::apply_exception_lifecycle_command`, which locks the holding snapshot, checks the routed holding, rechecks idempotency, enforces optimistic versioning, and atomically inserts the Operations event and snapshot.
 - Replays with the same aggregate-bound idempotency key return `applied = false`; keys used by another aggregate return an idempotency conflict.
-- Cross-holding writes fail closed through tenant routing/RLS metadata validation and do not emit events.
+- Cross-holding writes fail closed through holding routing/RLS metadata validation and do not emit events.
 - Added a public infrastructure result type for applied/replayed transition evidence.
 
 ## Files changed
@@ -26,7 +26,7 @@ Status: implemented as a transport-neutral domain and tenant write-persistence p
 
 ## Contract and migration changes
 
-The domain contract gained additive JSON fields `manager_ref` and `sla`, both `serde(default)` for compatibility with older ExceptionCase snapshots. No tenant, control-plane, or read-side migration was required; the existing JSONB snapshot/event schema is sufficient. The public infrastructure root also contains a compatibility `Clone` implementation for the pre-existing commercial request error so the existing publication-plan error's declared `Clone` bound compiles; no commercial module file was changed.
+The domain contract gained additive JSON fields `manager_ref` and `sla`, both `serde(default)` for compatibility with older ExceptionCase snapshots. No holding, control-plane, or read-side migration was required; the existing JSONB snapshot/event schema is sufficient. The public infrastructure root also contains a compatibility `Clone` implementation for the pre-existing commercial request error so the existing publication-plan error's declared `Clone` bound compiles; no commercial module file was changed.
 
 ## Verification
 
@@ -37,7 +37,7 @@ The domain contract gained additive JSON fields `manager_ref` and `sla`, both `s
 - `cargo test -p erpx-infrastructure --all-targets` — PASS: 53 passed, 0 failed, 17 ignored across library and integration targets.
 - `cargo clippy -p erpx-domain -p erpx-infrastructure --all-targets -- -D warnings` — PASS.
 - `cargo test -p erpx-infrastructure --test operations_persistence --no-run` — PASS.
-- `ERPX_TEST_TENANT_WRITE_DATABASE_URL=postgres://... cargo test -p erpx-infrastructure --test operations_persistence exception_lifecycle_is_atomic_versioned_idempotent_and_tenant_bound -- --ignored --nocapture` — PASS: 1 passed, 0 failed against a fresh disposable PostgreSQL database. The database was dropped after the run.
+- `ERPX_TEST_HOLDING_WRITE_DATABASE_URL=postgres://... cargo test -p erpx-infrastructure --test operations_persistence exception_lifecycle_is_atomic_versioned_idempotent_and_holding_bound -- --ignored --nocapture` — PASS: 1 passed, 0 failed against a fresh disposable PostgreSQL database. The database was dropped after the run.
 - `git diff --check` — PASS.
 
 `cargo fmt --all --check` still reports one pre-existing formatting difference in forbidden shared path `erpx/apps/worker/src/lib.rs:1346`; this packet did not alter that path.
@@ -49,7 +49,7 @@ The domain contract gained additive JSON fields `manager_ref` and `sla`, both `s
 
 ## Security concerns
 
-The domain proof type is deliberately not an identity store: accepting a command requires an upstream authoritative evaluator to supply the validity window and matching actor attribution. The write helper never accepts a holding override, uses the routed holding transaction setting, validates persisted metadata, and performs idempotency/version checks inside the write transaction. Superuser/bypass-RLS test roles are handled fail closed by the persisted holding-reference check; production tenant roles must retain forced RLS.
+The domain proof type is deliberately not an identity store: accepting a command requires an upstream authoritative evaluator to supply the validity window and matching actor attribution. The write helper never accepts a holding override, uses the routed holding transaction setting, validates persisted metadata, and performs idempotency/version checks inside the write transaction. Superuser/bypass-RLS test roles are handled fail closed by the persisted holding-reference check; production holding roles must retain forced RLS.
 
 ## Integration order
 

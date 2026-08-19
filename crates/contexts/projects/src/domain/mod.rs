@@ -6,7 +6,7 @@ use erpx_integration_contracts::{
     catalog::ContextId,
     reference::{RecordTypeId, ReferenceValidationError},
 };
-use erpx_kernel::{CorrelationId, RecordId, TenantScope};
+use erpx_kernel::{AuthorityScope, CorrelationId, RecordId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -140,7 +140,7 @@ pub struct WorkflowTemplateRef {
 pub struct WorkflowTemplate {
     id: WorkflowTemplateId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     name: String,
     states: Vec<WorkflowStateDefinition>,
     transitions: Vec<WorkflowTransitionDefinition>,
@@ -152,7 +152,7 @@ pub struct WorkflowTemplate {
 impl WorkflowTemplate {
     pub fn publish(
         id: WorkflowTemplateId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         name: impl Into<String>,
         states: Vec<WorkflowStateDefinition>,
         transitions: Vec<WorkflowTransitionDefinition>,
@@ -264,7 +264,7 @@ impl WorkflowTemplate {
         }
     }
 
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn id(&self) -> WorkflowTemplateId {
@@ -543,7 +543,7 @@ impl ProjectNode {
 pub struct Project {
     id: ProjectId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     code: String,
     name: String,
     class: ProjectClass,
@@ -562,7 +562,7 @@ impl Project {
     #[allow(clippy::too_many_arguments)]
     pub fn propose(
         id: ProjectId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         code: impl Into<String>,
         name: impl Into<String>,
         class: ProjectClass,
@@ -952,7 +952,7 @@ impl Project {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn code(&self) -> &str {
@@ -1022,7 +1022,7 @@ pub struct DependencyEndpoint {
     pub project_version: u64,
     pub node_id: ProjectNodeId,
     pub node_version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub owner_id: Uuid,
 }
 
@@ -1288,7 +1288,7 @@ pub struct ProjectHandoff {
     version: u64,
     project_id: ProjectId,
     item_id: ProjectNodeId,
-    scope: TenantScope,
+    scope: AuthorityScope,
     kind: HandoffKind,
     payload_digest: String,
     idempotency_key: String,
@@ -1307,7 +1307,7 @@ impl ProjectHandoff {
         id: HandoffId,
         project_id: ProjectId,
         item_id: ProjectNodeId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         kind: HandoffKind,
         payload_digest: impl Into<String>,
         idempotency_key: impl Into<String>,
@@ -1451,7 +1451,7 @@ impl ProjectHandoff {
     pub const fn item_id(&self) -> ProjectNodeId {
         self.item_id
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn kind(&self) -> HandoffKind {
@@ -1512,7 +1512,7 @@ impl ProjectsAggregate {
             Self::Handoff(v) => v.version,
         }
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         match self {
             Self::Project(v) => &v.scope,
             Self::Workflow(v) => &v.scope,
@@ -1624,13 +1624,13 @@ pub enum ProjectDomainError {
     InvalidHandoffOutcome,
 }
 
-fn validate_scope(scope: &TenantScope) -> Result<(), ProjectDomainError> {
+fn validate_scope(scope: &AuthorityScope) -> Result<(), ProjectDomainError> {
     scope
         .validate()
         .map_err(|_| ProjectDomainError::InvalidScope)?;
     if matches!(
         scope,
-        TenantScope::Company { .. } | TenantScope::Branch { .. }
+        AuthorityScope::Company { .. } | AuthorityScope::Branch { .. }
     ) {
         Ok(())
     } else {
@@ -1676,13 +1676,13 @@ fn has_duplicates(values: &[Uuid]) -> bool {
     values.iter().any(|value| !seen.insert(*value))
 }
 
-fn holding_id(scope: &TenantScope) -> Option<Uuid> {
+fn holding_id(scope: &AuthorityScope) -> Option<Uuid> {
     match scope {
-        TenantScope::Holding { holding_id }
-        | TenantScope::Company { holding_id, .. }
-        | TenantScope::Branch { holding_id, .. }
-        | TenantScope::Subtree { holding_id, .. } => Some(*holding_id),
-        TenantScope::Platform => None,
+        AuthorityScope::Holding { holding_id }
+        | AuthorityScope::Company { holding_id, .. }
+        | AuthorityScope::Branch { holding_id, .. }
+        | AuthorityScope::Subtree { holding_id, .. } => Some(*holding_id),
+        AuthorityScope::Platform => None,
     }
 }
 

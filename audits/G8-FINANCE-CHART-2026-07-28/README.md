@@ -5,7 +5,7 @@
 Finance chart reads now fail closed when a normalized account row's
 `aggregate_version` does not match the authoritative chart header. The read
 adapter exposes stale-row evidence for reconciliation instead of presenting a
-mixed-version chart, while preserving tenant/holding scope and the existing
+mixed-version chart, while preserving holding/holding scope and the existing
 SQLx write, outbox, projector, and rollback boundaries.
 
 ## Evidence

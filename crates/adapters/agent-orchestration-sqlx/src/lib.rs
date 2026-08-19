@@ -4,6 +4,7 @@
 mod command;
 mod experience;
 mod governance;
+mod holding;
 mod maintenance;
 mod normalized;
 mod policy;
@@ -12,7 +13,6 @@ mod publication;
 mod registry;
 mod retention;
 mod runtime;
-mod tenant;
 
 pub use experience::{SqlxAgentExperienceQuery, SqlxAgentExperienceStore};
 pub use governance::{SqlxAgentGovernanceQuery, SqlxAgentGovernanceRepository};
@@ -28,12 +28,13 @@ pub const ASSIGNMENT_PROJECTION: &str = "agent_orchestration.assignments";
 
 #[cfg(test)]
 const WRITE_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0073_agent_orchestration.sql");
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 #[cfg(test)]
-const READ_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0064_agent_orchestration_projection.sql"
-);
+const READ_DDL: &str = include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 
+#[cfg(test)]
+#[path = "../../schema_test.rs"]
+mod schema_test;
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -43,7 +44,7 @@ mod tests {
         assert!(WRITE_DDL.contains("CREATE TABLE erpx_agent_write.agent_assignments"));
         assert!(
             WRITE_DDL
-                .contains("UNIQUE (tenant_id, scope_key, root_action_ref, requested_agent_ref)")
+                .contains("UNIQUE (holding_id, scope_key, root_action_ref, requested_agent_ref)")
         );
         assert!(WRITE_DDL.contains("agent_budget_reservation_layers"));
         assert!(WRITE_DDL.contains("trigger_kind TEXT NOT NULL"));
@@ -63,36 +64,38 @@ mod tests {
     }
 
     #[test]
-    fn write_and_read_schema_fail_closed_without_the_exact_tenant_setting() {
+    fn write_and_read_schema_fail_closed_without_the_exact_holding_setting() {
         for ddl in [WRITE_DDL, READ_DDL] {
-            assert!(ddl.contains("nullif(current_setting('app.tenant_id', true), '')::uuid"));
+            assert!(ddl.contains("nullif(current_setting('app.holding_id', true), '')::uuid"));
             assert!(ddl.contains("ENABLE ROW LEVEL SECURITY"));
             assert!(ddl.contains("FORCE ROW LEVEL SECURITY"));
-            assert!(ddl.contains("USING (tenant_id = erpx_agent_"));
+            assert!(ddl.contains("USING (holding_id = erpx_agent_"));
         }
         assert!(
-            WRITE_DDL.contains("WITH CHECK (tenant_id = erpx_agent_write.current_tenant_id())")
+            WRITE_DDL.contains("WITH CHECK (holding_id = erpx_agent_write.current_holding_id())")
         );
     }
 
     #[test]
-    fn every_agent_table_key_and_parent_reference_is_tenant_composite() {
-        assert_eq!(WRITE_DDL.matches("PRIMARY KEY (tenant_id").count(), 29);
-        assert_eq!(READ_DDL.matches("PRIMARY KEY (tenant_id").count(), 8);
-        let normalized = WRITE_DDL.split_whitespace().collect::<Vec<_>>().join(" ");
+    fn every_agent_table_key_and_parent_reference_is_holding_composite() {
+        let write = schema_test::select_schema_statements(WRITE_DDL, &["erpx_agent_write"]);
+        let read = schema_test::select_schema_statements(READ_DDL, &["erpx_agent_read"]);
+        assert_eq!(write.matches("PRIMARY KEY (holding_id").count(), 30);
+        assert_eq!(read.matches("PRIMARY KEY (holding_id").count(), 8);
+        let normalized = write.split_whitespace().collect::<Vec<_>>().join(" ");
         for reference in normalized.split("REFERENCES erpx_agent_write.").skip(1) {
             let mut tokens = reference.split_whitespace();
             let table = tokens.next().expect("referenced table");
             let columns = tokens.next().expect("referenced columns");
             assert!(
-                columns.starts_with("(tenant_id,"),
-                "reference to {table} is not tenant-composite: {columns}"
+                columns.starts_with("(holding_id,"),
+                "reference to {table} is not holding-composite: {columns}"
             );
         }
     }
 
     #[test]
-    fn all_non_worker_adapters_share_the_verified_tenant_boundary() {
+    fn all_non_worker_adapters_share_the_verified_holding_boundary() {
         for source in [
             include_str!("command.rs"),
             include_str!("experience.rs"),
@@ -106,8 +109,8 @@ mod tests {
             assert!(!source.contains("fetch_optional(&self.pool)"));
             assert!(!source.contains("execute(&self.pool)"));
         }
-        assert!(include_str!("normalized.rs").contains("WHERE tenant_id=$1"));
-        assert!(include_str!("command.rs").contains("ON CONFLICT (tenant_id,"));
+        assert!(include_str!("normalized.rs").contains("WHERE holding_id=$1"));
+        assert!(include_str!("command.rs").contains("ON CONFLICT (holding_id,"));
     }
 
     #[test]

@@ -7,8 +7,8 @@ use erpx_cqrs::{
     QueryMetadata, QueryResult,
 };
 use erpx_kernel::{
-    ActorAttribution, AuditContext, Clock, CorrelationId, ErrorCategory, ErrorContext, EventId,
-    KernelError, TenantScope,
+    ActorAttribution, AuditContext, AuthorityScope, Clock, CorrelationId, ErrorCategory,
+    ErrorContext, EventId, KernelError,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -24,35 +24,35 @@ use crate::{
     domain::{
         AdminContextId, ConnectorBinding, ConnectorBindingId, ConnectorKind,
         ConnectorReadinessEvidence, ConnectorScope, ConnectorTransition, EnvironmentId,
-        PlatformAdministrationDomainError, PlatformAggregate, PlatformTenant, PlatformTenantId,
-        TenantAdminContext, TenantLifecycleAction,
+        HoldingAdminContext, HoldingLifecycleAction, PlatformAdministrationDomainError,
+        PlatformAggregate, PlatformHolding, PlatformHoldingId,
     },
     integration,
     ports::{
         AdminContextView, AuthorizationPort, AuthorizationRequest, CommandFingerprint,
-        CommandIdentity, CommandUnitOfWork, ConnectorView, EntitlementPort, Page, PageFilter,
-        PlatformAdministrationAction, PlatformAdministrationCommit, PlatformRecordView, PortError,
-        ReadRepository, StoredCommit, TenantAuthorityPort, TenantView, WriteRepository,
+        CommandIdentity, CommandUnitOfWork, ConnectorView, EntitlementPort, HoldingAuthorityPort,
+        HoldingView, Page, PageFilter, PlatformAdministrationAction, PlatformAdministrationCommit,
+        PlatformRecordView, PortError, ReadRepository, StoredCommit, WriteRepository,
     },
 };
 
 pub const MAX_PLATFORM_LIST_PAGE_SIZE: u16 = 100;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RegisterPlatformTenant {
-    pub tenant_id: PlatformTenantId,
+pub struct RegisterPlatformHolding {
+    pub holding_id: PlatformHoldingId,
     pub code: String,
     pub name: String,
     pub environment_id: EnvironmentId,
     pub customer_id: Uuid,
-    pub root_holding_id: Uuid,
-    pub holding_ref: String,
+    pub canonical_holding_id: Uuid,
+    pub data_profile_key: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TransitionPlatformTenant {
-    pub tenant_id: PlatformTenantId,
-    pub action: TenantLifecycleAction,
+pub struct TransitionPlatformHolding {
+    pub holding_id: PlatformHoldingId,
+    pub action: HoldingLifecycleAction,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -78,10 +78,10 @@ pub struct ObserveConnectorReadiness {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct IssueTenantAdminContext {
+pub struct IssueHoldingAdminContext {
     pub context_id: AdminContextId,
-    pub tenant_id: PlatformTenantId,
-    pub scope: TenantScope,
+    pub holding_id: PlatformHoldingId,
+    pub scope: AuthorityScope,
     pub device_id: Uuid,
     pub session_id: Uuid,
     pub reason: String,
@@ -89,16 +89,16 @@ pub struct IssueTenantAdminContext {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RevokeTenantAdminContext {
+pub struct RevokeHoldingAdminContext {
     pub context_id: AdminContextId,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct GetPlatformTenant {
-    pub tenant_id: PlatformTenantId,
+pub struct GetPlatformHolding {
+    pub holding_id: PlatformHoldingId,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ListPlatformTenants {
+pub struct ListPlatformHoldings {
     pub filter: PageFilter,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -119,8 +119,8 @@ pub struct PlatformAdministrationMutationResult {
     pub record: PlatformRecordView,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct GetPlatformTenantResult {
-    pub tenant: Option<TenantView>,
+pub struct GetPlatformHoldingResult {
+    pub holding: Option<HoldingView>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GetConnectorResult {
@@ -164,7 +164,7 @@ pub struct PlatformAdministrationCommandHandler<W, U, A, E, T, C> {
     unit_of_work: U,
     authorization: A,
     entitlement: E,
-    tenant_authority: T,
+    holding_authority: T,
     clock: C,
 }
 
@@ -174,7 +174,7 @@ impl<W, U, A, E, T, C> PlatformAdministrationCommandHandler<W, U, A, E, T, C> {
         unit_of_work: U,
         authorization: A,
         entitlement: E,
-        tenant_authority: T,
+        holding_authority: T,
         clock: C,
     ) -> Self {
         Self {
@@ -182,7 +182,7 @@ impl<W, U, A, E, T, C> PlatformAdministrationCommandHandler<W, U, A, E, T, C> {
             unit_of_work,
             authorization,
             entitlement,
-            tenant_authority,
+            holding_authority,
             clock,
         }
     }
@@ -192,7 +192,7 @@ struct CommandParts {
     correlation_id: CorrelationId,
     causation_id: Option<EventId>,
     actor: ActorAttribution,
-    authority_scope: TenantScope,
+    authority_scope: AuthorityScope,
     audit: AuditContext,
 }
 
@@ -201,7 +201,7 @@ fn command_parts<C>(envelope: &CommandEnvelope<C>) -> CommandParts {
         correlation_id: envelope.correlation_id,
         causation_id: envelope.causation_id,
         actor: envelope.actor.clone(),
-        authority_scope: envelope.tenant_scope.clone(),
+        authority_scope: envelope.active_scope.clone(),
         audit: envelope.audit.clone(),
     }
 }
@@ -212,14 +212,14 @@ where
     U: CommandUnitOfWork,
     A: AuthorizationPort,
     E: EntitlementPort,
-    T: TenantAuthorityPort,
+    T: HoldingAuthorityPort,
     C: Clock,
 {
     async fn preflight(
         &self,
         actor: &ActorAttribution,
-        authority_scope: &TenantScope,
-        target_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         action: PlatformAdministrationAction,
     ) -> Result<(), PlatformAdministrationApplicationError> {
         if !authority_scope.contains(target_scope) {
@@ -267,7 +267,7 @@ where
         &self,
         identity: &CommandIdentity,
         actor: &ActorAttribution,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         action: PlatformAdministrationAction,
         correlation_id: CorrelationId,
     ) -> Result<Option<StoredCommit>, CqrsError> {
@@ -322,7 +322,7 @@ fn mutation_result(
     at: chrono::DateTime<chrono::Utc>,
 ) -> PlatformAdministrationMutationResult {
     let record = match &stored.aggregate {
-        PlatformAggregate::Tenant(value) => PlatformRecordView::Tenant(value.into()),
+        PlatformAggregate::Holding(value) => PlatformRecordView::Holding(value.into()),
         PlatformAggregate::Connector(value) => PlatformRecordView::Connector(value.into()),
         PlatformAggregate::AdminContext(value) => {
             PlatformRecordView::AdminContext(AdminContextView::from_context(value, at))
@@ -337,15 +337,15 @@ impl<
     U: CommandUnitOfWork,
     A: AuthorizationPort,
     E: EntitlementPort,
-    T: TenantAuthorityPort,
+    T: HoldingAuthorityPort,
     C: Clock,
-> CommandHandler<RegisterPlatformTenant>
+> CommandHandler<RegisterPlatformHolding>
     for PlatformAdministrationCommandHandler<W, U, A, E, T, C>
 {
     type Response = PlatformAdministrationMutationResult;
     async fn handle(
         &self,
-        envelope: CommandEnvelope<RegisterPlatformTenant>,
+        envelope: CommandEnvelope<RegisterPlatformHolding>,
     ) -> Result<CommandReceipt<Self::Response>, CqrsError> {
         envelope.validate()?;
         let correlation_id = envelope.correlation_id;
@@ -359,27 +359,27 @@ impl<
         let identity = CommandIdentity {
             command_id: envelope.command_id,
             idempotency_key: envelope.idempotency_key.clone(),
-            fingerprint: CommandFingerprint::RegisterTenant {
-                tenant_id: command.tenant_id,
+            fingerprint: CommandFingerprint::RegisterHolding {
+                holding_id: command.holding_id,
                 code: command.code.clone(),
                 name: command.name.clone(),
                 environment_id: command.environment_id,
                 customer_id: command.customer_id,
-                root_holding_id: command.root_holding_id,
-                holding_ref: command.holding_ref.clone(),
+                canonical_holding_id: command.canonical_holding_id,
+                data_profile_key: command.data_profile_key.clone(),
             },
         };
         if let Some(stored) = self
             .replay(
                 &identity,
                 &envelope.actor,
-                &envelope.tenant_scope,
-                PlatformAdministrationAction::RegisterTenant,
+                &envelope.active_scope,
+                PlatformAdministrationAction::RegisterHolding,
                 correlation_id,
             )
             .await?
         {
-            if !matches!(&stored.aggregate, PlatformAggregate::Tenant(_)) {
+            if !matches!(&stored.aggregate, PlatformAggregate::Holding(_)) {
                 return Err(to_cqrs(
                     PlatformAdministrationApplicationError::ReceiptTypeMismatch,
                     correlation_id,
@@ -388,36 +388,36 @@ impl<
             let response = mutation_result(&stored, self.clock.now());
             return Ok(stored.into_receipt(response));
         }
-        let target_scope = TenantScope::Holding {
-            holding_id: command.root_holding_id,
+        let target_scope = AuthorityScope::Holding {
+            holding_id: command.canonical_holding_id,
         };
         self.preflight(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             &target_scope,
-            PlatformAdministrationAction::RegisterTenant,
+            PlatformAdministrationAction::RegisterHolding,
         )
         .await
         .map_err(|e| to_cqrs(e, correlation_id))?;
-        self.tenant_authority
+        self.holding_authority
             .ensure_binding_available(
                 command.customer_id,
-                command.root_holding_id,
-                &command.holding_ref,
+                command.canonical_holding_id,
+                &command.data_profile_key,
             )
             .await
             .map_err(|e| to_cqrs(e.into(), correlation_id))?;
-        let aggregate = PlatformTenant::register(
-            command.tenant_id,
+        let aggregate = PlatformHolding::register(
+            command.holding_id,
             command.code,
             command.name,
             command.environment_id,
             command.customer_id,
-            command.root_holding_id,
-            command.holding_ref,
+            command.canonical_holding_id,
+            command.data_profile_key,
             self.clock.now(),
         )
-        .map(PlatformAggregate::Tenant)
+        .map(PlatformAggregate::Holding)
         .map_err(|e| to_cqrs(e.into(), correlation_id))?;
         let stored = self
             .commit(command_parts(&envelope), identity, None, aggregate)
@@ -433,15 +433,15 @@ impl<
     U: CommandUnitOfWork,
     A: AuthorizationPort,
     E: EntitlementPort,
-    T: TenantAuthorityPort,
+    T: HoldingAuthorityPort,
     C: Clock,
-> CommandHandler<TransitionPlatformTenant>
+> CommandHandler<TransitionPlatformHolding>
     for PlatformAdministrationCommandHandler<W, U, A, E, T, C>
 {
     type Response = PlatformAdministrationMutationResult;
     async fn handle(
         &self,
-        envelope: CommandEnvelope<TransitionPlatformTenant>,
+        envelope: CommandEnvelope<TransitionPlatformHolding>,
     ) -> Result<CommandReceipt<Self::Response>, CqrsError> {
         envelope.validate()?;
         let correlation_id = envelope.correlation_id;
@@ -449,8 +449,8 @@ impl<
         let identity = CommandIdentity {
             command_id: envelope.command_id,
             idempotency_key: envelope.idempotency_key.clone(),
-            fingerprint: CommandFingerprint::TransitionTenant {
-                tenant_id: command.tenant_id,
+            fingerprint: CommandFingerprint::TransitionHolding {
+                holding_id: command.holding_id,
                 action: command.action,
             },
         };
@@ -458,13 +458,13 @@ impl<
             .replay(
                 &identity,
                 &envelope.actor,
-                &envelope.tenant_scope,
-                PlatformAdministrationAction::TransitionTenant,
+                &envelope.active_scope,
+                PlatformAdministrationAction::TransitionHolding,
                 correlation_id,
             )
             .await?
         {
-            if !matches!(&stored.aggregate, PlatformAggregate::Tenant(_)) {
+            if !matches!(&stored.aggregate, PlatformAggregate::Holding(_)) {
                 return Err(to_cqrs(
                     PlatformAdministrationApplicationError::ReceiptTypeMismatch,
                     correlation_id,
@@ -475,15 +475,15 @@ impl<
         }
         let mut aggregate = self
             .write_repository
-            .load_tenant(&envelope.tenant_scope, command.tenant_id)
+            .load_holding(&envelope.active_scope, command.holding_id)
             .await
             .map_err(|e| to_cqrs(e.into(), correlation_id))?
             .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation_id))?;
         self.preflight(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             &aggregate.scope(),
-            PlatformAdministrationAction::TransitionTenant,
+            PlatformAdministrationAction::TransitionHolding,
         )
         .await
         .map_err(|e| to_cqrs(e, correlation_id))?;
@@ -497,7 +497,7 @@ impl<
                 command_parts(&envelope),
                 identity,
                 Some(expected),
-                PlatformAggregate::Tenant(aggregate),
+                PlatformAggregate::Holding(aggregate),
             )
             .await?;
         let response = mutation_result(&stored, self.clock.now());
@@ -511,7 +511,7 @@ impl<
     U: CommandUnitOfWork,
     A: AuthorizationPort,
     E: EntitlementPort,
-    T: TenantAuthorityPort,
+    T: HoldingAuthorityPort,
     C: Clock,
 > CommandHandler<RegisterConnector> for PlatformAdministrationCommandHandler<W, U, A, E, T, C>
 {
@@ -545,7 +545,7 @@ impl<
             .replay(
                 &identity,
                 &envelope.actor,
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 PlatformAdministrationAction::RegisterConnector,
                 correlation_id,
             )
@@ -560,10 +560,10 @@ impl<
             let response = mutation_result(&stored, self.clock.now());
             return Ok(stored.into_receipt(response));
         }
-        let target_scope = command.scope.tenant_scope();
+        let target_scope = command.scope.active_scope();
         self.preflight(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             &target_scope,
             PlatformAdministrationAction::RegisterConnector,
         )
@@ -594,7 +594,7 @@ impl<
     U: CommandUnitOfWork,
     A: AuthorizationPort,
     E: EntitlementPort,
-    T: TenantAuthorityPort,
+    T: HoldingAuthorityPort,
     C: Clock,
 > CommandHandler<TransitionConnector> for PlatformAdministrationCommandHandler<W, U, A, E, T, C>
 {
@@ -618,7 +618,7 @@ impl<
             .replay(
                 &identity,
                 &envelope.actor,
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 PlatformAdministrationAction::TransitionConnector,
                 correlation_id,
             )
@@ -635,14 +635,14 @@ impl<
         }
         let mut aggregate = self
             .write_repository
-            .load_connector(&envelope.tenant_scope, command.connector_id)
+            .load_connector(&envelope.active_scope, command.connector_id)
             .await
             .map_err(|e| to_cqrs(e.into(), correlation_id))?
             .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation_id))?;
         self.preflight(
             &envelope.actor,
-            &envelope.tenant_scope,
-            &aggregate.scope().tenant_scope(),
+            &envelope.active_scope,
+            &aggregate.scope().active_scope(),
             PlatformAdministrationAction::TransitionConnector,
         )
         .await
@@ -671,7 +671,7 @@ impl<
     U: CommandUnitOfWork,
     A: AuthorizationPort,
     E: EntitlementPort,
-    T: TenantAuthorityPort,
+    T: HoldingAuthorityPort,
     C: Clock,
 > CommandHandler<ObserveConnectorReadiness>
     for PlatformAdministrationCommandHandler<W, U, A, E, T, C>
@@ -697,7 +697,7 @@ impl<
             .replay(
                 &identity,
                 &envelope.actor,
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 PlatformAdministrationAction::ObserveConnectorReadiness,
                 correlation_id,
             )
@@ -714,14 +714,14 @@ impl<
         }
         let mut aggregate = self
             .write_repository
-            .load_connector(&envelope.tenant_scope, command.connector_id)
+            .load_connector(&envelope.active_scope, command.connector_id)
             .await
             .map_err(|error| to_cqrs(error.into(), correlation_id))?
             .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation_id))?;
         self.preflight(
             &envelope.actor,
-            &envelope.tenant_scope,
-            &aggregate.scope().tenant_scope(),
+            &envelope.active_scope,
+            &aggregate.scope().active_scope(),
             PlatformAdministrationAction::ObserveConnectorReadiness,
         )
         .await
@@ -750,15 +750,15 @@ impl<
     U: CommandUnitOfWork,
     A: AuthorizationPort,
     E: EntitlementPort,
-    T: TenantAuthorityPort,
+    T: HoldingAuthorityPort,
     C: Clock,
-> CommandHandler<IssueTenantAdminContext>
+> CommandHandler<IssueHoldingAdminContext>
     for PlatformAdministrationCommandHandler<W, U, A, E, T, C>
 {
     type Response = PlatformAdministrationMutationResult;
     async fn handle(
         &self,
-        envelope: CommandEnvelope<IssueTenantAdminContext>,
+        envelope: CommandEnvelope<IssueHoldingAdminContext>,
     ) -> Result<CommandReceipt<Self::Response>, CqrsError> {
         envelope.validate()?;
         let correlation_id = envelope.correlation_id;
@@ -774,7 +774,7 @@ impl<
             idempotency_key: envelope.idempotency_key.clone(),
             fingerprint: CommandFingerprint::IssueAdminContext {
                 context_id: command.context_id,
-                tenant_id: command.tenant_id,
+                holding_id: command.holding_id,
                 scope: command.scope.clone(),
                 device_id: command.device_id,
                 session_id: command.session_id,
@@ -786,7 +786,7 @@ impl<
             .replay(
                 &identity,
                 &envelope.actor,
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 PlatformAdministrationAction::IssueAdminContext,
                 correlation_id,
             )
@@ -803,21 +803,21 @@ impl<
         }
         self.preflight(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             &command.scope,
             PlatformAdministrationAction::IssueAdminContext,
         )
         .await
         .map_err(|e| to_cqrs(e, correlation_id))?;
-        self.tenant_authority
-            .ensure_tenant_scope(command.tenant_id, &command.scope)
+        self.holding_authority
+            .ensure_holding_scope(command.holding_id, &command.scope)
             .await
             .map_err(|e| to_cqrs(e.into(), correlation_id))?;
         let issued_at = self.clock.now();
         let expires_at = issued_at + Duration::seconds(i64::from(command.ttl_seconds));
-        let aggregate = TenantAdminContext::issue(
+        let aggregate = HoldingAdminContext::issue(
             command.context_id,
-            command.tenant_id,
+            command.holding_id,
             command.scope,
             envelope.actor.principal_ref.clone(),
             command.device_id,
@@ -842,15 +842,15 @@ impl<
     U: CommandUnitOfWork,
     A: AuthorizationPort,
     E: EntitlementPort,
-    T: TenantAuthorityPort,
+    T: HoldingAuthorityPort,
     C: Clock,
-> CommandHandler<RevokeTenantAdminContext>
+> CommandHandler<RevokeHoldingAdminContext>
     for PlatformAdministrationCommandHandler<W, U, A, E, T, C>
 {
     type Response = PlatformAdministrationMutationResult;
     async fn handle(
         &self,
-        envelope: CommandEnvelope<RevokeTenantAdminContext>,
+        envelope: CommandEnvelope<RevokeHoldingAdminContext>,
     ) -> Result<CommandReceipt<Self::Response>, CqrsError> {
         envelope.validate()?;
         let correlation_id = envelope.correlation_id;
@@ -866,7 +866,7 @@ impl<
             .replay(
                 &identity,
                 &envelope.actor,
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 PlatformAdministrationAction::RevokeAdminContext,
                 correlation_id,
             )
@@ -883,13 +883,13 @@ impl<
         }
         let mut aggregate = self
             .write_repository
-            .load_admin_context(&envelope.tenant_scope, command.context_id)
+            .load_admin_context(&envelope.active_scope, command.context_id)
             .await
             .map_err(|e| to_cqrs(e.into(), correlation_id))?
             .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation_id))?;
         self.preflight(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             aggregate.scope(),
             PlatformAdministrationAction::RevokeAdminContext,
         )
@@ -945,13 +945,13 @@ impl<R: ReadRepository, A: AuthorizationPort, E: EntitlementPort>
             .authorization
             .authorize(AuthorizationRequest {
                 actor: &envelope.actor,
-                authority_scope: &envelope.tenant_scope,
-                target_scope: &envelope.tenant_scope,
+                authority_scope: &envelope.active_scope,
+                target_scope: &envelope.active_scope,
                 action,
             })
             .await
             .map_err(|e| to_cqrs(e.into(), envelope.correlation_id))?;
-        if !grant.authorized_scope.contains(&envelope.tenant_scope) {
+        if !grant.authorized_scope.contains(&envelope.active_scope) {
             return Err(to_cqrs(
                 PlatformAdministrationApplicationError::AuthorizationScopeMismatch,
                 envelope.correlation_id,
@@ -973,29 +973,29 @@ fn metadata<T>(
 }
 
 #[async_trait]
-impl<R: ReadRepository, A: AuthorizationPort, E: EntitlementPort> QueryHandler<GetPlatformTenant>
+impl<R: ReadRepository, A: AuthorizationPort, E: EntitlementPort> QueryHandler<GetPlatformHolding>
     for PlatformAdministrationQueryHandler<R, A, E>
 {
-    type Response = GetPlatformTenantResult;
+    type Response = GetPlatformHoldingResult;
     async fn handle(
         &self,
-        envelope: QueryEnvelope<GetPlatformTenant>,
+        envelope: QueryEnvelope<GetPlatformHolding>,
     ) -> Result<QueryResult<Self::Response>, CqrsError> {
         envelope.validate()?;
-        self.authorize(&envelope, PlatformAdministrationAction::ViewTenant)
+        self.authorize(&envelope, PlatformAdministrationAction::ViewHolding)
             .await?;
         let projection = self
             .read_repository
-            .get_tenant(
-                &envelope.tenant_scope,
-                envelope.query.tenant_id,
+            .get_holding(
+                &envelope.active_scope,
+                envelope.query.holding_id,
                 &envelope.consistency,
             )
             .await
             .map_err(|e| port_to_cqrs(e, envelope.correlation_id))?;
         if projection.value.as_ref().is_some_and(|view| {
-            !envelope.tenant_scope.contains(&TenantScope::Holding {
-                holding_id: view.root_holding_id,
+            !envelope.active_scope.contains(&AuthorityScope::Holding {
+                holding_id: view.canonical_holding_id,
             })
         }) {
             return Err(to_cqrs(
@@ -1005,8 +1005,8 @@ impl<R: ReadRepository, A: AuthorizationPort, E: EntitlementPort> QueryHandler<G
         }
         let metadata = metadata(envelope, projection.metadata);
         Ok(QueryResult {
-            value: GetPlatformTenantResult {
-                tenant: projection.value,
+            value: GetPlatformHoldingResult {
+                holding: projection.value,
             },
             metadata,
         })
@@ -1014,30 +1014,30 @@ impl<R: ReadRepository, A: AuthorizationPort, E: EntitlementPort> QueryHandler<G
 }
 
 #[async_trait]
-impl<R: ReadRepository, A: AuthorizationPort, E: EntitlementPort> QueryHandler<ListPlatformTenants>
+impl<R: ReadRepository, A: AuthorizationPort, E: EntitlementPort> QueryHandler<ListPlatformHoldings>
     for PlatformAdministrationQueryHandler<R, A, E>
 {
-    type Response = Page<TenantView>;
+    type Response = Page<HoldingView>;
     async fn handle(
         &self,
-        envelope: QueryEnvelope<ListPlatformTenants>,
+        envelope: QueryEnvelope<ListPlatformHoldings>,
     ) -> Result<QueryResult<Self::Response>, CqrsError> {
         envelope.validate()?;
         validate_page(&envelope.query.filter, envelope.correlation_id)?;
-        self.authorize(&envelope, PlatformAdministrationAction::ListTenants)
+        self.authorize(&envelope, PlatformAdministrationAction::ListHoldings)
             .await?;
         let projection = self
             .read_repository
-            .list_tenants(
-                &envelope.tenant_scope,
+            .list_holdings(
+                &envelope.active_scope,
                 &envelope.query.filter,
                 &envelope.consistency,
             )
             .await
             .map_err(|e| port_to_cqrs(e, envelope.correlation_id))?;
         if projection.value.records.iter().any(|view| {
-            !envelope.tenant_scope.contains(&TenantScope::Holding {
-                holding_id: view.root_holding_id,
+            !envelope.active_scope.contains(&AuthorityScope::Holding {
+                holding_id: view.canonical_holding_id,
             })
         }) {
             return Err(to_cqrs(
@@ -1068,7 +1068,7 @@ impl<R: ReadRepository, A: AuthorizationPort, E: EntitlementPort> QueryHandler<G
         let projection = self
             .read_repository
             .get_connector(
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 envelope.query.connector_id,
                 &envelope.consistency,
             )
@@ -1077,7 +1077,7 @@ impl<R: ReadRepository, A: AuthorizationPort, E: EntitlementPort> QueryHandler<G
         if projection
             .value
             .as_ref()
-            .is_some_and(|view| !envelope.tenant_scope.contains(&view.scope.tenant_scope()))
+            .is_some_and(|view| !envelope.active_scope.contains(&view.scope.active_scope()))
         {
             return Err(to_cqrs(
                 PlatformAdministrationApplicationError::ScopeOutsideAuthority,
@@ -1110,7 +1110,7 @@ impl<R: ReadRepository, A: AuthorizationPort, E: EntitlementPort> QueryHandler<L
         let projection = self
             .read_repository
             .list_connectors(
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 &envelope.query.filter,
                 &envelope.consistency,
             )
@@ -1120,7 +1120,7 @@ impl<R: ReadRepository, A: AuthorizationPort, E: EntitlementPort> QueryHandler<L
             .value
             .records
             .iter()
-            .any(|view| !envelope.tenant_scope.contains(&view.scope.tenant_scope()))
+            .any(|view| !envelope.active_scope.contains(&view.scope.active_scope()))
         {
             return Err(to_cqrs(
                 PlatformAdministrationApplicationError::ScopeOutsideAuthority,
@@ -1150,7 +1150,7 @@ impl<R: ReadRepository, A: AuthorizationPort, E: EntitlementPort> QueryHandler<G
         let projection = self
             .read_repository
             .get_admin_context(
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 envelope.query.context_id,
                 &envelope.consistency,
             )
@@ -1159,7 +1159,7 @@ impl<R: ReadRepository, A: AuthorizationPort, E: EntitlementPort> QueryHandler<G
         if projection
             .value
             .as_ref()
-            .is_some_and(|view| !envelope.tenant_scope.contains(&view.scope))
+            .is_some_and(|view| !envelope.active_scope.contains(&view.scope))
         {
             return Err(to_cqrs(
                 PlatformAdministrationApplicationError::ScopeOutsideAuthority,

@@ -6,13 +6,13 @@ use std::{cell::RefCell, rc::Rc, str::FromStr};
 
 use dioxus::prelude::*;
 #[cfg(feature = "native")]
-use erpx_delivery_contract::{BootstrapRequestV2, ConsoleGateway};
+use erpx_delivery_contract::{BootstrapRequest, ConsoleGateway};
 use erpx_delivery_contract::{
-    ClientChannelV2, PublicMarketingPreviewRequestV2, QueryRequestV2, ResourceNameV2, RouteDataV2,
-    RouteQueryV2, RouteUuidV2, SessionBootstrapV2, SessionCacheV2, WorkspaceV2,
+    ClientChannel, PublicMarketingPreviewRequest, QueryRequest, ResourceName, RouteData,
+    RouteQuery, RouteUuid, SessionBootstrap, SessionCache, Workspace,
 };
 #[cfg(feature = "server")]
-use erpx_delivery_contract::{PageV2, ResourceSummaryV2};
+use erpx_delivery_contract::{Page, ResourceSummary};
 use erpx_ui_core::{Locale, ThemeMode, provide_corporate_identity, provide_locale, provide_theme};
 use erpx_ui_kit::{
     KitProvider, Link as KitLink, SharedStylesheets,
@@ -22,7 +22,7 @@ use erpx_ui_kit::{
 };
 
 #[cfg(any(feature = "web", feature = "server"))]
-type RouteCacheV2 = Rc<RefCell<SessionCacheV2<String, RouteDataV2>>>;
+type RouteCache = Rc<RefCell<SessionCache<String, RouteData>>>;
 
 #[rustfmt::skip]
 #[derive(Clone, Debug, PartialEq, Routable)]
@@ -30,9 +30,9 @@ pub enum AppRoute {
     #[redirect("/", || AppRoute::Work {})]
     #[layout(PublicLayout)]
         #[route("/public/marketing/form/:id")]
-        PublicMarketingForm { id: RouteUuidV2 },
+        PublicMarketingForm { id: RouteUuid },
         #[route("/public/marketing/preview/:id")]
-        PublicMarketingPreview { id: RouteUuidV2 },
+        PublicMarketingPreview { id: RouteUuid },
     #[end_layout]
     #[layout(AuthLayout)]
         #[route("/auth/sign-in")]
@@ -55,8 +55,12 @@ pub enum AppRoute {
         Insights {},
         #[route("/modules")]
         Modules {},
+        #[route("/platform/holdings")]
+        PlatformHoldings {},
+        #[route("/platform/holdings/:holding_id")]
+        PlatformHolding { holding_id: RouteUuid },
         #[route("/reference/item/:id")]
-        ReferenceItem { id: RouteUuidV2 },
+        ReferenceItem { id: RouteUuid },
         #[layout(PlatformLayout)]
             #[route("/operations")]
             OperationsWorkspace {},
@@ -101,12 +105,12 @@ pub enum AppRoute {
             #[route("/ai")]
             AiWorkspace {},
             #[route("/:workspace/:resource")]
-            WorkspaceResource { workspace: WorkspaceV2, resource: ResourceNameV2 },
+            WorkspaceResource { workspace: Workspace, resource: ResourceName },
             #[route("/:workspace/:resource/:id")]
             WorkspaceRecord {
-                workspace: WorkspaceV2,
-                resource: ResourceNameV2,
-                id: RouteUuidV2,
+                workspace: Workspace,
+                resource: ResourceName,
+                id: RouteUuid,
             },
         #[end_layout]
     #[end_layout]
@@ -118,21 +122,21 @@ pub enum AppRoute {
 pub fn App() -> Element {
     #[cfg(any(feature = "web", feature = "server"))]
     let session = {
-        let loader = use_loader(|| crate::delivery::session_bootstrap_v2("en".to_owned()))?;
+        let loader = use_loader(|| crate::delivery::session_bootstrap("en".to_owned()))?;
         loader.read().clone()
     };
 
     #[cfg(feature = "native")]
     let session = {
         let gateway =
-            use_context_provider(crate::native_delivery::NativeGrpcGatewayV2::from_environment);
+            use_context_provider(crate::native_delivery::NativeGrpcGateway::from_environment);
         let gateway = gateway.clone().map_err(render_delivery_error)?;
         use_context_provider(|| gateway.clone());
         let session = use_resource(move || {
             let gateway = gateway.clone();
             async move {
                 gateway
-                    .bootstrap(BootstrapRequestV2 {
+                    .bootstrap(BootstrapRequest {
                         locale: "en".to_owned(),
                     })
                     .await
@@ -146,9 +150,7 @@ pub fn App() -> Element {
     };
 
     let cache = use_context_provider(|| {
-        Rc::new(RefCell::new(
-            SessionCacheV2::<String, RouteDataV2>::default(),
-        ))
+        Rc::new(RefCell::new(SessionCache::<String, RouteData>::default()))
     });
     cache.borrow_mut().set_scope(session.cache_scope());
     provide_locale(Locale::from_language_tag(&session.locale).unwrap_or_default());
@@ -214,7 +216,7 @@ fn AuthLayout() -> Element {
 
 #[component]
 fn ConsoleShell() -> Element {
-    let session = use_context::<SessionBootstrapV2>();
+    let session = use_context::<SessionBootstrap>();
     if !session.authenticated {
         return rsx! {
             main { class: "route-denied", role: "alert",
@@ -224,32 +226,33 @@ fn ConsoleShell() -> Element {
             }
         };
     }
-    if session.role_ref.is_none() || session.tenant_ref.is_none() {
+    if session.role_ref.is_none() || session.data_profile_key.is_none() {
         return rsx! {
             main { class: "route-denied", role: "alert",
                 h1 { "Select an account role" }
-                p { "Choose an authorized tenant and role before opening a workspace." }
+                p { "Choose an authorized holding and role before opening a workspace." }
                 KitLink { href: "/auth/accounts", "Open accounts" }
             }
         };
     }
     rsx! {
-        div { class: "console-v2-shell",
-            aside { class: "console-v2-nav",
+        div { class: "console-shell",
+            aside { class: "console-nav",
                 KitLink { href: "/work", "Work" }
                 KitLink { href: "/processes", "Processes" }
                 KitLink { href: "/insights", "Insights" }
                 KitLink { href: "/modules", "Modules" }
+                KitLink { href: "/platform/holdings", "Platform Holdings" }
                 nav { aria_label: "Workspaces",
-                    for workspace in WorkspaceV2::ALL {
+                    for workspace in Workspace::ALL {
                         if workspace.available_on(session.channel) {
                             KitLink { href: "/{workspace}", "{workspace}" }
                         }
                     }
                 }
             }
-            div { class: "console-v2-main",
-                header { class: "console-v2-header",
+            div { class: "console-main",
+                header { class: "console-header",
                     span { "Delivery v{session.catalog_version}" }
                     span { "{session.locale}" }
                 }
@@ -274,21 +277,21 @@ fn PlatformLayout() -> Element {
 }
 
 #[derive(Store, Default)]
-struct RouteUiStateV2 {
+struct RouteUiState {
     search: String,
-    selection: Option<RouteUuidV2>,
-    command: CommandDraftV2,
+    selection: Option<RouteUuid>,
+    command: CommandDraft,
 }
 
 #[derive(Store, Default)]
-struct CommandDraftV2 {
+struct CommandDraft {
     title: String,
     expected_version: Option<u64>,
 }
 
 #[component]
-fn ProtectedRouteSurface(query: RouteQueryV2) -> Element {
-    let ui = use_store(RouteUiStateV2::default);
+fn ProtectedRouteSurface(query: RouteQuery) -> Element {
+    let ui = use_store(RouteUiState::default);
     let mut search = ui.search();
     let selection = ui.selection();
     let command = ui.command();
@@ -314,7 +317,7 @@ fn ProtectedRouteSurface(query: RouteQueryV2) -> Element {
         document::Title { "{data.title} · ERPX" }
         article { class: "workspace-route", "data-freshness": "{data.freshness_tag}",
             header {
-                p { class: "eyebrow", "Canonical v2 route" }
+                p { class: "eyebrow", "Canonical route" }
                 h1 { "{data.title}" }
                 p { "{data.description}" }
             }
@@ -358,24 +361,24 @@ fn ProtectedRouteSurface(query: RouteQueryV2) -> Element {
 }
 
 #[cfg(any(feature = "web", feature = "server"))]
-fn use_route_data(query: RouteQueryV2) -> Result<RouteDataV2, RenderError> {
-    let cache = use_context::<RouteCacheV2>();
+fn use_route_data(query: RouteQuery) -> Result<RouteData, RenderError> {
+    let cache = use_context::<RouteCache>();
     let key = canonical_path_for_query(&query);
-    let request = QueryRequestV2 {
+    let request = QueryRequest {
         route: query,
         cursor: None,
         limit: 50,
         locale: "en".to_owned(),
     };
-    let resource: Resource<Result<RouteDataV2, String>> = use_server_future(move || {
+    let resource: Resource<Result<RouteData, String>> = use_server_future(move || {
         let cache = Rc::clone(&cache);
         let key = key.clone();
         let request = request.clone();
         async move {
             if let Some(value) = cache.borrow_mut().get_fresh(&key) {
-                return Ok::<RouteDataV2, String>(value);
+                return Ok::<RouteData, String>(value);
             }
-            let value = crate::delivery::query_route_v2(request)
+            let value = crate::delivery::query_route(request)
                 .await
                 .map_err(|error| error.to_string())?
                 .map_err(|error| error.to_string())?;
@@ -394,7 +397,7 @@ fn use_route_data(query: RouteQueryV2) -> Result<RouteDataV2, RenderError> {
                 Duration::from_secs(30),
                 value.invalidation_tags.iter().cloned(),
             );
-            Ok::<RouteDataV2, String>(value)
+            Ok::<RouteData, String>(value)
         }
     })?;
     resource
@@ -405,14 +408,14 @@ fn use_route_data(query: RouteQueryV2) -> Result<RouteDataV2, RenderError> {
 }
 
 #[cfg(feature = "native")]
-fn use_route_data(query: RouteQueryV2) -> Result<RouteDataV2, RenderError> {
-    let gateway = use_context::<crate::native_delivery::NativeGrpcGatewayV2>();
+fn use_route_data(query: RouteQuery) -> Result<RouteData, RenderError> {
+    let gateway = use_context::<crate::native_delivery::NativeGrpcGateway>();
     let resource = use_resource(move || {
         let gateway = gateway.clone();
         let query = query.clone();
         async move {
             gateway
-                .query(QueryRequestV2 {
+                .query(QueryRequest {
                     route: query,
                     cursor: None,
                     limit: 50,
@@ -430,49 +433,59 @@ fn use_route_data(query: RouteQueryV2) -> Result<RouteDataV2, RenderError> {
 
 #[component]
 fn Work() -> Element {
-    rsx! { ProtectedRouteSurface { query: RouteQueryV2::Work } }
+    rsx! { ProtectedRouteSurface { query: RouteQuery::Work } }
 }
 
 #[component]
 fn Processes() -> Element {
-    rsx! { ProtectedRouteSurface { query: RouteQueryV2::Processes } }
+    rsx! { ProtectedRouteSurface { query: RouteQuery::Processes } }
 }
 
 #[component]
 fn Insights() -> Element {
-    rsx! { ProtectedRouteSurface { query: RouteQueryV2::Insights } }
+    rsx! { ProtectedRouteSurface { query: RouteQuery::Insights } }
 }
 
 #[component]
 fn Modules() -> Element {
-    rsx! { ProtectedRouteSurface { query: RouteQueryV2::Modules } }
+    rsx! { ProtectedRouteSurface { query: RouteQuery::Modules } }
 }
 
 #[component]
-fn WorkspaceResource(workspace: WorkspaceV2, resource: ResourceNameV2) -> Element {
-    if !workspace_allowed(workspace) {
-        return rsx! { ChannelRestricted { workspace } };
-    }
-    rsx! { ProtectedRouteSurface { query: RouteQueryV2::Workspace { workspace, resource: Some(resource) } } }
+fn PlatformHoldings() -> Element {
+    rsx! { ProtectedRouteSurface { query: RouteQuery::PlatformHoldings } }
 }
 
 #[component]
-fn WorkspaceRecord(workspace: WorkspaceV2, resource: ResourceNameV2, id: RouteUuidV2) -> Element {
+fn PlatformHolding(holding_id: RouteUuid) -> Element {
+    rsx! { ProtectedRouteSurface { query: RouteQuery::PlatformHolding { holding_id } } }
+}
+
+#[component]
+fn WorkspaceResource(workspace: Workspace, resource: ResourceName) -> Element {
     if !workspace_allowed(workspace) {
         return rsx! { ChannelRestricted { workspace } };
     }
-    rsx! { ProtectedRouteSurface { query: RouteQueryV2::Record { workspace, resource, id } } }
+    rsx! { ProtectedRouteSurface { query: RouteQuery::Workspace { workspace, resource: Some(resource) } } }
+}
+
+#[component]
+fn WorkspaceRecord(workspace: Workspace, resource: ResourceName, id: RouteUuid) -> Element {
+    if !workspace_allowed(workspace) {
+        return rsx! { ChannelRestricted { workspace } };
+    }
+    rsx! { ProtectedRouteSurface { query: RouteQuery::Record { workspace, resource, id } } }
 }
 
 macro_rules! workspace_entry_route {
     ($name:ident, $workspace:ident) => {
         #[component]
         fn $name() -> Element {
-            let workspace = WorkspaceV2::$workspace;
+            let workspace = Workspace::$workspace;
             if !workspace_allowed(workspace) {
                 return rsx! { ChannelRestricted { workspace } };
             }
-            rsx! { ProtectedRouteSurface { query: RouteQueryV2::Workspace { workspace, resource: None } } }
+            rsx! { ProtectedRouteSurface { query: RouteQuery::Workspace { workspace, resource: None } } }
         }
     };
 }
@@ -500,12 +513,12 @@ workspace_entry_route!(FieldServiceWorkspace, FieldService);
 workspace_entry_route!(AiWorkspace, Ai);
 
 #[component]
-fn ReferenceItem(id: RouteUuidV2) -> Element {
-    rsx! { ProtectedRouteSurface { query: RouteQueryV2::Reference { id } } }
+fn ReferenceItem(id: RouteUuid) -> Element {
+    rsx! { ProtectedRouteSurface { query: RouteQuery::Reference { id } } }
 }
 
 #[component]
-fn ChannelRestricted(workspace: WorkspaceV2) -> Element {
+fn ChannelRestricted(workspace: Workspace) -> Element {
     rsx! {
         section { class: "route-denied", role: "alert",
             h1 { "{workspace} is available on Web only" }
@@ -518,21 +531,21 @@ fn ChannelRestricted(workspace: WorkspaceV2) -> Element {
 fn SignIn() -> Element {
     rsx! {
         document::Title { "Sign in · ERPX" }
-        form { class: "auth-form-v2", method: "post", action: "/api/v2/auth/password/form",
+        form { class: "auth-page-form", method: "post", action: "/api/auth/password/form",
             p { class: "eyebrow", "AUTHORIZED ACCESS" }
             h2 { "Sign in" }
-            p { class: "auth-form-v2__intro", "Use your ERPX account to continue to the requested workspace." }
-            label { class: "auth-form-v2__field",
+            p { class: "auth-page-form__intro", "Use your ERPX account to continue to the requested workspace." }
+            label { class: "auth-page-form__field",
                 span { "Account" }
                 KitInput { name: "principal_ref", autocomplete: "username", required: true }
             }
-            label { class: "auth-form-v2__field",
+            label { class: "auth-page-form__field",
                 span { "Password" }
                 KitInput { name: "password", r#type: "password", autocomplete: "current-password", required: true }
             }
             KitInput { name: "device_label", r#type: "hidden", value: "erpx-console" }
             KitButton { variant: ButtonVariant::Primary, r#type: "submit", "Continue" }
-            p { class: "auth-form-v2__security", "Session scope and correlation evidence remain protected at the delivery boundary." }
+            p { class: "auth-page-form__security", "Session scope and correlation evidence remain protected at the delivery boundary." }
         }
     }
 }
@@ -556,7 +569,7 @@ auth_page!(Devices, "Devices");
 auth_page!(Recovery, "Recovery");
 
 #[component]
-fn PublicMarketingForm(id: RouteUuidV2) -> Element {
+fn PublicMarketingForm(id: RouteUuid) -> Element {
     rsx! {
         document::Title { "Marketing form · ERPX" }
         document::Meta { name: "description", content: "Consent-aware ERPX marketing form" }
@@ -575,8 +588,8 @@ fn PublicMarketingForm(id: RouteUuidV2) -> Element {
 }
 
 #[component]
-fn PublicMarketingPreview(id: RouteUuidV2) -> Element {
-    let request = PublicMarketingPreviewRequestV2 {
+fn PublicMarketingPreview(id: RouteUuid) -> Element {
+    let request = PublicMarketingPreviewRequest {
         preview_id: id,
         access_code: String::new(),
         locale: "en".to_owned(),
@@ -584,12 +597,12 @@ fn PublicMarketingPreview(id: RouteUuidV2) -> Element {
     #[cfg(any(feature = "web", feature = "server"))]
     let data = {
         let loader =
-            use_loader(move || crate::delivery::public_marketing_preview_v2(request.clone()))?;
+            use_loader(move || crate::delivery::public_marketing_preview(request.clone()))?;
         loader.read().clone().map_err(RenderError::from)?
     };
     #[cfg(feature = "native")]
     let data = {
-        let gateway = use_context::<crate::native_delivery::NativeGrpcGatewayV2>();
+        let gateway = use_context::<crate::native_delivery::NativeGrpcGateway>();
         let preview = use_resource(move || {
             let gateway = gateway.clone();
             let request = request.clone();
@@ -626,24 +639,24 @@ fn NotFound(segments: Vec<String>) -> Element {
     }
 }
 
-fn workspace_allowed(workspace: WorkspaceV2) -> bool {
-    let session = use_context::<SessionBootstrapV2>();
+fn workspace_allowed(workspace: Workspace) -> bool {
+    let session = use_context::<SessionBootstrap>();
     workspace.available_on(session.channel)
 }
 
 #[cfg(feature = "native")]
-fn render_delivery_error(error: erpx_delivery_contract::DeliveryErrorV2) -> RenderError {
+fn render_delivery_error(error: erpx_delivery_contract::DeliveryError) -> RenderError {
     RenderError::from(std::io::Error::other(error.to_string()))
 }
 
-pub fn is_canonical_console_path(path: &str, channel: ClientChannelV2) -> bool {
+pub fn is_canonical_console_path(path: &str, channel: ClientChannel) -> bool {
     if !path.starts_with('/') || path.contains(['?', '#']) || path != path.trim() {
         return false;
     }
     match AppRoute::from_str(path) {
         Ok(AppRoute::NotFound { .. }) | Err(_) => false,
         Ok(route @ (AppRoute::CommerceWorkspace {} | AppRoute::TalentWorkspace {})) => {
-            route.to_string() == path && channel == ClientChannelV2::Web
+            route.to_string() == path && channel == ClientChannel::Web
         }
         Ok(
             route @ (AppRoute::WorkspaceResource { workspace, .. }
@@ -654,24 +667,26 @@ pub fn is_canonical_console_path(path: &str, channel: ClientChannelV2) -> bool {
 }
 
 #[cfg(feature = "server")]
-pub(crate) fn route_data_for_query(request: &QueryRequestV2) -> RouteDataV2 {
+pub(crate) fn route_data_for_query(request: &QueryRequest) -> RouteData {
     let canonical_path = canonical_path_for_query(&request.route);
     let title = match &request.route {
-        RouteQueryV2::Work => "Work".to_owned(),
-        RouteQueryV2::Processes => "Processes".to_owned(),
-        RouteQueryV2::Insights => "Insights".to_owned(),
-        RouteQueryV2::Modules => "Modules".to_owned(),
-        RouteQueryV2::Workspace {
+        RouteQuery::Work => "Work".to_owned(),
+        RouteQuery::Processes => "Processes".to_owned(),
+        RouteQuery::Insights => "Insights".to_owned(),
+        RouteQuery::Modules => "Modules".to_owned(),
+        RouteQuery::PlatformHoldings => "Platform Holdings".to_owned(),
+        RouteQuery::PlatformHolding { holding_id } => format!("Platform Holding · {holding_id}"),
+        RouteQuery::Workspace {
             workspace,
             resource,
         } => resource
             .as_ref()
             .map_or_else(|| workspace.to_string(), ToString::to_string),
-        RouteQueryV2::Record { resource, id, .. } => format!("{resource} · {id}"),
-        RouteQueryV2::Reference { id } => format!("Reference · {id}"),
+        RouteQuery::Record { resource, id, .. } => format!("{resource} · {id}"),
+        RouteQuery::Reference { id } => format!("Reference · {id}"),
     };
     let tag = match &request.route {
-        RouteQueryV2::Workspace { workspace, .. } | RouteQueryV2::Record { workspace, .. } => {
+        RouteQuery::Workspace { workspace, .. } | RouteQuery::Record { workspace, .. } => {
             format!("workspace:{workspace}")
         }
         _ => format!(
@@ -679,14 +694,14 @@ pub(crate) fn route_data_for_query(request: &QueryRequestV2) -> RouteDataV2 {
             canonical_path.trim_start_matches('/').replace('/', ":")
         ),
     };
-    RouteDataV2 {
+    RouteData {
         canonical_path,
         title,
         description:
             "Authorized route data is delivered once during SSR and reused during hydration."
                 .to_owned(),
-        page: PageV2 {
-            items: Vec::<ResourceSummaryV2>::new(),
+        page: Page {
+            items: Vec::<ResourceSummary>::new(),
             next_cursor: None,
         },
         freshness_tag: "fresh".to_owned(),
@@ -696,69 +711,73 @@ pub(crate) fn route_data_for_query(request: &QueryRequestV2) -> RouteDataV2 {
 }
 
 #[cfg(feature = "server")]
-pub(crate) fn public_preview_data(request: &PublicMarketingPreviewRequestV2) -> RouteDataV2 {
-    RouteDataV2 {
+pub(crate) fn public_preview_data(request: &PublicMarketingPreviewRequest) -> RouteData {
+    RouteData {
         canonical_path: format!("/public/marketing/preview/{}", request.preview_id),
         title: "Published marketing preview".to_owned(),
         description: "Public preview data uses a validator and an explicit cache policy."
             .to_owned(),
-        page: PageV2 {
+        page: Page {
             items: Vec::new(),
             next_cursor: None,
         },
         freshness_tag: "public-validated".to_owned(),
         invalidation_tags: BTreeSet::from([format!("marketing:preview:{}", request.preview_id)]),
-        public_validator: Some(format!("\"preview-{}-v2\"", request.preview_id)),
+        public_validator: Some(format!("\"preview-{}\"", request.preview_id)),
     }
 }
 
 #[cfg(any(feature = "web", feature = "server"))]
-fn canonical_path_for_query(route: &RouteQueryV2) -> String {
+fn canonical_path_for_query(route: &RouteQuery) -> String {
     match route {
-        RouteQueryV2::Work => "/work".to_owned(),
-        RouteQueryV2::Processes => "/processes".to_owned(),
-        RouteQueryV2::Insights => "/insights".to_owned(),
-        RouteQueryV2::Modules => "/modules".to_owned(),
-        RouteQueryV2::Workspace {
+        RouteQuery::Work => "/work".to_owned(),
+        RouteQuery::Processes => "/processes".to_owned(),
+        RouteQuery::Insights => "/insights".to_owned(),
+        RouteQuery::Modules => "/modules".to_owned(),
+        RouteQuery::PlatformHoldings => "/platform/holdings".to_owned(),
+        RouteQuery::PlatformHolding { holding_id } => {
+            format!("/platform/holdings/{holding_id}")
+        }
+        RouteQuery::Workspace {
             workspace,
             resource,
         } => resource.as_ref().map_or_else(
             || format!("/{workspace}"),
             |resource| format!("/{workspace}/{resource}"),
         ),
-        RouteQueryV2::Record {
+        RouteQuery::Record {
             workspace,
             resource,
             id,
         } => format!("/{workspace}/{resource}/{id}"),
-        RouteQueryV2::Reference { id } => format!("/reference/item/{id}"),
+        RouteQuery::Reference { id } => format!("/reference/item/{id}"),
     }
 }
 
 #[cfg(test)]
-fn workspace_home_route(workspace: WorkspaceV2) -> AppRoute {
+fn workspace_home_route(workspace: Workspace) -> AppRoute {
     match workspace {
-        WorkspaceV2::Operations => AppRoute::OperationsWorkspace {},
-        WorkspaceV2::Finance => AppRoute::FinanceWorkspace {},
-        WorkspaceV2::Sales => AppRoute::SalesWorkspace {},
-        WorkspaceV2::Procurement => AppRoute::ProcurementWorkspace {},
-        WorkspaceV2::Inventory => AppRoute::InventoryWorkspace {},
-        WorkspaceV2::Asset => AppRoute::AssetWorkspace {},
-        WorkspaceV2::Maintenance => AppRoute::MaintenanceWorkspace {},
-        WorkspaceV2::Quality => AppRoute::QualityWorkspace {},
-        WorkspaceV2::Marketing => AppRoute::MarketingWorkspace {},
-        WorkspaceV2::People => AppRoute::PeopleWorkspace {},
-        WorkspaceV2::Pos => AppRoute::PosWorkspace {},
-        WorkspaceV2::Legal => AppRoute::LegalWorkspace {},
-        WorkspaceV2::Manufacturing => AppRoute::ManufacturingWorkspace {},
-        WorkspaceV2::Planning => AppRoute::PlanningWorkspace {},
-        WorkspaceV2::Project => AppRoute::ProjectWorkspace {},
-        WorkspaceV2::Commerce => AppRoute::CommerceWorkspace {},
-        WorkspaceV2::Talent => AppRoute::TalentWorkspace {},
-        WorkspaceV2::Learning => AppRoute::LearningWorkspace {},
-        WorkspaceV2::Benefits => AppRoute::BenefitsWorkspace {},
-        WorkspaceV2::FieldService => AppRoute::FieldServiceWorkspace {},
-        WorkspaceV2::Ai => AppRoute::AiWorkspace {},
+        Workspace::Operations => AppRoute::OperationsWorkspace {},
+        Workspace::Finance => AppRoute::FinanceWorkspace {},
+        Workspace::Sales => AppRoute::SalesWorkspace {},
+        Workspace::Procurement => AppRoute::ProcurementWorkspace {},
+        Workspace::Inventory => AppRoute::InventoryWorkspace {},
+        Workspace::Asset => AppRoute::AssetWorkspace {},
+        Workspace::Maintenance => AppRoute::MaintenanceWorkspace {},
+        Workspace::Quality => AppRoute::QualityWorkspace {},
+        Workspace::Marketing => AppRoute::MarketingWorkspace {},
+        Workspace::People => AppRoute::PeopleWorkspace {},
+        Workspace::Pos => AppRoute::PosWorkspace {},
+        Workspace::Legal => AppRoute::LegalWorkspace {},
+        Workspace::Manufacturing => AppRoute::ManufacturingWorkspace {},
+        Workspace::Planning => AppRoute::PlanningWorkspace {},
+        Workspace::Project => AppRoute::ProjectWorkspace {},
+        Workspace::Commerce => AppRoute::CommerceWorkspace {},
+        Workspace::Talent => AppRoute::TalentWorkspace {},
+        Workspace::Learning => AppRoute::LearningWorkspace {},
+        Workspace::Benefits => AppRoute::BenefitsWorkspace {},
+        Workspace::FieldService => AppRoute::FieldServiceWorkspace {},
+        Workspace::Ai => AppRoute::AiWorkspace {},
     }
 }
 
@@ -768,8 +787,8 @@ mod tests {
 
     #[test]
     fn canonical_routes_round_trip_for_every_workspace_and_channel() {
-        let id = RouteUuidV2::try_new(uuid::Uuid::new_v4()).unwrap();
-        for workspace in WorkspaceV2::ALL {
+        let id = RouteUuid::try_new(uuid::Uuid::new_v4()).unwrap();
+        for workspace in Workspace::ALL {
             let home = workspace_home_route(workspace);
             assert_eq!(
                 AppRoute::from_str(&home.to_string()).expect("workspace home parses"),
@@ -793,7 +812,7 @@ mod tests {
                 record
             );
             assert_eq!(
-                is_canonical_console_path(&home.to_string(), ClientChannelV2::MacOs),
+                is_canonical_console_path(&home.to_string(), ClientChannel::MacOs),
                 !workspace.is_web_only()
             );
         }
@@ -803,7 +822,6 @@ mod tests {
     fn malformed_and_legacy_routes_have_no_compatibility_alias() {
         for path in [
             "/login",
-            "/platform/customers",
             "/crm",
             "/payroll",
             "/commerce/",
@@ -811,19 +829,43 @@ mod tests {
             "/finance/PurchaseOrders",
         ] {
             assert!(
-                !is_canonical_console_path(path, ClientChannelV2::Web),
+                !is_canonical_console_path(path, ClientChannel::Web),
                 "{path}"
             );
         }
         assert!(is_canonical_console_path(
             "/auth/sign-in",
-            ClientChannelV2::Web
+            ClientChannel::Web
+        ));
+    }
+
+    #[test]
+    fn platform_holding_routes_are_canonical_uuid_routes() {
+        let holding_id = RouteUuid::try_new(uuid::Uuid::from_u128(1)).unwrap();
+        let list = AppRoute::PlatformHoldings {};
+        let detail = AppRoute::PlatformHolding { holding_id };
+        assert_eq!(list.to_string(), "/platform/holdings");
+        assert_eq!(
+            detail.to_string(),
+            "/platform/holdings/00000000-0000-0000-0000-000000000001"
+        );
+        assert!(is_canonical_console_path(
+            &list.to_string(),
+            ClientChannel::Web
+        ));
+        assert!(is_canonical_console_path(
+            &detail.to_string(),
+            ClientChannel::Web
+        ));
+        assert!(!is_canonical_console_path(
+            "/platform/holdings/not-a-uuid",
+            ClientChannel::Web
         ));
     }
 
     #[test]
     fn canonical_uuid_and_reference_routes_round_trip() {
-        let id = RouteUuidV2::try_new(uuid::Uuid::new_v4()).unwrap();
+        let id = RouteUuid::try_new(uuid::Uuid::new_v4()).unwrap();
         let route = AppRoute::ReferenceItem { id };
         assert_eq!(
             AppRoute::from_str(&route.to_string()).expect("reference route parses"),

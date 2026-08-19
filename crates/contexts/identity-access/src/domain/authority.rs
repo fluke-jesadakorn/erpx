@@ -1,5 +1,5 @@
 use chrono::{DateTime, Duration, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -126,7 +126,7 @@ pub struct BreakGlassSession {
     id: Uuid,
     version: u64,
     principal_id: PrincipalId,
-    scope: TenantScope,
+    scope: AuthorityScope,
     reason: String,
     requester_ref: String,
     approver_ref: Option<String>,
@@ -142,7 +142,7 @@ impl BreakGlassSession {
     pub fn request(
         id: Uuid,
         principal_id: PrincipalId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         reason: String,
         requester_ref: String,
         requested_at: DateTime<Utc>,
@@ -331,7 +331,7 @@ impl BreakGlassSession {
     pub const fn principal_id(&self) -> PrincipalId {
         self.principal_id
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn reason(&self) -> &str {
@@ -428,7 +428,7 @@ impl CertificationItem {
 pub struct AccessCertification {
     id: Uuid,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     reviewer_ref: String,
     due_at: DateTime<Utc>,
     completed_at: Option<DateTime<Utc>>,
@@ -438,7 +438,7 @@ pub struct AccessCertification {
 impl AccessCertification {
     pub fn start(
         id: Uuid,
-        scope: TenantScope,
+        scope: AuthorityScope,
         reviewer_ref: String,
         due_at: DateTime<Utc>,
         items: Vec<CertificationItem>,
@@ -557,7 +557,7 @@ impl AccessCertification {
     pub const fn id(&self) -> Uuid {
         self.id
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn reviewer_ref(&self) -> &str {
@@ -588,8 +588,8 @@ mod tests {
             .single()
             .unwrap()
     }
-    fn scope() -> TenantScope {
-        TenantScope::Holding { holding_id: id(1) }
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Holding { holding_id: id(1) }
     }
 
     #[test]
@@ -627,7 +627,7 @@ mod tests {
             id(3),
             principal_id,
             scope(),
-            "restore tenant access".into(),
+            "restore holding access".into(),
             "maker".into(),
             at(10),
             at(40),

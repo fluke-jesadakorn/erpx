@@ -19,23 +19,23 @@ pub(crate) const MANIFEST_RELATIVE_PATH: &str = ".runtime/erpx/cutover/fresh-sta
 /// Non-secret handoff between the one-shot bootstrap and the runtime
 /// composition command. The database receipt remains authoritative: xtask
 /// accepts this prepared manifest only after independently observing the
-/// matching `complete` bootstrap receipt and active tenant registry row.
+/// matching `complete` bootstrap receipt and active holding registry row.
 #[derive(Debug, Serialize)]
 pub(crate) struct RuntimeCutoverManifest {
     version: u32,
-    schema_generation: i16,
+    schema_revision: i16,
     service_catalog_generation: u16,
     service_id_range: &'static str,
     state: &'static str,
     prepared_at: DateTime<Utc>,
     installation_generation: Uuid,
     installation_prefix: String,
-    tenant_id: String,
-    holding_ref: String,
+    holding_id: String,
+    data_profile_key: String,
     control_write_database: String,
     control_read_database: String,
-    tenant_write_database: String,
-    tenant_read_database: String,
+    holding_write_database: String,
+    holding_read_database: String,
     object_namespace: String,
     rollback: Value,
 }
@@ -50,19 +50,19 @@ impl RuntimeCutoverManifest {
             .map_err(|_| BootstrapError("rollback metadata could not be serialized"))?;
         Ok(Self {
             version: 4,
-            schema_generation: erpx_migration::SCHEMA_GENERATION,
+            schema_revision: erpx_migration::SCHEMA_REVISION,
             service_catalog_generation: 4,
             service_id_range: "IFC-SVC-201..265",
             state: "prepared",
             prepared_at,
             installation_generation: resources.installation_generation,
             installation_prefix: resources.prefix.clone(),
-            tenant_id: resources.tenant_id.to_string(),
-            holding_ref: resources.holding_ref.to_string(),
+            holding_id: resources.holding_id.to_string(),
+            data_profile_key: resources.data_profile_key.to_string(),
             control_write_database: resources.databases[0].name.clone(),
             control_read_database: resources.databases[1].name.clone(),
-            tenant_write_database: resources.databases[2].name.clone(),
-            tenant_read_database: resources.databases[3].name.clone(),
+            holding_write_database: resources.databases[2].name.clone(),
+            holding_read_database: resources.databases[3].name.clone(),
             object_namespace: resources.storage_namespace.clone(),
             rollback,
         })
@@ -134,7 +134,7 @@ mod tests {
 
     #[test]
     fn manifest_is_prepared_typed_and_contains_no_connection_secrets() {
-        let resources = FreshResourcePlan::new("next", "Tenant", "Holding");
+        let resources = FreshResourcePlan::new("next", "Holding");
         let now = Utc::now();
         let rollback = RollbackMetadata::new(
             now,
@@ -154,7 +154,7 @@ mod tests {
         let encoded = serde_json::to_string(&manifest).expect("serialize");
         assert!(encoded.contains("\"state\":\"prepared\""));
         assert!(encoded.contains("\"version\":4"));
-        assert!(encoded.contains("\"schema_generation\":2"));
+        assert!(encoded.contains("\"schema_revision\":2"));
         assert!(encoded.contains("\"service_catalog_generation\":4"));
         assert!(encoded.contains("\"service_id_range\":\"IFC-SVC-201..265\""));
         assert!(!encoded.contains("v1_service_authority"));

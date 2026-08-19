@@ -6,7 +6,7 @@
   `OperationsService.ListOperationsExceptions` to the shared protobuf contract.
 - Added authenticated Tonic/gRPC-Web server handlers with required
   `operations.read` authorization and contained holding scope.
-- Resolved the opaque tenant registry reference before routing; inactive tenants,
+- Resolved the opaque holding registry reference before routing; inactive holdings,
   mismatched holding scopes, missing routes, and invalid cursors fail closed.
 - Routed each request to the physical holding write/read database pair. The
   summary reads write-side event/source-reference counts and read-side
@@ -48,7 +48,7 @@ facts into this projection and compare them to Folio during G13 migration.
 
 - Add source-context adapters and deterministic Folio/ERPX KPI comparison
   fixtures; no claim is made that the legacy dashboard totals reconcile yet.
-- Add the tenant Dioxus Operations read surface and all branch execution pages.
+- Add the holding Dioxus Operations read surface and all branch execution pages.
 - Complete organization reporting lines, delegated administration, composite
   constraints, exception lifecycle commands/workers, and G7/G14 gates.
 

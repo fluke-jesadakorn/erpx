@@ -82,7 +82,7 @@ impl QuotePdfDocument {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QuotePdfAccessGrant {
-    tenant_id: Uuid,
+    holding_id: Uuid,
     storage_namespace: String,
     quote_id: QuoteId,
     quote_version: u64,
@@ -90,16 +90,16 @@ pub struct QuotePdfAccessGrant {
 }
 
 impl QuotePdfAccessGrant {
-    /// Construct only after the caller has passed tenant and Quote read/write
+    /// Construct only after the caller has passed holding and Quote read/write
     /// authorization. Download grants pin the immutable artifact as well.
     pub fn try_new(
-        tenant_id: Uuid,
+        holding_id: Uuid,
         storage_namespace: String,
         quote_id: QuoteId,
         quote_version: u64,
         artifact_id: Option<Uuid>,
     ) -> Result<Self, QuotePdfError> {
-        if tenant_id.is_nil()
+        if holding_id.is_nil()
             || quote_version == 0
             || artifact_id.is_some_and(|value| value.is_nil())
             || !valid_namespace(&storage_namespace)
@@ -107,7 +107,7 @@ impl QuotePdfAccessGrant {
             return Err(QuotePdfError::Unauthorized);
         }
         Ok(Self {
-            tenant_id,
+            holding_id,
             storage_namespace,
             quote_id,
             quote_version,
@@ -279,7 +279,7 @@ impl<S: QuotePdfStoragePort> QuotePdfService<S> {
 pub enum QuotePdfError {
     #[error("quote PDF document is invalid")]
     InvalidDocument,
-    #[error("quote PDF access is not authorized for this exact tenant/version/artifact")]
+    #[error("quote PDF access is not authorized for this exact holding/version/artifact")]
     Unauthorized,
     #[error("bundled Thai font is invalid")]
     BundledFontInvalid,
@@ -442,7 +442,7 @@ mod tests {
 
         let grant = QuotePdfAccessGrant::try_new(
             Uuid::from_u128(9),
-            "tenant-example".into(),
+            "holding-example".into(),
             document(QuoteDocumentLanguage::Thai).quote_id,
             3,
             None,

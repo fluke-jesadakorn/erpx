@@ -9,7 +9,8 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::{DimensionSet, crm, legal, sales};
 use erpx_kernel::{
-    ActorAttribution, Clock, CorrelationId, ErrorCategory, ErrorContext, KernelError, TenantScope,
+    ActorAttribution, AuthorityScope, Clock, CorrelationId, ErrorCategory, ErrorContext,
+    KernelError,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -34,7 +35,7 @@ pub const MAX_SALES_PAGE_SIZE: u16 = 100;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateQuote {
     pub quote_id: QuoteId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub opportunity: crm::OpportunityFact,
     pub quote_code: String,
     pub currency: String,
@@ -242,8 +243,8 @@ where
     async fn preflight(
         &self,
         actor: &ActorAttribution,
-        authority_scope: &TenantScope,
-        target_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         action: SalesAction,
     ) -> Result<(), SalesApplicationError> {
         if !authority_scope.contains(target_scope) {
@@ -267,7 +268,7 @@ where
         &self,
         identity: &CommandIdentity,
         actor: &ActorAttribution,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         action: SalesAction,
     ) -> Result<Option<StoredCommit>, SalesApplicationError> {
         let Some(mut stored) = self.unit_of_work.find_receipt(identity).await? else {
@@ -291,7 +292,7 @@ where
 
     async fn load_quote(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         quote_id: QuoteId,
     ) -> Result<Quote, SalesApplicationError> {
         self.write
@@ -302,7 +303,7 @@ where
 
     async fn load_order(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         sales_order_id: SalesOrderId,
     ) -> Result<SalesOrder, SalesApplicationError> {
         self.write
@@ -313,7 +314,7 @@ where
 
     async fn load_revenue_arrangement(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         arrangement_id: RevenueArrangementId,
     ) -> Result<RevenueArrangement, SalesApplicationError> {
         self.write
@@ -537,7 +538,7 @@ where
             fingerprint,
         };
         if let Some(stored) = self
-            .replay(&identity, &envelope.actor, &envelope.tenant_scope, action)
+            .replay(&identity, &envelope.actor, &envelope.active_scope, action)
             .await
             .map_err(|error| to_cqrs(error, correlation_id))?
         {
@@ -556,7 +557,7 @@ where
                 }
                 self.preflight(
                     &envelope.actor,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
                     &command.scope,
                     action,
                 )
@@ -577,12 +578,12 @@ where
             }
             Execution::MutateQuote { quote_id, mutation } => {
                 let mut quote = self
-                    .load_quote(&envelope.tenant_scope, quote_id)
+                    .load_quote(&envelope.active_scope, quote_id)
                     .await
                     .map_err(|error| to_cqrs(error, correlation_id))?;
                 self.preflight(
                     &envelope.actor,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
                     quote.scope(),
                     action,
                 )
@@ -607,12 +608,12 @@ where
                     ));
                 }
                 let quote = self
-                    .load_quote(&envelope.tenant_scope, command.quote_id)
+                    .load_quote(&envelope.active_scope, command.quote_id)
                     .await
                     .map_err(|error| to_cqrs(error, correlation_id))?;
                 self.preflight(
                     &envelope.actor,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
                     quote.scope(),
                     action,
                 )
@@ -641,12 +642,12 @@ where
                 mutation,
             } => {
                 let mut order = self
-                    .load_order(&envelope.tenant_scope, sales_order_id)
+                    .load_order(&envelope.active_scope, sales_order_id)
                     .await
                     .map_err(|error| to_cqrs(error, correlation_id))?;
                 self.preflight(
                     &envelope.actor,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
                     order.scope(),
                     action,
                 )
@@ -671,12 +672,12 @@ where
                     ));
                 }
                 let order = self
-                    .load_order(&envelope.tenant_scope, command.sales_order_id)
+                    .load_order(&envelope.active_scope, command.sales_order_id)
                     .await
                     .map_err(|error| to_cqrs(error, correlation_id))?;
                 self.preflight(
                     &envelope.actor,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
                     order.scope(),
                     action,
                 )
@@ -710,12 +711,12 @@ where
                 mutation,
             } => {
                 let mut arrangement = self
-                    .load_revenue_arrangement(&envelope.tenant_scope, arrangement_id)
+                    .load_revenue_arrangement(&envelope.active_scope, arrangement_id)
                     .await
                     .map_err(|error| to_cqrs(error, correlation_id))?;
                 self.preflight(
                     &envelope.actor,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
                     arrangement.scope(),
                     action,
                 )
@@ -755,7 +756,7 @@ where
                 correlation_id,
                 causation_id: envelope.causation_id,
                 actor: envelope.actor,
-                authority_scope: envelope.tenant_scope,
+                authority_scope: envelope.active_scope,
                 audit: envelope.audit,
                 expected_version,
                 aggregate,
@@ -793,7 +794,7 @@ where
     async fn preflight(
         &self,
         actor: &ActorAttribution,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         action: SalesAction,
     ) -> Result<(), PortError> {
         self.entitlement.ensure_sales_enabled(scope, false).await?;
@@ -827,7 +828,7 @@ where
             SalesQuery::GetQuote(command) => {
                 self.preflight(
                     &envelope.actor,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
                     SalesAction::ViewQuote,
                 )
                 .await
@@ -835,7 +836,7 @@ where
                 let result = self
                     .read
                     .get_quote(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         command.quote_id,
                         &envelope.consistency,
                     )
@@ -844,7 +845,7 @@ where
                 if result
                     .value
                     .as_ref()
-                    .is_some_and(|value| !envelope.tenant_scope.contains(&value.scope))
+                    .is_some_and(|value| !envelope.active_scope.contains(&value.scope))
                 {
                     return Err(to_cqrs(
                         SalesApplicationError::ScopeOutsideAuthority,
@@ -856,7 +857,7 @@ where
             SalesQuery::GetSalesOrder(command) => {
                 self.preflight(
                     &envelope.actor,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
                     SalesAction::ViewOrder,
                 )
                 .await
@@ -864,7 +865,7 @@ where
                 let result = self
                     .read
                     .get_order(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         command.sales_order_id,
                         &envelope.consistency,
                     )
@@ -873,7 +874,7 @@ where
                 if result
                     .value
                     .as_ref()
-                    .is_some_and(|value| !envelope.tenant_scope.contains(&value.scope))
+                    .is_some_and(|value| !envelope.active_scope.contains(&value.scope))
                 {
                     return Err(to_cqrs(
                         SalesApplicationError::ScopeOutsideAuthority,
@@ -888,7 +889,7 @@ where
             SalesQuery::GetRevenueArrangement(command) => {
                 self.preflight(
                     &envelope.actor,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
                     SalesAction::ViewRevenueArrangement,
                 )
                 .await
@@ -896,7 +897,7 @@ where
                 let result = self
                     .read
                     .get_revenue_arrangement(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         command.arrangement_id,
                         &envelope.consistency,
                     )
@@ -905,7 +906,7 @@ where
                 if result
                     .value
                     .as_ref()
-                    .is_some_and(|value| !envelope.tenant_scope.contains(&value.scope))
+                    .is_some_and(|value| !envelope.active_scope.contains(&value.scope))
                 {
                     return Err(to_cqrs(
                         SalesApplicationError::ScopeOutsideAuthority,
@@ -926,7 +927,7 @@ where
                 }
                 self.preflight(
                     &envelope.actor,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
                     SalesAction::ListOrders,
                 )
                 .await
@@ -934,7 +935,7 @@ where
                 let result = self
                     .read
                     .list_orders(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         &command.filter,
                         &envelope.consistency,
                     )
@@ -944,7 +945,7 @@ where
                     .value
                     .orders
                     .iter()
-                    .any(|value| !envelope.tenant_scope.contains(&value.scope))
+                    .any(|value| !envelope.active_scope.contains(&value.scope))
                 {
                     return Err(to_cqrs(
                         SalesApplicationError::ScopeOutsideAuthority,

@@ -25,7 +25,7 @@ impl SqlxThreadWriteRepository {
 impl ThreadWriteRepository for SqlxThreadWriteRepository {
     async fn load(&self, access: &AuthorizedThreadAccess) -> Result<Option<Thread>, PortError> {
         let mut tx = self.pool.begin().await.map_err(map_database_error)?;
-        set_tenant(&mut tx, access.tenant_id()).await?;
+        set_holding(&mut tx, access.holding_id()).await?;
         let row = sqlx::query(
             "SELECT thread.anchor_record_id, thread.aggregate_version, thread.thread_state, \
                     thread.pinned, thread.created_at, thread.updated_at, \
@@ -33,16 +33,16 @@ impl ThreadWriteRepository for SqlxThreadWriteRepository {
                     audience.audience_document, retention.retention_document \
              FROM erpx_collaboration.threads thread \
              JOIN erpx_collaboration.thread_policies policy \
-               ON policy.tenant_id=thread.tenant_id AND policy.thread_id=thread.thread_id \
+               ON policy.holding_id=thread.holding_id AND policy.thread_id=thread.thread_id \
              JOIN erpx_collaboration.thread_anchors anchor \
-               ON anchor.tenant_id=thread.tenant_id AND anchor.thread_id=thread.thread_id \
+               ON anchor.holding_id=thread.holding_id AND anchor.thread_id=thread.thread_id \
              JOIN erpx_collaboration.thread_audiences audience \
-               ON audience.tenant_id=thread.tenant_id AND audience.thread_id=thread.thread_id \
+               ON audience.holding_id=thread.holding_id AND audience.thread_id=thread.thread_id \
              JOIN erpx_collaboration.thread_retention retention \
-               ON retention.tenant_id=thread.tenant_id AND retention.thread_id=thread.thread_id \
-             WHERE thread.tenant_id = $1 AND thread.thread_id = $2",
+               ON retention.holding_id=thread.holding_id AND retention.thread_id=thread.thread_id \
+             WHERE thread.holding_id = $1 AND thread.thread_id = $2",
         )
-        .bind(access.tenant_id().as_uuid())
+        .bind(access.holding_id().as_uuid())
         .bind(access.thread_id().as_uuid())
         .fetch_optional(&mut *tx)
         .await
@@ -85,7 +85,7 @@ impl ThreadWriteRepository for SqlxThreadWriteRepository {
         tx.commit().await.map_err(map_database_error)?;
         thread.validate_loaded().map_err(|_| PortError::Internal)?;
         if thread.id() != access.thread_id()
-            || thread.policy().tenant_id() != access.tenant_id()
+            || thread.policy().holding_id() != access.holding_id()
             || thread.anchor().record().id() != access.anchor_record_id()
             || !access
                 .authority_scope()
@@ -109,7 +109,7 @@ impl ThreadWriteRepository for SqlxThreadWriteRepository {
         validate_commit(access, &commit)?;
 
         let mut tx = self.pool.begin().await.map_err(map_database_error)?;
-        set_tenant(&mut tx, access.tenant_id()).await?;
+        set_holding(&mut tx, access.holding_id()).await?;
         if let Some(receipt) = replay_receipt(&mut tx, access, &commit).await? {
             tx.commit().await.map_err(map_database_error)?;
             return Ok(receipt);
@@ -117,9 +117,9 @@ impl ThreadWriteRepository for SqlxThreadWriteRepository {
 
         let current = sqlx::query_scalar::<_, i64>(
             "SELECT aggregate_version FROM erpx_collaboration.threads \
-             WHERE tenant_id = $1 AND thread_id = $2 FOR UPDATE",
+             WHERE holding_id = $1 AND thread_id = $2 FOR UPDATE",
         )
-        .bind(access.tenant_id().as_uuid())
+        .bind(access.holding_id().as_uuid())
         .bind(access.thread_id().as_uuid())
         .fetch_optional(&mut *tx)
         .await
@@ -144,10 +144,10 @@ impl ThreadWriteRepository for SqlxThreadWriteRepository {
             sqlx::query(
                 "UPDATE erpx_collaboration.threads \
                  SET thread_state=$6,pinned=$7,aggregate_version=$8,updated_at=$9 \
-                 WHERE tenant_id=$1 AND thread_id=$2 AND anchor_record_id=$3 \
+                 WHERE holding_id=$1 AND thread_id=$2 AND anchor_record_id=$3 \
                    AND owner_context=$4 AND record_type=$5 AND aggregate_version=$10",
             )
-            .bind(access.tenant_id().as_uuid())
+            .bind(access.holding_id().as_uuid())
             .bind(access.thread_id().as_uuid())
             .bind(access.anchor_record_id().as_uuid())
             .bind(commit.thread.anchor().record().owner_context().slug())
@@ -164,12 +164,12 @@ impl ThreadWriteRepository for SqlxThreadWriteRepository {
         } else {
             sqlx::query(
                 "INSERT INTO erpx_collaboration.threads \
-                 (tenant_id,thread_id,anchor_record_id,owner_context,record_type,classification, \
+                 (holding_id,thread_id,anchor_record_id,owner_context,record_type,classification, \
                   thread_state,pinned,aggregate_version,created_at,updated_at) \
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) \
-                 ON CONFLICT (tenant_id,thread_id) DO NOTHING",
+                 ON CONFLICT (holding_id,thread_id) DO NOTHING",
             )
-            .bind(access.tenant_id().as_uuid())
+            .bind(access.holding_id().as_uuid())
             .bind(access.thread_id().as_uuid())
             .bind(access.anchor_record_id().as_uuid())
             .bind(commit.thread.anchor().record().owner_context().slug())
@@ -193,16 +193,16 @@ impl ThreadWriteRepository for SqlxThreadWriteRepository {
 
         sqlx::query(
             "INSERT INTO erpx_collaboration.thread_anchor_authority_index \
-             (tenant_id, thread_id, anchor_record_id, authorization_policy_id, aggregate_version) \
+             (holding_id, thread_id, anchor_record_id, authorization_policy_id, aggregate_version) \
              VALUES ($1,$2,$3,$4,$5) \
-             ON CONFLICT (tenant_id, thread_id) DO UPDATE SET \
+             ON CONFLICT (holding_id, thread_id) DO UPDATE SET \
               anchor_record_id=EXCLUDED.anchor_record_id, \
               authorization_policy_id=EXCLUDED.authorization_policy_id, \
               aggregate_version=EXCLUDED.aggregate_version \
              WHERE erpx_collaboration.thread_anchor_authority_index.aggregate_version \
                    < EXCLUDED.aggregate_version",
         )
-        .bind(access.tenant_id().as_uuid())
+        .bind(access.holding_id().as_uuid())
         .bind(access.thread_id().as_uuid())
         .bind(access.anchor_record_id().as_uuid())
         .bind(commit.thread.policy().authorization_policy().as_uuid())
@@ -223,10 +223,10 @@ impl ThreadWriteRepository for SqlxThreadWriteRepository {
             let payload = serde_json::to_value(event).map_err(|_| PortError::InvalidState)?;
             let cursor = sqlx::query_scalar::<_, i64>(
                 "INSERT INTO erpx_collaboration.events \
-                 (tenant_id, thread_id, aggregate_version, event_type, event_version, payload, occurred_at, correlation_id) \
+                 (holding_id, thread_id, aggregate_version, event_type, event_version, payload, occurred_at, correlation_id) \
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING event_cursor",
             )
-            .bind(access.tenant_id().as_uuid())
+            .bind(access.holding_id().as_uuid())
             .bind(access.thread_id().as_uuid())
             .bind(i64::try_from(event.aggregate_version).map_err(|_| PortError::InvalidState)?)
             .bind(event_type(&event.kind))
@@ -240,7 +240,7 @@ impl ThreadWriteRepository for SqlxThreadWriteRepository {
             last_event_cursor = u64::try_from(cursor).map_err(|_| PortError::Internal)?;
             stream_events.push(erpx_collaboration::CollaborationStreamEvent {
                 cursor: last_event_cursor,
-                tenant_id: access.tenant_id(),
+                holding_id: access.holding_id(),
                 thread_id: access.thread_id(),
                 aggregate_version: event.aggregate_version,
                 kind: event.kind.clone(),
@@ -252,7 +252,7 @@ impl ThreadWriteRepository for SqlxThreadWriteRepository {
         }
 
         for fact in &commit.inbox_facts {
-            if fact.tenant_id != access.tenant_id()
+            if fact.holding_id != access.holding_id()
                 || fact.thread_id != access.thread_id()
                 || fact.anchor_record_id != access.anchor_record_id()
             {
@@ -260,11 +260,11 @@ impl ThreadWriteRepository for SqlxThreadWriteRepository {
             }
             sqlx::query(
                 "INSERT INTO erpx_collaboration.opaque_mention_inbox \
-                 (event_id, tenant_id, recipient_principal_id, thread_id, mention_event_id, anchor_record_id, created_at) \
+                 (event_id, holding_id, recipient_principal_id, thread_id, mention_event_id, anchor_record_id, created_at) \
                  VALUES ($1,$2,$3,$4,$5,$6,$7)",
             )
             .bind(fact.event_id)
-            .bind(fact.tenant_id.as_uuid())
+            .bind(fact.holding_id.as_uuid())
             .bind(fact.recipient_principal_id.as_uuid())
             .bind(fact.thread_id.as_uuid())
             .bind(fact.mention_event_id.as_uuid())
@@ -277,14 +277,14 @@ impl ThreadWriteRepository for SqlxThreadWriteRepository {
 
         let directory_actor = serde_json::json!({
             "principal_ref": format!("principal:{}", access.actor().id().as_uuid()),
-            "kind": "tenant_user",
+            "kind": "holding_user",
             "session_id": null,
             "represented_principal_ref": null,
             "support_capability_id": null
         });
         crate::projection::append_projection_facts(
             &mut tx,
-            access.tenant_id(),
+            access.holding_id(),
             commit.identity.command_id,
             commit.identity.correlation_id,
             directory_actor.clone(),
@@ -297,7 +297,7 @@ impl ThreadWriteRepository for SqlxThreadWriteRepository {
         for draft in crate::publication::collaboration_directory_drafts(&commit.thread)? {
             crate::publication::append_directory_draft(
                 &mut tx,
-                access.tenant_id(),
+                access.holding_id(),
                 commit.identity.command_id,
                 commit.identity.correlation_id,
                 directory_actor.clone(),
@@ -309,10 +309,10 @@ impl ThreadWriteRepository for SqlxThreadWriteRepository {
 
         sqlx::query(
             "INSERT INTO erpx_collaboration.command_receipts \
-             (tenant_id, idempotency_key, command_id, request_digest, thread_id, aggregate_version, last_event_cursor, created_at) \
+             (holding_id, idempotency_key, command_id, request_digest, thread_id, aggregate_version, last_event_cursor, created_at) \
              VALUES ($1,$2,$3,$4,$5,$6,$7,clock_timestamp())",
         )
-        .bind(access.tenant_id().as_uuid())
+        .bind(access.holding_id().as_uuid())
         .bind(&commit.identity.idempotency_key)
         .bind(commit.identity.command_id.as_uuid())
         .bind(commit.identity.request_digest.to_vec())
@@ -324,11 +324,11 @@ impl ThreadWriteRepository for SqlxThreadWriteRepository {
         .map_err(map_database_error)?;
         sqlx::query(
             "INSERT INTO erpx_collaboration.audit_log \
-             (tenant_id,audit_id,command_id,thread_id,actor_principal_id,aggregate_version, \
+             (holding_id,audit_id,command_id,thread_id,actor_principal_id,aggregate_version, \
               action,evidence_digest,occurred_at) \
              VALUES ($1,$2,$3,$4,$5,$6,'collaboration.thread.commit',$7,$8)",
         )
-        .bind(access.tenant_id().as_uuid())
+        .bind(access.holding_id().as_uuid())
         .bind(deterministic_uuid(
             commit.identity.command_id.as_uuid(),
             b"collaboration-audit-v1",
@@ -358,7 +358,7 @@ fn validate_commit(
     commit: &ThreadCommit,
 ) -> Result<(), PortError> {
     if commit.thread.id() != access.thread_id()
-        || commit.thread.policy().tenant_id() != access.tenant_id()
+        || commit.thread.policy().holding_id() != access.holding_id()
         || commit.thread.anchor().record().id() != access.anchor_record_id()
         || !access
             .authority_scope()
@@ -382,9 +382,9 @@ async fn replay_receipt(
     let row = sqlx::query(
         "SELECT request_digest, thread_id, aggregate_version, last_event_cursor \
          FROM erpx_collaboration.command_receipts \
-         WHERE tenant_id=$1 AND idempotency_key=$2",
+         WHERE holding_id=$1 AND idempotency_key=$2",
     )
-    .bind(access.tenant_id().as_uuid())
+    .bind(access.holding_id().as_uuid())
     .bind(&commit.identity.idempotency_key)
     .fetch_optional(&mut **tx)
     .await
@@ -431,10 +431,10 @@ async fn load_comments(
 ) -> Result<Vec<serde_json::Value>, PortError> {
     let rows = sqlx::query(
         "SELECT comment_id,author_principal_id,author_kind,visibility,tombstoned_at \
-         FROM erpx_collaboration.comments WHERE tenant_id=$1 AND thread_id=$2 \
+         FROM erpx_collaboration.comments WHERE holding_id=$1 AND thread_id=$2 \
          ORDER BY comment_id",
     )
-    .bind(access.tenant_id().as_uuid())
+    .bind(access.holding_id().as_uuid())
     .bind(access.thread_id().as_uuid())
     .fetch_all(&mut **tx)
     .await
@@ -445,9 +445,9 @@ async fn load_comments(
         let revisions = sqlx::query(
             "SELECT revision,author_principal_id,author_kind,document,attachments,created_at \
              FROM erpx_collaboration.comment_revisions \
-             WHERE tenant_id=$1 AND thread_id=$2 AND comment_id=$3 ORDER BY revision",
+             WHERE holding_id=$1 AND thread_id=$2 AND comment_id=$3 ORDER BY revision",
         )
-        .bind(access.tenant_id().as_uuid()).bind(access.thread_id().as_uuid()).bind(comment_id)
+        .bind(access.holding_id().as_uuid()).bind(access.thread_id().as_uuid()).bind(comment_id)
         .fetch_all(&mut **tx).await.map_err(map_database_error)?
         .into_iter()
         .map(|revision| Ok(serde_json::json!({
@@ -478,12 +478,12 @@ async fn load_mentions(
                 mention.created_at,withdrawal.withdrawn_at \
          FROM erpx_collaboration.mention_events mention \
          LEFT JOIN erpx_collaboration.mention_withdrawals withdrawal \
-           ON withdrawal.tenant_id=mention.tenant_id \
+           ON withdrawal.holding_id=mention.holding_id \
           AND withdrawal.mention_event_id=mention.mention_event_id \
-         WHERE mention.tenant_id=$1 AND mention.thread_id=$2 \
+         WHERE mention.holding_id=$1 AND mention.thread_id=$2 \
          ORDER BY mention.created_at,mention.mention_event_id",
     )
-    .bind(access.tenant_id().as_uuid())
+    .bind(access.holding_id().as_uuid())
     .bind(access.thread_id().as_uuid())
     .fetch_all(&mut **tx)
     .await
@@ -504,9 +504,9 @@ async fn load_entities(
 ) -> Result<LoadedEntities, PortError> {
     let rows = sqlx::query(
         "SELECT entity_kind,entity_document FROM erpx_collaboration.thread_entities \
-         WHERE tenant_id=$1 AND thread_id=$2 ORDER BY entity_kind,entity_id",
+         WHERE holding_id=$1 AND thread_id=$2 ORDER BY entity_kind,entity_id",
     )
-    .bind(access.tenant_id().as_uuid())
+    .bind(access.holding_id().as_uuid())
     .bind(access.thread_id().as_uuid())
     .fetch_all(&mut **tx)
     .await
@@ -544,21 +544,21 @@ async fn persist_thread_concerns(
         serde_json::to_value(thread.retention()).map_err(|_| PortError::InvalidState)?;
     let location = thread.anchor().location();
     let (realm, portal) = audience_realm(thread.audience());
-    let policy_rows = sqlx::query("INSERT INTO erpx_collaboration.thread_policies (tenant_id,thread_id,policy_document) VALUES ($1,$2,$3) ON CONFLICT (tenant_id,thread_id) DO UPDATE SET policy_document=EXCLUDED.policy_document WHERE erpx_collaboration.thread_policies.policy_document=EXCLUDED.policy_document")
-        .bind(access.tenant_id().as_uuid()).bind(access.thread_id().as_uuid()).bind(policy).execute(&mut **tx).await.map_err(map_database_error)?.rows_affected();
+    let policy_rows = sqlx::query("INSERT INTO erpx_collaboration.thread_policies (holding_id,thread_id,policy_document) VALUES ($1,$2,$3) ON CONFLICT (holding_id,thread_id) DO UPDATE SET policy_document=EXCLUDED.policy_document WHERE erpx_collaboration.thread_policies.policy_document=EXCLUDED.policy_document")
+        .bind(access.holding_id().as_uuid()).bind(access.thread_id().as_uuid()).bind(policy).execute(&mut **tx).await.map_err(map_database_error)?.rows_affected();
     if policy_rows != 1 {
         return Err(PortError::Conflict);
     }
-    sqlx::query("INSERT INTO erpx_collaboration.thread_anchors (tenant_id,thread_id,anchor_document,source_revision,source_digest,stale) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (tenant_id,thread_id) DO UPDATE SET anchor_document=EXCLUDED.anchor_document,source_revision=EXCLUDED.source_revision,source_digest=EXCLUDED.source_digest,stale=EXCLUDED.stale")
-        .bind(access.tenant_id().as_uuid()).bind(access.thread_id().as_uuid()).bind(anchor)
+    sqlx::query("INSERT INTO erpx_collaboration.thread_anchors (holding_id,thread_id,anchor_document,source_revision,source_digest,stale) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (holding_id,thread_id) DO UPDATE SET anchor_document=EXCLUDED.anchor_document,source_revision=EXCLUDED.source_revision,source_digest=EXCLUDED.source_digest,stale=EXCLUDED.stale")
+        .bind(access.holding_id().as_uuid()).bind(access.thread_id().as_uuid()).bind(anchor)
         .bind(location.map(|v| i64::try_from(v.source_revision)).transpose().map_err(|_| PortError::InvalidState)?)
         .bind(location.map(|v| v.source_digest.to_vec())).bind(location.is_some_and(|v| v.stale))
         .execute(&mut **tx).await.map_err(map_database_error)?;
-    sqlx::query("INSERT INTO erpx_collaboration.thread_audiences (tenant_id,thread_id,audience_document,audience_realm,external_portal) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (tenant_id,thread_id) DO UPDATE SET audience_document=EXCLUDED.audience_document,audience_realm=EXCLUDED.audience_realm,external_portal=EXCLUDED.external_portal")
-        .bind(access.tenant_id().as_uuid()).bind(access.thread_id().as_uuid()).bind(audience).bind(realm).bind(portal)
+    sqlx::query("INSERT INTO erpx_collaboration.thread_audiences (holding_id,thread_id,audience_document,audience_realm,external_portal) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (holding_id,thread_id) DO UPDATE SET audience_document=EXCLUDED.audience_document,audience_realm=EXCLUDED.audience_realm,external_portal=EXCLUDED.external_portal")
+        .bind(access.holding_id().as_uuid()).bind(access.thread_id().as_uuid()).bind(audience).bind(realm).bind(portal)
         .execute(&mut **tx).await.map_err(map_database_error)?;
-    sqlx::query("INSERT INTO erpx_collaboration.thread_retention (tenant_id,thread_id,retention_document,parent_retain_until,comment_retain_until,jurisdiction_retain_until) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (tenant_id,thread_id) DO UPDATE SET retention_document=EXCLUDED.retention_document,parent_retain_until=EXCLUDED.parent_retain_until,comment_retain_until=EXCLUDED.comment_retain_until,jurisdiction_retain_until=EXCLUDED.jurisdiction_retain_until")
-        .bind(access.tenant_id().as_uuid()).bind(access.thread_id().as_uuid()).bind(retention)
+    sqlx::query("INSERT INTO erpx_collaboration.thread_retention (holding_id,thread_id,retention_document,parent_retain_until,comment_retain_until,jurisdiction_retain_until) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (holding_id,thread_id) DO UPDATE SET retention_document=EXCLUDED.retention_document,parent_retain_until=EXCLUDED.parent_retain_until,comment_retain_until=EXCLUDED.comment_retain_until,jurisdiction_retain_until=EXCLUDED.jurisdiction_retain_until")
+        .bind(access.holding_id().as_uuid()).bind(access.thread_id().as_uuid()).bind(retention)
         .bind(thread.retention().parent_retain_until).bind(thread.retention().comment_retain_until).bind(thread.retention().jurisdiction_retain_until)
         .execute(&mut **tx).await.map_err(map_database_error)?;
     Ok(())
@@ -570,8 +570,8 @@ async fn persist_comments(
     thread: &Thread,
 ) -> Result<(), PortError> {
     for comment in thread.comments() {
-        let rows = sqlx::query("INSERT INTO erpx_collaboration.comments (tenant_id,thread_id,comment_id,author_principal_id,author_kind,visibility,tombstoned_at) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (tenant_id,thread_id,comment_id) DO UPDATE SET visibility=EXCLUDED.visibility,tombstoned_at=EXCLUDED.tombstoned_at WHERE erpx_collaboration.comments.author_principal_id=EXCLUDED.author_principal_id AND erpx_collaboration.comments.author_kind=EXCLUDED.author_kind")
-            .bind(access.tenant_id().as_uuid()).bind(access.thread_id().as_uuid()).bind(comment.id().as_uuid())
+        let rows = sqlx::query("INSERT INTO erpx_collaboration.comments (holding_id,thread_id,comment_id,author_principal_id,author_kind,visibility,tombstoned_at) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (holding_id,thread_id,comment_id) DO UPDATE SET visibility=EXCLUDED.visibility,tombstoned_at=EXCLUDED.tombstoned_at WHERE erpx_collaboration.comments.author_principal_id=EXCLUDED.author_principal_id AND erpx_collaboration.comments.author_kind=EXCLUDED.author_kind")
+            .bind(access.holding_id().as_uuid()).bind(access.thread_id().as_uuid()).bind(comment.id().as_uuid())
             .bind(comment.author().id().as_uuid()).bind(enum_text(comment.author().kind())?).bind(enum_text(comment.visibility())?)
             .bind(comment.tombstoned_at()).execute(&mut **tx).await.map_err(map_database_error)?.rows_affected();
         if rows != 1 {
@@ -587,9 +587,9 @@ async fn persist_entities(
     thread: &Thread,
 ) -> Result<(), PortError> {
     sqlx::query(
-        "DELETE FROM erpx_collaboration.thread_entities WHERE tenant_id=$1 AND thread_id=$2",
+        "DELETE FROM erpx_collaboration.thread_entities WHERE holding_id=$1 AND thread_id=$2",
     )
-    .bind(access.tenant_id().as_uuid())
+    .bind(access.holding_id().as_uuid())
     .bind(access.thread_id().as_uuid())
     .execute(&mut **tx)
     .await
@@ -638,8 +638,8 @@ async fn persist_entities(
         )
     }));
     for (kind, id, value) in entities {
-        sqlx::query("INSERT INTO erpx_collaboration.thread_entities (tenant_id,thread_id,entity_kind,entity_id,entity_document,updated_at) VALUES ($1,$2,$3,$4,$5,$6)")
-            .bind(access.tenant_id().as_uuid()).bind(access.thread_id().as_uuid()).bind(kind).bind(id)
+        sqlx::query("INSERT INTO erpx_collaboration.thread_entities (holding_id,thread_id,entity_kind,entity_id,entity_document,updated_at) VALUES ($1,$2,$3,$4,$5,$6)")
+            .bind(access.holding_id().as_uuid()).bind(access.thread_id().as_uuid()).bind(kind).bind(id)
             .bind(value.map_err(|_| PortError::InvalidState)?).bind(thread.updated_at()).execute(&mut **tx).await.map_err(map_database_error)?;
     }
     Ok(())
@@ -699,10 +699,10 @@ async fn persist_revisions(
                 i64::try_from(revision.revision()).map_err(|_| PortError::InvalidState)?;
             let inserted = sqlx::query(
                 "INSERT INTO erpx_collaboration.comment_revisions \
-                 (tenant_id, thread_id, comment_id, revision, author_principal_id, author_kind, document, plain_text, content_digest, attachments, created_at) \
+                 (holding_id, thread_id, comment_id, revision, author_principal_id, author_kind, document, plain_text, content_digest, attachments, created_at) \
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT DO NOTHING",
             )
-            .bind(access.tenant_id().as_uuid())
+            .bind(access.holding_id().as_uuid())
             .bind(access.thread_id().as_uuid())
             .bind(comment.id().as_uuid())
             .bind(revision_number)
@@ -720,11 +720,11 @@ async fn persist_revisions(
             if inserted == 0 {
                 let exact: bool = sqlx::query_scalar(
                     "SELECT EXISTS (SELECT 1 FROM erpx_collaboration.comment_revisions \
-                     WHERE tenant_id=$1 AND thread_id=$2 AND comment_id=$3 AND revision=$4 \
+                     WHERE holding_id=$1 AND thread_id=$2 AND comment_id=$3 AND revision=$4 \
                        AND author_principal_id=$5 AND author_kind=$6 AND document=$7 \
                        AND plain_text=$8 AND content_digest=$9 AND attachments=$10 AND created_at=$11)",
                 )
-                .bind(access.tenant_id().as_uuid()).bind(access.thread_id().as_uuid())
+                .bind(access.holding_id().as_uuid()).bind(access.thread_id().as_uuid())
                 .bind(comment.id().as_uuid()).bind(revision_number)
                 .bind(revision.author().id().as_uuid()).bind(&author_kind).bind(&document)
                 .bind(revision.document().plain_text()).bind(revision.document().digest().to_vec())
@@ -749,10 +749,10 @@ async fn persist_mentions(
         let revision = i64::try_from(mention.revision()).map_err(|_| PortError::InvalidState)?;
         let inserted = sqlx::query(
             "INSERT INTO erpx_collaboration.mention_events \
-             (tenant_id, thread_id, mention_event_id, comment_id, revision, target, created_at) \
+             (holding_id, thread_id, mention_event_id, comment_id, revision, target, created_at) \
              VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING",
         )
-        .bind(access.tenant_id().as_uuid())
+        .bind(access.holding_id().as_uuid())
         .bind(access.thread_id().as_uuid())
         .bind(mention.id().as_uuid())
         .bind(mention.comment_id().as_uuid())
@@ -766,10 +766,10 @@ async fn persist_mentions(
         if inserted == 0 {
             let exact: bool = sqlx::query_scalar(
                 "SELECT EXISTS (SELECT 1 FROM erpx_collaboration.mention_events \
-                 WHERE tenant_id=$1 AND thread_id=$2 AND mention_event_id=$3 \
+                 WHERE holding_id=$1 AND thread_id=$2 AND mention_event_id=$3 \
                    AND comment_id=$4 AND revision=$5 AND target=$6 AND created_at=$7)",
             )
-            .bind(access.tenant_id().as_uuid())
+            .bind(access.holding_id().as_uuid())
             .bind(access.thread_id().as_uuid())
             .bind(mention.id().as_uuid())
             .bind(mention.comment_id().as_uuid())
@@ -786,10 +786,10 @@ async fn persist_mentions(
         if let Some(withdrawn_at) = mention.withdrawn_at() {
             let inserted = sqlx::query(
                 "INSERT INTO erpx_collaboration.mention_withdrawals \
-                 (tenant_id, mention_event_id, withdrawn_at) VALUES ($1,$2,$3) \
+                 (holding_id, mention_event_id, withdrawn_at) VALUES ($1,$2,$3) \
                  ON CONFLICT DO NOTHING",
             )
-            .bind(access.tenant_id().as_uuid())
+            .bind(access.holding_id().as_uuid())
             .bind(mention.id().as_uuid())
             .bind(withdrawn_at)
             .execute(&mut **tx)
@@ -799,9 +799,9 @@ async fn persist_mentions(
             if inserted == 0 {
                 let exact: bool = sqlx::query_scalar(
                     "SELECT EXISTS (SELECT 1 FROM erpx_collaboration.mention_withdrawals \
-                     WHERE tenant_id=$1 AND mention_event_id=$2 AND withdrawn_at=$3)",
+                     WHERE holding_id=$1 AND mention_event_id=$2 AND withdrawn_at=$3)",
                 )
-                .bind(access.tenant_id().as_uuid())
+                .bind(access.holding_id().as_uuid())
                 .bind(mention.id().as_uuid())
                 .bind(withdrawn_at)
                 .fetch_one(&mut **tx)
@@ -826,10 +826,10 @@ async fn persist_moderation_evidence(
             i32::try_from(case.evidence.key_version).map_err(|_| PortError::InvalidState)?;
         let inserted = sqlx::query(
             "INSERT INTO erpx_collaboration.moderation_evidence \
-             (tenant_id, case_id, thread_id, encrypted_object_id, evidence_digest, key_version, created_at) \
+             (holding_id, case_id, thread_id, encrypted_object_id, evidence_digest, key_version, created_at) \
              VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING",
         )
-        .bind(access.tenant_id().as_uuid())
+        .bind(access.holding_id().as_uuid())
         .bind(case.id.as_uuid())
         .bind(access.thread_id().as_uuid())
         .bind(case.evidence.encrypted_object_id)
@@ -843,10 +843,10 @@ async fn persist_moderation_evidence(
         if inserted == 0 {
             let exact: bool = sqlx::query_scalar(
                 "SELECT EXISTS (SELECT 1 FROM erpx_collaboration.moderation_evidence \
-                 WHERE tenant_id=$1 AND case_id=$2 AND thread_id=$3 \
+                 WHERE holding_id=$1 AND case_id=$2 AND thread_id=$3 \
                    AND encrypted_object_id=$4 AND evidence_digest=$5 AND key_version=$6 AND created_at=$7)",
             )
-            .bind(access.tenant_id().as_uuid()).bind(case.id.as_uuid())
+            .bind(access.holding_id().as_uuid()).bind(case.id.as_uuid())
             .bind(access.thread_id().as_uuid()).bind(case.evidence.encrypted_object_id)
             .bind(case.evidence.digest.to_vec()).bind(key_version).bind(case.created_at)
             .fetch_one(&mut **tx).await.map_err(map_database_error)?;
@@ -903,16 +903,16 @@ impl DraftRepository for SqlxDraftRepository {
             return Err(PortError::Denied);
         }
         let mut tx = self.pool.begin().await.map_err(map_database_error)?;
-        set_tenant(&mut tx, access.tenant_id()).await?;
+        set_holding(&mut tx, access.holding_id()).await?;
         sqlx::query(
             "INSERT INTO erpx_collaboration.encrypted_drafts \
-             (tenant_id, draft_id, thread_id, owner_principal_id, ciphertext, key_version, expires_at, updated_at) \
+             (holding_id, draft_id, thread_id, owner_principal_id, ciphertext, key_version, expires_at, updated_at) \
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8) \
-             ON CONFLICT (tenant_id, thread_id, owner_principal_id) DO UPDATE SET \
+             ON CONFLICT (holding_id, thread_id, owner_principal_id) DO UPDATE SET \
               draft_id=EXCLUDED.draft_id, ciphertext=EXCLUDED.ciphertext, key_version=EXCLUDED.key_version, \
               expires_at=EXCLUDED.expires_at, updated_at=EXCLUDED.updated_at",
         )
-        .bind(access.tenant_id().as_uuid())
+        .bind(access.holding_id().as_uuid())
         .bind(draft.id.as_uuid())
         .bind(draft.thread_id.as_uuid())
         .bind(draft.owner.as_uuid())
@@ -936,14 +936,14 @@ impl DraftRepository for SqlxDraftRepository {
             return Err(PortError::Denied);
         }
         let mut tx = self.pool.begin().await.map_err(map_database_error)?;
-        set_tenant(&mut tx, access.tenant_id()).await?;
+        set_holding(&mut tx, access.holding_id()).await?;
         let row = sqlx::query(
             "SELECT draft_id, thread_id, owner_principal_id, ciphertext, key_version, \
                     expires_at, updated_at \
              FROM erpx_collaboration.encrypted_drafts \
-             WHERE tenant_id=$1 AND thread_id=$2 AND owner_principal_id=$3 AND expires_at>clock_timestamp()",
+             WHERE holding_id=$1 AND thread_id=$2 AND owner_principal_id=$3 AND expires_at>clock_timestamp()",
         )
-        .bind(access.tenant_id().as_uuid())
+        .bind(access.holding_id().as_uuid())
         .bind(access.thread_id().as_uuid())
         .bind(owner.as_uuid())
         .fetch_optional(&mut *tx)
@@ -987,12 +987,12 @@ impl DraftRepository for SqlxDraftRepository {
             return Err(PortError::Denied);
         }
         let mut tx = self.pool.begin().await.map_err(map_database_error)?;
-        set_tenant(&mut tx, access.tenant_id()).await?;
+        set_holding(&mut tx, access.holding_id()).await?;
         sqlx::query(
             "DELETE FROM erpx_collaboration.encrypted_drafts \
-             WHERE tenant_id=$1 AND thread_id=$2 AND owner_principal_id=$3",
+             WHERE holding_id=$1 AND thread_id=$2 AND owner_principal_id=$3",
         )
-        .bind(access.tenant_id().as_uuid())
+        .bind(access.holding_id().as_uuid())
         .bind(access.thread_id().as_uuid())
         .bind(owner.as_uuid())
         .execute(&mut *tx)
@@ -1003,13 +1003,13 @@ impl DraftRepository for SqlxDraftRepository {
     }
 }
 
-async fn set_tenant(
+async fn set_holding(
     tx: &mut Transaction<'_, Postgres>,
-    tenant_id: erpx_kernel::TenantId,
+    holding_id: erpx_kernel::HoldingId,
 ) -> Result<(), PortError> {
-    let expected = tenant_id.to_string();
-    let bound = sqlx::query_scalar::<_, String>("SELECT set_config('app.tenant_id', $1, true)")
-        .bind(tenant_id.to_string())
+    let expected = holding_id.to_string();
+    let bound = sqlx::query_scalar::<_, String>("SELECT set_config('app.holding_id', $1, true)")
+        .bind(holding_id.to_string())
         .fetch_one(&mut **tx)
         .await
         .map_err(map_database_error)?;

@@ -4,7 +4,7 @@ pub use records::{CrmRecord, CrmRecordKind, CrmRecordStatus};
 
 use chrono::{DateTime, NaiveDate, Utc};
 use erpx_integration_contracts::{crm, marketing};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -104,7 +104,7 @@ pub enum CrmDomainError {
 pub struct CrmLead {
     id: CrmLeadId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     marketing_candidate_id: Uuid,
     campaign_id: Uuid,
     audience_member_id: Uuid,
@@ -120,7 +120,7 @@ pub struct CrmLead {
 pub struct CrmLeadState {
     pub id: CrmLeadId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub marketing_candidate_id: Uuid,
     pub campaign_id: Uuid,
     pub audience_member_id: Uuid,
@@ -152,7 +152,7 @@ impl CrmLead {
     #[allow(clippy::too_many_arguments)]
     pub fn accept(
         id: CrmLeadId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         marketing_candidate_id: Uuid,
         campaign_id: Uuid,
         audience_member_id: Uuid,
@@ -232,7 +232,7 @@ impl CrmLead {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn marketing_candidate_id(&self) -> Uuid {
@@ -268,7 +268,7 @@ impl CrmLead {
 pub struct CrmOpportunity {
     id: OpportunityId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     accepted_lead_id: CrmLeadId,
     customer_id: Uuid,
     name: String,
@@ -296,7 +296,7 @@ pub struct CrmOpportunity {
 pub struct CrmOpportunityState {
     pub id: OpportunityId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub accepted_lead_id: CrmLeadId,
     pub customer_id: Uuid,
     pub name: String,
@@ -340,7 +340,7 @@ impl CrmOpportunity {
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: OpportunityId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         accepted_lead_id: CrmLeadId,
         customer_id: Uuid,
         name: String,
@@ -535,7 +535,7 @@ impl CrmOpportunity {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn accepted_lead_id(&self) -> CrmLeadId {
@@ -598,7 +598,7 @@ impl CrmAggregate {
             Self::Opportunity(v) => v.version(),
         }
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         match self {
             Self::Lead(v) => v.scope(),
             Self::Opportunity(v) => v.scope(),
@@ -680,13 +680,13 @@ const fn forecast_probability_matches(stage: OpportunityStage, probability: u16)
     }
 }
 
-fn exact_scope(scope: &TenantScope) -> Result<(), CrmDomainError> {
+fn exact_scope(scope: &AuthorityScope) -> Result<(), CrmDomainError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } if !holding_id.is_nil() && !company_id.is_nil() => Ok(()),
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -729,8 +729,8 @@ fn validate_money(amount: i64, currency: &str) -> Result<(), CrmDomainError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn scope() -> TenantScope {
-        TenantScope::Company {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         }

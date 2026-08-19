@@ -44,7 +44,7 @@ is not persisted as a new schema object.
 The watermark is scoped through the same transaction-local holding setting as
 source reads. Candidate completion is refused when the requested version does
 not equal the observed source count, and source movement returns a retryable
-failure before activation. No payload, credentials, URLs, or tenant database
+failure before activation. No payload, credentials, URLs, or holding database
 keys cross the worker error boundary.
 
 ## Unfinished work

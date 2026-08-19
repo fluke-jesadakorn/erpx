@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use chrono::{DateTime, Utc};
-use erpx_kernel::{ActorAttribution, ActorKind, AuditContext, Clock, TenantScope};
+use erpx_kernel::{ActorAttribution, ActorKind, AuditContext, AuthorityScope, Clock};
 use uuid::Uuid;
 
 use crate::{
@@ -21,7 +21,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct RegisterAgentPool {
     pub pool_id: AgentPoolId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub name: String,
     pub member_versions: BTreeSet<AgentVersionId>,
     pub idempotency_key: String,
@@ -56,7 +56,7 @@ pub struct RouteAgentPool {
 #[derive(Debug, Clone)]
 pub struct StartPrivateSession {
     pub session_id: AgentSessionId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub owner_human_ref: String,
     pub context: Option<SessionContext>,
     pub expires_at: DateTime<Utc>,
@@ -138,7 +138,7 @@ where
     pub async fn register_pool(
         &self,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         audit: AuditContext,
         command: RegisterAgentPool,
     ) -> Result<AgentPool, AgentOrchestrationError> {
@@ -172,7 +172,7 @@ where
     pub async fn replace_pool_members(
         &self,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         audit: AuditContext,
         command: ReplaceAgentPoolMembers,
     ) -> Result<AgentPool, AgentOrchestrationError> {
@@ -202,7 +202,7 @@ where
     pub async fn route_pool(
         &self,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         audit: AuditContext,
         command: RouteAgentPool,
     ) -> Result<PoolRoutingDecision, AgentOrchestrationError> {
@@ -276,7 +276,7 @@ where
     pub async fn start_session(
         &self,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         audit: AuditContext,
         command: StartPrivateSession,
     ) -> Result<AgentSession, AgentOrchestrationError> {
@@ -314,7 +314,7 @@ where
     pub async fn append_session_message(
         &self,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         audit: AuditContext,
         command: AppendPrivateSessionMessage,
     ) -> Result<AgentSession, AgentOrchestrationError> {
@@ -367,7 +367,7 @@ where
     pub async fn publish_session_message(
         &self,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         audit: AuditContext,
         command: PublishPrivateSessionMessage,
     ) -> Result<AgentSession, AgentOrchestrationError> {
@@ -408,7 +408,7 @@ where
     pub async fn set_session_legal_hold(
         &self,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         audit: AuditContext,
         command: SetPrivateSessionLegalHold,
     ) -> Result<AgentSession, AgentOrchestrationError> {
@@ -438,7 +438,7 @@ where
     pub async fn expire_session(
         &self,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         audit: AuditContext,
         command: ExpirePrivateSession,
     ) -> Result<AgentSession, AgentOrchestrationError> {
@@ -467,7 +467,7 @@ where
 
     async fn load_pool(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: AgentPoolId,
     ) -> Result<AgentPool, AgentOrchestrationError> {
         self.repository
@@ -477,7 +477,7 @@ where
     }
     async fn load_session(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         id: AgentSessionId,
     ) -> Result<AgentSession, AgentOrchestrationError> {
         self.repository
@@ -488,8 +488,8 @@ where
     async fn authorize(
         &self,
         actor: &ActorAttribution,
-        authority_scope: &TenantScope,
-        target_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         action: OrchestrationAction,
     ) -> Result<(), AgentOrchestrationError> {
         self.authorization
@@ -507,7 +507,7 @@ where
     async fn commit_session(
         &self,
         actor: ActorAttribution,
-        authority_scope: TenantScope,
+        authority_scope: AuthorityScope,
         audit: AuditContext,
         expected_version: Option<u64>,
         idempotency_key: String,
@@ -536,5 +536,5 @@ fn ensure_version(actual: u64, expected: u64) -> Result<(), AgentOrchestrationEr
 }
 
 const fn is_human(actor: &ActorAttribution) -> bool {
-    matches!(actor.kind, ActorKind::PlatformUser | ActorKind::TenantUser)
+    matches!(actor.kind, ActorKind::PlatformUser | ActorKind::HoldingUser)
 }

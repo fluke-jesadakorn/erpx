@@ -13,7 +13,8 @@ use erpx_application::{
     RoleAssignmentStore, SupportStore,
 };
 use erpx_domain::{
-    access::{RoleAssignment, Scope},
+    access::RoleAssignment,
+    contracts::AuthorityScope as Scope,
     customer::{
         CUSTOMER_DETAIL_MAX_PAGE_SIZE, Customer360, Customer360DetailReadContext,
         Customer360DetailReadModel, Customer360Projection, CustomerAccessAuditSummaryReadDto,
@@ -42,11 +43,15 @@ use crate::{
 };
 
 mod finance;
+mod holding_registry;
 mod marketing;
 mod platform_integration;
-mod tenant_registry;
 
 pub use finance::FinanceBankProviderAccountBinding;
+pub use holding_registry::{
+    HoldingStoreRegistration, HoldingStoreRegistrationDetail, HoldingStoreRegistrationPage,
+    MAX_HOLDING_REGISTRY_PAGE_SIZE, ProjectionAuthorizationRequest, SqlxHoldingStoreRegistry,
+};
 pub use marketing::{
     MARKETING_PUBLIC_ABUSE_WINDOW_SECONDS, MAX_MARKETING_PROVIDER_ACCOUNTS_PER_HOLDING,
     MAX_MARKETING_PUBLIC_ABUSE_LIMIT, MarketingProviderAccountBinding,
@@ -54,10 +59,6 @@ pub use marketing::{
 };
 pub use platform_integration::{
     MAX_PLATFORM_INTEGRATION_OBSERVATIONS, PlatformIntegrationObservation,
-};
-pub use tenant_registry::{
-    MAX_TENANT_REGISTRY_PAGE_SIZE, ProjectionAuthorizationRequest, SqlxTenantStoreRegistry,
-    TenantStoreRegistration, TenantStoreRegistrationDetail, TenantStoreRegistrationPage,
 };
 
 const SUPPORT_CAPABILITY_REVOKE_BATCH_SIZE: i64 = 1_000;
@@ -69,7 +70,7 @@ pub struct SqlxControlPlane {
 
 #[derive(Debug, Clone, Copy)]
 pub struct ObjectAccessBindingRequest<'a> {
-    pub tenant_id: &'a str,
+    pub holding_id: &'a str,
     pub storage_namespace: &'a str,
     pub object_key: &'a str,
     pub customer_id: Uuid,
@@ -219,7 +220,7 @@ impl SqlxControlPlane {
             } => (*holding_id, Some(*company_id), Some(*branch_id)),
             Scope::Platform | Scope::Subtree { .. } => return Ok(false),
         };
-        if request.tenant_id.trim().is_empty()
+        if request.holding_id.trim().is_empty()
             || request.storage_namespace.trim().is_empty()
             || request.object_key.trim().is_empty()
             || request.actor_ref.trim().is_empty()
@@ -231,13 +232,13 @@ impl SqlxControlPlane {
         if request.for_write {
             sqlx::query(
                 "INSERT INTO erpx_control.object_access_bindings
-                    (id, tenant_id, storage_namespace, object_key, customer_id,
+                    (id, holding_id, storage_namespace, object_key, customer_id,
                      holding_id, company_id, branch_id, created_by, status)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active')
                  ON CONFLICT (storage_namespace, object_key) DO NOTHING",
             )
             .bind(Uuid::new_v4())
-            .bind(request.tenant_id)
+            .bind(request.holding_id)
             .bind(request.storage_namespace)
             .bind(request.object_key)
             .bind(request.customer_id)
@@ -249,7 +250,7 @@ impl SqlxControlPlane {
             .await?;
         }
         let row = sqlx::query(
-            "SELECT tenant_id, storage_namespace, customer_id, holding_id,
+            "SELECT holding_id, storage_namespace, customer_id, holding_id,
                     company_id, branch_id, status
              FROM erpx_control.object_access_bindings
              WHERE storage_namespace = $1 AND object_key = $2",
@@ -262,7 +263,7 @@ impl SqlxControlPlane {
         let Some(row) = row else {
             return Ok(false);
         };
-        if row.try_get::<String, _>("tenant_id")? != request.tenant_id
+        if row.try_get::<String, _>("holding_id")? != request.holding_id
             || row.try_get::<String, _>("storage_namespace")? != request.storage_namespace
             || row.try_get::<Uuid, _>("customer_id")? != request.customer_id
             || row.try_get::<String, _>("status")? != "active"
@@ -389,73 +390,23 @@ impl SqlxControlPlane {
             .await?),
             Scope::Subtree {
                 holding_id,
-                company_ids,
-                branch_ids,
-            } => {
-                if sqlx::query_scalar::<_, bool>(
-                    "SELECT EXISTS(
-                        SELECT 1 FROM erpx_control.customer_scope_bindings
-                        WHERE customer_id = $1 AND holding_id = $2
-                          AND company_id IS NULL AND branch_id IS NULL
-                    )",
-                )
-                .bind(customer_id)
-                .bind(holding_id)
-                .fetch_one(&self.pools.write)
-                .await?
-                {
-                    return Ok(true);
-                }
-                for company_id in company_ids {
-                    let company_bound: bool = sqlx::query_scalar(
-                        "SELECT EXISTS(
-                            SELECT 1 FROM erpx_control.customer_scope_bindings
-                            WHERE customer_id = $1 AND holding_id = $2
-                              AND (
-                                (company_id = $3 AND branch_id IS NULL)
-                                OR (company_id IS NULL AND branch_id IS NULL)
-                                OR (
-                                  cardinality($4::uuid[]) > 0
-                                  AND company_id = $3
-                                  AND branch_id = ANY($4::uuid[])
-                                )
-                              )
-                        )",
-                    )
-                    .bind(customer_id)
-                    .bind(holding_id)
-                    .bind(company_id)
-                    .bind(branch_ids)
-                    .fetch_one(&self.pools.write)
-                    .await?;
-                    if !company_bound {
-                        return Ok(false);
-                    }
-                }
-                for branch_id in branch_ids {
-                    let branch_bound: bool = sqlx::query_scalar(
-                        "SELECT EXISTS(
-                            SELECT 1 FROM erpx_control.customer_scope_bindings
-                            WHERE customer_id = $1 AND holding_id = $2
-                              AND branch_id = $3
-                              AND (
-                                cardinality($4::uuid[]) = 0
-                                OR company_id = ANY($4::uuid[])
-                              )
-                        )",
-                    )
-                    .bind(customer_id)
-                    .bind(holding_id)
-                    .bind(branch_id)
-                    .bind(company_ids)
-                    .fetch_one(&self.pools.write)
-                    .await?;
-                    if !branch_bound {
-                        return Ok(false);
-                    }
-                }
-                Ok(true)
-            }
+                organization_node_id,
+            } => Ok(sqlx::query_scalar(
+                "SELECT EXISTS(
+                    SELECT 1 FROM erpx_control.customer_scope_bindings
+                    WHERE customer_id = $1 AND holding_id = $2
+                      AND (
+                        (company_id IS NULL AND branch_id IS NULL)
+                        OR company_id = $3
+                        OR branch_id = $3
+                      )
+                )",
+            )
+            .bind(customer_id)
+            .bind(holding_id)
+            .bind(organization_node_id)
+            .fetch_one(&self.pools.write)
+            .await?),
         }
     }
 
@@ -1503,7 +1454,7 @@ impl SqlxControlPlane {
         sqlx::query(
             "INSERT INTO erpx_control.support_access_requests
                 (id, ticket_id, customer_account_id, agent_ref,
-                 represented_tenant_user, mode, permissions, scope, reason,
+                 represented_holding_user, mode, permissions, scope, reason,
                  requested_at, expires_at, status, version, payload)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'requested', 1, $12)
              ON CONFLICT (id) DO NOTHING",
@@ -1512,7 +1463,7 @@ impl SqlxControlPlane {
         .bind(session.ticket_id)
         .bind(session.customer_account_id)
         .bind(&session.agent_ref)
-        .bind(&session.represented_tenant_user)
+        .bind(&session.represented_holding_user)
         .bind(support_mode(session.mode))
         .bind(serde_json::to_value(&session.permissions)?)
         .bind(&session.scope)
@@ -2170,7 +2121,7 @@ fn support_session_status(session: &SupportSession) -> &'static str {
 fn support_mode(mode: SupportMode) -> &'static str {
     match mode {
         SupportMode::DiagnosticRead => "diagnostic_read",
-        SupportMode::TenantMutation => "tenant_mutation",
+        SupportMode::HoldingMutation => "holding_mutation",
         SupportMode::Impersonation => "impersonation",
     }
 }
@@ -2178,7 +2129,7 @@ fn support_mode(mode: SupportMode) -> &'static str {
 fn parse_support_mode(value: &str) -> Result<SupportMode, PersistenceError> {
     match value {
         "diagnostic_read" => Ok(SupportMode::DiagnosticRead),
-        "tenant_mutation" => Ok(SupportMode::TenantMutation),
+        "holding_mutation" => Ok(SupportMode::HoldingMutation),
         "impersonation" => Ok(SupportMode::Impersonation),
         _ => Err(PersistenceError::InvalidData("unknown support mode".into())),
     }
@@ -2775,7 +2726,10 @@ impl<'a> From<&'a AuditEvent> for AuditEventPayload<'a> {
     }
 }
 
-fn validate_tenant_reference(value: &str, field: &'static str) -> Result<(), PersistenceError> {
+fn validate_data_profile_reference(
+    value: &str,
+    field: &'static str,
+) -> Result<(), PersistenceError> {
     if value.trim().is_empty()
         || value.len() > 255
         || value
@@ -2814,16 +2768,16 @@ mod tests {
         for (field, value) in [
             ("provider_account_ref", ""),
             ("provider_key", "provider/key"),
-            ("tenant_id", "tenant id"),
-            ("holding_ref", "holding:ref"),
+            ("holding_id", "holding id"),
+            ("data_profile_key", "holding:ref"),
             ("credential_key_ref", "credential\\ref"),
         ] {
             assert!(
-                validate_tenant_reference(value, field).is_err(),
+                validate_data_profile_reference(value, field).is_err(),
                 "malformed {field} should be rejected"
             );
         }
-        assert!(validate_tenant_reference("provider-test", "provider_key").is_ok());
+        assert!(validate_data_profile_reference("provider-test", "provider_key").is_ok());
     }
 
     #[test]
@@ -2831,8 +2785,8 @@ mod tests {
         let binding = FinanceBankProviderAccountBinding {
             provider_account_ref: "account-ref".into(),
             provider_key: "provider-test".into(),
-            tenant_id: "tenant".into(),
-            holding_ref: "holding".into(),
+            holding_key: "holding".into(),
+            data_profile_key: "holding".into(),
             holding_id: Uuid::new_v4(),
             credential_key_ref: "secret-manager-key-ref".into(),
             state: "active".into(),
@@ -2854,15 +2808,15 @@ mod tests {
     #[test]
     fn normal_role_lifecycle_rejects_development_authorization_exceptions() {
         assert!(contains_development_only_role_permission(&[
-            "platform.tenant.read".into(),
+            "platform.holding.read".into(),
             "development.mfa.bypass".into(),
         ]));
         assert!(contains_development_only_role_permission(&[
             "development.sod.self-approve".into(),
         ]));
         assert!(!contains_development_only_role_permission(&[
-            "platform.tenant.read".into(),
-            "tenant.root-access.approve".into(),
+            "platform.holding.read".into(),
+            "holding.root-access.approve".into(),
         ]));
     }
 
@@ -2872,7 +2826,7 @@ mod tests {
         let valid = PlatformIntegrationObservation {
             integration_key: "object_storage".into(),
             state: "ready".into(),
-            capability: "Tenant object storage".into(),
+            capability: "Holding object storage".into(),
             checked_at,
         };
         assert!(valid.validate().is_ok());

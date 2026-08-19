@@ -10,7 +10,7 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::identity_access;
 use erpx_kernel::{
-    ActorAttribution, AggregateId, AuditContext, CommandId, CorrelationId, EventId, TenantScope,
+    ActorAttribution, AggregateId, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -81,12 +81,12 @@ impl AggregateKey {
 pub enum CommandFingerprint {
     CreatePrincipal {
         principal_id: PrincipalId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         display_name: String,
     },
     CreateAuthorityGroup {
         group_id: PrincipalId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         display_name: String,
         group_kind: PrincipalKind,
         governance: NonHumanPrincipalGovernance,
@@ -107,7 +107,7 @@ pub enum CommandFingerprint {
         principal_id: PrincipalId,
         assignment_id: RoleAssignmentId,
         role_id: RoleId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         risk_tier: RiskTier,
         valid_from: DateTime<Utc>,
         valid_until: DateTime<Utc>,
@@ -128,7 +128,7 @@ pub enum CommandFingerprint {
         principal_id: PrincipalId,
         assignment_id: RoleAssignmentId,
         role_id: RoleId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         risk_tier: RiskTier,
         valid_from: DateTime<Utc>,
         valid_until: DateTime<Utc>,
@@ -153,7 +153,7 @@ pub enum CommandFingerprint {
     },
     DefineRole {
         role_id: RoleId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         code: RoleCode,
         display_name: String,
         risk_tier: RiskTier,
@@ -177,8 +177,8 @@ pub struct CommandIdentity {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
-    pub target_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
+    pub target_scope: &'a AuthorityScope,
     pub action: IdentityAccessAction,
 }
 
@@ -191,7 +191,7 @@ pub trait AuthorizationPort: Send + Sync {
 pub trait EntitlementPort: Send + Sync {
     async fn ensure_identity_access_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         write: bool,
     ) -> Result<(), PortError>;
 }
@@ -201,7 +201,7 @@ pub trait EntitlementPort: Send + Sync {
 pub trait WriteRepository: Send + Sync {
     async fn load(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         key: AggregateKey,
     ) -> Result<Option<IdentityAccessAggregate>, PortError>;
 }
@@ -212,7 +212,7 @@ pub struct IdentityAccessCommit {
     pub correlation_id: CorrelationId,
     pub causation_id: Option<EventId>,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
     pub aggregate: IdentityAccessAggregate,
@@ -264,7 +264,7 @@ pub trait CommandUnitOfWork: Send + Sync {
 pub struct RoleAssignmentView {
     pub assignment_id: RoleAssignmentId,
     pub role_id: RoleId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub risk_tier: RiskTier,
     pub valid_from: DateTime<Utc>,
     pub valid_until: DateTime<Utc>,
@@ -279,7 +279,7 @@ pub struct RoleAssignmentView {
 pub struct PrincipalView {
     pub principal_id: PrincipalId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub display_name: String,
     pub status: PrincipalStatus,
     pub assignments: Vec<RoleAssignmentView>,
@@ -322,7 +322,7 @@ impl From<&AccessPrincipal> for PrincipalView {
 pub struct RoleView {
     pub role_id: RoleId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub code: RoleCode,
     pub display_name: String,
     pub risk_tier: RiskTier,
@@ -385,28 +385,28 @@ pub struct ReadProjection<T> {
 pub trait ReadRepository: Send + Sync {
     async fn get_principal(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         principal_id: PrincipalId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<PrincipalView>>, PortError>;
 
     async fn list_principals(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &PrincipalListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<PrincipalList>, PortError>;
 
     async fn get_role(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         role_id: RoleId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<RoleView>>, PortError>;
 
     async fn list_roles(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &RoleListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<RoleList>, PortError>;

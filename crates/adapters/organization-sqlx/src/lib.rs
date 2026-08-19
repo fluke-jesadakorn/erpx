@@ -24,9 +24,8 @@ pub const SHARING_SNAPSHOT_EVENT_TYPE: &str = "organization.sharing_snapshot";
 
 pub const WRITE_DDL: &str = include_str!("../ddl/write.sql");
 pub const READ_DDL: &str = include_str!("../ddl/read.sql");
-pub const NORMALIZED_AUTHORITY_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_write/0081_current_normalized_authority.sql"
-);
+pub const NORMALIZED_AUTHORITY_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 
 pub fn node_partition(node_id: erpx_organization::OrganizationNodeId) -> String {
     format!("organization.node:{}", node_id.as_uuid().simple())
@@ -67,7 +66,7 @@ mod tests {
     }
 
     #[test]
-    fn node_commands_use_typed_tenant_authority() {
+    fn node_commands_use_typed_holding_authority() {
         let source = include_str!("command.rs");
         assert!(source.contains("organization_node_authority"));
         assert!(source.contains("commit_normalized"));

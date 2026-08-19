@@ -5,7 +5,7 @@ use erpx_cqrs::{
     QueryMetadata, QueryResult,
 };
 use erpx_integration_contracts::{crm, marketing, marketing::QualifiedLeadFact};
-use erpx_kernel::{Clock, CorrelationId, ErrorCategory, ErrorContext, KernelError, TenantScope};
+use erpx_kernel::{AuthorityScope, Clock, CorrelationId, ErrorCategory, ErrorContext, KernelError};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -192,8 +192,8 @@ where
     async fn preflight(
         &self,
         actor: &erpx_kernel::ActorAttribution,
-        authority: &TenantScope,
-        target: &TenantScope,
+        authority: &AuthorityScope,
+        target: &AuthorityScope,
         action: CrmAction,
     ) -> Result<(), CrmApplicationError> {
         if !authority.contains(target) {
@@ -216,7 +216,7 @@ where
         &self,
         identity: &CommandIdentity,
         actor: &erpx_kernel::ActorAttribution,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         action: CrmAction,
     ) -> Result<Option<StoredCommit>, CrmApplicationError> {
         let Some(mut stored) = self.uow.find_receipt(identity).await? else {
@@ -300,7 +300,7 @@ where
             fingerprint,
         };
         if let Some(stored) = self
-            .replay(&identity, &envelope.actor, &envelope.tenant_scope, action)
+            .replay(&identity, &envelope.actor, &envelope.active_scope, action)
             .await
             .map_err(|e| to_cqrs(e, correlation))?
         {
@@ -318,8 +318,8 @@ where
                 }
                 self.preflight(
                     &envelope.actor,
-                    &envelope.tenant_scope,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
+                    &envelope.active_scope,
                     action,
                 )
                 .await
@@ -329,7 +329,7 @@ where
                     .qualified_leads
                     .resolve_qualified_lead(QualifiedLeadResolveRequest {
                         actor: &envelope.actor,
-                        authority_scope: &envelope.tenant_scope,
+                        authority_scope: &envelope.active_scope,
                         candidate: requested_candidate,
                     })
                     .await
@@ -340,7 +340,7 @@ where
                 let q = evidence.fact;
                 let lead = CrmLead::accept(
                     c.lead_id,
-                    envelope.tenant_scope.clone(),
+                    envelope.active_scope.clone(),
                     q.candidate.as_uuid(),
                     q.campaign.as_uuid(),
                     q.audience_member.as_uuid(),
@@ -362,13 +362,13 @@ where
                 }
                 let lead = self
                     .write
-                    .load_lead(&envelope.tenant_scope, c.accepted_lead_id)
+                    .load_lead(&envelope.active_scope, c.accepted_lead_id)
                     .await
                     .map_err(|e| to_cqrs(e.into(), correlation))?
                     .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
                 self.preflight(
                     &envelope.actor,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
                     lead.scope(),
                     action,
                 )
@@ -393,13 +393,13 @@ where
             CrmCommand::TransitionOpportunity(c) => {
                 let mut opportunity = self
                     .write
-                    .load_opportunity(&envelope.tenant_scope, c.opportunity_id)
+                    .load_opportunity(&envelope.active_scope, c.opportunity_id)
                     .await
                     .map_err(|e| to_cqrs(e.into(), correlation))?
                     .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
                 self.preflight(
                     &envelope.actor,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
                     opportunity.scope(),
                     action,
                 )
@@ -416,13 +416,13 @@ where
             CrmCommand::UpdateOpportunityForecast(c) => {
                 let mut opportunity = self
                     .write
-                    .load_opportunity(&envelope.tenant_scope, c.opportunity_id)
+                    .load_opportunity(&envelope.active_scope, c.opportunity_id)
                     .await
                     .map_err(|e| to_cqrs(e.into(), correlation))?
                     .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
                 self.preflight(
                     &envelope.actor,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
                     opportunity.scope(),
                     action,
                 )
@@ -455,7 +455,7 @@ where
                 correlation_id: correlation,
                 causation_id: envelope.causation_id,
                 actor: envelope.actor,
-                authority_scope: envelope.tenant_scope,
+                authority_scope: envelope.active_scope,
                 audit: envelope.audit,
                 expected_version: expected,
                 aggregate,
@@ -497,7 +497,7 @@ where
         envelope.validate()?;
         let correlation = envelope.correlation_id;
         self.entitlement
-            .ensure_crm_enabled(&envelope.tenant_scope, false)
+            .ensure_crm_enabled(&envelope.active_scope, false)
             .await
             .map_err(|e| to_cqrs(e.into(), correlation))?;
         let action = match &envelope.query {
@@ -508,8 +508,8 @@ where
         self.authorization
             .authorize(AuthorizationRequest {
                 actor: &envelope.actor,
-                authority_scope: &envelope.tenant_scope,
-                target_scope: &envelope.tenant_scope,
+                authority_scope: &envelope.active_scope,
+                target_scope: &envelope.active_scope,
                 action,
             })
             .await
@@ -518,7 +518,7 @@ where
             CrmQuery::GetLead(q) => {
                 let p = self
                     .read
-                    .get_lead(&envelope.tenant_scope, q.lead_id, &envelope.consistency)
+                    .get_lead(&envelope.active_scope, q.lead_id, &envelope.consistency)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?;
                 (CrmQueryResponse::Lead(p.value), p.metadata)
@@ -527,7 +527,7 @@ where
                 let p = self
                     .read
                     .get_opportunity(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         q.opportunity_id,
                         &envelope.consistency,
                     )
@@ -541,7 +541,7 @@ where
                 }
                 let p = self
                     .read
-                    .list_opportunities(&envelope.tenant_scope, &q.filter, &envelope.consistency)
+                    .list_opportunities(&envelope.active_scope, &q.filter, &envelope.consistency)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?;
                 (CrmQueryResponse::Opportunities(p.value), p.metadata)

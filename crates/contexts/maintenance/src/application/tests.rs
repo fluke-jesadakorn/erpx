@@ -18,8 +18,8 @@ use erpx_integration_contracts::{
     AggregateKind, DisplayName, IntegrationEventEnvelope, ReferenceCode, assets,
 };
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AggregateId, AuditContext, CommandId, CorrelationId,
-    ErrorCategory, EventId, FixedClock, QueryId, TenantScope,
+    ActorAttribution, ActorKind, AggregateId, AuditContext, AuthorityScope, CommandId,
+    CorrelationId, ErrorCategory, EventId, FixedClock, QueryId,
 };
 use uuid::Uuid;
 
@@ -34,8 +34,8 @@ fn at() -> chrono::DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap()
 }
 
-fn scope() -> TenantScope {
-    TenantScope::Company {
+fn scope() -> AuthorityScope {
+    AuthorityScope::Company {
         holding_id: id(1),
         company_id: id(2),
     }
@@ -44,7 +44,7 @@ fn scope() -> TenantScope {
 fn actor() -> ActorAttribution {
     ActorAttribution {
         principal_ref: "maintenance-test-actor".into(),
-        kind: ActorKind::TenantUser,
+        kind: ActorKind::HoldingUser,
         session_id: None,
         represented_principal_ref: None,
         support_capability_id: None,
@@ -88,7 +88,7 @@ fn command_envelope<C>(sequence: u128, expected: Option<u64>, command: C) -> Com
         correlation_id: CorrelationId::try_from_uuid(id(200 + sequence)).unwrap(),
         causation_id: Some(EventId::try_from_uuid(id(20)).unwrap()),
         actor: actor(),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "maintenance.test".into(),
             customer_visible: false,
@@ -120,7 +120,7 @@ struct FakeEntitlement(bool);
 impl EntitlementPort for FakeEntitlement {
     async fn ensure_maintenance_enabled(
         &self,
-        _scope: &TenantScope,
+        _scope: &AuthorityScope,
         _write: bool,
     ) -> Result<(), PortError> {
         if self.0 {
@@ -156,7 +156,7 @@ struct FakeWriteRepository(Option<WorkOrder>);
 impl WriteRepository for FakeWriteRepository {
     async fn load(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _work_order_id: WorkOrderId,
     ) -> Result<Option<WorkOrder>, PortError> {
         Ok(self.0.clone())
@@ -220,7 +220,7 @@ struct NotReadyRead(Arc<AtomicUsize>);
 impl ReadRepository for NotReadyRead {
     async fn get(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _work_order_id: WorkOrderId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<WorkOrderView>>, PortError> {
@@ -238,7 +238,7 @@ impl ReadRepository for NotReadyRead {
 
     async fn list(
         &self,
-        _authority_scope: &TenantScope,
+        _authority_scope: &AuthorityScope,
         _filter: &WorkOrderListFilter,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<WorkOrderList>, PortError> {
@@ -403,7 +403,7 @@ fn read_your_writes_not_ready_never_falls_back_to_work_order_store() {
         query_id: QueryId::try_from_uuid(id(500)).unwrap(),
         correlation_id: CorrelationId::try_from_uuid(id(501)).unwrap(),
         actor: actor(),
-        tenant_scope: scope(),
+        active_scope: scope(),
         audit: AuditContext {
             purpose: "maintenance.test.query".into(),
             customer_visible: false,

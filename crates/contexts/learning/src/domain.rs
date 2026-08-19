@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use chrono::{DateTime, NaiveDate, Utc};
 use erpx_integration_contracts::{RecordVersionRef, StableRecordRef};
-use erpx_kernel::{PrincipalId, TenantScope};
+use erpx_kernel::{AuthorityScope, PrincipalId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -48,7 +48,7 @@ pub enum CourseStatus {
 pub struct Course {
     id: CourseId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     title: String,
     passing_basis_points: u16,
     required_attendance_minutes: u32,
@@ -60,7 +60,7 @@ pub struct Course {
 impl Course {
     pub fn draft(
         id: CourseId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         title: impl Into<String>,
         passing_basis_points: u16,
         required_attendance_minutes: u32,
@@ -83,7 +83,7 @@ impl Course {
     }
     pub fn published(
         id: CourseId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         title: impl Into<String>,
         passing_basis_points: u16,
         required_attendance_minutes: u32,
@@ -151,7 +151,7 @@ impl Course {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn status(&self) -> CourseStatus {
@@ -217,7 +217,7 @@ pub struct Completion {
 pub struct Enrollment {
     id: EnrollmentId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     assignment_id: AssignmentId,
     learner: RecordVersionRef,
     learner_principal: PrincipalId,
@@ -236,7 +236,7 @@ impl Enrollment {
     pub fn assign(
         id: EnrollmentId,
         assignment_id: AssignmentId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         learner: RecordVersionRef,
         learner_principal: PrincipalId,
         course: &Course,
@@ -419,7 +419,7 @@ impl Enrollment {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub fn scope(&self) -> &TenantScope {
+    pub fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn status(&self) -> EnrollmentStatus {

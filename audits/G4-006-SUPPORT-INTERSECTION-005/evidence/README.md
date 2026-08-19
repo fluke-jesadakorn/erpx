@@ -33,7 +33,7 @@ Focused domain tests cover the complete allow path and denial/boundary behavior 
 - The evaluator does not load identity, roles, entitlements, policy, or capability state. Main/server must resolve those from authoritative stores and must not allow transport input to construct trusted policy or role snapshots.
 - The current bounded role API accepts one parent reference. A delegated parent with its own parent is denied unless Main supplies/extends a complete cascade resolver; this is intentionally fail-closed.
 - `ModuleEntitlement.active` is the activation check available in the current domain contract. Company/branch allocation activation must be resolved before constructing the entitlement or added by the provisioning/billing integration.
-- Main must invoke this evaluator before support diagnostics, tenant mutation, or impersonation, and must bind the resulting decision to the authenticated device/session and action audit. No transport integration was attempted here.
+- Main must invoke this evaluator before support diagnostics, holding mutation, or impersonation, and must bind the resulting decision to the authenticated device/session and action audit. No transport integration was attempted here.
 
 This packet does not close G4. Support capability issuance/revocation persistence, customer approval transport, support authorization interceptors, diagnostics transport, incident/support UI, and end-to-end customer-audited actions remain outside this packet.
 

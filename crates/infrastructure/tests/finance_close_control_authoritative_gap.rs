@@ -32,59 +32,59 @@ fn record(
 }
 
 #[tokio::test]
-#[ignore = "requires one disposable tenant PostgreSQL write database"]
+#[ignore = "requires one disposable holding PostgreSQL write database"]
 async fn close_control_replay_fails_closed_when_its_outbox_event_is_missing() {
-    let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
-        .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
+    let url = std::env::var("ERPX_TEST_HOLDING_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_HOLDING_WRITE_DATABASE_URL is required");
     let pool = PgPool::connect(&url).await.expect("write pool");
-    erpx_migration::migrate_tenant_write(&pool)
+    erpx_migration::migrate_holding_write(&pool)
         .await
-        .expect("tenant-write migrations");
+        .expect("holding-write migrations");
 
-    let holding_ref = format!("holding-close-control-gap-{}", Uuid::new_v4().simple());
+    let data_profile_key = format!("holding-close-control-gap-{}", Uuid::new_v4().simple());
     let holding_id = Uuid::new_v4();
     let company_id = Uuid::new_v4();
     let period_id = Uuid::new_v4();
     let source_aggregate_id = Uuid::new_v4();
     let mut seed_tx = pool.begin().await.expect("seed transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *seed_tx)
         .await
         .expect("seed scope");
     sqlx::query(
-        "INSERT INTO erpx_tenant.finance_periods
-            (period_id, holding_id, company_id, holding_ref, status, version, payload)
+        "INSERT INTO erpx_holding.finance_periods
+            (period_id, holding_id, company_id, data_profile_key, status, version, payload)
          VALUES ($1,$2,$3,$4,'locked',1,'{}')",
     )
     .bind(period_id)
     .bind(holding_id)
     .bind(company_id)
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .execute(&mut *seed_tx)
     .await
     .expect("seed period");
     seed_tx.commit().await.expect("commit period");
 
-    let store = SqlxFinanceCloseControlEvidenceStore::new(pool.clone(), &holding_ref)
+    let store = SqlxFinanceCloseControlEvidenceStore::new(pool.clone(), &data_profile_key)
         .expect("close-control evidence store");
     let evidence = record(holding_id, company_id, period_id, source_aggregate_id);
     store.publish(&evidence).await.expect("publish evidence");
 
     let mut tamper_tx = pool.begin().await.expect("tamper transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(&data_profile_key)
         .execute(&mut *tamper_tx)
         .await
         .expect("tamper scope");
     sqlx::query(
-        "DELETE FROM erpx_tenant.outbox_events
-          WHERE holding_ref=$1
+        "DELETE FROM erpx_holding.outbox_events
+          WHERE data_profile_key=$1
             AND aggregate_type='finance_close_control_evidence'
             AND aggregate_version=1
             AND event_type='finance.close_control_evidence_published.v1'",
     )
-    .bind(&holding_ref)
+    .bind(&data_profile_key)
     .execute(&mut *tamper_tx)
     .await
     .expect("remove close-control outbox event");

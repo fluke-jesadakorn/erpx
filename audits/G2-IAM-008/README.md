@@ -4,11 +4,11 @@
 
 Prove that every authenticated ERPX server mutation reaches an authoritative
 write-side authorization boundary, while platform/control-plane mutations
-remain distinct from commercial tenant mutations.
+remain distinct from commercial holding mutations.
 
 ## Audit result
 
-- Tenant mutations for Support, HR, POS, Legal, CRM, Marketing, and Finance
+- Holding mutations for Support, HR, POS, Legal, CRM, Marketing, and Finance
   call `AppState::authorize_entitled_command`.
 - That boundary binds the authenticated actor to the command context,
   customer scope, active identity/session token, recursive role chain,
@@ -16,12 +16,12 @@ remain distinct from commercial tenant mutations.
   SoD decision, and mutation policy.
 - Projection rebuild, incident, and support-session revocation mutations use
   platform/control-plane role authorization with explicit scope checks.
-- Role renewal uses `authorize_role_lifecycle_command`; tenant renewal enters
+- Role renewal uses `authorize_role_lifecycle_command`; holding renewal enters
   the entitlement boundary and platform renewal remains control-plane scoped.
   Final-role recovery additionally requires independently resolved approver and
   reviewer identities and now writes a durable recovery receipt.
 - The unauthenticated Marketing form endpoint is intentionally outside RBAC:
-  it is public acquisition ingestion and is bounded by tenant/domain binding,
+  it is public acquisition ingestion and is bounded by holding/domain binding,
   consent, suppression, deduplication, and abuse controls before persistence.
 
 ## Independent evidence
@@ -32,7 +32,7 @@ Run from `erpx/`:
 bash audits/G2-IAM-008/verify_authorization_routes.sh
 ```
 
-The inventory script passed for all 45 authenticated tenant mutation methods,
+The inventory script passed for all 45 authenticated holding mutation methods,
 five platform/control-plane mutation methods, and both role lifecycle methods.
 The same integration wave passed workspace clippy/tests, Dioxus web/desktop
 checks, Folio lint/typecheck, database readiness, and the live Folio route.

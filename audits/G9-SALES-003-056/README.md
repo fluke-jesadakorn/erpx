@@ -1,4 +1,4 @@
-# G9-003 Sales tenant projector seam
+# G9-003 Sales holding projector seam
 
 ## Scope
 
@@ -7,7 +7,7 @@ stable aggregate/type/version order. `SalesProjectionRunner` routes a
 holding's write and read databases, applies each event through the typed Sales
 projection boundary, and supports a clear-and-replay rebuild. Projection
 errors are redacted at the worker boundary. Request validation rejects unsafe
-tenant references and unbounded pages.
+holding references and unbounded pages.
 
 ## Changed files
 
@@ -35,8 +35,8 @@ Run from `erpx/`:
 
 ## Open boundaries
 
-This is a tenant projection seam, not full production worker composition. It
-does not yet claim durable per-tenant event claiming, scheduling, transport,
+This is a holding projection seam, not full production worker composition. It
+does not yet claim durable per-holding event claiming, scheduling, transport,
 or complete Sales workflow reconciliation.
 
 ## Rollback

@@ -15,7 +15,7 @@ pub const MAX_BACKUP_AGE: Duration = Duration::hours(25);
 pub const MAX_PITR_REHEARSAL_AGE: Duration = Duration::days(31);
 pub const MAX_RPO: Duration = Duration::hours(24);
 pub const MAX_RTO: Duration = Duration::hours(4);
-pub const REQUIRED_SCHEMA_GENERATION: u16 = 2;
+pub const REQUIRED_SCHEMA_REVISION: u16 = 2;
 pub const REQUIRED_SERVICE_CATALOG_GENERATION: u16 = 2;
 pub const REQUIRED_CONTEXT_COUNT: u16 = 31;
 pub const REQUIRED_SERVICE_COUNT: u16 = 65;
@@ -197,7 +197,7 @@ pub struct ReleaseManifest {
     pub signature_key_ref: String,
     pub source_revision: String,
     pub requirements_baseline: String,
-    pub schema_generation: u16,
+    pub schema_revision: u16,
     pub service_catalog_generation: u16,
     pub context_count: u16,
     pub service_count: u16,
@@ -213,7 +213,7 @@ impl ReleaseManifest {
             || self.signature_key_ref.contains("secret")
             || self.source_revision.trim().is_empty()
             || self.requirements_baseline != "2.0.0"
-            || self.schema_generation != REQUIRED_SCHEMA_GENERATION
+            || self.schema_revision != REQUIRED_SCHEMA_REVISION
             || self.service_catalog_generation != REQUIRED_SERVICE_CATALOG_GENERATION
             || self.context_count != REQUIRED_CONTEXT_COUNT
             || self.service_count != REQUIRED_SERVICE_COUNT
@@ -296,7 +296,7 @@ impl ReleaseRun {
         self.require_state_version(ReleaseState::Halted, expected_version)?;
         recovery_manifest.validate(now)?;
         if recovery_manifest.artifact_sha256 != self.manifest.artifact_sha256
-            || recovery_manifest.schema_generation != self.manifest.schema_generation
+            || recovery_manifest.schema_revision != self.manifest.schema_revision
             || recovery_manifest.service_catalog_generation
                 != self.manifest.service_catalog_generation
         {
@@ -398,11 +398,11 @@ pub struct PortabilityObject {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PortabilityManifest {
     pub exit_id: Uuid,
-    pub tenant_id: String,
+    pub holding_id: String,
     pub scope_sha256: String,
     pub write_fence_sha256: String,
     pub manifest_sha256: String,
-    pub schema_generation: u16,
+    pub schema_revision: u16,
     pub service_catalog_generation: u16,
     pub generated_at: DateTime<Utc>,
     pub objects: Vec<PortabilityObject>,
@@ -411,11 +411,11 @@ pub struct PortabilityManifest {
 impl PortabilityManifest {
     fn validate_for(&self, run: &CustomerExitRun) -> Result<(), OperationalAssuranceError> {
         if self.exit_id != run.exit_id
-            || self.tenant_id != run.tenant_id
+            || self.holding_id != run.holding_id
             || self.scope_sha256 != run.scope_sha256
             || run.write_fence_sha256.as_deref() != Some(self.write_fence_sha256.as_str())
             || !is_sha256(&self.manifest_sha256)
-            || self.schema_generation != REQUIRED_SCHEMA_GENERATION
+            || self.schema_revision != REQUIRED_SCHEMA_REVISION
             || self.service_catalog_generation != REQUIRED_SERVICE_CATALOG_GENERATION
             || self.objects.is_empty()
             || self.objects.iter().any(|object| {
@@ -433,7 +433,7 @@ impl PortabilityManifest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CustomerExitRun {
     pub exit_id: Uuid,
-    pub tenant_id: String,
+    pub holding_id: String,
     pub requested_by: String,
     pub approved_by: String,
     pub scope_sha256: String,
@@ -449,7 +449,7 @@ pub struct CustomerExitRun {
 
 impl CustomerExitRun {
     pub fn validate_request(&self) -> Result<(), OperationalAssuranceError> {
-        if self.tenant_id.trim().is_empty()
+        if self.holding_id.trim().is_empty()
             || self.requested_by.trim().is_empty()
             || self.approved_by.trim().is_empty()
             || self.requested_by == self.approved_by
@@ -573,25 +573,25 @@ pub trait CustomerExitArtifactPort: Send + Sync {
     async fn write_fence(
         &self,
         exit_id: Uuid,
-        tenant_id: &str,
+        holding_id: &str,
     ) -> Result<String, OperationalAssuranceError>;
 
     async fn export_baseline(
         &self,
         exit_id: Uuid,
-        tenant_id: &str,
+        holding_id: &str,
     ) -> Result<PortabilityManifest, OperationalAssuranceError>;
 
     async fn export_final_delta(
         &self,
         exit_id: Uuid,
-        tenant_id: &str,
+        holding_id: &str,
     ) -> Result<String, OperationalAssuranceError>;
 
     async fn revoke_access(
         &self,
         exit_id: Uuid,
-        tenant_id: &str,
+        holding_id: &str,
     ) -> Result<String, OperationalAssuranceError>;
 }
 
@@ -613,7 +613,7 @@ pub enum OperationalAssuranceError {
     RpoExceeded,
     #[error("recovery time objective exceeds four hours")]
     RtoExceeded,
-    #[error("release manifest does not match requirements/schema/catalog generation two")]
+    #[error("release manifest does not match requirements/schema/catalog current")]
     InvalidReleaseManifest,
     #[error("release health/readiness gate denied the transition")]
     ReleaseGateDenied,
@@ -668,7 +668,7 @@ mod tests {
     }
 
     fn readiness(now: DateTime<Utc>, mode: DeploymentMode) -> OperationalReadinessSnapshot {
-        let scope = "tenant/holding";
+        let scope = "holding/holding";
         OperationalReadinessSnapshot {
             scope_key: scope.into(),
             deployment_mode: mode,
@@ -733,7 +733,7 @@ mod tests {
             signature_key_ref: "release-key-v2".into(),
             source_revision: "revision-1".into(),
             requirements_baseline: "2.0.0".into(),
-            schema_generation: 2,
+            schema_revision: 2,
             service_catalog_generation: 2,
             context_count: 31,
             service_count: 65,
@@ -798,7 +798,7 @@ mod tests {
     fn customer_exit_requires_fence_delta_revocation_and_respects_hold() {
         let mut exit = CustomerExitRun {
             exit_id: Uuid::new_v4(),
-            tenant_id: "tenant-1".into(),
+            holding_id: "holding-1".into(),
             requested_by: "customer-owner".into(),
             approved_by: "independent-reviewer".into(),
             scope_sha256: "a".repeat(64),
@@ -822,11 +822,11 @@ mod tests {
             2,
             PortabilityManifest {
                 exit_id: exit.exit_id,
-                tenant_id: exit.tenant_id.clone(),
+                holding_id: exit.holding_id.clone(),
                 scope_sha256: exit.scope_sha256.clone(),
                 write_fence_sha256: "b".repeat(64),
                 manifest_sha256: "9".repeat(64),
-                schema_generation: 2,
+                schema_revision: 2,
                 service_catalog_generation: 2,
                 generated_at: at(16, 12),
                 objects: vec![PortabilityObject {

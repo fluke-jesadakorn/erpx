@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use chrono::{Duration, Utc};
 use erpx_infrastructure::{
-    ControlPlaneDatabaseConfig, ControlPlanePools, SqlxControlPlane, SqlxTenantStoreRegistry,
-    TenantBackupRetentionRequest, TenantStoreRegistration,
+    ControlPlaneDatabaseConfig, ControlPlanePools, HoldingBackupRetentionRequest,
+    HoldingStoreRegistration, SqlxControlPlane, SqlxHoldingStoreRegistry,
 };
 use erpx_migration::{migrate_control_plane, migrate_control_read};
-use erpx_worker::{NamedWorkerHandler, TenantBackupRetentionRuntimeHandler};
+use erpx_worker::{HoldingBackupRetentionRuntimeHandler, NamedWorkerHandler};
 use uuid::Uuid;
 
 #[tokio::test]
@@ -29,12 +29,12 @@ async fn retention_worker_claims_completes_and_projects_an_action() {
         .expect("control read migration");
     let store = Arc::new(SqlxControlPlane::new(pools));
     let suffix = Uuid::new_v4().simple().to_string();
-    let tenant_id = format!("tenant-retention-worker-{suffix}");
-    let holding_ref = format!("holding-retention-worker-{suffix}");
-    SqlxTenantStoreRegistry::new(Arc::clone(&store))
-        .register(TenantStoreRegistration {
-            tenant_id: tenant_id.clone(),
-            holding_ref: holding_ref.clone(),
+    let holding_id = format!("holding-retention-worker-{suffix}");
+    let data_profile_key = format!("holding-retention-worker-{suffix}");
+    SqlxHoldingStoreRegistry::new(Arc::clone(&store))
+        .register(HoldingStoreRegistration {
+            holding_id: holding_id.clone(),
+            data_profile_key: data_profile_key.clone(),
             write_database_key: format!("retention-worker-write-{suffix}"),
             read_database_key: format!("retention-worker-read-{suffix}"),
             storage_namespace: format!("retention-worker-storage-{suffix}"),
@@ -44,12 +44,12 @@ async fn retention_worker_claims_completes_and_projects_an_action() {
             registry_version: 1,
         })
         .await
-        .expect("register retention worker tenant");
+        .expect("register retention worker holding");
 
     let action = store
-        .schedule_backup_retention(TenantBackupRetentionRequest {
-            tenant_id: tenant_id.clone(),
-            holding_ref: holding_ref.clone(),
+        .schedule_backup_retention(HoldingBackupRetentionRequest {
+            holding_id: holding_id.clone(),
+            data_profile_key: data_profile_key.clone(),
             cutoff_at: Utc::now() - Duration::days(2),
             max_rows: 10,
             dry_run: true,
@@ -59,7 +59,7 @@ async fn retention_worker_claims_completes_and_projects_an_action() {
         .await
         .expect("schedule retention worker action");
     let handler =
-        TenantBackupRetentionRuntimeHandler::new(Arc::clone(&store), 10, Duration::seconds(30))
+        HoldingBackupRetentionRuntimeHandler::new(Arc::clone(&store), 10, Duration::seconds(30))
             .expect("retention worker handler");
     let report = handler
         .run_once(Uuid::new_v4())
@@ -70,7 +70,7 @@ async fn retention_worker_claims_completes_and_projects_an_action() {
     assert_eq!(report.retried, 0);
     assert_eq!(report.dead_lettered, 0);
     let state: String = sqlx::query_scalar(
-        "SELECT state FROM erpx_control.tenant_backup_retention_actions WHERE id = $1",
+        "SELECT state FROM erpx_control.holding_backup_retention_actions WHERE id = $1",
     )
     .bind(action.id)
     .fetch_one(&store.pools().write)

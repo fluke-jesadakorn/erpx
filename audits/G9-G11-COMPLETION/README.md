@@ -6,13 +6,13 @@ The product-owned write/read boundaries now expose typed, holding-scoped
 projection reconciliation for Sales, Procurement/Inventory (SCM), POS,
 Asset/Maintenance, HR/Payroll, Legal/Documents, and Marketing/CRM.
 
-Each reconciliation check reads the authoritative tenant outbox on the write
+Each reconciliation check reads the authoritative holding outbox on the write
 route and compares its latest aggregate versions with the disposable read
 projection/checkpoints on the read route. It reports source event count,
 source/projected aggregate counts, missing aggregates, stale versions, and
 orphan projected aggregates. A non-zero mismatch is never repaired in place;
 the report is a rebuild/incident signal. Worker projector seams for HR, Legal,
-SCM, and POS expose the check with tenant/holding validation, routed pools,
+SCM, and POS expose the check with holding/holding validation, routed pools,
 bounded redacted errors, and guaranteed route closure.
 
 This preserves source ownership, append-only outbox history, forced-RLS

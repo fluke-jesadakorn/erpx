@@ -12,14 +12,14 @@ report total.
 - `crates/domain/src/finance_tax.rs` validates tax-period, currency, amount,
   rate, company scope, and immutable journal-line linkage semantics and
   deterministically aggregates a report.
-- Tenant-write migration `0052_finance_thai_tax.sql` stores append-only facts,
+- Holding-write migration `0052_finance_thai_tax.sql` stores append-only facts,
   idempotency, row-level security, and the authoritative outbox path.
 - `SqlxFinanceThaiTaxStore` persists the fact atomically with its snapshot and
   outbox event, verifies the referenced posted journal/line, projects only
   bounded report rows, and supports idempotent event replay.
-- Tenant-read migration `0041_finance_thai_tax_projection.sql` stores only the
+- Holding-read migration `0041_finance_thai_tax_projection.sql` stores only the
   rebuildable typed report rows and projection checkpoints.
-- `finance_thai_tax_projection` is registered as a durable multi-tenant worker
+- `finance_thai_tax_projection` is registered as a durable multi-holding worker
   projection with bounded incremental/rebuild jobs.
 - `RecordThaiTaxFact` is an authenticated, entitled, holding/company-bound
   command. `GetThaiTaxReport` is an authenticated `finance.read` query that
@@ -29,7 +29,7 @@ report total.
 - `crates/infrastructure/tests/finance_thai_tax_projection.rs` is a real
   PostgreSQL acceptance test covering source event projection, idempotent
   replay, and report scope. It is intentionally ignored pending disposable
-  tenant write/read database URLs.
+  holding write/read database URLs.
 
 ## Verification
 
@@ -41,7 +41,7 @@ PASS: targeted warnings-denied Clippy for domain, infrastructure, worker,
 server, and console; `cargo fmt --all --check`; desktop Dioxus console check.
 
 QUEUED: the new live PostgreSQL acceptance failed closed because
-`ERPX_TEST_TENANT_WRITE_DATABASE_URL` is not configured. This is a resource
+`ERPX_TEST_HOLDING_WRITE_DATABASE_URL` is not configured. This is a resource
 blocker, not an application assertion failure. The full ignored sweep has the
 same disposable SQLx resource gate.
 

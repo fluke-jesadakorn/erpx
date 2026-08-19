@@ -6,7 +6,7 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::people_payroll;
 use erpx_kernel::{
-    ActorAttribution, AggregateId, AuditContext, CommandId, CorrelationId, EventId, TenantScope,
+    ActorAttribution, AggregateId, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -66,8 +66,8 @@ impl PeoplePayrollAction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorizationRequest<'a> {
     pub actor: &'a ActorAttribution,
-    pub authority_scope: &'a TenantScope,
-    pub target_scope: &'a TenantScope,
+    pub authority_scope: &'a AuthorityScope,
+    pub target_scope: &'a AuthorityScope,
     pub action: PeoplePayrollAction,
 }
 
@@ -80,7 +80,7 @@ pub trait AuthorizationPort: Send + Sync {
 pub trait EntitlementPort: Send + Sync {
     async fn ensure_people_payroll_enabled(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         write: bool,
     ) -> Result<(), PortError>;
 }
@@ -149,25 +149,25 @@ pub struct CommandIdentity {
 pub trait WriteRepository: Send + Sync {
     async fn load_employee(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         employee_id: EmployeeId,
     ) -> Result<Option<Employee>, PortError>;
 
     async fn load_leave_request(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         leave_request_id: LeaveRequestId,
     ) -> Result<Option<LeaveRequest>, PortError>;
 
     async fn load_expense_claim(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         expense_claim_id: ExpenseClaimId,
     ) -> Result<Option<ExpenseClaim>, PortError>;
 
     async fn load_payroll_run(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         payroll_run_id: PayrollRunId,
     ) -> Result<Option<PayrollRun>, PortError>;
 }
@@ -178,7 +178,7 @@ pub struct PeoplePayrollCommit {
     pub correlation_id: CorrelationId,
     pub causation_id: Option<EventId>,
     pub actor: ActorAttribution,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
     pub aggregate: Aggregate,
@@ -230,7 +230,7 @@ pub trait CommandUnitOfWork: Send + Sync {
 pub struct EmployeeView {
     pub employee_id: EmployeeId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub employee_code: String,
     pub display_name: String,
     pub hired_on: NaiveDate,
@@ -261,7 +261,7 @@ impl From<&Employee> for EmployeeView {
 pub struct LeaveRequestView {
     pub leave_request_id: LeaveRequestId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub employee_id: EmployeeId,
     pub starts_on: NaiveDate,
     pub ends_on: NaiveDate,
@@ -296,7 +296,7 @@ impl From<&LeaveRequest> for LeaveRequestView {
 pub struct ExpenseClaimView {
     pub expense_claim_id: ExpenseClaimId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub employee_id: EmployeeId,
     pub currency: Currency,
     pub amount_minor: i64,
@@ -331,7 +331,7 @@ impl From<&ExpenseClaim> for ExpenseClaimView {
 pub struct PayrollRunView {
     pub payroll_run_id: PayrollRunId,
     pub version: u64,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub period_code: String,
     pub starts_on: NaiveDate,
     pub ends_on: NaiveDate,
@@ -439,49 +439,49 @@ pub struct ReadProjection<T> {
 pub trait ReadRepository: Send + Sync {
     async fn get_employee(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         employee_id: EmployeeId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<EmployeeView>>, PortError>;
     async fn list_employees(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &EmployeeListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<EmployeeList>, PortError>;
     async fn get_leave_request(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         leave_request_id: LeaveRequestId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<LeaveRequestView>>, PortError>;
     async fn list_leave_requests(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &LeaveRequestListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<LeaveRequestList>, PortError>;
     async fn get_expense_claim(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         expense_claim_id: ExpenseClaimId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<ExpenseClaimView>>, PortError>;
     async fn list_expense_claims(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &ExpenseClaimListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<ExpenseClaimList>, PortError>;
     async fn get_payroll_run(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         payroll_run_id: PayrollRunId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<PayrollRunView>>, PortError>;
     async fn list_payroll_runs(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         filter: &PayrollRunListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<PayrollRunList>, PortError>;

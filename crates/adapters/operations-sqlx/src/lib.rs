@@ -33,21 +33,18 @@ pub const EXCEPTION_SNAPSHOT_EVENT: &str = "operations.exception_snapshot";
 pub const POLICY_SNAPSHOT_EVENT: &str = "operations.work_queue_policy_snapshot";
 pub const EVENT_VERSION: u32 = 1;
 #[cfg(test)]
-const NORMALIZED_AUTHORITY_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_write/0081_current_normalized_authority.sql"
-);
+const NORMALIZED_AUTHORITY_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 pub const COMPLETION_WRITE_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0080_current_record_completion.sql");
-pub const COMPLETION_READ_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0071_current_record_completion_projection.sql"
-);
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
+pub const COMPLETION_READ_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 
 #[cfg(test)]
 const WRITE_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0063_wave9_operations_guards.sql");
+    include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
 #[cfg(test)]
-const READ_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_read/0055_wave9_operations_projections.sql");
+const READ_DDL: &str = include_str!("../../../migration/migrations_holding_read/0001_baseline.sql");
 
 pub fn exception_partition(id: erpx_operations::ExceptionId) -> String {
     format!("operations.exception:{}", id.as_uuid().simple())

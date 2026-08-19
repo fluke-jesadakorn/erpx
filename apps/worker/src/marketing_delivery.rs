@@ -1,7 +1,7 @@
 //! Durable Marketing channel-delivery worker boundary.
 //!
 //! The handler owns claim/lease and provider-result persistence orchestration,
-//! but it does not select tenants, construct credentials, or implement a
+//! but it does not select holdings, construct credentials, or implement a
 //! channel provider. Those dependencies must be explicitly composed by the
 //! runtime through the traits below.
 
@@ -42,7 +42,7 @@ pub enum MarketingDeliveryProviderError {
     Permanent,
 }
 
-/// Tenant-scoped durable delivery source. Implementations must perform claim
+/// Holding-scoped durable delivery source. Implementations must perform claim
 /// and provider-result writes atomically with their own holding scope.
 #[async_trait]
 pub trait MarketingDeliverySource: Send + Sync + 'static {
@@ -127,7 +127,7 @@ pub trait MarketingDeliveryProvider: Send + Sync + 'static {
     /// Submit only after the caller has selected and revalidated the exact
     /// control-plane provider account. The default deliberately fails closed:
     /// an account-bound wrapper must never silently call an unbound provider
-    /// implementation that could route across tenants or holdings.
+    /// implementation that could route across holdings or holdings.
     async fn submit_with_account_binding(
         &self,
         _binding: &MarketingProviderAccountBinding,
@@ -440,7 +440,7 @@ mod tests {
 
     use chrono::Duration;
     use erpx_domain::{
-        contracts::TenantScope,
+        contracts::AuthorityScope,
         marketing::{MarketingChannel, MarketingPurpose},
         marketing_delivery::{
             ConsentRecheckDecision, DeliveryRecheckDecision, DeliveryRecheckResult,
@@ -581,7 +581,7 @@ mod tests {
     }
 
     fn claim(result: ProviderResult) -> (FakeSource, FakeProvider) {
-        let scope = TenantScope::Holding {
+        let scope = AuthorityScope::Holding {
             holding_id: Uuid::new_v4(),
         };
         let mut dispatch = DeliveryDispatch::new(
@@ -819,7 +819,7 @@ mod tests {
             provider_message_ref: "provider-message".into(),
         });
         let state = Arc::clone(&source.state);
-        state.lock().expect("source").claims[0].dispatch.scope = TenantScope::Platform;
+        state.lock().expect("source").claims[0].dispatch.scope = AuthorityScope::Platform;
         let handler = MarketingDeliveryHandler::new(source, provider, 1, Duration::seconds(30))
             .expect("handler");
 

@@ -23,7 +23,7 @@ use erpx_infrastructure::{
 };
 use erpx_migration::{
     LegacySourceSnapshot, g13::G13StartRunRequest, migrate_control_plane, migrate_control_read,
-    migrate_tenant_read, migrate_tenant_write,
+    migrate_holding_read, migrate_holding_write,
 };
 use serde_json::Value;
 use sqlx::{
@@ -34,7 +34,7 @@ use uuid::Uuid;
 
 type TestResult = Result<(), Box<dyn Error + Send + Sync>>;
 
-const HOLDING_REF: &str = "holding-g13-target-disposable";
+const DATA_PROFILE_KEY: &str = "holding-g13-target-disposable";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct StoredImportRow {
@@ -191,10 +191,10 @@ async fn set_source_fixture(source: &PgPool) -> Result<(), sqlx::Error> {
 
 async fn set_holding(
     transaction: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
 ) -> Result<(), sqlx::Error> {
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(holding_ref)
+    sqlx::query("SELECT set_config('erpx.data_profile_key', $1, true)")
+        .bind(data_profile_key)
         .execute(&mut **transaction)
         .await?;
     Ok(())
@@ -202,9 +202,9 @@ async fn set_holding(
 
 async fn scoped_count(pool: &PgPool, query: &str, run_id: Uuid) -> Result<i64, sqlx::Error> {
     let mut transaction = pool.begin().await?;
-    set_holding(&mut transaction, HOLDING_REF).await?;
+    set_holding(&mut transaction, DATA_PROFILE_KEY).await?;
     let count = sqlx::query_scalar::<_, i64>(query)
-        .bind(HOLDING_REF)
+        .bind(DATA_PROFILE_KEY)
         .bind(run_id)
         .fetch_one(&mut *transaction)
         .await?;
@@ -218,12 +218,12 @@ async fn scoped_event_count(
     event_type: &str,
 ) -> Result<i64, sqlx::Error> {
     let mut transaction = pool.begin().await?;
-    set_holding(&mut transaction, HOLDING_REF).await?;
+    set_holding(&mut transaction, DATA_PROFILE_KEY).await?;
     let count = sqlx::query_scalar::<_, i64>(
-        "SELECT count(*) FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND event_type=$2 AND payload->>'run_id'=$3::text",
+        "SELECT count(*) FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND event_type=$2 AND payload->>'run_id'=$3::text",
     )
-    .bind(HOLDING_REF)
+    .bind(DATA_PROFILE_KEY)
     .bind(event_type)
     .bind(run_id)
     .fetch_one(&mut *transaction)
@@ -237,15 +237,15 @@ async fn scoped_event_counts(
     run_id: Uuid,
 ) -> Result<BTreeMap<String, i64>, sqlx::Error> {
     let mut transaction = pool.begin().await?;
-    set_holding(&mut transaction, HOLDING_REF).await?;
+    set_holding(&mut transaction, DATA_PROFILE_KEY).await?;
     let rows = sqlx::query(
         "SELECT event_type, count(*)::bigint AS event_count
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND payload->>'run_id'=$2::text
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND payload->>'run_id'=$2::text
          GROUP BY event_type
          ORDER BY event_type",
     )
-    .bind(HOLDING_REF)
+    .bind(DATA_PROFILE_KEY)
     .bind(run_id)
     .fetch_all(&mut *transaction)
     .await?;
@@ -263,13 +263,13 @@ async fn scoped_event_payload(
     event_type: &str,
 ) -> Result<Value, sqlx::Error> {
     let mut transaction = pool.begin().await?;
-    set_holding(&mut transaction, HOLDING_REF).await?;
+    set_holding(&mut transaction, DATA_PROFILE_KEY).await?;
     let payload = sqlx::query_scalar::<_, Value>(
-        "SELECT payload FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND event_type=$2 AND payload->>'run_id'=$3::text
+        "SELECT payload FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND event_type=$2 AND payload->>'run_id'=$3::text
          ORDER BY occurred_at, event_id LIMIT 1",
     )
-    .bind(HOLDING_REF)
+    .bind(DATA_PROFILE_KEY)
     .bind(event_type)
     .bind(run_id)
     .fetch_one(&mut *transaction)
@@ -284,20 +284,20 @@ async fn load_rows(
     rollback: bool,
 ) -> Result<Vec<StoredImportRow>, sqlx::Error> {
     let table = if rollback {
-        "erpx_tenant.g13_migration_rollback_rows"
+        "erpx_holding.g13_migration_rollback_rows"
     } else {
-        "erpx_tenant.g13_migration_import_rows"
+        "erpx_holding.g13_migration_import_rows"
     };
     let mut transaction = pool.begin().await?;
-    set_holding(&mut transaction, HOLDING_REF).await?;
+    set_holding(&mut transaction, DATA_PROFILE_KEY).await?;
     let rows = sqlx::query(&format!(
         "SELECT source_contract_hash, source_fence, source_kind,
                 source_key, target_id, payload
          FROM {table}
-         WHERE holding_ref=$1 AND run_id=$2
+         WHERE data_profile_key=$1 AND run_id=$2
          ORDER BY source_kind, source_key"
     ))
-    .bind(HOLDING_REF)
+    .bind(DATA_PROFILE_KEY)
     .bind(run_id)
     .fetch_all(&mut *transaction)
     .await?
@@ -322,15 +322,15 @@ async fn load_read_rows(
     run_id: Uuid,
 ) -> Result<Vec<ReadProjectionRow>, sqlx::Error> {
     let mut transaction = pool.begin().await?;
-    set_holding(&mut transaction, HOLDING_REF).await?;
+    set_holding(&mut transaction, DATA_PROFILE_KEY).await?;
     let rows = sqlx::query(
         "SELECT source_kind, source_key_hash, target_id,
                 source_contract_hash, source_fence, payload_hash
-         FROM erpx_tenant.g13_migration_import_read_rows
-         WHERE holding_ref=$1 AND run_id=$2
+         FROM erpx_holding.g13_migration_import_read_rows
+         WHERE data_profile_key=$1 AND run_id=$2
          ORDER BY source_kind, source_key_hash",
     )
-    .bind(HOLDING_REF)
+    .bind(DATA_PROFILE_KEY)
     .bind(run_id)
     .fetch_all(&mut *transaction)
     .await?
@@ -360,7 +360,7 @@ async fn read_payload_column_exists(pool: &PgPool) -> Result<bool, sqlx::Error> 
     sqlx::query_scalar(
         "SELECT EXISTS(
              SELECT 1 FROM information_schema.columns
-             WHERE table_schema='erpx_tenant'
+             WHERE table_schema='erpx_holding'
                AND table_name='g13_migration_import_read_rows'
                AND column_name='payload'
          )",
@@ -388,9 +388,9 @@ async fn execute_acceptance(cluster: &DisposableDatabases) -> TestResult {
 
     migrate_control_plane(&control_write).await?;
     migrate_control_read(&control_read).await?;
-    migrate_tenant_write(&target).await?;
-    migrate_tenant_read(&read).await?;
-    migrate_tenant_write(&rollback).await?;
+    migrate_holding_write(&target).await?;
+    migrate_holding_read(&read).await?;
+    migrate_holding_write(&rollback).await?;
     set_source_fixture(&source).await?;
 
     let source_database = database_name(&source).await?;
@@ -489,7 +489,7 @@ async fn execute_acceptance(cluster: &DisposableDatabases) -> TestResult {
         target.clone(),
         read.clone(),
         rollback.clone(),
-        HOLDING_REF,
+        DATA_PROFILE_KEY,
     )?;
     let wrong_fence = alternate_fence(&snapshot);
     let rejected_wrong_fence = importer
@@ -539,20 +539,20 @@ async fn execute_acceptance(cluster: &DisposableDatabases) -> TestResult {
 
     let tampered_event_id: Uuid = {
         let mut transaction = target.begin().await?;
-        set_holding(&mut transaction, HOLDING_REF).await?;
+        set_holding(&mut transaction, DATA_PROFILE_KEY).await?;
         let event_id = sqlx::query_scalar(
-            "SELECT event_id FROM erpx_tenant.outbox_events
-             WHERE holding_ref=$1 AND event_type='migration.imported'
+            "SELECT event_id FROM erpx_holding.outbox_events
+             WHERE data_profile_key=$1 AND event_type='migration.imported'
                AND payload->>'run_id'=$2::text
                AND payload->>'source_kind'='customers'
              ORDER BY event_id LIMIT 1",
         )
-        .bind(HOLDING_REF)
+        .bind(DATA_PROFILE_KEY)
         .bind(run_id)
         .fetch_one(&mut *transaction)
         .await?;
         let updated = sqlx::query(
-            "UPDATE erpx_tenant.outbox_events
+            "UPDATE erpx_holding.outbox_events
              SET event_version=2 WHERE event_id=$1",
         )
         .bind(event_id)
@@ -582,8 +582,8 @@ async fn execute_acceptance(cluster: &DisposableDatabases) -> TestResult {
         .into());
     }
     let mut restore_event = target.begin().await?;
-    set_holding(&mut restore_event, HOLDING_REF).await?;
-    sqlx::query("UPDATE erpx_tenant.outbox_events SET event_version=1 WHERE event_id=$1")
+    set_holding(&mut restore_event, DATA_PROFILE_KEY).await?;
+    sqlx::query("UPDATE erpx_holding.outbox_events SET event_version=1 WHERE event_id=$1")
         .bind(tampered_event_id)
         .execute(&mut *restore_event)
         .await?;
@@ -814,14 +814,14 @@ async fn execute_acceptance(cluster: &DisposableDatabases) -> TestResult {
         .ok_or("customer target identity missing")?;
     let substituted_customer_id = Uuid::new_v4();
     let mut target_tx = target.begin().await?;
-    set_holding(&mut target_tx, HOLDING_REF).await?;
+    set_holding(&mut target_tx, DATA_PROFILE_KEY).await?;
     sqlx::query(
-        "UPDATE erpx_tenant.g13_migration_import_rows
+        "UPDATE erpx_holding.g13_migration_import_rows
          SET target_id=$1, payload=jsonb_set(payload, '{target_id}', to_jsonb($1::text), false)
-         WHERE holding_ref=$2 AND run_id=$3 AND source_kind='customers' AND source_key=$4",
+         WHERE data_profile_key=$2 AND run_id=$3 AND source_kind='customers' AND source_key=$4",
     )
     .bind(substituted_customer_id)
-    .bind(HOLDING_REF)
+    .bind(DATA_PROFILE_KEY)
     .bind(run_id)
     .bind(&customer_source_key)
     .execute(&mut *target_tx)
@@ -839,14 +839,14 @@ async fn execute_acceptance(cluster: &DisposableDatabases) -> TestResult {
         return Err("reconciliation did not detect an equal-count identity substitution".into());
     }
     let mut target_tx = target.begin().await?;
-    set_holding(&mut target_tx, HOLDING_REF).await?;
+    set_holding(&mut target_tx, DATA_PROFILE_KEY).await?;
     sqlx::query(
-        "UPDATE erpx_tenant.g13_migration_import_rows
+        "UPDATE erpx_holding.g13_migration_import_rows
          SET target_id=$1, payload=jsonb_set(payload, '{target_id}', to_jsonb($1::text), false)
-         WHERE holding_ref=$2 AND run_id=$3 AND source_kind='customers' AND source_key=$4",
+         WHERE data_profile_key=$2 AND run_id=$3 AND source_kind='customers' AND source_key=$4",
     )
     .bind(original_customer_id)
-    .bind(HOLDING_REF)
+    .bind(DATA_PROFILE_KEY)
     .bind(run_id)
     .bind(&customer_source_key)
     .execute(&mut *target_tx)
@@ -888,23 +888,23 @@ async fn execute_acceptance(cluster: &DisposableDatabases) -> TestResult {
     // retry must restore from the rollback database, not accept the empty
     // target as a successful no-op.
     let mut interrupted_target_tx = target.begin().await?;
-    set_holding(&mut interrupted_target_tx, HOLDING_REF).await?;
+    set_holding(&mut interrupted_target_tx, DATA_PROFILE_KEY).await?;
     sqlx::query(
-        "DELETE FROM erpx_tenant.g13_migration_import_rows
-         WHERE holding_ref=$1 AND run_id=$2",
+        "DELETE FROM erpx_holding.g13_migration_import_rows
+         WHERE data_profile_key=$1 AND run_id=$2",
     )
-    .bind(HOLDING_REF)
+    .bind(DATA_PROFILE_KEY)
     .bind(run_id)
     .execute(&mut *interrupted_target_tx)
     .await?;
     interrupted_target_tx.commit().await?;
     let mut interrupted_read_tx = read.begin().await?;
-    set_holding(&mut interrupted_read_tx, HOLDING_REF).await?;
+    set_holding(&mut interrupted_read_tx, DATA_PROFILE_KEY).await?;
     sqlx::query(
-        "DELETE FROM erpx_tenant.g13_migration_import_read_rows
-         WHERE holding_ref=$1 AND run_id=$2",
+        "DELETE FROM erpx_holding.g13_migration_import_read_rows
+         WHERE data_profile_key=$1 AND run_id=$2",
     )
-    .bind(HOLDING_REF)
+    .bind(DATA_PROFILE_KEY)
     .bind(run_id)
     .execute(&mut *interrupted_read_tx)
     .await?;
@@ -918,7 +918,7 @@ async fn execute_acceptance(cluster: &DisposableDatabases) -> TestResult {
         target.clone(),
         read.clone(),
         rollback.clone(),
-        HOLDING_REF,
+        DATA_PROFILE_KEY,
     )?;
     // Reconstruct the runtime before retrying. The rollback fence and replay
     // evidence must come from PostgreSQL, not from importer-instance state.
@@ -960,16 +960,16 @@ async fn execute_acceptance(cluster: &DisposableDatabases) -> TestResult {
         || !retention.retained_rollback_rows
         || scoped_count(
             &target,
-            "SELECT count(*) FROM erpx_tenant.g13_migration_import_rows
-             WHERE holding_ref=$1 AND run_id=$2",
+            "SELECT count(*) FROM erpx_holding.g13_migration_import_rows
+             WHERE data_profile_key=$1 AND run_id=$2",
             run_id,
         )
         .await?
             != 0
         || scoped_count(
             &read,
-            "SELECT count(*) FROM erpx_tenant.g13_migration_import_read_rows
-             WHERE holding_ref=$1 AND run_id=$2",
+            "SELECT count(*) FROM erpx_holding.g13_migration_import_read_rows
+             WHERE data_profile_key=$1 AND run_id=$2",
             run_id,
         )
         .await?

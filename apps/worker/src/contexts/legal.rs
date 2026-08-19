@@ -1,4 +1,4 @@
-//! Tenant Legal projection runtimes.
+//! Holding Legal projection runtimes.
 
 use erpx_cqrs_sqlx::{
     CqrsSqlxError, ProjectionPool, ProjectionRun, ProjectionRunner, ProjectionRunnerConfig,

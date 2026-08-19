@@ -14,8 +14,8 @@ pub use domain::{
     CONTROL_CUSTOMERS_PROJECTION_NAME, Customer360DomainError, Customer360OwnedRecord,
     Customer360ProjectionInput, Customer360ProjectionStream, Customer360RecordKind,
     Customer360RecordStatus, Customer360SectionAvailability, Customer360View,
-    ProjectionApplyOutcome, ProjectionPosition, ProjectionPositions, SectionAvailability,
-    SourceCoverage, SourceFreshness, TENANT_ACTIVITY_PROJECTION_NAME,
+    HOLDING_ACTIVITY_PROJECTION_NAME, ProjectionApplyOutcome, ProjectionPosition,
+    ProjectionPositions, SectionAvailability, SourceCoverage, SourceFreshness,
 };
 pub use integration::Customer360SourceEvent;
 pub use ports::{

@@ -2,7 +2,7 @@
 
 ## Delivered behavior
 
-- Added tenant-write migration `0026_marketing_delivery.sql` for dispatches
+- Added holding-write migration `0026_marketing_delivery.sql` for dispatches
   and deterministic idempotency reservations.
 - Enforced holding scope with PostgreSQL forced row-level security.
 - Added `SqlxMarketingDeliveryStore` with atomic enqueue, aggregate snapshot,
@@ -25,8 +25,8 @@ both are injected; the default worker registry remains fail-closed.
 
 - `crates/infrastructure/src/marketing_delivery_persistence.rs`
 - `crates/infrastructure/src/lib.rs`
-- `crates/migration/migrations_tenant_write/0026_marketing_delivery.sql`
-- `crates/migration/migrations_tenant_read/0026_marketing_delivery_projection.sql`
+- `crates/migration/migrations_holding_write/0026_marketing_delivery.sql`
+- `crates/migration/migrations_holding_read/0026_marketing_delivery_projection.sql`
 - `crates/migration/src/lib.rs`
 - `apps/worker/src/marketing_delivery.rs`
 - `apps/worker/src/lib.rs`
@@ -44,11 +44,11 @@ From `erpx/`:
 - `cargo test -p erpx-migration` — PASS: 6 passed.
 
 The ignored infrastructure tests are the repository's documented disposable
-PostgreSQL cases; no external tenant database was modified by this packet.
+PostgreSQL cases; no external holding database was modified by this packet.
 
 ## Security and open work
 
-Holding scope is applied through the tenant transaction and RLS policy;
+Holding scope is applied through the holding transaction and RLS policy;
 provider credentials and raw provider payloads are not stored. Provider
 submission, authenticated delivery callbacks, durable worker composition,
 channel integrations, journeys, CRM, attribution, and full G10 reconciliation
@@ -56,6 +56,6 @@ remain open. The persistence boundary does not claim those requirements.
 
 ## Rollback
 
-Use the normal forward migration/retention procedure for any applied tenant
+Use the normal forward migration/retention procedure for any applied holding
 database. Do not drop dispatch or idempotency tables while queued or in-flight
 work exists. Folio data and runtime state were not changed.

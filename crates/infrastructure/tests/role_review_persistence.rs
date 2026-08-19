@@ -2,8 +2,9 @@ use chrono::{Duration, Utc};
 use erpx_domain::access::{
     RiskTier, RoleAssignment, RoleExpiryNotification, RoleExpiryNotificationKind,
     RoleRecoveryRequest, RoleRecoveryTarget, RoleReviewClassification, RoleReviewItem,
-    RoleReviewQueue, Scope,
+    RoleReviewQueue,
 };
+use erpx_domain::contracts::AuthorityScope as Scope;
 use erpx_infrastructure::{RoleRecoveryReceipt, RoleReviewPersistence, RoleReviewPersistenceError};
 use erpx_migration::migrate_control_plane;
 use sqlx::{PgPool, postgres::PgPoolOptions};

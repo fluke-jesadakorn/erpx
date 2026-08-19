@@ -197,7 +197,7 @@ mod tests {
 
     use async_trait::async_trait;
     use chrono::{NaiveDate, Utc};
-    use erpx_domain::contracts::{ActorAttribution, ActorKind, TenantScope};
+    use erpx_domain::contracts::{ActorAttribution, ActorKind, AuthorityScope};
     use erpx_infrastructure::{
         BankProviderAccountBinding, BankProviderAccountRef, BankProviderAdapter,
         BankProviderCursor, BankProviderError, BankProviderTlsEvidence, BankProviderTlsVersion,
@@ -216,8 +216,8 @@ mod tests {
     const ACCOUNT: Uuid = Uuid::from_u128(3);
     const IMPORT: Uuid = Uuid::from_u128(4);
 
-    fn scope() -> TenantScope {
-        TenantScope::Company {
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: HOLDING,
             company_id: COMPANY,
         }
@@ -252,7 +252,7 @@ mod tests {
             "bank-provider-import-test",
             ActorAttribution {
                 principal_ref: "finance-user".to_owned(),
-                kind: ActorKind::TenantUser,
+                kind: ActorKind::HoldingUser,
                 session_id: Some(Uuid::from_u128(5)),
                 represented_principal_ref: None,
                 support_capability_id: None,

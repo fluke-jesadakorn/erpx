@@ -1,12 +1,12 @@
-//! Tenant-write persistence for the typed POS sale aggregate.
+//! Holding-write persistence for the typed POS sale aggregate.
 //!
 //! POS source state is normalized into sale, line, and payment rows.  The
-//! shared tenant outbox is the only serialized transport boundary; no POS
+//! shared holding outbox is the only serialized transport boundary; no POS
 //! aggregate JSON is stored in source tables and payment-instrument secrets
 //! are not represented by this adapter.
 
 use chrono::{DateTime, Utc};
-use erpx_domain::contracts::TenantScope;
+use erpx_domain::contracts::AuthorityScope;
 use erpx_domain::pos::{
     Payment, PaymentMethod, PosEventMetadata, PosEventType, PosScopedReference, Sale, SaleLine,
     SaleStatus,
@@ -20,7 +20,7 @@ use crate::PersistenceError;
 use crate::finance_persistence::begin_scoped;
 
 const POS_AGGREGATE: &str = "pos_sale";
-const MAX_HOLDING_REF_BYTES: usize = 255;
+const MAX_DATA_PROFILE_KEY_BYTES: usize = 255;
 const MAX_IDEMPOTENCY_KEY_BYTES: usize = 512;
 
 /// The typed result of an accepted or replayed POS source mutation.
@@ -37,28 +37,28 @@ pub struct PosWriteReceipt {
 #[derive(Debug, Clone)]
 pub struct SqlxPosPersistence {
     write_pool: PgPool,
-    holding_ref: String,
+    data_profile_key: String,
 }
 
 impl SqlxPosPersistence {
     pub fn new(
         write_pool: PgPool,
-        holding_ref: impl Into<String>,
+        data_profile_key: impl Into<String>,
     ) -> Result<Self, PersistenceError> {
-        let holding_ref = holding_ref.into();
-        validate_holding_ref(&holding_ref)?;
+        let data_profile_key = data_profile_key.into();
+        validate_data_profile_key(&data_profile_key)?;
         Ok(Self {
             write_pool,
-            holding_ref,
+            data_profile_key,
         })
     }
 
-    pub fn holding_ref(&self) -> &str {
-        &self.holding_ref
+    pub fn data_profile_key(&self) -> &str {
+        &self.data_profile_key
     }
 
     /// Persist the complete validated POS sale state and its source event in
-    /// one tenant-scoped transaction.
+    /// one holding-scoped transaction.
     pub async fn save_sale(
         &self,
         sale: &Sale,
@@ -75,15 +75,19 @@ impl SqlxPosPersistence {
         let mut tx = self.begin_write().await?;
         lock_pos_transaction(
             &mut tx,
-            pos_idempotency_lock_name(&self.holding_ref, idempotency_key),
+            pos_idempotency_lock_name(&self.data_profile_key, idempotency_key),
         )
         .await?;
-        lock_pos_transaction(&mut tx, pos_aggregate_lock_name(&self.holding_ref, sale.id)).await?;
+        lock_pos_transaction(
+            &mut tx,
+            pos_aggregate_lock_name(&self.data_profile_key, sale.id),
+        )
+        .await?;
 
         let event = &command.event;
         if let Some(receipt) = find_replay(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             idempotency_key,
             &request_hash,
             sale,
@@ -97,11 +101,11 @@ impl SqlxPosPersistence {
 
         let current = sqlx::query(
             "SELECT version, status, holding_id, company_id, branch_id
-             FROM erpx_tenant.pos_sales
-             WHERE holding_ref=$1 AND sale_id=$2
+             FROM erpx_holding.pos_sales
+             WHERE data_profile_key=$1 AND sale_id=$2
              FOR UPDATE",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(sale.id)
         .fetch_optional(&mut *tx)
         .await?
@@ -139,14 +143,14 @@ impl SqlxPosPersistence {
 
         ensure_source_event_continuity(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             sale.id,
             current.as_ref().map(|(version, ..)| *version),
         )
         .await?;
         ensure_persisted_payments_are_preserved(
             &mut tx,
-            &self.holding_ref,
+            &self.data_profile_key,
             sale.id,
             current.as_ref().map(|(version, ..)| *version),
             &sale.payments,
@@ -179,7 +183,7 @@ impl SqlxPosPersistence {
 
         if let Some((current_version, ..)) = current.as_ref() {
             sqlx::query(
-                "UPDATE erpx_tenant.pos_sales
+                "UPDATE erpx_holding.pos_sales
                  SET holding_id=$3, company_id=$4, branch_id=$5, reference=$6,
                      customer_id=$7, customer_scope_kind=$8, customer_scope_holding_id=$9,
                      customer_scope_company_id=$10, customer_scope_branch_id=$11,
@@ -188,9 +192,9 @@ impl SqlxPosPersistence {
                      currency=$17, subtotal_minor=$18, tax_minor=$19, total_minor=$20,
                      paid_minor=$21, status=$22, version=$23, command_id=$24,
                      idempotency_key=$25, created_at=$26, updated_at=$27
-                 WHERE holding_ref=$1 AND sale_id=$2 AND version=$28",
+                 WHERE data_profile_key=$1 AND sale_id=$2 AND version=$28",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(sale.id)
             .bind(sale_scope.holding_id)
             .bind(sale_scope.company_id)
@@ -223,8 +227,8 @@ impl SqlxPosPersistence {
             .rows_affected();
         } else {
             sqlx::query(
-                "INSERT INTO erpx_tenant.pos_sales
-                    (holding_ref, sale_id, holding_id, company_id, branch_id, reference,
+                "INSERT INTO erpx_holding.pos_sales
+                    (data_profile_key, sale_id, holding_id, company_id, branch_id, reference,
                      customer_id, customer_scope_kind, customer_scope_holding_id,
                      customer_scope_company_id, customer_scope_branch_id,
                      register_id, register_scope_kind, register_scope_holding_id,
@@ -234,7 +238,7 @@ impl SqlxPosPersistence {
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,
                          $18,$19,$20,$21,$22,$23,$24,$25,$26,$27)",
             )
-            .bind(&self.holding_ref)
+            .bind(&self.data_profile_key)
             .bind(sale.id)
             .bind(sale_scope.holding_id)
             .bind(sale_scope.company_id)
@@ -266,30 +270,30 @@ impl SqlxPosPersistence {
         }
 
         sqlx::query(
-            "DELETE FROM erpx_tenant.pos_sale_lines
-             WHERE holding_ref=$1 AND sale_id=$2",
+            "DELETE FROM erpx_holding.pos_sale_lines
+             WHERE data_profile_key=$1 AND sale_id=$2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(sale.id)
         .execute(&mut *tx)
         .await?;
         for (line_no, line) in sale.lines.iter().enumerate() {
-            insert_line(&mut tx, &self.holding_ref, sale.id, line_no, line).await?;
+            insert_line(&mut tx, &self.data_profile_key, sale.id, line_no, line).await?;
         }
 
         sqlx::query(
-            "DELETE FROM erpx_tenant.pos_sale_payments
-             WHERE holding_ref=$1 AND sale_id=$2",
+            "DELETE FROM erpx_holding.pos_sale_payments
+             WHERE data_profile_key=$1 AND sale_id=$2",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(sale.id)
         .execute(&mut *tx)
         .await?;
         for payment in &sale.payments {
-            insert_payment(&mut tx, &self.holding_ref, sale.id, payment).await?;
+            insert_payment(&mut tx, &self.data_profile_key, sale.id, payment).await?;
         }
 
-        append_outbox_event(&mut tx, &self.holding_ref, sale, event).await?;
+        append_outbox_event(&mut tx, &self.data_profile_key, sale, event).await?;
         let receipt = PosWriteReceipt {
             aggregate_type: POS_AGGREGATE.into(),
             aggregate_id: sale.id,
@@ -299,12 +303,12 @@ impl SqlxPosPersistence {
             replayed: false,
         };
         sqlx::query(
-            "INSERT INTO erpx_tenant.pos_command_idempotency
-                (holding_ref, idempotency_key, request_hash, command_id,
+            "INSERT INTO erpx_holding.pos_command_idempotency
+                (data_profile_key, idempotency_key, request_hash, command_id,
                  aggregate_type, aggregate_id, aggregate_version, event_id)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
         )
-        .bind(&self.holding_ref)
+        .bind(&self.data_profile_key)
         .bind(idempotency_key)
         .bind(&request_hash)
         .bind(command.command_id)
@@ -319,16 +323,16 @@ impl SqlxPosPersistence {
     }
 
     async fn begin_write(&self) -> Result<Transaction<'_, Postgres>, PersistenceError> {
-        begin_scoped(&self.write_pool, &self.holding_ref).await
+        begin_scoped(&self.write_pool, &self.data_profile_key).await
     }
 }
 
-fn pos_idempotency_lock_name(holding_ref: &str, idempotency_key: &str) -> String {
-    format!("pos:idempotency:{holding_ref}:{idempotency_key}")
+fn pos_idempotency_lock_name(data_profile_key: &str, idempotency_key: &str) -> String {
+    format!("pos:idempotency:{data_profile_key}:{idempotency_key}")
 }
 
-fn pos_aggregate_lock_name(holding_ref: &str, aggregate_id: Uuid) -> String {
-    format!("pos:aggregate:{holding_ref}:{aggregate_id}")
+fn pos_aggregate_lock_name(data_profile_key: &str, aggregate_id: Uuid) -> String {
+    format!("pos:aggregate:{data_profile_key}:{aggregate_id}")
 }
 
 async fn lock_pos_transaction(
@@ -367,7 +371,7 @@ fn validate_persisted_source_event(row: &PgRow) -> Result<(Uuid, u64), Persisten
         .command_history
         .last()
         .map(|command| &command.event);
-    let expected_tenant_scope = serde_json::to_value(&stored.event.tenant_scope)?;
+    let expected_holding_scope = serde_json::to_value(&stored.event.active_scope)?;
     let expected_actor = serde_json::to_value(&stored.event.actor)?;
     let envelope_matches = aggregate_type == POS_AGGREGATE
         && event_type_name == event_type(stored.event.event_type)
@@ -376,8 +380,8 @@ fn validate_persisted_source_event(row: &PgRow) -> Result<(Uuid, u64), Persisten
         && row.try_get::<Option<i32>, _>("event_version")?
             == Some(i32::from(stored.event.event_version))
         && row
-            .try_get::<Option<serde_json::Value>, _>("tenant_scope")?
-            .is_some_and(|scope| scope == expected_tenant_scope)
+            .try_get::<Option<serde_json::Value>, _>("active_scope")?
+            .is_some_and(|scope| scope == expected_holding_scope)
         && row
             .try_get::<Option<serde_json::Value>, _>("actor")?
             .is_some_and(|actor| actor == expected_actor)
@@ -397,7 +401,7 @@ fn validate_persisted_source_event(row: &PgRow) -> Result<(Uuid, u64), Persisten
         && stored.event.aggregate_type == POS_AGGREGATE
         && stored.event.aggregate_id == aggregate_id
         && stored.event.aggregate_version == aggregate_version
-        && stored.event.tenant_scope == stored.aggregate.scope
+        && stored.event.active_scope == stored.aggregate.scope
         && latest_event == Some(&stored.event);
     if !envelope_matches {
         return Err(invalid(
@@ -414,7 +418,7 @@ fn validate_persisted_source_event(row: &PgRow) -> Result<(Uuid, u64), Persisten
 /// source update that can never be replayed by the projection worker.
 async fn ensure_source_event_continuity(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     aggregate_id: Uuid,
     current_version: Option<u64>,
 ) -> Result<(), PersistenceError> {
@@ -423,10 +427,10 @@ async fn ensure_source_event_continuity(
                 COUNT(DISTINCT aggregate_version) AS distinct_version_count,
                 COALESCE(MIN(aggregate_version), 0) AS first_version,
                 COALESCE(MAX(aggregate_version), 0) AS last_version
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type=$2 AND aggregate_id=$3",
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type=$2 AND aggregate_id=$3",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(POS_AGGREGATE)
     .bind(aggregate_id)
     .fetch_one(&mut **tx)
@@ -442,13 +446,13 @@ async fn ensure_source_event_continuity(
     let expected_count = current_version.unwrap_or(0);
     let source_rows = sqlx::query(
         "SELECT event_id, aggregate_type, aggregate_id, aggregate_version, event_type,
-        payload, contract_version, event_version, tenant_scope, actor,
+        payload, contract_version, event_version, active_scope, actor,
                 correlation_id, causation_id, idempotency_key, occurred_at
-         FROM erpx_tenant.outbox_events
-         WHERE holding_ref=$1 AND aggregate_type=$2 AND aggregate_id=$3
+         FROM erpx_holding.outbox_events
+         WHERE data_profile_key=$1 AND aggregate_type=$2 AND aggregate_id=$3
          ORDER BY aggregate_version, event_id",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(POS_AGGREGATE)
     .bind(aggregate_id)
     .fetch_all(&mut **tx)
@@ -474,7 +478,7 @@ async fn ensure_source_event_continuity(
 /// child rows so a malformed snapshot cannot erase authoritative history.
 async fn ensure_persisted_payments_are_preserved(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     sale_id: Uuid,
     current_version: Option<u64>,
     payments: &[Payment],
@@ -483,12 +487,12 @@ async fn ensure_persisted_payments_are_preserved(
     let rows = if current_version.is_some() {
         sqlx::query(
             "SELECT payment_id, amount_minor, method, received_at
-             FROM erpx_tenant.pos_sale_payments
-             WHERE holding_ref=$1 AND sale_id=$2
+             FROM erpx_holding.pos_sale_payments
+             WHERE data_profile_key=$1 AND sale_id=$2
              ORDER BY payment_id
              FOR UPDATE",
         )
-        .bind(holding_ref)
+        .bind(data_profile_key)
         .bind(sale_id)
         .fetch_all(&mut **tx)
         .await?
@@ -559,7 +563,7 @@ struct OptionalReferenceColumns {
 
 async fn find_replay(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     idempotency_key: &str,
     request_hash: &str,
     sale: &Sale,
@@ -580,20 +584,20 @@ async fn find_replay(
                 o.occurred_at AS persisted_outbox_occurred_at,
                 o.contract_version AS persisted_outbox_contract_version,
                 o.event_version AS persisted_outbox_event_version,
-                o.tenant_scope AS persisted_outbox_tenant_scope,
+                o.active_scope AS persisted_outbox_holding_scope,
                 o.actor AS persisted_outbox_actor,
                 o.correlation_id AS persisted_outbox_correlation_id,
                 o.causation_id AS persisted_outbox_causation_id,
                 o.idempotency_key AS persisted_outbox_idempotency_key
-         FROM erpx_tenant.pos_command_idempotency i
-         LEFT JOIN erpx_tenant.pos_sales s
-           ON s.holding_ref=i.holding_ref AND s.sale_id=i.aggregate_id
-         LEFT JOIN erpx_tenant.outbox_events o
-           ON o.holding_ref=i.holding_ref AND o.event_id=i.event_id
-         WHERE i.holding_ref=$1 AND i.idempotency_key=$2
+         FROM erpx_holding.pos_command_idempotency i
+         LEFT JOIN erpx_holding.pos_sales s
+           ON s.data_profile_key=i.data_profile_key AND s.sale_id=i.aggregate_id
+         LEFT JOIN erpx_holding.outbox_events o
+           ON o.data_profile_key=i.data_profile_key AND o.event_id=i.event_id
+         WHERE i.data_profile_key=$1 AND i.idempotency_key=$2
          FOR UPDATE OF i",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(idempotency_key)
     .fetch_optional(&mut **tx)
     .await?;
@@ -615,7 +619,7 @@ async fn find_replay(
         version: sale.version,
         event,
     })?;
-    let expected_tenant_scope = serde_json::to_value(&event.tenant_scope)?;
+    let expected_holding_scope = serde_json::to_value(&event.active_scope)?;
     let expected_actor = serde_json::to_value(&event.actor)?;
     let expected_aggregate_version = as_i64(sale.version, "POS sale version")?;
     let idempotency_record_is_bound = aggregate_type == POS_AGGREGATE
@@ -661,8 +665,8 @@ async fn find_replay(
             .try_get::<Option<i32>, _>("persisted_outbox_event_version")?
             .is_some_and(|version| version == i32::from(event.event_version))
         && row
-            .try_get::<Option<serde_json::Value>, _>("persisted_outbox_tenant_scope")?
-            .is_some_and(|scope| scope == expected_tenant_scope)
+            .try_get::<Option<serde_json::Value>, _>("persisted_outbox_holding_scope")?
+            .is_some_and(|scope| scope == expected_holding_scope)
         && row
             .try_get::<Option<serde_json::Value>, _>("persisted_outbox_actor")?
             .is_some_and(|actor| actor == expected_actor)
@@ -690,7 +694,7 @@ async fn find_replay(
 
 async fn insert_line(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     sale_id: Uuid,
     line_no: usize,
     line: &SaleLine,
@@ -704,14 +708,14 @@ async fn insert_line(
         .total_minor()
         .map_err(|error| invalid(error.to_string()))?;
     sqlx::query(
-        "INSERT INTO erpx_tenant.pos_sale_lines
-            (holding_ref, sale_id, line_id, line_no, item_reference, description,
+        "INSERT INTO erpx_holding.pos_sale_lines
+            (data_profile_key, sale_id, line_id, line_no, item_reference, description,
              quantity, unit_price_minor, tax_minor, subtotal_minor, total_minor,
              product_id, product_scope_kind, product_scope_holding_id,
              product_scope_company_id, product_scope_branch_id)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(sale_id)
     .bind(line.line_id)
     .bind(line_no)
@@ -734,16 +738,16 @@ async fn insert_line(
 
 async fn insert_payment(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     sale_id: Uuid,
     payment: &Payment,
 ) -> Result<(), PersistenceError> {
     sqlx::query(
-        "INSERT INTO erpx_tenant.pos_sale_payments
-            (holding_ref, sale_id, payment_id, amount_minor, method, received_at)
+        "INSERT INTO erpx_holding.pos_sale_payments
+            (data_profile_key, sale_id, payment_id, amount_minor, method, received_at)
          VALUES ($1,$2,$3,$4,$5,$6)",
     )
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(sale_id)
     .bind(payment.payment_id)
     .bind(payment.amount_minor)
@@ -772,7 +776,7 @@ struct StoredPosOutboxPayload {
 
 async fn append_outbox_event(
     tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
+    data_profile_key: &str,
     sale: &Sale,
     event: &PosEventMetadata,
 ) -> Result<(), PersistenceError> {
@@ -783,24 +787,24 @@ async fn append_outbox_event(
         event,
     })?;
     sqlx::query(
-        "INSERT INTO erpx_tenant.outbox_events
-            (event_id, aggregate_type, aggregate_id, holding_ref,
+        "INSERT INTO erpx_holding.outbox_events
+            (event_id, aggregate_type, aggregate_id, data_profile_key,
              aggregate_version, event_type, payload, occurred_at,
-             contract_version, event_version, tenant_scope, actor,
+             contract_version, event_version, active_scope, actor,
              correlation_id, causation_id, idempotency_key)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)",
     )
     .bind(event.event_id)
     .bind(POS_AGGREGATE)
     .bind(sale.id)
-    .bind(holding_ref)
+    .bind(data_profile_key)
     .bind(as_i64(sale.version, "POS sale version")?)
     .bind(event_type(event.event_type))
     .bind(payload)
     .bind(event.occurred_at)
     .bind(i32::from(event.contract_version))
     .bind(i32::from(event.event_version))
-    .bind(serde_json::to_value(&event.tenant_scope)?)
+    .bind(serde_json::to_value(&event.active_scope)?)
     .bind(serde_json::to_value(&event.actor)?)
     .bind(event.correlation_id)
     .bind(event.causation_id)
@@ -823,7 +827,7 @@ fn validate_sale_for_persistence(sale: &Sale) -> Result<(), PersistenceError> {
     if last.event.aggregate_type != POS_AGGREGATE
         || last.event.aggregate_id != sale.id
         || last.event.aggregate_version != sale.version
-        || last.event.tenant_scope != sale.scope
+        || last.event.active_scope != sale.scope
         || last.event.idempotency_key != last.idempotency_key
     {
         return Err(invalid("POS sale latest event identity is invalid"));
@@ -833,9 +837,9 @@ fn validate_sale_for_persistence(sale: &Sale) -> Result<(), PersistenceError> {
     validate_idempotency_key(&last.idempotency_key)
 }
 
-fn scope_columns(scope: &TenantScope) -> Result<ScopeColumns, PersistenceError> {
+fn scope_columns(scope: &AuthorityScope) -> Result<ScopeColumns, PersistenceError> {
     match scope {
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => {
@@ -848,7 +852,7 @@ fn scope_columns(scope: &TenantScope) -> Result<ScopeColumns, PersistenceError> 
                 branch_id: None,
             })
         }
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -893,9 +897,9 @@ fn optional_reference_columns(
     })
 }
 
-fn scope_columns_for_reference(scope: &TenantScope) -> Result<ScopeColumns, PersistenceError> {
+fn scope_columns_for_reference(scope: &AuthorityScope) -> Result<ScopeColumns, PersistenceError> {
     match scope {
-        TenantScope::Holding { holding_id } => {
+        AuthorityScope::Holding { holding_id } => {
             validate_uuid(*holding_id, "POS reference holding_id")?;
             Ok(ScopeColumns {
                 kind: "holding",
@@ -904,7 +908,7 @@ fn scope_columns_for_reference(scope: &TenantScope) -> Result<ScopeColumns, Pers
                 branch_id: None,
             })
         }
-        TenantScope::Company {
+        AuthorityScope::Company {
             holding_id,
             company_id,
         } => {
@@ -917,7 +921,7 @@ fn scope_columns_for_reference(scope: &TenantScope) -> Result<ScopeColumns, Pers
                 branch_id: None,
             })
         }
-        TenantScope::Branch {
+        AuthorityScope::Branch {
             holding_id,
             company_id,
             branch_id,
@@ -976,9 +980,9 @@ fn sale_status(status: SaleStatus) -> &'static str {
     }
 }
 
-fn validate_holding_ref(value: &str) -> Result<(), PersistenceError> {
+fn validate_data_profile_key(value: &str) -> Result<(), PersistenceError> {
     if value.trim().is_empty()
-        || value.len() > MAX_HOLDING_REF_BYTES
+        || value.len() > MAX_DATA_PROFILE_KEY_BYTES
         || value.chars().any(char::is_control)
     {
         return Err(PersistenceError::Configuration(
@@ -1022,11 +1026,11 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn constructor_rejects_unscoped_holding_references() {
+    async fn constructor_rejects_unscoped_data_profile_references() {
         let pool = PgPool::connect_lazy("postgres://unused").expect("lazy pool");
         assert!(SqlxPosPersistence::new(pool.clone(), " ").is_err());
-        assert!(SqlxPosPersistence::new(pool.clone(), "tenant\nref").is_err());
-        assert!(SqlxPosPersistence::new(pool, "x".repeat(MAX_HOLDING_REF_BYTES + 1)).is_err());
+        assert!(SqlxPosPersistence::new(pool.clone(), "holding\nref").is_err());
+        assert!(SqlxPosPersistence::new(pool, "x".repeat(MAX_DATA_PROFILE_KEY_BYTES + 1)).is_err());
     }
 
     #[test]
@@ -1105,11 +1109,11 @@ mod tests {
         assert!(!error.to_string().contains("secret"));
         let error = optional_reference_columns(None, "customer").expect("empty reference");
         assert!(error.id.is_none());
-        assert!(scope_columns(&TenantScope::Platform).is_err());
+        assert!(scope_columns(&AuthorityScope::Platform).is_err());
     }
 
     #[test]
-    fn transaction_fences_are_tenant_and_operation_bound() {
+    fn transaction_fences_are_holding_and_operation_bound() {
         let sale_id = Uuid::from_u128(7);
         let idempotency = pos_idempotency_lock_name("holding-a", "command-1");
         assert_eq!(idempotency, "pos:idempotency:holding-a:command-1");

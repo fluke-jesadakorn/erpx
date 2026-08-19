@@ -9,8 +9,8 @@ use erpx_infrastructure::RoutedDatabaseSide;
 use erpx_integration_contracts::{
     CurrencyCode, MoneyAmount, RecordTypeId, StableRecordRef, catalog::ContextId,
 };
-use erpx_kernel::{CommandId, CorrelationId, RecordId, TenantScope};
-use erpx_proto::{common::v2 as common, erpx::ecommerce::v2 as wire};
+use erpx_kernel::{AuthorityScope, CommandId, CorrelationId, RecordId};
+use erpx_proto::{common, erpx::ecommerce as wire};
 use prost::Message;
 use sha2::{Digest, Sha256};
 use tonic::{Request, Response, Status};
@@ -55,8 +55,8 @@ impl commerce::AuthorizationPort for CommerceAccess {
     async fn authorize(
         &self,
         principal_id: Uuid,
-        authority_scope: &TenantScope,
-        target_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         action: commerce::CommerceAction,
     ) -> Result<(), commerce::CommercePortError> {
         let writes = action != commerce::CommerceAction::ViewOwnJourney;
@@ -103,7 +103,7 @@ fn actor(invocation: &FutureInvocation) -> Result<commerce::CommerceActor, Statu
         }
     };
     Ok(commerce::CommerceActor {
-        tenant_id: invocation.tenant_id,
+        holding_id: invocation.holding_id,
         principal_id,
         authority_scope: invocation.scope.clone(),
         external_identity,
@@ -213,14 +213,14 @@ fn owner(
     Ok(result)
 }
 
-fn decode_scope(value: Option<&common::TenantScope>) -> Result<TenantScope, Status> {
-    use common::tenant_scope::Scope;
+fn decode_scope(value: Option<&common::AuthorityScope>) -> Result<AuthorityScope, Status> {
+    use common::authority_scope::Scope;
     match value.and_then(|value| value.scope.as_ref()) {
-        Some(Scope::Company(value)) => Ok(TenantScope::Company {
+        Some(Scope::Company(value)) => Ok(AuthorityScope::Company {
             holding_id: uuid(&value.holding_id, "holding_id")?,
             company_id: uuid(&value.company_id, "company_id")?,
         }),
-        Some(Scope::Branch(value)) => Ok(TenantScope::Branch {
+        Some(Scope::Branch(value)) => Ok(AuthorityScope::Branch {
             holding_id: uuid(&value.holding_id, "holding_id")?,
             company_id: uuid(&value.company_id, "company_id")?,
             branch_id: uuid(&value.branch_id, "branch_id")?,
@@ -231,18 +231,18 @@ fn decode_scope(value: Option<&common::TenantScope>) -> Result<TenantScope, Stat
     }
 }
 
-fn encode_scope(value: &TenantScope) -> common::TenantScope {
-    use common::tenant_scope::Scope;
-    common::TenantScope {
+fn encode_scope(value: &AuthorityScope) -> common::AuthorityScope {
+    use common::authority_scope::Scope;
+    common::AuthorityScope {
         scope: Some(match value {
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id,
                 company_id,
             } => Scope::Company(common::CompanyScope {
                 holding_id: holding_id.to_string(),
                 company_id: company_id.to_string(),
             }),
-            TenantScope::Branch {
+            AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
@@ -1309,7 +1309,7 @@ impl EcommerceQueryRpc {
                 actor: actor.clone(),
                 write: false,
             },
-            commerce_sqlx::SqlxCommerceReadRepository::new(pool, invocation.tenant_id)
+            commerce_sqlx::SqlxCommerceReadRepository::new(pool, invocation.holding_id)
                 .map_err(status)?,
         );
         let projection = service

@@ -3,7 +3,7 @@ use erpx_cqrs::{
     CommandEnvelope, CommandHandler, CommandReceipt, CqrsError, QueryEnvelope, QueryHandler,
     QueryMetadata, QueryResult,
 };
-use erpx_kernel::{Clock, CorrelationId, ErrorCategory, ErrorContext, KernelError, TenantScope};
+use erpx_kernel::{AuthorityScope, Clock, CorrelationId, ErrorCategory, ErrorContext, KernelError};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -211,8 +211,8 @@ where
     async fn preflight(
         &self,
         actor: &erpx_kernel::ActorAttribution,
-        authority: &TenantScope,
-        target: &TenantScope,
+        authority: &AuthorityScope,
+        target: &AuthorityScope,
         action: MarketingAction,
     ) -> Result<(), MarketingApplicationError> {
         if !authority.contains(target) {
@@ -236,7 +236,7 @@ where
         &self,
         identity: &CommandIdentity,
         actor: &erpx_kernel::ActorAttribution,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         action: MarketingAction,
     ) -> Result<Option<StoredCommit>, MarketingApplicationError> {
         let Some(mut stored) = self.uow.find_receipt(identity).await? else {
@@ -364,7 +364,7 @@ where
             fingerprint,
         };
         if let Some(stored) = self
-            .replay(&identity, &envelope.actor, &envelope.tenant_scope, action)
+            .replay(&identity, &envelope.actor, &envelope.active_scope, action)
             .await
             .map_err(|e| to_cqrs(e, correlation))?
         {
@@ -384,8 +384,8 @@ where
                 }
                 self.preflight(
                     &envelope.actor,
-                    &envelope.tenant_scope,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
+                    &envelope.active_scope,
                     action,
                 )
                 .await
@@ -394,7 +394,7 @@ where
                     MarketingAggregate::LeadCandidate(Box::new(
                         LeadCandidate::create(
                             c.lead_id,
-                            envelope.tenant_scope.clone(),
+                            envelope.active_scope.clone(),
                             c.campaign_id,
                             c.audience_member_id,
                             c.source,
@@ -409,7 +409,7 @@ where
             MarketingCommand::CaptureEngagement(c) => {
                 let mut value = self
                     .load_existing(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         c.lead_id,
                         envelope.expected_aggregate_version,
                         &envelope.actor,
@@ -426,7 +426,7 @@ where
             MarketingCommand::Qualify(c) => {
                 let mut value = self
                     .load_existing(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         c.lead_id,
                         envelope.expected_aggregate_version,
                         &envelope.actor,
@@ -443,7 +443,7 @@ where
             MarketingCommand::Reject(c) => {
                 let mut value = self
                     .load_existing(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         c.lead_id,
                         envelope.expected_aggregate_version,
                         &envelope.actor,
@@ -466,15 +466,15 @@ where
                 }
                 self.preflight(
                     &envelope.actor,
-                    &envelope.tenant_scope,
-                    &envelope.tenant_scope,
+                    &envelope.active_scope,
+                    &envelope.active_scope,
                     action,
                 )
                 .await
                 .map_err(|e| to_cqrs(e, correlation))?;
                 let budget = CampaignBudget::create(
                     c.budget_id,
-                    envelope.tenant_scope.clone(),
+                    envelope.active_scope.clone(),
                     c.campaign_id,
                     c.code,
                     c.name,
@@ -490,7 +490,7 @@ where
             MarketingCommand::SubmitBudget(c) => {
                 let mut value = self
                     .load_budget(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         c.budget_id,
                         envelope.expected_aggregate_version,
                         &envelope.actor,
@@ -510,7 +510,7 @@ where
             MarketingCommand::ApplyBudgetDecision(c) => {
                 let mut value = self
                     .load_budget(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         c.budget_id,
                         envelope.expected_aggregate_version,
                         &envelope.actor,
@@ -530,7 +530,7 @@ where
             MarketingCommand::StartBudget(c) => {
                 let mut value = self
                     .load_budget(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         c.budget_id,
                         envelope.expected_aggregate_version,
                         &envelope.actor,
@@ -550,7 +550,7 @@ where
             MarketingCommand::CompleteBudget(c) => {
                 let mut value = self
                     .load_budget(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         c.budget_id,
                         envelope.expected_aggregate_version,
                         &envelope.actor,
@@ -570,7 +570,7 @@ where
             MarketingCommand::CancelBudget(c) => {
                 let mut value = self
                     .load_budget(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         c.budget_id,
                         envelope.expected_aggregate_version,
                         &envelope.actor,
@@ -590,7 +590,7 @@ where
             MarketingCommand::ReserveSpend(c) => {
                 let mut value = self
                     .load_budget(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         c.budget_id,
                         envelope.expected_aggregate_version,
                         &envelope.actor,
@@ -616,7 +616,7 @@ where
             MarketingCommand::ReleaseSpend(c) => {
                 let mut value = self
                     .load_budget(
-                        &envelope.tenant_scope,
+                        &envelope.active_scope,
                         c.budget_id,
                         envelope.expected_aggregate_version,
                         &envelope.actor,
@@ -643,7 +643,7 @@ where
                 correlation_id: correlation,
                 causation_id: envelope.causation_id,
                 actor: envelope.actor,
-                authority_scope: envelope.tenant_scope,
+                authority_scope: envelope.active_scope,
                 audit: envelope.audit,
                 expected_version: expected,
                 aggregate,
@@ -667,7 +667,7 @@ where
 {
     async fn load_existing(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: LeadCandidateId,
         expected: Option<u64>,
         actor: &erpx_kernel::ActorAttribution,
@@ -703,7 +703,7 @@ where
 
     async fn load_budget(
         &self,
-        scope: &TenantScope,
+        scope: &AuthorityScope,
         id: CampaignBudgetId,
         expected: Option<u64>,
         actor: &erpx_kernel::ActorAttribution,
@@ -768,7 +768,7 @@ where
         envelope.validate()?;
         let correlation = envelope.correlation_id;
         self.entitlement
-            .ensure_marketing_enabled(&envelope.tenant_scope, false)
+            .ensure_marketing_enabled(&envelope.active_scope, false)
             .await
             .map_err(|e| to_cqrs(e.into(), correlation))?;
         let action = match &envelope.query {
@@ -779,8 +779,8 @@ where
         self.authorization
             .authorize(AuthorizationRequest {
                 actor: &envelope.actor,
-                authority_scope: &envelope.tenant_scope,
-                target_scope: &envelope.tenant_scope,
+                authority_scope: &envelope.active_scope,
+                target_scope: &envelope.active_scope,
                 action,
             })
             .await
@@ -789,7 +789,7 @@ where
             MarketingQuery::Get(q) => {
                 let projected = self
                     .read
-                    .get_lead(&envelope.tenant_scope, q.lead_id, &envelope.consistency)
+                    .get_lead(&envelope.active_scope, q.lead_id, &envelope.consistency)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?;
                 Ok(QueryResult {
@@ -810,7 +810,7 @@ where
                 }
                 let projected = self
                     .read
-                    .list_leads(&envelope.tenant_scope, &q.filter, &envelope.consistency)
+                    .list_leads(&envelope.active_scope, &q.filter, &envelope.consistency)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?;
                 Ok(QueryResult {
@@ -825,7 +825,7 @@ where
             MarketingQuery::GetBudget(q) => {
                 let projected = self
                     .read
-                    .get_budget(&envelope.tenant_scope, q.budget_id, &envelope.consistency)
+                    .get_budget(&envelope.active_scope, q.budget_id, &envelope.consistency)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?;
                 Ok(QueryResult {

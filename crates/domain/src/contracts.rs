@@ -1,10 +1,11 @@
-//! Versioned contracts shared by write-side commands, read-side queries,
+//! Contracts shared by write-side commands, read-side queries,
 //! workers, and client adapters. Transport adapters may encode these values
 //! in protobuf, but the domain representation remains transport-independent.
 
 use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
+pub use erpx_kernel::{AuthorityScope, HoldingId};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
@@ -13,162 +14,9 @@ use uuid::Uuid;
 pub const CONTRACT_VERSION: u16 = 1;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TenantScope {
-    Platform,
-    Holding {
-        holding_id: Uuid,
-    },
-    Company {
-        holding_id: Uuid,
-        company_id: Uuid,
-    },
-    Branch {
-        holding_id: Uuid,
-        company_id: Uuid,
-        branch_id: Uuid,
-    },
-    Subtree {
-        holding_id: Uuid,
-        company_ids: Vec<Uuid>,
-        branch_ids: Vec<Uuid>,
-    },
-}
-
-impl TenantScope {
-    /// Returns whether `self` authorizes every record represented by `child`.
-    /// A branch never implies its company, parent holding, or siblings.
-    pub fn contains(&self, child: &Self) -> bool {
-        match (self, child) {
-            (Self::Platform, _) => true,
-            (Self::Holding { holding_id: parent }, Self::Holding { holding_id: child }) => {
-                parent == child
-            }
-            (
-                Self::Holding { holding_id: parent },
-                Self::Company {
-                    holding_id: child, ..
-                }
-                | Self::Branch {
-                    holding_id: child, ..
-                },
-            ) => parent == child,
-            (
-                Self::Holding { holding_id: parent },
-                Self::Subtree {
-                    holding_id: child, ..
-                },
-            ) => parent == child,
-            (
-                Self::Company {
-                    holding_id: parent_holding,
-                    company_id: parent_company,
-                },
-                Self::Company {
-                    holding_id: child_holding,
-                    company_id: child_company,
-                },
-            ) => parent_holding == child_holding && parent_company == child_company,
-            (
-                Self::Company {
-                    holding_id: parent_holding,
-                    company_id: parent_company,
-                },
-                Self::Branch {
-                    holding_id: child_holding,
-                    company_id: child_company,
-                    ..
-                },
-            ) => parent_holding == child_holding && parent_company == child_company,
-            (
-                Self::Company {
-                    holding_id: parent_holding,
-                    company_id: parent_company,
-                },
-                Self::Subtree {
-                    holding_id: child_holding,
-                    company_ids,
-                    branch_ids,
-                },
-            ) => {
-                parent_holding == child_holding
-                    && company_ids.iter().all(|id| id == parent_company)
-                    && branch_ids.is_empty()
-            }
-            (
-                Self::Branch {
-                    holding_id: parent_holding,
-                    company_id: parent_company,
-                    branch_id: parent_branch,
-                },
-                Self::Branch {
-                    holding_id: child_holding,
-                    company_id: child_company,
-                    branch_id: child_branch,
-                },
-            ) => {
-                parent_holding == child_holding
-                    && parent_company == child_company
-                    && parent_branch == child_branch
-            }
-            (
-                Self::Subtree {
-                    holding_id: parent_holding,
-                    company_ids: parent_companies,
-                    branch_ids: parent_branches,
-                },
-                Self::Company {
-                    holding_id: child_holding,
-                    company_id: child_company,
-                },
-            ) => {
-                parent_holding == child_holding
-                    && parent_branches.is_empty()
-                    && parent_companies.contains(child_company)
-            }
-            (
-                Self::Subtree {
-                    holding_id: parent_holding,
-                    company_ids: parent_companies,
-                    branch_ids: parent_branches,
-                },
-                Self::Branch {
-                    holding_id: child_holding,
-                    company_id: child_company,
-                    branch_id: child_branch,
-                },
-            ) => {
-                parent_holding == child_holding
-                    && parent_companies.contains(child_company)
-                    && parent_branches.contains(child_branch)
-            }
-            (
-                Self::Subtree {
-                    holding_id: parent_holding,
-                    company_ids: parent_companies,
-                    branch_ids: parent_branches,
-                },
-                Self::Subtree {
-                    holding_id: child_holding,
-                    company_ids: child_companies,
-                    branch_ids: child_branches,
-                },
-            ) => {
-                parent_holding == child_holding
-                    && (parent_branches.is_empty() || !child_branches.is_empty())
-                    && child_companies
-                        .iter()
-                        .all(|id| parent_companies.contains(id))
-                    && child_branches.iter().all(|id| parent_branches.contains(id))
-            }
-            _ => false,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ActorKind {
     PlatformUser,
-    TenantUser,
+    HoldingUser,
     Service,
     SystemWorker,
 }
@@ -198,7 +46,7 @@ pub struct CommandContext {
     pub correlation_id: Uuid,
     pub causation_id: Option<Uuid>,
     pub actor: ActorAttribution,
-    pub tenant_scope: TenantScope,
+    pub active_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_aggregate_version: Option<u64>,
     pub subscription_id: Option<Uuid>,
@@ -208,7 +56,7 @@ impl CommandContext {
     pub fn try_new(
         idempotency_key: impl Into<String>,
         actor: ActorAttribution,
-        tenant_scope: TenantScope,
+        active_scope: AuthorityScope,
         purpose: impl Into<String>,
     ) -> Result<Self, ContractError> {
         let idempotency_key = idempotency_key.into();
@@ -227,7 +75,7 @@ impl CommandContext {
             correlation_id,
             causation_id: None,
             actor,
-            tenant_scope,
+            active_scope,
             audit: AuditContext {
                 purpose,
                 customer_visible: false,
@@ -272,7 +120,7 @@ pub struct QueryContext {
     pub request_id: Uuid,
     pub correlation_id: Uuid,
     pub actor: ActorAttribution,
-    pub tenant_scope: TenantScope,
+    pub active_scope: AuthorityScope,
     pub consistency: QueryConsistency,
     pub audit: AuditContext,
 }
@@ -296,7 +144,7 @@ pub struct EventEnvelope {
     pub aggregate_type: String,
     pub aggregate_id: Uuid,
     pub aggregate_version: u64,
-    pub tenant_scope: TenantScope,
+    pub active_scope: AuthorityScope,
     pub actor: ActorAttribution,
     pub correlation_id: Uuid,
     pub causation_id: Option<Uuid>,
@@ -343,7 +191,7 @@ mod tests {
     fn actor() -> ActorAttribution {
         ActorAttribution {
             principal_ref: "user-1".into(),
-            kind: ActorKind::TenantUser,
+            kind: ActorKind::HoldingUser,
             session_id: None,
             represented_principal_ref: None,
             support_capability_id: None,
@@ -351,26 +199,26 @@ mod tests {
     }
 
     #[test]
-    fn tenant_scope_never_leaks_to_parent_or_sibling() {
+    fn holding_scope_never_leaks_to_parent_or_sibling() {
         let holding = Uuid::new_v4();
         let company = Uuid::new_v4();
         let sibling = Uuid::new_v4();
         let branch = Uuid::new_v4();
-        let parent = TenantScope::Company {
+        let parent = AuthorityScope::Company {
             holding_id: holding,
             company_id: company,
         };
-        assert!(parent.contains(&TenantScope::Branch {
+        assert!(parent.contains(&AuthorityScope::Branch {
             holding_id: holding,
             company_id: company,
             branch_id: branch,
         }));
-        assert!(!parent.contains(&TenantScope::Company {
+        assert!(!parent.contains(&AuthorityScope::Company {
             holding_id: holding,
             company_id: sibling,
         }));
         assert!(
-            !TenantScope::Branch {
+            !AuthorityScope::Branch {
                 holding_id: holding,
                 company_id: company,
                 branch_id: branch,
@@ -381,18 +229,19 @@ mod tests {
 
     #[test]
     fn command_context_carries_idempotency_and_correlated_audit() {
-        let context = CommandContext::try_new("command-1", actor(), TenantScope::Platform, "test")
-            .expect("valid context");
+        let context =
+            CommandContext::try_new("command-1", actor(), AuthorityScope::Platform, "test")
+                .expect("valid context");
         assert_eq!(context.contract_version, CONTRACT_VERSION);
         assert_eq!(context.audit.correlation_id, context.correlation_id);
         assert_eq!(context.idempotency_key, "command-1");
         context.validate().expect("context validation");
         assert_eq!(
-            CommandContext::try_new(" ", actor(), TenantScope::Platform, "test"),
+            CommandContext::try_new(" ", actor(), AuthorityScope::Platform, "test"),
             Err(ContractError::EmptyIdempotencyKey)
         );
         assert_eq!(
-            CommandContext::try_new("command-2", actor(), TenantScope::Platform, " "),
+            CommandContext::try_new("command-2", actor(), AuthorityScope::Platform, " "),
             Err(ContractError::EmptyAuditPurpose)
         );
     }
@@ -408,7 +257,7 @@ mod tests {
             aggregate_type: "customer".into(),
             aggregate_id: Uuid::new_v4(),
             aggregate_version: 1,
-            tenant_scope: TenantScope::Platform,
+            active_scope: AuthorityScope::Platform,
             actor: actor(),
             correlation_id: Uuid::new_v4(),
             causation_id: Some(Uuid::new_v4()),
@@ -425,12 +274,11 @@ mod tests {
         let holding = Uuid::new_v4();
         let company = Uuid::new_v4();
         let branch = Uuid::new_v4();
-        let restricted = TenantScope::Subtree {
+        let restricted = AuthorityScope::Subtree {
             holding_id: holding,
-            company_ids: vec![company],
-            branch_ids: vec![branch],
+            organization_node_id: branch,
         };
-        assert!(!restricted.contains(&TenantScope::Company {
+        assert!(!restricted.contains(&AuthorityScope::Company {
             holding_id: holding,
             company_id: company,
         }));

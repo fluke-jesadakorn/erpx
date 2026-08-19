@@ -5,7 +5,7 @@
 
 ## Context
 
-ERPX originally routes a tenant to one holding write/read PostgreSQL pair and
+ERPX originally routes a holding to one holding write/read PostgreSQL pair and
 administers directory connectors as platform resources. Customers need to add
 branches without ERPX Root intervention, isolate each branch physically, and
 administer AD/LDAP using Holding Owner authority. Database and LDAP passwords
@@ -27,20 +27,20 @@ the control and first holding pairs, and records resumable setup steps. Root
 and Holding Owner passwords/recovery codes are generated once; only hashes are
 persisted.
 
-Control storage contains approved database profile keys and tenant bindings,
+Control storage contains approved database profile keys and holding bindings,
 never DSNs or credentials. Workers resolve the bound credential profile from
 environment/secret-provider configuration and verify that its profile key is
 the exact profile reserved on the branch route.
 
 ### Physical routing
 
-Tenants have one of two explicit modes:
+Holdings have one of two explicit modes:
 
 - `holding_pair`: all holding, company, and branch data uses the holding pair.
 - `holding_and_branch_pairs`: holding/company data uses the holding pair and an
   exact active branch scope uses that branch's write/read pair.
 
-The control-plane branch route is authoritative. Provisioning reserves tenant,
+The control-plane branch route is authoritative. Provisioning reserves holding,
 holding, company, branch, profile, database keys, business-unit selections,
 and idempotency key before a worker creates anything. The worker retains
 partial resources on failure, migrates and verifies both databases, seeds the
@@ -52,7 +52,7 @@ only the fresh-MFA retry API can return it to `queued`.
 versioned update path for an already provisioned branch and for other
 organization nodes.
 
-### Existing-tenant migration and rollback
+### Existing-holding migration and rollback
 
 Migration is explicit and per branch. Durable jobs record only physical keys,
 counts, digests, high-watermarks, approval evidence, and rollback fences. The

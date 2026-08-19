@@ -15,7 +15,7 @@ use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, ItemDescriptorDraft,
     RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
 };
-use erpx_kernel::{DataClassification, RecordId, TenantScope};
+use erpx_kernel::{AuthorityScope, DataClassification, RecordId};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use sqlx::{Postgres, Row, Transaction};
@@ -81,7 +81,7 @@ impl Default for CrmRecordProjector {
 impl CrmRecordWriteRepository for CrmRecordSqlxAdapter {
     async fn load_crm_record(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         record_id: Uuid,
     ) -> Result<Option<CrmRecord>, PortError> {
         authority_scope.validate().map_err(|_| PortError::Denied)?;
@@ -181,18 +181,18 @@ impl Projector for CrmRecordProjector {
         let record = validate_event(context, event)?;
         sqlx::query(
             "INSERT INTO erpx_crm_read.business_record_projection
-                (tenant_id,projection_name,generation,partition_key,record_id,record_type,
-                 source_aggregate_version,source_global_sequence,tenant_scope,record_title,
+                (holding_id,projection_name,generation,partition_key,record_id,record_type,
+                 source_aggregate_version,source_global_sequence,active_scope,record_title,
                  lifecycle_state,state,aggregate_updated_at,projected_at)
-             VALUES (erpx_cqrs_read.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now())
-             ON CONFLICT (tenant_id,projection_name,generation,partition_key,record_id)
+             VALUES (erpx_cqrs_read.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now())
+             ON CONFLICT (holding_id,projection_name,generation,partition_key,record_id)
              DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,
                source_global_sequence=EXCLUDED.source_global_sequence,
-               tenant_scope=EXCLUDED.tenant_scope,record_title=EXCLUDED.record_title,
+               active_scope=EXCLUDED.active_scope,record_title=EXCLUDED.record_title,
                lifecycle_state=EXCLUDED.lifecycle_state,state=EXCLUDED.state,
                aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now()
-             WHERE erpx_crm_read.business_record_projection.tenant_id
-                    =erpx_cqrs_read.current_tenant_id()
+             WHERE erpx_crm_read.business_record_projection.holding_id
+                    =erpx_cqrs_read.current_holding_id()
                AND erpx_crm_read.business_record_projection.source_aggregate_version
                     <EXCLUDED.source_aggregate_version",
         )
@@ -209,7 +209,7 @@ impl Projector for CrmRecordProjector {
         tx: &mut Transaction<'_, Postgres>,
         context: &ProjectorContext<'_>,
     ) -> Result<(), ProjectionFailure> {
-        sqlx::query("DELETE FROM erpx_crm_read.business_record_projection WHERE tenant_id=erpx_cqrs_read.current_tenant_id() AND projection_name=$1 AND generation=$2")
+        sqlx::query("DELETE FROM erpx_crm_read.business_record_projection WHERE holding_id=erpx_cqrs_read.current_holding_id() AND projection_name=$1 AND generation=$2")
             .bind(RECORD_PROJECTION_NAME).bind(context.generation)
             .execute(&mut **tx).await.map_err(failure)?;
         Ok(())
@@ -220,7 +220,7 @@ impl Projector for CrmRecordProjector {
 impl CrmRecordReadRepository for CrmRecordReadAdapter {
     async fn get_crm_record(
         &self,
-        authority_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
         record_id: Uuid,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<CrmRecord>>, PortError> {
@@ -232,10 +232,10 @@ impl CrmRecordReadRepository for CrmRecordReadAdapter {
             "SELECT item.state,generation.status
              FROM erpx_crm_read.business_record_projection item
              JOIN erpx_cqrs_read.projection_generations generation
-               ON generation.tenant_id=item.tenant_id
+               ON generation.holding_id=item.holding_id
               AND generation.projection_name=item.projection_name
               AND generation.generation=item.generation AND generation.status='active'
-             WHERE item.tenant_id=erpx_cqrs_read.current_tenant_id()
+             WHERE item.holding_id=erpx_cqrs_read.current_holding_id()
                AND item.projection_name=$1 AND item.partition_key=$2 AND item.record_id=$3",
         )
         .bind(RECORD_PROJECTION_NAME)
@@ -246,7 +246,7 @@ impl CrmRecordReadRepository for CrmRecordReadAdapter {
         .map_err(map_database)?;
         let generation_exists: bool = sqlx::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM erpx_cqrs_read.projection_generations
-             WHERE tenant_id=erpx_cqrs_read.current_tenant_id()
+             WHERE holding_id=erpx_cqrs_read.current_holding_id()
                AND projection_name=$1 AND status='active')",
         )
         .bind(RECORD_PROJECTION_NAME)
@@ -321,7 +321,7 @@ async fn load_record(
     let statement = format!(
         "SELECT record_version,record_kind,record_scope,record_title,record_status,created_at,updated_at
          FROM erpx_crm_write.business_records
-         WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND record_id=$1{lock}"
+         WHERE holding_id=erpx_cqrs_write.current_holding_id() AND record_id=$1{lock}"
     );
     sqlx::query(&statement)
         .bind(id)
@@ -349,11 +349,11 @@ async fn persist_record(
 ) -> Result<(), PortError> {
     let result = sqlx::query(
         "INSERT INTO erpx_crm_write.business_records
-            (tenant_id,record_id,record_version,record_kind,record_scope,record_title,record_status,created_at,updated_at)
-         VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8)
-         ON CONFLICT (tenant_id,record_id) DO UPDATE SET record_version=EXCLUDED.record_version,
+            (holding_id,record_id,record_version,record_kind,record_scope,record_title,record_status,created_at,updated_at)
+         VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8)
+         ON CONFLICT (holding_id,record_id) DO UPDATE SET record_version=EXCLUDED.record_version,
            record_title=EXCLUDED.record_title,record_status=EXCLUDED.record_status,updated_at=EXCLUDED.updated_at
-         WHERE erpx_crm_write.business_records.tenant_id=erpx_cqrs_write.current_tenant_id()
+         WHERE erpx_crm_write.business_records.holding_id=erpx_cqrs_write.current_holding_id()
            AND erpx_crm_write.business_records.record_kind=EXCLUDED.record_kind
            AND erpx_crm_write.business_records.record_version+1=EXCLUDED.record_version"
     ).bind(record.id()).bind(to_i64(record.version())?).bind(kind_name(record.kind()))
@@ -424,7 +424,7 @@ async fn append_event(
     payload: serde_json::Value,
     label: &[u8],
 ) -> Result<(), PortError> {
-    sqlx::query("INSERT INTO erpx_cqrs_write.outbox_events (tenant_id,event_id,context_name,partition_key,command_id,event_type,event_version,aggregate_type,aggregate_id,aggregate_version,tenant_scope,actor,correlation_id,causation_id,payload,occurred_at,available_at) VALUES (erpx_cqrs_write.current_tenant_id(),$1,'crm',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NULL,$12,$13,now())")
+    sqlx::query("INSERT INTO erpx_cqrs_write.outbox_events (holding_id,event_id,context_name,partition_key,command_id,event_type,event_version,aggregate_type,aggregate_id,aggregate_version,active_scope,actor,correlation_id,causation_id,payload,occurred_at,available_at) VALUES (erpx_cqrs_write.current_holding_id(),$1,'crm',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NULL,$12,$13,now())")
       .bind(deterministic_uuid(request.request.identity.command_id.as_uuid(),label)).bind(partition(request.record.id()))
       .bind(request.request.identity.command_id.as_uuid()).bind(event_type).bind(i32::try_from(event_version).map_err(|_|PortError::Internal)?)
       .bind(request.record.kind().record_type()).bind(request.record.id()).bind(to_i64(request.record.version())?)
@@ -439,7 +439,7 @@ async fn persist_audit(
     tx: &mut Transaction<'_, Postgres>,
     request: &CrmRecordCommit,
 ) -> Result<(), PortError> {
-    sqlx::query("INSERT INTO erpx_crm_write.business_record_audit (tenant_id,audit_id,command_id,correlation_id,record_id,record_version,actor,action,occurred_at) VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8)")
+    sqlx::query("INSERT INTO erpx_crm_write.business_record_audit (holding_id,audit_id,command_id,correlation_id,record_id,record_version,actor,action,occurred_at) VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8)")
       .bind(deterministic_uuid(request.request.identity.command_id.as_uuid(),b"crm-record-audit-v1"))
       .bind(request.request.identity.command_id.as_uuid()).bind(request.request.correlation_id.as_uuid()).bind(request.record.id())
       .bind(to_i64(request.record.version())?).bind(serde_json::to_value(&request.request.actor).map_err(|_|PortError::Internal)?)
@@ -452,7 +452,7 @@ async fn persist_receipt(
     tx: &mut Transaction<'_, Postgres>,
     request: &CrmRecordCommit,
 ) -> Result<(), PortError> {
-    sqlx::query("INSERT INTO erpx_crm_write.business_record_receipts (tenant_id,idempotency_key,command_id,request_hash,record_id,record_version,correlation_id,receipt,committed_at) VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8)")
+    sqlx::query("INSERT INTO erpx_crm_write.business_record_receipts (holding_id,idempotency_key,command_id,request_hash,record_id,record_version,correlation_id,receipt,committed_at) VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8)")
       .bind(request.request.identity.idempotency_key.as_str()).bind(request.request.identity.command_id.as_uuid())
       .bind(hash(&request.request.identity)?.as_slice()).bind(request.record.id()).bind(to_i64(request.record.version())?)
       .bind(request.request.correlation_id.as_uuid()).bind(serde_json::to_value(&request.record).map_err(|_|PortError::Internal)?)
@@ -464,7 +464,7 @@ async fn find_receipt(
     tx: &mut Transaction<'_, Postgres>,
     identity: &CrmRecordCommandIdentity,
 ) -> Result<Option<StoredCrmRecordCommit>, PortError> {
-    let row=sqlx::query("SELECT command_id,request_hash,record_id,record_version,correlation_id,receipt,committed_at FROM erpx_crm_write.business_record_receipts WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND idempotency_key=$1 FOR UPDATE")
+    let row=sqlx::query("SELECT command_id,request_hash,record_id,record_version,correlation_id,receipt,committed_at FROM erpx_crm_write.business_record_receipts WHERE holding_id=erpx_cqrs_write.current_holding_id() AND idempotency_key=$1 FOR UPDATE")
       .bind(identity.idempotency_key.as_str()).fetch_optional(&mut **tx).await.map_err(map_database)?;
     let Some(row) = row else { return Ok(None) };
     if row.get::<Uuid, _>("command_id") != identity.command_id.as_uuid()
@@ -523,7 +523,7 @@ fn validate_event(
     if record.id() != event.aggregate_id.as_uuid()
         || record.version() != event.aggregate_version
         || record.kind().record_type() != event.aggregate_type
-        || record.scope() != &event.tenant_scope
+        || record.scope() != &event.active_scope
         || event.partition != partition(record.id())
     {
         return Err(ProjectionFailure::new(
@@ -585,7 +585,7 @@ mod tests {
     use super::*;
     use erpx_cqrs_sqlx::Projector;
     #[test]
-    fn record_adapter_is_normalized_tenant_bound_and_generation_scoped() {
+    fn record_adapter_is_normalized_holding_bound_and_generation_scoped() {
         let source = include_str!("records.rs");
         for table in [
             "business_records",

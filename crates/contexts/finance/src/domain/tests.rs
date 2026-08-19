@@ -16,8 +16,8 @@ fn at() -> DateTime<Utc> {
 fn date(day: u32) -> NaiveDate {
     NaiveDate::from_ymd_opt(2026, 8, day).unwrap()
 }
-fn scope() -> TenantScope {
-    TenantScope::Company {
+fn scope() -> AuthorityScope {
+    AuthorityScope::Company {
         holding_id: id(1),
         company_id: id(2),
     }

@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 
 use chrono::{DateTime, Duration, Utc};
-use erpx_domain::access::{RiskTier, RoleAssignment, Scope};
+use erpx_domain::{
+    access::{RiskTier, RoleAssignment},
+    contracts::AuthorityScope as Scope,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Row};
@@ -168,7 +171,7 @@ pub struct RoleOption {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum RoleAssignmentTargetPolicy {
     Unrestricted,
-    TenantAllowlist(Vec<String>),
+    HoldingAllowlist(Vec<String>),
 }
 
 fn role_assignment_target_policy_from_parts(
@@ -180,10 +183,10 @@ fn role_assignment_target_policy_from_parts(
         "unrestricted" if environment_gate.is_none() && targets.is_empty() => {
             Some(RoleAssignmentTargetPolicy::Unrestricted)
         }
-        "tenant_allowlist"
+        "holding_allowlist"
             if environment_gate == Some(DEVELOPMENT_CLUSTER_MARKER) && !targets.is_empty() =>
         {
-            Some(RoleAssignmentTargetPolicy::TenantAllowlist(targets))
+            Some(RoleAssignmentTargetPolicy::HoldingAllowlist(targets))
         }
         _ => None,
     }
@@ -192,14 +195,14 @@ fn role_assignment_target_policy_from_parts(
 fn role_assignment_target_allows(
     policy: Option<&RoleAssignmentTargetPolicy>,
     required_permission: &str,
-    target_tenant: Option<&str>,
+    target_holding: Option<&str>,
 ) -> bool {
     match policy {
         Some(RoleAssignmentTargetPolicy::Unrestricted) => true,
-        Some(RoleAssignmentTargetPolicy::TenantAllowlist(targets)) => {
+        Some(RoleAssignmentTargetPolicy::HoldingAllowlist(targets)) => {
             DEVELOPMENT_CONTROLLER_READ_PERMISSIONS.contains(&required_permission)
-                || target_tenant
-                    .is_some_and(|tenant_id| targets.iter().any(|target| target == tenant_id))
+                || target_holding
+                    .is_some_and(|holding_id| targets.iter().any(|target| target == holding_id))
         }
         None => false,
     }
@@ -1121,7 +1124,7 @@ impl SqlxIdentityStore {
         required_permission: &str,
         at: DateTime<Utc>,
     ) -> Result<bool, IdentityStoreError> {
-        self.selected_role_access_for_tenant(
+        self.selected_role_access_for_holding(
             principal_ref,
             role,
             requested_scope,
@@ -1132,16 +1135,16 @@ impl SqlxIdentityStore {
         .await
     }
 
-    /// Evaluate an exact selected role and an optional server-resolved tenant
-    /// target. Tenant-allowlisted roles may read the explicit global read
-    /// catalog across tenants, but every mutation requires an exact target.
-    pub async fn selected_role_access_for_tenant(
+    /// Evaluate an exact selected role and an optional server-resolved holding
+    /// target. Holding-allowlisted roles may read the explicit global read
+    /// catalog across holdings, but every mutation requires an exact target.
+    pub async fn selected_role_access_for_holding(
         &self,
         principal_ref: &str,
         role: &ActiveRoleClaim,
         requested_scope: &Scope,
         required_permission: &str,
-        target_tenant: Option<&str>,
+        target_holding: Option<&str>,
         at: DateTime<Utc>,
     ) -> Result<bool, IdentityStoreError> {
         if required_permission.trim().is_empty() || required_permission.len() > 512 {
@@ -1157,7 +1160,7 @@ impl SqlxIdentityStore {
                     return Ok(false);
                 };
                 if !self
-                    .local_role_target_allows(selection_id, required_permission, target_tenant)
+                    .local_role_target_allows(selection_id, required_permission, target_holding)
                     .await?
                 {
                     return Ok(false);
@@ -1353,10 +1356,10 @@ impl SqlxIdentityStore {
     ) -> Result<Option<RoleAssignmentTargetPolicy>, IdentityStoreError> {
         let row = sqlx::query(
             "SELECT policy.policy_kind, policy.environment_gate,
-                    COALESCE(array_agg(target.tenant_id ORDER BY target.tenant_id)
-                        FILTER (WHERE target.tenant_id IS NOT NULL), '{}') AS tenant_targets
+                    COALESCE(array_agg(target.holding_id ORDER BY target.holding_id)
+                        FILTER (WHERE target.holding_id IS NOT NULL), '{}') AS holding_targets
              FROM erpx_control.role_assignment_target_policies policy
-             LEFT JOIN erpx_control.role_assignment_tenant_targets target
+             LEFT JOIN erpx_control.role_assignment_holding_targets target
                ON target.assignment_id=policy.assignment_id
              WHERE policy.assignment_id=$1
              GROUP BY policy.policy_kind, policy.environment_gate",
@@ -1369,7 +1372,7 @@ impl SqlxIdentityStore {
         };
         let kind: String = row.try_get("policy_kind")?;
         let environment_gate: Option<String> = row.try_get("environment_gate")?;
-        let targets: Vec<String> = row.try_get("tenant_targets")?;
+        let targets: Vec<String> = row.try_get("holding_targets")?;
         Ok(role_assignment_target_policy_from_parts(
             &kind,
             environment_gate.as_deref(),
@@ -1381,13 +1384,13 @@ impl SqlxIdentityStore {
         &self,
         assignment_id: Uuid,
         required_permission: &str,
-        target_tenant: Option<&str>,
+        target_holding: Option<&str>,
     ) -> Result<bool, IdentityStoreError> {
         let policy = self.local_role_target_policy(assignment_id).await?;
         Ok(role_assignment_target_allows(
             policy.as_ref(),
             required_permission,
-            target_tenant,
+            target_holding,
         ))
     }
 
@@ -3016,7 +3019,7 @@ fn validate_principal_ref(principal_ref: &str) -> Result<(), IdentityStoreError>
 }
 
 /// Normalize both current UUID scope keys and legacy opaque holding keys to
-/// the immutable holding identity used by tenant authorization. Invalid or
+/// the immutable holding identity used by holding authorization. Invalid or
 /// non-directory scope keys return `None` and therefore cannot authorize a
 /// directory-managed permission.
 fn normalize_directory_scope_key(value: &str) -> Option<String> {
@@ -3032,21 +3035,26 @@ fn normalize_directory_scope_key(value: &str) -> Option<String> {
     }
     let segments = value.split(':').collect::<Vec<_>>();
     match segments.as_slice() {
-        ["holding", holding_ref] if !holding_ref.is_empty() => {
-            Some(format!("holding:{}", directory_holding_id(holding_ref)))
-        }
-        ["company", holding_ref, company_id] if !holding_ref.is_empty() => {
+        ["holding", data_profile_key] if !data_profile_key.is_empty() => Some(format!(
+            "holding:{}",
+            directory_holding_id(data_profile_key)
+        )),
+        ["company", data_profile_key, company_id] if !data_profile_key.is_empty() => {
             let company_id = Uuid::parse_str(company_id).ok()?;
-            (!company_id.is_nil())
-                .then(|| format!("company:{}:{company_id}", directory_holding_id(holding_ref)))
+            (!company_id.is_nil()).then(|| {
+                format!(
+                    "company:{}:{company_id}",
+                    directory_holding_id(data_profile_key)
+                )
+            })
         }
-        ["branch", holding_ref, company_id, branch_id] if !holding_ref.is_empty() => {
+        ["branch", data_profile_key, company_id, branch_id] if !data_profile_key.is_empty() => {
             let company_id = Uuid::parse_str(company_id).ok()?;
             let branch_id = Uuid::parse_str(branch_id).ok()?;
             (!company_id.is_nil() && !branch_id.is_nil()).then(|| {
                 format!(
                     "branch:{}:{company_id}:{branch_id}",
-                    directory_holding_id(holding_ref)
+                    directory_holding_id(data_profile_key)
                 )
             })
         }
@@ -3218,7 +3226,7 @@ fn directory_selection_id(
     scope_key: &str,
 ) -> String {
     let mut digest = Sha256::new();
-    digest.update(b"erpx-directory-role-selection-v1\0");
+    digest.update(b"erpx-directory-role-selection\0");
     digest.update(connector_id.as_bytes());
     for value in [group_ref, role_ref, scope_key] {
         digest.update([0]);
@@ -3346,7 +3354,7 @@ fn passkey_count_to_i32(count: u32) -> Result<i32, IdentityStoreError> {
 
 fn passkey_credential_id_hash(credential_id: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
-    hasher.update(b"erpx-passkey-credential-id-v1");
+    hasher.update(b"erpx-passkey-credential-id");
     hasher.update([0]);
     hasher.update(credential_id);
     hasher.finalize().into()
@@ -3442,6 +3450,7 @@ fn challenge_from_row(
 #[cfg(test)]
 mod rate_limit_tests {
     use super::*;
+    use crate::DEVELOPMENT_CONTROLLER_TARGET_HOLDING;
 
     #[test]
     fn rate_limit_policy_is_bounded_and_bucket_digest_hides_identifier() {
@@ -3556,20 +3565,24 @@ mod rate_limit_tests {
             role_assignment_target_policy_from_parts("unrestricted", None, Vec::new()).is_some()
         );
         assert!(
-            role_assignment_target_policy_from_parts("unrestricted", None, vec!["tenant-a".into()])
-                .is_none()
-        );
-        assert!(
             role_assignment_target_policy_from_parts(
-                "tenant_allowlist",
-                Some("production"),
-                vec!["tenant-a".into()]
+                "unrestricted",
+                None,
+                vec!["holding-a".into()]
             )
             .is_none()
         );
         assert!(
             role_assignment_target_policy_from_parts(
-                "tenant_allowlist",
+                "holding_allowlist",
+                Some("production"),
+                vec!["holding-a".into()]
+            )
+            .is_none()
+        );
+        assert!(
+            role_assignment_target_policy_from_parts(
+                "holding_allowlist",
                 Some(DEVELOPMENT_CLUSTER_MARKER),
                 Vec::new()
             )
@@ -3577,30 +3590,30 @@ mod rate_limit_tests {
         );
 
         let policy = role_assignment_target_policy_from_parts(
-            "tenant_allowlist",
+            "holding_allowlist",
             Some(DEVELOPMENT_CLUSTER_MARKER),
-            vec!["demo-tenant-restricted".into()],
+            vec![DEVELOPMENT_CONTROLLER_TARGET_HOLDING.into()],
         )
         .expect("valid local target policy");
         assert!(role_assignment_target_allows(
             Some(&policy),
-            "platform.tenant.read",
-            Some("tenant-other")
+            "platform.holding.read",
+            Some("holding-other")
         ));
         assert!(role_assignment_target_allows(
             Some(&policy),
-            "platform.tenant.suspend",
-            Some("demo-tenant-restricted")
+            "platform.holding.suspend",
+            Some(DEVELOPMENT_CONTROLLER_TARGET_HOLDING)
         ));
         assert!(!role_assignment_target_allows(
             Some(&policy),
-            "platform.tenant.suspend",
-            Some("tenant-other")
+            "platform.holding.suspend",
+            Some("holding-other")
         ));
         assert!(!role_assignment_target_allows(
             None,
-            "platform.tenant.read",
-            Some("demo-tenant-restricted")
+            "platform.holding.read",
+            Some(DEVELOPMENT_CONTROLLER_TARGET_HOLDING)
         ));
     }
 

@@ -8,7 +8,7 @@ Accepted.
 
 ERPX serves platform staff, customer holdings, and the same canonical twelve
 business units through web, desktop, iOS, and Android Dioxus targets. A
-customer-hosted tenant hosts only its data plane; the Root console, login
+customer-hosted holding hosts only its data plane; the Root console, login
 orchestration, authorization, and public presentation bootstrap remain control
 plane responsibilities.
 
@@ -35,7 +35,7 @@ evidence. ERPX Root can propose customer branding but cannot silently publish it
 Published identity is public presentation metadata. A verified hostname may
 resolve a holding profile before authentication; an unknown hostname receives
 the same neutral ERPX response. Corporate identity never contains credentials,
-tenant data, infrastructure references, executable styling, or customer-hosted
+holding data, infrastructure references, executable styling, or customer-hosted
 agent commands.
 
 Asset references are immutable digest-scoped control-plane object keys. Runtime
@@ -45,8 +45,8 @@ for offline presentation fallback.
 
 ## Consequences
 
-- ERPX-managed and customer-hosted tenants use the same identity resolver.
-- Existing tenants inherit the neutral ERPX profile until an administrator
+- ERPX-managed and customer-hosted holdings use the same identity resolver.
+- Existing holdings inherit the neutral ERPX profile until an administrator
   publishes an override.
 - Business-unit branding changes presentation only while that unit context is
   active and never changes its holding database, directory, roles, or scope.

@@ -1,18 +1,17 @@
-//! Durable tenant projection worker for the Thai statutory tax read model.
+//! Durable holding projection worker for the Thai statutory tax read model.
 
 use async_trait::async_trait;
 use erpx_infrastructure::{
     FINANCE_THAI_TAX_PROJECTION_NAME, FinanceThaiTaxProjectionReconciliation,
-    FinanceThaiTaxSourceEventCursor, FinanceThaiTaxStatutoryReconciliation,
+    FinanceThaiTaxSourceEventCursor, FinanceThaiTaxStatutoryReconciliation, HoldingDatabaseRouter,
     MAX_FINANCE_THAI_TAX_SOURCE_EVENT_PAGE_SIZE, PersistenceError, ProjectionClaimRecord,
-    ProjectionJobKind, RoutedDatabaseSide, RoutedTenantDatabase, SqlxFinanceThaiTaxStore,
-    TenantDatabaseRouter,
+    ProjectionJobKind, RoutedDatabaseSide, RoutedHoldingDatabase, SqlxFinanceThaiTaxStore,
 };
 use thiserror::Error;
 use uuid::Uuid;
 
 use super::{
-    TenantProjectionExecutor, TenantProjectionExecutorError, TenantProjectionRoutedExecutor,
+    HoldingProjectionExecutor, HoldingProjectionExecutorError, HoldingProjectionRoutedExecutor,
 };
 
 pub const FINANCE_THAI_TAX_PROJECTION_HANDLER_NAME: &str = "finance_thai_tax_projection";
@@ -35,14 +34,14 @@ impl From<PersistenceError> for FinanceThaiTaxProjectionWorkerError {
 }
 
 #[derive(Debug, Clone)]
-pub struct FinanceThaiTaxTenantProjectionExecutor {
-    router: TenantDatabaseRouter,
+pub struct FinanceThaiTaxHoldingProjectionExecutor {
+    router: HoldingDatabaseRouter,
     default_page_size: u32,
 }
 
-impl FinanceThaiTaxTenantProjectionExecutor {
+impl FinanceThaiTaxHoldingProjectionExecutor {
     pub fn new(
-        router: TenantDatabaseRouter,
+        router: HoldingDatabaseRouter,
         page_size: u32,
     ) -> Result<Self, FinanceThaiTaxProjectionWorkerError> {
         validate_page_size(page_size)?;
@@ -54,22 +53,22 @@ impl FinanceThaiTaxTenantProjectionExecutor {
 }
 
 #[async_trait]
-impl TenantProjectionExecutor for FinanceThaiTaxTenantProjectionExecutor {
+impl HoldingProjectionExecutor for FinanceThaiTaxHoldingProjectionExecutor {
     async fn execute(
         &self,
         claim: &ProjectionClaimRecord,
-    ) -> Result<(), TenantProjectionExecutorError> {
-        validate_claim(claim).map_err(|_| TenantProjectionExecutorError::Permanent)?;
+    ) -> Result<(), HoldingProjectionExecutorError> {
+        validate_claim(claim).map_err(|_| HoldingProjectionExecutorError::Permanent)?;
         let payload = TaxProjectionJobPayload::from_claim(claim, self.default_page_size)
-            .map_err(|_| TenantProjectionExecutorError::Permanent)?;
+            .map_err(|_| HoldingProjectionExecutorError::Permanent)?;
         if claim.job.kind == ProjectionJobKind::Incremental && payload.source_version.is_some() {
-            return Err(TenantProjectionExecutorError::Permanent);
+            return Err(HoldingProjectionExecutorError::Permanent);
         }
         let write = self
             .router
             .route(
-                &claim.job.binding.tenant_id,
-                &claim.job.binding.holding_ref,
+                &claim.job.binding.holding_id,
+                &claim.job.binding.data_profile_key,
                 RoutedDatabaseSide::Write,
             )
             .await
@@ -77,8 +76,8 @@ impl TenantProjectionExecutor for FinanceThaiTaxTenantProjectionExecutor {
         let read = match self
             .router
             .route(
-                &claim.job.binding.tenant_id,
-                &claim.job.binding.holding_ref,
+                &claim.job.binding.holding_id,
+                &claim.job.binding.data_profile_key,
                 RoutedDatabaseSide::Read,
             )
             .await
@@ -97,47 +96,47 @@ impl TenantProjectionExecutor for FinanceThaiTaxTenantProjectionExecutor {
 }
 
 #[async_trait]
-impl TenantProjectionRoutedExecutor for FinanceThaiTaxTenantProjectionExecutor {
+impl HoldingProjectionRoutedExecutor for FinanceThaiTaxHoldingProjectionExecutor {
     async fn execute_routed(
         &self,
         claim: &ProjectionClaimRecord,
-        write: &RoutedTenantDatabase,
-        read: &RoutedTenantDatabase,
-    ) -> Result<(), TenantProjectionExecutorError> {
-        validate_claim(claim).map_err(|_| TenantProjectionExecutorError::Permanent)?;
+        write: &RoutedHoldingDatabase,
+        read: &RoutedHoldingDatabase,
+    ) -> Result<(), HoldingProjectionExecutorError> {
+        validate_claim(claim).map_err(|_| HoldingProjectionExecutorError::Permanent)?;
         let payload = TaxProjectionJobPayload::from_claim(claim, self.default_page_size)
-            .map_err(|_| TenantProjectionExecutorError::Permanent)?;
+            .map_err(|_| HoldingProjectionExecutorError::Permanent)?;
         if claim.job.kind == ProjectionJobKind::Incremental && payload.source_version.is_some() {
-            return Err(TenantProjectionExecutorError::Permanent);
+            return Err(HoldingProjectionExecutorError::Permanent);
         }
         self.execute_store(claim, &payload, write, read).await
     }
 }
 
-impl FinanceThaiTaxTenantProjectionExecutor {
+impl FinanceThaiTaxHoldingProjectionExecutor {
     async fn execute_store(
         &self,
         claim: &ProjectionClaimRecord,
         payload: &TaxProjectionJobPayload,
-        write: &RoutedTenantDatabase,
-        read: &RoutedTenantDatabase,
-    ) -> Result<(), TenantProjectionExecutorError> {
+        write: &RoutedHoldingDatabase,
+        read: &RoutedHoldingDatabase,
+    ) -> Result<(), HoldingProjectionExecutorError> {
         if write.side != RoutedDatabaseSide::Write
             || read.side != RoutedDatabaseSide::Read
-            || write.tenant_id != claim.job.binding.tenant_id
-            || read.tenant_id != claim.job.binding.tenant_id
-            || write.holding_ref != claim.job.binding.holding_ref
-            || read.holding_ref != claim.job.binding.holding_ref
+            || write.holding_id != claim.job.binding.holding_id
+            || read.holding_id != claim.job.binding.holding_id
+            || write.data_profile_key != claim.job.binding.data_profile_key
+            || read.data_profile_key != claim.job.binding.data_profile_key
             || !database_routes_are_isolated(&write.database_key, &read.database_key)
         {
-            return Err(TenantProjectionExecutorError::Permanent);
+            return Err(HoldingProjectionExecutorError::Permanent);
         }
         let store = SqlxFinanceThaiTaxStore::from_pools(
             write.database_pool(),
             read.database_pool(),
-            claim.job.binding.holding_ref.clone(),
+            claim.job.binding.data_profile_key.clone(),
         )
-        .map_err(|_| TenantProjectionExecutorError::Permanent)?;
+        .map_err(|_| HoldingProjectionExecutorError::Permanent)?;
         match claim.job.kind {
             ProjectionJobKind::Incremental => {
                 let mut cursor = payload.cursor.clone();
@@ -149,7 +148,7 @@ impl FinanceThaiTaxTenantProjectionExecutor {
                         .map_err(|_| redacted("source event page"))?;
                     events_seen = events_seen.saturating_add(page.events.len() as u64);
                     if events_seen > MAX_FINANCE_THAI_TAX_INCREMENTAL_EVENTS {
-                        return Err(TenantProjectionExecutorError::Permanent);
+                        return Err(HoldingProjectionExecutorError::Permanent);
                     }
                     let has_more = page.has_more;
                     let next_cursor = page.next_cursor;
@@ -170,10 +169,10 @@ impl FinanceThaiTaxTenantProjectionExecutor {
                         break;
                     }
                     let Some(next_cursor) = next_cursor else {
-                        return Err(TenantProjectionExecutorError::Permanent);
+                        return Err(HoldingProjectionExecutorError::Permanent);
                     };
                     if !tax_cursor_is_after(cursor.as_ref(), &next_cursor) {
-                        return Err(TenantProjectionExecutorError::Permanent);
+                        return Err(HoldingProjectionExecutorError::Permanent);
                     }
                     cursor = Some(next_cursor);
                 }
@@ -190,7 +189,7 @@ impl FinanceThaiTaxTenantProjectionExecutor {
             }
             ProjectionJobKind::Rebuild => {
                 if payload.cursor.is_some() {
-                    return Err(TenantProjectionExecutorError::Permanent);
+                    return Err(HoldingProjectionExecutorError::Permanent);
                 }
                 store
                     .rebuild_projection_with_source_fence(payload.source_version, payload.page_size)
@@ -313,8 +312,8 @@ fn validate_claim(
     claim: &ProjectionClaimRecord,
 ) -> Result<(), FinanceThaiTaxProjectionWorkerError> {
     if claim.job.projection_name != FINANCE_THAI_TAX_PROJECTION_NAME
-        || claim.job.binding.tenant_id.trim().is_empty()
-        || claim.job.binding.holding_ref.trim().is_empty()
+        || claim.job.binding.holding_id.trim().is_empty()
+        || claim.job.binding.data_profile_key.trim().is_empty()
     {
         return Err(FinanceThaiTaxProjectionWorkerError::Configuration(
             "projection claim is invalid".into(),
@@ -329,14 +328,14 @@ fn database_routes_are_isolated(write_database_key: &str, read_database_key: &st
         && write_database_key != read_database_key
 }
 
-fn redacted(operation: &'static str) -> TenantProjectionExecutorError {
+fn redacted(operation: &'static str) -> HoldingProjectionExecutorError {
     tracing::error!(operation, "Thai tax projection worker seam failed");
-    TenantProjectionExecutorError::Retryable
+    HoldingProjectionExecutorError::Retryable
 }
 
 fn require_reconciled(
     reconciliation: &FinanceThaiTaxProjectionReconciliation,
-) -> Result<(), TenantProjectionExecutorError> {
+) -> Result<(), HoldingProjectionExecutorError> {
     if reconciliation.is_reconciled() {
         Ok(())
     } else {
@@ -346,7 +345,7 @@ fn require_reconciled(
 
 fn require_statutory_reconciled(
     reconciliation: &FinanceThaiTaxStatutoryReconciliation,
-) -> Result<(), TenantProjectionExecutorError> {
+) -> Result<(), HoldingProjectionExecutorError> {
     if reconciliation.is_reconciled() {
         Ok(())
     } else {
@@ -390,7 +389,7 @@ mod tests {
         };
         assert_eq!(
             require_reconciled(&drifted),
-            Err(TenantProjectionExecutorError::Retryable)
+            Err(HoldingProjectionExecutorError::Retryable)
         );
     }
 
@@ -408,22 +407,22 @@ mod tests {
         };
         assert_eq!(
             require_statutory_reconciled(&source_moved),
-            Err(TenantProjectionExecutorError::Retryable)
+            Err(HoldingProjectionExecutorError::Retryable)
         );
     }
 
     #[test]
     fn routed_projection_requires_distinct_non_empty_database_keys() {
         assert!(database_routes_are_isolated(
-            "tenant-write-1",
-            "tenant-read-1"
+            "holding-write-1",
+            "holding-read-1"
         ));
         assert!(!database_routes_are_isolated(
-            "tenant-write-1",
-            "tenant-write-1"
+            "holding-write-1",
+            "holding-write-1"
         ));
-        assert!(!database_routes_are_isolated("", "tenant-read-1"));
-        assert!(!database_routes_are_isolated("tenant-write-1", ""));
+        assert!(!database_routes_are_isolated("", "holding-read-1"));
+        assert!(!database_routes_are_isolated("holding-write-1", ""));
     }
 
     #[test]

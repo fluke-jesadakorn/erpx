@@ -4,8 +4,8 @@ use erpx_cqrs::{
     QueryMetadata, QueryResult,
 };
 use erpx_kernel::{
-    ActorAttribution, AuditContext, Clock, CorrelationId, ErrorCategory, ErrorContext, EventId,
-    KernelError, TenantScope,
+    ActorAttribution, AuditContext, AuthorityScope, Clock, CorrelationId, ErrorCategory,
+    ErrorContext, EventId, KernelError,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -28,7 +28,7 @@ pub const MAX_LIST_PAGE_SIZE: u16 = 100;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreatePurchaseOrder {
     pub purchase_order_id: PurchaseOrderId,
-    pub scope: TenantScope,
+    pub scope: AuthorityScope,
     pub order_code: String,
     pub supplier_id: SupplierId,
     pub currency: String,
@@ -125,7 +125,7 @@ struct ExistingCommand {
     correlation_id: CorrelationId,
     causation_id: Option<EventId>,
     actor: ActorAttribution,
-    authority_scope: TenantScope,
+    authority_scope: AuthorityScope,
     audit: AuditContext,
     expected_version: Option<u64>,
     identity: CommandIdentity,
@@ -145,8 +145,8 @@ where
     async fn preflight(
         &self,
         actor: &ActorAttribution,
-        authority_scope: &TenantScope,
-        target_scope: &TenantScope,
+        authority_scope: &AuthorityScope,
+        target_scope: &AuthorityScope,
         action: ProcurementAction,
     ) -> Result<(), ProcurementApplicationError> {
         if !authority_scope.contains(target_scope) {
@@ -280,7 +280,7 @@ where
         {
             self.preflight(
                 &envelope.actor,
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 stored.aggregate.scope(),
                 ProcurementAction::CreateOrder,
             )
@@ -294,7 +294,7 @@ where
         }
         self.preflight(
             &envelope.actor,
-            &envelope.tenant_scope,
+            &envelope.active_scope,
             &command.scope,
             ProcurementAction::CreateOrder,
         )
@@ -330,7 +330,7 @@ where
                 correlation_id,
                 causation_id: envelope.causation_id,
                 actor: envelope.actor,
-                authority_scope: envelope.tenant_scope,
+                authority_scope: envelope.active_scope,
                 audit: envelope.audit,
                 expected_version: None,
                 aggregate,
@@ -369,7 +369,7 @@ macro_rules! existing_handler {
                         correlation_id: envelope.correlation_id,
                         causation_id: envelope.causation_id,
                         actor: envelope.actor,
-                        authority_scope: envelope.tenant_scope,
+                        authority_scope: envelope.active_scope,
                         audit: envelope.audit,
                         expected_version: envelope.expected_aggregate_version,
                         identity: CommandIdentity {
@@ -432,13 +432,13 @@ where
         action: ProcurementAction,
     ) -> Result<(), PortError> {
         self.entitlement
-            .ensure_procurement_enabled(&envelope.tenant_scope, false)
+            .ensure_procurement_enabled(&envelope.active_scope, false)
             .await?;
         self.authorization
             .authorize(AuthorizationRequest {
                 actor: &envelope.actor,
-                authority_scope: &envelope.tenant_scope,
-                target_scope: &envelope.tenant_scope,
+                authority_scope: &envelope.active_scope,
+                target_scope: &envelope.active_scope,
                 action,
             })
             .await
@@ -465,7 +465,7 @@ where
         let projection = self
             .read_repository
             .get(
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 envelope.query.purchase_order_id,
                 &envelope.consistency,
             )
@@ -474,7 +474,7 @@ where
         if projection
             .value
             .as_ref()
-            .is_some_and(|order| !envelope.tenant_scope.contains(&order.scope))
+            .is_some_and(|order| !envelope.active_scope.contains(&order.scope))
         {
             return Err(to_cqrs(
                 ProcurementApplicationError::ScopeOutsideAuthority,
@@ -520,7 +520,7 @@ where
         let projection = self
             .read_repository
             .list(
-                &envelope.tenant_scope,
+                &envelope.active_scope,
                 &envelope.query.filter,
                 &envelope.consistency,
             )
@@ -530,7 +530,7 @@ where
             .value
             .orders
             .iter()
-            .any(|order| !envelope.tenant_scope.contains(&order.scope))
+            .any(|order| !envelope.active_scope.contains(&order.scope))
         {
             return Err(to_cqrs(
                 ProcurementApplicationError::ScopeOutsideAuthority,

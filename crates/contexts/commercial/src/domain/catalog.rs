@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use erpx_integration_contracts::CurrencyCode;
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 
 use super::{CatalogPlanId, CommercialDomainError, DomainEvent, next_version, validate_text};
@@ -16,7 +16,7 @@ pub enum CatalogPlanStatus {
 pub struct CatalogPlan {
     id: CatalogPlanId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     key: String,
     display_name: String,
     amount_minor: i64,
@@ -44,7 +44,7 @@ impl CatalogPlan {
         let value = Self {
             id,
             version,
-            scope: TenantScope::Platform,
+            scope: AuthorityScope::Platform,
             key,
             display_name,
             amount_minor,
@@ -73,14 +73,14 @@ impl CatalogPlan {
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: CatalogPlanId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         key: String,
         display_name: String,
         amount_minor: i64,
         currency: CurrencyCode,
         at: DateTime<Utc>,
     ) -> Result<Self, CommercialDomainError> {
-        if scope != TenantScope::Platform {
+        if scope != AuthorityScope::Platform {
             return Err(CommercialDomainError::InvalidCatalogScope);
         }
         validate_text(&key, "plan_key")?;
@@ -124,7 +124,7 @@ impl CatalogPlan {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn key(&self) -> &str {

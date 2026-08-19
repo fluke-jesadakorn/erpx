@@ -166,7 +166,7 @@ impl AddCustomerNoteCommand {
                 occurred_at: self.note.created_at,
             },
             event_version: 1,
-            tenant_scope: Some(
+            active_scope: Some(
                 serde_json::to_value(&self.note.scope)
                     .map_err(|error| ApplicationError::Repository(error.to_string()))?,
             ),
@@ -224,7 +224,7 @@ pub const CUSTOMER_GLOBAL_READ_AUDIT_MAX_PAGE_SIZE: u32 = 100;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CustomerSecurityAdminScope {
     pub customer_id: Uuid,
-    /// `true` is reserved for the platform-console scope. Tenant security
+    /// `true` is reserved for the platform-console scope. Holding security
     /// administrators always carry an explicit holding/company/branch scope.
     pub platform: bool,
     pub holding_id: Option<Uuid>,
@@ -270,7 +270,7 @@ impl CustomerGlobalReadAuditDetailQuery {
             return Err("platform scope cannot carry organization identifiers".into());
         }
         if !self.security_admin_scope.platform {
-            let valid_tenant_scope = matches!(
+            let valid_holding_scope = matches!(
                 (
                     self.security_admin_scope.holding_id,
                     self.security_admin_scope.company_id,
@@ -278,8 +278,8 @@ impl CustomerGlobalReadAuditDetailQuery {
                 ),
                 (Some(_), None, None) | (Some(_), Some(_), None) | (Some(_), Some(_), Some(_))
             );
-            if !valid_tenant_scope {
-                return Err("tenant security scope is incomplete".into());
+            if !valid_holding_scope {
+                return Err("holding security scope is incomplete".into());
             }
         }
         if self.audit.requester.principal_ref.trim().is_empty() {
@@ -349,46 +349,6 @@ where
         self.reader
             .get_customer_global_read_audit_details(&query)
             .await
-    }
-}
-
-pub struct PlatformCustomerService<R> {
-    reader: Arc<R>,
-    audit: Arc<dyn AuditSink>,
-}
-
-impl<R> PlatformCustomerService<R>
-where
-    R: CustomerReadStore + 'static,
-{
-    pub fn new(reader: Arc<R>, audit: Arc<dyn AuditSink>) -> Self {
-        Self { reader, audit }
-    }
-
-    pub async fn list(&self, search: Option<&str>) -> Result<Vec<Customer360>, ApplicationError> {
-        self.reader.list_customers(search).await
-    }
-
-    pub async fn inspect(
-        &self,
-        actor_ref: &str,
-        customer_id: Uuid,
-    ) -> Result<Customer360, ApplicationError> {
-        let customer = self
-            .reader
-            .get_customer(customer_id)
-            .await?
-            .ok_or(ApplicationError::NotFound)?;
-        self.audit
-            .record(AuditEvent {
-                actor_ref: actor_ref.to_string(),
-                customer_account_id: Some(customer_id),
-                action: "global_read".into(),
-                purpose: "platform_customer_console".into(),
-                correlation_id: Uuid::new_v4(),
-            })
-            .await?;
-        Ok(customer)
     }
 }
 

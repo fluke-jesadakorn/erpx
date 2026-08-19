@@ -7,7 +7,7 @@ use erpx_integration_contracts::{
     customer, identity_access,
     reference::{RecordTypeId, ReferenceValidationError},
 };
-use erpx_kernel::{RecordId, TenantScope};
+use erpx_kernel::{AuthorityScope, RecordId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -89,7 +89,7 @@ pub enum SupportDomainError {
     IncidentTerminal,
     #[error("support session lifetime or lifecycle is invalid")]
     InvalidSession,
-    #[error("impersonation requires exactly one represented tenant principal")]
+    #[error("impersonation requires exactly one represented holding principal")]
     InvalidRepresentedPrincipal,
     #[error("support approval violates segregation of duties")]
     ApprovalSeparation,
@@ -206,7 +206,7 @@ pub(crate) enum DomainEvent {
 pub struct SupportTicket {
     id: SupportTicketId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     customer: customer::CustomerRef,
     customer_account: customer::CustomerAccountRef,
     case_code: String,
@@ -225,7 +225,7 @@ impl SupportTicket {
     #[allow(clippy::too_many_arguments)]
     pub fn open(
         id: SupportTicketId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         customer_fact: customer::CustomerProfileFact,
         case_code: String,
         category: String,
@@ -268,7 +268,7 @@ impl SupportTicket {
     pub fn try_rehydrate(
         id: SupportTicketId,
         version: u64,
-        scope: TenantScope,
+        scope: AuthorityScope,
         customer: customer::CustomerRef,
         customer_account: customer::CustomerAccountRef,
         case_code: String,
@@ -414,7 +414,7 @@ impl SupportTicket {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn customer(&self) -> customer::CustomerRef {
@@ -491,7 +491,7 @@ pub struct IncidentBroadcast {
 pub struct Incident {
     id: IncidentId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     incident_code: String,
     severity: String,
     commander_ref: String,
@@ -510,7 +510,7 @@ impl Incident {
     #[allow(clippy::too_many_arguments)]
     pub fn open(
         id: IncidentId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         incident_code: String,
         severity: String,
         commander_ref: String,
@@ -559,7 +559,7 @@ impl Incident {
     pub fn try_rehydrate(
         id: IncidentId,
         version: u64,
-        scope: TenantScope,
+        scope: AuthorityScope,
         incident_code: String,
         severity: String,
         commander_ref: String,
@@ -738,7 +738,7 @@ impl Incident {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn incident_code(&self) -> &str {
@@ -783,7 +783,7 @@ impl Incident {
 #[serde(rename_all = "snake_case")]
 pub enum SupportMode {
     DiagnosticRead,
-    TenantMutation,
+    HoldingMutation,
     Impersonation,
 }
 
@@ -791,7 +791,7 @@ impl SupportMode {
     pub const fn maximum_duration(self) -> Duration {
         match self {
             Self::DiagnosticRead => Duration::hours(8),
-            Self::TenantMutation | Self::Impersonation => Duration::hours(2),
+            Self::HoldingMutation | Self::Impersonation => Duration::hours(2),
         }
     }
     pub const fn requires_high_risk_mfa(self) -> bool {
@@ -811,7 +811,7 @@ pub enum SessionStatus {
 pub struct SupportSession {
     id: SessionId,
     version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     ticket_id: SupportTicketId,
     customer: customer::CustomerRef,
     customer_account: customer::CustomerAccountRef,
@@ -841,7 +841,7 @@ impl SupportSession {
         represented_principal: Option<identity_access::PrincipalRef>,
         mode: SupportMode,
         permissions: Vec<String>,
-        scope: TenantScope,
+        scope: AuthorityScope,
         module: String,
         reason: String,
         duration: Duration,
@@ -892,7 +892,7 @@ impl SupportSession {
     pub fn try_rehydrate(
         id: SessionId,
         version: u64,
-        scope: TenantScope,
+        scope: AuthorityScope,
         ticket_id: SupportTicketId,
         customer: customer::CustomerRef,
         customer_account: customer::CustomerAccountRef,
@@ -1044,7 +1044,7 @@ impl SupportSession {
     pub const fn version(&self) -> u64 {
         self.version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub const fn ticket_id(&self) -> SupportTicketId {
@@ -1131,7 +1131,7 @@ pub struct CapabilityEvidence {
     pub device_ref: String,
     pub mfa_verified_at: Option<DateTime<Utc>>,
     pub segregation_of_duties_passed: bool,
-    pub authority_scope: TenantScope,
+    pub authority_scope: AuthorityScope,
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1146,7 +1146,7 @@ pub struct SupportCapability {
     device_ref: String,
     mode: SupportMode,
     permissions: Vec<String>,
-    scope: TenantScope,
+    scope: AuthorityScope,
     module: String,
     secret_hash_sha256: [u8; 32],
     issued_at: DateTime<Utc>,
@@ -1227,7 +1227,7 @@ impl SupportCapability {
         device_ref: String,
         mode: SupportMode,
         permissions: Vec<String>,
-        scope: TenantScope,
+        scope: AuthorityScope,
         module: String,
         secret_hash_sha256: [u8; 32],
         issued_at: DateTime<Utc>,
@@ -1272,7 +1272,7 @@ impl SupportCapability {
         &self,
         session: &SupportSession,
         permission: &str,
-        requested_scope: &TenantScope,
+        requested_scope: &AuthorityScope,
         evidence: &CapabilityEvidence,
         at: DateTime<Utc>,
     ) -> Result<(), SupportDomainError> {
@@ -1348,7 +1348,7 @@ impl SupportCapability {
     pub fn permissions(&self) -> &[String] {
         &self.permissions
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn module(&self) -> &str {
@@ -1405,7 +1405,7 @@ impl SupportAggregate {
             Self::Capability(v) => v.version(),
         }
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         match self {
             Self::Ticket(v) => v.scope(),
             Self::Incident(v) => v.scope(),
@@ -1440,13 +1440,13 @@ impl SupportAggregate {
     }
 }
 
-fn validate_scope(scope: &TenantScope) -> Result<(), SupportDomainError> {
+fn validate_scope(scope: &AuthorityScope) -> Result<(), SupportDomainError> {
     scope
         .validate()
         .map_err(|_| SupportDomainError::InvalidScope)?;
     if matches!(
         scope,
-        TenantScope::Company { .. } | TenantScope::Branch { .. }
+        AuthorityScope::Company { .. } | AuthorityScope::Branch { .. }
     ) {
         Ok(())
     } else {
@@ -1455,13 +1455,13 @@ fn validate_scope(scope: &TenantScope) -> Result<(), SupportDomainError> {
 }
 
 fn validate_customer_scope(
-    scope: &TenantScope,
+    scope: &AuthorityScope,
     fact: &customer::CustomerProfileFact,
 ) -> Result<(), SupportDomainError> {
     validate_scope(scope)?;
     let owning_company = fact.owning_company.as_uuid();
     match scope {
-        TenantScope::Company { company_id, .. } | TenantScope::Branch { company_id, .. }
+        AuthorityScope::Company { company_id, .. } | AuthorityScope::Branch { company_id, .. }
             if *company_id == owning_company =>
         {
             Ok(())

@@ -25,6 +25,9 @@ mod finance_subledger_persistence;
 mod finance_tax_persistence;
 mod g13_migration;
 mod g13_target;
+mod holding_administration;
+mod holding_projection_scheduler;
+mod holding_projection_status_projection;
 mod hr_persistence;
 mod hr_projection;
 mod legal_persistence;
@@ -61,11 +64,11 @@ mod shared_enterprise_services;
 mod stripe_client;
 mod support_persistence;
 mod support_workflow;
-mod tenant_administration;
-mod tenant_projection_scheduler;
-mod tenant_projection_status_projection;
 mod worker;
 
+#[cfg(test)]
+#[path = "../../adapters/schema_test.rs"]
+mod schema_test;
 #[cfg(test)]
 mod test_support;
 
@@ -79,13 +82,13 @@ pub use asset_maintenance_persistence::{
     SqlxAssetMaintenanceStore,
 };
 pub use backup_retention::{
-    MAX_TENANT_BACKUP_INVENTORY_ENTRIES, MAX_TENANT_BACKUP_RETENTION_AGE_SECONDS,
-    MAX_TENANT_BACKUP_RETENTION_ATTEMPTS, MAX_TENANT_BACKUP_RETENTION_LEASE_SECONDS,
-    MAX_TENANT_BACKUP_RETENTION_PAGE_SIZE, MAX_TENANT_BACKUP_RETENTION_ROWS,
-    MIN_TENANT_BACKUP_RETENTION_AGE_SECONDS, MIN_TENANT_BACKUP_RETENTION_LEASE_SECONDS,
-    TenantBackupInventoryObservation, TenantBackupInventoryReport, TenantBackupRetentionClaim,
-    TenantBackupRetentionObject, TenantBackupRetentionReceipt, TenantBackupRetentionReport,
-    TenantBackupRetentionRequest, validate_tenant_backup_retention_request_at,
+    HoldingBackupInventoryObservation, HoldingBackupInventoryReport, HoldingBackupRetentionClaim,
+    HoldingBackupRetentionObject, HoldingBackupRetentionReceipt, HoldingBackupRetentionReport,
+    HoldingBackupRetentionRequest, MAX_HOLDING_BACKUP_INVENTORY_ENTRIES,
+    MAX_HOLDING_BACKUP_RETENTION_AGE_SECONDS, MAX_HOLDING_BACKUP_RETENTION_ATTEMPTS,
+    MAX_HOLDING_BACKUP_RETENTION_LEASE_SECONDS, MAX_HOLDING_BACKUP_RETENTION_PAGE_SIZE,
+    MAX_HOLDING_BACKUP_RETENTION_ROWS, MIN_HOLDING_BACKUP_RETENTION_AGE_SECONDS,
+    MIN_HOLDING_BACKUP_RETENTION_LEASE_SECONDS, validate_holding_backup_retention_request_at,
 };
 pub use branch_provisioning::{
     BRANCH_INFRASTRUCTURE_PROVISION, BRANCH_PROVISIONING_LEASE_SECONDS, BranchDatabaseRoute,
@@ -125,7 +128,8 @@ pub use corporate_identity::{
 };
 pub use data_plane::{
     ApprovedDesiredConfiguration, DataPlaneEnrollmentConsumption, DataPlaneEnrollmentIssue,
-    RootAccessGrant, RootAccessQueueRecord, SqlxDataPlaneControlStore, TenantInfrastructureSummary,
+    HoldingInfrastructureSummary, RootAccessGrant, RootAccessQueueRecord,
+    SqlxDataPlaneControlStore,
 };
 pub use erpx_domain::commercial::{
     CatalogError, CatalogReconciliationReport, ProviderCatalogPrice, ProviderCatalogRevision,
@@ -229,6 +233,33 @@ pub use g13_migration::{
 pub use g13_target::{
     G13ReadProjectionResult, G13RetentionResult, G13ShadowReplayResult, G13TargetImportError,
     G13TargetImportResult, G13TargetImporter, G13TargetReconciliation, G13TargetRollbackResult,
+};
+pub use holding_administration::{
+    HoldingAdminContextIssue, HoldingBillingGraceExtensionGrant, HoldingControlHistoryCursor,
+    HoldingControlHistoryEntry, HoldingControlHistoryPage, HoldingInvoicePage,
+    HoldingInvoiceSummary, HoldingRegistryFilter, HoldingRegistryPage, HoldingRegistrySummary,
+    HoldingStripeSubscriptionBinding, MAX_HOLDING_CONTROL_HISTORY_PAGE_SIZE,
+    MAX_HOLDING_SUMMARY_PAGE_SIZE, SqlxHoldingAdministrationStore,
+};
+pub use holding_projection_scheduler::{
+    ClaimKeyDecision, ClaimKeyRegistry, DeadLetterRecord, FRESH_INITIAL_HOLDING_PROJECTIONS,
+    HOLDING_PROJECTION_PERMISSION, HoldingHoldingBinding, HoldingProjectionSchedulerError,
+    HoldingProjectionSchedulerRepository, HoldingProjectionStatus,
+    HoldingProjectionStatusChangePage, HoldingProjectionStatusPage,
+    HoldingProjectionStatusReadRepository, MAX_BACKOFF_SECONDS, MAX_CLAIM_KEY_LENGTH,
+    MAX_JOB_KEY_LENGTH, MAX_LEASE_SECONDS, MAX_PROJECTION_ATTEMPTS, MAX_PROJECTION_BATCH_SIZE,
+    MAX_PROJECTION_ERROR_BYTES, MAX_PROJECTION_NAME_LENGTH, MAX_PROJECTION_PAGE_SIZE,
+    MAX_PROJECTION_PAYLOAD_BYTES, MAX_PROJECTION_STATUS_FRESHNESS_SECONDS,
+    MAX_PROJECTION_STATUS_PAGE_SIZE, MAX_SCOPE_REFERENCE_LENGTH, MIN_BACKOFF_SECONDS,
+    MIN_LEASE_SECONDS, ProjectionClaimRecord, ProjectionClaimRequest, ProjectionFailureOutcome,
+    ProjectionJobKind, ProjectionJobRecord, ProjectionJobState, ProjectionLease, ProjectionPolicy,
+    ProjectionScheduleRequest, ProjectionSchedulerAuthorization, ProjectionStatusChangeCursor,
+    ProjectionStatusCursor, RebuildProjectionRequest, RebuildRecord, RetryRecord,
+    StaleLeaseReclaimRecord,
+};
+pub use holding_projection_status_projection::{
+    HOLDING_PROJECTION_STATUS_CHECKPOINT, HOLDING_PROJECTION_STATUS_READ_PROJECTION,
+    SqlxHoldingProjectionStatusProjectionStore,
 };
 pub use hr_persistence::{HrWriteReceipt, SqlxHrPersistence};
 pub use hr_projection::{
@@ -383,28 +414,28 @@ pub use provisioning::{
     ApprovedDatabaseProfileConnection, BackupAdapterError, BackupExecutionRequest,
     BackupExecutionResult, BackupExecutor, BackupExecutorError, BackupFailureClass,
     BackupObjectTransport, BackupPitrObservation, BackupProcessCommand, BackupProcessRunner,
-    BackupRunKind, DatabaseReadinessObservation, DatabaseSide, MAX_RESTORE_TEST_ATTEMPTS,
-    MAX_RESTORE_TEST_SCHEDULE_BATCH_SIZE, MAX_TENANT_BACKUP_JOB_ATTEMPTS,
-    MAX_TENANT_BACKUP_JOB_LEASE_SECONDS, MAX_TENANT_BACKUP_JOB_PAGE_SIZE,
-    MAX_TENANT_BACKUP_JOB_PROJECTION_BATCH_SIZE, MAX_TENANT_PITR_INVENTORY_ENTRIES,
-    MIN_TENANT_BACKUP_JOB_LEASE_SECONDS, MinioBackupObjectTransport, PhysicalTenantDatabases,
-    PostgresMinioBackupAdapter, PostgresMinioBackupConfig, PostgresRestoredDatabaseVerifier,
-    ProjectionFreshnessObservation, ProvisioningState, ReadinessComponentObservation,
-    ReadinessObservationPolicy, ReadinessObservationState, RecoveryHistoryClassification,
-    RestoreExecutor, RestoreExecutorError, RestoreTestClaim, RestoreTestClaimResult,
-    RestoreTestExecutionRequest, RestoreTestExecutionResult, RestoreTestHistoryEntry,
-    RestoreTestOutcome, RestoreTestSchedule, RestoreTestScheduleError, RestoreTestScheduleReceipt,
-    RestoreTestScheduleRequest, RestoreTestScheduleState, RestoreTestScheduler,
-    RestoredDatabaseVerifier, RoutedDatabaseSide, RoutedTenantDatabase, SystemBackupProcessRunner,
-    TenantBackupJobClaim, TenantBackupJobReceipt, TenantBackupJobRequest, TenantBackupJobSummary,
-    TenantBackupRun, TenantBackupTarget, TenantDataRouteScope, TenantDatabaseHealth,
-    TenantDatabaseProvisioner, TenantDatabaseProvisioningConfig, TenantDatabaseRouter,
-    TenantOrganizationBootstrap, TenantOwnerSeed, TenantProvisioner, TenantReadDatabaseReplacement,
-    TenantReadinessMetadata, TenantReadinessObservation, TenantRestoreTestActivation,
-    TenantRestoreTestTarget, TenantRoutingObservation, TenantSourceProjection,
-    TenantSourceRebuildLock, TenantStorageHealth, ValidatedBackupExecutionResult,
-    ValidatedRestoreTestResult, initialize_tenant_organization_in_pools, tenant_holding_scope_id,
-    tenant_owner_assignment_id,
+    BackupRunKind, DatabaseReadinessObservation, DatabaseSide, HoldingBackupJobClaim,
+    HoldingBackupJobReceipt, HoldingBackupJobRequest, HoldingBackupJobSummary, HoldingBackupRun,
+    HoldingBackupTarget, HoldingDataRouteScope, HoldingDatabaseHealth, HoldingDatabaseProvisioner,
+    HoldingDatabaseProvisioningConfig, HoldingDatabaseRouter, HoldingOrganizationBootstrap,
+    HoldingOwnerSeed, HoldingProvisioner, HoldingReadDatabaseReplacement, HoldingReadinessMetadata,
+    HoldingReadinessObservation, HoldingRestoreTestActivation, HoldingRestoreTestTarget,
+    HoldingRoutingObservation, HoldingSourceProjection, HoldingSourceRebuildLock,
+    HoldingStorageHealth, MAX_HOLDING_BACKUP_JOB_ATTEMPTS, MAX_HOLDING_BACKUP_JOB_LEASE_SECONDS,
+    MAX_HOLDING_BACKUP_JOB_PAGE_SIZE, MAX_HOLDING_BACKUP_JOB_PROJECTION_BATCH_SIZE,
+    MAX_HOLDING_PITR_INVENTORY_ENTRIES, MAX_RESTORE_TEST_ATTEMPTS,
+    MAX_RESTORE_TEST_SCHEDULE_BATCH_SIZE, MIN_HOLDING_BACKUP_JOB_LEASE_SECONDS,
+    MinioBackupObjectTransport, PhysicalHoldingDatabases, PostgresMinioBackupAdapter,
+    PostgresMinioBackupConfig, PostgresRestoredDatabaseVerifier, ProjectionFreshnessObservation,
+    ProvisioningState, ReadinessComponentObservation, ReadinessObservationPolicy,
+    ReadinessObservationState, RecoveryHistoryClassification, RestoreExecutor,
+    RestoreExecutorError, RestoreTestClaim, RestoreTestClaimResult, RestoreTestExecutionRequest,
+    RestoreTestExecutionResult, RestoreTestHistoryEntry, RestoreTestOutcome, RestoreTestSchedule,
+    RestoreTestScheduleError, RestoreTestScheduleReceipt, RestoreTestScheduleRequest,
+    RestoreTestScheduleState, RestoreTestScheduler, RestoredDatabaseVerifier, RoutedDatabaseSide,
+    RoutedHoldingDatabase, SystemBackupProcessRunner, ValidatedBackupExecutionResult,
+    ValidatedRestoreTestResult, holding_holding_scope_id, holding_owner_assignment_id,
+    initialize_holding_organization_in_pools,
 };
 pub use quality_persistence::{
     MAX_QUALITY_PROJECTION_EVENTS, MAX_QUALITY_READ_PAGE_SIZE, MAX_QUALITY_SOURCE_PAGE_SIZE,
@@ -414,15 +445,15 @@ pub use quality_persistence::{
     SqlxQualityStore, quality_request_hash,
 };
 pub use repositories::{
-    FinanceBankProviderAccountBinding, MARKETING_PUBLIC_ABUSE_WINDOW_SECONDS,
-    MAX_MARKETING_PROVIDER_ACCOUNTS_PER_HOLDING, MAX_MARKETING_PUBLIC_ABUSE_LIMIT,
-    MAX_PLATFORM_AUDIT_PAGE_SIZE, MAX_PLATFORM_INTEGRATION_OBSERVATIONS,
-    MAX_TENANT_REGISTRY_PAGE_SIZE, MarketingProviderAccountBinding,
+    FinanceBankProviderAccountBinding, HoldingStoreRegistration, HoldingStoreRegistrationDetail,
+    HoldingStoreRegistrationPage, MARKETING_PUBLIC_ABUSE_WINDOW_SECONDS,
+    MAX_HOLDING_REGISTRY_PAGE_SIZE, MAX_MARKETING_PROVIDER_ACCOUNTS_PER_HOLDING,
+    MAX_MARKETING_PUBLIC_ABUSE_LIMIT, MAX_PLATFORM_AUDIT_PAGE_SIZE,
+    MAX_PLATFORM_INTEGRATION_OBSERVATIONS, MarketingProviderAccountBinding,
     MarketingProviderChannelRouteBinding, MarketingPublicAbuseWindowRequest,
     ObjectAccessBindingRequest, PlatformAuditEntry, PlatformAuditPage,
     PlatformIntegrationObservation, ProjectionAuthorizationRequest, SodDecision, SqlxControlPlane,
-    SqlxTenantStoreRegistry, SupportCapabilityAuthorizationRequest, TenantStoreRegistration,
-    TenantStoreRegistrationDetail, TenantStoreRegistrationPage,
+    SqlxHoldingStoreRegistry, SupportCapabilityAuthorizationRequest,
 };
 pub use role_review::{
     ClaimedRoleExpiryNotification, ROLE_EXPIRY_NOTIFICATION_EVENT_TYPE, RoleRecoveryReceipt,
@@ -432,7 +463,7 @@ pub use runtime_readiness::{
     ReadinessState, WorkerHeartbeat, WorkerHeartbeatObservation, WorkerHeartbeatReadiness,
     WorkerLiveReadinessObservation, WorkerLiveReadinessPolicy, WorkerReadinessComposition,
     WorkerReadinessMetadata, WorkerReadinessObserver, aggregate_readiness_states,
-    backup_pitr_readiness, projection_freshness_readiness, tenant_routing_readiness,
+    backup_pitr_readiness, holding_routing_readiness, projection_freshness_readiness,
 };
 pub use sales_persistence::{
     MAX_SALES_PROJECTION_EVENTS, MAX_SALES_READ_PAGE_SIZE, MAX_SALES_SOURCE_EVENT_PAGE_SIZE,
@@ -477,32 +508,6 @@ pub use support_workflow::{
     SUPPORT_SESSION_APPROVED_EVENT, SUPPORT_SESSION_REVOKED_EVENT,
     SUPPORT_WORKFLOW_PROJECTION_NAME, SupportAccessProjectionRow, SupportDiagnosticsProjectionRow,
     SupportWorkflowPersistenceError, SupportWorkflowReconciliation, SupportWorkflowStore,
-};
-pub use tenant_administration::{
-    MAX_TENANT_CONTROL_HISTORY_PAGE_SIZE, MAX_TENANT_SUMMARY_PAGE_SIZE,
-    SqlxTenantAdministrationStore, TenantAdminContextIssue, TenantBillingGraceExtensionGrant,
-    TenantControlHistoryCursor, TenantControlHistoryEntry, TenantControlHistoryPage,
-    TenantInvoicePage, TenantInvoiceSummary, TenantRegistryFilter, TenantRegistryPage,
-    TenantRegistrySummary, TenantStripeSubscriptionBinding,
-};
-pub use tenant_projection_scheduler::{
-    ClaimKeyDecision, ClaimKeyRegistry, DeadLetterRecord, FRESH_INITIAL_TENANT_PROJECTIONS,
-    MAX_BACKOFF_SECONDS, MAX_CLAIM_KEY_LENGTH, MAX_JOB_KEY_LENGTH, MAX_LEASE_SECONDS,
-    MAX_PROJECTION_ATTEMPTS, MAX_PROJECTION_BATCH_SIZE, MAX_PROJECTION_ERROR_BYTES,
-    MAX_PROJECTION_NAME_LENGTH, MAX_PROJECTION_PAGE_SIZE, MAX_PROJECTION_PAYLOAD_BYTES,
-    MAX_PROJECTION_STATUS_FRESHNESS_SECONDS, MAX_PROJECTION_STATUS_PAGE_SIZE,
-    MAX_SCOPE_REFERENCE_LENGTH, MIN_BACKOFF_SECONDS, MIN_LEASE_SECONDS, ProjectionClaimRecord,
-    ProjectionClaimRequest, ProjectionFailureOutcome, ProjectionJobKind, ProjectionJobRecord,
-    ProjectionJobState, ProjectionLease, ProjectionPolicy, ProjectionScheduleRequest,
-    ProjectionSchedulerAuthorization, ProjectionStatusChangeCursor, ProjectionStatusCursor,
-    RebuildProjectionRequest, RebuildRecord, RetryRecord, StaleLeaseReclaimRecord,
-    TENANT_PROJECTION_PERMISSION, TenantHoldingBinding, TenantProjectionSchedulerError,
-    TenantProjectionSchedulerRepository, TenantProjectionStatus, TenantProjectionStatusChangePage,
-    TenantProjectionStatusPage, TenantProjectionStatusReadRepository,
-};
-pub use tenant_projection_status_projection::{
-    SqlxTenantProjectionStatusProjectionStore, TENANT_PROJECTION_STATUS_CHECKPOINT,
-    TENANT_PROJECTION_STATUS_READ_PROJECTION,
 };
 pub use worker::{
     OutboxHandler, OutboxWorker, ProjectionHandler, ProjectionRebuildReport, RetryDisposition,

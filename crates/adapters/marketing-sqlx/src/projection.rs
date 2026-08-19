@@ -92,7 +92,7 @@ impl Projector for MarketingLeadProjector {
             ));
         };
         let state = serde_json::to_value(&view).map_err(failure)?;
-        sqlx::query("INSERT INTO erpx_marketing_read.lead_candidate_projection (projection_name,generation,partition_key,lead_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,campaign_id,audience_member_id,source,existing_customer_id,score_basis_points,lead_status,engagement_count,state,aggregate_created_at,aggregate_updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,now()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,lead_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,campaign_id=EXCLUDED.campaign_id,audience_member_id=EXCLUDED.audience_member_id,source=EXCLUDED.source,existing_customer_id=EXCLUDED.existing_customer_id,score_basis_points=EXCLUDED.score_basis_points,lead_status=EXCLUDED.lead_status,engagement_count=EXCLUDED.engagement_count,state=EXCLUDED.state,aggregate_created_at=EXCLUDED.aggregate_created_at,aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now() WHERE erpx_marketing_read.lead_candidate_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
+        sqlx::query("INSERT INTO erpx_marketing_read.lead_candidate_projection (projection_name,generation,partition_key,lead_id,source_aggregate_version,source_global_sequence,active_scope,scope_key,campaign_id,audience_member_id,source,existing_customer_id,score_basis_points,lead_status,engagement_count,state,aggregate_created_at,aggregate_updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,now()) ON CONFLICT (holding_id,projection_name,generation,partition_key,lead_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,active_scope=EXCLUDED.active_scope,scope_key=EXCLUDED.scope_key,campaign_id=EXCLUDED.campaign_id,audience_member_id=EXCLUDED.audience_member_id,source=EXCLUDED.source,existing_customer_id=EXCLUDED.existing_customer_id,score_basis_points=EXCLUDED.score_basis_points,lead_status=EXCLUDED.lead_status,engagement_count=EXCLUDED.engagement_count,state=EXCLUDED.state,aggregate_created_at=EXCLUDED.aggregate_created_at,aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now() WHERE erpx_marketing_read.lead_candidate_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
             .bind(LEAD_PROJECTION_NAME)
             .bind(context.generation)
             .bind(&event.partition)
@@ -181,7 +181,7 @@ impl Projector for MarketingBudgetProjector {
         };
         let view = *budget;
         let state = serde_json::to_value(&view).map_err(failure)?;
-        sqlx::query("INSERT INTO erpx_marketing_read.campaign_budget_projection (projection_name,generation,partition_key,budget_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,campaign_id,budget_code,budget_name,period,budget_status,currency,requested_minor,approved_minor,reserved_minor,available_minor,dimensions,allocations,reservations,state,aggregate_created_at,aggregate_updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,now()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,budget_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,campaign_id=EXCLUDED.campaign_id,budget_code=EXCLUDED.budget_code,budget_name=EXCLUDED.budget_name,period=EXCLUDED.period,budget_status=EXCLUDED.budget_status,currency=EXCLUDED.currency,requested_minor=EXCLUDED.requested_minor,approved_minor=EXCLUDED.approved_minor,reserved_minor=EXCLUDED.reserved_minor,available_minor=EXCLUDED.available_minor,dimensions=EXCLUDED.dimensions,allocations=EXCLUDED.allocations,reservations=EXCLUDED.reservations,state=EXCLUDED.state,aggregate_created_at=EXCLUDED.aggregate_created_at,aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now() WHERE erpx_marketing_read.campaign_budget_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
+        sqlx::query("INSERT INTO erpx_marketing_read.campaign_budget_projection (projection_name,generation,partition_key,budget_id,source_aggregate_version,source_global_sequence,active_scope,scope_key,campaign_id,budget_code,budget_name,period,budget_status,currency,requested_minor,approved_minor,reserved_minor,available_minor,dimensions,allocations,reservations,state,aggregate_created_at,aggregate_updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,now()) ON CONFLICT (holding_id,projection_name,generation,partition_key,budget_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,active_scope=EXCLUDED.active_scope,scope_key=EXCLUDED.scope_key,campaign_id=EXCLUDED.campaign_id,budget_code=EXCLUDED.budget_code,budget_name=EXCLUDED.budget_name,period=EXCLUDED.period,budget_status=EXCLUDED.budget_status,currency=EXCLUDED.currency,requested_minor=EXCLUDED.requested_minor,approved_minor=EXCLUDED.approved_minor,reserved_minor=EXCLUDED.reserved_minor,available_minor=EXCLUDED.available_minor,dimensions=EXCLUDED.dimensions,allocations=EXCLUDED.allocations,reservations=EXCLUDED.reservations,state=EXCLUDED.state,aggregate_created_at=EXCLUDED.aggregate_created_at,aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now() WHERE erpx_marketing_read.campaign_budget_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
             .bind(BUDGET_PROJECTION_NAME)
             .bind(context.generation)
             .bind(&event.partition)
@@ -255,7 +255,7 @@ fn validate_event(
         MarketingSnapshot::Lead { candidate: value } => {
             value.version == event.aggregate_version
                 && value.id.as_uuid() == event.aggregate_id.as_uuid()
-                && value.scope == event.tenant_scope
+                && value.scope == event.active_scope
                 && event.partition == lead_partition(value.id)
                 && aggregate_type == LEAD_AGGREGATE_TYPE
                 && scope_key(&value.scope).is_ok()
@@ -263,7 +263,7 @@ fn validate_event(
         MarketingSnapshot::CampaignBudget { budget: value } => {
             value.version == event.aggregate_version
                 && value.id.as_uuid() == event.aggregate_id.as_uuid()
-                && value.scope == event.tenant_scope
+                && value.scope == event.active_scope
                 && event.partition == budget_partition(value.id)
                 && aggregate_type == BUDGET_AGGREGATE_TYPE
                 && scope_key(&value.scope).is_ok()

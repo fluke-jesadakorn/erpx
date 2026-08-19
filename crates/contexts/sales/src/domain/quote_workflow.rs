@@ -1,7 +1,7 @@
 //! Sales-owned quote drafting and immutable version evidence.
 
 use chrono::{DateTime, Utc};
-use erpx_kernel::TenantScope;
+use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -377,7 +377,7 @@ pub struct QuoteWorkflow {
     quote_id: QuoteId,
     aggregate_version: u64,
     quote_version: u64,
-    scope: TenantScope,
+    scope: AuthorityScope,
     quote_code: String,
     maker: String,
     payload: QuoteDraftPayload,
@@ -397,7 +397,7 @@ impl QuoteWorkflow {
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         quote_id: QuoteId,
-        scope: TenantScope,
+        scope: AuthorityScope,
         quote_code: String,
         maker: String,
         payload: QuoteDraftPayload,
@@ -693,7 +693,7 @@ impl QuoteWorkflow {
     pub const fn quote_version(&self) -> u64 {
         self.quote_version
     }
-    pub const fn scope(&self) -> &TenantScope {
+    pub const fn scope(&self) -> &AuthorityScope {
         &self.scope
     }
     pub fn quote_code(&self) -> &str {
@@ -860,7 +860,7 @@ mod tests {
     fn workflow() -> QuoteWorkflow {
         QuoteWorkflow::create(
             QuoteId::try_from_uuid(Uuid::from_u128(20)).unwrap(),
-            TenantScope::Company {
+            AuthorityScope::Company {
                 holding_id: Uuid::from_u128(21),
                 company_id: Uuid::from_u128(22),
             },

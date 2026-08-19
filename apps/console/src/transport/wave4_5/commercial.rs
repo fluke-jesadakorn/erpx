@@ -9,7 +9,7 @@ use erpx_commercial::{
 };
 use erpx_cqrs::{CommandEnvelope, CommandReceipt, QueryEnvelope, QueryResult};
 use erpx_integration_contracts::CurrencyCode;
-use erpx_proto::erpx::commercial::v2 as platform;
+use erpx_proto::erpx::commercial as platform;
 use erpx_ui_foundation::UiError;
 
 use crate::{
@@ -33,8 +33,8 @@ impl CommercialGrpcTransport {
     pub(crate) fn try_new(
         channel: GrpcChannel,
         access_token: impl AsRef<str>,
-        tenant_id: impl AsRef<str>,
-        holding_ref: impl AsRef<str>,
+        holding_id: impl AsRef<str>,
+        data_profile_key: impl AsRef<str>,
     ) -> Result<Self, UiError> {
         Ok(Self {
             command:
@@ -44,7 +44,7 @@ impl CommercialGrpcTransport {
             query: platform::commercial_query_service_client::CommercialQueryServiceClient::new(
                 channel,
             ),
-            authority: RpcAuthority::tenant(access_token, tenant_id, holding_ref)?,
+            authority: RpcAuthority::holding(access_token, holding_id, data_profile_key)?,
         })
     }
 }

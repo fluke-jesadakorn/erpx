@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::contracts::{CONTRACT_VERSION, CommandContext, TenantScope};
+use crate::contracts::{AuthorityScope, CONTRACT_VERSION, CommandContext};
 
 pub const FINANCE_CHART_CONTRACT_VERSION: u16 = 1;
 pub const MAX_FINANCE_CHART_NAME_BYTES: usize = 255;
@@ -266,8 +266,8 @@ impl FinanceChart {
         validate_accounts(&self.accounts)
     }
 
-    pub fn tenant_scope(&self) -> TenantScope {
-        TenantScope::Company {
+    pub fn active_scope(&self) -> AuthorityScope {
+        AuthorityScope::Company {
             holding_id: self.holding_id,
             company_id: self.company_id,
         }
@@ -449,11 +449,11 @@ fn validate_context(
     }
     require_id(context.command_id, "command_id")?;
     require_id(context.correlation_id, "correlation_id")?;
-    let company_scope = TenantScope::Company {
+    let company_scope = AuthorityScope::Company {
         holding_id,
         company_id,
     };
-    if !context.tenant_scope.contains(&company_scope) {
+    if !context.active_scope.contains(&company_scope) {
         return Err(FinanceChartError::ScopeOutsideCompany);
     }
     require_bounded(

@@ -5,6 +5,6 @@
 
 **Rationale:** Operational writes need transactional consistency; global dashboards and customer views need independently rebuildable projections. A fully event-sourced aggregate store is not required by the target architecture.
 
-**Consequences:** Every command carries aggregate version and idempotency context. Read responses expose projection freshness/consistency metadata. Losing a read database must not stop tenant writes.
+**Consequences:** Every command carries aggregate version and idempotency context. Read responses expose projection freshness/consistency metadata. Losing a read database must not stop holding writes.
 
 **Evidence required:** atomicity rollback test, duplicate/out-of-order projector tests, DLQ replay, full rebuild, checkpoint, and safe projection switch tests.

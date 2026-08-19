@@ -22,7 +22,7 @@ or Folio.
   bytes. Opportunity status and attribution model must be present and parse
   through the shared typed parsers; malformed projections fail closed.
 - Builds the existing protobuf request with actor, session, eventual
-  consistency, customer-visible audit context, tenant, holding, aggregate,
+  consistency, customer-visible audit context, holding, holding, aggregate,
   and bounded page metadata.
 - Rejects platform/subtree scope before transport. The current console has no
   authorized holding/company/branch scope provider, so the live CRM resource
@@ -73,7 +73,7 @@ payload redaction, and all required state categories.
 
 Integrate after G10-MKT-026 shared CRM models and the existing server
 `ListCrmReadRows` transport. Before enabling live data, verify the selector's
-tenant/company/branch role, entitlement, audit, and projection-freshness
+holding/company/branch role, entitlement, audit, and projection-freshness
 behavior against a live authorized read. Roll back by removing
 the additive CRM navigation/resource/rendering code in
 `apps/console/src/main.rs`; existing Customer 360, Platform Operations,
@@ -82,7 +82,7 @@ Support, and Incident surfaces are unaffected.
 ## Scope-provider completion amendment — 2026-07-28
 
 The console now supplies an explicit holding scope for the existing CRM read
-transport. The user must enter an opaque tenant reference, holding route
+transport. The user must enter an opaque holding reference, holding route
 reference, and UUID holding scope, then may select a company or branch UUID
 within that holding; UUIDs are canonicalized locally and
 credential-marker/control-character input is rejected before a request is
