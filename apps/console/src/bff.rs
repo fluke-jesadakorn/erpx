@@ -176,6 +176,16 @@ pub(crate) async fn session_middleware(
             .unwrap_or_else(|_| unavailable());
     }
     let request_path = request.uri().path().to_owned();
+    let static_asset_request = is_static_asset_path(&request_path);
+    if static_asset_request {
+        let secure_cookie = request_is_https(request.headers());
+        let mut response = next.run(request).await;
+        if static_asset_fell_back_to_html(&request_path, &response) {
+            response = missing_static_asset(&request_path);
+        }
+        apply_web_security_headers(&mut response, secure_cookie);
+        return response;
+    }
     let page_request = is_console_page_request(&request);
     let mut route_status = console_document_route_status(&request);
     let mut clear_stale_cookie = false;
@@ -255,17 +265,20 @@ pub(crate) async fn session_middleware(
 }
 
 fn static_asset_fell_back_to_html(path: &str, response: &Response) -> bool {
-    let static_namespace = path.starts_with("/assets/")
-        || path.starts_with("/wasm/")
-        || path.starts_with("/auth/assets/")
-        || path.starts_with("/auth/wasm/");
-    static_namespace
+    is_static_asset_path(path)
         && response.status().is_success()
         && response
             .headers()
             .get(header::CONTENT_TYPE)
             .and_then(|value| value.to_str().ok())
             .is_some_and(|value| value.starts_with("text/html"))
+}
+
+fn is_static_asset_path(path: &str) -> bool {
+    path.starts_with("/assets/")
+        || path.starts_with("/wasm/")
+        || path.starts_with("/auth/assets/")
+        || path.starts_with("/auth/wasm/")
 }
 
 fn missing_static_asset(path: &str) -> Response {
@@ -407,7 +420,10 @@ fn console_page_redirect(request: &Request, context: &BffSessionContext) -> Opti
         return Some(crate::LOGIN_PATH.to_owned());
     }
     if path == crate::LOGIN_PATH {
-        if context.snapshot.authenticated && !context.snapshot.role_selection_required {
+        if context.snapshot.authenticated && context.snapshot.role_selection_required {
+            return Some("/auth/accounts".to_owned());
+        }
+        if context.snapshot.authenticated {
             return Some(
                 request
                     .uri()
@@ -2955,6 +2971,22 @@ mod tests {
     }
 
     #[test]
+    fn static_asset_paths_are_kept_outside_the_session_boundary() {
+        for path in [
+            "/assets/console.css",
+            "/wasm/erpx-console.js",
+            "/auth/assets/console.css",
+            "/auth/wasm/erpx-console.js",
+        ] {
+            assert!(is_static_asset_path(path));
+        }
+
+        for path in ["/", "/auth/sign-in", "/api/auth/password/form", "/work"] {
+            assert!(!is_static_asset_path(path));
+        }
+    }
+
+    #[test]
     fn authenticated_login_request_returns_to_a_validated_console_page() {
         let request = Request::builder()
             .uri("/auth/sign-in?return_to=/finance")
@@ -2968,7 +3000,10 @@ mod tests {
         );
 
         context.snapshot.role_selection_required = true;
-        assert_eq!(console_page_redirect(&request, &context), None);
+        assert_eq!(
+            console_page_redirect(&request, &context),
+            Some("/auth/accounts".to_owned())
+        );
 
         let root = Request::builder().uri("/").body(Body::empty()).unwrap();
         assert_eq!(
