@@ -13,6 +13,8 @@ use erpx_delivery_contract::{
 };
 #[cfg(feature = "server")]
 use erpx_delivery_contract::{Page, ResourceSummary};
+#[cfg(target_arch = "wasm32")]
+use erpx_ui_core::localized_role_label;
 use erpx_ui_core::{Locale, ThemeMode, provide_corporate_identity, provide_locale, provide_theme};
 use erpx_ui_kit::{
     KitProvider, Link as KitLink, SharedStylesheets,
@@ -20,6 +22,8 @@ use erpx_ui_kit::{
     input::Input as KitInput,
     textarea::Textarea as KitTextarea,
 };
+#[cfg(target_arch = "wasm32")]
+use serde::Deserialize;
 
 #[cfg(any(feature = "web", feature = "server"))]
 type RouteCache = Rc<RefCell<SessionCache<String, RouteData>>>;
@@ -550,6 +554,264 @@ fn SignIn() -> Element {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+struct AccountSessionView {
+    session_id: String,
+    principal_ref: String,
+    active: bool,
+    selected_role: Option<SelectedRoleView>,
+}
+
+#[cfg(target_arch = "wasm32")]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+struct SelectedRoleView {
+    role_key: String,
+    scope_key: String,
+}
+
+#[cfg(target_arch = "wasm32")]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+struct AccountsResponse {
+    accounts: Vec<AccountSessionView>,
+}
+
+#[cfg(target_arch = "wasm32")]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+struct RoleOptionView {
+    selection_id: String,
+    source: String,
+    role_key: String,
+    scope_key: String,
+    requires_mfa: bool,
+}
+
+#[cfg(target_arch = "wasm32")]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+struct RoleOptionsResponse {
+    options: Vec<RoleOptionView>,
+}
+
+#[cfg(target_arch = "wasm32")]
+#[derive(Clone, Debug, PartialEq)]
+struct AccountsPageData {
+    accounts: Vec<AccountSessionView>,
+    roles: Vec<RoleOptionView>,
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn browser_json_request<T>(
+    method: &str,
+    path: &str,
+    body: Option<String>,
+) -> Result<T, String>
+where
+    T: serde::de::DeserializeOwned,
+{
+    crate::platform::browser_http::json_request(method, path, body).await
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn load_accounts_page() -> Result<AccountsPageData, String> {
+    let accounts = browser_json_request::<AccountsResponse>("GET", "/api/accounts", None).await?;
+    let roles = browser_json_request::<RoleOptionsResponse>("GET", "/api/roles", None).await?;
+    Ok(AccountsPageData {
+        accounts: accounts.accounts,
+        roles: roles.options,
+    })
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn activate_role(selection_id: String) -> Result<(), String> {
+    let body = serde_json::json!({ "selection_id": selection_id }).to_string();
+    let _: serde_json::Value =
+        browser_json_request("POST", "/api/roles/activate", Some(body)).await?;
+    crate::platform::browser_http::replace_location("/work")
+}
+
+#[cfg(target_arch = "wasm32")]
+fn role_scope_label(scope_key: &str, locale: Locale) -> &'static str {
+    let scope = scope_key
+        .split_once(':')
+        .map_or(scope_key, |(scope, _)| scope);
+    match (scope, locale) {
+        ("platform", Locale::En) => "Platform scope",
+        ("platform", Locale::Th) => "ขอบเขตแพลตฟอร์ม",
+        ("holding", Locale::En) => "Holding scope",
+        ("holding", Locale::Th) => "ขอบเขตโฮลดิ้ง",
+        ("company", Locale::En) => "Company scope",
+        ("company", Locale::Th) => "ขอบเขตบริษัท",
+        ("branch", Locale::En) => "Branch scope",
+        ("branch", Locale::Th) => "ขอบเขตสาขา",
+        (_, Locale::En) => "Authorized scope",
+        (_, Locale::Th) => "ขอบเขตที่ได้รับอนุญาต",
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[component]
+fn AccountRoleCard(
+    option: RoleOptionView,
+    locale: Locale,
+    pending: bool,
+    busy: bool,
+    on_select: EventHandler<String>,
+) -> Element {
+    let selection_id = option.selection_id.clone();
+    let role_label = localized_role_label(&option.role_key, locale);
+    let scope_label = role_scope_label(&option.scope_key, locale);
+    let source_label = match option.source.as_str() {
+        "directory" => "Directory",
+        _ => "Local",
+    };
+    rsx! {
+        KitButton {
+            variant: ButtonVariant::Secondary,
+            class: if pending { "work-role-card selected" } else { "work-role-card" },
+            r#type: "button",
+            disabled: busy,
+            aria_label: "Select {role_label} — {scope_label}",
+            onclick: move |_| on_select.call(selection_id.clone()),
+            span { class: "work-role-icon", aria_hidden: "true", "{role_label.chars().next().unwrap_or('R')}" }
+            span { class: "work-role-card-copy",
+                span { class: "work-role-card-title",
+                    strong { "{role_label}" }
+                    if option.requires_mfa {
+                        span { class: "work-role-mfa", "MFA required" }
+                    }
+                }
+                small { "{scope_label} · {source_label}" }
+            }
+            span { class: "work-role-check", aria_hidden: "true", if pending { "…" } else { "→" } }
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[component]
+fn Accounts() -> Element {
+    let locale = erpx_ui_core::use_locale().current();
+    let mut page = use_resource(|| async { load_accounts_page().await });
+    let mut pending_selection = use_signal(|| None::<String>);
+    let mut error = use_signal(|| None::<String>);
+    let page_state = page.read().clone();
+    let error_message = error.read().clone();
+    let on_select = move |selection_id: String| {
+        pending_selection.set(Some(selection_id.clone()));
+        error.set(None);
+        spawn(async move {
+            if let Err(message) = activate_role(selection_id).await {
+                pending_selection.set(None);
+                error.set(Some(message));
+            }
+        });
+    };
+
+    rsx! {
+        document::Title { "Accounts · ERPX" }
+        article { class: "auth-page-form role-selection-dialog",
+            p { class: "eyebrow", "SESSION ACCOUNT" }
+            h2 { "Choose an account role" }
+            p { class: "auth-page-form__intro",
+                "Your sign-in is valid. Select the authorized role and scope for this workspace."
+            }
+            match page_state {
+                None => rsx! {
+                    section { class: "route-loading", aria_busy: "true", "Loading authorized roles…" }
+                },
+                Some(Err(message)) => rsx! {
+                    section { class: "route-denied", role: "alert",
+                        h3 { "Accounts unavailable" }
+                        p { "{message}" }
+                        KitButton {
+                            variant: ButtonVariant::Secondary,
+                            r#type: "button",
+                            onclick: move |_| page.restart(),
+                            "Try again"
+                        }
+                    }
+                },
+                Some(Ok(data)) => rsx! {
+                    section { class: "account-quick-list", aria_label: "Signed-in accounts",
+                        div { class: "account-quick-section-heading",
+                            span { "Signed-in account" }
+                            small { "{data.accounts.len()}" }
+                        }
+                        for account in data.accounts.iter() {
+                            div { class: "account-quick-row", "data-state": if account.active { "selected" } else { "" },
+                                span { class: "account-quick-avatar", aria_hidden: "true",
+                                    "{account.principal_ref.chars().next().unwrap_or('A').to_ascii_uppercase()}"
+                                }
+                                span { class: "account-quick-copy",
+                                    strong { "{account.principal_ref}" }
+                                    small {
+                                        if let Some(role) = &account.selected_role {
+                                            "{localized_role_label(&role.role_key, locale)} · {role_scope_label(&role.scope_key, locale)}"
+                                        } else {
+                                            "Role selection required"
+                                        }
+                                    }
+                                }
+                                if account.active {
+                                    span { class: "account-session-state",
+                                        span { class: "account-session-dot", aria_hidden: "true" }
+                                        "Current"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if let Some(message) = error_message {
+                        p { class: "route-error", role: "alert", "{message}" }
+                    }
+                    section { class: "work-role-picker",
+                        div { class: "work-role-search",
+                            span { class: "work-role-result-count", "{data.roles.len()} authorized roles" }
+                        }
+                        div { class: "work-role-groups",
+                            div { class: "work-role-group",
+                                div { class: "work-role-group-heading",
+                                    h3 { "Available roles" }
+                                    span { "{data.roles.len()}" }
+                                }
+                                div { class: "work-role-grid",
+                                    for option in data.roles.iter() {
+                                        AccountRoleCard {
+                                            key: "{option.selection_id}",
+                                            option: option.clone(),
+                                            locale,
+                                            pending: pending_selection.read().as_deref() == Some(option.selection_id.as_str()),
+                                            busy: pending_selection.read().is_some(),
+                                            on_select: on_select.clone(),
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    p { class: "auth-page-form__security",
+                        "Role selection updates the session context before the workspace opens."
+                    }
+                },
+            }
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[component]
+fn Accounts() -> Element {
+    rsx! {
+        document::Title { "Accounts · ERPX" }
+        article { class: "auth-page-form role-selection-dialog",
+            p { class: "eyebrow", "SESSION ACCOUNT" }
+            h2 { "Choose an account role" }
+            p { class: "auth-page-form__intro", "Loading authorized roles…" }
+            p { class: "auth-page-form__security", "This security surface is session-scoped and no-store." }
+        }
+    }
+}
+
 macro_rules! auth_page {
     ($name:ident, $title:literal) => {
         #[component]
@@ -557,13 +819,15 @@ macro_rules! auth_page {
             let title = concat!($title, " · ERPX");
             rsx! {
                 document::Title { "{title}" }
-                article { h2 { $title } p { "This security surface is session-scoped and no-store." } }
+                article { class: "auth-page-form",
+                    h2 { $title }
+                    p { "This security surface is session-scoped and no-store." }
+                }
             }
         }
     };
 }
 
-auth_page!(Accounts, "Accounts");
 auth_page!(Security, "Security");
 auth_page!(Devices, "Devices");
 auth_page!(Recovery, "Recovery");

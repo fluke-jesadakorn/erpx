@@ -404,6 +404,9 @@ fn console_page_redirect(request: &Request, context: &BffSessionContext) -> Opti
     if request.method() != Method::GET && request.method() != Method::HEAD {
         return None;
     }
+    if !is_console_page_request(request) {
+        return None;
+    }
     let path = request.uri().path();
     if path == "/" {
         return Some(
@@ -3016,6 +3019,11 @@ mod tests {
             console_page_redirect(&protected, &context),
             Some("/auth/accounts".to_owned())
         );
+
+        for path in ["/api/accounts", "/api/roles"] {
+            let api_request = Request::builder().uri(path).body(Body::empty()).unwrap();
+            assert_eq!(console_page_redirect(&api_request, &context), None);
+        }
     }
 
     #[test]

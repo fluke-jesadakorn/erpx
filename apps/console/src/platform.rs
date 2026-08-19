@@ -10,6 +10,10 @@ use std::collections::BTreeMap;
 use erpx_delivery_contract::ClientChannel;
 use serde::{Deserialize, Serialize};
 
+#[cfg(target_arch = "wasm32")]
+#[path = "platform/browser_http.rs"]
+pub mod browser_http;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum NativeCapability {
