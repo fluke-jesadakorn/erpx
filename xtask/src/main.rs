@@ -4947,7 +4947,18 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
     {
         return Err("SSR sign-in did not render the localized route content".into());
     }
-    if !sign_in_html.contains("<form method=\"post\" action=\"/api/v2/auth/password/form\"")
+    if !sign_in_html.contains("data-erpx-component=\"provider\"")
+        || !sign_in_html.contains("/assets/tokens-")
+        || !sign_in_html.contains("/assets/foundation-")
+        || !sign_in_html.contains("/assets/console-surfaces-")
+    {
+        return Err(
+            "canonical Dioxus SSR surface omitted the ERPX provider or style layers".into(),
+        );
+    }
+    if !sign_in_html.contains("<form")
+        || !sign_in_html.contains("method=\"post\"")
+        || !sign_in_html.contains("action=\"/api/v2/auth/password/form\"")
         || !sign_in_html.contains("type=\"submit\"")
         || !sign_in_html.contains("name=\"principal_ref\"")
         || !sign_in_html.contains("name=\"password\"")

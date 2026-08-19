@@ -13,8 +13,9 @@ use erpx_delivery_contract::{
 };
 #[cfg(feature = "server")]
 use erpx_delivery_contract::{PageV2, ResourceSummaryV2};
+use erpx_ui_core::{Locale, ThemeMode, provide_corporate_identity, provide_locale, provide_theme};
 use erpx_ui_kit::{
-    Link as KitLink,
+    KitProvider, Link as KitLink, SharedStylesheets,
     button::{Button as KitButton, ButtonVariant},
     input::Input as KitInput,
     textarea::Textarea as KitTextarea,
@@ -150,28 +151,36 @@ pub fn App() -> Element {
         ))
     });
     cache.borrow_mut().set_scope(session.cache_scope());
+    provide_locale(Locale::from_language_tag(&session.locale).unwrap_or_default());
+    provide_theme(ThemeMode::System);
+    provide_corporate_identity(
+        erpx_domain::corporate_identity::ResolvedCorporateIdentity::neutral_erpx(),
+    );
     use_context_provider(|| session);
 
     rsx! {
+        SharedStylesheets {}
         document::Stylesheet { href: asset!("/assets/console-surfaces.css") }
-        ErrorBoundary {
-            handle_error: |errors: ErrorContext| rsx! {
-                main { class: "route-error", role: "alert",
-                    h1 { "This route is temporarily unavailable" }
-                    p { "Correlation details are retained by the delivery boundary." }
-                    KitButton {
-                        variant: ButtonVariant::Primary,
-                        r#type: "button",
-                        onclick: move |_| errors.clear_errors(),
-                        "Try again"
+        KitProvider {
+            ErrorBoundary {
+                handle_error: |errors: ErrorContext| rsx! {
+                    main { class: "route-error", role: "alert",
+                        h1 { "This route is temporarily unavailable" }
+                        p { "Correlation details are retained by the delivery boundary." }
+                        KitButton {
+                            variant: ButtonVariant::Primary,
+                            r#type: "button",
+                            onclick: move |_| errors.clear_errors(),
+                            "Try again"
+                        }
                     }
-                }
-            },
-            SuspenseBoundary {
-                fallback: |_| rsx! {
-                    main { class: "route-loading", aria_busy: "true", "Loading workspace…" }
                 },
-                Router::<AppRoute> {}
+                SuspenseBoundary {
+                    fallback: |_| rsx! {
+                        main { class: "route-loading", aria_busy: "true", "Loading workspace…" }
+                    },
+                    Router::<AppRoute> {}
+                }
             }
         }
     }
@@ -191,11 +200,14 @@ fn PublicLayout() -> Element {
 fn AuthLayout() -> Element {
     rsx! {
         main { class: "auth-layout",
-            aside {
-                p { "ERPX" }
+            aside { class: "auth-layout__brand",
+                p { class: "auth-layout__eyebrow", "ERPX CONTROL PLANE" }
                 h1 { "Secure business operations" }
+                p { class: "auth-layout__summary",
+                    "One trusted workspace for finance, operations, people, and every critical decision."
+                }
             }
-            section { Outlet::<AppRoute> {} }
+            section { class: "auth-layout__content", Outlet::<AppRoute> {} }
         }
     }
 }
@@ -506,12 +518,21 @@ fn ChannelRestricted(workspace: WorkspaceV2) -> Element {
 fn SignIn() -> Element {
     rsx! {
         document::Title { "Sign in · ERPX" }
-        form { method: "post", action: "/api/v2/auth/password/form",
+        form { class: "auth-form-v2", method: "post", action: "/api/v2/auth/password/form",
+            p { class: "eyebrow", "AUTHORIZED ACCESS" }
             h2 { "Sign in" }
-            label { "Account" KitInput { name: "principal_ref", autocomplete: "username" } }
-            label { "Password" KitInput { name: "password", r#type: "password", autocomplete: "current-password" } }
+            p { class: "auth-form-v2__intro", "Use your ERPX account to continue to the requested workspace." }
+            label { class: "auth-form-v2__field",
+                span { "Account" }
+                KitInput { name: "principal_ref", autocomplete: "username", required: true }
+            }
+            label { class: "auth-form-v2__field",
+                span { "Password" }
+                KitInput { name: "password", r#type: "password", autocomplete: "current-password", required: true }
+            }
             KitInput { name: "device_label", r#type: "hidden", value: "erpx-console" }
             KitButton { variant: ButtonVariant::Primary, r#type: "submit", "Continue" }
+            p { class: "auth-form-v2__security", "Session scope and correlation evidence remain protected at the delivery boundary." }
         }
     }
 }
