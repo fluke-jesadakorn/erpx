@@ -148,7 +148,7 @@ mod server {
         }
     }
 
-    fn owner_status(status: tonic::Status) -> (DeliveryError, &'static str) {
+    pub(super) fn owner_status(status: tonic::Status) -> (DeliveryError, &'static str) {
         let reason = match status.message() {
             "holding route does not match holding scope" => "holding_route_scope_mismatch",
             "data_profile_key" | "holding route is required" | "holding route is invalid" => {

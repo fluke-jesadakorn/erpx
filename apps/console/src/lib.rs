@@ -20,6 +20,8 @@ mod native_delivery;
 #[cfg(feature = "native")]
 mod native_spike;
 pub mod platform;
+#[cfg(any(feature = "web", feature = "server"))]
+mod process_delivery;
 mod routes;
 #[cfg(any(feature = "web", feature = "server"))]
 mod security_delivery;

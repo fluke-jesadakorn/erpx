@@ -119,8 +119,8 @@ pub enum AppRoute {
             severity: Option<String>,
             cursor: Option<String>,
         },
-        #[route("/processes")]
-        Processes {},
+        #[route("/processes?:cursor")]
+        Processes { cursor: Option<String> },
         #[route("/insights")]
         Insights {},
         #[route("/modules")]
@@ -428,8 +428,8 @@ fn ConsoleShell() -> Element {
                     }
                     KitLink {
                         href: "/processes",
-                        class: nav_link_class(matches!(&active_route, AppRoute::Processes {})),
-                        aria_current: nav_aria_current(matches!(&active_route, AppRoute::Processes {})),
+                        class: nav_link_class(matches!(&active_route, AppRoute::Processes { .. })),
+                        aria_current: nav_aria_current(matches!(&active_route, AppRoute::Processes { .. })),
                         {copy(locale, "Processes", "กระบวนการ")}
                     }
                     KitLink {
@@ -1332,9 +1332,382 @@ fn Work(
     }
 }
 
+#[cfg(any(feature = "web", feature = "server"))]
+fn process_stage_key(stage: crate::process_delivery::ProcessStage) -> &'static str {
+    match stage {
+        crate::process_delivery::ProcessStage::Pending => "pending",
+        crate::process_delivery::ProcessStage::Running => "running",
+        crate::process_delivery::ProcessStage::RetryScheduled => "retry-scheduled",
+        crate::process_delivery::ProcessStage::Failed => "failed",
+        crate::process_delivery::ProcessStage::Completed => "completed",
+    }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+fn process_stage_label(
+    stage: crate::process_delivery::ProcessStage,
+    locale: Locale,
+) -> &'static str {
+    match stage {
+        crate::process_delivery::ProcessStage::Pending => copy(locale, "Pending", "รอดำเนินการ"),
+        crate::process_delivery::ProcessStage::Running => copy(locale, "Running", "กำลังดำเนินการ"),
+        crate::process_delivery::ProcessStage::RetryScheduled => {
+            copy(locale, "Retry scheduled", "กำหนดลองใหม่แล้ว")
+        }
+        crate::process_delivery::ProcessStage::Failed => copy(locale, "Failed", "ล้มเหลว"),
+        crate::process_delivery::ProcessStage::Completed => copy(locale, "Completed", "เสร็จสมบูรณ์"),
+    }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+fn process_kind_label(kind: crate::process_delivery::ProcessKind, locale: Locale) -> &'static str {
+    match kind {
+        crate::process_delivery::ProcessKind::HoldingBackup => copy(
+            locale,
+            "Holding backup lifecycle",
+            "lifecycle การสำรองข้อมูลโฮลดิ้ง",
+        ),
+    }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+fn process_contribution_message(
+    availability: erpx_ui_core::ReadModelAvailability,
+    locale: Locale,
+) -> &'static str {
+    match availability {
+        erpx_ui_core::ReadModelAvailability::Unavailable => copy(
+            locale,
+            "The bounded-context owner could not provide process state.",
+            "ไม่สามารถอ่านสถานะกระบวนการจากบริการเจ้าของ bounded context ได้",
+        ),
+        erpx_ui_core::ReadModelAvailability::Empty => copy(
+            locale,
+            "The owner reports no backup jobs in this bounded scope.",
+            "บริการเจ้าของข้อมูลยืนยันว่าไม่มีงานสำรองข้อมูลในขอบเขตนี้",
+        ),
+        erpx_ui_core::ReadModelAvailability::Partial => copy(
+            locale,
+            "Only lifecycle evidence confirmed within the bounded owner window is shown.",
+            "แสดงเฉพาะหลักฐาน lifecycle ที่ยืนยันได้ภายในหน้าต่างข้อมูลเจ้าของที่มีขอบเขต",
+        ),
+        erpx_ui_core::ReadModelAvailability::Available => copy(
+            locale,
+            "Lifecycle state was read directly from the owner service.",
+            "อ่านสถานะ lifecycle จากบริการเจ้าของข้อมูลโดยตรง",
+        ),
+    }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+fn process_freshness_label(
+    freshness: erpx_ui_core::ReadModelFreshness,
+    locale: Locale,
+) -> &'static str {
+    match freshness {
+        erpx_ui_core::ReadModelFreshness::Live => copy(locale, "Live", "ข้อมูลสด"),
+        erpx_ui_core::ReadModelFreshness::Current => copy(locale, "Current", "เป็นปัจจุบัน"),
+        erpx_ui_core::ReadModelFreshness::Stale => copy(locale, "Stale", "ข้อมูลเก่า"),
+        erpx_ui_core::ReadModelFreshness::Unknown => copy(locale, "Unknown", "ไม่ทราบ"),
+    }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+fn process_error_copy(
+    error: &erpx_delivery_contract::DeliveryError,
+    locale: Locale,
+) -> (&'static str, &'static str) {
+    use erpx_delivery_contract::DeliveryError;
+    match (error, locale) {
+        (DeliveryError::Unauthenticated(_), Locale::En) => (
+            "Process session unavailable",
+            "Reason: the authenticated web session is no longer valid. Sign in again.",
+        ),
+        (DeliveryError::Unauthenticated(_), Locale::Th) => (
+            "เซสชันกระบวนการไม่พร้อมใช้งาน",
+            "เหตุผล: เซสชันเว็บที่ยืนยันตัวตนแล้วไม่ถูกต้องอีกต่อไป โปรดเข้าสู่ระบบใหม่",
+        ),
+        (DeliveryError::Forbidden(_), Locale::En) => (
+            "Process access denied",
+            "Reason: the active role or authority scope cannot read these owner lifecycles.",
+        ),
+        (DeliveryError::Forbidden(_), Locale::Th) => (
+            "ไม่มีสิทธิ์เข้าถึงกระบวนการ",
+            "เหตุผล: บทบาทหรือขอบเขตสิทธิ์ที่ใช้งานอยู่ไม่สามารถอ่าน lifecycle จากบริการเจ้าของข้อมูลเหล่านี้ได้",
+        ),
+        (DeliveryError::Validation(_), Locale::En) => (
+            "Process cursor invalid",
+            "Reason: the bounded process page cursor was not accepted.",
+        ),
+        (DeliveryError::Validation(_), Locale::Th) => (
+            "cursor ของกระบวนการไม่ถูกต้อง",
+            "เหตุผล: ระบบไม่ยอมรับ cursor ของหน้ากระบวนการแบบมีขอบเขต",
+        ),
+        (DeliveryError::Unavailable(_), Locale::En) => (
+            "Process owners unavailable",
+            "Reason: an authorized owner service or the session authority service could not be reached.",
+        ),
+        (DeliveryError::Unavailable(_), Locale::Th) => (
+            "บริการเจ้าของกระบวนการไม่พร้อมใช้งาน",
+            "เหตุผล: ไม่สามารถเชื่อมต่อบริการเจ้าของข้อมูลที่ได้รับอนุญาตหรือบริการสิทธิ์ของเซสชันได้",
+        ),
+        (_, Locale::En) => (
+            "Process request failed",
+            "Reason: an owner returned invalid lifecycle evidence or could not complete the query.",
+        ),
+        (_, Locale::Th) => (
+            "คำขอกระบวนการไม่สำเร็จ",
+            "เหตุผล: บริการเจ้าของข้อมูลส่งหลักฐาน lifecycle ที่ไม่ถูกต้องหรือไม่สามารถทำคำขอให้เสร็จได้",
+        ),
+    }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
 #[component]
-fn Processes() -> Element {
-    rsx! { ProtectedRouteSurface { query: RouteQuery::Processes } }
+fn Processes(cursor: Option<String>) -> Element {
+    let locale = erpx_ui_core::use_locale().current();
+    if cursor
+        .as_deref()
+        .is_some_and(|value| !crate::process_delivery::valid_process_cursor(value))
+    {
+        return rsx! {
+            section { class: "route-denied", role: "alert", "data-reason": "invalid_process_cursor",
+                h1 { {copy(locale, "Process cursor invalid", "cursor ของกระบวนการไม่ถูกต้อง")} }
+                p { {copy(locale,
+                    "Reason: the page cursor is malformed or outside its bounded owner window.",
+                    "เหตุผล: cursor ของหน้ามีรูปแบบไม่ถูกต้องหรืออยู่นอกขอบเขตข้อมูลของบริการเจ้าของ",
+                )} }
+                KitLink { href: "/processes", {copy(locale, "Return to first page", "กลับไปหน้าแรก")} }
+            }
+        };
+    }
+    let request = crate::process_delivery::AuthorizedProcessRequest {
+        cursor: cursor.clone(),
+        page_size: 24,
+        locale: locale.language_tag().into(),
+        consistency: crate::process_delivery::ProcessConsistency::Eventual,
+    };
+    let mut resource = use_server_future(move || {
+        let request = request.clone();
+        async move {
+            match crate::process_delivery::list_authorized_processes(request).await {
+                Ok(result) => result,
+                Err(_) => Err(erpx_delivery_contract::DeliveryError::unavailable(Some(
+                    500,
+                ))),
+            }
+        }
+    })?;
+    let page_state = resource
+        .read()
+        .clone()
+        .expect("resolved authorized process future has a value");
+    let title = format!("{} · ERPX", copy(locale, "Processes", "กระบวนการ"));
+
+    rsx! {
+        document::Title { "{title}" }
+        article { class: "workspace-route authorized-process-page",
+            nav { class: "route-breadcrumb", aria_label: copy(locale, "Breadcrumb", "เส้นทางนำทาง"),
+                KitLink { href: "/modules", {copy(locale, "Modules", "โมดูล")} }
+                span { aria_hidden: "true", "/" }
+                span { aria_current: "page", {copy(locale, "Processes", "กระบวนการ")} }
+            }
+            header {
+                p { class: "eyebrow", {copy(locale, "AUTHORIZED PROCESS SHELL", "ศูนย์กระบวนการตามสิทธิ์")} }
+                h1 { {copy(locale, "Lifecycle and retry state", "สถานะ lifecycle และการลองใหม่")} }
+                p { {copy(locale,
+                    "Follow lifecycle, failure, and retry evidence directly from authorized process owners. Every item links to its canonical owner record.",
+                    "ติดตามหลักฐาน lifecycle ความล้มเหลว และการลองใหม่โดยตรงจากบริการเจ้าของกระบวนการที่ได้รับอนุญาต แต่ละรายการเชื่อมกลับไปยังระเบียนหลัก",
+                )} }
+            }
+            match page_state {
+                Err(error) => {
+                    let (error_title, reason) = process_error_copy(&error, locale);
+                    rsx! {
+                        section { class: "route-denied", role: "alert", "data-reason": "authorized_process_query_failed",
+                            h2 { "{error_title}" }
+                            p { "{reason}" }
+                            small {
+                                {copy(locale, "Reference", "รหัสอ้างอิง")}
+                                ": {error.meta().correlation_id}"
+                            }
+                            div { class: "route-actions",
+                                KitButton {
+                                    variant: ButtonVariant::Secondary,
+                                    r#type: "button",
+                                    onclick: move |_| resource.restart(),
+                                    {copy(locale, "Try again", "ลองอีกครั้ง")}
+                                }
+                                KitLink { href: "/auth/accounts", {copy(locale, "Review access", "ตรวจสอบสิทธิ์")} }
+                            }
+                        }
+                    }
+                },
+                Ok(page) => {
+                    let unavailable = page.availability == erpx_ui_core::ReadModelAvailability::Unavailable;
+                    let next_href = page.next_cursor.as_ref().map(|value| format!("/processes?cursor={value}"));
+                    rsx! {
+                        section { class: "process-evidence", role: "status", "data-availability": "{work_availability_label(page.availability, Locale::En).to_ascii_lowercase()}",
+                            div {
+                                strong { {work_availability_label(page.availability, locale)} }
+                                p {
+                                    {copy(locale, "Measured at", "วัดเมื่อ")}
+                                    " {page.measured_at} · "
+                                    {copy(locale, "Scope", "ขอบเขต")}
+                                    ": {page.scope} · "
+                                    {process_freshness_label(page.freshness, locale)}
+                                }
+                            }
+                            small {
+                                {copy(locale, "Reference", "รหัสอ้างอิง")}
+                                ": {page.correlation_id}"
+                                if let Some(version) = page.authorization_context_version {
+                                    " · auth-context v{version}"
+                                }
+                            }
+                        }
+                        if unavailable {
+                            section { class: "process-unavailable", role: "alert",
+                                h2 { {copy(locale, "No authoritative process owner is available", "ไม่มีบริการเจ้าของกระบวนการที่เชื่อถือได้พร้อมใช้งาน")} }
+                                p { {copy(locale,
+                                    "The shell will not report success, completion, or a synthetic zero while every authorized owner is unavailable.",
+                                    "ศูนย์กระบวนการจะไม่รายงานความสำเร็จ การเสร็จสิ้น หรือค่าศูนย์ที่สร้างขึ้นเอง ในขณะที่บริการเจ้าของที่ได้รับอนุญาตทั้งหมดไม่พร้อมใช้งาน",
+                                )} }
+                                if let Some(reason) = page.reason_code.as_ref() {
+                                    small { {copy(locale, "Reason", "เหตุผล")} ": {reason}" }
+                                }
+                            }
+                        } else if page.items.is_empty() {
+                            section { class: "empty-state", role: "status",
+                                span { class: "empty-state__icon", aria_hidden: "true", "◇" }
+                                div { class: "empty-state__copy",
+                                    h2 { {copy(locale, "Authoritative process list is empty", "รายการกระบวนการว่างตามข้อมูลที่เชื่อถือได้")} }
+                                    p { {copy(locale,
+                                        "Every responding authorized owner returned no lifecycle records in this bounded view; no sample processes were created.",
+                                        "บริการเจ้าของที่ได้รับอนุญาตและตอบกลับทั้งหมดไม่พบระเบียน lifecycle ในมุมมองที่มีขอบเขตนี้ ระบบไม่ได้สร้างกระบวนการตัวอย่าง",
+                                    )} }
+                                }
+                            }
+                        } else {
+                            ul { class: "process-list", aria_label: copy(locale, "Authorized process lifecycles", "lifecycle ของกระบวนการตามสิทธิ์"),
+                                for item in page.items.iter() {
+                                    li { class: "process-card", key: "{item.key}", "data-stage": "{process_stage_key(item.stage)}",
+                                        div { class: "process-card__main",
+                                            div { class: "process-card__badges",
+                                                span { class: "process-kind", {copy(locale, "Holding backup", "การสำรองข้อมูลโฮลดิ้ง")} }
+                                                span { class: "record-status", {process_stage_label(item.stage, locale)} }
+                                                if item.retryable {
+                                                    span { class: "process-retry", {copy(locale, "Retryable", "ลองใหม่ได้")} }
+                                                }
+                                            }
+                                            h2 { {process_kind_label(item.kind, locale)} }
+                                            dl { class: "process-card__facts",
+                                                div {
+                                                    dt { {copy(locale, "Owner", "เจ้าของข้อมูล")} }
+                                                    dd { "{item.owner}" }
+                                                }
+                                                div {
+                                                    dt { {copy(locale, "Attempts", "จำนวนครั้ง")} }
+                                                    dd { "{item.attempts}/{item.max_attempts}" }
+                                                }
+                                                div {
+                                                    dt { {copy(locale, "Updated", "อัปเดตเมื่อ")} }
+                                                    dd { "{item.updated_at}" }
+                                                }
+                                                if let Some(next_attempt_at) = item.next_attempt_at.as_ref() {
+                                                    div {
+                                                        dt { {copy(locale, "Next attempt", "ลองครั้งถัดไป")} }
+                                                        dd { "{next_attempt_at}" }
+                                                    }
+                                                }
+                                                if let Some(completed_at) = item.completed_at.as_ref() {
+                                                    div {
+                                                        dt { {copy(locale, "Completed", "เสร็จเมื่อ")} }
+                                                        dd { "{completed_at}" }
+                                                    }
+                                                }
+                                                if let Some(failure_category) = item.failure_category.as_ref() {
+                                                    div {
+                                                        dt { {copy(locale, "Failure", "ความล้มเหลว")} }
+                                                        dd { "{failure_category}" }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        KitLink {
+                                            class: "route-action route-action--primary",
+                                            href: "{item.target_path}",
+                                            {copy(locale, "Open owner record", "เปิดระเบียนเจ้าของข้อมูล")}
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if next_href.is_some() || cursor.is_some() {
+                            div { class: "route-actions process-pagination",
+                                if let Some(next_href) = next_href.as_ref() {
+                                    KitLink { href: "{next_href}", {copy(locale, "Next page", "หน้าถัดไป")} }
+                                }
+                                KitLink { href: "/processes", {copy(locale, "First page", "หน้าแรก")} }
+                            }
+                        }
+                        section { class: "process-contributors", aria_label: copy(locale, "Process owner status", "สถานะบริการเจ้าของกระบวนการ"),
+                            header {
+                                h2 { {copy(locale, "Authoritative process owners", "บริการเจ้าของกระบวนการที่เชื่อถือได้")} }
+                                p { {copy(locale,
+                                    "Unavailable owners remain visible as degraded evidence and are never converted into success or zero.",
+                                    "บริการเจ้าของที่ไม่พร้อมใช้จะแสดงเป็นหลักฐานสถานะผิดปกติ และไม่ถูกแปลงเป็นความสำเร็จหรือค่าศูนย์",
+                                )} }
+                            }
+                            div { class: "process-contributor-grid",
+                                for source in page.contributions.iter() {
+                                    article { class: "process-contributor", "data-availability": "{work_availability_label(source.availability, Locale::En).to_ascii_lowercase()}",
+                                        div {
+                                            strong { {copy(locale, "Holding backup jobs", "งานสำรองข้อมูลโฮลดิ้ง")} }
+                                            span { {work_availability_label(source.availability, locale)} }
+                                        }
+                                        p { {process_contribution_message(source.availability, locale)} }
+                                        small {
+                                            {process_freshness_label(source.freshness, locale)}
+                                            if source.availability != erpx_ui_core::ReadModelAvailability::Unavailable {
+                                                " · "
+                                                {copy(locale, "Records", "ระเบียน")}
+                                                ": {source.item_count}"
+                                            }
+                                        }
+                                        if let Some(reason_code) = source.reason_code.as_ref() {
+                                            small { {copy(locale, "Reason", "เหตุผล")} ": {reason_code}" }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        p { class: "process-redaction-note",
+                            {copy(locale,
+                                "Access tokens, backup references, restore targets, database profiles, and owner error details are redacted by contract.",
+                                "access token ข้อมูลอ้างอิงการสำรอง เป้าหมายการกู้คืน โปรไฟล์ฐานข้อมูล และรายละเอียดข้อผิดพลาดภายในถูกปกปิดตาม contract",
+                            )}
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[cfg(feature = "native")]
+#[component]
+fn Processes(_cursor: Option<String>) -> Element {
+    let locale = erpx_ui_core::use_locale().current();
+    rsx! {
+        section { class: "route-denied", role: "alert", "data-reason": "native_process_transport_not_ported",
+            h1 { {copy(locale, "Processes unavailable on Native", "กระบวนการยังไม่พร้อมบน Native")} }
+            p { {copy(locale,
+                "Reason: the typed Native Tonic process-owner adapter has not been certified, so this capability fails closed.",
+                "เหตุผล: typed Native Tonic adapter สำหรับบริการเจ้าของกระบวนการยังไม่ผ่านการรับรอง ความสามารถนี้จึงปิดแบบ fail closed",
+            )} }
+        }
+    }
 }
 
 #[component]
@@ -4395,14 +4768,42 @@ mod tests {
         );
     }
 
+    #[test]
+    fn process_route_cursor_and_presenter_copy_are_bounded_and_bilingual() {
+        let route = AppRoute::from_str("/processes?cursor=offset:24")
+            .expect("bounded process cursor route parses");
+        assert_eq!(route_path(&route), "/processes");
+        assert!(matches!(
+            route,
+            AppRoute::Processes { cursor: Some(value) } if value == "offset:24"
+        ));
+        assert_eq!(
+            process_stage_label(
+                crate::process_delivery::ProcessStage::RetryScheduled,
+                Locale::En,
+            ),
+            "Retry scheduled"
+        );
+        assert_eq!(
+            process_stage_label(
+                crate::process_delivery::ProcessStage::RetryScheduled,
+                Locale::Th,
+            ),
+            "กำหนดลองใหม่แล้ว"
+        );
+        assert!(
+            process_contribution_message(
+                erpx_ui_core::ReadModelAvailability::Unavailable,
+                Locale::Th,
+            )
+            .contains("ไม่สามารถ")
+        );
+    }
+
     #[cfg(feature = "server")]
     #[test]
     fn unconnected_generic_routes_are_honest_empty_states() {
-        let mut routes = vec![
-            RouteQuery::Work,
-            RouteQuery::Processes,
-            RouteQuery::Insights,
-        ];
+        let mut routes = vec![RouteQuery::Insights];
         routes.extend(Workspace::ALL.map(|workspace| RouteQuery::Workspace {
             workspace,
             resource: None,
