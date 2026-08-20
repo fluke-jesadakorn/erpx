@@ -2807,6 +2807,14 @@ async fn navigation_manifest_groups(
                     permissions: vec!["support.ticket.read".into()],
                 },
                 Candidate {
+                    route_id: "incidents",
+                    label: "Incidents",
+                    label_key: "nav.route.incidents",
+                    path: "/platform/incidents",
+                    icon: "incidents",
+                    permissions: vec!["support.incident.read".into()],
+                },
+                Candidate {
                     route_id: "billing",
                     label: "Billing",
                     label_key: "nav.route.billing",

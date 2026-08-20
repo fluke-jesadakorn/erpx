@@ -27,6 +27,10 @@ use erpx_ui_kit::{
     input::Input as KitInput,
     kit::collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
 };
+use erpx_ui_support::{
+    IncidentDetailState, IncidentDetailSurface, IncidentListState, IncidentListSurface,
+    SupportRoute, SupportState, SupportSurface, SupportTicketListState, SupportTicketListSurface,
+};
 use serde::Deserialize;
 
 #[cfg(any(feature = "web", feature = "server"))]
@@ -81,7 +85,7 @@ fn platform_route_href(session: &SessionBootstrap, path: &str) -> String {
 #[rustfmt::skip]
 #[derive(Clone, Debug, PartialEq, Routable)]
 pub enum AppRoute {
-    #[redirect("/", || AppRoute::Work {})]
+    #[redirect("/", || AppRoute::Work { view: None, domain: None, severity: None, cursor: None })]
     #[layout(PublicLayout)]
         #[route("/public/marketing/form/:id")]
         PublicMarketingForm { id: RouteUuid },
@@ -108,8 +112,13 @@ pub enum AppRoute {
         Recovery {},
     #[end_layout]
     #[layout(ConsoleShell)]
-        #[route("/work")]
-        Work {},
+        #[route("/work?:view&:domain&:severity&:cursor")]
+        Work {
+            view: Option<String>,
+            domain: Option<String>,
+            severity: Option<String>,
+            cursor: Option<String>,
+        },
         #[route("/processes")]
         Processes {},
         #[route("/insights")]
@@ -120,6 +129,14 @@ pub enum AppRoute {
         PlatformHoldings { cursor: Option<String> },
         #[route("/platform/holdings/:holding_id")]
         PlatformHolding { holding_id: RouteUuid },
+        #[route("/platform/support")]
+        PlatformSupport {},
+        #[route("/platform/support/:id")]
+        PlatformSupportTicket { id: RouteUuid },
+        #[route("/platform/incidents")]
+        PlatformIncidents {},
+        #[route("/platform/incidents/:id")]
+        PlatformIncident { id: RouteUuid },
         #[redirect("/identity", || AppRoute::IdentityPrincipals { cursor: None })]
         #[route("/identity/principal?:cursor")]
         IdentityPrincipals { cursor: Option<String> },
@@ -405,8 +422,8 @@ fn ConsoleShell() -> Element {
                 nav { class: "console-nav__primary", aria_label: copy(locale, "Primary", "เมนูหลัก"),
                     KitLink {
                         href: "/work",
-                        class: nav_link_class(matches!(&active_route, AppRoute::Work {})),
-                        aria_current: nav_aria_current(matches!(&active_route, AppRoute::Work {})),
+                        class: nav_link_class(matches!(&active_route, AppRoute::Work { .. })),
+                        aria_current: nav_aria_current(matches!(&active_route, AppRoute::Work { .. })),
                         {copy(locale, "Work", "งาน")}
                     }
                     KitLink {
@@ -780,9 +797,539 @@ fn use_route_data(query: RouteQuery) -> Result<RouteData, RenderError> {
         .map_err(render_delivery_error)
 }
 
+#[cfg(any(feature = "web", feature = "server"))]
+fn parse_work_view(value: Option<&str>) -> Option<erpx_ui_core::WorkQueueView> {
+    match value {
+        None | Some("") => Some(erpx_ui_core::WorkQueueView::All),
+        Some(value) => erpx_ui_core::WorkQueueView::parse(value),
+    }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+fn parse_work_domain(value: Option<&str>) -> Option<Option<erpx_ui_core::WorkDomain>> {
+    Some(match value {
+        None | Some("") | Some("all") => None,
+        Some("operations") => Some(erpx_ui_core::WorkDomain::Operations),
+        Some("support") => Some(erpx_ui_core::WorkDomain::Support),
+        Some("finance") => Some(erpx_ui_core::WorkDomain::Finance),
+        Some("people") => Some(erpx_ui_core::WorkDomain::People),
+        Some("maintenance") => Some(erpx_ui_core::WorkDomain::Maintenance),
+        Some("procurement") => Some(erpx_ui_core::WorkDomain::Procurement),
+        Some(_) => return None,
+    })
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+fn parse_work_severity(value: Option<&str>) -> Option<Option<erpx_ui_core::WorkItemSeverity>> {
+    Some(match value {
+        None | Some("") | Some("all") => None,
+        Some("critical") => Some(erpx_ui_core::WorkItemSeverity::Critical),
+        Some("high") => Some(erpx_ui_core::WorkItemSeverity::High),
+        Some("medium") => Some(erpx_ui_core::WorkItemSeverity::Medium),
+        Some("low") => Some(erpx_ui_core::WorkItemSeverity::Low),
+        Some("informational") => Some(erpx_ui_core::WorkItemSeverity::Informational),
+        Some(_) => return None,
+    })
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+fn work_filter_href(
+    view: erpx_ui_core::WorkQueueView,
+    domain: Option<erpx_ui_core::WorkDomain>,
+    severity: Option<erpx_ui_core::WorkItemSeverity>,
+    cursor: Option<&str>,
+) -> String {
+    let mut values = vec![format!("view={}", view.query_value())];
+    if let Some(domain) = domain {
+        values.push(format!("domain={}", domain.as_str()));
+    }
+    if let Some(severity) = severity {
+        let value = match severity {
+            erpx_ui_core::WorkItemSeverity::Critical => "critical",
+            erpx_ui_core::WorkItemSeverity::High => "high",
+            erpx_ui_core::WorkItemSeverity::Medium => "medium",
+            erpx_ui_core::WorkItemSeverity::Low => "low",
+            erpx_ui_core::WorkItemSeverity::Informational => "informational",
+        };
+        values.push(format!("severity={value}"));
+    }
+    if let Some(cursor) = cursor {
+        values.push(format!("cursor={cursor}"));
+    }
+    format!("/work?{}", values.join("&"))
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+fn work_view_label(value: erpx_ui_core::WorkQueueView, locale: Locale) -> &'static str {
+    match value {
+        erpx_ui_core::WorkQueueView::All => copy(locale, "All", "ทั้งหมด"),
+        erpx_ui_core::WorkQueueView::Mine => copy(locale, "Mine", "ของฉัน"),
+        erpx_ui_core::WorkQueueView::Team => copy(locale, "Team", "ทีม"),
+        erpx_ui_core::WorkQueueView::Overdue => copy(locale, "Overdue", "เกินกำหนด"),
+        erpx_ui_core::WorkQueueView::Approvals => copy(locale, "Approvals", "รออนุมัติ"),
+    }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+fn work_domain_label(value: erpx_ui_core::WorkDomain, locale: Locale) -> &'static str {
+    match value {
+        erpx_ui_core::WorkDomain::Operations => copy(locale, "Operations", "ปฏิบัติการ"),
+        erpx_ui_core::WorkDomain::Support => copy(locale, "Support", "สนับสนุน"),
+        erpx_ui_core::WorkDomain::Finance => copy(locale, "Finance", "การเงิน"),
+        erpx_ui_core::WorkDomain::People => copy(locale, "People", "บุคลากร"),
+        erpx_ui_core::WorkDomain::Maintenance => copy(locale, "Maintenance", "บำรุงรักษา"),
+        erpx_ui_core::WorkDomain::Procurement => copy(locale, "Procurement", "จัดซื้อ"),
+    }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+fn work_severity_label(value: erpx_ui_core::WorkItemSeverity, locale: Locale) -> &'static str {
+    match value {
+        erpx_ui_core::WorkItemSeverity::Critical => copy(locale, "Critical", "วิกฤต"),
+        erpx_ui_core::WorkItemSeverity::High => copy(locale, "High", "สูง"),
+        erpx_ui_core::WorkItemSeverity::Medium => copy(locale, "Medium", "ปานกลาง"),
+        erpx_ui_core::WorkItemSeverity::Low => copy(locale, "Low", "ต่ำ"),
+        erpx_ui_core::WorkItemSeverity::Informational => copy(locale, "Info", "ข้อมูล"),
+    }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+fn work_availability_label(
+    value: erpx_ui_core::ReadModelAvailability,
+    locale: Locale,
+) -> &'static str {
+    match value {
+        erpx_ui_core::ReadModelAvailability::Available => copy(locale, "Available", "พร้อมใช้"),
+        erpx_ui_core::ReadModelAvailability::Partial => copy(locale, "Partial", "บางส่วน"),
+        erpx_ui_core::ReadModelAvailability::Empty => {
+            copy(locale, "Authoritative empty", "ว่างตามข้อมูลที่เชื่อถือได้")
+        }
+        erpx_ui_core::ReadModelAvailability::Unavailable => {
+            copy(locale, "Unavailable", "ไม่พร้อมใช้งาน")
+        }
+    }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+fn work_error_copy(
+    error: &erpx_delivery_contract::DeliveryError,
+    locale: Locale,
+) -> (&'static str, &'static str) {
+    use erpx_delivery_contract::DeliveryError;
+    match (error, locale) {
+        (DeliveryError::Unauthenticated(_), Locale::En) => (
+            "Work session unavailable",
+            "Reason: the authenticated web session is no longer valid. Sign in again.",
+        ),
+        (DeliveryError::Unauthenticated(_), Locale::Th) => (
+            "เซสชันงานไม่พร้อมใช้งาน",
+            "เหตุผล: เซสชันเว็บที่ยืนยันตัวตนแล้วไม่ถูกต้องอีกต่อไป โปรดเข้าสู่ระบบใหม่",
+        ),
+        (DeliveryError::Forbidden(_), Locale::En) => (
+            "Work access denied",
+            "Reason: the active role or authority scope cannot read this work queue.",
+        ),
+        (DeliveryError::Forbidden(_), Locale::Th) => (
+            "ไม่มีสิทธิ์เข้าถึงงาน",
+            "เหตุผล: บทบาทหรือขอบเขตสิทธิ์ที่ใช้งานอยู่ไม่สามารถอ่านคิวงานนี้ได้",
+        ),
+        (DeliveryError::Validation(_), Locale::En) => (
+            "Work filter invalid",
+            "Reason: a cursor or bounded work filter was not accepted.",
+        ),
+        (DeliveryError::Validation(_), Locale::Th) => (
+            "ตัวกรองงานไม่ถูกต้อง",
+            "เหตุผล: ระบบไม่ยอมรับ cursor หรือตัวกรองงานแบบมีขอบเขต",
+        ),
+        (DeliveryError::Unavailable(_), Locale::En) => (
+            "Work contributors unavailable",
+            "Reason: authorized owner projections or the session authority service could not be reached.",
+        ),
+        (DeliveryError::Unavailable(_), Locale::Th) => (
+            "แหล่งข้อมูลงานไม่พร้อมใช้งาน",
+            "เหตุผล: ไม่สามารถเชื่อมต่อ projection ของเจ้าของข้อมูลที่ได้รับอนุญาตหรือบริการสิทธิ์ของเซสชันได้",
+        ),
+        (_, Locale::En) => (
+            "Work request failed",
+            "Reason: an owner returned invalid evidence or could not complete the query.",
+        ),
+        (_, Locale::Th) => (
+            "คำของานไม่สำเร็จ",
+            "เหตุผล: บริการเจ้าของข้อมูลส่งหลักฐานที่ไม่ถูกต้องหรือไม่สามารถทำคำขอให้เสร็จได้",
+        ),
+    }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
 #[component]
-fn Work() -> Element {
-    rsx! { ProtectedRouteSurface { query: RouteQuery::Work } }
+fn Work(
+    view: Option<String>,
+    domain: Option<String>,
+    severity: Option<String>,
+    cursor: Option<String>,
+) -> Element {
+    let locale = erpx_ui_core::use_locale().current();
+    let Some(view) = parse_work_view(view.as_deref()) else {
+        return rsx! { section { class: "route-denied", role: "alert",
+            h1 { {copy(locale, "Work filter invalid", "ตัวกรองงานไม่ถูกต้อง")} }
+            p { {copy(locale, "Reason: the requested work view is not recognized.", "เหตุผล: ไม่รู้จักมุมมองงานที่ร้องขอ")} }
+            KitLink { href: "/work", {copy(locale, "Reset filters", "ล้างตัวกรอง")} }
+        } };
+    };
+    let Some(domain) = parse_work_domain(domain.as_deref()) else {
+        return rsx! { section { class: "route-denied", role: "alert",
+            h1 { {copy(locale, "Work filter invalid", "ตัวกรองงานไม่ถูกต้อง")} }
+            p { {copy(locale, "Reason: the requested work domain is not recognized.", "เหตุผล: ไม่รู้จักโดเมนงานที่ร้องขอ")} }
+            KitLink { href: "/work", {copy(locale, "Reset filters", "ล้างตัวกรอง")} }
+        } };
+    };
+    let Some(severity) = parse_work_severity(severity.as_deref()) else {
+        return rsx! { section { class: "route-denied", role: "alert",
+            h1 { {copy(locale, "Work filter invalid", "ตัวกรองงานไม่ถูกต้อง")} }
+            p { {copy(locale, "Reason: the requested severity is not recognized.", "เหตุผล: ไม่รู้จักระดับความรุนแรงที่ร้องขอ")} }
+            KitLink { href: "/work", {copy(locale, "Reset filters", "ล้างตัวกรอง")} }
+        } };
+    };
+    if cursor
+        .as_deref()
+        .is_some_and(|value| !erpx_ui_core::valid_work_cursor(value))
+    {
+        return rsx! { section { class: "route-denied", role: "alert",
+            h1 { {copy(locale, "Work cursor invalid", "cursor ของงานไม่ถูกต้อง")} }
+            p { {copy(locale, "Reason: the page cursor is malformed or outside its bounded range.", "เหตุผล: cursor ของหน้ามีรูปแบบไม่ถูกต้องหรืออยู่นอกขอบเขต")} }
+            KitLink { href: "/work", {copy(locale, "Return to first page", "กลับไปหน้าแรก")} }
+        } };
+    }
+    let request = crate::work_delivery::AuthorizedWorkRequest {
+        view,
+        domain,
+        severity,
+        cursor: cursor.clone(),
+        page_size: 24,
+        locale: locale.language_tag().into(),
+        consistency: crate::work_delivery::WorkConsistency::Eventual,
+    };
+    let mut resource = use_server_future(move || {
+        let request = request.clone();
+        async move {
+            match crate::work_delivery::list_authorized_work(request).await {
+                Ok(result) => result,
+                Err(_) => Err(erpx_delivery_contract::DeliveryError::unavailable(Some(
+                    500,
+                ))),
+            }
+        }
+    })?;
+    let page_state = resource
+        .read()
+        .clone()
+        .expect("resolved authorized work future has a value");
+    let title = format!("{} · ERPX", copy(locale, "Work", "งาน"));
+    let view_links = [
+        erpx_ui_core::WorkQueueView::All,
+        erpx_ui_core::WorkQueueView::Mine,
+        erpx_ui_core::WorkQueueView::Team,
+        erpx_ui_core::WorkQueueView::Overdue,
+        erpx_ui_core::WorkQueueView::Approvals,
+    ];
+    let domain_links = [
+        erpx_ui_core::WorkDomain::Operations,
+        erpx_ui_core::WorkDomain::Support,
+        erpx_ui_core::WorkDomain::Finance,
+        erpx_ui_core::WorkDomain::People,
+        erpx_ui_core::WorkDomain::Maintenance,
+        erpx_ui_core::WorkDomain::Procurement,
+    ];
+    let severity_links = [
+        erpx_ui_core::WorkItemSeverity::Critical,
+        erpx_ui_core::WorkItemSeverity::High,
+        erpx_ui_core::WorkItemSeverity::Medium,
+        erpx_ui_core::WorkItemSeverity::Low,
+        erpx_ui_core::WorkItemSeverity::Informational,
+    ];
+
+    rsx! {
+        document::Title { "{title}" }
+        article { class: "workspace-route authorized-work-page",
+            nav { class: "route-breadcrumb", aria_label: copy(locale, "Breadcrumb", "เส้นทางนำทาง"),
+                KitLink { href: "/modules", {copy(locale, "Modules", "โมดูล")} }
+                span { aria_hidden: "true", "/" }
+                span { aria_current: "page", {copy(locale, "Work", "งาน")} }
+            }
+            header {
+                p { class: "eyebrow", {copy(locale, "AUTHORIZED WORK SHELL", "ศูนย์งานตามสิทธิ์")} }
+                h1 { {copy(locale, "Work requiring attention", "งานที่ต้องดำเนินการ")} }
+                p { {copy(locale,
+                    "Owner services contribute only work authorized for the active role and scope. Every item returns to its canonical record.",
+                    "บริการเจ้าของข้อมูลส่งเฉพาะงานที่ได้รับอนุญาตสำหรับบทบาทและขอบเขตปัจจุบัน แต่ละรายการเชื่อมกลับไปยังระเบียนหลัก",
+                )} }
+            }
+            match page_state {
+                Err(error) => {
+                    let (error_title, reason) = work_error_copy(&error, locale);
+                    rsx! {
+                        section { class: "route-denied", role: "alert", "data-reason": "authorized_work_query_failed",
+                            h2 { "{error_title}" }
+                            p { "{reason}" }
+                            small {
+                                {copy(locale, "Reference", "รหัสอ้างอิง")}
+                                ": {error.meta().correlation_id}"
+                            }
+                            div { class: "route-actions",
+                                KitButton {
+                                    variant: ButtonVariant::Secondary,
+                                    r#type: "button",
+                                    onclick: move |_| resource.restart(),
+                                    {copy(locale, "Try again", "ลองอีกครั้ง")}
+                                }
+                                KitLink { href: "/auth/accounts", {copy(locale, "Review access", "ตรวจสอบสิทธิ์")} }
+                            }
+                        }
+                    }
+                },
+                Ok(page) => {
+                    let queue = &page.queue;
+                    let incomplete = queue.meta.availability == erpx_ui_core::ReadModelAvailability::Partial;
+                    let unavailable = queue.meta.availability == erpx_ui_core::ReadModelAvailability::Unavailable;
+                    let next_href = queue.next_cursor.as_deref().map(|value| work_filter_href(view, domain, severity, Some(value)));
+                    let first_href = work_filter_href(view, domain, severity, None);
+                    rsx! {
+                        section { class: "work-evidence", role: "status", "data-availability": "{work_availability_label(queue.meta.availability, Locale::En).to_ascii_lowercase()}",
+                            div {
+                                strong { {work_availability_label(queue.meta.availability, locale)} }
+                                p {
+                                    {copy(locale, "Measured at", "วัดเมื่อ")}
+                                    " {queue.meta.as_of} · "
+                                    {copy(locale, "Scope", "ขอบเขต")}
+                                    ": {queue.meta.scope}"
+                                }
+                            }
+                            small {
+                                {copy(locale, "Reference", "รหัสอ้างอิง")}
+                                ": {page.correlation_id}"
+                                if let Some(version) = page.authorization_context_version {
+                                    " · auth-context v{version}"
+                                }
+                            }
+                        }
+                        section { class: "work-filter-panel", aria_label: copy(locale, "Work filters", "ตัวกรองงาน"),
+                            div { class: "work-filter-group",
+                                strong { {copy(locale, "View", "มุมมอง")} }
+                                nav {
+                                    for option in view_links {
+                                        KitLink {
+                                            class: if option == view { "work-filter active" } else { "work-filter" },
+                                            href: work_filter_href(option, domain, severity, None),
+                                            aria_current: if option == view { "page" } else { "false" },
+                                            {work_view_label(option, locale)}
+                                        }
+                                    }
+                                }
+                            }
+                            div { class: "work-filter-group",
+                                strong { {copy(locale, "Domain", "โดเมน")} }
+                                nav {
+                                    KitLink {
+                                        class: if domain.is_none() { "work-filter active" } else { "work-filter" },
+                                        href: work_filter_href(view, None, severity, None),
+                                        {copy(locale, "All domains", "ทุกโดเมน")}
+                                    }
+                                    for option in domain_links {
+                                        KitLink {
+                                            class: if domain == Some(option) { "work-filter active" } else { "work-filter" },
+                                            href: work_filter_href(view, Some(option), severity, None),
+                                            {work_domain_label(option, locale)}
+                                        }
+                                    }
+                                }
+                            }
+                            div { class: "work-filter-group",
+                                strong { {copy(locale, "Severity", "ความรุนแรง")} }
+                                nav {
+                                    KitLink {
+                                        class: if severity.is_none() { "work-filter active" } else { "work-filter" },
+                                        href: work_filter_href(view, domain, None, None),
+                                        {copy(locale, "All levels", "ทุกระดับ")}
+                                    }
+                                    for option in severity_links {
+                                        KitLink {
+                                            class: if severity == Some(option) { "work-filter active" } else { "work-filter" },
+                                            href: work_filter_href(view, domain, Some(option), None),
+                                            {work_severity_label(option, locale)}
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if unavailable {
+                            section { class: "work-unavailable", role: "alert",
+                                h2 { {copy(locale, "No authoritative contributor is available", "ไม่มีแหล่งข้อมูลที่เชื่อถือได้พร้อมใช้งาน")} }
+                                p { {copy(locale,
+                                    "The queue cannot report a successful empty result or a zero total while every authorized contributor is unavailable.",
+                                    "คิวงานจะไม่รายงานผลลัพธ์ว่างหรือยอดรวมศูนย์เป็นผลสำเร็จ ในขณะที่ contributor ที่ได้รับอนุญาตทั้งหมดไม่พร้อมใช้งาน",
+                                )} }
+                            }
+                        } else {
+                            section { class: "work-counter-grid", aria_label: copy(locale, "Work counts", "จำนวนงาน"),
+                                if incomplete && queue.counters.total == 0 {
+                                    article { class: "work-counter incomplete",
+                                        strong { "—" }
+                                        span { {copy(locale, "Complete total unavailable", "ยอดรวมที่สมบูรณ์ยังไม่พร้อม")} }
+                                    }
+                                } else {
+                                    article { class: "work-counter", strong { "{queue.counters.total}" } span { if incomplete { {copy(locale, "Known active items", "งานที่ทราบ")} } else { {copy(locale, "Active items", "งานที่กำลังดำเนินการ")} } } }
+                                    article { class: "work-counter", strong { "{queue.counters.overdue}" } span { {copy(locale, "Overdue", "เกินกำหนด")} } }
+                                    article { class: "work-counter", strong { "{queue.counters.approvals}" } span { {copy(locale, "Approvals", "รออนุมัติ")} } }
+                                    article { class: "work-counter", strong { "{queue.counters.exceptions}" } span { {copy(locale, "Exceptions", "ข้อยกเว้น")} } }
+                                }
+                            }
+                            if queue.items.is_empty() {
+                                section { class: "empty-state", role: "status",
+                                    span { class: "empty-state__icon", aria_hidden: "true", "◇" }
+                                    div { class: "empty-state__copy",
+                                        if queue.meta.availability == erpx_ui_core::ReadModelAvailability::Empty {
+                                            h2 { {copy(locale, "Authoritative queue is empty", "คิวงานว่างตามข้อมูลที่เชื่อถือได้")} }
+                                            p { {copy(locale,
+                                                "Every responding authorized contributor returned no active work; no sample records were created.",
+                                                "contributor ที่ได้รับอนุญาตและตอบกลับทั้งหมดไม่พบงานที่กำลังดำเนินการ ระบบไม่ได้สร้างข้อมูลตัวอย่าง",
+                                            )} }
+                                        } else {
+                                            h2 { {copy(locale, "No items match this bounded view", "ไม่มีงานตรงกับมุมมองที่กำหนด")} }
+                                            p { {copy(locale,
+                                                "Responding contributors returned no matching items. Unavailable contributors are not counted as zero.",
+                                                "contributor ที่ตอบกลับไม่พบรายการที่ตรงกัน ส่วน contributor ที่ไม่พร้อมใช้งานจะไม่ถูกนับเป็นศูนย์",
+                                            )} }
+                                        }
+                                    }
+                                    KitLink { class: "route-action", href: "/work", {copy(locale, "Clear filters", "ล้างตัวกรอง")} }
+                                }
+                            } else {
+                                ul { class: "work-item-list", aria_label: copy(locale, "Authorized work items", "รายการงานตามสิทธิ์"),
+                                    for item in queue.items.iter() {
+                                        li { class: "work-item-card", key: "{item.key}", "data-severity": "{work_severity_label(item.severity, Locale::En).to_ascii_lowercase()}",
+                                            div { class: "work-item-card__main",
+                                                div { class: "work-item-card__badges",
+                                                    span { class: "work-domain-badge", {work_domain_label(item.domain, locale)} }
+                                                    span { class: "record-status", "{item.status_label}" }
+                                                    if item.freshness == erpx_ui_core::ReadModelFreshness::Stale {
+                                                        span { class: "work-stale-badge", {copy(locale, "Stale · read only", "ข้อมูลเก่า · อ่านอย่างเดียว")} }
+                                                    }
+                                                }
+                                                h2 { "{item.title}" }
+                                                p { "{item.summary}" }
+                                                small {
+                                                    {copy(locale, "Version", "เวอร์ชัน")}
+                                                    " {item.record_version} · "
+                                                    {copy(locale, "Severity", "ความรุนแรง")}
+                                                    ": "
+                                                    {work_severity_label(item.severity, locale)}
+                                                    if let Some(due_at) = item.due_at.as_ref() {
+                                                        " · "
+                                                        {copy(locale, "Due", "ครบกำหนด")}
+                                                        ": {due_at}"
+                                                    }
+                                                }
+                                            }
+                                            if let Some(record_ref) = item.target.record_ref.as_ref() {
+                                                KitLink {
+                                                    class: "route-action route-action--primary",
+                                                    href: "{item.target.route.path()}/{record_ref}",
+                                                    {copy(locale, "Open owner record", "เปิดระเบียนเจ้าของข้อมูล")}
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if next_href.is_some() || cursor.is_some() {
+                                div { class: "route-actions work-pagination",
+                                    if let Some(next_href) = next_href.as_ref() {
+                                        KitLink { href: "{next_href}", {copy(locale, "Next page", "หน้าถัดไป")} }
+                                    }
+                                    KitLink { href: "{first_href}", {copy(locale, "First page", "หน้าแรก")} }
+                                }
+                            }
+                        }
+                        section { class: "work-contributors", aria_label: copy(locale, "Contributor status", "สถานะ contributor"),
+                            header {
+                                h2 { {copy(locale, "Authoritative contributors", "แหล่งข้อมูลที่เชื่อถือได้")} }
+                                p { {copy(locale,
+                                    "Unavailable owners stay visible as degraded evidence and never become synthetic zeroes.",
+                                    "บริการเจ้าของข้อมูลที่ไม่พร้อมใช้จะแสดงเป็นหลักฐานสถานะผิดปกติ และไม่ถูกแปลงเป็นค่าศูนย์ที่สร้างขึ้นเอง",
+                                )} }
+                            }
+                            div { class: "work-contributor-grid",
+                                for source in queue.contributions.iter() {
+                                    article { class: "work-contributor", "data-availability": "{work_availability_label(source.availability, Locale::En).to_ascii_lowercase()}",
+                                        div {
+                                            strong { "{source.label}" }
+                                            span { {work_availability_label(source.availability, locale)} }
+                                        }
+                                        p { "{source.message}" }
+                                        if let Some(reason_code) = source.reason_code.as_ref() {
+                                            small {
+                                                {copy(locale, "Reason", "เหตุผล")}
+                                                ": {reason_code}"
+                                            }
+                                        }
+                                        if source.availability != erpx_ui_core::ReadModelAvailability::Unavailable {
+                                            small {
+                                                {copy(locale, "Active items in bounded owner window", "งานที่กำลังดำเนินการในหน้าข้อมูลเจ้าของที่มีขอบเขต")}
+                                                ": {source.item_count}"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if !page.projection_cursors.is_empty() {
+                                Collapsible { class: "work-projection-evidence",
+                                    CollapsibleTrigger { class: "work-projection-evidence__trigger",
+                                        {copy(locale, "Projection evidence", "หลักฐาน projection")}
+                                    }
+                                    CollapsibleContent {
+                                        ul {
+                                            for evidence in page.projection_cursors.iter() {
+                                                li {
+                                                    code { "{evidence.source}" }
+                                                    " · {evidence.projection} · seq {evidence.global_sequence} · {evidence.measured_at}"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        p { class: "work-redaction-note",
+                            {copy(locale,
+                                "Credentials, customer identity, ticket descriptions, and owner-internal payloads are redacted by contract.",
+                                "ข้อมูลรับรอง ตัวตนลูกค้า รายละเอียดคำขอ และ payload ภายในของเจ้าของข้อมูลถูกปกปิดตาม contract",
+                            )}
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[cfg(feature = "native")]
+#[component]
+fn Work(
+    _view: Option<String>,
+    _domain: Option<String>,
+    _severity: Option<String>,
+    _cursor: Option<String>,
+) -> Element {
+    let locale = erpx_ui_core::use_locale().current();
+    rsx! {
+        section { class: "route-denied", role: "alert", "data-reason": "native_work_transport_not_ported",
+            h1 { {copy(locale, "Work unavailable on Native", "งานยังไม่พร้อมบน Native")} }
+            p { {copy(locale,
+                "Reason: the typed Native Tonic contributor adapter has not been certified, so this capability fails closed.",
+                "เหตุผล: typed Native Tonic contributor adapter ยังไม่ผ่านการรับรอง ความสามารถนี้จึงปิดแบบ fail closed",
+            )} }
+        }
+    }
 }
 
 #[component]
@@ -975,6 +1522,114 @@ fn PlatformHolding(holding_id: RouteUuid) -> Element {
 #[component]
 fn PlatformHolding(_holding_id: RouteUuid) -> Element {
     rsx! { FeatureClosed { name: "Platform holding detail" } }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+#[component]
+fn PlatformSupport() -> Element {
+    let locale = erpx_ui_core::use_locale().current();
+    let state = SupportTicketListState::Offline {
+        data: None,
+        metadata: None,
+        reason: copy(
+            locale,
+            "The typed platform-support route is available, but its dedicated list delivery is not connected yet (support_delivery_not_connected).",
+            "เส้นทาง Platform Support แบบ typed พร้อมใช้งานแล้ว แต่ delivery สำหรับรายการยังไม่ได้เชื่อมต่อ (support_delivery_not_connected)",
+        )
+        .into(),
+    };
+    rsx! {
+        document::Title { "{SupportRoute::PlatformSupport.label(locale)} · ERPX" }
+        SupportTicketListSurface { state }
+    }
+}
+
+#[cfg(feature = "native")]
+#[component]
+fn PlatformSupport() -> Element {
+    rsx! { FeatureClosed { name: "Platform support (native delivery not connected)" } }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+#[component]
+fn PlatformSupportTicket(id: RouteUuid) -> Element {
+    let _ = id;
+    let locale = erpx_ui_core::use_locale().current();
+    let state = SupportState::Offline {
+        data: None,
+        metadata: None,
+        reason: copy(
+            locale,
+            "The ticket owner route is canonical, but its dedicated detail delivery is not connected yet (support_detail_delivery_not_connected).",
+            "เส้นทางเจ้าของทิกเก็ตเป็น canonical แล้ว แต่ delivery สำหรับรายละเอียดเฉพาะยังไม่ได้เชื่อมต่อ (support_detail_delivery_not_connected)",
+        )
+        .into(),
+    };
+    rsx! {
+        document::Title { "{SupportRoute::PlatformSupportDetail.label(locale)} · ERPX" }
+        SupportSurface { route: SupportRoute::PlatformSupportDetail, state }
+    }
+}
+
+#[cfg(feature = "native")]
+#[component]
+fn PlatformSupportTicket(id: RouteUuid) -> Element {
+    let _ = id;
+    rsx! { FeatureClosed { name: "Platform support detail (native delivery not connected)" } }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+#[component]
+fn PlatformIncidents() -> Element {
+    let locale = erpx_ui_core::use_locale().current();
+    let state = IncidentListState::Offline {
+        data: None,
+        metadata: None,
+        reason: copy(
+            locale,
+            "The typed incident route is available, but its dedicated list delivery is not connected yet (incident_delivery_not_connected).",
+            "เส้นทางเหตุขัดข้องแบบ typed พร้อมใช้งานแล้ว แต่ delivery สำหรับรายการยังไม่ได้เชื่อมต่อ (incident_delivery_not_connected)",
+        )
+        .into(),
+    };
+    rsx! {
+        document::Title { "{SupportRoute::PlatformIncidents.label(locale)} · ERPX" }
+        IncidentListSurface { state }
+    }
+}
+
+#[cfg(feature = "native")]
+#[component]
+fn PlatformIncidents() -> Element {
+    rsx! { FeatureClosed { name: "Platform incidents (native delivery not connected)" } }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+#[component]
+fn PlatformIncident(id: RouteUuid) -> Element {
+    let _ = id;
+    let locale = erpx_ui_core::use_locale().current();
+    let state = IncidentDetailState::Offline {
+        data: None,
+        metadata: None,
+        reason: copy(
+            locale,
+            "The incident owner route is canonical, but its dedicated detail delivery is not connected yet (incident_detail_delivery_not_connected).",
+            "เส้นทางเจ้าของเหตุขัดข้องเป็น canonical แล้ว แต่ delivery สำหรับรายละเอียดเฉพาะยังไม่ได้เชื่อมต่อ (incident_detail_delivery_not_connected)",
+        )
+        .into(),
+    };
+    rsx! {
+        document::Title { "{SupportRoute::PlatformIncidentDetail.label(locale)} · ERPX" }
+        IncidentDetailSurface { state }
+    }
+}
+
+#[cfg(feature = "native")]
+#[component]
+fn PlatformIncident(id: RouteUuid) -> Element {
+    let _ = id;
+    rsx! { FeatureClosed { name: "Platform incident detail (native delivery not connected)" } }
 }
 
 #[cfg(any(feature = "web", feature = "server"))]
@@ -3678,6 +4333,29 @@ mod tests {
         ));
         assert!(!is_canonical_console_path(
             "/platform/holdings/not-a-uuid",
+            ClientChannel::Web
+        ));
+    }
+
+    #[test]
+    fn platform_support_owner_routes_are_canonical_uuid_routes() {
+        let id = RouteUuid::try_new(uuid::Uuid::from_u128(7)).unwrap();
+        for path in ["/platform/support", "/platform/incidents"] {
+            assert!(
+                is_canonical_console_path(path, ClientChannel::Web),
+                "{path}"
+            );
+            assert!(is_canonical_console_path(
+                &format!("{path}/{id}"),
+                ClientChannel::Web
+            ));
+        }
+        assert!(!is_canonical_console_path(
+            "/platform/support/not-a-uuid",
+            ClientChannel::Web
+        ));
+        assert!(!is_canonical_console_path(
+            "/platform/incidents/not-a-uuid",
             ClientChannel::Web
         ));
     }

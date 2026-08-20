@@ -182,6 +182,9 @@ pub struct WorkItemTarget {
 #[serde(deny_unknown_fields)]
 pub struct WorkItemReadModel {
     pub key: String,
+    /// Aggregate version returned by the bounded-context owner. This is display
+    /// evidence only; commands must still send their own expected version.
+    pub record_version: u64,
     pub domain: WorkDomain,
     pub kind: WorkItemKind,
     pub title: String,
@@ -207,6 +210,8 @@ pub struct WorkSourceContribution {
     pub freshness: ReadModelFreshness,
     pub item_count: u32,
     pub message: String,
+    /// Stable, non-sensitive degradation category suitable for UI and support.
+    pub reason_code: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -296,6 +301,7 @@ impl WorkQueueReadModel {
 impl WorkItemReadModel {
     fn is_bounded(&self) -> bool {
         valid_text(&self.key, MAX_WORK_REFERENCE_BYTES, false)
+            && self.record_version > 0
             && valid_text(&self.title, MAX_WORK_TEXT_BYTES, false)
             && valid_text(&self.summary, MAX_WORK_TEXT_BYTES, true)
             && valid_text(&self.status_label, MAX_WORK_REFERENCE_BYTES, false)
@@ -322,6 +328,12 @@ impl WorkSourceContribution {
     fn is_bounded(&self) -> bool {
         valid_text(&self.label, MAX_WORK_REFERENCE_BYTES, false)
             && valid_text(&self.message, MAX_WORK_TEXT_BYTES, true)
+            && self.reason_code.as_deref().is_none_or(|value| {
+                valid_text(value, MAX_WORK_REFERENCE_BYTES, false)
+                    && value.bytes().all(|byte| {
+                        byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_'
+                    })
+            })
             && self.item_count <= MAX_WORK_ITEMS as u32
     }
 }
@@ -374,6 +386,7 @@ mod tests {
     fn item(kind: WorkItemKind, sla: WorkSlaState) -> WorkItemReadModel {
         WorkItemReadModel {
             key: "work-1".into(),
+            record_version: 3,
             domain: WorkDomain::Support,
             kind,
             title: "Review support incident".into(),

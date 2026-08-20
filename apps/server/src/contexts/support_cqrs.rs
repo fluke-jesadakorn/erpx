@@ -104,8 +104,9 @@ impl AuthenticatedSupportRequest {
             .validate()
             .map_err(|_| SupportAuthenticationError::Internal)?;
         validate_route(&route).map_err(|_| SupportAuthenticationError::Internal)?;
-        validate_route_scope(&route, &active_scope)
-            .map_err(|_| SupportAuthenticationError::Internal)?;
+        // The opaque data-profile key selects physical storage; it is not an
+        // authority claim. The trusted authenticator has already checked the
+        // registry holding against `active_scope` in the control plane.
         Ok(Self {
             actor,
             active_scope,
@@ -1468,20 +1469,6 @@ fn validate_route(v: &SupportHoldingRoute) -> Result<(), Status> {
         Ok(())
     }
 }
-fn validate_route_scope(r: &SupportHoldingRoute, s: &AuthorityScope) -> Result<(), Status> {
-    let holding = match s {
-        AuthorityScope::Platform => return Ok(()),
-        AuthorityScope::Holding { holding_id }
-        | AuthorityScope::Company { holding_id, .. }
-        | AuthorityScope::Branch { holding_id, .. }
-        | AuthorityScope::Subtree { holding_id, .. } => holding_id,
-    };
-    if parse_uuid(&r.data_profile_key, "data_profile_key")? == *holding {
-        Ok(())
-    } else {
-        Err(invalid("holding route does not match Support scope"))
-    }
-}
 fn decode_actor(v: Option<common::ActorAttribution>) -> Result<ActorAttribution, Status> {
     let v = v.ok_or_else(|| invalid("actor is required"))?;
     let kind = match common::ActorKind::try_from(v.kind).ok() {
@@ -1797,6 +1784,16 @@ mod tests {
             subscription_id: Some("support".into()),
             mfa_code: mfa_code.map(str::to_owned),
         }
+    }
+
+    #[test]
+    fn physical_route_keeps_opaque_data_profile_for_server_routing() {
+        let route = super::decode_route(Some(common::HoldingRoute {
+            holding_id: Uuid::from_u128(1).to_string(),
+            data_profile_key: "opaque-profile-v1".into(),
+        }))
+        .expect("opaque server route");
+        assert_eq!(route.data_profile_key, "opaque-profile-v1");
     }
 
     async fn assert_rejected_before_authentication(action: SupportAction) {

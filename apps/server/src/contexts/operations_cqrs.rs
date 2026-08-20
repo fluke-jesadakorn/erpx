@@ -105,8 +105,10 @@ impl AuthenticatedOperationsRequest {
             .validate()
             .map_err(|_| OperationsAuthenticationError::Internal)?;
         validate_route(&holding_route).map_err(|_| OperationsAuthenticationError::Internal)?;
-        validate_route_scope(&holding_route, &active_scope)
-            .map_err(|_| OperationsAuthenticationError::Internal)?;
+        // The opaque data-profile key is a physical routing coordinate, not a
+        // holding authority claim. The trusted authenticator has already
+        // proved the registry holding belongs to `active_scope` through the
+        // control-plane customer-scope binding.
         Ok(Self {
             actor,
             active_scope,
@@ -128,6 +130,10 @@ impl AuthenticatedOperationsRequest {
 pub enum OperationsAuthenticationError {
     Unauthenticated,
     Denied,
+    ActorMismatch,
+    PermissionDenied,
+    RouteDenied,
+    ScopeMismatch,
     Unavailable,
     Internal,
 }
@@ -628,7 +634,6 @@ fn decode_command<C>(
     envelope
         .validate()
         .map_err(|_| invalid("command metadata is invalid"))?;
-    validate_route_scope(&route, &envelope.active_scope)?;
     Ok(DecodedCommand {
         route,
         envelope,
@@ -665,7 +670,6 @@ fn decode_query<Q>(
     envelope
         .validate()
         .map_err(|_| invalid("query metadata is invalid"))?;
-    validate_route_scope(&route, &envelope.active_scope)?;
     Ok(DecodedQuery {
         route,
         envelope,
@@ -696,24 +700,6 @@ fn validate_route(route: &OperationsHoldingRoute) -> Result<(), Status> {
         Ok(())
     }
 }
-fn validate_route_scope(
-    route: &OperationsHoldingRoute,
-    scope: &AuthorityScope,
-) -> Result<(), Status> {
-    let holding = match scope {
-        AuthorityScope::Platform => return Ok(()),
-        AuthorityScope::Holding { holding_id }
-        | AuthorityScope::Company { holding_id, .. }
-        | AuthorityScope::Branch { holding_id, .. }
-        | AuthorityScope::Subtree { holding_id, .. } => holding_id,
-    };
-    if parse_uuid(&route.data_profile_key, "data_profile_key")? == *holding {
-        Ok(())
-    } else {
-        Err(invalid("holding route does not match holding scope"))
-    }
-}
-
 fn decode_actor(value: Option<common::ActorAttribution>) -> Result<ActorAttribution, Status> {
     let value = value.ok_or_else(|| invalid("actor is required"))?;
     let kind = match common::ActorKind::try_from(value.kind).ok() {
@@ -1127,6 +1113,18 @@ fn status_from_authentication(error: OperationsAuthenticationError) -> Status {
         OperationsAuthenticationError::Denied => {
             Status::permission_denied("Operations authority is denied")
         }
+        OperationsAuthenticationError::ActorMismatch => {
+            Status::permission_denied("Operations actor does not match the session")
+        }
+        OperationsAuthenticationError::PermissionDenied => {
+            Status::permission_denied("Operations permission is denied")
+        }
+        OperationsAuthenticationError::RouteDenied => {
+            Status::permission_denied("Operations holding route is denied")
+        }
+        OperationsAuthenticationError::ScopeMismatch => {
+            Status::permission_denied("Operations holding scope is denied")
+        }
         OperationsAuthenticationError::Unavailable => {
             Status::unavailable("Operations authentication is temporarily unavailable")
         }
@@ -1180,5 +1178,15 @@ mod tests {
             }))
             .is_err()
         );
+    }
+
+    #[test]
+    fn physical_route_keeps_opaque_data_profile_for_server_routing() {
+        let route = decode_route(Some(common::HoldingRoute {
+            holding_id: Uuid::from_u128(1).to_string(),
+            data_profile_key: "opaque-profile-v1".into(),
+        }))
+        .expect("opaque server route");
+        assert_eq!(route.data_profile_key, "opaque-profile-v1");
     }
 }

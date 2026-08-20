@@ -1217,6 +1217,7 @@ fn available_contribution(
         } else {
             "Live authorized work items are included in this queue.".into()
         },
+        reason_code: None,
     }
 }
 
@@ -1232,6 +1233,7 @@ fn unavailable_contribution(
         freshness: ReadModelFreshness::Unknown,
         item_count: 0,
         message: message.into(),
+        reason_code: Some("owner_unavailable".into()),
     }
 }
 
@@ -3704,6 +3706,7 @@ mod tests {
     fn dashboard_kpis_are_derived_only_from_authoritative_source_items() {
         let item = WorkItemReadModel {
             key: "operations:exception-1".into(),
+            record_version: 1,
             domain: WorkDomain::Operations,
             kind: WorkItemKind::Exception,
             title: "Inventory allocation exception".into(),

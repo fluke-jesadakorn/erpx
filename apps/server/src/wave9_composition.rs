@@ -35,7 +35,7 @@ use crate::contexts::{
         OperationsQueryApplication, OperationsRequestAuthenticator,
     },
 };
-use crate::wave4_composition::authenticate_context;
+use crate::wave4_composition::authenticate_context_for_holding;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AccessMode {
@@ -376,11 +376,19 @@ impl OperationsRequestAuthenticator for Wave9ServerAuthenticator {
                 return Err(OperationsAuthenticationError::Denied);
             }
         };
-        let actor = authenticate_context(
+        let customer_id = crate::customer_id_for_holding_route(
+            &self.state,
+            &request.presented_route().holding_id,
+            &request.presented_route().data_profile_key,
+        )
+        .await
+        .map_err(map_operations_auth)?;
+        let actor = authenticate_context_for_holding(
             &self.state,
             request.transport_metadata(),
             request.presented_actor(),
             request.presented_scope(),
+            &customer_id.to_string(),
             &request.presented_route().holding_id,
             permission,
             "operations",
@@ -465,6 +473,23 @@ impl Customer360RequestAuthenticator for Wave9ServerAuthenticator {
 }
 
 fn map_operations_auth(status: Status) -> OperationsAuthenticationError {
+    match status.message() {
+        "typed context actor must match the authenticated principal" => {
+            return OperationsAuthenticationError::ActorMismatch;
+        }
+        "selected_role_permission_denied"
+        | "active role does not authorize this read"
+        | "development controller role is unavailable outside the gated local environment" => {
+            return OperationsAuthenticationError::PermissionDenied;
+        }
+        "holding route is not authorized" => {
+            return OperationsAuthenticationError::RouteDenied;
+        }
+        "holding route is outside the authorized scope" => {
+            return OperationsAuthenticationError::ScopeMismatch;
+        }
+        _ => {}
+    }
     match status.code() {
         tonic::Code::Unauthenticated => OperationsAuthenticationError::Unauthenticated,
         tonic::Code::PermissionDenied | tonic::Code::InvalidArgument => {

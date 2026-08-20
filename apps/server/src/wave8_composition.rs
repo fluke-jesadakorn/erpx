@@ -50,7 +50,7 @@ use crate::contexts::{
         SupportQueryApplication, SupportRequestAuthenticator,
     },
 };
-use crate::wave4_composition::authenticate_context;
+use crate::wave4_composition::authenticate_context_for_holding;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AccessMode {
@@ -847,17 +847,21 @@ impl Wave8ServerAuthenticator {
         actor: &ActorAttribution,
         scope: &AuthorityScope,
         holding_id: &str,
+        data_profile_key: &str,
         subscription_id: Option<&str>,
         mfa_code: Option<&str>,
         mode: AccessMode,
         context: &'static str,
     ) -> Result<ActorAttribution, Status> {
         let write = mode == AccessMode::Write;
-        authenticate_context(
+        let customer_id =
+            crate::customer_id_for_holding_route(&self.state, holding_id, data_profile_key).await?;
+        authenticate_context_for_holding(
             &self.state,
             metadata,
             actor,
             scope,
+            &customer_id.to_string(),
             holding_id,
             if write {
                 write_permission(context)
@@ -889,6 +893,7 @@ macro_rules! authenticator {
                         request.presented_actor(),
                         request.presented_scope(),
                         &request.presented_route().holding_id,
+                        &request.presented_route().data_profile_key,
                         request.subscription_id(),
                         request.mfa_code(),
                         mode,
@@ -941,11 +946,19 @@ impl SupportRequestAuthenticator for Wave8ServerAuthenticator {
         {
             return Err(SupportAuthenticationError::Denied);
         }
-        let actor = authenticate_context(
+        let customer_id = crate::customer_id_for_holding_route(
+            &self.state,
+            &request.presented_route().holding_id,
+            &request.presented_route().data_profile_key,
+        )
+        .await
+        .map_err(map_auth_error)?;
+        let actor = authenticate_context_for_holding(
             &self.state,
             request.transport_metadata(),
             request.presented_actor(),
             request.presented_scope(),
+            &customer_id.to_string(),
             &request.presented_route().holding_id,
             support_permission(action),
             "support",

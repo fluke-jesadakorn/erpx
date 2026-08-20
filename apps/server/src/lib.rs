@@ -4697,6 +4697,32 @@ async fn require_branch_capacity(store: &SqlxControlPlane, holding_id: &str) -> 
         .ok_or_else(|| Status::failed_precondition("subscription branch capacity is exhausted"))
 }
 
+/// Resolve the customer authority behind an opaque physical holding route.
+///
+/// Owner-service transports need the registry holding and data-profile key to
+/// select storage, while authorization is evaluated against the customer and
+/// canonical organization scope. Keeping this join on the server prevents a
+/// browser or native client from asserting either side of that relationship.
+pub(crate) async fn customer_id_for_holding_route(
+    state: &AppState,
+    holding_id: &str,
+    data_profile_key: &str,
+) -> Result<Uuid, Status> {
+    let holding_id = validate_transport_reference(holding_id, "holding_id")?;
+    Uuid::parse_str(holding_id)
+        .map_err(|_| Status::invalid_argument("holding_id must be a UUID"))?;
+    let data_profile_key = validate_transport_reference(data_profile_key, "data_profile_key")?;
+    let binding = SqlxHoldingAdministrationStore::new(state.store.clone())
+        .customer_holding_binding(holding_id)
+        .await
+        .map_err(|_| Status::unavailable("holding route authority is unavailable"))?
+        .ok_or_else(|| Status::permission_denied("holding route is not authorized"))?;
+    if binding.data_profile_key != data_profile_key {
+        return Err(Status::permission_denied("holding route is not authorized"));
+    }
+    Ok(binding.customer_id)
+}
+
 async fn branch_provisioning_record(
     store: &SqlxBranchProvisioningStore,
     job: erpx_infrastructure::BranchProvisioningJob,
@@ -4781,7 +4807,27 @@ impl PlatformOperationsRpcImpl {
                 ));
             }
             let mut authorized = false;
-            for permission in ["security.read", "holding.directory.read"] {
+            // Physical routing is not business authorization. Permit an active
+            // holding-scoped role to resolve its own route when it can read at
+            // least one certified workspace; each owner service still applies
+            // its action-specific authorization to the subsequent query.
+            for permission in [
+                "security.read",
+                "holding.directory.read",
+                "operations.read",
+                "finance.read",
+                "sales.read",
+                "procurement.read",
+                "inventory.read",
+                "assets.read",
+                "maintenance.read",
+                "quality.read",
+                "marketing-crm.read",
+                "hr-payroll.read",
+                "point-of-sale.read",
+                "legal.read",
+                "support.ticket.read",
+            ] {
                 match self
                     .state
                     .auth
@@ -4804,7 +4850,7 @@ impl PlatformOperationsRpcImpl {
             }
             if !authorized {
                 return Err(Status::permission_denied(
-                    "active role does not authorize identity routing",
+                    "active role does not authorize holding routing",
                 ));
             }
             self.state
@@ -4812,12 +4858,12 @@ impl PlatformOperationsRpcImpl {
                 .record(AuditEvent {
                     actor_ref: claims.principal_ref,
                     customer_account_id: Some(binding.customer_id),
-                    action: "identity.holding-route.resolve".into(),
+                    action: "holding-route.resolve".into(),
                     purpose: proto_context
                         .audit
                         .as_ref()
                         .map(|audit| audit.purpose.clone())
-                        .unwrap_or_else(|| "identity access route resolution".into()),
+                        .unwrap_or_else(|| "active holding route resolution".into()),
                     correlation_id: context.correlation_id,
                 })
                 .await

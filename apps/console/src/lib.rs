@@ -25,6 +25,8 @@ mod routes;
 mod security_delivery;
 #[cfg(feature = "server")]
 mod server;
+#[cfg(any(feature = "web", feature = "server"))]
+mod work_delivery;
 
 #[cfg(any(feature = "web", feature = "server"))]
 pub use delivery::{ServerFunctionGateway, session_bootstrap};
