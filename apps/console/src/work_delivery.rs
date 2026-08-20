@@ -88,7 +88,7 @@ pub async fn list_authorized_work(
 }
 
 #[cfg(feature = "server")]
-mod server {
+pub(crate) mod server {
     use chrono::{DateTime, Utc};
     use dioxus::fullstack::FullstackContext;
     use dioxus::server::axum::http::{HeaderName, HeaderValue, header};
@@ -1153,7 +1153,7 @@ mod server {
         )
     }
 
-    pub(super) async fn list(
+    pub(crate) async fn list(
         request: AuthorizedWorkRequest,
     ) -> Result<AuthorizedWorkPage, DeliveryError> {
         let authority = authority()?;

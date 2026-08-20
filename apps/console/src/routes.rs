@@ -1710,9 +1710,372 @@ fn Processes(_cursor: Option<String>) -> Element {
     }
 }
 
+#[cfg(any(feature = "web", feature = "server"))]
+fn insight_metric_label(
+    kind: crate::insight_delivery::InsightMetricKind,
+    locale: Locale,
+) -> &'static str {
+    match kind {
+        crate::insight_delivery::InsightMetricKind::ActiveWork => {
+            copy(locale, "Active authorized work", "งานตามสิทธิ์ที่กำลังดำเนินการ")
+        }
+        crate::insight_delivery::InsightMetricKind::Approvals => {
+            copy(locale, "Approvals requiring action", "การอนุมัติที่ต้องดำเนินการ")
+        }
+        crate::insight_delivery::InsightMetricKind::Exceptions => copy(
+            locale,
+            "Open exceptions and incidents",
+            "ข้อยกเว้นและเหตุขัดข้องที่เปิดอยู่",
+        ),
+        crate::insight_delivery::InsightMetricKind::Overdue => {
+            copy(locale, "Items beyond SLA", "รายการที่เกิน SLA")
+        }
+    }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+fn insight_metric_description(
+    kind: crate::insight_delivery::InsightMetricKind,
+    locale: Locale,
+) -> &'static str {
+    match kind {
+        crate::insight_delivery::InsightMetricKind::ActiveWork => copy(
+            locale,
+            "Confirmed active records from responding owner contributors.",
+            "ระเบียนที่กำลังดำเนินการและยืนยันแล้วจากบริการเจ้าของข้อมูลที่ตอบกลับ",
+        ),
+        crate::insight_delivery::InsightMetricKind::Approvals => copy(
+            locale,
+            "Confirmed approval records that still require action.",
+            "ระเบียนการอนุมัติที่ยืนยันแล้วและยังต้องดำเนินการ",
+        ),
+        crate::insight_delivery::InsightMetricKind::Exceptions => copy(
+            locale,
+            "Confirmed exception and incident records that remain active.",
+            "ระเบียนข้อยกเว้นและเหตุขัดข้องที่ยืนยันแล้วและยังดำเนินอยู่",
+        ),
+        crate::insight_delivery::InsightMetricKind::Overdue => copy(
+            locale,
+            "Confirmed records whose owner-provided due time is beyond SLA.",
+            "ระเบียนที่ยืนยันแล้วซึ่งเวลาครบกำหนดจากเจ้าของข้อมูลเกิน SLA",
+        ),
+    }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+fn insight_source_label(domain: erpx_ui_core::WorkDomain, locale: Locale) -> &'static str {
+    match domain {
+        erpx_ui_core::WorkDomain::Operations => {
+            copy(locale, "Operations exceptions", "ข้อยกเว้นฝ่ายปฏิบัติการ")
+        }
+        erpx_ui_core::WorkDomain::Support => copy(locale, "Platform support", "ฝ่ายสนับสนุนแพลตฟอร์ม"),
+        erpx_ui_core::WorkDomain::Finance => {
+            copy(locale, "Finance close reviews", "การตรวจสอบปิดบัญชี")
+        }
+        erpx_ui_core::WorkDomain::People => copy(locale, "People approvals", "การอนุมัติด้านบุคลากร"),
+        erpx_ui_core::WorkDomain::Maintenance => {
+            copy(locale, "Maintenance work orders", "ใบงานบำรุงรักษา")
+        }
+        erpx_ui_core::WorkDomain::Procurement => {
+            copy(locale, "Procurement approvals", "การอนุมัติจัดซื้อ")
+        }
+    }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+fn insight_source_message(
+    availability: erpx_ui_core::ReadModelAvailability,
+    locale: Locale,
+) -> &'static str {
+    match availability {
+        erpx_ui_core::ReadModelAvailability::Available => copy(
+            locale,
+            "This owner contributed authoritative records to the metrics.",
+            "บริการเจ้าของนี้ส่งระเบียนที่เชื่อถือได้เข้าสู่การคำนวณ metric",
+        ),
+        erpx_ui_core::ReadModelAvailability::Empty => copy(
+            locale,
+            "This owner authoritatively confirmed an empty bounded window.",
+            "บริการเจ้าของนี้ยืนยันว่าหน้าต่างข้อมูลที่มีขอบเขตว่างอยู่",
+        ),
+        erpx_ui_core::ReadModelAvailability::Partial => copy(
+            locale,
+            "Only the owner-confirmed bounded window contributes to the metrics.",
+            "เฉพาะหน้าต่างข้อมูลที่เจ้าของยืนยันและมีขอบเขตเท่านั้นที่ใช้คำนวณ metric",
+        ),
+        erpx_ui_core::ReadModelAvailability::Unavailable => copy(
+            locale,
+            "This owner contributed no value while its projection was unavailable.",
+            "บริการเจ้าของนี้ไม่ส่งค่าเข้าสู่ metric ระหว่างที่ projection ไม่พร้อมใช้งาน",
+        ),
+    }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+fn insight_error_copy(
+    error: &erpx_delivery_contract::DeliveryError,
+    locale: Locale,
+) -> (&'static str, &'static str) {
+    use erpx_delivery_contract::DeliveryError;
+    match (error, locale) {
+        (DeliveryError::Unauthenticated(_), Locale::En) => (
+            "Insight session unavailable",
+            "Reason: the authenticated web session is no longer valid. Sign in again.",
+        ),
+        (DeliveryError::Unauthenticated(_), Locale::Th) => (
+            "เซสชันข้อมูลเชิงลึกไม่พร้อมใช้งาน",
+            "เหตุผล: เซสชันเว็บที่ยืนยันตัวตนแล้วไม่ถูกต้องอีกต่อไป โปรดเข้าสู่ระบบใหม่",
+        ),
+        (DeliveryError::Forbidden(_), Locale::En) => (
+            "Insight access denied",
+            "Reason: the active role or authority scope cannot read these owner metrics.",
+        ),
+        (DeliveryError::Forbidden(_), Locale::Th) => (
+            "ไม่มีสิทธิ์เข้าถึงข้อมูลเชิงลึก",
+            "เหตุผล: บทบาทหรือขอบเขตสิทธิ์ที่ใช้งานอยู่ไม่สามารถอ่าน metric จากบริการเจ้าของข้อมูลเหล่านี้ได้",
+        ),
+        (DeliveryError::Validation(_), Locale::En) => (
+            "Insight request invalid",
+            "Reason: the bounded insight request was not accepted.",
+        ),
+        (DeliveryError::Validation(_), Locale::Th) => (
+            "คำขอข้อมูลเชิงลึกไม่ถูกต้อง",
+            "เหตุผล: ระบบไม่ยอมรับคำขอข้อมูลเชิงลึกแบบมีขอบเขต",
+        ),
+        (DeliveryError::Unavailable(_), Locale::En) => (
+            "Insight owners unavailable",
+            "Reason: an authorized owner or the session authority service could not be reached.",
+        ),
+        (DeliveryError::Unavailable(_), Locale::Th) => (
+            "บริการเจ้าของข้อมูลเชิงลึกไม่พร้อมใช้งาน",
+            "เหตุผล: ไม่สามารถเชื่อมต่อบริการเจ้าของข้อมูลที่ได้รับอนุญาตหรือบริการสิทธิ์ของเซสชันได้",
+        ),
+        (_, Locale::En) => (
+            "Insight request failed",
+            "Reason: an owner returned invalid evidence or could not complete the query.",
+        ),
+        (_, Locale::Th) => (
+            "คำขอข้อมูลเชิงลึกไม่สำเร็จ",
+            "เหตุผล: บริการเจ้าของข้อมูลส่งหลักฐานที่ไม่ถูกต้องหรือไม่สามารถทำคำขอให้เสร็จได้",
+        ),
+    }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
 #[component]
 fn Insights() -> Element {
-    rsx! { ProtectedRouteSurface { query: RouteQuery::Insights } }
+    let locale = erpx_ui_core::use_locale().current();
+    let request = crate::insight_delivery::AuthorizedInsightRequest {
+        cursor: None,
+        page_size: 4,
+        locale: locale.language_tag().into(),
+        consistency: crate::insight_delivery::InsightConsistency::Eventual,
+    };
+    let mut resource = use_server_future(move || {
+        let request = request.clone();
+        async move {
+            match crate::insight_delivery::list_authorized_insights(request).await {
+                Ok(result) => result,
+                Err(_) => Err(erpx_delivery_contract::DeliveryError::unavailable(Some(
+                    500,
+                ))),
+            }
+        }
+    })?;
+    let page_state = resource
+        .read()
+        .clone()
+        .expect("resolved authorized insight future has a value");
+    let title = format!("{} · ERPX", copy(locale, "Insights", "ข้อมูลเชิงลึก"));
+
+    rsx! {
+        document::Title { "{title}" }
+        article { class: "workspace-route authorized-insight-page",
+            nav { class: "route-breadcrumb", aria_label: copy(locale, "Breadcrumb", "เส้นทางนำทาง"),
+                KitLink { href: "/modules", {copy(locale, "Modules", "โมดูล")} }
+                span { aria_hidden: "true", "/" }
+                span { aria_current: "page", {copy(locale, "Insights", "ข้อมูลเชิงลึก")} }
+            }
+            header {
+                p { class: "eyebrow", {copy(locale, "AUTHORIZED INSIGHT SHELL", "ศูนย์ข้อมูลเชิงลึกตามสิทธิ์")} }
+                h1 { {copy(locale, "Trusted operational signals", "สัญญาณการดำเนินงานที่เชื่อถือได้")} }
+                p { {copy(locale,
+                    "Review metrics derived from authorized owner records. Source, measurement time, freshness, and degraded contributors remain visible with every value.",
+                    "ตรวจสอบ metric ที่คำนวณจากระเบียนของบริการเจ้าของข้อมูลตามสิทธิ์ โดยแสดงแหล่งข้อมูล เวลาที่วัด ความสด และ contributor ที่ผิดปกติไว้กับทุกค่า",
+                )} }
+            }
+            match page_state {
+                Err(error) => {
+                    let (error_title, reason) = insight_error_copy(&error, locale);
+                    rsx! {
+                        section { class: "route-denied", role: "alert", "data-reason": "authorized_insight_query_failed",
+                            h2 { "{error_title}" }
+                            p { "{reason}" }
+                            small {
+                                {copy(locale, "Reference", "รหัสอ้างอิง")}
+                                ": {error.meta().correlation_id}"
+                            }
+                            div { class: "route-actions",
+                                KitButton {
+                                    variant: ButtonVariant::Secondary,
+                                    r#type: "button",
+                                    onclick: move |_| resource.restart(),
+                                    {copy(locale, "Try again", "ลองอีกครั้ง")}
+                                }
+                                KitLink { href: "/auth/accounts", {copy(locale, "Review access", "ตรวจสอบสิทธิ์")} }
+                            }
+                        }
+                    }
+                },
+                Ok(page) => {
+                    let unavailable = page.availability == erpx_ui_core::ReadModelAvailability::Unavailable;
+                    let partial = page.availability == erpx_ui_core::ReadModelAvailability::Partial;
+                    rsx! {
+                        section { class: "insight-evidence", role: "status", "data-availability": "{work_availability_label(page.availability, Locale::En).to_ascii_lowercase()}",
+                            div {
+                                strong { {work_availability_label(page.availability, locale)} }
+                                p {
+                                    {copy(locale, "Measured at", "วัดเมื่อ")}
+                                    " {page.measured_at} · "
+                                    {copy(locale, "Scope", "ขอบเขต")}
+                                    ": {page.scope} · "
+                                    {process_freshness_label(page.freshness, locale)}
+                                }
+                            }
+                            small {
+                                {copy(locale, "Reference", "รหัสอ้างอิง")}
+                                ": {page.correlation_id}"
+                                if let Some(version) = page.authorization_context_version {
+                                    " · auth-context v{version}"
+                                }
+                            }
+                        }
+                        if unavailable {
+                            section { class: "insight-unavailable", role: "alert",
+                                h2 { {copy(locale, "No authoritative insight source is available", "ไม่มีแหล่งข้อมูลเชิงลึกที่เชื่อถือได้พร้อมใช้งาน")} }
+                                p { {copy(locale,
+                                    "No metric or synthetic zero is shown while every authorized owner is unavailable.",
+                                    "ระบบจะไม่แสดง metric หรือค่าศูนย์ที่สร้างขึ้นเอง ในขณะที่บริการเจ้าของที่ได้รับอนุญาตทั้งหมดไม่พร้อมใช้งาน",
+                                )} }
+                                if let Some(reason) = page.reason_code.as_ref() {
+                                    small { {copy(locale, "Reason", "เหตุผล")} ": {reason}" }
+                                }
+                            }
+                        } else {
+                            if partial {
+                                section { class: "insight-partial", role: "alert",
+                                    strong { {copy(locale, "Partial owner coverage", "ข้อมูลจากบริการเจ้าของไม่ครบถ้วน")} }
+                                    p { {copy(locale,
+                                        "Values include only records confirmed by responding owners; unavailable contributors are excluded rather than counted as zero.",
+                                        "ค่ารวมเฉพาะระเบียนที่บริการเจ้าของซึ่งตอบกลับยืนยันแล้ว contributor ที่ไม่พร้อมใช้จะถูกตัดออกแทนการนับเป็นศูนย์",
+                                    )} }
+                                    if let Some(reason) = page.reason_code.as_ref() {
+                                        small { {copy(locale, "Reason", "เหตุผล")} ": {reason}" }
+                                    }
+                                }
+                            }
+                            section { class: "insight-metric-grid", aria_label: copy(locale, "Authorized operational metrics", "metric การดำเนินงานตามสิทธิ์"),
+                                for metric in page.metrics.iter() {
+                                    article { class: "insight-metric", key: "{metric.key}",
+                                        div { class: "insight-metric__heading",
+                                            p { {insight_metric_label(metric.kind, locale)} }
+                                            span { {process_freshness_label(metric.freshness, locale)} }
+                                        }
+                                        strong { class: "insight-metric__value", "{metric.value}" }
+                                        p { class: "insight-metric__description", {insight_metric_description(metric.kind, locale)} }
+                                        dl { class: "insight-metric__evidence",
+                                            div {
+                                                dt { {copy(locale, "Source", "แหล่งข้อมูล")} }
+                                                dd { {copy(locale, "Authorized work owners", "บริการเจ้าของงานตามสิทธิ์")} }
+                                            }
+                                            div {
+                                                dt { {copy(locale, "Measured", "วัดเมื่อ")} }
+                                                dd { "{metric.measured_at}" }
+                                            }
+                                            div {
+                                                dt { {copy(locale, "Responding owners", "บริการเจ้าของที่ตอบกลับ")} }
+                                                dd { "{metric.source_count}" }
+                                            }
+                                        }
+                                        KitLink { href: "{metric.target_path}", {copy(locale, "Open source records", "เปิดระเบียนต้นทาง")} }
+                                    }
+                                }
+                            }
+                        }
+                        section { class: "insight-sources", aria_label: copy(locale, "Insight source status", "สถานะแหล่งข้อมูลเชิงลึก"),
+                            header {
+                                h2 { {copy(locale, "Authoritative contributors", "contributor ที่เชื่อถือได้")} }
+                                p { {copy(locale,
+                                    "Each contributor retains its own availability, freshness, measurement time, and projection evidence.",
+                                    "contributor แต่ละรายคงสถานะพร้อมใช้ ความสด เวลาที่วัด และหลักฐาน projection ของตนเอง",
+                                )} }
+                            }
+                            if page.sources.is_empty() {
+                                p { class: "insight-source-empty", {copy(locale,
+                                    "No insight contributor is authorized for the active navigation scope.",
+                                    "ไม่มี contributor ข้อมูลเชิงลึกที่ได้รับอนุญาตในขอบเขต navigation ปัจจุบัน",
+                                )} }
+                            } else {
+                                div { class: "insight-source-grid",
+                                    for source in page.sources.iter() {
+                                        article { class: "insight-source", "data-availability": "{work_availability_label(source.availability, Locale::En).to_ascii_lowercase()}",
+                                            div {
+                                                strong { {insight_source_label(source.domain, locale)} }
+                                                span { {work_availability_label(source.availability, locale)} }
+                                            }
+                                            p { {insight_source_message(source.availability, locale)} }
+                                            small {
+                                                {process_freshness_label(source.freshness, locale)}
+                                                " · "
+                                                {copy(locale, "Measured", "วัดเมื่อ")}
+                                                ": {source.measured_at}"
+                                            }
+                                            small {
+                                                {copy(locale, "Projection evidence", "หลักฐาน projection")}
+                                                ": "
+                                                if source.has_projection_evidence {
+                                                    {copy(locale, "verified", "ตรวจสอบแล้ว")}
+                                                } else {
+                                                    {copy(locale, "not available", "ไม่พร้อมใช้")}
+                                                }
+                                            }
+                                            if source.availability != erpx_ui_core::ReadModelAvailability::Unavailable {
+                                                small { {copy(locale, "Confirmed records", "ระเบียนที่ยืนยันแล้ว")} ": {source.item_count}" }
+                                            }
+                                            if let Some(reason) = source.reason_code.as_ref() {
+                                                small { {copy(locale, "Reason", "เหตุผล")} ": {reason}" }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        p { class: "insight-redaction-note",
+                            {copy(locale,
+                                "Access tokens, customer identities, owner payloads, and underlying record details are redacted by contract.",
+                                "access token ตัวตนลูกค้า payload ภายในของบริการเจ้าของ และรายละเอียดระเบียนต้นทางถูกปกปิดตาม contract",
+                            )}
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[cfg(feature = "native")]
+#[component]
+fn Insights() -> Element {
+    let locale = erpx_ui_core::use_locale().current();
+    rsx! {
+        section { class: "route-denied", role: "alert", "data-reason": "native_insight_transport_not_ported",
+            h1 { {copy(locale, "Insights unavailable on Native", "ข้อมูลเชิงลึกยังไม่พร้อมบน Native")} }
+            p { {copy(locale,
+                "Reason: the typed Native Tonic insight-owner adapter has not been certified, so this capability fails closed.",
+                "เหตุผล: typed Native Tonic adapter สำหรับบริการเจ้าของข้อมูลเชิงลึกยังไม่ผ่านการรับรอง ความสามารถนี้จึงปิดแบบ fail closed",
+            )} }
+        }
+    }
 }
 
 #[component]
@@ -4800,14 +5163,35 @@ mod tests {
         );
     }
 
+    #[test]
+    fn insight_presenter_copy_is_bilingual_and_source_owned() {
+        assert_eq!(
+            insight_metric_label(
+                crate::insight_delivery::InsightMetricKind::Overdue,
+                Locale::En,
+            ),
+            "Items beyond SLA"
+        );
+        assert_eq!(
+            insight_metric_label(
+                crate::insight_delivery::InsightMetricKind::Overdue,
+                Locale::Th,
+            ),
+            "รายการที่เกิน SLA"
+        );
+        assert!(
+            insight_source_message(erpx_ui_core::ReadModelAvailability::Unavailable, Locale::En,)
+                .contains("no value")
+        );
+    }
+
     #[cfg(feature = "server")]
     #[test]
     fn unconnected_generic_routes_are_honest_empty_states() {
-        let mut routes = vec![RouteQuery::Insights];
-        routes.extend(Workspace::ALL.map(|workspace| RouteQuery::Workspace {
+        let routes = Workspace::ALL.map(|workspace| RouteQuery::Workspace {
             workspace,
             resource: None,
-        }));
+        });
 
         for route in routes {
             let data = route_data_for_query(&QueryRequest {

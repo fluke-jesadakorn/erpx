@@ -15,6 +15,8 @@ mod bff_navigation;
 mod delivery;
 #[cfg(any(feature = "web", feature = "server"))]
 mod feature_delivery;
+#[cfg(any(feature = "web", feature = "server"))]
+mod insight_delivery;
 #[cfg(feature = "native")]
 mod native_delivery;
 #[cfg(feature = "native")]
