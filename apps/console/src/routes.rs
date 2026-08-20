@@ -9,7 +9,9 @@ use erpx_console_feature_identity_access::{
     IdentityAccessDetailSurface, IdentityAccessListSurface, IdentityCommandFeedback,
     IdentityPrincipalCommandIntent, IdentityRecordKind,
 };
-use erpx_console_feature_platform_administration::{HoldingsSurface, PlatformHoldingDetailSurface};
+use erpx_console_feature_platform_administration::{
+    HoldingControlHistoryState, HoldingsSurface, PlatformHoldingDetailSurface,
+};
 #[cfg(feature = "server")]
 use erpx_delivery_contract::Page;
 #[cfg(feature = "native")]
@@ -127,8 +129,11 @@ pub enum AppRoute {
         Modules {},
         #[route("/platform/holdings?:cursor")]
         PlatformHoldings { cursor: Option<String> },
-        #[route("/platform/holdings/:holding_id")]
-        PlatformHolding { holding_id: RouteUuid },
+        #[route("/platform/holdings/:holding_id?:history_cursor")]
+        PlatformHolding {
+            holding_id: RouteUuid,
+            history_cursor: Option<String>,
+        },
         #[route("/platform/support")]
         PlatformSupport {},
         #[route("/platform/support/:id")]
@@ -2230,33 +2235,74 @@ fn PlatformHoldings(_cursor: Option<String>) -> Element {
 
 #[cfg(any(feature = "web", feature = "server"))]
 #[component]
-fn PlatformHolding(holding_id: RouteUuid) -> Element {
+fn PlatformHolding(holding_id: RouteUuid, history_cursor: Option<String>) -> Element {
     let locale = erpx_ui_core::use_locale().current();
     let request = feature_detail_request(holding_id, locale);
+    let history_request = crate::feature_delivery::HoldingHistoryRequest {
+        holding_id: holding_id.get(),
+        cursor: history_cursor,
+        page_size: 25,
+        locale: locale.language_tag().to_owned(),
+        consistency: crate::feature_delivery::FeatureConsistency::Eventual,
+    };
     let resource = use_server_future(move || {
         let request = request.clone();
+        let history_request = history_request.clone();
         async move {
-            crate::feature_delivery::get_platform_holding(request)
+            let (holding, evidence) = crate::feature_delivery::get_platform_holding(request)
                 .await
                 .map_err(|error| error.to_string())?
-                .map_err(|error| error.to_string())
+                .map_err(|error| error.to_string())?;
+            let history =
+                match crate::feature_delivery::list_platform_holding_history(history_request).await
+                {
+                    Ok(result) => result,
+                    Err(_) => Err(erpx_delivery_contract::DeliveryError::unavailable(Some(
+                        500,
+                    ))),
+                };
+            Ok::<_, String>((holding, evidence, history))
         }
     })?;
-    let (holding, evidence) = resource
+    let (holding, evidence, history_result) = resource
         .read()
         .clone()
         .expect("resolved platform holding future has a value")
         .map_err(feature_error)?;
+    let history = match history_result {
+        Ok(page) => HoldingControlHistoryState::Ready { page },
+        Err(erpx_delivery_contract::DeliveryError::Forbidden(meta))
+        | Err(erpx_delivery_contract::DeliveryError::Unauthenticated(meta)) => {
+            HoldingControlHistoryState::Forbidden {
+                reason: copy(
+                    locale,
+                    "The owner service did not authorize this audit-history read.",
+                    "บริการเจ้าของข้อมูลไม่อนุญาตให้อ่านประวัติการตรวจสอบนี้",
+                )
+                .into(),
+                correlation_id: meta.correlation_id.to_string(),
+            }
+        }
+        Err(error) => HoldingControlHistoryState::Unavailable {
+            reason: copy(
+                locale,
+                "The authoritative holding control history is temporarily unavailable. No events were synthesized.",
+                "ประวัติการควบคุมโฮลดิ้งที่เชื่อถือได้ไม่พร้อมใช้งานชั่วคราว และระบบไม่ได้สร้างเหตุการณ์จำลอง",
+            )
+            .into(),
+            correlation_id: error.meta().correlation_id.to_string(),
+        },
+    };
     let page_title = holding.customer_name.clone();
     rsx! {
         document::Title { "{page_title} · ERPX" }
-        PlatformHoldingDetailSurface { holding, evidence }
+        PlatformHoldingDetailSurface { holding, evidence, history }
     }
 }
 
 #[cfg(feature = "native")]
 #[component]
-fn PlatformHolding(_holding_id: RouteUuid) -> Element {
+fn PlatformHolding(_holding_id: RouteUuid, _history_cursor: Option<String>) -> Element {
     rsx! { FeatureClosed { name: "Platform holding detail" } }
 }
 
@@ -5053,10 +5099,13 @@ mod tests {
     fn platform_holding_routes_are_canonical_uuid_routes() {
         let holding_id = RouteUuid::try_new(uuid::Uuid::from_u128(1)).unwrap();
         let list = AppRoute::PlatformHoldings { cursor: None };
-        let detail = AppRoute::PlatformHolding { holding_id };
+        let detail = AppRoute::PlatformHolding {
+            holding_id,
+            history_cursor: None,
+        };
         assert_eq!(route_path(&list), "/platform/holdings");
         assert_eq!(
-            detail.to_string(),
+            route_path(&detail),
             "/platform/holdings/00000000-0000-0000-0000-000000000001"
         );
         assert!(is_canonical_console_path(
@@ -5064,9 +5113,15 @@ mod tests {
             ClientChannel::Web
         ));
         assert!(is_canonical_console_path(
-            &detail.to_string(),
+            &route_path(&detail),
             ClientChannel::Web
         ));
+        let history = AppRoute::PlatformHolding {
+            holding_id,
+            history_cursor: Some("1787270400000.00000000-0000-0000-0000-000000000002".into()),
+        };
+        assert!(history.to_string().contains("history_cursor="));
+        assert_eq!(route_path(&history), route_path(&detail));
         assert!(!is_canonical_console_path(
             "/platform/holdings/not-a-uuid",
             ClientChannel::Web

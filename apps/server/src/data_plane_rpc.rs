@@ -3337,6 +3337,7 @@ fn navigation_action_capabilities(route_id: &str) -> &'static [&'static str] {
         "holdings" => &[
             "ListHoldings",
             "GetHolding",
+            "ListHoldingControlHistory",
             "BeginHoldingAdminContext",
             "GetHoldingAdminContext",
             "EndHoldingAdminContext",

@@ -12,8 +12,9 @@ pub use gateway::{
 pub use model::{AdminContextItem, ConnectorItem, HoldingItem, PlatformAdministrationContent};
 pub use presenter::PlatformAdministrationPresenter;
 pub use surface::{
-    FieldRedaction, HoldingDetail, HoldingPage, HoldingProjectionEvidence, HoldingsSurface,
-    PlatformHoldingDetailSurface,
+    FieldRedaction, HoldingControlHistoryEntry, HoldingControlHistoryPage,
+    HoldingControlHistoryState, HoldingDetail, HoldingPage, HoldingProjectionEvidence,
+    HoldingsSurface, PlatformHoldingDetailSurface,
 };
 pub use view::{PlatformAdministrationRenderedState, render_platform_administration_state};
 erpx_ui_kit::declare_current_workspace_feature!(

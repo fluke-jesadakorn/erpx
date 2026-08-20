@@ -2008,6 +2008,18 @@ html[data-locale="th"] :where(.customer-route-tabs, .ui-support-route-tabs, .ui-
 }
 .redaction-notice h2 { font-size: var(--erpx-font-size-md); }
 .redaction-notice li { justify-content: start; border: 0; padding: 0; background: transparent; }
+.holding-history { display: grid; gap: 13px; border-top: 1px solid var(--erpx-border); padding-top: 22px; }
+.holding-history > h2 { font-size: var(--erpx-font-size-lg); }
+.holding-history > p { max-width: 76ch; color: var(--erpx-text-muted); font-size: var(--erpx-font-size-sm); line-height: 1.6; }
+.holding-history__list { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; }
+.holding-history__event { display: grid; gap: 11px; border: 1px solid var(--erpx-border); border-radius: var(--erpx-radius-md); padding: 15px; background: var(--erpx-surface-raised); }
+.holding-history__event > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.holding-history__event > div small { color: var(--erpx-text-muted); }
+.holding-history__event dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.holding-history__event dl > div { display: grid; min-width: 0; gap: 4px; }
+.holding-history__event dt { color: var(--erpx-text-muted); font-size: 9px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.holding-history__event dd { min-width: 0; margin: 0; overflow-wrap: anywhere; font-size: 10px; }
+.holding-history__event code { color: var(--erpx-text); font-size: inherit; }
 .record-field--redacted dd { display: grid; gap: 4px; color: var(--erpx-text-muted); }
 .record-field--redacted small { font-size: 10px; font-weight: 500; }
 .empty-state--unavailable { border-color: var(--erpx-warning, var(--erpx-border-strong)); }
@@ -2198,6 +2210,7 @@ html[data-locale="th"] :where(.customer-route-tabs, .ui-support-route-tabs, .ui-
   .record-detail__heading { align-items: start; flex-direction: column; }
   .record-detail__facts { grid-template-columns: 1fr; }
   .record-detail__facts > div + div { border-top: 1px solid var(--erpx-border); border-left: 0; }
+  .holding-history__event dl { grid-template-columns: 1fr; }
   .work-evidence, .process-evidence, .insight-evidence { align-items: flex-start; flex-direction: column; }
   .work-filter-group { grid-template-columns: 1fr; gap: 5px; }
   .work-filter-group > strong { padding-top: 0; }
@@ -2247,6 +2260,7 @@ html[data-locale="th"] :where(.customer-route-tabs, .ui-support-route-tabs, .ui-
   .route-actions { align-items: stretch; flex-direction: column; width: 100%; }
   .route-actions > :where(a, button) { width: 100%; }
   .empty-state { padding: 22px 18px; }
+  .holding-history__event > div { align-items: flex-start; flex-direction: column; gap: 4px; }
   .module-catalog__grid .module-card { min-height: 76px; }
 }
 

@@ -10,8 +10,10 @@ use erpx_console_feature_identity_access::{
 };
 #[cfg(feature = "server")]
 use erpx_console_feature_platform_administration::FieldRedaction;
+#[cfg(feature = "server")]
+use erpx_console_feature_platform_administration::HoldingControlHistoryEntry;
 use erpx_console_feature_platform_administration::{
-    HoldingDetail, HoldingPage, HoldingProjectionEvidence,
+    HoldingControlHistoryPage, HoldingDetail, HoldingPage, HoldingProjectionEvidence,
 };
 use erpx_delivery_contract::{DeliveryError, DeliveryErrorMeta};
 use serde::{Deserialize, Serialize};
@@ -19,6 +21,8 @@ use uuid::Uuid;
 
 #[cfg_attr(not(feature = "server"), allow(dead_code))]
 const MAX_FEATURE_PAGE_SIZE: u16 = 100;
+#[cfg_attr(not(feature = "server"), allow(dead_code))]
+const MAX_HOLDING_HISTORY_PAGE_SIZE: u16 = 100;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "mode")]
@@ -46,6 +50,16 @@ pub struct FeatureListRequest {
 #[serde(deny_unknown_fields)]
 pub struct FeatureDetailRequest {
     pub id: Uuid,
+    pub locale: String,
+    pub consistency: FeatureConsistency,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HoldingHistoryRequest {
+    pub holding_id: Uuid,
+    pub cursor: Option<String>,
+    pub page_size: u16,
     pub locale: String,
     pub consistency: FeatureConsistency,
 }
@@ -118,6 +132,37 @@ fn validate_list_request(request: &FeatureListRequest) -> Result<(), DeliveryErr
 #[cfg_attr(not(feature = "server"), allow(dead_code))]
 fn validate_detail_request(request: &FeatureDetailRequest) -> Result<(), DeliveryError> {
     if request.id.is_nil() || !validate_locale(&request.locale) {
+        return Err(DeliveryError::Validation(error_meta(false, None)));
+    }
+    validate_consistency(&request.consistency)
+}
+
+#[cfg_attr(not(feature = "server"), allow(dead_code))]
+fn decode_holding_history_cursor(cursor: &str) -> Option<(i64, Uuid)> {
+    let (millis, event_id) = cursor.split_once('.')?;
+    if millis.is_empty()
+        || event_id.is_empty()
+        || cursor.len() > 96
+        || cursor.chars().any(char::is_control)
+    {
+        return None;
+    }
+    let millis = millis.parse::<i64>().ok()?;
+    let event_id = Uuid::parse_str(event_id).ok()?;
+    (millis > 0 && !event_id.is_nil()).then_some((millis, event_id))
+}
+
+#[cfg_attr(not(feature = "server"), allow(dead_code))]
+fn validate_holding_history_request(request: &HoldingHistoryRequest) -> Result<(), DeliveryError> {
+    if request.holding_id.is_nil()
+        || request.page_size == 0
+        || request.page_size > MAX_HOLDING_HISTORY_PAGE_SIZE
+        || !validate_locale(&request.locale)
+        || request
+            .cursor
+            .as_deref()
+            .is_some_and(|cursor| decode_holding_history_cursor(cursor).is_none())
+    {
         return Err(DeliveryError::Validation(error_meta(false, None)));
     }
     validate_consistency(&request.consistency)
@@ -208,6 +253,21 @@ pub async fn get_platform_holding(
     Ok(Err(DeliveryError::Unavailable(error_meta(true, Some(500)))))
 }
 
+#[dioxus::prelude::server(endpoint = "/api/server-fn/platform/holdings/history")]
+pub async fn list_platform_holding_history(
+    request: HoldingHistoryRequest,
+) -> dioxus::prelude::ServerFnResult<Result<HoldingControlHistoryPage, DeliveryError>> {
+    if let Err(error) = validate_holding_history_request(&request) {
+        return Ok(Err(error));
+    }
+    #[cfg(feature = "server")]
+    {
+        return Ok(server::list_platform_holding_history(request).await);
+    }
+    #[allow(unreachable_code)]
+    Ok(Err(DeliveryError::Unavailable(error_meta(true, Some(500)))))
+}
+
 #[dioxus::prelude::server(endpoint = "/api/server-fn/identity/list")]
 pub async fn list_identity_records(
     kind: IdentityRecordKind,
@@ -274,6 +334,7 @@ pub async fn command_identity_principal(
 
 #[cfg(feature = "server")]
 mod server {
+    use chrono::{DateTime, Utc};
     use dioxus::fullstack::FullstackContext;
     use dioxus::server::axum::http::{HeaderValue, header};
     use erpx_proto::{
@@ -683,6 +744,136 @@ mod server {
             correlation_id: response.correlation_id,
         };
         Ok((holding, evidence))
+    }
+
+    fn holding_history_cursor_to_wire(
+        cursor: Option<&str>,
+    ) -> Result<(String, String), DeliveryError> {
+        let Some(cursor) = cursor else {
+            return Ok((String::new(), String::new()));
+        };
+        let (millis, event_id) = decode_holding_history_cursor(cursor)
+            .ok_or_else(|| DeliveryError::Validation(error_meta(false, None)))?;
+        let occurred_at = DateTime::<Utc>::from_timestamp_millis(millis)
+            .ok_or_else(|| DeliveryError::Validation(error_meta(false, None)))?;
+        Ok((occurred_at.to_rfc3339(), event_id.to_string()))
+    }
+
+    fn holding_history_cursor_from_wire(
+        occurred_at: &str,
+        event_id: &str,
+    ) -> Result<String, DeliveryError> {
+        let occurred_at = DateTime::parse_from_rfc3339(occurred_at)
+            .map_err(|_| DeliveryError::Internal(error_meta(false, None)))?;
+        let event_id = Uuid::parse_str(event_id)
+            .map_err(|_| DeliveryError::Internal(error_meta(false, None)))?;
+        if event_id.is_nil() {
+            return Err(DeliveryError::Internal(error_meta(false, None)));
+        }
+        Ok(format!("{}.{}", occurred_at.timestamp_millis(), event_id))
+    }
+
+    fn valid_history_text(value: &str, max_len: usize) -> bool {
+        !value.trim().is_empty() && value.len() <= max_len && !value.chars().any(char::is_control)
+    }
+
+    pub(super) async fn list_platform_holding_history(
+        request: HoldingHistoryRequest,
+    ) -> Result<HoldingControlHistoryPage, DeliveryError> {
+        let authority = feature_authority()?;
+        if authority.scope_key != "platform" {
+            return Err(DeliveryError::Forbidden(error_meta(false, None)));
+        }
+        let capabilities = capabilities(&authority, "/platform/holdings").await;
+        if !capabilities
+            .iter()
+            .any(|capability| capability == "ListHoldingControlHistory")
+        {
+            return Err(DeliveryError::Forbidden(error_meta(false, None)));
+        }
+        let (before_occurred_at, before_event_id) =
+            holding_history_cursor_to_wire(request.cursor.as_deref())?;
+        let correlation_id = Uuid::new_v4();
+        let wire = platform::ListHoldingControlHistoryRequest {
+            holding_id: request.holding_id.to_string(),
+            page_size: u32::from(request.page_size),
+            before_occurred_at,
+            before_event_id,
+            context: Some(query_context(
+                &authority,
+                &request.consistency,
+                "platform-administration",
+                "list holding control history",
+                correlation_id,
+            )),
+        };
+        let mut client = platform::platform_administration_query_service_client::PlatformAdministrationQueryServiceClient::new(channel(&authority).await?);
+        let response = client
+            .list_holding_control_history(authenticated(&authority, wire)?)
+            .await
+            .map_err(delivery_status)?
+            .into_inner();
+        if response.entries.len() > usize::from(request.page_size)
+            || Uuid::parse_str(&response.correlation_id).is_err()
+        {
+            return Err(DeliveryError::Internal(error_meta(false, None)));
+        }
+        let mut values = Vec::with_capacity(response.entries.len());
+        for entry in response.entries {
+            if Uuid::parse_str(&entry.event_id).is_err()
+                || entry.aggregate_version == 0
+                || !valid_history_text(&entry.event_category, 128)
+                || !valid_history_text(&entry.safe_action, 256)
+                || !valid_history_text(&entry.actor_ref, 512)
+                || Uuid::parse_str(&entry.correlation_id).is_err()
+                || DateTime::parse_from_rfc3339(&entry.occurred_at).is_err()
+            {
+                return Err(DeliveryError::Internal(error_meta(false, None)));
+            }
+            values.push(HoldingControlHistoryEntry {
+                event_id: entry.event_id,
+                event_category: entry.event_category,
+                safe_action: entry.safe_action,
+                aggregate_version: entry.aggregate_version,
+                actor_ref: entry.actor_ref,
+                correlation_id: entry.correlation_id,
+                occurred_at: entry.occurred_at,
+            });
+        }
+        let next_cursor = if response.has_more {
+            Some(holding_history_cursor_from_wire(
+                &response.next_before_occurred_at,
+                &response.next_before_event_id,
+            )?)
+        } else {
+            None
+        };
+        let measured_at = values.first().map(|entry| entry.occurred_at.clone());
+        Ok(HoldingControlHistoryPage {
+            availability: if values.is_empty() {
+                "empty"
+            } else {
+                "available"
+            }
+            .into(),
+            freshness: "current".into(),
+            measured_at,
+            values,
+            next_cursor,
+            page_size: request.page_size,
+            correlation_id: response.correlation_id,
+            capabilities,
+            redactions: vec![
+                FieldRedaction {
+                    field: "event_payload".into(),
+                    reason: "internal command payloads are not exposed by this surface".into(),
+                },
+                FieldRedaction {
+                    field: "persistence_keys".into(),
+                    reason: "server-owned storage identifiers are not exposed".into(),
+                },
+            ],
+        })
     }
 
     async fn identity_route(
@@ -1368,5 +1559,30 @@ mod tests {
         changed.expected_version = 2;
         changed.mfa_code.clear();
         assert!(validate_principal_command(&changed).is_err());
+    }
+
+    #[test]
+    fn holding_history_cursor_is_opaque_bounded_and_stable() {
+        let event_id = Uuid::from_u128(7);
+        let cursor = format!("1787270400000.{event_id}");
+        assert_eq!(
+            decode_holding_history_cursor(&cursor),
+            Some((1_787_270_400_000, event_id))
+        );
+        let request = HoldingHistoryRequest {
+            holding_id: Uuid::from_u128(8),
+            cursor: Some(cursor),
+            page_size: 100,
+            locale: "en".into(),
+            consistency: FeatureConsistency::Eventual,
+        };
+        assert!(validate_holding_history_request(&request).is_ok());
+
+        let mut invalid = request.clone();
+        invalid.cursor = Some("2026-08-21T00:00:00Z|not-a-uuid".into());
+        assert!(validate_holding_history_request(&invalid).is_err());
+        invalid = request;
+        invalid.page_size = 101;
+        assert!(validate_holding_history_request(&invalid).is_err());
     }
 }
