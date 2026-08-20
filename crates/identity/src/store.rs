@@ -62,11 +62,8 @@ pub enum IdentityStoreError {
 /// Safe, non-secret device projection returned to account-management code.
 /// Session tokens and credential material are intentionally absent.
 ///
-/// Integration note: this packet is forbidden from editing `lib.rs`, so the
-/// DTO is not yet re-exported at the `erpx_identity` crate root. Public callers
-/// can call `list_devices` and use the accessor methods through type inference,
-/// but cannot name `DeviceSnapshot` in their own signatures until the main
-/// agent adds the crate-root re-export in the next identity integration wave.
+/// The crate root re-exports this DTO for delivery adapters, while its private
+/// fields ensure callers can only access the explicitly safe projection.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeviceSnapshot {
     id: Uuid,
@@ -75,6 +72,14 @@ pub struct DeviceSnapshot {
     created_at: DateTime<Utc>,
     last_seen_at: DateTime<Utc>,
     revoked_at: Option<DateTime<Utc>>,
+}
+
+/// Result of a principal-scoped device revocation. Replaying a revocation is
+/// successful but is reported separately so delivery adapters can preserve
+/// idempotency evidence without exposing session material.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DeviceRevocationOutcome {
+    replayed: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -243,6 +248,12 @@ impl DeviceSnapshot {
 
     pub fn revoked_at(&self) -> Option<DateTime<Utc>> {
         self.revoked_at
+    }
+}
+
+impl DeviceRevocationOutcome {
+    pub const fn replayed(self) -> bool {
+        self.replayed
     }
 }
 
@@ -2905,6 +2916,66 @@ impl SqlxIdentityStore {
             .collect()
     }
 
+    /// Return a bounded, principal-scoped page ordered by the stable device
+    /// identifier. Fetching one extra row lets callers emit a cursor without
+    /// inventing totals or loading the complete device history.
+    pub async fn list_devices_page(
+        &self,
+        principal_ref: &str,
+        after_device_id: Option<Uuid>,
+        current_device_id: Uuid,
+        page_size: u16,
+    ) -> Result<(Vec<DeviceSnapshot>, Option<Uuid>), IdentityStoreError> {
+        validate_principal_ref(principal_ref)?;
+        if page_size == 0 || page_size > 100 {
+            return Err(IdentityStoreError::InvalidRecord(
+                "device page size must be between 1 and 100".into(),
+            ));
+        }
+        let fetch_limit = i64::from(page_size) + 1;
+        let rows = sqlx::query(
+            "SELECT d.id, p.principal_ref, d.label, d.created_at,
+                    d.last_seen_at, d.revoked_at
+             FROM erpx_identity.devices d
+             JOIN erpx_identity.principals p ON p.id = d.principal_id
+             WHERE p.principal_ref = $1
+               AND ($2::uuid IS NULL OR (d.id > $2 AND d.id <> $3))
+             ORDER BY CASE WHEN $2::uuid IS NULL AND d.id = $3 THEN 0 ELSE 1 END,
+                      d.id
+             LIMIT $4",
+        )
+        .bind(principal_ref)
+        .bind(after_device_id)
+        .bind(current_device_id)
+        .bind(fetch_limit)
+        .fetch_all(&self.pool)
+        .await?;
+        let mut devices = rows
+            .into_iter()
+            .map(|row| {
+                Ok(DeviceSnapshot {
+                    id: row.try_get("id")?,
+                    principal_ref: row.try_get("principal_ref")?,
+                    label: row.try_get("label")?,
+                    created_at: row.try_get("created_at")?,
+                    last_seen_at: row.try_get("last_seen_at")?,
+                    revoked_at: row.try_get("revoked_at")?,
+                })
+            })
+            .collect::<Result<Vec<_>, sqlx::Error>>()?;
+        let has_more = devices.len() > usize::from(page_size);
+        if has_more {
+            devices.pop();
+        }
+        let next_device_id = has_more.then(|| {
+            devices
+                .last()
+                .expect("a page with an extra row retains at least one device")
+                .id()
+        });
+        Ok((devices, next_device_id))
+    }
+
     /// Revoke a device and all sessions attached to it in one transaction.
     /// The principal predicate prevents cross-principal revocation by ID.
     pub async fn revoke_device(
@@ -2913,10 +2984,24 @@ impl SqlxIdentityStore {
         device_id: Uuid,
         at: DateTime<Utc>,
     ) -> Result<bool, IdentityStoreError> {
+        Ok(self
+            .revoke_device_with_outcome(principal_ref, device_id, at)
+            .await?
+            .is_some())
+    }
+
+    /// Revoke a device and every attached session while distinguishing a
+    /// successful replay from the first state transition.
+    pub async fn revoke_device_with_outcome(
+        &self,
+        principal_ref: &str,
+        device_id: Uuid,
+        at: DateTime<Utc>,
+    ) -> Result<Option<DeviceRevocationOutcome>, IdentityStoreError> {
         validate_principal_ref(principal_ref)?;
         let mut transaction = self.pool.begin().await?;
-        let exists = sqlx::query(
-            "SELECT d.id
+        let existing = sqlx::query(
+            "SELECT d.revoked_at
              FROM erpx_identity.devices d
              JOIN erpx_identity.principals p ON p.id = d.principal_id
              WHERE d.id = $1 AND p.principal_ref = $2
@@ -2925,12 +3010,14 @@ impl SqlxIdentityStore {
         .bind(device_id)
         .bind(principal_ref)
         .fetch_optional(&mut *transaction)
-        .await?
-        .is_some();
-        if !exists {
+        .await?;
+        let Some(existing) = existing else {
             transaction.commit().await?;
-            return Ok(false);
-        }
+            return Ok(None);
+        };
+        let replayed = existing
+            .try_get::<Option<DateTime<Utc>>, _>("revoked_at")?
+            .is_some();
         sqlx::query(
             "UPDATE erpx_identity.devices
              SET revoked_at = COALESCE(revoked_at, $2)
@@ -2951,7 +3038,7 @@ impl SqlxIdentityStore {
         .execute(&mut *transaction)
         .await?;
         transaction.commit().await?;
-        Ok(true)
+        Ok(Some(DeviceRevocationOutcome { replayed }))
     }
 
     async fn lock_recovery_principal(

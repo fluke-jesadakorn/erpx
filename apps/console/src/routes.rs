@@ -102,8 +102,8 @@ pub enum AppRoute {
         Accounts { return_to: Option<String> },
         #[route("/auth/security")]
         Security {},
-        #[route("/auth/devices")]
-        Devices {},
+        #[route("/auth/devices?:cursor")]
+        Devices { cursor: Option<String> },
         #[route("/auth/recovery")]
         Recovery {},
     #[end_layout]
@@ -1610,6 +1610,8 @@ fn Accounts(return_to: Option<String>) -> Element {
     #[allow(unused_mut)]
     let mut pending_account = use_signal(|| None::<String>);
     #[allow(unused_mut)]
+    let mut confirming_account = use_signal(|| None::<String>);
+    #[allow(unused_mut)]
     let mut error = use_signal(|| None::<String>);
     let page_state = page.read().clone();
     let error_message = error.read().clone();
@@ -1659,11 +1661,13 @@ fn Accounts(return_to: Option<String>) -> Element {
             spawn(async move {
                 match remove_session_account(session_id).await {
                     Ok(true) => {
+                        confirming_account.set(None);
                         page.set(None);
                         let next_reload = *reload.read() + 1;
                         reload.set(next_reload);
                     }
                     Ok(false) => {
+                        confirming_account.set(None);
                         let _ = crate::platform::browser_http::replace_location("/auth/sign-in");
                     }
                     Err(message) => error.set(Some(message)),
@@ -1783,29 +1787,60 @@ fn Accounts(return_to: Option<String>) -> Element {
                                         }
                                     }
                                 }
-                                KitButton {
-                                    variant: ButtonVariant::Secondary,
-                                    class: "account-remove-button",
-                                    r#type: "button",
-                                    disabled: pending_account.read().is_some() || pending_selection.read().is_some(),
-                                    aria_label: if account.active {
-                                        format!("Sign out {}", account.principal_ref)
-                                    } else {
-                                        format!("Remove {}", account.principal_ref)
-                                    },
-                                    "data-testid": "account-remove",
-                                    onclick: {
-                                        let session_id = account.session_id.clone();
-                                        #[allow(unused_mut)]
-                                        let mut remove = on_remove_account;
-                                        move |_| remove(session_id.clone())
-                                    },
-                                    if pending_account.read().as_deref() == Some(account.session_id.as_str()) {
-                                        {copy(locale, "Working…", "กำลังดำเนินการ…")}
-                                    } else if account.active {
-                                        {copy(locale, "Sign out", "ออกจากระบบ")}
-                                    } else {
-                                        {copy(locale, "Remove", "นำออก")}
+                                if confirming_account.read().as_deref() == Some(account.session_id.as_str()) {
+                                    div { class: "account-row-actions account-remove-confirmation", role: "group", aria_label: copy(locale, "Confirm account removal", "ยืนยันการนำบัญชีออก"),
+                                        KitButton {
+                                            variant: ButtonVariant::Secondary,
+                                            r#type: "button",
+                                            disabled: pending_account.read().is_some(),
+                                            onclick: move |_| confirming_account.set(None),
+                                            {copy(locale, "Cancel", "ยกเลิก")}
+                                        }
+                                        KitButton {
+                                            variant: ButtonVariant::Secondary,
+                                            class: "account-remove-button",
+                                            r#type: "button",
+                                            disabled: pending_account.read().is_some() || pending_selection.read().is_some(),
+                                            aria_label: if account.active {
+                                                format!("Confirm sign out {}", account.principal_ref)
+                                            } else {
+                                                format!("Confirm remove {}", account.principal_ref)
+                                            },
+                                            "data-testid": "account-remove-confirm",
+                                            onclick: {
+                                                let session_id = account.session_id.clone();
+                                                #[allow(unused_mut)]
+                                                let mut remove = on_remove_account;
+                                                move |_| remove(session_id.clone())
+                                            },
+                                            if pending_account.read().as_deref() == Some(account.session_id.as_str()) {
+                                                {copy(locale, "Working…", "กำลังดำเนินการ…")}
+                                            } else {
+                                                {copy(locale, "Confirm", "ยืนยัน")}
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    KitButton {
+                                        variant: ButtonVariant::Secondary,
+                                        class: "account-remove-button",
+                                        r#type: "button",
+                                        disabled: pending_account.read().is_some() || pending_selection.read().is_some(),
+                                        aria_label: if account.active {
+                                            format!("Sign out {}", account.principal_ref)
+                                        } else {
+                                            format!("Remove {}", account.principal_ref)
+                                        },
+                                        "data-testid": "account-remove",
+                                        onclick: {
+                                            let session_id = account.session_id.clone();
+                                            move |_| confirming_account.set(Some(session_id.clone()))
+                                        },
+                                        if account.active {
+                                            {copy(locale, "Sign out", "ออกจากระบบ")}
+                                        } else {
+                                            {copy(locale, "Remove", "นำออก")}
+                                        }
                                     }
                                 }
                             }
@@ -1936,14 +1971,370 @@ auth_page!(
     "ตรวจสอบขอบเขตเซสชันที่เชื่อถือได้ และไปยังสิทธิ์บัญชีเมื่อต้องการเปลี่ยนบทบาท",
     "⌾"
 );
-auth_page!(
-    Devices,
-    "Devices",
-    "อุปกรณ์",
-    "Device sessions stay tied to the signed-in account and its currently authorized scope.",
-    "เซสชันอุปกรณ์จะผูกกับบัญชีที่เข้าสู่ระบบและขอบเขตที่ได้รับอนุญาตในปัจจุบัน",
-    "▣"
-);
+
+#[derive(Clone, PartialEq)]
+struct DeviceConfirmation {
+    device_id: uuid::Uuid,
+    label: String,
+    idempotency_key: String,
+}
+
+#[derive(Clone, PartialEq)]
+struct DeviceFeedback {
+    state: &'static str,
+    message: String,
+    audit_reference: Option<String>,
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+fn device_error_copy(
+    error: &erpx_delivery_contract::DeliveryError,
+    locale: Locale,
+) -> (&'static str, &'static str) {
+    use erpx_delivery_contract::DeliveryError;
+    match (error, locale) {
+        (DeliveryError::Unauthenticated(_), Locale::En) => (
+            "Session unavailable",
+            "Reason: the authenticated web session is no longer valid. Sign in again.",
+        ),
+        (DeliveryError::Unauthenticated(_), Locale::Th) => (
+            "เซสชันไม่พร้อมใช้งาน",
+            "เหตุผล: เซสชันเว็บที่ยืนยันตัวตนแล้วไม่ถูกต้องอีกต่อไป โปรดเข้าสู่ระบบใหม่",
+        ),
+        (DeliveryError::Forbidden(_), Locale::En) => (
+            "Access denied",
+            "Reason: the active account is not authorized to review these devices.",
+        ),
+        (DeliveryError::Forbidden(_), Locale::Th) => (
+            "ไม่มีสิทธิ์เข้าถึง",
+            "เหตุผล: บัญชีที่ใช้งานอยู่ไม่ได้รับอนุญาตให้ตรวจสอบอุปกรณ์เหล่านี้",
+        ),
+        (DeliveryError::Conflict(_), Locale::En) => (
+            "Device changed",
+            "Reason: the current device must be signed out through account management.",
+        ),
+        (DeliveryError::Conflict(_), Locale::Th) => (
+            "สถานะอุปกรณ์เปลี่ยนแล้ว",
+            "เหตุผล: ต้องออกจากระบบอุปกรณ์ปัจจุบันผ่านหน้าจัดการบัญชี",
+        ),
+        (DeliveryError::Unavailable(_), Locale::En) => (
+            "Device service unavailable",
+            "Reason: the identity owner or its device projection could not be reached.",
+        ),
+        (DeliveryError::Unavailable(_), Locale::Th) => (
+            "บริการอุปกรณ์ไม่พร้อมใช้งาน",
+            "เหตุผล: ไม่สามารถเชื่อมต่อบริการเจ้าของข้อมูลตัวตนหรือ projection ของอุปกรณ์ได้",
+        ),
+        (_, Locale::En) => (
+            "Device request failed",
+            "Reason: the identity owner did not accept or could not complete the request.",
+        ),
+        (_, Locale::Th) => (
+            "คำขออุปกรณ์ไม่สำเร็จ",
+            "เหตุผล: บริการเจ้าของข้อมูลตัวตนไม่ยอมรับหรือไม่สามารถทำคำขอให้เสร็จได้",
+        ),
+    }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+#[component]
+fn Devices(cursor: Option<String>) -> Element {
+    let locale = erpx_ui_core::use_locale().current();
+    let request = crate::security_delivery::DeviceListRequest {
+        cursor,
+        page_size: 25,
+        locale: locale.language_tag().into(),
+    };
+    let mut resource = use_server_future(move || {
+        let request = request.clone();
+        async move {
+            match crate::security_delivery::list_security_devices(request).await {
+                Ok(result) => result,
+                Err(_) => Err(erpx_delivery_contract::DeliveryError::unavailable(Some(
+                    500,
+                ))),
+            }
+        }
+    })?;
+    let page_state = resource
+        .read()
+        .clone()
+        .expect("resolved device future has a value");
+    let mut confirmation = use_signal(|| None::<DeviceConfirmation>);
+    let mut command_busy = use_signal(|| false);
+    let mut feedback = use_signal(|| None::<DeviceFeedback>);
+    let page_title = format!("{} · ERPX", copy(locale, "Devices", "อุปกรณ์"));
+
+    let confirm_revoke = move |_| {
+        let Some(selected) = confirmation.read().clone() else {
+            return;
+        };
+        if *command_busy.read() {
+            return;
+        }
+        command_busy.set(true);
+        feedback.set(Some(DeviceFeedback {
+            state: "pending",
+            message: copy(
+                locale,
+                "Revoking every session on this device and refetching the authoritative state…",
+                "กำลังเพิกถอนทุกเซสชันบนอุปกรณ์นี้และโหลดสถานะที่เชื่อถือได้ใหม่…",
+            )
+            .into(),
+            audit_reference: None,
+        }));
+        spawn(async move {
+            let result = crate::security_delivery::revoke_security_device(
+                crate::security_delivery::RevokeDeviceRequest {
+                    device_id: selected.device_id,
+                    idempotency_key: selected.idempotency_key,
+                    locale: locale.language_tag().into(),
+                    purpose: format!("revoke unrecognized device: {}", selected.label),
+                    confirmed: true,
+                },
+            )
+            .await;
+            command_busy.set(false);
+            match result {
+                Ok(Ok(outcome)) => {
+                    let confirmed = outcome.authoritative_state == "confirmed";
+                    feedback.set(Some(DeviceFeedback {
+                        state: if confirmed { "success" } else { "pending" },
+                        message: match (locale, confirmed, outcome.receipt.replayed) {
+                            (Locale::En, true, false) => "Device sessions were revoked and confirmed by the identity owner.",
+                            (Locale::En, true, true) => "The earlier revocation was replayed safely and confirmed by the identity owner.",
+                            (Locale::En, false, _) => "The revocation was accepted; authoritative confirmation is still pending.",
+                            (Locale::Th, true, false) => "เพิกถอนเซสชันบนอุปกรณ์แล้ว และยืนยันจากบริการเจ้าของข้อมูลตัวตนแล้ว",
+                            (Locale::Th, true, true) => "ระบบ replay การเพิกถอนเดิมอย่างปลอดภัย และยืนยันจากบริการเจ้าของข้อมูลตัวตนแล้ว",
+                            (Locale::Th, false, _) => "ระบบรับคำสั่งเพิกถอนแล้ว แต่ยังรอการยืนยันสถานะที่เชื่อถือได้",
+                        }
+                        .into(),
+                        audit_reference: Some(outcome.receipt.audit_reference.to_string()),
+                    }));
+                    confirmation.set(None);
+                    resource.restart();
+                }
+                Ok(Err(error)) => {
+                    let (title, reason) = device_error_copy(&error, locale);
+                    feedback.set(Some(DeviceFeedback {
+                        state: "error",
+                        message: format!(
+                            "{title}. {reason} {}: {}",
+                            copy(locale, "Reference", "รหัสอ้างอิง"),
+                            error.meta().correlation_id
+                        ),
+                        audit_reference: None,
+                    }));
+                    if matches!(error, erpx_delivery_contract::DeliveryError::Conflict(_)) {
+                        resource.restart();
+                    }
+                }
+                Err(_) => feedback.set(Some(DeviceFeedback {
+                    state: "error",
+                    message: copy(
+                        locale,
+                        "The same-origin device command transport is unavailable.",
+                        "ช่องทางคำสั่งอุปกรณ์แบบ same-origin ไม่พร้อมใช้งาน",
+                    )
+                    .into(),
+                    audit_reference: None,
+                })),
+            }
+        });
+    };
+
+    rsx! {
+        document::Title { "{page_title}" }
+        article { class: "auth-page-form auth-utility-page device-management-page",
+            p { class: "eyebrow", {copy(locale, "SECURITY CENTER", "ศูนย์ความปลอดภัย")} }
+            div { class: "auth-utility-heading",
+                span { aria_hidden: "true", "▣" }
+                div {
+                    h2 { {copy(locale, "Devices and sessions", "อุปกรณ์และเซสชัน")} }
+                    p { class: "auth-page-form__intro",
+                        {copy(locale,
+                            "Review devices from the identity owner. Revoking a device ends every session attached to it.",
+                            "ตรวจสอบอุปกรณ์จากบริการเจ้าของข้อมูลตัวตน การเพิกถอนอุปกรณ์จะสิ้นสุดทุกเซสชันที่ผูกอยู่",
+                        )}
+                    }
+                }
+            }
+            match page_state {
+                Err(error) => {
+                    let (error_title, reason) = device_error_copy(&error, locale);
+                    rsx! {
+                        section { class: "route-denied", role: "alert", "data-reason": "identity_device_query_failed",
+                            h3 { "{error_title}" }
+                            p { "{reason}" }
+                            small {
+                                {copy(locale, "Reference", "รหัสอ้างอิง")}
+                                ": {error.meta().correlation_id}"
+                            }
+                            div { class: "route-actions",
+                                KitButton {
+                                    variant: ButtonVariant::Secondary,
+                                    r#type: "button",
+                                    onclick: move |_| resource.restart(),
+                                    {copy(locale, "Try again", "ลองอีกครั้ง")}
+                                }
+                                KitLink { href: "/auth/accounts", {copy(locale, "Manage accounts", "จัดการบัญชี")} }
+                            }
+                        }
+                    }
+                },
+                Ok(page) => rsx! {
+                    section { class: "auth-utility-status", role: "status",
+                        span { class: "auth-utility-status__dot", aria_hidden: "true" }
+                        div {
+                            strong { {copy(locale, "Authoritative identity data", "ข้อมูลที่เชื่อถือได้จากบริการตัวตน")} }
+                            p {
+                                {copy(locale, "Measured at", "วัดเมื่อ")}
+                                " {page.measured_at} · "
+                                {copy(locale, "Freshness", "ความสดใหม่")}
+                                ": {page.freshness}"
+                            }
+                            small {
+                                {copy(locale, "Reference", "รหัสอ้างอิง")}
+                                ": {page.correlation_id}"
+                            }
+                        }
+                    }
+                    if page.items.is_empty() {
+                        section { class: "device-authoritative-empty", role: "status",
+                            h3 { {copy(locale, "No device records", "ไม่มีรายการอุปกรณ์")} }
+                            p { {copy(locale,
+                                "The identity owner returned an authoritative empty result; no sample devices were created.",
+                                "บริการเจ้าของข้อมูลตัวตนส่งผลลัพธ์ว่างที่เชื่อถือได้ ระบบไม่ได้สร้างอุปกรณ์ตัวอย่าง",
+                            )} }
+                        }
+                    } else {
+                        section { class: "security-device-list", aria_label: copy(locale, "Registered devices", "อุปกรณ์ที่ลงทะเบียน"),
+                            for device in page.items.iter() {
+                                article { class: "security-device-card", "data-current": device.current, "data-revoked": device.revoked_at.is_some(),
+                                    div { class: "security-device-card__icon", aria_hidden: "true", if device.current { "●" } else { "▣" } }
+                                    div { class: "security-device-card__copy",
+                                        div { class: "security-device-card__title",
+                                            h3 { "{device.label}" }
+                                            if device.current {
+                                                span { class: "security-device-state current", {copy(locale, "Current", "ปัจจุบัน")} }
+                                            } else if device.revoked_at.is_some() {
+                                                span { class: "security-device-state revoked", {copy(locale, "Revoked", "เพิกถอนแล้ว")} }
+                                            } else {
+                                                span { class: "security-device-state", {copy(locale, "Registered", "ลงทะเบียนแล้ว")} }
+                                            }
+                                        }
+                                        p {
+                                            {copy(locale, "Last seen", "ใช้งานล่าสุด")}
+                                            ": {device.last_seen_at}"
+                                        }
+                                        small {
+                                            {copy(locale, "Registered", "ลงทะเบียนเมื่อ")}
+                                            ": {device.created_at}"
+                                        }
+                                        if let Some(revoked_at) = device.revoked_at.as_ref() {
+                                            small {
+                                                {copy(locale, "Revoked at", "เพิกถอนเมื่อ")}
+                                                ": {revoked_at}"
+                                            }
+                                        }
+                                    }
+                                    div { class: "security-device-card__actions",
+                                        if device.current {
+                                            KitLink { href: "/auth/accounts", class: "route-action", {copy(locale, "Sign out safely", "ออกจากระบบอย่างปลอดภัย")} }
+                                        } else if device.revoked_at.is_none() {
+                                            KitButton {
+                                                variant: ButtonVariant::Secondary,
+                                                r#type: "button",
+                                                disabled: *command_busy.read(),
+                                                "data-testid": "device-revoke",
+                                                onclick: {
+                                                    let device_id = device.id;
+                                                    let label = device.label.clone();
+                                                    move |_| confirmation.set(Some(DeviceConfirmation {
+                                                        device_id,
+                                                        label: label.clone(),
+                                                        idempotency_key: uuid::Uuid::new_v4().to_string(),
+                                                    }))
+                                                },
+                                                {copy(locale, "Revoke", "เพิกถอน")}
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if let Some(next_cursor) = page.next_cursor.as_ref() {
+                        div { class: "route-actions auth-utility-actions",
+                            KitLink { href: "/auth/devices?cursor={next_cursor}", {copy(locale, "Next page", "หน้าถัดไป")} }
+                            KitLink { href: "/auth/devices", {copy(locale, "First page", "หน้าแรก")} }
+                        }
+                    }
+                }
+            }
+            if let Some(selected) = confirmation.read().as_ref() {
+                section { class: "device-revoke-confirmation", role: "alertdialog", aria_modal: "true", aria_labelledby: "device-revoke-title", aria_describedby: "device-revoke-description",
+                    strong { id: "device-revoke-title", {copy(locale, "Revoke this device?", "เพิกถอนอุปกรณ์นี้หรือไม่")} }
+                    p { "{selected.label}" }
+                    p { id: "device-revoke-description", {copy(locale,
+                        "Every session on this device will end. This does not delete ERPX business data.",
+                        "ทุกเซสชันบนอุปกรณ์นี้จะสิ้นสุด การดำเนินการนี้ไม่ลบข้อมูลธุรกิจใน ERPX",
+                    )} }
+                    div { class: "route-actions",
+                        KitButton {
+                            variant: ButtonVariant::Secondary,
+                            r#type: "button",
+                            disabled: *command_busy.read(),
+                            onclick: move |_| confirmation.set(None),
+                            {copy(locale, "Cancel", "ยกเลิก")}
+                        }
+                        KitButton {
+                            variant: ButtonVariant::Secondary,
+                            class: "account-remove-button",
+                            r#type: "button",
+                            disabled: *command_busy.read(),
+                            "data-testid": "device-revoke-confirm",
+                            onclick: confirm_revoke,
+                            if *command_busy.read() {
+                                {copy(locale, "Revoking…", "กำลังเพิกถอน…")}
+                            } else {
+                                {copy(locale, "Confirm revoke", "ยืนยันการเพิกถอน")}
+                            }
+                        }
+                    }
+                }
+            }
+            if let Some(status) = feedback.read().as_ref() {
+                section { class: "identity-command-feedback", "data-state": status.state, role: "status",
+                    p { "{status.message}" }
+                    if let Some(reference) = status.audit_reference.as_ref() {
+                        small {
+                            {copy(locale, "Audit reference", "รหัสอ้างอิงการตรวจสอบ")}
+                            ": {reference}"
+                        }
+                    }
+                }
+            }
+            div { class: "route-actions auth-utility-actions",
+                KitLink { href: "/auth/security", {copy(locale, "Security settings", "การตั้งค่าความปลอดภัย")} }
+                KitLink { href: "/work", {copy(locale, "Return to work", "กลับไปยังงาน")} }
+            }
+            p { class: "auth-page-form__security",
+                {copy(locale,
+                    "Session identifiers and credential material are redacted by contract and never reach this page.",
+                    "รหัสเซสชันและข้อมูลรับรองถูกปกปิดตาม contract และจะไม่ถูกส่งมายังหน้านี้",
+                )}
+            }
+        }
+    }
+}
+
+#[cfg(feature = "native")]
+#[component]
+fn Devices(_cursor: Option<String>) -> Element {
+    rsx! { FeatureClosed { name: "Device management" } }
+}
+
 auth_page!(
     Recovery,
     "Recovery",

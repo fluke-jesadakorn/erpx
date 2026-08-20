@@ -19,6 +19,8 @@ type CdpSocket = WebSocket<MaybeTlsStream<std::net::TcpStream>>;
 
 const DEFAULT_BASE_URL: &str = "http://localhost:3004";
 const DEVELOPMENT_CONTROLLER_PRINCIPAL: &str = "local:dev-controller";
+const NATIVE_DEMO_PRINCIPAL: &str = "local:native-demo";
+const DEVICE_REVOCATION_TARGET_LABEL: &str = "ERPX E2E revoke target";
 const SIGN_IN_FORM_SELECTOR: &str = "[data-testid='sign-in-form']";
 const SIGN_IN_ERROR_SELECTOR: &str = "[data-testid='sign-in-error'][role='alert']";
 const ROLE_OPTION_SELECTOR: &str = "[data-testid='role-option'][data-selection-id][data-role-key='platform_holding_administrator']";
@@ -240,7 +242,8 @@ fn is_expected_navigation_cancellation(event: &Value) -> bool {
         .pointer("/params/type")
         .and_then(Value::as_str)
         .unwrap_or_default();
-    resource_type == "Document" && (canceled || error == "net::ERR_ABORTED")
+    (resource_type == "Document" && (canceled || error == "net::ERR_ABORTED"))
+        || (resource_type == "Stylesheet" && canceled && error == "net::ERR_ABORTED")
 }
 
 fn chrome_binary() -> TaskResult<PathBuf> {
@@ -383,6 +386,48 @@ fn development_controller_password(root: &Path) -> TaskResult<String> {
         return Err("development controller credential is empty or invalid".into());
     }
     Ok(password)
+}
+
+fn native_demo_password(root: &Path) -> TaskResult<String> {
+    let path = root.join(".runtime/erpx/secrets/native-demo-password.key");
+    if !path.is_file() {
+        return Err("native demo credential is unavailable; run `cargo xtask dev`".into());
+    }
+    let component = fs::read_to_string(path)?;
+    let component = component.trim();
+    if component.is_empty() || component.chars().any(char::is_control) {
+        return Err("native demo credential is empty or invalid".into());
+    }
+    Ok(format!("ERPX-NATIVE-{component}"))
+}
+
+async fn create_device_revocation_target(password: &str) -> TaskResult {
+    let response = reqwest::Client::new()
+        .post("http://127.0.0.1:50052/auth/login")
+        .json(&json!({
+            "principal_ref": NATIVE_DEMO_PRINCIPAL,
+            "password": password,
+            "device_label": DEVICE_REVOCATION_TARGET_LABEL,
+        }))
+        .send()
+        .await?;
+    if !response.status().is_success() {
+        return Err(format!(
+            "identity owner rejected the disposable device target with status {}",
+            response.status()
+        )
+        .into());
+    }
+    let session: Value = response.json().await?;
+    if session.get("session_id").and_then(Value::as_str).is_none()
+        || session
+            .get("access_token")
+            .and_then(Value::as_str)
+            .is_none()
+    {
+        return Err("identity owner omitted the disposable device session receipt".into());
+    }
+    Ok(())
 }
 
 fn submit_password_form(client: &mut CdpClient, principal: &str, password: &str) -> TaskResult {
@@ -946,6 +991,213 @@ pub async fn run(root: &Path) -> TaskResult {
         "unpublished public preview fails closed without generated highlights",
     )?;
 
+    let native_password = native_demo_password(root)?;
+    let native_password_json = serde_json::to_string(&native_password)?;
+    let native_login = cdp.evaluate(&format!(
+        r#"(async () => {{
+          const response = await fetch('/api/auth/password', {{
+            method: 'POST', credentials: 'same-origin',
+            headers: {{'content-type': 'application/json', 'x-erpx-csrf': 'console'}},
+            body: JSON.stringify({{
+              principal_ref: 'local:native-demo',
+              password: {native_password_json},
+              device_label: 'ERPX E2E current device'
+            }})
+          }});
+          return {{status: response.status, ok: response.ok}};
+        }})()"#
+    ))?;
+    if native_login.pointer("/ok").and_then(Value::as_bool) != Some(true) {
+        return Err(format!("native demo BFF login failed: {native_login}").into());
+    }
+    create_device_revocation_target(&native_password).await?;
+
+    cdp.command("Emulation.setLocaleOverride", json!({ "locale": "en-US" }))?;
+    let english_cookie = cdp.command(
+        "Network.setCookie",
+        json!({
+            "name": "erpx_locale", "value": "en", "domain": "localhost",
+            "path": "/", "sameSite": "Strict"
+        }),
+    )?;
+    if english_cookie.get("success").and_then(Value::as_bool) == Some(false) {
+        return Err("Chromium rejected the English locale cookie".into());
+    }
+    cdp.command(
+        "Emulation.setDeviceMetricsOverride",
+        json!({ "width": 1440, "height": 900, "deviceScaleFactor": 1, "mobile": false }),
+    )?;
+
+    let mut device_url = format!("{base_url}/auth/devices");
+    let mut target_found = false;
+    for _ in 0..10 {
+        cdp.navigate(&device_url)?;
+        cdp.wait_for_selector(".security-device-list")?;
+        let probe = cdp.evaluate(&format!(
+            "(() => {{ const card=[...document.querySelectorAll('.security-device-card')].find((candidate) => candidate.querySelector('h3')?.innerText === {} && candidate.dataset.revoked === 'false'); return {{found:Boolean(card), currentFirst:document.querySelector('.security-device-card')?.dataset.current === 'true', next:document.querySelector('a[href^=\"/auth/devices?cursor=\"]')?.href || null}}; }})()",
+            serde_json::to_string(DEVICE_REVOCATION_TARGET_LABEL)?
+        ))?;
+        if device_url.ends_with("/auth/devices")
+            && probe.pointer("/currentFirst").and_then(Value::as_bool) != Some(true)
+        {
+            return Err(
+                "the authoritative device page did not keep the current device first".into(),
+            );
+        }
+        if probe.pointer("/found").and_then(Value::as_bool) == Some(true) {
+            target_found = true;
+            break;
+        }
+        let Some(next) = probe.get("next").and_then(Value::as_str) else {
+            break;
+        };
+        device_url = next.to_owned();
+    }
+    if !target_found {
+        return Err("the disposable device target was absent from bounded pagination".into());
+    }
+    let target_label_json = serde_json::to_string(DEVICE_REVOCATION_TARGET_LABEL)?;
+    cdp.wait_for(
+        &format!(
+            "(() => {{ const card=[...document.querySelectorAll('.security-device-card')].find((candidate) => candidate.querySelector('h3')?.innerText === {target_label_json} && candidate.dataset.revoked === 'false'); return Boolean(card?.querySelector('[data-testid=device-revoke][data-dioxus-id]')); }})()"
+        ),
+        "hydrated disposable device revoke action",
+    )?;
+    if cdp
+        .evaluate(&format!(
+            "(() => {{ const card=[...document.querySelectorAll('.security-device-card')].find((candidate) => candidate.querySelector('h3')?.innerText === {target_label_json} && candidate.dataset.revoked === 'false'); const button=card?.querySelector('[data-testid=device-revoke][data-dioxus-id]'); if(!button)return false; button.click(); return true; }})()"
+        ))?
+        .as_bool()
+        != Some(true)
+    {
+        return Err("the disposable device target had no revoke action".into());
+    }
+    cdp.wait_for_selector("[role=alertdialog] [data-testid=device-revoke-confirm]")?;
+    let confirmation_safe = cdp.evaluate(
+        "document.querySelector('[role=alertdialog]')?.innerText.includes('does not delete ERPX business data') && !document.querySelector('.identity-command-feedback')",
+    )?;
+    if confirmation_safe.as_bool() != Some(true) {
+        return Err("device revocation confirmation omitted its data-safety boundary".into());
+    }
+    cdp.screenshot(&evidence_dir.join("device-revoke-confirmation.png"))?;
+    cdp.evaluate("document.querySelector('[data-testid=device-revoke-confirm]').click()")?;
+    cdp.wait_for(
+        &format!(
+            "(() => {{ const card=[...document.querySelectorAll('.security-device-card')].find((candidate) => candidate.querySelector('h3')?.innerText === {target_label_json}); return card?.dataset.revoked === 'true' && document.querySelector('.identity-command-feedback')?.dataset.state === 'success'; }})()"
+        ),
+        "authoritative device revocation confirmation",
+    )?;
+
+    let cleanup_labels =
+        serde_json::to_string(&[DEVICE_REVOCATION_TARGET_LABEL, "ERPX E2E current device"])?;
+    for _ in 0..20 {
+        let mut cleanup_url = format!("{base_url}/auth/devices");
+        let mut cleanup_found = false;
+        for _ in 0..10 {
+            cdp.navigate(&cleanup_url)?;
+            cdp.wait_for_selector(".security-device-list")?;
+            let probe = cdp.evaluate(&format!(
+                "(() => {{ const labels={cleanup_labels}; const card=[...document.querySelectorAll('.security-device-card')].find((candidate) => labels.includes(candidate.querySelector('h3')?.innerText) && candidate.dataset.current !== 'true' && candidate.dataset.revoked === 'false'); return {{found:Boolean(card), next:document.querySelector('a[href^=\"/auth/devices?cursor=\"]')?.href || null}}; }})()"
+            ))?;
+            if probe.pointer("/found").and_then(Value::as_bool) == Some(true) {
+                cleanup_found = true;
+                break;
+            }
+            let Some(next) = probe.get("next").and_then(Value::as_str) else {
+                break;
+            };
+            cleanup_url = next.to_owned();
+        }
+        if !cleanup_found {
+            break;
+        }
+        cdp.wait_for(
+            &format!(
+                "(() => {{ const labels={cleanup_labels}; const card=[...document.querySelectorAll('.security-device-card')].find((candidate) => labels.includes(candidate.querySelector('h3')?.innerText) && candidate.dataset.current !== 'true' && candidate.dataset.revoked === 'false'); return Boolean(card?.querySelector('[data-testid=device-revoke][data-dioxus-id]')); }})()"
+            ),
+            "hydrated disposable device cleanup action",
+        )?;
+        if cdp
+            .evaluate(&format!(
+                "(() => {{ const labels={cleanup_labels}; const card=[...document.querySelectorAll('.security-device-card')].find((candidate) => labels.includes(candidate.querySelector('h3')?.innerText) && candidate.dataset.current !== 'true' && candidate.dataset.revoked === 'false'); const button=card?.querySelector('[data-testid=device-revoke][data-dioxus-id]'); if(!button)return false; button.click(); return true; }})()"
+            ))?
+            .as_bool()
+            != Some(true)
+        {
+            return Err("a disposable device cleanup action was unavailable".into());
+        }
+        cdp.wait_for_selector("[role=alertdialog] [data-testid=device-revoke-confirm]")?;
+        cdp.evaluate("document.querySelector('[data-testid=device-revoke-confirm]').click()")?;
+        cdp.wait_for(
+            "document.querySelector('.identity-command-feedback')?.dataset.state === 'success'",
+            "disposable device cleanup confirmation",
+        )?;
+    }
+
+    cdp.command("Emulation.setLocaleOverride", json!({ "locale": "th-TH" }))?;
+    let thai_cookie = cdp.command(
+        "Network.setCookie",
+        json!({
+            "name": "erpx_locale", "value": "th", "domain": "localhost",
+            "path": "/", "sameSite": "Strict"
+        }),
+    )?;
+    if thai_cookie.get("success").and_then(Value::as_bool) == Some(false) {
+        return Err("Chromium rejected the Thai locale cookie".into());
+    }
+    cdp.command(
+        "Emulation.setDeviceMetricsOverride",
+        json!({ "width": 390, "height": 844, "deviceScaleFactor": 2, "mobile": true }),
+    )?;
+    cdp.navigate(&format!("{base_url}/auth/devices"))?;
+    cdp.wait_for(
+        "document.body.innerText.includes('อุปกรณ์และเซสชัน') && document.querySelector('.security-device-card')?.dataset.current === 'true'",
+        "Thai mobile device page with current device first",
+    )?;
+    let mobile_devices_safe = cdp.evaluate(
+        "document.body.scrollWidth <= innerWidth && [...document.querySelectorAll('.device-management-page a,.device-management-page button')].every((element) => { const rect=element.getBoundingClientRect(); return rect.width === 0 || rect.height === 0 || (rect.width >= 40 && rect.height >= 40); })",
+    )?;
+    if mobile_devices_safe.as_bool() != Some(true) {
+        let diagnostic = cdp.evaluate(
+            "({bodyWidth:document.body.scrollWidth,innerWidth,controls:[...document.querySelectorAll('.device-management-page a,.device-management-page button')].map((element) => { const rect=element.getBoundingClientRect(); return {tag:element.tagName,text:element.innerText,width:rect.width,height:rect.height,display:getComputedStyle(element).display}; }).filter((control) => control.width !== 0 && control.height !== 0 && (control.width < 40 || control.height < 40))})",
+        )?;
+        return Err(format!(
+            "mobile device management overflowed or exposed a control below 40px: {diagnostic}"
+        )
+        .into());
+    }
+    cdp.screenshot(&evidence_dir.join("mobile-th-devices.png"))?;
+
+    cdp.command(
+        "Emulation.setDeviceMetricsOverride",
+        json!({ "width": 1440, "height": 900, "deviceScaleFactor": 1, "mobile": false }),
+    )?;
+    cdp.navigate(&format!("{base_url}/auth/accounts"))?;
+    cdp.wait_for_selector(".account-quick-row[data-state=selected] [data-testid=account-remove]")?;
+    if cdp
+        .evaluate(
+            "(() => { const row=document.querySelector('.account-quick-row[data-state=selected]'); if(!row?.innerText.includes('local:native-demo'))return false; row.querySelector('[data-testid=account-remove]')?.click(); return true; })()",
+        )?
+        .as_bool()
+        != Some(true)
+    {
+        return Err("current native demo account was unavailable for sign-out confirmation".into());
+    }
+    cdp.wait_for_selector("[data-testid=account-remove-confirm]")?;
+    if cdp
+        .evaluate("location.pathname === '/auth/accounts'")?
+        .as_bool()
+        != Some(true)
+    {
+        return Err("account removal executed before explicit confirmation".into());
+    }
+    cdp.screenshot(&evidence_dir.join("account-sign-out-confirmation.png"))?;
+    cdp.evaluate("document.querySelector('[data-testid=account-remove-confirm]').click()")?;
+    cdp.wait_for(
+        "document.querySelector('.account-quick-row[data-state=selected]')?.innerText.includes('local:dev-controller') && ![...document.querySelectorAll('.account-quick-row')].some((row) => row.innerText.includes('local:native-demo'))",
+        "confirmed sign-out and account session cleanup",
+    )?;
+
     let report = json!({
         "schema_version": 1,
         "captured_at": Utc::now().to_rfc3339(),
@@ -970,6 +1222,15 @@ pub async fn run(root: &Path) -> TaskResult {
             "duplicate_version_stable": true,
             "suspend_read_your_writes": true,
             "stale_version_conflict_recovered": true
+        },
+        "device_management": {
+            "authoritative_current_first": true,
+            "bounded_pagination": true,
+            "explicit_revoke_confirmation": true,
+            "revoke_read_your_writes": true,
+            "mobile_thai_layout_safe": true,
+            "account_sign_out_confirmation": true,
+            "disposable_sessions_cleaned_up": true
         },
         "public_marketing_form": true,
         "public_marketing_preview_fail_closed": true,

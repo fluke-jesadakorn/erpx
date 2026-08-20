@@ -86,8 +86,9 @@ pub use signup::{
     SignupError, SignupMailAdapter, SignupMailError, SignupRateWindow,
 };
 pub use store::{
-    AccountSessionSummary, DeviceSnapshot, DirectoryRoleAccess, IdentityStoreError,
-    RateLimitDecision, RateLimitPolicy, RoleOption, RoleSelectionSource, SqlxIdentityStore,
+    AccountSessionSummary, DeviceRevocationOutcome, DeviceSnapshot, DirectoryRoleAccess,
+    IdentityStoreError, RateLimitDecision, RateLimitPolicy, RoleOption, RoleSelectionSource,
+    SqlxIdentityStore,
 };
 pub use totp::{
     KeyResolver, TOTP_ALGORITHM, TOTP_CLOCK_SKEW_STEPS, TOTP_DIGITS, TOTP_PERIOD_SECONDS,

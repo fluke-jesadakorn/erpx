@@ -21,6 +21,8 @@ mod native_delivery;
 mod native_spike;
 pub mod platform;
 mod routes;
+#[cfg(any(feature = "web", feature = "server"))]
+mod security_delivery;
 #[cfg(feature = "server")]
 mod server;
 

@@ -1,3 +1,4 @@
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use std::collections::BTreeMap;
 use std::{collections::HashMap, sync::Arc};
 
@@ -55,11 +56,14 @@ struct DeviceResponse {
     created_at: String,
     last_seen_at: String,
     revoked_at: Option<String>,
+    current: bool,
 }
 
 #[derive(Debug, Serialize)]
 struct DeviceListResponse {
     devices: Vec<DeviceResponse>,
+    next_cursor: Option<String>,
+    measured_at: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -139,9 +143,21 @@ struct DirectoryLoginRequest {
     device_label: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RevokeDeviceRequest {
+    idempotency_key: String,
+    purpose: String,
+    locale: String,
+}
+
 #[derive(Debug, Serialize)]
 struct DeviceRevokedResponse {
     revoked: bool,
+    replayed: bool,
+    command_id: String,
+    audit_reference: String,
+    revoked_at: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -551,14 +567,16 @@ pub(crate) async fn handle(
         return Ok(None);
     }
 
-    let response = match (method, path) {
+    let route_path = path.split_once('?').map_or(path, |(route, _)| route);
+
+    let response = match (method, route_path) {
         ("POST", "/auth/login") => login(body, auth).await,
         ("POST", "/auth/directory-login") => directory_login(body, auth).await,
         ("GET", "/auth/role-options") => role_options(headers, auth).await,
         ("POST", "/auth/role-selection") => select_role(headers, body, auth).await,
-        ("GET", "/auth/devices") => list_devices(headers, auth).await,
-        ("POST", path) if device_revoke_path(path).is_some() => {
-            revoke_device(path, headers, auth).await
+        ("GET", "/auth/devices") => list_devices(path, headers, auth).await,
+        ("POST", route_path) if device_revoke_path(route_path).is_some() => {
+            revoke_device(route_path, headers, body, auth).await
         }
         ("POST", "/auth/recovery-codes") => issue_recovery_codes(headers, body, auth).await,
         ("POST", "/auth/recovery-codes/consume") => {
@@ -1007,6 +1025,7 @@ fn development_persona_response(persona: &DevelopmentPersona) -> DevelopmentPers
 }
 
 fn is_identity_path(path: &str) -> bool {
+    let path = path.split_once('?').map_or(path, |(route, _)| route);
     matches!(
         path,
         "/auth/login"
@@ -1348,6 +1367,7 @@ async fn directory_login(body: &[u8], auth: Arc<AuthContext>) -> IdentityHttpRes
 }
 
 async fn list_devices(
+    path: &str,
     headers: &HashMap<String, String>,
     auth: Arc<AuthContext>,
 ) -> IdentityHttpResponse {
@@ -1355,8 +1375,30 @@ async fn list_devices(
         Ok(claims) => claims,
         Err(response) => return response,
     };
-    match auth.identity.list_devices(&claims.principal_ref).await {
-        Ok(devices) => response(
+    let (after_device_id, page_size) = match device_list_parameters(path) {
+        Ok(parameters) => parameters,
+        Err(error) => return json_response("400 Bad Request", error),
+    };
+    let measured_at = Utc::now();
+    let current_device_id = match auth
+        .identity
+        .active_session_device_id(claims.session_id, measured_at)
+        .await
+    {
+        Ok(device_id) => device_id,
+        Err(error) => return identity_error_response(error, false),
+    };
+    match auth
+        .identity
+        .list_devices_page(
+            &claims.principal_ref,
+            after_device_id,
+            current_device_id,
+            page_size,
+        )
+        .await
+    {
+        Ok((devices, next_device_id)) => response(
             "200 OK",
             &DeviceListResponse {
                 devices: devices
@@ -1367,8 +1409,11 @@ async fn list_devices(
                         created_at: device.created_at().to_rfc3339(),
                         last_seen_at: device.last_seen_at().to_rfc3339(),
                         revoked_at: device.revoked_at().map(|at| at.to_rfc3339()),
+                        current: device.id() == current_device_id,
                     })
                     .collect(),
+                next_cursor: next_device_id.map(encode_device_cursor),
+                measured_at: measured_at.to_rfc3339(),
             },
         ),
         Err(error) => identity_error_response(error, false),
@@ -1378,6 +1423,7 @@ async fn list_devices(
 async fn revoke_device(
     path: &str,
     headers: &HashMap<String, String>,
+    body: &[u8],
     auth: Arc<AuthContext>,
 ) -> IdentityHttpResponse {
     let Some(device_id) = device_revoke_path(path) else {
@@ -1387,15 +1433,103 @@ async fn revoke_device(
         Ok(claims) => claims,
         Err(response) => return response,
     };
-    match auth
+    let input = match serde_json::from_slice::<RevokeDeviceRequest>(body) {
+        Ok(input) if valid_device_revocation_request(&input) => input,
+        _ => return json_response("400 Bad Request", "invalid_device_revocation_request"),
+    };
+    let revoked_at = Utc::now();
+    let current_device_id = match auth
         .identity
-        .revoke_device(&claims.principal_ref, device_id, Utc::now())
+        .active_session_device_id(claims.session_id, revoked_at)
         .await
     {
-        Ok(true) => response("200 OK", &DeviceRevokedResponse { revoked: true }),
-        Ok(false) => json_response("404 Not Found", "device_not_found"),
+        Ok(device_id) => device_id,
+        Err(error) => return identity_error_response(error, false),
+    };
+    if current_device_id == device_id {
+        return json_response("409 Conflict", "current_device_requires_sign_out");
+    }
+    let command_id =
+        stable_device_command_id(&claims.principal_ref, device_id, &input.idempotency_key);
+    let audit_reference = stable_device_audit_reference(command_id);
+    match auth
+        .identity
+        .revoke_device_with_outcome(&claims.principal_ref, device_id, revoked_at)
+        .await
+    {
+        Ok(Some(outcome)) => response(
+            "200 OK",
+            &DeviceRevokedResponse {
+                revoked: true,
+                replayed: outcome.replayed(),
+                command_id: command_id.to_string(),
+                audit_reference: audit_reference.to_string(),
+                revoked_at: revoked_at.to_rfc3339(),
+            },
+        ),
+        Ok(None) => json_response("404 Not Found", "device_not_found"),
         Err(error) => identity_error_response(error, false),
     }
+}
+
+fn device_list_parameters(path: &str) -> Result<(Option<Uuid>, u16), &'static str> {
+    let mut cursor = None;
+    let mut page_size = 25_u16;
+    let mut page_size_seen = false;
+    let Some((_, query)) = path.split_once('?') else {
+        return Ok((cursor, page_size));
+    };
+    for pair in query.split('&').filter(|value| !value.is_empty()) {
+        let (key, value) = pair.split_once('=').ok_or("invalid_device_list_query")?;
+        match key {
+            "cursor" if cursor.is_none() => cursor = Some(decode_device_cursor(value)?),
+            "page_size" if !page_size_seen => {
+                page_size = value
+                    .parse::<u16>()
+                    .ok()
+                    .filter(|value| (1..=100).contains(value))
+                    .ok_or("invalid_device_page_size")?;
+                page_size_seen = true;
+            }
+            _ => return Err("invalid_device_list_query"),
+        }
+    }
+    Ok((cursor, page_size))
+}
+
+fn encode_device_cursor(device_id: Uuid) -> String {
+    URL_SAFE_NO_PAD.encode(device_id.as_bytes())
+}
+
+fn decode_device_cursor(value: &str) -> Result<Uuid, &'static str> {
+    let bytes = URL_SAFE_NO_PAD
+        .decode(value)
+        .map_err(|_| "invalid_device_cursor")?;
+    Uuid::from_slice(&bytes).map_err(|_| "invalid_device_cursor")
+}
+
+fn valid_device_revocation_request(request: &RevokeDeviceRequest) -> bool {
+    matches!(request.locale.as_str(), "en" | "th")
+        && !request.idempotency_key.trim().is_empty()
+        && request.idempotency_key.len() <= 128
+        && !request.idempotency_key.chars().any(char::is_control)
+        && !request.purpose.trim().is_empty()
+        && request.purpose.len() <= 256
+        && !request.purpose.chars().any(char::is_control)
+}
+
+fn stable_device_command_id(principal_ref: &str, device_id: Uuid, idempotency_key: &str) -> Uuid {
+    Uuid::new_v5(
+        &Uuid::NAMESPACE_URL,
+        format!("erpx:identity-device:{principal_ref}:{device_id}:{idempotency_key}").as_bytes(),
+    )
+}
+
+fn stable_device_audit_reference(command_id: Uuid) -> Uuid {
+    Uuid::new_v5(
+        &Uuid::NAMESPACE_URL,
+        format!("erpx:identity-device-audit:{command_id}").as_bytes(),
+    )
 }
 
 async fn issue_recovery_codes(
@@ -1922,11 +2056,14 @@ mod tests {
             created_at: "2026-07-24T12:00:00Z".into(),
             last_seen_at: "2026-07-24T12:00:00Z".into(),
             revoked_at: None,
+            current: true,
         };
         let body = response(
             "200 OK",
             &DeviceListResponse {
                 devices: vec![device],
+                next_cursor: None,
+                measured_at: "2026-07-24T12:00:00Z".into(),
             },
         );
         assert!(!body.body.contains("refresh_token"));
@@ -1938,6 +2075,7 @@ mod tests {
     #[test]
     fn identity_route_matching_is_scoped_to_the_declared_paths() {
         assert!(is_identity_path("/auth/devices"));
+        assert!(is_identity_path("/auth/devices?page_size=25"));
         assert!(is_identity_path("/auth/recovery-codes"));
         assert!(is_identity_path("/auth/recovery-codes/consume"));
         assert!(is_identity_path("/auth/totp/enrollment/start"));
@@ -2056,9 +2194,68 @@ mod tests {
 
     #[test]
     fn device_revocation_success_is_not_encoded_as_an_error() {
-        let body = response("200 OK", &DeviceRevokedResponse { revoked: true });
+        let command_id = Uuid::new_v4();
+        let body = response(
+            "200 OK",
+            &DeviceRevokedResponse {
+                revoked: true,
+                replayed: false,
+                command_id: command_id.to_string(),
+                audit_reference: stable_device_audit_reference(command_id).to_string(),
+                revoked_at: "2026-07-24T12:00:00Z".into(),
+            },
+        );
         assert_eq!(body.status, "200 OK");
-        assert_eq!(body.body, r#"{"revoked":true}"#);
+        assert!(body.body.contains(r#""revoked":true"#));
+        assert!(body.body.contains(r#""replayed":false"#));
         assert!(!body.body.contains("error"));
+    }
+
+    #[test]
+    fn device_list_query_is_bounded_and_uses_an_opaque_cursor() {
+        let device_id = Uuid::new_v4();
+        let cursor = encode_device_cursor(device_id);
+        assert!(!cursor.contains(&device_id.to_string()));
+        assert_eq!(decode_device_cursor(&cursor), Ok(device_id));
+        assert_eq!(
+            device_list_parameters(&format!("/auth/devices?cursor={cursor}&page_size=40")),
+            Ok((Some(device_id), 40))
+        );
+        for invalid in [
+            "/auth/devices?page_size=0",
+            "/auth/devices?page_size=101",
+            "/auth/devices?page_size=25&page_size=25",
+            "/auth/devices?unknown=value",
+            "/auth/devices?cursor=not-a-cursor",
+        ] {
+            assert!(device_list_parameters(invalid).is_err(), "{invalid}");
+        }
+    }
+
+    #[test]
+    fn device_revocation_contract_requires_locale_idempotency_and_purpose() {
+        let device_id = Uuid::new_v4();
+        let valid = RevokeDeviceRequest {
+            idempotency_key: "device-command-001".into(),
+            purpose: "Revoke an unrecognized device".into(),
+            locale: "en".into(),
+        };
+        assert!(valid_device_revocation_request(&valid));
+        assert_eq!(
+            stable_device_command_id("principal-001", device_id, &valid.idempotency_key),
+            stable_device_command_id("principal-001", device_id, &valid.idempotency_key)
+        );
+        assert_ne!(
+            stable_device_command_id("principal-001", device_id, &valid.idempotency_key),
+            stable_device_command_id("principal-002", device_id, &valid.idempotency_key)
+        );
+        assert_ne!(
+            stable_device_command_id("principal-001", device_id, &valid.idempotency_key),
+            stable_device_command_id("principal-001", Uuid::new_v4(), &valid.idempotency_key)
+        );
+        assert!(!valid_device_revocation_request(&RevokeDeviceRequest {
+            purpose: String::new(),
+            ..valid
+        }));
     }
 }

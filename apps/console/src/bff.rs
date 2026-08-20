@@ -106,6 +106,14 @@ impl BffState {
         &self.grpc_origin
     }
 
+    pub(crate) fn auth_http_origin(&self) -> &str {
+        &self.auth_http_origin
+    }
+
+    pub(crate) fn auth_http(&self) -> &reqwest::Client {
+        &self.auth_http
+    }
+
     pub(crate) fn platform_origin(&self) -> &str {
         &self.platform_origin
     }

@@ -1976,6 +1976,29 @@ html[data-locale="th"] :where(.customer-route-tabs, .ui-support-route-tabs, .ui-
 .auth-utility-status div { display: grid; gap: 4px; }
 .auth-utility-status p { color: var(--erpx-text-muted); font-size: 11px; line-height: 1.55; }
 .auth-utility-actions { grid-column: auto; }
+.device-management-page { width: min(100%, 780px); max-height: calc(100dvh - 72px); overflow-y: auto; }
+.device-management-page .auth-utility-heading > div { display: grid; min-width: 0; gap: 5px; }
+.device-management-page .auth-page-form__intro { margin: 0; }
+.security-device-list { display: grid; gap: 9px; }
+.security-device-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 13px; border: 1px solid var(--erpx-border); border-radius: 12px; padding: 13px 14px; background: var(--erpx-surface-raised); }
+.security-device-card[data-current="true"] { border-color: var(--erpx-success-surface); background: color-mix(in srgb, var(--erpx-success-surface) 52%, var(--erpx-surface-raised)); }
+.security-device-card[data-revoked="true"] { opacity: .72; }
+.security-device-card__icon { display: inline-grid; width: 38px; height: 38px; place-items: center; border-radius: 10px; background: var(--erpx-primary-surface); color: var(--erpx-primary); }
+.security-device-card__copy { display: grid; min-width: 0; gap: 4px; }
+.security-device-card__copy :where(p, small) { margin: 0; color: var(--erpx-text-muted); font-size: 10px; line-height: 1.45; overflow-wrap: anywhere; }
+.security-device-card__title { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.security-device-card__title h3 { min-width: 0; margin: 0; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.security-device-state { border-radius: 999px; padding: 3px 7px; background: var(--erpx-primary-surface); color: var(--erpx-primary); font-size: 9px; font-weight: 750; }
+.security-device-state.current { background: var(--erpx-success-surface); color: var(--erpx-success); }
+.security-device-state.revoked { background: var(--erpx-danger-surface); color: var(--erpx-danger); }
+.security-device-card__actions { display: flex; align-items: center; justify-content: flex-end; }
+.security-device-card__actions .route-action { min-height: 36px; padding: 7px 10px; font-size: 10px; }
+.device-authoritative-empty, .device-revoke-confirmation { display: grid; gap: 8px; border: 1px dashed var(--erpx-border); border-radius: 12px; padding: 16px; background: var(--erpx-surface-raised); }
+.device-authoritative-empty :where(h3, p), .device-revoke-confirmation :where(p) { margin: 0; }
+.device-authoritative-empty p, .device-revoke-confirmation p { color: var(--erpx-text-muted); font-size: 11px; line-height: 1.55; }
+.device-revoke-confirmation { position: fixed; z-index: 80; top: 50%; left: 50%; width: min(480px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; border-style: solid; border-color: var(--erpx-danger); background: var(--erpx-surface); box-shadow: 0 0 0 100vmax rgb(4 17 25 / 58%), 0 24px 70px rgb(0 0 0 / 28%); transform: translate(-50%, -50%); }
+.device-revoke-confirmation .route-actions { grid-column: auto; }
+.account-remove-confirmation { flex-wrap: wrap; }
 
 .route-not-found { justify-items: start; background: radial-gradient(circle at 18% 26%, var(--erpx-primary-surface), transparent 24%), var(--erpx-bg); }
 .route-not-found__code { color: var(--erpx-primary); font-size: clamp(72px, 15vw, 170px); font-weight: 850; letter-spacing: -.08em; line-height: .76; opacity: .16; }
@@ -1988,6 +2011,11 @@ html[data-locale="th"] :where(.customer-route-tabs, .ui-support-route-tabs, .ui-
   .auth-layout__summary { max-width: 430px; margin-top: 16px !important; }
   .auth-layout__brand::after { width: 38px; height: 38px; }
   .auth-layout__content { padding: 70px 14px 36px; }
+  .device-management-page { max-height: none; }
+  .security-device-card { grid-template-columns: auto minmax(0, 1fr); align-items: start; }
+  .security-device-card__actions { grid-column: 2; justify-content: flex-start; }
+  .device-management-page :where(a, button) { min-width: 40px; min-height: 40px; }
+  .device-management-page .security-device-card__actions .route-action { min-height: 40px; }
   .console-nav { gap: 7px; padding: 12px 14px; }
   .console-nav__brand { min-height: 44px; margin: 0 6px 2px; }
   .console-nav__primary { gap: 4px; margin-inline: -2px; padding: 2px 2px 6px; scrollbar-width: thin; }
