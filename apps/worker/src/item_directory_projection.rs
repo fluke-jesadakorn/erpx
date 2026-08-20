@@ -359,6 +359,10 @@ impl ItemDirectoryHoldingProjectionExecutor {
 
 #[async_trait]
 impl HoldingProjectionRoutedExecutor for ItemDirectoryHoldingProjectionExecutor {
+    fn projection_name(&self) -> &str {
+        ITEM_DIRECTORY_PROJECTION_NAME
+    }
+
     async fn execute_routed(
         &self,
         claim: &ProjectionClaimRecord,

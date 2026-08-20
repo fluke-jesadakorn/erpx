@@ -1502,6 +1502,108 @@ struct AuthContext {
     development_controller: Option<erpx_identity::DevelopmentControllerRoleConfig>,
 }
 
+struct DevelopmentMfaAuthorization<'a> {
+    holding_id: &'a str,
+    correlation_id: Uuid,
+    validated_development_persona: bool,
+    validated_role_permission: bool,
+}
+
+fn development_mfa_bypass_actor_is_authorized(
+    config: Option<&erpx_identity::DevelopmentControllerRoleConfig>,
+    principal_ref: &str,
+    has_active_role: bool,
+    holding_id: &str,
+    validated_development_persona: bool,
+    validated_role_permission: bool,
+) -> bool {
+    if !config.is_some_and(|config| {
+        config.mfa_bypass && config.target_holding == holding_id && validated_role_permission
+    }) {
+        return false;
+    }
+    (principal_ref == erpx_identity::DEVELOPMENT_CONTROLLER_PRINCIPAL && has_active_role)
+        || (validated_development_persona
+            && principal_ref.starts_with(&format!("dev:{holding_id}:")))
+}
+
+#[cfg(test)]
+mod development_mfa_bypass_tests {
+    use super::*;
+
+    fn config(holding_id: &str) -> erpx_identity::DevelopmentControllerRoleConfig {
+        erpx_identity::DevelopmentControllerRoleConfig {
+            target_holding: holding_id.into(),
+            mfa_bypass: true,
+            sod_bypass: true,
+        }
+    }
+
+    #[test]
+    fn bypass_intersects_local_gate_holding_and_authorized_business_role() {
+        let holding_id = erpx_identity::DEVELOPMENT_CONTROLLER_TARGET_HOLDING;
+        let config = config(holding_id);
+        assert!(development_mfa_bypass_actor_is_authorized(
+            Some(&config),
+            erpx_identity::DEVELOPMENT_CONTROLLER_PRINCIPAL,
+            true,
+            holding_id,
+            false,
+            true,
+        ));
+        assert!(!development_mfa_bypass_actor_is_authorized(
+            Some(&config),
+            erpx_identity::DEVELOPMENT_CONTROLLER_PRINCIPAL,
+            false,
+            holding_id,
+            false,
+            true,
+        ));
+        assert!(!development_mfa_bypass_actor_is_authorized(
+            Some(&config),
+            erpx_identity::DEVELOPMENT_CONTROLLER_PRINCIPAL,
+            true,
+            holding_id,
+            false,
+            false,
+        ));
+        assert!(!development_mfa_bypass_actor_is_authorized(
+            Some(&config),
+            erpx_identity::DEVELOPMENT_CONTROLLER_PRINCIPAL,
+            true,
+            "another-holding",
+            false,
+            true,
+        ));
+    }
+
+    #[test]
+    fn bypass_accepts_only_a_server_validated_persona_for_the_exact_holding() {
+        let holding_id = erpx_identity::DEVELOPMENT_CONTROLLER_TARGET_HOLDING;
+        let config = config(holding_id);
+        let persona = format!("dev:{holding_id}:customer_security_head");
+        assert!(development_mfa_bypass_actor_is_authorized(
+            Some(&config),
+            &persona,
+            false,
+            holding_id,
+            true,
+            true,
+        ));
+        assert!(!development_mfa_bypass_actor_is_authorized(
+            Some(&config),
+            &persona,
+            false,
+            holding_id,
+            false,
+            true,
+        ));
+        assert!(!development_mfa_bypass_actor_is_authorized(
+            None, &persona, false, holding_id, true, true,
+        ));
+    }
+}
+
 impl AuthContext {
     async fn authorize<T>(&self, request: &Request<T>) -> Result<AccessTokenClaims, Status> {
         let token = request
@@ -1691,6 +1793,46 @@ impl AuthContext {
             }
         }
         self.authorize_mfa(claims, presented_code).await
+    }
+
+    async fn authorize_mfa_for_holding_development_context(
+        &self,
+        store: &SqlxControlPlane,
+        claims: &AccessTokenClaims,
+        presented_code: &str,
+        authorization: DevelopmentMfaAuthorization<'_>,
+    ) -> Result<(), Status> {
+        if development_mfa_bypass_actor_is_authorized(
+            self.development_controller.as_ref(),
+            &claims.principal_ref,
+            claims.active_role.is_some(),
+            authorization.holding_id,
+            authorization.validated_development_persona,
+            authorization.validated_role_permission,
+        ) {
+            store
+                .record(AuditEvent {
+                    actor_ref: claims.principal_ref.clone(),
+                    customer_account_id: None,
+                    action: "development.authorization.mfa_bypass".into(),
+                    purpose: format!(
+                        "validated local command role and holding target {}",
+                        authorization.holding_id
+                    ),
+                    correlation_id: authorization.correlation_id,
+                })
+                .await
+                .map_err(|_| Status::unavailable("development authorization audit failed"))?;
+            return Ok(());
+        }
+        self.authorize_mfa_for_holding(
+            store,
+            claims,
+            authorization.holding_id,
+            presented_code,
+            authorization.correlation_id,
+        )
+        .await
     }
 
     async fn authorize_local_sod_exception(
@@ -4591,6 +4733,107 @@ async fn branch_provisioning_record(
 }
 
 impl PlatformOperationsRpcImpl {
+    pub(crate) async fn resolve_active_holding_route(
+        &self,
+        request: Request<platform_admin_target::ResolveActiveHoldingRouteRequest>,
+    ) -> Result<Response<platform_admin_target::ResolveActiveHoldingRouteResponse>, Status> {
+        grpc_handler!(request, {
+            let claims = self.state.auth.authorize(&request).await?;
+            let proto_context = request
+                .get_ref()
+                .context
+                .as_ref()
+                .cloned()
+                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
+            let context = query_context(&request, Some(&proto_context))?;
+            require_actor_match(
+                &claims.principal_ref,
+                &context.actor,
+                "query actor must match the authenticated principal",
+            )?;
+            let scope = query_access_scope(&proto_context)?;
+            let canonical_holding_id = match &scope {
+                Scope::Platform => {
+                    return Err(Status::failed_precondition(
+                        "an active holding scope is required",
+                    ));
+                }
+                Scope::Holding { holding_id }
+                | Scope::Company { holding_id, .. }
+                | Scope::Branch { holding_id, .. }
+                | Scope::Subtree { holding_id, .. } => *holding_id,
+            };
+            let store = SqlxHoldingAdministrationStore::new(self.state.store.clone());
+            let holding_id = store
+                .holding_id_for_root_holding(canonical_holding_id)
+                .await
+                .map_err(|_| Status::unavailable("holding route registry unavailable"))?
+                .ok_or_else(|| Status::failed_precondition("holding route is not configured"))?;
+            let binding = store
+                .customer_holding_binding(&holding_id)
+                .await
+                .map_err(|_| Status::unavailable("holding route registry unavailable"))?
+                .ok_or_else(|| Status::failed_precondition("holding route is not configured"))?;
+            if binding.canonical_holding_id != canonical_holding_id {
+                return Err(Status::permission_denied(
+                    "active scope does not match the resolved holding route",
+                ));
+            }
+            let mut authorized = false;
+            for permission in ["security.read", "holding.directory.read"] {
+                match self
+                    .state
+                    .auth
+                    .authorize_role_for_holding(
+                        &self.state.store,
+                        &claims,
+                        &scope,
+                        permission,
+                        Some(&holding_id),
+                    )
+                    .await
+                {
+                    Ok(()) => {
+                        authorized = true;
+                        break;
+                    }
+                    Err(status) if status.code() == tonic::Code::PermissionDenied => {}
+                    Err(status) => return Err(status),
+                }
+            }
+            if !authorized {
+                return Err(Status::permission_denied(
+                    "active role does not authorize identity routing",
+                ));
+            }
+            self.state
+                .store
+                .record(AuditEvent {
+                    actor_ref: claims.principal_ref,
+                    customer_account_id: Some(binding.customer_id),
+                    action: "identity.holding-route.resolve".into(),
+                    purpose: proto_context
+                        .audit
+                        .as_ref()
+                        .map(|audit| audit.purpose.clone())
+                        .unwrap_or_else(|| "identity access route resolution".into()),
+                    correlation_id: context.correlation_id,
+                })
+                .await
+                .map_err(|_| Status::internal("holding route audit failed"))?;
+            Ok(Response::new(
+                platform_admin_target::ResolveActiveHoldingRouteResponse {
+                    route: Some(platform_admin_target::ActiveHoldingRoute {
+                        holding_id: binding.holding_id,
+                        canonical_holding_id: binding.canonical_holding_id.to_string(),
+                        data_profile_key: binding.data_profile_key,
+                    }),
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
+        })
+    }
+
     pub(crate) async fn list_holdings(
         &self,
         request: Request<platform_admin_target::ListPlatformHoldingsRequest>,
@@ -7513,6 +7756,7 @@ where
 
     forward_platform_operation_query!(list_operational_holdings, list_holdings, platform_admin_target::ListPlatformHoldingsRequest, platform_admin_target::ListPlatformHoldingsResponse);
     forward_platform_operation_query!(get_operational_holding, get_holding, platform_admin_target::GetPlatformHoldingRequest, platform_admin_target::GetPlatformHoldingResponse);
+    forward_platform_operation_query!(resolve_active_holding_route, resolve_active_holding_route, platform_admin_target::ResolveActiveHoldingRouteRequest, platform_admin_target::ResolveActiveHoldingRouteResponse);
     forward_platform_operation_query!(list_holding_control_history, list_holding_control_history, platform_admin_target::ListHoldingControlHistoryRequest, platform_admin_target::ListHoldingControlHistoryResponse);
     forward_platform_operation_query!(get_holding_admin_context, get_holding_admin_context, platform_admin_target::GetHoldingAdminContextRequest, platform_admin_target::GetHoldingAdminContextResponse);
     forward_platform_operation_query!(discover_holding_organization_units, discover_holding_organization_units, platform_admin_target::DiscoverHoldingOrganizationUnitsRequest, platform_admin_target::DiscoverHoldingOrganizationUnitsResponse);
@@ -15932,8 +16176,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         state.clone(),
         commercial_provider_key,
     ));
-    let identity_access_application =
-        Arc::new(IdentityServerApplication::new(state.holding_router.clone()));
+    let identity_access_application = Arc::new(IdentityServerApplication::new(&state));
     let identity_access_authenticator = Arc::new(IdentityServerAuthenticator::new(state.clone()));
     let organization_application = Arc::new(OrganizationServerApplication::new(
         state.holding_router.clone(),

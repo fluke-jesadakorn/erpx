@@ -1,5 +1,11 @@
 #[cfg(all(not(feature = "server"), not(feature = "native")))]
 pub(crate) fn launch() {
+    let mut headers = dioxus::fullstack::http::HeaderMap::new();
+    headers.insert(
+        dioxus::fullstack::http::HeaderName::from_static("x-erpx-csrf"),
+        dioxus::fullstack::http::HeaderValue::from_static("console"),
+    );
+    dioxus::fullstack::set_request_headers(headers);
     dioxus::launch(crate::App);
 }
 

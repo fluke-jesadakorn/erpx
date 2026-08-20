@@ -36,7 +36,7 @@ use crate::{
 
 const CONTROLLER_PASSWORD_FILE: &str = "secrets/dev-controller.password";
 const UCS_SHARED_PASSWORD_FILE: &str = "secrets/ucs-shared.password";
-const FIXTURE_VERSION: &str = "erpx-dev-access-v7";
+const FIXTURE_VERSION: &str = "erpx-dev-access-v8";
 const PLATFORM_ASSIGNMENT_REVISION: &str = "platform-permissions-v6";
 const CONTROLLER_ASSIGNMENT_REVISION: &str = "restricted-holding-full-admin-v1";
 const CONTROLLER_CATALOG_ASSIGNMENT_REVISION: &str = "controller-role-catalog-v2";
@@ -1022,7 +1022,7 @@ pub(crate) async fn reconcile_runtime_catalog(
     )
     .await?;
     reconcile_typed_organization_read_fixtures(config, &control, now).await?;
-    reconcile_asset_maintenance_entitlements(&control, now).await?;
+    reconcile_development_command_entitlements(&control, now).await?;
     drop(control);
     write.close().await;
     Ok(())
@@ -1143,7 +1143,7 @@ pub(crate) async fn reconcile(root: &Path, config: &DevConfig) -> TaskResult {
     .await?;
     reconcile_branch_fixtures(root, config, control.clone()).await?;
     reconcile_typed_organization_read_fixtures(config, &control, now).await?;
-    reconcile_asset_maintenance_entitlements(&control, now).await?;
+    reconcile_development_command_entitlements(&control, now).await?;
     reconcile_cluster_identity(&write, now).await?;
     write.close().await;
     Ok(())
@@ -1508,7 +1508,7 @@ async fn insert_typed_organization_read_fixture(
     Ok(())
 }
 
-async fn reconcile_asset_maintenance_entitlements(
+async fn reconcile_development_command_entitlements(
     control: &SqlxControlPlane,
     now: chrono::DateTime<Utc>,
 ) -> TaskResult {
@@ -1582,7 +1582,11 @@ async fn reconcile_asset_maintenance_entitlements(
             .into_iter()
             .map(serde_json::from_value::<RoleAssignment>)
             .collect::<Result<Vec<_>, _>>()?;
-        reconcile_asset_maintenance_sod(control, &assignments, canonical_holding_id, now).await?;
+        reconcile_development_command_sod(control, &assignments, canonical_holding_id, now)
+            .await
+            .map_err(|error| {
+                format!("development command SoD reconcile failed for {holding_id}: {error}")
+            })?;
         let mut companies = BTreeMap::<Uuid, BTreeSet<Uuid>>::new();
         for assignment in &assignments {
             match &assignment.scope {
@@ -1621,7 +1625,7 @@ async fn reconcile_asset_maintenance_entitlements(
                 .map(|branches| branches.len().max(1))
                 .sum::<usize>(),
         )?;
-        for module_key in ["assets", "maintenance"] {
+        for module_key in ["assets", "maintenance", "identity_access"] {
             let mut expected = EntitlementAllocationBook::new(
                 module_key,
                 EntitlementCapacity {
@@ -1645,18 +1649,32 @@ async fn reconcile_asset_maintenance_entitlements(
             }
             match commercial
                 .get_entitlement_book(customer_id, module_key)
-                .await?
-            {
+                .await
+                .map_err(|error| {
+                    format!(
+                        "development entitlement read failed for {holding_id}/{module_key}: {error}"
+                    )
+                })? {
                 Some((book, _)) if book == expected => {}
                 Some((_, version)) => {
                     commercial
                         .upsert_entitlement_book(customer_id, &expected, Some(version))
-                        .await?;
+                        .await
+                        .map_err(|error| {
+                            format!(
+                                "development entitlement update failed for {holding_id}/{module_key}: {error}"
+                            )
+                        })?;
                 }
                 None => {
                     commercial
                         .upsert_entitlement_book(customer_id, &expected, None)
-                        .await?;
+                        .await
+                        .map_err(|error| {
+                            format!(
+                                "development entitlement create failed for {holding_id}/{module_key}: {error}"
+                            )
+                        })?;
                 }
             }
         }
@@ -1674,8 +1692,8 @@ fn scope_root_holding(scope: &Scope) -> Option<Uuid> {
     }
 }
 
-fn writable_asset_maintenance_modules(assignment: &RoleAssignment) -> Vec<&'static str> {
-    ["assets", "maintenance"]
+fn writable_development_command_modules(assignment: &RoleAssignment) -> Vec<&'static str> {
+    let mut modules = ["assets", "maintenance"]
         .into_iter()
         .filter(|module| {
             let permission = format!("{module}.write");
@@ -1684,10 +1702,22 @@ fn writable_asset_maintenance_modules(assignment: &RoleAssignment) -> Vec<&'stat
                 .iter()
                 .any(|candidate| candidate == &permission)
         })
-        .collect()
+        .collect::<Vec<_>>();
+    if assignment.permissions.iter().any(|permission| {
+        matches!(
+            permission.as_str(),
+            "identity_access.write"
+                | "security.approve"
+                | "security.approval"
+                | "directory.activation"
+        )
+    }) {
+        modules.push("identity_access");
+    }
+    modules
 }
 
-async fn reconcile_asset_maintenance_sod(
+async fn reconcile_development_command_sod(
     control: &SqlxControlPlane,
     assignments: &[RoleAssignment],
     canonical_holding_id: Uuid,
@@ -1697,7 +1727,7 @@ async fn reconcile_asset_maintenance_sod(
         .iter()
         .filter(|assignment| scope_root_holding(&assignment.scope) == Some(canonical_holding_id))
     {
-        for module_key in writable_asset_maintenance_modules(assignment) {
+        for module_key in writable_development_command_modules(assignment) {
             let scope = serde_json::to_value(&assignment.scope)?;
             let existing = sqlx::query(
                 "SELECT passed, valid_from, valid_until, decision_version
@@ -1708,7 +1738,13 @@ async fn reconcile_asset_maintenance_sod(
             .bind(module_key)
             .bind(&scope)
             .fetch_optional(&control.pools().write)
-            .await?;
+            .await
+            .map_err(|error| {
+                format!(
+                    "development SoD lookup failed for role {}/{module_key}: {error}",
+                    assignment.role_key
+                )
+            })?;
             if existing.as_ref().is_some_and(|row| {
                 row.try_get::<bool, _>("passed").unwrap_or(false)
                     && row
@@ -1738,12 +1774,18 @@ async fn reconcile_asset_maintenance_sod(
                     scope: assignment.scope.clone(),
                     passed: true,
                     reviewer_ref: DEVELOPMENT_CONTROLLER_PRINCIPAL.into(),
-                    reason: "local development asset and maintenance flow fixture".into(),
+                    reason: "local development command authorization fixture".into(),
                     valid_from: now,
                     valid_until: now + chrono::Duration::days(365),
                     decision_version,
                 })
-                .await?;
+                .await
+                .map_err(|error| {
+                    format!(
+                        "development SoD write failed for role {}/{module_key}: {error}",
+                        assignment.role_key
+                    )
+                })?;
         }
     }
     Ok(())
@@ -1889,7 +1931,7 @@ async fn reconcile_branch_fixtures(
                          WHERE holding_id=$1 AND job_id=$2
                            AND state IN ('queued','failed')",
                     )
-                    .bind(holding_id)
+                    .bind(holding_key)
                     .bind(job.job_id)
                     .execute(&control.pools().write)
                     .await?;
@@ -2251,7 +2293,7 @@ pub(crate) async fn runtime_catalog_current(
         }
     }
 
-    if !asset_maintenance_entitlements_current(&write).await? {
+    if !development_command_entitlements_current(&write).await? {
         write.close().await;
         return Ok(false);
     }
@@ -2259,7 +2301,7 @@ pub(crate) async fn runtime_catalog_current(
     Ok(true)
 }
 
-async fn asset_maintenance_entitlements_current(write: &PgPool) -> TaskResult<bool> {
+async fn development_command_entitlements_current(write: &PgPool) -> TaskResult<bool> {
     let now = Utc::now();
     let canonical_holding_ids = sqlx::query_scalar::<_, Uuid>(
         "SELECT binding.canonical_holding_id
@@ -2319,7 +2361,7 @@ async fn asset_maintenance_entitlements_current(write: &PgPool) -> TaskResult<bo
          WHERE registry.credential_key_ref IN
                ('local_shared','local-development-disabled','database-profile:default')
            AND binding.binding_state='configured'
-           AND entitlement.module_key IN ('assets','maintenance')
+           AND entitlement.module_key IN ('assets','maintenance','identity_access')
            AND entitlement.active",
     )
     .fetch_one(write)
@@ -2340,7 +2382,7 @@ async fn asset_maintenance_entitlements_current(write: &PgPool) -> TaskResult<bo
         scope_root_holding(&assignment.scope)
             .is_some_and(|holding_id| canonical_holding_ids.contains(&holding_id))
     }) {
-        for module_key in writable_asset_maintenance_modules(assignment) {
+        for module_key in writable_development_command_modules(assignment) {
             required_sod_decisions = required_sod_decisions.saturating_add(1);
             let active: bool = sqlx::query_scalar(
                 "SELECT EXISTS(
@@ -2363,7 +2405,7 @@ async fn asset_maintenance_entitlements_current(write: &PgPool) -> TaskResult<bo
     Ok(required_sod_decisions > 0
         && billing_count == customer_count
         && active_billing_count == customer_count
-        && active_entitlement_count == customer_count.saturating_mul(2))
+        && active_entitlement_count == customer_count.saturating_mul(3))
 }
 
 pub(crate) async fn fixtures_current(root: &Path, config: &DevConfig) -> TaskResult<bool> {
@@ -2543,7 +2585,7 @@ pub(crate) async fn fixtures_current(root: &Path, config: &DevConfig) -> TaskRes
     .bind(i64::try_from(erpx_identity::BUSINESS_UNITS.len())?)
     .fetch_one(&write)
     .await?;
-    let entitlements_current = asset_maintenance_entitlements_current(&write).await?;
+    let entitlements_current = development_command_entitlements_current(&write).await?;
     write.close().await;
     let expected_branch_count = i64::try_from(DEMO_BRANCHES.len() + RESTRICTED_BRANCHES.len())?;
     Ok(active_branch_count == expected_branch_count
@@ -2814,6 +2856,33 @@ mod tests {
         assert!(demo_denied > 0);
         assert_eq!(restricted_denied, demo_denied);
         assert_eq!(entitled_units(RESTRICTED_HOLDING_ID).len(), 12);
+    }
+
+    #[test]
+    fn development_command_authorization_covers_identity_access_and_business_modules() {
+        let assignments = controller_catalog_assignments(
+            RESTRICTED_HOLDING_ID,
+            RESTRICTED_DATA_PROFILE_KEY,
+            branch_ids(RESTRICTED_HOLDING_ID, RESTRICTED_BRANCHES[0]),
+            Utc::now(),
+        );
+        let security_head = assignments
+            .iter()
+            .find(|assignment| assignment.role_key == "customer_security_head")
+            .expect("customer security head assignment");
+        assert_eq!(
+            writable_development_command_modules(security_head),
+            ["identity_access"]
+        );
+
+        let assets_operator = assignments
+            .iter()
+            .find(|assignment| assignment.role_key == "assets_operator")
+            .expect("assets operator assignment");
+        assert_eq!(
+            writable_development_command_modules(assets_operator),
+            ["assets"]
+        );
     }
 
     #[test]

@@ -482,28 +482,46 @@ fn trusted_command_context(request: &CommandRequest) -> Result<CommandContext, D
 }
 
 #[cfg(feature = "server")]
-fn validate_mutation_request() -> dioxus::prelude::ServerFnResult<()> {
+fn mutation_headers_are_trusted(
+    headers: &dioxus::server::axum::http::HeaderMap,
+    allow_development_proxy: bool,
+) -> bool {
+    let origin = headers.get("origin").and_then(|value| value.to_str().ok());
+    let host = headers.get("host").and_then(|value| value.to_str().ok());
+    let csrf = headers
+        .get("x-erpx-csrf")
+        .and_then(|value| value.to_str().ok());
+    let fetch_site = headers
+        .get("sec-fetch-site")
+        .and_then(|value| value.to_str().ok());
+    let exact_origin = match origin {
+        Some(origin) => host.is_some_and(|host| {
+            origin == format!("https://{host}") || origin == format!("http://{host}")
+        }),
+        None => host.is_some() && fetch_site == Some("same-origin"),
+    };
+    let trusted_development_proxy = allow_development_proxy
+        && host.is_some()
+        && fetch_site == Some("same-origin")
+        && headers
+            .get("x-proxied-by-dioxus")
+            .and_then(|value| value.to_str().ok())
+            == Some("true");
+    let same_origin = exact_origin || trusted_development_proxy;
+    same_origin && csrf == Some("console")
+}
+
+#[cfg(feature = "server")]
+pub(crate) fn validate_mutation_request() -> dioxus::prelude::ServerFnResult<()> {
     use dioxus::fullstack::FullstackContext;
 
     let context = FullstackContext::current()
         .ok_or_else(|| dioxus::prelude::ServerFnError::new("request context unavailable"))?;
+    let allow_development_proxy = context
+        .extension::<crate::bff::BffState>()
+        .is_some_and(|state| !state.production_profile());
     let parts = context.parts_mut();
-    let origin = parts
-        .headers
-        .get("origin")
-        .and_then(|value| value.to_str().ok());
-    let host = parts
-        .headers
-        .get("host")
-        .and_then(|value| value.to_str().ok());
-    let csrf = parts
-        .headers
-        .get("x-erpx-csrf")
-        .and_then(|value| value.to_str().ok());
-    let origin_matches = origin.zip(host).is_some_and(|(origin, host)| {
-        origin == format!("https://{host}") || origin == format!("http://{host}")
-    });
-    if !origin_matches || csrf != Some("console") {
+    if !mutation_headers_are_trusted(&parts.headers, allow_development_proxy) {
         return Err(dioxus::prelude::ServerFnError::new(
             "mutation origin or CSRF proof is invalid",
         ));
@@ -514,6 +532,44 @@ fn validate_mutation_request() -> dioxus::prelude::ServerFnResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "server")]
+    #[test]
+    fn mutation_header_policy_accepts_same_origin_fetch_metadata_and_rejects_cross_site() {
+        use dioxus::server::axum::http::{HeaderMap, HeaderValue};
+
+        let mut explicit = HeaderMap::new();
+        explicit.insert("host", HeaderValue::from_static("console.example"));
+        explicit.insert(
+            "origin",
+            HeaderValue::from_static("https://console.example"),
+        );
+        explicit.insert("x-erpx-csrf", HeaderValue::from_static("console"));
+        assert!(mutation_headers_are_trusted(&explicit, false));
+
+        let mut fetch_metadata = HeaderMap::new();
+        fetch_metadata.insert("host", HeaderValue::from_static("localhost:3004"));
+        fetch_metadata.insert("sec-fetch-site", HeaderValue::from_static("same-origin"));
+        fetch_metadata.insert("x-erpx-csrf", HeaderValue::from_static("console"));
+        assert!(mutation_headers_are_trusted(&fetch_metadata, false));
+
+        fetch_metadata.insert("sec-fetch-site", HeaderValue::from_static("cross-site"));
+        assert!(!mutation_headers_are_trusted(&fetch_metadata, false));
+        fetch_metadata.insert("sec-fetch-site", HeaderValue::from_static("same-origin"));
+        fetch_metadata.remove("x-erpx-csrf");
+        assert!(!mutation_headers_are_trusted(&fetch_metadata, false));
+
+        explicit.insert(
+            "origin",
+            HeaderValue::from_static("https://attacker.example"),
+        );
+        explicit.insert("sec-fetch-site", HeaderValue::from_static("same-origin"));
+        assert!(!mutation_headers_are_trusted(&explicit, false));
+
+        explicit.insert("x-proxied-by-dioxus", HeaderValue::from_static("true"));
+        assert!(mutation_headers_are_trusted(&explicit, true));
+        assert!(!mutation_headers_are_trusted(&explicit, false));
+    }
 
     #[test]
     fn locale_is_allow_listed() {

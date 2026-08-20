@@ -123,7 +123,7 @@ fn canonical_uuid(value: &str) -> Result<String, String> {
         .map_err(|_| "navigation scope invalid: InvalidArgument".to_owned())
 }
 
-fn authority_scope(scope_key: &str) -> Result<(AuthorityScope, ActorKind), String> {
+pub(crate) fn authority_scope(scope_key: &str) -> Result<(AuthorityScope, ActorKind), String> {
     let invalid = || "navigation scope invalid: InvalidArgument".to_owned();
     let scope = if scope_key == "platform" {
         return Ok((

@@ -311,6 +311,10 @@ impl FinanceCloseHoldingProjectionExecutor {
 
 #[async_trait]
 impl HoldingProjectionExecutor for FinanceCloseHoldingProjectionExecutor {
+    fn projection_name_filter(&self) -> Option<&str> {
+        Some(FINANCE_CLOSE_PROJECTION_NAME)
+    }
+
     async fn execute(
         &self,
         claim: &ProjectionClaimRecord,
@@ -352,6 +356,10 @@ impl HoldingProjectionExecutor for FinanceCloseHoldingProjectionExecutor {
 
 #[async_trait]
 impl HoldingProjectionRoutedExecutor for FinanceCloseHoldingProjectionExecutor {
+    fn projection_name(&self) -> &str {
+        FINANCE_CLOSE_PROJECTION_NAME
+    }
+
     async fn execute_routed(
         &self,
         claim: &ProjectionClaimRecord,

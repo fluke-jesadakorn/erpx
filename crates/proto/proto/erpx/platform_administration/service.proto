@@ -60,6 +60,23 @@ message GetPlatformHoldingResponse {
   string correlation_id = 2;
 }
 
+// Resolve the physical holding route exclusively from the authenticated
+// active scope. Browsers never provide or receive database endpoints,
+// credentials, or authority claims; this DTO is only a bounded routing key
+// for same-origin BFF calls into holding-owned services.
+message ResolveActiveHoldingRouteRequest {
+  erpx.common.QueryContext context = 1;
+}
+message ActiveHoldingRoute {
+  string holding_id = 1;
+  string canonical_holding_id = 2;
+  string data_profile_key = 3;
+}
+message ResolveActiveHoldingRouteResponse {
+  ActiveHoldingRoute route = 1;
+  string correlation_id = 2;
+}
+
 // Safe holding-control evidence. Raw outbox payloads, persistence keys,
 // secret references, and internal error text are intentionally not part of
 // this public contract.
@@ -916,6 +933,8 @@ service PlatformAdministrationQueryService {
       returns (ListHoldingBranchProvisioningsResponse);
   rpc ListOperationalHoldings(ListPlatformHoldingsRequest) returns (ListPlatformHoldingsResponse);
   rpc GetOperationalHolding(GetPlatformHoldingRequest) returns (GetPlatformHoldingResponse);
+  rpc ResolveActiveHoldingRoute(ResolveActiveHoldingRouteRequest)
+      returns (ResolveActiveHoldingRouteResponse);
   rpc ListHoldingControlHistory(ListHoldingControlHistoryRequest)
       returns (ListHoldingControlHistoryResponse);
   rpc GetHoldingAdminContext(GetHoldingAdminContextRequest)

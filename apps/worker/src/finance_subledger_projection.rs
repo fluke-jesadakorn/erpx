@@ -264,6 +264,10 @@ impl FinanceSubledgerProjectionJobPayload {
 
 #[async_trait]
 impl HoldingProjectionExecutor for FinanceSubledgerHoldingProjectionExecutor {
+    fn projection_name_filter(&self) -> Option<&str> {
+        Some(FINANCE_SUBLEDGER_PROJECTION_NAME)
+    }
+
     async fn execute(
         &self,
         claim: &ProjectionClaimRecord,
@@ -414,6 +418,10 @@ impl FinanceSubledgerHoldingProjectionExecutor {
 /// bounded source replay and read-model writes.
 #[async_trait]
 impl HoldingProjectionRoutedExecutor for FinanceSubledgerHoldingProjectionExecutor {
+    fn projection_name(&self) -> &str {
+        FINANCE_SUBLEDGER_PROJECTION_NAME
+    }
+
     async fn execute_routed(
         &self,
         claim: &ProjectionClaimRecord,

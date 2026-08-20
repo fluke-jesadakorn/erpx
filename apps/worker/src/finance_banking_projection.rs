@@ -505,6 +505,10 @@ impl CandidateProjectionRebuilder for FinanceBankingProjectionRunner {
 
 #[async_trait::async_trait]
 impl HoldingProjectionRoutedExecutor for FinanceBankingHoldingProjectionExecutor {
+    fn projection_name(&self) -> &str {
+        erpx_infrastructure::FINANCE_BANKING_READ_PROJECTION
+    }
+
     async fn execute_routed(
         &self,
         claim: &ProjectionClaimRecord,

@@ -12,5 +12,8 @@ erpx-platform-administration.workspace = true
 erpx-ui-core.workspace = true
 erpx-ui-kit.workspace = true
 erpx-ui-foundation.workspace = true
+serde.workspace = true
+[dev-dependencies]
+serde_json.workspace = true
 [lints]
 workspace = true

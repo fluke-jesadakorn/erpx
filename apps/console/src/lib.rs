@@ -13,6 +13,8 @@ mod bff;
 mod bff_navigation;
 #[cfg(any(feature = "web", feature = "server"))]
 mod delivery;
+#[cfg(any(feature = "web", feature = "server"))]
+mod feature_delivery;
 #[cfg(feature = "native")]
 mod native_delivery;
 #[cfg(feature = "native")]
@@ -97,6 +99,7 @@ pub(crate) fn navigation_authorizes_console_path(
         .filter(|item| item.is_authorized())
         .any(|item| {
             path == item.path
+                || (path.starts_with("/identity/") && item.path == "/identity/principal")
                 || path
                     .strip_prefix(item.path.as_str())
                     .is_some_and(|suffix| suffix.starts_with('/'))

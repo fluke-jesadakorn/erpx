@@ -382,6 +382,10 @@ impl FinanceChartHoldingProjectionExecutor {
 
 #[async_trait]
 impl HoldingProjectionExecutor for FinanceChartHoldingProjectionExecutor {
+    fn projection_name_filter(&self) -> Option<&str> {
+        Some(FINANCE_CHART_PROJECTION_NAME)
+    }
+
     async fn execute(
         &self,
         claim: &ProjectionClaimRecord,

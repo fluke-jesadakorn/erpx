@@ -5,6 +5,11 @@ use std::time::Duration;
 use std::{cell::RefCell, rc::Rc, str::FromStr};
 
 use dioxus::prelude::*;
+use erpx_console_feature_identity_access::{
+    IdentityAccessDetailSurface, IdentityAccessListSurface, IdentityCommandFeedback,
+    IdentityPrincipalCommandIntent, IdentityRecordKind,
+};
+use erpx_console_feature_platform_administration::{HoldingsSurface, PlatformHoldingDetailSurface};
 #[cfg(feature = "server")]
 use erpx_delivery_contract::Page;
 #[cfg(feature = "native")]
@@ -56,6 +61,7 @@ fn session_authorizes_path(session: &SessionBootstrap, path: &str) -> bool {
                 .flat_map(|group| group.routes.iter())
                 .any(|route| {
                     path == route.path
+                        || (path.starts_with("/identity/") && route.path == "/identity/principal")
                         || path
                             .strip_prefix(route.path.as_str())
                             .is_some_and(|suffix| suffix.starts_with('/'))
@@ -110,10 +116,31 @@ pub enum AppRoute {
         Insights {},
         #[route("/modules")]
         Modules {},
-        #[route("/platform/holdings")]
-        PlatformHoldings {},
+        #[route("/platform/holdings?:cursor")]
+        PlatformHoldings { cursor: Option<String> },
         #[route("/platform/holdings/:holding_id")]
         PlatformHolding { holding_id: RouteUuid },
+        #[redirect("/identity", || AppRoute::IdentityPrincipals { cursor: None })]
+        #[route("/identity/principal?:cursor")]
+        IdentityPrincipals { cursor: Option<String> },
+        #[route("/identity/principal/:id")]
+        IdentityPrincipal { id: RouteUuid },
+        #[route("/identity/role?:cursor")]
+        IdentityRoles { cursor: Option<String> },
+        #[route("/identity/role/:id")]
+        IdentityRole { id: RouteUuid },
+        #[route("/identity/grant?:cursor")]
+        IdentityGrants { cursor: Option<String> },
+        #[route("/identity/grant/:id")]
+        IdentityGrant { id: RouteUuid },
+        #[route("/identity/access-review?:cursor")]
+        IdentityAccessReviews { cursor: Option<String> },
+        #[route("/identity/access-review/:id")]
+        IdentityAccessReview { id: RouteUuid },
+        #[route("/identity/break-glass-session?:cursor")]
+        IdentityBreakGlassSessions { cursor: Option<String> },
+        #[route("/identity/break-glass-session/:id")]
+        IdentityBreakGlassSession { id: RouteUuid },
         #[route("/reference/item/:id")]
         ReferenceItem { id: RouteUuid },
         #[layout(PlatformLayout)]
@@ -363,6 +390,7 @@ fn ConsoleShell() -> Element {
     let workspace_count = workspaces.len();
     let platform_holdings_authorized = session_authorizes_path(&session, "/platform/holdings");
     let platform_holdings_href = platform_route_href(&session, "/platform/holdings");
+    let identity_authorized = session_authorizes_path(&session, "/identity/principal");
     rsx! {
         div { class: "console-shell",
             KitLink { class: "skip-link", href: "#main-content", {copy(locale, "Skip to content", "ข้ามไปยังเนื้อหา")} }
@@ -402,9 +430,17 @@ fn ConsoleShell() -> Element {
                     if platform_holdings_authorized {
                         KitLink {
                             href: platform_holdings_href,
-                            class: nav_link_class(matches!(&active_route, AppRoute::PlatformHoldings {} | AppRoute::PlatformHolding { .. })),
-                            aria_current: nav_aria_current(matches!(&active_route, AppRoute::PlatformHoldings {} | AppRoute::PlatformHolding { .. })),
+                            class: nav_link_class(matches!(&active_route, AppRoute::PlatformHoldings { .. } | AppRoute::PlatformHolding { .. })),
+                            aria_current: nav_aria_current(matches!(&active_route, AppRoute::PlatformHoldings { .. } | AppRoute::PlatformHolding { .. })),
                             {copy(locale, "Platform holdings", "โฮลดิ้งบนแพลตฟอร์ม")}
+                        }
+                    }
+                    if identity_authorized {
+                        KitLink {
+                            href: "/identity/principal",
+                            class: nav_link_class(route_is_identity(&active_route)),
+                            aria_current: nav_aria_current(route_is_identity(&active_route)),
+                            {copy(locale, "Identity & access", "ตัวตนและสิทธิ์")}
                         }
                     }
                 }
@@ -844,14 +880,324 @@ fn Modules() -> Element {
     }
 }
 
+#[cfg(any(feature = "web", feature = "server"))]
+fn feature_list_request(
+    cursor: Option<String>,
+    locale: Locale,
+) -> crate::feature_delivery::FeatureListRequest {
+    crate::feature_delivery::FeatureListRequest {
+        cursor,
+        page_size: 25,
+        locale: locale.language_tag().to_owned(),
+        consistency: crate::feature_delivery::FeatureConsistency::Eventual,
+    }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+fn feature_detail_request(
+    id: RouteUuid,
+    locale: Locale,
+) -> crate::feature_delivery::FeatureDetailRequest {
+    crate::feature_delivery::FeatureDetailRequest {
+        id: id.get(),
+        locale: locale.language_tag().to_owned(),
+        consistency: crate::feature_delivery::FeatureConsistency::Eventual,
+    }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+fn feature_error(error: impl std::fmt::Display) -> RenderError {
+    RenderError::from(std::io::Error::other(error.to_string()))
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
 #[component]
-fn PlatformHoldings() -> Element {
-    rsx! { ProtectedRouteSurface { query: RouteQuery::PlatformHoldings } }
+fn PlatformHoldings(cursor: Option<String>) -> Element {
+    let locale = erpx_ui_core::use_locale().current();
+    let title = format!(
+        "{} · ERPX",
+        copy(locale, "Platform holdings", "โฮลดิ้งบนแพลตฟอร์ม")
+    );
+    let request = feature_list_request(cursor, locale);
+    let resource = use_server_future(move || {
+        let request = request.clone();
+        async move {
+            crate::feature_delivery::list_platform_holdings(request)
+                .await
+                .map_err(|error| error.to_string())?
+                .map_err(|error| error.to_string())
+        }
+    })?;
+    let page = resource
+        .read()
+        .clone()
+        .expect("resolved platform holdings future has a value")
+        .map_err(feature_error)?;
+    rsx! {
+        document::Title { "{title}" }
+        HoldingsSurface { page }
+    }
+}
+
+#[cfg(feature = "native")]
+#[component]
+fn PlatformHoldings(_cursor: Option<String>) -> Element {
+    rsx! { FeatureClosed { name: "Platform holdings" } }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+#[component]
+fn PlatformHolding(holding_id: RouteUuid) -> Element {
+    let locale = erpx_ui_core::use_locale().current();
+    let request = feature_detail_request(holding_id, locale);
+    let resource = use_server_future(move || {
+        let request = request.clone();
+        async move {
+            crate::feature_delivery::get_platform_holding(request)
+                .await
+                .map_err(|error| error.to_string())?
+                .map_err(|error| error.to_string())
+        }
+    })?;
+    let (holding, evidence) = resource
+        .read()
+        .clone()
+        .expect("resolved platform holding future has a value")
+        .map_err(feature_error)?;
+    let page_title = holding.customer_name.clone();
+    rsx! {
+        document::Title { "{page_title} · ERPX" }
+        PlatformHoldingDetailSurface { holding, evidence }
+    }
+}
+
+#[cfg(feature = "native")]
+#[component]
+fn PlatformHolding(_holding_id: RouteUuid) -> Element {
+    rsx! { FeatureClosed { name: "Platform holding detail" } }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+#[component]
+fn IdentityList(kind: IdentityRecordKind, cursor: Option<String>) -> Element {
+    let locale = erpx_ui_core::use_locale().current();
+    let request = feature_list_request(cursor, locale);
+    let resource = use_server_future(move || {
+        let request = request.clone();
+        async move {
+            crate::feature_delivery::list_identity_records(kind, request)
+                .await
+                .map_err(|error| error.to_string())?
+                .map_err(|error| error.to_string())
+        }
+    })?;
+    let page = resource
+        .read()
+        .clone()
+        .expect("resolved identity list future has a value")
+        .map_err(feature_error)?;
+    rsx! { IdentityAccessListSurface { page } }
+}
+
+#[cfg(feature = "native")]
+#[component]
+fn IdentityList(_kind: IdentityRecordKind, _cursor: Option<String>) -> Element {
+    rsx! { FeatureClosed { name: "Identity & access" } }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+#[component]
+fn IdentityDetail(kind: IdentityRecordKind, id: RouteUuid) -> Element {
+    let locale = erpx_ui_core::use_locale().current();
+    let request = feature_detail_request(id, locale);
+    let mut resource = use_server_future(move || {
+        let request = request.clone();
+        async move {
+            crate::feature_delivery::get_identity_record(kind, request)
+                .await
+                .map_err(|error| error.to_string())?
+                .map_err(|error| error.to_string())
+        }
+    })?;
+    let detail = resource
+        .read()
+        .clone()
+        .expect("resolved identity detail future has a value")
+        .map_err(feature_error)?;
+    let page_title = detail.record.title.clone();
+    let mut command_busy = use_signal(|| false);
+    let mut command_feedback = use_signal(|| None::<IdentityCommandFeedback>);
+    let on_principal_command = EventHandler::new(move |intent: IdentityPrincipalCommandIntent| {
+        if kind != IdentityRecordKind::Principal || *command_busy.read() {
+            return;
+        }
+        let principal_id = match uuid::Uuid::parse_str(&intent.principal_id) {
+            Ok(value) if !value.is_nil() => value,
+            _ => {
+                command_feedback.set(Some(IdentityCommandFeedback {
+                    state: "error".into(),
+                    message: match locale {
+                        Locale::En => "The principal identifier is invalid.",
+                        Locale::Th => "รหัสตัวตนหลักไม่ถูกต้อง",
+                    }
+                    .into(),
+                    audit_reference: None,
+                }));
+                return;
+            }
+        };
+        command_busy.set(true);
+        command_feedback.set(Some(IdentityCommandFeedback {
+            state: "pending".into(),
+            message: match locale {
+                Locale::En => "Submitting the command and waiting for the owner projection…",
+                Locale::Th => "กำลังส่งคำสั่งและรอ projection ของบริการเจ้าของ…",
+            }
+            .into(),
+            audit_reference: None,
+        }));
+        spawn(async move {
+            let result = crate::feature_delivery::command_identity_principal(
+                crate::feature_delivery::IdentityPrincipalCommandRequest {
+                    principal_id,
+                    action: intent.action,
+                    idempotency_key: intent.idempotency_key,
+                    expected_version: intent.expected_version,
+                    locale: locale.language_tag().into(),
+                    purpose: intent.purpose,
+                    mfa_code: intent.mfa_code,
+                },
+            )
+            .await;
+            command_busy.set(false);
+            match result {
+                Ok(Ok(outcome)) => {
+                    let current = outcome.detail.is_some() && outcome.projection_state == "current";
+                    command_feedback.set(Some(IdentityCommandFeedback {
+                        state: if current { "success" } else { "pending" }.into(),
+                        message: if current {
+                            match (locale, outcome.receipt.replayed) {
+                                (Locale::En, false) => "Saved and confirmed by the owner projection.",
+                                (Locale::En, true) => "Already saved; the idempotent receipt was replayed and confirmed.",
+                                (Locale::Th, false) => "บันทึกแล้วและยืนยันจาก projection ของบริการเจ้าของแล้ว",
+                                (Locale::Th, true) => "คำสั่งนี้บันทึกไว้แล้ว ระบบ replay receipt เดิมและยืนยันจาก projection แล้ว",
+                            }
+                        } else {
+                            match locale {
+                                Locale::En => "Saved; the owner projection is still catching up. Refresh before treating the change as complete.",
+                                Locale::Th => "บันทึกแล้ว แต่ projection ของบริการเจ้าของยังกำลังตามข้อมูล โปรดรีเฟรชก่อนถือว่าการเปลี่ยนแปลงเสร็จสมบูรณ์",
+                            }
+                        }
+                        .into(),
+                        audit_reference: Some(outcome.receipt.audit_reference.to_string()),
+                    }));
+                    resource.restart();
+                }
+                Ok(Err(error)) => {
+                    let conflict =
+                        matches!(error, erpx_delivery_contract::DeliveryError::Conflict(_));
+                    command_feedback.set(Some(IdentityCommandFeedback {
+                        state: "error".into(),
+                        message: match (locale, conflict) {
+                            (Locale::En, true) => "The record changed. The authoritative version has been reloaded; review it before retrying.",
+                            (Locale::Th, true) => "รายการมีการเปลี่ยนแปลง ระบบกำลังโหลด version ที่เชื่อถือได้ใหม่ โปรดตรวจสอบก่อนลองอีกครั้ง",
+                            (Locale::En, false) => "The command was not accepted. Verify authorization and the fresh MFA proof, then retry.",
+                            (Locale::Th, false) => "คำสั่งไม่ได้รับการยอมรับ โปรดตรวจสอบสิทธิ์และหลักฐาน MFA ล่าสุดแล้วลองอีกครั้ง",
+                        }
+                        .into(),
+                        audit_reference: None,
+                    }));
+                    if conflict {
+                        resource.restart();
+                    }
+                }
+                Err(_) => command_feedback.set(Some(IdentityCommandFeedback {
+                    state: "error".into(),
+                    message: match locale {
+                        Locale::En => "The same-origin command transport is unavailable.",
+                        Locale::Th => "ช่องทางคำสั่ง same-origin ยังไม่พร้อมใช้งาน",
+                    }
+                    .into(),
+                    audit_reference: None,
+                })),
+            }
+        });
+    });
+    rsx! {
+        document::Title { "{page_title} · ERPX" }
+        IdentityAccessDetailSurface {
+            detail,
+            on_principal_command,
+            command_feedback: command_feedback(),
+            command_busy: command_busy(),
+        }
+    }
+}
+
+#[cfg(feature = "native")]
+#[component]
+fn IdentityDetail(_kind: IdentityRecordKind, _id: RouteUuid) -> Element {
+    rsx! { FeatureClosed { name: "Identity & access detail" } }
 }
 
 #[component]
-fn PlatformHolding(holding_id: RouteUuid) -> Element {
-    rsx! { ProtectedRouteSurface { query: RouteQuery::PlatformHolding { holding_id } } }
+fn IdentityPrincipals(cursor: Option<String>) -> Element {
+    rsx! { IdentityList { kind: IdentityRecordKind::Principal, cursor } }
+}
+
+#[component]
+fn IdentityPrincipal(id: RouteUuid) -> Element {
+    rsx! { IdentityDetail { kind: IdentityRecordKind::Principal, id } }
+}
+
+#[component]
+fn IdentityRoles(cursor: Option<String>) -> Element {
+    rsx! { IdentityList { kind: IdentityRecordKind::Role, cursor } }
+}
+
+#[component]
+fn IdentityRole(id: RouteUuid) -> Element {
+    rsx! { IdentityDetail { kind: IdentityRecordKind::Role, id } }
+}
+
+#[component]
+fn IdentityGrants(cursor: Option<String>) -> Element {
+    rsx! { IdentityList { kind: IdentityRecordKind::Grant, cursor } }
+}
+
+#[component]
+fn IdentityGrant(id: RouteUuid) -> Element {
+    rsx! { IdentityDetail { kind: IdentityRecordKind::Grant, id } }
+}
+
+#[component]
+fn IdentityAccessReviews(cursor: Option<String>) -> Element {
+    rsx! { IdentityList { kind: IdentityRecordKind::AccessReview, cursor } }
+}
+
+#[component]
+fn IdentityAccessReview(id: RouteUuid) -> Element {
+    rsx! { IdentityDetail { kind: IdentityRecordKind::AccessReview, id } }
+}
+
+#[component]
+fn IdentityBreakGlassSessions(cursor: Option<String>) -> Element {
+    rsx! { IdentityList { kind: IdentityRecordKind::BreakGlassSession, cursor } }
+}
+
+#[component]
+fn IdentityBreakGlassSession(id: RouteUuid) -> Element {
+    rsx! { IdentityDetail { kind: IdentityRecordKind::BreakGlassSession, id } }
+}
+
+#[component]
+fn FeatureClosed(name: &'static str) -> Element {
+    rsx! {
+        section { class: "route-denied", role: "alert",
+            h1 { "{name} is unavailable on this client" }
+            p { "This client fails closed because the feature transport has not been certified here." }
+        }
+    }
 }
 
 #[component]
@@ -1878,6 +2224,22 @@ const fn nav_aria_current(active: bool) -> Option<&'static str> {
     if active { Some("page") } else { None }
 }
 
+fn route_is_identity(route: &AppRoute) -> bool {
+    matches!(
+        route,
+        AppRoute::IdentityPrincipals { .. }
+            | AppRoute::IdentityPrincipal { .. }
+            | AppRoute::IdentityRoles { .. }
+            | AppRoute::IdentityRole { .. }
+            | AppRoute::IdentityGrants { .. }
+            | AppRoute::IdentityGrant { .. }
+            | AppRoute::IdentityAccessReviews { .. }
+            | AppRoute::IdentityAccessReview { .. }
+            | AppRoute::IdentityBreakGlassSessions { .. }
+            | AppRoute::IdentityBreakGlassSession { .. }
+    )
+}
+
 fn route_uses_workspace(route: &AppRoute, expected: Workspace) -> bool {
     let path = route.to_string();
     let workspace_path = format!("/{expected}");
@@ -2096,14 +2458,21 @@ pub fn is_canonical_console_path(path: &str, channel: ClientChannel) -> bool {
         Ok(AppRoute::SignIn { .. }) => path == "/auth/sign-in",
         Ok(AppRoute::Accounts { .. }) => path == "/auth/accounts",
         Ok(route @ (AppRoute::CommerceWorkspace {} | AppRoute::TalentWorkspace {})) => {
-            route.to_string() == path && channel == ClientChannel::Web
+            route_path(&route) == path && channel == ClientChannel::Web
         }
         Ok(
             route @ (AppRoute::WorkspaceResource { workspace, .. }
             | AppRoute::WorkspaceRecord { workspace, .. }),
-        ) => route.to_string() == path && workspace.available_on(channel),
-        Ok(route) => route.to_string() == path,
+        ) => route_path(&route) == path && workspace.available_on(channel),
+        Ok(route) => route_path(&route) == path,
     }
+}
+
+fn route_path(route: &AppRoute) -> String {
+    route
+        .to_string()
+        .split_once('?')
+        .map_or_else(|| route.to_string(), |(path, _)| path.to_owned())
 }
 
 #[cfg(feature = "server")]
@@ -2276,15 +2645,15 @@ mod tests {
     #[test]
     fn platform_holding_routes_are_canonical_uuid_routes() {
         let holding_id = RouteUuid::try_new(uuid::Uuid::from_u128(1)).unwrap();
-        let list = AppRoute::PlatformHoldings {};
+        let list = AppRoute::PlatformHoldings { cursor: None };
         let detail = AppRoute::PlatformHolding { holding_id };
-        assert_eq!(list.to_string(), "/platform/holdings");
+        assert_eq!(route_path(&list), "/platform/holdings");
         assert_eq!(
             detail.to_string(),
             "/platform/holdings/00000000-0000-0000-0000-000000000001"
         );
         assert!(is_canonical_console_path(
-            &list.to_string(),
+            &route_path(&list),
             ClientChannel::Web
         ));
         assert!(is_canonical_console_path(
@@ -2293,6 +2662,31 @@ mod tests {
         ));
         assert!(!is_canonical_console_path(
             "/platform/holdings/not-a-uuid",
+            ClientChannel::Web
+        ));
+    }
+
+    #[test]
+    fn identity_catalog_routes_and_details_are_canonical() {
+        let id = RouteUuid::try_new(uuid::Uuid::from_u128(9)).unwrap();
+        for path in [
+            "/identity/principal",
+            "/identity/role",
+            "/identity/grant",
+            "/identity/access-review",
+            "/identity/break-glass-session",
+        ] {
+            assert!(
+                is_canonical_console_path(path, ClientChannel::Web),
+                "{path}"
+            );
+            assert!(is_canonical_console_path(
+                &format!("{path}/{id}"),
+                ClientChannel::Web
+            ));
+        }
+        assert!(!is_canonical_console_path(
+            "/identity/principal/not-a-uuid",
             ClientChannel::Web
         ));
     }
@@ -2314,7 +2708,6 @@ mod tests {
             RouteQuery::Work,
             RouteQuery::Processes,
             RouteQuery::Insights,
-            RouteQuery::PlatformHoldings,
         ];
         routes.extend(Workspace::ALL.map(|workspace| RouteQuery::Workspace {
             workspace,

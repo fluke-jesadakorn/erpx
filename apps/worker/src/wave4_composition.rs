@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionPool, ProjectionRunnerConfig, WritePool};
 use erpx_infrastructure::{
     HoldingDatabaseRouter, ProjectionClaimRecord, ProjectionJobKind, RoutedDatabaseSide,
-    SqlxControlPlane,
+    SqlxControlPlane, holding_holding_scope_id,
 };
 use erpx_worker::{
     HoldingProjectionExecutor, HoldingProjectionExecutorError, NamedWorkerHandler,
@@ -443,7 +443,10 @@ async fn route_pools(
         .route(holding_id, data_profile_key, RoutedDatabaseSide::Read)
         .await
         .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
-    let holding_id = crate::cqrs_holding_uuid(holding_id)?;
+    // Identity & Access stores authority and projections under the canonical
+    // holding scope derived from the routed data profile. The scheduler's
+    // holding ID is an opaque registry key and must never become an RLS key.
+    let holding_id = holding_holding_scope_id(data_profile_key);
     Ok((
         WritePool::for_holding(write.database_pool().clone(), holding_id)
             .map_err(crate::map_cqrs_projection_error)?,

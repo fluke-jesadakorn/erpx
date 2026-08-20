@@ -3,9 +3,10 @@
 //! Typed transports stay storage-agnostic; this module is the only bridge from
 //! authenticated server state and holding routing into the context handlers.
 
-use std::sync::Arc;
+use std::{env, sync::Arc};
 
 use async_trait::async_trait;
+use chrono::Utc;
 use erpx_commercial::{
     ApplyBillingEvent, ApplyEntitlementChange, AuthorizationPort as CommercialAuthorizationPort,
     AuthorizationRequest as CommercialAuthorizationRequest, BillingEventEvidence, CatalogPlanView,
@@ -41,8 +42,14 @@ use erpx_identity_access::{
 };
 use erpx_identity_access_sqlx::{
     IdentityAccessCommandAdapter, IdentityAccessReadRepository, IdentityAccessWriteRepository,
+    PRINCIPAL_PROJECTION_NAME, ROLE_PROJECTION_NAME,
 };
-use erpx_infrastructure::{HoldingDatabaseRouter, RoutedDatabaseSide, SqlxControlPlane};
+use erpx_infrastructure::{
+    HoldingDatabaseRouter, HoldingHoldingBinding, HoldingProjectionSchedulerRepository,
+    ProjectionJobKind, ProjectionPolicy, ProjectionScheduleRequest,
+    ProjectionSchedulerAuthorization, RoutedDatabaseSide, SqlxControlPlane,
+    SqlxHoldingStoreRegistry,
+};
 use erpx_kernel::{
     ActorAttribution, ActorKind, AuthorityScope, CorrelationId, ErrorCategory, ErrorContext,
     KernelError, SessionId, SystemClock,
@@ -67,7 +74,6 @@ use uuid::Uuid;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 
-use crate::AppState;
 use crate::contexts::commercial_cqrs::{
     AuthenticatedCommercialRequest, CommercialAccessMode, CommercialAuthenticationError,
     CommercialAuthenticationRequest, CommercialCommandApplication, CommercialHoldingRoute,
@@ -86,6 +92,7 @@ use crate::contexts::organization_cqrs::{
     OrganizationQueryApplication, OrganizationRequestAuthenticator,
 };
 use crate::holding_workspace::{PresentedHoldingRoute, resolve_holding_workspace};
+use crate::{AppState, DevelopmentMfaAuthorization};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AuthorizedMode {
@@ -151,21 +158,31 @@ type IdentityQueryHandler = IdentityAccessQueryHandler<
 #[derive(Clone)]
 pub(crate) struct IdentityServerApplication {
     router: Option<Arc<HoldingDatabaseRouter>>,
+    control: Arc<SqlxControlPlane>,
+    projection_scheduler_actor: Option<String>,
 }
 
 impl IdentityServerApplication {
-    pub(crate) const fn new(router: Option<Arc<HoldingDatabaseRouter>>) -> Self {
-        Self { router }
+    pub(crate) fn new(state: &AppState) -> Self {
+        Self {
+            router: state.holding_router.clone(),
+            control: state.store.clone(),
+            projection_scheduler_actor: env::var("ERPX_HOLDING_PROJECTION_SCHEDULER_ACTOR_REF")
+                .ok()
+                .filter(|value| !value.trim().is_empty()),
+        }
     }
 
     async fn execute_command<C>(
         &self,
         route: IdentityAccessHoldingRoute,
         envelope: CommandEnvelope<C>,
+        projection_name: &'static str,
     ) -> Result<CommandReceipt<<IdentityCommandHandler as CommandHandler<C>>::Response>, CqrsError>
     where
         IdentityCommandHandler: CommandHandler<C>,
     {
+        let command_id = envelope.command_id.as_uuid();
         let correlation_id = envelope.correlation_id;
         let access = IdentityPreauthorizedAccess {
             principal_ref: envelope.actor.principal_ref.clone(),
@@ -173,7 +190,7 @@ impl IdentityServerApplication {
             mode: AuthorizedMode::Write,
         };
         let pool = self.write_pool(&route, correlation_id).await?;
-        IdentityAccessCommandHandler::new(
+        let receipt = IdentityAccessCommandHandler::new(
             IdentityAccessWriteRepository::new(pool.clone()),
             IdentityAccessCommandAdapter::new(pool),
             access.clone(),
@@ -181,7 +198,70 @@ impl IdentityServerApplication {
             SystemClock,
         )
         .handle(envelope)
-        .await
+        .await?;
+        self.schedule_incremental_projection(
+            &route.holding_id,
+            &route.data_profile_key,
+            projection_name,
+            command_id,
+            correlation_id.as_uuid(),
+        )
+        .await;
+        Ok(receipt)
+    }
+
+    async fn schedule_incremental_projection(
+        &self,
+        holding_id: &str,
+        data_profile_key: &str,
+        projection_name: &str,
+        command_id: Uuid,
+        correlation_id: Uuid,
+    ) {
+        let Some(actor_ref) = self.projection_scheduler_actor.as_deref() else {
+            tracing::warn!(
+                projection_name,
+                "Identity & Access projection scheduler actor is not configured"
+            );
+            return;
+        };
+        let scheduled = async {
+            let binding = HoldingHoldingBinding::new(holding_id, data_profile_key)?;
+            let authorization = ProjectionSchedulerAuthorization::new(
+                actor_ref,
+                "project typed Identity & Access command receipt",
+                correlation_id,
+            )?;
+            let scheduler = HoldingProjectionSchedulerRepository::new(
+                self.control.pools().write.clone(),
+                Arc::new(SqlxHoldingStoreRegistry::new(self.control.clone())),
+                authorization,
+            );
+            let now = Utc::now();
+            scheduler
+                .schedule(
+                    ProjectionScheduleRequest {
+                        binding,
+                        projection_name: projection_name.into(),
+                        job_key: format!("cqrs-command:{command_id}"),
+                        kind: ProjectionJobKind::Incremental,
+                        available_at: now,
+                        policy: ProjectionPolicy::new(500, 1, 10, 1, 60)?,
+                        payload: serde_json::json!({}),
+                    },
+                    now,
+                )
+                .await?;
+            Ok::<(), erpx_infrastructure::HoldingProjectionSchedulerError>(())
+        }
+        .await;
+        if let Err(error) = scheduled {
+            tracing::warn!(
+                projection_name,
+                ?error,
+                "Identity & Access command projection could not be scheduled"
+            );
+        }
     }
 
     async fn execute_query<Q>(
@@ -229,7 +309,9 @@ impl IdentityServerApplication {
             .map_err(|_| context_unavailable(correlation_id, "identity_access", "write"))?;
         WritePool::for_holding(
             routed.database_pool().clone(),
-            cqrs_holding_uuid(&routed.holding_id, correlation_id, "identity_access")?,
+            route
+                .canonical_holding_id
+                .ok_or_else(|| invalid_holding_binding(correlation_id, "identity_access"))?,
         )
         .map_err(|_| invalid_holding_binding(correlation_id, "identity_access"))
     }
@@ -250,7 +332,9 @@ impl IdentityServerApplication {
             .map_err(|_| context_unavailable(correlation_id, "identity_access", "read"))?;
         ReadPool::for_holding(
             routed.database_pool().clone(),
-            cqrs_holding_uuid(&routed.holding_id, correlation_id, "identity_access")?,
+            route
+                .canonical_holding_id
+                .ok_or_else(|| invalid_holding_binding(correlation_id, "identity_access"))?,
         )
         .map_err(|_| invalid_holding_binding(correlation_id, "identity_access"))
     }
@@ -269,35 +353,40 @@ impl IdentityAccessCommandApplication for IdentityServerApplication {
             envelope.correlation_id,
             "identity_access",
         )?;
-        self.execute_command(route, envelope).await
+        self.execute_command(route, envelope, PRINCIPAL_PROJECTION_NAME)
+            .await
     }
     async fn activate_principal(
         &self,
         route: IdentityAccessHoldingRoute,
         envelope: CommandEnvelope<ActivatePrincipal>,
     ) -> Result<CommandReceipt<PrincipalMutationResult>, CqrsError> {
-        self.execute_command(route, envelope).await
+        self.execute_command(route, envelope, PRINCIPAL_PROJECTION_NAME)
+            .await
     }
     async fn suspend_principal(
         &self,
         route: IdentityAccessHoldingRoute,
         envelope: CommandEnvelope<SuspendPrincipal>,
     ) -> Result<CommandReceipt<PrincipalMutationResult>, CqrsError> {
-        self.execute_command(route, envelope).await
+        self.execute_command(route, envelope, PRINCIPAL_PROJECTION_NAME)
+            .await
     }
     async fn reactivate_principal(
         &self,
         route: IdentityAccessHoldingRoute,
         envelope: CommandEnvelope<ReactivatePrincipal>,
     ) -> Result<CommandReceipt<PrincipalMutationResult>, CqrsError> {
-        self.execute_command(route, envelope).await
+        self.execute_command(route, envelope, PRINCIPAL_PROJECTION_NAME)
+            .await
     }
     async fn disable_principal(
         &self,
         route: IdentityAccessHoldingRoute,
         envelope: CommandEnvelope<DisablePrincipal>,
     ) -> Result<CommandReceipt<PrincipalMutationResult>, CqrsError> {
-        self.execute_command(route, envelope).await
+        self.execute_command(route, envelope, PRINCIPAL_PROJECTION_NAME)
+            .await
     }
     async fn assign_role(
         &self,
@@ -310,21 +399,24 @@ impl IdentityAccessCommandApplication for IdentityServerApplication {
             envelope.correlation_id,
             "identity_access",
         )?;
-        self.execute_command(route, envelope).await
+        self.execute_command(route, envelope, PRINCIPAL_PROJECTION_NAME)
+            .await
     }
     async fn revoke_role(
         &self,
         route: IdentityAccessHoldingRoute,
         envelope: CommandEnvelope<RevokeRole>,
     ) -> Result<CommandReceipt<PrincipalMutationResult>, CqrsError> {
-        self.execute_command(route, envelope).await
+        self.execute_command(route, envelope, PRINCIPAL_PROJECTION_NAME)
+            .await
     }
     async fn renew_role(
         &self,
         route: IdentityAccessHoldingRoute,
         envelope: CommandEnvelope<RenewRole>,
     ) -> Result<CommandReceipt<PrincipalMutationResult>, CqrsError> {
-        self.execute_command(route, envelope).await
+        self.execute_command(route, envelope, PRINCIPAL_PROJECTION_NAME)
+            .await
     }
     async fn recover_role(
         &self,
@@ -337,7 +429,8 @@ impl IdentityAccessCommandApplication for IdentityServerApplication {
             envelope.correlation_id,
             "identity_access",
         )?;
-        self.execute_command(route, envelope).await
+        self.execute_command(route, envelope, PRINCIPAL_PROJECTION_NAME)
+            .await
     }
     async fn define_role(
         &self,
@@ -350,14 +443,16 @@ impl IdentityAccessCommandApplication for IdentityServerApplication {
             envelope.correlation_id,
             "identity_access",
         )?;
-        self.execute_command(route, envelope).await
+        self.execute_command(route, envelope, ROLE_PROJECTION_NAME)
+            .await
     }
     async fn set_role_permissions(
         &self,
         route: IdentityAccessHoldingRoute,
         envelope: CommandEnvelope<SetRolePermissions>,
     ) -> Result<CommandReceipt<RoleMutationResult>, CqrsError> {
-        self.execute_command(route, envelope).await
+        self.execute_command(route, envelope, ROLE_PROJECTION_NAME)
+            .await
     }
 }
 
@@ -411,28 +506,76 @@ impl IdentityAccessRequestAuthenticator for IdentityServerAuthenticator {
         request: IdentityAccessAuthenticationRequest,
     ) -> Result<AuthenticatedIdentityAccessRequest, IdentityAccessAuthenticationError> {
         let write = request.mode() == IdentityAccessMode::Write;
-        let actor = authenticate_context(
+        let presented_route = PresentedHoldingRoute {
+            holding_id: &request.presented_route().holding_id,
+            data_profile_key: &request.presented_route().data_profile_key,
+        };
+        let workspace = resolve_holding_workspace(
+            &self.state,
+            request.presented_scope(),
+            Some(presented_route),
+            request.subscription_id(),
+            write,
+        )
+        .await
+        .map_err(|status| {
+            tracing::warn!(
+                code = ?status.code(),
+                reason = status.message(),
+                "Identity & Access workspace resolution denied"
+            );
+            identity_auth_error(status)
+        })?;
+        let customer_id = workspace.customer_id.to_string();
+        let subscription_id = workspace.subscription_id.map(|value| value.to_string());
+        if write && request.mfa_code().is_none() {
+            return Err(IdentityAccessAuthenticationError::Denied);
+        }
+        let permissions = if write {
+            &[
+                "identity_access.write",
+                "security.approve",
+                "security.approval",
+                "directory.activation",
+            ][..]
+        } else {
+            &[
+                "identity_access.read",
+                "security.read",
+                "holding.directory.read",
+            ][..]
+        };
+        let actor = authenticate_context_with_permissions(
             &self.state,
             request.transport_metadata(),
             request.presented_actor(),
             request.presented_scope(),
-            &request.presented_route().holding_id,
-            if write {
-                "identity_access.write"
-            } else {
-                "identity_access.read"
-            },
+            &customer_id,
+            permissions,
+            Some(&workspace.holding_id),
             "identity_access",
             write,
-            request.subscription_id(),
+            subscription_id.as_deref(),
             request.mfa_code(),
         )
         .await
-        .map_err(identity_auth_error)?;
+        .map_err(|status| {
+            tracing::warn!(
+                code = ?status.code(),
+                reason = status.message(),
+                "Identity & Access request authority denied"
+            );
+            identity_auth_error(status)
+        })?;
+        let authoritative_route = IdentityAccessHoldingRoute {
+            holding_id: workspace.holding_id,
+            data_profile_key: workspace.data_profile_key,
+            canonical_holding_id: Some(workspace.canonical_holding_id),
+        };
         AuthenticatedIdentityAccessRequest::try_new(
             actor,
             request.presented_scope().clone(),
-            request.presented_route().clone(),
+            authoritative_route,
         )
     }
 }
@@ -1575,6 +1718,10 @@ async fn authenticate_context_with_permissions(
     let mut transport_request = Request::new(());
     *transport_request.metadata_mut() = metadata.clone();
     let claims = state.auth.authorize(&transport_request).await?;
+    let validated_development_persona = metadata
+        .get(erpx_identity::DEVELOPMENT_CONTEXT_HEADER)
+        .is_some()
+        && claims.principal_ref != erpx_identity::DEVELOPMENT_CONTROLLER_PRINCIPAL;
     crate::require_actor_match(
         &claims.principal_ref,
         &presented_actor.principal_ref,
@@ -1645,7 +1792,24 @@ async fn authenticate_context_with_permissions(
                 .await?;
         }
         if let Some(code) = mfa_code {
-            state.auth.authorize_mfa(&claims, code).await?;
+            if let Some(authorization_holding) = authorization_holding {
+                state
+                    .auth
+                    .authorize_mfa_for_holding_development_context(
+                        &state.store,
+                        &claims,
+                        code,
+                        DevelopmentMfaAuthorization {
+                            holding_id: authorization_holding,
+                            correlation_id: Uuid::new_v4(),
+                            validated_development_persona,
+                            validated_role_permission: true,
+                        },
+                    )
+                    .await?;
+            } else {
+                state.auth.authorize_mfa(&claims, code).await?;
+            }
         }
     }
     let session_id = SessionId::try_from_uuid(claims.session_id)

@@ -167,6 +167,11 @@ pub trait HoldingProjectionExecutor: Send + Sync + 'static {
 
 #[async_trait]
 pub trait HoldingProjectionRoutedExecutor: Send + Sync + 'static {
+    /// Restricts the shared scheduler claim to the exact projection owned by
+    /// this routed executor. A routed worker must never claim another
+    /// projector's job merely because both use the same scheduler table.
+    fn projection_name(&self) -> &str;
+
     async fn execute_routed(
         &self,
         claim: &ProjectionClaimRecord,
@@ -348,6 +353,10 @@ impl<E> HoldingProjectionExecutor for RoutedHoldingProjectionExecutor<E>
 where
     E: HoldingProjectionRoutedExecutor,
 {
+    fn projection_name_filter(&self) -> Option<&str> {
+        Some(self.executor.projection_name())
+    }
+
     async fn execute(
         &self,
         claim: &ProjectionClaimRecord,

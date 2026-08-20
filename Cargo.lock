@@ -2910,6 +2910,8 @@ dependencies = [
  "erpx-ui-core",
  "erpx-ui-foundation",
  "erpx-ui-kit",
+ "serde",
+ "serde_json",
  "uuid",
 ]
 
@@ -3044,6 +3046,8 @@ dependencies = [
  "erpx-ui-core",
  "erpx-ui-foundation",
  "erpx-ui-kit",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -11400,13 +11404,19 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 name = "xtask"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "base64 0.22.1",
  "brotli",
  "chrono",
  "erpx-application",
+ "erpx-cqrs",
+ "erpx-cqrs-sqlx",
  "erpx-domain",
  "erpx-identity",
+ "erpx-identity-access",
+ "erpx-identity-access-sqlx",
  "erpx-infrastructure",
+ "erpx-kernel",
  "erpx-migration",
  "erpx-worker",
  "fs2",

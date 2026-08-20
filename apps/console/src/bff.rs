@@ -109,6 +109,10 @@ impl BffState {
     pub(crate) fn platform_origin(&self) -> &str {
         &self.platform_origin
     }
+
+    pub(crate) const fn production_profile(&self) -> bool {
+        self.production_profile
+    }
 }
 
 #[cfg(test)]
@@ -214,10 +218,10 @@ pub(crate) async fn session_middleware(
             Ok(Some(bundle)) => {
                 let snapshot = match SafeWebSessionSnapshot::from_bundle(&bundle) {
                     Ok(snapshot) => snapshot,
-                    Err(_) => return unavailable(),
+                    Err(_) => return unavailable_for(GlobalErrorReason::SessionStateInvalid),
                 };
                 let Some(active) = bundle.active_account() else {
-                    return unavailable();
+                    return unavailable_for(GlobalErrorReason::ActiveAccountUnavailable);
                 };
                 BffSessionContext {
                     snapshot,
@@ -243,7 +247,9 @@ pub(crate) async fn session_middleware(
                     request.headers(),
                 ));
             }
-            Err(SessionLoadError::Unavailable) => return unavailable(),
+            Err(SessionLoadError::Unavailable) => {
+                return unavailable_for(GlobalErrorReason::SessionStoreUnavailable);
+            }
         },
     };
     if let Some(location) = console_page_redirect(&request, &context) {
@@ -2962,12 +2968,106 @@ fn selector_from_headers(headers: &HeaderMap) -> Option<WebSessionSelector> {
     Some(WebSessionSelector::from_bytes(bytes))
 }
 
-fn unavailable() -> Response {
-    Response::builder()
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GlobalErrorReason {
+    DependencyUnavailable,
+    SessionStoreUnavailable,
+    SessionStateInvalid,
+    ActiveAccountUnavailable,
+}
+
+impl GlobalErrorReason {
+    const fn code(self) -> &'static str {
+        match self {
+            Self::DependencyUnavailable => "dependency_unavailable",
+            Self::SessionStoreUnavailable => "session_store_unavailable",
+            Self::SessionStateInvalid => "session_state_invalid",
+            Self::ActiveAccountUnavailable => "active_account_unavailable",
+        }
+    }
+
+    const fn message(self) -> &'static str {
+        match self {
+            Self::DependencyUnavailable => {
+                "A required ERPX service did not return a usable response."
+            }
+            Self::SessionStoreUnavailable => "The secure session store is temporarily unavailable.",
+            Self::SessionStateInvalid => "The secure session state could not be read safely.",
+            Self::ActiveAccountUnavailable => {
+                "The active account is missing from the secure session."
+            }
+        }
+    }
+}
+
+fn global_error_document(reason: GlobalErrorReason, correlation_id: Uuid) -> String {
+    format!(
+        r#"<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ERPX · Service unavailable</title>
+  <style>
+    :root {{ color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
+    * {{ box-sizing: border-box; }}
+    body {{ margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; color: #f7f8f5; background: radial-gradient(circle at top, #26352f 0, #111613 45%, #090b0a 100%); }}
+    main {{ width: min(100%, 680px); padding: clamp(28px, 6vw, 56px); border: 1px solid #435249; border-radius: 24px; background: rgba(17, 22, 19, .94); box-shadow: 0 24px 80px rgba(0, 0, 0, .38); }}
+    .brand {{ margin: 0 0 30px; color: #bdf5c8; font-size: .82rem; font-weight: 800; letter-spacing: .16em; }}
+    .status {{ display: inline-flex; align-items: center; gap: 8px; margin: 0 0 18px; padding: 7px 11px; border: 1px solid #7d6a3d; border-radius: 999px; color: #f7d990; background: #2c2516; font-size: .8rem; font-weight: 700; }}
+    h1 {{ margin: 0; font-size: clamp(2rem, 8vw, 4rem); line-height: .98; letter-spacing: -.045em; }}
+    .summary {{ margin: 22px 0 28px; color: #c7cec9; font-size: 1.05rem; line-height: 1.65; }}
+    dl {{ display: grid; grid-template-columns: minmax(100px, auto) 1fr; gap: 10px 18px; margin: 0; padding: 18px; border-radius: 16px; background: #0b0e0c; }}
+    dt {{ color: #8f9a93; }}
+    dd {{ min-width: 0; margin: 0; overflow-wrap: anywhere; }}
+    code {{ color: #d8f6de; font: .88rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }}
+    .actions {{ display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }}
+    .action-link {{ display: inline-flex; min-height: 44px; align-items: center; justify-content: center; padding: 0 18px; border-radius: 12px; color: #102116; background: #bdf5c8; font-weight: 800; text-decoration: none; }}
+    .action-link.secondary {{ color: #e4e9e5; background: transparent; border: 1px solid #526159; }}
+    .note {{ margin: 22px 0 0; color: #8f9a93; font-size: .88rem; line-height: 1.55; }}
+    @media (max-width: 520px) {{ body {{ padding: 12px; }} main {{ border-radius: 18px; }} dl {{ grid-template-columns: 1fr; gap: 4px; }} dd + dt {{ margin-top: 9px; }} .action-link {{ width: 100%; }} }}
+  </style>
+</head>
+<body>
+  <main data-testid="global-error" data-reason="{}">
+    <p class="brand">ERPX · PROTECTED DELIVERY</p>
+    <p class="status">503 · TEMPORARILY UNAVAILABLE</p>
+    <h1>We couldn’t load ERPX.</h1>
+    <p class="summary">{} Your data was not changed.<br>ERPX ยังโหลดไม่ได้ชั่วคราว ข้อมูลของคุณไม่ได้ถูกเปลี่ยนแปลง</p>
+    <dl>
+      <dt>Reason</dt><dd data-testid="global-error-reason"><code>{}</code></dd>
+      <dt>Reference</dt><dd><code>{}</code></dd>
+    </dl>
+    <div class="actions">
+      <a class="action-link" href="">Try again · ลองใหม่</a>
+      <a class="action-link secondary" href="/auth/sign-in">Return to sign in · กลับหน้าเข้าสู่ระบบ</a>
+    </div>
+    <p class="note">If this continues, share only the reference above with your administrator. Never share passwords, MFA codes, or recovery codes.</p>
+  </main>
+</body>
+</html>"#,
+        reason.code(),
+        reason.message(),
+        reason.code(),
+        correlation_id
+    )
+}
+
+fn unavailable_for(reason: GlobalErrorReason) -> Response {
+    let correlation_id = Uuid::new_v4();
+    let mut response = Response::builder()
         .status(StatusCode::SERVICE_UNAVAILABLE)
+        .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
         .header(header::CACHE_CONTROL, PRIVATE_NO_STORE)
-        .body(Body::from("web session unavailable"))
-        .unwrap_or_else(|_| StatusCode::SERVICE_UNAVAILABLE.into_response())
+        .header("x-erpx-correlation-id", correlation_id.to_string())
+        .body(Body::from(global_error_document(reason, correlation_id)))
+        .unwrap_or_else(|_| StatusCode::SERVICE_UNAVAILABLE.into_response());
+    apply_web_security_headers(&mut response, false);
+    response
+}
+
+fn unavailable() -> Response {
+    unavailable_for(GlobalErrorReason::DependencyUnavailable)
 }
 
 fn unauthorized_session() -> Response {
@@ -2989,6 +3089,41 @@ mod tests {
     use super::*;
     use chrono::Duration;
     use erpx_ui_core::{WorkItemTarget, WorkRoute};
+
+    #[test]
+    fn global_error_exposes_only_a_safe_reason_and_correlation_reference() {
+        let correlation_id = Uuid::from_u128(42);
+        let document =
+            global_error_document(GlobalErrorReason::SessionStoreUnavailable, correlation_id);
+
+        assert!(document.contains("data-testid=\"global-error\""));
+        assert!(document.contains("session_store_unavailable"));
+        assert!(document.contains(&correlation_id.to_string()));
+        assert!(document.contains("ข้อมูลของคุณไม่ได้ถูกเปลี่ยนแปลง"));
+        assert!(!document.contains("postgres"));
+        assert!(!document.contains("password="));
+    }
+
+    #[test]
+    fn unavailable_response_is_private_html_with_a_parseable_reference() {
+        let response = unavailable_for(GlobalErrorReason::DependencyUnavailable);
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            response.headers().get(header::CONTENT_TYPE).unwrap(),
+            "text/html; charset=utf-8"
+        );
+        assert_eq!(
+            response.headers().get(header::CACHE_CONTROL).unwrap(),
+            PRIVATE_NO_STORE
+        );
+        let correlation_id = response
+            .headers()
+            .get("x-erpx-correlation-id")
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| Uuid::parse_str(value).ok());
+        assert!(correlation_id.is_some());
+    }
 
     #[test]
     fn selector_cookie_is_strictly_parsed() {

@@ -96,11 +96,16 @@ mod tests {
         assert!(source.contains("assignment_guards"));
         assert!(source.contains("pg_advisory_xact_lock"));
         assert!(source.contains("CommandFingerprint::RecoverRole"));
+        assert!(!source.contains("scope_key,scope_mode,holding_id"));
         assert!(!source.contains("load_snapshot"));
         assert!(!source.contains("commit_guarded"));
         assert!(!source.contains("transaction.commit"));
         assert!(NORMALIZED_AUTHORITY_DDL.contains("principal_authority"));
         assert!(NORMALIZED_AUTHORITY_DDL.contains("role_permission_authority"));
         assert!(!NORMALIZED_AUTHORITY_DDL.contains("aggregate_components"));
+
+        let projection_source = include_str!("projection.rs");
+        assert!(projection_source.contains("holding_scope"));
+        assert!(!projection_source.contains("active_scope = EXCLUDED.active_scope"));
     }
 }

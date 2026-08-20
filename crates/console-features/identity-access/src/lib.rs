@@ -3,11 +3,18 @@
 pub mod gateway;
 pub mod model;
 pub mod presenter;
+pub mod surface;
 pub mod view;
 
 pub use gateway::{IdentityAccessGateway, IdentityAccessProtoTransport};
 pub use model::{IdentityAccessContent, PrincipalItem, RoleItem};
 pub use presenter::IdentityAccessPresenter;
+pub use surface::{
+    IdentityAccessDetail, IdentityAccessDetailSurface, IdentityAccessListSurface,
+    IdentityAccessPage, IdentityCommandFeedback, IdentityField, IdentityPrincipalCommandIntent,
+    IdentityPrincipalLifecycleAction, IdentityProjectionEvidence, IdentityRecord,
+    IdentityRecordKind,
+};
 pub use view::{IdentityAccessRenderedState, render_identity_access_state};
 erpx_ui_kit::declare_current_workspace_feature!(
     IdentityAccessFeatureSurface,

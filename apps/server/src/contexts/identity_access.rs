@@ -35,6 +35,9 @@ const MAX_SECURITY_INPUT_LENGTH: usize = 512;
 pub struct IdentityAccessHoldingRoute {
     pub holding_id: String,
     pub data_profile_key: String,
+    /// Server-resolved authority binding. Transport decoding always leaves
+    /// this absent; the authenticator fills it from the holding registry.
+    pub canonical_holding_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -97,8 +100,12 @@ impl AuthenticatedIdentityAccessRequest {
             .validate()
             .map_err(|_| IdentityAccessAuthenticationError::Internal)?;
         validate_route(&route).map_err(|_| IdentityAccessAuthenticationError::Internal)?;
-        validate_route_scope(&route, &scope)
-            .map_err(|_| IdentityAccessAuthenticationError::Internal)?;
+        if route
+            .canonical_holding_id
+            .is_none_or(|holding_id| holding_id.is_nil())
+        {
+            return Err(IdentityAccessAuthenticationError::Internal);
+        }
         Ok(Self {
             actor,
             scope,
@@ -821,7 +828,6 @@ fn decode_command<C>(
     envelope
         .validate()
         .map_err(|_| invalid("command metadata is invalid"))?;
-    validate_route_scope(&route, &envelope.active_scope)?;
     Ok(DecodedCommand {
         route,
         envelope,
@@ -856,7 +862,6 @@ fn decode_query<Q>(
     envelope
         .validate()
         .map_err(|_| invalid("query metadata is invalid"))?;
-    validate_route_scope(&route, &envelope.active_scope)?;
     Ok(DecodedQuery { route, envelope })
 }
 
@@ -865,6 +870,7 @@ fn decode_route(value: Option<common::HoldingRoute>) -> Result<IdentityAccessHol
     let route = IdentityAccessHoldingRoute {
         holding_id: value.holding_id.trim().into(),
         data_profile_key: value.data_profile_key.trim().into(),
+        canonical_holding_id: None,
     };
     validate_route(&route)?;
     Ok(route)
@@ -876,23 +882,6 @@ fn validate_route(route: &IdentityAccessHoldingRoute) -> Result<(), Status> {
         .any(|value| value.trim().is_empty() || value.len() > MAX_ROUTE_LENGTH)
     {
         return Err(invalid("holding route is invalid"));
-    }
-    Ok(())
-}
-
-fn validate_route_scope(
-    route: &IdentityAccessHoldingRoute,
-    scope: &AuthorityScope,
-) -> Result<(), Status> {
-    let holding = match scope {
-        AuthorityScope::Platform => return Ok(()),
-        AuthorityScope::Holding { holding_id }
-        | AuthorityScope::Company { holding_id, .. }
-        | AuthorityScope::Branch { holding_id, .. }
-        | AuthorityScope::Subtree { holding_id, .. } => holding_id,
-    };
-    if parse_uuid(&route.data_profile_key, "data_profile_key")? != *holding {
-        return Err(invalid("holding route does not match scope"));
     }
     Ok(())
 }
@@ -1397,6 +1386,17 @@ mod tests {
             decode_risk(encode_risk(RiskTier::High)).unwrap(),
             RiskTier::High
         );
+    }
+
+    #[test]
+    fn opaque_data_profile_key_is_validated_by_the_server_owned_registry() {
+        let route = IdentityAccessHoldingRoute {
+            holding_id: Uuid::new_v4().to_string(),
+            data_profile_key: "beacon-holding-v6".into(),
+            canonical_holding_id: None,
+        };
+        assert!(validate_route(&route).is_ok());
+        assert!(!route.data_profile_key.contains(route.holding_id.as_str()));
     }
 
     #[test]

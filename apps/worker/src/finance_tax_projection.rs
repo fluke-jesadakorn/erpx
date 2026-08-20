@@ -54,6 +54,10 @@ impl FinanceThaiTaxHoldingProjectionExecutor {
 
 #[async_trait]
 impl HoldingProjectionExecutor for FinanceThaiTaxHoldingProjectionExecutor {
+    fn projection_name_filter(&self) -> Option<&str> {
+        Some(FINANCE_THAI_TAX_PROJECTION_NAME)
+    }
+
     async fn execute(
         &self,
         claim: &ProjectionClaimRecord,
@@ -97,6 +101,10 @@ impl HoldingProjectionExecutor for FinanceThaiTaxHoldingProjectionExecutor {
 
 #[async_trait]
 impl HoldingProjectionRoutedExecutor for FinanceThaiTaxHoldingProjectionExecutor {
+    fn projection_name(&self) -> &str {
+        FINANCE_THAI_TAX_PROJECTION_NAME
+    }
+
     async fn execute_routed(
         &self,
         claim: &ProjectionClaimRecord,

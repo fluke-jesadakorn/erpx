@@ -510,7 +510,12 @@ impl HoldingProjectionExecutor for ProductProjectionExecutor {
             Self::Wave8(executor) => executor.projection_name_filter(),
             Self::Wave9(executor) => executor.projection_name_filter(),
             Self::Wave10(executor) => executor.projection_name_filter(),
-            _ => None,
+            Self::AssetMaintenance(_) => Some("asset_maintenance"),
+            Self::Legal(_) => Some(erpx_infrastructure::LEGAL_PROJECTION_NAME),
+            Self::Scm(_) => Some("scm"),
+            Self::Pos(_) => Some(erpx_infrastructure::POS_PROJECTION_NAME),
+            Self::Hr(_) => Some(erpx_infrastructure::HR_PROJECTION_NAME),
+            Self::Sales(_) => Some("sales"),
         }
     }
 
@@ -2526,6 +2531,18 @@ mod product_projection_registration_tests {
         assert!(filter.contains("Self::Wave7(executor) => executor.projection_name_filter()"));
         assert!(filter.contains("Self::Wave8(executor) => executor.projection_name_filter()"));
         assert!(filter.contains("Self::Wave9(executor) => executor.projection_name_filter()"));
+        assert!(filter.contains("Self::Wave10(executor) => executor.projection_name_filter()"));
+        for owned in [
+            "Self::AssetMaintenance(_) => Some(\"asset_maintenance\")",
+            "Self::Legal(_) => Some(erpx_infrastructure::LEGAL_PROJECTION_NAME)",
+            "Self::Scm(_) => Some(\"scm\")",
+            "Self::Pos(_) => Some(erpx_infrastructure::POS_PROJECTION_NAME)",
+            "Self::Hr(_) => Some(erpx_infrastructure::HR_PROJECTION_NAME)",
+            "Self::Sales(_) => Some(\"sales\")",
+        ] {
+            assert!(filter.contains(owned));
+        }
+        assert!(!filter.contains("_ => None"));
     }
 
     #[test]

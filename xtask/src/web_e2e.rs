@@ -22,6 +22,8 @@ const DEVELOPMENT_CONTROLLER_PRINCIPAL: &str = "local:dev-controller";
 const SIGN_IN_FORM_SELECTOR: &str = "[data-testid='sign-in-form']";
 const SIGN_IN_ERROR_SELECTOR: &str = "[data-testid='sign-in-error'][role='alert']";
 const ROLE_OPTION_SELECTOR: &str = "[data-testid='role-option'][data-selection-id][data-role-key='platform_holding_administrator']";
+const IDENTITY_ROLE_OPTION_SELECTOR: &str =
+    "[data-testid='role-option'][data-selection-id][data-role-key='customer_security_head']";
 const TOP_LEVEL_DATA_ROUTES: [&str; 3] = ["/work", "/processes", "/insights"];
 const WORKSPACE_ROUTES: [&str; 21] = [
     "/operations",
@@ -405,6 +407,51 @@ fn submit_password_form(client: &mut CdpClient, principal: &str, password: &str)
     Ok(())
 }
 
+fn prepare_identity_principal_command(
+    client: &mut CdpClient,
+    action: &str,
+    purpose: &str,
+) -> TaskResult<Value> {
+    let action = serde_json::to_string(action)?;
+    client.wait_for_selector(&format!("[data-action={action}][data-dioxus-id]"))?;
+    client.wait_for_selector("[data-testid='identity-command-purpose'][data-dioxus-id]")?;
+    client.wait_for_selector("[data-testid='identity-command-mfa'][data-dioxus-id]")?;
+    client.wait_for_selector("[data-testid='identity-command-confirm'][data-dioxus-id]")?;
+    if client
+        .evaluate(
+            "(() => { const input=document.querySelector('[data-testid=identity-command-purpose]'); if(!input)return false; input.focus(); return document.activeElement===input; })()",
+        )?
+        .as_bool()
+        != Some(true)
+    {
+        return Err("IAM lifecycle purpose input was unavailable".into());
+    }
+    client.command("Input.insertText", json!({ "text": purpose }))?;
+    if client
+        .evaluate(
+            "(() => { const input=document.querySelector('[data-testid=identity-command-mfa]'); if(!input)return false; input.focus(); return document.activeElement===input; })()",
+        )?
+        .as_bool()
+        != Some(true)
+    {
+        return Err("IAM lifecycle MFA input was unavailable".into());
+    }
+    client.command(
+        "Input.insertText",
+        json!({ "text": "development-mfa-proof" }),
+    )?;
+    client.evaluate(
+        "(() => { const input=document.querySelector('[data-testid=identity-command-confirm]'); if(!input)return false; if(!input.checked)input.click(); return input.checked; })()",
+    )?;
+    let expression = format!(
+        "(() => {{ const button=document.querySelector(`[data-action=${{{action}}}]`); return Boolean(button && !button.disabled && button.dataset.purposeReady === 'true' && button.dataset.mfaReady === 'true' && button.dataset.confirmed === 'true'); }})()"
+    );
+    client.wait_for(&expression, "hydrated IAM lifecycle command form")?;
+    client.evaluate(&format!(
+        "(() => {{ const button=document.querySelector(`[data-action=${{{action}}}]`); return button && {{disabled:button.disabled,purposeReady:button.dataset.purposeReady,mfaReady:button.dataset.mfaReady,confirmed:button.dataset.confirmed}}; }})()"
+    ))
+}
+
 pub async fn run(root: &Path) -> TaskResult {
     let base_url = env::var("ERPX_WEB_E2E_BASE_URL").unwrap_or_else(|_| DEFAULT_BASE_URL.into());
     let parsed = reqwest::Url::parse(&base_url)?;
@@ -660,6 +707,227 @@ pub async fn run(root: &Path) -> TaskResult {
         workspace_routes.push(route.clone());
     }
 
+    cdp.navigate(&format!(
+        "{base_url}/auth/accounts?return_to=%2Fidentity%2Fprincipal"
+    ))?;
+    cdp.wait_for_selector(IDENTITY_ROLE_OPTION_SELECTOR)?;
+    let identity_role_selector = serde_json::to_string(IDENTITY_ROLE_OPTION_SELECTOR)?;
+    if cdp
+        .evaluate(&format!(
+            "(() => {{ const option=document.querySelector({identity_role_selector}); if (!option || option.disabled) return false; option.click(); return true; }})()"
+        ))?
+        .as_bool()
+        != Some(true)
+    {
+        return Err("customer security role was unavailable for IAM E2E".into());
+    }
+    cdp.wait_for(
+        "location.pathname === '/identity/principal'",
+        "customer security role activation",
+    )?;
+    cdp.wait_for_selector(".identity-access-surface .record-row")?;
+    if cdp
+        .evaluate(
+            "(() => { const row=[...document.querySelectorAll('.record-row')].find((candidate) => candidate.innerText.includes('Suspended Auditor')); const link=row?.querySelector('a'); if(!link)return false; link.click(); return true; })()",
+        )?
+        .as_bool()
+        != Some(true)
+    {
+        return Err("suspended IAM fixture principal was unavailable".into());
+    }
+    cdp.wait_for(
+        "location.pathname.startsWith('/identity/principal/') && document.querySelector('.route-meta')?.innerText.includes('suspended')",
+        "suspended principal detail",
+    )?;
+    let baseline_version = cdp
+        .evaluate(
+            "Number(document.querySelector('.route-meta')?.innerText.match(/\\bv(\\d+)\\b/)?.[1])",
+        )?
+        .as_u64()
+        .filter(|version| *version >= 3)
+        .ok_or("suspended IAM fixture version was unavailable")?;
+    let reactivated_version = baseline_version.saturating_add(1);
+    let resuspended_version = baseline_version.saturating_add(2);
+    cdp.wait_for_selector("[data-action='ReactivatePrincipal']")?;
+    if cdp
+        .evaluate(
+            r#"(() => {
+              const original = window.fetch.bind(window);
+              window.__erpxOriginalFetch = original;
+              window.__erpxMutationCapture = null;
+              window.__erpxFirstMutationResponse = null;
+              window.fetch = async (input, init) => {
+                const request = input instanceof Request ? input.clone() : new Request(input, init);
+                const isMutation = request.url.includes('/identity/principal/command');
+                if (isMutation) {
+                  const copy = request.clone();
+                  window.__erpxMutationCapture = {
+                    url: copy.url,
+                    method: copy.method,
+                    headers: [...copy.headers.entries()],
+                    credentials: copy.credentials,
+                    body: Array.from(new Uint8Array(await copy.arrayBuffer()))
+                  };
+                }
+                const response = await original(input, init);
+                if (isMutation) {
+                  const responseCopy = response.clone();
+                  window.__erpxFirstMutationResponse = {
+                    status: response.status,
+                    replayed: response.headers.get('x-erpx-idempotency-replayed'),
+                    body: await responseCopy.text()
+                  };
+                }
+                return response;
+              };
+              return true;
+            })()"#,
+        )?
+        .as_bool()
+        != Some(true)
+    {
+        return Err("IAM mutation capture could not be installed".into());
+    }
+    let reactivate_state = prepare_identity_principal_command(
+        &mut cdp,
+        "ReactivatePrincipal",
+        "Restore the suspended E2E auditor for a lifecycle verification",
+    )?;
+    if reactivate_state
+        .pointer("/disabled")
+        .and_then(Value::as_bool)
+        != Some(false)
+    {
+        return Err(
+            format!("principal reactivate command was not ready: {reactivate_state}").into(),
+        );
+    }
+    cdp.evaluate("document.querySelector('[data-action=ReactivatePrincipal]').click()")?;
+    cdp.wait_for(
+        "['success','error'].includes(document.querySelector('.identity-command-feedback')?.dataset.state)",
+        "terminal principal reactivation result",
+    )?;
+    let first_mutation = cdp.evaluate("window.__erpxFirstMutationResponse")?;
+    let reactivate_result = cdp.evaluate(
+        "(() => { const feedback=document.querySelector('.identity-command-feedback'); return {state:feedback?.dataset.state,message:feedback?.innerText,meta:document.querySelector('.route-meta')?.innerText}; })()",
+    )?;
+    if reactivate_result.pointer("/state").and_then(Value::as_str) != Some("success")
+        || !reactivate_result
+            .pointer("/meta")
+            .and_then(Value::as_str)
+            .is_some_and(|value| {
+                value.contains("active") && value.contains(&format!("v{reactivated_version}"))
+            })
+    {
+        let request_meta = cdp.evaluate(
+            "(() => { const capture=window.__erpxMutationCapture; return capture && {url:capture.url,headers:capture.headers,documentOrigin:location.origin}; })()",
+        )?;
+        return Err(format!(
+            "principal reactivation failed: result={reactivate_result}, request={request_meta}, response={first_mutation}, console_errors={:?}, network_http_errors={:?}",
+            cdp.console_errors, cdp.network_http_errors
+        )
+        .into());
+    }
+    if first_mutation.pointer("/status").and_then(Value::as_u64) != Some(200)
+        || first_mutation.pointer("/replayed").and_then(Value::as_str) != Some("false")
+    {
+        return Err(format!("first IAM mutation receipt was invalid: {first_mutation}").into());
+    }
+    let replay = cdp.evaluate(
+        r#"(async () => {
+          const captured=window.__erpxMutationCapture;
+          if(!captured || !window.__erpxOriginalFetch)return null;
+          const response=await window.__erpxOriginalFetch(captured.url, {
+            method: captured.method,
+            headers: new Headers(captured.headers),
+            credentials: captured.credentials,
+            body: new Uint8Array(captured.body)
+          });
+          return {
+            status: response.status,
+            replayed: response.headers.get('x-erpx-idempotency-replayed'),
+            bytes: (await response.arrayBuffer()).byteLength
+          };
+        })()"#,
+    )?;
+    if replay.pointer("/status").and_then(Value::as_u64) != Some(200)
+        || replay.pointer("/replayed").and_then(Value::as_str) != Some("true")
+        || replay.pointer("/bytes").and_then(Value::as_u64) == Some(0)
+    {
+        return Err(format!("duplicate IAM mutation did not replay: {replay}").into());
+    }
+    let current_url = cdp.evaluate("location.href")?;
+    let current_url = current_url
+        .as_str()
+        .ok_or("IAM detail URL was unavailable after replay")?
+        .to_owned();
+    cdp.navigate(&current_url)?;
+    cdp.wait_for(
+        &format!(
+            "document.querySelector('.route-meta')?.innerText.includes('active') && document.querySelector('.route-meta')?.innerText.includes('v{reactivated_version}')"
+        ),
+        "duplicate IAM mutation retained aggregate version",
+    )?;
+
+    let stale_url = cdp.evaluate("location.href")?;
+    let stale_url = stale_url.as_str().ok_or("IAM detail URL was unavailable")?;
+    let stale_websocket = page_websocket(&endpoint, stale_url).await?;
+    let mut stale_cdp = CdpClient::connect(&stale_websocket)?;
+    for method in [
+        "Page.enable",
+        "Runtime.enable",
+        "Log.enable",
+        "Network.enable",
+    ] {
+        stale_cdp.command(method, json!({}))?;
+    }
+    stale_cdp.navigate(stale_url)?;
+    stale_cdp.wait_for(
+        &format!(
+            "document.querySelector('.route-meta')?.innerText.includes('active') && document.querySelector('.route-meta')?.innerText.includes('v{reactivated_version}')"
+        ),
+        "stale principal detail tab",
+    )?;
+
+    let suspend_state = prepare_identity_principal_command(
+        &mut cdp,
+        "SuspendPrincipal",
+        "Suspend the E2E auditor after the successful reactivation verification",
+    )?;
+    if suspend_state.pointer("/disabled").and_then(Value::as_bool) != Some(false) {
+        return Err(format!("principal suspend command was not ready: {suspend_state}").into());
+    }
+    cdp.evaluate("document.querySelector('[data-action=SuspendPrincipal]').click()")?;
+    cdp.wait_for(
+        &format!(
+            "document.querySelector('.identity-command-feedback')?.dataset.state === 'success' && document.querySelector('.route-meta')?.innerText.includes('suspended') && document.querySelector('.route-meta')?.innerText.includes('v{resuspended_version}')"
+        ),
+        "suspended principal projection version",
+    )?;
+
+    let disable_state = prepare_identity_principal_command(
+        &mut stale_cdp,
+        "DisablePrincipal",
+        "Attempt a stale disable to verify optimistic concurrency",
+    )?;
+    if disable_state.pointer("/disabled").and_then(Value::as_bool) != Some(false) {
+        return Err(
+            format!("stale principal disable command was not ready: {disable_state}").into(),
+        );
+    }
+    stale_cdp.evaluate("document.querySelector('[data-action=DisablePrincipal]').click()")?;
+    stale_cdp.wait_for(
+        &format!(
+            "document.querySelector('.identity-command-feedback')?.dataset.state === 'error' && document.querySelector('.route-meta')?.innerText.includes('suspended') && document.querySelector('.route-meta')?.innerText.includes('v{resuspended_version}')"
+        ),
+        "stale principal conflict recovery",
+    )?;
+    stale_cdp.screenshot(&evidence_dir.join("identity-principal-conflict.png"))?;
+    cdp.console_errors.append(&mut stale_cdp.console_errors);
+    cdp.network_failures.append(&mut stale_cdp.network_failures);
+    cdp.network_http_errors
+        .append(&mut stale_cdp.network_http_errors);
+
     let public_id = "8f9f3a8f-24f0-4c9a-a7e8-6bd0d9d4e4d2";
     cdp.navigate(&format!("{base_url}/public/marketing/form/{public_id}"))?;
     cdp.wait_for_selector(".public-marketing-form")?;
@@ -696,6 +964,13 @@ pub async fn run(root: &Path) -> TaskResult {
         "top_level_data_routes": top_level_data_routes,
         "workspace_routes": workspace_routes,
         "workspace_detail_routes": [],
+        "identity_principal_lifecycle": {
+            "reactivate_read_your_writes": true,
+            "duplicate_replayed": true,
+            "duplicate_version_stable": true,
+            "suspend_read_your_writes": true,
+            "stale_version_conflict_recovered": true
+        },
         "public_marketing_form": true,
         "public_marketing_preview_fail_closed": true,
         "console_errors": cdp.console_errors,

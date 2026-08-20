@@ -39,6 +39,7 @@ mod affected;
 mod architecture;
 mod dev_access;
 mod directory_lab;
+mod identity_access_fixture;
 mod infra;
 mod wasm;
 mod web_e2e;
@@ -58,7 +59,7 @@ const HOLDING_ID: &str = "37098a2d-0d13-5b0e-8a37-f2df2fbe8cba";
 const DATA_PROFILE_KEY: &str = "demo-holding-v6";
 const RESTRICTED_HOLDING_ID: &str = "4017ec64-6620-50e2-bfdc-14d0a9b3c414";
 const RESTRICTED_DATA_PROFILE_KEY: &str = "beacon-holding-v6";
-const FIXTURE_VERSION: &str = "erpx-demo-v6";
+const FIXTURE_VERSION: &str = "erpx-demo-v7";
 const DEV_STATE_VERSION: u32 = 3;
 const WEB_LAUNCH_CONTRACT_VERSION: u32 = 4;
 const WEB_SESSION_CACHE_CONTRACT_VERSION: u32 = 1;
@@ -1589,6 +1590,7 @@ async fn demo_fixture_current(root: &Path, config: &DevConfig) -> TaskResult<boo
             .fetch_one(&write)
             .await?;
     write.close().await;
+    let identity_access_current = identity_access_fixture::is_current(config).await?;
 
     let native_secret = runtime_dir(root).join("secrets/native-demo-password.key");
     Ok(holding_count == 2
@@ -1596,6 +1598,7 @@ async fn demo_fixture_current(root: &Path, config: &DevConfig) -> TaskResult<boo
         && context_count == i64::try_from(DEMO_CONTEXTS.len())?
         && principal_count == i64::try_from(principal_refs.len())?
         && assignment_count == i64::try_from(assignment_ids.len())?
+        && identity_access_current
         && native_secret.is_file())
 }
 
@@ -1712,6 +1715,7 @@ async fn seed_demo(root: &Path, config: &DevConfig) -> TaskResult {
         .await?;
     }
     seed_demo_identities_and_roles(&write, &identity, &control).await?;
+    identity_access_fixture::seed(config).await?;
 
     let fixture_digest = fixture_digest();
     let already_seeded: bool = sqlx::query_scalar(

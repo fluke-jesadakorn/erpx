@@ -127,15 +127,6 @@ impl CommandUnitOfWork for IdentityAccessCommandAdapter {
                 IdentityAccessSnapshot::Role(RoleView::from(value)),
             ),
         };
-        events.push(OutboxEventWrite {
-            event_id: deterministic_event_id(command_id, snapshot_type, events.len()),
-            event_type: snapshot_type.into(),
-            event_version: EVENT_VERSION,
-            partition: partition.clone(),
-            causation_id: request.causation_id,
-            occurred_at,
-            payload: IdentityAccessOutboxPayload::Snapshot(snapshot),
-        });
         let authority_fact = identity_access_authority_fact(&request.aggregate)?;
         events.push(OutboxEventWrite {
             event_id: deterministic_event_id(
@@ -165,6 +156,19 @@ impl CommandUnitOfWork for IdentityAccessCommandAdapter {
                 payload: IdentityAccessOutboxPayload::Directory(directory_draft),
             });
         }
+        // Keep the owner projection snapshot last. CommandReceipt::projection_target
+        // can then name an exact cursor that this context's projector is able
+        // to reach, even though the same transaction also emits integration,
+        // authority-evidence, and Item Directory facts.
+        events.push(OutboxEventWrite {
+            event_id: deterministic_event_id(command_id, snapshot_type, events.len()),
+            event_type: snapshot_type.into(),
+            event_version: EVENT_VERSION,
+            partition: partition.clone(),
+            causation_id: request.causation_id,
+            occurred_at,
+            payload: IdentityAccessOutboxPayload::Snapshot(snapshot),
+        });
 
         let active_scope = request.aggregate.scope().clone();
         let aggregate = request.aggregate;
@@ -1149,16 +1153,16 @@ async fn apply_principal_authority(
     let governance = principal.non_human_governance();
     let changed = sqlx::query(
         "INSERT INTO erpx_identity_access_write.principal_authority
-            (holding_id,principal_id,aggregate_version,scope_key,scope_mode,holding_id,company_id,
+            (holding_id,principal_id,aggregate_version,scope_key,scope_mode,company_id,
              branch_id,company_ids,branch_ids,display_name,principal_kind,principal_realm,
              governance_owner_ref,governance_purpose,governance_workload_binding,
              governance_credential_reference,principal_status,created_at,updated_at)
-         VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
-                 $11,$12,$13,$14,$15,$16,$17,$18,$19)
+         VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,
+                 $10,$11,$12,$13,$14,$15,$16,$17,$18)
          ON CONFLICT (holding_id,principal_id) DO UPDATE SET
             aggregate_version=EXCLUDED.aggregate_version,scope_key=EXCLUDED.scope_key,
-            scope_mode=EXCLUDED.scope_mode,holding_id=EXCLUDED.holding_id,
-            company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,
+            scope_mode=EXCLUDED.scope_mode,company_id=EXCLUDED.company_id,
+            branch_id=EXCLUDED.branch_id,
             company_ids=EXCLUDED.company_ids,branch_ids=EXCLUDED.branch_ids,
             display_name=EXCLUDED.display_name,principal_kind=EXCLUDED.principal_kind,
             principal_realm=EXCLUDED.principal_realm,
@@ -1177,7 +1181,6 @@ async fn apply_principal_authority(
     .bind(to_i64(version)?)
     .bind(scope_key(principal.scope()))
     .bind(scope.mode)
-    .bind(scope.holding_id)
     .bind(scope.company_id)
     .bind(scope.branch_id)
     .bind(&scope.company_ids)
@@ -1201,11 +1204,11 @@ async fn apply_principal_authority(
         let assignment_scope = ScopeColumns::from_scope_store(assignment.scope())?;
         let changed = sqlx::query(
             "INSERT INTO erpx_identity_access_write.assignment_authority
-                (holding_id,assignment_id,principal_id,role_id,scope_key,scope_mode,holding_id,
+                (holding_id,assignment_id,principal_id,role_id,scope_key,scope_mode,
                  company_id,branch_id,company_ids,branch_ids,risk_tier,valid_from,valid_until,
                  grant_reason,ticket_reference,grantor_ref,approver_ref,revoked_at,principal_version)
-             VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
-                     $11,$12,$13,$14,$15,$16,$17,$18,$19)
+             VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,
+                     $10,$11,$12,$13,$14,$15,$16,$17,$18)
              ON CONFLICT (holding_id,assignment_id) DO UPDATE SET
                 revoked_at=EXCLUDED.revoked_at,principal_version=EXCLUDED.principal_version
              WHERE erpx_identity_access_write.assignment_authority.principal_id=EXCLUDED.principal_id
@@ -1224,7 +1227,6 @@ async fn apply_principal_authority(
         .bind(assignment.role_id().as_uuid())
         .bind(scope_key(assignment.scope()))
         .bind(assignment_scope.mode)
-        .bind(assignment_scope.holding_id)
         .bind(assignment_scope.company_id)
         .bind(assignment_scope.branch_id)
         .bind(&assignment_scope.company_ids)
@@ -1284,13 +1286,13 @@ async fn apply_role_authority(
     let scope = ScopeColumns::from_scope_store(role.scope())?;
     let changed = sqlx::query(
         "INSERT INTO erpx_identity_access_write.role_authority
-            (holding_id,role_id,aggregate_version,scope_key,scope_mode,holding_id,company_id,
+            (holding_id,role_id,aggregate_version,scope_key,scope_mode,company_id,
              branch_id,company_ids,branch_ids,role_code,display_name,risk_tier,created_at,updated_at)
-         VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+         VALUES (erpx_cqrs_write.current_holding_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
          ON CONFLICT (holding_id,role_id) DO UPDATE SET
             aggregate_version=EXCLUDED.aggregate_version,scope_key=EXCLUDED.scope_key,
-            scope_mode=EXCLUDED.scope_mode,holding_id=EXCLUDED.holding_id,
-            company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,
+            scope_mode=EXCLUDED.scope_mode,company_id=EXCLUDED.company_id,
+            branch_id=EXCLUDED.branch_id,
             company_ids=EXCLUDED.company_ids,branch_ids=EXCLUDED.branch_ids,
             role_code=EXCLUDED.role_code,display_name=EXCLUDED.display_name,
             risk_tier=EXCLUDED.risk_tier,created_at=EXCLUDED.created_at,
@@ -1304,7 +1306,6 @@ async fn apply_role_authority(
     .bind(to_i64(version)?)
     .bind(scope_key(role.scope()))
     .bind(scope.mode)
-    .bind(scope.holding_id)
     .bind(scope.company_id)
     .bind(scope.branch_id)
     .bind(&scope.company_ids)
