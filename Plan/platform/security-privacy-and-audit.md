@@ -16,8 +16,8 @@ where applicable; passkey challenge and origin are verified; directory
 authentication follows connector trust and scope policy.
 
 **Sources.** [Identity crate](../../crates/identity/src/lib.rs),
-[console authentication](../../apps/console/src/composition.rs),
-[identity API](../../crates/proto/proto/erpx/identity_access/v2/service.proto).
+[console authentication](../../apps/console/src/routes.rs),
+[identity API](../../crates/proto/proto/erpx/identity_access/service.proto).
 
 ### REQ-SEC-002 — Protected sessions and devices
 
@@ -103,9 +103,9 @@ repositories require explicit scope; object keys and signed access are scoped;
 workers cannot claim unrelated tenant work; cross-tenant reads use an audited
 gateway rather than credential fan-out.
 
-**Sources.** [Tenant isolation](../../adr/ADR-001-tenant-isolation.md),
+**Sources.** [Tenant isolation](../../adr/ADR-001-holding-isolation.md),
 [branch authority](../../adr/ADR-013-holding-branch-database-and-directory-authority.md),
-[tenant workspace](../../apps/server/src/tenant_workspace.rs).
+[tenant workspace](../../apps/server/src/holding_workspace.rs).
 
 ### REQ-SEC-007 — Customer-hosted Root admission
 
@@ -138,7 +138,7 @@ store.
 secrets resolve only within trusted runtime adapters; error and debug output are
 redacted; automated scans reject credential-bearing responses and logs.
 
-**Sources.** [Tenant isolation](../../adr/ADR-001-tenant-isolation.md),
+**Sources.** [Tenant isolation](../../adr/ADR-001-holding-isolation.md),
 [customer data plane](../../adr/ADR-011-customer-data-plane-agent.md),
 [directory secrets](../../apps/worker/src/directory_secrets.rs).
 
@@ -192,7 +192,7 @@ purpose or reason, time, correlation, and outcome; secrets and prohibited data
 are excluded; entries cannot be edited by business commands.
 
 **Sources.** [CQRS decision](../../adr/ADR-002-cqrs.md),
-[platform audit migration](../../crates/migration/migrations/0003_platform_audits.sql),
+[platform audit migration](../../crates/migration/migrations/0001_baseline.sql),
 [CQRS contracts](../../crates/cqrs/src/lib.rs).
 
 ### REQ-AUD-002 — Audited global reads
@@ -209,7 +209,7 @@ semantics; bulk export and sensitive download require explicit approved
 authority.
 
 **Sources.** [Audited global reads](../../adr/ADR-005-global-read-auditing.md),
-[Customer access audit API](../../crates/proto/proto/erpx/customer_authority/v2/service.proto).
+[Customer access audit API](../../crates/proto/proto/erpx/customer_authority/service.proto).
 
 ### REQ-AUD-003 — Customer-visible access history
 
@@ -291,7 +291,7 @@ audited.
 
 **Sources.** [Marketing privacy worker](../../apps/worker/src/marketing_content_privacy.rs),
 [Legal context](../../crates/contexts/legal/src/lib.rs),
-[marketing privacy migration](../../crates/migration/migrations_tenant_read/0039_marketing_profile_erasure.sql).
+[marketing privacy migration](../../crates/migration/migrations_holding_read/0001_baseline.sql).
 
 ### REQ-PRI-004 — Retention enforcement
 

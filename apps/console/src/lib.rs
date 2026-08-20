@@ -9,6 +9,8 @@
 mod app;
 #[cfg(feature = "server")]
 mod bff;
+#[cfg(feature = "server")]
+mod bff_navigation;
 #[cfg(any(feature = "web", feature = "server"))]
 mod delivery;
 #[cfg(feature = "native")]
@@ -71,31 +73,101 @@ pub(crate) fn console_route_http_status(path: &str) -> u16 {
 #[cfg(feature = "server")]
 pub(crate) fn navigation_authorizes_console_path(
     path: &str,
-    _groups: &[erpx_ui_core::NavGroup],
+    groups: &[erpx_ui_core::NavGroup],
 ) -> bool {
-    routes::is_canonical_console_path(path, erpx_delivery_contract::ClientChannel::Web)
-}
-
-#[cfg(feature = "server")]
-pub(crate) async fn fetch_navigation_manifest(
-    _access_token: String,
-    _principal_ref: String,
-    _session_id: String,
-    _scope_key: String,
-    _development_context_token: Option<String>,
-    _include_inaccessible: bool,
-) -> Result<Vec<erpx_ui_core::NavGroup>, String> {
-    // Navigation is now owned by the typed route catalog. This retained BFF
-    // endpoint returns an empty projection until it is removed with v1.
-    Ok(Vec::new())
+    if !routes::is_canonical_console_path(path, erpx_delivery_contract::ClientChannel::Web) {
+        return false;
+    }
+    if matches!(
+        path,
+        "/auth/accounts" | "/auth/security" | "/auth/devices" | "/auth/recovery"
+    ) {
+        return true;
+    }
+    let has_authorized_route = groups
+        .iter()
+        .flat_map(|group| group.items.iter())
+        .any(erpx_ui_core::NavItem::is_authorized);
+    if matches!(path, "/work" | "/processes" | "/insights" | "/modules") {
+        return has_authorized_route;
+    }
+    groups
+        .iter()
+        .flat_map(|group| group.items.iter())
+        .filter(|item| item.is_authorized())
+        .any(|item| {
+            path == item.path
+                || path
+                    .strip_prefix(item.path.as_str())
+                    .is_some_and(|suffix| suffix.starts_with('/'))
+        })
 }
 
 #[cfg(feature = "server")]
 #[allow(dead_code)]
-pub(crate) fn navigation_http_groups(_groups: &[erpx_ui_core::NavGroup]) -> Vec<serde_json::Value> {
-    Vec::new()
+pub(crate) fn navigation_http_groups(groups: &[erpx_ui_core::NavGroup]) -> Vec<serde_json::Value> {
+    groups
+        .iter()
+        .map(|group| {
+            serde_json::json!({
+                "group_id": group.group_id,
+                "label": group.label,
+                "label_key": group.label_key,
+                "items": group.items.iter().map(|item| serde_json::json!({
+                    "route_id": item.route_id,
+                    "label": item.label,
+                    "label_key": item.label_key,
+                    "path": item.path,
+                    "icon": item.icon,
+                    "action_capabilities": item.action_capabilities,
+                    "access": if item.is_authorized() { "authorized" } else { "locked" },
+                    "required_role_keys": item.required_role_keys(),
+                })).collect::<Vec<_>>(),
+            })
+        })
+        .collect()
 }
 
 pub fn run() {
     app::launch();
+}
+
+#[cfg(all(test, feature = "server"))]
+mod tests {
+    use super::navigation_authorizes_console_path;
+    use erpx_ui_core::{NavAccess, NavGroup, NavItem};
+
+    fn manifest() -> Vec<NavGroup> {
+        vec![NavGroup::new(
+            "Business Modules",
+            vec![
+                NavItem::new("Finance", "/finance", "module"),
+                NavItem::new("Operations", "/operations", "module")
+                    .with_access(NavAccess::locked(["operations_viewer"])),
+            ],
+        )]
+    }
+
+    #[test]
+    fn navigation_fence_allows_only_authorized_manifest_roots_and_children() {
+        let groups = manifest();
+        assert!(navigation_authorizes_console_path("/finance", &groups));
+        assert!(navigation_authorizes_console_path(
+            "/finance/journals",
+            &groups
+        ));
+        assert!(!navigation_authorizes_console_path("/operations", &groups));
+        assert!(!navigation_authorizes_console_path("/sales", &groups));
+        assert!(!navigation_authorizes_console_path(
+            "/not-registered",
+            &groups
+        ));
+    }
+
+    #[test]
+    fn shell_routes_require_at_least_one_authorized_manifest_route() {
+        assert!(navigation_authorizes_console_path("/work", &manifest()));
+        assert!(!navigation_authorizes_console_path("/work", &[]));
+        assert!(navigation_authorizes_console_path("/auth/security", &[]));
+    }
 }

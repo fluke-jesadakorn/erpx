@@ -106,7 +106,7 @@ intact.
 
 **Sources.** [Support capabilities](../adr/ADR-006-support-capabilities.md),
 [corporate identity](../adr/ADR-012-three-layer-corporate-identity.md),
-[console composition](../apps/console/src/composition.rs).
+[console composition](../apps/console/src/routes.rs).
 
 ### REQ-UX-007 — Governed module discovery
 
@@ -123,7 +123,7 @@ navigation metadata cannot authorize a command; credential-looking metadata is
 discarded.
 
 **Sources.** [Navigation model](../crates/ui/src/navigation.rs),
-[console composition](../apps/console/src/composition.rs),
+[console composition](../apps/console/src/routes.rs),
 [business-unit catalog](../crates/domain/src/data_plane.rs).
 
 ### REQ-UX-008 — Safe links, session storage, and offline behavior
@@ -209,5 +209,5 @@ payloads, DSNs, bind credentials, tokens, payment instruments, and private keys
 are absent from presentation models.
 
 **Sources.** [Product display contracts](../apps/console/src/product_completion.rs),
-[tenant isolation](../adr/ADR-001-tenant-isolation.md),
+[tenant isolation](../adr/ADR-001-holding-isolation.md),
 [audited reads](../adr/ADR-005-global-read-auditing.md).

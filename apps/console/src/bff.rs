@@ -17,6 +17,10 @@ use dioxus::server::axum::{
     middleware::Next,
     response::{IntoResponse, Response},
 };
+use erpx_delivery_contract::{
+    CommandReceipt, DeliveryError, DeliveryErrorMeta, Page, PublicMarketingFormRequest,
+    PublicMarketingPreviewRequest, RouteData,
+};
 use erpx_domain::corporate_identity::{
     BrandAssetKind, ResolvedCorporateIdentity, validate_brand_asset_bytes,
 };
@@ -38,7 +42,11 @@ use erpx_web_session::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::{fmt, io, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt, io,
+    sync::Arc,
+};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
@@ -50,6 +58,7 @@ pub(crate) struct BffState {
     auth_http_origin: Arc<str>,
     grpc_origin: Arc<str>,
     trusted_public_origins: Arc<[Arc<str>]>,
+    platform_origin: Arc<str>,
     auth_http: reqwest::Client,
     refresh_lock: Arc<Mutex<()>>,
     production_profile: bool,
@@ -61,6 +70,7 @@ impl BffState {
         auth_http_origin: String,
         grpc_origin: String,
         trusted_public_origins: String,
+        platform_origin: String,
         production_profile: bool,
     ) -> Result<Self, io::Error> {
         let auth_http_origin = auth_http_origin.trim_end_matches('/');
@@ -82,6 +92,7 @@ impl BffState {
             auth_http_origin: Arc::from(auth_http_origin),
             grpc_origin: Arc::from(grpc_origin),
             trusted_public_origins,
+            platform_origin: Arc::from(platform_origin.trim_end_matches('/')),
             auth_http: reqwest::Client::builder()
                 .redirect(reqwest::redirect::Policy::none())
                 .build()
@@ -89,6 +100,14 @@ impl BffState {
             refresh_lock: Arc::new(Mutex::new(())),
             production_profile,
         })
+    }
+
+    pub(crate) fn grpc_origin(&self) -> &str {
+        &self.grpc_origin
+    }
+
+    pub(crate) fn platform_origin(&self) -> &str {
+        &self.platform_origin
     }
 }
 
@@ -330,11 +349,11 @@ fn apply_web_security_headers(response: &mut Response, https: bool) {
 }
 
 async fn authenticated_document_route_status(
-    _state: &BffState,
+    state: &BffState,
     context: &BffSessionContext,
     path: &str,
 ) -> StatusCode {
-    if crate::navigation_authorizes_console_path(path, &[]) {
+    if path.starts_with("/auth/") && crate::navigation_authorizes_console_path(path, &[]) {
         return StatusCode::OK;
     }
     let Some(credential) = context.credential.as_ref() else {
@@ -352,7 +371,8 @@ async fn authenticated_document_route_status(
         .development_context_token
         .as_ref()
         .map(|token| token.expose().to_owned());
-    match crate::fetch_navigation_manifest(
+    match crate::bff_navigation::fetch_navigation_manifest(
+        &state.grpc_origin,
         credential.access_token.expose().to_owned(),
         credential.principal_ref.clone(),
         credential.session_id.to_string(),
@@ -393,11 +413,25 @@ fn console_document_route_status(request: &Request) -> Option<StatusCode> {
 }
 
 fn is_console_page_request(request: &Request) -> bool {
+    let path = request.uri().path();
     (request.method() == Method::GET || request.method() == Method::HEAD)
-        && (request.uri().path() == "/"
-            || request.uri().path() == crate::LOGIN_PATH
-            || crate::is_legacy_login_path(request.uri().path())
-            || crate::validated_login_return_path(request.uri().path()).is_some())
+        && !path.starts_with("/public/")
+        && (path == "/"
+            || path == crate::LOGIN_PATH
+            || crate::is_legacy_login_path(path)
+            || crate::validated_login_return_path(path).is_some())
+}
+
+fn add_account_requested(request: &Request) -> bool {
+    request.uri().query().is_some_and(|query| {
+        url::form_urlencoded::parse(query.as_bytes())
+            .any(|(key, value)| key == "add_account" && value == "1")
+    })
+}
+
+fn role_selection_location(return_to: &str) -> String {
+    let encoded: String = url::form_urlencoded::byte_serialize(return_to.as_bytes()).collect();
+    format!("/auth/accounts?return_to={encoded}")
 }
 
 fn console_page_redirect(request: &Request, context: &BffSessionContext) -> Option<String> {
@@ -411,7 +445,7 @@ fn console_page_redirect(request: &Request, context: &BffSessionContext) -> Opti
     if path == "/" {
         return Some(
             if context.snapshot.authenticated && context.snapshot.role_selection_required {
-                "/auth/accounts".to_owned()
+                role_selection_location(crate::authenticated_landing_path())
             } else if context.snapshot.authenticated {
                 crate::authenticated_landing_path().to_owned()
             } else {
@@ -423,8 +457,16 @@ fn console_page_redirect(request: &Request, context: &BffSessionContext) -> Opti
         return Some(crate::LOGIN_PATH.to_owned());
     }
     if path == crate::LOGIN_PATH {
+        if context.snapshot.authenticated && add_account_requested(request) {
+            return None;
+        }
         if context.snapshot.authenticated && context.snapshot.role_selection_required {
-            return Some("/auth/accounts".to_owned());
+            let return_to = request
+                .uri()
+                .path_and_query()
+                .and_then(|value| crate::login_return_path_from_url(value.as_str()))
+                .unwrap_or_else(|| crate::authenticated_landing_path().to_owned());
+            return Some(role_selection_location(&return_to));
         }
         if context.snapshot.authenticated {
             return Some(
@@ -439,7 +481,7 @@ fn console_page_redirect(request: &Request, context: &BffSessionContext) -> Opti
     }
     if context.snapshot.authenticated {
         if context.snapshot.role_selection_required && !path.starts_with("/auth/") {
-            return Some("/auth/accounts".to_owned());
+            return Some(role_selection_location(path));
         }
         return None;
     }
@@ -630,12 +672,14 @@ pub(crate) async fn session_snapshot(Extension(context): Extension<BffSessionCon
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct NavigationRequest {
-    scope_key: String,
+    #[serde(default)]
+    scope_key: Option<String>,
     #[serde(default)]
     include_inaccessible: bool,
 }
 
 pub(crate) async fn navigation_manifest(
+    Extension(state): Extension<BffState>,
     Extension(context): Extension<BffSessionContext>,
     Json(request): Json<NavigationRequest>,
 ) -> Response {
@@ -646,22 +690,38 @@ pub(crate) async fn navigation_manifest(
         )
             .into_response();
     };
+    let Some(active_scope_key) = context
+        .snapshot
+        .active_role
+        .as_ref()
+        .and_then(|role| role.scope_key.clone())
+    else {
+        return (StatusCode::FORBIDDEN, "active role scope required").into_response();
+    };
     if !context.snapshot.authenticated
-        || request.scope_key.is_empty()
-        || request.scope_key.len() > 2_048
-        || request.scope_key.chars().any(char::is_control)
+        || active_scope_key.is_empty()
+        || active_scope_key.len() > 2_048
+        || active_scope_key.chars().any(char::is_control)
     {
         return (StatusCode::BAD_REQUEST, "navigation request invalid").into_response();
+    }
+    if request
+        .scope_key
+        .as_ref()
+        .is_some_and(|requested_scope| requested_scope != &active_scope_key)
+    {
+        return (StatusCode::FORBIDDEN, "navigation scope is session-owned").into_response();
     }
     let development_context_token = credential
         .development_context_token
         .as_ref()
         .map(|token| token.expose().to_owned());
-    let groups = match crate::fetch_navigation_manifest(
+    let groups = match crate::bff_navigation::fetch_navigation_manifest(
+        &state.grpc_origin,
         credential.access_token.expose().to_owned(),
         credential.principal_ref.clone(),
         credential.session_id.to_string(),
-        request.scope_key,
+        active_scope_key,
         development_context_token,
         request.include_inaccessible,
     )
@@ -753,7 +813,8 @@ pub(crate) async fn dashboard_read_model(
         .development_context_token
         .as_ref()
         .map(|token| token.expose().to_owned());
-    let groups = match crate::fetch_navigation_manifest(
+    let groups = match crate::bff_navigation::fetch_navigation_manifest(
+        &state.grpc_origin,
         credential.access_token.expose().to_owned(),
         credential.principal_ref.clone(),
         credential.session_id.to_string(),
@@ -1183,6 +1244,8 @@ pub(crate) struct PasswordLoginRequest {
     principal_ref: String,
     password: String,
     device_label: String,
+    #[serde(default)]
+    return_to: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1276,8 +1339,12 @@ pub(crate) async fn password_login_form(
     headers: HeaderMap,
     Form(request): Form<PasswordLoginRequest>,
 ) -> Response {
+    let return_to = request
+        .return_to
+        .as_deref()
+        .and_then(crate::validated_login_return_path);
     let response = exchange_password_login(&state, context, &headers, request, true).await;
-    password_form_response(response, &headers)
+    password_form_response(response, return_to.as_deref())
 }
 
 async fn exchange_password_login(
@@ -1326,21 +1393,9 @@ async fn exchange_password_login(
     exchange_and_install(state, context, headers, path, body).await
 }
 
-fn password_form_response(login_response: Response, headers: &HeaderMap) -> Response {
-    let return_to = headers
-        .get(header::REFERER)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| reqwest::Url::parse(value).ok())
-        .and_then(|url| {
-            let mut path_and_query = url.path().to_owned();
-            if let Some(query) = url.query() {
-                path_and_query.push('?');
-                path_and_query.push_str(query);
-            }
-            crate::login_return_path_from_url(&path_and_query)
-        });
+fn password_form_response(login_response: Response, return_to: Option<&str>) -> Response {
     let location = return_to
-        .map(|path| crate::login_redirect_location(&path))
+        .map(crate::login_redirect_location)
         .unwrap_or_else(|| crate::LOGIN_PATH.to_owned());
     if !login_response.status().is_success() {
         let error = match login_response.status() {
@@ -2235,6 +2290,175 @@ pub(crate) async fn public_marketing_proxy(
     relay_public_response(upstream, 64 * 1024).await
 }
 
+#[derive(Debug, Deserialize)]
+struct PublicMarketingSubmissionResponse {
+    accepted: bool,
+    submission_id: Uuid,
+    replayed: bool,
+    correlation_id: Uuid,
+}
+
+#[derive(Debug, Deserialize)]
+struct PublicMarketingPreviewVariant {
+    title: String,
+    body: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct PublicMarketingPreviewResponse {
+    version: u64,
+    variants: BTreeMap<String, PublicMarketingPreviewVariant>,
+}
+
+fn public_delivery_error(status: reqwest::StatusCode) -> DeliveryError {
+    let meta = DeliveryErrorMeta {
+        correlation_id: Uuid::new_v4(),
+        retry_after_ms: status.is_server_error().then_some(500),
+        retryable: status.is_server_error() || status == reqwest::StatusCode::TOO_MANY_REQUESTS,
+    };
+    match status {
+        reqwest::StatusCode::UNAUTHORIZED => DeliveryError::Unauthenticated(meta),
+        reqwest::StatusCode::FORBIDDEN => DeliveryError::Forbidden(meta),
+        reqwest::StatusCode::NOT_FOUND => DeliveryError::NotFound(meta),
+        reqwest::StatusCode::CONFLICT => DeliveryError::Conflict(meta),
+        reqwest::StatusCode::TOO_MANY_REQUESTS => DeliveryError::RateLimited(meta),
+        status if status.is_client_error() => DeliveryError::Validation(meta),
+        status if status.is_server_error() => DeliveryError::Unavailable(meta),
+        _ => DeliveryError::Internal(meta),
+    }
+}
+
+fn forward_public_marketing_headers(
+    mut upstream: reqwest::RequestBuilder,
+    headers: &HeaderMap,
+) -> reqwest::RequestBuilder {
+    for name in [
+        header::HOST.as_str(),
+        header::USER_AGENT.as_str(),
+        header::ACCEPT_LANGUAGE.as_str(),
+        "x-real-ip",
+        "x-forwarded-for",
+        "x-erpx-marketing-challenge",
+    ] {
+        if let Some(value) = headers.get(name).and_then(|value| value.to_str().ok())
+            && value.len() <= 4_096
+        {
+            upstream = upstream.header(name, value);
+        }
+    }
+    upstream
+}
+
+pub(crate) async fn submit_public_marketing_request(
+    state: &BffState,
+    headers: &HeaderMap,
+    request: &PublicMarketingFormRequest,
+) -> Result<CommandReceipt, DeliveryError> {
+    let body = serde_json::json!({
+        "submission_id": Uuid::new_v5(
+            &Uuid::NAMESPACE_URL,
+            format!("erpx:public-marketing:{}:{}", request.form_id, request.idempotency_key)
+                .as_bytes(),
+        ),
+        "values": {
+            "name": request.name,
+            "email": request.email,
+            "message": request.message,
+            "consent": request.consent.to_string(),
+            "locale": request.locale,
+            "purpose": request.purpose,
+        }
+    });
+    let upstream = state
+        .auth_http
+        .post(format!(
+            "{}/public/marketing/forms/{}/submissions",
+            state.auth_http_origin, request.form_id
+        ))
+        .header(header::ACCEPT.as_str(), "application/json")
+        .header(header::CONTENT_TYPE.as_str(), "application/json")
+        .header("idempotency-key", &request.idempotency_key)
+        .json(&body);
+    let response = forward_public_marketing_headers(upstream, headers)
+        .send()
+        .await
+        .map_err(|_| DeliveryError::unavailable(Some(500)))?;
+    if !response.status().is_success() {
+        return Err(public_delivery_error(response.status()));
+    }
+    let receipt = response
+        .json::<PublicMarketingSubmissionResponse>()
+        .await
+        .map_err(|_| DeliveryError::unavailable(Some(500)))?;
+    if !receipt.accepted || receipt.submission_id.is_nil() {
+        return Err(DeliveryError::unavailable(Some(500)));
+    }
+    let _replayed = receipt.replayed;
+    Ok(CommandReceipt {
+        command_id: receipt.submission_id,
+        aggregate_id: request.form_id,
+        aggregate_version: 1,
+        projection_cursor: None,
+        invalidation_tags: BTreeSet::from([format!(
+            "marketing:form:{}:submissions",
+            request.form_id
+        )]),
+        audit_reference: receipt.correlation_id.hyphenated().to_string(),
+    })
+}
+
+pub(crate) async fn load_public_marketing_preview(
+    state: &BffState,
+    headers: &HeaderMap,
+    request: &PublicMarketingPreviewRequest,
+) -> Result<RouteData, DeliveryError> {
+    let upstream = state
+        .auth_http
+        .get(format!(
+            "{}/public/marketing/previews/{}",
+            state.auth_http_origin, request.preview_id
+        ))
+        .header(header::ACCEPT.as_str(), "application/json")
+        .header("x-erpx-preview-token", &request.access_code);
+    let response = forward_public_marketing_headers(upstream, headers)
+        .send()
+        .await
+        .map_err(|_| DeliveryError::unavailable(Some(500)))?;
+    if !response.status().is_success() {
+        return Err(public_delivery_error(response.status()));
+    }
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|_| DeliveryError::unavailable(Some(500)))?;
+    if bytes.is_empty() || bytes.len() > 64 * 1024 {
+        return Err(DeliveryError::unavailable(Some(500)));
+    }
+    let preview = serde_json::from_slice::<PublicMarketingPreviewResponse>(&bytes)
+        .map_err(|_| DeliveryError::unavailable(Some(500)))?;
+    let locale = if request.locale == "th" { "th" } else { "en" };
+    let variant = preview
+        .variants
+        .get(locale)
+        .ok_or_else(|| DeliveryError::unavailable(Some(500)))?;
+    if variant.title.trim().is_empty() || variant.body.trim().is_empty() {
+        return Err(DeliveryError::unavailable(Some(500)));
+    }
+    let validator = format!("\"{:x}\"", Sha256::digest(&bytes));
+    Ok(RouteData {
+        canonical_path: format!("/public/marketing/preview/{}", request.preview_id),
+        title: variant.title.clone(),
+        description: variant.body.clone(),
+        page: Page {
+            items: Vec::new(),
+            next_cursor: None,
+        },
+        freshness_tag: format!("published-v{}", preview.version),
+        invalidation_tags: BTreeSet::from([format!("marketing:preview:{}", request.preview_id)]),
+        public_validator: Some(validator),
+    })
+}
+
 fn public_marketing_route_allowed(method: &Method, path: &str) -> bool {
     let segments = path.split('/').collect::<Vec<_>>();
     match segments.as_slice() {
@@ -2893,6 +3117,16 @@ mod tests {
             Some("/auth/sign-in?return_to=%2Ffinance".to_owned())
         );
 
+        let public_form = Request::builder()
+            .uri("/public/marketing/form/8f9f3a8f-24f0-4c9a-a7e8-6bd0d9d4e4d2")
+            .body(Body::empty())
+            .unwrap();
+        assert!(!is_console_page_request(&public_form));
+        assert_eq!(
+            console_page_redirect(&public_form, &BffSessionContext::signed_out()),
+            None
+        );
+
         let legacy = Request::builder()
             .uri("/login")
             .body(Body::empty())
@@ -3005,19 +3239,26 @@ mod tests {
         context.snapshot.role_selection_required = true;
         assert_eq!(
             console_page_redirect(&request, &context),
-            Some("/auth/accounts".to_owned())
+            Some("/auth/accounts?return_to=%2Ffinance".to_owned())
         );
+
+        let add_account = Request::builder()
+            .uri("/auth/sign-in?add_account=1&return_to=/finance")
+            .body(Body::empty())
+            .unwrap();
+        assert!(add_account_requested(&add_account));
+        assert_eq!(console_page_redirect(&add_account, &context), None);
 
         let root = Request::builder().uri("/").body(Body::empty()).unwrap();
         assert_eq!(
             console_page_redirect(&root, &context),
-            Some("/auth/accounts".to_owned())
+            Some("/auth/accounts?return_to=%2Fwork".to_owned())
         );
 
         let protected = Request::builder().uri("/work").body(Body::empty()).unwrap();
         assert_eq!(
             console_page_redirect(&protected, &context),
-            Some("/auth/accounts".to_owned())
+            Some("/auth/accounts?return_to=%2Fwork".to_owned())
         );
 
         for path in ["/api/accounts", "/api/roles"] {
@@ -3027,19 +3268,13 @@ mod tests {
     }
 
     #[test]
-    fn native_password_form_redirect_preserves_cookie_and_safe_return_path() {
+    fn native_password_form_redirect_preserves_cookie_and_validated_return_path() {
         let mut login_response = StatusCode::OK.into_response();
         append_cookie(
             &mut login_response,
             "erpx_web_session=opaque; Path=/; HttpOnly; SameSite=Strict",
         );
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            header::REFERER,
-            HeaderValue::from_static("https://console.example/auth/sign-in?return_to=/finance"),
-        );
-
-        let response = password_form_response(login_response, &headers);
+        let response = password_form_response(login_response, Some("/finance"));
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         assert_eq!(
@@ -3051,23 +3286,14 @@ mod tests {
             "erpx_web_session=opaque; Path=/; HttpOnly; SameSite=Strict"
         );
 
-        headers.insert(
-            header::REFERER,
-            HeaderValue::from_static(
-                "https://console.example/auth/sign-in?return_to=//attacker.example",
-            ),
-        );
-        let response = password_form_response(StatusCode::OK.into_response(), &headers);
+        let response = password_form_response(StatusCode::OK.into_response(), None);
         assert_eq!(
             response.headers().get(header::LOCATION).unwrap(),
             "/auth/sign-in"
         );
 
-        headers.insert(
-            header::REFERER,
-            HeaderValue::from_static("https://console.example/auth/sign-in?return_to=/finance"),
-        );
-        let response = password_form_response(StatusCode::BAD_REQUEST.into_response(), &headers);
+        let response =
+            password_form_response(StatusCode::BAD_REQUEST.into_response(), Some("/finance"));
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         assert_eq!(
             response.headers().get(header::LOCATION).unwrap(),
@@ -3075,8 +3301,7 @@ mod tests {
         );
         assert!(response.headers().get(header::SET_COOKIE).is_none());
 
-        let response =
-            password_form_response(StatusCode::UNAUTHORIZED.into_response(), &HeaderMap::new());
+        let response = password_form_response(StatusCode::UNAUTHORIZED.into_response(), None);
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         assert_eq!(
             response.headers().get(header::LOCATION).unwrap(),

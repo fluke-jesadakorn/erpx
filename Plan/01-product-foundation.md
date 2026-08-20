@@ -42,7 +42,7 @@ its tenant and organizational scope; a branch-scoped actor cannot act on a
 sibling branch; parent-scope views include child data only through an
 authorized projection or audited gateway.
 
-**Sources.** [Tenant isolation](../adr/ADR-001-tenant-isolation.md),
+**Sources.** [Tenant isolation](../adr/ADR-001-holding-isolation.md),
 [branch authority](../adr/ADR-013-holding-branch-database-and-directory-authority.md),
 [kernel scope types](../crates/kernel/src/lib.rs).
 
@@ -96,7 +96,7 @@ through the outbound agent; changing deployment mode requires explicit
 preflight, approval, recovery validation, and observed-state verification.
 
 **Sources.** [Customer data-plane decision](../adr/ADR-011-customer-data-plane-agent.md),
-[data-plane contracts](../crates/proto/proto/erpx/platform_administration/v2/service.proto).
+[data-plane contracts](../crates/proto/proto/erpx/platform_administration/service.proto).
 
 ### REQ-FND-006 — Unambiguous cutover authority
 

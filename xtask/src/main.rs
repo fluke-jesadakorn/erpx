@@ -2382,8 +2382,15 @@ async fn dev(root: &Path, config: &DevConfig, options: DevOptions) -> TaskResult
         || "http://localhost:3004".to_owned(),
         |hostname| format!("https://{hostname}"),
     );
-    let trusted_web_origins =
-        format!("{advertised_web_origin},http://127.0.0.1:3004,http://localhost:3004");
+    let default_platform_origin = tailnet_fqdn.as_ref().map_or_else(
+        || "http://platform.localhost:3004".to_owned(),
+        |hostname| format!("https://{hostname}"),
+    );
+    let platform_origin =
+        configured_value("ERPX_PLATFORM_ORIGIN").unwrap_or(default_platform_origin);
+    let trusted_web_origins = format!(
+        "{advertised_web_origin},{platform_origin},http://127.0.0.1:3004,http://localhost:3004"
+    );
     let auth_http_origin = configured_value("ERPX_CONSOLE_AUTH_HTTP_ORIGIN")
         .unwrap_or_else(|| "http://localhost:50052".to_owned());
     let grpc_endpoint = configured_value("ERPX_CONSOLE_GRPC_ENDPOINT")
@@ -2423,6 +2430,8 @@ async fn dev(root: &Path, config: &DevConfig, options: DevOptions) -> TaskResult
     ]);
     let mut web_environment = vec![
         ("ERPX_DEV_WEB_BIND_ADDR", "127.0.0.1".to_owned()),
+        ("ERPX_PUBLIC_ORIGIN", advertised_web_origin.clone()),
+        ("ERPX_PLATFORM_ORIGIN", platform_origin),
         ("ERPX_CONSOLE_API_BASE", auth_http_origin.clone()),
         ("ERPX_CONSOLE_AUTH_HTTP_ORIGIN", auth_http_origin),
         ("ERPX_CONSOLE_GRPC_ENDPOINT", grpc_endpoint),
@@ -2437,6 +2446,9 @@ async fn dev(root: &Path, config: &DevConfig, options: DevOptions) -> TaskResult
             )),
         ),
     ];
+    if let Some(tailnet_fqdn) = tailnet_fqdn {
+        web_environment.push((DEVELOPMENT_TAILSCALE_FQDN_ENV, tailnet_fqdn));
+    }
     let control_write_database_url = common
         .iter()
         .find_map(|(key, value)| {
@@ -3910,15 +3922,38 @@ where
 
 fn status(root: &Path) -> TaskResult {
     let runtime = runtime_dir(root);
-    println!(
-        "public-origin: {}",
-        env::var("ERPX_PUBLIC_ORIGIN").unwrap_or_else(|_| "http://127.0.0.1:3004".into())
-    );
-    println!(
-        "platform-origin: {}",
-        env::var("ERPX_PLATFORM_ORIGIN")
-            .unwrap_or_else(|_| "https://console.tailb48369.ts.net".into())
-    );
+    let local_values = read_dotenv(&root.join(".env.local"))?;
+    let tailnet_origin =
+        configured_development_tailnet_fqdn(root)?.map(|hostname| format!("https://{hostname}"));
+    let public_origin = env::var("ERPX_PUBLIC_ORIGIN")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| {
+            local_values
+                .get("ERPX_PUBLIC_ORIGIN")
+                .filter(|value| !value.trim().is_empty())
+                .cloned()
+        })
+        .or_else(|| tailnet_origin.clone())
+        .unwrap_or_else(|| "http://127.0.0.1:3004".into());
+    println!("public-origin: {public_origin}");
+    let default_platform_origin =
+        if env::var("ERPX_WEB_PRODUCTION_PROFILE").as_deref() == Ok("enabled") {
+            "https://console.tailb48369.ts.net".to_owned()
+        } else {
+            tailnet_origin.unwrap_or_else(|| "http://platform.localhost:3004".to_owned())
+        };
+    let platform_origin = env::var("ERPX_PLATFORM_ORIGIN")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| {
+            local_values
+                .get("ERPX_PLATFORM_ORIGIN")
+                .filter(|value| !value.trim().is_empty())
+                .cloned()
+        })
+        .unwrap_or(default_platform_origin);
+    println!("platform-origin: {platform_origin}");
     for name in ["server", "ucs-lab"]
         .into_iter()
         .chain(DEDICATED_WORKERS)
@@ -4001,10 +4036,41 @@ struct WebProductionEvidence {
     schema_version: u32,
     release_revision: String,
     captured_at: String,
+    coverage: WebProductionCoverageEvidence,
+    providers: Vec<WebProductionProviderEvidence>,
     browser: WebProductionBrowserEvidence,
     security: WebProductionSecurityEvidence,
     recovery: WebProductionRecoveryEvidence,
     operations: WebProductionOperationsEvidence,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WebProductionCoverageEvidence {
+    baseline_version: String,
+    requirement_outcomes: BTreeMap<String, String>,
+    scenario_outcomes: BTreeMap<String, String>,
+    workspaces: Vec<String>,
+    administration_surfaces: Vec<String>,
+    external_surfaces: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WebProductionProviderEvidence {
+    category: String,
+    provider_key: String,
+    adapter_revision: String,
+    endpoint: String,
+    callback_origin: String,
+    credential_reference: String,
+    tls_trust_reference: String,
+    scopes: Vec<String>,
+    rate_limit_per_minute: u32,
+    data_residency: String,
+    data_classification: String,
+    certification_evidence: String,
+    live_tests: BTreeMap<String, bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -4089,6 +4155,241 @@ const WEB_PRODUCTION_FEATURES: [&str; 30] = [
     "support",
     "talent",
 ];
+
+const WEB_PRODUCTION_WORKSPACES: [&str; 21] = [
+    "operations",
+    "finance",
+    "sales",
+    "procurement",
+    "inventory",
+    "asset",
+    "maintenance",
+    "quality",
+    "marketing",
+    "people",
+    "pos",
+    "legal",
+    "manufacturing",
+    "planning",
+    "project",
+    "commerce",
+    "talent",
+    "learning",
+    "benefits",
+    "field-service",
+    "ai",
+];
+
+const WEB_PRODUCTION_ADMINISTRATION_SURFACES: [&str; 7] = [
+    "platform-administration",
+    "holding-administration",
+    "identity-security",
+    "work",
+    "processes",
+    "insights",
+    "modules",
+];
+
+const WEB_PRODUCTION_EXTERNAL_SURFACES: [&str; 6] = [
+    "commerce",
+    "candidate",
+    "signatory",
+    "shared-public",
+    "marketing-form",
+    "marketing-preview",
+];
+
+const WEB_PRODUCTION_PROVIDER_CATEGORIES: [&str; 9] = [
+    "payment",
+    "directory",
+    "marketing-delivery",
+    "banking",
+    "payroll",
+    "benefits",
+    "learning",
+    "e-signature",
+    "ai",
+];
+
+const WEB_PRODUCTION_PROVIDER_LIVE_TESTS: [&str; 6] = [
+    "create",
+    "read",
+    "callback",
+    "retry",
+    "reconciliation",
+    "revocation",
+];
+
+fn web_production_requirement_ids(root: &Path) -> TaskResult<BTreeSet<String>> {
+    let matrix = fs::read_to_string(root.join("Plan/acceptance/traceability-matrix.md"))?;
+    let mut requirements = BTreeSet::new();
+    for line in matrix.lines().filter(|line| line.starts_with("| `REQ-")) {
+        let cell = line
+            .split('|')
+            .nth(1)
+            .ok_or("requirement traceability row is malformed")?;
+        for token in cell
+            .split(|character: char| {
+                character == '`' || character == ',' || character.is_whitespace()
+            })
+            .filter(|token| token.starts_with("REQ-"))
+        {
+            let token = token.trim();
+            if let Some((start, end)) = token.split_once("..") {
+                let (prefix, start) = start
+                    .rsplit_once('-')
+                    .ok_or("requirement range start is malformed")?;
+                let start = start.parse::<u16>()?;
+                let end = end.parse::<u16>()?;
+                if end < start {
+                    return Err("requirement range is reversed".into());
+                }
+                requirements.extend((start..=end).map(|number| format!("{prefix}-{number:03}")));
+            } else {
+                requirements.insert(token.to_owned());
+            }
+        }
+    }
+    if requirements.len() != 644 {
+        return Err(format!(
+            "production requirement baseline 2.0.0 must resolve exactly 644 IDs, found {}",
+            requirements.len()
+        )
+        .into());
+    }
+    Ok(requirements)
+}
+
+fn validate_web_production_coverage(
+    root: &Path,
+    evidence: &WebProductionCoverageEvidence,
+) -> TaskResult {
+    if evidence.baseline_version != "2.0.0" {
+        return Err("Web production evidence must target requirements baseline 2.0.0".into());
+    }
+    let expected_requirements = web_production_requirement_ids(root)?;
+    let actual_requirements = evidence
+        .requirement_outcomes
+        .keys()
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    if actual_requirements != expected_requirements
+        || evidence
+            .requirement_outcomes
+            .values()
+            .any(|outcome| outcome != "pass")
+    {
+        return Err("Web production evidence must pass exactly all 644 requirement IDs".into());
+    }
+    let expected_scenarios = (1..=68)
+        .map(|number| format!("E2E-{number:02}"))
+        .collect::<BTreeSet<_>>();
+    let actual_scenarios = evidence
+        .scenario_outcomes
+        .keys()
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    if actual_scenarios != expected_scenarios
+        || evidence
+            .scenario_outcomes
+            .values()
+            .any(|outcome| outcome != "pass")
+    {
+        return Err("Web production evidence must pass exactly all 68 E2E scenarios".into());
+    }
+    for (label, actual, expected) in [
+        (
+            "workspace",
+            &evidence.workspaces,
+            WEB_PRODUCTION_WORKSPACES.as_slice(),
+        ),
+        (
+            "administration surface",
+            &evidence.administration_surfaces,
+            WEB_PRODUCTION_ADMINISTRATION_SURFACES.as_slice(),
+        ),
+        (
+            "external surface",
+            &evidence.external_surfaces,
+            WEB_PRODUCTION_EXTERNAL_SURFACES.as_slice(),
+        ),
+    ] {
+        let actual = actual.iter().map(String::as_str).collect::<BTreeSet<_>>();
+        let expected = expected.iter().copied().collect::<BTreeSet<_>>();
+        if actual != expected {
+            return Err(format!("Web production evidence has incomplete {label} coverage").into());
+        }
+    }
+    Ok(())
+}
+
+fn validate_web_production_providers(providers: &[WebProductionProviderEvidence]) -> TaskResult {
+    let categories = providers
+        .iter()
+        .map(|provider| provider.category.as_str())
+        .collect::<BTreeSet<_>>();
+    if providers.len() != WEB_PRODUCTION_PROVIDER_CATEGORIES.len()
+        || categories != WEB_PRODUCTION_PROVIDER_CATEGORIES.into_iter().collect()
+    {
+        return Err(
+            "Production launch requires exactly one provider in each of the nine categories".into(),
+        );
+    }
+    for provider in providers {
+        let provider_key = provider.provider_key.to_ascii_lowercase();
+        if provider.provider_key.is_empty()
+            || provider.provider_key.len() > 128
+            || ["replace", "fixture", "simulator", "demo", "local"]
+                .into_iter()
+                .any(|marker| provider_key.contains(marker))
+            || provider.adapter_revision.is_empty()
+            || provider.adapter_revision.len() > 128
+            || !provider.credential_reference.starts_with("secret-ref:")
+            || provider.tls_trust_reference.trim().is_empty()
+            || provider.scopes.is_empty()
+            || provider.scopes.len() > 64
+            || provider.rate_limit_per_minute == 0
+            || provider.data_residency.trim().is_empty()
+            || provider.data_classification.trim().is_empty()
+            || provider.certification_evidence.trim().is_empty()
+        {
+            return Err(format!(
+                "Production provider manifest is incomplete for {}",
+                provider.category
+            )
+            .into());
+        }
+        for value in [&provider.endpoint, &provider.callback_origin] {
+            let url = reqwest::Url::parse(value)
+                .map_err(|_| "provider manifest contains an invalid HTTPS URL")?;
+            if url.scheme() != "https"
+                || url.host_str().is_none()
+                || !url.username().is_empty()
+                || url.password().is_some()
+                || url.fragment().is_some()
+            {
+                return Err(
+                    "provider manifest endpoints must be credential-free HTTPS URLs".into(),
+                );
+            }
+        }
+        let tests = provider
+            .live_tests
+            .keys()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>();
+        if tests != WEB_PRODUCTION_PROVIDER_LIVE_TESTS.into_iter().collect()
+            || provider.live_tests.values().any(|passed| !passed)
+        {
+            return Err(format!(
+                "Live provider certification is incomplete for {}",
+                provider.category
+            )
+            .into());
+        }
+    }
+    Ok(())
+}
 
 fn require_secure_production_url(name: &str) -> TaskResult<reqwest::Url> {
     let raw = env::var(name).map_err(|_| format!("{name} is required"))?;
@@ -4213,7 +4514,7 @@ fn load_web_production_evidence(
         );
     }
     let evidence: WebProductionEvidence = serde_json::from_slice(&fs::read(&evidence_path)?)?;
-    if evidence.schema_version != 3 || evidence.release_revision != expected_revision {
+    if evidence.schema_version != 4 || evidence.release_revision != expected_revision {
         return Err("Web production evidence schema or release revision does not match".into());
     }
     let captured_at = chrono::DateTime::parse_from_rfc3339(&evidence.captured_at)
@@ -4223,6 +4524,8 @@ fn load_web_production_evidence(
     if age < chrono::Duration::minutes(-5) || age > chrono::Duration::days(7) {
         return Err("Web production evidence must be current within seven days".into());
     }
+    validate_web_production_coverage(root, &evidence.coverage)?;
+    validate_web_production_providers(&evidence.providers)?;
     let features = evidence
         .browser
         .features
@@ -4230,7 +4533,9 @@ fn load_web_production_evidence(
         .map(String::as_str)
         .collect::<BTreeSet<_>>();
     if features != WEB_PRODUCTION_FEATURES.into_iter().collect() {
-        return Err("Browser evidence must cover exactly the 30 registered features".into());
+        return Err(
+            "Browser evidence must cover exactly the 30 registered bounded-context features".into(),
+        );
     }
     let locales = evidence
         .browser
@@ -6600,7 +6905,7 @@ mod tests {
             "../../ops/web-production-evidence.example.json"
         ))
         .expect("versioned production evidence example");
-        assert_eq!(evidence.schema_version, 3);
+        assert_eq!(evidence.schema_version, 4);
         assert!(evidence.browser.passed);
         assert_eq!(
             evidence
@@ -6629,6 +6934,17 @@ mod tests {
                 .feature_journeys
                 .iter()
                 .all(|journey| journey.passed && journey.unexplained_console_errors == 0)
+        );
+        assert_eq!(evidence.coverage.requirement_outcomes.len(), 644);
+        assert_eq!(evidence.coverage.scenario_outcomes.len(), 68);
+        assert_eq!(evidence.coverage.workspaces.len(), 21);
+        assert_eq!(evidence.providers.len(), 9);
+        assert!(
+            evidence
+                .coverage
+                .requirement_outcomes
+                .values()
+                .all(|outcome| outcome == "not_executed")
         );
     }
 

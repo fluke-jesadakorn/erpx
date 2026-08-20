@@ -13121,21 +13121,37 @@ async fn handle_public_marketing_http(
             "{\"error\":\"method_not_allowed\"}".into(),
         ));
     }
-    let holding_id = match headers
-        .get("x-erpx-holding-id")
-        .map(String::as_str)
-        .filter(|value| !value.trim().is_empty())
-    {
-        Some(value) => value,
-        None => {
+    let hostname = match public_marketing_hostname(headers) {
+        Ok(hostname) => hostname,
+        Err(error) => {
             return Some((
                 "400 Bad Request",
                 "application/json",
-                "{\"error\":\"holding_id_required\"}".into(),
+                serde_json::json!({"error": error}).to_string(),
             ));
         }
     };
-    let registration = match registry.get(holding_id).await {
+    let holding_id = match SqlxCorporateIdentityStore::new(Arc::new(control.clone()))
+        .holding_id_for_verified_hostname(hostname)
+        .await
+    {
+        Ok(Some(holding_id)) => holding_id.hyphenated().to_string(),
+        Ok(None) => {
+            return Some((
+                "404 Not Found",
+                "application/json",
+                "{\"error\":\"marketing_domain_not_bound\"}".into(),
+            ));
+        }
+        Err(_) => {
+            return Some((
+                "503 Service Unavailable",
+                "application/json",
+                "{\"error\":\"marketing_service_unavailable\"}".into(),
+            ));
+        }
+    };
+    let registration = match registry.get(&holding_id).await {
         Ok(Some(registration)) if registration.state == "active" => registration,
         Ok(_) => {
             return Some((
@@ -13159,16 +13175,6 @@ async fn handle_public_marketing_http(
             "{\"error\":\"holding_routing_unavailable\"}".into(),
         ));
     };
-    let hostname = match public_marketing_hostname(headers) {
-        Ok(hostname) => hostname,
-        Err(error) => {
-            return Some((
-                "400 Bad Request",
-                "application/json",
-                serde_json::json!({"error": error}).to_string(),
-            ));
-        }
-    };
     let resource_id = match Uuid::parse_str(identifier) {
         Ok(id) if !id.is_nil() => id,
         _ => {
@@ -13189,7 +13195,7 @@ async fn handle_public_marketing_http(
     } else {
         ("preview", PUBLIC_MARKETING_PREVIEW_REQUESTS_PER_MINUTE)
     };
-    let fingerprint = match marketing_abuse_fingerprint(headers, holding_id, hostname) {
+    let fingerprint = match marketing_abuse_fingerprint(headers, &holding_id, hostname) {
         Ok(fingerprint) => fingerprint,
         Err(_) => {
             return Some((
@@ -13199,7 +13205,7 @@ async fn handle_public_marketing_http(
             ));
         }
     };
-    let holding_binding_id = marketing_abuse_binding_id("holding", holding_id);
+    let holding_binding_id = marketing_abuse_binding_id("holding", &holding_id);
     let domain_binding_id = marketing_abuse_binding_id("hostname", &hostname.to_ascii_lowercase());
     let policy = match AnonymousMarketingAbusePolicy::new(
         holding_binding_id,
@@ -13258,7 +13264,7 @@ async fn handle_public_marketing_http(
     let abuse_allowed = control
         .consume_marketing_public_abuse_window(
             &MarketingPublicAbuseWindowRequest {
-                holding_id: holding_id.to_owned(),
+                holding_id: holding_id.clone(),
                 data_profile_key: registration.data_profile_key.clone(),
                 hostname: hostname.to_ascii_lowercase(),
                 resource_kind: resource_kind.to_owned(),
@@ -13298,7 +13304,7 @@ async fn handle_public_marketing_http(
     }
     let write = match router
         .route(
-            holding_id,
+            &holding_id,
             &registration.data_profile_key,
             RoutedDatabaseSide::Write,
         )
@@ -13315,7 +13321,7 @@ async fn handle_public_marketing_http(
     };
     let read = match router
         .route(
-            holding_id,
+            &holding_id,
             &registration.data_profile_key,
             RoutedDatabaseSide::Read,
         )

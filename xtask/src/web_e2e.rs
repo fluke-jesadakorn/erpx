@@ -18,6 +18,34 @@ type TaskResult<T = ()> = Result<T, Box<dyn Error + Send + Sync>>;
 type CdpSocket = WebSocket<MaybeTlsStream<std::net::TcpStream>>;
 
 const DEFAULT_BASE_URL: &str = "http://localhost:3004";
+const DEVELOPMENT_CONTROLLER_PRINCIPAL: &str = "local:dev-controller";
+const SIGN_IN_FORM_SELECTOR: &str = "[data-testid='sign-in-form']";
+const SIGN_IN_ERROR_SELECTOR: &str = "[data-testid='sign-in-error'][role='alert']";
+const ROLE_OPTION_SELECTOR: &str = "[data-testid='role-option'][data-selection-id][data-role-key='platform_holding_administrator']";
+const TOP_LEVEL_DATA_ROUTES: [&str; 3] = ["/work", "/processes", "/insights"];
+const WORKSPACE_ROUTES: [&str; 21] = [
+    "/operations",
+    "/finance",
+    "/sales",
+    "/procurement",
+    "/inventory",
+    "/asset",
+    "/maintenance",
+    "/quality",
+    "/marketing",
+    "/people",
+    "/pos",
+    "/legal",
+    "/manufacturing",
+    "/planning",
+    "/project",
+    "/commerce",
+    "/talent",
+    "/learning",
+    "/benefits",
+    "/field-service",
+    "/ai",
+];
 
 struct ChromeGuard {
     child: Child,
@@ -100,7 +128,9 @@ impl CdpClient {
             {
                 self.console_errors.push(value);
             }
-            Some("Network.loadingFailed") => self.network_failures.push(value),
+            Some("Network.loadingFailed") if !is_expected_navigation_cancellation(&value) => {
+                self.network_failures.push(value);
+            }
             Some("Network.responseReceived") => {
                 let url = value
                     .pointer("/params/response/url")
@@ -110,7 +140,7 @@ impl CdpClient {
                     .pointer("/params/response/status")
                     .and_then(Value::as_f64)
                     .unwrap_or_default();
-                if status >= 400.0 && is_hydration_asset_url(url) {
+                if status >= 400.0 && (url.starts_with("http://") || url.starts_with("https://")) {
                     self.network_http_errors.push(value);
                 }
             }
@@ -137,10 +167,21 @@ impl CdpClient {
     }
 
     fn navigate(&mut self, url: &str) -> TaskResult {
-        self.command("Page.navigate", json!({ "url": url }))?;
+        let previous = self.evaluate(
+            "({href: location.href, timeOrigin: performance.timeOrigin, ready: document.readyState})",
+        )?;
+        let result = self.command("Page.navigate", json!({ "url": url }))?;
+        if let Some(error) = result.get("errorText").and_then(Value::as_str) {
+            return Err(format!("browser navigation failed for {url}: {error}").into());
+        }
         let deadline = Instant::now() + Duration::from_secs(20);
         while Instant::now() < deadline {
-            if self.evaluate("document.readyState")?.as_str() == Some("complete") {
+            let state = self.evaluate(
+                "({href: location.href, timeOrigin: performance.timeOrigin, ready: document.readyState})",
+            )?;
+            let changed = state.get("href") != previous.get("href")
+                || state.get("timeOrigin") != previous.get("timeOrigin");
+            if changed && state.get("ready").and_then(Value::as_str) == Some("complete") {
                 return Ok(());
             }
             thread::sleep(Duration::from_millis(100));
@@ -160,11 +201,44 @@ impl CdpClient {
         fs::write(path, STANDARD.decode(encoded)?)?;
         Ok(())
     }
+
+    fn wait_for(&mut self, expression: &str, description: &str) -> TaskResult<Value> {
+        let deadline = Instant::now() + Duration::from_secs(20);
+        let mut last = Value::Null;
+        while Instant::now() < deadline {
+            last = self.evaluate(expression)?;
+            if last.as_bool() == Some(true) {
+                return Ok(last);
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        Err(format!("browser timed out waiting for {description}; last value: {last}").into())
+    }
+
+    fn wait_for_selector(&mut self, selector: &str) -> TaskResult {
+        let selector = serde_json::to_string(selector)?;
+        self.wait_for(
+            &format!("Boolean(document.querySelector({selector}))"),
+            &format!("selector {selector}"),
+        )?;
+        Ok(())
+    }
 }
 
-fn is_hydration_asset_url(url: &str) -> bool {
-    let path = url.split(['?', '#']).next().unwrap_or(url);
-    path.ends_with(".css") || path.ends_with(".js") || path.ends_with(".wasm")
+fn is_expected_navigation_cancellation(event: &Value) -> bool {
+    let canceled = event
+        .pointer("/params/canceled")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let error = event
+        .pointer("/params/errorText")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let resource_type = event
+        .pointer("/params/type")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    resource_type == "Document" && (canceled || error == "net::ERR_ABORTED")
 }
 
 fn chrome_binary() -> TaskResult<PathBuf> {
@@ -294,6 +368,43 @@ fn passkey_round_trip(client: &mut CdpClient) -> TaskResult {
     Ok(())
 }
 
+fn development_controller_password(root: &Path) -> TaskResult<String> {
+    let path = root.join(".runtime/erpx/secrets/dev-controller.password");
+    if !path.is_file() {
+        return Err(
+            "development controller credential is unavailable; run `cargo xtask dev-access init`"
+                .into(),
+        );
+    }
+    let password = fs::read_to_string(path)?;
+    if password.is_empty() || password.chars().any(char::is_control) {
+        return Err("development controller credential is empty or invalid".into());
+    }
+    Ok(password)
+}
+
+fn submit_password_form(client: &mut CdpClient, principal: &str, password: &str) -> TaskResult {
+    let form = serde_json::to_string(SIGN_IN_FORM_SELECTOR)?;
+    let principal = serde_json::to_string(principal)?;
+    let password = serde_json::to_string(password)?;
+    let submitted = client.evaluate(&format!(
+        r#"(() => {{
+          const form = document.querySelector({form});
+          const principal = form?.querySelector('[name=principal_ref]');
+          const password = form?.querySelector('[name=password]');
+          if (!form || !principal || !password) return false;
+          principal.value = {principal};
+          password.value = {password};
+          form.submit();
+          return true;
+        }})()"#
+    ))?;
+    if submitted.as_bool() != Some(true) {
+        return Err("sign-in form was unavailable for submission".into());
+    }
+    Ok(())
+}
+
 pub async fn run(root: &Path) -> TaskResult {
     let base_url = env::var("ERPX_WEB_E2E_BASE_URL").unwrap_or_else(|_| DEFAULT_BASE_URL.into());
     let parsed = reqwest::Url::parse(&base_url)?;
@@ -340,38 +451,76 @@ pub async fn run(root: &Path) -> TaskResult {
         json!({ "features": [{ "name": "prefers-color-scheme", "value": "light" }] }),
     )?;
     cdp.navigate(&base_url)?;
+    cdp.wait_for_selector(SIGN_IN_FORM_SELECTOR)?;
     passkey_round_trip(&mut cdp)?;
     let focused = cdp.evaluate(
-        "(() => { const e=document.querySelector('input,button,a[href]'); if(!e)return false; e.focus(); return document.activeElement===e; })()",
+        "(() => { const e=document.querySelector('[data-testid=sign-in-account]'); if(!e)return false; e.focus(); return document.activeElement===e; })()",
     )?;
     if focused.as_bool() != Some(true) {
         return Err("keyboard focus probe failed".into());
     }
-    let light_background = cdp.evaluate(
-        "getComputedStyle(document.querySelector('.sign-in-form-region')).backgroundColor",
+
+    let sign_in_url = format!("{base_url}/auth/sign-in?return_to=%2Fwork");
+    cdp.navigate(&sign_in_url)?;
+    cdp.wait_for_selector(SIGN_IN_FORM_SELECTOR)?;
+    submit_password_form(&mut cdp, DEVELOPMENT_CONTROLLER_PRINCIPAL, "")?;
+    cdp.wait_for(
+        "location.search.includes('auth_error=invalid_request')",
+        "server-side sign-in validation redirect",
     )?;
-    let locale_time_origin = cdp.evaluate("performance.timeOrigin")?;
-    let locale_deadline = Instant::now() + Duration::from_secs(10);
-    let mut locale_changed = false;
-    while Instant::now() < locale_deadline {
-        if cdp
-            .evaluate("document.body.innerText.includes('เข้าสู่ระบบพื้นที่ทำงานของคุณ')")?
-            .as_bool()
-            == Some(true)
-        {
-            locale_changed = true;
-            break;
+    cdp.wait_for_selector(SIGN_IN_ERROR_SELECTOR)?;
+    cdp.screenshot(&evidence_dir.join("sign-in-invalid.png"))?;
+
+    let password = development_controller_password(root)?;
+    cdp.navigate(&sign_in_url)?;
+    cdp.wait_for_selector(SIGN_IN_FORM_SELECTOR)?;
+    submit_password_form(&mut cdp, DEVELOPMENT_CONTROLLER_PRINCIPAL, &password)?;
+    cdp.wait_for(
+        "location.pathname === '/auth/accounts' || location.pathname === '/work'",
+        "authenticated account or work route",
+    )?;
+    let role_selection_required = cdp.evaluate("location.pathname === '/auth/accounts'")?;
+    if role_selection_required.as_bool() == Some(true) {
+        cdp.wait_for_selector(ROLE_OPTION_SELECTOR)?;
+        let selector = serde_json::to_string(ROLE_OPTION_SELECTOR)?;
+        let clicked = cdp.evaluate(&format!(
+            "(() => {{ const option=document.querySelector({selector}); if (!option) return false; option.click(); return true; }})()"
+        ))?;
+        if clicked.as_bool() != Some(true) {
+            return Err("authorized role option was unavailable".into());
         }
-        cdp.evaluate("(() => { const button=document.querySelector('.ui-locale-toggle'); if (!button) return false; button.click(); return true; })()")?;
-        thread::sleep(Duration::from_millis(250));
+        cdp.wait_for(
+            "location.pathname === '/work'",
+            "role activation return path",
+        )?;
     }
-    if !locale_changed {
-        return Err("locale control did not update the hydrated Dioxus UI".into());
+    cdp.wait_for_selector(".workspace-route")?;
+    if cdp
+        .evaluate("Boolean(document.querySelector('[data-testid=sign-in-form]'))")?
+        .as_bool()
+        != Some(false)
+    {
+        return Err("authenticated workspace still rendered the sign-in form".into());
     }
+
+    let light_background =
+        cdp.evaluate("getComputedStyle(document.querySelector('.console-shell')).backgroundColor")?;
+    cdp.screenshot(&evidence_dir.join("desktop-en-light.png"))?;
+    let locale_time_origin = cdp.evaluate("performance.timeOrigin")?;
+    cdp.wait_for_selector(".ui-locale-toggle[data-dioxus-id]")?;
+    let locale_clicked = cdp.evaluate(
+        "(() => { const button=document.querySelector('.ui-locale-toggle'); if (!button) return false; button.click(); return true; })()",
+    )?;
+    if locale_clicked.as_bool() != Some(true) {
+        return Err("locale control was unavailable".into());
+    }
+    cdp.wait_for(
+        "document.querySelector('[data-erpx-component=provider]')?.getAttribute('data-locale') === 'th'",
+        "Thai locale update",
+    )?;
     if cdp.evaluate("performance.timeOrigin")? != locale_time_origin {
         return Err("locale control reloaded the document instead of updating hydrated UI".into());
     }
-    cdp.screenshot(&evidence_dir.join("desktop-en-light.png"))?;
 
     cdp.command(
         "Emulation.setEmulatedMedia",
@@ -395,28 +544,13 @@ pub async fn run(root: &Path) -> TaskResult {
         "Emulation.setDeviceMetricsOverride",
         json!({ "width": 390, "height": 844, "deviceScaleFactor": 2, "mobile": true }),
     )?;
-    cdp.navigate(&base_url)?;
-    let deadline = Instant::now() + Duration::from_secs(5);
-    while Instant::now() < deadline {
-        if cdp
-            .evaluate("document.body.innerText.includes('เข้าสู่ระบบพื้นที่ทำงานของคุณ')")?
-            .as_bool()
-            == Some(true)
-        {
-            break;
-        }
-        thread::sleep(Duration::from_millis(250));
-    }
-    if cdp
-        .evaluate("document.body.innerText.includes('เข้าสู่ระบบพื้นที่ทำงานของคุณ')")?
-        .as_bool()
-        != Some(true)
-    {
-        return Err("Thai locale did not render after using the locale control".into());
-    }
-    let dark_background = cdp.evaluate(
-        "getComputedStyle(document.querySelector('.sign-in-form-region')).backgroundColor",
+    cdp.navigate(&format!("{base_url}/modules"))?;
+    cdp.wait_for(
+        "document.body.innerText.includes('โมดูลและพื้นที่ทำงาน')",
+        "Thai module catalog",
     )?;
+    let dark_background =
+        cdp.evaluate("getComputedStyle(document.querySelector('.console-shell')).backgroundColor")?;
     if light_background == dark_background {
         let theme = cdp.evaluate(
             "document.querySelector('[data-erpx-component=provider]').getAttribute('data-theme')",
@@ -427,6 +561,122 @@ pub async fn run(root: &Path) -> TaskResult {
         .into());
     }
     cdp.screenshot(&evidence_dir.join("mobile-th-dark.png"))?;
+    let mobile_layout_safe = cdp.evaluate(
+        "document.body.scrollWidth <= innerWidth && [...document.querySelectorAll('a,button,input,textarea,select')].every((element) => { const rect=element.getBoundingClientRect(); return rect.width === 0 || rect.height === 0 || (rect.width >= 40 && rect.height >= 40); })",
+    )?;
+    if mobile_layout_safe.as_bool() != Some(true) {
+        return Err("mobile module catalog overflowed or exposed a control below 40px".into());
+    }
+
+    cdp.command(
+        "Emulation.setDeviceMetricsOverride",
+        json!({ "width": 1440, "height": 900, "deviceScaleFactor": 1, "mobile": false }),
+    )?;
+    cdp.command(
+        "Emulation.setEmulatedMedia",
+        json!({ "features": [{ "name": "prefers-color-scheme", "value": "light" }] }),
+    )?;
+    cdp.navigate(&format!("{base_url}/modules"))?;
+    cdp.wait_for_selector(".module-catalog__search input[data-dioxus-id]")?;
+    let authorized_workspace_routes = serde_json::from_value::<Vec<String>>(cdp.evaluate(
+        "[...document.querySelectorAll('.module-card')].map((card) => new URL(card.href).pathname)",
+    )?)?;
+    if authorized_workspace_routes.iter().any(|route| {
+        !WORKSPACE_ROUTES.contains(&route.as_str())
+            || authorized_workspace_routes
+                .iter()
+                .filter(|candidate| *candidate == route)
+                .count()
+                != 1
+    }) {
+        return Err("authorized module catalog contains an unknown or duplicate route".into());
+    }
+    let module_search_focused = cdp.evaluate(
+        "(() => { const input=document.querySelector('.module-catalog__search input'); if (!input) return false; input.focus(); return document.activeElement === input; })()",
+    )?;
+    if module_search_focused.as_bool() != Some(true) {
+        return Err("module search input could not receive keyboard focus".into());
+    }
+    let search_probe = cdp
+        .evaluate("document.querySelector('.module-card strong')?.innerText || '__no_authorized_workspace__'")?
+        .as_str()
+        .unwrap_or("__no_authorized_workspace__")
+        .to_owned();
+    cdp.command("Input.insertText", json!({ "text": search_probe }))?;
+    let expected_search_results = usize::from(!authorized_workspace_routes.is_empty());
+    cdp.wait_for(
+        &format!("document.querySelectorAll('.module-card').length === {expected_search_results}"),
+        "module search result",
+    )?;
+    cdp.navigate(&format!("{base_url}/modules"))?;
+    cdp.wait_for(
+        &format!(
+            "document.querySelectorAll('.module-card').length === {}",
+            authorized_workspace_routes.len()
+        ),
+        "cleared module search",
+    )?;
+
+    let mut top_level_data_routes = Vec::with_capacity(TOP_LEVEL_DATA_ROUTES.len());
+    for route in TOP_LEVEL_DATA_ROUTES {
+        cdp.navigate(&format!("{base_url}{route}"))?;
+        cdp.wait_for_selector(".empty-state")?;
+        let layout_safe = cdp.evaluate(
+            "document.querySelectorAll('main').length === 1 && document.body.scrollWidth <= innerWidth && document.querySelectorAll('.record-row').length === 0 && document.querySelector('.workspace-route')?.dataset.freshness === 'not-connected' && !document.body.innerText.includes('ข้อมูลตัวอย่าง')",
+        )?;
+        if layout_safe.as_bool() != Some(true) {
+            return Err(
+                format!("top-level empty route failed its layout/data probe: {route}").into(),
+            );
+        }
+        top_level_data_routes.push(route);
+    }
+
+    let mut workspace_routes = Vec::with_capacity(authorized_workspace_routes.len());
+    for route in &authorized_workspace_routes {
+        cdp.navigate(&format!("{base_url}{route}"))?;
+        cdp.wait_for_selector(".workspace-route")?;
+        let expected_path = serde_json::to_string(route)?;
+        let valid = cdp.evaluate(&format!(
+            "location.pathname === {expected_path} && document.querySelectorAll('.record-row').length === 0 && document.querySelectorAll('.empty-state').length === 1 && document.querySelector('.workspace-route')?.dataset.freshness === 'not-connected' && document.querySelectorAll('main').length === 1 && document.body.scrollWidth <= innerWidth && !document.body.innerText.includes('ข้อมูลตัวอย่าง')"
+        ))?;
+        if valid.as_bool() != Some(true) {
+            return Err(format!("workspace route did not render successfully: {route}").into());
+        }
+        cdp.wait_for_selector(".console-workspace-menu__trigger[data-dioxus-id]")?;
+        let workspace_menu_opened = cdp.evaluate(
+            "(() => { const trigger=document.querySelector('.console-workspace-menu__trigger'); if (!trigger) return false; trigger.click(); return true; })()",
+        )?;
+        if workspace_menu_opened.as_bool() != Some(true) {
+            return Err(format!("workspace menu trigger was unavailable: {route}").into());
+        }
+        cdp.wait_for(
+            &format!(
+                "Boolean(document.querySelector(`a[aria-current='page'][href={}]`))",
+                serde_json::to_string(route)?
+            ),
+            &format!("active workspace navigation for {route}"),
+        )?;
+        workspace_routes.push(route.clone());
+    }
+
+    let public_id = "8f9f3a8f-24f0-4c9a-a7e8-6bd0d9d4e4d2";
+    cdp.navigate(&format!("{base_url}/public/marketing/form/{public_id}"))?;
+    cdp.wait_for_selector(".public-marketing-form")?;
+    if cdp
+        .evaluate(
+            "document.querySelectorAll('.public-marketing-form [required]').length === 4 && document.querySelector('.public-marketing-form')?.method === 'post' && document.querySelector('.public-marketing-form textarea')?.value === '' && !location.search.includes('name=') && !location.search.includes('email=') && !location.search.includes('message=') && document.body.scrollWidth <= innerWidth",
+        )?
+        .as_bool()
+        != Some(true)
+    {
+        return Err("public marketing form requirements or layout regressed".into());
+    }
+    cdp.navigate(&format!("{base_url}/public/marketing/preview/{public_id}"))?;
+    cdp.wait_for(
+        "document.querySelectorAll('.public-preview-highlights').length === 0",
+        "unpublished public preview fails closed without generated highlights",
+    )?;
 
     let report = json!({
         "schema_version": 1,
@@ -438,6 +688,16 @@ pub async fn run(root: &Path) -> TaskResult {
         "locales": ["en", "th"],
         "themes": ["light", "dark"],
         "keyboard_focus": true,
+        "password_sign_in": true,
+        "invalid_sign_in_feedback": true,
+        "role_selection": role_selection_required.as_bool() == Some(true),
+        "module_search": true,
+        "mobile_layout_safe": true,
+        "top_level_data_routes": top_level_data_routes,
+        "workspace_routes": workspace_routes,
+        "workspace_detail_routes": [],
+        "public_marketing_form": true,
+        "public_marketing_preview_fail_closed": true,
         "console_errors": cdp.console_errors,
         "network_failures": cdp.network_failures,
         "network_http_errors": cdp.network_http_errors,

@@ -511,6 +511,33 @@ impl SqlxCorporateIdentityStore {
         self.resolved(Some(holding_id), None).await.map(Some)
     }
 
+    /// Resolve public-realm routing authority from a verified hostname.
+    ///
+    /// Public callers never choose a holding identifier. The HTTP boundary
+    /// derives it from this control-plane binding and the holding registry
+    /// reauthorizes the resulting route before any holding database is opened.
+    pub async fn holding_id_for_verified_hostname(
+        &self,
+        hostname: &str,
+    ) -> Result<Option<Uuid>, PersistenceError> {
+        let hostname = normalize_hostname(hostname)?;
+        sqlx::query_scalar(
+            "SELECT profile.canonical_holding_id
+             FROM erpx_control.corporate_identity_domains domain_binding
+             JOIN erpx_control.corporate_identity_profiles profile
+               ON profile.profile_id = domain_binding.profile_id
+             WHERE domain_binding.hostname = $1
+               AND domain_binding.verified_at IS NOT NULL
+               AND domain_binding.revoked_at IS NULL
+               AND profile.scope_kind = 'holding'
+               AND profile.suspended_at IS NULL",
+        )
+        .bind(hostname)
+        .fetch_optional(&self.control.pools.write)
+        .await
+        .map_err(Into::into)
+    }
+
     pub async fn bind_verified_domain(
         &self,
         hostname: &str,

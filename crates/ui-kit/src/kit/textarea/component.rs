@@ -50,7 +50,6 @@ pub fn Textarea(
     #[props(extends=GlobalAttributes)]
     #[props(extends=textarea)]
     attributes: Vec<Attribute>,
-    children: Element,
 ) -> Element {
     let base = attributes!(textarea {
         class: Styles::dx_textarea,
@@ -82,7 +81,6 @@ pub fn Textarea(
             onpaste: move |e| _ = onpaste.map(|callback| callback(e)),
             onmounted: move |e| _ = onmounted.map(|callback| callback(e)),
             ..attributes,
-            {children}
         }
     }
 }

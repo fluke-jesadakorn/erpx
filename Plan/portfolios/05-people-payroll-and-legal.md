@@ -24,7 +24,7 @@ inactive employment denies new employee work under policy without deleting
 history.
 
 **Sources.** [People & Payroll context](../../crates/contexts/people-payroll/src/lib.rs),
-[People & Payroll API](../../crates/proto/proto/erpx/people_payroll/v2/service.proto).
+[People & Payroll API](../../crates/proto/proto/erpx/people_payroll/service.proto).
 
 ### REQ-PEO-002 — Scoped employee directory
 
@@ -39,7 +39,7 @@ visibility follows purpose and role; cross-branch access requires parent-scope
 authority; credentials and unrelated identity-provider data are excluded.
 
 **Sources.** [People & Payroll context](../../crates/contexts/people-payroll/src/lib.rs),
-[People & Payroll API](../../crates/proto/proto/erpx/people_payroll/v2/service.proto).
+[People & Payroll API](../../crates/proto/proto/erpx/people_payroll/service.proto).
 
 ### REQ-PEO-003 — Leave lifecycle
 
@@ -72,7 +72,7 @@ evidence is detected under policy; approved claims emit a Finance fact and do
 not directly create payment.
 
 **Sources.** [People & Payroll context](../../crates/contexts/people-payroll/src/lib.rs),
-[People & Payroll API](../../crates/proto/proto/erpx/people_payroll/v2/service.proto).
+[People & Payroll API](../../crates/proto/proto/erpx/people_payroll/service.proto).
 
 ### REQ-PEO-005 — Payroll-run lifecycle
 
@@ -88,7 +88,7 @@ approval and current source versions; finalized lines are immutable;
 cancellation follows explicit pre-finalization rules.
 
 **Sources.** [People & Payroll context](../../crates/contexts/people-payroll/src/lib.rs),
-[People & Payroll API](../../crates/proto/proto/erpx/people_payroll/v2/service.proto),
+[People & Payroll API](../../crates/proto/proto/erpx/people_payroll/service.proto),
 [HR projection](../../apps/worker/src/hr_projection.rs).
 
 ### REQ-PEO-006 — Finalized payroll facts
@@ -124,7 +124,7 @@ scope are validated; terminal transitions require their defined evidence;
 archive is prohibited until retention and legal-hold rules permit it.
 
 **Sources.** [Legal context](../../crates/contexts/legal/src/lib.rs),
-[Legal API](../../crates/proto/proto/erpx/legal/v2/service.proto).
+[Legal API](../../crates/proto/proto/erpx/legal/service.proto).
 
 ### REQ-LEG-002 — Versioned legal documents
 
@@ -140,7 +140,7 @@ permission; arbitrary public URLs and credentials are rejected.
 
 **Sources.** [Legal context](../../crates/contexts/legal/src/lib.rs),
 [legal persistence](../../crates/infrastructure/src/legal_persistence.rs),
-[Legal API](../../crates/proto/proto/erpx/legal/v2/service.proto).
+[Legal API](../../crates/proto/proto/erpx/legal/service.proto).
 
 ### REQ-LEG-003 — Legal matter graph
 
@@ -157,7 +157,7 @@ rebuildable.
 
 **Sources.** [Legal context](../../crates/contexts/legal/src/lib.rs),
 [legal projection](../../apps/worker/src/legal_projection.rs),
-[Legal API](../../crates/proto/proto/erpx/legal/v2/service.proto).
+[Legal API](../../crates/proto/proto/erpx/legal/service.proto).
 
 ### REQ-LEG-004 — Legal hold
 
@@ -207,7 +207,7 @@ includes platform and represented actors where applicable; denied access does
 not expose record content; entries cannot be edited or deleted by the reader.
 
 **Sources.** [Legal context](../../crates/contexts/legal/src/lib.rs),
-[Legal API](../../crates/proto/proto/erpx/legal/v2/service.proto),
+[Legal API](../../crates/proto/proto/erpx/legal/service.proto),
 [audited reads](../../adr/ADR-005-global-read-auditing.md).
 
 ## Lifecycle-completion requirements

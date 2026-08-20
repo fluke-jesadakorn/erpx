@@ -1,0 +1,85 @@
+{
+  "base_url": "http://localhost:3004",
+  "captured_at": "2026-08-20T05:18:32.598364+00:00",
+  "chromium_cdp": true,
+  "console_errors": [],
+  "invalid_sign_in_feedback": true,
+  "keyboard_focus": true,
+  "locale_control_hydrated_without_reload": true,
+  "locales": [
+    "en",
+    "th"
+  ],
+  "mobile_layout_safe": true,
+  "module_search": true,
+  "network_failures": [],
+  "network_http_errors": [],
+  "password_sign_in": true,
+  "public_marketing_form": true,
+  "public_marketing_preview": true,
+  "role_selection": true,
+  "schema_version": 1,
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "top_level_data_routes": [
+    "/work",
+    "/processes",
+    "/insights"
+  ],
+  "viewports": [
+    "desktop",
+    "390px"
+  ],
+  "virtual_authenticator": {
+    "authentication": true,
+    "registration": true
+  },
+  "workspace_detail_routes": [
+    "/operations/exceptions/c23ce9b8-3d4a-5a82-940f-b96a5ecfb5d4",
+    "/finance/journal-entries/6ec53831-be29-5bf0-9400-f2bfb7765516",
+    "/sales/orders/7f2e45ab-e9ee-5a35-999d-5935883ae9da",
+    "/procurement/purchase-orders/30a8d8d1-221b-5e98-a01b-80dfc4c6f14e",
+    "/inventory/stock-items/3e8e7f9d-441a-550d-81ad-b4bac2376f21",
+    "/asset/assets/20fa2c97-37b2-55f6-9900-6e9e43da7fea",
+    "/maintenance/work-orders/880cded5-7eea-514c-85fd-7abcf6a77c4c",
+    "/quality/inspections/22d5452d-7740-5ca6-b931-079c0f6e5b4d",
+    "/marketing/campaigns/d44d305f-50e1-5947-a2e3-fb5cb5b39060",
+    "/people/employees/87109e74-bbf9-5ee8-83c7-3d590c8ce78f",
+    "/pos/sales/c4e3c5f9-e867-5818-a838-89e7ff387a18",
+    "/legal/contracts/ab5b933a-8dd2-5310-9b87-d93444d994c8",
+    "/manufacturing/production-orders/e202870d-f737-59c1-b073-e566b9ebc0b7",
+    "/planning/demand-plans/64a655d7-cfbe-5111-bd0e-e1a738bed338",
+    "/project/projects/9e155107-b437-55aa-b285-5fd5565f7412",
+    "/commerce/listings/da8fe666-b4f8-5ab8-a672-1cd8d0078f3f",
+    "/talent/candidates/d04e99fa-035f-50ac-b79b-5a807cdc94e3",
+    "/learning/enrollments/41895e9c-b27a-5808-9b8d-4642efed7c92",
+    "/benefits/benefit-plans/5eb835f8-cc5a-5d94-827e-b628ee8f6188",
+    "/field-service/service-orders/7b3fbc96-16dc-5ac6-9fe2-a03b346d1028",
+    "/ai/conversations/9632080c-7e20-5f9d-83c7-ac594feb06bb"
+  ],
+  "workspace_routes": [
+    "/operations",
+    "/finance",
+    "/sales",
+    "/procurement",
+    "/inventory",
+    "/asset",
+    "/maintenance",
+    "/quality",
+    "/marketing",
+    "/people",
+    "/pos",
+    "/legal",
+    "/manufacturing",
+    "/planning",
+    "/project",
+    "/commerce",
+    "/talent",
+    "/learning",
+    "/benefits",
+    "/field-service",
+    "/ai"
+  ]
+}

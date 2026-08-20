@@ -67,3 +67,27 @@ pub fn replace_location(path: &str) -> Result<(), String> {
         .replace(path)
         .map_err(|_| "The workspace could not be opened.".to_owned())
 }
+
+pub fn persist_locale(language: &str) {
+    if !matches!(language, "en" | "th") {
+        return;
+    }
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    let Some(document) = window.document() else {
+        return;
+    };
+    if let Some(root) = document.document_element() {
+        let _ = root.set_attribute("lang", language);
+        let _ = root.set_attribute("data-locale", language);
+    }
+    if let Ok(Some(storage)) = window.local_storage() {
+        let _ = storage.set_item("locale", language);
+    }
+    if let Ok(document) = document.dyn_into::<web_sys::HtmlDocument>() {
+        let _ = document.set_cookie(&format!(
+            "erpx_locale={language}; Path=/; Max-Age=31536000; SameSite=Strict"
+        ));
+    }
+}

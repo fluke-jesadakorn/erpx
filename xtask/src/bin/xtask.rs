@@ -1072,6 +1072,23 @@ fn runtime_dir(root: &Path) -> PathBuf {
     root.join(".runtime/erpx")
 }
 
+fn configured_status_value(root: &Path, key: &str) -> Option<String> {
+    env::var(key)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| {
+            fs::read_to_string(root.join(".env.local"))
+                .ok()?
+                .lines()
+                .filter_map(|line| line.trim().split_once('='))
+                .find_map(|(candidate, value)| {
+                    (candidate.trim() == key)
+                        .then(|| value.trim().trim_matches(['\"', '\'']).to_owned())
+                })
+                .filter(|value| !value.is_empty())
+        })
+}
+
 fn status(root: &Path) -> TaskResult {
     let runtime = runtime_dir(root);
     let dev_artifacts = wasm::artifact_readiness(root, wasm::WasmProfile::Dev);
@@ -1091,15 +1108,21 @@ fn status(root: &Path) -> TaskResult {
         toolchain.contract_version,
         toolchain.dx_path.display(),
     );
-    println!(
-        "public-origin: {}",
-        env::var("ERPX_PUBLIC_ORIGIN").unwrap_or_else(|_| "http://127.0.0.1:3004".into())
-    );
-    println!(
-        "platform-origin: {}",
-        env::var("ERPX_PLATFORM_ORIGIN")
-            .unwrap_or_else(|_| "https://console.tailb48369.ts.net".into())
-    );
+    let tailnet_origin = configured_status_value(root, "ERPX_DEV_TAILSCALE_FQDN")
+        .map(|hostname| format!("https://{}", hostname.trim_end_matches('.')));
+    let public_origin = configured_status_value(root, "ERPX_PUBLIC_ORIGIN")
+        .or_else(|| tailnet_origin.clone())
+        .unwrap_or_else(|| "http://127.0.0.1:3004".into());
+    let default_platform_origin =
+        if env::var("ERPX_WEB_PRODUCTION_PROFILE").as_deref() == Ok("enabled") {
+            "https://console.tailb48369.ts.net".into()
+        } else {
+            tailnet_origin.unwrap_or_else(|| "http://platform.localhost:3004".into())
+        };
+    let platform_origin =
+        configured_status_value(root, "ERPX_PLATFORM_ORIGIN").unwrap_or(default_platform_origin);
+    println!("public-origin: {public_origin}");
+    println!("platform-origin: {platform_origin}");
     for service in SERVICES {
         let pid = read_pid(&runtime.join(format!("{}.pid", service.name)))?;
         match pid {

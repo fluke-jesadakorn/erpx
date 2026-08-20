@@ -151,7 +151,7 @@ mutations, business commands, and AI invocation require an online authority.
 1. An accepted decision that explicitly supersedes another decision wins.
 2. Later accepted ADRs govern architecture, isolation, security, and
    interoperability; notably [ADR-013](../adr/ADR-013-holding-branch-database-and-directory-authority.md)
-   refines [ADR-001](../adr/ADR-001-tenant-isolation.md).
+   refines [ADR-001](../adr/ADR-001-holding-isolation.md).
 3. Accepted FSDs govern future capabilities not yet represented in code.
 4. Bounded-context cores and versioned contracts establish current ownership
    and interface constraints.

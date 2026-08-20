@@ -111,8 +111,8 @@ generation remains available for bounded rollback; failed replacement remains
 inactive and does not alter the current read route.
 
 **Sources.** [CQRS decision](../../adr/ADR-002-cqrs.md),
-[Platform Operations API](../../crates/proto/proto/erpx/platform_administration/v2/service.proto),
-[tenant projection scheduler](../../apps/worker/src/tenant_projection_scheduler.rs),
+[Platform Operations API](../../crates/proto/proto/erpx/platform_administration/service.proto),
+[tenant projection scheduler](../../apps/worker/src/holding_projection_scheduler.rs),
 [FSD-006](../decisions/FSD-006-clean-rebuild-architecture-and-cutover.md).
 
 ### REQ-DAT-007 — Holding and branch physical isolation
@@ -130,7 +130,7 @@ or ambiguous routes fail closed; holding consolidation consumes branch facts
 without using branch credentials in the browser or broker.
 
 **Sources.** [Branch routing](../../adr/ADR-013-holding-branch-database-and-directory-authority.md),
-[tenant workspace routing](../../apps/server/src/tenant_workspace.rs).
+[tenant workspace routing](../../apps/server/src/holding_workspace.rs).
 
 ### REQ-DAT-008 — Domain and cross-context isolation
 
@@ -188,7 +188,7 @@ numbers are not reused within an active version; IDs `IFC-SVC-001..065` and
 the monolithic legacy package are rejected after the coordinated hard cutover.
 
 **Sources.** [Contract policy](../../CONTRACT_POLICY.md),
-[active protobuf catalog](../../crates/proto/proto/erpx/catalog/v2/active.proto),
+[active protobuf catalog](../../crates/proto/proto/erpx/catalog/active.proto),
 [bounded-context decision](../../adr/ADR-014-cqrs-bounded-context-modular-monolith.md),
 [FSD-006](../decisions/FSD-006-clean-rebuild-architecture-and-cutover.md).
 
@@ -239,7 +239,7 @@ are pinned; reconciliation corrects local projection without overriding ERPX
 catalog or entitlement ownership.
 
 **Sources.** [Stripe authority](../../adr/ADR-007-stripe-authority.md),
-[Commercial API](../../crates/proto/proto/erpx/commercial/v2/service.proto),
+[Commercial API](../../crates/proto/proto/erpx/commercial/service.proto),
 [commercial infrastructure](../../crates/infrastructure/src/commercial.rs).
 
 ### REQ-INT-005 — Native directory feeds
@@ -256,7 +256,7 @@ cursor or cookie survives restart; full import and incremental changes are
 idempotent; refresh-required or invalid cursor triggers a governed recovery;
 unlicensed or unconfigured providers remain unavailable.
 
-**Sources.** [Directory contracts](../../crates/proto/proto/erpx/identity_access/v2/service.proto),
+**Sources.** [Directory contracts](../../crates/proto/proto/erpx/identity_access/service.proto),
 [directory adapters](../../apps/worker/src/directory_adapters.rs),
 [directory sync](../../apps/worker/src/directory_sync.rs).
 
@@ -275,7 +275,7 @@ concurrency; generic SQL, shell, owner credentials, and secret values are not
 representable; offline agent rejects new brokered work.
 
 **Sources.** [Customer data-plane decision](../../adr/ADR-011-customer-data-plane-agent.md),
-[data-plane API](../../crates/proto/proto/erpx/platform_administration/v2/service.proto),
+[data-plane API](../../crates/proto/proto/erpx/platform_administration/service.proto),
 [data-plane agent](../../apps/data-plane-agent/src/lib.rs).
 
 ### REQ-INT-007 — Tenant-bound object storage
@@ -292,7 +292,7 @@ metadata includes digest and content constraints; signed access is limited by
 actor, purpose, operation, and expiry; public access exists only for approved
 published presentation assets.
 
-**Sources.** [Tenant isolation](../../adr/ADR-001-tenant-isolation.md),
+**Sources.** [Tenant isolation](../../adr/ADR-001-holding-isolation.md),
 [corporate identity](../../adr/ADR-012-three-layer-corporate-identity.md),
 [server storage](../../apps/server/src/storage.rs).
 

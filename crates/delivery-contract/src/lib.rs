@@ -19,7 +19,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub const DELIVERY_CONTRACT_VERSION: u16 = 2;
+pub const DELIVERY_CONTRACT_VERSION: u16 = 4;
 pub const SERVICE_ID_FIRST_: u16 = 201;
 pub const SERVICE_ID_LAST_: u16 = 265;
 pub const SERVICE_COUNT_: usize = 65;
@@ -426,7 +426,9 @@ pub struct CommandReceipt {
     pub command_id: Uuid,
     pub aggregate_id: RouteUuid,
     pub aggregate_version: u64,
+    pub projection_cursor: Option<String>,
     pub invalidation_tags: BTreeSet<String>,
+    pub audit_reference: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -493,6 +495,33 @@ pub struct BootstrapRequest {
     pub locale: String,
 }
 
+/// Credential-free, server-authorized route discovery hydrated with a Web
+/// session. Query and command owners still reauthorize every operation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AuthorizedNavigation {
+    pub home_route: String,
+    pub groups: Vec<AuthorizedNavigationGroup>,
+    pub authorization_context_version: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AuthorizedNavigationGroup {
+    pub group_id: String,
+    pub label: String,
+    pub label_key: String,
+    pub routes: Vec<AuthorizedRoute>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AuthorizedRoute {
+    pub route_id: String,
+    pub label: String,
+    pub label_key: String,
+    pub path: String,
+    pub icon: String,
+    pub action_capabilities: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionBootstrap {
     pub authenticated: bool,
@@ -502,6 +531,8 @@ pub struct SessionBootstrap {
     pub locale: String,
     pub channel: ClientChannel,
     pub catalog_version: u16,
+    pub platform_origin: String,
+    pub authorized_navigation: Option<AuthorizedNavigation>,
 }
 
 impl SessionBootstrap {
@@ -623,6 +654,8 @@ pub struct PublicMarketingFormRequest {
     pub message: String,
     pub consent: bool,
     pub idempotency_key: String,
+    pub locale: String,
+    pub purpose: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -77,17 +77,18 @@ verifies LSN/time recovery, and removes its base backup and WAL artifacts on
 exit. `cargo xtask status` reports the lease and retained spool/MinIO usage;
 the literal-confirmation cleanup command is the only manual purge entry point.
 
-For dev-only access over Tailscale, keep ERPX loopback-only and let Tailscale
-Serve terminate HTTPS. The Platform console has the fixed, staff-only origin
-`https://console.tailb48369.ts.net`; the public origin remains the signup and
-Holding-workspace origin. Tailnet ACLs restrict the Platform hostname, while
-ERPX RBAC still authorizes every request and never trusts Tailscale identity
-headers as application authority:
+For dev-only access, keep ERPX loopback-only and let Tailscale Serve terminate
+HTTPS. When `ERPX_DEV_TAILSCALE_FQDN` is configured, Platform administration
+uses that exact Tailnet origin so it remains reachable from another authorized
+Tailnet device. A local-only development runtime falls back to
+`http://platform.localhost:3004`. The fixed production Platform origin remains
+`https://console.tailb48369.ts.net`. ERPX RBAC authorizes every request and
+never treats proxy identity headers as application authority:
 
 ```dotenv
 ERPX_DEV_PERSONA_MODE=enabled
-ERPX_DEV_TAILSCALE_FQDN=console.tailb48369.ts.net
-ERPX_PLATFORM_ORIGIN=https://console.tailb48369.ts.net
+ERPX_DEV_TAILSCALE_FQDN=fluke-macbook16.tailb48369.ts.net
+ERPX_PLATFORM_ORIGIN=https://fluke-macbook16.tailb48369.ts.net
 ERPX_PUBLIC_ORIGIN=http://127.0.0.1:3004
 ```
 
@@ -99,7 +100,8 @@ tailscale serve --bg --https=443 http://127.0.0.1:3004
 cargo xtask dev --detach
 ```
 
-Open `https://console.tailb48369.ts.net`. ERPX, its auth service, and
+Open `https://fluke-macbook16.tailb48369.ts.net/platform/holdings` for Platform
+administration over the development Tailnet. ERPX, its auth service, and
 gRPC remain bound to loopback; browser auth and gRPC-Web use the same-origin
 Web BFF, so ports `3004`, `50051`, and `50052` must not be exposed separately.
 
@@ -343,13 +345,20 @@ development-persona configuration. It verifies the deployed login/protected/
 unknown routes, security headers, health and metrics endpoints, worker/outbox/
 projection thresholds, and live backup/PITR metric evidence. The versioned JSON
 file named by `ERPX_WEB_PRODUCTION_EVIDENCE` must match
-`ERPX_WEB_PRODUCTION_REVISION` and include one schema-v2 journey for each of the
-12 modules. Every journey must evidence login, scope, list/detail, create,
+`ERPX_WEB_PRODUCTION_REVISION` and use schema v4. The gate derives the exact
+644-requirement set from requirements baseline 2.0.0, requires all 68 E2E
+scenarios, all 21 canonical workspaces, and every administration/external
+surface to have a `pass` outcome. It also requires one journey for each of the
+30 registered bounded-context features. Every journey must evidence login,
+scope, list/detail, create,
 lifecycle transition, read-your-writes, audit, session recovery, authorization,
 validation, conflict, duplicate submission, recovery, English/Thai, desktop/
 390px, and zero unexplained console errors. The same gate requires zero
 critical/high security findings, backup restore, object recovery, PostgreSQL
-PITR, loaded alerts, and verified runbooks.
+PITR, loaded alerts, and verified runbooks. Production remains fenced until a
+non-fixture launch manifest records certified live create/read/callback/retry/
+reconciliation/revocation evidence for payment, directory, marketing delivery,
+banking, payroll, benefits, learning, e-signature, and AI providers.
 Use [the evidence schema example](ops/web-production-evidence.example.json) and
 the runbooks under `ops/runbooks/`; the example is a template, never release
 evidence.

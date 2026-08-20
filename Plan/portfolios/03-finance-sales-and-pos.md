@@ -24,7 +24,7 @@ posting while retaining history; chart and account changes are versioned and
 audited.
 
 **Sources.** [Finance context](../../crates/contexts/finance/src/lib.rs),
-[Finance API](../../crates/proto/proto/erpx/finance/v2/service.proto),
+[Finance API](../../crates/proto/proto/erpx/finance/service.proto),
 [finance chart tests](../../apps/worker/tests/finance_chart_projection.rs).
 
 ### REQ-FIN-002 — Balanced journal lifecycle
@@ -41,7 +41,7 @@ deleted; correction uses an authorized reversing or follow-up journal with a
 source reference.
 
 **Sources.** [Finance context](../../crates/contexts/finance/src/lib.rs),
-[Finance API](../../crates/proto/proto/erpx/finance/v2/service.proto).
+[Finance API](../../crates/proto/proto/erpx/finance/service.proto).
 
 ### REQ-FIN-003 — Accounting period and close
 
@@ -75,7 +75,7 @@ balances expose reconciliation differences.
 
 **Sources.** [Finance context](../../crates/contexts/finance/src/lib.rs),
 [finance subledgers](../../crates/domain/src/finance_subledgers.rs),
-[Finance API](../../crates/proto/proto/erpx/finance/v2/service.proto).
+[Finance API](../../crates/proto/proto/erpx/finance/service.proto).
 
 ### REQ-FIN-005 — Banking import and matching
 
@@ -110,7 +110,7 @@ release and consumption reference the originating request; stale budget
 versions cannot be overwritten.
 
 **Sources.** [Finance budget domain](../../crates/domain/src/finance_budget.rs),
-[Finance API](../../crates/proto/proto/erpx/finance/v2/service.proto).
+[Finance API](../../crates/proto/proto/erpx/finance/service.proto).
 
 ### REQ-FIN-007 — Customer invoicing
 
@@ -127,7 +127,7 @@ cancellation follows status and accounting rules; invoice projection exposes
 source and resulting journal or receivable references.
 
 **Sources.** [Finance context](../../crates/contexts/finance/src/lib.rs),
-[Finance API](../../crates/proto/proto/erpx/finance/v2/service.proto).
+[Finance API](../../crates/proto/proto/erpx/finance/service.proto).
 
 ### REQ-FIN-008 — Revenue recognition
 
@@ -145,7 +145,7 @@ states; every recognition entry maps to a journal.
 
 **Sources.** [Finance context](../../crates/contexts/finance/src/lib.rs),
 [Sales context](../../crates/contexts/sales/src/lib.rs),
-[Finance API](../../crates/proto/proto/erpx/finance/v2/service.proto).
+[Finance API](../../crates/proto/proto/erpx/finance/service.proto).
 
 ### REQ-FIN-009 — Statutory tax reporting
 
@@ -163,7 +163,7 @@ projection the posting authority.
 
 **Sources.** [Finance context](../../crates/contexts/finance/src/lib.rs),
 [finance tax domain](../../crates/domain/src/finance_tax.rs),
-[Finance API](../../crates/proto/proto/erpx/finance/v2/service.proto).
+[Finance API](../../crates/proto/proto/erpx/finance/service.proto).
 
 ### REQ-FIN-010 — Financial reconciliation
 
@@ -199,7 +199,7 @@ quotes cannot be accepted; approval gates pin the quote version and invalidate
 when material terms change.
 
 **Sources.** [Sales context](../../crates/contexts/sales/src/lib.rs),
-[Sales API](../../crates/proto/proto/erpx/sales/v2/service.proto),
+[Sales API](../../crates/proto/proto/erpx/sales/service.proto),
 [approval design](../../audits/APPROVAL-GOVERNANCE-PENCIL-2026-08-13/README.md).
 
 ### REQ-SAL-002 — Sales order lifecycle
@@ -217,7 +217,7 @@ fulfillment state; source facts are published idempotently for Inventory,
 Operations, Finance, and Customer 360.
 
 **Sources.** [Sales context](../../crates/contexts/sales/src/lib.rs),
-[Sales API](../../crates/proto/proto/erpx/sales/v2/service.proto),
+[Sales API](../../crates/proto/proto/erpx/sales/service.proto),
 [operations boundaries](../../adr/ADR-008-operations-boundaries.md).
 
 ### REQ-SAL-003 — Accepted fulfillment facts
@@ -251,7 +251,7 @@ cancellation and completion are explicit; Finance consumes a versioned
 arrangement fact rather than Sales ledger data.
 
 **Sources.** [Sales context](../../crates/contexts/sales/src/lib.rs),
-[Sales API](../../crates/proto/proto/erpx/sales/v2/service.proto),
+[Sales API](../../crates/proto/proto/erpx/sales/service.proto),
 [Finance context](../../crates/contexts/finance/src/lib.rs).
 
 ### REQ-SAL-005 — Governed commercial release
@@ -287,7 +287,7 @@ currency, and version; only open sales accept payment; completed sales are
 immutable; void follows defined state and authority rules.
 
 **Sources.** [POS context](../../crates/contexts/pos/src/lib.rs),
-[POS API](../../crates/proto/proto/erpx/pos/v2/service.proto).
+[POS API](../../crates/proto/proto/erpx/pos/service.proto).
 
 ### REQ-POS-002 — Payment recording
 
@@ -303,7 +303,7 @@ credential or full instrument data is rejected; duplicate provider references
 do not create duplicate payment.
 
 **Sources.** [POS context](../../crates/contexts/pos/src/lib.rs),
-[POS API](../../crates/proto/proto/erpx/pos/v2/service.proto).
+[POS API](../../crates/proto/proto/erpx/pos/service.proto).
 
 ### REQ-POS-003 — Refund governance
 
@@ -318,7 +318,7 @@ maker-checker and limits are enforced; posting emits traceable Finance and
 Inventory facts.
 
 **Sources.** [POS context](../../crates/contexts/pos/src/lib.rs),
-[POS API](../../crates/proto/proto/erpx/pos/v2/service.proto),
+[POS API](../../crates/proto/proto/erpx/pos/service.proto),
 [POS refund domain](../../crates/domain/src/pos_refund.rs).
 
 ### REQ-POS-004 — POS downstream facts

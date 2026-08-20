@@ -67,6 +67,8 @@ fn kit_forms_render_stable_semantics_without_secret_data_attributes() {
     assert!(html.contains("data-tone=\"destructive\""));
     assert!(html.contains("data-size=\"sm\""));
     assert!(html.contains("disabled"));
+    assert!(html.contains("Audited reason"));
+    assert!(!html.contains("placeholder"));
 
     for data_attribute in html
         .split_whitespace()

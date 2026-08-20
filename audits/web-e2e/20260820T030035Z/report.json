@@ -1,0 +1,135 @@
+{
+  "base_url": "http://localhost:3004",
+  "captured_at": "2026-08-20T03:00:40.837512+00:00",
+  "chromium_cdp": true,
+  "console_errors": [
+    {
+      "method": "Log.entryAdded",
+      "params": {
+        "entry": {
+          "level": "error",
+          "networkRequestId": "71941.52",
+          "source": "network",
+          "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "timestamp": 1787194836315.588,
+          "url": "http://localhost:3004/favicon.ico"
+        }
+      }
+    }
+  ],
+  "invalid_sign_in_feedback": true,
+  "keyboard_focus": true,
+  "locale_control_hydrated_without_reload": true,
+  "locales": [
+    "en",
+    "th"
+  ],
+  "network_failures": [],
+  "network_http_errors": [
+    {
+      "method": "Network.responseReceived",
+      "params": {
+        "frameId": "6D8B9250E7EAD6156DFBC3511F7B7B0E",
+        "hasExtraInfo": true,
+        "loaderId": "DD60C1B8C429AE145C74FCB8CEF72E50",
+        "requestId": "71941.52",
+        "response": {
+          "alternateProtocolUsage": "unspecifiedReason",
+          "charset": "utf-8",
+          "connectionId": 241,
+          "connectionReused": true,
+          "encodedDataLength": 823,
+          "fromDiskCache": false,
+          "fromPrefetchCache": false,
+          "fromServiceWorker": false,
+          "headers": {
+            "access-control-allow-origin": "*",
+            "age": "0",
+            "cache-control": "private, no-store",
+            "content-encoding": "br",
+            "content-security-policy": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'; connect-src 'self'; manifest-src 'self'",
+            "content-type": "text/html; charset=utf-8",
+            "cross-origin-opener-policy": "same-origin",
+            "date": "Thu, 20 Aug 2026 03:00:36 GMT",
+            "permissions-policy": "camera=(), microphone=(), geolocation=()",
+            "referrer-policy": "no-referrer",
+            "transfer-encoding": "chunked",
+            "vary": "accept-encoding, origin, access-control-request-method, access-control-request-headers",
+            "x-content-type-options": "nosniff",
+            "x-frame-options": "DENY"
+          },
+          "mimeType": "text/html",
+          "protocol": "http/1.1",
+          "remoteIPAddress": "127.0.0.1",
+          "remotePort": 3004,
+          "responseTime": 1787194836315.401,
+          "securityState": "secure",
+          "status": 404,
+          "statusText": "Not Found",
+          "timing": {
+            "connectEnd": -1,
+            "connectStart": -1,
+            "dnsEnd": -1,
+            "dnsStart": -1,
+            "proxyEnd": -1,
+            "proxyStart": -1,
+            "pushEnd": 0,
+            "pushStart": 0,
+            "receiveHeadersEnd": 2.665,
+            "receiveHeadersStart": 2.638,
+            "requestTime": 384430.299561,
+            "sendEnd": 0.076,
+            "sendStart": 0.061,
+            "sslEnd": -1,
+            "sslStart": -1,
+            "workerFetchStart": -1,
+            "workerReady": -1,
+            "workerRespondWithSettled": -1,
+            "workerStart": -1
+          },
+          "url": "http://localhost:3004/favicon.ico"
+        },
+        "timestamp": 384430.302381,
+        "type": "Other"
+      }
+    }
+  ],
+  "password_sign_in": true,
+  "role_selection": true,
+  "schema_version": 1,
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "viewports": [
+    "desktop",
+    "390px"
+  ],
+  "virtual_authenticator": {
+    "authentication": true,
+    "registration": true
+  },
+  "workspace_routes": [
+    "/operations",
+    "/finance",
+    "/sales",
+    "/procurement",
+    "/inventory",
+    "/asset",
+    "/maintenance",
+    "/quality",
+    "/marketing",
+    "/people",
+    "/pos",
+    "/legal",
+    "/manufacturing",
+    "/planning",
+    "/project",
+    "/commerce",
+    "/talent",
+    "/learning",
+    "/benefits",
+    "/field-service",
+    "/ai"
+  ]
+}

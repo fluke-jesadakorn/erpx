@@ -24,7 +24,7 @@ mutable email or username.
 
 **Sources.** [Marketing boundaries](../../adr/ADR-009-marketing-crm-boundaries.md),
 [marketing domain](../../crates/domain/src/marketing.rs),
-[Marketing API](../../crates/proto/proto/erpx/marketing/v2/service.proto).
+[Marketing API](../../crates/proto/proto/erpx/marketing/service.proto).
 
 ### REQ-MKT-002 — Lead-candidate lifecycle
 
@@ -82,7 +82,7 @@ reserved spend cannot exceed approved available amount; duplicate spend
 requests are idempotent.
 
 **Sources.** [Marketing context](../../crates/contexts/marketing/src/lib.rs),
-[marketing campaign-budget migration](../../crates/migration/migrations_tenant_write/0069_marketing_campaign_budget_guards.sql).
+[marketing campaign-budget migration](../../crates/migration/migrations_holding_write/0001_baseline.sql).
 
 ### REQ-MKT-005 — Governed content workflow
 
@@ -100,7 +100,7 @@ versions remain auditable.
 
 **Sources.** [Marketing content domain](../../crates/domain/src/marketing_content.rs),
 [content workflow worker](../../apps/worker/src/marketing_content_workflow.rs),
-[Marketing content API](../../crates/proto/proto/erpx/marketing/v2/service.proto).
+[Marketing content API](../../crates/proto/proto/erpx/marketing/service.proto).
 
 ### REQ-MKT-006 — Durable journey execution
 
@@ -150,7 +150,7 @@ versioned and scope-authorized.
 
 **Sources.** [Marketing provider worker](../../apps/worker/src/marketing_provider.rs),
 [provider secret manager](../../apps/worker/src/marketing_provider_secret_manager.rs),
-[marketing provider migrations](../../crates/migration/migrations/0049_marketing_provider_onboarding.sql).
+[marketing provider migrations](../../crates/migration/migrations/0001_baseline.sql).
 
 ### REQ-MKT-009 — Callback and delivery reconciliation
 
@@ -166,7 +166,7 @@ does not duplicate engagement.
 
 **Sources.** [Marketing callback domain](../../crates/domain/src/marketing_callback.rs),
 [marketing delivery worker](../../apps/worker/src/marketing_delivery.rs),
-[callback inbox migration](../../crates/migration/migrations_tenant_write/0027_marketing_provider_callback_inbox.sql).
+[callback inbox migration](../../crates/migration/migrations_holding_write/0001_baseline.sql).
 
 ### REQ-MKT-010 — Privacy erasure and suppression retention
 
@@ -183,7 +183,7 @@ anonymized as defined; suppression remains non-contactable; completion is
 idempotent and auditable.
 
 **Sources.** [Marketing privacy worker](../../apps/worker/src/marketing_content_privacy.rs),
-[marketing erasure migration](../../crates/migration/migrations_tenant_write/0049_marketing_profile_erasure.sql),
+[marketing erasure migration](../../crates/migration/migrations_holding_write/0001_baseline.sql),
 [marketing boundaries](../../adr/ADR-009-marketing-crm-boundaries.md).
 
 ### REQ-MKT-011 — Attribution and Finance reconciliation
@@ -218,7 +218,7 @@ rate- and abuse-controlled; consent and purpose are explicit; previews cannot
 execute arbitrary scripts or expose drafts outside their capability;
 privileged credentials never enter public URLs.
 
-**Sources.** [Console public marketing routes](../../apps/console/src/composition.rs),
+**Sources.** [Console public marketing routes](../../apps/console/src/routes.rs),
 [marketing public-abuse worker](../../apps/worker/src/marketing_public_abuse.rs),
 [corporate identity decision](../../adr/ADR-012-three-layer-corporate-identity.md).
 
@@ -238,7 +238,7 @@ not create a lead; CRM assigns its own stable ID.
 
 **Sources.** [CRM context](../../crates/contexts/crm/src/lib.rs),
 [Marketing context](../../crates/contexts/marketing/src/lib.rs),
-[CRM API](../../crates/proto/proto/erpx/crm/v2/service.proto).
+[CRM API](../../crates/proto/proto/erpx/crm/service.proto).
 
 ### REQ-CRM-002 — Opportunity lifecycle
 
@@ -252,7 +252,7 @@ currently eligible; currency and value are bounded; closed outcomes are
 distinct; stale updates are rejected and history retained.
 
 **Sources.** [CRM context](../../crates/contexts/crm/src/lib.rs),
-[CRM API](../../crates/proto/proto/erpx/crm/v2/service.proto).
+[CRM API](../../crates/proto/proto/erpx/crm/service.proto).
 
 ### REQ-CRM-003 — Opportunity forecast
 
@@ -269,7 +269,7 @@ state; reports label forecast and authoritative downstream values separately;
 closed opportunities follow policy-defined forecast behavior.
 
 **Sources.** [CRM context](../../crates/contexts/crm/src/lib.rs),
-[CRM forecast migration](../../crates/migration/migrations_tenant_write/0067_crm_opportunity_forecast_guards.sql).
+[CRM forecast migration](../../crates/migration/migrations_holding_write/0001_baseline.sql).
 
 ### REQ-CRM-004 — Sales handoff
 
