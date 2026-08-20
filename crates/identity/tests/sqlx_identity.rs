@@ -2,9 +2,9 @@ use chrono::{Duration, TimeZone, Utc};
 use erpx_identity::{
     AccessTokenLifetime, AccessTokenSigner, ActiveRoleClaim, AssertionRequest,
     AssertionVerification, ConfiguredWebAuthnProvider, IdentityStoreError, PasskeyCeremonyService,
-    PasskeyCredential, RateLimitDecision, RateLimitPolicy, RegistrationRequest, SqlxIdentityStore,
-    TotpKeyResolver, VerifiedRegistration, WebAuthnProvider, WebAuthnProviderConfig,
-    apply_identity_migration,
+    PasskeyCredential, RateLimitDecision, RateLimitPolicy, RegistrationRequest,
+    SecurityCommandContext, SqlxIdentityStore, TotpKeyResolver, VerifiedRegistration,
+    WebAuthnProvider, WebAuthnProviderConfig, apply_identity_migration,
 };
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
@@ -777,6 +777,184 @@ async fn identity_totp_and_recovery_handoffs_are_encrypted_bounded_and_one_time(
             erpx_identity::IdentityError::RecoverySessionInvalid
         ))
     ));
+}
+
+#[tokio::test]
+#[ignore = "requires a disposable PostgreSQL database"]
+async fn identity_security_commands_are_atomic_audited_and_replay_safe() {
+    let write_url = std::env::var("ERPX_TEST_CONTROL_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_CONTROL_WRITE_DATABASE_URL is required");
+    let write = sqlx::PgPool::connect(&write_url).await.expect("write pool");
+    apply_identity_migration(&write)
+        .await
+        .expect("identity migration");
+    let store = SqlxIdentityStore::new(write.clone());
+    let at = Utc
+        .with_ymd_and_hms(2026, 8, 21, 9, 0, 0)
+        .single()
+        .expect("fixed time");
+    store
+        .create_principal_with_password("security-principal", "correct horse", at)
+        .await
+        .expect("principal");
+    let keys =
+        TotpKeyResolver::from_bytes("security-test-key", [11; 32]).expect("TOTP key resolver");
+    let enrollment = store
+        .begin_totp_enrollment(
+            "security-principal",
+            &keys,
+            "security-test-key",
+            "ERPX",
+            "security-principal",
+            at,
+            Duration::minutes(10),
+        )
+        .await
+        .expect("TOTP enrollment");
+    let secret = decode_base32(enrollment.secret().as_str());
+    store
+        .verify_totp_enrollment(
+            "security-principal",
+            enrollment.id(),
+            &totp_code(&secret, at),
+            &keys,
+            at + Duration::seconds(1),
+        )
+        .await
+        .expect("verify enrollment");
+    let before = store
+        .security_factor_state("security-principal", at + Duration::seconds(2))
+        .await
+        .expect("factor state");
+    assert!(before.totp_enabled());
+    assert_eq!(before.recovery_codes_total(), 0);
+
+    let rotate_command_id = uuid::Uuid::new_v4();
+    let rotate_audit_reference = uuid::Uuid::new_v4();
+    let rotate = SecurityCommandContext::new(
+        rotate_command_id,
+        rotate_audit_reference,
+        "security-rotate-001".into(),
+        [1; 32],
+        "rotate recovery codes".into(),
+        "en".into(),
+    )
+    .expect("rotate context");
+    let rotate_at = at + Duration::seconds(30);
+    let first = store
+        .rotate_recovery_codes_with_totp(
+            "security-principal",
+            8,
+            &totp_code(&secret, rotate_at),
+            &keys,
+            &rotate,
+            rotate_at,
+        )
+        .await
+        .expect("rotate recovery codes");
+    assert!(!first.replayed());
+    assert_eq!(
+        first.batch().expect("one-time batch").set().records().len(),
+        8
+    );
+    let replay = store
+        .rotate_recovery_codes_with_totp(
+            "security-principal",
+            8,
+            &totp_code(&secret, rotate_at),
+            &keys,
+            &rotate,
+            rotate_at + Duration::seconds(1),
+        )
+        .await
+        .expect("exact replay");
+    assert!(replay.replayed());
+    assert!(replay.batch().is_none());
+    assert_eq!(replay.occurred_at(), rotate_at);
+
+    let conflicting_rotate = SecurityCommandContext::new(
+        rotate_command_id,
+        rotate_audit_reference,
+        "security-rotate-001".into(),
+        [2; 32],
+        "rotate recovery codes".into(),
+        "en".into(),
+    )
+    .expect("conflicting context");
+    assert!(matches!(
+        store
+            .rotate_recovery_codes_with_totp(
+                "security-principal",
+                8,
+                &totp_code(&secret, rotate_at),
+                &keys,
+                &conflicting_rotate,
+                rotate_at + Duration::seconds(2),
+            )
+            .await,
+        Err(IdentityStoreError::SecurityCommandConflict)
+    ));
+
+    let remove = SecurityCommandContext::new(
+        uuid::Uuid::new_v4(),
+        uuid::Uuid::new_v4(),
+        "security-remove-001".into(),
+        [3; 32],
+        "remove TOTP".into(),
+        "th".into(),
+    )
+    .expect("remove context");
+    let remove_at = at + Duration::seconds(60);
+    let removed = store
+        .remove_totp_with_proof(
+            "security-principal",
+            &totp_code(&secret, remove_at),
+            &keys,
+            &remove,
+            remove_at,
+        )
+        .await
+        .expect("remove TOTP");
+    assert!(!removed.replayed());
+    let remove_replay = store
+        .remove_totp_with_proof(
+            "security-principal",
+            &totp_code(&secret, remove_at),
+            &keys,
+            &remove,
+            remove_at + Duration::seconds(1),
+        )
+        .await
+        .expect("replay removal after factor deletion");
+    assert!(remove_replay.replayed());
+    let after = store
+        .security_factor_state("security-principal", remove_at + Duration::seconds(2))
+        .await
+        .expect("refetched factor state");
+    assert!(!after.totp_enabled());
+    assert_eq!(after.recovery_codes_total(), 8);
+    assert_eq!(after.recovery_codes_remaining(), 8);
+
+    let audit_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM erpx_identity.security_command_audit audit
+         JOIN erpx_identity.principals principal ON principal.id=audit.principal_id
+         WHERE principal.principal_ref='security-principal'",
+    )
+    .fetch_one(&write)
+    .await
+    .expect("audit count");
+    assert_eq!(audit_count, 2);
+    assert!(
+        sqlx::query(
+            "UPDATE erpx_identity.security_command_audit
+             SET purpose='mutated' WHERE audit_reference=$1",
+        )
+        .bind(rotate_audit_reference)
+        .execute(&write)
+        .await
+        .is_err(),
+        "security audit must remain append-only"
+    );
 }
 
 fn decode_base32(encoded: &str) -> Vec<u8> {

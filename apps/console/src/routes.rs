@@ -1927,50 +1927,436 @@ fn Accounts(return_to: Option<String>) -> Element {
     }
 }
 
-macro_rules! auth_page {
-    ($name:ident, $title_en:literal, $title_th:literal, $description_en:literal, $description_th:literal, $icon:literal) => {
-        #[component]
-        fn $name() -> Element {
-            let locale = erpx_ui_core::use_locale().current();
-            let page_title = copy(locale, $title_en, $title_th);
-            let title = format!("{page_title} · ERPX");
-            rsx! {
-                document::Title { "{title}" }
-                article { class: "auth-page-form auth-utility-page",
-                    p { class: "eyebrow", {copy(locale, "SECURITY CENTER", "ศูนย์ความปลอดภัย")} }
-                    div { class: "auth-utility-heading",
-                        span { aria_hidden: "true", $icon }
-                        h2 { "{page_title}" }
+#[derive(Clone, PartialEq)]
+enum SecurityDialog {
+    StartTotp,
+    Enrollment(crate::security_delivery::TotpEnrollmentView),
+    RemoveTotp,
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+fn security_error_copy(
+    error: &erpx_delivery_contract::DeliveryError,
+    locale: Locale,
+) -> (&'static str, &'static str) {
+    use erpx_delivery_contract::DeliveryError;
+    match (error, locale) {
+        (DeliveryError::Unauthenticated(_), Locale::En) => (
+            "Session unavailable",
+            "Reason: the authenticated session expired or was revoked. Sign in again.",
+        ),
+        (DeliveryError::Unauthenticated(_), Locale::Th) => (
+            "เซสชันไม่พร้อมใช้งาน",
+            "เหตุผล: เซสชันหมดอายุหรือถูกเพิกถอน โปรดเข้าสู่ระบบอีกครั้ง",
+        ),
+        (DeliveryError::Forbidden(_), Locale::En) => (
+            "Security change denied",
+            "Reason: this identity is managed by another authority or lacks permission.",
+        ),
+        (DeliveryError::Forbidden(_), Locale::Th) => (
+            "ไม่อนุญาตให้เปลี่ยนความปลอดภัย",
+            "เหตุผล: ตัวตนนี้ถูกจัดการโดย authority อื่นหรือไม่มีสิทธิ์เพียงพอ",
+        ),
+        (DeliveryError::Conflict(_), Locale::En) => (
+            "Security state changed",
+            "Reason: the MFA proof or idempotency receipt was already used. Refresh and retry with a current code.",
+        ),
+        (DeliveryError::Conflict(_), Locale::Th) => (
+            "สถานะความปลอดภัยเปลี่ยนแล้ว",
+            "เหตุผล: หลักฐาน MFA หรือ idempotency receipt ถูกใช้แล้ว โปรดโหลดใหม่และใช้รหัสปัจจุบัน",
+        ),
+        (DeliveryError::RateLimited(_), Locale::En) => (
+            "Too many attempts",
+            "Reason: the identity owner temporarily limited security attempts. Wait before retrying.",
+        ),
+        (DeliveryError::RateLimited(_), Locale::Th) => (
+            "ลองหลายครั้งเกินไป",
+            "เหตุผล: บริการตัวตนจำกัดการลองชั่วคราว โปรดรอก่อนลองอีกครั้ง",
+        ),
+        (DeliveryError::Unavailable(_), Locale::En) => (
+            "Security service unavailable",
+            "Reason: the identity owner or protected key service could not be reached.",
+        ),
+        (DeliveryError::Unavailable(_), Locale::Th) => (
+            "บริการความปลอดภัยไม่พร้อมใช้งาน",
+            "เหตุผล: ไม่สามารถเชื่อมต่อบริการตัวตนหรือบริการกุญแจที่ได้รับการปกป้อง",
+        ),
+        (_, Locale::En) => (
+            "Security request failed",
+            "Reason: validation or the current MFA proof was not accepted by the identity owner.",
+        ),
+        (_, Locale::Th) => (
+            "คำขอความปลอดภัยไม่สำเร็จ",
+            "เหตุผล: บริการตัวตนไม่ยอมรับ validation หรือหลักฐาน MFA ปัจจุบัน",
+        ),
+    }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+#[component]
+fn Security() -> Element {
+    let locale = erpx_ui_core::use_locale().current();
+    let request = crate::security_delivery::SecurityStateRequest {
+        locale: locale.language_tag().into(),
+    };
+    let mut resource = use_server_future(move || {
+        let request = request.clone();
+        async move {
+            match crate::security_delivery::get_security_factor_state(request).await {
+                Ok(result) => result,
+                Err(_) => Err(erpx_delivery_contract::DeliveryError::unavailable(Some(
+                    500,
+                ))),
+            }
+        }
+    })?;
+    let page_state = resource
+        .read()
+        .clone()
+        .expect("resolved security future has a value");
+    let mut dialog = use_signal(|| None::<SecurityDialog>);
+    let mut verification_code = use_signal(String::new);
+    let mut removal_idempotency_key = use_signal(|| uuid::Uuid::new_v4().to_string());
+    let mut busy = use_signal(|| false);
+    let mut feedback = use_signal(|| None::<DeviceFeedback>);
+    let page_title = format!("{} · ERPX", copy(locale, "Security", "ความปลอดภัย"));
+
+    let start_totp = move |_| {
+        if *busy.read() {
+            return;
+        }
+        busy.set(true);
+        feedback.set(None);
+        spawn(async move {
+            let result = crate::security_delivery::start_totp_enrollment(
+                crate::security_delivery::BeginTotpRequest {
+                    locale: locale.language_tag().into(),
+                    purpose: "enroll account TOTP factor".into(),
+                    confirmed: true,
+                },
+            )
+            .await;
+            busy.set(false);
+            match result {
+                Ok(Ok(enrollment)) => {
+                    verification_code.set(String::new());
+                    dialog.set(Some(SecurityDialog::Enrollment(enrollment)));
+                }
+                Ok(Err(error)) => {
+                    let (title, reason) = security_error_copy(&error, locale);
+                    feedback.set(Some(DeviceFeedback {
+                        state: "error",
+                        message: format!(
+                            "{title}. {reason} {}: {}",
+                            copy(locale, "Reference", "รหัสอ้างอิง"),
+                            error.meta().correlation_id
+                        ),
+                        audit_reference: None,
+                    }));
+                }
+                Err(_) => feedback.set(Some(DeviceFeedback {
+                    state: "error",
+                    message: copy(
+                        locale,
+                        "The same-origin TOTP enrollment transport is unavailable.",
+                        "ช่องทางลงทะเบียน TOTP แบบ same-origin ไม่พร้อมใช้งาน",
+                    )
+                    .into(),
+                    audit_reference: None,
+                })),
+            }
+        });
+    };
+
+    let verify_totp = move |_| {
+        let Some(SecurityDialog::Enrollment(enrollment)) = dialog.read().clone() else {
+            return;
+        };
+        if *busy.read() {
+            return;
+        }
+        busy.set(true);
+        let code = verification_code.read().clone();
+        spawn(async move {
+            let result = crate::security_delivery::confirm_totp_enrollment(
+                crate::security_delivery::VerifyTotpRequest {
+                    enrollment_id: enrollment.enrollment_id,
+                    code,
+                    locale: locale.language_tag().into(),
+                },
+            )
+            .await;
+            busy.set(false);
+            match result {
+                Ok(Ok(outcome)) if outcome.verified => {
+                    verification_code.set(String::new());
+                    dialog.set(None);
+                    feedback.set(Some(DeviceFeedback {
+                        state: "success",
+                        message: copy(
+                            locale,
+                            "TOTP was verified by the identity owner. Create recovery codes next.",
+                            "บริการตัวตนยืนยัน TOTP แล้ว โปรดสร้างรหัสกู้คืนเป็นขั้นตอนถัดไป",
+                        )
+                        .into(),
+                        audit_reference: None,
+                    }));
+                    resource.restart();
+                }
+                Ok(Ok(_)) => feedback.set(Some(DeviceFeedback {
+                    state: "pending",
+                    message: copy(
+                        locale,
+                        "Verification was accepted but authoritative confirmation is pending.",
+                        "ระบบรับการยืนยันแล้ว แต่ยังรอสถานะที่เชื่อถือได้",
+                    )
+                    .into(),
+                    audit_reference: None,
+                })),
+                Ok(Err(error)) => {
+                    let (title, reason) = security_error_copy(&error, locale);
+                    feedback.set(Some(DeviceFeedback {
+                        state: "error",
+                        message: format!(
+                            "{title}. {reason} {}: {}",
+                            copy(locale, "Reference", "รหัสอ้างอิง"),
+                            error.meta().correlation_id
+                        ),
+                        audit_reference: None,
+                    }));
+                }
+                Err(_) => feedback.set(Some(DeviceFeedback {
+                    state: "error",
+                    message: copy(
+                        locale,
+                        "The same-origin TOTP verification transport is unavailable.",
+                        "ช่องทางยืนยัน TOTP แบบ same-origin ไม่พร้อมใช้งาน",
+                    )
+                    .into(),
+                    audit_reference: None,
+                })),
+            }
+        });
+    };
+
+    let remove_totp = move |_| {
+        if *busy.read() {
+            return;
+        }
+        busy.set(true);
+        let code = verification_code.read().clone();
+        let idempotency_key = removal_idempotency_key.read().clone();
+        spawn(async move {
+            let result = crate::security_delivery::remove_totp_factor(
+                crate::security_delivery::HighRiskSecurityRequest {
+                    mfa_code: code,
+                    idempotency_key,
+                    locale: locale.language_tag().into(),
+                    purpose: "remove active account TOTP factor".into(),
+                    confirmed: true,
+                },
+            )
+            .await;
+            busy.set(false);
+            match result {
+                Ok(Ok(outcome)) => {
+                    verification_code.set(String::new());
+                    dialog.set(None);
+                    feedback.set(Some(DeviceFeedback {
+                        state: if outcome.authoritative_state == "confirmed" {
+                            "success"
+                        } else {
+                            "pending"
+                        },
+                        message: copy(
+                            locale,
+                            "TOTP removal was committed and the authoritative factor state was refreshed.",
+                            "บันทึกการนำ TOTP ออกแล้ว และโหลดสถานะ factor ที่เชื่อถือได้ใหม่แล้ว",
+                        )
+                        .into(),
+                        audit_reference: Some(outcome.receipt.audit_reference.to_string()),
+                    }));
+                    resource.restart();
+                }
+                Ok(Err(error)) => {
+                    let (title, reason) = security_error_copy(&error, locale);
+                    feedback.set(Some(DeviceFeedback {
+                        state: "error",
+                        message: format!(
+                            "{title}. {reason} {}: {}",
+                            copy(locale, "Reference", "รหัสอ้างอิง"),
+                            error.meta().correlation_id
+                        ),
+                        audit_reference: None,
+                    }));
+                }
+                Err(_) => feedback.set(Some(DeviceFeedback {
+                    state: "error",
+                    message: copy(
+                        locale,
+                        "The same-origin TOTP removal transport is unavailable.",
+                        "ช่องทางนำ TOTP ออกแบบ same-origin ไม่พร้อมใช้งาน",
+                    )
+                    .into(),
+                    audit_reference: None,
+                })),
+            }
+        });
+    };
+
+    rsx! {
+        document::Title { "{page_title}" }
+        article { class: "auth-page-form auth-utility-page security-factor-page",
+            p { class: "eyebrow", {copy(locale, "SECURITY CENTER", "ศูนย์ความปลอดภัย")} }
+            div { class: "auth-utility-heading",
+                span { aria_hidden: "true", "⌾" }
+                div {
+                    h2 { {copy(locale, "Security factors", "ปัจจัยความปลอดภัย")} }
+                    p { class: "auth-page-form__intro", {copy(locale,
+                        "Manage factors against the authoritative identity owner. One-time material is never stored in shared caches.",
+                        "จัดการ factor กับบริการเจ้าของข้อมูลตัวตนโดยตรง ข้อมูลใช้ครั้งเดียวจะไม่ถูกเก็บในแคชร่วม",
+                    )} }
+                }
+            }
+            match page_state {
+                Err(error) => {
+                    let (title, reason) = security_error_copy(&error, locale);
+                    rsx! {
+                        section { class: "route-denied", role: "alert", "data-reason": "identity_security_query_failed",
+                            h3 { "{title}" }
+                            p { "{reason}" }
+                            small { {copy(locale, "Reference", "รหัสอ้างอิง")} ": {error.meta().correlation_id}" }
+                            KitButton { variant: ButtonVariant::Secondary, r#type: "button", onclick: move |_| resource.restart(), {copy(locale, "Try again", "ลองอีกครั้ง")} }
+                        }
                     }
-                    p { class: "auth-page-form__intro", {copy(locale, $description_en, $description_th)} }
+                },
+                Ok(page) => rsx! {
                     section { class: "auth-utility-status", role: "status",
                         span { class: "auth-utility-status__dot", aria_hidden: "true" }
                         div {
-                            strong { {copy(locale, "Protected session", "เซสชันที่ได้รับการปกป้อง")} }
+                            strong { {copy(locale, "Authoritative factor state", "สถานะ factor ที่เชื่อถือได้")} }
+                            p { {copy(locale, "Measured at", "วัดเมื่อ")} " {page.measured_at} · {page.freshness}" }
+                            small { {copy(locale, "Reference", "รหัสอ้างอิง")} ": {page.correlation_id}" }
+                        }
+                    }
+                    if page.directory_managed {
+                        section { class: "device-authoritative-empty", role: "status",
+                            h3 { {copy(locale, "Directory-managed identity", "ตัวตนที่จัดการโดย Directory")} }
                             p { {copy(locale,
-                                "This surface is session-scoped and is never stored in shared caches.",
-                                "หน้านี้ผูกกับเซสชันและจะไม่ถูกเก็บไว้ในแคชที่ใช้ร่วมกัน",
+                                "Local factor changes are unavailable because the directory authority owns this identity.",
+                                "ไม่สามารถเปลี่ยน factor ภายในระบบได้ เนื่องจาก directory authority เป็นเจ้าของตัวตนนี้",
                             )} }
                         }
                     }
-                    div { class: "route-actions auth-utility-actions",
-                        KitLink { class: "route-action route-action--primary", href: "/auth/accounts", {copy(locale, "Manage account access", "จัดการสิทธิ์บัญชี")} }
-                        KitLink { class: "route-action", href: "/work", {copy(locale, "Return to work", "กลับไปยังงาน")} }
+                    section { class: "security-factor-grid", aria_label: copy(locale, "Security factors", "ปัจจัยความปลอดภัย"),
+                        article { class: "security-factor-card", "data-enabled": page.totp_enabled,
+                            div {
+                                h3 { "TOTP" }
+                                p { if page.totp_enabled { {copy(locale, "Enabled", "เปิดใช้งานแล้ว")} } else { {copy(locale, "Not enrolled", "ยังไม่ได้ลงทะเบียน")} } }
+                                if let Some(enabled_at) = page.totp_enabled_at.as_ref() { small { {copy(locale, "Enabled at", "เปิดใช้เมื่อ")} ": {enabled_at}" } }
+                            }
+                            if !page.directory_managed {
+                                if page.totp_enabled {
+                                    KitButton { variant: ButtonVariant::Secondary, r#type: "button", disabled: *busy.read(), "data-testid": "totp-remove", onclick: move |_| { verification_code.set(String::new()); removal_idempotency_key.set(uuid::Uuid::new_v4().to_string()); dialog.set(Some(SecurityDialog::RemoveTotp)); }, {copy(locale, "Remove TOTP", "นำ TOTP ออก")} }
+                                } else {
+                                    KitButton { variant: ButtonVariant::Primary, r#type: "button", disabled: *busy.read(), "data-testid": "totp-enroll", onclick: move |_| dialog.set(Some(SecurityDialog::StartTotp)), {copy(locale, "Set up TOTP", "ตั้งค่า TOTP")} }
+                                }
+                            }
+                        }
+                        article { class: "security-factor-card",
+                            div {
+                                h3 { {copy(locale, "Passkeys", "Passkey")} }
+                                p {
+                                    "{page.passkey_count} "
+                                    {copy(locale, "active", "รายการที่ใช้งาน")}
+                                }
+                            }
+                            small { {copy(locale, "Passkey registration will remain unavailable unless the live provider is configured.", "การลงทะเบียน Passkey จะยังไม่พร้อมจนกว่าจะตั้งค่า live provider")} }
+                        }
+                        article { class: "security-factor-card",
+                            div {
+                                h3 { {copy(locale, "Recovery codes", "รหัสกู้คืน")} }
+                                p {
+                                    "{page.recovery_codes_remaining}/{page.recovery_codes_total} "
+                                    {copy(locale, "remaining", "คงเหลือ")}
+                                }
+                            }
+                            KitLink { href: "/auth/recovery", {copy(locale, "Manage recovery codes", "จัดการรหัสกู้คืน")} }
+                        }
                     }
                 }
             }
+            if let Some(active_dialog) = dialog.read().as_ref() {
+                section { class: "device-revoke-confirmation security-factor-dialog", role: "alertdialog", aria_modal: "true", aria_labelledby: "security-dialog-title", aria_describedby: "security-dialog-description",
+                    match active_dialog {
+                        SecurityDialog::StartTotp => rsx! {
+                            strong { id: "security-dialog-title", {copy(locale, "Set up TOTP?", "ตั้งค่า TOTP หรือไม่")} }
+                            p { id: "security-dialog-description", {copy(locale,
+                                "A new one-time secret will be shown once. Store it only in your authenticator app.",
+                                "ระบบจะแสดง secret ใช้ครั้งเดียวหนึ่งครั้ง โปรดเก็บไว้เฉพาะในแอปยืนยันตัวตน",
+                            )} }
+                            div { class: "route-actions",
+                                KitButton { variant: ButtonVariant::Secondary, r#type: "button", disabled: *busy.read(), onclick: move |_| dialog.set(None), {copy(locale, "Cancel", "ยกเลิก")} }
+                                KitButton { variant: ButtonVariant::Primary, r#type: "button", disabled: *busy.read(), "data-testid": "totp-generate", onclick: start_totp, {copy(locale, "Generate secret", "สร้าง secret")} }
+                            }
+                        },
+                        SecurityDialog::Enrollment(enrollment) => rsx! {
+                            strong { id: "security-dialog-title", {copy(locale, "Add the manual key", "เพิ่มกุญแจด้วยตนเอง")} }
+                            p { id: "security-dialog-description", {copy(locale,
+                                "Enter this key in your authenticator. It will disappear after verification or cancellation.",
+                                "กรอกกุญแจนี้ในแอปยืนยันตัวตน กุญแจจะหายไปหลังยืนยันหรือยกเลิก",
+                            )} }
+                            code { class: "security-one-time-secret", "data-testid": "totp-secret", "{enrollment.secret}" }
+                            label { class: "auth-page-form__field",
+                                span { {copy(locale, "Current 6-digit code", "รหัสปัจจุบัน 6 หลัก")} }
+                                KitInput { r#type: "text", inputmode: "numeric", autocomplete: "one-time-code", maxlength: "6", value: "{verification_code}", disabled: *busy.read(), "data-testid": "totp-code", oninput: move |event: FormEvent| verification_code.set(event.value()) }
+                            }
+                            div { class: "route-actions",
+                                KitButton { variant: ButtonVariant::Secondary, r#type: "button", disabled: *busy.read(), onclick: move |_| { verification_code.set(String::new()); dialog.set(None); }, {copy(locale, "Cancel", "ยกเลิก")} }
+                                KitButton { variant: ButtonVariant::Primary, r#type: "button", disabled: *busy.read() || !valid_six_digit_code(&verification_code.read()), "data-testid": "totp-verify", onclick: verify_totp, {copy(locale, "Verify TOTP", "ยืนยัน TOTP")} }
+                            }
+                        },
+                        SecurityDialog::RemoveTotp => rsx! {
+                            strong { id: "security-dialog-title", {copy(locale, "Remove TOTP?", "นำ TOTP ออกหรือไม่")} }
+                            p { id: "security-dialog-description", {copy(locale,
+                                "Confirm with a current TOTP code. Existing recovery codes remain available.",
+                                "ยืนยันด้วยรหัส TOTP ปัจจุบัน รหัสกู้คืนเดิมจะยังใช้งานได้",
+                            )} }
+                            label { class: "auth-page-form__field",
+                                span { {copy(locale, "Current 6-digit code", "รหัสปัจจุบัน 6 หลัก")} }
+                                KitInput { r#type: "text", inputmode: "numeric", autocomplete: "one-time-code", maxlength: "6", value: "{verification_code}", disabled: *busy.read(), "data-testid": "totp-remove-code", oninput: move |event: FormEvent| verification_code.set(event.value()) }
+                            }
+                            div { class: "route-actions",
+                                KitButton { variant: ButtonVariant::Secondary, r#type: "button", disabled: *busy.read(), onclick: move |_| { verification_code.set(String::new()); dialog.set(None); }, {copy(locale, "Cancel", "ยกเลิก")} }
+                                KitButton { variant: ButtonVariant::Secondary, class: "account-remove-button", r#type: "button", disabled: *busy.read() || !valid_six_digit_code(&verification_code.read()), "data-testid": "totp-remove-confirm", onclick: remove_totp, {copy(locale, "Confirm removal", "ยืนยันการนำออก")} }
+                            }
+                        },
+                    }
+                }
+            }
+            if let Some(status) = feedback.read().as_ref() {
+                section { class: "identity-command-feedback", "data-state": status.state, role: "status",
+                    p { "{status.message}" }
+                    if let Some(reference) = status.audit_reference.as_ref() { small { {copy(locale, "Audit reference", "รหัสอ้างอิงการตรวจสอบ")} ": {reference}" } }
+                }
+            }
+            div { class: "route-actions auth-utility-actions",
+                KitLink { href: "/auth/devices", {copy(locale, "Devices and sessions", "อุปกรณ์และเซสชัน")} }
+                KitLink { href: "/work", {copy(locale, "Return to work", "กลับไปยังงาน")} }
+            }
         }
-    };
+    }
 }
 
-auth_page!(
-    Security,
-    "Security",
-    "ความปลอดภัย",
-    "Review the trusted session boundary and continue to account access when you need to change roles.",
-    "ตรวจสอบขอบเขตเซสชันที่เชื่อถือได้ และไปยังสิทธิ์บัญชีเมื่อต้องการเปลี่ยนบทบาท",
-    "⌾"
-);
+#[cfg(feature = "native")]
+#[component]
+fn Security() -> Element {
+    rsx! { FeatureClosed { name: "Security factors" } }
+}
+
+fn valid_six_digit_code(value: &str) -> bool {
+    value.len() == 6 && value.as_bytes().iter().all(u8::is_ascii_digit)
+}
 
 #[derive(Clone, PartialEq)]
 struct DeviceConfirmation {
@@ -2335,14 +2721,253 @@ fn Devices(_cursor: Option<String>) -> Element {
     rsx! { FeatureClosed { name: "Device management" } }
 }
 
-auth_page!(
-    Recovery,
-    "Recovery",
-    "การกู้คืน",
-    "Recovery controls remain inside the protected account boundary so workspace data is never exposed here.",
-    "การควบคุมการกู้คืนอยู่ภายในขอบเขตบัญชีที่ได้รับการปกป้อง จึงไม่เปิดเผยข้อมูลพื้นที่ทำงานในหน้านี้",
-    "↻"
-);
+#[cfg(any(feature = "web", feature = "server"))]
+#[component]
+fn Recovery() -> Element {
+    let locale = erpx_ui_core::use_locale().current();
+    let request = crate::security_delivery::SecurityStateRequest {
+        locale: locale.language_tag().into(),
+    };
+    let mut resource = use_server_future(move || {
+        let request = request.clone();
+        async move {
+            match crate::security_delivery::get_security_factor_state(request).await {
+                Ok(result) => result,
+                Err(_) => Err(erpx_delivery_contract::DeliveryError::unavailable(Some(
+                    500,
+                ))),
+            }
+        }
+    })?;
+    let page_state = resource
+        .read()
+        .clone()
+        .expect("resolved recovery future has a value");
+    let mut confirmation_open = use_signal(|| false);
+    let mut mfa_code = use_signal(String::new);
+    let mut idempotency_key = use_signal(|| uuid::Uuid::new_v4().to_string());
+    let mut busy = use_signal(|| false);
+    let mut feedback = use_signal(|| None::<DeviceFeedback>);
+    let mut issued_codes =
+        use_signal(|| None::<crate::security_delivery::RecoveryCodeRotationView>);
+    let page_title = format!("{} · ERPX", copy(locale, "Recovery", "การกู้คืน"));
+
+    let rotate_codes = move |_| {
+        if *busy.read() {
+            return;
+        }
+        busy.set(true);
+        let code = mfa_code.read().clone();
+        let request_key = idempotency_key.read().clone();
+        spawn(async move {
+            let result = crate::security_delivery::rotate_recovery_codes(
+                crate::security_delivery::HighRiskSecurityRequest {
+                    mfa_code: code,
+                    idempotency_key: request_key,
+                    locale: locale.language_tag().into(),
+                    purpose: "rotate account recovery codes".into(),
+                    confirmed: true,
+                },
+            )
+            .await;
+            busy.set(false);
+            match result {
+                Ok(Ok(outcome)) => {
+                    confirmation_open.set(false);
+                    mfa_code.set(String::new());
+                    idempotency_key.set(uuid::Uuid::new_v4().to_string());
+                    feedback.set(Some(DeviceFeedback {
+                        state: if outcome.authoritative_state == "confirmed" {
+                            "success"
+                        } else {
+                            "pending"
+                        },
+                        message: if outcome.receipt.replayed && outcome.codes.is_empty() {
+                            copy(
+                                locale,
+                                "The earlier rotation is already committed. One-time codes cannot be shown again; rotate once more with a new current MFA code if they were not saved.",
+                                "การหมุนเวียนครั้งก่อนถูกบันทึกแล้ว ไม่สามารถแสดงรหัสใช้ครั้งเดียวซ้ำได้ หากยังไม่ได้บันทึกโปรดหมุนเวียนอีกครั้งด้วยรหัส MFA ปัจจุบันใหม่",
+                            )
+                        } else {
+                            copy(
+                                locale,
+                                "Recovery codes were rotated and confirmed by the identity owner. Save them now.",
+                                "หมุนเวียนรหัสกู้คืนและยืนยันจากบริการตัวตนแล้ว โปรดบันทึกรหัสตอนนี้",
+                            )
+                        }
+                        .into(),
+                        audit_reference: Some(outcome.receipt.audit_reference.to_string()),
+                    }));
+                    issued_codes.set(Some(outcome));
+                    resource.restart();
+                }
+                Ok(Err(error)) => {
+                    let (title, reason) = security_error_copy(&error, locale);
+                    feedback.set(Some(DeviceFeedback {
+                        state: "error",
+                        message: format!(
+                            "{title}. {reason} {}: {}",
+                            copy(locale, "Reference", "รหัสอ้างอิง"),
+                            error.meta().correlation_id
+                        ),
+                        audit_reference: None,
+                    }));
+                }
+                Err(_) => feedback.set(Some(DeviceFeedback {
+                    state: "error",
+                    message: copy(
+                        locale,
+                        "The same-origin recovery rotation transport is unavailable. Retry safely with the same request.",
+                        "ช่องทางหมุนเวียนรหัสกู้คืนแบบ same-origin ไม่พร้อมใช้งาน สามารถลองคำขอเดิมซ้ำได้อย่างปลอดภัย",
+                    )
+                    .into(),
+                    audit_reference: None,
+                })),
+            }
+        });
+    };
+
+    rsx! {
+        document::Title { "{page_title}" }
+        article { class: "auth-page-form auth-utility-page security-factor-page",
+            p { class: "eyebrow", {copy(locale, "SECURITY CENTER", "ศูนย์ความปลอดภัย")} }
+            div { class: "auth-utility-heading",
+                span { aria_hidden: "true", "↻" }
+                div {
+                    h2 { {copy(locale, "Recovery codes", "รหัสกู้คืน")} }
+                    p { class: "auth-page-form__intro", {copy(locale,
+                        "Rotate recovery codes with a fresh TOTP proof. Previous code hashes are replaced atomically.",
+                        "หมุนเวียนรหัสกู้คืนด้วยหลักฐาน TOTP ล่าสุด โดย hash ของรหัสเดิมจะถูกแทนที่แบบ atomic",
+                    )} }
+                }
+            }
+            match page_state {
+                Err(error) => {
+                    let (title, reason) = security_error_copy(&error, locale);
+                    rsx! {
+                        section { class: "route-denied", role: "alert", "data-reason": "identity_recovery_query_failed",
+                            h3 { "{title}" }
+                            p { "{reason}" }
+                            small { {copy(locale, "Reference", "รหัสอ้างอิง")} ": {error.meta().correlation_id}" }
+                            KitButton { variant: ButtonVariant::Secondary, r#type: "button", onclick: move |_| resource.restart(), {copy(locale, "Try again", "ลองอีกครั้ง")} }
+                        }
+                    }
+                },
+                Ok(page) => rsx! {
+                    section { class: "auth-utility-status", role: "status",
+                        span { class: "auth-utility-status__dot", aria_hidden: "true" }
+                        div {
+                            strong { {copy(locale, "Authoritative recovery state", "สถานะการกู้คืนที่เชื่อถือได้")} }
+                            p {
+                                "{page.recovery_codes_remaining}/{page.recovery_codes_total} "
+                                {copy(locale, "codes remaining", "รหัสคงเหลือ")}
+                                " · "
+                                {copy(locale, "measured", "วัดเมื่อ")}
+                                " {page.measured_at}"
+                            }
+                            small { {copy(locale, "Reference", "รหัสอ้างอิง")} ": {page.correlation_id}" }
+                        }
+                    }
+                    if page.directory_managed {
+                        section { class: "device-authoritative-empty", role: "status",
+                            h3 { {copy(locale, "Directory-managed recovery", "การกู้คืนที่จัดการโดย Directory")} }
+                            p { {copy(locale,
+                                "Local recovery-code rotation is unavailable for this directory-managed identity.",
+                                "ไม่สามารถหมุนเวียนรหัสกู้คืนภายในระบบสำหรับตัวตนที่จัดการโดย Directory",
+                            )} }
+                        }
+                    } else if !page.totp_enabled {
+                        section { class: "device-authoritative-empty", role: "status",
+                            h3 { {copy(locale, "TOTP required", "ต้องใช้ TOTP")} }
+                            p { {copy(locale,
+                                "Set up TOTP before creating or rotating recovery codes.",
+                                "ตั้งค่า TOTP ก่อนสร้างหรือหมุนเวียนรหัสกู้คืน",
+                            )} }
+                            KitLink { href: "/auth/security", {copy(locale, "Set up TOTP", "ตั้งค่า TOTP")} }
+                        }
+                    } else {
+                        section { class: "security-recovery-actions",
+                            p { {copy(locale,
+                                "Generating a new batch invalidates every previous recovery code, including unused codes.",
+                                "การสร้างชุดใหม่จะทำให้รหัสกู้คืนเดิมทั้งหมดใช้ไม่ได้ รวมถึงรหัสที่ยังไม่เคยใช้",
+                            )} }
+                            KitButton {
+                                variant: ButtonVariant::Primary,
+                                r#type: "button",
+                                disabled: *busy.read(),
+                                "data-testid": "recovery-rotate",
+                                onclick: move |_| {
+                                    issued_codes.set(None);
+                                    mfa_code.set(String::new());
+                                    idempotency_key.set(uuid::Uuid::new_v4().to_string());
+                                    confirmation_open.set(true);
+                                },
+                                {copy(locale, "Rotate 8 recovery codes", "หมุนเวียนรหัสกู้คืน 8 รหัส")}
+                            }
+                        }
+                    }
+                }
+            }
+            if *confirmation_open.read() {
+                section { class: "device-revoke-confirmation security-factor-dialog", role: "alertdialog", aria_modal: "true", aria_labelledby: "recovery-dialog-title", aria_describedby: "recovery-dialog-description",
+                    strong { id: "recovery-dialog-title", {copy(locale, "Rotate all recovery codes?", "หมุนเวียนรหัสกู้คืนทั้งหมดหรือไม่")} }
+                    p { id: "recovery-dialog-description", {copy(locale,
+                        "Confirm with a current 6-digit TOTP code. The new codes are displayed once.",
+                        "ยืนยันด้วยรหัส TOTP ปัจจุบัน 6 หลัก ระบบจะแสดงรหัสใหม่เพียงครั้งเดียว",
+                    )} }
+                    label { class: "auth-page-form__field",
+                        span { {copy(locale, "Current 6-digit code", "รหัสปัจจุบัน 6 หลัก")} }
+                        KitInput { r#type: "text", inputmode: "numeric", autocomplete: "one-time-code", maxlength: "6", value: "{mfa_code}", disabled: *busy.read(), "data-testid": "recovery-mfa-code", oninput: move |event: FormEvent| mfa_code.set(event.value()) }
+                    }
+                    div { class: "route-actions",
+                        KitButton { variant: ButtonVariant::Secondary, r#type: "button", disabled: *busy.read(), "data-testid": "recovery-rotate-cancel", onclick: move |_| { mfa_code.set(String::new()); confirmation_open.set(false); }, {copy(locale, "Cancel", "ยกเลิก")} }
+                        KitButton { variant: ButtonVariant::Primary, r#type: "button", disabled: *busy.read() || !valid_six_digit_code(&mfa_code.read()), "data-testid": "recovery-rotate-confirm", onclick: rotate_codes, {copy(locale, "Confirm rotation", "ยืนยันการหมุนเวียน")} }
+                    }
+                }
+            }
+            if let Some(outcome) = issued_codes.read().as_ref() {
+                section { class: "security-one-time-codes", role: "status", "data-testid": "recovery-codes",
+                    h3 { {copy(locale, "Save these codes now", "บันทึกรหัสเหล่านี้ตอนนี้")} }
+                    if outcome.codes.is_empty() {
+                        p { {copy(locale,
+                            "This was an idempotent replay, so one-time codes are not disclosed again.",
+                            "คำขอนี้เป็น idempotent replay จึงไม่เปิดเผยรหัสใช้ครั้งเดียวซ้ำ",
+                        )} }
+                    } else {
+                        p { {copy(locale,
+                            "Each code works once. Do not paste them into chat, tickets, or shared documents.",
+                            "แต่ละรหัสใช้ได้ครั้งเดียว ห้ามวางรหัสในแชต ticket หรือเอกสารร่วม",
+                        )} }
+                        ol {
+                            for code in outcome.codes.iter() { li { code { "{code}" } } }
+                        }
+                    }
+                    KitButton { variant: ButtonVariant::Secondary, r#type: "button", onclick: move |_| issued_codes.set(None), {copy(locale, "I saved them", "ฉันบันทึกแล้ว")} }
+                }
+            }
+            if let Some(status) = feedback.read().as_ref() {
+                section { class: "identity-command-feedback", "data-state": status.state, role: "status",
+                    p { "{status.message}" }
+                    if let Some(reference) = status.audit_reference.as_ref() { small { {copy(locale, "Audit reference", "รหัสอ้างอิงการตรวจสอบ")} ": {reference}" } }
+                }
+            }
+            div { class: "route-actions auth-utility-actions",
+                KitLink { href: "/auth/security", {copy(locale, "Security factors", "ปัจจัยความปลอดภัย")} }
+                KitLink { href: "/auth/devices", {copy(locale, "Devices and sessions", "อุปกรณ์และเซสชัน")} }
+            }
+            p { class: "auth-page-form__security", {copy(locale,
+                "Recovery codes are returned only to this protected page and are never persisted in plaintext by ERPX.",
+                "รหัสกู้คืนจะส่งกลับมายังหน้าที่ได้รับการปกป้องนี้เท่านั้น และ ERPX จะไม่จัดเก็บรหัสแบบ plaintext",
+            )} }
+        }
+    }
+}
+
+#[cfg(feature = "native")]
+#[component]
+fn Recovery() -> Element {
+    rsx! { FeatureClosed { name: "Recovery codes" } }
+}
 
 #[derive(Clone, PartialEq)]
 enum PublicFormSubmissionState {

@@ -13,8 +13,8 @@ use erpx_identity::{
     AccessTokenClaims, BrowserAssertionRequest, BrowserAuthenticationCeremonyStart,
     BrowserRegistrationCeremonyStart, BrowserRegistrationRequest, IdentityError,
     IdentityStoreError, LiveDirectoryError, PasskeyCeremonyService, RateLimitDecision,
-    RateLimitPolicy, RoleOption, WebAuthnProvider, authenticate_directory_user_with_runtime,
-    directory_authority_key,
+    RateLimitPolicy, RoleOption, SecurityCommandContext, WebAuthnProvider,
+    authenticate_directory_user_with_runtime, directory_authority_key,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -41,6 +41,18 @@ pub(crate) struct IdentityHttpResponse {
 #[derive(Debug, Deserialize)]
 struct IssueRecoveryCodesRequest {
     count: usize,
+    mfa_code: String,
+    idempotency_key: String,
+    purpose: String,
+    locale: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RemoveTotpRequest {
+    mfa_code: String,
+    idempotency_key: String,
+    purpose: String,
+    locale: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -69,9 +81,33 @@ struct DeviceListResponse {
 #[derive(Debug, Serialize)]
 struct RecoveryCodesIssuedResponse {
     issued: bool,
+    replayed: bool,
     count: usize,
     codes: Vec<String>,
     issued_at: String,
+    command_id: String,
+    audit_reference: String,
+}
+
+#[derive(Debug, Serialize)]
+struct SecurityFactorStateResponse {
+    directory_managed: bool,
+    totp_enabled: bool,
+    totp_enabled_at: Option<String>,
+    passkey_count: u16,
+    recovery_codes_total: u16,
+    recovery_codes_remaining: u16,
+    recovery_codes_issued_at: Option<String>,
+    measured_at: String,
+}
+
+#[derive(Debug, Serialize)]
+struct TotpRemovedResponse {
+    removed: bool,
+    replayed: bool,
+    removed_at: String,
+    command_id: String,
+    audit_reference: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -575,6 +611,7 @@ pub(crate) async fn handle(
         ("GET", "/auth/role-options") => role_options(headers, auth).await,
         ("POST", "/auth/role-selection") => select_role(headers, body, auth).await,
         ("GET", "/auth/devices") => list_devices(path, headers, auth).await,
+        ("GET", "/auth/security-factors") => security_factor_state(headers, auth).await,
         ("POST", route_path) if device_revoke_path(route_path).is_some() => {
             revoke_device(route_path, headers, body, auth).await
         }
@@ -586,6 +623,7 @@ pub(crate) async fn handle(
         ("POST", "/auth/totp/enrollment/verify") => {
             verify_totp_enrollment(headers, body, auth).await
         }
+        ("POST", "/auth/totp/remove") => remove_totp(headers, body, auth).await,
         ("POST", "/auth/recovery-sessions/initiate") => {
             initiate_recovery_session(headers, body, auth).await
         }
@@ -599,12 +637,14 @@ pub(crate) async fn handle(
         | ("GET", "/auth/recovery-codes")
         | ("GET", "/auth/totp/enrollment/start")
         | ("GET", "/auth/totp/enrollment/verify")
+        | ("GET", "/auth/totp/remove")
         | ("GET", "/auth/recovery-sessions/initiate")
         | ("GET", "/auth/recovery-sessions/consume")
         | ("GET", "/auth/recovery-sessions/reset-password")
         | ("POST", "/auth/role-options")
         | ("GET", "/auth/role-selection")
         | ("POST", "/auth/devices")
+        | ("POST", "/auth/security-factors")
         | ("GET", "/auth/login") => method_not_allowed(),
         ("GET", path) if device_revoke_path(path).is_some() => method_not_allowed(),
         _ => method_not_allowed(),
@@ -1033,10 +1073,12 @@ fn is_identity_path(path: &str) -> bool {
             | "/auth/role-options"
             | "/auth/role-selection"
             | "/auth/devices"
+            | "/auth/security-factors"
             | "/auth/recovery-codes"
             | "/auth/recovery-codes/consume"
             | "/auth/totp/enrollment/start"
             | "/auth/totp/enrollment/verify"
+            | "/auth/totp/remove"
             | "/auth/recovery-sessions/initiate"
             | "/auth/recovery-sessions/consume"
             | "/auth/recovery-sessions/reset-password"
@@ -1420,6 +1462,39 @@ async fn list_devices(
     }
 }
 
+async fn security_factor_state(
+    headers: &HashMap<String, String>,
+    auth: Arc<AuthContext>,
+) -> IdentityHttpResponse {
+    let claims = match authenticate(headers, &auth).await {
+        Ok(claims) => claims,
+        Err(response) => return response,
+    };
+    let measured_at = Utc::now();
+    match auth
+        .identity
+        .security_factor_state(&claims.principal_ref, measured_at)
+        .await
+    {
+        Ok(state) => response(
+            "200 OK",
+            &SecurityFactorStateResponse {
+                directory_managed: state.directory_managed(),
+                totp_enabled: state.totp_enabled(),
+                totp_enabled_at: state.totp_enabled_at().map(|value| value.to_rfc3339()),
+                passkey_count: state.passkey_count(),
+                recovery_codes_total: state.recovery_codes_total(),
+                recovery_codes_remaining: state.recovery_codes_remaining(),
+                recovery_codes_issued_at: state
+                    .recovery_codes_issued_at()
+                    .map(|value| value.to_rfc3339()),
+                measured_at: state.measured_at().to_rfc3339(),
+            },
+        ),
+        Err(error) => identity_error_response(error, false),
+    }
+}
+
 async fn revoke_device(
     path: &str,
     headers: &HashMap<String, String>,
@@ -1449,12 +1524,21 @@ async fn revoke_device(
     if current_device_id == device_id {
         return json_response("409 Conflict", "current_device_requires_sign_out");
     }
-    let command_id =
-        stable_device_command_id(&claims.principal_ref, device_id, &input.idempotency_key);
-    let audit_reference = stable_device_audit_reference(command_id);
+    let command = match security_command_context(
+        &claims.principal_ref,
+        "device_revoke",
+        Some(device_id),
+        &input.idempotency_key,
+        &input.purpose,
+        &input.locale,
+        &device_id.to_string(),
+    ) {
+        Ok(command) => command,
+        Err(response) => return response,
+    };
     match auth
         .identity
-        .revoke_device_with_outcome(&claims.principal_ref, device_id, revoked_at)
+        .revoke_device_command(&claims.principal_ref, device_id, &command, revoked_at)
         .await
     {
         Ok(Some(outcome)) => response(
@@ -1462,9 +1546,9 @@ async fn revoke_device(
             &DeviceRevokedResponse {
                 revoked: true,
                 replayed: outcome.replayed(),
-                command_id: command_id.to_string(),
-                audit_reference: audit_reference.to_string(),
-                revoked_at: revoked_at.to_rfc3339(),
+                command_id: command.command_id().to_string(),
+                audit_reference: command.audit_reference().to_string(),
+                revoked_at: outcome.occurred_at().to_rfc3339(),
             },
         ),
         Ok(None) => json_response("404 Not Found", "device_not_found"),
@@ -1509,27 +1593,101 @@ fn decode_device_cursor(value: &str) -> Result<Uuid, &'static str> {
 }
 
 fn valid_device_revocation_request(request: &RevokeDeviceRequest) -> bool {
-    matches!(request.locale.as_str(), "en" | "th")
-        && !request.idempotency_key.trim().is_empty()
-        && request.idempotency_key.len() <= 128
-        && !request.idempotency_key.chars().any(char::is_control)
-        && !request.purpose.trim().is_empty()
-        && request.purpose.len() <= 256
-        && !request.purpose.chars().any(char::is_control)
+    valid_security_command_fields(&request.idempotency_key, &request.purpose, &request.locale)
 }
 
+#[cfg(test)]
 fn stable_device_command_id(principal_ref: &str, device_id: Uuid, idempotency_key: &str) -> Uuid {
-    Uuid::new_v5(
-        &Uuid::NAMESPACE_URL,
-        format!("erpx:identity-device:{principal_ref}:{device_id}:{idempotency_key}").as_bytes(),
+    stable_security_command_id(
+        principal_ref,
+        "device_revoke",
+        Some(device_id),
+        idempotency_key,
     )
 }
 
+#[cfg(test)]
 fn stable_device_audit_reference(command_id: Uuid) -> Uuid {
+    stable_security_audit_reference(command_id)
+}
+
+fn valid_security_command_fields(idempotency_key: &str, purpose: &str, locale: &str) -> bool {
+    matches!(locale, "en" | "th")
+        && !idempotency_key.trim().is_empty()
+        && idempotency_key.len() <= 128
+        && !idempotency_key.chars().any(char::is_control)
+        && !purpose.trim().is_empty()
+        && purpose.len() <= 256
+        && !purpose.chars().any(char::is_control)
+}
+
+fn stable_security_command_id(
+    principal_ref: &str,
+    operation: &str,
+    target_id: Option<Uuid>,
+    idempotency_key: &str,
+) -> Uuid {
     Uuid::new_v5(
         &Uuid::NAMESPACE_URL,
-        format!("erpx:identity-device-audit:{command_id}").as_bytes(),
+        format!(
+            "erpx:identity-security:{principal_ref}:{operation}:{}:{idempotency_key}",
+            target_id.map_or_else(|| "none".into(), |target| target.to_string())
+        )
+        .as_bytes(),
     )
+}
+
+fn stable_security_audit_reference(command_id: Uuid) -> Uuid {
+    Uuid::new_v5(
+        &Uuid::NAMESPACE_URL,
+        format!("erpx:identity-security-audit:{command_id}").as_bytes(),
+    )
+}
+
+fn security_command_context(
+    principal_ref: &str,
+    operation: &str,
+    target_id: Option<Uuid>,
+    idempotency_key: &str,
+    purpose: &str,
+    locale: &str,
+    payload_binding: &str,
+) -> Result<SecurityCommandContext, IdentityHttpResponse> {
+    if !valid_security_command_fields(idempotency_key, purpose, locale)
+        || operation.trim().is_empty()
+        || operation.len() > 64
+        || payload_binding.len() > 512
+        || payload_binding.chars().any(char::is_control)
+    {
+        return Err(json_response(
+            "400 Bad Request",
+            "invalid_security_command_request",
+        ));
+    }
+    let command_id =
+        stable_security_command_id(principal_ref, operation, target_id, idempotency_key);
+    let audit_reference = stable_security_audit_reference(command_id);
+    let digest = Sha256::digest(
+        serde_json::to_vec(&(
+            principal_ref,
+            operation,
+            target_id,
+            idempotency_key,
+            purpose,
+            locale,
+            payload_binding,
+        ))
+        .expect("bounded security command digest input is serializable"),
+    );
+    SecurityCommandContext::new(
+        command_id,
+        audit_reference,
+        idempotency_key.to_owned(),
+        digest.into(),
+        purpose.to_owned(),
+        locale.to_owned(),
+    )
+    .map_err(|_| json_response("400 Bad Request", "invalid_security_command_request"))
 }
 
 async fn issue_recovery_codes(
@@ -1552,24 +1710,69 @@ async fn issue_recovery_codes(
         return response;
     }
     let input = match serde_json::from_slice::<IssueRecoveryCodesRequest>(body) {
-        Ok(input) => input,
+        Ok(input)
+            if valid_totp_code(&input.mfa_code)
+                && valid_security_command_fields(
+                    &input.idempotency_key,
+                    &input.purpose,
+                    &input.locale,
+                ) =>
+        {
+            input
+        }
+        Ok(_) => {
+            return json_response("400 Bad Request", "invalid_recovery_rotation_request");
+        }
         Err(_) => return json_response("400 Bad Request", "invalid_json"),
+    };
+    let Some(keys) = auth.totp_keys.clone() else {
+        return json_response("503 Service Unavailable", "totp_unavailable");
+    };
+    let command = match security_command_context(
+        &claims.principal_ref,
+        "recovery_codes_rotate",
+        None,
+        &input.idempotency_key,
+        &input.purpose,
+        &input.locale,
+        &format!("count={}", input.count),
+    ) {
+        Ok(command) => command,
+        Err(response) => return response,
     };
     match auth
         .identity
-        .issue_recovery_codes(&claims.principal_ref, input.count, Utc::now())
+        .rotate_recovery_codes_with_totp(
+            &claims.principal_ref,
+            input.count,
+            &input.mfa_code,
+            keys.as_ref(),
+            &command,
+            Utc::now(),
+        )
         .await
     {
-        Ok(batch) => response(
-            "200 OK",
-            &RecoveryCodesIssuedResponse {
-                issued: true,
-                count: batch.set().records().len(),
-                codes: batch.codes().map(str::to_owned).collect(),
-                issued_at: batch.set().issued_at().to_rfc3339(),
-            },
-        ),
-        Err(error) => identity_error_response(error, true),
+        Ok(outcome) => {
+            let codes = outcome
+                .batch()
+                .map(|batch| batch.codes().map(str::to_owned).collect())
+                .unwrap_or_default();
+            response(
+                "200 OK",
+                &RecoveryCodesIssuedResponse {
+                    issued: true,
+                    replayed: outcome.replayed(),
+                    count: outcome
+                        .batch()
+                        .map_or(input.count, |batch| batch.set().records().len()),
+                    codes,
+                    issued_at: outcome.occurred_at().to_rfc3339(),
+                    command_id: command.command_id().to_string(),
+                    audit_reference: command.audit_reference().to_string(),
+                },
+            )
+        }
+        Err(error) => totp_error_response(error),
     }
 }
 
@@ -1722,6 +1925,79 @@ async fn verify_totp_enrollment(
                 .await;
             response("200 OK", &TotpEnrollmentVerifiedResponse { verified: true })
         }
+        Err(error) => totp_error_response(error),
+    }
+}
+
+async fn remove_totp(
+    headers: &HashMap<String, String>,
+    body: &[u8],
+    auth: Arc<AuthContext>,
+) -> IdentityHttpResponse {
+    let claims = match authenticate(headers, &auth).await {
+        Ok(claims) => claims,
+        Err(response) => return response,
+    };
+    if let Err(response) = admit(
+        &auth,
+        "totp_remove",
+        &claims.principal_ref,
+        TOTP_ENROLLMENT_VERIFY_RATE_LIMIT,
+    )
+    .await
+    {
+        return response;
+    }
+    let input = match serde_json::from_slice::<RemoveTotpRequest>(body) {
+        Ok(input)
+            if valid_totp_code(&input.mfa_code)
+                && valid_security_command_fields(
+                    &input.idempotency_key,
+                    &input.purpose,
+                    &input.locale,
+                ) =>
+        {
+            input
+        }
+        Ok(_) => return json_response("400 Bad Request", "invalid_totp_removal_request"),
+        Err(_) => return json_response("400 Bad Request", "invalid_json"),
+    };
+    let Some(keys) = auth.totp_keys.clone() else {
+        return json_response("503 Service Unavailable", "totp_unavailable");
+    };
+    let command = match security_command_context(
+        &claims.principal_ref,
+        "totp_remove",
+        None,
+        &input.idempotency_key,
+        &input.purpose,
+        &input.locale,
+        "remove-active-totp",
+    ) {
+        Ok(command) => command,
+        Err(response) => return response,
+    };
+    match auth
+        .identity
+        .remove_totp_with_proof(
+            &claims.principal_ref,
+            &input.mfa_code,
+            keys.as_ref(),
+            &command,
+            Utc::now(),
+        )
+        .await
+    {
+        Ok(outcome) => response(
+            "200 OK",
+            &TotpRemovedResponse {
+                removed: true,
+                replayed: outcome.replayed(),
+                removed_at: outcome.occurred_at().to_rfc3339(),
+                command_id: command.command_id().to_string(),
+                audit_reference: command.audit_reference().to_string(),
+            },
+        ),
         Err(error) => totp_error_response(error),
     }
 }
@@ -1907,6 +2183,10 @@ fn totp_error_response(error: IdentityStoreError) -> IdentityHttpResponse {
         IdentityStoreError::Primitive(IdentityError::TotpEnrollmentInvalid) => {
             json_response("400 Bad Request", "totp_enrollment_invalid")
         }
+        IdentityStoreError::Primitive(IdentityError::TotpReplay)
+        | IdentityStoreError::SecurityCommandConflict => {
+            json_response("409 Conflict", "security_command_conflict")
+        }
         IdentityStoreError::Primitive(
             IdentityError::InvalidKeyReference
             | IdentityError::KeyReferenceNotFound(_)
@@ -1936,6 +2216,9 @@ fn recovery_session_error_response(error: IdentityStoreError) -> IdentityHttpRes
         }
         IdentityStoreError::InvalidRecord(_) => {
             json_response("500 Internal Server Error", "identity_record_invalid")
+        }
+        IdentityStoreError::SecurityCommandConflict => {
+            json_response("409 Conflict", "security_command_conflict")
         }
         other => identity_error_response(other, false),
     }
@@ -2008,6 +2291,9 @@ fn identity_error_response(error: IdentityStoreError, issuing: bool) -> Identity
         IdentityStoreError::InvalidRecord(_) => {
             json_response("500 Internal Server Error", "identity_record_invalid")
         }
+        IdentityStoreError::SecurityCommandConflict => {
+            json_response("409 Conflict", "security_command_conflict")
+        }
         IdentityStoreError::Primitive(_) | IdentityStoreError::PrincipalInactive => {
             let (status, message) = super::identity_http_error(error);
             json_response(status, message)
@@ -2076,10 +2362,12 @@ mod tests {
     fn identity_route_matching_is_scoped_to_the_declared_paths() {
         assert!(is_identity_path("/auth/devices"));
         assert!(is_identity_path("/auth/devices?page_size=25"));
+        assert!(is_identity_path("/auth/security-factors"));
         assert!(is_identity_path("/auth/recovery-codes"));
         assert!(is_identity_path("/auth/recovery-codes/consume"));
         assert!(is_identity_path("/auth/totp/enrollment/start"));
         assert!(is_identity_path("/auth/totp/enrollment/verify"));
+        assert!(is_identity_path("/auth/totp/remove"));
         assert!(is_identity_path("/auth/recovery-sessions/initiate"));
         assert!(is_identity_path("/auth/recovery-sessions/consume"));
         assert!(is_identity_path("/auth/recovery-sessions/reset-password"));
@@ -2136,9 +2424,12 @@ mod tests {
             "200 OK",
             &RecoveryCodesIssuedResponse {
                 issued: true,
+                replayed: false,
                 count: 2,
                 codes: vec!["ONE-TIME-A".into(), "ONE-TIME-B".into()],
                 issued_at: "2026-07-24T12:00:00Z".into(),
+                command_id: Uuid::new_v4().to_string(),
+                audit_reference: Uuid::new_v4().to_string(),
             },
         );
         assert!(body.body.contains("ONE-TIME-A"));

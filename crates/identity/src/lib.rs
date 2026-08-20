@@ -87,8 +87,9 @@ pub use signup::{
 };
 pub use store::{
     AccountSessionSummary, DeviceRevocationOutcome, DeviceSnapshot, DirectoryRoleAccess,
-    IdentityStoreError, RateLimitDecision, RateLimitPolicy, RoleOption, RoleSelectionSource,
-    SqlxIdentityStore,
+    IdentityStoreError, RateLimitDecision, RateLimitPolicy, RecoveryCodeRotationOutcome,
+    RoleOption, RoleSelectionSource, SecurityCommandContext, SecurityFactorState,
+    SqlxIdentityStore, TotpRemovalOutcome,
 };
 pub use totp::{
     KeyResolver, TOTP_ALGORITHM, TOTP_CLOCK_SKEW_STEPS, TOTP_DIGITS, TOTP_PERIOD_SECONDS,
@@ -130,6 +131,8 @@ pub const IDENTITY_ACTIVE_ROLE_SESSION_CONTEXT_MIGRATION_SQL: &str =
     include_str!("../migrations/0011_active_role_session_context.sql");
 pub const IDENTITY_DEVELOPMENT_CONTEXT_LIFETIME_MIGRATION_SQL: &str =
     include_str!("../migrations/0012_development_persona_context_lifetime.sql");
+pub const IDENTITY_SECURITY_COMMAND_AUDIT_MIGRATION_SQL: &str =
+    include_str!("../migrations/0013_security_command_audit.sql");
 
 /// Apply the identity schema and its forward reconciliation/outbox migration
 /// to a write-side pool. Callers must not run this function against a read
@@ -173,6 +176,9 @@ pub async fn apply_identity_migration(pool: &sqlx::PgPool) -> Result<(), sqlx::E
         .execute(&mut *transaction)
         .await?;
     sqlx::raw_sql(IDENTITY_DEVELOPMENT_CONTEXT_LIFETIME_MIGRATION_SQL)
+        .execute(&mut *transaction)
+        .await?;
+    sqlx::raw_sql(IDENTITY_SECURITY_COMMAND_AUDIT_MIGRATION_SQL)
         .execute(&mut *transaction)
         .await?;
     transaction.commit().await?;

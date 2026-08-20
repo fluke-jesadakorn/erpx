@@ -3063,6 +3063,7 @@ fn map_identity_auth_error(error: IdentityStoreError) -> Status {
         | IdentityStoreError::SessionInactive
         | IdentityStoreError::RoleSelectionRequired
         | IdentityStoreError::RoleSelectionInvalid
+        | IdentityStoreError::SecurityCommandConflict
         | IdentityStoreError::Primitive(_) => {
             Status::unauthenticated("access token is invalid or revoked")
         }
@@ -13158,6 +13159,9 @@ fn identity_http_error(error: IdentityStoreError) -> (&'static str, &'static str
         | IdentityStoreError::RoleSelectionRequired
         | IdentityStoreError::RoleSelectionInvalid
         | IdentityStoreError::Primitive(_) => ("401 Unauthorized", "authentication_failed"),
+        IdentityStoreError::SecurityCommandConflict => {
+            ("409 Conflict", "security_command_conflict")
+        }
         IdentityStoreError::Database(_) => ("503 Service Unavailable", "identity unavailable"),
         IdentityStoreError::InvalidRecord(_) => {
             ("500 Internal Server Error", "identity_record_invalid")

@@ -1999,6 +1999,22 @@ html[data-locale="th"] :where(.customer-route-tabs, .ui-support-route-tabs, .ui-
 .device-revoke-confirmation { position: fixed; z-index: 80; top: 50%; left: 50%; width: min(480px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; border-style: solid; border-color: var(--erpx-danger); background: var(--erpx-surface); box-shadow: 0 0 0 100vmax rgb(4 17 25 / 58%), 0 24px 70px rgb(0 0 0 / 28%); transform: translate(-50%, -50%); }
 .device-revoke-confirmation .route-actions { grid-column: auto; }
 .account-remove-confirmation { flex-wrap: wrap; }
+.security-factor-page { width: min(100%, 840px); max-height: calc(100dvh - 72px); overflow-y: auto; }
+.security-factor-page .auth-utility-heading > div { display: grid; min-width: 0; gap: 5px; }
+.security-factor-page .auth-page-form__intro { margin: 0; }
+.security-factor-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.security-factor-card { display: flex; min-width: 0; min-height: 168px; flex-direction: column; justify-content: space-between; gap: 14px; border: 1px solid var(--erpx-border); border-radius: 12px; padding: 14px; background: var(--erpx-surface-raised); }
+.security-factor-card[data-enabled="true"] { border-color: var(--erpx-success); background: color-mix(in srgb, var(--erpx-success-surface) 48%, var(--erpx-surface-raised)); }
+.security-factor-card :where(h3, p, small) { margin: 0; }
+.security-factor-card p { margin-top: 4px; color: var(--erpx-text-muted); font-size: 11px; }
+.security-factor-card small { color: var(--erpx-text-muted); font-size: 10px; line-height: 1.45; }
+.security-factor-dialog { width: min(540px, calc(100vw - 32px)); }
+.security-one-time-secret { display: block; max-width: 100%; overflow-wrap: anywhere; border: 1px dashed var(--erpx-border-strong); border-radius: 9px; padding: 11px; background: var(--erpx-bg); color: var(--erpx-primary); font-size: 12px; letter-spacing: .08em; user-select: all; }
+.security-recovery-actions, .security-one-time-codes { display: grid; gap: 11px; border: 1px solid var(--erpx-border); border-radius: 12px; padding: 15px; background: var(--erpx-surface-raised); }
+.security-recovery-actions p, .security-one-time-codes :where(h3, p) { margin: 0; }
+.security-recovery-actions p, .security-one-time-codes p { color: var(--erpx-text-muted); font-size: 11px; line-height: 1.55; }
+.security-one-time-codes ol { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 18px; margin: 0; padding-left: 22px; }
+.security-one-time-codes code { overflow-wrap: anywhere; color: var(--erpx-primary); font-size: 11px; user-select: all; }
 
 .route-not-found { justify-items: start; background: radial-gradient(circle at 18% 26%, var(--erpx-primary-surface), transparent 24%), var(--erpx-bg); }
 .route-not-found__code { color: var(--erpx-primary); font-size: clamp(72px, 15vw, 170px); font-weight: 850; letter-spacing: -.08em; line-height: .76; opacity: .16; }
@@ -2012,10 +2028,14 @@ html[data-locale="th"] :where(.customer-route-tabs, .ui-support-route-tabs, .ui-
   .auth-layout__brand::after { width: 38px; height: 38px; }
   .auth-layout__content { padding: 70px 14px 36px; }
   .device-management-page { max-height: none; }
+  .security-factor-page { max-height: none; }
+  .security-factor-grid { grid-template-columns: 1fr; }
+  .security-factor-card { min-height: auto; }
   .security-device-card { grid-template-columns: auto minmax(0, 1fr); align-items: start; }
   .security-device-card__actions { grid-column: 2; justify-content: flex-start; }
   .device-management-page :where(a, button) { min-width: 40px; min-height: 40px; }
   .device-management-page .security-device-card__actions .route-action { min-height: 40px; }
+  .security-factor-page :where(a, button) { min-width: 40px; min-height: 40px; }
   .console-nav { gap: 7px; padding: 12px 14px; }
   .console-nav__brand { min-height: 44px; margin: 0 6px 2px; }
   .console-nav__primary { gap: 4px; margin-inline: -2px; padding: 2px 2px 6px; scrollbar-width: thin; }
@@ -2068,6 +2088,7 @@ html[data-locale="th"] :where(.customer-route-tabs, .ui-support-route-tabs, .ui-
   .auth-layout__toolbar { top: 14px; right: 14px; }
   .auth-layout__content { padding: 66px 10px 24px; }
   .auth-page-form { gap: 17px; padding: 22px 18px; }
+  .security-one-time-codes ol { grid-template-columns: 1fr; }
   .role-selection-dialog { height: calc(100dvh - 82px); max-height: 780px; gap: 9px; padding: 18px 14px; }
   .role-selection-dialog > h2 { font-size: 28px; }
   .account-quick-list .account-quick-row { gap: 8px; }

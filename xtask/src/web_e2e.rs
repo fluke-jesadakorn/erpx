@@ -11,7 +11,9 @@ use std::{
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use chrono::Utc;
+use hmac::{Hmac, Mac};
 use serde_json::{Value, json};
+use sha2::Sha256;
 use tungstenite::{Message, WebSocket, connect, stream::MaybeTlsStream};
 
 type TaskResult<T = ()> = Result<T, Box<dyn Error + Send + Sync>>;
@@ -399,6 +401,105 @@ fn native_demo_password(root: &Path) -> TaskResult<String> {
         return Err("native demo credential is empty or invalid".into());
     }
     Ok(format!("ERPX-NATIVE-{component}"))
+}
+
+fn decode_totp_secret(encoded: &str) -> TaskResult<Vec<u8>> {
+    let mut buffer = 0_u32;
+    let mut bits = 0_u8;
+    let mut decoded = Vec::new();
+    for byte in encoded.bytes() {
+        let value = match byte {
+            b'A'..=b'Z' => byte - b'A',
+            b'2'..=b'7' => byte - b'2' + 26,
+            _ => return Err("TOTP enrollment returned invalid base32 material".into()),
+        };
+        buffer = (buffer << 5) | u32::from(value);
+        bits += 5;
+        while bits >= 8 {
+            bits -= 8;
+            decoded.push(((buffer >> bits) & 0xff) as u8);
+        }
+    }
+    if decoded.len() < 10 {
+        return Err("TOTP enrollment returned an undersized secret".into());
+    }
+    Ok(decoded)
+}
+
+fn totp_code(secret: &[u8], step: i64) -> TaskResult<String> {
+    type HmacSha256 = Hmac<Sha256>;
+    let mut mac = <HmacSha256 as Mac>::new_from_slice(secret)
+        .map_err(|_| "TOTP enrollment returned invalid key material")?;
+    mac.update(&step.to_be_bytes());
+    let digest = mac.finalize().into_bytes();
+    let offset = usize::from(digest[31] & 0x0f);
+    let binary = (u32::from(digest[offset]) & 0x7f) << 24
+        | u32::from(digest[offset + 1]) << 16
+        | u32::from(digest[offset + 2]) << 8
+        | u32::from(digest[offset + 3]);
+    Ok(format!("{:06}", binary % 1_000_000))
+}
+
+fn current_totp_code(secret: &[u8]) -> TaskResult<(String, i64)> {
+    let step = Utc::now().timestamp().div_euclid(30);
+    Ok((totp_code(secret, step)?, step))
+}
+
+fn totp_code_after(secret: &[u8], previous_step: i64) -> TaskResult<String> {
+    let deadline = Instant::now() + Duration::from_secs(35);
+    loop {
+        let step = Utc::now().timestamp().div_euclid(30);
+        if step > previous_step {
+            thread::sleep(Duration::from_millis(300));
+            return totp_code(secret, step);
+        }
+        if Instant::now() >= deadline {
+            return Err("TOTP period did not advance within its bounded wait".into());
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+}
+
+fn set_hydrated_input(client: &mut CdpClient, selector: &str, value: &str) -> TaskResult {
+    let selector = serde_json::to_string(selector)?;
+    let value = serde_json::to_string(value)?;
+    let changed = client.evaluate(&format!(
+        "(() => {{ const input=document.querySelector({selector}); if(!input)return false; const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')?.set; setter?.call(input,{value}); input.dispatchEvent(new Event('input',{{bubbles:true}})); return true; }})()"
+    ))?;
+    if changed.as_bool() != Some(true) {
+        return Err(format!("hydrated input was unavailable: {selector}").into());
+    }
+    Ok(())
+}
+
+fn remove_totp_in_browser(
+    client: &mut CdpClient,
+    base_url: &str,
+    secret: &[u8],
+    verified_step: i64,
+) -> TaskResult<bool> {
+    client.navigate(&format!("{base_url}/auth/security"))?;
+    client.wait_for_selector(".security-factor-page")?;
+    let enabled = client
+        .evaluate("document.querySelector('.security-factor-card[data-enabled=true]') !== null")?;
+    if enabled.as_bool() != Some(true) {
+        return Ok(false);
+    }
+    client.wait_for_selector("[data-testid=totp-remove][data-dioxus-id]")?;
+    client.evaluate("document.querySelector('[data-testid=totp-remove]').click()")?;
+    client.wait_for_selector("[data-testid=totp-remove-confirm][data-dioxus-id]")?;
+    let code = totp_code_after(secret, verified_step)?;
+    set_hydrated_input(client, "[data-testid=totp-remove-code]", &code)?;
+    client.wait_for(
+        "!document.querySelector('[data-testid=totp-remove-confirm]').disabled",
+        "valid TOTP removal proof",
+    )?;
+    client.evaluate("document.querySelector('[data-testid=totp-remove-confirm]').click()")?;
+    client.wait_for(
+        "document.querySelector('.identity-command-feedback')?.dataset.state === 'success' && document.querySelector('.security-factor-card[data-enabled=false]') !== null",
+        "authoritative TOTP removal confirmation",
+    )?;
+    Ok(true)
 }
 
 async fn create_device_revocation_target(password: &str) -> TaskResult {
@@ -1028,6 +1129,111 @@ pub async fn run(root: &Path) -> TaskResult {
         json!({ "width": 1440, "height": 900, "deviceScaleFactor": 1, "mobile": false }),
     )?;
 
+    let mut enrolled_totp_secret = None::<Vec<u8>>;
+    let mut enrolled_totp_step = None::<i64>;
+    let security_lifecycle = (|| -> TaskResult {
+        cdp.navigate(&format!("{base_url}/auth/security"))?;
+        cdp.wait_for_selector(".security-factor-page")?;
+        cdp.wait_for_selector("[data-testid=totp-enroll][data-dioxus-id]")?;
+        if cdp
+            .evaluate(
+                "document.body.innerText.includes('Authoritative factor state') && document.querySelector('.security-factor-card[data-enabled=false]') !== null && !document.querySelector('[data-testid=recovery-codes]')",
+            )?
+            .as_bool()
+            != Some(true)
+        {
+            return Err("security factor page was not authoritative and secret-free".into());
+        }
+        cdp.evaluate("document.querySelector('[data-testid=totp-enroll]').click()")?;
+        cdp.wait_for_selector("[role=alertdialog] [data-testid=totp-generate]")?;
+        if cdp
+            .evaluate(
+                "document.querySelector('[role=alertdialog]')?.innerText.includes('shown once') && !document.querySelector('[data-testid=totp-secret]')",
+            )?
+            .as_bool()
+            != Some(true)
+        {
+            return Err("TOTP enrollment confirmation omitted its one-time boundary".into());
+        }
+        cdp.screenshot(&evidence_dir.join("totp-enrollment-confirmation.png"))?;
+        cdp.evaluate("document.querySelector('[data-testid=totp-generate]').click()")?;
+        cdp.wait_for_selector("[data-testid=totp-secret]")?;
+        let encoded = cdp.evaluate(
+            "document.querySelector('[data-testid=totp-secret]')?.innerText.trim() || ''",
+        )?;
+        let encoded = encoded
+            .as_str()
+            .filter(|value| !value.is_empty())
+            .ok_or("TOTP enrollment omitted one-time secret material")?;
+        let secret = decode_totp_secret(encoded)?;
+        let encoded_json = serde_json::to_string(encoded)?;
+        if cdp
+            .evaluate(&format!(
+                "!location.href.includes({encoded_json}) && !JSON.stringify(history.state ?? {{}}).includes({encoded_json})"
+            ))?
+            .as_bool()
+            != Some(true)
+        {
+            return Err("TOTP one-time material leaked into URL or browser history".into());
+        }
+        enrolled_totp_secret = Some(secret.clone());
+        let (code, verified_step) = current_totp_code(&secret)?;
+        enrolled_totp_step = Some(verified_step);
+        set_hydrated_input(&mut cdp, "[data-testid=totp-code]", &code)?;
+        cdp.wait_for(
+            "!document.querySelector('[data-testid=totp-verify]').disabled",
+            "valid TOTP enrollment proof",
+        )?;
+        cdp.evaluate("document.querySelector('[data-testid=totp-verify]').click()")?;
+        cdp.wait_for(
+            "document.querySelector('.identity-command-feedback')?.dataset.state === 'success' && document.querySelector('.security-factor-card[data-enabled=true]') !== null && !document.querySelector('[data-testid=totp-secret]')",
+            "authoritative TOTP enrollment confirmation",
+        )?;
+
+        cdp.navigate(&format!("{base_url}/auth/recovery"))?;
+        cdp.wait_for_selector("[data-testid=recovery-rotate][data-dioxus-id]")?;
+        if cdp
+            .evaluate("!document.querySelector('[data-testid=recovery-codes]')")?
+            .as_bool()
+            != Some(true)
+        {
+            return Err("recovery page disclosed codes before a confirmed rotation".into());
+        }
+        cdp.evaluate("document.querySelector('[data-testid=recovery-rotate]').click()")?;
+        cdp.wait_for_selector("[role=alertdialog] [data-testid=recovery-rotate-confirm]")?;
+        if cdp
+            .evaluate(
+                "document.querySelector('[role=alertdialog]')?.innerText.includes('displayed once') && !document.querySelector('[data-testid=recovery-codes]')",
+            )?
+            .as_bool()
+            != Some(true)
+        {
+            return Err("recovery rotation confirmation omitted its one-time boundary".into());
+        }
+        cdp.screenshot(&evidence_dir.join("recovery-rotation-confirmation.png"))?;
+        cdp.evaluate("document.querySelector('[data-testid=recovery-rotate-cancel]').click()")?;
+        cdp.wait_for(
+            "!document.querySelector('[data-testid=recovery-rotate-confirm]')",
+            "recovery rotation cancellation",
+        )?;
+
+        if !remove_totp_in_browser(&mut cdp, &base_url, &secret, verified_step)? {
+            return Err("newly enrolled TOTP factor disappeared before cleanup".into());
+        }
+        enrolled_totp_secret = None;
+        enrolled_totp_step = None;
+        Ok(())
+    })();
+    if let Err(error) = security_lifecycle {
+        let cleanup = match (&enrolled_totp_secret, enrolled_totp_step) {
+            (Some(secret), Some(step)) => remove_totp_in_browser(&mut cdp, &base_url, secret, step)
+                .map(|removed| format!("cleanup attempted; factor removed={removed}"))
+                .unwrap_or_else(|cleanup_error| format!("cleanup failed: {cleanup_error}")),
+            _ => "cleanup not required because enrollment was not verified".to_owned(),
+        };
+        return Err(format!("security lifecycle failed: {error}; {cleanup}").into());
+    }
+
     let mut device_url = format!("{base_url}/auth/devices");
     let mut target_found = false;
     for _ in 0..10 {
@@ -1149,6 +1355,30 @@ pub async fn run(root: &Path) -> TaskResult {
         "Emulation.setDeviceMetricsOverride",
         json!({ "width": 390, "height": 844, "deviceScaleFactor": 2, "mobile": true }),
     )?;
+    cdp.navigate(&format!("{base_url}/auth/security"))?;
+    cdp.wait_for(
+        "document.body.innerText.includes('ปัจจัยความปลอดภัย') && document.querySelector('.security-factor-card[data-enabled=false]') !== null",
+        "Thai mobile security page after TOTP cleanup",
+    )?;
+    let mobile_security_safe = cdp.evaluate(
+        "document.body.scrollWidth <= innerWidth && [...document.querySelectorAll('.security-factor-page a,.security-factor-page button')].every((element) => { const rect=element.getBoundingClientRect(); return rect.width === 0 || rect.height === 0 || (rect.width >= 40 && rect.height >= 40); })",
+    )?;
+    if mobile_security_safe.as_bool() != Some(true) {
+        return Err("mobile security factors overflowed or exposed a control below 40px".into());
+    }
+    cdp.screenshot(&evidence_dir.join("mobile-th-security.png"))?;
+    cdp.navigate(&format!("{base_url}/auth/recovery"))?;
+    cdp.wait_for(
+        "document.body.innerText.includes('รหัสกู้คืน') && document.body.innerText.includes('ต้องใช้ TOTP') && !document.querySelector('[data-testid=recovery-codes]')",
+        "Thai mobile recovery page fails closed without TOTP",
+    )?;
+    let mobile_recovery_safe = cdp.evaluate(
+        "document.body.scrollWidth <= innerWidth && [...document.querySelectorAll('.security-factor-page a,.security-factor-page button')].every((element) => { const rect=element.getBoundingClientRect(); return rect.width === 0 || rect.height === 0 || (rect.width >= 40 && rect.height >= 40); })",
+    )?;
+    if mobile_recovery_safe.as_bool() != Some(true) {
+        return Err("mobile recovery page overflowed or exposed a control below 40px".into());
+    }
+    cdp.screenshot(&evidence_dir.join("mobile-th-recovery.png"))?;
     cdp.navigate(&format!("{base_url}/auth/devices"))?;
     cdp.wait_for(
         "document.body.innerText.includes('อุปกรณ์และเซสชัน') && document.querySelector('.security-device-card')?.dataset.current === 'true'",
@@ -1231,6 +1461,17 @@ pub async fn run(root: &Path) -> TaskResult {
             "mobile_thai_layout_safe": true,
             "account_sign_out_confirmation": true,
             "disposable_sessions_cleaned_up": true
+        },
+        "security_management": {
+            "authoritative_factor_state": true,
+            "totp_enrollment_confirmation": true,
+            "totp_enrollment_read_your_writes": true,
+            "totp_secret_absent_from_url_and_history": true,
+            "recovery_rotation_confirmation": true,
+            "recovery_codes_not_disclosed_before_commit": true,
+            "totp_removal_read_your_writes": true,
+            "mobile_thai_layout_safe": true,
+            "test_factor_cleaned_up": true
         },
         "public_marketing_form": true,
         "public_marketing_preview_fail_closed": true,

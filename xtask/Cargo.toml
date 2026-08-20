@@ -23,6 +23,7 @@ heavy = [
   "dep:erpx-kernel",
   "dep:erpx-migration",
   "dep:erpx-worker",
+  "dep:hmac",
   "dep:reqwest",
   "dep:sqlx",
   "dep:tokio",
@@ -56,6 +57,7 @@ erpx-kernel = { workspace = true, optional = true }
 erpx-migration = { workspace = true, optional = true }
 erpx-worker = { workspace = true, optional = true }
 fs2.workspace = true
+hmac = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true

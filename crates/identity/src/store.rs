@@ -55,6 +55,8 @@ pub enum IdentityStoreError {
     RoleSelectionRequired,
     #[error("active role selection is invalid")]
     RoleSelectionInvalid,
+    #[error("security command idempotency key conflicts with another request")]
+    SecurityCommandConflict,
     #[error("identity record is invalid: {0}")]
     InvalidRecord(String),
 }
@@ -80,6 +82,90 @@ pub struct DeviceSnapshot {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DeviceRevocationOutcome {
     replayed: bool,
+    occurred_at: DateTime<Utc>,
+}
+
+/// Server-derived metadata committed with a high-risk identity command.
+/// The digest binds the idempotency key to the complete non-secret request;
+/// credential and one-time recovery material must never be included.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SecurityCommandContext {
+    command_id: Uuid,
+    audit_reference: Uuid,
+    idempotency_key: String,
+    request_digest: [u8; 32],
+    purpose: String,
+    locale: String,
+}
+
+impl SecurityCommandContext {
+    pub fn new(
+        command_id: Uuid,
+        audit_reference: Uuid,
+        idempotency_key: String,
+        request_digest: [u8; 32],
+        purpose: String,
+        locale: String,
+    ) -> Result<Self, IdentityStoreError> {
+        if command_id.is_nil()
+            || audit_reference.is_nil()
+            || idempotency_key.trim().is_empty()
+            || idempotency_key.len() > 128
+            || idempotency_key.chars().any(char::is_control)
+            || purpose.trim().is_empty()
+            || purpose.len() > 256
+            || purpose.chars().any(char::is_control)
+            || !matches!(locale.as_str(), "en" | "th")
+        {
+            return Err(IdentityStoreError::InvalidRecord(
+                "security command context is invalid".into(),
+            ));
+        }
+        Ok(Self {
+            command_id,
+            audit_reference,
+            idempotency_key,
+            request_digest,
+            purpose,
+            locale,
+        })
+    }
+
+    pub const fn command_id(&self) -> Uuid {
+        self.command_id
+    }
+
+    pub const fn audit_reference(&self) -> Uuid {
+        self.audit_reference
+    }
+}
+
+/// Secret-free authoritative summary for the account security center.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SecurityFactorState {
+    directory_managed: bool,
+    totp_enabled_at: Option<DateTime<Utc>>,
+    passkey_count: u16,
+    recovery_codes_total: u16,
+    recovery_codes_remaining: u16,
+    recovery_codes_issued_at: Option<DateTime<Utc>>,
+    measured_at: DateTime<Utc>,
+}
+
+/// Recovery rotation returns plaintext only on the first execution. Exact
+/// replay receipts intentionally cannot reconstruct one-time codes from their
+/// persisted Argon2id digests.
+#[derive(Debug)]
+pub struct RecoveryCodeRotationOutcome {
+    batch: Option<RecoveryCodeBatch>,
+    replayed: bool,
+    occurred_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TotpRemovalOutcome {
+    replayed: bool,
+    occurred_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -254,6 +340,68 @@ impl DeviceSnapshot {
 impl DeviceRevocationOutcome {
     pub const fn replayed(self) -> bool {
         self.replayed
+    }
+
+    pub const fn occurred_at(self) -> DateTime<Utc> {
+        self.occurred_at
+    }
+}
+
+impl SecurityFactorState {
+    pub const fn directory_managed(&self) -> bool {
+        self.directory_managed
+    }
+
+    pub const fn totp_enabled(&self) -> bool {
+        self.totp_enabled_at.is_some()
+    }
+
+    pub const fn totp_enabled_at(&self) -> Option<DateTime<Utc>> {
+        self.totp_enabled_at
+    }
+
+    pub const fn passkey_count(&self) -> u16 {
+        self.passkey_count
+    }
+
+    pub const fn recovery_codes_total(&self) -> u16 {
+        self.recovery_codes_total
+    }
+
+    pub const fn recovery_codes_remaining(&self) -> u16 {
+        self.recovery_codes_remaining
+    }
+
+    pub const fn recovery_codes_issued_at(&self) -> Option<DateTime<Utc>> {
+        self.recovery_codes_issued_at
+    }
+
+    pub const fn measured_at(&self) -> DateTime<Utc> {
+        self.measured_at
+    }
+}
+
+impl RecoveryCodeRotationOutcome {
+    pub fn batch(&self) -> Option<&RecoveryCodeBatch> {
+        self.batch.as_ref()
+    }
+
+    pub const fn replayed(&self) -> bool {
+        self.replayed
+    }
+
+    pub const fn occurred_at(&self) -> DateTime<Utc> {
+        self.occurred_at
+    }
+}
+
+impl TotpRemovalOutcome {
+    pub const fn replayed(self) -> bool {
+        self.replayed
+    }
+
+    pub const fn occurred_at(self) -> DateTime<Utc> {
+        self.occurred_at
     }
 }
 
@@ -1846,6 +1994,198 @@ impl SqlxIdentityStore {
         Ok(())
     }
 
+    /// Read the identity owner's secret-free factor posture. Counts are
+    /// derived from current write-side rows and never expose credential IDs,
+    /// recovery hashes, encrypted TOTP envelopes, or session material.
+    pub async fn security_factor_state(
+        &self,
+        principal_ref: &str,
+        measured_at: DateTime<Utc>,
+    ) -> Result<SecurityFactorState, IdentityStoreError> {
+        validate_principal_ref(principal_ref)?;
+        let row = sqlx::query(
+            "SELECT
+                 EXISTS(
+                     SELECT 1 FROM erpx_identity.directory_principal_bindings managed
+                     WHERE managed.principal_id=p.id AND managed.active
+                 ) AS directory_managed,
+                 t.enabled_at AS totp_enabled_at,
+                 (SELECT COUNT(*) FROM erpx_identity.passkeys passkey
+                  WHERE passkey.principal_id=p.id AND passkey.revoked_at IS NULL) AS passkey_count,
+                 (SELECT COUNT(*) FROM erpx_identity.recovery_codes recovery
+                  WHERE recovery.principal_id=p.id) AS recovery_codes_total,
+                 (SELECT COUNT(*) FROM erpx_identity.recovery_codes recovery
+                  WHERE recovery.principal_id=p.id AND recovery.consumed_at IS NULL)
+                    AS recovery_codes_remaining,
+                 (SELECT MAX(recovery.issued_at)
+                  FROM erpx_identity.recovery_codes recovery
+                  WHERE recovery.principal_id=p.id) AS recovery_codes_issued_at
+             FROM erpx_identity.principals p
+             LEFT JOIN erpx_identity.totp_secrets t ON t.principal_id=p.id
+             WHERE p.principal_ref=$1 AND p.status='active'",
+        )
+        .bind(principal_ref)
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or(IdentityStoreError::PrincipalInactive)?;
+        let passkey_count = bounded_security_count(row.try_get("passkey_count")?)?;
+        let recovery_codes_total = bounded_security_count(row.try_get("recovery_codes_total")?)?;
+        let recovery_codes_remaining =
+            bounded_security_count(row.try_get("recovery_codes_remaining")?)?;
+        if recovery_codes_remaining > recovery_codes_total {
+            return Err(IdentityStoreError::InvalidRecord(
+                "recovery code counts are inconsistent".into(),
+            ));
+        }
+        Ok(SecurityFactorState {
+            directory_managed: row.try_get("directory_managed")?,
+            totp_enabled_at: row.try_get("totp_enabled_at")?,
+            passkey_count,
+            recovery_codes_total,
+            recovery_codes_remaining,
+            recovery_codes_issued_at: row.try_get("recovery_codes_issued_at")?,
+            measured_at,
+        })
+    }
+
+    /// Rotate all recovery codes only after a current, one-time TOTP proof.
+    /// The factor verification, hash replacement, and append-only command
+    /// receipt commit atomically. Exact replay returns a receipt without
+    /// reconstructing plaintext recovery material.
+    pub async fn rotate_recovery_codes_with_totp<K: KeyResolver>(
+        &self,
+        principal_ref: &str,
+        count: usize,
+        presented_code: &str,
+        keys: &K,
+        command: &SecurityCommandContext,
+        at: DateTime<Utc>,
+    ) -> Result<RecoveryCodeRotationOutcome, IdentityStoreError> {
+        validate_principal_ref(principal_ref)?;
+        validate_totp_code_input(presented_code)?;
+        let batch = RecoveryCodeSet::issue(principal_ref, count, &PasswordService::default(), at)?;
+        let mut transaction = self.pool.begin().await?;
+        let principal_id = self
+            .lock_active_principal(&mut transaction, principal_ref)
+            .await?;
+        if let Some(occurred_at) = security_command_replay_time(
+            &mut transaction,
+            principal_id,
+            "recovery_codes_rotate",
+            None,
+            command,
+        )
+        .await?
+        {
+            transaction.commit().await?;
+            return Ok(RecoveryCodeRotationOutcome {
+                batch: None,
+                replayed: true,
+                occurred_at,
+            });
+        }
+        verify_totp_in_transaction(&mut transaction, principal_ref, presented_code, keys, at)
+            .await?;
+        sqlx::query("DELETE FROM erpx_identity.recovery_codes WHERE principal_id=$1")
+            .bind(principal_id)
+            .execute(&mut *transaction)
+            .await?;
+        for record in batch.set().records() {
+            sqlx::query(
+                "INSERT INTO erpx_identity.recovery_codes
+                    (id, principal_id, code_hash, issued_at, consumed_at)
+                 VALUES ($1, $2, $3, $4, NULL)",
+            )
+            .bind(record.id())
+            .bind(principal_id)
+            .bind(record.hash().as_str())
+            .bind(batch.set().issued_at())
+            .execute(&mut *transaction)
+            .await?;
+        }
+        insert_security_command_audit(
+            &mut transaction,
+            principal_id,
+            "recovery_codes_rotate",
+            None,
+            command,
+            at,
+        )
+        .await?;
+        transaction.commit().await?;
+        Ok(RecoveryCodeRotationOutcome {
+            batch: Some(batch),
+            replayed: false,
+            occurred_at: at,
+        })
+    }
+
+    /// Remove the active TOTP factor only after verifying that same factor in
+    /// the command transaction. An exact idempotent replay succeeds without
+    /// requiring or accepting another code.
+    pub async fn remove_totp_with_proof<K: KeyResolver>(
+        &self,
+        principal_ref: &str,
+        presented_code: &str,
+        keys: &K,
+        command: &SecurityCommandContext,
+        at: DateTime<Utc>,
+    ) -> Result<TotpRemovalOutcome, IdentityStoreError> {
+        validate_principal_ref(principal_ref)?;
+        validate_totp_code_input(presented_code)?;
+        let mut transaction = self.pool.begin().await?;
+        let principal_id = self
+            .lock_active_principal(&mut transaction, principal_ref)
+            .await?;
+        if let Some(occurred_at) = security_command_replay_time(
+            &mut transaction,
+            principal_id,
+            "totp_remove",
+            None,
+            command,
+        )
+        .await?
+        {
+            transaction.commit().await?;
+            return Ok(TotpRemovalOutcome {
+                replayed: true,
+                occurred_at,
+            });
+        }
+        verify_totp_in_transaction(&mut transaction, principal_ref, presented_code, keys, at)
+            .await?;
+        let removed = sqlx::query("DELETE FROM erpx_identity.totp_secrets WHERE principal_id=$1")
+            .bind(principal_id)
+            .execute(&mut *transaction)
+            .await?;
+        if removed.rows_affected() != 1 {
+            return Err(IdentityStoreError::Primitive(
+                IdentityError::TotpEnrollmentInvalid,
+            ));
+        }
+        sqlx::query(
+            "DELETE FROM erpx_identity.totp_enrollments
+             WHERE principal_id=$1 AND verified_at IS NULL",
+        )
+        .bind(principal_id)
+        .execute(&mut *transaction)
+        .await?;
+        insert_security_command_audit(
+            &mut transaction,
+            principal_id,
+            "totp_remove",
+            None,
+            command,
+            at,
+        )
+        .await?;
+        transaction.commit().await?;
+        Ok(TotpRemovalOutcome {
+            replayed: false,
+            occurred_at: at,
+        })
+    }
+
     /// Issue a new recovery-code batch and atomically replace all previous
     /// hashes for the principal. The returned batch contains the plaintext
     /// codes exactly once; only Argon2id digests are written to PostgreSQL.
@@ -2142,45 +2482,8 @@ impl SqlxIdentityStore {
         validate_principal_ref(principal_ref)?;
         validate_totp_code_input(presented_code)?;
         let mut transaction = self.pool.begin().await?;
-        let row = sqlx::query(
-            "SELECT t.key_reference, t.nonce, t.ciphertext,
-                    t.last_verified_step, p.principal_ref
-             FROM erpx_identity.totp_secrets t
-             JOIN erpx_identity.principals p ON p.id = t.principal_id
-             WHERE p.principal_ref = $1 AND p.status = 'active'
-             FOR UPDATE",
-        )
-        .bind(principal_ref)
-        .fetch_optional(&mut *transaction)
-        .await?
-        .ok_or(IdentityStoreError::Primitive(
-            IdentityError::TotpEnrollmentInvalid,
-        ))?;
-        let envelope = totp_envelope_from_parts(
-            row.try_get("key_reference")?,
-            row.try_get("principal_ref")?,
-            row.try_get("nonce")?,
-            row.try_get("ciphertext")?,
-        )?;
-        let secret = decrypt_totp_secret(keys, principal_ref, &envelope)?;
-        let last_verified_step: Option<i64> = row.try_get("last_verified_step")?;
-        let step = verify_totp_code(secret.as_bytes(), presented_code, at, last_verified_step)?;
-        let updated = sqlx::query(
-            "UPDATE erpx_identity.totp_secrets t
-             SET last_verified_step = $2, updated_at = $3
-             FROM erpx_identity.principals p
-             WHERE t.principal_id = p.id
-               AND p.principal_ref = $1
-               AND (t.last_verified_step IS NULL OR t.last_verified_step < $2)",
-        )
-        .bind(principal_ref)
-        .bind(step)
-        .bind(at)
-        .execute(&mut *transaction)
-        .await?;
-        if updated.rows_affected() != 1 {
-            return Err(IdentityStoreError::Primitive(IdentityError::TotpReplay));
-        }
+        verify_totp_in_transaction(&mut transaction, principal_ref, presented_code, keys, at)
+            .await?;
         transaction.commit().await?;
         Ok(())
     }
@@ -3015,9 +3318,8 @@ impl SqlxIdentityStore {
             transaction.commit().await?;
             return Ok(None);
         };
-        let replayed = existing
-            .try_get::<Option<DateTime<Utc>>, _>("revoked_at")?
-            .is_some();
+        let existing_revoked_at = existing.try_get::<Option<DateTime<Utc>>, _>("revoked_at")?;
+        let replayed = existing_revoked_at.is_some();
         sqlx::query(
             "UPDATE erpx_identity.devices
              SET revoked_at = COALESCE(revoked_at, $2)
@@ -3038,7 +3340,90 @@ impl SqlxIdentityStore {
         .execute(&mut *transaction)
         .await?;
         transaction.commit().await?;
-        Ok(Some(DeviceRevocationOutcome { replayed }))
+        Ok(Some(DeviceRevocationOutcome {
+            replayed,
+            occurred_at: existing_revoked_at.unwrap_or(at),
+        }))
+    }
+
+    /// Audited delivery path for device revocation. The device and attached
+    /// sessions transition in the same transaction as the append-only
+    /// idempotency receipt.
+    pub async fn revoke_device_command(
+        &self,
+        principal_ref: &str,
+        device_id: Uuid,
+        command: &SecurityCommandContext,
+        at: DateTime<Utc>,
+    ) -> Result<Option<DeviceRevocationOutcome>, IdentityStoreError> {
+        validate_principal_ref(principal_ref)?;
+        let mut transaction = self.pool.begin().await?;
+        let principal_id = self
+            .lock_active_principal(&mut transaction, principal_ref)
+            .await?;
+        if let Some(occurred_at) = security_command_replay_time(
+            &mut transaction,
+            principal_id,
+            "device_revoke",
+            Some(device_id),
+            command,
+        )
+        .await?
+        {
+            transaction.commit().await?;
+            return Ok(Some(DeviceRevocationOutcome {
+                replayed: true,
+                occurred_at,
+            }));
+        }
+        let existing = sqlx::query(
+            "SELECT revoked_at FROM erpx_identity.devices
+             WHERE id=$1 AND principal_id=$2 FOR UPDATE",
+        )
+        .bind(device_id)
+        .bind(principal_id)
+        .fetch_optional(&mut *transaction)
+        .await?;
+        let Some(existing) = existing else {
+            transaction.commit().await?;
+            return Ok(None);
+        };
+        let existing_revoked_at = existing.try_get::<Option<DateTime<Utc>>, _>("revoked_at")?;
+        let replayed = existing_revoked_at.is_some();
+        sqlx::query(
+            "UPDATE erpx_identity.devices SET revoked_at=COALESCE(revoked_at,$2)
+             WHERE id=$1 AND principal_id=$3",
+        )
+        .bind(device_id)
+        .bind(at)
+        .bind(principal_id)
+        .execute(&mut *transaction)
+        .await?;
+        sqlx::query(
+            "UPDATE erpx_identity.sessions
+             SET revoked_at=COALESCE(revoked_at,$2),
+                 last_used_at=GREATEST(last_used_at,$2)
+             WHERE device_id=$1 AND principal_id=$3 AND revoked_at IS NULL",
+        )
+        .bind(device_id)
+        .bind(at)
+        .bind(principal_id)
+        .execute(&mut *transaction)
+        .await?;
+        insert_security_command_audit(
+            &mut transaction,
+            principal_id,
+            "device_revoke",
+            Some(device_id),
+            command,
+            at,
+        )
+        .await?;
+        transaction.commit().await?;
+        Ok(Some(DeviceRevocationOutcome {
+            replayed,
+            occurred_at: existing_revoked_at.unwrap_or(at),
+        }))
     }
 
     async fn lock_recovery_principal(
@@ -3094,6 +3479,124 @@ impl SqlxIdentityStore {
         }
         Ok(row.try_get("id")?)
     }
+}
+
+fn bounded_security_count(value: i64) -> Result<u16, IdentityStoreError> {
+    u16::try_from(value).map_err(|_| {
+        IdentityStoreError::InvalidRecord("security factor count exceeds its bound".into())
+    })
+}
+
+async fn security_command_replay_time(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    principal_id: Uuid,
+    operation: &str,
+    target_id: Option<Uuid>,
+    command: &SecurityCommandContext,
+) -> Result<Option<DateTime<Utc>>, IdentityStoreError> {
+    let row = sqlx::query(
+        "SELECT audit_reference, command_id, target_id, request_digest,
+                purpose, locale, occurred_at
+         FROM erpx_identity.security_command_audit
+         WHERE principal_id=$1 AND operation=$2 AND idempotency_key=$3
+         FOR SHARE",
+    )
+    .bind(principal_id)
+    .bind(operation)
+    .bind(&command.idempotency_key)
+    .fetch_optional(&mut **transaction)
+    .await?;
+    let Some(row) = row else {
+        return Ok(None);
+    };
+    let digest: Vec<u8> = row.try_get("request_digest")?;
+    if row.try_get::<Uuid, _>("audit_reference")? != command.audit_reference
+        || row.try_get::<Uuid, _>("command_id")? != command.command_id
+        || row.try_get::<Option<Uuid>, _>("target_id")? != target_id
+        || digest.as_slice() != command.request_digest
+        || row.try_get::<String, _>("purpose")? != command.purpose
+        || row.try_get::<String, _>("locale")? != command.locale
+    {
+        return Err(IdentityStoreError::SecurityCommandConflict);
+    }
+    Ok(Some(row.try_get("occurred_at")?))
+}
+
+async fn insert_security_command_audit(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    principal_id: Uuid,
+    operation: &str,
+    target_id: Option<Uuid>,
+    command: &SecurityCommandContext,
+    occurred_at: DateTime<Utc>,
+) -> Result<(), IdentityStoreError> {
+    sqlx::query(
+        "INSERT INTO erpx_identity.security_command_audit
+            (audit_reference, command_id, principal_id, operation, target_id,
+             idempotency_key, request_digest, purpose, locale, occurred_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+    )
+    .bind(command.audit_reference)
+    .bind(command.command_id)
+    .bind(principal_id)
+    .bind(operation)
+    .bind(target_id)
+    .bind(&command.idempotency_key)
+    .bind(command.request_digest.as_slice())
+    .bind(&command.purpose)
+    .bind(&command.locale)
+    .bind(occurred_at)
+    .execute(&mut **transaction)
+    .await?;
+    Ok(())
+}
+
+async fn verify_totp_in_transaction<K: KeyResolver>(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    principal_ref: &str,
+    presented_code: &str,
+    keys: &K,
+    at: DateTime<Utc>,
+) -> Result<(), IdentityStoreError> {
+    let row = sqlx::query(
+        "SELECT t.key_reference, t.nonce, t.ciphertext,
+                t.last_verified_step, p.principal_ref
+         FROM erpx_identity.totp_secrets t
+         JOIN erpx_identity.principals p ON p.id=t.principal_id
+         WHERE p.principal_ref=$1 AND p.status='active'
+         FOR UPDATE",
+    )
+    .bind(principal_ref)
+    .fetch_optional(&mut **transaction)
+    .await?
+    .ok_or(IdentityStoreError::Primitive(
+        IdentityError::TotpEnrollmentInvalid,
+    ))?;
+    let envelope = totp_envelope_from_parts(
+        row.try_get("key_reference")?,
+        row.try_get("principal_ref")?,
+        row.try_get("nonce")?,
+        row.try_get("ciphertext")?,
+    )?;
+    let secret = decrypt_totp_secret(keys, principal_ref, &envelope)?;
+    let last_verified_step: Option<i64> = row.try_get("last_verified_step")?;
+    let step = verify_totp_code(secret.as_bytes(), presented_code, at, last_verified_step)?;
+    let updated = sqlx::query(
+        "UPDATE erpx_identity.totp_secrets t
+         SET last_verified_step=$2, updated_at=$3
+         FROM erpx_identity.principals p
+         WHERE t.principal_id=p.id AND p.principal_ref=$1
+           AND (t.last_verified_step IS NULL OR t.last_verified_step < $2)",
+    )
+    .bind(principal_ref)
+    .bind(step)
+    .bind(at)
+    .execute(&mut **transaction)
+    .await?;
+    if updated.rows_affected() != 1 {
+        return Err(IdentityStoreError::Primitive(IdentityError::TotpReplay));
+    }
+    Ok(())
 }
 
 fn validate_principal_ref(principal_ref: &str) -> Result<(), IdentityStoreError> {
