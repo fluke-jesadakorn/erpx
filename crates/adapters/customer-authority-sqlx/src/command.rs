@@ -10,7 +10,7 @@ use erpx_customer_authority::{
 };
 use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
-    ItemDescriptorDraft, record_policy_id,
+    ItemDescriptorDraft, ItemDescriptorDraftV2, record_policy_id,
 };
 use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId};
 use serde_json::json;
@@ -181,7 +181,9 @@ impl CommandUnitOfWork for CustomerAuthorityCommandAdapter {
     }
 }
 
-fn customer_directory_draft(aggregate: &CustomerAccount) -> Result<ItemDescriptorDraft, PortError> {
+fn customer_directory_draft(
+    aggregate: &CustomerAccount,
+) -> Result<ItemDescriptorDraftV2, PortError> {
     let record = aggregate.record_ref().map_err(|_| PortError::Internal)?;
     let lifecycle_state = match aggregate.status() {
         CustomerStatus::Prospect => "prospect",
@@ -203,8 +205,15 @@ fn customer_directory_draft(aggregate: &CustomerAccount) -> Result<ItemDescripto
             aggregate.identity().trading_name()
         ),
     };
-    value.validate().map_err(|_| PortError::Internal)?;
-    Ok(value)
+    ItemDescriptorDraftV2::try_new(
+        value,
+        format!(
+            "{} {}",
+            aggregate.code().as_str(),
+            aggregate.identity().trading_name()
+        ),
+    )
+    .map_err(|_| PortError::Internal)
 }
 
 struct CustomerAuthorityAtomicGuard {

@@ -15,8 +15,8 @@ use erpx_integration_contracts::{
     AUTHORITY_EVIDENCE_EVENT_TYPE, AUTHORITY_EVIDENCE_VERSION, AuthorityAssignmentEvidence,
     AuthorityEvidenceFact, AuthorityPrincipalKind, AuthorityRealm,
     GroupMembershipAuthorityEvidence, ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE,
-    IntegrationEvent, ItemDescriptorDraft, PrincipalAuthorityEvidence, RecordTypeId,
-    RoleAuthorityEvidence, StableRecordRef, catalog::ContextId, record_policy_id,
+    IntegrationEvent, ItemDescriptorDraft, ItemDescriptorDraftV2, PrincipalAuthorityEvidence,
+    RecordTypeId, RoleAuthorityEvidence, StableRecordRef, catalog::ContextId, record_policy_id,
 };
 use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId, RecordId};
 use serde_json::json;
@@ -318,10 +318,10 @@ fn identity_access_authority_fact(
 
 fn identity_access_directory_drafts(
     aggregate: &IdentityAccessAggregate,
-) -> Result<Vec<ItemDescriptorDraft>, PortError> {
+) -> Result<Vec<ItemDescriptorDraftV2>, PortError> {
     let record_id =
         RecordId::try_from_uuid(aggregate.aggregate_uuid()).map_err(|_| PortError::Internal)?;
-    let (record_type, lifecycle_state, classification, search_text) = match aggregate {
+    let (record_type, lifecycle_state, classification, display_label) = match aggregate {
         IdentityAccessAggregate::Principal(value) => (
             "identity.principal",
             match value.status() {
@@ -353,9 +353,10 @@ fn identity_access_directory_drafts(
         lifecycle_state: lifecycle_state.into(),
         classification,
         descriptor_version: aggregate.version(),
-        authorized_search_text: search_text,
+        authorized_search_text: display_label.clone(),
     };
-    value.validate().map_err(|_| PortError::Internal)?;
+    let value =
+        ItemDescriptorDraftV2::try_new(value, display_label).map_err(|_| PortError::Internal)?;
     let mut values = vec![value];
     if let IdentityAccessAggregate::Principal(principal) = aggregate {
         for assignment in principal.assignments() {
@@ -376,6 +377,7 @@ fn identity_access_directory_drafts(
             } else {
                 "active"
             };
+            let display_label = format!("Authority grant {}", assignment.id().as_uuid());
             let draft = ItemDescriptorDraft {
                 authorization_policy: record_policy_id(&record).map_err(|_| PortError::Internal)?,
                 record,
@@ -383,9 +385,10 @@ fn identity_access_directory_drafts(
                 lifecycle_state: lifecycle_state.into(),
                 classification: DataClassification::Restricted,
                 descriptor_version: principal.version(),
-                authorized_search_text: format!("Authority grant {}", assignment.id().as_uuid()),
+                authorized_search_text: display_label.clone(),
             };
-            draft.validate().map_err(|_| PortError::Internal)?;
+            let draft = ItemDescriptorDraftV2::try_new(draft, display_label)
+                .map_err(|_| PortError::Internal)?;
             values.push(draft);
         }
     }

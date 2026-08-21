@@ -430,10 +430,11 @@ impl Fixture {
         )?;
         let policy = record_policy(record.record_type().as_str())
             .ok_or("the purchase-order record policy must exist")?;
-        Ok(ItemDescriptor::try_new(
+        Ok(ItemDescriptor::try_new_with_display_label(
             record,
             self.team_scope(),
             "open",
+            "Lineage purchase order",
             policy.policy_id(),
             DataClassification::Confidential,
             1,

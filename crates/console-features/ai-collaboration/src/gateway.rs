@@ -6,76 +6,218 @@ use erpx_agent_orchestration::{
 };
 use erpx_collaboration::{
     Audience, CommentProjectionContent, CommentVisibility as DomainCommentVisibility,
-    ExternalPortal, Thread, ThreadProjection, ThreadState,
+    ExternalPortal, RelationKind, RelationView, Thread, ThreadProjection, ThreadState,
 };
 use erpx_integration_contracts::StableRecordRef;
-use erpx_kernel::{PrincipalId, PrincipalKind};
+use erpx_kernel::{HoldingId, PrincipalId, PrincipalKind};
 use erpx_ui_ai_collaboration::{
     ActivityRailState, AgentRegistryRow, AgentSessionCard, AnchorDisplay, AnchorFreshness,
     AssignmentDisplayState, AutocompleteState, CommentCard, CommentEditorDocument,
     CommentVisibility, EditorBlock, PrivacyState, ReactionSummary, RealtimeState, RevisionSummary,
     ThreadCapabilities, ThreadCard, ThreadLifecycle, ThreadRealm, TypedActionProposal,
 };
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ActivityRequest {
     pub anchor: StableRecordRef,
     pub cursor: Option<String>,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+
+/// Opaque copied/canonical-link resolution. Authority and active holding scope
+/// are supplied by the target adapter from the authenticated session; callers
+/// cannot widen them in browser-controlled input.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ResolveRecordRequest {
+    pub record_id: Uuid,
+    pub current_route: String,
+}
+
+/// Fresh Item Directory resolution shared by canonical detail and copied-link
+/// routes. Platform records intentionally carry no holding ID; their gateway
+/// uses the audited global path rather than inventing holding-local authority.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RecordResolutionState {
+    Resolving,
+    Authorized {
+        holding_id: Option<HoldingId>,
+        record: StableRecordRef,
+        canonical_route: String,
+    },
+    Neutral,
+    Stale,
+    Degraded,
+    Offline,
+}
+
+impl RecordResolutionState {
+    pub fn authorized_record(&self, current_route: &str) -> Option<&StableRecordRef> {
+        match self {
+            Self::Authorized {
+                record,
+                canonical_route,
+                ..
+            } if canonical_route == current_route => Some(record),
+            _ => None,
+        }
+    }
+
+    pub fn activity_gate(&self) -> erpx_ui_ai_collaboration::ActivityReferenceGate {
+        match self {
+            Self::Resolving => erpx_ui_ai_collaboration::ActivityReferenceGate::Resolving,
+            Self::Authorized {
+                holding_id: Some(holding_id),
+                record,
+                canonical_route,
+            } => erpx_ui_ai_collaboration::ActivityReferenceGate::Authorized {
+                holding_id: *holding_id,
+                record: record.clone(),
+                canonical_route: canonical_route.clone(),
+            },
+            Self::Authorized {
+                holding_id: None,
+                record,
+                canonical_route,
+            } => erpx_ui_ai_collaboration::ActivityReferenceGate::AuthorizedPlatform {
+                record: record.clone(),
+                canonical_route: canonical_route.clone(),
+            },
+            Self::Degraded => erpx_ui_ai_collaboration::ActivityReferenceGate::Degraded,
+            Self::Neutral => erpx_ui_ai_collaboration::ActivityReferenceGate::Neutral,
+            Self::Stale => erpx_ui_ai_collaboration::ActivityReferenceGate::Stale,
+            Self::Offline => erpx_ui_ai_collaboration::ActivityReferenceGate::Offline,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReferencesRequest {
+    pub anchor: StableRecordRef,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ReferenceDirection {
+    Incoming,
+    Outgoing,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ReferenceRelationKind {
+    RelatesTo,
+    Blocks,
+    DependsOn,
+    Implements,
+    Supersedes,
+    DerivedFrom,
+    EvidenceFor,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReferenceRelationCard {
+    pub relation_id: Uuid,
+    pub related_record: StableRecordRef,
+    pub canonical_route: String,
+    pub display_label: String,
+    pub direction: ReferenceDirection,
+    pub kind: ReferenceRelationKind,
+    pub can_revoke: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RecordReferencesState {
+    Loading,
+    Empty,
+    Content {
+        relations: Vec<ReferenceRelationCard>,
+    },
+    Denied,
+    Restricted,
+    Stale,
+    Degraded {
+        retryable: bool,
+    },
+    Offline,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AutocompleteTrigger {
     Mention,
     Reference,
 }
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AutocompleteRequest {
     pub anchor: StableRecordRef,
     pub trigger: AutocompleteTrigger,
     pub query: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CollaborationMutation {
+    StartThread {
+        anchor: StableRecordRef,
+        document: CommentEditorDocument,
+        attachment_ids: Vec<Uuid>,
+    },
+    AddRelation {
+        source: StableRecordRef,
+        target: StableRecordRef,
+        kind: ReferenceRelationKind,
+        expected_version: Option<u64>,
+    },
+    RevokeRelation {
+        source: StableRecordRef,
+        target: StableRecordRef,
+        relation_id: Uuid,
+        expected_version: u64,
+    },
     AddComment {
         thread_id: Uuid,
+        expected_thread_version: u64,
         document: CommentEditorDocument,
     },
     EditComment {
         thread_id: Uuid,
         comment_id: Uuid,
         revision: u64,
+        expected_thread_version: u64,
         document: CommentEditorDocument,
     },
     TombstoneComment {
         thread_id: Uuid,
         comment_id: Uuid,
+        expected_thread_version: u64,
     },
     Resolve {
         thread_id: Uuid,
+        expected_thread_version: u64,
     },
     Reopen {
         thread_id: Uuid,
+        expected_thread_version: u64,
     },
     React {
         thread_id: Uuid,
         comment_id: Uuid,
         emoji: String,
+        expected_thread_version: u64,
     },
     Follow {
         thread_id: Uuid,
         following: bool,
+        expected_thread_version: u64,
     },
     Moderate {
         thread_id: Uuid,
         comment_id: Uuid,
         decision: String,
+        expected_thread_version: u64,
     },
     Promote {
         thread_id: Uuid,
         comment_id: Uuid,
         revision: u64,
         item_type: String,
+        expected_thread_version: u64,
     },
     ConfirmTypedProposal {
         proposal: TypedActionProposal,
@@ -110,14 +252,14 @@ pub enum AgentMutation {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UiMutationReceipt {
     pub operation_id: Uuid,
     pub replayed: bool,
     pub notification_badge_delta: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GatewayError {
     Denied,
     Restricted,
@@ -131,6 +273,16 @@ pub enum GatewayError {
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 pub trait CollaborationGateway: Send + Sync {
+    /// Resolves the opaque ID through the authenticated Item Directory. An
+    /// adapter must never synthesize this gate from route segments.
+    async fn resolve_record(
+        &self,
+        request: ResolveRecordRequest,
+    ) -> Result<RecordResolutionState, GatewayError>;
+    async fn load_references(
+        &self,
+        request: ReferencesRequest,
+    ) -> Result<RecordReferencesState, GatewayError>;
     async fn load_activity(
         &self,
         request: ActivityRequest,
@@ -143,6 +295,50 @@ pub trait CollaborationGateway: Send + Sync {
         &self,
         request: CollaborationMutation,
     ) -> Result<UiMutationReceipt, GatewayError>;
+}
+
+/// Explicit placeholder for targets whose authenticated collaboration wire
+/// adapter has not been composed. Its name does not imply connectivity.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct UnavailableCollaborationGateway;
+
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+impl CollaborationGateway for UnavailableCollaborationGateway {
+    async fn resolve_record(
+        &self,
+        _request: ResolveRecordRequest,
+    ) -> Result<RecordResolutionState, GatewayError> {
+        Err(GatewayError::Unavailable)
+    }
+
+    async fn load_references(
+        &self,
+        _request: ReferencesRequest,
+    ) -> Result<RecordReferencesState, GatewayError> {
+        Err(GatewayError::Unavailable)
+    }
+
+    async fn load_activity(
+        &self,
+        _request: ActivityRequest,
+    ) -> Result<ActivityRailState, GatewayError> {
+        Err(GatewayError::Unavailable)
+    }
+
+    async fn autocomplete(
+        &self,
+        _request: AutocompleteRequest,
+    ) -> Result<AutocompleteState, GatewayError> {
+        Err(GatewayError::Unavailable)
+    }
+
+    async fn mutate(
+        &self,
+        _request: CollaborationMutation,
+    ) -> Result<UiMutationReceipt, GatewayError> {
+        Err(GatewayError::Unavailable)
+    }
 }
 
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
@@ -250,6 +446,7 @@ pub fn present_thread(
     let location = value.anchor().location();
     ThreadCard {
         thread_id: value.id().as_uuid(),
+        aggregate_version: value.version(),
         anchor: AnchorDisplay {
             record: value.anchor().record().clone(),
             source: None,
@@ -363,6 +560,9 @@ fn present_thread_projection(
         .collect();
     ThreadCard {
         thread_id: projection.id.as_uuid(),
+        // Legacy V1 projections do not publish the aggregate version and are
+        // therefore always presented read-only.
+        aggregate_version: 0,
         anchor: AnchorDisplay {
             record: anchor.clone(),
             source: None,
@@ -473,6 +673,48 @@ pub fn content_state(threads: Vec<ThreadCard>, realtime: RealtimeState) -> Activ
     }
 }
 
+/// Converts the domain's complete typed relation projection into an
+/// authorized UI card. Revoked tombstones are retained by persistence but are
+/// not rendered as active links. Custom kinds remain closed in Phase 2.
+pub fn present_relation_view(
+    value: &RelationView,
+    anchor: &StableRecordRef,
+    display_label: impl Into<String>,
+    canonical_route: impl Into<String>,
+    can_revoke: bool,
+) -> Result<Option<ReferenceRelationCard>, GatewayError> {
+    value.validate().map_err(|_| GatewayError::Unavailable)?;
+    if value.is_revoked() {
+        return Ok(None);
+    }
+    let (related_record, direction) = if &value.source == anchor {
+        (&value.target, ReferenceDirection::Outgoing)
+    } else if &value.target == anchor {
+        (&value.source, ReferenceDirection::Incoming)
+    } else {
+        return Err(GatewayError::Denied);
+    };
+    let kind = match &value.kind {
+        RelationKind::RelatesTo => ReferenceRelationKind::RelatesTo,
+        RelationKind::Blocks => ReferenceRelationKind::Blocks,
+        RelationKind::DependsOn => ReferenceRelationKind::DependsOn,
+        RelationKind::Implements => ReferenceRelationKind::Implements,
+        RelationKind::Supersedes => ReferenceRelationKind::Supersedes,
+        RelationKind::DerivedFrom => ReferenceRelationKind::DerivedFrom,
+        RelationKind::EvidenceFor => ReferenceRelationKind::EvidenceFor,
+        RelationKind::Custom { .. } => return Err(GatewayError::Unavailable),
+    };
+    Ok(Some(ReferenceRelationCard {
+        relation_id: value.id.as_uuid(),
+        related_record: related_record.clone(),
+        canonical_route: canonical_route.into(),
+        display_label: display_label.into(),
+        direction,
+        kind,
+        can_revoke,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::Utc;
@@ -565,5 +807,12 @@ mod tests {
         assert!(!source.contains(concat!("Natural", "LanguageCommand")));
         assert!(!source.contains(concat!("Execute", "PromptMutation")));
         assert!(source.contains("ConfirmTypedProposal"));
+    }
+
+    #[test]
+    fn unavailable_gateway_is_explicitly_a_stub_not_a_connected_transport() {
+        let source = include_str!("gateway.rs");
+        assert!(source.contains("UnavailableCollaborationGateway"));
+        assert!(!source.contains(concat!("TransportBacked", "CollaborationGateway")));
     }
 }

@@ -2008,8 +2008,9 @@ mod tests {
         assert!(!source.contains("company_id"));
         assert!(!source.contains("branch_id"));
 
-        let ddl =
-            include_str!("../../../crates/migration/migrations_holding_read/0001_baseline.sql");
+        let ddl = include_str!(
+            "../../../crates/migration/migrations_holding_read/0003_authority_lineage_forward_fix.sql"
+        );
         let table = ddl
             .split("CREATE TABLE erpx_authority_read.organization_nodes")
             .nth(1)

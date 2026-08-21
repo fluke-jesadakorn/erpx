@@ -5,7 +5,8 @@ use erpx_cqrs_sqlx::{
 };
 use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
-    ItemDescriptorDraft, RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
+    ItemDescriptorDraft, ItemDescriptorDraftV2, RecordTypeId, StableRecordRef, catalog::ContextId,
+    record_policy_id,
 };
 use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId, RecordId};
 use erpx_pos::{
@@ -477,7 +478,7 @@ fn directory_event(
     partition: &str,
     causation_id: Option<EventId>,
     occurred_at: chrono::DateTime<chrono::Utc>,
-    payload: ItemDescriptorDraft,
+    payload: ItemDescriptorDraftV2,
     index: usize,
 ) -> OutboxEventWrite<PosOutboxPayload> {
     OutboxEventWrite {
@@ -491,7 +492,7 @@ fn directory_event(
     }
 }
 
-fn sale_directory_draft(aggregate: &Sale) -> Result<ItemDescriptorDraft, PortError> {
+fn sale_directory_draft(aggregate: &Sale) -> Result<ItemDescriptorDraftV2, PortError> {
     item_directory_draft(
         aggregate.id().as_uuid(),
         "pos.sale",
@@ -499,16 +500,19 @@ fn sale_directory_draft(aggregate: &Sale) -> Result<ItemDescriptorDraft, PortErr
         sale_status_name(aggregate.status()),
         aggregate.version(),
         aggregate.receipt_code(),
+        aggregate.receipt_code(),
     )
 }
 
-fn refund_directory_draft(aggregate: &PosRefund) -> Result<ItemDescriptorDraft, PortError> {
+fn refund_directory_draft(aggregate: &PosRefund) -> Result<ItemDescriptorDraftV2, PortError> {
+    let display_label = format!("Refund for sale {}", aggregate.sale_id().as_uuid());
     item_directory_draft(
         aggregate.id().as_uuid(),
         "pos.refund",
         aggregate.scope(),
         refund_status_name(aggregate.status()),
         aggregate.version(),
+        &display_label,
         &aggregate.sale_id().as_uuid().to_string(),
     )
 }
@@ -519,8 +523,9 @@ fn item_directory_draft(
     scope: &AuthorityScope,
     lifecycle_state: &str,
     descriptor_version: u64,
+    display_label: &str,
     search_text: &str,
-) -> Result<ItemDescriptorDraft, PortError> {
+) -> Result<ItemDescriptorDraftV2, PortError> {
     let record_id = RecordId::try_from_uuid(id).map_err(|_| PortError::Internal)?;
     let record = StableRecordRef::try_new(
         record_id,
@@ -537,8 +542,7 @@ fn item_directory_draft(
         descriptor_version,
         authorized_search_text: search_text.into(),
     };
-    value.validate().map_err(|_| PortError::Internal)?;
-    Ok(value)
+    ItemDescriptorDraftV2::try_new(value, display_label).map_err(|_| PortError::Internal)
 }
 
 fn integration_events(

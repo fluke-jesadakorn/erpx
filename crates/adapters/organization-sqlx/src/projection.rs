@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
-use erpx_integration_contracts::{ItemDescriptorDraft, organization};
+use erpx_integration_contracts::{ItemDescriptorDraftV2, organization};
 use erpx_organization::{
     NodeView, OrganizationNodeKind, OrganizationNodeStatus, OrganizationPlacement,
 };
@@ -22,7 +22,7 @@ pub struct OrganizationSnapshot {
 pub enum OrganizationOutboxPayload {
     Integration(organization::Event),
     Snapshot(OrganizationSnapshot),
-    Directory(ItemDescriptorDraft),
+    Directory(ItemDescriptorDraftV2),
 }
 
 #[derive(Debug, Clone)]

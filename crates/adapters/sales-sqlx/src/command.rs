@@ -5,8 +5,9 @@ use erpx_cqrs_sqlx::{
 };
 use erpx_integration_contracts::{
     DimensionSet, ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
-    ItemDescriptorDraft, RecordTypeId, StableRecordRef, assets, catalog::ContextId, crm, customer,
-    legal, marketing, organization, people_payroll, record_policy_id, sales,
+    ItemDescriptorDraft, ItemDescriptorDraftV2, RecordTypeId, StableRecordRef, assets,
+    catalog::ContextId, crm, customer, legal, marketing, organization, people_payroll,
+    record_policy_id, sales,
 };
 use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId, RecordId};
 use erpx_sales::{
@@ -539,8 +540,8 @@ impl CommandUnitOfWork for SalesCommandAdapter {
 
 fn sales_directory_draft(
     aggregate: &SalesAggregate,
-) -> Result<Option<ItemDescriptorDraft>, PortError> {
-    let (record_type, lifecycle_state, search_text) = match aggregate {
+) -> Result<Option<ItemDescriptorDraftV2>, PortError> {
+    let (record_type, lifecycle_state, display_label) = match aggregate {
         SalesAggregate::Quote(value) => (
             "sales.quote",
             quote_status_name(value.status()),
@@ -570,10 +571,11 @@ fn sales_directory_draft(
         lifecycle_state: lifecycle_state.into(),
         classification: DataClassification::Confidential,
         descriptor_version: aggregate.version(),
-        authorized_search_text: search_text,
+        authorized_search_text: display_label.clone(),
     };
-    value.validate().map_err(|_| PortError::Internal)?;
-    Ok(Some(value))
+    ItemDescriptorDraftV2::try_new(value, display_label)
+        .map(Some)
+        .map_err(|_| PortError::Internal)
 }
 
 struct SalesGuard(SalesAggregate);

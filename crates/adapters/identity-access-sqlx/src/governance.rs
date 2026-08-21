@@ -14,7 +14,7 @@ use erpx_identity_access::{
 };
 use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, ItemDescriptorDraft,
-    RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
+    ItemDescriptorDraftV2, RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
 };
 use erpx_kernel::{AuthorityScope, DataClassification, RecordId};
 use serde_json::json;
@@ -636,6 +636,14 @@ async fn append_directory_event(
         RecordTypeId::try_new(request.record.record_type()).map_err(|_| PortError::Internal)?,
     )
     .map_err(|_| PortError::Internal)?;
+    let display_label = match &request.record {
+        IdentityGovernanceRecord::AccessReview(_) => {
+            format!("Access review {}", request.record.id_uuid())
+        }
+        IdentityGovernanceRecord::BreakGlass(_) => {
+            format!("Break-glass session {}", request.record.id_uuid())
+        }
+    };
     let draft = ItemDescriptorDraft {
         authorization_policy: record_policy_id(&record_ref).map_err(|_| PortError::Internal)?,
         record: record_ref,
@@ -643,15 +651,10 @@ async fn append_directory_event(
         lifecycle_state: request.record.lifecycle_state().into(),
         classification: DataClassification::Restricted,
         descriptor_version: request.record.version(),
-        authorized_search_text: match &request.record {
-            IdentityGovernanceRecord::AccessReview(_) => {
-                format!("Access review {}", request.record.id_uuid())
-            }
-            IdentityGovernanceRecord::BreakGlass(_) => {
-                format!("Break-glass session {}", request.record.id_uuid())
-            }
-        },
+        authorized_search_text: display_label.clone(),
     };
+    let draft =
+        ItemDescriptorDraftV2::try_new(draft, display_label).map_err(|_| PortError::Internal)?;
     draft.validate().map_err(|_| PortError::Internal)?;
     sqlx::query(
         "INSERT INTO erpx_cqrs_write.outbox_events

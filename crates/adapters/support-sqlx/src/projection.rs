@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
-use erpx_integration_contracts::{ItemDescriptorDraft, support};
+use erpx_integration_contracts::{ItemDescriptorDraftV2, support};
 use erpx_support::{
     CapabilityRevocationReason, IncidentStatus, MessageAudience, SessionStatus, SupportAggregate,
     SupportCapabilityView, SupportMode, SupportSessionView, SupportTicketView, TicketReadAudience,
@@ -50,7 +50,7 @@ pub enum SupportOutboxPayload {
     Integration(support::Event),
     AuthorityEffect(erpx_support::SupportAuthorityEffect),
     Snapshot(SupportSnapshot),
-    Directory(ItemDescriptorDraft),
+    Directory(ItemDescriptorDraftV2),
 }
 
 macro_rules! projector_type {

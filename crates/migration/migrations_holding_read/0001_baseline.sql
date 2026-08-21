@@ -2472,7 +2472,6 @@ BEGIN
 END;
 $$;
 
-
 CREATE SCHEMA IF NOT EXISTS erpx_quality_read;
 
 CREATE TABLE erpx_quality_read.inspection_projection (
@@ -4534,367 +4533,46 @@ $$;
 CREATE FUNCTION erpx_collaboration_read.scope_contains(authority JSONB, target JSONB)
 RETURNS BOOLEAN
 LANGUAGE plpgsql
-STABLE
+IMMUTABLE
+STRICT
 AS $$
 DECLARE
-    uuid_pattern CONSTANT TEXT :=
-        '^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$';
-    nil_uuid CONSTANT UUID := '00000000-0000-0000-0000-000000000000';
-    authority_kind TEXT;
-    authority_body JSONB;
-    authority_holding_text TEXT;
-    authority_company_text TEXT;
-    authority_branch_text TEXT;
-    authority_node_text TEXT;
-    authority_holding UUID;
-    authority_company UUID;
-    authority_branch UUID;
-    authority_node UUID;
-    target_kind TEXT;
-    target_body JSONB;
-    target_holding_text TEXT;
-    target_company_text TEXT;
-    target_branch_text TEXT;
-    target_node_text TEXT;
-    target_holding UUID;
-    target_company UUID;
-    target_branch UUID;
-    target_node UUID;
-    target_node_kind TEXT;
-    target_lineage UUID[];
+    authority_kind TEXT := erpx_collaboration_read.scope_kind(authority);
+    target_kind TEXT := erpx_collaboration_read.scope_kind(target);
+    authority_holding TEXT := erpx_collaboration_read.scope_holding(authority);
+    target_holding TEXT := erpx_collaboration_read.scope_holding(target);
+    target_company TEXT := COALESCE(
+        target #>> '{Company,company_id}', target #>> '{Branch,company_id}'
+    );
+    target_branch TEXT := target #>> '{Branch,branch_id}';
 BEGIN
-    -- AuthorityScope is an externally tagged enum. Reject unknown, partial,
-    -- over-posted, non-canonical, nil, and non-string UUID fields before any
-    -- hierarchy lookup so malformed data can never broaden access.
-    IF authority IS NULL OR target IS NULL THEN
-        RETURN FALSE;
-    END IF;
-    IF jsonb_typeof(authority) = 'string' THEN
-        IF authority <> to_jsonb('Platform'::TEXT) THEN
-            RETURN FALSE;
-        END IF;
-        authority_kind := 'Platform';
-    ELSIF jsonb_typeof(authority) = 'object' THEN
-        IF (SELECT count(*) FROM jsonb_object_keys(authority)) <> 1 THEN
-            RETURN FALSE;
-        END IF;
-        SELECT entry.key, entry.value
-          INTO authority_kind, authority_body
-          FROM jsonb_each(authority) AS entry(key,value);
-        CASE authority_kind
-            WHEN 'Holding' THEN
-                authority_holding_text := authority_body ->> 'holding_id';
-                IF authority <> jsonb_build_object(
-                    'Holding', jsonb_build_object('holding_id', authority_holding_text)
-                ) THEN
-                    RETURN FALSE;
-                END IF;
-            WHEN 'Company' THEN
-                authority_holding_text := authority_body ->> 'holding_id';
-                authority_company_text := authority_body ->> 'company_id';
-                IF authority <> jsonb_build_object(
-                    'Company', jsonb_build_object(
-                        'holding_id', authority_holding_text,
-                        'company_id', authority_company_text
-                    )
-                ) THEN
-                    RETURN FALSE;
-                END IF;
-            WHEN 'Branch' THEN
-                authority_holding_text := authority_body ->> 'holding_id';
-                authority_company_text := authority_body ->> 'company_id';
-                authority_branch_text := authority_body ->> 'branch_id';
-                IF authority <> jsonb_build_object(
-                    'Branch', jsonb_build_object(
-                        'holding_id', authority_holding_text,
-                        'company_id', authority_company_text,
-                        'branch_id', authority_branch_text
-                    )
-                ) THEN
-                    RETURN FALSE;
-                END IF;
-            WHEN 'Subtree' THEN
-                authority_holding_text := authority_body ->> 'holding_id';
-                authority_node_text := authority_body ->> 'organization_node_id';
-                IF authority <> jsonb_build_object(
-                    'Subtree', jsonb_build_object(
-                        'holding_id', authority_holding_text,
-                        'organization_node_id', authority_node_text
-                    )
-                ) THEN
-                    RETURN FALSE;
-                END IF;
-            ELSE
-                RETURN FALSE;
-        END CASE;
-    ELSE
-        RETURN FALSE;
-    END IF;
-
-    IF jsonb_typeof(target) = 'string' THEN
-        IF target <> to_jsonb('Platform'::TEXT) THEN
-            RETURN FALSE;
-        END IF;
-        target_kind := 'Platform';
-    ELSIF jsonb_typeof(target) = 'object' THEN
-        IF (SELECT count(*) FROM jsonb_object_keys(target)) <> 1 THEN
-            RETURN FALSE;
-        END IF;
-        SELECT entry.key, entry.value
-          INTO target_kind, target_body
-          FROM jsonb_each(target) AS entry(key,value);
-        CASE target_kind
-            WHEN 'Holding' THEN
-                target_holding_text := target_body ->> 'holding_id';
-                IF target <> jsonb_build_object(
-                    'Holding', jsonb_build_object('holding_id', target_holding_text)
-                ) THEN
-                    RETURN FALSE;
-                END IF;
-            WHEN 'Company' THEN
-                target_holding_text := target_body ->> 'holding_id';
-                target_company_text := target_body ->> 'company_id';
-                IF target <> jsonb_build_object(
-                    'Company', jsonb_build_object(
-                        'holding_id', target_holding_text,
-                        'company_id', target_company_text
-                    )
-                ) THEN
-                    RETURN FALSE;
-                END IF;
-            WHEN 'Branch' THEN
-                target_holding_text := target_body ->> 'holding_id';
-                target_company_text := target_body ->> 'company_id';
-                target_branch_text := target_body ->> 'branch_id';
-                IF target <> jsonb_build_object(
-                    'Branch', jsonb_build_object(
-                        'holding_id', target_holding_text,
-                        'company_id', target_company_text,
-                        'branch_id', target_branch_text
-                    )
-                ) THEN
-                    RETURN FALSE;
-                END IF;
-            WHEN 'Subtree' THEN
-                target_holding_text := target_body ->> 'holding_id';
-                target_node_text := target_body ->> 'organization_node_id';
-                IF target <> jsonb_build_object(
-                    'Subtree', jsonb_build_object(
-                        'holding_id', target_holding_text,
-                        'organization_node_id', target_node_text
-                    )
-                ) THEN
-                    RETURN FALSE;
-                END IF;
-            ELSE
-                RETURN FALSE;
-        END CASE;
-    ELSE
-        RETURN FALSE;
-    END IF;
-
-    IF authority_kind <> 'Platform' THEN
-        IF authority_holding_text IS NULL
-           OR authority_holding_text !~* uuid_pattern THEN
-            RETURN FALSE;
-        END IF;
-        authority_holding := authority_holding_text::UUID;
-        IF authority_holding = nil_uuid THEN
-            RETURN FALSE;
-        END IF;
-    END IF;
-    IF authority_kind IN ('Company','Branch') THEN
-        IF authority_company_text IS NULL
-           OR authority_company_text !~* uuid_pattern THEN
-            RETURN FALSE;
-        END IF;
-        authority_company := authority_company_text::UUID;
-        IF authority_company = nil_uuid THEN
-            RETURN FALSE;
-        END IF;
-    END IF;
-    IF authority_kind = 'Branch' THEN
-        IF authority_branch_text IS NULL
-           OR authority_branch_text !~* uuid_pattern THEN
-            RETURN FALSE;
-        END IF;
-        authority_branch := authority_branch_text::UUID;
-        IF authority_branch = nil_uuid THEN
-            RETURN FALSE;
-        END IF;
-    END IF;
-    IF authority_kind = 'Subtree' THEN
-        IF authority_node_text IS NULL
-           OR authority_node_text !~* uuid_pattern THEN
-            RETURN FALSE;
-        END IF;
-        authority_node := authority_node_text::UUID;
-        IF authority_node = nil_uuid THEN
-            RETURN FALSE;
-        END IF;
-    END IF;
-
-    IF target_kind <> 'Platform' THEN
-        IF target_holding_text IS NULL OR target_holding_text !~* uuid_pattern THEN
-            RETURN FALSE;
-        END IF;
-        target_holding := target_holding_text::UUID;
-        IF target_holding = nil_uuid THEN
-            RETURN FALSE;
-        END IF;
-    END IF;
-    IF target_kind IN ('Company','Branch') THEN
-        IF target_company_text IS NULL OR target_company_text !~* uuid_pattern THEN
-            RETURN FALSE;
-        END IF;
-        target_company := target_company_text::UUID;
-        IF target_company = nil_uuid THEN
-            RETURN FALSE;
-        END IF;
-    END IF;
-    IF target_kind = 'Branch' THEN
-        IF target_branch_text IS NULL OR target_branch_text !~* uuid_pattern THEN
-            RETURN FALSE;
-        END IF;
-        target_branch := target_branch_text::UUID;
-        IF target_branch = nil_uuid THEN
-            RETURN FALSE;
-        END IF;
-    END IF;
-    IF target_kind = 'Subtree' THEN
-        IF target_node_text IS NULL OR target_node_text !~* uuid_pattern THEN
-            RETURN FALSE;
-        END IF;
-        target_node := target_node_text::UUID;
-        IF target_node = nil_uuid THEN
-            RETURN FALSE;
-        END IF;
-    END IF;
-
-    IF authority_kind <> 'Platform'
-       AND (target_kind = 'Platform' OR authority_holding <> target_holding) THEN
-        RETURN FALSE;
-    END IF;
-
-    -- An exact Subtree is canonical only for Department or Team. Validate the
-    -- entire active path in the Organization-authored cache, not just the
-    -- target row. A missing, inactive, wrong-kind, or contradictory ancestor
-    -- therefore denies even if a UUID happens to match a structured scope.
-    IF target_kind = 'Subtree' THEN
-        SELECT candidate.node_kind, candidate.lineage_node_ids
-          INTO target_node_kind, target_lineage
-          FROM erpx_authority_read.organization_nodes AS candidate
-         WHERE candidate.holding_id = target_holding
-           AND candidate.node_id = target_node
-           AND candidate.node_status = 'active'
-           AND candidate.node_kind IN ('department','team')
-           AND candidate.lineage_node_ids[1] = target_holding
-           AND cardinality(candidate.lineage_node_ids) = cardinality(
-               ARRAY(
-                   SELECT DISTINCT lineage_node_id
-                     FROM unnest(candidate.lineage_node_ids) AS lineage(lineage_node_id)
-               )
-           )
-           AND NOT (candidate.node_id = ANY(candidate.lineage_node_ids))
-           AND candidate.parent_node_id IS NOT DISTINCT FROM
-               candidate.lineage_node_ids[cardinality(candidate.lineage_node_ids)]
-           AND (
-               (candidate.node_kind = 'department'
-                    AND cardinality(candidate.lineage_node_ids) IN (2,3))
-               OR (candidate.node_kind = 'team'
-                    AND cardinality(candidate.lineage_node_ids) IN (3,4))
-           )
-           AND NOT EXISTS (
-               SELECT 1
-                 FROM unnest(candidate.lineage_node_ids) WITH ORDINALITY
-                      AS path(node_id,depth)
-                 LEFT JOIN erpx_authority_read.organization_nodes AS ancestor
-                   ON ancestor.holding_id = candidate.holding_id
-                  AND ancestor.node_id = path.node_id
-                WHERE ancestor.node_id IS NULL
-                   OR ancestor.node_status <> 'active'
-                   OR ancestor.node_kind IS DISTINCT FROM CASE
-                       WHEN path.depth = 1 THEN 'holding'
-                       WHEN path.depth = 2 THEN 'company'
-                       WHEN candidate.node_kind = 'department'
-                            AND cardinality(candidate.lineage_node_ids) = 3
-                            AND path.depth = 3 THEN 'branch'
-                       WHEN candidate.node_kind = 'team'
-                            AND cardinality(candidate.lineage_node_ids) = 3
-                            AND path.depth = 3 THEN 'department'
-                       WHEN candidate.node_kind = 'team'
-                            AND cardinality(candidate.lineage_node_ids) = 4
-                            AND path.depth = 3 THEN 'branch'
-                       WHEN candidate.node_kind = 'team'
-                            AND cardinality(candidate.lineage_node_ids) = 4
-                            AND path.depth = 4 THEN 'department'
-                       ELSE NULL
-                   END
-                   OR ancestor.lineage_node_ids IS DISTINCT FROM CASE
-                       WHEN path.depth = 1 THEN ARRAY[]::UUID[]
-                       ELSE candidate.lineage_node_ids[1:(path.depth::INTEGER - 1)]
-                   END
-                   OR ancestor.parent_node_id IS DISTINCT FROM CASE
-                       WHEN path.depth = 1 THEN NULL::UUID
-                       ELSE candidate.lineage_node_ids[path.depth::INTEGER - 1]
-                   END
-           );
-        IF NOT FOUND THEN
-            RETURN FALSE;
-        END IF;
-
-        IF authority_kind = 'Platform' OR authority_kind = 'Holding' THEN
-            RETURN TRUE;
-        END IF;
-        IF authority_kind = 'Company' THEN
-            RETURN target_lineage[2] = authority_company;
-        END IF;
-        IF authority_kind = 'Branch' THEN
-            RETURN (
-                    (target_node_kind = 'department'
-                        AND cardinality(target_lineage) = 3)
-                    OR (target_node_kind = 'team'
-                        AND cardinality(target_lineage) = 4)
-                )
-                AND target_lineage[2] = authority_company
-                AND target_lineage[3] = authority_branch;
-        END IF;
-        IF authority_kind = 'Subtree' THEN
-            IF authority_node = target_node THEN
-                RETURN TRUE;
-            END IF;
-            -- The already validated target chain proves the prefix of this
-            -- ancestor. Requiring a Department/Team row rejects Subtree scopes
-            -- that merely encode a Company or Branch UUID.
-            RETURN EXISTS (
-                SELECT 1
-                  FROM erpx_authority_read.organization_nodes AS ancestor
-                 WHERE ancestor.holding_id = target_holding
-                   AND ancestor.node_id = authority_node
-                   AND ancestor.node_id = ANY(target_lineage)
-                   AND ancestor.node_kind IN ('department','team')
-                   AND ancestor.node_status = 'active'
-            );
-        END IF;
-        RETURN FALSE;
-    END IF;
-
     IF authority_kind = 'Platform' THEN
         RETURN TRUE;
     END IF;
+    IF authority_holding IS NULL OR authority_holding <> target_holding THEN
+        RETURN FALSE;
+    END IF;
     IF authority_kind = 'Holding' THEN
-        RETURN target_kind IN ('Holding','Company','Branch');
+        RETURN target_kind IN ('Holding', 'Company', 'Branch', 'Subtree');
     END IF;
     IF authority_kind = 'Company' THEN
         RETURN target_kind IN ('Company', 'Branch')
-            AND authority_company = target_company;
+            AND authority #>> '{Company,company_id}' = target_company;
     END IF;
     IF authority_kind = 'Branch' THEN
         RETURN target_kind = 'Branch'
-            AND authority_company = target_company
-            AND authority_branch = target_branch;
+            AND authority #>> '{Branch,company_id}' = target_company
+            AND authority #>> '{Branch,branch_id}' = target_branch;
     END IF;
-    -- Exact Department/Team authority never grants access to an ancestor.
+    IF authority_kind = 'Subtree' THEN
+        RETURN (
+            target_kind = 'Company'
+            AND (authority #> '{Subtree,company_ids}') ? target_company
+        ) OR (
+            target_kind = 'Branch'
+            AND (authority #> '{Subtree,branch_ids}') ? target_branch
+        );
+    END IF;
     RETURN FALSE;
 END;
 $$;
@@ -4908,7 +4586,7 @@ CREATE FUNCTION erpx_collaboration_read.audience_allows(
 )
 RETURNS BOOLEAN
 LANGUAGE plpgsql
-STABLE
+IMMUTABLE
 AS $$
 DECLARE
     realm TEXT := audience ->> 'realm';
@@ -6155,44 +5833,6 @@ CREATE TABLE erpx_authority_read.customer_portal_principal_bindings (
     ))
 );
 
--- Rebuildable Organization-authored lineage witnesses used by the Item
--- Directory's bounded batch resolver. The ordered lineage excludes node_id;
--- no consumer may reinterpret a node UUID as a Company or Branch column.
-CREATE TABLE erpx_authority_read.organization_nodes (
-    holding_id UUID NOT NULL DEFAULT erpx_authority_read.current_holding_id(),
-    node_id UUID NOT NULL,
-    node_kind TEXT NOT NULL CHECK (node_kind IN (
-        'holding','company','headquarters','branch','department','team'
-    )),
-    node_status TEXT NOT NULL CHECK (node_status IN ('active','suspended','archived')),
-    parent_node_id UUID,
-    lineage_node_ids UUID[] NOT NULL,
-    aggregate_version BIGINT NOT NULL CHECK (aggregate_version > 0),
-    source_event_position BIGINT NOT NULL CHECK (source_event_position > 0),
-    changed_at TIMESTAMPTZ NOT NULL,
-    projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (holding_id,node_id),
-    CHECK (cardinality(lineage_node_ids) BETWEEN 0 AND 4),
-    CHECK (NOT node_id=ANY(lineage_node_ids)),
-    CHECK (
-        parent_node_id IS NOT DISTINCT FROM
-            lineage_node_ids[cardinality(lineage_node_ids)]
-    ),
-    CHECK (
-        (node_kind='holding' AND holding_id=node_id
-            AND cardinality(lineage_node_ids)=0 AND parent_node_id IS NULL)
-        OR (node_kind='company' AND cardinality(lineage_node_ids)=1
-            AND lineage_node_ids[1]=holding_id)
-        OR (node_kind IN ('headquarters','branch')
-            AND cardinality(lineage_node_ids)=2
-            AND lineage_node_ids[1]=holding_id)
-        OR (node_kind='department' AND cardinality(lineage_node_ids) IN (2,3)
-            AND lineage_node_ids[1]=holding_id)
-        OR (node_kind='team' AND cardinality(lineage_node_ids) IN (3,4)
-            AND lineage_node_ids[1]=holding_id)
-    )
-);
-
 CREATE TABLE erpx_authority_read.policy_decision_checkpoint (
     holding_id UUID PRIMARY KEY DEFAULT erpx_authority_read.current_holding_id(),
     source_event_position BIGINT NOT NULL CHECK (source_event_position >= 0),
@@ -6218,11 +5858,6 @@ CREATE INDEX authority_read_portal_binding_effective
     ON erpx_authority_read.customer_portal_principal_bindings
         (holding_id, portal_principal_id, customer_record_id, valid_from, valid_until)
     WHERE binding_status = 'active';
-CREATE INDEX authority_read_organization_node_lineage
-    ON erpx_authority_read.organization_nodes USING GIN (lineage_node_ids);
-CREATE INDEX authority_read_organization_node_kind_status
-    ON erpx_authority_read.organization_nodes
-        (holding_id,node_kind,node_status,node_id);
 
 DO $$
 DECLARE table_name TEXT;
@@ -6230,7 +5865,7 @@ BEGIN
     FOREACH table_name IN ARRAY ARRAY[
         'principals','roles','assignments','group_memberships',
         'organization_sharing_agreements','customer_portal_principal_bindings',
-        'organization_nodes','policy_decision_checkpoint'
+        'policy_decision_checkpoint'
     ] LOOP
         EXECUTE format('ALTER TABLE erpx_authority_read.%I ENABLE ROW LEVEL SECURITY', table_name);
         EXECUTE format('ALTER TABLE erpx_authority_read.%I FORCE ROW LEVEL SECURITY', table_name);

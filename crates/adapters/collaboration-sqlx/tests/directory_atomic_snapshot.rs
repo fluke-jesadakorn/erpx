@@ -119,28 +119,31 @@ impl Fixture {
             ContextId::Procurement,
             RecordTypeId::try_new("procurement.purchase-order")?,
         )?;
-        let original_descriptor = ItemDescriptor::try_new(
+        let original_descriptor = ItemDescriptor::try_new_with_display_label(
             record.clone(),
             scope.clone(),
             "open",
+            "Atomic original purchase order",
             policy.policy_id(),
             DataClassification::Confidential,
             1,
             10,
         )?;
-        let future_descriptor = ItemDescriptor::try_new(
+        let future_descriptor = ItemDescriptor::try_new_with_display_label(
             future_record.clone(),
             scope.clone(),
             "future",
+            "Checkpoint future purchase order",
             policy.policy_id(),
             DataClassification::Confidential,
             1,
             30,
         )?;
-        let replacement_descriptor = ItemDescriptor::try_new(
+        let replacement_descriptor = ItemDescriptor::try_new_with_display_label(
             record.clone(),
             scope,
             "replacement",
+            "Atomic replacement purchase order",
             policy.policy_id(),
             DataClassification::Confidential,
             2,

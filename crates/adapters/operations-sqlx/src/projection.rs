@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
-use erpx_integration_contracts::{BoundedContext, ItemDescriptorDraft, operations};
+use erpx_integration_contracts::{BoundedContext, ItemDescriptorDraftV2, operations};
 use erpx_operations::{
     ExceptionStatus, ExceptionView, OperationsException, SourcePosition, WorkQueuePolicy,
     WorkQueuePolicyStatus, WorkQueuePolicyView,
@@ -58,7 +58,7 @@ impl OperationsSnapshot {
 pub enum OperationsOutboxPayload {
     Integration(operations::Event),
     Snapshot(OperationsSnapshot),
-    Directory(ItemDescriptorDraft),
+    Directory(ItemDescriptorDraftV2),
 }
 
 macro_rules! projector_type {

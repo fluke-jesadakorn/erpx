@@ -8,9 +8,9 @@ use std::{error::Error, fmt};
 
 use chrono::{DateTime, Duration, Utc};
 use erpx_integration_contracts::{
-    CanonicalRouteMoved, EffectiveGrantChanged, EffectiveGrantRevoked, HoldingItemDirectoryFact,
-    ItemDescriptor, ItemDescriptorChanged, ItemDirectoryFact, ItemTombstoned,
-    ReferenceRelationChanged, ReferenceRelationRevoked, StableRecordRef,
+    AuthorizedItemSummary, CanonicalRouteMoved, EffectiveGrantChanged, EffectiveGrantRevoked,
+    HoldingItemDirectoryFact, ItemDescriptor, ItemDescriptorChanged, ItemDirectoryFact,
+    ItemTombstoned, ReferenceRelationChanged, ReferenceRelationRevoked, StableRecordRef,
 };
 use erpx_kernel::{AuthorityScope, HoldingId, PolicyId, PrincipalId, RecordId};
 use sqlx::{PgPool, Postgres, Row, Transaction};
@@ -150,6 +150,7 @@ impl DirectorySearchRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DirectorySearchPage {
     pub items: Vec<ItemDescriptor>,
+    pub authorized_summaries: Vec<AuthorizedItemSummary>,
     pub next_cursor: Option<String>,
     /// Count is computed only after current grant and scope filters.
     pub authorized_count: u64,
@@ -359,6 +360,7 @@ impl SqlxItemDirectory {
                  AND descriptor.source_event_position<=projection.applied_position \
                  AND grant_fact.source_event_position<=projection.applied_position \
                  AND descriptor.tombstoned_at IS NULL \
+                 AND descriptor.display_label IS NOT NULL \
                  AND grant_fact.effective_at<=$7 AND grant_fact.expires_at>$7 \
                  AND erpx_collaboration_read.scope_contains($3, descriptor.record_scope)\
              ), matching AS MATERIALIZED (\
@@ -428,9 +430,15 @@ impl SqlxItemDirectory {
             .map_err(|_| DirectoryAdapterError::Unavailable)?
             < authorized_count)
             .then(|| consumed.to_string());
+        let authorized_summaries = items
+            .iter()
+            .map(AuthorizedItemSummary::try_from_descriptor)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| DirectoryAdapterError::Unavailable)?;
         Ok(DirectoryLookup::Visible {
             value: DirectorySearchPage {
                 items,
+                authorized_summaries,
                 next_cursor,
                 authorized_count,
             },
@@ -979,15 +987,16 @@ impl ItemDirectoryProjectionAdapter {
         sqlx::query(
             "INSERT INTO erpx_collaboration_read.item_directory_descriptors \
              (holding_id,record_id,owner_context,record_type,record_scope,authorization_policy_id, \
-              authorization_policy_version,descriptor,canonical_route,authorized_search_text, \
+              authorization_policy_version,descriptor,canonical_route,display_label,authorized_search_text, \
               descriptor_version,source_event_position,projected_at,tombstoned_at) \
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NULL) \
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NULL) \
              ON CONFLICT (holding_id,record_id) DO UPDATE SET \
               owner_context=EXCLUDED.owner_context, record_type=EXCLUDED.record_type, \
               record_scope=EXCLUDED.record_scope, \
               authorization_policy_id=EXCLUDED.authorization_policy_id, \
               authorization_policy_version=EXCLUDED.authorization_policy_version, \
               descriptor=EXCLUDED.descriptor, canonical_route=EXCLUDED.canonical_route, \
+              display_label=EXCLUDED.display_label, \
               authorized_search_text=EXCLUDED.authorized_search_text, \
               descriptor_version=EXCLUDED.descriptor_version, \
               source_event_position=EXCLUDED.source_event_position, \
@@ -1010,6 +1019,7 @@ impl ItemDirectoryProjectionAdapter {
                 .map_err(|_| DirectoryAdapterError::Invalid("descriptor"))?,
         )
         .bind(descriptor.canonical_route())
+        .bind(descriptor.display_label())
         .bind(&publication.authorized_search_text)
         .bind(positive_i64(
             descriptor.descriptor_version(),
@@ -1716,14 +1726,16 @@ mod tests {
 
     #[test]
     fn scope_containment_uses_the_active_canonical_organization_chain() {
-        let ddl = crate::READ_DDL;
+        let ddl = include_str!(
+            "../../../migration/migrations_holding_read/0002_record_collaboration_phase2.sql"
+        );
         let function = ddl
             .split(
-                "CREATE FUNCTION erpx_collaboration_read.scope_contains(authority JSONB, target JSONB)",
+                "CREATE OR REPLACE FUNCTION erpx_collaboration_read.scope_contains(authority JSONB, target JSONB)",
             )
             .nth(1)
             .expect("scope containment function")
-            .split("CREATE FUNCTION erpx_collaboration_read.audience_allows")
+            .split("ALTER TABLE erpx_collaboration_read.item_directory_descriptors")
             .next()
             .expect("scope containment boundary");
 

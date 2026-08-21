@@ -6,7 +6,10 @@
 
 use async_trait::async_trait;
 use chrono::Utc;
-use erpx_collaboration_sqlx::{DirectoryAdapterError, ItemDirectoryProjectionAdapter};
+use erpx_collaboration_sqlx::{
+    DirectoryAdapterError, ItemDirectoryProjectionAdapter, RECORD_RELATION_DRAFT_EVENT_TYPE,
+    SqlxRecordRelationProjection,
+};
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionPool, ProjectionSource, WritePool};
 use erpx_infrastructure::{
     ProjectionClaimRecord, ProjectionJobKind, RoutedDatabaseSide, RoutedHoldingDatabase,
@@ -14,7 +17,7 @@ use erpx_infrastructure::{
 use erpx_integration_contracts::{
     AUTHORITY_EVIDENCE_EVENT_TYPE, HoldingItemDirectoryFact, ITEM_DIRECTORY_FACT_VERSION,
     ITEM_DIRECTORY_OWNER_EVENT_TYPE, ITEM_DIRECTORY_PROJECTION_NAME, ItemDescriptorDraft,
-    organization::ORGANIZATION_LINEAGE_CHANGED_EVENT_TYPE,
+    ItemDescriptorDraftV2, organization::ORGANIZATION_LINEAGE_CHANGED_EVENT_TYPE,
 };
 use erpx_kernel::HoldingId;
 use erpx_organization_sqlx::SNAPSHOT_EVENT_TYPE as ORGANIZATION_SNAPSHOT_EVENT_TYPE;
@@ -132,9 +135,9 @@ pub fn decode_item_directory_owner_event(
     draft
         .validate()
         .map_err(|_| ItemDirectoryProjectionError::MalformedOwnerFact)?;
-    if draft.record.id().as_uuid() != event.aggregate_id.as_uuid()
-        || draft.record.owner_context().slug() != event.context.replace('_', "-")
-        || draft.descriptor_version != event.aggregate_version
+    if draft.record().id().as_uuid() != event.aggregate_id.as_uuid()
+        || draft.record().owner_context().slug() != event.context.replace('_', "-")
+        || draft.descriptor_version() != event.aggregate_version
     {
         return Err(ItemDirectoryProjectionError::OwnerEnvelopeMismatch);
     }
@@ -163,14 +166,15 @@ pub fn decode_item_directory_event(
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 enum OwnerDraftWire {
-    Direct(ItemDescriptorDraft),
+    DirectCurrent(ItemDescriptorDraftV2),
+    DirectLegacy(ItemDescriptorDraft),
     PayloadKind(OwnerDraftPayloadKind),
 }
 
 #[derive(Debug, Deserialize)]
 struct OwnerDraftPayloadKind {
     payload_kind: OwnerDraftKind,
-    payload: ItemDescriptorDraft,
+    payload: OwnerDraft,
 }
 
 #[derive(Debug, Deserialize)]
@@ -179,13 +183,55 @@ enum OwnerDraftKind {
     Directory,
 }
 
-fn decode_draft(
-    value: serde_json::Value,
-) -> Result<ItemDescriptorDraft, ItemDirectoryProjectionError> {
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum OwnerDraft {
+    V2(ItemDescriptorDraftV2),
+    Legacy(ItemDescriptorDraft),
+}
+
+impl OwnerDraft {
+    fn validate(&self) -> Result<(), erpx_integration_contracts::ReferenceValidationError> {
+        match self {
+            Self::V2(value) => value.validate(),
+            Self::Legacy(value) => value.validate(),
+        }
+    }
+
+    fn record(&self) -> &erpx_integration_contracts::StableRecordRef {
+        match self {
+            Self::V2(value) => &value.draft.record,
+            Self::Legacy(value) => &value.record,
+        }
+    }
+
+    fn descriptor_version(&self) -> u64 {
+        match self {
+            Self::V2(value) => value.draft.descriptor_version,
+            Self::Legacy(value) => value.descriptor_version,
+        }
+    }
+
+    fn materialize(
+        &self,
+        committed_source_position: u64,
+    ) -> Result<
+        erpx_integration_contracts::ItemDirectoryFact,
+        erpx_integration_contracts::ReferenceValidationError,
+    > {
+        match self {
+            Self::V2(value) => value.materialize(committed_source_position),
+            Self::Legacy(value) => value.materialize(committed_source_position),
+        }
+    }
+}
+
+fn decode_draft(value: serde_json::Value) -> Result<OwnerDraft, ItemDirectoryProjectionError> {
     match serde_json::from_value::<OwnerDraftWire>(value)
         .map_err(|_| ItemDirectoryProjectionError::MalformedOwnerFact)?
     {
-        OwnerDraftWire::Direct(value) => Ok(value),
+        OwnerDraftWire::DirectCurrent(value) => Ok(OwnerDraft::V2(value)),
+        OwnerDraftWire::DirectLegacy(value) => Ok(OwnerDraft::Legacy(value)),
         OwnerDraftWire::PayloadKind(OwnerDraftPayloadKind {
             payload_kind: OwnerDraftKind::Directory,
             payload,
@@ -222,6 +268,11 @@ impl ItemDirectoryHoldingProjectionExecutor {
         let authority_write = write_pool.clone();
         let source = ProjectionSource::new(write_pool);
         let directory = ItemDirectoryProjectionAdapter::new(read.database_pool().clone());
+        let relation_projection = SqlxRecordRelationProjection::new(
+            holding_id,
+            write.database_pool().clone(),
+            read.database_pool().clone(),
+        );
         let authority_pool =
             ProjectionPool::for_holding(read.database_pool().clone(), holding_uuid)
                 .map_err(|_| HoldingProjectionExecutorError::Permanent)?;
@@ -232,6 +283,7 @@ impl ItemDirectoryHoldingProjectionExecutor {
             AUTHORITY_EVIDENCE_EVENT_TYPE.to_owned(),
             ORGANIZATION_LINEAGE_CHANGED_EVENT_TYPE.to_owned(),
             ORGANIZATION_SNAPSHOT_EVENT_TYPE.to_owned(),
+            RECORD_RELATION_DRAFT_EVENT_TYPE.to_owned(),
         ];
         let (generation, source_high_watermark, mut cursor) = match claim.job.kind {
             ProjectionJobKind::Rebuild => {
@@ -300,6 +352,16 @@ impl ItemDirectoryHoldingProjectionExecutor {
                         .await
                         .map_err(|error| match error {
                             crate::AuthorityProjectionError::Unavailable => {
+                                HoldingProjectionExecutorError::Retryable
+                            }
+                            _ => HoldingProjectionExecutorError::Permanent,
+                        })?;
+                } else if event.event_type == RECORD_RELATION_DRAFT_EVENT_TYPE {
+                    relation_projection
+                        .apply(&event)
+                        .await
+                        .map_err(|error| match error {
+                            erpx_collaboration::PortError::Unavailable => {
                                 HoldingProjectionExecutorError::Retryable
                             }
                             _ => HoldingProjectionExecutorError::Permanent,

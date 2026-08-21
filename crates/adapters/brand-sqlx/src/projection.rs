@@ -5,7 +5,7 @@ use erpx_brand::{
     BrandCategory, BrandLifecycle, BrandProfileView, BrandRevision, BrandScope, ResolvedBrandView,
 };
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
-use erpx_integration_contracts::{ItemDescriptorDraft, brand};
+use erpx_integration_contracts::{ItemDescriptorDraftV2, brand};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::{Postgres, Row, Transaction};
@@ -30,7 +30,7 @@ pub struct BrandSnapshot {
 pub enum BrandOutboxPayload {
     Integration(brand::Event),
     Snapshot(BrandSnapshot),
-    Directory(ItemDescriptorDraft),
+    Directory(ItemDescriptorDraftV2),
 }
 
 macro_rules! projector {

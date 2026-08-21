@@ -10,7 +10,8 @@ use erpx_crm::{
 };
 use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
-    ItemDescriptorDraft, RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
+    ItemDescriptorDraft, ItemDescriptorDraftV2, RecordTypeId, StableRecordRef, catalog::ContextId,
+    record_policy_id,
 };
 use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId, RecordId};
 use serde_json::json;
@@ -395,8 +396,8 @@ impl CommandUnitOfWork for CrmCommandAdapter {
     }
 }
 
-fn crm_directory_draft(aggregate: &CrmAggregate) -> Result<ItemDescriptorDraft, PortError> {
-    let (record_type, lifecycle_state, search_text) = match aggregate {
+fn crm_directory_draft(aggregate: &CrmAggregate) -> Result<ItemDescriptorDraftV2, PortError> {
+    let (record_type, lifecycle_state, display_label) = match aggregate {
         CrmAggregate::Lead(value) => (
             "crm.lead",
             "accepted".to_owned(),
@@ -423,10 +424,9 @@ fn crm_directory_draft(aggregate: &CrmAggregate) -> Result<ItemDescriptorDraft, 
         lifecycle_state,
         classification: DataClassification::Confidential,
         descriptor_version: aggregate.version(),
-        authorized_search_text: search_text,
+        authorized_search_text: display_label.clone(),
     };
-    value.validate().map_err(|_| PortError::Internal)?;
-    Ok(value)
+    ItemDescriptorDraftV2::try_new(value, display_label).map_err(|_| PortError::Internal)
 }
 
 struct CrmAtomicGuard {

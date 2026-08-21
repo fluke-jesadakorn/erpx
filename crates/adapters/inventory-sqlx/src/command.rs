@@ -7,7 +7,8 @@ use erpx_cqrs_sqlx::{
 };
 use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
-    ItemDescriptorDraft, RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
+    ItemDescriptorDraft, ItemDescriptorDraftV2, RecordTypeId, StableRecordRef, catalog::ContextId,
+    record_policy_id,
 };
 use erpx_inventory::{
     CommandFingerprint, CommandIdentity, CommandUnitOfWork, InventoryCommit, PortError,
@@ -584,7 +585,7 @@ impl AtomicCommandGuard for InventoryGuard {
 
 fn reservation_directory_drafts(
     aggregate: &StockItem,
-) -> Result<Vec<ItemDescriptorDraft>, PortError> {
+) -> Result<Vec<ItemDescriptorDraftV2>, PortError> {
     aggregate
         .reservations()
         .values()
@@ -596,6 +597,8 @@ fn reservation_directory_drafts(
                 RecordTypeId::try_new("inventory.reservation").map_err(|_| PortError::Internal)?,
             )
             .map_err(|_| PortError::Internal)?;
+            let display_label =
+                format!("{} {}", aggregate.item_code(), reservation.demand_reference);
             let draft = ItemDescriptorDraft {
                 authorization_policy: record_policy_id(&record).map_err(|_| PortError::Internal)?,
                 record,
@@ -603,14 +606,9 @@ fn reservation_directory_drafts(
                 lifecycle_state: reservation_status(reservation.status).into(),
                 classification: DataClassification::Confidential,
                 descriptor_version: aggregate.version(),
-                authorized_search_text: format!(
-                    "{} {}",
-                    aggregate.item_code(),
-                    reservation.demand_reference
-                ),
+                authorized_search_text: display_label.clone(),
             };
-            draft.validate().map_err(|_| PortError::Internal)?;
-            Ok(draft)
+            ItemDescriptorDraftV2::try_new(draft, display_label).map_err(|_| PortError::Internal)
         })
         .collect()
 }

@@ -13,7 +13,8 @@ use erpx_cqrs_sqlx::{
 };
 use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
-    ItemDescriptorDraft, RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
+    ItemDescriptorDraft, ItemDescriptorDraftV2, RecordTypeId, StableRecordRef, catalog::ContextId,
+    record_policy_id,
 };
 use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId, RecordId};
 use serde_json::json;
@@ -267,7 +268,9 @@ impl CommandUnitOfWork for BrandCommandAdapter {
     }
 }
 
-fn brand_directory_drafts(aggregate: &BrandProfile) -> Result<Vec<ItemDescriptorDraft>, PortError> {
+fn brand_directory_drafts(
+    aggregate: &BrandProfile,
+) -> Result<Vec<ItemDescriptorDraftV2>, PortError> {
     let record_id =
         RecordId::try_from_uuid(aggregate.id().as_uuid()).map_err(|_| PortError::Internal)?;
     let record = StableRecordRef::try_new(
@@ -293,12 +296,17 @@ fn brand_directory_drafts(aggregate: &BrandProfile) -> Result<Vec<ItemDescriptor
         descriptor_version: aggregate.version(),
         authorized_search_text: aggregate.scope().canonical_key(),
     };
-    value.validate().map_err(|_| PortError::Internal)?;
+    let value = ItemDescriptorDraftV2::try_new(
+        value,
+        format!("Brand profile {}", aggregate.scope().canonical_key()),
+    )
+    .map_err(|_| PortError::Internal)?;
     let mut values = vec![value];
     for revision in aggregate.draft().into_iter().chain(aggregate.published()) {
         for asset in revision.definition().assets.references() {
             let record = erpx_brand::integration::asset_record_ref(aggregate.id(), asset)
                 .map_err(|_| PortError::Internal)?;
+            let display_label = format!("{} {}", asset.kind.as_str(), asset.media_type);
             let value = ItemDescriptorDraft {
                 authorization_policy: record_policy_id(&record).map_err(|_| PortError::Internal)?,
                 record,
@@ -316,8 +324,12 @@ fn brand_directory_drafts(aggregate: &BrandProfile) -> Result<Vec<ItemDescriptor
                     asset.media_type
                 ),
             };
-            value.validate().map_err(|_| PortError::Internal)?;
-            if !values.iter().any(|current| current.record == value.record) {
+            let value = ItemDescriptorDraftV2::try_new(value, display_label)
+                .map_err(|_| PortError::Internal)?;
+            if !values
+                .iter()
+                .any(|current| current.draft.record == value.draft.record)
+            {
                 values.push(value);
             }
         }
@@ -326,6 +338,7 @@ fn brand_directory_drafts(aggregate: &BrandProfile) -> Result<Vec<ItemDescriptor
         let record =
             erpx_brand::integration::publication_record_ref(aggregate.id(), publication.revision())
                 .map_err(|_| PortError::Internal)?;
+        let display_label = publication.definition().display_name.clone();
         let value = ItemDescriptorDraft {
             authorization_policy: record_policy_id(&record).map_err(|_| PortError::Internal)?,
             record,
@@ -343,7 +356,8 @@ fn brand_directory_drafts(aggregate: &BrandProfile) -> Result<Vec<ItemDescriptor
                 publication.revision()
             ),
         };
-        value.validate().map_err(|_| PortError::Internal)?;
+        let value = ItemDescriptorDraftV2::try_new(value, display_label)
+            .map_err(|_| PortError::Internal)?;
         values.push(value);
     }
     Ok(values)

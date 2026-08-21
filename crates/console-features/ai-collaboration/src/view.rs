@@ -8,8 +8,13 @@ use erpx_ui_ai_collaboration::{
 };
 use erpx_ui_core::Locale;
 use erpx_ui_kit::{
-    Button, ButtonTone, Disclosure, EmptyState, Skeleton, StatusBadge, StatusTone,
+    Button, ButtonTone, Disclosure, EmptyState, Link, Skeleton, StatusBadge, StatusTone,
     kit::{TextArea, button::Button as KitButton},
+};
+
+use crate::gateway::{
+    RecordReferencesState, RecordResolutionState, ReferenceDirection, ReferenceRelationCard,
+    ReferenceRelationKind,
 };
 
 pub const AI_COLLABORATION_STYLES: &str = include_str!("../assets/ai-collaboration.css");
@@ -125,7 +130,158 @@ pub fn AuthorizedRecordActivityRail(
             )
             .to_owned(),
         ),
-        ActivityReferenceGate::Authorized { .. } => rsx! {},
+        ActivityReferenceGate::Authorized { .. }
+        | ActivityReferenceGate::AuthorizedPlatform { .. } => rsx! {},
+    }
+}
+
+/// Authorization-first relation surface. The current URL is used only to
+/// compare with the freshly resolved descriptor; it never constructs record
+/// identity or authority. Payload, counts, and mutation controls stay hidden
+/// for stale, offline, denied, or unavailable resolution states.
+#[component]
+pub fn RecordReferences(
+    resolution: RecordResolutionState,
+    current_route: String,
+    state: RecordReferencesState,
+    locale: Locale,
+    #[props(default)] on_add: Option<EventHandler<()>>,
+    #[props(default)] on_revoke: Option<EventHandler<ReferenceRelationCard>>,
+    #[props(default)] on_retry: Option<EventHandler<()>>,
+) -> Element {
+    if resolution.authorized_record(&current_route).is_none() {
+        return match resolution {
+            RecordResolutionState::Neutral => rsx! {},
+            RecordResolutionState::Resolving => rsx! {
+                section { class: "erpx-record-references erpx-record-references--loading", role: "status",
+                    h2 { {copy(locale, "References", "การอ้างอิง")} }
+                    p { {copy(locale, "Authorizing record references…", "กำลังตรวจสอบสิทธิ์การอ้างอิงของรายการ…")} }
+                }
+            },
+            RecordResolutionState::Stale => reference_gate_notice(
+                locale,
+                "stale",
+                copy(
+                    locale,
+                    "References are hidden until the directory projection is current.",
+                    "ซ่อนการอ้างอิงจนกว่าไดเรกทอรีโพรเจกชันจะเป็นปัจจุบัน",
+                ),
+            ),
+            RecordResolutionState::Degraded => reference_gate_notice(
+                locale,
+                "degraded",
+                copy(
+                    locale,
+                    "References are unavailable; no cached authorization was used.",
+                    "การอ้างอิงไม่พร้อมใช้งาน และไม่ได้ใช้สิทธิ์จากแคช",
+                ),
+            ),
+            RecordResolutionState::Offline => reference_gate_notice(
+                locale,
+                "offline",
+                copy(
+                    locale,
+                    "References require an online authorization check.",
+                    "การอ้างอิงต้องตรวจสอบสิทธิ์ขณะออนไลน์",
+                ),
+            ),
+            RecordResolutionState::Authorized { .. } => rsx! {},
+        };
+    }
+
+    rsx! {
+        section { class: "erpx-record-references", aria_label: copy(locale, "Record references", "การอ้างอิงของรายการ"),
+            header { class: "erpx-record-references__header",
+                div {
+                    p { class: "eyebrow", {copy(locale, "COLLABORATION", "การทำงานร่วมกัน")} }
+                    h2 { {copy(locale, "References", "การอ้างอิง")} }
+                }
+                if on_add.is_some() {
+                    Button {
+                        label: copy(locale, "Add reference", "เพิ่มการอ้างอิง").to_owned(),
+                        tone: ButtonTone::Secondary,
+                        on_press: on_add,
+                    }
+                }
+            }
+            match state {
+                RecordReferencesState::Loading => rsx! { Skeleton { lines: 3 } },
+                RecordReferencesState::Empty => rsx! {
+                    EmptyState {
+                        title: copy(locale, "No references yet", "ยังไม่มีการอ้างอิง").to_owned(),
+                        message: copy(locale, "Authorized record relations will appear here.", "ความสัมพันธ์ของรายการที่ได้รับอนุญาตจะแสดงที่นี่").to_owned(),
+                    }
+                },
+                RecordReferencesState::Content { relations } => rsx! {
+                    ul { class: "erpx-record-references__list",
+                        for relation in relations { {render_reference(relation, locale, on_revoke)} }
+                    }
+                },
+                RecordReferencesState::Denied | RecordReferencesState::Restricted => {
+                    reference_gate_notice(locale, "denied", copy(locale, "You do not have access to these references.", "คุณไม่มีสิทธิ์เข้าถึงการอ้างอิงเหล่านี้"))
+                },
+                RecordReferencesState::Stale => reference_gate_notice(locale, "stale", copy(locale, "References are hidden because the projection is stale.", "ซ่อนการอ้างอิงเนื่องจากโพรเจกชันล้าสมัย")),
+                RecordReferencesState::Degraded { retryable } => rsx! {
+                    {reference_gate_notice(locale, "degraded", copy(locale, "References are temporarily unavailable.", "การอ้างอิงไม่พร้อมใช้งานชั่วคราว"))}
+                    if retryable {
+                        Button { label: copy(locale, "Retry", "ลองใหม่").to_owned(), tone: ButtonTone::Secondary, disabled: on_retry.is_none(), on_press: on_retry }
+                    }
+                },
+                RecordReferencesState::Offline => reference_gate_notice(locale, "offline", copy(locale, "References are hidden while offline.", "ซ่อนการอ้างอิงขณะออฟไลน์")),
+            }
+        }
+    }
+}
+
+fn reference_gate_notice(locale: Locale, state: &'static str, message: &'static str) -> Element {
+    rsx! {
+        section { class: "erpx-record-references", role: "status", "data-state": state,
+            h2 { {copy(locale, "References", "การอ้างอิง")} }
+            p { {message} }
+        }
+    }
+}
+
+fn render_reference(
+    relation: ReferenceRelationCard,
+    locale: Locale,
+    on_revoke: Option<EventHandler<ReferenceRelationCard>>,
+) -> Element {
+    let revoke_relation = relation.clone();
+    let direction = match relation.direction {
+        ReferenceDirection::Incoming => copy(locale, "Incoming", "ขาเข้า"),
+        ReferenceDirection::Outgoing => copy(locale, "Outgoing", "ขาออก"),
+    };
+    let kind = match relation.kind {
+        ReferenceRelationKind::RelatesTo => copy(locale, "Relates to", "เกี่ยวข้องกับ"),
+        ReferenceRelationKind::Blocks => copy(locale, "Blocks", "ขัดขวาง"),
+        ReferenceRelationKind::DependsOn => copy(locale, "Depends on", "ขึ้นอยู่กับ"),
+        ReferenceRelationKind::Implements => copy(locale, "Implements", "นำไปใช้"),
+        ReferenceRelationKind::Supersedes => copy(locale, "Supersedes", "แทนที่"),
+        ReferenceRelationKind::DerivedFrom => copy(locale, "Derived from", "ได้มาจาก"),
+        ReferenceRelationKind::EvidenceFor => copy(locale, "Evidence for", "เป็นหลักฐานสำหรับ"),
+    };
+    rsx! {
+        li { class: "erpx-record-reference", key: "{relation.relation_id}",
+            div { class: "erpx-record-reference__copy",
+                div { class: "erpx-record-reference__meta",
+                    StatusBadge { label: direction.to_owned(), tone: StatusTone::Neutral }
+                    StatusBadge { label: kind.to_owned(), tone: StatusTone::Info }
+                }
+                Link { href: relation.canonical_route, {relation.display_label} }
+                small { {relation.related_record.record_type().as_str()} }
+            }
+            if relation.can_revoke && on_revoke.is_some() {
+                Button {
+                    label: copy(locale, "Remove", "นำออก").to_owned(),
+                    on_press: move |_| {
+                        if let Some(handler) = on_revoke {
+                            handler.call(revoke_relation.clone());
+                        }
+                    },
+                }
+            }
+        }
     }
 }
 
@@ -262,7 +418,7 @@ pub fn CommentEditorSurface(
     rsx! {
         section { class: "erpx-comment-editor", aria_label: copy(locale, "Comment editor", "ตัวแก้ไขความคิดเห็น"),
             div { class: "erpx-editor-toolbar", role: "toolbar", aria_label: copy(locale, "Formatting and typed references", "การจัดรูปแบบและการอ้างอิงแบบระบุชนิด"),
-                KitButton { r#type: "button", disabled, aria_label: copy(locale, "Mention a person, group, or agent", "เมนชันบุคคล กลุ่ม หรือเอเจนต์"), "@" }
+                span { title: copy(locale, "At-sign text has no notification or assignment effect in this phase", "ข้อความเครื่องหมาย @ ยังไม่แจ้งเตือนหรือมอบหมายงานในระยะนี้"), "@" }
                 KitButton { r#type: "button", disabled, aria_label: copy(locale, "Reference an authorized record", "อ้างอิงรายการที่ได้รับอนุญาต"), "#" }
                 KitButton { r#type: "button", disabled, {copy(locale, "Attach", "แนบไฟล์")} }
             }
@@ -506,5 +662,20 @@ mod tests {
             .expect("guarded activity rail mount");
         assert!(rail > 0);
         assert!(!source.contains(concat!("StableRecordRef::", "try_new")));
+    }
+
+    #[test]
+    fn references_are_guarded_by_the_same_fresh_authorized_descriptor() {
+        let source = include_str!("view.rs");
+        let references = source.find("pub fn RecordReferences").unwrap();
+        let guarded = source[references..]
+            .find("resolution.authorized_record(&current_route).is_none()")
+            .unwrap();
+        let content = source[references..]
+            .find("RecordReferencesState::Content")
+            .unwrap();
+        assert!(guarded < content);
+        assert!(source.contains("no cached authorization was used"));
+        assert!(!source.contains(concat!("ReferenceRelationKind::", "Custom")));
     }
 }

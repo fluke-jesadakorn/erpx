@@ -3,8 +3,9 @@ use erpx_cqrs_sqlx::WritePool;
 use erpx_integration_contracts::{
     AUTHORITY_EVIDENCE_EVENT_TYPE, AUTHORITY_EVIDENCE_VERSION, AuthorityEvidenceFact,
     AuthoritySharingDirection, AuthoritySharingStatus, ITEM_DIRECTORY_FACT_VERSION,
-    ITEM_DIRECTORY_OWNER_EVENT_TYPE, ItemDescriptorDraft, OrganizationSharingAuthorityEvidence,
-    RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
+    ITEM_DIRECTORY_OWNER_EVENT_TYPE, ItemDescriptorDraft, ItemDescriptorDraftV2,
+    OrganizationSharingAuthorityEvidence, RecordTypeId, StableRecordRef, catalog::ContextId,
+    record_policy_id,
 };
 use erpx_kernel::{AuthorityScope, DataClassification, RecordId};
 use erpx_organization::{
@@ -363,6 +364,14 @@ async fn append_directory_event(
             aggregate.id().as_uuid()
         ),
     };
+    let draft = ItemDescriptorDraftV2::try_new(
+        draft,
+        format!(
+            "Organization sharing agreement {}",
+            aggregate.id().as_uuid()
+        ),
+    )
+    .map_err(|_| PortError::Internal)?;
     draft.validate().map_err(|_| PortError::Internal)?;
 
     let command_id = request.request.identity.command_id;

@@ -84,6 +84,7 @@ erpx-console-feature-sales.workspace = true
 erpx-console-feature-support.workspace = true
 erpx-console-feature-talent.workspace = true
 erpx-console-transport.workspace = true
+erpx-console-transport-core.workspace = true
 erpx-console-shell.workspace = true
 erpx-console-bff = { workspace = true, optional = true }
 erpx-domain.workspace = true
@@ -111,6 +112,7 @@ erpx-quality.workspace = true
 erpx-sales.workspace = true
 erpx-support.workspace = true
 erpx-ui-core.workspace = true
+erpx-ui-ai-collaboration.workspace = true
 erpx-ui-enterprise-workspaces.workspace = true
 erpx-ui-crm.workspace = true
 erpx-ui-customer-360.workspace = true

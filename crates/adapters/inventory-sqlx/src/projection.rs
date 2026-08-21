@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
-use erpx_integration_contracts::{ItemDescriptorDraft, inventory};
+use erpx_integration_contracts::{ItemDescriptorDraftV2, inventory};
 use erpx_inventory::StockItemView;
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
@@ -20,7 +20,7 @@ pub struct InventorySnapshot {
 pub enum InventoryOutboxPayload {
     Integration(inventory::Event),
     Snapshot(InventorySnapshot),
-    Directory(ItemDescriptorDraft),
+    Directory(ItemDescriptorDraftV2),
 }
 
 #[derive(Debug, Clone)]

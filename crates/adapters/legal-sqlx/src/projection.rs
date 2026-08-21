@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
-use erpx_integration_contracts::{ItemDescriptorDraft, legal};
+use erpx_integration_contracts::{ItemDescriptorDraftV2, legal};
 use erpx_legal::ports::{AccessEntryView, ContractView, DocumentView, MatterView};
 use erpx_legal::{ContractStatus, LegalAggregate, MatterStatus, legal_hold_record_ref_for};
 use serde::{Deserialize, Serialize};
@@ -38,7 +38,7 @@ impl From<&LegalAggregate> for LegalSnapshot {
 pub enum LegalOutboxPayload {
     Integration(legal::Event),
     Snapshot(LegalSnapshot),
-    Directory(ItemDescriptorDraft),
+    Directory(ItemDescriptorDraftV2),
 }
 
 macro_rules! projector_type {

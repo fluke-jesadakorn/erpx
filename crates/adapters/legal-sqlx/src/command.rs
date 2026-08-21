@@ -5,7 +5,7 @@ use erpx_cqrs_sqlx::{
 };
 use erpx_integration_contracts::{
     BoundedContext, ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
-    ItemDescriptorDraft, RecordRef, record_policy_id,
+    ItemDescriptorDraft, ItemDescriptorDraftV2, RecordRef, record_policy_id,
 };
 use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId};
 use erpx_legal::{
@@ -527,8 +527,8 @@ impl CommandUnitOfWork for LegalCommandAdapter {
 
 fn legal_directory_drafts(
     aggregate: &LegalAggregate,
-) -> Result<Vec<ItemDescriptorDraft>, PortError> {
-    let (record, lifecycle_state, search_text) = match aggregate {
+) -> Result<Vec<ItemDescriptorDraftV2>, PortError> {
+    let (record, lifecycle_state, display_label) = match aggregate {
         LegalAggregate::Contract(value) => (
             value.record_ref().map_err(|_| PortError::Internal)?,
             contract_status_name(value.status()),
@@ -550,9 +550,10 @@ fn legal_directory_drafts(
         lifecycle_state: lifecycle_state.into(),
         classification: DataClassification::Restricted,
         descriptor_version: aggregate.version(),
-        authorized_search_text: search_text,
+        authorized_search_text: display_label.clone(),
     };
-    value.validate().map_err(|_| PortError::Internal)?;
+    let value =
+        ItemDescriptorDraftV2::try_new(value, display_label).map_err(|_| PortError::Internal)?;
     let mut values = vec![value];
     if let LegalAggregate::Matter(matter) = aggregate
         && let Some(hold) = matter.legal_hold()
@@ -561,6 +562,7 @@ fn legal_directory_drafts(
             .legal_hold_record_ref()
             .map_err(|_| PortError::Internal)?
             .ok_or(PortError::Internal)?;
+        let display_label = format!("{} legal hold", matter.reference());
         let value = ItemDescriptorDraft {
             authorization_policy: record_policy_id(&record).map_err(|_| PortError::Internal)?,
             record,
@@ -568,9 +570,10 @@ fn legal_directory_drafts(
             lifecycle_state: if hold.active { "active" } else { "released" }.into(),
             classification: DataClassification::Restricted,
             descriptor_version: matter.version(),
-            authorized_search_text: format!("{} legal hold", matter.reference()),
+            authorized_search_text: display_label.clone(),
         };
-        value.validate().map_err(|_| PortError::Internal)?;
+        let value = ItemDescriptorDraftV2::try_new(value, display_label)
+            .map_err(|_| PortError::Internal)?;
         values.push(value);
     }
     Ok(values)

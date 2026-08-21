@@ -10,7 +10,7 @@ use erpx_cqrs_sqlx::{
 };
 use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
-    ItemDescriptorDraft, assets::AssetCondition, record_policy_id,
+    ItemDescriptorDraft, ItemDescriptorDraftV2, assets::AssetCondition, record_policy_id,
 };
 use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId};
 use serde_json::json;
@@ -321,7 +321,7 @@ impl CommandUnitOfWork for AssetsCommandAdapter {
     }
 }
 
-fn asset_directory_draft(aggregate: &Asset) -> Result<ItemDescriptorDraft, PortError> {
+fn asset_directory_draft(aggregate: &Asset) -> Result<ItemDescriptorDraftV2, PortError> {
     let record = aggregate.record_ref().map_err(|_| PortError::Internal)?;
     let value = ItemDescriptorDraft {
         authorization_policy: record_policy_id(&record).map_err(|_| PortError::Internal)?,
@@ -332,8 +332,8 @@ fn asset_directory_draft(aggregate: &Asset) -> Result<ItemDescriptorDraft, PortE
         descriptor_version: aggregate.version(),
         authorized_search_text: format!("{} {}", aggregate.code(), aggregate.name()),
     };
-    value.validate().map_err(|_| PortError::Internal)?;
-    Ok(value)
+    ItemDescriptorDraftV2::try_new(value, format!("{} {}", aggregate.code(), aggregate.name()))
+        .map_err(|_| PortError::Internal)
 }
 
 struct AssetAtomicGuard {

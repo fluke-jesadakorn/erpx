@@ -1,21 +1,31 @@
 #![doc = "PostgreSQL write, read, draft, and projection adapters for Collaboration."]
 #![forbid(unsafe_code)]
 
+mod attachment;
 mod authorization;
 mod directory;
+mod global;
 mod projection;
 mod publication;
 mod read;
+mod relation;
 mod write;
 
+pub use attachment::{SqlxAttachmentRegistry, attachment_object_key};
 pub use authorization::SqlxCollaborationAuthorization;
 pub use directory::*;
+pub use global::{
+    GlobalCollaborationAccess, GlobalCollaborationOutcome, SqlxGlobalCollaborationGateway,
+};
 pub use projection::{
     CollaborationInboxProjectionFact, CollaborationInboxProjector,
     CollaborationStreamProjectionFact, CollaborationStreamProjector,
     CollaborationThreadProjectionFact, CollaborationThreadProjector,
 };
 pub use read::SqlxThreadReadRepository;
+pub use relation::{
+    RECORD_RELATION_DRAFT_EVENT_TYPE, SqlxRecordRelationProjection, SqlxRecordRelationRepository,
+};
 pub use write::{SqlxDraftRepository, SqlxThreadWriteRepository};
 
 pub const WRITE_SCHEMA: &str = "erpx_collaboration";

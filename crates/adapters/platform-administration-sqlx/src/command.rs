@@ -7,7 +7,8 @@ use erpx_cqrs_sqlx::{
 };
 use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
-    ItemDescriptorDraft, RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
+    ItemDescriptorDraft, ItemDescriptorDraftV2, RecordTypeId, StableRecordRef, catalog::ContextId,
+    record_policy_id,
 };
 use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId, RecordId};
 use erpx_platform_administration::{
@@ -199,8 +200,8 @@ impl CommandUnitOfWork for PlatformAdministrationCommandAdapter {
 
 fn platform_directory_draft(
     aggregate: &PlatformAggregate,
-) -> Result<Option<ItemDescriptorDraft>, PortError> {
-    let (record_type, lifecycle_state, classification, search_text) = match aggregate {
+) -> Result<Option<ItemDescriptorDraftV2>, PortError> {
+    let (record_type, lifecycle_state, classification, display_label) = match aggregate {
         PlatformAggregate::Holding(value) => (
             "platform.holding",
             holding_state(value.status()),
@@ -228,10 +229,11 @@ fn platform_directory_draft(
         lifecycle_state: lifecycle_state.into(),
         classification,
         descriptor_version: aggregate.version(),
-        authorized_search_text: search_text,
+        authorized_search_text: display_label.clone(),
     };
-    draft.validate().map_err(|_| PortError::Internal)?;
-    Ok(Some(draft))
+    ItemDescriptorDraftV2::try_new(draft, display_label)
+        .map(Some)
+        .map_err(|_| PortError::Internal)
 }
 
 #[derive(Debug)]

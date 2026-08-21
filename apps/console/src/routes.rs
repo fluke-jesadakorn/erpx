@@ -5,6 +5,12 @@ use std::time::Duration;
 use std::{cell::RefCell, rc::Rc, str::FromStr};
 
 use dioxus::prelude::*;
+#[cfg(feature = "native")]
+use erpx_console_feature_ai_collaboration::CollaborationGateway;
+use erpx_console_feature_ai_collaboration::{
+    ActivityRailState, ActivityRequest, AuthorizedRecordActivityRail, RecordReferences,
+    RecordReferencesState, RecordResolutionState, ReferencesRequest, ResolveRecordRequest,
+};
 use erpx_console_feature_identity_access::{
     IdentityAccessDetailSurface, IdentityAccessListSurface, IdentityCommandFeedback,
     IdentityPrincipalCommandIntent, IdentityRecordKind,
@@ -12,6 +18,7 @@ use erpx_console_feature_identity_access::{
 use erpx_console_feature_platform_administration::{
     HoldingControlHistoryState, HoldingsSurface, PlatformHoldingDetailSurface,
 };
+use erpx_console_transport_core::CatalogRecord;
 #[cfg(feature = "server")]
 use erpx_delivery_contract::Page;
 #[cfg(feature = "native")]
@@ -134,6 +141,11 @@ pub enum AppRoute {
             holding_id: RouteUuid,
             history_cursor: Option<String>,
         },
+        #[route("/platform/holding/:holding_id?:history_cursor")]
+        PlatformHoldingCanonical {
+            holding_id: RouteUuid,
+            history_cursor: Option<String>,
+        },
         #[route("/platform/support")]
         PlatformSupport {},
         #[route("/platform/support/:id")]
@@ -217,6 +229,12 @@ pub enum AppRoute {
                 id: RouteUuid,
             },
         #[end_layout]
+        #[route("/:module/:record/:id")]
+        CatalogRecordDetail {
+            module: ResourceName,
+            record: ResourceName,
+            id: RouteUuid,
+        },
     #[end_layout]
     #[route("/:..segments")]
     NotFound { segments: Vec<String> },
@@ -2261,7 +2279,7 @@ fn PlatformHoldings(_cursor: Option<String>) -> Element {
 
 #[cfg(any(feature = "web", feature = "server"))]
 #[component]
-fn PlatformHolding(holding_id: RouteUuid, history_cursor: Option<String>) -> Element {
+fn PlatformHoldingCanonical(holding_id: RouteUuid, history_cursor: Option<String>) -> Element {
     let locale = erpx_ui_core::use_locale().current();
     let request = feature_detail_request(holding_id, locale);
     let history_request = crate::feature_delivery::HoldingHistoryRequest {
@@ -2319,17 +2337,50 @@ fn PlatformHolding(holding_id: RouteUuid, history_cursor: Option<String>) -> Ele
             correlation_id: error.meta().correlation_id.to_string(),
         },
     };
-    let page_title = holding.customer_name.clone();
+    let record = CatalogRecord::try_from_segments("platform", "holding", &holding_id.to_string())
+        .map_err(|error| RenderError::from(std::io::Error::other(error.to_string())))?;
     rsx! {
-        document::Title { "{page_title} · ERPX" }
-        PlatformHoldingDetailSurface { holding, evidence, history }
+        RecordDetailHost {
+            record,
+            owner_content: rsx! {
+                PlatformHoldingDetailSurface { holding, evidence, history }
+            },
+        }
     }
 }
 
 #[cfg(feature = "native")]
 #[component]
-fn PlatformHolding(_holding_id: RouteUuid, _history_cursor: Option<String>) -> Element {
-    rsx! { FeatureClosed { name: "Platform holding detail" } }
+fn PlatformHoldingCanonical(holding_id: RouteUuid, _history_cursor: Option<String>) -> Element {
+    let record = CatalogRecord::try_from_segments("platform", "holding", &holding_id.to_string())
+        .map_err(|error| RenderError::from(std::io::Error::other(error.to_string())))?;
+    rsx! {
+        RecordDetailHost {
+            record,
+            owner_content: rsx! { FeatureClosed { name: "Platform holding detail" } },
+        }
+    }
+}
+
+/// Compatibility-only route for the former plural Platform Holding URL. The
+/// replacement prevents the alias from becoming a second record identity.
+#[component]
+fn PlatformHolding(holding_id: RouteUuid, history_cursor: Option<String>) -> Element {
+    let navigator = use_navigator();
+    let target = AppRoute::PlatformHoldingCanonical {
+        holding_id,
+        history_cursor,
+    };
+    let href = route_path(&target);
+    use_effect(move || {
+        navigator.replace(target.clone());
+    });
+    rsx! {
+        section { class: "route-loading", role: "status",
+            p { "Redirecting to the canonical Platform Holding route…" }
+            KitLink { href, "Continue" }
+        }
+    }
 }
 
 #[cfg(any(feature = "web", feature = "server"))]
@@ -2586,21 +2637,35 @@ fn IdentityDetail(kind: IdentityRecordKind, id: RouteUuid) -> Element {
             }
         });
     });
+    let record = CatalogRecord::try_from_segments("identity", kind.slug(), &id.to_string())
+        .map_err(|error| RenderError::from(std::io::Error::other(error.to_string())))?;
     rsx! {
         document::Title { "{page_title} · ERPX" }
-        IdentityAccessDetailSurface {
-            detail,
-            on_principal_command,
-            command_feedback: command_feedback(),
-            command_busy: command_busy(),
+        RecordDetailHost {
+            record,
+            owner_content: rsx! {
+                IdentityAccessDetailSurface {
+                    detail,
+                    on_principal_command,
+                    command_feedback: command_feedback(),
+                    command_busy: command_busy(),
+                }
+            },
         }
     }
 }
 
 #[cfg(feature = "native")]
 #[component]
-fn IdentityDetail(_kind: IdentityRecordKind, _id: RouteUuid) -> Element {
-    rsx! { FeatureClosed { name: "Identity & access detail" } }
+fn IdentityDetail(kind: IdentityRecordKind, id: RouteUuid) -> Element {
+    let record = CatalogRecord::try_from_segments("identity", kind.slug(), &id.to_string())
+        .map_err(|error| RenderError::from(std::io::Error::other(error.to_string())))?;
+    rsx! {
+        RecordDetailHost {
+            record,
+            owner_content: rsx! { FeatureClosed { name: "Identity & access detail" } },
+        }
+    }
 }
 
 #[component]
@@ -2676,7 +2741,348 @@ fn WorkspaceRecord(workspace: Workspace, resource: ResourceName, id: RouteUuid) 
     if !workspace_allowed(workspace) {
         return rsx! { ChannelRestricted { workspace } };
     }
-    rsx! { ProtectedRouteSurface { query: RouteQuery::Record { workspace, resource, id } } }
+    let catalog_record =
+        CatalogRecord::try_from_segments(workspace.slug(), resource.as_str(), &id.to_string());
+    match catalog_record {
+        Ok(record) => rsx! {
+            RecordDetailHost {
+                record,
+                owner_content: rsx! {
+                    ProtectedRouteSurface { query: RouteQuery::Record { workspace, resource, id } }
+                },
+            }
+        },
+        Err(_) => rsx! {
+            CatalogRouteUnavailable {
+                title: format!("{workspace} · {resource}"),
+                reason: "The route is not a current or future catalog record family.".to_owned(),
+            }
+        },
+    }
+}
+
+#[component]
+fn CatalogRecordDetail(module: ResourceName, record: ResourceName, id: RouteUuid) -> Element {
+    match CatalogRecord::try_from_segments(module.as_str(), record.as_str(), &id.to_string()) {
+        Ok(catalog_record) => {
+            let owner = format!("{}.{}", module.as_str(), record.as_str());
+            rsx! {
+                RecordDetailHost {
+                    record: catalog_record,
+                    owner_content: rsx! { OwnerDetailUnavailable { owner } },
+                }
+            }
+        }
+        Err(_) => rsx! {
+            CatalogRouteUnavailable {
+                title: format!("{} · {}", module.as_str(), record.as_str()),
+                reason: "The route is not a current or future catalog record family.".to_owned(),
+            }
+        },
+    }
+}
+
+#[component]
+pub fn RecordDetailHost(record: CatalogRecord, owner_content: Element) -> Element {
+    let locale = erpx_ui_core::use_locale().current();
+    let descriptor = record.descriptor();
+    let record_type = descriptor.id;
+    let canonical_route = record.canonical_path();
+    if !record.collaboration_available() {
+        return rsx! {
+            CatalogRouteUnavailable {
+                title: humanize_resource(descriptor.record),
+                reason: copy(
+                    locale,
+                    "This future catalog record is unavailable. Collaboration is not mounted until its owner context is current.",
+                    "รายการในแค็ตตาล็อกอนาคตนี้ยังไม่พร้อม และจะไม่เปิดการทำงานร่วมกันจนกว่าบริบทเจ้าของจะเป็นปัจจุบัน",
+                ).to_owned(),
+            }
+        };
+    }
+
+    // Catalog data selects the shell only. Protected collaboration identity
+    // comes back from a fresh authenticated Item Directory resolution.
+    let resolution =
+        use_record_resolution(record.record().id().as_uuid(), canonical_route.clone())?;
+    let references_state = use_record_references(resolution.clone(), canonical_route.clone())?;
+    let activity_state = use_record_activity(resolution.clone(), canonical_route.clone())?;
+    let gate = resolution.activity_gate();
+    let host_route = canonical_route.clone();
+    let references_route = canonical_route.clone();
+    let activity_route = canonical_route;
+    rsx! {
+        document::Title { "{record_type} · ERPX" }
+        article {
+            class: "record-detail-host",
+            "data-record-family": record_type,
+            "data-canonical-route": host_route,
+            section { class: "record-detail-host__owner", aria_label: copy(locale, "Owner record detail", "รายละเอียดรายการจากเจ้าของ"),
+                {owner_content}
+            }
+            section { class: "record-detail-host__collaboration", aria_label: copy(locale, "Record collaboration", "การทำงานร่วมกันของรายการ"),
+                RecordReferences {
+                    resolution: resolution.clone(),
+                    current_route: references_route,
+                    state: references_state,
+                    locale,
+                }
+                AuthorizedRecordActivityRail {
+                    gate,
+                    current_route: activity_route,
+                    state: activity_state,
+                    locale,
+                }
+            }
+        }
+    }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+fn use_record_resolution(
+    record_id: uuid::Uuid,
+    current_route: String,
+) -> Result<RecordResolutionState, RenderError> {
+    let request = ResolveRecordRequest {
+        record_id,
+        current_route,
+    };
+    let resource = use_server_future(move || {
+        let request = request.clone();
+        async move {
+            Ok::<RecordResolutionState, erpx_console_feature_ai_collaboration::GatewayError>(
+                crate::record_collaboration_delivery::resolve_record_reference(request)
+                    .await
+                    .unwrap_or(RecordResolutionState::Degraded),
+            )
+        }
+    })?;
+    resource
+        .read()
+        .clone()
+        .expect("resolved Item Directory future has a value")
+        .map_err(|error| RenderError::from(std::io::Error::other(format!("{error:?}"))))
+}
+
+#[cfg(feature = "native")]
+fn use_record_resolution(
+    record_id: uuid::Uuid,
+    current_route: String,
+) -> Result<RecordResolutionState, RenderError> {
+    let gateway = use_context::<crate::native_delivery::NativeGrpcGateway>();
+    let resource = use_resource(move || {
+        let gateway = gateway.clone();
+        let current_route = current_route.clone();
+        async move {
+            gateway
+                .resolve_record(ResolveRecordRequest {
+                    record_id,
+                    current_route,
+                })
+                .await
+        }
+    });
+    Ok(resource
+        .suspend()?
+        .read()
+        .clone()
+        .unwrap_or(RecordResolutionState::Degraded))
+}
+
+fn references_gate_state(
+    resolution: &RecordResolutionState,
+    current_route: &str,
+) -> RecordReferencesState {
+    if resolution.authorized_record(current_route).is_some() {
+        return RecordReferencesState::Loading;
+    }
+    match resolution {
+        RecordResolutionState::Resolving => RecordReferencesState::Loading,
+        RecordResolutionState::Neutral => RecordReferencesState::Denied,
+        RecordResolutionState::Stale => RecordReferencesState::Stale,
+        RecordResolutionState::Degraded => RecordReferencesState::Degraded { retryable: true },
+        RecordResolutionState::Offline => RecordReferencesState::Offline,
+        RecordResolutionState::Authorized { .. } => {
+            RecordReferencesState::Degraded { retryable: false }
+        }
+    }
+}
+
+fn activity_gate_state(
+    resolution: &RecordResolutionState,
+    current_route: &str,
+) -> ActivityRailState {
+    if resolution.authorized_record(current_route).is_some() {
+        return ActivityRailState::Loading;
+    }
+    match resolution {
+        RecordResolutionState::Resolving => ActivityRailState::Loading,
+        RecordResolutionState::Neutral => ActivityRailState::Denied,
+        RecordResolutionState::Stale => ActivityRailState::Stale {
+            threads: Vec::new(),
+            reason: "The authorized record descriptor is stale".into(),
+        },
+        RecordResolutionState::Degraded => ActivityRailState::Degraded {
+            threads: Vec::new(),
+            reason: "Record activity authorization is unavailable".into(),
+            retryable: true,
+        },
+        RecordResolutionState::Offline => ActivityRailState::Offline {
+            cached_threads: Vec::new(),
+        },
+        RecordResolutionState::Authorized { .. } => ActivityRailState::Degraded {
+            threads: Vec::new(),
+            reason: "The canonical record route did not match authorization".into(),
+            retryable: false,
+        },
+    }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+fn use_record_references(
+    resolution: RecordResolutionState,
+    current_route: String,
+) -> Result<RecordReferencesState, RenderError> {
+    let resource = use_server_future(move || {
+        let resolution = resolution.clone();
+        let current_route = current_route.clone();
+        async move {
+            let Some(anchor) = resolution.authorized_record(&current_route).cloned() else {
+                return Ok::<
+                    RecordReferencesState,
+                    erpx_console_feature_ai_collaboration::GatewayError,
+                >(references_gate_state(&resolution, &current_route));
+            };
+            Ok(
+                crate::record_collaboration_delivery::load_record_references(ReferencesRequest {
+                    anchor,
+                })
+                .await
+                .unwrap_or(RecordReferencesState::Degraded { retryable: true }),
+            )
+        }
+    })?;
+    resource
+        .read()
+        .clone()
+        .expect("resolved reference future has a value")
+        .map_err(|error| RenderError::from(std::io::Error::other(format!("{error:?}"))))
+}
+
+#[cfg(feature = "native")]
+fn use_record_references(
+    resolution: RecordResolutionState,
+    current_route: String,
+) -> Result<RecordReferencesState, RenderError> {
+    let gateway = use_context::<crate::native_delivery::NativeGrpcGateway>();
+    let resource = use_resource(move || {
+        let gateway = gateway.clone();
+        let resolution = resolution.clone();
+        let current_route = current_route.clone();
+        async move {
+            let Some(anchor) = resolution.authorized_record(&current_route).cloned() else {
+                return Ok(references_gate_state(&resolution, &current_route));
+            };
+            gateway.load_references(ReferencesRequest { anchor }).await
+        }
+    });
+    Ok(resource
+        .suspend()?
+        .read()
+        .clone()
+        .unwrap_or(RecordReferencesState::Degraded { retryable: true }))
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+fn use_record_activity(
+    resolution: RecordResolutionState,
+    current_route: String,
+) -> Result<ActivityRailState, RenderError> {
+    let resource = use_server_future(move || {
+        let resolution = resolution.clone();
+        let current_route = current_route.clone();
+        async move {
+            let Some(anchor) = resolution.authorized_record(&current_route).cloned() else {
+                return Ok::<ActivityRailState, erpx_console_feature_ai_collaboration::GatewayError>(
+                    activity_gate_state(&resolution, &current_route),
+                );
+            };
+            Ok(
+                crate::record_collaboration_delivery::load_record_activity(ActivityRequest {
+                    anchor,
+                    cursor: None,
+                })
+                .await
+                .unwrap_or_else(|_| {
+                    erpx_console_feature_ai_collaboration::activity_error(
+                        erpx_console_feature_ai_collaboration::GatewayError::Unavailable,
+                    )
+                }),
+            )
+        }
+    })?;
+    resource
+        .read()
+        .clone()
+        .expect("resolved activity future has a value")
+        .map_err(|error| RenderError::from(std::io::Error::other(format!("{error:?}"))))
+}
+
+#[cfg(feature = "native")]
+fn use_record_activity(
+    resolution: RecordResolutionState,
+    current_route: String,
+) -> Result<ActivityRailState, RenderError> {
+    let gateway = use_context::<crate::native_delivery::NativeGrpcGateway>();
+    let resource = use_resource(move || {
+        let gateway = gateway.clone();
+        let resolution = resolution.clone();
+        let current_route = current_route.clone();
+        async move {
+            let Some(anchor) = resolution.authorized_record(&current_route).cloned() else {
+                return Ok(activity_gate_state(&resolution, &current_route));
+            };
+            gateway
+                .load_activity(ActivityRequest {
+                    anchor,
+                    cursor: None,
+                })
+                .await
+        }
+    });
+    Ok(resource.suspend()?.read().clone().unwrap_or_else(|_| {
+        erpx_console_feature_ai_collaboration::activity_error(
+            erpx_console_feature_ai_collaboration::GatewayError::Unavailable,
+        )
+    }))
+}
+
+#[component]
+fn OwnerDetailUnavailable(owner: String) -> Element {
+    let locale = erpx_ui_core::use_locale().current();
+    rsx! {
+        section { class: "record-owner-slot record-owner-slot--unavailable", role: "status",
+            p { class: "eyebrow", {copy(locale, "OWNER DETAIL", "รายละเอียดจากเจ้าของ")} }
+            h1 { {humanize_resource(&owner.replace('.', "-"))} }
+            p { {copy(
+                locale,
+                "The canonical record shell is ready, but this owner's dedicated detail content is not connected yet.",
+                "เชลล์รายการมาตรฐานพร้อมแล้ว แต่เนื้อหารายละเอียดเฉพาะของเจ้าของรายนี้ยังไม่ได้เชื่อมต่อ",
+            )} }
+        }
+    }
+}
+
+#[component]
+fn CatalogRouteUnavailable(title: String, reason: String) -> Element {
+    let locale = erpx_ui_core::use_locale().current();
+    let unavailable = copy(locale, "Unavailable", "ไม่พร้อมใช้งาน");
+    rsx! {
+        section { class: "route-denied", role: "alert", "data-state": "unavailable",
+            h1 { "{title} · {unavailable}" }
+            p { "{reason}" }
+        }
+    }
 }
 
 macro_rules! workspace_entry_route {
@@ -2716,7 +3122,94 @@ workspace_entry_route!(AiWorkspace, Ai);
 
 #[component]
 fn ReferenceItem(id: RouteUuid) -> Element {
-    rsx! { ProtectedRouteSurface { query: RouteQuery::Reference { id } } }
+    let locale = erpx_ui_core::use_locale().current();
+    let current_route = format!("/reference/item/{id}");
+    let resolution = use_record_resolution(id.get(), current_route)?;
+    let target = match &resolution {
+        RecordResolutionState::Authorized {
+            canonical_route, ..
+        } => Some(canonical_route.clone()),
+        _ => None,
+    };
+    let redirect_target = target.clone();
+    let navigator = use_navigator();
+    use_effect(move || {
+        if let Some(target) = redirect_target.clone() {
+            navigator.replace(target);
+        }
+    });
+
+    let (state, title, message) = match resolution {
+        RecordResolutionState::Resolving => (
+            "resolving",
+            copy(locale, "Resolving reference", "กำลังค้นหาการอ้างอิง"),
+            copy(
+                locale,
+                "Checking current access and the live Item Directory…",
+                "กำลังตรวจสอบสิทธิ์ปัจจุบันและไดเรกทอรีรายการแบบสด…",
+            ),
+        ),
+        RecordResolutionState::Authorized { .. } => (
+            "redirecting",
+            copy(locale, "Opening record", "กำลังเปิดรายการ"),
+            copy(
+                locale,
+                "The reference was authorized. Redirecting to its canonical route…",
+                "การอ้างอิงได้รับอนุญาตแล้ว กำลังไปยังเส้นทางมาตรฐาน…",
+            ),
+        ),
+        RecordResolutionState::Neutral => (
+            "neutral",
+            copy(locale, "Reference unavailable", "การอ้างอิงไม่พร้อมใช้งาน"),
+            copy(
+                locale,
+                "The reference was not found or is not available to the active role and scope.",
+                "ไม่พบการอ้างอิง หรือการอ้างอิงไม่พร้อมสำหรับบทบาทและขอบเขตปัจจุบัน",
+            ),
+        ),
+        RecordResolutionState::Stale => (
+            "stale",
+            copy(locale, "Reference is updating", "การอ้างอิงกำลังอัปเดต"),
+            copy(
+                locale,
+                "The directory projection is stale. No cached route or record payload was used.",
+                "ไดเรกทอรีโพรเจกชันล้าสมัย ระบบไม่ได้ใช้เส้นทางหรือข้อมูลรายการจากแคช",
+            ),
+        ),
+        RecordResolutionState::Degraded => (
+            "degraded",
+            copy(locale, "Reference unavailable", "การอ้างอิงไม่พร้อมใช้งาน"),
+            copy(
+                locale,
+                "The live resolver is unavailable. No record payload was disclosed.",
+                "ตัวค้นหาแบบสดไม่พร้อมใช้งาน และไม่มีการเปิดเผยข้อมูลรายการ",
+            ),
+        ),
+        RecordResolutionState::Offline => (
+            "offline",
+            copy(
+                locale,
+                "Reference requires a connection",
+                "การอ้างอิงต้องเชื่อมต่อเครือข่าย",
+            ),
+            copy(
+                locale,
+                "Reconnect to run a fresh authorization check. Cached authorization is never used.",
+                "เชื่อมต่ออีกครั้งเพื่อตรวจสอบสิทธิ์ใหม่ ระบบจะไม่ใช้สิทธิ์จากแคช",
+            ),
+        ),
+    };
+    rsx! {
+        document::Title { "{title} · ERPX" }
+        section { class: "reference-resolution", role: "status", "data-state": state,
+            p { class: "eyebrow", {copy(locale, "SHARED REFERENCE", "การอ้างอิงร่วม")} }
+            h1 { "{title}" }
+            p { "{message}" }
+            if let Some(href) = target {
+                KitLink { href, {copy(locale, "Continue to record", "ไปยังรายการ")} }
+            }
+        }
+    }
 }
 
 #[component]
@@ -5019,7 +5512,35 @@ pub fn is_canonical_console_path(path: &str, channel: ClientChannel) -> bool {
         Ok(
             route @ (AppRoute::WorkspaceResource { workspace, .. }
             | AppRoute::WorkspaceRecord { workspace, .. }),
-        ) => route_path(&route) == path && workspace.available_on(channel),
+        ) => {
+            let cataloged_detail = match &route {
+                AppRoute::WorkspaceRecord {
+                    workspace,
+                    resource,
+                    id,
+                } => CatalogRecord::try_from_segments(
+                    workspace.slug(),
+                    resource.as_str(),
+                    &id.to_string(),
+                )
+                .is_ok(),
+                _ => true,
+            };
+            route_path(&route) == path && workspace.available_on(channel) && cataloged_detail
+        }
+        Ok(route @ AppRoute::CatalogRecordDetail { .. }) => {
+            let AppRoute::CatalogRecordDetail { module, record, id } = &route else {
+                unreachable!("matched catalog detail")
+            };
+            route_path(&route) == path
+                && CatalogRecord::try_from_segments(
+                    module.as_str(),
+                    record.as_str(),
+                    &id.to_string(),
+                )
+                .is_ok()
+        }
+        Ok(AppRoute::PlatformHolding { .. }) => false,
         Ok(route) => route_path(&route) == path,
     }
 }
@@ -5273,32 +5794,51 @@ mod tests {
     }
 
     #[test]
-    fn platform_holding_routes_are_canonical_uuid_routes() {
+    fn platform_holding_plural_detail_is_a_compatibility_redirect() {
         let holding_id = RouteUuid::try_new(uuid::Uuid::from_u128(1)).unwrap();
         let list = AppRoute::PlatformHoldings { cursor: None };
-        let detail = AppRoute::PlatformHolding {
+        let compatibility = AppRoute::PlatformHolding {
+            holding_id,
+            history_cursor: None,
+        };
+        let detail = AppRoute::PlatformHoldingCanonical {
             holding_id,
             history_cursor: None,
         };
         assert_eq!(route_path(&list), "/platform/holdings");
         assert_eq!(
-            route_path(&detail),
+            route_path(&compatibility),
             "/platform/holdings/00000000-0000-0000-0000-000000000001"
+        );
+        assert_eq!(
+            route_path(&detail),
+            "/platform/holding/00000000-0000-0000-0000-000000000001"
         );
         assert!(is_canonical_console_path(
             &route_path(&list),
+            ClientChannel::Web
+        ));
+        assert!(!is_canonical_console_path(
+            &route_path(&compatibility),
             ClientChannel::Web
         ));
         assert!(is_canonical_console_path(
             &route_path(&detail),
             ClientChannel::Web
         ));
-        let history = AppRoute::PlatformHolding {
+        let history = AppRoute::PlatformHoldingCanonical {
             holding_id,
             history_cursor: Some("1787270400000.00000000-0000-0000-0000-000000000002".into()),
         };
         assert!(history.to_string().contains("history_cursor="));
         assert_eq!(route_path(&history), route_path(&detail));
+        let source = include_str!("routes.rs");
+        let redirect = source.find("fn PlatformHolding(").unwrap();
+        let canonical = source[redirect..]
+            .find("AppRoute::PlatformHoldingCanonical")
+            .unwrap();
+        let replace = source[redirect..].find("navigator.replace").unwrap();
+        assert!(canonical < replace);
         assert!(!is_canonical_console_path(
             "/platform/holdings/not-a-uuid",
             ClientChannel::Web
@@ -5361,6 +5901,125 @@ mod tests {
             AppRoute::from_str(&route.to_string()).expect("reference route parses"),
             route
         );
+    }
+
+    #[test]
+    fn all_92_current_catalog_families_route_through_the_shared_record_host() {
+        use erpx_integration_contracts::catalog::{ContextLifecycle, RECORD_TYPES};
+
+        let id = uuid::Uuid::from_u128(0x92);
+        let mut owners = std::collections::BTreeSet::new();
+        let current = RECORD_TYPES
+            .iter()
+            .filter(|descriptor| descriptor.owner.lifecycle() == ContextLifecycle::Current)
+            .collect::<Vec<_>>();
+        assert_eq!(current.len(), 92);
+
+        for descriptor in current {
+            owners.insert(descriptor.owner);
+            let path = format!("/{}/{}/{id}", descriptor.module, descriptor.record);
+            let record = CatalogRecord::try_from_path(&path).expect("catalog detail identity");
+            assert!(record.collaboration_available(), "{}", descriptor.id);
+            assert_eq!(record.canonical_path(), path);
+            assert!(
+                is_canonical_console_path(&path, ClientChannel::Web),
+                "{path}"
+            );
+            match AppRoute::from_str(&path).expect("current detail route parses") {
+                AppRoute::IdentityPrincipal { .. }
+                | AppRoute::IdentityRole { .. }
+                | AppRoute::IdentityGrant { .. }
+                | AppRoute::IdentityAccessReview { .. }
+                | AppRoute::IdentityBreakGlassSession { .. }
+                | AppRoute::PlatformHoldingCanonical { .. }
+                | AppRoute::WorkspaceRecord { .. }
+                | AppRoute::CatalogRecordDetail { .. } => {}
+                route => panic!("{} bypasses RecordDetailHost via {route:?}", descriptor.id),
+            }
+        }
+        assert_eq!(
+            owners.len(),
+            21,
+            "one or more current contexts are not routed"
+        );
+
+        let source = include_str!("routes.rs");
+        let host = source.find("pub fn RecordDetailHost").unwrap();
+        let references = source[host..].find("RecordReferences {").unwrap();
+        let activity = source[host..]
+            .find("AuthorizedRecordActivityRail {")
+            .unwrap();
+        assert!(references > 0 && activity > references);
+    }
+
+    #[test]
+    fn collaboration_route_fixtures_cover_phase_two_canaries_and_all_current_contexts() {
+        let id = uuid::Uuid::from_u128(0xe2e);
+        for record_type in [
+            "identity.principal",
+            "platform.holding",
+            "organization.holding",
+            "commercial.subscription",
+            "brand.profile",
+            "customer.account",
+            "customer-360.profile",
+            "support.customer-case",
+            "finance.invoice",
+            "finance.payment",
+            "sales.quote",
+            "pos.sale",
+            "procurement.requisition",
+            "procurement.purchase-order",
+            "procurement.receipt",
+            "inventory.document",
+            "asset.asset",
+            "maintenance.work-order",
+            "quality.inspection",
+            "operations.exception",
+            "people.employee",
+            "legal.contract",
+            "marketing.campaign",
+            "crm.lead",
+        ] {
+            let descriptor = erpx_integration_contracts::catalog::record_type(record_type)
+                .expect("fixture stays in catalog");
+            let path = format!("/{}/{}/{id}", descriptor.module, descriptor.record);
+            let record = CatalogRecord::try_from_path(&path).unwrap();
+            assert!(record.collaboration_available(), "{record_type}");
+            assert!(
+                is_canonical_console_path(&path, ClientChannel::Web),
+                "{path}"
+            );
+        }
+    }
+
+    #[test]
+    fn future_catalog_details_are_canonical_but_fail_closed_before_collaboration_mount() {
+        use erpx_integration_contracts::catalog::{ContextLifecycle, RECORD_TYPES};
+
+        let id = uuid::Uuid::from_u128(0xf00);
+        let future = RECORD_TYPES
+            .iter()
+            .filter(|descriptor| descriptor.owner.lifecycle() != ContextLifecycle::Current)
+            .collect::<Vec<_>>();
+        assert!(!future.is_empty());
+        for descriptor in future {
+            let path = format!("/{}/{}/{id}", descriptor.module, descriptor.record);
+            let record = CatalogRecord::try_from_path(&path).unwrap();
+            assert!(!record.collaboration_available(), "{}", descriptor.id);
+            assert!(
+                is_canonical_console_path(&path, ClientChannel::Web),
+                "{path}"
+            );
+        }
+
+        let source = include_str!("routes.rs");
+        let host = source.find("pub fn RecordDetailHost").unwrap();
+        let fail_closed = source[host..]
+            .find("if !record.collaboration_available()")
+            .unwrap();
+        let references = source[host..].find("RecordReferences {").unwrap();
+        assert!(fail_closed < references);
     }
 
     #[test]

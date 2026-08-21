@@ -5,7 +5,8 @@ use erpx_cqrs_sqlx::{
 };
 use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
-    ItemDescriptorDraft, RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
+    ItemDescriptorDraft, ItemDescriptorDraftV2, RecordTypeId, StableRecordRef, catalog::ContextId,
+    record_policy_id,
 };
 use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId, RecordId};
 use erpx_procurement::{
@@ -349,7 +350,7 @@ impl CommandUnitOfWork for ProcurementCommandAdapter {
 
 fn procurement_directory_draft(
     aggregate: &PurchaseOrder,
-) -> Result<ItemDescriptorDraft, PortError> {
+) -> Result<ItemDescriptorDraftV2, PortError> {
     let record_id =
         RecordId::try_from_uuid(aggregate.id().as_uuid()).map_err(|_| PortError::Internal)?;
     let record = StableRecordRef::try_new(
@@ -367,8 +368,7 @@ fn procurement_directory_draft(
         descriptor_version: aggregate.version(),
         authorized_search_text: aggregate.order_code().to_owned(),
     };
-    value.validate().map_err(|_| PortError::Internal)?;
-    Ok(value)
+    ItemDescriptorDraftV2::try_new(value, aggregate.order_code()).map_err(|_| PortError::Internal)
 }
 
 struct ProcurementGuard(PurchaseOrder);

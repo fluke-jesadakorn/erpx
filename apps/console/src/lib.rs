@@ -24,6 +24,8 @@ mod native_spike;
 pub mod platform;
 #[cfg(any(feature = "web", feature = "server"))]
 mod process_delivery;
+#[cfg(any(feature = "web", feature = "server"))]
+mod record_collaboration_delivery;
 mod routes;
 #[cfg(any(feature = "web", feature = "server"))]
 mod security_delivery;

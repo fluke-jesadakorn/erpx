@@ -6,8 +6,8 @@ pub mod presenter;
 pub mod view;
 
 pub use erpx_ui_ai_collaboration::{
-    ActivityRailState, ActivityReferenceGate, AiWorkspaceState, ClientChannel, ConnectivityState,
-    FloatingLauncherState, WorkspaceSection,
+    ActivityRailState, ActivityReferenceGate, AiWorkspaceState, AutocompleteState, ClientChannel,
+    ConnectivityState, FloatingLauncherState, WorkspaceSection,
 };
 pub use gateway::*;
 pub use presenter::*;

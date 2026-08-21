@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
-use erpx_integration_contracts::{ItemDescriptorDraft, sales};
+use erpx_integration_contracts::{ItemDescriptorDraftV2, sales};
 use erpx_sales::{
     QuoteStatus, QuoteView, RevenueArrangementStatus, RevenueArrangementView, SalesAggregate,
     SalesOrderStatus, SalesOrderView,
@@ -40,7 +40,7 @@ impl From<&SalesAggregate> for SalesSnapshot {
 pub enum SalesOutboxPayload {
     Integration(sales::Event),
     Snapshot(SalesSnapshot),
-    Directory(ItemDescriptorDraft),
+    Directory(ItemDescriptorDraftV2),
 }
 
 #[derive(Debug, Clone)]

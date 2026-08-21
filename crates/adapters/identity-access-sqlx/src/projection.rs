@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
 use erpx_identity_access::{PrincipalStatus, PrincipalView, RoleView};
-use erpx_integration_contracts::{AuthorityEvidenceFact, ItemDescriptorDraft, identity_access};
+use erpx_integration_contracts::{AuthorityEvidenceFact, ItemDescriptorDraftV2, identity_access};
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
 
@@ -25,7 +25,7 @@ pub enum IdentityAccessSnapshot {
 pub enum IdentityAccessOutboxPayload {
     Integration(identity_access::Event),
     Snapshot(IdentityAccessSnapshot),
-    Directory(ItemDescriptorDraft),
+    Directory(ItemDescriptorDraftV2),
     Authority(AuthorityEvidenceFact),
 }
 

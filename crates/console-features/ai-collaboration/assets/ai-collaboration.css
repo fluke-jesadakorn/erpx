@@ -10,4 +10,12 @@
 .erpx-ai-panel[data-presentation="bottom-sheet"] { position: fixed; inset-inline: 0; inset-block-end: 0; max-height: 80vh; overflow: auto; border-radius: 1rem 1rem 0 0; }
 .erpx-ai-badge { min-width: 1.5rem; border-radius: 999px; padding: .1rem .4rem; }
 .erpx-offline-lock { border: 1px solid var(--status-warning, #b54708); padding: .5rem; }
+.erpx-record-references { display: grid; gap: var(--space-3, .75rem); border: 1px solid var(--border-subtle, #d7dce3); border-radius: .75rem; background: var(--surface-raised, #fff); padding: 1rem; }
+.erpx-record-references__header { display: flex; align-items: start; justify-content: space-between; gap: 1rem; }
+.erpx-record-references__header h2, .erpx-record-references__header p { margin: 0; }
+.erpx-record-references__list { display: grid; gap: .625rem; margin: 0; padding: 0; list-style: none; }
+.erpx-record-reference { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border-block-start: 1px solid var(--border-subtle, #d7dce3); padding-block-start: .75rem; }
+.erpx-record-reference__copy { display: grid; min-width: 0; gap: .35rem; }
+.erpx-record-reference__meta { display: flex; flex-wrap: wrap; gap: .35rem; }
+@media (max-width: 48rem) { .erpx-record-references__header, .erpx-record-reference { align-items: stretch; flex-direction: column; } }
 @media (prefers-reduced-motion: reduce) { .erpx-ai-launcher *, .erpx-activity-rail * { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }

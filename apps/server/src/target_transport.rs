@@ -10,25 +10,37 @@ use std::{collections::BTreeSet, pin::Pin, sync::Arc, time::Duration};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_collaboration::{
-    ActionCard, ActionCardId, ActionCardState, ActorContext, AddComment, AnchorLocation,
-    AnchorLocationKind, AnchorPolicy, AttachmentRef, Audience, CollaborationAction,
-    CollaborationApplicationError,
+    ActionCard, ActionCardId, ActionCardState, ActorContext, AddComment, AddRecordRelationCommand,
+    AnchorLocation, AnchorLocationKind, AnchorPolicy, AttachmentAuthorizationPort,
+    AttachmentCommandService, AttachmentId, AttachmentQueryService, AttachmentRef,
+    AttachmentRegistryPort, AttachmentView as DomainAttachmentView, Audience, AuthorizationPort,
+    CollaborationAction, CollaborationApplicationError,
     CollaborationCommandService as CollaborationApplicationCommandService, CollaborationEventKind,
     CollaborationQueryService as CollaborationApplicationQueryService, CommentDocument, CommentId,
-    CreateThreadCommand, EditComment, ExternalPortal, MentionEventId, MentionTarget,
-    ModerationCase, ModerationCaseId, ModerationState, MutateThreadCommand, MutationIdentity,
-    PortError, PrincipalDirectoryPort, PrincipalRef as CollaborationPrincipalRef, RetentionPolicy,
-    SealedModerationEvidence, StreamRequest as ApplicationStreamRequest, ThreadAnchor, ThreadId,
-    ThreadMutation,
+    CreateThreadCommand, EditComment, ExternalPortal, FinalizeAttachmentUploadCommand,
+    GetAttachmentDownloadQuery, MentionEventId, MentionTarget, ModerationCase, ModerationCaseId,
+    ModerationState, MutateThreadCommand, MutationIdentity, PortError,
+    PrepareAttachmentUploadCommand, PrincipalDirectoryPort,
+    PrincipalRef as CollaborationPrincipalRef,
+    RecordRelationCommandService as RecordRelationApplicationCommandService,
+    RecordRelationQueryService as RecordRelationApplicationQueryService,
+    RecordThreadCommandService as RecordThreadApplicationCommandService, RelationId, RelationKind,
+    RetentionPolicy, RevokeRecordRelationCommand, SealedModerationEvidence,
+    StartRecordThreadWithCommentCommand, StreamRequest as ApplicationStreamRequest, ThreadAnchor,
+    ThreadId, ThreadMutation, ThreadProjectionV2 as DomainThreadProjectionCurrent,
+    ThreadWriteRepository,
 };
 use erpx_collaboration_sqlx::{
-    DirectoryAccess, DirectoryLookup, DirectorySearchRequest, ProjectionFreshness,
-    SqlxCollaborationAuthorization, SqlxDraftRepository, SqlxItemDirectory,
-    SqlxThreadReadRepository, SqlxThreadWriteRepository,
+    DirectoryAccess, DirectoryLookup, DirectorySearchRequest, GlobalCollaborationAccess,
+    GlobalCollaborationOutcome, ProjectionFreshness, SqlxAttachmentRegistry,
+    SqlxCollaborationAuthorization, SqlxDraftRepository, SqlxGlobalCollaborationGateway,
+    SqlxItemDirectory, SqlxRecordRelationRepository, SqlxThreadReadRepository,
+    SqlxThreadWriteRepository, attachment_object_key,
 };
 use erpx_domain::{contracts::AuthorityScope as Scope, data_plane::HOLDING_INFRASTRUCTURE_READ};
 use erpx_infrastructure::{
     HoldingDataRouteScope, ReadinessState, RoutedDatabaseSide, SqlxHoldingAdministrationStore,
+    SqlxHoldingStoreRegistry,
 };
 use erpx_kernel::{
     ActorAttribution, AuthorityScope, CommandId, CorrelationId, DataClassification, HoldingId,
@@ -36,19 +48,25 @@ use erpx_kernel::{
 };
 use erpx_proto::erpx::{
     collaboration::{
-        AddCommentRequest, AudienceRealm, CollaborationStreamRequest, CommentIdentityRequest,
-        ConfirmActionCardRequest, CreateThreadRequest, EditCommentRequest, FollowingRequest,
-        GetThreadRequest, GetThreadResponse, ListMentionInboxRequest, ListMentionInboxResponse,
-        ListThreadsByRecordRequest, ListThreadsByRecordResponse, ModerateCommentRequest,
-        ModerationDecision, MutationReceipt, OpaqueMentionInboxFact, ProposeActionCardRequest,
-        ReactionRequest, SearchThreadsRequest, SearchThreadsResponse, ThreadTransition,
-        TransitionThreadRequest, WithdrawMentionRequest,
+        AddCommentRequest, AddRecordRelationRequest, AudienceRealm, CollaborationStreamRequest,
+        CommentIdentityRequest, ConfirmActionCardRequest, CreateThreadRequest, EditCommentRequest,
+        FollowingRequest, GetAttachmentDownloadRequest, GetAttachmentDownloadResponse,
+        GetThreadRequest, GetThreadResponse, GetThreadV2Response, ListMentionInboxRequest,
+        ListMentionInboxResponse, ListRecordRelationsRequest, ListRecordRelationsResponse,
+        ListThreadsByRecordRequest, ListThreadsByRecordResponse, ListThreadsByRecordV2Response,
+        ModerateCommentRequest, ModerationDecision, MutationReceipt, OpaqueMentionInboxFact,
+        PrepareAttachmentUploadRequest, PrepareAttachmentUploadResponse, ProposeActionCardRequest,
+        ReactionRequest, RecordRelationKind,
+        RelationMutationReceipt as ProtoRelationMutationReceipt, RevokeRecordRelationRequest,
+        SearchThreadsRequest, SearchThreadsResponse, StartRecordThreadWithCommentRequest,
+        ThreadTransition, TransitionThreadRequest, WithdrawMentionRequest,
         collaboration_command_service_server::CollaborationCommandService,
         collaboration_query_service_server::CollaborationQueryService,
         collaboration_stream_service_server::CollaborationStreamService,
     },
     interface::{
-        AuthorityScope as InterfaceAuthorityScope, AuthorityScopeLevel, DirectoryFreshness,
+        AuthorityScope as InterfaceAuthorityScope, AuthorityScopeLevel,
+        AuthorizedItemSummary as ProtoAuthorizedItemSummary, DirectoryFreshness,
         ItemDescriptor as ProtoItemDescriptor, ListBacklinksRequest, ListBacklinksResponse,
         RecordRef as ProtoRecordRef, ResolveReferenceRequest, ResolveReferenceResponse,
         SearchItemsRequest, SearchItemsResponse, StreamEvent, StreamRequest,
@@ -61,7 +79,10 @@ use tokio_stream::{Stream, wrappers::ReceiverStream};
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
 
-use crate::{AppState, ServerReadinessAdapter};
+use crate::{
+    AppState, ServerReadinessAdapter,
+    storage::{HoldingObjectDownloadRequest, HoldingObjectUploadRequest, ObjectAuthorizationError},
+};
 
 const COLLABORATION_READ_PERMISSION: &str = "collaboration.read";
 const COLLABORATION_WRITE_PERMISSION: &str = "collaboration.write";
@@ -88,6 +109,43 @@ impl ReferenceQueryService for ReferenceQueryRpc {
         let claims = self.state.auth.authorize(&request).await?;
         let input = request.into_inner();
         let record_id = record_id(&input.record_id)?;
+        if matches!(
+            authority_scope(input.authority_scope.as_ref())?.1,
+            Scope::Platform
+        ) {
+            let (gateway, access) = platform_global_gateway(
+                &self.state,
+                &claims,
+                input.authority_scope.as_ref(),
+                COLLABORATION_READ_PERMISSION,
+                CorrelationId::try_from_uuid(Uuid::new_v4())
+                    .map_err(|_| Status::internal("correlation generation failed"))?,
+            )
+            .await?;
+            validate_purpose(&input.purpose)?;
+            let result = gateway
+                .resolve_reference(&access, record_id)
+                .await
+                .map_err(map_directory_error)?;
+            let outcome = match result {
+                DirectoryLookup::Visible { .. } => GlobalCollaborationOutcome::Allowed,
+                DirectoryLookup::Neutral => GlobalCollaborationOutcome::Denied,
+                _ => GlobalCollaborationOutcome::Unavailable,
+            };
+            gateway
+                .audit(
+                    &access,
+                    "reference.resolve",
+                    Some(record_id.as_uuid()),
+                    None,
+                    None,
+                    None,
+                    outcome,
+                )
+                .await
+                .map_err(map_collaboration_port_error)?;
+            return Ok(Response::new(resolve_response(result, "platform")?));
+        }
         let authorized = authorize_reference_request(
             &self.state,
             &claims,
@@ -112,6 +170,44 @@ impl ReferenceQueryService for ReferenceQueryRpc {
     ) -> Result<Response<SearchItemsResponse>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let input = request.into_inner();
+        if matches!(
+            authority_scope(input.authority_scope.as_ref())?.1,
+            Scope::Platform
+        ) {
+            let (gateway, access) = platform_global_gateway(
+                &self.state,
+                &claims,
+                input.authority_scope.as_ref(),
+                COLLABORATION_READ_PERMISSION,
+                CorrelationId::try_from_uuid(Uuid::new_v4())
+                    .map_err(|_| Status::internal("correlation generation failed"))?,
+            )
+            .await?;
+            validate_purpose(&input.purpose)?;
+            validate_search(&input.query, input.page_size, input.cursor.as_deref())?;
+            let result = gateway
+                .search_references(
+                    &access,
+                    &DirectorySearchRequest {
+                        query: input.query,
+                        page_size: u16::try_from(input.page_size)
+                            .map_err(|_| Status::invalid_argument("page_size is invalid"))?,
+                        cursor: input.cursor,
+                    },
+                )
+                .await
+                .map_err(map_directory_error)?;
+            let outcome = match result {
+                DirectoryLookup::Visible { .. } => GlobalCollaborationOutcome::Allowed,
+                DirectoryLookup::Neutral => GlobalCollaborationOutcome::Denied,
+                _ => GlobalCollaborationOutcome::Unavailable,
+            };
+            gateway
+                .audit(&access, "reference.search", None, None, None, None, outcome)
+                .await
+                .map_err(map_collaboration_port_error)?;
+            return Ok(Response::new(search_response(result, "platform")?));
+        }
         let authorized = authorize_reference_request(
             &self.state,
             &claims,
@@ -642,6 +738,411 @@ impl CollaborationCommandService for CollaborationCommandRpc {
         };
         mutate_at(runtime, &input.thread_id, mutation, decided_at).await
     }
+
+    async fn add_record_relation(
+        &self,
+        request: Request<AddRecordRelationRequest>,
+    ) -> Result<Response<ProtoRelationMutationReceipt>, Status> {
+        let claims = self.state.auth.authorize(&request).await?;
+        require_phase2_human_claims(&claims)?;
+        let input = request.into_inner();
+        let metadata = required(input.metadata.as_ref(), "metadata")?;
+        let identity = mutation_identity(metadata)?;
+        let source = stable_record_ref(required(input.source.as_ref(), "source")?)?;
+        let target = stable_record_ref(required(input.target.as_ref(), "target")?)?;
+        let relation_id = relation_id(&input.relation_id)?;
+        let kind = relation_kind(input.kind)?;
+        if matches!(
+            authority_scope(metadata.authority_scope.as_ref())?.1,
+            Scope::Platform
+        ) {
+            let (gateway, access) = platform_global_gateway(
+                &self.state,
+                &claims,
+                metadata.authority_scope.as_ref(),
+                COLLABORATION_WRITE_PERMISSION,
+                identity.correlation_id,
+            )
+            .await?;
+            let outcome = match (
+                gateway.authorize_record(&access, &source, true).await,
+                gateway.authorize_record(&access, &target, true).await,
+            ) {
+                (Ok(()), Ok(())) => GlobalCollaborationOutcome::Unavailable,
+                (Err(PortError::Denied), _) | (_, Err(PortError::Denied)) => {
+                    GlobalCollaborationOutcome::Denied
+                }
+                _ => GlobalCollaborationOutcome::Unavailable,
+            };
+            gateway
+                .audit(
+                    &access,
+                    "relation.add",
+                    Some(source.id().as_uuid()),
+                    Some(target.id().as_uuid()),
+                    None,
+                    Some(identity.command_id.as_uuid()),
+                    outcome,
+                )
+                .await
+                .map_err(map_collaboration_port_error)?;
+            return Err(match outcome {
+                GlobalCollaborationOutcome::Denied => {
+                    Status::permission_denied("record relation access denied")
+                }
+                _ => Status::unavailable("global relation mutation is unavailable"),
+            });
+        }
+        let runtime = holding_relation_runtime(
+            &self.state,
+            &claims,
+            metadata,
+            [CollaborationAction::RelateRecord],
+        )
+        .await?;
+        let receipt = runtime
+            .command
+            .add_record_relation(
+                &runtime.actor,
+                AddRecordRelationCommand {
+                    identity: runtime.identity,
+                    relation_id,
+                    source,
+                    target,
+                    kind,
+                    expected_version: input.expected_source_version,
+                    at: Utc::now(),
+                },
+            )
+            .await
+            .map_err(map_collaboration_error)?;
+        Ok(Response::new(relation_mutation_receipt(receipt)))
+    }
+
+    async fn revoke_record_relation(
+        &self,
+        request: Request<RevokeRecordRelationRequest>,
+    ) -> Result<Response<ProtoRelationMutationReceipt>, Status> {
+        let claims = self.state.auth.authorize(&request).await?;
+        require_phase2_human_claims(&claims)?;
+        let input = request.into_inner();
+        let metadata = required(input.metadata.as_ref(), "metadata")?;
+        let identity = mutation_identity(metadata)?;
+        let source = stable_record_ref(required(input.source.as_ref(), "source")?)?;
+        let target = stable_record_ref(required(input.target.as_ref(), "target")?)?;
+        let relation_id = relation_id(&input.relation_id)?;
+        if matches!(
+            authority_scope(metadata.authority_scope.as_ref())?.1,
+            Scope::Platform
+        ) {
+            let (gateway, access) = platform_global_gateway(
+                &self.state,
+                &claims,
+                metadata.authority_scope.as_ref(),
+                COLLABORATION_WRITE_PERMISSION,
+                identity.correlation_id,
+            )
+            .await?;
+            let outcome = match (
+                gateway.authorize_record(&access, &source, true).await,
+                gateway.authorize_record(&access, &target, true).await,
+            ) {
+                (Ok(()), Ok(())) => GlobalCollaborationOutcome::Unavailable,
+                (Err(PortError::Denied), _) | (_, Err(PortError::Denied)) => {
+                    GlobalCollaborationOutcome::Denied
+                }
+                _ => GlobalCollaborationOutcome::Unavailable,
+            };
+            gateway
+                .audit(
+                    &access,
+                    "relation.revoke",
+                    Some(source.id().as_uuid()),
+                    Some(target.id().as_uuid()),
+                    None,
+                    Some(identity.command_id.as_uuid()),
+                    outcome,
+                )
+                .await
+                .map_err(map_collaboration_port_error)?;
+            return Err(match outcome {
+                GlobalCollaborationOutcome::Denied => {
+                    Status::permission_denied("record relation access denied")
+                }
+                _ => Status::unavailable("global relation mutation is unavailable"),
+            });
+        }
+        let runtime = holding_relation_runtime(
+            &self.state,
+            &claims,
+            metadata,
+            [CollaborationAction::RevokeRelation],
+        )
+        .await?;
+        let receipt = runtime
+            .command
+            .revoke_record_relation(
+                &runtime.actor,
+                RevokeRecordRelationCommand {
+                    identity: runtime.identity,
+                    relation_id,
+                    source,
+                    target,
+                    expected_version: input.expected_relation_version,
+                    at: Utc::now(),
+                },
+            )
+            .await
+            .map_err(map_collaboration_error)?;
+        Ok(Response::new(relation_mutation_receipt(receipt)))
+    }
+
+    async fn start_record_thread_with_comment(
+        &self,
+        request: Request<StartRecordThreadWithCommentRequest>,
+    ) -> Result<Response<MutationReceipt>, Status> {
+        let claims = self.state.auth.authorize(&request).await?;
+        require_phase2_human_claims(&claims)?;
+        let input = request.into_inner();
+        let metadata = required(input.metadata.as_ref(), "metadata")?;
+        if matches!(
+            authority_scope(metadata.authority_scope.as_ref())?.1,
+            Scope::Platform
+        ) {
+            let identity = mutation_identity(metadata)?;
+            let record = stable_record_ref(required(input.record.as_ref(), "record")?)?;
+            let (gateway, access) = platform_global_gateway(
+                &self.state,
+                &claims,
+                metadata.authority_scope.as_ref(),
+                COLLABORATION_WRITE_PERMISSION,
+                identity.correlation_id,
+            )
+            .await?;
+            let outcome = match gateway.authorize_record(&access, &record, false).await {
+                Ok(()) => GlobalCollaborationOutcome::Unavailable,
+                Err(PortError::Denied) => GlobalCollaborationOutcome::Denied,
+                _ => GlobalCollaborationOutcome::Unavailable,
+            };
+            gateway
+                .audit(
+                    &access,
+                    "thread.start",
+                    Some(record.id().as_uuid()),
+                    None,
+                    None,
+                    Some(identity.command_id.as_uuid()),
+                    outcome,
+                )
+                .await
+                .map_err(map_collaboration_port_error)?;
+            return Err(Status::unavailable("global thread mutation is unavailable"));
+        }
+        if !input.attachment_ids.is_empty() {
+            return Err(Status::failed_precondition(
+                "starting a thread with attachments requires an atomic scanner binding",
+            ));
+        }
+        let runtime = holding_record_thread_runtime(&self.state, &claims, metadata).await?;
+        let document = CommentDocument::try_new(
+            1,
+            serde_json::json!({
+                "type": "doc",
+                "blocks": [{"type": "paragraph", "text": input.plain_text}],
+            }),
+            input.plain_text,
+        )
+        .map_err(|_| Status::invalid_argument("plain_text is invalid"))?;
+        let receipt = runtime
+            .command
+            .start_record_thread_with_comment(
+                &runtime.actor,
+                StartRecordThreadWithCommentCommand {
+                    identity: runtime.identity,
+                    thread_id: thread_id(&input.thread_id)?,
+                    record: stable_record_ref(required(input.record.as_ref(), "record")?)?,
+                    comment: AddComment {
+                        comment_id: comment_id(&input.comment_id)?,
+                        author: runtime.actor.principal,
+                        document,
+                        attachments: Vec::new(),
+                        mentions: Vec::new(),
+                    },
+                    at: Utc::now(),
+                },
+            )
+            .await
+            .map_err(map_collaboration_error)?;
+        Ok(Response::new(mutation_receipt(receipt)))
+    }
+
+    async fn prepare_attachment_upload(
+        &self,
+        request: Request<PrepareAttachmentUploadRequest>,
+    ) -> Result<Response<PrepareAttachmentUploadResponse>, Status> {
+        let claims = self.state.auth.authorize(&request).await?;
+        require_phase2_human_claims(&claims)?;
+        if !attachment_scanner_ready() {
+            return Err(Status::unavailable(
+                "attachment malware scanner is unavailable",
+            ));
+        }
+        let input = request.into_inner();
+        let metadata = required(input.metadata.as_ref(), "metadata")?;
+        let identity = mutation_identity(metadata)?;
+        let anchor = stable_record_ref(required(input.anchor.as_ref(), "anchor")?)?;
+        let attachment_id = attachment_id(&input.attachment_id)?;
+        let thread_id = input.thread_id.as_deref().map(thread_id).transpose()?;
+        if matches!(
+            authority_scope(metadata.authority_scope.as_ref())?.1,
+            Scope::Platform
+        ) {
+            let (gateway, access) = platform_global_gateway(
+                &self.state,
+                &claims,
+                metadata.authority_scope.as_ref(),
+                COLLABORATION_WRITE_PERMISSION,
+                identity.correlation_id,
+            )
+            .await?;
+            let outcome = match gateway.authorize_record(&access, &anchor, false).await {
+                Ok(()) => GlobalCollaborationOutcome::Unavailable,
+                Err(PortError::Denied) => GlobalCollaborationOutcome::Denied,
+                _ => GlobalCollaborationOutcome::Unavailable,
+            };
+            gateway
+                .audit(
+                    &access,
+                    "attachment.prepare",
+                    Some(anchor.id().as_uuid()),
+                    None,
+                    Some(attachment_id.as_uuid()),
+                    Some(identity.command_id.as_uuid()),
+                    outcome,
+                )
+                .await
+                .map_err(map_collaboration_port_error)?;
+            return Err(Status::unavailable(
+                "global attachment upload is unavailable",
+            ));
+        }
+        let runtime = holding_attachment_runtime(
+            &self.state,
+            &claims,
+            metadata.authority_scope.as_ref(),
+            (&metadata.holding_id, &metadata.actor_principal_id),
+            CollaborationAction::PrepareAttachmentUpload,
+            COLLABORATION_WRITE_PERMISSION,
+        )
+        .await?;
+        let now = Utc::now();
+        let upload_expires_at = now + chrono::Duration::minutes(15);
+        let receipt = runtime
+            .command
+            .prepare_attachment_upload(
+                &runtime.actor,
+                PrepareAttachmentUploadCommand {
+                    identity,
+                    attachment_id,
+                    storage_object_id: Uuid::new_v4(),
+                    anchor,
+                    thread_id,
+                    file_name: input.file_name,
+                    media_type: input.media_type,
+                    size_bytes: input.size_bytes,
+                    digest: digest(&input.digest_sha256, "digest_sha256")?,
+                    upload_expires_at,
+                    expires_at: None,
+                    at: now,
+                },
+            )
+            .await
+            .map_err(map_collaboration_error)?;
+        let object_key = attachment_object_key(
+            receipt.attachment.holding_id,
+            receipt.attachment.attachment_id,
+            receipt.attachment.storage_object_id,
+        );
+        let signed = self
+            .state
+            .storage
+            .presign_upload_request(
+                HoldingObjectUploadRequest {
+                    holding_id: receipt.attachment.holding_id.to_string(),
+                    storage_namespace: runtime.storage_namespace,
+                    object_key,
+                    expires_seconds: 900,
+                    content_type: receipt.attachment.media_type.clone(),
+                    content_length: receipt.attachment.size_bytes,
+                },
+                |_| async { Ok::<(), ObjectAuthorizationError>(()) },
+            )
+            .await
+            .map_err(|_| Status::unavailable("attachment upload signing is unavailable"))?;
+        Ok(Response::new(PrepareAttachmentUploadResponse {
+            attachment: Some(attachment_view_to_proto(&DomainAttachmentView::from(
+                &receipt.attachment,
+            ))),
+            upload_token: signed.url.clone(),
+            upload_path: signed.url,
+            upload_expires_at: signed.expires_at.to_rfc3339(),
+        }))
+    }
+
+    async fn finalize_attachment_upload(
+        &self,
+        request: Request<erpx_proto::erpx::collaboration::FinalizeAttachmentUploadRequest>,
+    ) -> Result<Response<erpx_proto::erpx::collaboration::AttachmentView>, Status> {
+        let claims = self.state.auth.authorize(&request).await?;
+        require_phase2_human_claims(&claims)?;
+        if !attachment_scanner_ready() {
+            return Err(Status::unavailable(
+                "attachment malware scanner is unavailable",
+            ));
+        }
+        let input = request.into_inner();
+        let metadata = required(input.metadata.as_ref(), "metadata")?;
+        let identity = mutation_identity(metadata)?;
+        let anchor = stable_record_ref(required(input.anchor.as_ref(), "anchor")?)?;
+        let attachment_id = attachment_id(&input.attachment_id)?;
+        let thread_id = input.thread_id.as_deref().map(thread_id).transpose()?;
+        if matches!(
+            authority_scope(metadata.authority_scope.as_ref())?.1,
+            Scope::Platform
+        ) {
+            return Err(Status::unavailable(
+                "global attachment upload is unavailable",
+            ));
+        }
+        let runtime = holding_attachment_runtime(
+            &self.state,
+            &claims,
+            metadata.authority_scope.as_ref(),
+            (&metadata.holding_id, &metadata.actor_principal_id),
+            CollaborationAction::FinalizeAttachmentUpload,
+            COLLABORATION_WRITE_PERMISSION,
+        )
+        .await?;
+        let receipt = runtime
+            .command
+            .finalize_attachment_upload(
+                &runtime.actor,
+                FinalizeAttachmentUploadCommand {
+                    identity,
+                    attachment_id,
+                    anchor,
+                    thread_id,
+                    verified_size_bytes: input.size_bytes,
+                    verified_digest: digest(&input.digest_sha256, "digest_sha256")?,
+                    at: Utc::now(),
+                },
+            )
+            .await
+            .map_err(map_collaboration_error)?;
+        Ok(Response::new(attachment_view_to_proto(
+            &DomainAttachmentView::from(&receipt.attachment),
+        )))
+    }
 }
 
 #[derive(Clone)]
@@ -840,6 +1341,328 @@ impl CollaborationQueryService for CollaborationQueryRpc {
                 .collect(),
         }))
     }
+
+    async fn list_record_relations(
+        &self,
+        request: Request<ListRecordRelationsRequest>,
+    ) -> Result<Response<ListRecordRelationsResponse>, Status> {
+        let claims = self.state.auth.authorize(&request).await?;
+        let input = request.into_inner();
+        let page_size = u16::try_from(input.page_size)
+            .ok()
+            .filter(|value| *value > 0 && *value <= 100)
+            .ok_or_else(|| Status::invalid_argument("page_size is invalid"))?;
+        validate_page(input.page_size, input.cursor.as_deref())?;
+        let anchor = stable_record_ref(required(input.source.as_ref(), "source")?)?;
+        let page = if matches!(
+            authority_scope(input.authority_scope.as_ref())?.1,
+            Scope::Platform
+        ) {
+            let correlation = CorrelationId::try_from_uuid(Uuid::new_v4())
+                .map_err(|_| Status::internal("correlation generation failed"))?;
+            let (gateway, access) = platform_global_gateway(
+                &self.state,
+                &claims,
+                input.authority_scope.as_ref(),
+                COLLABORATION_READ_PERMISSION,
+                correlation,
+            )
+            .await?;
+            let result = gateway
+                .list_relations(
+                    &access,
+                    &anchor,
+                    input.include_revoked,
+                    page_size,
+                    input.cursor.as_deref(),
+                )
+                .await;
+            let outcome = match &result {
+                Ok(_) => GlobalCollaborationOutcome::Allowed,
+                Err(PortError::Denied | PortError::NotFound) => GlobalCollaborationOutcome::Denied,
+                Err(PortError::Conflict) => GlobalCollaborationOutcome::Conflict,
+                Err(_) => GlobalCollaborationOutcome::Unavailable,
+            };
+            gateway
+                .audit(
+                    &access,
+                    "relation.list",
+                    Some(anchor.id().as_uuid()),
+                    None,
+                    None,
+                    None,
+                    outcome,
+                )
+                .await
+                .map_err(map_collaboration_port_error)?;
+            result.map_err(map_collaboration_port_error)?
+        } else {
+            let runtime = holding_relation_query_runtime(
+                &self.state,
+                &claims,
+                input.authority_scope.as_ref(),
+                (&input.holding_id, &input.actor_principal_id),
+            )
+            .await?;
+            runtime
+                .query
+                .list_record_relations(
+                    &runtime.actor,
+                    &anchor,
+                    input.include_revoked,
+                    page_size,
+                    input.cursor.as_deref(),
+                )
+                .await
+                .map_err(map_collaboration_error)?
+        };
+        Ok(Response::new(ListRecordRelationsResponse {
+            relations: page.items.iter().map(relation_view_to_proto).collect(),
+            next_cursor: page.next_cursor,
+            authorized_count: page.authorized_count,
+            freshness: DirectoryFreshness::Fresh as i32,
+            projection_checkpoint: page.projection_checkpoint,
+        }))
+    }
+
+    async fn get_thread_v2(
+        &self,
+        request: Request<GetThreadRequest>,
+    ) -> Result<Response<GetThreadV2Response>, Status> {
+        let claims = self.state.auth.authorize(&request).await?;
+        let input = request.into_inner();
+        if matches!(
+            authority_scope(input.authority_scope.as_ref())?.1,
+            Scope::Platform
+        ) {
+            let correlation = CorrelationId::try_from_uuid(Uuid::new_v4())
+                .map_err(|_| Status::internal("correlation generation failed"))?;
+            let (gateway, access) = platform_global_gateway(
+                &self.state,
+                &claims,
+                input.authority_scope.as_ref(),
+                COLLABORATION_READ_PERMISSION,
+                correlation,
+            )
+            .await?;
+            gateway
+                .audit(
+                    &access,
+                    "thread.get",
+                    None,
+                    None,
+                    None,
+                    None,
+                    GlobalCollaborationOutcome::Unavailable,
+                )
+                .await
+                .map_err(map_collaboration_port_error)?;
+            return Err(Status::unavailable(
+                "global typed thread projection is unavailable",
+            ));
+        }
+        let runtime = holding_thread_v2_runtime(
+            &self.state,
+            &claims,
+            input.authority_scope.as_ref(),
+            (&input.holding_id, &input.actor_principal_id),
+        )
+        .await?;
+        let thread = load_holding_thread_v2(&runtime, thread_id(&input.thread_id)?).await?;
+        Ok(Response::new(GetThreadV2Response {
+            thread: Some(thread_v2_to_proto(&thread)?),
+            freshness: if thread.stale {
+                DirectoryFreshness::Stale as i32
+            } else {
+                DirectoryFreshness::Fresh as i32
+            },
+        }))
+    }
+
+    async fn list_threads_by_record_v2(
+        &self,
+        request: Request<ListThreadsByRecordRequest>,
+    ) -> Result<Response<ListThreadsByRecordV2Response>, Status> {
+        let claims = self.state.auth.authorize(&request).await?;
+        let input = request.into_inner();
+        if matches!(
+            authority_scope(input.authority_scope.as_ref())?.1,
+            Scope::Platform
+        ) {
+            return Err(Status::unavailable(
+                "global typed thread projection is unavailable",
+            ));
+        }
+        let page_size = u16::try_from(input.page_size)
+            .ok()
+            .filter(|value| *value > 0 && *value <= 100)
+            .ok_or_else(|| Status::invalid_argument("page_size is invalid"))?;
+        validate_page(input.page_size, input.cursor.as_deref())?;
+        let record = stable_record_ref(required(input.record.as_ref(), "record")?)?;
+        let legacy_runtime = collaboration_query_runtime(
+            &self.state,
+            &claims,
+            input.authority_scope.as_ref(),
+            Some((&input.holding_id, &input.actor_principal_id)),
+            [
+                CollaborationAction::ListRecordThreads,
+                CollaborationAction::SearchThreads,
+                CollaborationAction::ViewThread,
+            ],
+        )
+        .await?;
+        let page = legacy_runtime
+            .service
+            .list_threads_by_record(
+                &legacy_runtime.actor,
+                &record,
+                page_size,
+                input.cursor.as_deref(),
+            )
+            .await
+            .map_err(map_collaboration_error)?;
+        let typed_runtime = holding_thread_v2_runtime(
+            &self.state,
+            &claims,
+            input.authority_scope.as_ref(),
+            (&input.holding_id, &input.actor_principal_id),
+        )
+        .await?;
+        let mut threads = Vec::with_capacity(page.items.len());
+        for item in &page.items {
+            let thread = load_holding_thread_v2(&typed_runtime, item.id).await?;
+            if thread.anchor != record {
+                return Err(Status::unavailable("thread projection is unavailable"));
+            }
+            threads.push(thread_v2_to_proto(&thread)?);
+        }
+        Ok(Response::new(ListThreadsByRecordV2Response {
+            threads,
+            next_cursor: page.next_cursor,
+            authorized_count: page.authorized_count,
+            freshness: if page.items.iter().any(|value| value.stale) {
+                DirectoryFreshness::Stale as i32
+            } else {
+                DirectoryFreshness::Fresh as i32
+            },
+        }))
+    }
+
+    async fn get_attachment_download(
+        &self,
+        request: Request<GetAttachmentDownloadRequest>,
+    ) -> Result<Response<GetAttachmentDownloadResponse>, Status> {
+        let claims = self.state.auth.authorize(&request).await?;
+        require_phase2_human_claims(&claims)?;
+        if !attachment_scanner_ready() {
+            return Err(Status::unavailable(
+                "attachment malware scanner is unavailable",
+            ));
+        }
+        let input = request.into_inner();
+        let anchor = stable_record_ref(required(input.anchor.as_ref(), "anchor")?)?;
+        let attachment_id = attachment_id(&input.attachment_id)?;
+        let thread_id = input
+            .thread_id
+            .as_deref()
+            .ok_or_else(|| Status::invalid_argument("thread_id is required"))
+            .and_then(thread_id)?;
+        if matches!(
+            authority_scope(input.authority_scope.as_ref())?.1,
+            Scope::Platform
+        ) {
+            let correlation = CorrelationId::try_from_uuid(Uuid::new_v4())
+                .map_err(|_| Status::internal("correlation generation failed"))?;
+            let (gateway, access) = platform_global_gateway(
+                &self.state,
+                &claims,
+                input.authority_scope.as_ref(),
+                COLLABORATION_READ_PERMISSION,
+                correlation,
+            )
+            .await?;
+            gateway
+                .audit(
+                    &access,
+                    "attachment.download",
+                    Some(anchor.id().as_uuid()),
+                    None,
+                    Some(attachment_id.as_uuid()),
+                    None,
+                    GlobalCollaborationOutcome::Unavailable,
+                )
+                .await
+                .map_err(map_collaboration_port_error)?;
+            return Err(Status::unavailable(
+                "global attachment download is unavailable",
+            ));
+        }
+        let runtime = holding_attachment_runtime(
+            &self.state,
+            &claims,
+            input.authority_scope.as_ref(),
+            (&input.holding_id, &input.actor_principal_id),
+            CollaborationAction::DownloadAttachment,
+            COLLABORATION_READ_PERMISSION,
+        )
+        .await?;
+        let now = Utc::now();
+        let view = runtime
+            .query
+            .get_attachment_download(
+                &runtime.actor,
+                GetAttachmentDownloadQuery {
+                    attachment_id,
+                    anchor: anchor.clone(),
+                    thread_id,
+                    at: now,
+                },
+            )
+            .await
+            .map_err(map_collaboration_error)?;
+        let access = runtime
+            .authorization
+            .authorize_attachment(
+                &runtime.actor,
+                &anchor,
+                Some(thread_id),
+                CollaborationAction::DownloadAttachment,
+            )
+            .await
+            .map_err(map_collaboration_port_error)?;
+        let record = runtime
+            .registry
+            .get_for_download(&access, attachment_id, now)
+            .await
+            .map_err(map_collaboration_port_error)?
+            .ok_or_else(|| Status::not_found("attachment unavailable"))?;
+        let signed = self
+            .state
+            .storage
+            .presign_download_request(
+                HoldingObjectDownloadRequest {
+                    holding_id: record.holding_id.to_string(),
+                    storage_namespace: runtime.storage_namespace,
+                    object_key: attachment_object_key(
+                        record.holding_id,
+                        record.attachment_id,
+                        record.storage_object_id,
+                    ),
+                    expires_seconds: 300,
+                    content_type: Some(record.media_type.clone()),
+                    max_bytes: Some(record.size_bytes),
+                },
+                |_| async { Ok::<(), ObjectAuthorizationError>(()) },
+            )
+            .await
+            .map_err(|_| Status::unavailable("attachment download signing is unavailable"))?;
+        Ok(Response::new(GetAttachmentDownloadResponse {
+            attachment: Some(attachment_view_to_proto(&view)),
+            download_token: signed.url.clone(),
+            download_path: signed.url,
+            expires_at: signed.expires_at.to_rfc3339(),
+        }))
+    }
 }
 
 struct AuthorizedHoldingRequest {
@@ -871,6 +1694,60 @@ type RuntimeQueryService = CollaborationApplicationQueryService<
 struct CollaborationQueryRuntime {
     service: RuntimeQueryService,
     actor: ActorContext,
+}
+
+type RuntimeRelationCommandService = RecordRelationApplicationCommandService<
+    SqlxCollaborationAuthorization,
+    SqlxRecordRelationRepository,
+>;
+type RuntimeRelationQueryService = RecordRelationApplicationQueryService<
+    SqlxCollaborationAuthorization,
+    SqlxRecordRelationRepository,
+>;
+
+struct HoldingRelationRuntime {
+    command: RuntimeRelationCommandService,
+    actor: ActorContext,
+    identity: MutationIdentity,
+}
+
+struct HoldingRelationQueryRuntime {
+    query: RuntimeRelationQueryService,
+    actor: ActorContext,
+}
+
+type RuntimeRecordThreadCommandService = RecordThreadApplicationCommandService<
+    SqlxCollaborationAuthorization,
+    SqlxThreadWriteRepository,
+>;
+
+struct HoldingRecordThreadRuntime {
+    command: RuntimeRecordThreadCommandService,
+    actor: ActorContext,
+    identity: MutationIdentity,
+}
+
+type RuntimeAttachmentCommandService =
+    AttachmentCommandService<SqlxCollaborationAuthorization, SqlxAttachmentRegistry>;
+type RuntimeAttachmentQueryService =
+    AttachmentQueryService<SqlxCollaborationAuthorization, SqlxAttachmentRegistry>;
+
+struct HoldingAttachmentRuntime {
+    command: RuntimeAttachmentCommandService,
+    query: RuntimeAttachmentQueryService,
+    authorization: SqlxCollaborationAuthorization,
+    registry: SqlxAttachmentRegistry,
+    actor: ActorContext,
+    storage_namespace: String,
+}
+
+struct HoldingThreadV2Runtime {
+    authorization: SqlxCollaborationAuthorization,
+    write: SqlxThreadWriteRepository,
+    attachments: SqlxAttachmentRegistry,
+    actor: ActorContext,
+    read_pool: sqlx::PgPool,
+    write_pool: sqlx::PgPool,
 }
 
 #[derive(Clone)]
@@ -974,6 +1851,364 @@ async fn collaboration_command_runtime(
         identity: mutation_identity(metadata)?,
         expected_version: metadata.expected_thread_version,
     })
+}
+
+async fn holding_relation_runtime(
+    state: &AppState,
+    claims: &erpx_identity::AccessTokenClaims,
+    metadata: &erpx_proto::erpx::collaboration::CommandMetadata,
+    actions: impl IntoIterator<Item = CollaborationAction>,
+) -> Result<HoldingRelationRuntime, Status> {
+    require_phase2_human_claims(claims)?;
+    let authorized = authorize_holding_request(
+        state,
+        claims,
+        metadata.authority_scope.as_ref(),
+        Some((&metadata.holding_id, &metadata.actor_principal_id)),
+        COLLABORATION_WRITE_PERMISSION,
+    )
+    .await?;
+    let router = state
+        .holding_router
+        .as_ref()
+        .ok_or_else(|| Status::unavailable("holding database routing is unavailable"))?;
+    let write = router
+        .route_scoped(
+            &authorized.data_profile_key,
+            &authorized.data_profile_key,
+            authorized.route_scope,
+            RoutedDatabaseSide::Write,
+        )
+        .await
+        .map_err(|_| Status::unavailable("collaboration write route is unavailable"))?;
+    let write_pool = write.database_pool().clone();
+    let repository =
+        SqlxRecordRelationRepository::new(write_pool.clone(), authorized.read_pool.clone());
+    let command_authorization = SqlxCollaborationAuthorization::from_authorized_request(
+        write_pool,
+        authorized.read_pool.clone(),
+        actions,
+    );
+    let actor = collaboration_actor(claims, &authorized)?;
+    Ok(HoldingRelationRuntime {
+        command: RecordRelationApplicationCommandService::new(command_authorization, repository),
+        actor,
+        identity: mutation_identity(metadata)?,
+    })
+}
+
+async fn holding_relation_query_runtime(
+    state: &AppState,
+    claims: &erpx_identity::AccessTokenClaims,
+    scope: Option<&InterfaceAuthorityScope>,
+    expected: (&str, &str),
+) -> Result<HoldingRelationQueryRuntime, Status> {
+    let authorized = authorize_holding_request(
+        state,
+        claims,
+        scope,
+        Some(expected),
+        COLLABORATION_READ_PERMISSION,
+    )
+    .await?;
+    let router = state
+        .holding_router
+        .as_ref()
+        .ok_or_else(|| Status::unavailable("holding database routing is unavailable"))?;
+    let write = router
+        .route_scoped(
+            &authorized.data_profile_key,
+            &authorized.data_profile_key,
+            authorized.route_scope,
+            RoutedDatabaseSide::Write,
+        )
+        .await
+        .map_err(|_| Status::unavailable("collaboration write route is unavailable"))?;
+    let write_pool = write.database_pool().clone();
+    let authorization = SqlxCollaborationAuthorization::from_authorized_request(
+        write_pool.clone(),
+        authorized.read_pool.clone(),
+        [CollaborationAction::ListRecordRelations],
+    );
+    let repository = SqlxRecordRelationRepository::new(write_pool, authorized.read_pool.clone());
+    let actor = collaboration_actor(claims, &authorized)?;
+    Ok(HoldingRelationQueryRuntime {
+        query: RecordRelationApplicationQueryService::new(authorization, repository),
+        actor,
+    })
+}
+
+async fn holding_record_thread_runtime(
+    state: &AppState,
+    claims: &erpx_identity::AccessTokenClaims,
+    metadata: &erpx_proto::erpx::collaboration::CommandMetadata,
+) -> Result<HoldingRecordThreadRuntime, Status> {
+    require_phase2_human_claims(claims)?;
+    let authorized = authorize_holding_request(
+        state,
+        claims,
+        metadata.authority_scope.as_ref(),
+        Some((&metadata.holding_id, &metadata.actor_principal_id)),
+        COLLABORATION_WRITE_PERMISSION,
+    )
+    .await?;
+    let router = state
+        .holding_router
+        .as_ref()
+        .ok_or_else(|| Status::unavailable("holding database routing is unavailable"))?;
+    let write = router
+        .route_scoped(
+            &authorized.data_profile_key,
+            &authorized.data_profile_key,
+            authorized.route_scope,
+            RoutedDatabaseSide::Write,
+        )
+        .await
+        .map_err(|_| Status::unavailable("collaboration write route is unavailable"))?;
+    let write_pool = write.database_pool().clone();
+    let authorization = SqlxCollaborationAuthorization::from_authorized_request(
+        write_pool.clone(),
+        authorized.read_pool.clone(),
+        [CollaborationAction::CreateThread],
+    );
+    let actor = collaboration_actor(claims, &authorized)?;
+    Ok(HoldingRecordThreadRuntime {
+        command: RecordThreadApplicationCommandService::new(
+            authorization,
+            SqlxThreadWriteRepository::new(write_pool),
+        ),
+        actor,
+        identity: mutation_identity(metadata)?,
+    })
+}
+
+async fn holding_attachment_runtime(
+    state: &AppState,
+    claims: &erpx_identity::AccessTokenClaims,
+    scope: Option<&InterfaceAuthorityScope>,
+    expected: (&str, &str),
+    action: CollaborationAction,
+    permission: &str,
+) -> Result<HoldingAttachmentRuntime, Status> {
+    require_phase2_human_claims(claims)?;
+    let authorized =
+        authorize_holding_request(state, claims, scope, Some(expected), permission).await?;
+    let router = state
+        .holding_router
+        .as_ref()
+        .ok_or_else(|| Status::unavailable("holding database routing is unavailable"))?;
+    let write = router
+        .route_scoped(
+            &authorized.data_profile_key,
+            &authorized.data_profile_key,
+            authorized.route_scope,
+            RoutedDatabaseSide::Write,
+        )
+        .await
+        .map_err(|_| Status::unavailable("collaboration write route is unavailable"))?;
+    let write_pool = write.database_pool().clone();
+    let command_authorization = SqlxCollaborationAuthorization::from_authorized_request(
+        write_pool.clone(),
+        authorized.read_pool.clone(),
+        [action],
+    );
+    let query_authorization = SqlxCollaborationAuthorization::from_authorized_request(
+        write_pool.clone(),
+        authorized.read_pool.clone(),
+        [action],
+    );
+    let registry = SqlxAttachmentRegistry::for_holding(write_pool, authorized.holding_id);
+    let actor = collaboration_actor(claims, &authorized)?;
+    let registration = SqlxHoldingStoreRegistry::new(state.store.clone())
+        .get(&authorized.holding_id.to_string())
+        .await
+        .map_err(|_| Status::unavailable("holding storage binding is unavailable"))?
+        .filter(|value| {
+            value.state == "active" && value.data_profile_key == authorized.data_profile_key
+        })
+        .ok_or_else(|| Status::unavailable("holding storage binding is unavailable"))?;
+    Ok(HoldingAttachmentRuntime {
+        command: AttachmentCommandService::new(command_authorization, registry.clone()),
+        query: AttachmentQueryService::new(query_authorization.clone(), registry.clone()),
+        authorization: query_authorization,
+        registry,
+        actor,
+        storage_namespace: registration.storage_namespace,
+    })
+}
+
+async fn holding_thread_v2_runtime(
+    state: &AppState,
+    claims: &erpx_identity::AccessTokenClaims,
+    scope: Option<&InterfaceAuthorityScope>,
+    expected: (&str, &str),
+) -> Result<HoldingThreadV2Runtime, Status> {
+    let authorized = authorize_holding_request(
+        state,
+        claims,
+        scope,
+        Some(expected),
+        COLLABORATION_READ_PERMISSION,
+    )
+    .await?;
+    let router = state
+        .holding_router
+        .as_ref()
+        .ok_or_else(|| Status::unavailable("holding database routing is unavailable"))?;
+    let write = router
+        .route_scoped(
+            &authorized.data_profile_key,
+            &authorized.data_profile_key,
+            authorized.route_scope,
+            RoutedDatabaseSide::Write,
+        )
+        .await
+        .map_err(|_| Status::unavailable("collaboration write route is unavailable"))?;
+    let write_pool = write.database_pool().clone();
+    let authorization = SqlxCollaborationAuthorization::from_authorized_request(
+        write_pool.clone(),
+        authorized.read_pool.clone(),
+        [CollaborationAction::ViewThread],
+    );
+    let actor = collaboration_actor(claims, &authorized)?;
+    Ok(HoldingThreadV2Runtime {
+        authorization,
+        write: SqlxThreadWriteRepository::new(write_pool.clone()),
+        attachments: SqlxAttachmentRegistry::for_holding(write_pool.clone(), authorized.holding_id),
+        actor,
+        read_pool: authorized.read_pool,
+        write_pool,
+    })
+}
+
+async fn load_holding_thread_v2(
+    runtime: &HoldingThreadV2Runtime,
+    thread_id: ThreadId,
+) -> Result<DomainThreadProjectionCurrent, Status> {
+    let access = runtime
+        .authorization
+        .authorize_thread(&runtime.actor, thread_id, CollaborationAction::ViewThread)
+        .await
+        .map_err(map_collaboration_port_error)?;
+    let thread = runtime
+        .write
+        .load(&access)
+        .await
+        .map_err(map_collaboration_port_error)?
+        .ok_or_else(|| Status::not_found("thread unavailable"))?;
+    let mut attachment_views = Vec::new();
+    for comment in thread.comments() {
+        let references = comment.current_revision().attachments();
+        if references.is_empty() {
+            continue;
+        }
+        let mut views = runtime
+            .attachments
+            .load_ready_for_comment(
+                &access,
+                comment.author(),
+                thread.policy().classification(),
+                references,
+                Utc::now(),
+            )
+            .await
+            .map_err(map_collaboration_port_error)?;
+        attachment_views.append(&mut views);
+    }
+    let mut read_tx = runtime
+        .read_pool
+        .begin()
+        .await
+        .map_err(|_| Status::unavailable("thread projection is unavailable"))?;
+    bind_holding_transaction(&mut read_tx, runtime.actor.holding_id).await?;
+    let checkpoint = sqlx::query(
+        "SELECT applied_position,
+                COALESCE(state='ready' AND applied_position=source_high_watermark
+                 AND last_success_at BETWEEN statement_timestamp()-INTERVAL '60 seconds'
+                                         AND statement_timestamp(),FALSE) AS fresh
+         FROM erpx_collaboration_read.item_directory_projection_state
+         WHERE holding_id=$1",
+    )
+    .bind(runtime.actor.holding_id.as_uuid())
+    .fetch_optional(&mut *read_tx)
+    .await
+    .map_err(|_| Status::unavailable("thread projection is unavailable"))?
+    .ok_or_else(|| Status::unavailable("thread projection is unavailable"))?;
+    use sqlx::Row as _;
+    if !checkpoint.try_get::<bool, _>("fresh").unwrap_or(false) {
+        return Err(Status::unavailable("thread projection is stale"));
+    }
+    let projection_checkpoint = u64::try_from(
+        checkpoint
+            .try_get::<i64, _>("applied_position")
+            .map_err(|_| Status::unavailable("thread projection is unavailable"))?,
+    )
+    .map_err(|_| Status::unavailable("thread projection is unavailable"))?;
+    read_tx
+        .commit()
+        .await
+        .map_err(|_| Status::unavailable("thread projection is unavailable"))?;
+    let mut write_tx = runtime
+        .write_pool
+        .begin()
+        .await
+        .map_err(|_| Status::unavailable("thread projection is unavailable"))?;
+    bind_holding_transaction(&mut write_tx, runtime.actor.holding_id).await?;
+    let cursor = sqlx::query_scalar::<_, Option<i64>>(
+        "SELECT max(event_cursor) FROM erpx_collaboration.events
+         WHERE holding_id=$1 AND thread_id=$2",
+    )
+    .bind(runtime.actor.holding_id.as_uuid())
+    .bind(thread_id.as_uuid())
+    .fetch_one(&mut *write_tx)
+    .await
+    .map_err(|_| Status::unavailable("thread projection is unavailable"))?
+    .ok_or_else(|| Status::unavailable("thread projection is unavailable"))?;
+    write_tx
+        .commit()
+        .await
+        .map_err(|_| Status::unavailable("thread projection is unavailable"))?;
+    DomainThreadProjectionCurrent::from_authorized_thread(
+        &thread,
+        u64::try_from(cursor)
+            .map_err(|_| Status::unavailable("thread projection is unavailable"))?,
+        projection_checkpoint,
+        &attachment_views,
+    )
+    .map_err(map_collaboration_port_error)
+}
+
+async fn bind_holding_transaction(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    holding_id: HoldingId,
+) -> Result<(), Status> {
+    let expected = holding_id.to_string();
+    let bound = sqlx::query_scalar::<_, String>("SELECT set_config('app.holding_id',$1,true)")
+        .bind(&expected)
+        .fetch_one(&mut **transaction)
+        .await
+        .map_err(|_| Status::unavailable("holding authorization binding failed"))?;
+    if bound != expected {
+        return Err(Status::permission_denied(
+            "holding authorization binding failed",
+        ));
+    }
+    Ok(())
+}
+
+fn require_phase2_human_claims(claims: &erpx_identity::AccessTokenClaims) -> Result<(), Status> {
+    use erpx_identity::{AuthenticatedPrincipalKind, AuthenticatedRealm};
+    if claims.principal_kind != AuthenticatedPrincipalKind::Human
+        || !matches!(
+            claims.realm,
+            AuthenticatedRealm::InternalWorkforce | AuthenticatedRealm::PlatformAdministration
+        )
+    {
+        return Err(Status::permission_denied(
+            "Phase 2 collaboration mutations require a directly authenticated workforce human",
+        ));
+    }
+    Ok(())
 }
 
 async fn mutate(
@@ -1100,6 +2335,44 @@ fn collaboration_attribution(
         represented_principal_ref: None,
         support_capability_id: None,
     })
+}
+
+async fn platform_global_gateway(
+    state: &AppState,
+    claims: &erpx_identity::AccessTokenClaims,
+    scope: Option<&InterfaceAuthorityScope>,
+    permission: &str,
+    correlation_id: CorrelationId,
+) -> Result<(SqlxGlobalCollaborationGateway, GlobalCollaborationAccess), Status> {
+    require_phase2_human_claims(claims)?;
+    let (_, scope) = authority_scope(scope)?;
+    if scope != Scope::Platform {
+        return Err(Status::permission_denied("Platform authority is required"));
+    }
+    state
+        .auth
+        .authorize_role_for_holding_with_exact_subtree(
+            &state.store,
+            claims,
+            &Scope::Platform,
+            permission,
+            None,
+        )
+        .await?;
+    let attribution = collaboration_attribution(claims)?;
+    let access = GlobalCollaborationAccess::try_from_authenticated_platform_human(
+        &attribution,
+        &AuthorityScope::Platform,
+        correlation_id,
+    )
+    .map_err(map_collaboration_port_error)?;
+    Ok((
+        SqlxGlobalCollaborationGateway::from_control_plane(
+            state.store.pools().write.clone(),
+            state.store.pools().read.clone(),
+        ),
+        access,
+    ))
 }
 
 fn confirmation_decision(
@@ -1337,24 +2610,32 @@ fn search_response(
             next_cursor: value.next_cursor,
             authorized_count: value.authorized_count,
             freshness: freshness_to_proto(freshness) as i32,
+            authorized_summaries: value
+                .authorized_summaries
+                .iter()
+                .map(authorized_item_summary_to_proto)
+                .collect(),
         },
         DirectoryLookup::Neutral => SearchItemsResponse {
             items: Vec::new(),
             next_cursor: None,
             authorized_count: 0,
             freshness: DirectoryFreshness::Unspecified as i32,
+            authorized_summaries: Vec::new(),
         },
         DirectoryLookup::Degraded(freshness) => SearchItemsResponse {
             items: Vec::new(),
             next_cursor: None,
             authorized_count: 0,
             freshness: freshness_to_proto(freshness) as i32,
+            authorized_summaries: Vec::new(),
         },
         DirectoryLookup::Unavailable => SearchItemsResponse {
             items: Vec::new(),
             next_cursor: None,
             authorized_count: 0,
             freshness: DirectoryFreshness::Unavailable as i32,
+            authorized_summaries: Vec::new(),
         },
     })
 }
@@ -1416,7 +2697,21 @@ fn item_descriptor_to_proto(
         classification: classification_name(value.classification()).into(),
         descriptor_version: value.descriptor_version(),
         source_event_position: value.source_event_position(),
+        display_label: value.display_label().map(str::to_owned),
     })
+}
+
+fn authorized_item_summary_to_proto(
+    value: &erpx_integration_contracts::AuthorizedItemSummary,
+) -> ProtoAuthorizedItemSummary {
+    ProtoAuthorizedItemSummary {
+        record: Some(record_ref_to_proto(&value.record)),
+        canonical_route: value.canonical_route.clone(),
+        display_label: value.display_label.clone(),
+        lifecycle_state: value.lifecycle_state.clone(),
+        classification: classification_name(value.classification).into(),
+        descriptor_version: value.descriptor_version,
+    }
 }
 
 fn record_ref_to_proto(value: &erpx_integration_contracts::StableRecordRef) -> ProtoRecordRef {
@@ -1712,7 +3007,11 @@ fn attachment(
     value: &erpx_proto::erpx::collaboration::AttachmentRef,
 ) -> Result<AttachmentRef, Status> {
     Ok(AttachmentRef {
-        object_id: uuid(&value.object_id, "attachment.object_id")?,
+        attachment_id: erpx_collaboration::AttachmentId::try_from_uuid(uuid(
+            &value.object_id,
+            "attachment.object_id",
+        )?)
+        .map_err(|_| Status::invalid_argument("attachment.object_id is invalid"))?,
         file_name: value.file_name.clone(),
         media_type: value.media_type.clone(),
         classification: data_classification(&value.classification)?,
@@ -1771,8 +3070,268 @@ fn mutation_receipt(value: erpx_collaboration::CommitReceipt) -> MutationReceipt
     }
 }
 
+fn relation_id(value: &str) -> Result<RelationId, Status> {
+    RelationId::try_from_uuid(uuid(value, "relation_id")?)
+        .map_err(|_| Status::invalid_argument("relation_id is invalid"))
+}
+
+fn attachment_id(value: &str) -> Result<AttachmentId, Status> {
+    AttachmentId::try_from_uuid(uuid(value, "attachment_id")?)
+        .map_err(|_| Status::invalid_argument("attachment_id is invalid"))
+}
+
+fn attachment_view_to_proto(
+    value: &DomainAttachmentView,
+) -> erpx_proto::erpx::collaboration::AttachmentView {
+    use erpx_collaboration::AttachmentLifecycle as DomainLifecycle;
+    use erpx_proto::erpx::collaboration::AttachmentLifecycle as ProtoLifecycle;
+    let lifecycle = match value.lifecycle {
+        DomainLifecycle::PendingUpload => ProtoLifecycle::PendingUpload,
+        DomainLifecycle::PendingScan => ProtoLifecycle::PendingScan,
+        DomainLifecycle::Ready => ProtoLifecycle::Ready,
+        DomainLifecycle::Quarantined => ProtoLifecycle::Quarantined,
+        DomainLifecycle::Expired => ProtoLifecycle::Expired,
+    };
+    erpx_proto::erpx::collaboration::AttachmentView {
+        attachment_id: value.attachment_id.as_uuid().to_string(),
+        anchor: Some(record_ref_to_proto(&value.anchor)),
+        thread_id: value.thread_id.map(|value| value.as_uuid().to_string()),
+        file_name: value.file_name.clone(),
+        media_type: value.media_type.clone(),
+        size_bytes: value.size_bytes,
+        digest_sha256: value.digest.to_vec(),
+        classification: classification_name(value.classification).into(),
+        lifecycle: lifecycle as i32,
+        uploaded_by: Some(principal_ref_to_proto(value.uploaded_by)),
+        created_at: value.created_at.to_rfc3339(),
+        expires_at: value.expires_at.map(|value| value.to_rfc3339()),
+        updated_at: value.updated_at.to_rfc3339(),
+    }
+}
+
+fn thread_v2_to_proto(
+    value: &DomainThreadProjectionCurrent,
+) -> Result<erpx_proto::erpx::collaboration::ThreadProjectionV2, Status> {
+    use erpx_collaboration::{CommentProjectionContent, MandatoryFollowReason, ThreadState};
+    use erpx_proto::erpx::collaboration::{
+        Audience as ProtoAudience, CommentProjectionV2 as ProtoComment, CommentVisibilityV2,
+        FollowerView as ProtoFollower, ReactionView as ProtoReaction,
+        ThreadAnchor as ProtoThreadAnchor, ThreadRetentionPolicyV2, ThreadStateV2,
+    };
+    let audience = match &value.audience {
+        Audience::Internal { scope, principals } => ProtoAudience {
+            realm: AudienceRealm::Internal as i32,
+            scope: Some(scope_to_proto(scope, "typed-thread")?),
+            participants: principals
+                .iter()
+                .copied()
+                .map(principal_ref_to_proto)
+                .collect(),
+        },
+        Audience::ExternalPortal {
+            portal,
+            participants,
+        } => ProtoAudience {
+            realm: match portal {
+                ExternalPortal::Customer => AudienceRealm::ExternalCustomer,
+                ExternalPortal::Supplier => AudienceRealm::ExternalSupplier,
+                ExternalPortal::Candidate => AudienceRealm::ExternalCandidate,
+                ExternalPortal::Commerce => AudienceRealm::ExternalCommerce,
+                ExternalPortal::Signatory => AudienceRealm::ExternalSignatory,
+            } as i32,
+            scope: None,
+            participants: participants
+                .iter()
+                .copied()
+                .map(principal_ref_to_proto)
+                .collect(),
+        },
+    };
+    let comments = value
+        .comments
+        .iter()
+        .map(|comment| {
+            let (visibility, plain_text) = match &comment.content {
+                CommentProjectionContent::Visible(document) => (
+                    CommentVisibilityV2::Visible,
+                    Some(document.plain_text().to_owned()),
+                ),
+                CommentProjectionContent::Tombstone => (CommentVisibilityV2::Tombstone, None),
+                CommentProjectionContent::Restricted => (CommentVisibilityV2::Restricted, None),
+            };
+            ProtoComment {
+                comment_id: comment.id.as_uuid().to_string(),
+                author: Some(principal_ref_to_proto(comment.author)),
+                revision: comment.revision,
+                visibility: visibility as i32,
+                plain_text,
+                attachments: comment
+                    .attachments
+                    .iter()
+                    .map(attachment_view_to_proto)
+                    .collect(),
+                reactions: comment
+                    .reactions
+                    .iter()
+                    .map(|reaction| ProtoReaction {
+                        comment_id: comment.id.as_uuid().to_string(),
+                        principal: Some(principal_ref_to_proto(reaction.principal)),
+                        value: reaction.value.clone(),
+                        created_at: reaction.created_at.to_rfc3339(),
+                    })
+                    .collect(),
+                created_at: comment.created_at.to_rfc3339(),
+                updated_at: comment.updated_at.to_rfc3339(),
+            }
+        })
+        .collect();
+    Ok(erpx_proto::erpx::collaboration::ThreadProjectionV2 {
+        thread_id: value.id.as_uuid().to_string(),
+        anchor: Some(ProtoThreadAnchor {
+            record: Some(record_ref_to_proto(&value.anchor)),
+            location_kind: None,
+            locator: None,
+            source_revision: None,
+            source_digest_sha256: None,
+        }),
+        audience: Some(audience),
+        classification: classification_name(value.classification).into(),
+        state: match value.state {
+            ThreadState::Open => ThreadStateV2::Open,
+            ThreadState::Resolved => ThreadStateV2::Resolved,
+        } as i32,
+        pinned: value.pinned,
+        aggregate_version: value.version,
+        projection_checkpoint: value.projection_checkpoint,
+        comments,
+        followers: value
+            .followers
+            .iter()
+            .map(|follower| ProtoFollower {
+                principal: Some(principal_ref_to_proto(follower.principal)),
+                mandatory_reason: follower.mandatory_reason.map(|reason| {
+                    match reason {
+                        MandatoryFollowReason::Author => "author",
+                        MandatoryFollowReason::Mentioned => "mentioned",
+                        MandatoryFollowReason::CriticalPolicy => "critical_policy",
+                        MandatoryFollowReason::LegalPolicy => "legal_policy",
+                    }
+                    .to_owned()
+                }),
+                muted_until: follower.muted_until.map(|value| value.to_rfc3339()),
+                snoozed_until: follower.snoozed_until.map(|value| value.to_rfc3339()),
+            })
+            .collect(),
+        retention: Some(ThreadRetentionPolicyV2 {
+            parent_retain_until: value.retention.parent_retain_until.to_rfc3339(),
+            comment_retain_until: value.retention.comment_retain_until.to_rfc3339(),
+            jurisdiction_retain_until: value.retention.jurisdiction_retain_until.to_rfc3339(),
+            legal_hold_ids: value
+                .retention
+                .legal_holds
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+        }),
+    })
+}
+
+fn relation_kind(value: i32) -> Result<RelationKind, Status> {
+    Ok(
+        match RecordRelationKind::try_from(value)
+            .map_err(|_| Status::invalid_argument("relation kind is invalid"))?
+        {
+            RecordRelationKind::RelatesTo => RelationKind::RelatesTo,
+            RecordRelationKind::Blocks => RelationKind::Blocks,
+            RecordRelationKind::DependsOn => RelationKind::DependsOn,
+            RecordRelationKind::Implements => RelationKind::Implements,
+            RecordRelationKind::Supersedes => RelationKind::Supersedes,
+            RecordRelationKind::DerivedFrom => RelationKind::DerivedFrom,
+            RecordRelationKind::EvidenceFor => RelationKind::EvidenceFor,
+            RecordRelationKind::Unspecified => {
+                return Err(Status::invalid_argument("relation kind is required"));
+            }
+        },
+    )
+}
+
+fn relation_kind_to_proto(value: &RelationKind) -> i32 {
+    match value {
+        RelationKind::RelatesTo => RecordRelationKind::RelatesTo as i32,
+        RelationKind::Blocks => RecordRelationKind::Blocks as i32,
+        RelationKind::DependsOn => RecordRelationKind::DependsOn as i32,
+        RelationKind::Implements => RecordRelationKind::Implements as i32,
+        RelationKind::Supersedes => RecordRelationKind::Supersedes as i32,
+        RelationKind::DerivedFrom => RecordRelationKind::DerivedFrom as i32,
+        RelationKind::EvidenceFor => RecordRelationKind::EvidenceFor as i32,
+        RelationKind::Custom { .. } => RecordRelationKind::Unspecified as i32,
+    }
+}
+
+fn relation_mutation_receipt(
+    value: erpx_collaboration::RelationMutationReceipt,
+) -> ProtoRelationMutationReceipt {
+    ProtoRelationMutationReceipt {
+        relation: Some(relation_view_to_proto(&value.relation)),
+        replayed: value.replayed,
+    }
+}
+
+fn relation_view_to_proto(
+    value: &erpx_collaboration::RelationView,
+) -> erpx_proto::erpx::collaboration::RelationView {
+    erpx_proto::erpx::collaboration::RelationView {
+        relation_id: value.id.as_uuid().to_string(),
+        source: Some(record_ref_to_proto(&value.source)),
+        target: Some(record_ref_to_proto(&value.target)),
+        kind: relation_kind_to_proto(&value.kind),
+        created_by: Some(principal_ref_to_proto(value.created_by)),
+        created_at: value.created_at.to_rfc3339(),
+        revoked_by: value.revoked_by.map(principal_ref_to_proto),
+        revoked_at: value.revoked_at.map(|value| value.to_rfc3339()),
+        version: value.version,
+        committed_sequence: value.committed_sequence,
+    }
+}
+
+fn principal_ref_to_proto(
+    value: CollaborationPrincipalRef,
+) -> erpx_proto::erpx::collaboration::PrincipalRef {
+    use erpx_proto::erpx::collaboration::PrincipalKind as ProtoPrincipalKind;
+    let kind = match value.kind() {
+        PrincipalKind::Human => ProtoPrincipalKind::Human,
+        PrincipalKind::Agent => ProtoPrincipalKind::Agent,
+        PrincipalKind::HumanGroup => ProtoPrincipalKind::HumanGroup,
+        PrincipalKind::AgentPool => ProtoPrincipalKind::AgentPool,
+        PrincipalKind::Service => ProtoPrincipalKind::Unspecified,
+    };
+    erpx_proto::erpx::collaboration::PrincipalRef {
+        principal_id: value.id().to_string(),
+        kind: kind as i32,
+    }
+}
+
+fn attachment_scanner_ready() -> bool {
+    std::env::var("ERPX_ATTACHMENT_SCANNER_READY")
+        .ok()
+        .is_some_and(|value| value.eq_ignore_ascii_case("true") || value == "1")
+}
+
 fn map_directory_error(_: erpx_collaboration_sqlx::DirectoryAdapterError) -> Status {
     Status::unavailable("Item Directory is unavailable")
+}
+
+fn map_collaboration_port_error(value: PortError) -> Status {
+    match value {
+        PortError::Denied | PortError::NotFound => {
+            Status::permission_denied("collaboration access denied")
+        }
+        PortError::Conflict => Status::aborted("collaboration version conflict"),
+        PortError::InvalidState => Status::invalid_argument("collaboration request is invalid"),
+        PortError::Stale | PortError::Unavailable | PortError::Internal => {
+            Status::unavailable("collaboration is unavailable")
+        }
+    }
 }
 
 fn map_collaboration_error(value: CollaborationApplicationError) -> Status {

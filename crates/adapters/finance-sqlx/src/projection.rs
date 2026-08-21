@@ -8,7 +8,7 @@ use erpx_finance::{
         ChartView, CustomerInvoiceView, JournalView, PeriodView, RevenueScheduleView, SubledgerView,
     },
 };
-use erpx_integration_contracts::{ItemDescriptorDraft, finance};
+use erpx_integration_contracts::{ItemDescriptorDraftV2, finance};
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
@@ -57,7 +57,7 @@ impl From<&FinanceAggregate> for FinanceSnapshot {
 pub enum FinanceOutboxPayload {
     Integration(finance::Event),
     Snapshot(FinanceSnapshot),
-    Directory(ItemDescriptorDraft),
+    Directory(ItemDescriptorDraftV2),
 }
 
 macro_rules! projector {

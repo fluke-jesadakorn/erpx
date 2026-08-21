@@ -850,6 +850,9 @@ pub struct RecordPublisherMapping {
     pub owner: ContextId,
     pub source: RecordPublicationSource,
     pub event_version: u32,
+    /// Owner payload capability. Version 2 carries a separately validated
+    /// display label; it never reuses authorized search text as response data.
+    pub descriptor_contract_version: u32,
 }
 
 /// Publication ownership for the 21 current contexts. This registry maps
@@ -905,6 +908,7 @@ const fn publisher(owner: ContextId, source: RecordPublicationSource) -> RecordP
         owner,
         source,
         event_version: crate::reference::ITEM_DIRECTORY_FACT_VERSION,
+        descriptor_contract_version: 2,
     }
 }
 
@@ -1013,6 +1017,60 @@ pub const LIVE_CURRENT_RECORD_PUBLISHERS: [&str; 92] = [
     "crm.opportunity",
     "crm.activity",
     "crm.forecast",
+];
+
+/// Ordered Phase 2 activation batches. The first batch is the cross-cutting
+/// canary; later batches may be activated only after the Item Directory
+/// generation containing labels and collaboration policies is swapped in
+/// atomically.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RecordCollaborationRolloutBatch {
+    pub name: &'static str,
+    pub contexts: &'static [ContextId],
+}
+
+pub const CURRENT_RECORD_COLLABORATION_ROLLOUT: [RecordCollaborationRolloutBatch; 4] = [
+    RecordCollaborationRolloutBatch {
+        name: "canary",
+        contexts: &[
+            ContextId::IdentityAccess,
+            ContextId::Legal,
+            ContextId::Procurement,
+            ContextId::Finance,
+        ],
+    },
+    RecordCollaborationRolloutBatch {
+        name: "authority-and-customer",
+        contexts: &[
+            ContextId::PlatformAdministration,
+            ContextId::Organization,
+            ContextId::Commercial,
+            ContextId::Brand,
+            ContextId::CustomerAuthority,
+            ContextId::Customer360,
+        ],
+    },
+    RecordCollaborationRolloutBatch {
+        name: "service-and-supply",
+        contexts: &[
+            ContextId::Support,
+            ContextId::Sales,
+            ContextId::PointOfSale,
+            ContextId::Inventory,
+            ContextId::Assets,
+            ContextId::Maintenance,
+        ],
+    },
+    RecordCollaborationRolloutBatch {
+        name: "operations-and-growth",
+        contexts: &[
+            ContextId::Quality,
+            ContextId::Operations,
+            ContextId::PeoplePayroll,
+            ContextId::Marketing,
+            ContextId::Crm,
+        ],
+    },
 ];
 
 /// None of the live aggregate families currently exposes a domain-owned
@@ -1284,6 +1342,7 @@ mod tests {
                 mapping.event_version,
                 crate::reference::ITEM_DIRECTORY_FACT_VERSION
             );
+            assert_eq!(mapping.descriptor_contract_version, 2);
         }
         assert!(record_publisher("project.item").is_none());
     }
@@ -1316,5 +1375,216 @@ mod tests {
                 .all(|id| !LIVE_CURRENT_RECORD_PUBLISHERS.contains(id))
         );
         assert!(LIVE_CURRENT_TOMBSTONE_PUBLISHERS.is_empty());
+    }
+
+    #[test]
+    fn collaboration_rollout_covers_each_current_context_once_with_the_canary_first() {
+        let canary = CURRENT_RECORD_COLLABORATION_ROLLOUT[0];
+        assert_eq!(canary.name, "canary");
+        assert_eq!(
+            canary.contexts,
+            &[
+                ContextId::IdentityAccess,
+                ContextId::Legal,
+                ContextId::Procurement,
+                ContextId::Finance,
+            ]
+        );
+        let activated = CURRENT_RECORD_COLLABORATION_ROLLOUT
+            .iter()
+            .flat_map(|batch| batch.contexts.iter().copied())
+            .collect::<Vec<_>>();
+        assert_eq!(activated.len(), 21);
+        assert_eq!(activated.iter().copied().collect::<BTreeSet<_>>().len(), 21);
+        assert!(
+            activated
+                .iter()
+                .all(|context| context.lifecycle() == ContextLifecycle::Current)
+        );
+        assert_eq!(
+            activated.iter().copied().collect::<BTreeSet<_>>(),
+            LIVE_CURRENT_RECORD_PUBLISHERS
+                .iter()
+                .map(|record_type_id| {
+                    record_type(record_type_id)
+                        .expect("live publisher record")
+                        .owner
+                })
+                .collect::<BTreeSet<_>>()
+        );
+    }
+
+    #[test]
+    fn every_current_owner_source_publishes_v2_labels_while_future_sources_remain_legacy() {
+        let owner_sources = vec![
+            (
+                ContextId::IdentityAccess,
+                vec![
+                    include_str!("../../adapters/identity-access-sqlx/src/command.rs"),
+                    include_str!("../../adapters/identity-access-sqlx/src/governance.rs"),
+                ],
+            ),
+            (
+                ContextId::PlatformAdministration,
+                vec![
+                    include_str!("../../adapters/platform-administration-sqlx/src/command.rs"),
+                    include_str!("../../adapters/platform-administration-sqlx/src/governance.rs"),
+                ],
+            ),
+            (
+                ContextId::Organization,
+                vec![
+                    include_str!("../../adapters/organization-sqlx/src/command.rs"),
+                    include_str!("../../adapters/organization-sqlx/src/sharing.rs"),
+                ],
+            ),
+            (
+                ContextId::Commercial,
+                vec![
+                    include_str!("../../adapters/commercial-sqlx/src/command.rs"),
+                    include_str!("../../adapters/commercial-sqlx/src/records.rs"),
+                ],
+            ),
+            (
+                ContextId::Brand,
+                vec![include_str!("../../adapters/brand-sqlx/src/command.rs")],
+            ),
+            (
+                ContextId::CustomerAuthority,
+                vec![
+                    include_str!("../../adapters/customer-authority-sqlx/src/command.rs"),
+                    include_str!("../../adapters/customer-authority-sqlx/src/authority_records.rs"),
+                ],
+            ),
+            (
+                ContextId::Customer360,
+                vec![include_str!(
+                    "../../adapters/customer-360-sqlx/src/owned_records.rs"
+                )],
+            ),
+            (
+                ContextId::Support,
+                vec![
+                    include_str!("../../adapters/support-sqlx/src/command.rs"),
+                    include_str!("../../adapters/support-sqlx/src/platform_case.rs"),
+                ],
+            ),
+            (
+                ContextId::Finance,
+                vec![
+                    include_str!("../../adapters/finance-sqlx/src/command.rs"),
+                    include_str!("../../adapters/finance-sqlx/src/records.rs"),
+                ],
+            ),
+            (
+                ContextId::Sales,
+                vec![
+                    include_str!("../../adapters/sales-sqlx/src/command.rs"),
+                    include_str!("../../adapters/sales-sqlx/src/records.rs"),
+                ],
+            ),
+            (
+                ContextId::PointOfSale,
+                vec![
+                    include_str!("../../adapters/pos-sqlx/src/command.rs"),
+                    include_str!("../../adapters/pos-sqlx/src/records.rs"),
+                ],
+            ),
+            (
+                ContextId::Procurement,
+                vec![
+                    include_str!("../../adapters/procurement-sqlx/src/command.rs"),
+                    include_str!("../../adapters/procurement-sqlx/src/records.rs"),
+                ],
+            ),
+            (
+                ContextId::Inventory,
+                vec![
+                    include_str!("../../adapters/inventory-sqlx/src/command.rs"),
+                    include_str!("../../adapters/inventory-sqlx/src/records.rs"),
+                ],
+            ),
+            (
+                ContextId::Assets,
+                vec![
+                    include_str!("../../adapters/assets-sqlx/src/command.rs"),
+                    include_str!("../../adapters/assets-sqlx/src/records.rs"),
+                ],
+            ),
+            (
+                ContextId::Maintenance,
+                vec![
+                    include_str!("../../adapters/maintenance-sqlx/src/command.rs"),
+                    include_str!("../../adapters/maintenance-sqlx/src/records.rs"),
+                ],
+            ),
+            (
+                ContextId::Quality,
+                vec![
+                    include_str!("../../adapters/quality-sqlx/src/command.rs"),
+                    include_str!("../../adapters/quality-sqlx/src/records.rs"),
+                ],
+            ),
+            (
+                ContextId::Operations,
+                vec![
+                    include_str!("../../adapters/operations-sqlx/src/command.rs"),
+                    include_str!("../../adapters/operations-sqlx/src/records.rs"),
+                ],
+            ),
+            (
+                ContextId::PeoplePayroll,
+                vec![
+                    include_str!("../../adapters/people-payroll-sqlx/src/command.rs"),
+                    include_str!("../../adapters/people-payroll-sqlx/src/time_record.rs"),
+                ],
+            ),
+            (
+                ContextId::Legal,
+                vec![
+                    include_str!("../../adapters/legal-sqlx/src/command.rs"),
+                    include_str!("../../adapters/legal-sqlx/src/legal_case.rs"),
+                ],
+            ),
+            (
+                ContextId::Marketing,
+                vec![include_str!("../../adapters/marketing-sqlx/src/records.rs")],
+            ),
+            (
+                ContextId::Crm,
+                vec![
+                    include_str!("../../adapters/crm-sqlx/src/command.rs"),
+                    include_str!("../../adapters/crm-sqlx/src/records.rs"),
+                ],
+            ),
+        ];
+        assert_eq!(owner_sources.len(), 21);
+        assert_eq!(
+            owner_sources
+                .iter()
+                .map(|(owner, _)| *owner)
+                .collect::<BTreeSet<_>>(),
+            CURRENT_CONTEXT_PUBLISHERS
+                .iter()
+                .map(|publisher| publisher.owner)
+                .collect::<BTreeSet<_>>()
+        );
+        for (owner, sources) in owner_sources {
+            assert!(
+                sources
+                    .iter()
+                    .all(|source| source.contains("ItemDescriptorDraftV2")),
+                "{owner} retains a legacy current publisher"
+            );
+        }
+        assert!(LIVE_CURRENT_RECORD_PUBLISHERS.iter().all(|record_type_id| {
+            record_publisher(record_type_id)
+                .is_some_and(|publisher| publisher.descriptor_contract_version == 2)
+        }));
+
+        let future_source = include_str!("../../adapters/planning-sqlx/src/directory.rs");
+        assert!(future_source.contains("ItemDescriptorDraft"));
+        assert!(!future_source.contains("ItemDescriptorDraftV2"));
+        assert!(record_publisher("planning.scenario").is_none());
     }
 }

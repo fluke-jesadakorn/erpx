@@ -6,7 +6,7 @@ use erpx_cqrs_sqlx::{
 };
 use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, ItemDescriptorDraft,
-    record_policy_id,
+    ItemDescriptorDraftV2, record_policy_id,
 };
 use erpx_kernel::{AggregateId, AuthorityScope, DataClassification, EventId, RecordId};
 use erpx_legal::{
@@ -25,7 +25,7 @@ pub const PROJECTION: &str = "legal.cases";
 #[serde(untagged)]
 enum Payload {
     State(LegalCaseProjectionFact),
-    Directory(ItemDescriptorDraft),
+    Directory(ItemDescriptorDraftV2),
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct LegalCaseProjectionFact {
@@ -246,7 +246,7 @@ impl AtomicCommandGuard for Guard {
         Ok(())
     }
 }
-fn descriptor(r: &LegalCase) -> Result<ItemDescriptorDraft, PortError> {
+fn descriptor(r: &LegalCase) -> Result<ItemDescriptorDraftV2, PortError> {
     let s = r.record_ref().map_err(|_| PortError::Internal)?;
     let v = ItemDescriptorDraft {
         authorization_policy: record_policy_id(&s).map_err(|_| PortError::Internal)?,
@@ -257,8 +257,8 @@ fn descriptor(r: &LegalCase) -> Result<ItemDescriptorDraft, PortError> {
         descriptor_version: r.version(),
         authorized_search_text: format!("{} {}", r.case_reference(), r.title()),
     };
-    v.validate().map_err(|_| PortError::Internal)?;
-    Ok(v)
+    ItemDescriptorDraftV2::try_new(v, format!("{} {}", r.case_reference(), r.title()))
+        .map_err(|_| PortError::Internal)
 }
 fn status(v: LegalCaseStatus) -> &'static str {
     match v {

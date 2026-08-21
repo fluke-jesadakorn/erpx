@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use erpx_assets::{AssetStatus, AssetView};
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
-use erpx_integration_contracts::{ItemDescriptorDraft, assets};
+use erpx_integration_contracts::{ItemDescriptorDraftV2, assets};
 use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
@@ -21,7 +21,7 @@ pub struct AssetSnapshot {
 pub enum AssetOutboxPayload {
     Integration(assets::Event),
     Snapshot(AssetSnapshot),
-    Directory(ItemDescriptorDraft),
+    Directory(ItemDescriptorDraftV2),
 }
 
 #[derive(Debug, Clone)]

@@ -5,7 +5,7 @@ use erpx_cqrs_sqlx::{
 };
 use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
-    ItemDescriptorDraft, record_policy_id,
+    ItemDescriptorDraft, ItemDescriptorDraftV2, record_policy_id,
 };
 use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId};
 use erpx_operations::{
@@ -183,7 +183,7 @@ impl CommandUnitOfWork for OperationsCommandAdapter {
 
 pub(crate) fn exception_directory_draft(
     aggregate: &OperationsException,
-) -> Result<ItemDescriptorDraft, PortError> {
+) -> Result<ItemDescriptorDraftV2, PortError> {
     let record = aggregate.record_ref().map_err(|_| PortError::Internal)?;
     let value = ItemDescriptorDraft {
         authorization_policy: record_policy_id(&record).map_err(|_| PortError::Internal)?,
@@ -194,8 +194,11 @@ pub(crate) fn exception_directory_draft(
         descriptor_version: aggregate.version(),
         authorized_search_text: format!("{} {}", aggregate.reference(), aggregate.category()),
     };
-    value.validate().map_err(|_| PortError::Internal)?;
-    Ok(value)
+    ItemDescriptorDraftV2::try_new(
+        value,
+        format!("{} {}", aggregate.reference(), aggregate.category()),
+    )
+    .map_err(|_| PortError::Internal)
 }
 
 #[async_trait]

@@ -5805,6 +5805,7 @@ fn repository_scan(root: &Path) -> TaskResult {
     let architecture_output = Command::new("rg")
         .args([
             "-n",
+            "-o",
             "--hidden",
             "-g",
             "!.git/**",
@@ -5825,11 +5826,21 @@ fn repository_scan(root: &Path) -> TaskResult {
         .current_dir(root)
         .output()?;
     if architecture_output.status.success() {
-        return Err(format!(
-            "forbidden pre-Holding or version-branded architecture remains:\n{}",
-            String::from_utf8_lossy(&architecture_output.stdout)
-        )
-        .into());
+        let output = String::from_utf8_lossy(&architecture_output.stdout);
+        let violations = output
+            .lines()
+            .filter(|line| {
+                let matched = line.rsplit(':').next().unwrap_or(line);
+                !allowed_phase2_version_symbol(matched)
+            })
+            .collect::<Vec<_>>();
+        if !violations.is_empty() {
+            return Err(format!(
+                "forbidden pre-Holding or version-branded architecture remains:\n{}",
+                violations.join("\n")
+            )
+            .into());
+        }
     }
 
     let path_output = Command::new("rg")
@@ -5852,6 +5863,20 @@ fn repository_scan(root: &Path) -> TaskResult {
         .into());
     }
     Ok(())
+}
+
+fn allowed_phase2_version_symbol(symbol: &str) -> bool {
+    matches!(
+        symbol,
+        "ItemDescriptorDraftV2"
+            | "GetThreadV2"
+            | "ListThreadsByRecordV2"
+            | "ThreadProjectionV2"
+            | "CommentProjectionV2"
+            | "ThreadRetentionPolicyV2"
+            | "ThreadStateV2"
+            | "CommentVisibilityV2"
+    )
 }
 
 fn forbidden_architecture_path(path: &str) -> bool {

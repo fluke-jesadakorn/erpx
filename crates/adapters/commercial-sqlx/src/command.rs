@@ -11,7 +11,8 @@ use erpx_cqrs_sqlx::{
 };
 use erpx_integration_contracts::{
     CurrencyCode, ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
-    ItemDescriptorDraft, RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
+    ItemDescriptorDraft, ItemDescriptorDraftV2, RecordTypeId, StableRecordRef, catalog::ContextId,
+    record_policy_id,
 };
 use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId, RecordId};
 use serde_json::json;
@@ -345,8 +346,8 @@ impl CommandUnitOfWork for CommercialCommandAdapter {
 
 fn commercial_directory_draft(
     aggregate: &CommercialAggregate,
-) -> Result<Option<ItemDescriptorDraft>, PortError> {
-    let (record_type, lifecycle_state, search_text) = match aggregate {
+) -> Result<Option<ItemDescriptorDraftV2>, PortError> {
+    let (record_type, lifecycle_state, display_label) = match aggregate {
         CommercialAggregate::CatalogPlan(_) => return Ok(None),
         CommercialAggregate::Subscription(value) => (
             "commercial.subscription",
@@ -379,10 +380,11 @@ fn commercial_directory_draft(
         lifecycle_state,
         classification: DataClassification::Confidential,
         descriptor_version: aggregate.version(),
-        authorized_search_text: search_text,
+        authorized_search_text: display_label.clone(),
     };
-    value.validate().map_err(|_| PortError::Internal)?;
-    Ok(Some(value))
+    ItemDescriptorDraftV2::try_new(value, display_label)
+        .map(Some)
+        .map_err(|_| PortError::Internal)
 }
 
 #[derive(Debug)]

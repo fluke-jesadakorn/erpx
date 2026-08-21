@@ -5,7 +5,7 @@ use erpx_cqrs_sqlx::{
 };
 use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
-    ItemDescriptorDraft, customer, identity_access, record_policy_id,
+    ItemDescriptorDraft, ItemDescriptorDraftV2, customer, identity_access, record_policy_id,
 };
 use erpx_kernel::{
     AggregateId, AuthorityScope, CommandId, DataClassification, EventId, HumanDecisionProof,
@@ -773,8 +773,8 @@ impl CommandUnitOfWork for SupportCommandAdapter {
 
 fn support_directory_draft(
     aggregate: &SupportAggregate,
-) -> Result<Option<ItemDescriptorDraft>, PortError> {
-    let (record, lifecycle_state, classification, search_text) = match aggregate {
+) -> Result<Option<ItemDescriptorDraftV2>, PortError> {
+    let (record, lifecycle_state, classification, display_label) = match aggregate {
         SupportAggregate::Ticket(value) => (
             value.record_ref().map_err(|_| PortError::Internal)?,
             match value.status() {
@@ -824,10 +824,11 @@ fn support_directory_draft(
         lifecycle_state: lifecycle_state.into(),
         classification,
         descriptor_version: aggregate.version(),
-        authorized_search_text: search_text,
+        authorized_search_text: display_label.clone(),
     };
-    value.validate().map_err(|_| PortError::Internal)?;
-    Ok(Some(value))
+    ItemDescriptorDraftV2::try_new(value, display_label)
+        .map(Some)
+        .map_err(|_| PortError::Internal)
 }
 
 struct SupportAtomicGuard {

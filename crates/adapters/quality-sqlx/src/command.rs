@@ -5,7 +5,7 @@ use erpx_cqrs_sqlx::{
 };
 use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
-    ItemDescriptorDraft, record_policy_id,
+    ItemDescriptorDraft, ItemDescriptorDraftV2, record_policy_id,
 };
 use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId};
 use erpx_quality::{
@@ -454,7 +454,7 @@ impl CommandUnitOfWork for QualityCommandAdapter {
 
 fn quality_directory_draft(
     aggregate: &QualityInspection,
-) -> Result<ItemDescriptorDraft, PortError> {
+) -> Result<ItemDescriptorDraftV2, PortError> {
     let record = aggregate.record_ref().map_err(|_| PortError::Internal)?;
     let value = ItemDescriptorDraft {
         authorization_policy: record_policy_id(&record).map_err(|_| PortError::Internal)?,
@@ -465,8 +465,7 @@ fn quality_directory_draft(
         descriptor_version: aggregate.version(),
         authorized_search_text: aggregate.reference().to_owned(),
     };
-    value.validate().map_err(|_| PortError::Internal)?;
-    Ok(value)
+    ItemDescriptorDraftV2::try_new(value, aggregate.reference()).map_err(|_| PortError::Internal)
 }
 
 fn validate_commit(request: &QualityCommit) -> Result<(), PortError> {

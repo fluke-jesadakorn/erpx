@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
-use erpx_integration_contracts::{ItemDescriptorDraft, people_payroll};
+use erpx_integration_contracts::{ItemDescriptorDraftV2, people_payroll};
 use erpx_people_payroll::{
     Aggregate, EmployeeStatus, ExpenseStatus, LeaveStatus, PayrollStatus,
     employment_record_ref_for, payslip_record_ref_for,
@@ -42,7 +42,7 @@ impl From<&Aggregate> for PeoplePayrollSnapshot {
 pub enum PeoplePayrollOutboxPayload {
     Integration(people_payroll::Event),
     Snapshot(PeoplePayrollSnapshot),
-    Directory(ItemDescriptorDraft),
+    Directory(ItemDescriptorDraftV2),
 }
 
 macro_rules! projector_type {

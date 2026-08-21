@@ -2,17 +2,19 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_integration_contracts::StableRecordRef;
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuthorityScope, CommandId, CorrelationId, HoldingId, PrincipalId,
-    PrincipalKind, RecordId,
+    ActorAttribution, ActorKind, AuthorityScope, CommandId, CorrelationId, DataClassification,
+    HoldingId, PrincipalId, PrincipalKind, RecordId,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
 use crate::domain::{
-    Audience, CollaborationStreamEvent, CommentDocument, CommentId, CommentVisibility,
-    EncryptedDraft, MentionTarget, OpaqueInboxFact, PendingCollaborationEvent, PrincipalRef,
-    ReferenceRelation, Thread, ThreadId, ThreadState,
+    AnchorPolicy, AttachmentLifecycle, AttachmentRecord, AttachmentRef, AttachmentView, Audience,
+    CollaborationStreamEvent, CommentDocument, CommentId, CommentVisibility, EncryptedDraft,
+    Follower, MentionTarget, OpaqueInboxFact, PendingCollaborationEvent, PrincipalRef, Reaction,
+    RecordRelationGraph, ReferenceRelation, RelationView, RetentionPolicy, Thread, ThreadId,
+    ThreadState,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -75,6 +77,7 @@ pub enum CollaborationAction {
     ViewThread,
     ListRecordThreads,
     SearchThreads,
+    ListRecordRelations,
     AddComment,
     EditComment,
     TombstoneComment,
@@ -84,6 +87,10 @@ pub enum CollaborationAction {
     Follow,
     Mention,
     RelateRecord,
+    RevokeRelation,
+    PrepareAttachmentUpload,
+    FinalizeAttachmentUpload,
+    DownloadAttachment,
     Moderate,
     Promote,
     ProposeAction,
@@ -91,6 +98,185 @@ pub enum CollaborationAction {
     ManageDraft,
     ReadStream,
     ReadInbox,
+}
+
+/// Record capability returned before any relation graph lookup. Source and
+/// target are authorized independently and neither can be reconstructed from
+/// a bare UUID.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthorizedRelationRecordAccess {
+    holding_id: HoldingId,
+    record: StableRecordRef,
+    actor: PrincipalRef,
+    attribution: ActorAttribution,
+    authority_scope: AuthorityScope,
+    external_portal: Option<crate::domain::ExternalPortal>,
+    action: CollaborationAction,
+}
+
+impl AuthorizedRelationRecordAccess {
+    pub fn try_from_authorization(
+        holding_id: HoldingId,
+        record: StableRecordRef,
+        actor: PrincipalRef,
+        attribution: ActorAttribution,
+        authority_scope: AuthorityScope,
+        external_portal: Option<crate::domain::ExternalPortal>,
+        action: CollaborationAction,
+    ) -> Result<Self, PortError> {
+        record.validate().map_err(|_| PortError::Denied)?;
+        if !matches!(
+            action,
+            CollaborationAction::RelateRecord
+                | CollaborationAction::RevokeRelation
+                | CollaborationAction::ListRecordRelations
+        ) || attribution.validate().is_err()
+            || authority_scope.validate().is_err()
+        {
+            return Err(PortError::Denied);
+        }
+        Ok(Self {
+            holding_id,
+            record,
+            actor,
+            attribution,
+            authority_scope,
+            external_portal,
+            action,
+        })
+    }
+
+    pub const fn holding_id(&self) -> HoldingId {
+        self.holding_id
+    }
+
+    pub const fn record(&self) -> &StableRecordRef {
+        &self.record
+    }
+
+    pub const fn actor(&self) -> PrincipalRef {
+        self.actor
+    }
+
+    pub const fn attribution(&self) -> &ActorAttribution {
+        &self.attribution
+    }
+
+    pub const fn authority_scope(&self) -> &AuthorityScope {
+        &self.authority_scope
+    }
+
+    pub const fn external_portal(&self) -> Option<crate::domain::ExternalPortal> {
+        self.external_portal
+    }
+
+    pub const fn action(&self) -> CollaborationAction {
+        self.action
+    }
+}
+
+#[async_trait]
+pub trait RecordRelationAuthorizationPort: Send + Sync {
+    async fn authorize_relation_record(
+        &self,
+        actor: &ActorContext,
+        record: &StableRecordRef,
+        action: CollaborationAction,
+    ) -> Result<AuthorizedRelationRecordAccess, PortError>;
+}
+
+/// Exact record/thread capability for attachment registry access. Prepare may
+/// reserve a future thread ID; finalize and download must present the same
+/// binding, while download additionally reauthorizes the real thread.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthorizedAttachmentAccess {
+    holding_id: HoldingId,
+    anchor: StableRecordRef,
+    thread_id: Option<ThreadId>,
+    actor: PrincipalRef,
+    attribution: ActorAttribution,
+    authority_scope: AuthorityScope,
+    classification: DataClassification,
+    action: CollaborationAction,
+}
+
+impl AuthorizedAttachmentAccess {
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_from_authorization(
+        holding_id: HoldingId,
+        anchor: StableRecordRef,
+        thread_id: Option<ThreadId>,
+        actor: PrincipalRef,
+        attribution: ActorAttribution,
+        authority_scope: AuthorityScope,
+        classification: DataClassification,
+        action: CollaborationAction,
+    ) -> Result<Self, PortError> {
+        anchor.validate().map_err(|_| PortError::Denied)?;
+        attribution.validate().map_err(|_| PortError::Denied)?;
+        authority_scope.validate().map_err(|_| PortError::Denied)?;
+        if !matches!(
+            action,
+            CollaborationAction::PrepareAttachmentUpload
+                | CollaborationAction::FinalizeAttachmentUpload
+                | CollaborationAction::DownloadAttachment
+        ) {
+            return Err(PortError::Denied);
+        }
+        Ok(Self {
+            holding_id,
+            anchor,
+            thread_id,
+            actor,
+            attribution,
+            authority_scope,
+            classification,
+            action,
+        })
+    }
+
+    pub const fn holding_id(&self) -> HoldingId {
+        self.holding_id
+    }
+
+    pub const fn anchor(&self) -> &StableRecordRef {
+        &self.anchor
+    }
+
+    pub const fn thread_id(&self) -> Option<ThreadId> {
+        self.thread_id
+    }
+
+    pub const fn actor(&self) -> PrincipalRef {
+        self.actor
+    }
+
+    pub const fn attribution(&self) -> &ActorAttribution {
+        &self.attribution
+    }
+
+    pub const fn authority_scope(&self) -> &AuthorityScope {
+        &self.authority_scope
+    }
+
+    pub const fn classification(&self) -> DataClassification {
+        self.classification
+    }
+
+    pub const fn action(&self) -> CollaborationAction {
+        self.action
+    }
+}
+
+#[async_trait]
+pub trait AttachmentAuthorizationPort: Send + Sync {
+    async fn authorize_attachment(
+        &self,
+        actor: &ActorContext,
+        anchor: &StableRecordRef,
+        thread_id: Option<ThreadId>,
+        action: CollaborationAction,
+    ) -> Result<AuthorizedAttachmentAccess, PortError>;
 }
 
 /// Capability returned by the record-policy adapter before any Collaboration
@@ -160,6 +346,96 @@ impl AuthorizedThreadAccess {
     pub const fn action(&self) -> CollaborationAction {
         self.action
     }
+}
+
+/// Owner-derived policy bundle for `StartRecordThreadWithComment`. Browsers do
+/// not supply classification, audience, authorization policy, or retention.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthorizedRecordThreadPolicy {
+    access: AuthorizedThreadAccess,
+    policy: AnchorPolicy,
+    audience: Audience,
+    retention: RetentionPolicy,
+}
+
+impl AuthorizedRecordThreadPolicy {
+    pub fn try_from_owner_policy(
+        access: AuthorizedThreadAccess,
+        policy: AnchorPolicy,
+        audience: Audience,
+        retention: RetentionPolicy,
+        at: DateTime<Utc>,
+    ) -> Result<Self, PortError> {
+        let definition = erpx_integration_contracts::record_collaboration_policy(
+            policy.record().record_type().as_str(),
+        )
+        .ok_or(PortError::Denied)?;
+        let minimum_retain_until = at
+            .checked_add_signed(chrono::Duration::days(i64::from(
+                definition.retention.minimum_days,
+            )))
+            .ok_or(PortError::InvalidState)?;
+        if access.action() != CollaborationAction::CreateThread
+            || access.anchor_record_id() != policy.record().id()
+            || access.holding_id() != policy.holding_id()
+            || definition.owner != policy.record().owner_context()
+            || definition.classification != policy.classification()
+            || !definition.human_internal_mutations_only
+            || !definition.discussion_threads_enabled
+            || !matches!(audience, Audience::Internal { .. })
+            || audience.validate_against(&policy).is_err()
+            || retention.validate().is_err()
+            || retention.parent_retain_until < minimum_retain_until
+            || retention.comment_retain_until < minimum_retain_until
+            || retention.jurisdiction_retain_until < minimum_retain_until
+        {
+            return Err(PortError::Denied);
+        }
+        Ok(Self {
+            access,
+            policy,
+            audience,
+            retention,
+        })
+    }
+
+    pub const fn access(&self) -> &AuthorizedThreadAccess {
+        &self.access
+    }
+
+    pub const fn policy(&self) -> &AnchorPolicy {
+        &self.policy
+    }
+
+    pub const fn audience(&self) -> &Audience {
+        &self.audience
+    }
+
+    pub const fn retention(&self) -> &RetentionPolicy {
+        &self.retention
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        AuthorizedThreadAccess,
+        AnchorPolicy,
+        Audience,
+        RetentionPolicy,
+    ) {
+        (self.access, self.policy, self.audience, self.retention)
+    }
+}
+
+#[async_trait]
+pub trait RecordThreadPolicyPort: Send + Sync {
+    async fn authorize_new_record_thread(
+        &self,
+        actor: &ActorContext,
+        thread_id: ThreadId,
+        record: &StableRecordRef,
+        at: DateTime<Utc>,
+    ) -> Result<AuthorizedRecordThreadPolicy, PortError>;
 }
 
 /// Scope capability issued before federated matching. Search adapters cannot
@@ -304,6 +580,201 @@ pub struct CommitReceipt {
     pub replayed: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RelationDraftKind {
+    Added,
+    Revoked,
+}
+
+/// Transaction-local relation fact. The adapter writes this beside the graph
+/// mutation; only the trusted worker may assign `committed_sequence`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RecordRelationDraft {
+    pub holding_id: HoldingId,
+    pub relation: RelationView,
+    pub kind: RelationDraftKind,
+}
+
+impl RecordRelationDraft {
+    pub fn validate(&self) -> Result<(), PortError> {
+        self.relation
+            .validate()
+            .map_err(|_| PortError::InvalidState)?;
+        if self.relation.committed_sequence != 0
+            || (self.kind == RelationDraftKind::Added && self.relation.is_revoked())
+            || (self.kind == RelationDraftKind::Revoked && !self.relation.is_revoked())
+        {
+            return Err(PortError::InvalidState);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RelationGraphCommit {
+    pub identity: MutationIdentity,
+    pub expected_version: u64,
+    pub graph: RecordRelationGraph,
+    pub draft: RecordRelationDraft,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RelationMutationReceipt {
+    pub relation: RelationView,
+    pub replayed: bool,
+}
+
+#[async_trait]
+pub trait RecordRelationRepository: Send + Sync {
+    async fn load_graph(
+        &self,
+        source: &AuthorizedRelationRecordAccess,
+    ) -> Result<Option<RecordRelationGraph>, PortError>;
+
+    /// Graph snapshot, tombstone, idempotency receipt and outbox draft commit
+    /// atomically in the source record's Collaboration store.
+    async fn commit_graph(
+        &self,
+        source: &AuthorizedRelationRecordAccess,
+        target: &AuthorizedRelationRecordAccess,
+        commit: RelationGraphCommit,
+    ) -> Result<RelationMutationReceipt, PortError>;
+}
+
+#[async_trait]
+pub trait RecordRelationReadRepository: Send + Sync {
+    async fn list_relations(
+        &self,
+        source: &AuthorizedRelationRecordAccess,
+        include_revoked: bool,
+        page_size: u16,
+        cursor: Option<&str>,
+    ) -> Result<RelationPage, PortError>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RelationPage {
+    pub items: Vec<RelationView>,
+    pub next_cursor: Option<String>,
+    pub authorized_count: u64,
+    pub projection_checkpoint: u64,
+    pub stale: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AttachmentMutationReceipt {
+    pub attachment: AttachmentRecord,
+    pub replayed: bool,
+}
+
+/// Evidence supplied only by the trusted malware-scanner/expiry worker. A
+/// browser cannot choose an attachment's terminal lifecycle or manufacture a
+/// scanner result.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AttachmentWorkerTransition {
+    ScanPassed {
+        engine: String,
+        evidence_digest: [u8; 32],
+    },
+    ScanRejected {
+        engine: String,
+        evidence_digest: [u8; 32],
+        reason: String,
+    },
+    Expire,
+}
+
+impl AttachmentWorkerTransition {
+    pub fn validate(&self) -> Result<(), PortError> {
+        let valid_text = |value: &str, max: usize| {
+            !value.trim().is_empty() && value.len() <= max && !value.chars().any(char::is_control)
+        };
+        match self {
+            Self::ScanPassed {
+                engine,
+                evidence_digest,
+            } => {
+                if !valid_text(engine, 128) || *evidence_digest == [0; 32] {
+                    return Err(PortError::InvalidState);
+                }
+            }
+            Self::ScanRejected {
+                engine,
+                evidence_digest,
+                reason,
+            } => {
+                if !valid_text(engine, 128)
+                    || *evidence_digest == [0; 32]
+                    || !valid_text(reason, 128)
+                {
+                    return Err(PortError::InvalidState);
+                }
+            }
+            Self::Expire => {}
+        }
+        Ok(())
+    }
+
+    pub const fn lifecycle(&self) -> AttachmentLifecycle {
+        match self {
+            Self::ScanPassed { .. } => AttachmentLifecycle::Ready,
+            Self::ScanRejected { .. } => AttachmentLifecycle::Quarantined,
+            Self::Expire => AttachmentLifecycle::Expired,
+        }
+    }
+}
+
+#[async_trait]
+pub trait AttachmentRegistryPort: Send + Sync {
+    async fn prepare_upload(
+        &self,
+        access: &AuthorizedAttachmentAccess,
+        identity: &MutationIdentity,
+        attachment: &AttachmentRecord,
+    ) -> Result<AttachmentMutationReceipt, PortError>;
+
+    async fn finalize_upload(
+        &self,
+        access: &AuthorizedAttachmentAccess,
+        identity: &MutationIdentity,
+        attachment_id: crate::domain::AttachmentId,
+        verified_size_bytes: u64,
+        verified_digest: [u8; 32],
+        at: DateTime<Utc>,
+    ) -> Result<AttachmentMutationReceipt, PortError>;
+
+    /// Trusted worker-only scanner/expiry transition. Browser and public RPC
+    /// paths never receive this capability.
+    async fn transition(
+        &self,
+        attachment_id: crate::domain::AttachmentId,
+        expected: AttachmentLifecycle,
+        transition: AttachmentWorkerTransition,
+        at: DateTime<Utc>,
+    ) -> Result<AttachmentRecord, PortError>;
+
+    /// Used before accepting comment attachment refs. The implementation must
+    /// match all supplied bindings in one authorized snapshot.
+    async fn load_ready_for_comment(
+        &self,
+        access: &AuthorizedThreadAccess,
+        uploader: PrincipalRef,
+        classification: erpx_kernel::DataClassification,
+        attachments: &[AttachmentRef],
+        now: DateTime<Utc>,
+    ) -> Result<Vec<AttachmentView>, PortError>;
+
+    /// Download authorization is intentionally not represented by a cached
+    /// URL. Every call must reauthorize the record and thread first.
+    async fn get_for_download(
+        &self,
+        access: &AuthorizedAttachmentAccess,
+        attachment_id: crate::domain::AttachmentId,
+        now: DateTime<Utc>,
+    ) -> Result<Option<AttachmentRecord>, PortError>;
+}
+
 #[async_trait]
 pub trait ThreadWriteRepository: Send + Sync {
     async fn load(&self, access: &AuthorizedThreadAccess) -> Result<Option<Thread>, PortError>;
@@ -333,6 +804,157 @@ pub struct CommentProjection {
     pub content: CommentProjectionContent,
     pub visibility: CommentVisibility,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReactionView {
+    pub principal: PrincipalRef,
+    pub value: String,
+    pub created_at: DateTime<Utc>,
+}
+
+impl From<&Reaction> for ReactionView {
+    fn from(value: &Reaction) -> Self {
+        Self {
+            principal: value.principal,
+            value: value.value.clone(),
+            created_at: value.created_at,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FollowerView {
+    pub principal: PrincipalRef,
+    pub mandatory_reason: Option<crate::domain::MandatoryFollowReason>,
+    pub muted_until: Option<DateTime<Utc>>,
+    pub snoozed_until: Option<DateTime<Utc>>,
+}
+
+impl From<&Follower> for FollowerView {
+    fn from(value: &Follower) -> Self {
+        Self {
+            principal: value.principal,
+            mandatory_reason: value.mandatory_reason,
+            muted_until: value.muted_until,
+            snoozed_until: value.snoozed_until,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CommentProjectionV2 {
+    pub id: CommentId,
+    pub author: PrincipalRef,
+    pub revision: u64,
+    pub content: CommentProjectionContent,
+    pub visibility: CommentVisibility,
+    pub attachments: Vec<AttachmentView>,
+    pub reactions: Vec<ReactionView>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ThreadProjectionV2 {
+    pub id: ThreadId,
+    pub anchor: StableRecordRef,
+    pub version: u64,
+    pub classification: erpx_kernel::DataClassification,
+    pub audience: Audience,
+    pub retention: RetentionPolicy,
+    pub state: ThreadState,
+    pub pinned: bool,
+    pub external_portal: Option<crate::domain::ExternalPortal>,
+    pub comments: Vec<CommentProjectionV2>,
+    pub followers: Vec<FollowerView>,
+    pub projection_cursor: u64,
+    pub projection_checkpoint: u64,
+    pub stale: bool,
+}
+
+impl ThreadProjectionV2 {
+    /// Produces a fully typed response. Attachment registry views are supplied
+    /// only after their record/thread bindings have been authorized.
+    pub fn from_authorized_thread(
+        thread: &Thread,
+        projection_cursor: u64,
+        projection_checkpoint: u64,
+        attachments: &[AttachmentView],
+    ) -> Result<Self, PortError> {
+        let attachment_by_id = attachments
+            .iter()
+            .map(|attachment| (attachment.attachment_id, attachment))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        let comments = thread
+            .comments()
+            .iter()
+            .map(|comment| {
+                let revision = comment.current_revision();
+                let content = if comment.tombstoned_at().is_some() {
+                    CommentProjectionContent::Tombstone
+                } else if comment.visibility() != CommentVisibility::Visible {
+                    CommentProjectionContent::Restricted
+                } else {
+                    CommentProjectionContent::Visible(revision.document().clone())
+                };
+                let comment_attachments = revision
+                    .attachments()
+                    .iter()
+                    .map(|reference| {
+                        attachment_by_id
+                            .get(&reference.attachment_id)
+                            .cloned()
+                            .cloned()
+                            .ok_or(PortError::InvalidState)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let reactions = thread
+                    .reactions()
+                    .iter()
+                    .filter(|reaction| reaction.comment_id == comment.id())
+                    .map(ReactionView::from)
+                    .collect();
+                Ok(CommentProjectionV2 {
+                    id: comment.id(),
+                    author: comment.author(),
+                    revision: revision.revision(),
+                    content,
+                    visibility: comment.visibility(),
+                    attachments: comment_attachments,
+                    reactions,
+                    created_at: comment
+                        .revisions()
+                        .first()
+                        .ok_or(PortError::InvalidState)?
+                        .created_at(),
+                    updated_at: revision.created_at(),
+                })
+            })
+            .collect::<Result<Vec<_>, PortError>>()?;
+        Ok(Self {
+            id: thread.id(),
+            anchor: thread.anchor().record().clone(),
+            version: thread.version(),
+            classification: thread.policy().classification(),
+            audience: thread.audience().clone(),
+            retention: thread.retention().clone(),
+            state: thread.state(),
+            pinned: thread.is_pinned(),
+            external_portal: match thread.audience() {
+                Audience::Internal { .. } => None,
+                Audience::ExternalPortal { portal, .. } => Some(*portal),
+            },
+            comments,
+            followers: thread.followers().iter().map(FollowerView::from).collect(),
+            projection_cursor,
+            projection_checkpoint,
+            stale: thread
+                .anchor()
+                .location()
+                .is_some_and(|location| location.stale),
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -3,7 +3,7 @@ use erpx_commercial::{
     CatalogPlanStatus, CatalogPlanView, EntitlementView, SubscriptionStatus, SubscriptionView,
 };
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
-use erpx_integration_contracts::{ItemDescriptorDraft, commercial};
+use erpx_integration_contracts::{ItemDescriptorDraftV2, commercial};
 use erpx_kernel::AuthorityScope;
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
@@ -28,7 +28,7 @@ pub enum CommercialSnapshot {
 pub enum CommercialOutboxPayload {
     Integration(commercial::Event),
     Snapshot(CommercialSnapshot),
-    Directory(ItemDescriptorDraft),
+    Directory(ItemDescriptorDraftV2),
 }
 
 macro_rules! projector_type {

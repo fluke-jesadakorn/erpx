@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
 use erpx_crm::{CrmAggregate, CrmLeadView, OpportunityStage, OpportunityView};
-use erpx_integration_contracts::{ItemDescriptorDraft, crm};
+use erpx_integration_contracts::{ItemDescriptorDraftV2, crm};
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
 
@@ -30,7 +30,7 @@ impl From<&CrmAggregate> for CrmSnapshot {
 pub enum CrmOutboxPayload {
     Integration(crm::Event),
     Snapshot(CrmSnapshot),
-    Directory(ItemDescriptorDraft),
+    Directory(ItemDescriptorDraftV2),
 }
 
 #[derive(Debug, Clone)]

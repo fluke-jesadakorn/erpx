@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
-use erpx_integration_contracts::{ItemDescriptorDraft, pos};
+use erpx_integration_contracts::{ItemDescriptorDraftV2, pos};
 use erpx_kernel::AuthorityScope;
 use erpx_pos::{PaymentMethod, RefundStatus, RefundView, SaleStatus, SaleView};
 use serde::{Deserialize, Serialize};
@@ -28,7 +28,7 @@ pub enum PosOutboxPayload {
     Integration(pos::Event),
     SaleSnapshot(PosSaleSnapshot),
     RefundSnapshot(PosRefundSnapshot),
-    Directory(ItemDescriptorDraft),
+    Directory(ItemDescriptorDraftV2),
 }
 
 #[derive(Debug, Clone)]

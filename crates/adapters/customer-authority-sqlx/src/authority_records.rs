@@ -12,7 +12,7 @@ use erpx_customer_authority::{
 };
 use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, ItemDescriptorDraft,
-    record_policy_id,
+    ItemDescriptorDraftV2, record_policy_id,
 };
 use erpx_kernel::{AggregateId, AuthorityScope, DataClassification, EventId, RecordId};
 use serde::{Deserialize, Serialize};
@@ -29,7 +29,7 @@ pub const PROJECTION: &str = "customer_authority.business-records";
 #[serde(untagged)]
 enum Payload {
     State(CustomerAuthorityProjectionFact),
-    Directory(ItemDescriptorDraft),
+    Directory(ItemDescriptorDraftV2),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -413,7 +413,7 @@ impl AtomicCommandGuard for RecordGuard {
     }
 }
 
-fn descriptor(record: &CustomerAuthorityRecord) -> Result<ItemDescriptorDraft, PortError> {
+fn descriptor(record: &CustomerAuthorityRecord) -> Result<ItemDescriptorDraftV2, PortError> {
     let stable = record.record_ref().map_err(|_| PortError::Internal)?;
     let value = ItemDescriptorDraft {
         authorization_policy: record_policy_id(&stable).map_err(|_| PortError::Internal)?,
@@ -428,8 +428,11 @@ fn descriptor(record: &CustomerAuthorityRecord) -> Result<ItemDescriptorDraft, P
             record.customer_id().as_uuid()
         ),
     };
-    value.validate().map_err(|_| PortError::Internal)?;
-    Ok(value)
+    ItemDescriptorDraftV2::try_new(
+        value,
+        format!("{} {}", kind(record.kind()), record.customer_id().as_uuid()),
+    )
+    .map_err(|_| PortError::Internal)
 }
 fn kind(v: CustomerAuthorityRecordKind) -> &'static str {
     match v {

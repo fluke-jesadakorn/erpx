@@ -5,14 +5,20 @@ use uuid::Uuid;
 
 use crate::{
     domain::{
-        ActionCard, AnchorPolicy, AttachmentRef, Audience, CollaborationError, CommentDocument,
-        CommentId, EncryptedDraft, MentionEventId, MentionTarget, ModerationCase, OpaqueInboxFact,
-        PrincipalRef, PromotionProposal, ReferenceRelation, RetentionPolicy, Thread, ThreadAnchor,
-        ThreadId, action_card_confirmation_decision_ref,
+        ActionCard, AnchorPolicy, AttachmentId, AttachmentLifecycle, AttachmentRecord,
+        AttachmentRef, AttachmentView, Audience, CollaborationError, CommentDocument, CommentId,
+        EncryptedDraft, MentionEventId, MentionTarget, ModerationCase, OpaqueInboxFact,
+        PrincipalRef, PromotionProposal, RecordRelationGraph, ReferenceRelation, RelationId,
+        RelationKind, RetentionPolicy, Thread, ThreadAnchor, ThreadId,
+        action_card_confirmation_decision_ref,
     },
     ports::{
-        ActorContext, AuthorizationPort, CollaborationAction, CommitReceipt, DraftRepository,
-        MutationIdentity, PortError, PrincipalDirectoryPort, ThreadCommit, ThreadReadRepository,
+        ActorContext, AttachmentAuthorizationPort, AttachmentMutationReceipt,
+        AttachmentRegistryPort, AuthorizationPort, AuthorizedAttachmentAccess, CollaborationAction,
+        CommitReceipt, DraftRepository, MutationIdentity, PortError, PrincipalDirectoryPort,
+        RecordRelationAuthorizationPort, RecordRelationDraft, RecordRelationReadRepository,
+        RecordRelationRepository, RecordThreadPolicyPort, RelationDraftKind, RelationGraphCommit,
+        RelationMutationReceipt, RelationPage, ThreadCommit, ThreadReadRepository,
         ThreadSearchPage, ThreadSearchRequest, ThreadWriteRepository,
     },
 };
@@ -175,6 +181,75 @@ pub struct MutateThreadCommand {
     pub at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone)]
+pub struct StartRecordThreadWithCommentCommand {
+    pub identity: MutationIdentity,
+    pub thread_id: ThreadId,
+    pub record: erpx_integration_contracts::StableRecordRef,
+    pub comment: AddComment,
+    pub at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AddRecordRelationCommand {
+    pub identity: MutationIdentity,
+    pub relation_id: RelationId,
+    pub source: erpx_integration_contracts::StableRecordRef,
+    pub target: erpx_integration_contracts::StableRecordRef,
+    pub kind: RelationKind,
+    pub expected_version: u64,
+    pub at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone)]
+pub struct RevokeRecordRelationCommand {
+    pub identity: MutationIdentity,
+    pub relation_id: RelationId,
+    pub source: erpx_integration_contracts::StableRecordRef,
+    /// Re-supplied so the target is independently authorized before the graph
+    /// or tombstone is loaded.
+    pub target: erpx_integration_contracts::StableRecordRef,
+    pub expected_version: u64,
+    pub at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PrepareAttachmentUploadCommand {
+    pub identity: MutationIdentity,
+    pub attachment_id: AttachmentId,
+    /// Server-generated opaque object identity. Object keys and signed URLs
+    /// remain adapter-private.
+    pub storage_object_id: Uuid,
+    pub anchor: erpx_integration_contracts::StableRecordRef,
+    pub thread_id: Option<ThreadId>,
+    pub file_name: String,
+    pub media_type: String,
+    pub size_bytes: u64,
+    pub digest: [u8; 32],
+    pub upload_expires_at: DateTime<Utc>,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone)]
+pub struct FinalizeAttachmentUploadCommand {
+    pub identity: MutationIdentity,
+    pub attachment_id: AttachmentId,
+    pub anchor: erpx_integration_contracts::StableRecordRef,
+    pub thread_id: Option<ThreadId>,
+    pub verified_size_bytes: u64,
+    pub verified_digest: [u8; 32],
+    pub at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone)]
+pub struct GetAttachmentDownloadQuery {
+    pub attachment_id: AttachmentId,
+    pub anchor: erpx_integration_contracts::StableRecordRef,
+    pub thread_id: ThreadId,
+    pub at: DateTime<Utc>,
+}
+
 pub struct CollaborationCommandService<A, D, W, F> {
     authorization: A,
     directory: D,
@@ -203,7 +278,7 @@ where
         actor: &ActorContext,
         command: CreateThreadCommand,
     ) -> Result<CommitReceipt, CollaborationApplicationError> {
-        actor.validate()?;
+        validate_phase2_human(actor)?;
         command.identity.validate()?;
         if actor.holding_id != command.policy.holding_id()
             || actor.principal != command.creator
@@ -252,9 +327,10 @@ where
         actor: &ActorContext,
         mut command: MutateThreadCommand,
     ) -> Result<CommitReceipt, CollaborationApplicationError> {
-        actor.validate()?;
+        validate_phase2_human(actor)?;
         command.identity.validate()?;
         validate_confirmation_decision(actor, &command)?;
+        validate_phase2_mutation_actor(actor, &command.mutation)?;
         let action = command.mutation.action();
         let access = self
             .authorization
@@ -334,7 +410,7 @@ where
         draft: &EncryptedDraft,
         now: DateTime<Utc>,
     ) -> Result<(), CollaborationApplicationError> {
-        actor.validate()?;
+        validate_phase2_human(actor)?;
         if draft.owner != actor.principal.id() {
             return Err(CollaborationApplicationError::Neutral);
         }
@@ -358,7 +434,7 @@ where
         actor: &ActorContext,
         thread_id: ThreadId,
     ) -> Result<(), CollaborationApplicationError> {
-        actor.validate()?;
+        validate_phase2_human(actor)?;
         let access = self
             .authorization
             .authorize_thread(actor, thread_id, CollaborationAction::ManageDraft)
@@ -367,6 +443,602 @@ where
         self.drafts.delete(&access, actor.principal.id()).await?;
         Ok(())
     }
+}
+
+pub struct RecordThreadCommandService<P, W> {
+    policy: P,
+    write: W,
+}
+
+impl<P, W> RecordThreadCommandService<P, W>
+where
+    P: RecordThreadPolicyPort,
+    W: ThreadWriteRepository,
+{
+    pub const fn new(policy: P, write: W) -> Self {
+        Self { policy, write }
+    }
+
+    /// Creates a discussion thread and its first plain comment atomically.
+    /// Classification, audience and retention are owner-derived; typed mention
+    /// requests are unavailable in Phase 2.
+    pub async fn start_record_thread_with_comment(
+        &self,
+        actor: &ActorContext,
+        command: StartRecordThreadWithCommentCommand,
+    ) -> Result<CommitReceipt, CollaborationApplicationError> {
+        validate_phase2_human(actor)?;
+        command.identity.validate()?;
+        if actor.principal != command.comment.author || !command.comment.mentions.is_empty() {
+            return Err(CollaborationApplicationError::HumanDecisionDenied);
+        }
+        let authorized = self
+            .policy
+            .authorize_new_record_thread(actor, command.thread_id, &command.record, command.at)
+            .await?;
+        let (access, policy, audience, retention) = authorized.into_parts();
+        validate_access(
+            actor,
+            &access,
+            command.thread_id,
+            CollaborationAction::CreateThread,
+        )?;
+        if policy.record() != &command.record {
+            return Err(CollaborationApplicationError::Internal);
+        }
+        let mut thread = Thread::create(
+            command.thread_id,
+            policy,
+            ThreadAnchor::try_new(command.record, None)?,
+            audience,
+            retention,
+            actor.principal,
+            command.at,
+        )?;
+        thread.add_comment(
+            thread.version(),
+            command.comment.comment_id,
+            actor.principal,
+            command.comment.document,
+            command.comment.attachments,
+            Vec::new(),
+            command.at,
+        )?;
+        let events = thread.take_pending_events();
+        self.write
+            .commit(
+                &access,
+                ThreadCommit {
+                    identity: command.identity,
+                    expected_version: None,
+                    thread,
+                    events,
+                    inbox_facts: Vec::new(),
+                },
+            )
+            .await
+            .map_err(Into::into)
+    }
+}
+
+pub struct RecordRelationCommandService<A, R> {
+    authorization: A,
+    repository: R,
+}
+
+impl<A, R> RecordRelationCommandService<A, R>
+where
+    A: RecordRelationAuthorizationPort,
+    R: RecordRelationRepository,
+{
+    pub const fn new(authorization: A, repository: R) -> Self {
+        Self {
+            authorization,
+            repository,
+        }
+    }
+
+    pub async fn add_record_relation(
+        &self,
+        actor: &ActorContext,
+        command: AddRecordRelationCommand,
+    ) -> Result<RelationMutationReceipt, CollaborationApplicationError> {
+        validate_phase2_human(actor)?;
+        command.identity.validate()?;
+        command
+            .kind
+            .validate_for_write()
+            .map_err(CollaborationApplicationError::from)?;
+        let source_access = self
+            .authorization
+            .authorize_relation_record(actor, &command.source, CollaborationAction::RelateRecord)
+            .await?;
+        let target_access = self
+            .authorization
+            .authorize_relation_record(actor, &command.target, CollaborationAction::RelateRecord)
+            .await?;
+        validate_relation_access(
+            actor,
+            &source_access,
+            &command.source,
+            CollaborationAction::RelateRecord,
+        )?;
+        validate_relation_access(
+            actor,
+            &target_access,
+            &command.target,
+            CollaborationAction::RelateRecord,
+        )?;
+        let mut graph = self
+            .repository
+            .load_graph(&source_access)
+            .await?
+            .unwrap_or(RecordRelationGraph::new(command.source.clone())?);
+        if graph.source() != &command.source {
+            return Err(CollaborationApplicationError::Internal);
+        }
+        let (relation, _) = graph.add(
+            command.expected_version,
+            command.relation_id,
+            command.target,
+            command.kind,
+            actor.principal,
+            command.at,
+        )?;
+        let draft = RecordRelationDraft {
+            holding_id: actor.holding_id,
+            relation,
+            kind: RelationDraftKind::Added,
+        };
+        draft.validate()?;
+        self.repository
+            .commit_graph(
+                &source_access,
+                &target_access,
+                RelationGraphCommit {
+                    identity: command.identity,
+                    expected_version: command.expected_version,
+                    graph,
+                    draft,
+                },
+            )
+            .await
+            .map_err(Into::into)
+    }
+
+    pub async fn revoke_record_relation(
+        &self,
+        actor: &ActorContext,
+        command: RevokeRecordRelationCommand,
+    ) -> Result<RelationMutationReceipt, CollaborationApplicationError> {
+        validate_phase2_human(actor)?;
+        command.identity.validate()?;
+        let source_access = self
+            .authorization
+            .authorize_relation_record(actor, &command.source, CollaborationAction::RevokeRelation)
+            .await?;
+        let target_access = self
+            .authorization
+            .authorize_relation_record(actor, &command.target, CollaborationAction::RevokeRelation)
+            .await?;
+        validate_relation_access(
+            actor,
+            &source_access,
+            &command.source,
+            CollaborationAction::RevokeRelation,
+        )?;
+        validate_relation_access(
+            actor,
+            &target_access,
+            &command.target,
+            CollaborationAction::RevokeRelation,
+        )?;
+        let mut graph = self
+            .repository
+            .load_graph(&source_access)
+            .await?
+            .ok_or(CollaborationApplicationError::Neutral)?;
+        let loaded = graph
+            .relations()
+            .iter()
+            .find(|relation| relation.id == command.relation_id)
+            .ok_or(CollaborationApplicationError::Neutral)?;
+        if loaded.source != command.source || loaded.target != command.target {
+            return Err(CollaborationApplicationError::Neutral);
+        }
+        let (relation, _) = graph.revoke(
+            command.expected_version,
+            command.relation_id,
+            actor.principal,
+            command.at,
+        )?;
+        let draft = RecordRelationDraft {
+            holding_id: actor.holding_id,
+            relation,
+            kind: RelationDraftKind::Revoked,
+        };
+        draft.validate()?;
+        self.repository
+            .commit_graph(
+                &source_access,
+                &target_access,
+                RelationGraphCommit {
+                    identity: command.identity,
+                    expected_version: command.expected_version,
+                    graph,
+                    draft,
+                },
+            )
+            .await
+            .map_err(Into::into)
+    }
+}
+
+fn validate_phase2_human(actor: &ActorContext) -> Result<(), CollaborationApplicationError> {
+    actor.validate()?;
+    if actor.principal.kind() != erpx_kernel::PrincipalKind::Human
+        || actor.external_portal.is_some()
+        || !matches!(
+            actor.attribution.kind,
+            erpx_kernel::ActorKind::HoldingUser | erpx_kernel::ActorKind::PlatformUser
+        )
+    {
+        return Err(CollaborationApplicationError::HumanDecisionDenied);
+    }
+    Ok(())
+}
+
+fn validate_phase2_mutation_actor(
+    actor: &ActorContext,
+    mutation: &ThreadMutation,
+) -> Result<(), CollaborationApplicationError> {
+    let matches_actor = match mutation {
+        ThreadMutation::AddComment(command) => {
+            command.author == actor.principal && command.mentions.is_empty()
+        }
+        ThreadMutation::EditComment(command) => {
+            command.editor == actor.principal && command.mentions.is_empty()
+        }
+        ThreadMutation::AddReaction { principal, .. }
+        | ThreadMutation::RemoveReaction { principal, .. }
+        | ThreadMutation::SetFollowing { principal, .. } => *principal == actor.principal,
+        ThreadMutation::AddRelation { relation } => relation.created_by == actor.principal,
+        ThreadMutation::Moderate { case } => case.updated_by == actor.principal,
+        ThreadMutation::ProposePromotion { proposal } => proposal.requested_by == actor.principal,
+        ThreadMutation::ProposeActionCard { card } => card.proposed_by == actor.principal,
+        ThreadMutation::ConfirmActionCard { .. }
+        | ThreadMutation::TombstoneComment { .. }
+        | ThreadMutation::WithdrawMention { .. }
+        | ThreadMutation::Resolve
+        | ThreadMutation::Reopen
+        | ThreadMutation::SetPinned { .. }
+        | ThreadMutation::NarrowAudience { .. }
+        | ThreadMutation::MarkAnchorStale { .. } => true,
+    };
+    if matches_actor {
+        Ok(())
+    } else {
+        Err(CollaborationApplicationError::HumanDecisionDenied)
+    }
+}
+
+fn validate_relation_access(
+    actor: &ActorContext,
+    access: &crate::ports::AuthorizedRelationRecordAccess,
+    record: &erpx_integration_contracts::StableRecordRef,
+    action: CollaborationAction,
+) -> Result<(), CollaborationApplicationError> {
+    if access.holding_id() != actor.holding_id
+        || access.record() != record
+        || access.actor() != actor.principal
+        || access.attribution() != &actor.attribution
+        || access.authority_scope() != &actor.authority_scope
+        || access.external_portal() != actor.external_portal
+        || access.action() != action
+    {
+        return Err(CollaborationApplicationError::Internal);
+    }
+    Ok(())
+}
+
+pub struct RecordRelationQueryService<A, R> {
+    authorization: A,
+    repository: R,
+}
+
+impl<A, R> RecordRelationQueryService<A, R>
+where
+    A: RecordRelationAuthorizationPort,
+    R: RecordRelationReadRepository,
+{
+    pub const fn new(authorization: A, repository: R) -> Self {
+        Self {
+            authorization,
+            repository,
+        }
+    }
+
+    pub async fn list_record_relations(
+        &self,
+        actor: &ActorContext,
+        source: &erpx_integration_contracts::StableRecordRef,
+        include_revoked: bool,
+        page_size: u16,
+        cursor: Option<&str>,
+    ) -> Result<RelationPage, CollaborationApplicationError> {
+        actor.validate()?;
+        if page_size == 0
+            || page_size > 100
+            || cursor.is_some_and(|cursor| {
+                cursor.is_empty() || cursor.len() > 256 || cursor.chars().any(char::is_control)
+            })
+        {
+            return Err(CollaborationApplicationError::Invalid(
+                "relation page is invalid".into(),
+            ));
+        }
+        let access = self
+            .authorization
+            .authorize_relation_record(actor, source, CollaborationAction::ListRecordRelations)
+            .await?;
+        validate_relation_access(
+            actor,
+            &access,
+            source,
+            CollaborationAction::ListRecordRelations,
+        )?;
+        // The repository must evaluate current target grants, lineage, policy
+        // and the projection checkpoint in the same SQL snapshot before it
+        // computes payload, count, or cursor.
+        let page = self
+            .repository
+            .list_relations(&access, include_revoked, page_size, cursor)
+            .await?;
+        if page.authorized_count < page.items.len() as u64
+            || page.items.iter().any(|relation| {
+                (relation.source != *source && relation.target != *source)
+                    || relation.committed_sequence == 0
+                    || relation.validate().is_err()
+            })
+        {
+            return Err(CollaborationApplicationError::Internal);
+        }
+        if page.stale {
+            return Err(CollaborationApplicationError::Stale);
+        }
+        Ok(page)
+    }
+}
+
+pub struct AttachmentCommandService<A, R> {
+    authorization: A,
+    registry: R,
+}
+
+impl<A, R> AttachmentCommandService<A, R>
+where
+    A: AttachmentAuthorizationPort,
+    R: AttachmentRegistryPort,
+{
+    pub const fn new(authorization: A, registry: R) -> Self {
+        Self {
+            authorization,
+            registry,
+        }
+    }
+
+    pub async fn prepare_attachment_upload(
+        &self,
+        actor: &ActorContext,
+        command: PrepareAttachmentUploadCommand,
+    ) -> Result<AttachmentMutationReceipt, CollaborationApplicationError> {
+        validate_phase2_human(actor)?;
+        command.identity.validate()?;
+        let access = self
+            .authorization
+            .authorize_attachment(
+                actor,
+                &command.anchor,
+                command.thread_id,
+                CollaborationAction::PrepareAttachmentUpload,
+            )
+            .await?;
+        validate_attachment_access(
+            actor,
+            &access,
+            &command.anchor,
+            command.thread_id,
+            CollaborationAction::PrepareAttachmentUpload,
+        )?;
+        let collaboration_policy = erpx_integration_contracts::record_collaboration_policy(
+            command.anchor.record_type().as_str(),
+        )
+        .filter(|policy| {
+            policy.attachments_enabled
+                && policy.human_internal_mutations_only
+                && policy.classification == access.classification()
+        })
+        .ok_or(CollaborationApplicationError::Neutral)?;
+        if collaboration_policy.owner != command.anchor.owner_context()
+            || command.upload_expires_at <= command.at
+            || command
+                .expires_at
+                .is_some_and(|expires_at| expires_at <= command.upload_expires_at)
+        {
+            return Err(CollaborationApplicationError::Invalid(
+                "attachment lifetime is invalid".into(),
+            ));
+        }
+        let attachment = AttachmentRecord {
+            attachment_id: command.attachment_id,
+            storage_object_id: command.storage_object_id,
+            holding_id: actor.holding_id,
+            anchor: command.anchor,
+            thread_id: command.thread_id,
+            uploader: actor.principal,
+            classification: access.classification(),
+            file_name: command.file_name,
+            media_type: command.media_type,
+            size_bytes: command.size_bytes,
+            digest: command.digest,
+            lifecycle: AttachmentLifecycle::PendingUpload,
+            created_at: command.at,
+            updated_at: command.at,
+            upload_expires_at: command.upload_expires_at,
+            expires_at: command.expires_at,
+        };
+        attachment.validate()?;
+        let receipt = self
+            .registry
+            .prepare_upload(&access, &command.identity, &attachment)
+            .await?;
+        validate_attachment_result(&access, actor.principal, &receipt.attachment)?;
+        if receipt.attachment.lifecycle != AttachmentLifecycle::PendingUpload {
+            return Err(CollaborationApplicationError::Internal);
+        }
+        Ok(receipt)
+    }
+
+    pub async fn finalize_attachment_upload(
+        &self,
+        actor: &ActorContext,
+        command: FinalizeAttachmentUploadCommand,
+    ) -> Result<AttachmentMutationReceipt, CollaborationApplicationError> {
+        validate_phase2_human(actor)?;
+        command.identity.validate()?;
+        let access = self
+            .authorization
+            .authorize_attachment(
+                actor,
+                &command.anchor,
+                command.thread_id,
+                CollaborationAction::FinalizeAttachmentUpload,
+            )
+            .await?;
+        validate_attachment_access(
+            actor,
+            &access,
+            &command.anchor,
+            command.thread_id,
+            CollaborationAction::FinalizeAttachmentUpload,
+        )?;
+        let receipt = self
+            .registry
+            .finalize_upload(
+                &access,
+                &command.identity,
+                command.attachment_id,
+                command.verified_size_bytes,
+                command.verified_digest,
+                command.at,
+            )
+            .await?;
+        validate_attachment_result(&access, actor.principal, &receipt.attachment)?;
+        if receipt.attachment.lifecycle != AttachmentLifecycle::PendingScan
+            || receipt.attachment.attachment_id != command.attachment_id
+        {
+            return Err(CollaborationApplicationError::Internal);
+        }
+        Ok(receipt)
+    }
+}
+
+pub struct AttachmentQueryService<A, R> {
+    authorization: A,
+    registry: R,
+}
+
+impl<A, R> AttachmentQueryService<A, R>
+where
+    A: AttachmentAuthorizationPort,
+    R: AttachmentRegistryPort,
+{
+    pub const fn new(authorization: A, registry: R) -> Self {
+        Self {
+            authorization,
+            registry,
+        }
+    }
+
+    /// Returns metadata only after reauthorizing the exact record and real
+    /// discussion thread. The transport presigns a fresh short-lived download
+    /// after this call; cached authorization is never accepted.
+    pub async fn get_attachment_download(
+        &self,
+        actor: &ActorContext,
+        query: GetAttachmentDownloadQuery,
+    ) -> Result<AttachmentView, CollaborationApplicationError> {
+        validate_phase2_human(actor)?;
+        let access = self
+            .authorization
+            .authorize_attachment(
+                actor,
+                &query.anchor,
+                Some(query.thread_id),
+                CollaborationAction::DownloadAttachment,
+            )
+            .await?;
+        validate_attachment_access(
+            actor,
+            &access,
+            &query.anchor,
+            Some(query.thread_id),
+            CollaborationAction::DownloadAttachment,
+        )?;
+        let attachment = self
+            .registry
+            .get_for_download(&access, query.attachment_id, query.at)
+            .await?
+            .ok_or(CollaborationApplicationError::Neutral)?;
+        validate_attachment_result(&access, attachment.uploader, &attachment)?;
+        if attachment.lifecycle != AttachmentLifecycle::Ready
+            || attachment.attachment_id != query.attachment_id
+            || attachment.thread_id != Some(query.thread_id)
+            || attachment
+                .expires_at
+                .is_some_and(|expires_at| expires_at <= query.at)
+        {
+            return Err(CollaborationApplicationError::Neutral);
+        }
+        Ok(AttachmentView::from(&attachment))
+    }
+}
+
+fn validate_attachment_access(
+    actor: &ActorContext,
+    access: &AuthorizedAttachmentAccess,
+    anchor: &erpx_integration_contracts::StableRecordRef,
+    thread_id: Option<ThreadId>,
+    action: CollaborationAction,
+) -> Result<(), CollaborationApplicationError> {
+    if access.holding_id() != actor.holding_id
+        || access.anchor() != anchor
+        || access.thread_id() != thread_id
+        || access.actor() != actor.principal
+        || access.attribution() != &actor.attribution
+        || access.authority_scope() != &actor.authority_scope
+        || access.action() != action
+    {
+        return Err(CollaborationApplicationError::Internal);
+    }
+    Ok(())
+}
+
+fn validate_attachment_result(
+    access: &AuthorizedAttachmentAccess,
+    uploader: PrincipalRef,
+    attachment: &AttachmentRecord,
+) -> Result<(), CollaborationApplicationError> {
+    attachment.validate()?;
+    if attachment.holding_id != access.holding_id()
+        || &attachment.anchor != access.anchor()
+        || attachment.thread_id != access.thread_id()
+        || attachment.uploader != uploader
+        || attachment.classification != access.classification()
+    {
+        return Err(CollaborationApplicationError::Internal);
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

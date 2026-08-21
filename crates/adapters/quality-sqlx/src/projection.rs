@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
-use erpx_integration_contracts::{ItemDescriptorDraft, quality};
+use erpx_integration_contracts::{ItemDescriptorDraftV2, quality};
 use erpx_quality::{
     application::InspectionView,
     domain::{InspectionKind, InspectionStatus},
@@ -23,7 +23,7 @@ pub struct QualitySnapshot {
 pub enum QualityOutboxPayload {
     Integration(quality::Event),
     Snapshot(QualitySnapshot),
-    Directory(ItemDescriptorDraft),
+    Directory(ItemDescriptorDraftV2),
 }
 
 #[derive(Debug, Clone)]

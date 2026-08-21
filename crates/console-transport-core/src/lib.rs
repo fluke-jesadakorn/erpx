@@ -10,7 +10,10 @@ use std::{fmt, sync::Arc};
 
 use erpx_integration_contracts::{
     StableRecordRef,
-    catalog::{WORKSPACES, WorkspaceId, record_type},
+    catalog::{
+        ContextLifecycle, LIVE_CURRENT_RECORD_PUBLISHERS, RECORD_TYPES, RecordTypeDescriptor,
+        WORKSPACES, WorkspaceId,
+    },
     reference::RecordTypeId,
 };
 use erpx_kernel::{IdentifierError, RecordId};
@@ -18,6 +21,63 @@ use url::Url;
 use uuid::Uuid;
 
 const DEFAULT_WEB_BFF_PATH: &str = "/api";
+
+/// A record detail identity derived from the shared catalog, never from a
+/// workspace-specific route matcher. The catalog owns the source/owner/type
+/// tuple while the URL contributes only the canonical record UUID.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CatalogRecord {
+    record: StableRecordRef,
+}
+
+impl CatalogRecord {
+    pub fn try_from_segments(module: &str, record: &str, raw_id: &str) -> Result<Self, RouteError> {
+        let descriptor = catalog_descriptor(module, record)?;
+        let record_type =
+            RecordTypeId::try_new(descriptor.id).map_err(|_| RouteError::UnknownRoute)?;
+        let record = StableRecordRef::try_new(record_id(raw_id)?, descriptor.owner, record_type)
+            .map_err(|_| RouteError::InvalidRecordId)?;
+        Ok(Self { record })
+    }
+
+    pub fn try_from_path(path: &str) -> Result<Self, RouteError> {
+        let CanonicalRoute::Detail(record) = CanonicalRoute::parse(path)? else {
+            return Err(RouteError::NotRecordDetail);
+        };
+        Ok(Self { record })
+    }
+
+    pub const fn record(&self) -> &StableRecordRef {
+        &self.record
+    }
+
+    pub fn descriptor(&self) -> &'static RecordTypeDescriptor {
+        self.record.record_type().descriptor()
+    }
+
+    pub fn canonical_path(&self) -> String {
+        self.record.canonical_detail_route()
+    }
+
+    /// Only the 92 live current-context families may mount collaboration.
+    /// Future catalog records remain routable so the Console can render an
+    /// explicit unavailable owner slot, but they fail closed here.
+    pub fn collaboration_available(&self) -> bool {
+        let descriptor = self.descriptor();
+        descriptor.owner.lifecycle() == ContextLifecycle::Current
+            && LIVE_CURRENT_RECORD_PUBLISHERS.contains(&descriptor.id)
+    }
+}
+
+fn catalog_descriptor(
+    module: &str,
+    record: &str,
+) -> Result<&'static RecordTypeDescriptor, RouteError> {
+    RECORD_TYPES
+        .iter()
+        .find(|descriptor| descriptor.module == module && descriptor.record == record)
+        .ok_or(RouteError::UnknownRoute)
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CanonicalRoute {
@@ -67,16 +127,9 @@ impl CanonicalRoute {
                     RecordTypeId::try_new(id).map_err(|_| RouteError::UnknownRoute)?;
                 Ok(Self::Collection(record_type))
             }
-            [module, record, raw_id] => {
-                let record_type_key = format!("{module}.{record}");
-                let descriptor = record_type(&record_type_key).ok_or(RouteError::UnknownRoute)?;
-                let record_type =
-                    RecordTypeId::try_new(record_type_key).map_err(|_| RouteError::UnknownRoute)?;
-                let reference =
-                    StableRecordRef::try_new(record_id(raw_id)?, descriptor.owner, record_type)
-                        .map_err(|_| RouteError::InvalidRecordId)?;
-                Ok(Self::Detail(reference))
-            }
+            [module, record, raw_id] => Ok(Self::Detail(
+                CatalogRecord::try_from_segments(module, record, raw_id)?.record,
+            )),
             _ => Err(RouteError::UnknownRoute),
         }
     }
@@ -90,6 +143,7 @@ fn record_id(value: &str) -> Result<RecordId, RouteError> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RouteError {
     NotCanonical,
+    NotRecordDetail,
     UnknownRoute,
     InvalidRecordId,
 }
@@ -98,6 +152,7 @@ impl fmt::Display for RouteError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Self::NotCanonical => "route is not canonical",
+            Self::NotRecordDetail => "route is not a record detail",
             Self::UnknownRoute => "route is not cataloged",
             Self::InvalidRecordId => "route record ID is invalid",
         })
@@ -343,6 +398,28 @@ mod tests {
             CanonicalRoute::parse("/finance/invoice/00000000-0000-0000-0000-000000000000").is_err()
         );
         assert!(CanonicalRoute::parse("/finance/invoice/").is_err());
+    }
+
+    #[test]
+    fn catalog_record_enables_exactly_the_92_live_current_families() {
+        let id = Uuid::from_u128(1).hyphenated().to_string();
+        let current = RECORD_TYPES
+            .iter()
+            .filter_map(|descriptor| {
+                CatalogRecord::try_from_segments(descriptor.module, descriptor.record, &id)
+                    .ok()
+                    .filter(CatalogRecord::collaboration_available)
+            })
+            .count();
+        assert_eq!(current, 92);
+
+        let current = CatalogRecord::try_from_segments("finance", "invoice", &id).unwrap();
+        assert!(current.collaboration_available());
+        assert_eq!(current.canonical_path(), format!("/finance/invoice/{id}"));
+
+        let future = CatalogRecord::try_from_segments("manufacturing", "order", &id).unwrap();
+        assert!(!future.collaboration_available());
+        assert!(CatalogRecord::try_from_segments("finance", "future-invoice", &id).is_err());
     }
 
     #[test]

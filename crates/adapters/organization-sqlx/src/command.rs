@@ -5,8 +5,8 @@ use erpx_cqrs_sqlx::{
 };
 use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
-    ItemDescriptorDraft, RecordTypeId, StableRecordRef, catalog::ContextId, organization,
-    record_policy_id,
+    ItemDescriptorDraft, ItemDescriptorDraftV2, RecordTypeId, StableRecordRef, catalog::ContextId,
+    organization, record_policy_id,
 };
 use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId, RecordId};
 use erpx_organization::{
@@ -370,7 +370,7 @@ impl CommandUnitOfWork for OrganizationCommandAdapter {
 
 fn organization_directory_draft(
     aggregate: &OrganizationNode,
-) -> Result<Option<ItemDescriptorDraft>, PortError> {
+) -> Result<Option<ItemDescriptorDraftV2>, PortError> {
     let record_type = match aggregate.kind() {
         erpx_organization::OrganizationNodeKind::Holding => "organization.holding",
         erpx_organization::OrganizationNodeKind::Company => "organization.company",
@@ -398,8 +398,9 @@ fn organization_directory_draft(
         descriptor_version: aggregate.version(),
         authorized_search_text: format!("{} {}", aggregate.code(), aggregate.name()),
     };
-    value.validate().map_err(|_| PortError::Internal)?;
-    Ok(Some(value))
+    ItemDescriptorDraftV2::try_new(value, format!("{} {}", aggregate.code(), aggregate.name()))
+        .map(Some)
+        .map_err(|_| PortError::Internal)
 }
 
 /// The SQL unit of work owns this publication so every committed aggregate
@@ -1680,7 +1681,7 @@ mod tests {
             .unwrap()
             .expect("holding directory draft");
         assert_eq!(
-            draft.scope,
+            draft.draft.scope,
             AuthorityScope::Holding {
                 holding_id: holding_id.as_uuid(),
             }

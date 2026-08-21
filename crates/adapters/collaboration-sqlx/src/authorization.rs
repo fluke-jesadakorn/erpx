@@ -6,11 +6,14 @@
 
 use async_trait::async_trait;
 use erpx_collaboration::{
-    ActorContext, AnchorPolicy, Audience, AuthorizationPort, AuthorizedSearchAccess,
-    AuthorizedThreadAccess, CollaborationAction, PortError, ReferenceRelation, ThreadId,
+    ActorContext, AnchorPolicy, AttachmentAuthorizationPort, Audience, AuthorizationPort,
+    AuthorizedAttachmentAccess, AuthorizedRecordThreadPolicy, AuthorizedRelationRecordAccess,
+    AuthorizedSearchAccess, AuthorizedThreadAccess, CollaborationAction, PortError,
+    RecordRelationAuthorizationPort, RecordThreadPolicyPort, ReferenceRelation, RetentionPolicy,
+    ThreadId,
 };
-use erpx_integration_contracts::StableRecordRef;
-use erpx_kernel::{AuthorityScope, HoldingId, RecordId};
+use erpx_integration_contracts::{StableRecordRef, record_collaboration_policy};
+use erpx_kernel::{ActorKind, AuthorityScope, HoldingId, PrincipalKind, RecordId};
 use sqlx::{PgPool, Postgres, Transaction};
 
 use crate::{DirectoryAccess, DirectoryLookup, ProjectionFreshness, SqlxItemDirectory};
@@ -349,6 +352,192 @@ impl AuthorizationPort for SqlxCollaborationAuthorization {
 
     async fn authorize_inbox(&self, _: &ActorContext) -> Result<(), PortError> {
         self.permits(CollaborationAction::ReadInbox)
+    }
+}
+
+#[async_trait]
+impl RecordRelationAuthorizationPort for SqlxCollaborationAuthorization {
+    async fn authorize_relation_record(
+        &self,
+        actor: &ActorContext,
+        record: &StableRecordRef,
+        action: CollaborationAction,
+    ) -> Result<AuthorizedRelationRecordAccess, PortError> {
+        if !matches!(
+            action,
+            CollaborationAction::RelateRecord
+                | CollaborationAction::RevokeRelation
+                | CollaborationAction::ListRecordRelations
+        ) {
+            return Err(PortError::Denied);
+        }
+        self.authorize_record_ref(actor, record, action).await?;
+        AuthorizedRelationRecordAccess::try_from_authorization(
+            actor.holding_id,
+            record.clone(),
+            actor.principal,
+            actor.attribution.clone(),
+            actor.authority_scope.clone(),
+            actor.external_portal,
+            action,
+        )
+    }
+}
+
+#[async_trait]
+impl AttachmentAuthorizationPort for SqlxCollaborationAuthorization {
+    async fn authorize_attachment(
+        &self,
+        actor: &ActorContext,
+        anchor: &StableRecordRef,
+        thread_id: Option<ThreadId>,
+        action: CollaborationAction,
+    ) -> Result<AuthorizedAttachmentAccess, PortError> {
+        if !matches!(
+            action,
+            CollaborationAction::PrepareAttachmentUpload
+                | CollaborationAction::FinalizeAttachmentUpload
+                | CollaborationAction::DownloadAttachment
+        ) {
+            return Err(PortError::Denied);
+        }
+        self.permits(action)?;
+        if actor.principal.kind() != PrincipalKind::Human
+            || !matches!(
+                actor.attribution.kind,
+                ActorKind::HoldingUser | ActorKind::PlatformUser
+            )
+            || actor.attribution.session_id.is_none()
+            || actor.attribution.represented_principal_ref.is_some()
+            || actor.attribution.support_capability_id.is_some()
+            || actor.external_portal.is_some()
+        {
+            return Err(PortError::Denied);
+        }
+        let lookup = self
+            .directory
+            .resolve(
+                &self.directory_access(actor)?,
+                anchor.id(),
+                chrono::Utc::now(),
+            )
+            .await
+            .map_err(|_| PortError::Unavailable)?;
+        let descriptor = match lookup {
+            DirectoryLookup::Visible {
+                value,
+                freshness: ProjectionFreshness::Fresh,
+            } if value.record() == anchor => value,
+            DirectoryLookup::Degraded(ProjectionFreshness::Stale) => return Err(PortError::Stale),
+            DirectoryLookup::Neutral => return Err(PortError::Denied),
+            _ => return Err(PortError::Unavailable),
+        };
+        record_collaboration_policy(anchor.record_type().as_str())
+            .filter(|policy| {
+                policy.owner == anchor.owner_context()
+                    && policy.attachments_enabled
+                    && policy.human_internal_mutations_only
+                    && policy.classification == descriptor.classification()
+            })
+            .ok_or(PortError::Denied)?;
+
+        // Prepare may reserve a not-yet-created deterministic thread ID. Every
+        // download, and any finalize against an existing thread, proves that
+        // thread still belongs to this exact full anchor and audience.
+        if action == CollaborationAction::DownloadAttachment {
+            let thread_id = thread_id.ok_or(PortError::Denied)?;
+            let record_id = self.opaque_anchor(actor, thread_id).await?;
+            if record_id != anchor.id() {
+                return Err(PortError::Denied);
+            }
+            self.enforce_thread_audience(actor, thread_id, record_id)
+                .await?;
+        } else if let Some(thread_id) = thread_id {
+            match self.opaque_anchor(actor, thread_id).await {
+                Ok(record_id) if record_id == anchor.id() => {
+                    self.enforce_thread_audience(actor, thread_id, record_id)
+                        .await?;
+                }
+                Ok(_) => return Err(PortError::Denied),
+                Err(PortError::Denied)
+                    if action == CollaborationAction::PrepareAttachmentUpload => {}
+                Err(error) => return Err(error),
+            }
+        }
+
+        AuthorizedAttachmentAccess::try_from_authorization(
+            actor.holding_id,
+            anchor.clone(),
+            thread_id,
+            actor.principal,
+            actor.attribution.clone(),
+            actor.authority_scope.clone(),
+            descriptor.classification(),
+            action,
+        )
+    }
+}
+
+#[async_trait]
+impl RecordThreadPolicyPort for SqlxCollaborationAuthorization {
+    async fn authorize_new_record_thread(
+        &self,
+        actor: &ActorContext,
+        thread_id: ThreadId,
+        record: &StableRecordRef,
+        at: chrono::DateTime<chrono::Utc>,
+    ) -> Result<AuthorizedRecordThreadPolicy, PortError> {
+        self.permits(CollaborationAction::CreateThread)?;
+        let lookup = self
+            .directory
+            .resolve(&self.directory_access(actor)?, record.id(), at)
+            .await
+            .map_err(|_| PortError::Unavailable)?;
+        let descriptor = match lookup {
+            DirectoryLookup::Visible {
+                value,
+                freshness: ProjectionFreshness::Fresh,
+            } if value.record() == record => value,
+            DirectoryLookup::Degraded(ProjectionFreshness::Stale) => return Err(PortError::Stale),
+            DirectoryLookup::Neutral => return Err(PortError::Denied),
+            _ => return Err(PortError::Unavailable),
+        };
+        let owner = record_collaboration_policy(record.record_type().as_str())
+            .filter(|policy| {
+                policy.owner == record.owner_context()
+                    && policy.discussion_threads_enabled
+                    && policy.human_internal_mutations_only
+                    && policy.classification == descriptor.classification()
+            })
+            .ok_or(PortError::Denied)?;
+        let retain_until = at
+            .checked_add_signed(chrono::Duration::days(i64::from(
+                owner.retention.minimum_days,
+            )))
+            .ok_or(PortError::InvalidState)?;
+        let policy = AnchorPolicy::try_new(
+            actor.holding_id,
+            record.clone(),
+            descriptor.scope().clone(),
+            None,
+            descriptor.classification(),
+            descriptor.authorization_policy(),
+        )
+        .map_err(|_| PortError::Denied)?;
+        let audience = Audience::Internal {
+            scope: descriptor.scope().clone(),
+            principals: Vec::new(),
+        };
+        let retention = RetentionPolicy {
+            parent_retain_until: retain_until,
+            comment_retain_until: retain_until,
+            jurisdiction_retain_until: retain_until,
+            legal_holds: std::collections::BTreeSet::new(),
+        };
+        let access = self
+            .authorize_new_thread(actor, thread_id, &policy, &audience)
+            .await?;
+        AuthorizedRecordThreadPolicy::try_from_owner_policy(access, policy, audience, retention, at)
     }
 }
 

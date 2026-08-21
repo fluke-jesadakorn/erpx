@@ -259,6 +259,8 @@ pub enum ThreadLifecycle {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ThreadCard {
     pub thread_id: Uuid,
+    /// Aggregate version required by every optimistic thread command.
+    pub aggregate_version: u64,
     pub anchor: AnchorDisplay,
     pub realm: ThreadRealm,
     pub lifecycle: ThreadLifecycle,
@@ -320,6 +322,12 @@ pub enum ActivityReferenceGate {
         record: StableRecordRef,
         canonical_route: String,
     },
+    /// Authorized by the audited control-plane collaboration gateway. This is
+    /// deliberately distinct from holding-local authority.
+    AuthorizedPlatform {
+        record: StableRecordRef,
+        canonical_route: String,
+    },
     Neutral,
     Stale,
     Degraded,
@@ -330,6 +338,11 @@ impl ActivityReferenceGate {
     pub fn authorized_record(&self, current_route: &str) -> Option<&StableRecordRef> {
         match self {
             Self::Authorized {
+                record,
+                canonical_route,
+                ..
+            }
+            | Self::AuthorizedPlatform {
                 record,
                 canonical_route,
                 ..

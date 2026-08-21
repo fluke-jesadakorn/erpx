@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
-use erpx_integration_contracts::{ItemDescriptorDraft, assets, maintenance};
+use erpx_integration_contracts::{ItemDescriptorDraftV2, assets, maintenance};
 use erpx_kernel::AuthorityScope;
 use erpx_maintenance::{WorkOrderStatus, WorkOrderView};
 use serde::{Deserialize, Serialize};
@@ -24,7 +24,7 @@ pub struct MaintenanceSnapshot {
 pub enum MaintenanceOutboxPayload {
     Integration(maintenance::Event),
     Snapshot(MaintenanceSnapshot),
-    Directory(ItemDescriptorDraft),
+    Directory(ItemDescriptorDraftV2),
 }
 
 #[derive(Debug, Clone)]

@@ -1036,7 +1036,7 @@ mod tests {
 
     #[test]
     fn control_plane_migration_is_embedded_and_has_the_expected_schema() {
-        assert_eq!(CONTROL_PLANE_MIGRATOR.iter().count(), 2);
+        assert_eq!(CONTROL_PLANE_MIGRATOR.iter().count(), 3);
         let initial = CONTROL_PLANE_MIGRATOR
             .iter()
             .next()
@@ -1058,7 +1058,7 @@ mod tests {
             .next()
             .expect("clean-slate baseline");
         assert!(audits.sql.contains("erpx_control.global_read_audits"));
-        assert_eq!(CONTROL_READ_MIGRATOR.iter().count(), 1);
+        assert_eq!(CONTROL_READ_MIGRATOR.iter().count(), 2);
         let support_sla = CONTROL_PLANE_MIGRATOR
             .iter()
             .next()
@@ -1193,8 +1193,8 @@ mod tests {
 
     #[test]
     fn holding_write_and_read_migrations_are_separate_and_rls_backed() {
-        assert_eq!(HOLDING_WRITE_MIGRATOR.iter().count(), 2);
-        assert_eq!(HOLDING_READ_MIGRATOR.iter().count(), 1);
+        assert_eq!(HOLDING_WRITE_MIGRATOR.iter().count(), 3);
+        assert_eq!(HOLDING_READ_MIGRATOR.iter().count(), 3);
         let write = HOLDING_WRITE_MIGRATOR
             .iter()
             .next()
@@ -1247,8 +1247,12 @@ mod tests {
         );
         let final_read = HOLDING_READ_MIGRATOR
             .iter()
-            .max_by_key(|migration| migration.version)
-            .expect("final holding read migration");
+            .find(|migration| {
+                migration
+                    .sql
+                    .contains("DROP TABLE IF EXISTS erpx_holding.operations_read_rows")
+            })
+            .expect("holding read hard-cutover migration");
         assert!(
             final_read
                 .sql
@@ -1793,11 +1797,11 @@ mod tests {
     fn cqrs_outbox_sequences_are_allocated_under_commit_order_locks() {
         let control = CONTROL_PLANE_MIGRATOR
             .iter()
-            .last()
+            .find(|migration| migration.sql.contains("lock_outbox_commit_order"))
             .expect("control outbox commit-order migration");
         let holding = HOLDING_WRITE_MIGRATOR
             .iter()
-            .last()
+            .find(|migration| migration.sql.contains("lock_outbox_commit_order"))
             .expect("holding outbox commit-order migration");
 
         for migration in [control, holding] {
@@ -2256,5 +2260,42 @@ mod tests {
             read.sql
                 .contains("inventory_reservation_read_holding_isolation")
         );
+    }
+
+    #[test]
+    fn phase2_collaboration_schema_matches_relation_and_attachment_adapters() {
+        let holding = HOLDING_WRITE_MIGRATOR
+            .iter()
+            .find(|migration| migration.sql.contains("record_relation_graphs"))
+            .expect("holding collaboration phase 2 migration");
+        let global = CONTROL_PLANE_MIGRATOR
+            .iter()
+            .find(|migration| {
+                migration
+                    .sql
+                    .contains("erpx_global_collaboration.relation_graphs")
+            })
+            .expect("global collaboration phase 2 migration");
+
+        for migration in [holding, global] {
+            assert!(migration.sql.contains("relation_document JSONB NOT NULL"));
+            assert!(
+                migration
+                    .sql
+                    .contains("result_relation_document JSONB NOT NULL")
+            );
+            assert!(migration.sql.contains("scan_engine IS NOT NULL"));
+            assert!(migration.sql.contains("scan_evidence_digest IS NOT NULL"));
+            assert!(
+                migration
+                    .sql
+                    .contains("OLD.thread_id IS NULL AND NEW.thread_id IS NOT NULL")
+            );
+            assert!(
+                migration
+                    .sql
+                    .contains("OLD.lifecycle='pending_upload' AND NEW.lifecycle='pending_scan'")
+            );
+        }
     }
 }

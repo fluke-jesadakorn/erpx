@@ -34,6 +34,21 @@ message ItemDescriptor {
   string classification = 6;
   uint64 descriptor_version = 7;
   uint64 source_event_position = 8;
+  // Owner-published label safe for authorized collaboration surfaces. Legacy
+  // descriptors omit this field and remain resolvable, but are not picker
+  // candidates until their owner republishes a label.
+  optional string display_label = 9;
+}
+
+// A deliberately small, already-authorized picker/result projection. Raw
+// owner search text never crosses this boundary.
+message AuthorizedItemSummary {
+  RecordRef record = 1;
+  string canonical_route = 2;
+  string display_label = 3;
+  string lifecycle_state = 4;
+  string classification = 5;
+  uint64 descriptor_version = 6;
 }
 
 enum DirectoryFreshness {
@@ -65,10 +80,13 @@ message SearchItemsRequest {
 }
 
 message SearchItemsResponse {
+  // Kept for mixed-version readers. New picker clients consume
+  // authorized_summaries and never receive raw owner search text.
   repeated ItemDescriptor items = 1;
   optional string next_cursor = 2;
   uint64 authorized_count = 3;
   DirectoryFreshness freshness = 4;
+  repeated AuthorizedItemSummary authorized_summaries = 5;
 }
 
 message ListBacklinksRequest {

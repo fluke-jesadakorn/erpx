@@ -21,6 +21,9 @@ pub const MAX_AUDIENCE_PRINCIPALS: usize = 1_000;
 pub const MAX_REFERENCE_CODE_BYTES: usize = 128;
 pub const MAX_ACTION_TYPE_BYTES: usize = 128;
 pub const MAX_REACTION_BYTES: usize = 64;
+pub const MAX_ATTACHMENT_FILE_NAME_BYTES: usize = 512;
+pub const MAX_ATTACHMENT_MEDIA_TYPE_BYTES: usize = 128;
+pub const MAX_ATTACHMENT_BYTES: u64 = 100 * 1024 * 1024;
 
 macro_rules! collaboration_id {
     ($name:ident, $field:literal) => {
@@ -53,6 +56,33 @@ collaboration_id!(ModerationCaseId, "moderation_case_id");
 collaboration_id!(PromotionId, "promotion_id");
 collaboration_id!(ActionCardId, "action_card_id");
 collaboration_id!(DraftId, "draft_id");
+collaboration_id!(AttachmentId, "attachment_id");
+
+/// Deterministic, non-secret identity for the relation graph owned by a source
+/// record. It deliberately uses UUIDv4-shaped bytes so the existing persisted
+/// `ThreadId` contract can carry it during the Phase 2 rolling migration. The
+/// graph remains a system-owned metadata stream and must never be returned by
+/// discussion-thread list APIs.
+pub fn record_relation_graph_thread_id(
+    source: &StableRecordRef,
+) -> Result<ThreadId, CollaborationError> {
+    source
+        .validate()
+        .map_err(|_| CollaborationError::InvalidRelation)?;
+    let mut hasher = Sha256::new();
+    hasher.update(b"erpx.collaboration.record-relation-graph.v1");
+    hasher.update(source.owner_context().slug().as_bytes());
+    hasher.update([0]);
+    hasher.update(source.record_type().as_str().as_bytes());
+    hasher.update([0]);
+    hasher.update(source.id().as_uuid().as_bytes());
+    let digest: [u8; 32] = hasher.finalize().into();
+    let mut bytes = [0_u8; 16];
+    bytes.copy_from_slice(&digest[..16]);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    ThreadId::try_from_uuid(Uuid::from_bytes(bytes))
+}
 
 pub fn action_card_confirmation_decision_ref(
     action_card_id: ActionCardId,
@@ -107,6 +137,10 @@ pub enum CollaborationError {
     MandatoryFollower,
     #[error("reference relation is invalid or has not been policy-approved")]
     InvalidRelation,
+    #[error("custom relation kinds are unavailable in this release")]
+    CustomRelationUnavailable,
+    #[error("attachment state or record binding is invalid")]
+    InvalidAttachment,
     #[error("moderation evidence or transition is invalid")]
     InvalidModeration,
     #[error("retained or legally held collaboration evidence cannot be purged")]
@@ -451,7 +485,7 @@ fn contains_unsafe_embed(value: &Value) -> bool {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AttachmentRef {
-    pub object_id: Uuid,
+    pub attachment_id: AttachmentId,
     pub file_name: String,
     pub media_type: String,
     pub classification: DataClassification,
@@ -459,13 +493,183 @@ pub struct AttachmentRef {
 
 impl AttachmentRef {
     fn validate(&self) -> Result<(), CollaborationError> {
-        if self.object_id.is_nil()
-            || !valid_text(&self.file_name, 512)
-            || !valid_text(&self.media_type, 128)
+        if !valid_text(&self.file_name, MAX_ATTACHMENT_FILE_NAME_BYTES)
+            || !valid_text(&self.media_type, MAX_ATTACHMENT_MEDIA_TYPE_BYTES)
         {
             return Err(CollaborationError::InvalidContent("attachment"));
         }
         Ok(())
+    }
+}
+
+/// Malware-scanning lifecycle for an object in the Collaboration attachment
+/// registry. Only `Ready` objects may be bound to a comment or downloaded.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AttachmentLifecycle {
+    PendingUpload,
+    PendingScan,
+    Ready,
+    Quarantined,
+    Expired,
+}
+
+/// Durable attachment-registry state. Every security-sensitive binding is
+/// explicit so a ready object cannot be replayed into another holding, record,
+/// thread, uploader, or classification.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AttachmentRecord {
+    pub attachment_id: AttachmentId,
+    /// Opaque object-store identity. This is persistence material and is never
+    /// copied into `AttachmentView` or transport responses.
+    pub storage_object_id: Uuid,
+    pub holding_id: HoldingId,
+    pub anchor: StableRecordRef,
+    pub thread_id: Option<ThreadId>,
+    pub uploader: PrincipalRef,
+    pub classification: DataClassification,
+    pub file_name: String,
+    pub media_type: String,
+    pub size_bytes: u64,
+    pub digest: [u8; 32],
+    pub lifecycle: AttachmentLifecycle,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub upload_expires_at: DateTime<Utc>,
+    pub expires_at: Option<DateTime<Utc>>,
+}
+
+impl AttachmentRecord {
+    pub fn validate(&self) -> Result<(), CollaborationError> {
+        self.anchor
+            .validate()
+            .map_err(|_| CollaborationError::InvalidAttachment)?;
+        if self.storage_object_id.is_nil()
+            || self.size_bytes == 0
+            || self.size_bytes > MAX_ATTACHMENT_BYTES
+            || self.digest == [0; 32]
+            || !valid_text(&self.file_name, MAX_ATTACHMENT_FILE_NAME_BYTES)
+            || !valid_text(&self.media_type, MAX_ATTACHMENT_MEDIA_TYPE_BYTES)
+            || self.uploader.kind() != PrincipalKind::Human
+            || self.updated_at < self.created_at
+            || self.upload_expires_at <= self.created_at
+            || self
+                .expires_at
+                .is_some_and(|expires_at| expires_at <= self.created_at)
+            || matches!(
+                self.lifecycle,
+                AttachmentLifecycle::Ready | AttachmentLifecycle::Quarantined
+            ) && self.thread_id.is_none()
+        {
+            return Err(CollaborationError::InvalidAttachment);
+        }
+        Ok(())
+    }
+
+    pub fn bind_thread(&mut self, thread_id: ThreadId) -> Result<(), CollaborationError> {
+        match self.thread_id {
+            Some(current) if current == thread_id => Ok(()),
+            Some(_) => Err(CollaborationError::InvalidAttachment),
+            None if self.lifecycle == AttachmentLifecycle::PendingUpload => {
+                self.thread_id = Some(thread_id);
+                Ok(())
+            }
+            None => Err(CollaborationError::InvalidAttachment),
+        }
+    }
+
+    pub fn transition(
+        &mut self,
+        next: AttachmentLifecycle,
+        at: DateTime<Utc>,
+    ) -> Result<(), CollaborationError> {
+        self.validate()?;
+        let allowed = matches!(
+            (self.lifecycle, next),
+            (
+                AttachmentLifecycle::PendingUpload,
+                AttachmentLifecycle::PendingScan | AttachmentLifecycle::Expired
+            ) | (
+                AttachmentLifecycle::PendingScan,
+                AttachmentLifecycle::Ready
+                    | AttachmentLifecycle::Quarantined
+                    | AttachmentLifecycle::Expired
+            )
+        );
+        if !allowed || at < self.updated_at {
+            return Err(CollaborationError::InvalidTransition);
+        }
+        self.lifecycle = next;
+        self.updated_at = at;
+        Ok(())
+    }
+
+    pub fn ready_ref_for(
+        &self,
+        holding_id: HoldingId,
+        anchor: &StableRecordRef,
+        thread_id: ThreadId,
+        uploader: PrincipalRef,
+        classification: DataClassification,
+        now: DateTime<Utc>,
+    ) -> Result<AttachmentRef, CollaborationError> {
+        self.validate()?;
+        if self.lifecycle != AttachmentLifecycle::Ready
+            || self.holding_id != holding_id
+            || &self.anchor != anchor
+            || self.thread_id != Some(thread_id)
+            || self.uploader != uploader
+            || self.classification != classification
+            || self.expires_at.is_some_and(|expires_at| expires_at <= now)
+        {
+            return Err(CollaborationError::InvalidAttachment);
+        }
+        Ok(AttachmentRef {
+            attachment_id: self.attachment_id,
+            file_name: self.file_name.clone(),
+            media_type: self.media_type.clone(),
+            classification: self.classification,
+        })
+    }
+}
+
+/// Typed attachment projection returned only after current record/thread
+/// authorization. Storage keys and scanner diagnostics are intentionally not
+/// exposed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AttachmentView {
+    pub attachment_id: AttachmentId,
+    pub anchor: StableRecordRef,
+    pub thread_id: Option<ThreadId>,
+    pub file_name: String,
+    pub media_type: String,
+    pub size_bytes: u64,
+    pub digest: [u8; 32],
+    pub classification: DataClassification,
+    pub lifecycle: AttachmentLifecycle,
+    pub uploaded_by: PrincipalRef,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub expires_at: Option<DateTime<Utc>>,
+}
+
+impl From<&AttachmentRecord> for AttachmentView {
+    fn from(value: &AttachmentRecord) -> Self {
+        Self {
+            attachment_id: value.attachment_id,
+            anchor: value.anchor.clone(),
+            thread_id: value.thread_id,
+            file_name: value.file_name.clone(),
+            media_type: value.media_type.clone(),
+            size_bytes: value.size_bytes,
+            digest: value.digest,
+            classification: value.classification,
+            lifecycle: value.lifecycle,
+            uploaded_by: value.uploader,
+            created_at: value.created_at,
+            updated_at: value.updated_at,
+            expires_at: value.expires_at,
+        }
     }
 }
 
@@ -757,6 +961,17 @@ impl RelationKind {
             _ => Ok(()),
         }
     }
+
+    /// Phase 2 enables only the closed set of built-in metadata relations.
+    /// `Custom` remains deserializable for rolling compatibility but no current
+    /// command may create it.
+    pub fn validate_for_write(&self) -> Result<(), CollaborationError> {
+        self.validate()?;
+        if matches!(self, Self::Custom { .. }) {
+            return Err(CollaborationError::CustomRelationUnavailable);
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -768,6 +983,239 @@ pub struct ReferenceRelation {
     pub created_by: PrincipalRef,
     pub created_at: DateTime<Utc>,
     pub revoked_at: Option<DateTime<Utc>>,
+}
+
+/// Complete typed record-relation projection. A revoked relation remains as a
+/// tombstone so delayed adds and stale projections cannot resurrect it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RelationView {
+    pub id: RelationId,
+    pub source: StableRecordRef,
+    pub target: StableRecordRef,
+    pub kind: RelationKind,
+    pub created_by: PrincipalRef,
+    pub created_at: DateTime<Utc>,
+    pub revoked_by: Option<PrincipalRef>,
+    pub revoked_at: Option<DateTime<Utc>>,
+    pub version: u64,
+    /// Global committed outbox sequence assigned by the trusted worker. Zero
+    /// is valid only for an unmaterialized transaction-local draft.
+    pub committed_sequence: u64,
+}
+
+impl RelationView {
+    pub fn validate(&self) -> Result<(), CollaborationError> {
+        self.source
+            .validate()
+            .map_err(|_| CollaborationError::InvalidRelation)?;
+        self.target
+            .validate()
+            .map_err(|_| CollaborationError::InvalidRelation)?;
+        self.kind.validate_for_write()?;
+        if self.source == self.target
+            || self.version == 0
+            || self.created_by.kind() != PrincipalKind::Human
+            || self.revoked_by.is_some() != self.revoked_at.is_some()
+            || self
+                .revoked_by
+                .is_some_and(|principal| principal.kind() != PrincipalKind::Human)
+            || self
+                .revoked_at
+                .is_some_and(|revoked_at| revoked_at < self.created_at)
+        {
+            return Err(CollaborationError::InvalidRelation);
+        }
+        Ok(())
+    }
+
+    pub const fn is_revoked(&self) -> bool {
+        self.revoked_at.is_some()
+    }
+}
+
+/// Aggregate rooted at the relation graph of exactly one source record.
+/// Versioning and tombstones are independent from discussion-thread lifecycle.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RecordRelationGraph {
+    source: StableRecordRef,
+    version: u64,
+    relations: Vec<RelationView>,
+}
+
+impl RecordRelationGraph {
+    pub fn new(source: StableRecordRef) -> Result<Self, CollaborationError> {
+        source
+            .validate()
+            .map_err(|_| CollaborationError::InvalidRelation)?;
+        Ok(Self {
+            source,
+            version: 0,
+            relations: Vec::new(),
+        })
+    }
+
+    pub fn validate_loaded(&self) -> Result<(), CollaborationError> {
+        self.source
+            .validate()
+            .map_err(|_| CollaborationError::InvalidRelation)?;
+        let mut ids = BTreeSet::new();
+        for relation in &self.relations {
+            relation.validate()?;
+            if relation.source != self.source
+                || !ids.insert(relation.id)
+                || relation.version > self.version
+            {
+                return Err(CollaborationError::InvalidRelation);
+            }
+        }
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn add(
+        &mut self,
+        expected_version: u64,
+        relation_id: RelationId,
+        target: StableRecordRef,
+        kind: RelationKind,
+        actor: PrincipalRef,
+        at: DateTime<Utc>,
+    ) -> Result<(RelationView, bool), CollaborationError> {
+        self.validate_loaded()?;
+        target
+            .validate()
+            .map_err(|_| CollaborationError::InvalidRelation)?;
+        kind.validate_for_write()?;
+        if actor.kind() != PrincipalKind::Human || target == self.source {
+            return Err(CollaborationError::InvalidRelation);
+        }
+        if let Some(existing) = self
+            .relations
+            .iter()
+            .find(|relation| relation.id == relation_id)
+        {
+            if !existing.is_revoked()
+                && existing.source == self.source
+                && existing.target == target
+                && existing.kind == kind
+                && existing.created_by == actor
+            {
+                return Ok((existing.clone(), true));
+            }
+            return Err(CollaborationError::DuplicateIdentity);
+        }
+        if self.relations.iter().any(|relation| {
+            !relation.is_revoked() && relation.target == target && relation.kind == kind
+        }) {
+            return Err(CollaborationError::DuplicateIdentity);
+        }
+        if expected_version != self.version {
+            return Err(CollaborationError::VersionConflict);
+        }
+        self.version = self
+            .version
+            .checked_add(1)
+            .ok_or(CollaborationError::VersionOverflow)?;
+        let relation = RelationView {
+            id: relation_id,
+            source: self.source.clone(),
+            target,
+            kind,
+            created_by: actor,
+            created_at: at,
+            revoked_by: None,
+            revoked_at: None,
+            version: self.version,
+            committed_sequence: 0,
+        };
+        relation.validate()?;
+        self.relations.push(relation.clone());
+        Ok((relation, false))
+    }
+
+    pub fn revoke(
+        &mut self,
+        expected_version: u64,
+        relation_id: RelationId,
+        actor: PrincipalRef,
+        at: DateTime<Utc>,
+    ) -> Result<(RelationView, bool), CollaborationError> {
+        self.validate_loaded()?;
+        if actor.kind() != PrincipalKind::Human {
+            return Err(CollaborationError::InvalidRelation);
+        }
+        let index = self
+            .relations
+            .iter()
+            .position(|relation| relation.id == relation_id)
+            .ok_or(CollaborationError::InvalidRelation)?;
+        if self.relations[index].is_revoked() {
+            if self.relations[index].revoked_by == Some(actor)
+                && self.relations[index].revoked_at == Some(at)
+            {
+                return Ok((self.relations[index].clone(), true));
+            }
+            return Err(CollaborationError::InvalidTransition);
+        }
+        if expected_version != self.version || at < self.relations[index].created_at {
+            return if expected_version != self.version {
+                Err(CollaborationError::VersionConflict)
+            } else {
+                Err(CollaborationError::InvalidTimestamp)
+            };
+        }
+        self.version = self
+            .version
+            .checked_add(1)
+            .ok_or(CollaborationError::VersionOverflow)?;
+        let relation = &mut self.relations[index];
+        relation.revoked_by = Some(actor);
+        relation.revoked_at = Some(at);
+        relation.version = self.version;
+        relation.committed_sequence = 0;
+        Ok((relation.clone(), false))
+    }
+
+    /// Materializes the worker-assigned committed sequence. Replaying the same
+    /// value is harmless; another nonzero value is a policy conflict.
+    pub fn assign_committed_sequence(
+        &mut self,
+        relation_id: RelationId,
+        relation_version: u64,
+        committed_sequence: u64,
+    ) -> Result<bool, CollaborationError> {
+        if committed_sequence == 0 {
+            return Err(CollaborationError::InvalidRelation);
+        }
+        let relation = self
+            .relations
+            .iter_mut()
+            .find(|relation| relation.id == relation_id)
+            .ok_or(CollaborationError::InvalidRelation)?;
+        if relation.version != relation_version {
+            return Err(CollaborationError::VersionConflict);
+        }
+        if relation.committed_sequence == committed_sequence {
+            return Ok(true);
+        }
+        if relation.committed_sequence != 0 {
+            return Err(CollaborationError::VersionConflict);
+        }
+        relation.committed_sequence = committed_sequence;
+        Ok(false)
+    }
+
+    pub const fn source(&self) -> &StableRecordRef {
+        &self.source
+    }
+
+    pub const fn version(&self) -> u64 {
+        self.version
+    }
+
+    pub fn relations(&self) -> &[RelationView] {
+        &self.relations
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -2352,5 +2800,203 @@ mod tests {
                 decided_at,
             )
             .unwrap();
+    }
+
+    fn record(record_type: &str, owner: ContextId) -> StableRecordRef {
+        StableRecordRef::try_new(
+            RecordId::try_from_uuid(Uuid::new_v4()).unwrap(),
+            owner,
+            RecordTypeId::try_new(record_type).unwrap(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn relation_graph_is_deterministic_idempotent_and_versioned() {
+        let source = record("finance.invoice", ContextId::Finance);
+        let target = record("procurement.purchase-order", ContextId::Procurement);
+        assert_eq!(
+            record_relation_graph_thread_id(&source).unwrap(),
+            record_relation_graph_thread_id(&source).unwrap()
+        );
+        let actor = principal(PrincipalKind::Human);
+        let relation_id = id(RelationId::try_from_uuid);
+        let at = Utc::now();
+        let mut graph = RecordRelationGraph::new(source.clone()).unwrap();
+        let (added, replayed) = graph
+            .add(
+                0,
+                relation_id,
+                target.clone(),
+                RelationKind::EvidenceFor,
+                actor,
+                at,
+            )
+            .unwrap();
+        assert!(!replayed);
+        assert_eq!(graph.version(), 1);
+        assert_eq!(added.version, 1);
+        assert_eq!(added.committed_sequence, 0);
+
+        let (replayed_relation, replayed) = graph
+            .add(
+                0,
+                relation_id,
+                target.clone(),
+                RelationKind::EvidenceFor,
+                actor,
+                at,
+            )
+            .unwrap();
+        assert!(replayed);
+        assert_eq!(replayed_relation, added);
+        assert_eq!(graph.version(), 1);
+        assert_eq!(
+            graph.add(
+                0,
+                id(RelationId::try_from_uuid),
+                record("finance.payment", ContextId::Finance),
+                RelationKind::RelatesTo,
+                actor,
+                at,
+            ),
+            Err(CollaborationError::VersionConflict)
+        );
+        assert!(matches!(
+            graph.add(
+                1,
+                id(RelationId::try_from_uuid),
+                target,
+                RelationKind::Custom {
+                    code: "approved-looking".into(),
+                    version: 1,
+                    approval_policy: PolicyId::try_from_uuid(Uuid::new_v4()).unwrap(),
+                },
+                actor,
+                at,
+            ),
+            Err(CollaborationError::CustomRelationUnavailable)
+        ));
+    }
+
+    #[test]
+    fn relation_tombstone_wins_over_delayed_add_and_sequence_replay_is_safe() {
+        let source = record("finance.invoice", ContextId::Finance);
+        let target = record("finance.payment", ContextId::Finance);
+        let actor = principal(PrincipalKind::Human);
+        let relation_id = id(RelationId::try_from_uuid);
+        let now = Utc::now();
+        let mut graph = RecordRelationGraph::new(source).unwrap();
+        graph
+            .add(
+                0,
+                relation_id,
+                target.clone(),
+                RelationKind::RelatesTo,
+                actor,
+                now,
+            )
+            .unwrap();
+        let (revoked, replayed) = graph
+            .revoke(1, relation_id, actor, now + Duration::seconds(1))
+            .unwrap();
+        assert!(!replayed);
+        assert!(revoked.is_revoked());
+        assert_eq!(revoked.version, 2);
+        assert_eq!(
+            graph.add(2, relation_id, target, RelationKind::RelatesTo, actor, now,),
+            Err(CollaborationError::DuplicateIdentity)
+        );
+        assert!(!graph.assign_committed_sequence(relation_id, 2, 99).unwrap());
+        assert!(graph.assign_committed_sequence(relation_id, 2, 99).unwrap());
+        assert_eq!(
+            graph.assign_committed_sequence(relation_id, 2, 100),
+            Err(CollaborationError::VersionConflict)
+        );
+    }
+
+    #[test]
+    fn attachment_lifecycle_and_ready_binding_fail_closed() {
+        let holding_id = HoldingId::try_from_uuid(Uuid::new_v4()).unwrap();
+        let anchor = record("legal.contract", ContextId::Legal);
+        let thread_id = id(ThreadId::try_from_uuid);
+        let uploader = principal(PrincipalKind::Human);
+        let now = Utc::now();
+        let mut attachment = AttachmentRecord {
+            attachment_id: id(AttachmentId::try_from_uuid),
+            storage_object_id: Uuid::new_v4(),
+            holding_id,
+            anchor: anchor.clone(),
+            thread_id: None,
+            uploader,
+            classification: DataClassification::Restricted,
+            file_name: "contract.pdf".into(),
+            media_type: "application/pdf".into(),
+            size_bytes: 42,
+            digest: [7; 32],
+            lifecycle: AttachmentLifecycle::PendingUpload,
+            created_at: now,
+            updated_at: now,
+            upload_expires_at: now + Duration::minutes(15),
+            expires_at: Some(now + Duration::hours(1)),
+        };
+        attachment.bind_thread(thread_id).unwrap();
+        attachment
+            .transition(AttachmentLifecycle::PendingScan, now + Duration::seconds(1))
+            .unwrap();
+        assert!(
+            attachment
+                .ready_ref_for(
+                    holding_id,
+                    &anchor,
+                    thread_id,
+                    uploader,
+                    DataClassification::Restricted,
+                    now,
+                )
+                .is_err()
+        );
+        attachment
+            .transition(AttachmentLifecycle::Ready, now + Duration::seconds(2))
+            .unwrap();
+        let reference = attachment
+            .ready_ref_for(
+                holding_id,
+                &anchor,
+                thread_id,
+                uploader,
+                DataClassification::Restricted,
+                now,
+            )
+            .unwrap();
+        assert_eq!(reference.attachment_id, attachment.attachment_id);
+        assert!(
+            attachment
+                .ready_ref_for(
+                    holding_id,
+                    &record("legal.contract", ContextId::Legal),
+                    thread_id,
+                    uploader,
+                    DataClassification::Restricted,
+                    now,
+                )
+                .is_err()
+        );
+        assert!(
+            attachment
+                .ready_ref_for(
+                    holding_id,
+                    &anchor,
+                    thread_id,
+                    principal(PrincipalKind::Human),
+                    DataClassification::Restricted,
+                    now,
+                )
+                .is_err()
+        );
+        assert_eq!(
+            attachment.transition(AttachmentLifecycle::Quarantined, now + Duration::seconds(3),),
+            Err(CollaborationError::InvalidTransition)
+        );
     }
 }

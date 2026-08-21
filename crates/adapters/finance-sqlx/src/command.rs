@@ -15,10 +15,10 @@ use erpx_finance::{
 };
 use erpx_integration_contracts::{
     BoundedContext, CurrencyCode, DimensionSet, ITEM_DIRECTORY_FACT_VERSION,
-    ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent, ItemDescriptorDraft, MoneyAmount, Quantity,
-    RecordRef, RecordTypeId, ReferenceCode, StableRecordRef, assets, catalog::ContextId, customer,
-    inventory, legal, marketing, organization, people_payroll, pos, procurement, record_policy_id,
-    sales,
+    ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent, ItemDescriptorDraft, ItemDescriptorDraftV2,
+    MoneyAmount, Quantity, RecordRef, RecordTypeId, ReferenceCode, StableRecordRef, assets,
+    catalog::ContextId, customer, inventory, legal, marketing, organization, people_payroll, pos,
+    procurement, record_policy_id, sales,
 };
 use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId, RecordId};
 use serde_json::json;
@@ -1221,8 +1221,8 @@ impl CommandUnitOfWork for FinanceCommandAdapter {
 
 fn finance_directory_draft(
     aggregate: &FinanceAggregate,
-) -> Result<Option<ItemDescriptorDraft>, PortError> {
-    let (record_type, lifecycle_state, search_text) = match aggregate {
+) -> Result<Option<ItemDescriptorDraftV2>, PortError> {
+    let (record_type, lifecycle_state, display_label) = match aggregate {
         FinanceAggregate::Period(value) => (
             "finance.close-cycle",
             period_status_name(value.status()),
@@ -1259,10 +1259,11 @@ fn finance_directory_draft(
         lifecycle_state: lifecycle_state.into(),
         classification: DataClassification::Restricted,
         descriptor_version: aggregate.version(),
-        authorized_search_text: search_text,
+        authorized_search_text: display_label.clone(),
     };
-    value.validate().map_err(|_| PortError::Internal)?;
-    Ok(Some(value))
+    ItemDescriptorDraftV2::try_new(value, display_label)
+        .map(Some)
+        .map_err(|_| PortError::Internal)
 }
 
 struct FinanceGuard {

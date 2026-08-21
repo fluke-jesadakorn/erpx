@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
-use erpx_integration_contracts::{ItemDescriptorDraft, platform_administration};
+use erpx_integration_contracts::{ItemDescriptorDraftV2, platform_administration};
 use erpx_kernel::AuthorityScope;
 use erpx_platform_administration::{
     AdminContextStatus, AdminContextView, ConnectorKind, ConnectorState, ConnectorView,
@@ -29,7 +29,7 @@ pub enum PlatformAdministrationSnapshot {
 pub enum PlatformAdministrationOutboxPayload {
     Integration(platform_administration::Event),
     Snapshot(PlatformAdministrationSnapshot),
-    Directory(ItemDescriptorDraft),
+    Directory(ItemDescriptorDraftV2),
 }
 
 macro_rules! projector {

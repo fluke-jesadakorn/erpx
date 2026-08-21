@@ -5,7 +5,7 @@ use erpx_cqrs_sqlx::{
 };
 use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
-    IntegrationEventEnvelope, ItemDescriptorDraft, assets, record_policy_id,
+    IntegrationEventEnvelope, ItemDescriptorDraft, ItemDescriptorDraftV2, assets, record_policy_id,
 };
 use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId};
 use erpx_maintenance::{
@@ -504,7 +504,7 @@ impl CommandUnitOfWork for MaintenanceCommandAdapter {
     }
 }
 
-fn maintenance_directory_draft(aggregate: &WorkOrder) -> Result<ItemDescriptorDraft, PortError> {
+fn maintenance_directory_draft(aggregate: &WorkOrder) -> Result<ItemDescriptorDraftV2, PortError> {
     let record = aggregate.record_ref().map_err(|_| PortError::Internal)?;
     let value = ItemDescriptorDraft {
         authorization_policy: record_policy_id(&record).map_err(|_| PortError::Internal)?,
@@ -515,8 +515,8 @@ fn maintenance_directory_draft(aggregate: &WorkOrder) -> Result<ItemDescriptorDr
         descriptor_version: aggregate.version(),
         authorized_search_text: format!("{} {}", aggregate.code(), aggregate.title()),
     };
-    value.validate().map_err(|_| PortError::Internal)?;
-    Ok(value)
+    ItemDescriptorDraftV2::try_new(value, format!("{} {}", aggregate.code(), aggregate.title()))
+        .map_err(|_| PortError::Internal)
 }
 
 struct WorkOrderAtomicGuard {

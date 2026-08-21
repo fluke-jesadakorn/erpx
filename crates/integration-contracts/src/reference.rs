@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::catalog::{ContextId, RecordTypeDescriptor, record_type};
 
 pub const MAX_LIFECYCLE_STATE_BYTES: usize = 64;
+pub const MAX_RECORD_DISPLAY_LABEL_BYTES: usize = 512;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -208,6 +209,89 @@ const fn published_policy(
     );
     definition.published_to_descendants = true;
     definition
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecordRelationPolicyKind {
+    RelatesTo,
+    Blocks,
+    DependsOn,
+    Implements,
+    Supersedes,
+    DerivedFrom,
+    EvidenceFor,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecordThreadAudiencePolicy {
+    /// Audience is derived from the current owner-authorized record scope and
+    /// may only be narrowed by the server. Phase 2 has no external writes.
+    InternalRecordAudience,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct RecordThreadRetentionPolicy {
+    pub minimum_days: u32,
+    pub inherit_record_legal_holds: bool,
+}
+
+/// Owner-declared Phase 2 collaboration behavior for one current record
+/// family. This registry is intentionally distinct from general read policy:
+/// only authenticated human internal-workforce sessions may mutate it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RecordCollaborationPolicy {
+    pub record_type: &'static str,
+    pub owner: ContextId,
+    pub version: u64,
+    pub classification: DataClassification,
+    pub audience: RecordThreadAudiencePolicy,
+    pub retention: RecordThreadRetentionPolicy,
+    pub allowed_relation_kinds: &'static [RecordRelationPolicyKind],
+    pub custom_relations_enabled: bool,
+    pub discussion_threads_enabled: bool,
+    pub attachments_enabled: bool,
+    pub human_internal_mutations_only: bool,
+}
+
+const BUILT_IN_RELATION_KINDS: &[RecordRelationPolicyKind] = &[
+    RecordRelationPolicyKind::RelatesTo,
+    RecordRelationPolicyKind::Blocks,
+    RecordRelationPolicyKind::DependsOn,
+    RecordRelationPolicyKind::Implements,
+    RecordRelationPolicyKind::Supersedes,
+    RecordRelationPolicyKind::DerivedFrom,
+    RecordRelationPolicyKind::EvidenceFor,
+];
+
+const fn collaboration_retention(owner: ContextId) -> RecordThreadRetentionPolicy {
+    let minimum_days = match owner {
+        ContextId::Legal => 3_650,
+        ContextId::Finance | ContextId::PeoplePayroll => 2_555,
+        ContextId::IdentityAccess | ContextId::PlatformAdministration => 365,
+        _ => 1_095,
+    };
+    RecordThreadRetentionPolicy {
+        minimum_days,
+        inherit_record_legal_holds: true,
+    }
+}
+
+const fn collaboration_policy(definition: RecordPolicyDefinition) -> RecordCollaborationPolicy {
+    RecordCollaborationPolicy {
+        record_type: definition.record_type,
+        owner: definition.owner,
+        version: 1,
+        classification: definition.classification_ceiling,
+        audience: RecordThreadAudiencePolicy::InternalRecordAudience,
+        retention: collaboration_retention(definition.owner),
+        allowed_relation_kinds: BUILT_IN_RELATION_KINDS,
+        custom_relations_enabled: false,
+        discussion_threads_enabled: true,
+        attachments_enabled: true,
+        human_internal_mutations_only: true,
+    }
 }
 
 pub const CURRENT_RECORD_POLICIES: [RecordPolicyDefinition; 92] = [
@@ -949,6 +1033,19 @@ pub const CURRENT_RECORD_POLICIES: [RecordPolicyDefinition; 92] = [
     ),
 ];
 
+macro_rules! current_collaboration_policies {
+    ($($index:expr),+ $(,)?) => {
+        [$(collaboration_policy(CURRENT_RECORD_POLICIES[$index])),+]
+    };
+}
+
+pub const CURRENT_RECORD_COLLABORATION_POLICIES: [RecordCollaborationPolicy; 92] = current_collaboration_policies![
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+    26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49,
+    50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73,
+    74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91,
+];
+
 const COMMERCE_CATALOG_EXTERNAL: &[RecordPolicyAccessRule] = &[
     RecordPolicyAccessRule {
         permission: "commerce.customer.catalog.read",
@@ -1518,6 +1615,18 @@ pub fn record_policy(record_type: &str) -> Option<&'static RecordPolicyDefinitio
     record_policies().find(|definition| definition.record_type == record_type)
 }
 
+pub fn record_collaboration_policies() -> impl Iterator<Item = &'static RecordCollaborationPolicy> {
+    CURRENT_RECORD_COLLABORATION_POLICIES.iter()
+}
+
+/// Current-only lookup. Future catalog families deliberately return `None`
+/// until their owner publishes a Phase 2 collaboration policy.
+pub fn record_collaboration_policy(
+    record_type: &str,
+) -> Option<&'static RecordCollaborationPolicy> {
+    record_collaboration_policies().find(|definition| definition.record_type == record_type)
+}
+
 pub fn record_policy_id(record: &RecordRef) -> Result<PolicyId, ReferenceValidationError> {
     let definition = record_policy(record.record_type().as_str())
         .ok_or(ReferenceValidationError::UnknownRecordPolicy)?;
@@ -1648,6 +1757,8 @@ pub struct ItemDescriptor {
     scope: AuthorityScope,
     canonical_route: String,
     lifecycle_state: String,
+    #[serde(default)]
+    display_label: Option<String>,
     authorization_policy: PolicyId,
     authorization_policy_version: u64,
     classification: DataClassification,
@@ -1674,6 +1785,7 @@ impl ItemDescriptor {
             scope,
             canonical_route,
             lifecycle_state: lifecycle_state.into(),
+            display_label: None,
             authorization_policy,
             authorization_policy_version,
             classification,
@@ -1705,12 +1817,41 @@ impl ItemDescriptor {
             scope,
             canonical_route: canonical_route.into(),
             lifecycle_state: lifecycle_state.into(),
+            display_label: None,
             authorization_policy,
             authorization_policy_version,
             classification,
             descriptor_version,
             source_event_position,
         };
+        value.validate()?;
+        Ok(value)
+    }
+
+    /// Publishes an owner-approved display label. Search indexes may use
+    /// separate authorized text, but only this bounded label is returned to a
+    /// picker or relation projection.
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_new_with_display_label(
+        record: RecordRef,
+        scope: AuthorityScope,
+        lifecycle_state: impl Into<String>,
+        display_label: impl Into<String>,
+        authorization_policy: PolicyId,
+        classification: DataClassification,
+        descriptor_version: u64,
+        source_event_position: u64,
+    ) -> Result<Self, ReferenceValidationError> {
+        let mut value = Self::try_new(
+            record,
+            scope,
+            lifecycle_state,
+            authorization_policy,
+            classification,
+            descriptor_version,
+            source_event_position,
+        )?;
+        value.display_label = Some(display_label.into());
         value.validate()?;
         Ok(value)
     }
@@ -1723,6 +1864,13 @@ impl ItemDescriptor {
             "lifecycle_state",
             MAX_LIFECYCLE_STATE_BYTES,
         )?;
+        if self.display_label.as_ref().is_some_and(|display_label| {
+            display_label.trim().is_empty()
+                || display_label.len() > MAX_RECORD_DISPLAY_LABEL_BYTES
+                || display_label.chars().any(char::is_control)
+        }) {
+            return Err(ReferenceValidationError::InvalidDisplayLabel);
+        }
         if !self.lifecycle_state.bytes().all(|byte| {
             byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'-' | b'_')
         }) {
@@ -1775,6 +1923,14 @@ impl ItemDescriptor {
 
     pub fn lifecycle_state(&self) -> &str {
         &self.lifecycle_state
+    }
+
+    pub fn display_label(&self) -> Option<&str> {
+        self.display_label.as_deref()
+    }
+
+    pub const fn is_picker_eligible(&self) -> bool {
+        self.display_label.is_some()
     }
 
     pub const fn authorization_policy(&self) -> PolicyId {
@@ -1875,6 +2031,87 @@ impl ItemDescriptorDraft {
         };
         value.validate()?;
         Ok(ItemDirectoryFact::DescriptorChanged(value))
+    }
+}
+
+/// Additive owner publication contract for records rebuilt with a safe
+/// display label. Legacy drafts remain valid and materialize descriptors with
+/// `display_label = None`, which can resolve copied links but cannot enter a
+/// picker until republished.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ItemDescriptorDraftV2 {
+    pub draft: ItemDescriptorDraft,
+    pub display_label: String,
+}
+
+impl ItemDescriptorDraftV2 {
+    pub fn try_new(
+        draft: ItemDescriptorDraft,
+        display_label: impl Into<String>,
+    ) -> Result<Self, ReferenceValidationError> {
+        let value = Self {
+            draft,
+            display_label: display_label.into(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
+    pub fn validate(&self) -> Result<(), ReferenceValidationError> {
+        self.materialize(1).map(|_| ())
+    }
+
+    pub fn materialize(
+        &self,
+        committed_source_position: u64,
+    ) -> Result<ItemDirectoryFact, ReferenceValidationError> {
+        let descriptor = ItemDescriptor::try_new_with_display_label(
+            self.draft.record.clone(),
+            self.draft.scope.clone(),
+            self.draft.lifecycle_state.clone(),
+            self.display_label.clone(),
+            self.draft.authorization_policy,
+            self.draft.classification,
+            self.draft.descriptor_version,
+            committed_source_position,
+        )?;
+        let value = ItemDescriptorChanged {
+            descriptor,
+            authorized_search_text: self.draft.authorized_search_text.clone(),
+        };
+        value.validate()?;
+        Ok(ItemDirectoryFact::DescriptorChanged(value))
+    }
+}
+
+/// Safe picker/list result. Raw `authorized_search_text`, authority scope and
+/// policy evidence never cross this contract boundary.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AuthorizedItemSummary {
+    pub record: RecordRef,
+    pub display_label: String,
+    pub canonical_route: String,
+    pub lifecycle_state: String,
+    pub classification: DataClassification,
+    pub descriptor_version: u64,
+}
+
+impl AuthorizedItemSummary {
+    pub fn try_from_descriptor(
+        descriptor: &ItemDescriptor,
+    ) -> Result<Self, ReferenceValidationError> {
+        descriptor.validate()?;
+        let display_label = descriptor
+            .display_label()
+            .ok_or(ReferenceValidationError::LegacyDescriptorNotPickerEligible)?;
+        Ok(Self {
+            record: descriptor.record().clone(),
+            display_label: display_label.to_owned(),
+            canonical_route: descriptor.canonical_route().to_owned(),
+            lifecycle_state: descriptor.lifecycle_state().to_owned(),
+            classification: descriptor.classification(),
+            descriptor_version: descriptor.descriptor_version(),
+        })
     }
 }
 
@@ -2109,6 +2346,8 @@ pub enum ReferenceValidationError {
     UnknownRecordPolicy,
     OwnerMismatch,
     InvalidLifecycleState,
+    InvalidDisplayLabel,
+    LegacyDescriptorNotPickerEligible,
     CanonicalRouteMismatch,
     ZeroVersion(&'static str),
     InvalidScope,
@@ -2133,6 +2372,10 @@ impl fmt::Display for ReferenceValidationError {
                 formatter.write_str("record type is not owned by the declared context")
             }
             Self::InvalidLifecycleState => formatter.write_str("lifecycle state is invalid"),
+            Self::InvalidDisplayLabel => formatter.write_str("record display label is invalid"),
+            Self::LegacyDescriptorNotPickerEligible => {
+                formatter.write_str("legacy record descriptor is not picker eligible")
+            }
             Self::CanonicalRouteMismatch => {
                 formatter.write_str("canonical route does not match the record catalog")
             }
@@ -2456,5 +2699,81 @@ mod tests {
                 ));
             }
         }
+    }
+
+    #[test]
+    fn collaboration_policy_registry_covers_exactly_the_92_current_families() {
+        use std::collections::BTreeSet;
+
+        let current_catalog = crate::catalog::RECORD_TYPES
+            .iter()
+            .filter(|record| record.owner.lifecycle() == crate::catalog::ContextLifecycle::Current)
+            .map(|record| record.id)
+            .collect::<BTreeSet<_>>();
+        let collaboration_records = record_collaboration_policies()
+            .map(|policy| policy.record_type)
+            .collect::<BTreeSet<_>>();
+        assert_eq!(CURRENT_RECORD_COLLABORATION_POLICIES.len(), 92);
+        assert_eq!(collaboration_records, current_catalog);
+        for policy in CURRENT_RECORD_COLLABORATION_POLICIES {
+            assert_eq!(record_type(policy.record_type).unwrap().owner, policy.owner);
+            assert!(policy.version > 0);
+            assert!(policy.human_internal_mutations_only);
+            assert!(policy.discussion_threads_enabled);
+            assert!(policy.attachments_enabled);
+            assert!(!policy.custom_relations_enabled);
+            assert_eq!(policy.allowed_relation_kinds, BUILT_IN_RELATION_KINDS);
+            assert!(policy.retention.minimum_days > 0);
+            assert!(policy.retention.inherit_record_legal_holds);
+        }
+        assert!(record_collaboration_policy("finance.invoice").is_some());
+        assert!(record_collaboration_policy("manufacturing.order").is_none());
+    }
+
+    #[test]
+    fn display_label_is_owner_published_and_legacy_descriptors_stay_out_of_pickers() {
+        let record = RecordRef::try_new(
+            record_id(),
+            ContextId::Finance,
+            RecordTypeId::try_new("finance.invoice").unwrap(),
+        )
+        .unwrap();
+        let legacy = ItemDescriptor::try_new(
+            record.clone(),
+            AuthorityScope::Platform,
+            "posted",
+            record_policy_id(&record).unwrap(),
+            DataClassification::Confidential,
+            1,
+            7,
+        )
+        .unwrap();
+        assert_eq!(legacy.display_label(), None);
+        assert!(!legacy.is_picker_eligible());
+        assert_eq!(
+            AuthorizedItemSummary::try_from_descriptor(&legacy),
+            Err(ReferenceValidationError::LegacyDescriptorNotPickerEligible)
+        );
+
+        let draft = ItemDescriptorDraftV2 {
+            draft: ItemDescriptorDraft {
+                record,
+                scope: AuthorityScope::Platform,
+                lifecycle_state: "posted".into(),
+                authorization_policy: legacy.authorization_policy(),
+                classification: DataClassification::Confidential,
+                descriptor_version: 2,
+                authorized_search_text: "INV-42 supplier internal keywords".into(),
+            },
+            display_label: "Invoice INV-42".into(),
+        };
+        let ItemDirectoryFact::DescriptorChanged(changed) = draft.materialize(8).unwrap() else {
+            panic!("descriptor fact")
+        };
+        let summary = AuthorizedItemSummary::try_from_descriptor(&changed.descriptor).unwrap();
+        assert_eq!(summary.display_label, "Invoice INV-42");
+        let wire = serde_json::to_string(&summary).unwrap();
+        assert!(!wire.contains("supplier internal keywords"));
+        assert!(!wire.contains("authorized_search_text"));
     }
 }

@@ -198,6 +198,64 @@ mod tests {
     }
 
     #[test]
+    fn collaboration_phase_two_rpcs_are_additive_and_typed() {
+        let descriptor = FileDescriptorSet::decode(FILE_DESCRIPTOR_SET)
+            .expect("approved descriptor must decode");
+        let collaboration = descriptor
+            .file
+            .iter()
+            .find(|file| file.package.as_deref() == Some("erpx.collaboration"))
+            .expect("collaboration descriptor");
+        let methods = collaboration
+            .service
+            .iter()
+            .flat_map(|service| service.method.iter())
+            .filter_map(|method| method.name.as_deref())
+            .collect::<BTreeSet<_>>();
+        for method in [
+            // Phase 1 methods stay present for mixed-version readers.
+            "CreateThread",
+            "AddComment",
+            "GetThread",
+            "ListThreadsByRecord",
+            "ListRecordRelations",
+            "AddRecordRelation",
+            "RevokeRecordRelation",
+            "GetThreadV2",
+            "ListThreadsByRecordV2",
+            "StartRecordThreadWithComment",
+            "PrepareAttachmentUpload",
+            "FinalizeAttachmentUpload",
+            "GetAttachmentDownload",
+        ] {
+            assert!(methods.contains(method), "missing additive RPC {method}");
+        }
+
+        let messages = collaboration
+            .message_type
+            .iter()
+            .filter_map(|message| message.name.as_deref().map(|name| (name, message)))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        let typed_thread = messages
+            .get("ThreadProjectionV2")
+            .expect("typed thread projection");
+        assert!(typed_thread.field.iter().any(|field| {
+            field.name.as_deref() == Some("comments")
+                && field.type_name.as_deref() == Some(".erpx.collaboration.CommentProjectionV2")
+        }));
+        assert!(typed_thread.field.iter().any(|field| {
+            field.name.as_deref() == Some("retention")
+                && field.type_name.as_deref() == Some(".erpx.collaboration.ThreadRetentionPolicyV2")
+        }));
+        assert!(
+            typed_thread
+                .field
+                .iter()
+                .all(|field| field.name.as_deref() != Some("authorized_projection_json_utf8"))
+        );
+    }
+
+    #[test]
     fn clippy_allowance_is_scoped_to_generated_server_modules() {
         let build_source = include_str!("../build.rs");
         assert!(build_source.contains("server_mod_attribute"));

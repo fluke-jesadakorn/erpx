@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
-use erpx_integration_contracts::{ItemDescriptorDraft, procurement};
+use erpx_integration_contracts::{ItemDescriptorDraftV2, procurement};
 use erpx_procurement::{PurchaseOrderStatus, PurchaseOrderView};
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
@@ -20,7 +20,7 @@ pub struct ProcurementSnapshot {
 pub enum ProcurementOutboxPayload {
     Integration(procurement::Event),
     Snapshot(ProcurementSnapshot),
-    Directory(ItemDescriptorDraft),
+    Directory(ItemDescriptorDraftV2),
 }
 
 #[derive(Debug, Clone)]

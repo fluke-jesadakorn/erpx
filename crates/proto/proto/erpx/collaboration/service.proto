@@ -65,6 +65,117 @@ message AttachmentRef {
   string classification = 4;
 }
 
+enum RecordRelationKind {
+  RECORD_RELATION_KIND_UNSPECIFIED = 0;
+  RECORD_RELATION_KIND_RELATES_TO = 1;
+  RECORD_RELATION_KIND_BLOCKS = 2;
+  RECORD_RELATION_KIND_DEPENDS_ON = 3;
+  RECORD_RELATION_KIND_IMPLEMENTS = 4;
+  RECORD_RELATION_KIND_SUPERSEDES = 5;
+  RECORD_RELATION_KIND_DERIVED_FROM = 6;
+  RECORD_RELATION_KIND_EVIDENCE_FOR = 7;
+}
+
+message RelationView {
+  string relation_id = 1;
+  erpx.interface.RecordRef source = 2;
+  erpx.interface.RecordRef target = 3;
+  RecordRelationKind kind = 4;
+  PrincipalRef created_by = 5;
+  string created_at = 6;
+  optional PrincipalRef revoked_by = 7;
+  optional string revoked_at = 8;
+  uint64 version = 9;
+  uint64 committed_sequence = 10;
+}
+
+enum AttachmentLifecycle {
+  ATTACHMENT_LIFECYCLE_UNSPECIFIED = 0;
+  ATTACHMENT_LIFECYCLE_PENDING_UPLOAD = 1;
+  ATTACHMENT_LIFECYCLE_PENDING_SCAN = 2;
+  ATTACHMENT_LIFECYCLE_READY = 3;
+  ATTACHMENT_LIFECYCLE_QUARANTINED = 4;
+  ATTACHMENT_LIFECYCLE_EXPIRED = 5;
+}
+
+message AttachmentView {
+  string attachment_id = 1;
+  erpx.interface.RecordRef anchor = 2;
+  optional string thread_id = 3;
+  string file_name = 4;
+  string media_type = 5;
+  uint64 size_bytes = 6;
+  bytes digest_sha256 = 7;
+  string classification = 8;
+  AttachmentLifecycle lifecycle = 9;
+  PrincipalRef uploaded_by = 10;
+  string created_at = 11;
+  optional string expires_at = 12;
+  string updated_at = 13;
+}
+
+message ReactionView {
+  string comment_id = 1;
+  PrincipalRef principal = 2;
+  string value = 3;
+  string created_at = 4;
+}
+
+message FollowerView {
+  PrincipalRef principal = 1;
+  optional string mandatory_reason = 2;
+  optional string muted_until = 3;
+  optional string snoozed_until = 4;
+}
+
+message ThreadRetentionPolicyV2 {
+  string parent_retain_until = 1;
+  string comment_retain_until = 2;
+  string jurisdiction_retain_until = 3;
+  repeated string legal_hold_ids = 4;
+}
+
+enum CommentVisibilityV2 {
+  COMMENT_VISIBILITY_V2_UNSPECIFIED = 0;
+  COMMENT_VISIBILITY_V2_VISIBLE = 1;
+  COMMENT_VISIBILITY_V2_TOMBSTONE = 2;
+  COMMENT_VISIBILITY_V2_RESTRICTED = 3;
+}
+
+message CommentProjectionV2 {
+  string comment_id = 1;
+  PrincipalRef author = 2;
+  uint64 revision = 3;
+  CommentVisibilityV2 visibility = 4;
+  // Phase 2 comments are plain text. Strings that look like @mentions remain
+  // text and never trigger notification, assignment, or Agent invocation.
+  optional string plain_text = 5;
+  repeated AttachmentView attachments = 6;
+  repeated ReactionView reactions = 7;
+  string created_at = 8;
+  string updated_at = 9;
+}
+
+enum ThreadStateV2 {
+  THREAD_STATE_V2_UNSPECIFIED = 0;
+  THREAD_STATE_V2_OPEN = 1;
+  THREAD_STATE_V2_RESOLVED = 2;
+}
+
+message ThreadProjectionV2 {
+  string thread_id = 1;
+  ThreadAnchor anchor = 2;
+  Audience audience = 3;
+  string classification = 4;
+  ThreadStateV2 state = 5;
+  bool pinned = 6;
+  uint64 aggregate_version = 7;
+  uint64 projection_checkpoint = 8;
+  repeated CommentProjectionV2 comments = 9;
+  repeated FollowerView followers = 10;
+  ThreadRetentionPolicyV2 retention = 11;
+}
+
 message MentionTarget {
   PrincipalRef principal = 1;
   optional uint64 group_version = 2;
@@ -194,6 +305,64 @@ message ConfirmActionCardRequest {
   string action_card_id = 3;
 }
 
+message AddRecordRelationRequest {
+  CommandMetadata metadata = 1;
+  string relation_id = 2;
+  erpx.interface.RecordRef source = 3;
+  erpx.interface.RecordRef target = 4;
+  RecordRelationKind kind = 5;
+  uint64 expected_source_version = 6;
+}
+
+message RevokeRecordRelationRequest {
+  CommandMetadata metadata = 1;
+  string relation_id = 2;
+  erpx.interface.RecordRef source = 3;
+  erpx.interface.RecordRef target = 4;
+  uint64 expected_relation_version = 5;
+}
+
+message RelationMutationReceipt {
+  RelationView relation = 1;
+  bool replayed = 2;
+}
+
+message StartRecordThreadWithCommentRequest {
+  CommandMetadata metadata = 1;
+  string thread_id = 2;
+  erpx.interface.RecordRef record = 3;
+  string comment_id = 4;
+  string plain_text = 5;
+  repeated string attachment_ids = 6;
+}
+
+message PrepareAttachmentUploadRequest {
+  CommandMetadata metadata = 1;
+  string attachment_id = 2;
+  erpx.interface.RecordRef anchor = 3;
+  optional string thread_id = 4;
+  string file_name = 5;
+  string media_type = 6;
+  uint64 size_bytes = 7;
+  bytes digest_sha256 = 8;
+}
+
+message PrepareAttachmentUploadResponse {
+  AttachmentView attachment = 1;
+  string upload_token = 2;
+  string upload_path = 3;
+  string upload_expires_at = 4;
+}
+
+message FinalizeAttachmentUploadRequest {
+  CommandMetadata metadata = 1;
+  string attachment_id = 2;
+  erpx.interface.RecordRef anchor = 3;
+  optional string thread_id = 4;
+  bytes digest_sha256 = 5;
+  uint64 size_bytes = 6;
+}
+
 message GetThreadRequest {
   string holding_id = 1;
   erpx.interface.AuthorityScope authority_scope = 2;
@@ -244,6 +413,52 @@ message ListThreadsByRecordResponse {
   erpx.interface.DirectoryFreshness freshness = 4;
 }
 
+message GetThreadV2Response {
+  optional ThreadProjectionV2 thread = 1;
+  erpx.interface.DirectoryFreshness freshness = 2;
+}
+
+message ListThreadsByRecordV2Response {
+  repeated ThreadProjectionV2 threads = 1;
+  optional string next_cursor = 2;
+  uint64 authorized_count = 3;
+  erpx.interface.DirectoryFreshness freshness = 4;
+}
+
+message ListRecordRelationsRequest {
+  string holding_id = 1;
+  erpx.interface.AuthorityScope authority_scope = 2;
+  string actor_principal_id = 3;
+  erpx.interface.RecordRef source = 4;
+  uint32 page_size = 5;
+  optional string cursor = 6;
+  bool include_revoked = 7;
+}
+
+message ListRecordRelationsResponse {
+  repeated RelationView relations = 1;
+  optional string next_cursor = 2;
+  uint64 authorized_count = 3;
+  erpx.interface.DirectoryFreshness freshness = 4;
+  uint64 projection_checkpoint = 5;
+}
+
+message GetAttachmentDownloadRequest {
+  string holding_id = 1;
+  erpx.interface.AuthorityScope authority_scope = 2;
+  string actor_principal_id = 3;
+  string attachment_id = 4;
+  erpx.interface.RecordRef anchor = 5;
+  optional string thread_id = 6;
+}
+
+message GetAttachmentDownloadResponse {
+  AttachmentView attachment = 1;
+  string download_token = 2;
+  string download_path = 3;
+  string expires_at = 4;
+}
+
 message ListMentionInboxRequest {
   string holding_id = 1;
   erpx.interface.AuthorityScope authority_scope = 2;
@@ -290,6 +505,11 @@ service CollaborationCommandService {
   rpc ModerateComment(ModerateCommentRequest) returns (MutationReceipt);
   rpc ProposeActionCard(ProposeActionCardRequest) returns (MutationReceipt);
   rpc ConfirmActionCard(ConfirmActionCardRequest) returns (MutationReceipt);
+  rpc AddRecordRelation(AddRecordRelationRequest) returns (RelationMutationReceipt);
+  rpc RevokeRecordRelation(RevokeRecordRelationRequest) returns (RelationMutationReceipt);
+  rpc StartRecordThreadWithComment(StartRecordThreadWithCommentRequest) returns (MutationReceipt);
+  rpc PrepareAttachmentUpload(PrepareAttachmentUploadRequest) returns (PrepareAttachmentUploadResponse);
+  rpc FinalizeAttachmentUpload(FinalizeAttachmentUploadRequest) returns (AttachmentView);
 }
 
 service CollaborationQueryService {
@@ -297,6 +517,10 @@ service CollaborationQueryService {
   rpc SearchThreads(SearchThreadsRequest) returns (SearchThreadsResponse);
   rpc ListThreadsByRecord(ListThreadsByRecordRequest) returns (ListThreadsByRecordResponse);
   rpc ListMentionInbox(ListMentionInboxRequest) returns (ListMentionInboxResponse);
+  rpc ListRecordRelations(ListRecordRelationsRequest) returns (ListRecordRelationsResponse);
+  rpc GetThreadV2(GetThreadRequest) returns (GetThreadV2Response);
+  rpc ListThreadsByRecordV2(ListThreadsByRecordRequest) returns (ListThreadsByRecordV2Response);
+  rpc GetAttachmentDownload(GetAttachmentDownloadRequest) returns (GetAttachmentDownloadResponse);
 }
 
 service CollaborationStreamService {

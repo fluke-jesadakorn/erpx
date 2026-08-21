@@ -5,7 +5,8 @@ use erpx_cqrs_sqlx::{
 };
 use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
-    ItemDescriptorDraft, RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
+    ItemDescriptorDraft, ItemDescriptorDraftV2, RecordTypeId, StableRecordRef, catalog::ContextId,
+    record_policy_id,
 };
 use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId, RecordId};
 use erpx_people_payroll::{
@@ -200,8 +201,8 @@ impl CommandUnitOfWork for PeoplePayrollCommandAdapter {
 
 fn people_payroll_directory_drafts(
     aggregate: &Aggregate,
-) -> Result<Vec<ItemDescriptorDraft>, PortError> {
-    let (record_type, lifecycle_state, search_text) = match aggregate {
+) -> Result<Vec<ItemDescriptorDraftV2>, PortError> {
+    let (record_type, lifecycle_state, display_label) = match aggregate {
         Aggregate::Employee(value) => (
             "people.employee",
             employee_status_name(value.status()).to_owned(),
@@ -210,7 +211,7 @@ fn people_payroll_directory_drafts(
         Aggregate::LeaveRequest(value) => (
             "people.leave",
             leave_status_name(value.status()).to_owned(),
-            value.employee_id().as_uuid().to_string(),
+            format!("Leave request {}", value.employee_id().as_uuid()),
         ),
         Aggregate::ExpenseClaim(_) => return Ok(Vec::new()),
         Aggregate::PayrollRun(value) => (
@@ -234,15 +235,21 @@ fn people_payroll_directory_drafts(
         lifecycle_state,
         classification: DataClassification::Restricted,
         descriptor_version: aggregate.version(),
-        authorized_search_text: search_text,
+        authorized_search_text: display_label.clone(),
     };
-    value.validate().map_err(|_| PortError::Internal)?;
+    let value =
+        ItemDescriptorDraftV2::try_new(value, display_label).map_err(|_| PortError::Internal)?;
     let mut values = vec![value];
     match aggregate {
         Aggregate::Employee(employee) => {
             let record = employee
                 .employment_record_ref()
                 .map_err(|_| PortError::Internal)?;
+            let display_label = format!(
+                "{} {} employment",
+                employee.employee_code(),
+                employee.display_name()
+            );
             let value = ItemDescriptorDraft {
                 authorization_policy: record_policy_id(&record).map_err(|_| PortError::Internal)?,
                 record,
@@ -250,13 +257,10 @@ fn people_payroll_directory_drafts(
                 lifecycle_state: employee_status_name(employee.status()).to_owned(),
                 classification: DataClassification::Restricted,
                 descriptor_version: employee.version(),
-                authorized_search_text: format!(
-                    "{} {} employment",
-                    employee.employee_code(),
-                    employee.display_name()
-                ),
+                authorized_search_text: display_label.clone(),
             };
-            value.validate().map_err(|_| PortError::Internal)?;
+            let value = ItemDescriptorDraftV2::try_new(value, display_label)
+                .map_err(|_| PortError::Internal)?;
             values.push(value);
         }
         Aggregate::PayrollRun(payroll) => {
@@ -265,6 +269,8 @@ fn people_payroll_directory_drafts(
                     .payslip_record_ref(line.employee_id)
                     .map_err(|_| PortError::Internal)?
                     .ok_or(PortError::Internal)?;
+                let display_label =
+                    format!("{} {}", payroll.period_code(), line.employee_id.as_uuid());
                 let value = ItemDescriptorDraft {
                     authorization_policy: record_policy_id(&record)
                         .map_err(|_| PortError::Internal)?,
@@ -273,13 +279,10 @@ fn people_payroll_directory_drafts(
                     lifecycle_state: payroll_status_name(payroll.status()).to_owned(),
                     classification: DataClassification::Restricted,
                     descriptor_version: payroll.version(),
-                    authorized_search_text: format!(
-                        "{} {}",
-                        payroll.period_code(),
-                        line.employee_id.as_uuid()
-                    ),
+                    authorized_search_text: display_label.clone(),
                 };
-                value.validate().map_err(|_| PortError::Internal)?;
+                let value = ItemDescriptorDraftV2::try_new(value, display_label)
+                    .map_err(|_| PortError::Internal)?;
                 values.push(value);
             }
         }

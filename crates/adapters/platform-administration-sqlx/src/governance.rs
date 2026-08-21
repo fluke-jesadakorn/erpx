@@ -8,7 +8,7 @@ use erpx_cqrs_sqlx::{
 };
 use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, ItemDescriptorDraft,
-    RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
+    ItemDescriptorDraftV2, RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
 };
 use erpx_kernel::{AuthorityScope, DataClassification, RecordId};
 use erpx_platform_administration::{
@@ -418,6 +418,8 @@ async fn append_directory(
         descriptor_version: request.record.version(),
         authorized_search_text: request.record.title().into(),
     };
+    let draft = ItemDescriptorDraftV2::try_new(draft, request.record.title())
+        .map_err(|_| PortError::Internal)?;
     draft.validate().map_err(|_| PortError::Internal)?;
     append_event(
         tx,
