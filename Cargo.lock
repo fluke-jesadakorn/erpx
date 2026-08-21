@@ -2397,6 +2397,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
+ "erpx-integration-contracts",
  "erpx-kernel",
  "serde",
  "serde_json",
@@ -3546,6 +3547,7 @@ dependencies = [
  "erpx-kernel",
  "serde",
  "serde_json",
+ "thiserror 2.0.19",
  "uuid",
 ]
 

@@ -9,6 +9,7 @@ license.workspace = true
 chrono.workspace = true
 erpx-kernel.workspace = true
 serde.workspace = true
+thiserror.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]

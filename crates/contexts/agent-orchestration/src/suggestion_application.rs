@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use erpx_integration_contracts::{FieldPatchConflict, RecordFieldPatch};
 use erpx_kernel::{ActorAttribution, AuthorityScope, HumanDecisionProof};
 use thiserror::Error;
 use uuid::Uuid;
@@ -27,10 +28,22 @@ pub enum SuggestionCommand {
         suggestion_id: SuggestionId,
         output_digest: String,
     },
+    CompleteFieldPatch {
+        suggestion_id: SuggestionId,
+        patch: RecordFieldPatch,
+        output_digest: String,
+    },
     Apply {
         suggestion_id: SuggestionId,
         current_source_version: u64,
         current_payload_digest: String,
+    },
+    ApplyFieldPatch {
+        suggestion_id: SuggestionId,
+        edited_patch: RecordFieldPatch,
+        current_source_version: u64,
+        current_payload_digest: String,
+        conflicts: Vec<FieldPatchConflict>,
     },
     Reject {
         suggestion_id: SuggestionId,
@@ -50,7 +63,9 @@ impl SuggestionCommand {
             Self::Request { suggestion_id, .. }
             | Self::Start { suggestion_id }
             | Self::Complete { suggestion_id, .. }
+            | Self::CompleteFieldPatch { suggestion_id, .. }
             | Self::Apply { suggestion_id, .. }
+            | Self::ApplyFieldPatch { suggestion_id, .. }
             | Self::Reject { suggestion_id }
             | Self::Supersede { suggestion_id }
             | Self::Fail { suggestion_id, .. } => *suggestion_id,
@@ -132,7 +147,8 @@ where
     ) -> Result<SuggestionReceipt, SuggestionApplicationError> {
         validate_request(&request)?;
         let mut human_decision = match &request.command {
-            SuggestionCommand::Apply { suggestion_id, .. } => Some(
+            SuggestionCommand::Apply { suggestion_id, .. }
+            | SuggestionCommand::ApplyFieldPatch { suggestion_id, .. } => Some(
                 HumanDecisionProof::try_new(
                     request.actor.clone(),
                     request.scope.clone(),
@@ -194,6 +210,11 @@ where
             SuggestionCommand::Complete { output_digest, .. } => {
                 envelope.complete(output_digest, request.at)?
             }
+            SuggestionCommand::CompleteFieldPatch {
+                patch,
+                output_digest,
+                ..
+            } => envelope.complete_field_patch(patch, output_digest, request.at)?,
             SuggestionCommand::Apply {
                 current_source_version,
                 current_payload_digest,
@@ -203,6 +224,24 @@ where
                     .take()
                     .ok_or(SuggestionApplicationError::HumanDecisionRequired)?;
                 envelope.apply(current_source_version, &current_payload_digest, decision)?;
+            }
+            SuggestionCommand::ApplyFieldPatch {
+                edited_patch,
+                current_source_version,
+                current_payload_digest,
+                conflicts,
+                ..
+            } => {
+                let decision = human_decision
+                    .take()
+                    .ok_or(SuggestionApplicationError::HumanDecisionRequired)?;
+                envelope.apply_field_patch(
+                    edited_patch,
+                    current_source_version,
+                    &current_payload_digest,
+                    conflicts,
+                    decision,
+                )?;
             }
             SuggestionCommand::Reject { .. } => envelope.reject(request.at)?,
             SuggestionCommand::Supersede { .. } => envelope.supersede(request.at)?,

@@ -4,6 +4,7 @@
 mod macros;
 
 mod common;
+mod editable_fields;
 mod envelope;
 mod foundation;
 
@@ -42,6 +43,13 @@ pub use authority::{
 pub use common::{
     BoundedText, ContractValidationError, CurrencyCode, DisplayName, MoneyAmount, Quantity,
     ReferenceCode,
+};
+pub use editable_fields::{
+    EditableFieldAvailability, EditableFieldDefinition, EditableFieldError, EditableFieldRisk,
+    EditableFieldValueKind, FieldPatchConflict, FieldPatchConflictReason, FieldSuggestionEvidence,
+    HumanFieldPatchReview, MAX_FIELD_EVIDENCE_REFS, MAX_FIELD_PATCH_OPERATIONS,
+    RecordEditableFieldSchema, RecordFieldPatch, SuggestedFieldChange, SuggestedFieldValue,
+    record_editable_field_schema, record_editable_field_schemas,
 };
 pub use envelope::{
     AggregateKind, BoundedContext, EventType, IntegrationEvent, IntegrationEventEnvelope,

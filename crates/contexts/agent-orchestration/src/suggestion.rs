@@ -5,8 +5,12 @@
 //! draft only after the owner validates the source version and payload digest.
 
 use chrono::{DateTime, Utc};
+use erpx_integration_contracts::{
+    FieldPatchConflict, HumanFieldPatchReview, RecordFieldPatch, record_editable_field_schema,
+};
 use erpx_kernel::{ActorKind, AuthorityScope, HumanDecisionProof, SessionId};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -38,6 +42,7 @@ pub fn suggestion_apply_decision_ref(suggestion_id: SuggestionId) -> String {
 pub enum SuggestionOwner {
     Sales,
     Finance,
+    RecordOwner(erpx_integration_contracts::catalog::ContextId),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -50,6 +55,10 @@ pub enum SuggestionCapability {
     FinanceAccountingPlan,
     #[serde(rename = "finance.posting-review.v1")]
     FinancePostingReview,
+    #[serde(rename = "record.field-patch.v2")]
+    RecordFieldPatch {
+        owner: erpx_integration_contracts::catalog::ContextId,
+    },
 }
 
 impl SuggestionCapability {
@@ -57,6 +66,7 @@ impl SuggestionCapability {
         match self {
             Self::SalesQuoteCompose | Self::SalesRevenueArrangement => SuggestionOwner::Sales,
             Self::FinanceAccountingPlan | Self::FinancePostingReview => SuggestionOwner::Finance,
+            Self::RecordFieldPatch { owner } => SuggestionOwner::RecordOwner(owner),
         }
     }
 
@@ -66,6 +76,7 @@ impl SuggestionCapability {
             Self::SalesRevenueArrangement => "sales.revenue-arrangement.v1",
             Self::FinanceAccountingPlan => "finance.accounting-plan.v1",
             Self::FinancePostingReview => "finance.posting-review.v1",
+            Self::RecordFieldPatch { .. } => "record.field-patch.v2",
         }
     }
 }
@@ -136,6 +147,7 @@ pub enum SuggestionStatus {
     Queued,
     Running,
     Ready,
+    Conflicted,
     Applied,
     Rejected,
     Superseded,
@@ -154,6 +166,12 @@ pub struct SuggestionEnvelope {
     policy_version: u32,
     payload_digest: String,
     output_digest: Option<String>,
+    #[serde(default)]
+    field_patch: Option<RecordFieldPatch>,
+    #[serde(default)]
+    field_patch_conflicts: Vec<FieldPatchConflict>,
+    #[serde(default)]
+    human_field_patch_review: Option<HumanFieldPatchReview>,
     provenance: SuggestionProvenance,
     status: SuggestionStatus,
     requested_by: String,
@@ -188,6 +206,14 @@ impl SuggestionEnvelope {
             .map_err(|_| SuggestionError::InvalidScope)?;
         source.validate()?;
         provenance.validate(local_development)?;
+        if let SuggestionCapability::RecordFieldPatch { owner } = capability {
+            let schema = record_editable_field_schema(&source.record_kind)
+                .filter(|schema| schema.owner == owner && schema.supports_agent_patches())
+                .ok_or(SuggestionError::FieldSchemaUnavailable)?;
+            if schema.version != u64::from(SUGGESTION_SCHEMA_VERSION) {
+                return Err(SuggestionError::FieldSchemaUnavailable);
+            }
+        }
         if policy_version == 0 || !valid_digest(&payload_digest) || !valid_text(&requested_by, 256)
         {
             return Err(SuggestionError::InvalidEnvelope);
@@ -203,6 +229,9 @@ impl SuggestionEnvelope {
             policy_version,
             payload_digest,
             output_digest: None,
+            field_patch: None,
+            field_patch_conflicts: Vec::new(),
+            human_field_patch_review: None,
             provenance,
             status: SuggestionStatus::Queued,
             requested_by,
@@ -225,11 +254,121 @@ impl SuggestionEnvelope {
         output_digest: String,
         at: DateTime<Utc>,
     ) -> Result<(), SuggestionError> {
+        if matches!(
+            self.capability,
+            SuggestionCapability::RecordFieldPatch { .. }
+        ) {
+            return Err(SuggestionError::TypedFieldPatchRequired);
+        }
         if !valid_digest(&output_digest) {
             return Err(SuggestionError::InvalidDigest);
         }
         self.transition(SuggestionStatus::Running, SuggestionStatus::Ready, at)?;
         self.output_digest = Some(output_digest);
+        Ok(())
+    }
+
+    pub fn complete_field_patch(
+        &mut self,
+        patch: RecordFieldPatch,
+        output_digest: String,
+        at: DateTime<Utc>,
+    ) -> Result<(), SuggestionError> {
+        if !matches!(
+            self.capability,
+            SuggestionCapability::RecordFieldPatch { .. }
+        ) || !valid_digest(&output_digest)
+        {
+            return Err(SuggestionError::TypedFieldPatchRequired);
+        }
+        patch
+            .validate()
+            .map_err(|_| SuggestionError::InvalidFieldPatch)?;
+        if patch.source.record().record_type().as_str() != self.source.record_kind
+            || patch.source.record().id().as_uuid() != self.source.record_id
+            || patch.source.version() != self.source.record_version
+        {
+            return Err(SuggestionError::InvalidFieldPatch);
+        }
+        self.transition(SuggestionStatus::Running, SuggestionStatus::Ready, at)?;
+        self.output_digest = Some(output_digest);
+        self.field_patch = Some(patch);
+        Ok(())
+    }
+
+    pub fn apply_field_patch(
+        &mut self,
+        edited_patch: RecordFieldPatch,
+        current_source_version: u64,
+        current_payload_digest: &str,
+        conflicts: Vec<FieldPatchConflict>,
+        decision: HumanDecisionProof,
+    ) -> Result<(), SuggestionError> {
+        if !matches!(
+            self.capability,
+            SuggestionCapability::RecordFieldPatch { .. }
+        ) || decision.authority_scope() != &self.scope
+            || decision.decision_ref() != suggestion_apply_decision_ref(self.id)
+        {
+            return Err(SuggestionError::HumanCommandRequired);
+        }
+        edited_patch
+            .validate()
+            .map_err(|_| SuggestionError::InvalidFieldPatch)?;
+        if self.field_patch.is_none()
+            || edited_patch.source.record().record_type().as_str() != self.source.record_kind
+            || edited_patch.source.record().id().as_uuid() != self.source.record_id
+            || edited_patch.source.version() != self.source.record_version
+        {
+            return Err(SuggestionError::InvalidFieldPatch);
+        }
+        if current_source_version != self.source.record_version
+            || current_payload_digest != self.payload_digest
+        {
+            if conflicts.is_empty()
+                || conflicts.iter().any(|conflict| {
+                    conflict.current_record_version == 0
+                        || conflict.field.record() != edited_patch.source.record()
+                })
+            {
+                return Err(SuggestionError::StaleSuggestion);
+            }
+            self.transition(
+                SuggestionStatus::Ready,
+                SuggestionStatus::Conflicted,
+                decision.decided_at(),
+            )?;
+            self.field_patch_conflicts = conflicts;
+            return Ok(());
+        }
+        if !conflicts.is_empty() {
+            return Err(SuggestionError::InvalidFieldPatch);
+        }
+        let session_id = decision
+            .actor()
+            .session_id
+            .ok_or(SuggestionError::HumanSessionRequired)?;
+        let edited_patch_digest = digest_patch(&edited_patch)?;
+        let review = HumanFieldPatchReview {
+            reviewer_principal_ref: decision.principal_ref().to_owned(),
+            reviewer_session_id: session_id,
+            reviewed_at: decision.decided_at(),
+            edited_patch_digest,
+        };
+        review
+            .validate()
+            .map_err(|_| SuggestionError::InvalidFieldPatch)?;
+        self.transition(
+            SuggestionStatus::Ready,
+            SuggestionStatus::Applied,
+            decision.decided_at(),
+        )?;
+        self.applied_by = Some(decision.principal_ref().to_owned());
+        self.applied_actor_kind = Some(decision.actor().kind);
+        self.applied_decision_ref = Some(decision.decision_ref().to_owned());
+        self.applied_session_id = Some(session_id);
+        self.field_patch = Some(edited_patch);
+        self.human_field_patch_review = Some(review);
         Ok(())
     }
 
@@ -350,6 +489,15 @@ impl SuggestionEnvelope {
     pub fn output_digest(&self) -> Option<&str> {
         self.output_digest.as_deref()
     }
+    pub const fn field_patch(&self) -> Option<&RecordFieldPatch> {
+        self.field_patch.as_ref()
+    }
+    pub fn field_patch_conflicts(&self) -> &[FieldPatchConflict] {
+        &self.field_patch_conflicts
+    }
+    pub const fn human_field_patch_review(&self) -> Option<&HumanFieldPatchReview> {
+        self.human_field_patch_review.as_ref()
+    }
     pub const fn provenance(&self) -> &SuggestionProvenance {
         &self.provenance
     }
@@ -394,6 +542,12 @@ pub enum SuggestionError {
     InvalidEnvelope,
     #[error("suggestion digest is invalid")]
     InvalidDigest,
+    #[error("owner field schema is unavailable")]
+    FieldSchemaUnavailable,
+    #[error("a typed field patch is required")]
+    TypedFieldPatchRequired,
+    #[error("typed field patch is invalid")]
+    InvalidFieldPatch,
     #[error("suggestion provenance is invalid")]
     InvalidProvenance,
     #[error("Fixture AI is available only in local development")]
@@ -404,6 +558,8 @@ pub enum SuggestionError {
     StaleSuggestion,
     #[error("a human Apply command is required")]
     HumanCommandRequired,
+    #[error("an authenticated human session is required")]
+    HumanSessionRequired,
     #[error("suggestion timestamp cannot move backwards")]
     InvalidTimestamp,
     #[error("suggestion version overflowed")]
@@ -419,10 +575,19 @@ fn valid_digest(value: &str) -> bool {
     value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
+fn digest_patch(patch: &RecordFieldPatch) -> Result<String, SuggestionError> {
+    let bytes = serde_json::to_vec(patch).map_err(|_| SuggestionError::InvalidFieldPatch)?;
+    Ok(format!("{:x}", Sha256::digest(bytes)))
+}
+
 #[cfg(test)]
 mod tests {
+    use erpx_integration_contracts::{
+        FieldPatchConflictReason, RecordTypeId, StableFieldRef, StableRecordRef,
+        SuggestedFieldChange, SuggestedFieldValue, catalog::ContextId,
+    };
     use erpx_kernel::{
-        ActorAttribution, ActorKind, HumanDecisionError, HumanDecisionProof, SessionId,
+        ActorAttribution, ActorKind, HumanDecisionError, HumanDecisionProof, RecordId, SessionId,
     };
 
     use super::*;
@@ -470,6 +635,49 @@ mod tests {
                 prompt_digest: "b".repeat(64),
                 invocation_evidence_ref: "assignment:fixture-1".into(),
             },
+            "human:sales-maker".into(),
+            true,
+            DateTime::from_timestamp(1_800_000_000, 0).unwrap(),
+        )
+        .unwrap()
+    }
+
+    fn field_patch() -> RecordFieldPatch {
+        let record = StableRecordRef::try_new(
+            RecordId::try_from_uuid(Uuid::from_u128(31)).unwrap(),
+            ContextId::Sales,
+            RecordTypeId::try_new("sales.quote").unwrap(),
+        )
+        .unwrap();
+        RecordFieldPatch {
+            source: erpx_integration_contracts::RecordVersionRef::try_new(record.clone(), 7)
+                .unwrap(),
+            schema_version: 1,
+            changes: vec![SuggestedFieldChange {
+                field: StableFieldRef::try_new(record, "quote.notes", 1).unwrap(),
+                previous_value_digest: "d".repeat(64),
+                proposed_value: SuggestedFieldValue::Text("Prepared for review".into()),
+                confidence_basis_points: 8_800,
+                evidence: Vec::new(),
+            }],
+        }
+    }
+
+    fn field_envelope() -> SuggestionEnvelope {
+        SuggestionEnvelope::request(
+            SuggestionId::try_from_uuid(Uuid::from_u128(30)).unwrap(),
+            scope(),
+            SuggestionCapability::RecordFieldPatch {
+                owner: ContextId::Sales,
+            },
+            SuggestionSource {
+                record_kind: "sales.quote".into(),
+                record_id: Uuid::from_u128(31),
+                record_version: 7,
+            },
+            1,
+            "a".repeat(64),
+            envelope().provenance().clone(),
             "human:sales-maker".into(),
             true,
             DateTime::from_timestamp(1_800_000_000, 0).unwrap(),
@@ -554,5 +762,63 @@ mod tests {
         );
         provenance.provider_kind = SuggestionProviderKind::Ollama;
         provenance.validate(false).unwrap();
+    }
+
+    #[test]
+    fn universal_field_patch_requires_typed_output_and_persists_final_human_editor() {
+        let mut value = field_envelope();
+        let at = value.created_at();
+        value.start(at).unwrap();
+        assert_eq!(
+            value.complete("c".repeat(64), at),
+            Err(SuggestionError::TypedFieldPatchRequired)
+        );
+        value
+            .complete_field_patch(field_patch(), "c".repeat(64), at)
+            .unwrap();
+        let decision_ref = suggestion_apply_decision_ref(value.id());
+        value
+            .apply_field_patch(
+                field_patch(),
+                7,
+                &"a".repeat(64),
+                Vec::new(),
+                human_decision(&decision_ref, at),
+            )
+            .unwrap();
+        assert_eq!(value.status(), SuggestionStatus::Applied);
+        let review = value
+            .human_field_patch_review()
+            .expect("human review evidence");
+        assert_eq!(review.reviewer_principal_ref, "human:maker");
+        assert!(value.field_patch_conflicts().is_empty());
+    }
+
+    #[test]
+    fn universal_field_patch_exposes_typed_stale_conflicts_without_applying() {
+        let mut value = field_envelope();
+        let at = value.created_at();
+        value.start(at).unwrap();
+        value
+            .complete_field_patch(field_patch(), "c".repeat(64), at)
+            .unwrap();
+        let patch = field_patch();
+        let conflict = FieldPatchConflict {
+            field: patch.changes[0].field.clone(),
+            reason: FieldPatchConflictReason::FieldValueChanged,
+            current_record_version: 8,
+        };
+        value
+            .apply_field_patch(
+                patch,
+                8,
+                &"e".repeat(64),
+                vec![conflict],
+                human_decision(&suggestion_apply_decision_ref(value.id()), at),
+            )
+            .unwrap();
+        assert_eq!(value.status(), SuggestionStatus::Conflicted);
+        assert_eq!(value.field_patch_conflicts().len(), 1);
+        assert!(value.human_field_patch_review().is_none());
     }
 }
