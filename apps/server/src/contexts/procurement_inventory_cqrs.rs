@@ -9,7 +9,9 @@ use erpx_cqrs::{
     ProjectionCheckpoint, ProjectionMetadata, QueryConsistency, QueryEnvelope, QueryMetadata,
     QueryResult, ReadYourWrites,
 };
-use erpx_integration_contracts::procurement as procurement_contract;
+use erpx_integration_contracts::{
+    RecordTypeId, RecordVersionRef, StableRecordRef, procurement as procurement_contract,
+};
 use erpx_inventory::{
     GetStockItem, GetStockItemResult, InventoryMutationResult, IssueStock, ListStockItems,
     ReceiveStock, RegisterStockItem, RegisterStockItemResult, ReleaseInventoryReservation,
@@ -18,13 +20,18 @@ use erpx_inventory::{
 };
 use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
-    ErrorCategory, EventId, QueryId, SessionId,
+    ErrorCategory, EventId, QueryId, RecordId, SessionId,
 };
 use erpx_procurement::{
-    CancelPurchaseOrder, CreatePurchaseOrder, CreatePurchaseOrderResult, GetPurchaseOrder,
-    GetPurchaseOrderResult, ListPurchaseOrders, PurchaseOrderId, PurchaseOrderLine,
-    PurchaseOrderLineId, PurchaseOrderList, PurchaseOrderListFilter, PurchaseOrderMutationResult,
-    PurchaseOrderStatus, PurchaseOrderView, ReleasePurchaseOrder, SupplierId,
+    AcceptGoodsReceipt, ApprovePurchaseRequisition, CancelGoodsReceipt, CancelPurchaseOrder,
+    CancelPurchaseRequisition, CreateGoodsReceipt, CreatePurchaseOrder, CreatePurchaseOrderResult,
+    CreatePurchaseRequisition, GetPurchaseOrder, GetPurchaseOrderResult, GoodsReceiptId,
+    GoodsReceiptLine, GoodsReceiptStatus, GoodsReceiptView, InventoryStockItemId,
+    ListPurchaseOrders, PurchaseOrderId, PurchaseOrderLine, PurchaseOrderLineId, PurchaseOrderList,
+    PurchaseOrderListFilter, PurchaseOrderMutationResult, PurchaseOrderStatus, PurchaseOrderView,
+    PurchaseRequisitionId, PurchaseRequisitionLine, PurchaseRequisitionStatus,
+    PurchaseRequisitionView, RejectGoodsReceipt, RejectPurchaseRequisition, ReleasePurchaseOrder,
+    StoredProcurementWorkflowCommit, SubmitPurchaseRequisition, SupplierId,
 };
 use erpx_proto::common;
 mod platform {
@@ -159,6 +166,61 @@ pub trait ProcurementCommandApplication: Send + Sync + 'static {
         route: SupplyChainHoldingRoute,
         envelope: CommandEnvelope<CancelPurchaseOrder>,
     ) -> Result<CommandReceipt<PurchaseOrderMutationResult>, CqrsError>;
+    async fn create_requisition(
+        &self,
+        route: SupplyChainHoldingRoute,
+        envelope: CommandEnvelope<CreatePurchaseRequisition>,
+    ) -> Result<StoredProcurementWorkflowCommit, CqrsError>;
+    async fn submit_requisition(
+        &self,
+        route: SupplyChainHoldingRoute,
+        envelope: CommandEnvelope<SubmitPurchaseRequisition>,
+    ) -> Result<StoredProcurementWorkflowCommit, CqrsError>;
+    async fn approve_requisition(
+        &self,
+        route: SupplyChainHoldingRoute,
+        envelope: CommandEnvelope<ApprovePurchaseRequisition>,
+    ) -> Result<StoredProcurementWorkflowCommit, CqrsError>;
+    async fn reject_requisition(
+        &self,
+        route: SupplyChainHoldingRoute,
+        envelope: CommandEnvelope<RejectPurchaseRequisition>,
+    ) -> Result<StoredProcurementWorkflowCommit, CqrsError>;
+    async fn cancel_requisition(
+        &self,
+        route: SupplyChainHoldingRoute,
+        envelope: CommandEnvelope<CancelPurchaseRequisition>,
+    ) -> Result<StoredProcurementWorkflowCommit, CqrsError>;
+    async fn create_goods_receipt(
+        &self,
+        route: SupplyChainHoldingRoute,
+        envelope: CommandEnvelope<CreateGoodsReceipt>,
+    ) -> Result<StoredProcurementWorkflowCommit, CqrsError>;
+    async fn accept_goods_receipt(
+        &self,
+        route: SupplyChainHoldingRoute,
+        envelope: CommandEnvelope<AcceptGoodsReceipt>,
+    ) -> Result<StoredProcurementWorkflowCommit, CqrsError>;
+    async fn reject_goods_receipt(
+        &self,
+        route: SupplyChainHoldingRoute,
+        envelope: CommandEnvelope<RejectGoodsReceipt>,
+    ) -> Result<StoredProcurementWorkflowCommit, CqrsError>;
+    async fn cancel_goods_receipt(
+        &self,
+        route: SupplyChainHoldingRoute,
+        envelope: CommandEnvelope<CancelGoodsReceipt>,
+    ) -> Result<StoredProcurementWorkflowCommit, CqrsError>;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GetPurchaseRequisition {
+    pub requisition_id: PurchaseRequisitionId,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GetGoodsReceipt {
+    pub goods_receipt_id: GoodsReceiptId,
 }
 
 #[async_trait]
@@ -173,6 +235,16 @@ pub trait ProcurementQueryApplication: Send + Sync + 'static {
         route: SupplyChainHoldingRoute,
         envelope: QueryEnvelope<ListPurchaseOrders>,
     ) -> Result<QueryResult<PurchaseOrderList>, CqrsError>;
+    async fn get_requisition(
+        &self,
+        route: SupplyChainHoldingRoute,
+        envelope: QueryEnvelope<GetPurchaseRequisition>,
+    ) -> Result<QueryResult<Option<PurchaseRequisitionView>>, CqrsError>;
+    async fn get_goods_receipt(
+        &self,
+        route: SupplyChainHoldingRoute,
+        envelope: QueryEnvelope<GetGoodsReceipt>,
+    ) -> Result<QueryResult<Option<GoodsReceiptView>>, CqrsError>;
 }
 
 #[async_trait]
@@ -262,6 +334,12 @@ impl<A: ProcurementCommandApplication, G: SupplyChainRequestAuthenticator> Procu
                 .into_iter()
                 .map(decode_order_line)
                 .collect::<Result<_, _>>()?,
+            source_requisition: decode_record_version(
+                input
+                    .source_requisition
+                    .ok_or_else(|| invalid("source_requisition is required"))?,
+            )?,
+            contract: input.contract.map(decode_record_version).transpose()?,
         };
         let (route, envelope) = authenticate_command(
             self.authenticator.as_ref(),
@@ -329,6 +407,242 @@ impl<A: ProcurementCommandApplication, G: SupplyChainRequestAuthenticator> Procu
             &receipt.response.order,
         )))
     }
+
+    async fn create_requisition(
+        &self,
+        request: Request<platform::CreatePurchaseRequisitionRequest>,
+    ) -> Result<Response<platform::PurchaseRequisitionMutationResponse>, Status> {
+        let metadata = request.metadata().clone();
+        let input = request.into_inner();
+        let command = CreatePurchaseRequisition {
+            requisition_id: requisition_id(&input.requisition_id)?,
+            scope: decode_scope(input.scope.ok_or_else(|| invalid("scope is required"))?)?,
+            requisition_code: input.requisition_code,
+            requesting_department_code: input.requesting_department_code,
+            budget_code: input.budget_code,
+            currency: input.currency,
+            lines: input
+                .lines
+                .into_iter()
+                .map(decode_requisition_line)
+                .collect::<Result<_, _>>()?,
+        };
+        let (route, envelope) = authenticate_command(
+            self.authenticator.as_ref(),
+            metadata,
+            decode_command(input.metadata, command)?,
+        )
+        .await?;
+        let stored = self
+            .application
+            .create_requisition(route, envelope)
+            .await
+            .map_err(status_from_cqrs)?;
+        Ok(Response::new(requisition_mutation_response(&stored)?))
+    }
+
+    async fn submit_requisition(
+        &self,
+        request: Request<platform::PurchaseRequisitionIdentityRequest>,
+    ) -> Result<Response<platform::PurchaseRequisitionMutationResponse>, Status> {
+        let (metadata, input) = (request.metadata().clone(), request.into_inner());
+        let (route, envelope) = authenticate_command(
+            self.authenticator.as_ref(),
+            metadata,
+            decode_command(
+                input.metadata,
+                SubmitPurchaseRequisition {
+                    requisition_id: requisition_id(&input.requisition_id)?,
+                },
+            )?,
+        )
+        .await?;
+        let stored = self
+            .application
+            .submit_requisition(route, envelope)
+            .await
+            .map_err(status_from_cqrs)?;
+        Ok(Response::new(requisition_mutation_response(&stored)?))
+    }
+
+    async fn approve_requisition(
+        &self,
+        request: Request<platform::PurchaseRequisitionIdentityRequest>,
+    ) -> Result<Response<platform::PurchaseRequisitionMutationResponse>, Status> {
+        let (metadata, input) = (request.metadata().clone(), request.into_inner());
+        let (route, envelope) = authenticate_command(
+            self.authenticator.as_ref(),
+            metadata,
+            decode_command(
+                input.metadata,
+                ApprovePurchaseRequisition {
+                    requisition_id: requisition_id(&input.requisition_id)?,
+                },
+            )?,
+        )
+        .await?;
+        let stored = self
+            .application
+            .approve_requisition(route, envelope)
+            .await
+            .map_err(status_from_cqrs)?;
+        Ok(Response::new(requisition_mutation_response(&stored)?))
+    }
+
+    async fn reject_requisition(
+        &self,
+        request: Request<platform::PurchaseRequisitionIdentityRequest>,
+    ) -> Result<Response<platform::PurchaseRequisitionMutationResponse>, Status> {
+        let (metadata, input) = (request.metadata().clone(), request.into_inner());
+        let (route, envelope) = authenticate_command(
+            self.authenticator.as_ref(),
+            metadata,
+            decode_command(
+                input.metadata,
+                RejectPurchaseRequisition {
+                    requisition_id: requisition_id(&input.requisition_id)?,
+                },
+            )?,
+        )
+        .await?;
+        let stored = self
+            .application
+            .reject_requisition(route, envelope)
+            .await
+            .map_err(status_from_cqrs)?;
+        Ok(Response::new(requisition_mutation_response(&stored)?))
+    }
+
+    async fn cancel_requisition(
+        &self,
+        request: Request<platform::PurchaseRequisitionIdentityRequest>,
+    ) -> Result<Response<platform::PurchaseRequisitionMutationResponse>, Status> {
+        let (metadata, input) = (request.metadata().clone(), request.into_inner());
+        let (route, envelope) = authenticate_command(
+            self.authenticator.as_ref(),
+            metadata,
+            decode_command(
+                input.metadata,
+                CancelPurchaseRequisition {
+                    requisition_id: requisition_id(&input.requisition_id)?,
+                },
+            )?,
+        )
+        .await?;
+        let stored = self
+            .application
+            .cancel_requisition(route, envelope)
+            .await
+            .map_err(status_from_cqrs)?;
+        Ok(Response::new(requisition_mutation_response(&stored)?))
+    }
+
+    async fn create_goods_receipt(
+        &self,
+        request: Request<platform::CreateGoodsReceiptRequest>,
+    ) -> Result<Response<platform::GoodsReceiptMutationResponse>, Status> {
+        let metadata = request.metadata().clone();
+        let input = request.into_inner();
+        let command = CreateGoodsReceipt {
+            goods_receipt_id: goods_receipt_id(&input.goods_receipt_id)?,
+            scope: decode_scope(input.scope.ok_or_else(|| invalid("scope is required"))?)?,
+            receipt_code: input.receipt_code,
+            source_purchase_order: decode_record_version(
+                input
+                    .source_purchase_order
+                    .ok_or_else(|| invalid("source_purchase_order is required"))?,
+            )?,
+            lines: input
+                .lines
+                .into_iter()
+                .map(decode_goods_receipt_line)
+                .collect::<Result<_, _>>()?,
+        };
+        let (route, envelope) = authenticate_command(
+            self.authenticator.as_ref(),
+            metadata,
+            decode_command(input.metadata, command)?,
+        )
+        .await?;
+        let stored = self
+            .application
+            .create_goods_receipt(route, envelope)
+            .await
+            .map_err(status_from_cqrs)?;
+        Ok(Response::new(goods_receipt_mutation_response(&stored)?))
+    }
+
+    async fn accept_goods_receipt(
+        &self,
+        request: Request<platform::GoodsReceiptIdentityRequest>,
+    ) -> Result<Response<platform::GoodsReceiptMutationResponse>, Status> {
+        let (metadata, input) = (request.metadata().clone(), request.into_inner());
+        let (route, envelope) = authenticate_command(
+            self.authenticator.as_ref(),
+            metadata,
+            decode_command(
+                input.metadata,
+                AcceptGoodsReceipt {
+                    goods_receipt_id: goods_receipt_id(&input.goods_receipt_id)?,
+                },
+            )?,
+        )
+        .await?;
+        let stored = self
+            .application
+            .accept_goods_receipt(route, envelope)
+            .await
+            .map_err(status_from_cqrs)?;
+        Ok(Response::new(goods_receipt_mutation_response(&stored)?))
+    }
+
+    async fn reject_goods_receipt(
+        &self,
+        request: Request<platform::GoodsReceiptIdentityRequest>,
+    ) -> Result<Response<platform::GoodsReceiptMutationResponse>, Status> {
+        let (metadata, input) = (request.metadata().clone(), request.into_inner());
+        let (route, envelope) = authenticate_command(
+            self.authenticator.as_ref(),
+            metadata,
+            decode_command(
+                input.metadata,
+                RejectGoodsReceipt {
+                    goods_receipt_id: goods_receipt_id(&input.goods_receipt_id)?,
+                },
+            )?,
+        )
+        .await?;
+        let stored = self
+            .application
+            .reject_goods_receipt(route, envelope)
+            .await
+            .map_err(status_from_cqrs)?;
+        Ok(Response::new(goods_receipt_mutation_response(&stored)?))
+    }
+
+    async fn cancel_goods_receipt(
+        &self,
+        request: Request<platform::GoodsReceiptIdentityRequest>,
+    ) -> Result<Response<platform::GoodsReceiptMutationResponse>, Status> {
+        let (metadata, input) = (request.metadata().clone(), request.into_inner());
+        let (route, envelope) = authenticate_command(
+            self.authenticator.as_ref(),
+            metadata,
+            decode_command(
+                input.metadata,
+                CancelGoodsReceipt {
+                    goods_receipt_id: goods_receipt_id(&input.goods_receipt_id)?,
+                },
+            )?,
+        )
+        .await?;
+        let stored = self
+            .application
+            .cancel_goods_receipt(route, envelope)
+            .await
+            .map_err(status_from_cqrs)?;
+        Ok(Response::new(goods_receipt_mutation_response(&stored)?))
+    }
 }
 
 #[async_trait]
@@ -389,6 +703,62 @@ impl<A: ProcurementQueryApplication, G: SupplyChainRequestAuthenticator> Procure
         Ok(Response::new(platform::ListPurchaseOrdersResponse {
             orders: result.value.orders.iter().map(encode_order).collect(),
             next_cursor: result.value.next_cursor,
+            metadata: Some(encode_query_metadata(&result.metadata)),
+        }))
+    }
+
+    async fn get_requisition(
+        &self,
+        request: Request<platform::GetPurchaseRequisitionRequest>,
+    ) -> Result<Response<platform::GetPurchaseRequisitionResponse>, Status> {
+        let metadata = request.metadata().clone();
+        let input = request.into_inner();
+        let (route, envelope) = authenticate_query(
+            self.authenticator.as_ref(),
+            metadata,
+            decode_query(
+                input.metadata,
+                GetPurchaseRequisition {
+                    requisition_id: requisition_id(&input.requisition_id)?,
+                },
+            )?,
+        )
+        .await?;
+        let result = self
+            .application
+            .get_requisition(route, envelope)
+            .await
+            .map_err(status_from_cqrs)?;
+        Ok(Response::new(platform::GetPurchaseRequisitionResponse {
+            requisition: result.value.as_ref().map(encode_requisition),
+            metadata: Some(encode_query_metadata(&result.metadata)),
+        }))
+    }
+
+    async fn get_goods_receipt(
+        &self,
+        request: Request<platform::GetGoodsReceiptRequest>,
+    ) -> Result<Response<platform::GetGoodsReceiptResponse>, Status> {
+        let metadata = request.metadata().clone();
+        let input = request.into_inner();
+        let (route, envelope) = authenticate_query(
+            self.authenticator.as_ref(),
+            metadata,
+            decode_query(
+                input.metadata,
+                GetGoodsReceipt {
+                    goods_receipt_id: goods_receipt_id(&input.goods_receipt_id)?,
+                },
+            )?,
+        )
+        .await?;
+        let result = self
+            .application
+            .get_goods_receipt(route, envelope)
+            .await
+            .map_err(status_from_cqrs)?;
+        Ok(Response::new(platform::GetGoodsReceiptResponse {
+            goods_receipt: result.value.as_ref().map(encode_goods_receipt),
             metadata: Some(encode_query_metadata(&result.metadata)),
         }))
     }
@@ -888,6 +1258,45 @@ fn decode_order_line(
         destination_code: value.destination_code,
     })
 }
+fn decode_requisition_line(
+    value: platform::PurchaseRequisitionLineRecord,
+) -> Result<PurchaseRequisitionLine, Status> {
+    Ok(PurchaseRequisitionLine {
+        line_id: erpx_procurement::PurchaseRequisitionLineId::try_from_uuid(parse_uuid(
+            &value.line_id,
+            "requisition_line_id",
+        )?)
+        .map_err(|_| invalid("requisition_line_id"))?,
+        item_code: value.item_code,
+        requested_quantity: value.requested_quantity,
+        estimated_unit_price_minor: value.estimated_unit_price_minor,
+        currency: value.currency,
+        destination_code: value.destination_code,
+    })
+}
+
+fn decode_goods_receipt_line(
+    value: platform::GoodsReceiptLineRecord,
+) -> Result<GoodsReceiptLine, Status> {
+    Ok(GoodsReceiptLine {
+        line_id: erpx_procurement::GoodsReceiptLineId::try_from_uuid(parse_uuid(
+            &value.line_id,
+            "goods_receipt_line_id",
+        )?)
+        .map_err(|_| invalid("goods_receipt_line_id"))?,
+        purchase_order_line_id: PurchaseOrderLineId::try_from_uuid(parse_uuid(
+            &value.purchase_order_line_id,
+            "purchase_order_line_id",
+        )?)
+        .map_err(|_| invalid("purchase_order_line_id"))?,
+        inventory_stock_item_id: InventoryStockItemId::try_from_uuid(parse_uuid(
+            &value.inventory_stock_item_id,
+            "inventory_stock_item_id",
+        )?)
+        .map_err(|_| invalid("inventory_stock_item_id"))?,
+        received_quantity: value.received_quantity,
+    })
+}
 fn decode_order_status(value: i32) -> Result<PurchaseOrderStatus, Status> {
     match platform::PurchaseOrderStatus::try_from(value).ok() {
         Some(platform::PurchaseOrderStatus::Draft) => Ok(PurchaseOrderStatus::Draft),
@@ -924,6 +1333,107 @@ fn encode_order(view: &PurchaseOrderView) -> platform::PurchaseOrderRecord {
         created_at: view.created_at.to_rfc3339(),
         updated_at: view.updated_at.to_rfc3339(),
         projected_at: String::new(),
+        source_requisition: view.source_requisition.as_ref().map(encode_record_version),
+        contract: view.contract.as_ref().map(encode_record_version),
+    }
+}
+
+fn encode_requisition(view: &PurchaseRequisitionView) -> platform::PurchaseRequisitionRecord {
+    platform::PurchaseRequisitionRecord {
+        requisition_id: view.requisition_id.as_uuid().to_string(),
+        source_version: view.version,
+        scope: Some(encode_scope(&view.scope)),
+        requisition_code: view.requisition_code.clone(),
+        requesting_department_code: view.requesting_department_code.clone(),
+        budget_code: view.budget_code.clone(),
+        currency: view.currency.clone(),
+        lines: view
+            .lines
+            .iter()
+            .map(|line| platform::PurchaseRequisitionLineRecord {
+                line_id: line.line_id.as_uuid().to_string(),
+                item_code: line.item_code.clone(),
+                requested_quantity: line.requested_quantity,
+                estimated_unit_price_minor: line.estimated_unit_price_minor,
+                currency: line.currency.clone(),
+                destination_code: line.destination_code.clone(),
+            })
+            .collect(),
+        status: match view.status {
+            PurchaseRequisitionStatus::Draft => platform::PurchaseRequisitionStatus::Draft as i32,
+            PurchaseRequisitionStatus::Submitted => {
+                platform::PurchaseRequisitionStatus::Submitted as i32
+            }
+            PurchaseRequisitionStatus::Approved => {
+                platform::PurchaseRequisitionStatus::Approved as i32
+            }
+            PurchaseRequisitionStatus::Rejected => {
+                platform::PurchaseRequisitionStatus::Rejected as i32
+            }
+            PurchaseRequisitionStatus::Cancelled => {
+                platform::PurchaseRequisitionStatus::Cancelled as i32
+            }
+        },
+        created_at: view.created_at.to_rfc3339(),
+        updated_at: view.updated_at.to_rfc3339(),
+        projected_at: String::new(),
+    }
+}
+
+fn encode_goods_receipt(view: &GoodsReceiptView) -> platform::GoodsReceiptRecord {
+    platform::GoodsReceiptRecord {
+        goods_receipt_id: view.goods_receipt_id.as_uuid().to_string(),
+        source_version: view.version,
+        scope: Some(encode_scope(&view.scope)),
+        receipt_code: view.receipt_code.clone(),
+        source_purchase_order: Some(encode_record_version(&view.source_purchase_order)),
+        lines: view
+            .lines
+            .iter()
+            .map(|line| platform::GoodsReceiptLineRecord {
+                line_id: line.line_id.as_uuid().to_string(),
+                purchase_order_line_id: line.purchase_order_line_id.as_uuid().to_string(),
+                inventory_stock_item_id: line.inventory_stock_item_id.as_uuid().to_string(),
+                received_quantity: line.received_quantity,
+            })
+            .collect(),
+        status: match view.status {
+            GoodsReceiptStatus::PendingAcceptance => {
+                platform::GoodsReceiptStatus::PendingAcceptance as i32
+            }
+            GoodsReceiptStatus::Accepted => platform::GoodsReceiptStatus::Accepted as i32,
+            GoodsReceiptStatus::Rejected => platform::GoodsReceiptStatus::Rejected as i32,
+            GoodsReceiptStatus::Cancelled => platform::GoodsReceiptStatus::Cancelled as i32,
+        },
+        created_at: view.created_at.to_rfc3339(),
+        updated_at: view.updated_at.to_rfc3339(),
+        projected_at: String::new(),
+    }
+}
+
+fn decode_record_version(value: platform::RecordVersionRef) -> Result<RecordVersionRef, Status> {
+    let record_type = RecordTypeId::try_new(value.record_type)
+        .map_err(|_| invalid("record_version.record_type"))?;
+    let owner = record_type.descriptor().owner;
+    if value.owner_context != owner.slug() {
+        return Err(invalid("record_version.owner_context"));
+    }
+    let record = StableRecordRef::try_new(
+        RecordId::try_from_uuid(parse_uuid(&value.record_id, "record_version.record_id")?)
+            .map_err(|_| invalid("record_version.record_id"))?,
+        owner,
+        record_type,
+    )
+    .map_err(|_| invalid("record_version"))?;
+    RecordVersionRef::try_new(record, value.version).map_err(|_| invalid("record_version.version"))
+}
+
+fn encode_record_version(value: &RecordVersionRef) -> platform::RecordVersionRef {
+    platform::RecordVersionRef {
+        record_id: value.record().id().to_string(),
+        version: value.version(),
+        owner_context: value.record().owner_context().slug().into(),
+        record_type: value.record().record_type().as_str().into(),
     }
 }
 fn encode_item(view: &StockItemView) -> platform::StockItemRecord {
@@ -974,6 +1484,74 @@ fn item_mutation_response<R>(
     platform::StockItemMutationResponse {
         receipt: Some(encode_receipt(receipt)),
         item: Some(encode_item(view)),
+    }
+}
+
+fn requisition_mutation_response(
+    stored: &StoredProcurementWorkflowCommit,
+) -> Result<platform::PurchaseRequisitionMutationResponse, Status> {
+    let erpx_procurement::ProcurementWorkflowAggregate::Requisition(value) = &stored.aggregate
+    else {
+        return Err(Status::internal(
+            "Procurement workflow response type mismatch",
+        ));
+    };
+    Ok(platform::PurchaseRequisitionMutationResponse {
+        receipt: Some(encode_workflow_receipt(
+            stored,
+            "purchase_requisition",
+            value.id().as_uuid(),
+            value.version(),
+        )),
+        requisition: Some(encode_requisition(&PurchaseRequisitionView::from(value))),
+    })
+}
+
+fn goods_receipt_mutation_response(
+    stored: &StoredProcurementWorkflowCommit,
+) -> Result<platform::GoodsReceiptMutationResponse, Status> {
+    let erpx_procurement::ProcurementWorkflowAggregate::GoodsReceipt(value) = &stored.aggregate
+    else {
+        return Err(Status::internal(
+            "Procurement workflow response type mismatch",
+        ));
+    };
+    Ok(platform::GoodsReceiptMutationResponse {
+        receipt: Some(encode_workflow_receipt(
+            stored,
+            "goods_receipt",
+            value.id().as_uuid(),
+            value.version(),
+        )),
+        goods_receipt: Some(encode_goods_receipt(&GoodsReceiptView::from(value))),
+    })
+}
+
+fn encode_workflow_receipt(
+    stored: &StoredProcurementWorkflowCommit,
+    aggregate_type: &str,
+    aggregate_id: Uuid,
+    version: u64,
+) -> common::CommandReceipt {
+    common::CommandReceipt {
+        command_id: stored.command_id.to_string(),
+        correlation_id: stored.correlation_id.to_string(),
+        aggregate: Some(common::AggregateVersion {
+            context: "procurement".into(),
+            aggregate_type: aggregate_type.into(),
+            aggregate_id: aggregate_id.to_string(),
+            version,
+        }),
+        committed_events: stored
+            .committed_events
+            .iter()
+            .map(|position| common::EventPosition {
+                event_id: position.event_id.to_string(),
+                global_sequence: position.global_sequence,
+            })
+            .collect(),
+        committed_at: stored.committed_at.to_rfc3339(),
+        replayed: stored.replayed,
     }
 }
 
@@ -1106,6 +1684,14 @@ fn parse_correlation_id(value: &str) -> Result<CorrelationId, Status> {
 fn procurement_id(value: &str) -> Result<PurchaseOrderId, Status> {
     PurchaseOrderId::try_from_uuid(parse_uuid(value, "purchase_order_id")?)
         .map_err(|_| invalid("purchase_order_id"))
+}
+fn requisition_id(value: &str) -> Result<PurchaseRequisitionId, Status> {
+    PurchaseRequisitionId::try_from_uuid(parse_uuid(value, "requisition_id")?)
+        .map_err(|_| invalid("requisition_id"))
+}
+fn goods_receipt_id(value: &str) -> Result<GoodsReceiptId, Status> {
+    GoodsReceiptId::try_from_uuid(parse_uuid(value, "goods_receipt_id")?)
+        .map_err(|_| invalid("goods_receipt_id"))
 }
 fn stock_id(value: &str) -> Result<StockItemId, Status> {
     StockItemId::try_from_uuid(parse_uuid(value, "stock_item_id")?)

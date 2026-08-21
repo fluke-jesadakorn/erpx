@@ -12,7 +12,7 @@ use erpx_assets as assets;
 use erpx_assets_sqlx as assets_sqlx;
 use erpx_cqrs::{
     CommandEnvelope, CommandHandler, CommandReceipt, CqrsError, QueryEnvelope, QueryHandler,
-    QueryResult,
+    QueryMetadata, QueryResult,
 };
 use erpx_cqrs_sqlx::{ReadPool, WritePool};
 use erpx_crm as crm;
@@ -60,10 +60,10 @@ use crate::contexts::{
         MarketingQueryApplication, MarketingRequestAuthenticator,
     },
     procurement_inventory_cqrs::{
-        AuthenticatedSupplyChainRequest, InventoryCommandApplication, InventoryQueryApplication,
-        ProcurementCommandApplication, ProcurementQueryApplication, SupplyChainAccessMode,
-        SupplyChainAuthenticationError, SupplyChainAuthenticationRequest, SupplyChainHoldingRoute,
-        SupplyChainRequestAuthenticator,
+        AuthenticatedSupplyChainRequest, GetGoodsReceipt, GetPurchaseRequisition,
+        InventoryCommandApplication, InventoryQueryApplication, ProcurementCommandApplication,
+        ProcurementQueryApplication, SupplyChainAccessMode, SupplyChainAuthenticationError,
+        SupplyChainAuthenticationRequest, SupplyChainHoldingRoute, SupplyChainRequestAuthenticator,
     },
 };
 use crate::holding_workspace::{PresentedHoldingRoute, resolve_holding_workspace};
@@ -73,6 +73,18 @@ use crate::wave4_composition::{authenticate_context, authenticate_context_for_ho
 enum AccessMode {
     Read,
     Write,
+}
+
+enum ProcurementWorkflowCommand {
+    CreateRequisition(procurement::CreatePurchaseRequisition),
+    SubmitRequisition(procurement::SubmitPurchaseRequisition),
+    ApproveRequisition(procurement::ApprovePurchaseRequisition),
+    RejectRequisition(procurement::RejectPurchaseRequisition),
+    CancelRequisition(procurement::CancelPurchaseRequisition),
+    CreateGoodsReceipt(procurement::CreateGoodsReceipt),
+    AcceptGoodsReceipt(procurement::AcceptGoodsReceipt),
+    RejectGoodsReceipt(procurement::RejectGoodsReceipt),
+    CancelGoodsReceipt(procurement::CancelGoodsReceipt),
 }
 
 #[derive(Debug, Clone)]
@@ -156,6 +168,29 @@ access_ports!(
     |action: procurement::ProcurementAction| action.requires_write_entitlement(),
     ensure_procurement_enabled
 );
+
+#[async_trait]
+impl procurement::ProcurementWorkflowAuthorizationPort for PreauthorizedAccess {
+    async fn authorize_procurement_workflow(
+        &self,
+        request: procurement::ProcurementWorkflowAuthorizationRequest<'_>,
+    ) -> Result<(), procurement::PortError> {
+        let write = !matches!(
+            request.action,
+            procurement::ProcurementWorkflowAction::ViewRequisition
+                | procurement::ProcurementWorkflowAction::ViewGoodsReceipt
+        );
+        if !self.permits(
+            request.actor,
+            request.authority_scope,
+            request.target_scope,
+            write,
+        ) {
+            return Err(procurement::PortError::Denied);
+        }
+        Ok(())
+    }
+}
 access_ports!(
     inventory,
     |action: inventory::InventoryAction| action.requires_write_entitlement(),
@@ -332,6 +367,71 @@ impl Wave6HoldingApplication {
             authority_scope: scope.clone(),
             mode,
         }
+    }
+
+    async fn execute_procurement_workflow(
+        &self,
+        route: SupplyChainHoldingRoute,
+        context: procurement::ProcurementWorkflowCommandContext,
+        command: ProcurementWorkflowCommand,
+    ) -> Result<procurement::StoredProcurementWorkflowCommit, CqrsError> {
+        let command_id = context.command_id.as_uuid();
+        let correlation_id = context.correlation_id;
+        let pool = self
+            .write_pool(
+                &route.holding_id,
+                &route.data_profile_key,
+                correlation_id,
+                "procurement",
+            )
+            .await?;
+        let access = Self::access(&context.actor, &context.authority_scope, AccessMode::Write);
+        let adapter = procurement_sqlx::ProcurementWorkflowSqlxAdapter::new(pool);
+        let service = procurement::ProcurementWorkflowCommandService::new(
+            adapter.clone(),
+            adapter,
+            access,
+            SystemClock,
+        );
+        let stored = match command {
+            ProcurementWorkflowCommand::CreateRequisition(command) => {
+                service.create_requisition(context, command).await
+            }
+            ProcurementWorkflowCommand::SubmitRequisition(command) => {
+                service.submit_requisition(context, command).await
+            }
+            ProcurementWorkflowCommand::ApproveRequisition(command) => {
+                service.approve_requisition(context, command).await
+            }
+            ProcurementWorkflowCommand::RejectRequisition(command) => {
+                service.reject_requisition(context, command).await
+            }
+            ProcurementWorkflowCommand::CancelRequisition(command) => {
+                service.cancel_requisition(context, command).await
+            }
+            ProcurementWorkflowCommand::CreateGoodsReceipt(command) => {
+                service.create_goods_receipt(context, command).await
+            }
+            ProcurementWorkflowCommand::AcceptGoodsReceipt(command) => {
+                service.accept_goods_receipt(context, command).await
+            }
+            ProcurementWorkflowCommand::RejectGoodsReceipt(command) => {
+                service.reject_goods_receipt(context, command).await
+            }
+            ProcurementWorkflowCommand::CancelGoodsReceipt(command) => {
+                service.cancel_goods_receipt(context, command).await
+            }
+        }
+        .map_err(|error| procurement_workflow_failure(error, correlation_id))?;
+        self.schedule_incremental_projection(
+            &route.holding_id,
+            &route.data_profile_key,
+            procurement_sqlx::WORKFLOW_PROJECTION_NAME,
+            command_id,
+            correlation_id.as_uuid(),
+        )
+        .await;
+        Ok(stored)
     }
 }
 
@@ -565,6 +665,141 @@ impl ProcurementCommandApplication for Wave6HoldingApplication {
             ProcurementCommandAdapter
         )
     }
+
+    async fn create_requisition(
+        &self,
+        route: SupplyChainHoldingRoute,
+        envelope: CommandEnvelope<procurement::CreatePurchaseRequisition>,
+    ) -> Result<procurement::StoredProcurementWorkflowCommit, CqrsError> {
+        envelope.validate()?;
+        let context = procurement_workflow_context(&envelope);
+        self.execute_procurement_workflow(
+            route,
+            context,
+            ProcurementWorkflowCommand::CreateRequisition(envelope.command),
+        )
+        .await
+    }
+
+    async fn submit_requisition(
+        &self,
+        route: SupplyChainHoldingRoute,
+        envelope: CommandEnvelope<procurement::SubmitPurchaseRequisition>,
+    ) -> Result<procurement::StoredProcurementWorkflowCommit, CqrsError> {
+        envelope.validate()?;
+        let context = procurement_workflow_context(&envelope);
+        self.execute_procurement_workflow(
+            route,
+            context,
+            ProcurementWorkflowCommand::SubmitRequisition(envelope.command),
+        )
+        .await
+    }
+
+    async fn approve_requisition(
+        &self,
+        route: SupplyChainHoldingRoute,
+        envelope: CommandEnvelope<procurement::ApprovePurchaseRequisition>,
+    ) -> Result<procurement::StoredProcurementWorkflowCommit, CqrsError> {
+        envelope.validate()?;
+        let context = procurement_workflow_context(&envelope);
+        self.execute_procurement_workflow(
+            route,
+            context,
+            ProcurementWorkflowCommand::ApproveRequisition(envelope.command),
+        )
+        .await
+    }
+
+    async fn reject_requisition(
+        &self,
+        route: SupplyChainHoldingRoute,
+        envelope: CommandEnvelope<procurement::RejectPurchaseRequisition>,
+    ) -> Result<procurement::StoredProcurementWorkflowCommit, CqrsError> {
+        envelope.validate()?;
+        let context = procurement_workflow_context(&envelope);
+        self.execute_procurement_workflow(
+            route,
+            context,
+            ProcurementWorkflowCommand::RejectRequisition(envelope.command),
+        )
+        .await
+    }
+
+    async fn cancel_requisition(
+        &self,
+        route: SupplyChainHoldingRoute,
+        envelope: CommandEnvelope<procurement::CancelPurchaseRequisition>,
+    ) -> Result<procurement::StoredProcurementWorkflowCommit, CqrsError> {
+        envelope.validate()?;
+        let context = procurement_workflow_context(&envelope);
+        self.execute_procurement_workflow(
+            route,
+            context,
+            ProcurementWorkflowCommand::CancelRequisition(envelope.command),
+        )
+        .await
+    }
+
+    async fn create_goods_receipt(
+        &self,
+        route: SupplyChainHoldingRoute,
+        envelope: CommandEnvelope<procurement::CreateGoodsReceipt>,
+    ) -> Result<procurement::StoredProcurementWorkflowCommit, CqrsError> {
+        envelope.validate()?;
+        let context = procurement_workflow_context(&envelope);
+        self.execute_procurement_workflow(
+            route,
+            context,
+            ProcurementWorkflowCommand::CreateGoodsReceipt(envelope.command),
+        )
+        .await
+    }
+
+    async fn accept_goods_receipt(
+        &self,
+        route: SupplyChainHoldingRoute,
+        envelope: CommandEnvelope<procurement::AcceptGoodsReceipt>,
+    ) -> Result<procurement::StoredProcurementWorkflowCommit, CqrsError> {
+        envelope.validate()?;
+        let context = procurement_workflow_context(&envelope);
+        self.execute_procurement_workflow(
+            route,
+            context,
+            ProcurementWorkflowCommand::AcceptGoodsReceipt(envelope.command),
+        )
+        .await
+    }
+
+    async fn reject_goods_receipt(
+        &self,
+        route: SupplyChainHoldingRoute,
+        envelope: CommandEnvelope<procurement::RejectGoodsReceipt>,
+    ) -> Result<procurement::StoredProcurementWorkflowCommit, CqrsError> {
+        envelope.validate()?;
+        let context = procurement_workflow_context(&envelope);
+        self.execute_procurement_workflow(
+            route,
+            context,
+            ProcurementWorkflowCommand::RejectGoodsReceipt(envelope.command),
+        )
+        .await
+    }
+
+    async fn cancel_goods_receipt(
+        &self,
+        route: SupplyChainHoldingRoute,
+        envelope: CommandEnvelope<procurement::CancelGoodsReceipt>,
+    ) -> Result<procurement::StoredProcurementWorkflowCommit, CqrsError> {
+        envelope.validate()?;
+        let context = procurement_workflow_context(&envelope);
+        self.execute_procurement_workflow(
+            route,
+            context,
+            ProcurementWorkflowCommand::CancelGoodsReceipt(envelope.command),
+        )
+        .await
+    }
 }
 
 #[async_trait]
@@ -600,6 +835,120 @@ impl ProcurementQueryApplication for Wave6HoldingApplication {
             ProcurementQueryHandler,
             ProcurementReadRepository
         )
+    }
+
+    async fn get_requisition(
+        &self,
+        route: SupplyChainHoldingRoute,
+        envelope: QueryEnvelope<GetPurchaseRequisition>,
+    ) -> Result<QueryResult<Option<procurement::PurchaseRequisitionView>>, CqrsError> {
+        envelope.validate()?;
+        let correlation_id = envelope.correlation_id;
+        let pool = self
+            .read_pool(
+                &route.holding_id,
+                &route.data_profile_key,
+                correlation_id,
+                "procurement",
+            )
+            .await?;
+        let read = procurement_sqlx::ProcurementWorkflowReadAdapter::new(pool)
+            .map_err(|_| storage_configuration_error(correlation_id, "procurement"))?;
+        let access = Self::access(&envelope.actor, &envelope.active_scope, AccessMode::Read);
+        procurement::ProcurementWorkflowAuthorizationPort::authorize_procurement_workflow(
+            &access,
+            procurement::ProcurementWorkflowAuthorizationRequest {
+                actor: &envelope.actor,
+                authority_scope: &envelope.active_scope,
+                target_scope: &envelope.active_scope,
+                action: procurement::ProcurementWorkflowAction::ViewRequisition,
+            },
+        )
+        .await
+        .map_err(|error| procurement_workflow_port_failure(error, correlation_id))?;
+        let projection = procurement::ProcurementWorkflowReadRepository::get_requisition(
+            &read,
+            &envelope.active_scope,
+            envelope.query.requisition_id,
+            &envelope.consistency,
+        )
+        .await
+        .map_err(|error| procurement_workflow_port_failure(error, correlation_id))?;
+        if projection
+            .value
+            .as_ref()
+            .is_some_and(|value| !envelope.active_scope.contains(&value.scope))
+        {
+            return Err(procurement_workflow_port_failure(
+                procurement::PortError::Denied,
+                correlation_id,
+            ));
+        }
+        Ok(QueryResult {
+            value: projection.value,
+            metadata: QueryMetadata {
+                correlation_id,
+                projection: projection.metadata,
+                consistency: envelope.consistency,
+            },
+        })
+    }
+
+    async fn get_goods_receipt(
+        &self,
+        route: SupplyChainHoldingRoute,
+        envelope: QueryEnvelope<GetGoodsReceipt>,
+    ) -> Result<QueryResult<Option<procurement::GoodsReceiptView>>, CqrsError> {
+        envelope.validate()?;
+        let correlation_id = envelope.correlation_id;
+        let pool = self
+            .read_pool(
+                &route.holding_id,
+                &route.data_profile_key,
+                correlation_id,
+                "procurement",
+            )
+            .await?;
+        let read = procurement_sqlx::ProcurementWorkflowReadAdapter::new(pool)
+            .map_err(|_| storage_configuration_error(correlation_id, "procurement"))?;
+        let access = Self::access(&envelope.actor, &envelope.active_scope, AccessMode::Read);
+        procurement::ProcurementWorkflowAuthorizationPort::authorize_procurement_workflow(
+            &access,
+            procurement::ProcurementWorkflowAuthorizationRequest {
+                actor: &envelope.actor,
+                authority_scope: &envelope.active_scope,
+                target_scope: &envelope.active_scope,
+                action: procurement::ProcurementWorkflowAction::ViewGoodsReceipt,
+            },
+        )
+        .await
+        .map_err(|error| procurement_workflow_port_failure(error, correlation_id))?;
+        let projection = procurement::ProcurementWorkflowReadRepository::get_goods_receipt(
+            &read,
+            &envelope.active_scope,
+            envelope.query.goods_receipt_id,
+            &envelope.consistency,
+        )
+        .await
+        .map_err(|error| procurement_workflow_port_failure(error, correlation_id))?;
+        if projection
+            .value
+            .as_ref()
+            .is_some_and(|value| !envelope.active_scope.contains(&value.scope))
+        {
+            return Err(procurement_workflow_port_failure(
+                procurement::PortError::Denied,
+                correlation_id,
+            ));
+        }
+        Ok(QueryResult {
+            value: projection.value,
+            metadata: QueryMetadata {
+                correlation_id,
+                projection: projection.metadata,
+                consistency: envelope.consistency,
+            },
+        })
     }
 }
 
@@ -1486,6 +1835,94 @@ fn cqrs_holding_uuid(
     context: &'static str,
 ) -> Result<Uuid, CqrsError> {
     Uuid::parse_str(holding_id).map_err(|_| invalid_holding_binding(correlation_id, context))
+}
+
+fn procurement_workflow_context<C>(
+    envelope: &CommandEnvelope<C>,
+) -> procurement::ProcurementWorkflowCommandContext {
+    procurement::ProcurementWorkflowCommandContext {
+        command_id: envelope.command_id,
+        idempotency_key: envelope.idempotency_key.clone(),
+        correlation_id: envelope.correlation_id,
+        actor: envelope.actor.clone(),
+        authority_scope: envelope.active_scope.clone(),
+        audit: envelope.audit.clone(),
+        expected_version: envelope.expected_aggregate_version,
+    }
+}
+
+fn procurement_workflow_failure(
+    error: procurement::ProcurementWorkflowApplicationError,
+    correlation_id: CorrelationId,
+) -> CqrsError {
+    use procurement::ProcurementWorkflowApplicationError as Error;
+
+    match error {
+        Error::Port(port) => procurement_workflow_port_failure(port, correlation_id),
+        Error::Domain(_)
+        | Error::UnexpectedCreateVersion
+        | Error::MissingExpectedVersion
+        | Error::InvalidSource => context_failure(
+            correlation_id,
+            "procurement.workflow.invalid",
+            ErrorCategory::Invalid,
+            "The Procurement workflow request is invalid.",
+            false,
+        ),
+        Error::ScopeOutsideAuthority | Error::HumanDecisionRequired => context_failure(
+            correlation_id,
+            "procurement.workflow.denied",
+            ErrorCategory::Denied,
+            "The Procurement workflow operation is not permitted.",
+            false,
+        ),
+    }
+}
+
+fn procurement_workflow_port_failure(
+    error: procurement::PortError,
+    correlation_id: CorrelationId,
+) -> CqrsError {
+    use procurement::PortError;
+
+    match error {
+        PortError::NotReady(not_ready) => CqrsError::NotReady(not_ready),
+        PortError::Denied | PortError::EntitlementDenied => context_failure(
+            correlation_id,
+            "procurement.workflow.denied",
+            ErrorCategory::Denied,
+            "The Procurement workflow operation is not permitted.",
+            false,
+        ),
+        PortError::NotFound => context_failure(
+            correlation_id,
+            "procurement.workflow.not_found",
+            ErrorCategory::NotFound,
+            "The Procurement workflow record was not found.",
+            false,
+        ),
+        PortError::Conflict { .. } | PortError::IdempotencyConflict => context_failure(
+            correlation_id,
+            "procurement.workflow.conflict",
+            ErrorCategory::Conflict,
+            "The Procurement workflow record changed or the command identity conflicts.",
+            false,
+        ),
+        PortError::Unavailable => context_failure(
+            correlation_id,
+            "procurement.workflow.unavailable",
+            ErrorCategory::Unavailable,
+            "Procurement workflow storage is temporarily unavailable.",
+            true,
+        ),
+        PortError::Internal => context_failure(
+            correlation_id,
+            "procurement.workflow.internal",
+            ErrorCategory::Internal,
+            "Procurement could not complete the workflow operation.",
+            false,
+        ),
+    }
 }
 
 fn invalid_holding_binding(correlation_id: CorrelationId, context: &'static str) -> CqrsError {
