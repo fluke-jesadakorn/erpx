@@ -22,9 +22,9 @@ use crate::{
 use erpx_collaboration::{
     Audience, CollaborationError, CommentDocument, CommentId, CommentProjectionContent,
     CommentProjectionV2, CommentVisibility, CommitReceipt, FollowerView, MandatoryFollowReason,
-    MutationIdentity, PortError, PrincipalRef, RecordRelationGraph, RelationId, RelationKind,
-    RelationMutationReceipt, RelationPage, RelationView, RetentionPolicy, ThreadId,
-    ThreadProjectionV2, ThreadState, record_relation_graph_thread_id,
+    MutationIdentity, PortError, PrincipalRef, ReactionView, RecordRelationGraph, RelationId,
+    RelationKind, RelationMutationReceipt, RelationPage, RelationView, RetentionPolicy, ThreadId,
+    ThreadMutation, ThreadProjectionV2, ThreadState, record_relation_graph_thread_id,
 };
 use erpx_integration_contracts::{
     AuthorizedItemSummary, ItemDescriptor, StableRecordRef, record_collaboration_policy,
@@ -378,6 +378,565 @@ impl SqlxGlobalCollaborationGateway {
         })
     }
 
+    /// Applies the Phase 2 human collaboration mutations to a Platform thread.
+    /// The authoritative snapshot, normalized rows, event, projection draft,
+    /// idempotency receipt, and allowed audit are committed atomically.
+    pub async fn mutate_thread(
+        &self,
+        access: &GlobalCollaborationAccess,
+        identity: MutationIdentity,
+        thread_id: ThreadId,
+        expected_version: u64,
+        mutation: ThreadMutation,
+        at: DateTime<Utc>,
+    ) -> Result<CommitReceipt, PortError> {
+        identity.validate()?;
+        if identity.correlation_id != access.correlation_id() || expected_version == 0 {
+            return Err(PortError::Denied);
+        }
+
+        // Resolve the anchor only through the already-authorized, fresh global
+        // read projection. The write store is never used as a pre-auth lookup.
+        let authorized = self.get_thread_v2(access, thread_id).await?;
+        self.authorize_record(access, &authorized.anchor, false)
+            .await?;
+        let actor = PrincipalRef::new(access.principal_id(), PrincipalKind::Human);
+
+        let mut transaction = self.control_write.begin().await.map_err(database_error)?;
+        if let Some(receipt) = load_thread_receipt(&mut transaction, &identity).await? {
+            if receipt.thread_id != thread_id {
+                return Err(PortError::Conflict);
+            }
+            transaction.commit().await.map_err(database_error)?;
+            return Ok(receipt);
+        }
+        let row = sqlx::query(
+            "SELECT anchor_record_ref,thread_document,aggregate_version
+             FROM erpx_global_collaboration.threads WHERE thread_id=$1 FOR UPDATE",
+        )
+        .bind(thread_id.as_uuid())
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(database_error)?
+        .ok_or(PortError::NotFound)?;
+        let anchor_document: serde_json::Value = row
+            .try_get("anchor_record_ref")
+            .map_err(|_| PortError::Internal)?;
+        let anchor = serde_json::from_value::<StableRecordRef>(anchor_document)
+            .map_err(|_| PortError::Internal)?;
+        if anchor != authorized.anchor {
+            return Err(PortError::Denied);
+        }
+        let persisted_version = to_u64(
+            row.try_get::<i64, _>("aggregate_version")
+                .map_err(|_| PortError::Internal)?,
+        )?;
+        if persisted_version != expected_version {
+            return Err(PortError::Conflict);
+        }
+        let document: serde_json::Value = row
+            .try_get("thread_document")
+            .map_err(|_| PortError::Internal)?;
+        let mut global = serde_json::from_value::<GlobalThreadDocument>(document)
+            .map_err(|_| PortError::Internal)?;
+        global.validate(true).map_err(|_| PortError::Internal)?;
+        if global.projection.id != thread_id
+            || global.projection.anchor != anchor
+            || global.projection.version != expected_version
+            || at < global.updated_at
+        {
+            return Err(PortError::Conflict);
+        }
+        let next_version = expected_version
+            .checked_add(1)
+            .ok_or(PortError::InvalidState)?;
+
+        let operation = match mutation {
+            ThreadMutation::AddComment(comment) => {
+                if comment.author != actor
+                    || !comment.attachments.is_empty()
+                    || !comment.mentions.is_empty()
+                    || global.projection.state == ThreadState::Resolved
+                    || global
+                        .projection
+                        .comments
+                        .iter()
+                        .any(|current| current.id == comment.comment_id)
+                {
+                    return Err(PortError::InvalidState);
+                }
+                let document_json =
+                    serde_json::to_value(&comment.document).map_err(|_| PortError::InvalidState)?;
+                let changed = sqlx::query(
+                    "INSERT INTO erpx_global_collaboration.comments
+                     (thread_id,comment_id,author_principal_id,author_session_id,visibility,
+                      tombstoned_at,created_at,updated_at)
+                     VALUES ($1,$2,$3,$4,'visible',NULL,$5,$5)",
+                )
+                .bind(thread_id.as_uuid())
+                .bind(comment.comment_id.as_uuid())
+                .bind(access.principal_id().as_uuid())
+                .bind(access.session_id())
+                .bind(at)
+                .execute(&mut *transaction)
+                .await
+                .map_err(database_error)?
+                .rows_affected();
+                if changed != 1 {
+                    return Err(PortError::Conflict);
+                }
+                sqlx::query(
+                    "INSERT INTO erpx_global_collaboration.comment_revisions
+                     (thread_id,comment_id,revision,author_principal_id,author_session_id,document,
+                      plain_text,content_digest,attachments,created_at)
+                     VALUES ($1,$2,1,$3,$4,$5,$6,$7,'[]'::JSONB,$8)",
+                )
+                .bind(thread_id.as_uuid())
+                .bind(comment.comment_id.as_uuid())
+                .bind(access.principal_id().as_uuid())
+                .bind(access.session_id())
+                .bind(document_json)
+                .bind(comment.document.plain_text())
+                .bind(comment.document.digest().to_vec())
+                .bind(at)
+                .execute(&mut *transaction)
+                .await
+                .map_err(database_error)?;
+                global.projection.comments.push(CommentProjectionV2 {
+                    id: comment.comment_id,
+                    author: actor,
+                    revision: 1,
+                    content: CommentProjectionContent::Visible(comment.document),
+                    visibility: CommentVisibility::Visible,
+                    attachments: Vec::new(),
+                    reactions: Vec::new(),
+                    created_at: at,
+                    updated_at: at,
+                });
+                if let Some(follower) = global
+                    .projection
+                    .followers
+                    .iter_mut()
+                    .find(|follower| follower.principal == actor)
+                {
+                    if follower.mandatory_reason.is_none() {
+                        follower.mandatory_reason = Some(MandatoryFollowReason::Author);
+                    }
+                } else {
+                    global.projection.followers.push(FollowerView {
+                        principal: actor,
+                        mandatory_reason: Some(MandatoryFollowReason::Author),
+                        muted_until: None,
+                        snoozed_until: None,
+                    });
+                }
+                sqlx::query(
+                    "INSERT INTO erpx_global_collaboration.followers
+                     (thread_id,principal_id,principal_session_id,muted_until,snoozed_until,
+                      followed_at,updated_at) VALUES ($1,$2,$3,NULL,NULL,$4,$4)
+                     ON CONFLICT (thread_id,principal_id) DO UPDATE
+                     SET principal_session_id=EXCLUDED.principal_session_id,updated_at=EXCLUDED.updated_at",
+                )
+                .bind(thread_id.as_uuid())
+                .bind(access.principal_id().as_uuid())
+                .bind(access.session_id())
+                .bind(at)
+                .execute(&mut *transaction)
+                .await
+                .map_err(database_error)?;
+                "thread.comment.add"
+            }
+            ThreadMutation::EditComment(comment) => {
+                if comment.editor != actor
+                    || !comment.attachments.is_empty()
+                    || !comment.mentions.is_empty()
+                {
+                    return Err(PortError::InvalidState);
+                }
+                let current = global
+                    .projection
+                    .comments
+                    .iter_mut()
+                    .find(|current| current.id == comment.comment_id)
+                    .ok_or(PortError::NotFound)?;
+                if !matches!(current.content, CommentProjectionContent::Visible(_))
+                    || current.visibility != CommentVisibility::Visible
+                {
+                    return Err(PortError::InvalidState);
+                }
+                let revision = current
+                    .revision
+                    .checked_add(1)
+                    .ok_or(PortError::InvalidState)?;
+                let document_json =
+                    serde_json::to_value(&comment.document).map_err(|_| PortError::InvalidState)?;
+                sqlx::query(
+                    "INSERT INTO erpx_global_collaboration.comment_revisions
+                     (thread_id,comment_id,revision,author_principal_id,author_session_id,document,
+                      plain_text,content_digest,attachments,created_at)
+                     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'[]'::JSONB,$9)",
+                )
+                .bind(thread_id.as_uuid())
+                .bind(comment.comment_id.as_uuid())
+                .bind(to_i64(revision)?)
+                .bind(access.principal_id().as_uuid())
+                .bind(access.session_id())
+                .bind(document_json)
+                .bind(comment.document.plain_text())
+                .bind(comment.document.digest().to_vec())
+                .bind(at)
+                .execute(&mut *transaction)
+                .await
+                .map_err(database_error)?;
+                let changed = sqlx::query(
+                    "UPDATE erpx_global_collaboration.comments SET updated_at=$3
+                     WHERE thread_id=$1 AND comment_id=$2 AND tombstoned_at IS NULL
+                       AND visibility='visible'",
+                )
+                .bind(thread_id.as_uuid())
+                .bind(comment.comment_id.as_uuid())
+                .bind(at)
+                .execute(&mut *transaction)
+                .await
+                .map_err(database_error)?
+                .rows_affected();
+                if changed != 1 {
+                    return Err(PortError::Conflict);
+                }
+                current.revision = revision;
+                current.content = CommentProjectionContent::Visible(comment.document);
+                current.attachments.clear();
+                current.updated_at = at;
+                "thread.comment.edit"
+            }
+            ThreadMutation::TombstoneComment { comment_id } => {
+                let current = global
+                    .projection
+                    .comments
+                    .iter_mut()
+                    .find(|current| current.id == comment_id)
+                    .ok_or(PortError::NotFound)?;
+                if matches!(current.content, CommentProjectionContent::Tombstone) {
+                    return Err(PortError::InvalidState);
+                }
+                let changed = sqlx::query(
+                    "UPDATE erpx_global_collaboration.comments
+                     SET tombstoned_at=$3,updated_at=$3
+                     WHERE thread_id=$1 AND comment_id=$2 AND tombstoned_at IS NULL",
+                )
+                .bind(thread_id.as_uuid())
+                .bind(comment_id.as_uuid())
+                .bind(at)
+                .execute(&mut *transaction)
+                .await
+                .map_err(database_error)?
+                .rows_affected();
+                if changed != 1 {
+                    return Err(PortError::Conflict);
+                }
+                current.content = CommentProjectionContent::Tombstone;
+                current.attachments.clear();
+                current.updated_at = at;
+                "thread.comment.tombstone"
+            }
+            ThreadMutation::Resolve => {
+                if global.projection.state != ThreadState::Open {
+                    return Err(PortError::InvalidState);
+                }
+                global.projection.state = ThreadState::Resolved;
+                "thread.resolve"
+            }
+            ThreadMutation::Reopen => {
+                if global.projection.state != ThreadState::Resolved {
+                    return Err(PortError::InvalidState);
+                }
+                global.projection.state = ThreadState::Open;
+                "thread.reopen"
+            }
+            ThreadMutation::SetPinned { pinned } => {
+                if global.projection.pinned == pinned {
+                    return Err(PortError::InvalidState);
+                }
+                global.projection.pinned = pinned;
+                if pinned { "thread.pin" } else { "thread.unpin" }
+            }
+            ThreadMutation::AddReaction {
+                comment_id,
+                principal,
+                value,
+            } => {
+                if principal != actor
+                    || value.trim().is_empty()
+                    || value.len() > 64
+                    || value.chars().any(char::is_control)
+                {
+                    return Err(PortError::InvalidState);
+                }
+                let comment = global
+                    .projection
+                    .comments
+                    .iter_mut()
+                    .find(|comment| comment.id == comment_id)
+                    .ok_or(PortError::NotFound)?;
+                if comment
+                    .reactions
+                    .iter()
+                    .any(|reaction| reaction.principal == actor && reaction.value == value)
+                {
+                    return Err(PortError::InvalidState);
+                }
+                sqlx::query(
+                    "INSERT INTO erpx_global_collaboration.reactions
+                     (thread_id,comment_id,principal_id,principal_session_id,reaction,created_at)
+                     VALUES ($1,$2,$3,$4,$5,$6)",
+                )
+                .bind(thread_id.as_uuid())
+                .bind(comment_id.as_uuid())
+                .bind(access.principal_id().as_uuid())
+                .bind(access.session_id())
+                .bind(&value)
+                .bind(at)
+                .execute(&mut *transaction)
+                .await
+                .map_err(database_error)?;
+                comment.reactions.push(ReactionView {
+                    principal: actor,
+                    value,
+                    created_at: at,
+                });
+                "thread.reaction.add"
+            }
+            ThreadMutation::RemoveReaction {
+                comment_id,
+                principal,
+                value,
+            } => {
+                if principal != actor {
+                    return Err(PortError::Denied);
+                }
+                let comment = global
+                    .projection
+                    .comments
+                    .iter_mut()
+                    .find(|comment| comment.id == comment_id)
+                    .ok_or(PortError::NotFound)?;
+                let before = comment.reactions.len();
+                comment
+                    .reactions
+                    .retain(|reaction| !(reaction.principal == actor && reaction.value == value));
+                if before == comment.reactions.len() {
+                    return Err(PortError::InvalidState);
+                }
+                let changed = sqlx::query(
+                    "DELETE FROM erpx_global_collaboration.reactions
+                     WHERE thread_id=$1 AND comment_id=$2 AND principal_id=$3 AND reaction=$4",
+                )
+                .bind(thread_id.as_uuid())
+                .bind(comment_id.as_uuid())
+                .bind(access.principal_id().as_uuid())
+                .bind(&value)
+                .execute(&mut *transaction)
+                .await
+                .map_err(database_error)?
+                .rows_affected();
+                if changed != 1 {
+                    return Err(PortError::Conflict);
+                }
+                "thread.reaction.remove"
+            }
+            ThreadMutation::SetFollowing {
+                principal,
+                follow,
+                muted_until,
+                snoozed_until,
+            } => {
+                if principal != actor {
+                    return Err(PortError::Denied);
+                }
+                if follow {
+                    let muted_until = muted_until.filter(|value| *value > at);
+                    let snoozed_until = snoozed_until.filter(|value| *value > at);
+                    if let Some(follower) = global
+                        .projection
+                        .followers
+                        .iter_mut()
+                        .find(|follower| follower.principal == actor)
+                    {
+                        follower.muted_until = muted_until;
+                        follower.snoozed_until = snoozed_until;
+                    } else {
+                        global.projection.followers.push(FollowerView {
+                            principal: actor,
+                            mandatory_reason: None,
+                            muted_until,
+                            snoozed_until,
+                        });
+                    }
+                    sqlx::query(
+                        "INSERT INTO erpx_global_collaboration.followers
+                         (thread_id,principal_id,principal_session_id,muted_until,snoozed_until,
+                          followed_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$6)
+                         ON CONFLICT (thread_id,principal_id) DO UPDATE
+                         SET principal_session_id=EXCLUDED.principal_session_id,
+                             muted_until=EXCLUDED.muted_until,snoozed_until=EXCLUDED.snoozed_until,
+                             updated_at=EXCLUDED.updated_at",
+                    )
+                    .bind(thread_id.as_uuid())
+                    .bind(access.principal_id().as_uuid())
+                    .bind(access.session_id())
+                    .bind(muted_until)
+                    .bind(snoozed_until)
+                    .bind(at)
+                    .execute(&mut *transaction)
+                    .await
+                    .map_err(database_error)?;
+                } else {
+                    let follower = global
+                        .projection
+                        .followers
+                        .iter()
+                        .find(|follower| follower.principal == actor)
+                        .ok_or(PortError::InvalidState)?;
+                    if follower.mandatory_reason.is_some() {
+                        return Err(PortError::Denied);
+                    }
+                    global
+                        .projection
+                        .followers
+                        .retain(|follower| follower.principal != actor);
+                    let changed = sqlx::query(
+                        "DELETE FROM erpx_global_collaboration.followers
+                         WHERE thread_id=$1 AND principal_id=$2",
+                    )
+                    .bind(thread_id.as_uuid())
+                    .bind(access.principal_id().as_uuid())
+                    .execute(&mut *transaction)
+                    .await
+                    .map_err(database_error)?
+                    .rows_affected();
+                    if changed != 1 {
+                        return Err(PortError::Conflict);
+                    }
+                }
+                "thread.following.set"
+            }
+            // Typed mentions, moderation, action cards and internal policy
+            // transitions require their later-phase global stores/workers.
+            _ => return Err(PortError::Denied),
+        };
+
+        global.projection.version = next_version;
+        global.projection.projection_cursor = 0;
+        global.projection.projection_checkpoint = 0;
+        global.updated_at = at;
+        global.validate(true).map_err(|_| PortError::InvalidState)?;
+        let document_json = serde_json::to_value(&global).map_err(|_| PortError::InvalidState)?;
+        let changed = sqlx::query(
+            "UPDATE erpx_global_collaboration.threads
+             SET thread_state=$3,pinned=$4,aggregate_version=$5,updated_at=$6,thread_document=$7
+             WHERE thread_id=$1 AND aggregate_version=$2",
+        )
+        .bind(thread_id.as_uuid())
+        .bind(to_i64(expected_version)?)
+        .bind(match global.projection.state {
+            ThreadState::Open => "open",
+            ThreadState::Resolved => "resolved",
+        })
+        .bind(global.projection.pinned)
+        .bind(to_i64(next_version)?)
+        .bind(at)
+        .bind(&document_json)
+        .execute(&mut *transaction)
+        .await
+        .map_err(database_error)?
+        .rows_affected();
+        if changed != 1 {
+            return Err(PortError::Conflict);
+        }
+
+        let event_id = Uuid::new_v4();
+        let event_cursor: i64 = sqlx::query_scalar(
+            "INSERT INTO erpx_global_collaboration.thread_events
+             (event_id,thread_id,aggregate_version,event_type,event_version,payload,
+              actor_principal_id,actor_session_id,command_id,correlation_id,occurred_at)
+             VALUES ($1,$2,$3,'collaboration.global_thread_snapshot',2,$4,$5,$6,$7,$8,$9)
+             RETURNING event_cursor",
+        )
+        .bind(event_id)
+        .bind(thread_id.as_uuid())
+        .bind(to_i64(next_version)?)
+        .bind(&document_json)
+        .bind(access.principal_id().as_uuid())
+        .bind(access.session_id())
+        .bind(identity.command_id.as_uuid())
+        .bind(identity.correlation_id.as_uuid())
+        .bind(at)
+        .fetch_one(&mut *transaction)
+        .await
+        .map_err(database_error)?;
+        let actor_document = ActorAttribution {
+            principal_ref: access.principal_id().to_string(),
+            kind: ActorKind::PlatformUser,
+            session_id: Some(
+                SessionId::try_from_uuid(access.session_id()).map_err(|_| PortError::Denied)?,
+            ),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        };
+        sqlx::query(
+            "INSERT INTO erpx_cqrs_write.outbox_events
+             (event_id,context_name,partition_key,command_id,event_type,event_version,
+              aggregate_type,aggregate_id,aggregate_version,active_scope,actor,correlation_id,
+              causation_id,payload,occurred_at,available_at)
+             VALUES ($1,'collaboration',$2,$3,$4,2,'global_thread',$5,$6,$7,$8,$9,NULL,$10,$11,$11)",
+        )
+        .bind(event_id)
+        .bind(thread_id.as_uuid().to_string())
+        .bind(identity.command_id.as_uuid())
+        .bind(GLOBAL_THREAD_SNAPSHOT_EVENT_TYPE)
+        .bind(thread_id.as_uuid())
+        .bind(to_i64(next_version)?)
+        .bind(serde_json::to_value(AuthorityScope::Platform).map_err(|_| PortError::Internal)?)
+        .bind(serde_json::to_value(actor_document).map_err(|_| PortError::Internal)?)
+        .bind(identity.correlation_id.as_uuid())
+        .bind(&document_json)
+        .bind(at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(database_error)?;
+        sqlx::query(
+            "INSERT INTO erpx_global_collaboration.thread_command_receipts
+             (idempotency_key,command_id,request_digest,thread_id,aggregate_version,
+              last_event_cursor,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+        )
+        .bind(&identity.idempotency_key)
+        .bind(identity.command_id.as_uuid())
+        .bind(identity.request_digest.to_vec())
+        .bind(thread_id.as_uuid())
+        .bind(to_i64(next_version)?)
+        .bind(event_cursor)
+        .bind(at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(database_error)?;
+        insert_allowed_thread_audit(
+            &mut transaction,
+            access,
+            operation,
+            anchor.id().as_uuid(),
+            identity.command_id.as_uuid(),
+            at,
+        )
+        .await?;
+        transaction.commit().await.map_err(database_error)?;
+        Ok(CommitReceipt {
+            thread_id,
+            aggregate_version: next_version,
+            last_event_cursor: to_u64(event_cursor)?,
+            replayed: false,
+        })
+    }
+
     pub async fn get_thread_v2(
         &self,
         access: &GlobalCollaborationAccess,
@@ -710,6 +1269,7 @@ impl SqlxGlobalCollaborationGateway {
                 | "thread.get"
                 | "thread.list"
                 | "thread.start"
+                | "thread.mutate"
                 | "attachment.prepare"
                 | "attachment.finalize"
                 | "attachment.download"
@@ -1804,5 +2364,39 @@ mod tests {
         assert!(!production.contains("SqlxItemDirectory"));
         assert!(production.contains("gateway_audit"));
         assert!(production.contains("descriptor.record_ref=$2::JSONB"));
+    }
+
+    #[test]
+    fn platform_thread_mutations_commit_normalized_state_snapshot_and_receipt_together() {
+        let source = include_str!("global.rs");
+        let production = source.split("#[cfg(test)]").next().unwrap();
+        let mutation = production
+            .split("pub async fn mutate_thread(")
+            .nth(1)
+            .expect("global mutation entrypoint")
+            .split("pub async fn get_thread_v2(")
+            .next()
+            .expect("bounded mutation source");
+        for required in [
+            "self.get_thread_v2(access, thread_id)",
+            "FOR UPDATE",
+            "ThreadMutation::AddComment",
+            "ThreadMutation::EditComment",
+            "ThreadMutation::TombstoneComment",
+            "ThreadMutation::AddReaction",
+            "ThreadMutation::RemoveReaction",
+            "ThreadMutation::SetFollowing",
+            "erpx_global_collaboration.thread_events",
+            "erpx_cqrs_write.outbox_events",
+            "erpx_global_collaboration.thread_command_receipts",
+            "insert_allowed_thread_audit",
+            "transaction.commit()",
+        ] {
+            assert!(mutation.contains(required), "missing {required}");
+        }
+        assert!(
+            mutation.find("self.get_thread_v2").expect("authorization")
+                < mutation.find("FOR UPDATE").expect("write snapshot")
+        );
     }
 }

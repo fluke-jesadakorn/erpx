@@ -443,10 +443,31 @@ impl CollaborationCommandService for CollaborationCommandRpc {
     ) -> Result<Response<MutationReceipt>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let input = request.into_inner();
+        let metadata = required(input.metadata.as_ref(), "metadata")?;
+        if let Some(runtime) =
+            platform_thread_mutation_runtime(&self.state, &claims, metadata).await?
+        {
+            let mutation = ThreadMutation::AddComment(AddComment {
+                comment_id: comment_id(&input.comment_id)?,
+                author: runtime.actor,
+                document: comment_document(required(input.document.as_ref(), "document")?)?,
+                attachments: input
+                    .attachments
+                    .iter()
+                    .map(attachment)
+                    .collect::<Result<Vec<_>, _>>()?,
+                mentions: input
+                    .mentions
+                    .iter()
+                    .map(mention)
+                    .collect::<Result<Vec<_>, _>>()?,
+            });
+            return mutate_platform_thread(runtime, &input.thread_id, mutation, Utc::now()).await;
+        }
         let runtime = collaboration_command_runtime(
             &self.state,
             &claims,
-            required(input.metadata.as_ref(), "metadata")?,
+            metadata,
             [CollaborationAction::AddComment],
         )
         .await?;
@@ -474,10 +495,31 @@ impl CollaborationCommandService for CollaborationCommandRpc {
     ) -> Result<Response<MutationReceipt>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let input = request.into_inner();
+        let metadata = required(input.metadata.as_ref(), "metadata")?;
+        if let Some(runtime) =
+            platform_thread_mutation_runtime(&self.state, &claims, metadata).await?
+        {
+            let mutation = ThreadMutation::EditComment(EditComment {
+                comment_id: comment_id(&input.comment_id)?,
+                editor: runtime.actor,
+                document: comment_document(required(input.document.as_ref(), "document")?)?,
+                attachments: input
+                    .attachments
+                    .iter()
+                    .map(attachment)
+                    .collect::<Result<Vec<_>, _>>()?,
+                mentions: input
+                    .new_mentions
+                    .iter()
+                    .map(mention)
+                    .collect::<Result<Vec<_>, _>>()?,
+            });
+            return mutate_platform_thread(runtime, &input.thread_id, mutation, Utc::now()).await;
+        }
         let runtime = collaboration_command_runtime(
             &self.state,
             &claims,
-            required(input.metadata.as_ref(), "metadata")?,
+            metadata,
             [CollaborationAction::EditComment],
         )
         .await?;
@@ -505,10 +547,24 @@ impl CollaborationCommandService for CollaborationCommandRpc {
     ) -> Result<Response<MutationReceipt>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let input = request.into_inner();
+        let metadata = required(input.metadata.as_ref(), "metadata")?;
+        if let Some(runtime) =
+            platform_thread_mutation_runtime(&self.state, &claims, metadata).await?
+        {
+            return mutate_platform_thread(
+                runtime,
+                &input.thread_id,
+                ThreadMutation::TombstoneComment {
+                    comment_id: comment_id(&input.comment_id)?,
+                },
+                Utc::now(),
+            )
+            .await;
+        }
         let runtime = collaboration_command_runtime(
             &self.state,
             &claims,
-            required(input.metadata.as_ref(), "metadata")?,
+            metadata,
             [CollaborationAction::TombstoneComment],
         )
         .await?;
@@ -549,13 +605,14 @@ impl CollaborationCommandService for CollaborationCommandRpc {
                 return Err(Status::invalid_argument("thread transition is required"));
             }
         };
-        let runtime = collaboration_command_runtime(
-            &self.state,
-            &claims,
-            required(input.metadata.as_ref(), "metadata")?,
-            [action],
-        )
-        .await?;
+        let metadata = required(input.metadata.as_ref(), "metadata")?;
+        if let Some(runtime) =
+            platform_thread_mutation_runtime(&self.state, &claims, metadata).await?
+        {
+            return mutate_platform_thread(runtime, &input.thread_id, mutation, Utc::now()).await;
+        }
+        let runtime =
+            collaboration_command_runtime(&self.state, &claims, metadata, [action]).await?;
         mutate(runtime, &input.thread_id, mutation).await
     }
 
@@ -565,10 +622,29 @@ impl CollaborationCommandService for CollaborationCommandRpc {
     ) -> Result<Response<MutationReceipt>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let input = request.into_inner();
+        let metadata = required(input.metadata.as_ref(), "metadata")?;
+        if let Some(runtime) =
+            platform_thread_mutation_runtime(&self.state, &claims, metadata).await?
+        {
+            let mutation = if input.remove {
+                ThreadMutation::RemoveReaction {
+                    comment_id: comment_id(&input.comment_id)?,
+                    principal: runtime.actor,
+                    value: input.reaction,
+                }
+            } else {
+                ThreadMutation::AddReaction {
+                    comment_id: comment_id(&input.comment_id)?,
+                    principal: runtime.actor,
+                    value: input.reaction,
+                }
+            };
+            return mutate_platform_thread(runtime, &input.thread_id, mutation, Utc::now()).await;
+        }
         let runtime = collaboration_command_runtime(
             &self.state,
             &claims,
-            required(input.metadata.as_ref(), "metadata")?,
+            metadata,
             [CollaborationAction::React],
         )
         .await?;
@@ -599,10 +675,22 @@ impl CollaborationCommandService for CollaborationCommandRpc {
     ) -> Result<Response<MutationReceipt>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let input = request.into_inner();
+        let metadata = required(input.metadata.as_ref(), "metadata")?;
+        if let Some(runtime) =
+            platform_thread_mutation_runtime(&self.state, &claims, metadata).await?
+        {
+            let mutation = ThreadMutation::SetFollowing {
+                principal: runtime.actor,
+                follow: input.follow,
+                muted_until: optional_timestamp(input.mute_until.as_deref(), "mute_until")?,
+                snoozed_until: optional_timestamp(input.snooze_until.as_deref(), "snooze_until")?,
+            };
+            return mutate_platform_thread(runtime, &input.thread_id, mutation, Utc::now()).await;
+        }
         let runtime = collaboration_command_runtime(
             &self.state,
             &claims,
-            required(input.metadata.as_ref(), "metadata")?,
+            metadata,
             [CollaborationAction::Follow],
         )
         .await?;
@@ -1992,6 +2080,93 @@ struct CollaborationCommandRuntime {
     actor: ActorContext,
     identity: MutationIdentity,
     expected_version: Option<u64>,
+}
+
+struct PlatformThreadMutationRuntime {
+    gateway: SqlxGlobalCollaborationGateway,
+    access: GlobalCollaborationAccess,
+    identity: MutationIdentity,
+    expected_version: u64,
+    actor: CollaborationPrincipalRef,
+}
+
+async fn platform_thread_mutation_runtime(
+    state: &AppState,
+    claims: &erpx_identity::AccessTokenClaims,
+    metadata: &erpx_proto::erpx::collaboration::CommandMetadata,
+) -> Result<Option<PlatformThreadMutationRuntime>, Status> {
+    if !matches!(
+        authority_scope(metadata.authority_scope.as_ref())?.1,
+        Scope::Platform
+    ) {
+        return Ok(None);
+    }
+    require_phase2_human_claims(claims)?;
+    let identity = mutation_identity(metadata)?;
+    let expected_version = metadata
+        .expected_thread_version
+        .filter(|value| *value > 0)
+        .ok_or_else(|| Status::invalid_argument("expected_thread_version is required"))?;
+    let (gateway, access) = platform_global_gateway(
+        state,
+        claims,
+        metadata.authority_scope.as_ref(),
+        COLLABORATION_WRITE_PERMISSION,
+        identity.correlation_id,
+    )
+    .await?;
+    let actor = CollaborationPrincipalRef::new(access.principal_id(), PrincipalKind::Human);
+    Ok(Some(PlatformThreadMutationRuntime {
+        gateway,
+        access,
+        identity,
+        expected_version,
+        actor,
+    }))
+}
+
+async fn mutate_platform_thread(
+    runtime: PlatformThreadMutationRuntime,
+    raw_thread_id: &str,
+    mutation: ThreadMutation,
+    at: DateTime<Utc>,
+) -> Result<Response<MutationReceipt>, Status> {
+    let thread_id = thread_id(raw_thread_id)?;
+    let command_id = runtime.identity.command_id;
+    let result = runtime
+        .gateway
+        .mutate_thread(
+            &runtime.access,
+            runtime.identity,
+            thread_id,
+            runtime.expected_version,
+            mutation,
+            at,
+        )
+        .await;
+    if let Err(error) = &result {
+        let outcome = match error {
+            PortError::Denied | PortError::NotFound => GlobalCollaborationOutcome::Denied,
+            PortError::Conflict => GlobalCollaborationOutcome::Conflict,
+            _ => GlobalCollaborationOutcome::Unavailable,
+        };
+        runtime
+            .gateway
+            .audit(
+                &runtime.access,
+                "thread.mutate",
+                None,
+                None,
+                None,
+                Some(command_id.as_uuid()),
+                outcome,
+            )
+            .await
+            .map_err(map_collaboration_port_error)?;
+    }
+    result
+        .map(|receipt| Response::new(mutation_receipt(receipt)))
+        .map_err(map_collaboration_port_error)
 }
 
 async fn collaboration_command_runtime(
