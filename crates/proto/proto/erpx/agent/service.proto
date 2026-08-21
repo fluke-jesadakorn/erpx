@@ -502,6 +502,11 @@ message HumanFieldPatchReview {
   bytes edited_patch_digest_sha256 = 4;
 }
 
+message FieldSuggestionCapabilities {
+  bool can_apply = 1;
+  bool can_reject = 2;
+}
+
 message FieldSuggestionProjection {
   string suggestion_id = 1;
   uint64 aggregate_version = 2;
@@ -517,6 +522,9 @@ message FieldSuggestionProjection {
   string requested_by = 12;
   string created_at = 13;
   string updated_at = 14;
+  // Fresh command capabilities evaluated for the authenticated session. A
+  // missing message is read-only and older readers safely ignore this field.
+  FieldSuggestionCapabilities capabilities = 15;
 }
 
 message GetFieldSuggestionRequest {

@@ -509,23 +509,44 @@ pub fn permission_catalog() -> Vec<PermissionCatalogEntry> {
     }
     for unit in BUSINESS_UNITS {
         for level in BusinessUnitRoleLevel::ALL {
-            let permissions = match level {
-                BusinessUnitRoleLevel::Viewer => vec![format!("{unit}.read")],
+            let mut permissions = match level {
+                BusinessUnitRoleLevel::Viewer => {
+                    vec![format!("{unit}.read"), "agent-orchestration.read".into()]
+                }
                 BusinessUnitRoleLevel::Operator => {
-                    vec![format!("{unit}.read"), format!("{unit}.write")]
+                    vec![
+                        format!("{unit}.read"),
+                        format!("{unit}.write"),
+                        "agent-orchestration.read".into(),
+                        "agent-orchestration.write".into(),
+                    ]
                 }
                 BusinessUnitRoleLevel::Approver => {
-                    vec![format!("{unit}.read"), format!("{unit}.approve")]
+                    vec![
+                        format!("{unit}.read"),
+                        format!("{unit}.approve"),
+                        "agent-orchestration.read".into(),
+                    ]
                 }
                 BusinessUnitRoleLevel::Administrator => vec![
                     format!("{unit}.read"),
                     format!("{unit}.write"),
                     format!("{unit}.admin"),
+                    "agent-orchestration.read".into(),
+                    "agent-orchestration.write".into(),
                 ],
-                BusinessUnitRoleLevel::Auditor => {
-                    vec![format!("{unit}.read"), "audit.read".into()]
-                }
+                BusinessUnitRoleLevel::Auditor => vec![
+                    format!("{unit}.read"),
+                    "audit.read".into(),
+                    "agent-orchestration.read".into(),
+                ],
             };
+            if matches!(
+                level,
+                BusinessUnitRoleLevel::Operator | BusinessUnitRoleLevel::Administrator
+            ) {
+                permissions.extend(suggestion_apply_permissions(unit).map(str::to_owned));
+            }
             entries.push(PermissionCatalogEntry {
                 role_key: format!("{unit}_{}", level.as_str()),
                 target_scope: DirectoryRoleTargetScope::Branch,
@@ -534,6 +555,23 @@ pub fn permission_catalog() -> Vec<PermissionCatalogEntry> {
         }
     }
     entries
+}
+
+fn suggestion_apply_permissions(unit: &str) -> impl Iterator<Item = &'static str> {
+    let permissions: &'static [&'static str] = match unit {
+        "sales" => &[
+            "sales.quote.suggestion.apply",
+            "customer_360.note.suggestion.apply",
+        ],
+        "procurement" => &["procurement.requisition.suggestion.apply"],
+        "maintenance" => &["maintenance.request.suggestion.apply"],
+        "marketing-crm" => &[
+            "marketing.content.suggestion.apply",
+            "customer_360.note.suggestion.apply",
+        ],
+        _ => &[],
+    };
+    permissions.iter().copied()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1250,6 +1288,72 @@ mod tests {
                     .iter()
                     .any(|candidate| candidate == permission),
                 "missing {permission}"
+            );
+        }
+    }
+
+    #[test]
+    fn business_unit_roles_publish_exact_field_suggestion_authority() {
+        let catalog = permission_catalog();
+        let permissions = |role: &str| {
+            catalog
+                .iter()
+                .find(|entry| entry.role_key == role)
+                .unwrap_or_else(|| panic!("missing {role}"))
+                .permissions
+                .as_slice()
+        };
+        for (role, expected) in [
+            (
+                "sales_operator",
+                vec![
+                    "sales.quote.suggestion.apply",
+                    "customer_360.note.suggestion.apply",
+                ],
+            ),
+            (
+                "procurement_operator",
+                vec!["procurement.requisition.suggestion.apply"],
+            ),
+            (
+                "maintenance_operator",
+                vec!["maintenance.request.suggestion.apply"],
+            ),
+            (
+                "marketing-crm_operator",
+                vec![
+                    "marketing.content.suggestion.apply",
+                    "customer_360.note.suggestion.apply",
+                ],
+            ),
+        ] {
+            let actual = permissions(role)
+                .iter()
+                .filter(|permission| permission.ends_with(".suggestion.apply"))
+                .map(String::as_str)
+                .collect::<Vec<_>>();
+            assert_eq!(
+                actual, expected,
+                "unexpected suggestion authority for {role}"
+            );
+        }
+        assert!(
+            permissions("finance_operator")
+                .iter()
+                .all(|permission| !permission.ends_with(".suggestion.apply"))
+        );
+        for role in [
+            "sales_viewer",
+            "sales_approver",
+            "sales_auditor",
+            "procurement_viewer",
+            "marketing-crm_approver",
+        ] {
+            assert!(
+                permissions(role)
+                    .iter()
+                    .all(|permission| !permission.ends_with(".suggestion.apply")),
+                "{role} must stay review-only"
             );
         }
     }

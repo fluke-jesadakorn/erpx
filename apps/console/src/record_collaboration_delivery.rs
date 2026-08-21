@@ -973,6 +973,8 @@ pub(crate) fn present_wire_field_suggestion(
         Some(FieldSuggestionStatus::Failed) => FieldSuggestionDisplayStatus::Failed,
         _ => return Err(GatewayError::Unavailable),
     };
+    let capabilities = value.capabilities.unwrap_or_default();
+    let reviewed_by_human = value.human_review.is_some();
     let patch = value.patch.ok_or(GatewayError::Unavailable)?;
     let mut changes = Vec::with_capacity(patch.changes.len());
     for change in patch.changes {
@@ -1007,7 +1009,10 @@ pub(crate) fn present_wire_field_suggestion(
         changes,
         conflict_count: u16::try_from(value.conflicts.len())
             .map_err(|_| GatewayError::Unavailable)?,
-        reviewed_by_human: value.human_review.is_some(),
+        reviewed_by_human,
+        human_review_label: reviewed_by_human.then(|| "Authorized human review recorded".into()),
+        can_apply: capabilities.can_apply,
+        can_reject: capabilities.can_reject,
         updated_at: chrono::DateTime::parse_from_rfc3339(&value.updated_at)
             .map_err(|_| GatewayError::Unavailable)?
             .with_timezone(&chrono::Utc),
@@ -1666,7 +1671,7 @@ async fn mutate_collaboration(
         serde_json::to_vec(&mutation).map_err(|_| GatewayError::Failed { retryable: false })?,
     )
     .to_vec();
-    let mut client = CollaborationCommandServiceClient::new(channel);
+    let mut client = CollaborationCommandServiceClient::new(channel.clone());
     let receipt = match mutation {
         CollaborationMutation::StartThread {
             anchor,
@@ -1935,11 +1940,167 @@ async fn mutate_collaboration(
                 .into_inner();
             mutation_receipt(response)?
         }
+        CollaborationMutation::ReviewFieldSuggestion(request) => {
+            review_field_suggestion(channel, &authority, request).await?
+        }
         CollaborationMutation::Moderate { .. }
         | CollaborationMutation::Promote { .. }
         | CollaborationMutation::ConfirmTypedProposal { .. } => return Err(GatewayError::Denied),
     };
     Ok(receipt)
+}
+
+#[cfg(feature = "server")]
+async fn review_field_suggestion(
+    channel: tonic::transport::Channel,
+    authority: &CollaborationAuthority,
+    request: erpx_console_feature_ai_collaboration::FieldSuggestionReviewRequest,
+) -> Result<UiMutationReceipt, GatewayError> {
+    use erpx_console_feature_ai_collaboration::FieldSuggestionReviewDecision;
+    use erpx_proto::erpx::{
+        agent,
+        agent::{
+            agent_orchestration_command_service_client::AgentOrchestrationCommandServiceClient,
+            agent_orchestration_query_service_client::AgentOrchestrationQueryServiceClient,
+        },
+        common,
+    };
+
+    if request.operation_id.is_nil()
+        || request.suggestion_id.is_nil()
+        || request.expected_version == 0
+        || authority.holding_id.is_empty()
+    {
+        return Err(GatewayError::Denied);
+    }
+    let query_correlation = Uuid::new_v4();
+    let query = agent::GetFieldSuggestionRequest {
+        context: Some(common::QueryContext {
+            contract_version: 1,
+            request_id: Uuid::new_v4().to_string(),
+            correlation_id: query_correlation.to_string(),
+            actor: Some(common::ActorAttribution {
+                principal_ref: authority.credential.principal_ref.clone(),
+                kind: common::ActorKind::HoldingUser as i32,
+                session_id: authority.credential.session_id.to_string(),
+                represented_principal_ref: String::new(),
+                support_capability_id: String::new(),
+            }),
+            active_scope: Some(common_authority_scope(&authority.scope)?),
+            consistency: Some(common::QueryConsistency {
+                requirement: Some(common::query_consistency::Requirement::Eventual(
+                    common::EventualConsistency {},
+                )),
+            }),
+            audit: Some(common::AuditContext {
+                purpose: "reauthorize_field_suggestion_review".into(),
+                customer_visible: true,
+                module: "ai-collaboration".into(),
+                correlation_id: query_correlation.to_string(),
+            }),
+        }),
+        suggestion_id: request.suggestion_id.to_string(),
+    };
+    let query = AgentOrchestrationQueryServiceClient::new(channel.clone())
+        .get_field_suggestion(authenticated(authority, query)?)
+        .await
+        .map_err(gateway_status)?
+        .into_inner();
+    if !query.authority_current {
+        return Err(GatewayError::Stale);
+    }
+    let suggestion = query.suggestion.ok_or(GatewayError::Denied)?;
+    if suggestion.suggestion_id != request.suggestion_id.to_string()
+        || suggestion.aggregate_version != request.expected_version
+        || agent::FieldSuggestionStatus::try_from(suggestion.status)
+            != Ok(agent::FieldSuggestionStatus::Ready)
+    {
+        return Err(GatewayError::Conflict);
+    }
+    let capabilities = suggestion.capabilities.ok_or(GatewayError::Denied)?;
+    let command_correlation = Uuid::new_v4();
+    let command_context = common::CommandContext {
+        contract_version: 1,
+        command_id: request.operation_id.to_string(),
+        idempotency_key: format!("field-suggestion-review:{}", request.operation_id),
+        correlation_id: command_correlation.to_string(),
+        causation_id: String::new(),
+        actor: Some(common::ActorAttribution {
+            principal_ref: authority.credential.principal_ref.clone(),
+            kind: common::ActorKind::HoldingUser as i32,
+            session_id: authority.credential.session_id.to_string(),
+            represented_principal_ref: String::new(),
+            support_capability_id: String::new(),
+        }),
+        active_scope: Some(common_authority_scope(&authority.scope)?),
+        audit: Some(common::AuditContext {
+            purpose: match request.decision {
+                FieldSuggestionReviewDecision::Apply => "apply_field_suggestion",
+                FieldSuggestionReviewDecision::Reject => "reject_field_suggestion",
+            }
+            .into(),
+            customer_visible: true,
+            module: "ai-collaboration".into(),
+            correlation_id: command_correlation.to_string(),
+        }),
+        expected_aggregate_version: request.expected_version,
+        subscription_id: String::new(),
+        mfa_code: String::new(),
+    };
+    let mut client = AgentOrchestrationCommandServiceClient::new(channel);
+    let response = match request.decision {
+        FieldSuggestionReviewDecision::Apply if capabilities.can_apply => {
+            let patch = suggestion.patch.ok_or(GatewayError::Unavailable)?;
+            if patch.source_version == 0 || suggestion.source_payload_digest_sha256.len() != 32 {
+                return Err(GatewayError::Unavailable);
+            }
+            client
+                .apply_field_suggestion(authenticated(
+                    authority,
+                    agent::ApplyFieldSuggestionRequest {
+                        context: Some(command_context),
+                        suggestion_id: request.suggestion_id.to_string(),
+                        expected_version: request.expected_version,
+                        current_source_version: patch.source_version,
+                        current_payload_digest_sha256: suggestion.source_payload_digest_sha256,
+                        edited_patch: Some(patch),
+                        conflicts: Vec::new(),
+                    },
+                )?)
+                .await
+                .map_err(gateway_status)?
+                .into_inner()
+        }
+        FieldSuggestionReviewDecision::Reject if capabilities.can_reject => client
+            .reject_field_suggestion(authenticated(
+                authority,
+                agent::RejectFieldSuggestionRequest {
+                    context: Some(command_context),
+                    suggestion_id: request.suggestion_id.to_string(),
+                    expected_version: request.expected_version,
+                },
+            )?)
+            .await
+            .map_err(gateway_status)?
+            .into_inner(),
+        FieldSuggestionReviewDecision::Apply | FieldSuggestionReviewDecision::Reject => {
+            return Err(GatewayError::Denied);
+        }
+    };
+    let receipt = response.receipt.ok_or(GatewayError::Unavailable)?;
+    let aggregate = receipt.aggregate.ok_or(GatewayError::Unavailable)?;
+    if receipt.command_id != request.operation_id.to_string()
+        || aggregate.aggregate_id != request.suggestion_id.to_string()
+        || aggregate.version <= request.expected_version
+        || response.suggestion.is_none()
+    {
+        return Err(GatewayError::Unavailable);
+    }
+    Ok(UiMutationReceipt {
+        operation_id: request.operation_id,
+        replayed: receipt.replayed,
+        notification_badge_delta: 0,
+    })
 }
 
 #[cfg(feature = "server")]
@@ -2035,5 +2196,18 @@ mod tests {
         assert!(source.contains("private, no-store"));
         assert!(source.contains("RecordResolutionState::Stale"));
         assert!(source.contains("impl CollaborationGateway for WebSameOriginCollaborationGateway"));
+        let review = source
+            .find("async fn review_field_suggestion")
+            .expect("field suggestion review BFF");
+        let review = &source[review..];
+        assert!(review.contains("get_field_suggestion"));
+        assert!(review.contains("if !query.authority_current"));
+        assert!(review.contains("capabilities.can_apply"));
+        assert!(review.contains("capabilities.can_reject"));
+        assert!(
+            review
+                .contains("current_payload_digest_sha256: suggestion.source_payload_digest_sha256")
+        );
+        assert!(review.contains("edited_patch: Some(patch)"));
     }
 }

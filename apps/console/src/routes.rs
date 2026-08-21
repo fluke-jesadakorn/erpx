@@ -8,8 +8,9 @@ use dioxus::prelude::*;
 #[cfg(feature = "native")]
 use erpx_console_feature_ai_collaboration::CollaborationGateway;
 use erpx_console_feature_ai_collaboration::{
-    ActivityRailState, ActivityRequest, AuthorizedRecordActivityRail, RecordReferences,
-    RecordReferencesState, RecordResolutionState, ReferencesRequest, ResolveRecordRequest,
+    ActivityRailState, ActivityRequest, AuthorizedRecordActivityRail, CollaborationMutation,
+    FieldSuggestionReviewRequest, RecordReferences, RecordReferencesState, RecordResolutionState,
+    ReferencesRequest, ResolveRecordRequest,
 };
 use erpx_console_feature_identity_access::{
     IdentityAccessDetailSurface, IdentityAccessListSurface, IdentityCommandFeedback,
@@ -2806,7 +2807,48 @@ pub fn RecordDetailHost(record: CatalogRecord, owner_content: Element) -> Elemen
     let resolution =
         use_record_resolution(record.record().id().as_uuid(), canonical_route.clone())?;
     let references_state = use_record_references(resolution.clone(), canonical_route.clone())?;
-    let activity_state = use_record_activity(resolution.clone(), canonical_route.clone())?;
+    let activity_refresh = use_signal(|| 0_u64);
+    let activity_state = use_record_activity(
+        resolution.clone(),
+        canonical_route.clone(),
+        activity_refresh,
+    )?;
+    #[cfg(any(feature = "web", feature = "server"))]
+    let on_review_suggestion = {
+        let mut activity_refresh = activity_refresh;
+        EventHandler::new(move |request: FieldSuggestionReviewRequest| {
+            spawn(async move {
+                if matches!(
+                    crate::record_collaboration_delivery::mutate_record_collaboration(
+                        CollaborationMutation::ReviewFieldSuggestion(request),
+                    )
+                    .await,
+                    Ok(Ok(_))
+                ) {
+                    let generation = (*activity_refresh.peek()).saturating_add(1);
+                    activity_refresh.set(generation);
+                }
+            });
+        })
+    };
+    #[cfg(feature = "native")]
+    let on_review_suggestion = {
+        let gateway = use_context::<crate::native_delivery::NativeGrpcGateway>();
+        let mut activity_refresh = activity_refresh;
+        EventHandler::new(move |request: FieldSuggestionReviewRequest| {
+            let gateway = gateway.clone();
+            spawn(async move {
+                if gateway
+                    .mutate(CollaborationMutation::ReviewFieldSuggestion(request))
+                    .await
+                    .is_ok()
+                {
+                    let generation = (*activity_refresh.peek()).saturating_add(1);
+                    activity_refresh.set(generation);
+                }
+            });
+        })
+    };
     let gate = resolution.activity_gate();
     let host_route = canonical_route.clone();
     let references_route = canonical_route.clone();
@@ -2832,6 +2874,7 @@ pub fn RecordDetailHost(record: CatalogRecord, owner_content: Element) -> Elemen
                     current_route: activity_route,
                     state: activity_state,
                     locale,
+                    on_review_suggestion: Some(on_review_suggestion),
                 }
             }
         }
@@ -2997,8 +3040,10 @@ fn use_record_references(
 fn use_record_activity(
     resolution: RecordResolutionState,
     current_route: String,
+    activity_refresh: Signal<u64>,
 ) -> Result<ActivityRailState, RenderError> {
     let resource = use_server_future(move || {
+        let _generation = *activity_refresh.read();
         let resolution = resolution.clone();
         let current_route = current_route.clone();
         async move {
@@ -3032,9 +3077,11 @@ fn use_record_activity(
 fn use_record_activity(
     resolution: RecordResolutionState,
     current_route: String,
+    activity_refresh: Signal<u64>,
 ) -> Result<ActivityRailState, RenderError> {
     let gateway = use_context::<crate::native_delivery::NativeGrpcGateway>();
     let resource = use_resource(move || {
+        let _generation = *activity_refresh.read();
         let gateway = gateway.clone();
         let resolution = resolution.clone();
         let current_route = current_route.clone();

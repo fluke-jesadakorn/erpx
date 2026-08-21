@@ -888,33 +888,31 @@ async fn reconcile_persona_catalog(
         .bind(assignment_id)
         .fetch_one(&write)
         .await?;
+        let assignment = RoleAssignment {
+            id: assignment_id,
+            principal_ref: persona.principal_ref,
+            role_key: persona.role_key,
+            permissions: persona.permissions,
+            functional_domain: "platform".into(),
+            authority_level: 64,
+            approval_limit_minor: 0,
+            scope: Scope::Platform,
+            valid_from: now,
+            valid_until: now + chrono::Duration::days(365),
+            timezone: "Asia/Bangkok".into(),
+            risk_tier: RiskTier::Standard,
+            grant_reason: "local development platform persona fixture".into(),
+            ticket_reference: Some("local:dev-access".into()),
+            grantor: "local:dev-controller".into(),
+            approver: Some("local:dev-controller".into()),
+            renewal_reviewer: None,
+            parent_assignment_id: None,
+            assignment_version: 1,
+        };
         if !exists {
-            lifecycle
-                .grant(
-                    RoleAssignment {
-                        id: assignment_id,
-                        principal_ref: persona.principal_ref,
-                        role_key: persona.role_key,
-                        permissions: persona.permissions,
-                        functional_domain: "platform".into(),
-                        authority_level: 64,
-                        approval_limit_minor: 0,
-                        scope: Scope::Platform,
-                        valid_from: now,
-                        valid_until: now + chrono::Duration::days(365),
-                        timezone: "Asia/Bangkok".into(),
-                        risk_tier: RiskTier::Standard,
-                        grant_reason: "local development platform persona fixture".into(),
-                        ticket_reference: Some("local:dev-access".into()),
-                        grantor: "local:dev-controller".into(),
-                        approver: Some("local:dev-controller".into()),
-                        renewal_reviewer: None,
-                        parent_assignment_id: None,
-                        assignment_version: 1,
-                    },
-                    None,
-                )
-                .await?;
+            lifecycle.grant(assignment, None).await?;
+        } else {
+            reconcile_existing_development_assignment(&write, assignment, now).await?;
         }
     }
     sqlx::query(
@@ -958,33 +956,31 @@ async fn reconcile_persona_catalog(
                 .bind(assignment_id)
                 .fetch_one(&write)
                 .await?;
+                let assignment = RoleAssignment {
+                    id: assignment_id,
+                    principal_ref: persona.principal_ref.clone(),
+                    role_key: persona.role_key.clone(),
+                    permissions: persona.permissions.clone(),
+                    functional_domain: persona.feature.clone(),
+                    authority_level: 32,
+                    approval_limit_minor: 0,
+                    scope,
+                    valid_from: now,
+                    valid_until: now + chrono::Duration::days(365),
+                    timezone: "Asia/Bangkok".into(),
+                    risk_tier: RiskTier::Standard,
+                    grant_reason: "local development persona fixture".into(),
+                    ticket_reference: Some("local:dev-access".into()),
+                    grantor: "local:dev-controller".into(),
+                    approver: Some("local:dev-controller".into()),
+                    renewal_reviewer: None,
+                    parent_assignment_id: None,
+                    assignment_version: 1,
+                };
                 if !exists {
-                    lifecycle
-                        .grant(
-                            RoleAssignment {
-                                id: assignment_id,
-                                principal_ref: persona.principal_ref.clone(),
-                                role_key: persona.role_key.clone(),
-                                permissions: persona.permissions.clone(),
-                                functional_domain: persona.feature.clone(),
-                                authority_level: 32,
-                                approval_limit_minor: 0,
-                                scope,
-                                valid_from: now,
-                                valid_until: now + chrono::Duration::days(365),
-                                timezone: "Asia/Bangkok".into(),
-                                risk_tier: RiskTier::Standard,
-                                grant_reason: "local development persona fixture".into(),
-                                ticket_reference: Some("local:dev-access".into()),
-                                grantor: "local:dev-controller".into(),
-                                approver: Some("local:dev-controller".into()),
-                                renewal_reviewer: None,
-                                parent_assignment_id: None,
-                                assignment_version: 1,
-                            },
-                            None,
-                        )
-                        .await?;
+                    lifecycle.grant(assignment, None).await?;
+                } else {
+                    reconcile_existing_development_assignment(&write, assignment, now).await?;
                 }
             }
         }
@@ -1097,33 +1093,31 @@ pub(crate) async fn reconcile(root: &Path, config: &DevConfig) -> TaskResult {
             .bind(assignment_id)
             .fetch_one(&write)
             .await?;
+            let assignment = RoleAssignment {
+                id: assignment_id,
+                principal_ref: persona.principal_ref,
+                role_key: persona.role_key,
+                permissions: persona.permissions,
+                functional_domain: persona.feature,
+                authority_level: 32,
+                approval_limit_minor: 0,
+                scope: Scope::Holding { holding_id },
+                valid_from: now,
+                valid_until: now + chrono::Duration::days(365),
+                timezone: "Asia/Bangkok".into(),
+                risk_tier: RiskTier::Standard,
+                grant_reason: "local development auto-enrolled persona fixture".into(),
+                ticket_reference: Some("local:dev-access".into()),
+                grantor: "local:dev-controller".into(),
+                approver: Some("local:dev-controller".into()),
+                renewal_reviewer: None,
+                parent_assignment_id: None,
+                assignment_version: 1,
+            };
             if !exists {
-                lifecycle
-                    .grant(
-                        RoleAssignment {
-                            id: assignment_id,
-                            principal_ref: persona.principal_ref,
-                            role_key: persona.role_key,
-                            permissions: persona.permissions,
-                            functional_domain: persona.feature,
-                            authority_level: 32,
-                            approval_limit_minor: 0,
-                            scope: Scope::Holding { holding_id },
-                            valid_from: now,
-                            valid_until: now + chrono::Duration::days(365),
-                            timezone: "Asia/Bangkok".into(),
-                            risk_tier: RiskTier::Standard,
-                            grant_reason: "local development auto-enrolled persona fixture".into(),
-                            ticket_reference: Some("local:dev-access".into()),
-                            grantor: "local:dev-controller".into(),
-                            approver: Some("local:dev-controller".into()),
-                            renewal_reviewer: None,
-                            parent_assignment_id: None,
-                            assignment_version: 1,
-                        },
-                        None,
-                    )
-                    .await?;
+                lifecycle.grant(assignment, None).await?;
+            } else {
+                reconcile_existing_development_assignment(&write, assignment, now).await?;
             }
         }
         sqlx::query(
@@ -2818,40 +2812,242 @@ fn update_manifest_digest(digest: &mut Sha256, value: &str) {
     digest.update(value.as_bytes());
 }
 
+async fn reconcile_existing_development_assignment(
+    pool: &PgPool,
+    mut desired: RoleAssignment,
+    at: chrono::DateTime<Utc>,
+) -> TaskResult {
+    let mut transaction = pool.begin().await?;
+    let payload: serde_json::Value = sqlx::query_scalar(
+        "SELECT payload
+         FROM erpx_control.role_assignments
+         WHERE id=$1
+         FOR UPDATE",
+    )
+    .bind(desired.id)
+    .fetch_one(&mut *transaction)
+    .await?;
+    let current: RoleAssignment = serde_json::from_value(payload)?;
+    if current.id != desired.id
+        || current.role_key != desired.role_key
+        || current.ticket_reference.as_deref() != Some("local:dev-access")
+    {
+        return Err(format!(
+            "development role {} is not owned by the persona fixture",
+            desired.id
+        )
+        .into());
+    }
+    if current.principal_ref != desired.principal_ref {
+        // Negative QA personas intentionally reuse a canonical development
+        // role identity. Never rebind that immutable assignment to the alias;
+        // require the stored owner to remain another published fixture for
+        // the exact same role and authority material.
+        let canonical_fixture: bool = sqlx::query_scalar(
+            "SELECT EXISTS(
+                 SELECT 1
+                 FROM erpx_identity.development_persona_manifests
+                 WHERE principal_ref=$1 AND role_key=$2
+             )",
+        )
+        .bind(&current.principal_ref)
+        .bind(&current.role_key)
+        .fetch_one(&mut *transaction)
+        .await?;
+        if !canonical_fixture {
+            return Err(format!(
+                "development role {} alias authority is contradictory",
+                desired.id
+            )
+            .into());
+        }
+        transaction.commit().await?;
+        return Ok(());
+    }
+    if current.valid_until > at {
+        desired.valid_from = current.valid_from;
+        desired.valid_until = current.valid_until;
+    }
+    desired.assignment_version = current.assignment_version;
+    if current == desired {
+        transaction.commit().await?;
+        return Ok(());
+    }
+    desired.assignment_version = current
+        .assignment_version
+        .checked_add(1)
+        .ok_or("development role assignment version overflow")?;
+    desired.validate_for_grant(None)?;
+    let payload = serde_json::to_value(&desired)?;
+    sqlx::query(
+        "UPDATE erpx_control.role_assignments
+         SET principal_ref=$2,
+             role_key=$3,
+             parent_assignment_id=NULL,
+             valid_from=$4,
+             valid_until=$5,
+             assignment_version=$6,
+             payload=$7
+         WHERE id=$1",
+    )
+    .bind(desired.id)
+    .bind(&desired.principal_ref)
+    .bind(&desired.role_key)
+    .bind(desired.valid_from)
+    .bind(desired.valid_until)
+    .bind(i32::try_from(desired.assignment_version)?)
+    .bind(payload)
+    .execute(&mut *transaction)
+    .await?;
+    sqlx::query(
+        "INSERT INTO erpx_control.audit_events
+            (id,actor_ref,customer_account_id,action,purpose,correlation_id,payload)
+         VALUES ($1,$2,NULL,'development.authorization.persona_role_reconciled',
+                 'local development persona role reconcile',$3,$4)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(DEVELOPMENT_CONTROLLER_PRINCIPAL)
+    .bind(Uuid::new_v4())
+    .bind(serde_json::json!({
+        "assignment_id": desired.id,
+        "role_key": desired.role_key,
+        "assignment_version": desired.assignment_version,
+        "authority_material": "fixture_manifest_only",
+    }))
+    .execute(&mut *transaction)
+    .await?;
+    transaction.commit().await?;
+    Ok(())
+}
+
 async fn ensure_principal(
     pool: &PgPool,
     principal_ref: &str,
     authenticated_realm: &'static str,
     at: chrono::DateTime<Utc>,
 ) -> TaskResult {
-    sqlx::query(
-        "INSERT INTO erpx_identity.principals
-            (id, principal_ref, status, authenticated_realm, principal_kind,
-             created_at, updated_at)
-         VALUES ($1,$2,'active',$3,'human',$4,$4)
-         ON CONFLICT (principal_ref) DO UPDATE
-             SET status='active', updated_at=EXCLUDED.updated_at",
-    )
-    .bind(Uuid::new_v4())
-    .bind(principal_ref)
-    .bind(authenticated_realm)
-    .bind(at)
-    .execute(pool)
-    .await?;
-    let stored: (String, String) = sqlx::query_as(
-        "SELECT authenticated_realm, principal_kind
-         FROM erpx_identity.principals WHERE principal_ref=$1",
+    let manifest = sqlx::query(
+        "SELECT holding_id
+         FROM erpx_identity.development_persona_manifests
+         WHERE principal_ref=$1",
     )
     .bind(principal_ref)
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await?;
-    if stored.0 != authenticated_realm || stored.1 != "human" {
+    let Some(manifest) = manifest else {
+        return Err(
+            format!("development principal {principal_ref} has no fixture manifest").into(),
+        );
+    };
+    let holding_id = manifest.try_get::<Option<String>, _>("holding_id")?;
+    if !development_manifest_matches_realm(
+        principal_ref,
+        holding_id.as_deref(),
+        authenticated_realm,
+    ) {
         return Err(format!(
-            "development principal {principal_ref} authenticated authority is contradictory"
+            "development principal {principal_ref} manifest authority is contradictory"
         )
         .into());
     }
+
+    let mut transaction = pool.begin().await?;
+    let stored: Option<(Uuid, String, String)> = sqlx::query_as(
+        "SELECT id, authenticated_realm, principal_kind
+         FROM erpx_identity.principals WHERE principal_ref=$1
+         FOR UPDATE",
+    )
+    .bind(principal_ref)
+    .fetch_optional(&mut *transaction)
+    .await?;
+    match stored {
+        None => {
+            sqlx::query(
+                "INSERT INTO erpx_identity.principals
+                    (id, principal_ref, status, authenticated_realm, principal_kind,
+                     created_at, updated_at)
+                 VALUES ($1,$2,'active',$3,'human',$4,$4)",
+            )
+            .bind(Uuid::new_v4())
+            .bind(principal_ref)
+            .bind(authenticated_realm)
+            .bind(at)
+            .execute(&mut *transaction)
+            .await?;
+        }
+        Some((principal_id, realm, kind)) if realm == authenticated_realm && kind == "human" => {
+            sqlx::query(
+                "UPDATE erpx_identity.principals
+                 SET status='active', updated_at=$2
+                 WHERE id=$1",
+            )
+            .bind(principal_id)
+            .bind(at)
+            .execute(&mut *transaction)
+            .await?;
+        }
+        Some((principal_id, realm, kind))
+            if kind == "human"
+                && matches!(
+                    realm.as_str(),
+                    "internal_workforce" | "platform_administration"
+                ) =>
+        {
+            // Development personas are fixture-owned and their manifest is
+            // the authority source above. A realm correction invalidates all
+            // existing sessions atomically, so stale credentials cannot keep
+            // the former realm after a forward-only fixture upgrade.
+            sqlx::query(
+                "UPDATE erpx_identity.principals
+                 SET status='active', authenticated_realm=$2, updated_at=$3
+                 WHERE id=$1",
+            )
+            .bind(principal_id)
+            .bind(authenticated_realm)
+            .bind(at)
+            .execute(&mut *transaction)
+            .await?;
+            sqlx::query(
+                "UPDATE erpx_identity.sessions
+                 SET revoked_at=COALESCE(revoked_at, $2), last_used_at=$2
+                 WHERE principal_id=$1 AND revoked_at IS NULL",
+            )
+            .bind(principal_id)
+            .bind(at)
+            .execute(&mut *transaction)
+            .await?;
+        }
+        Some(_) => {
+            return Err(format!(
+                "development principal {principal_ref} authenticated authority is contradictory"
+            )
+            .into());
+        }
+    }
+    transaction.commit().await?;
     Ok(())
+}
+
+fn development_manifest_matches_realm(
+    principal_ref: &str,
+    holding_id: Option<&str>,
+    authenticated_realm: &str,
+) -> bool {
+    let mut parts = principal_ref.split(':');
+    let exact_fixture_ref = parts.next() == Some("dev")
+        && parts.next().is_some_and(|value| !value.is_empty())
+        && parts.next().is_some_and(|value| !value.is_empty())
+        && parts.next().is_none();
+    exact_fixture_ref
+        && match authenticated_realm {
+            "platform_administration" => {
+                principal_ref.starts_with("dev:platform:") && holding_id.is_none()
+            }
+            "internal_workforce" => {
+                !principal_ref.starts_with("dev:platform:") && holding_id.is_some()
+            }
+            _ => false,
+        }
 }
 
 #[cfg(test)]
@@ -2868,6 +3064,43 @@ mod tests {
         assert_eq!(restricted.len(), 64);
         assert_ne!(platform, demo);
         assert_ne!(demo, restricted);
+    }
+
+    #[test]
+    fn development_persona_realm_reconciliation_is_manifest_exact() {
+        assert!(development_manifest_matches_realm(
+            "dev:platform:platform_customer_operations",
+            None,
+            "platform_administration",
+        ));
+        assert!(development_manifest_matches_realm(
+            "dev:demo-holding:sales_operator",
+            Some(HOLDING_ID),
+            "internal_workforce",
+        ));
+        for (principal, holding, realm) in [
+            (
+                "dev:platform:platform_customer_operations",
+                Some(HOLDING_ID),
+                "platform_administration",
+            ),
+            (
+                "dev:demo-holding:sales_operator",
+                None,
+                "internal_workforce",
+            ),
+            (
+                "dev:platform:platform_customer_operations",
+                None,
+                "internal_workforce",
+            ),
+            ("local:platform-root", None, "platform_administration"),
+            ("dev:platform:role:extra", None, "platform_administration"),
+        ] {
+            assert!(!development_manifest_matches_realm(
+                principal, holding, realm
+            ));
+        }
     }
 
     #[test]

@@ -38,7 +38,7 @@ use erpx_infrastructure::RoutedDatabaseSide;
 use erpx_integration_contracts::{
     FieldPatchConflict, FieldPatchConflictReason, FieldSuggestionEvidence, RecordFieldPatch,
     RecordVersionRef, StableFieldRef, StableRecordRef, SuggestedFieldChange, SuggestedFieldValue,
-    catalog::ContextId, reference::RecordTypeId,
+    catalog::ContextId, record_editable_field_schema, reference::RecordTypeId,
 };
 use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
@@ -80,10 +80,36 @@ use crate::{AppState, require_actor_match};
 const MAX_SECURITY_INPUT_LENGTH: usize = 512;
 const MAX_ROUTE_LENGTH: usize = 255;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FutureOwnerContext {
     AgentOrchestration,
     Projects,
+    SalesQuoteSuggestionApply,
+    Customer360NoteSuggestionApply,
+    ProcurementRequisitionSuggestionApply,
+    MaintenanceRequestSuggestionApply,
+    MarketingContentSuggestionApply,
+}
+
+const SUGGESTION_APPLY_CONTEXTS: [FutureOwnerContext; 5] = [
+    FutureOwnerContext::SalesQuoteSuggestionApply,
+    FutureOwnerContext::Customer360NoteSuggestionApply,
+    FutureOwnerContext::ProcurementRequisitionSuggestionApply,
+    FutureOwnerContext::MaintenanceRequestSuggestionApply,
+    FutureOwnerContext::MarketingContentSuggestionApply,
+];
+
+fn suggestion_apply_context(record_type: &str) -> Option<FutureOwnerContext> {
+    match record_type {
+        "sales.quote" => Some(FutureOwnerContext::SalesQuoteSuggestionApply),
+        "customer-360.note" => Some(FutureOwnerContext::Customer360NoteSuggestionApply),
+        "procurement.requisition" => {
+            Some(FutureOwnerContext::ProcurementRequisitionSuggestionApply)
+        }
+        "maintenance.request" => Some(FutureOwnerContext::MaintenanceRequestSuggestionApply),
+        "marketing.content" => Some(FutureOwnerContext::MarketingContentSuggestionApply),
+        _ => None,
+    }
 }
 
 impl FutureOwnerContext {
@@ -91,6 +117,13 @@ impl FutureOwnerContext {
         match self {
             Self::AgentOrchestration => "Agent Orchestration",
             Self::Projects => "Projects",
+            Self::SalesQuoteSuggestionApply => "Sales Quote suggestion apply",
+            Self::Customer360NoteSuggestionApply => "Customer 360 Note suggestion apply",
+            Self::ProcurementRequisitionSuggestionApply => {
+                "Procurement Requisition suggestion apply"
+            }
+            Self::MaintenanceRequestSuggestionApply => "Maintenance Request suggestion apply",
+            Self::MarketingContentSuggestionApply => "Marketing Content suggestion apply",
         }
     }
 }
@@ -545,6 +578,30 @@ impl FutureAgentProjectsAuthenticator for AppStateFutureAuthenticator {
             (FutureOwnerContext::Projects, FutureAccessMode::Read) => {
                 ("projects", PROJECTS_READ_PERMISSION)
             }
+            (FutureOwnerContext::SalesQuoteSuggestionApply, FutureAccessMode::Write) => {
+                ("sales", "sales.quote.suggestion.apply")
+            }
+            (FutureOwnerContext::Customer360NoteSuggestionApply, FutureAccessMode::Write) => {
+                ("customer-360", "customer_360.note.suggestion.apply")
+            }
+            (
+                FutureOwnerContext::ProcurementRequisitionSuggestionApply,
+                FutureAccessMode::Write,
+            ) => ("scm", "procurement.requisition.suggestion.apply"),
+            (FutureOwnerContext::MaintenanceRequestSuggestionApply, FutureAccessMode::Write) => {
+                ("maintenance", "maintenance.request.suggestion.apply")
+            }
+            (FutureOwnerContext::MarketingContentSuggestionApply, FutureAccessMode::Write) => {
+                ("marketing", "marketing.content.suggestion.apply")
+            }
+            (
+                FutureOwnerContext::SalesQuoteSuggestionApply
+                | FutureOwnerContext::Customer360NoteSuggestionApply
+                | FutureOwnerContext::ProcurementRequisitionSuggestionApply
+                | FutureOwnerContext::MaintenanceRequestSuggestionApply
+                | FutureOwnerContext::MarketingContentSuggestionApply,
+                FutureAccessMode::Read,
+            ) => return Err(FutureAuthenticationError::Denied),
         };
         let subscription = workspace.subscription_id.map(|value| value.to_string());
         if request.subscription_id.as_deref().is_some()
@@ -1874,11 +1931,12 @@ where
     ) -> Result<Response<agent::FieldSuggestionMutationResponse>, Status> {
         let transport = request.metadata().clone();
         let input = request.into_inner();
+        let owner_context = suggestion_apply_context_from_wire_patch(input.edited_patch.as_ref())?;
         let authenticated = authenticate_command(
             self.authenticator.as_ref(),
             transport,
             input.context.clone(),
-            FutureOwnerContext::AgentOrchestration,
+            owner_context,
         )
         .await?;
         let command = SuggestionCommand::ApplyFieldPatch {
@@ -2089,9 +2147,13 @@ where
     ) -> Result<Response<agent::GetFieldSuggestionResponse>, Status> {
         let transport = request.metadata().clone();
         let input = request.into_inner();
+        let query_context = input
+            .context
+            .clone()
+            .ok_or_else(|| invalid("query context is required"))?;
         let authenticated = authenticate_query(
             self.authenticator.as_ref(),
-            transport,
+            transport.clone(),
             input.context,
             FutureOwnerContext::AgentOrchestration,
         )
@@ -2106,8 +2168,34 @@ where
             )
             .await
             .map_err(status_from_suggestion_application)?;
+        let can_reject = authenticate_query_write_capability(
+            self.authenticator.as_ref(),
+            &transport,
+            &query_context,
+            FutureOwnerContext::AgentOrchestration,
+        )
+        .await;
+        let can_apply = match value
+            .as_ref()
+            .and_then(|suggestion| suggestion.field_patch())
+            .and_then(|patch| {
+                suggestion_apply_context(patch.source.record().record_type().as_str())
+            }) {
+            Some(owner_context) => {
+                authenticate_query_write_capability(
+                    self.authenticator.as_ref(),
+                    &transport,
+                    &query_context,
+                    owner_context,
+                )
+                .await
+            }
+            None => false,
+        };
         Ok(Response::new(agent::GetFieldSuggestionResponse {
-            suggestion: value.as_ref().map(encode_field_suggestion),
+            suggestion: value
+                .as_ref()
+                .map(|value| encode_field_suggestion(value, can_apply, can_reject)),
             // This authority-side read has no rebuildable read checkpoint. It
             // is therefore never advertised as a current projection.
             projection: None,
@@ -2121,9 +2209,13 @@ where
     ) -> Result<Response<agent::ListFieldSuggestionsByRecordResponse>, Status> {
         let transport = request.metadata().clone();
         let input = request.into_inner();
+        let query_context = input
+            .context
+            .clone()
+            .ok_or_else(|| invalid("query context is required"))?;
         let authenticated = authenticate_query(
             self.authenticator.as_ref(),
-            transport,
+            transport.clone(),
             input.context,
             FutureOwnerContext::AgentOrchestration,
         )
@@ -2144,8 +2236,43 @@ where
             )
             .await
             .map_err(status_from_suggestion_application)?;
+        let can_reject = authenticate_query_write_capability(
+            self.authenticator.as_ref(),
+            &transport,
+            &query_context,
+            FutureOwnerContext::AgentOrchestration,
+        )
+        .await;
+        let mut apply_contexts = BTreeSet::new();
+        for owner_context in SUGGESTION_APPLY_CONTEXTS {
+            if values.iter().any(|suggestion| {
+                suggestion.field_patch().and_then(|patch| {
+                    suggestion_apply_context(patch.source.record().record_type().as_str())
+                }) == Some(owner_context)
+            }) && authenticate_query_write_capability(
+                self.authenticator.as_ref(),
+                &transport,
+                &query_context,
+                owner_context,
+            )
+            .await
+            {
+                apply_contexts.insert(owner_context);
+            }
+        }
         Ok(Response::new(agent::ListFieldSuggestionsByRecordResponse {
-            suggestions: values.iter().map(encode_field_suggestion).collect(),
+            suggestions: values
+                .iter()
+                .map(|value| {
+                    let can_apply = value
+                        .field_patch()
+                        .and_then(|patch| {
+                            suggestion_apply_context(patch.source.record().record_type().as_str())
+                        })
+                        .is_some_and(|context| apply_contexts.contains(&context));
+                    encode_field_suggestion(value, can_apply, can_reject)
+                })
+                .collect(),
             projection: None,
             authority_current: true,
         }))
@@ -2947,6 +3074,35 @@ async fn authenticate_query<G: FutureAgentProjectsAuthenticator>(
     })
 }
 
+async fn authenticate_query_write_capability<G: FutureAgentProjectsAuthenticator>(
+    authenticator: &G,
+    transport_metadata: &MetadataMap,
+    context: &common::QueryContext,
+    owner_context: FutureOwnerContext,
+) -> bool {
+    let Ok(presented_actor) = decode_actor(context.actor.clone()) else {
+        return false;
+    };
+    let Some(scope) = context.active_scope.clone() else {
+        return false;
+    };
+    let Ok(presented_scope) = decode_scope(scope) else {
+        return false;
+    };
+    authenticator
+        .authenticate(FutureAuthenticationRequest {
+            transport_metadata: transport_metadata.clone(),
+            presented_actor,
+            presented_scope,
+            subscription_id: None,
+            mfa_code: None,
+            owner_context,
+            access_mode: FutureAccessMode::Write,
+        })
+        .await
+        .is_ok()
+}
+
 fn decode_projects_command_context(
     context: common::CommandContext,
     actor: ActorAttribution,
@@ -3128,6 +3284,56 @@ fn decode_suggestion_provenance(
     })
 }
 
+fn suggestion_apply_context_from_wire_patch(
+    value: Option<&agent::RecordFieldPatch>,
+) -> Result<FutureOwnerContext, Status> {
+    let value = value.ok_or_else(|| invalid("edited_patch is required"))?;
+    let source = value
+        .source
+        .as_ref()
+        .ok_or_else(|| invalid("field patch source is required"))?;
+    let schema = record_editable_field_schema(&source.record_type)
+        .filter(|schema| {
+            schema.supports_agent_patches()
+                && u64::from(schema.version) == value.schema_version
+                && schema.owner.slug() == source.owner_context
+        })
+        .ok_or_else(|| invalid("field patch owner schema is unavailable"))?;
+    if value.changes.is_empty()
+        || value.changes.iter().any(|change| {
+            schema
+                .field(&change.field_id)
+                .is_none_or(|field| field.human_apply_permission.trim().is_empty())
+        })
+    {
+        return Err(invalid("field patch apply permission is unavailable"));
+    }
+    let context = suggestion_apply_context(&source.record_type)
+        .ok_or_else(|| invalid("field patch owner apply route is unavailable"))?;
+    let expected_permission = match context {
+        FutureOwnerContext::SalesQuoteSuggestionApply => "sales.quote.suggestion.apply",
+        FutureOwnerContext::Customer360NoteSuggestionApply => "customer_360.note.suggestion.apply",
+        FutureOwnerContext::ProcurementRequisitionSuggestionApply => {
+            "procurement.requisition.suggestion.apply"
+        }
+        FutureOwnerContext::MaintenanceRequestSuggestionApply => {
+            "maintenance.request.suggestion.apply"
+        }
+        FutureOwnerContext::MarketingContentSuggestionApply => "marketing.content.suggestion.apply",
+        FutureOwnerContext::AgentOrchestration | FutureOwnerContext::Projects => {
+            return Err(invalid("field patch owner apply route is unavailable"));
+        }
+    };
+    if value.changes.iter().any(|change| {
+        schema
+            .field(&change.field_id)
+            .is_none_or(|field| field.human_apply_permission != expected_permission)
+    }) {
+        return Err(invalid("field patch apply permission is inconsistent"));
+    }
+    Ok(context)
+}
+
 fn decode_record_field_patch(
     value: Option<agent::RecordFieldPatch>,
 ) -> Result<RecordFieldPatch, Status> {
@@ -3277,11 +3483,15 @@ fn encode_field_suggestion_mutation(
             committed_at: receipt.committed_at.to_rfc3339(),
             replayed: receipt.replayed,
         }),
-        suggestion: Some(encode_field_suggestion(&receipt.envelope)),
+        suggestion: Some(encode_field_suggestion(&receipt.envelope, false, false)),
     }
 }
 
-fn encode_field_suggestion(value: &SuggestionEnvelope) -> agent::FieldSuggestionProjection {
+fn encode_field_suggestion(
+    value: &SuggestionEnvelope,
+    can_apply: bool,
+    can_reject: bool,
+) -> agent::FieldSuggestionProjection {
     agent::FieldSuggestionProjection {
         suggestion_id: value.id().as_uuid().to_string(),
         aggregate_version: value.version(),
@@ -3321,6 +3531,10 @@ fn encode_field_suggestion(value: &SuggestionEnvelope) -> agent::FieldSuggestion
         requested_by: value.requested_by().into(),
         created_at: value.created_at().to_rfc3339(),
         updated_at: value.updated_at().to_rfc3339(),
+        capabilities: Some(agent::FieldSuggestionCapabilities {
+            can_apply: can_apply && value.status() == SuggestionStatus::Ready,
+            can_reject: can_reject && value.status() == SuggestionStatus::Ready,
+        }),
     }
 }
 
@@ -4685,6 +4899,59 @@ mod tests {
         let status = owner_port_gap("AGN-CMD-REGISTER-RECEIPT");
         assert_eq!(status.code(), tonic::Code::FailedPrecondition);
         assert!(status.message().contains("AGN-CMD-REGISTER-RECEIPT"));
+    }
+
+    #[test]
+    fn field_suggestion_apply_routes_are_closed_and_owner_exact() {
+        let expected = [
+            (
+                "sales.quote",
+                FutureOwnerContext::SalesQuoteSuggestionApply,
+                "sales.quote.suggestion.apply",
+            ),
+            (
+                "customer-360.note",
+                FutureOwnerContext::Customer360NoteSuggestionApply,
+                "customer_360.note.suggestion.apply",
+            ),
+            (
+                "procurement.requisition",
+                FutureOwnerContext::ProcurementRequisitionSuggestionApply,
+                "procurement.requisition.suggestion.apply",
+            ),
+            (
+                "maintenance.request",
+                FutureOwnerContext::MaintenanceRequestSuggestionApply,
+                "maintenance.request.suggestion.apply",
+            ),
+            (
+                "marketing.content",
+                FutureOwnerContext::MarketingContentSuggestionApply,
+                "marketing.content.suggestion.apply",
+            ),
+        ];
+        assert_eq!(SUGGESTION_APPLY_CONTEXTS.len(), expected.len());
+        for (record_type, context, permission) in expected {
+            assert_eq!(suggestion_apply_context(record_type), Some(context));
+            assert!(SUGGESTION_APPLY_CONTEXTS.contains(&context));
+            let schema = record_editable_field_schema(record_type).expect("current owner schema");
+            assert!(schema.supports_agent_patches());
+            assert!(
+                schema
+                    .fields
+                    .iter()
+                    .all(|field| field.human_apply_permission == permission)
+            );
+        }
+        for denied in [
+            "finance.invoice",
+            "planning.plan",
+            "platform.holding",
+            "sales.quote.future",
+            "",
+        ] {
+            assert_eq!(suggestion_apply_context(denied), None);
+        }
     }
 
     #[test]

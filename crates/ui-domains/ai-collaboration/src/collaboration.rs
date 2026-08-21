@@ -458,6 +458,9 @@ pub struct FieldSuggestionCard {
     pub changes: Vec<SuggestedFieldChangeCard>,
     pub conflict_count: u16,
     pub reviewed_by_human: bool,
+    pub human_review_label: Option<String>,
+    pub can_apply: bool,
+    pub can_reject: bool,
     pub updated_at: DateTime<Utc>,
 }
 

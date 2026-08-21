@@ -14,8 +14,8 @@ use erpx_ui_kit::{
 };
 
 use crate::gateway::{
-    RecordReferencesState, RecordResolutionState, ReferenceDirection, ReferenceRelationCard,
-    ReferenceRelationKind,
+    FieldSuggestionReviewDecision, FieldSuggestionReviewRequest, RecordReferencesState,
+    RecordResolutionState, ReferenceDirection, ReferenceRelationCard, ReferenceRelationKind,
 };
 
 pub const AI_COLLABORATION_STYLES: &str = include_str!("../assets/ai-collaboration.css");
@@ -33,6 +33,7 @@ pub fn RecordActivityRail(
     locale: Locale,
     #[props(default)] reduced_motion: bool,
     #[props(default)] on_retry: Option<EventHandler<()>>,
+    #[props(default)] on_review_suggestion: Option<EventHandler<FieldSuggestionReviewRequest>>,
 ) -> Element {
     let accessibility = activity_accessibility(reduced_motion);
     rsx! {
@@ -69,7 +70,7 @@ pub fn RecordActivityRail(
                 },
                 ActivityRailState::Content { threads, suggestions, realtime } => rsx! {
                     {realtime_status(realtime, locale)}
-                    for suggestion in suggestions { {render_field_suggestion(suggestion, locale)} }
+                    for suggestion in suggestions { {render_field_suggestion(suggestion, locale, on_review_suggestion)} }
                     for thread in threads { {render_thread(thread, locale)} }
                 },
             }
@@ -77,7 +78,11 @@ pub fn RecordActivityRail(
     }
 }
 
-fn render_field_suggestion(suggestion: FieldSuggestionCard, locale: Locale) -> Element {
+fn render_field_suggestion(
+    suggestion: FieldSuggestionCard,
+    locale: Locale,
+    on_review: Option<EventHandler<FieldSuggestionReviewRequest>>,
+) -> Element {
     let (status, tone) = match suggestion.status {
         FieldSuggestionDisplayStatus::Queued => {
             (copy(locale, "Queued", "รอคิว"), StatusTone::Neutral)
@@ -105,6 +110,12 @@ fn render_field_suggestion(suggestion: FieldSuggestionCard, locale: Locale) -> E
             (copy(locale, "Failed", "ล้มเหลว"), StatusTone::Danger)
         }
     };
+    let suggestion_id = suggestion.suggestion_id;
+    let expected_version = suggestion.aggregate_version;
+    let can_apply = suggestion.can_apply && on_review.is_some();
+    let can_reject = suggestion.can_reject && on_review.is_some();
+    let apply_handler = on_review;
+    let reject_handler = on_review;
     rsx! {
         article {
             class: "erpx-field-suggestion",
@@ -120,12 +131,51 @@ fn render_field_suggestion(suggestion: FieldSuggestionCard, locale: Locale) -> E
             if suggestion.conflict_count > 0 {
                 p { role: "status", {format!("{}: {}", copy(locale, "Conflicts", "ข้อขัดแย้ง"), suggestion.conflict_count)} }
             }
+            if let Some(review_label) = suggestion.human_review_label {
+                p { class: "erpx-field-suggestion__review", {review_label} }
+            }
             ul {
                 for change in suggestion.changes {
                     li {
                         strong { {change.field_id} }
                         span { {format!(" → {}", change.proposed_value)} }
                         small { {format!(" · {}% · {} {}", change.confidence_basis_points / 100, change.evidence_count, copy(locale, "evidence", "หลักฐาน"))} }
+                    }
+                }
+            }
+            if can_apply || can_reject {
+                div { class: "erpx-field-suggestion__actions",
+                    if can_reject {
+                        Button {
+                            label: copy(locale, "Reject", "ปฏิเสธ").to_owned(),
+                            tone: ButtonTone::Secondary,
+                            on_press: move |_| {
+                                if let Some(handler) = reject_handler {
+                                    handler.call(FieldSuggestionReviewRequest {
+                                        operation_id: uuid::Uuid::new_v4(),
+                                        suggestion_id,
+                                        expected_version,
+                                        decision: FieldSuggestionReviewDecision::Reject,
+                                    });
+                                }
+                            },
+                        }
+                    }
+                    if can_apply {
+                        Button {
+                            label: copy(locale, "Apply suggestion", "ใช้คำแนะนำ").to_owned(),
+                            tone: ButtonTone::Primary,
+                            on_press: move |_| {
+                                if let Some(handler) = apply_handler {
+                                    handler.call(FieldSuggestionReviewRequest {
+                                        operation_id: uuid::Uuid::new_v4(),
+                                        suggestion_id,
+                                        expected_version,
+                                        decision: FieldSuggestionReviewDecision::Apply,
+                                    });
+                                }
+                            },
+                        }
                     }
                 }
             }
@@ -145,10 +195,11 @@ pub fn AuthorizedRecordActivityRail(
     locale: Locale,
     #[props(default)] reduced_motion: bool,
     #[props(default)] on_retry: Option<EventHandler<()>>,
+    #[props(default)] on_review_suggestion: Option<EventHandler<FieldSuggestionReviewRequest>>,
 ) -> Element {
     if gate.authorized_record(&current_route).is_some() {
         return rsx! {
-            RecordActivityRail { state, locale, reduced_motion, on_retry }
+            RecordActivityRail { state, locale, reduced_motion, on_retry, on_review_suggestion }
         };
     }
     match gate {
@@ -774,5 +825,15 @@ mod tests {
             .expect("button-only assignment callback");
         assert!(handler < call);
         assert!(source.contains("Plain pasted @text has no effect"));
+    }
+
+    #[test]
+    fn field_suggestion_review_controls_require_server_capabilities_and_a_handler() {
+        let source = include_str!("view.rs");
+        assert!(source.contains("suggestion.can_apply && on_review.is_some()"));
+        assert!(source.contains("suggestion.can_reject && on_review.is_some()"));
+        assert!(source.contains("FieldSuggestionReviewDecision::Apply"));
+        assert!(source.contains("FieldSuggestionReviewDecision::Reject"));
+        assert!(!source.contains(concat!("reviewer_", "principal_ref")));
     }
 }

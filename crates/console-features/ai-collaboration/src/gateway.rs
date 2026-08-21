@@ -117,6 +117,20 @@ pub enum ReferenceRelationKind {
     EvidenceFor,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FieldSuggestionReviewDecision {
+    Apply,
+    Reject,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FieldSuggestionReviewRequest {
+    pub operation_id: Uuid,
+    pub suggestion_id: Uuid,
+    pub expected_version: u64,
+    pub decision: FieldSuggestionReviewDecision,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReferenceRelationCard {
     pub relation_id: Uuid,
@@ -210,6 +224,7 @@ pub enum CollaborationMutation {
         following: bool,
         expected_thread_version: u64,
     },
+    ReviewFieldSuggestion(FieldSuggestionReviewRequest),
     Moderate {
         thread_id: Uuid,
         comment_id: Uuid,
