@@ -21,6 +21,8 @@ mod insight_delivery;
 mod native_delivery;
 #[cfg(feature = "native")]
 mod native_spike;
+#[cfg(any(feature = "web", feature = "server"))]
+mod owner_detail_delivery;
 pub mod platform;
 #[cfg(any(feature = "web", feature = "server"))]
 mod process_delivery;

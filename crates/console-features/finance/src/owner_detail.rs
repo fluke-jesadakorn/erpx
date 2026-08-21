@@ -18,9 +18,10 @@ pub struct FinanceSourceReference {
 }
 
 impl FinanceSourceReference {
-    fn is_safe(&self) -> bool {
+    fn is_safe_for(&self, record_type: &str) -> bool {
         self.version > 0
             && !self.display_label.trim().is_empty()
+            && self.record.record_type().as_str() == record_type
             && self.canonical_route == self.record.canonical_detail_route()
     }
 }
@@ -81,10 +82,16 @@ impl FinanceOwnerRecord {
                 value
                     .purchase_order
                     .as_ref()
-                    .is_none_or(FinanceSourceReference::is_safe)
-                    && value.goods_receipts.iter().all(|source| source.is_safe())
+                    .is_none_or(|source| source.is_safe_for("procurement.purchase-order"))
+                    && value
+                        .goods_receipts
+                        .iter()
+                        .all(|source| source.is_safe_for("procurement.receipt"))
             }
-            Self::Payment(value) => value.invoices.iter().all(|source| source.is_safe()),
+            Self::Payment(value) => value
+                .invoices
+                .iter()
+                .all(|source| source.is_safe_for("finance.vendor-invoice")),
         }
     }
 }
@@ -98,6 +105,11 @@ pub struct FinanceOwnerCapabilities {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FinanceOwnerDetailState {
     Loading,
+    /// Current authorized data without a version-bound capability snapshot.
+    /// This state is deliberately read-only.
+    CurrentReadOnly {
+        detail: FinanceOwnerRecord,
+    },
     Fresh {
         detail: FinanceOwnerRecord,
         capabilities: FinanceOwnerCapabilities,
@@ -117,6 +129,10 @@ pub enum FinanceOwnerMutation {
     PostVendorInvoice {
         record: StableRecordRef,
         expected_version: u64,
+        purchase_order: StableRecordRef,
+        purchase_order_version: u64,
+        goods_receipt: StableRecordRef,
+        goods_receipt_version: u64,
     },
     ReleasePayment {
         record: StableRecordRef,
@@ -162,9 +178,11 @@ pub fn FinanceOwnerDetailSurface(
     locale: Locale,
     #[props(default)] on_mutate: Option<EventHandler<FinanceOwnerMutation>>,
     #[props(default)] on_retry: Option<EventHandler<()>>,
+    #[props(default)] mutation_busy: bool,
 ) -> Element {
     let invalid_payload = match &state {
-        FinanceOwnerDetailState::Fresh { detail, .. }
+        FinanceOwnerDetailState::CurrentReadOnly { detail }
+        | FinanceOwnerDetailState::Fresh { detail, .. }
         | FinanceOwnerDetailState::Stale { detail } => !detail.is_safe_for(&expected_record),
         FinanceOwnerDetailState::Loading
         | FinanceOwnerDetailState::Denied
@@ -185,14 +203,20 @@ pub fn FinanceOwnerDetailSurface(
         FinanceOwnerDetailState::Loading => rsx! {
             section { class: "owner-detail owner-detail--finance", Skeleton { lines: 5 } }
         },
+        FinanceOwnerDetailState::CurrentReadOnly { detail } => rsx! {
+            section { class: "owner-detail owner-detail--finance", "data-state": "current-read-only",
+                p { role: "status", {copy(locale, "Owner data is current. Actions remain disabled until the owner publishes exact capabilities.", "ข้อมูลจากเจ้าของเป็นปัจจุบัน แต่ยังปิดการดำเนินการจนกว่าเจ้าของจะเผยแพร่ capability ที่ตรงกับรายการ")} }
+                {render_detail(detail, None, locale, None, false)}
+            }
+        },
         FinanceOwnerDetailState::Fresh {
             detail,
             capabilities,
-        } => render_detail(detail, Some(capabilities), locale, on_mutate),
+        } => render_detail(detail, Some(capabilities), locale, on_mutate, mutation_busy),
         FinanceOwnerDetailState::Stale { detail } => rsx! {
             section { class: "owner-detail owner-detail--finance", "data-state": "stale",
                 p { role: "status", {copy(locale, "This owner projection is stale. Actions are disabled.", "โพรเจกชันจากเจ้าของล้าสมัย จึงปิดการดำเนินการ")} }
-                {render_detail(detail, None, locale, None)}
+                {render_detail(detail, None, locale, None, false)}
             }
         },
         FinanceOwnerDetailState::Denied => owner_notice(
@@ -246,16 +270,24 @@ fn render_detail(
     capabilities: Option<FinanceOwnerCapabilities>,
     locale: Locale,
     on_mutate: Option<EventHandler<FinanceOwnerMutation>>,
+    mutation_busy: bool,
 ) -> Element {
     let (eyebrow, code, status, currency, amount_minor, supporting, mutations) = match &detail {
         FinanceOwnerRecord::VendorInvoice(value) => {
             let mut mutations = Vec::new();
-            if capabilities.is_some_and(|value| value.post_vendor_invoice) {
+            if capabilities.is_some_and(|value| value.post_vendor_invoice)
+                && let (Some(purchase_order), [goods_receipt]) =
+                    (&value.purchase_order, value.goods_receipts.as_slice())
+            {
                 mutations.push((
                     copy(locale, "Post invoice", "บันทึกบัญชีใบแจ้งหนี้"),
                     FinanceOwnerMutation::PostVendorInvoice {
                         record: value.record.clone(),
                         expected_version: value.version,
+                        purchase_order: purchase_order.record.clone(),
+                        purchase_order_version: purchase_order.version,
+                        goods_receipt: goods_receipt.record.clone(),
+                        goods_receipt_version: goods_receipt.version,
                     },
                 ));
             }
@@ -320,6 +352,8 @@ fn render_detail(
                     Button {
                         label: label.to_owned(),
                         tone: ButtonTone::Primary,
+                        disabled: mutation_busy,
+                        busy: mutation_busy,
                         on_press: move |_| handler.call(mutation.clone()),
                     }
                 }
@@ -362,9 +396,12 @@ mod tests {
     fn post_and_release_require_fresh_capabilities() {
         let source = include_str!("owner_detail.rs");
         let fresh = source.find("FinanceOwnerDetailState::Fresh").unwrap();
+        let read_only = source
+            .find("FinanceOwnerDetailState::CurrentReadOnly")
+            .unwrap();
         let stale = source.find("FinanceOwnerDetailState::Stale").unwrap();
         let render = source.find("fn render_detail").unwrap();
-        assert!(fresh < stale && stale < render);
+        assert!(read_only < fresh && fresh < stale && stale < render);
         assert!(source.contains("capabilities.is_some_and"));
         assert!(source.contains("expected_version"));
         assert!(source.contains("!detail.is_safe_for(&expected_record)"));

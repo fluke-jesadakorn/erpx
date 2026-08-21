@@ -125,6 +125,12 @@ pub struct ProcurementOwnerCapabilities {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProcurementOwnerDetailState {
     Loading,
+    /// The owner projection is current and authorized, but this response did
+    /// not publish an exact mutation capability snapshot. Reads remain live;
+    /// every mutation stays hidden.
+    CurrentReadOnly {
+        detail: ProcurementOwnerRecord,
+    },
     Fresh {
         detail: ProcurementOwnerRecord,
         capabilities: ProcurementOwnerCapabilities,
@@ -193,9 +199,11 @@ pub fn ProcurementOwnerDetailSurface(
     locale: Locale,
     #[props(default)] on_mutate: Option<EventHandler<ProcurementOwnerMutation>>,
     #[props(default)] on_retry: Option<EventHandler<()>>,
+    #[props(default)] mutation_busy: bool,
 ) -> Element {
     let invalid_payload = match &state {
-        ProcurementOwnerDetailState::Fresh { detail, .. }
+        ProcurementOwnerDetailState::CurrentReadOnly { detail }
+        | ProcurementOwnerDetailState::Fresh { detail, .. }
         | ProcurementOwnerDetailState::Stale { detail } => !detail.is_safe_for(&expected_record),
         ProcurementOwnerDetailState::Loading
         | ProcurementOwnerDetailState::Denied
@@ -216,14 +224,20 @@ pub fn ProcurementOwnerDetailSurface(
         ProcurementOwnerDetailState::Loading => rsx! {
             section { class: "owner-detail owner-detail--procurement", Skeleton { lines: 5 } }
         },
+        ProcurementOwnerDetailState::CurrentReadOnly { detail } => rsx! {
+            section { class: "owner-detail owner-detail--procurement", "data-state": "current-read-only",
+                p { role: "status", {copy(locale, "Owner data is current. Actions remain disabled until the owner publishes exact capabilities.", "ข้อมูลจากเจ้าของเป็นปัจจุบัน แต่ยังปิดการดำเนินการจนกว่าเจ้าของจะเผยแพร่ capability ที่ตรงกับรายการ")} }
+                {render_detail(detail, None, locale, None, false)}
+            }
+        },
         ProcurementOwnerDetailState::Fresh {
             detail,
             capabilities,
-        } => render_detail(detail, Some(capabilities), locale, on_mutate),
+        } => render_detail(detail, Some(capabilities), locale, on_mutate, mutation_busy),
         ProcurementOwnerDetailState::Stale { detail } => rsx! {
             section { class: "owner-detail owner-detail--procurement", "data-state": "stale",
                 p { role: "status", {copy(locale, "This owner projection is stale. Actions are disabled.", "โพรเจกชันจากเจ้าของล้าสมัย จึงปิดการดำเนินการ")} }
-                {render_detail(detail, None, locale, None)}
+                {render_detail(detail, None, locale, None, false)}
             }
         },
         ProcurementOwnerDetailState::Denied => owner_notice(
@@ -255,6 +269,7 @@ fn render_detail(
     capabilities: Option<ProcurementOwnerCapabilities>,
     locale: Locale,
     on_mutate: Option<EventHandler<ProcurementOwnerMutation>>,
+    mutation_busy: bool,
 ) -> Element {
     let (eyebrow, code, status, currency, total_minor, supporting, mutation) = match &detail {
         ProcurementOwnerRecord::Requisition(value) => (
@@ -346,6 +361,8 @@ fn render_detail(
                 Button {
                     label: label.to_owned(),
                     tone: ButtonTone::Primary,
+                    disabled: mutation_busy,
+                    busy: mutation_busy,
                     on_press: move |_| handler.call(mutation.clone()),
                 }
             }
@@ -387,9 +404,12 @@ mod tests {
     fn mutation_controls_require_the_fresh_capability_branch() {
         let source = include_str!("owner_detail.rs");
         let fresh = source.find("ProcurementOwnerDetailState::Fresh").unwrap();
+        let read_only = source
+            .find("ProcurementOwnerDetailState::CurrentReadOnly")
+            .unwrap();
         let stale = source.find("ProcurementOwnerDetailState::Stale").unwrap();
         let render = source.find("fn render_detail").unwrap();
-        assert!(fresh < stale && stale < render);
+        assert!(read_only < fresh && fresh < stale && stale < render);
         assert!(source.contains("capabilities.filter"));
         assert!(source.contains("expected_version"));
         assert!(source.contains("!detail.is_safe_for(&expected_record)"));

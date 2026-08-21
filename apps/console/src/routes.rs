@@ -2780,6 +2780,70 @@ fn record_owner_content(
     }
 }
 
+#[cfg(any(feature = "web", feature = "server"))]
+fn procurement_owner_error_state(
+    error: erpx_console_feature_procurement::ProcurementOwnerGatewayError,
+) -> erpx_console_feature_procurement::ProcurementOwnerDetailState {
+    use erpx_console_feature_procurement::{
+        ProcurementOwnerDetailState as State, ProcurementOwnerGatewayError as Error,
+    };
+    match error {
+        Error::Denied => State::Denied,
+        Error::Offline => State::Offline,
+        Error::Conflict | Error::Stale | Error::Unavailable | Error::Invalid => {
+            State::Unavailable { retryable: true }
+        }
+    }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+#[component]
+fn Phase5ProcurementOwnerDetail(record: CatalogRecord) -> Element {
+    let locale = erpx_ui_core::use_locale().current();
+    let requested_record = record.record().clone();
+    let expected_record = requested_record.clone();
+    let mut resource = use_server_future(move || {
+        let requested_record = requested_record.clone();
+        async move {
+            crate::owner_detail_delivery::load_procurement_owner(requested_record)
+                .await
+                .unwrap_or(Err(
+                    erpx_console_feature_procurement::ProcurementOwnerGatewayError::Offline,
+                ))
+        }
+    })?;
+    let state = resource
+        .read()
+        .clone()
+        .expect("resolved procurement owner future has a value")
+        .unwrap_or_else(procurement_owner_error_state);
+    let mut mutation_busy = use_signal(|| false);
+    let mut mutation_resource = resource;
+    let on_mutate = EventHandler::new(move |mutation| {
+        if *mutation_busy.peek() {
+            return;
+        }
+        mutation_busy.set(true);
+        spawn(async move {
+            let _ = crate::owner_detail_delivery::mutate_procurement_owner(mutation).await;
+            mutation_busy.set(false);
+            mutation_resource.restart();
+        });
+    });
+    let on_retry = EventHandler::new(move |_| resource.restart());
+    rsx! {
+        erpx_console_feature_procurement::ProcurementOwnerDetailSurface {
+            expected_record,
+            state,
+            locale,
+            on_mutate,
+            on_retry,
+            mutation_busy: mutation_busy(),
+        }
+    }
+}
+
+#[cfg(feature = "native")]
 #[component]
 fn Phase5ProcurementOwnerDetail(record: CatalogRecord) -> Element {
     let locale = erpx_ui_core::use_locale().current();
@@ -2794,6 +2858,70 @@ fn Phase5ProcurementOwnerDetail(record: CatalogRecord) -> Element {
     }
 }
 
+#[cfg(any(feature = "web", feature = "server"))]
+fn finance_owner_error_state(
+    error: erpx_console_feature_finance::FinanceOwnerGatewayError,
+) -> erpx_console_feature_finance::FinanceOwnerDetailState {
+    use erpx_console_feature_finance::{
+        FinanceOwnerDetailState as State, FinanceOwnerGatewayError as Error,
+    };
+    match error {
+        Error::Denied => State::Denied,
+        Error::Offline => State::Offline,
+        Error::Conflict | Error::Stale | Error::Unavailable | Error::Invalid => {
+            State::Unavailable { retryable: true }
+        }
+    }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+#[component]
+fn Phase5FinanceOwnerDetail(record: CatalogRecord) -> Element {
+    let locale = erpx_ui_core::use_locale().current();
+    let requested_record = record.record().clone();
+    let expected_record = requested_record.clone();
+    let mut resource = use_server_future(move || {
+        let requested_record = requested_record.clone();
+        async move {
+            crate::owner_detail_delivery::load_finance_owner(requested_record)
+                .await
+                .unwrap_or(Err(
+                    erpx_console_feature_finance::FinanceOwnerGatewayError::Offline,
+                ))
+        }
+    })?;
+    let state = resource
+        .read()
+        .clone()
+        .expect("resolved finance owner future has a value")
+        .unwrap_or_else(finance_owner_error_state);
+    let mut mutation_busy = use_signal(|| false);
+    let mut mutation_resource = resource;
+    let on_mutate = EventHandler::new(move |mutation| {
+        if *mutation_busy.peek() {
+            return;
+        }
+        mutation_busy.set(true);
+        spawn(async move {
+            let _ = crate::owner_detail_delivery::mutate_finance_owner(mutation).await;
+            mutation_busy.set(false);
+            mutation_resource.restart();
+        });
+    });
+    let on_retry = EventHandler::new(move |_| resource.restart());
+    rsx! {
+        erpx_console_feature_finance::FinanceOwnerDetailSurface {
+            expected_record,
+            state,
+            locale,
+            on_mutate,
+            on_retry,
+            mutation_busy: mutation_busy(),
+        }
+    }
+}
+
+#[cfg(feature = "native")]
 #[component]
 fn Phase5FinanceOwnerDetail(record: CatalogRecord) -> Element {
     let locale = erpx_ui_core::use_locale().current();

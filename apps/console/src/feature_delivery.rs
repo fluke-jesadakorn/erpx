@@ -333,7 +333,7 @@ pub async fn command_identity_principal(
 }
 
 #[cfg(feature = "server")]
-mod server {
+pub(crate) mod server {
     use chrono::{DateTime, Utc};
     use dioxus::fullstack::FullstackContext;
     use dioxus::server::axum::http::{HeaderValue, header};
@@ -350,7 +350,7 @@ mod server {
     use super::*;
     use crate::bff::{BffCredential, BffSessionContext, BffState};
 
-    struct FeatureAuthority {
+    pub(crate) struct FeatureAuthority {
         state: BffState,
         credential: BffCredential,
         scope_key: String,
@@ -358,7 +358,7 @@ mod server {
         actor_kind: ActorKind,
     }
 
-    fn delivery_status(status: tonic::Status) -> DeliveryError {
+    pub(crate) fn delivery_status(status: tonic::Status) -> DeliveryError {
         let retryable = matches!(
             status.code(),
             tonic::Code::Unavailable | tonic::Code::DeadlineExceeded | tonic::Code::Cancelled
@@ -381,7 +381,7 @@ mod server {
         }
     }
 
-    fn feature_authority() -> Result<FeatureAuthority, DeliveryError> {
+    pub(crate) fn feature_authority() -> Result<FeatureAuthority, DeliveryError> {
         let context = FullstackContext::current()
             .ok_or_else(|| DeliveryError::Unavailable(error_meta(true, Some(500))))?;
         context.add_response_header(
@@ -413,12 +413,52 @@ mod server {
         })
     }
 
-    async fn channel(authority: &FeatureAuthority) -> Result<Channel, DeliveryError> {
+    pub(crate) async fn channel(authority: &FeatureAuthority) -> Result<Channel, DeliveryError> {
         tonic::transport::Endpoint::from_shared(authority.state.grpc_origin().to_owned())
             .map_err(|_| DeliveryError::Unavailable(error_meta(true, Some(500))))?
             .connect()
             .await
             .map_err(|_| DeliveryError::Unavailable(error_meta(true, Some(500))))
+    }
+
+    pub(crate) fn reference_scope(
+        authority: &FeatureAuthority,
+    ) -> Result<erpx_proto::erpx::interface::AuthorityScope, DeliveryError> {
+        use erpx_proto::common::authority_scope::Scope;
+        use erpx_proto::erpx::interface::{AuthorityScope, AuthorityScopeLevel};
+
+        let mut result = AuthorityScope {
+            level: AuthorityScopeLevel::Unspecified as i32,
+            holding_id: None,
+            company_id: None,
+            branch_id: None,
+            organization_node_id: None,
+        };
+        match authority.scope.scope.as_ref() {
+            Some(Scope::Platform(_)) => result.level = AuthorityScopeLevel::Platform as i32,
+            Some(Scope::Holding(value)) => {
+                result.level = AuthorityScopeLevel::Holding as i32;
+                result.holding_id = Some(value.holding_id.clone());
+            }
+            Some(Scope::Company(value)) => {
+                result.level = AuthorityScopeLevel::Company as i32;
+                result.holding_id = Some(value.holding_id.clone());
+                result.company_id = Some(value.company_id.clone());
+            }
+            Some(Scope::Branch(value)) => {
+                result.level = AuthorityScopeLevel::Branch as i32;
+                result.holding_id = Some(value.holding_id.clone());
+                result.company_id = Some(value.company_id.clone());
+                result.branch_id = Some(value.branch_id.clone());
+            }
+            Some(Scope::Subtree(value)) => {
+                result.level = AuthorityScopeLevel::Subtree as i32;
+                result.holding_id = Some(value.holding_id.clone());
+                result.organization_node_id = Some(value.organization_node_id.clone());
+            }
+            None => return Err(DeliveryError::Forbidden(error_meta(false, None))),
+        }
+        Ok(result)
     }
 
     fn actor(authority: &FeatureAuthority) -> ActorAttribution {
@@ -460,7 +500,7 @@ mod server {
         }
     }
 
-    fn query_context(
+    pub(super) fn query_context(
         authority: &FeatureAuthority,
         consistency_mode: &FeatureConsistency,
         module: &str,
@@ -483,7 +523,7 @@ mod server {
         }
     }
 
-    fn query_metadata(
+    pub(crate) fn query_metadata(
         authority: &FeatureAuthority,
         consistency_mode: &FeatureConsistency,
         module: &str,
@@ -536,7 +576,42 @@ mod server {
         }
     }
 
-    fn authenticated<T>(
+    pub(crate) fn owner_command_metadata(
+        authority: &FeatureAuthority,
+        route: HoldingRoute,
+        module: &'static str,
+        action: &'static str,
+        record_id: Uuid,
+        expected_version: u64,
+        correlation_id: Uuid,
+    ) -> CommandRequestMetadata {
+        let idempotency_key = format!("{module}:{action}:{record_id}:{expected_version}");
+        let command_id = Uuid::new_v5(
+            &Uuid::NAMESPACE_URL,
+            format!("erpx:owner-command:{idempotency_key}").as_bytes(),
+        );
+        CommandRequestMetadata {
+            contract_version: 1,
+            command_id: command_id.to_string(),
+            idempotency_key,
+            correlation_id: correlation_id.to_string(),
+            causation_id: None,
+            actor: Some(actor(authority)),
+            active_scope: Some(authority.scope.clone()),
+            audit: Some(AuditContext {
+                purpose: format!("{action} from the authorized owner detail"),
+                customer_visible: true,
+                module: module.into(),
+                correlation_id: correlation_id.to_string(),
+            }),
+            expected_aggregate_version: Some(expected_version),
+            subscription_id: None,
+            mfa_code: None,
+            holding_route: Some(route),
+        }
+    }
+
+    pub(crate) fn authenticated<T>(
         authority: &FeatureAuthority,
         message: T,
     ) -> Result<Request<T>, DeliveryError> {
@@ -876,17 +951,19 @@ mod server {
         })
     }
 
-    async fn identity_route(
+    pub(crate) async fn resolve_holding_route(
         authority: &FeatureAuthority,
         consistency_mode: &FeatureConsistency,
+        module: &'static str,
+        purpose: &'static str,
     ) -> Result<HoldingRoute, DeliveryError> {
         let correlation_id = Uuid::new_v4();
         let wire = platform::ResolveActiveHoldingRouteRequest {
             context: Some(query_context(
                 authority,
                 consistency_mode,
-                "identity-access",
-                "resolve active identity holding route",
+                module,
+                purpose,
                 correlation_id,
             )),
         };
@@ -906,6 +983,19 @@ mod server {
             holding_id: route.holding_id,
             data_profile_key: route.data_profile_key,
         })
+    }
+
+    async fn identity_route(
+        authority: &FeatureAuthority,
+        consistency_mode: &FeatureConsistency,
+    ) -> Result<HoldingRoute, DeliveryError> {
+        resolve_holding_route(
+            authority,
+            consistency_mode,
+            "identity-access",
+            "resolve active identity holding route",
+        )
+        .await
     }
 
     fn projection_evidence(
