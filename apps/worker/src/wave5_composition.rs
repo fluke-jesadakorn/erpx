@@ -13,7 +13,9 @@ use std::{
 };
 
 use async_trait::async_trait;
-use erpx_collaboration_sqlx::GLOBAL_RELATION_DRAFT_EVENT_TYPE;
+use erpx_collaboration_sqlx::{
+    GLOBAL_RELATION_DRAFT_EVENT_TYPE, GLOBAL_THREAD_SNAPSHOT_EVENT_TYPE,
+};
 use erpx_cqrs_sqlx::{ProjectionPool, ProjectionRun, ProjectionRunnerConfig, WritePool};
 use erpx_infrastructure::SqlxControlPlane;
 use erpx_integration_contracts::ITEM_DIRECTORY_OWNER_EVENT_TYPE;
@@ -308,10 +310,13 @@ async fn refresh_global_projection_state(
         "SELECT COALESCE(MAX(global_sequence),0)::BIGINT
          FROM erpx_cqrs_write.outbox_events WHERE
            (event_type=$1 AND context_name='platform_administration')
-           OR (event_type=$2 AND context_name='collaboration')",
+           OR (event_type=ANY($2::TEXT[]) AND context_name='collaboration')",
     )
     .bind(ITEM_DIRECTORY_OWNER_EVENT_TYPE)
-    .bind(GLOBAL_RELATION_DRAFT_EVENT_TYPE)
+    .bind([
+        GLOBAL_RELATION_DRAFT_EVENT_TYPE,
+        GLOBAL_THREAD_SNAPSHOT_EVENT_TYPE,
+    ])
     .fetch_one(write)
     .await
     .map_err(database_configuration_error)?;
@@ -320,7 +325,9 @@ async fn refresh_global_projection_state(
            COALESCE((SELECT MAX(source_event_position)
                      FROM erpx_global_collaboration_read.descriptors),0),
            COALESCE((SELECT MAX(committed_sequence)
-                     FROM erpx_global_collaboration_read.relations),0)
+                     FROM erpx_global_collaboration_read.relations),0),
+           COALESCE((SELECT MAX(source_event_position)
+                     FROM erpx_global_collaboration_read.thread_projection),0)
          )::BIGINT AS applied_position",
     )
     .fetch_one(read)

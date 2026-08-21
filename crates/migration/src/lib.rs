@@ -1036,7 +1036,7 @@ mod tests {
 
     #[test]
     fn control_plane_migration_is_embedded_and_has_the_expected_schema() {
-        assert_eq!(CONTROL_PLANE_MIGRATOR.iter().count(), 3);
+        assert_eq!(CONTROL_PLANE_MIGRATOR.iter().count(), 4);
         let initial = CONTROL_PLANE_MIGRATOR
             .iter()
             .next()
@@ -2312,6 +2312,15 @@ mod tests {
                     .contains("OLD.lifecycle='pending_upload' AND NEW.lifecycle='pending_scan'")
             );
         }
+        let global_thread_snapshot = CONTROL_PLANE_MIGRATOR
+            .iter()
+            .find(|migration| migration.sql.contains("ADD COLUMN thread_document JSONB"))
+            .expect("forward-only global thread document migration");
+        assert!(
+            global_thread_snapshot
+                .sql
+                .contains("ALTER TABLE erpx_global_collaboration.threads")
+        );
     }
 
     #[test]

@@ -16,11 +16,13 @@ pub use attachment::{SqlxAttachmentRegistry, attachment_object_key};
 pub use authorization::SqlxCollaborationAuthorization;
 pub use directory::*;
 pub use global::{
-    GlobalCollaborationAccess, GlobalCollaborationOutcome, SqlxGlobalCollaborationGateway,
+    GlobalCollaborationAccess, GlobalCollaborationOutcome, GlobalThreadPage,
+    SqlxGlobalCollaborationGateway,
 };
 pub use global_projection::{
     GLOBAL_COLLABORATION_PROJECTION, GLOBAL_RELATION_DRAFT_EVENT_TYPE,
-    GlobalCollaborationProjector, GlobalRelationDraft, GlobalRelationDraftKind,
+    GLOBAL_THREAD_SNAPSHOT_EVENT_TYPE, GlobalCollaborationProjector, GlobalRelationDraft,
+    GlobalRelationDraftKind, GlobalThreadDocument,
 };
 pub use projection::{
     CollaborationInboxProjectionFact, CollaborationInboxProjector,

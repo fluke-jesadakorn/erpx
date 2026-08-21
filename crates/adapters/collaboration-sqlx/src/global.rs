@@ -16,15 +16,20 @@ use uuid::Uuid;
 
 use crate::{
     DirectoryAdapterError, DirectoryLookup, DirectorySearchPage, DirectorySearchRequest,
-    GLOBAL_RELATION_DRAFT_EVENT_TYPE, GlobalRelationDraft, GlobalRelationDraftKind,
-    ProjectionFreshness,
+    GLOBAL_RELATION_DRAFT_EVENT_TYPE, GLOBAL_THREAD_SNAPSHOT_EVENT_TYPE, GlobalRelationDraft,
+    GlobalRelationDraftKind, GlobalThreadDocument, ProjectionFreshness,
 };
 use erpx_collaboration::{
-    CollaborationError, MutationIdentity, PortError, PrincipalRef, RecordRelationGraph, RelationId,
-    RelationKind, RelationMutationReceipt, RelationPage, RelationView,
-    record_relation_graph_thread_id,
+    Audience, CollaborationError, CommentDocument, CommentId, CommentProjectionContent,
+    CommentProjectionV2, CommentVisibility, CommitReceipt, FollowerView, MandatoryFollowReason,
+    MutationIdentity, PortError, PrincipalRef, RecordRelationGraph, RelationId, RelationKind,
+    RelationMutationReceipt, RelationPage, RelationView, RetentionPolicy, ThreadId,
+    ThreadProjectionV2, ThreadState, record_relation_graph_thread_id,
 };
-use erpx_integration_contracts::{AuthorizedItemSummary, ItemDescriptor, StableRecordRef};
+use erpx_integration_contracts::{
+    AuthorizedItemSummary, ItemDescriptor, StableRecordRef, record_collaboration_policy,
+    record_policy_id,
+};
 use erpx_kernel::RecordId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -97,6 +102,14 @@ impl GlobalCollaborationOutcome {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GlobalThreadPage {
+    pub items: Vec<ThreadProjectionV2>,
+    pub next_cursor: Option<String>,
+    pub authorized_count: u64,
+    pub projection_checkpoint: u64,
+}
+
 /// Explicit control write/read pools are injected by the server composition.
 /// Holding database pools are not accepted by this type's constructor.
 #[derive(Debug, Clone)]
@@ -106,6 +119,449 @@ pub struct SqlxGlobalCollaborationGateway {
 }
 
 impl SqlxGlobalCollaborationGateway {
+    #[allow(clippy::too_many_arguments)]
+    pub async fn start_thread_with_comment(
+        &self,
+        access: &GlobalCollaborationAccess,
+        identity: MutationIdentity,
+        thread_id: ThreadId,
+        record: StableRecordRef,
+        comment_id: CommentId,
+        document: CommentDocument,
+        at: DateTime<Utc>,
+    ) -> Result<CommitReceipt, PortError> {
+        identity.validate()?;
+        if identity.correlation_id != access.correlation_id() {
+            return Err(PortError::Denied);
+        }
+        self.authorize_record(access, &record, false).await?;
+        let policy = record_collaboration_policy(record.record_type().as_str())
+            .filter(|policy| {
+                policy.owner == record.owner_context()
+                    && policy.discussion_threads_enabled
+                    && policy.human_internal_mutations_only
+            })
+            .ok_or(PortError::Denied)?;
+        if record.owner_context()
+            != erpx_integration_contracts::catalog::ContextId::PlatformAdministration
+        {
+            return Err(PortError::Denied);
+        }
+        let retain_until = at
+            .checked_add_signed(chrono::Duration::days(i64::from(
+                policy.retention.minimum_days,
+            )))
+            .ok_or(PortError::InvalidState)?;
+        let actor = PrincipalRef::new(access.principal_id(), PrincipalKind::Human);
+        let projection = ThreadProjectionV2 {
+            id: thread_id,
+            anchor: record.clone(),
+            version: 2,
+            classification: policy.classification,
+            audience: Audience::Internal {
+                scope: AuthorityScope::Platform,
+                principals: Vec::new(),
+            },
+            retention: RetentionPolicy {
+                parent_retain_until: retain_until,
+                comment_retain_until: retain_until,
+                jurisdiction_retain_until: retain_until,
+                legal_holds: std::collections::BTreeSet::new(),
+            },
+            state: ThreadState::Open,
+            pinned: false,
+            external_portal: None,
+            comments: vec![CommentProjectionV2 {
+                id: comment_id,
+                author: actor,
+                revision: 1,
+                content: CommentProjectionContent::Visible(document),
+                visibility: CommentVisibility::Visible,
+                attachments: Vec::new(),
+                reactions: Vec::new(),
+                created_at: at,
+                updated_at: at,
+            }],
+            followers: vec![FollowerView {
+                principal: actor,
+                mandatory_reason: Some(MandatoryFollowReason::Author),
+                muted_until: None,
+                snoozed_until: None,
+            }],
+            projection_cursor: 0,
+            projection_checkpoint: 0,
+            stale: false,
+        };
+        let global = GlobalThreadDocument {
+            projection,
+            authorization_policy_id: record_policy_id(&record)
+                .map_err(|_| PortError::InvalidState)?,
+            created_by: access.principal_id(),
+            created_by_session_id: access.session_id(),
+            created_at: at,
+            updated_at: at,
+        };
+        global.validate(true).map_err(|_| PortError::InvalidState)?;
+        let mut transaction = self.control_write.begin().await.map_err(database_error)?;
+        if let Some(receipt) = load_thread_receipt(&mut transaction, &identity).await? {
+            if receipt.thread_id != thread_id {
+                return Err(PortError::Conflict);
+            }
+            return Ok(receipt);
+        }
+        let document_json = serde_json::to_value(&global).map_err(|_| PortError::InvalidState)?;
+        let record_json = serde_json::to_value(&record).map_err(|_| PortError::InvalidState)?;
+        let audience_json = serde_json::to_value(&global.projection.audience)
+            .map_err(|_| PortError::InvalidState)?;
+        let retention_json = serde_json::to_value(&global.projection.retention)
+            .map_err(|_| PortError::InvalidState)?;
+        let policy_json = serde_json::json!({
+            "record_type": policy.record_type,
+            "owner": policy.owner.slug(),
+            "version": policy.version,
+            "human_internal_mutations_only": policy.human_internal_mutations_only,
+        });
+        sqlx::query(
+            "INSERT INTO erpx_global_collaboration.threads
+             (thread_id,anchor_record_id,anchor_record_ref,owner_context,record_type,
+              authorization_policy_id,policy_document,anchor_document,audience_document,
+              retention_document,classification,thread_state,pinned,aggregate_version,
+              created_by_principal_id,created_by_session_id,created_at,updated_at,thread_document)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'open',FALSE,2,$12,$13,$14,$14,$15)",
+        )
+        .bind(thread_id.as_uuid())
+        .bind(record.id().as_uuid())
+        .bind(&record_json)
+        .bind(record.owner_context().slug())
+        .bind(record.record_type().as_str())
+        .bind(global.authorization_policy_id.as_uuid())
+        .bind(policy_json)
+        .bind(&record_json)
+        .bind(audience_json)
+        .bind(retention_json)
+        .bind(global_classification_name(global.projection.classification))
+        .bind(access.principal_id().as_uuid())
+        .bind(access.session_id())
+        .bind(at)
+        .bind(&document_json)
+        .execute(&mut *transaction)
+        .await
+        .map_err(database_error)?;
+        let comment = global
+            .projection
+            .comments
+            .first()
+            .ok_or(PortError::InvalidState)?;
+        let CommentProjectionContent::Visible(comment_document) = &comment.content else {
+            return Err(PortError::InvalidState);
+        };
+        sqlx::query(
+            "INSERT INTO erpx_global_collaboration.comments
+             (thread_id,comment_id,author_principal_id,author_session_id,visibility,
+              tombstoned_at,created_at,updated_at)
+             VALUES ($1,$2,$3,$4,'visible',NULL,$5,$5)",
+        )
+        .bind(thread_id.as_uuid())
+        .bind(comment_id.as_uuid())
+        .bind(access.principal_id().as_uuid())
+        .bind(access.session_id())
+        .bind(at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(database_error)?;
+        sqlx::query(
+            "INSERT INTO erpx_global_collaboration.comment_revisions
+             (thread_id,comment_id,revision,author_principal_id,author_session_id,document,
+              plain_text,content_digest,attachments,created_at)
+             VALUES ($1,$2,1,$3,$4,$5,$6,$7,'[]'::JSONB,$8)",
+        )
+        .bind(thread_id.as_uuid())
+        .bind(comment_id.as_uuid())
+        .bind(access.principal_id().as_uuid())
+        .bind(access.session_id())
+        .bind(serde_json::to_value(comment_document).map_err(|_| PortError::InvalidState)?)
+        .bind(comment_document.plain_text())
+        .bind(comment_document.digest().to_vec())
+        .bind(at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(database_error)?;
+        sqlx::query(
+            "INSERT INTO erpx_global_collaboration.followers
+             (thread_id,principal_id,principal_session_id,muted_until,snoozed_until,
+              followed_at,updated_at) VALUES ($1,$2,$3,NULL,NULL,$4,$4)",
+        )
+        .bind(thread_id.as_uuid())
+        .bind(access.principal_id().as_uuid())
+        .bind(access.session_id())
+        .bind(at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(database_error)?;
+        let event_id = Uuid::new_v4();
+        let event_cursor: i64 = sqlx::query_scalar(
+            "INSERT INTO erpx_global_collaboration.thread_events
+             (event_id,thread_id,aggregate_version,event_type,event_version,payload,
+              actor_principal_id,actor_session_id,command_id,correlation_id,occurred_at)
+             VALUES ($1,$2,2,$3,2,$4,$5,$6,$7,$8,$9) RETURNING event_cursor",
+        )
+        .bind(event_id)
+        .bind(thread_id.as_uuid())
+        .bind("collaboration.global_thread_snapshot")
+        .bind(&document_json)
+        .bind(access.principal_id().as_uuid())
+        .bind(access.session_id())
+        .bind(identity.command_id.as_uuid())
+        .bind(identity.correlation_id.as_uuid())
+        .bind(at)
+        .fetch_one(&mut *transaction)
+        .await
+        .map_err(database_error)?;
+        let actor_document = ActorAttribution {
+            principal_ref: access.principal_id().to_string(),
+            kind: ActorKind::PlatformUser,
+            session_id: Some(
+                SessionId::try_from_uuid(access.session_id()).map_err(|_| PortError::Denied)?,
+            ),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        };
+        sqlx::query(
+            "INSERT INTO erpx_cqrs_write.outbox_events
+             (event_id,context_name,partition_key,command_id,event_type,event_version,
+              aggregate_type,aggregate_id,aggregate_version,active_scope,actor,correlation_id,
+              causation_id,payload,occurred_at,available_at)
+             VALUES ($1,'collaboration',$2,$3,$4,2,'global_thread',$5,2,$6,$7,$8,NULL,$9,$10,$10)",
+        )
+        .bind(event_id)
+        .bind(thread_id.as_uuid().to_string())
+        .bind(identity.command_id.as_uuid())
+        .bind(GLOBAL_THREAD_SNAPSHOT_EVENT_TYPE)
+        .bind(thread_id.as_uuid())
+        .bind(serde_json::to_value(AuthorityScope::Platform).map_err(|_| PortError::Internal)?)
+        .bind(serde_json::to_value(actor_document).map_err(|_| PortError::Internal)?)
+        .bind(identity.correlation_id.as_uuid())
+        .bind(&document_json)
+        .bind(at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(database_error)?;
+        sqlx::query(
+            "INSERT INTO erpx_global_collaboration.thread_command_receipts
+             (idempotency_key,command_id,request_digest,thread_id,aggregate_version,
+              last_event_cursor,created_at) VALUES ($1,$2,$3,$4,2,$5,$6)",
+        )
+        .bind(&identity.idempotency_key)
+        .bind(identity.command_id.as_uuid())
+        .bind(identity.request_digest.to_vec())
+        .bind(thread_id.as_uuid())
+        .bind(event_cursor)
+        .bind(at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(database_error)?;
+        insert_allowed_thread_audit(
+            &mut transaction,
+            access,
+            "thread.start",
+            record.id().as_uuid(),
+            identity.command_id.as_uuid(),
+            at,
+        )
+        .await?;
+        transaction.commit().await.map_err(database_error)?;
+        Ok(CommitReceipt {
+            thread_id,
+            aggregate_version: 2,
+            last_event_cursor: to_u64(event_cursor)?,
+            replayed: false,
+        })
+    }
+
+    pub async fn get_thread_v2(
+        &self,
+        access: &GlobalCollaborationAccess,
+        thread_id: ThreadId,
+    ) -> Result<ThreadProjectionV2, PortError> {
+        let mut transaction = self.control_read.begin().await.map_err(database_error)?;
+        self.attest_picker_records(&mut transaction, access).await?;
+        let row = sqlx::query(
+            "WITH checkpoint AS MATERIALIZED (
+               SELECT applied_position,COALESCE(state='ready'
+                 AND applied_position=source_high_watermark
+                 AND last_success_at BETWEEN statement_timestamp()-INTERVAL '60 seconds'
+                                         AND statement_timestamp(),FALSE) AS fresh
+               FROM erpx_global_collaboration_read.projection_state WHERE singleton=TRUE
+             ), authorized AS MATERIALIZED (
+               SELECT thread.projection_document
+               FROM checkpoint
+               JOIN erpx_global_collaboration_read.thread_projection thread
+                 ON thread.thread_id=$1
+                AND thread.source_event_position<=checkpoint.applied_position
+               JOIN erpx_global_collaboration_read.descriptors descriptor
+                 ON descriptor.record_id=thread.anchor_record_id
+                AND descriptor.record_ref=thread.anchor_record_ref
+                AND descriptor.record_scope=to_jsonb('Platform'::TEXT)
+                AND descriptor.tombstoned_at IS NULL
+                AND descriptor.authorization_policy_id=thread.authorization_policy_id
+                AND descriptor.source_event_position<=checkpoint.applied_position
+               JOIN erpx_global_collaboration_read.effective_grants grant_fact
+                 ON grant_fact.record_id=descriptor.record_id AND grant_fact.principal_id=$2
+                AND grant_fact.can_view
+                AND grant_fact.authorization_policy_id=descriptor.authorization_policy_id
+                AND grant_fact.policy_version=descriptor.authorization_policy_version
+                AND grant_fact.source_event_position>=descriptor.source_event_position
+                AND grant_fact.source_event_position<=checkpoint.applied_position
+                AND grant_fact.effective_at<=statement_timestamp()
+                AND grant_fact.expires_at>statement_timestamp()
+               WHERE checkpoint.fresh
+             )
+             SELECT checkpoint.fresh,authorized.projection_document
+             FROM checkpoint LEFT JOIN authorized ON TRUE",
+        )
+        .bind(thread_id.as_uuid())
+        .bind(access.principal_id().as_uuid())
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(database_error)?
+        .ok_or(PortError::Unavailable)?;
+        if !row.try_get::<bool, _>("fresh").unwrap_or(false) {
+            return Err(PortError::Stale);
+        }
+        let document = row
+            .try_get::<Option<serde_json::Value>, _>("projection_document")
+            .map_err(|_| PortError::Internal)?
+            .ok_or(PortError::NotFound)?;
+        let projection = serde_json::from_value::<ThreadProjectionV2>(document)
+            .map_err(|_| PortError::Internal)?;
+        if projection.id != thread_id || projection.stale {
+            return Err(PortError::Internal);
+        }
+        transaction.commit().await.map_err(database_error)?;
+        Ok(projection)
+    }
+
+    pub async fn list_threads_by_record_v2(
+        &self,
+        access: &GlobalCollaborationAccess,
+        record: &StableRecordRef,
+        page_size: u16,
+        cursor: Option<&str>,
+    ) -> Result<GlobalThreadPage, PortError> {
+        if page_size == 0 || page_size > 100 {
+            return Err(PortError::InvalidState);
+        }
+        let offset = cursor
+            .map(str::parse::<i64>)
+            .transpose()
+            .map_err(|_| PortError::InvalidState)?
+            .unwrap_or(0);
+        if offset < 0 {
+            return Err(PortError::InvalidState);
+        }
+        let record_json = serde_json::to_value(record).map_err(|_| PortError::InvalidState)?;
+        let mut transaction = self.control_read.begin().await.map_err(database_error)?;
+        self.attest_record(
+            &mut transaction,
+            access,
+            record.id().as_uuid(),
+            Some(&record_json),
+            false,
+        )
+        .await?;
+        let rows = sqlx::query(
+            "WITH checkpoint AS MATERIALIZED (
+               SELECT applied_position,COALESCE(state='ready'
+                 AND applied_position=source_high_watermark
+                 AND last_success_at BETWEEN statement_timestamp()-INTERVAL '60 seconds'
+                                         AND statement_timestamp(),FALSE) AS fresh
+               FROM erpx_global_collaboration_read.projection_state WHERE singleton=TRUE
+             ), anchor_authorized AS MATERIALIZED (
+               SELECT checkpoint.applied_position
+               FROM checkpoint
+               JOIN erpx_global_collaboration_read.descriptors descriptor
+                 ON descriptor.record_id=$1 AND descriptor.record_ref=$2::JSONB
+                AND descriptor.record_scope=to_jsonb('Platform'::TEXT)
+                AND descriptor.tombstoned_at IS NULL
+                AND descriptor.source_event_position<=checkpoint.applied_position
+               JOIN erpx_global_collaboration_read.effective_grants grant_fact
+                 ON grant_fact.record_id=descriptor.record_id AND grant_fact.principal_id=$3
+                AND grant_fact.can_view
+                AND grant_fact.authorization_policy_id=descriptor.authorization_policy_id
+                AND grant_fact.policy_version=descriptor.authorization_policy_version
+                AND grant_fact.source_event_position>=descriptor.source_event_position
+                AND grant_fact.source_event_position<=checkpoint.applied_position
+                AND grant_fact.effective_at<=statement_timestamp()
+                AND grant_fact.expires_at>statement_timestamp()
+               WHERE checkpoint.fresh
+             ), authorized AS MATERIALIZED (
+               SELECT thread.thread_id,thread.projection_document,thread.updated_at
+               FROM anchor_authorized
+               JOIN erpx_global_collaboration_read.thread_projection thread
+                 ON thread.anchor_record_id=$1 AND thread.anchor_record_ref=$2::JSONB
+                AND thread.source_event_position<=anchor_authorized.applied_position
+             ), authorized_count AS MATERIALIZED (
+               SELECT count(*)::BIGINT AS count FROM authorized
+             ), page AS MATERIALIZED (
+               SELECT thread_id,projection_document FROM authorized
+               ORDER BY updated_at DESC,thread_id LIMIT $4 OFFSET $5
+             )
+             SELECT checkpoint.fresh,checkpoint.applied_position,authorized_count.count,
+                    page.projection_document
+             FROM checkpoint CROSS JOIN authorized_count LEFT JOIN page ON checkpoint.fresh",
+        )
+        .bind(record.id().as_uuid())
+        .bind(record_json)
+        .bind(access.principal_id().as_uuid())
+        .bind(i64::from(page_size))
+        .bind(offset)
+        .fetch_all(&mut *transaction)
+        .await
+        .map_err(database_error)?;
+        let first = rows.first().ok_or(PortError::Unavailable)?;
+        if !first.try_get::<bool, _>("fresh").unwrap_or(false) {
+            return Err(PortError::Stale);
+        }
+        let checkpoint = to_u64(
+            first
+                .try_get::<i64, _>("applied_position")
+                .map_err(|_| PortError::Internal)?,
+        )?;
+        let authorized_count = to_u64(
+            first
+                .try_get::<i64, _>("count")
+                .map_err(|_| PortError::Internal)?,
+        )?;
+        let items = rows
+            .into_iter()
+            .filter_map(|row| {
+                row.try_get::<Option<serde_json::Value>, _>("projection_document")
+                    .ok()
+                    .flatten()
+            })
+            .map(|document| {
+                serde_json::from_value::<ThreadProjectionV2>(document)
+                    .map_err(|_| PortError::Internal)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        if items
+            .iter()
+            .any(|item| item.anchor != *record || item.stale)
+        {
+            return Err(PortError::Internal);
+        }
+        let consumed = offset
+            .checked_add(i64::try_from(items.len()).map_err(|_| PortError::Internal)?)
+            .ok_or(PortError::Internal)?;
+        transaction.commit().await.map_err(database_error)?;
+        Ok(GlobalThreadPage {
+            items,
+            next_cursor: (to_u64(consumed)? < authorized_count).then(|| consumed.to_string()),
+            authorized_count,
+            projection_checkpoint: checkpoint,
+        })
+    }
+
     pub const fn from_control_plane(control_write: PgPool, control_read: PgPool) -> Self {
         Self {
             control_write,
@@ -1079,6 +1535,83 @@ impl SqlxGlobalCollaborationGateway {
             relation: receipt_relation,
             replayed: false,
         })
+    }
+}
+
+async fn load_thread_receipt(
+    transaction: &mut Transaction<'_, Postgres>,
+    identity: &MutationIdentity,
+) -> Result<Option<CommitReceipt>, PortError> {
+    let Some(row) = sqlx::query(
+        "SELECT request_digest,thread_id,aggregate_version,last_event_cursor
+         FROM erpx_global_collaboration.thread_command_receipts WHERE idempotency_key=$1",
+    )
+    .bind(&identity.idempotency_key)
+    .fetch_optional(&mut **transaction)
+    .await
+    .map_err(database_error)?
+    else {
+        return Ok(None);
+    };
+    let digest: Vec<u8> = row
+        .try_get("request_digest")
+        .map_err(|_| PortError::Internal)?;
+    if digest.as_slice() != identity.request_digest {
+        return Err(PortError::Conflict);
+    }
+    Ok(Some(CommitReceipt {
+        thread_id: ThreadId::try_from_uuid(
+            row.try_get::<Uuid, _>("thread_id")
+                .map_err(|_| PortError::Internal)?,
+        )
+        .map_err(|_| PortError::Internal)?,
+        aggregate_version: to_u64(
+            row.try_get::<i64, _>("aggregate_version")
+                .map_err(|_| PortError::Internal)?,
+        )?,
+        last_event_cursor: to_u64(
+            row.try_get::<i64, _>("last_event_cursor")
+                .map_err(|_| PortError::Internal)?,
+        )?,
+        replayed: true,
+    }))
+}
+
+async fn insert_allowed_thread_audit(
+    transaction: &mut Transaction<'_, Postgres>,
+    access: &GlobalCollaborationAccess,
+    operation: &'static str,
+    anchor_record_id: Uuid,
+    command_id: Uuid,
+    at: DateTime<Utc>,
+) -> Result<(), PortError> {
+    sqlx::query(
+        "INSERT INTO erpx_global_collaboration.gateway_audit
+         (audit_id,operation,actor_principal_id,actor_session_id,authority_scope,
+          source_record_id,target_record_id,attachment_id,command_id,correlation_id,
+          outcome,occurred_at)
+         VALUES ($1,$2,$3,$4,to_jsonb('Platform'::TEXT),$5,NULL,NULL,$6,$7,'allowed',$8)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(operation)
+    .bind(access.principal_id().as_uuid())
+    .bind(access.session_id())
+    .bind(anchor_record_id)
+    .bind(command_id)
+    .bind(access.correlation_id().as_uuid())
+    .bind(at)
+    .execute(&mut **transaction)
+    .await
+    .map_err(database_error)?;
+    Ok(())
+}
+
+const fn global_classification_name(value: erpx_kernel::DataClassification) -> &'static str {
+    match value {
+        erpx_kernel::DataClassification::Public => "public",
+        erpx_kernel::DataClassification::Internal => "internal",
+        erpx_kernel::DataClassification::Confidential => "confidential",
+        erpx_kernel::DataClassification::Restricted => "restricted",
     }
 }
 

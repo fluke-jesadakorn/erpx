@@ -925,8 +925,31 @@ impl CollaborationCommandService for CollaborationCommandRpc {
             authority_scope(metadata.authority_scope.as_ref())?.1,
             Scope::Platform
         ) {
+            if !input.attachment_ids.is_empty() {
+                return Err(Status::failed_precondition(
+                    "starting a Platform thread with attachments requires scanner binding",
+                ));
+            }
+            if !input.mentions.is_empty() {
+                return Err(Status::failed_precondition(
+                    "Platform mention delivery is not available for this thread",
+                ));
+            }
             let identity = mutation_identity(metadata)?;
             let record = stable_record_ref(required(input.record.as_ref(), "record")?)?;
+            let document = if let Some(document) = input.document.as_ref() {
+                comment_document(document)?
+            } else {
+                CommentDocument::try_new(
+                    1,
+                    serde_json::json!({
+                        "type": "doc",
+                        "blocks": [{"type": "paragraph", "text": input.plain_text}],
+                    }),
+                    input.plain_text.clone(),
+                )
+                .map_err(|_| Status::invalid_argument("plain_text is invalid"))?
+            };
             let (gateway, access) = platform_global_gateway(
                 &self.state,
                 &claims,
@@ -935,24 +958,41 @@ impl CollaborationCommandService for CollaborationCommandRpc {
                 identity.correlation_id,
             )
             .await?;
-            let outcome = match gateway.authorize_record(&access, &record, false).await {
-                Ok(()) => GlobalCollaborationOutcome::Unavailable,
-                Err(PortError::Denied) => GlobalCollaborationOutcome::Denied,
-                _ => GlobalCollaborationOutcome::Unavailable,
-            };
-            gateway
-                .audit(
+            let result = gateway
+                .start_thread_with_comment(
                     &access,
-                    "thread.start",
-                    Some(record.id().as_uuid()),
-                    None,
-                    None,
-                    Some(identity.command_id.as_uuid()),
-                    outcome,
+                    identity.clone(),
+                    thread_id(&input.thread_id)?,
+                    record.clone(),
+                    comment_id(&input.comment_id)?,
+                    document,
+                    Utc::now(),
                 )
-                .await
-                .map_err(map_collaboration_port_error)?;
-            return Err(Status::unavailable("global thread mutation is unavailable"));
+                .await;
+            let outcome = match &result {
+                Ok(_) => GlobalCollaborationOutcome::Allowed,
+                Err(PortError::Denied | PortError::NotFound) => GlobalCollaborationOutcome::Denied,
+                Err(PortError::Conflict) => GlobalCollaborationOutcome::Conflict,
+                Err(_) => GlobalCollaborationOutcome::Unavailable,
+            };
+            if result.is_err() {
+                gateway
+                    .audit(
+                        &access,
+                        "thread.start",
+                        Some(record.id().as_uuid()),
+                        None,
+                        None,
+                        Some(identity.command_id.as_uuid()),
+                        outcome,
+                    )
+                    .await
+                    .map_err(map_collaboration_port_error)?;
+            }
+            return result
+                .map(mutation_receipt)
+                .map(Response::new)
+                .map_err(map_collaboration_port_error);
         }
         if !input.attachment_ids.is_empty() {
             return Err(Status::failed_precondition(
@@ -1470,6 +1510,7 @@ impl CollaborationQueryService for CollaborationQueryRpc {
             authority_scope(input.authority_scope.as_ref())?.1,
             Scope::Platform
         ) {
+            let thread_id = thread_id(&input.thread_id)?;
             let correlation = CorrelationId::try_from_uuid(Uuid::new_v4())
                 .map_err(|_| Status::internal("correlation generation failed"))?;
             let (gateway, access) = platform_global_gateway(
@@ -1480,21 +1521,33 @@ impl CollaborationQueryService for CollaborationQueryRpc {
                 correlation,
             )
             .await?;
+            let result = gateway.get_thread_v2(&access, thread_id).await;
+            let outcome = match &result {
+                Ok(_) => GlobalCollaborationOutcome::Allowed,
+                Err(PortError::Denied | PortError::NotFound) => GlobalCollaborationOutcome::Denied,
+                Err(PortError::Conflict) => GlobalCollaborationOutcome::Conflict,
+                Err(_) => GlobalCollaborationOutcome::Unavailable,
+            };
             gateway
                 .audit(
                     &access,
                     "thread.get",
+                    result
+                        .as_ref()
+                        .ok()
+                        .map(|thread| thread.anchor.id().as_uuid()),
                     None,
                     None,
                     None,
-                    None,
-                    GlobalCollaborationOutcome::Unavailable,
+                    outcome,
                 )
                 .await
                 .map_err(map_collaboration_port_error)?;
-            return Err(Status::unavailable(
-                "global typed thread projection is unavailable",
-            ));
+            let thread = result.map_err(map_collaboration_port_error)?;
+            return Ok(Response::new(GetThreadV2Response {
+                thread: Some(thread_v2_to_proto(&thread)?),
+                freshness: DirectoryFreshness::Fresh as i32,
+            }));
         }
         let runtime = holding_thread_v2_runtime(
             &self.state,
@@ -1524,9 +1577,54 @@ impl CollaborationQueryService for CollaborationQueryRpc {
             authority_scope(input.authority_scope.as_ref())?.1,
             Scope::Platform
         ) {
-            return Err(Status::unavailable(
-                "global typed thread projection is unavailable",
-            ));
+            let page_size = u16::try_from(input.page_size)
+                .ok()
+                .filter(|value| *value > 0 && *value <= 100)
+                .ok_or_else(|| Status::invalid_argument("page_size is invalid"))?;
+            validate_page(input.page_size, input.cursor.as_deref())?;
+            let record = stable_record_ref(required(input.record.as_ref(), "record")?)?;
+            let correlation = CorrelationId::try_from_uuid(Uuid::new_v4())
+                .map_err(|_| Status::internal("correlation generation failed"))?;
+            let (gateway, access) = platform_global_gateway(
+                &self.state,
+                &claims,
+                input.authority_scope.as_ref(),
+                COLLABORATION_READ_PERMISSION,
+                correlation,
+            )
+            .await?;
+            let result = gateway
+                .list_threads_by_record_v2(&access, &record, page_size, input.cursor.as_deref())
+                .await;
+            let outcome = match &result {
+                Ok(_) => GlobalCollaborationOutcome::Allowed,
+                Err(PortError::Denied | PortError::NotFound) => GlobalCollaborationOutcome::Denied,
+                Err(PortError::Conflict) => GlobalCollaborationOutcome::Conflict,
+                Err(_) => GlobalCollaborationOutcome::Unavailable,
+            };
+            gateway
+                .audit(
+                    &access,
+                    "thread.list",
+                    Some(record.id().as_uuid()),
+                    None,
+                    None,
+                    None,
+                    outcome,
+                )
+                .await
+                .map_err(map_collaboration_port_error)?;
+            let page = result.map_err(map_collaboration_port_error)?;
+            return Ok(Response::new(ListThreadsByRecordV2Response {
+                threads: page
+                    .items
+                    .iter()
+                    .map(thread_v2_to_proto)
+                    .collect::<Result<Vec<_>, _>>()?,
+                next_cursor: page.next_cursor,
+                authorized_count: page.authorized_count,
+                freshness: DirectoryFreshness::Fresh as i32,
+            }));
         }
         let page_size = u16::try_from(input.page_size)
             .ok()
