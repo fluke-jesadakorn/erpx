@@ -130,7 +130,7 @@ impl ReferenceQueryService for ReferenceQueryRpc {
                 .resolve_reference(&access, record_id)
                 .await
                 .map_err(map_directory_error)?;
-            let outcome = match result {
+            let outcome = match &result {
                 DirectoryLookup::Visible { .. } => GlobalCollaborationOutcome::Allowed,
                 DirectoryLookup::Neutral => GlobalCollaborationOutcome::Denied,
                 _ => GlobalCollaborationOutcome::Unavailable,
@@ -200,7 +200,7 @@ impl ReferenceQueryService for ReferenceQueryRpc {
                 )
                 .await
                 .map_err(map_directory_error)?;
-            let outcome = match result {
+            let outcome = match &result {
                 DirectoryLookup::Visible { .. } => GlobalCollaborationOutcome::Allowed,
                 DirectoryLookup::Neutral => GlobalCollaborationOutcome::Denied,
                 _ => GlobalCollaborationOutcome::Unavailable,
@@ -711,10 +711,24 @@ impl CollaborationCommandService for CollaborationCommandRpc {
     ) -> Result<Response<MutationReceipt>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let input = request.into_inner();
+        let metadata = required(input.metadata.as_ref(), "metadata")?;
+        if let Some(runtime) =
+            platform_thread_mutation_runtime(&self.state, &claims, metadata).await?
+        {
+            return mutate_platform_thread(
+                runtime,
+                &input.thread_id,
+                ThreadMutation::WithdrawMention {
+                    mention_event_id: mention_event_id(&input.mention_event_id)?,
+                },
+                Utc::now(),
+            )
+            .await;
+        }
         let runtime = collaboration_command_runtime(
             &self.state,
             &claims,
-            required(input.metadata.as_ref(), "metadata")?,
+            metadata,
             [CollaborationAction::Mention],
         )
         .await?;
@@ -1020,11 +1034,6 @@ impl CollaborationCommandService for CollaborationCommandRpc {
                     "starting a Platform thread with attachments requires scanner binding",
                 ));
             }
-            if !input.mentions.is_empty() {
-                return Err(Status::failed_precondition(
-                    "Platform mention delivery is not available for this thread",
-                ));
-            }
             let identity = mutation_identity(metadata)?;
             let record = stable_record_ref(required(input.record.as_ref(), "record")?)?;
             let document = if let Some(document) = input.document.as_ref() {
@@ -1056,6 +1065,11 @@ impl CollaborationCommandService for CollaborationCommandRpc {
                     record.clone(),
                     comment_id(&input.comment_id)?,
                     document,
+                    input
+                        .mentions
+                        .iter()
+                        .map(mention)
+                        .collect::<Result<Vec<_>, _>>()?,
                     Utc::now(),
                 )
                 .await;
@@ -1553,6 +1567,45 @@ impl CollaborationQueryService for CollaborationQueryRpc {
             .ok()
             .filter(|value| *value > 0 && *value <= 500)
             .ok_or_else(|| Status::invalid_argument("page_size is invalid"))?;
+        if matches!(
+            authority_scope(input.authority_scope.as_ref())?.1,
+            Scope::Platform
+        ) {
+            let (gateway, access) = platform_global_gateway(
+                &self.state,
+                &claims,
+                input.authority_scope.as_ref(),
+                COLLABORATION_READ_PERMISSION,
+                CorrelationId::try_from_uuid(Uuid::new_v4())
+                    .map_err(|_| Status::internal("correlation generation failed"))?,
+            )
+            .await?;
+            let result = gateway
+                .list_mention_inbox(&access, input.after_cursor, limit)
+                .await;
+            let outcome = match &result {
+                Ok(_) => GlobalCollaborationOutcome::Allowed,
+                Err(PortError::Denied | PortError::NotFound) => GlobalCollaborationOutcome::Denied,
+                Err(_) => GlobalCollaborationOutcome::Unavailable,
+            };
+            gateway
+                .audit(&access, "mention.inbox", None, None, None, None, outcome)
+                .await
+                .map_err(map_collaboration_port_error)?;
+            let items = result
+                .map_err(map_collaboration_port_error)?
+                .into_iter()
+                .map(|fact| OpaqueMentionInboxFact {
+                    cursor: fact.cursor,
+                    event_id: fact.event_id.to_string(),
+                    thread_id: fact.thread_id.as_uuid().to_string(),
+                    mention_event_id: fact.mention_event_id.as_uuid().to_string(),
+                    anchor_record_id: fact.anchor_record_id.to_string(),
+                    created_at: fact.created_at.to_rfc3339(),
+                })
+                .collect();
+            return Ok(Response::new(ListMentionInboxResponse { items }));
+        }
         let runtime = collaboration_query_runtime(
             &self.state,
             &claims,
@@ -2002,10 +2055,63 @@ impl CollaborationQueryService for CollaborationQueryRpc {
             authority_scope(input.authority_scope.as_ref())?.1,
             Scope::Platform
         ) {
-            return Ok(Response::new(AutocompleteTargetsResponse {
-                targets: Vec::new(),
-                freshness: DirectoryFreshness::Unavailable as i32,
-            }));
+            let anchor = stable_record_ref(required(input.anchor.as_ref(), "anchor")?)?;
+            let page_size = u16::try_from(input.page_size)
+                .ok()
+                .filter(|value| *value > 0 && *value <= 50)
+                .ok_or_else(|| Status::invalid_argument("page_size is invalid"))?;
+            let (gateway, access) = platform_global_gateway(
+                &self.state,
+                &claims,
+                input.authority_scope.as_ref(),
+                COLLABORATION_READ_PERMISSION,
+                CorrelationId::try_from_uuid(Uuid::new_v4())
+                    .map_err(|_| Status::internal("correlation generation failed"))?,
+            )
+            .await?;
+            let result = gateway
+                .autocomplete_targets(&access, &anchor, &input.query, page_size, Utc::now())
+                .await
+                .map_err(map_directory_error)?;
+            let outcome = match result {
+                DirectoryLookup::Visible { .. } => GlobalCollaborationOutcome::Allowed,
+                DirectoryLookup::Neutral => GlobalCollaborationOutcome::Denied,
+                _ => GlobalCollaborationOutcome::Unavailable,
+            };
+            gateway
+                .audit(
+                    &access,
+                    "reference.search",
+                    Some(anchor.id().as_uuid()),
+                    None,
+                    None,
+                    None,
+                    outcome,
+                )
+                .await
+                .map_err(map_collaboration_port_error)?;
+            let response = match result {
+                DirectoryLookup::Visible { value, freshness } => AutocompleteTargetsResponse {
+                    targets: value
+                        .into_iter()
+                        .map(autocomplete_target_to_proto)
+                        .collect(),
+                    freshness: freshness_to_proto(freshness) as i32,
+                },
+                DirectoryLookup::Neutral => AutocompleteTargetsResponse {
+                    targets: Vec::new(),
+                    freshness: DirectoryFreshness::Unspecified as i32,
+                },
+                DirectoryLookup::Degraded(freshness) => AutocompleteTargetsResponse {
+                    targets: Vec::new(),
+                    freshness: freshness_to_proto(freshness) as i32,
+                },
+                DirectoryLookup::Unavailable => AutocompleteTargetsResponse {
+                    targets: Vec::new(),
+                    freshness: DirectoryFreshness::Unavailable as i32,
+                },
+            };
+            return Ok(Response::new(response));
         }
         let authorized = authorize_holding_request(
             &self.state,

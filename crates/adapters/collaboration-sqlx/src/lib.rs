@@ -17,13 +17,13 @@ pub use authorization::SqlxCollaborationAuthorization;
 pub use directory::*;
 pub use global::{
     GlobalAttachmentMutationReceipt, GlobalAttachmentRecord, GlobalCollaborationAccess,
-    GlobalCollaborationOutcome, GlobalThreadPage, SqlxGlobalCollaborationGateway,
-    global_attachment_object_key,
+    GlobalCollaborationOutcome, GlobalMentionInboxItem, GlobalThreadPage,
+    SqlxGlobalCollaborationGateway, global_attachment_object_key,
 };
 pub use global_projection::{
     GLOBAL_COLLABORATION_PROJECTION, GLOBAL_RELATION_DRAFT_EVENT_TYPE,
-    GLOBAL_THREAD_SNAPSHOT_EVENT_TYPE, GlobalCollaborationProjector, GlobalRelationDraft,
-    GlobalRelationDraftKind, GlobalThreadDocument,
+    GLOBAL_THREAD_SNAPSHOT_EVENT_TYPE, GlobalCollaborationProjector, GlobalMentionEvent,
+    GlobalRelationDraft, GlobalRelationDraftKind, GlobalThreadDocument,
 };
 pub use projection::{
     CollaborationInboxProjectionFact, CollaborationInboxProjector,

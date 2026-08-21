@@ -478,7 +478,7 @@ where
         if actor.principal != command.comment.author {
             return Err(CollaborationApplicationError::HumanDecisionDenied);
         }
-        command.comment.mentions = structured_mentions(
+        command.comment.mentions = typed_mentions_from_document(
             &command.comment.document,
             std::mem::take(&mut command.comment.mentions),
         )?;
@@ -746,7 +746,7 @@ fn normalize_structured_mentions(
         }
         _ => return Ok(()),
     };
-    let mentions = structured_mentions(document, supplied)?
+    let mentions = typed_mentions_from_document(document, supplied)?
         .into_iter()
         .filter(|(id, _)| !existing.contains(id))
         .collect();
@@ -761,7 +761,7 @@ fn normalize_structured_mentions(
 /// Derives direct mention delivery only from immutable typed tokens. Plain
 /// text that looks like `@name` has no effect. Group and pool snapshots remain
 /// owner-resolved inputs and must match the token identity/version exactly.
-fn structured_mentions(
+pub fn typed_mentions_from_document(
     document: &CommentDocument,
     supplied: Vec<(MentionEventId, MentionTarget)>,
 ) -> Result<Vec<(MentionEventId, MentionTarget)>, CollaborationError> {
@@ -2379,7 +2379,11 @@ mod tests {
             "@agent".into(),
         )
         .unwrap();
-        assert!(structured_mentions(&plain, vec![]).unwrap().is_empty());
+        assert!(
+            typed_mentions_from_document(&plain, vec![])
+                .unwrap()
+                .is_empty()
+        );
 
         let agent = PrincipalRef::new(
             PrincipalId::try_from_uuid(Uuid::new_v4()).unwrap(),
@@ -2402,7 +2406,7 @@ mod tests {
             }],
         )
         .unwrap();
-        let mentions = structured_mentions(&document, vec![]).unwrap();
+        let mentions = typed_mentions_from_document(&document, vec![]).unwrap();
         assert_eq!(mentions.len(), 1);
         assert_eq!(mentions[0].1.principal, agent);
         assert!(mentions[0].1.selected_agent.is_none());
@@ -2417,7 +2421,7 @@ mod tests {
             },
         );
         assert_eq!(
-            structured_mentions(&document, vec![unrelated]),
+            typed_mentions_from_document(&document, vec![unrelated]),
             Err(CollaborationError::InvalidMention)
         );
     }
@@ -2449,7 +2453,7 @@ mod tests {
                 actor.principal,
                 document.clone(),
                 vec![],
-                structured_mentions(&document, vec![]).unwrap(),
+                typed_mentions_from_document(&document, vec![]).unwrap(),
                 now + Duration::seconds(1),
             )
             .unwrap();

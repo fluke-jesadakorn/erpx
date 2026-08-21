@@ -1036,7 +1036,7 @@ mod tests {
 
     #[test]
     fn control_plane_migration_is_embedded_and_has_the_expected_schema() {
-        assert_eq!(CONTROL_PLANE_MIGRATOR.iter().count(), 5);
+        assert_eq!(CONTROL_PLANE_MIGRATOR.iter().count(), 6);
         let initial = CONTROL_PLANE_MIGRATOR
             .iter()
             .next()
@@ -1058,7 +1058,7 @@ mod tests {
             .next()
             .expect("clean-slate baseline");
         assert!(audits.sql.contains("erpx_control.global_read_audits"));
-        assert_eq!(CONTROL_READ_MIGRATOR.iter().count(), 2);
+        assert_eq!(CONTROL_READ_MIGRATOR.iter().count(), 3);
         let support_sla = CONTROL_PLANE_MIGRATOR
             .iter()
             .next()
@@ -2334,6 +2334,28 @@ mod tests {
         ] {
             assert!(global_attachment_authority.sql.contains(contract));
         }
+        let global_mentions = CONTROL_PLANE_MIGRATOR
+            .iter()
+            .find(|migration| migration.sql.contains("opaque_mention_inbox"))
+            .expect("forward-only global typed mention authority migration");
+        for contract in [
+            "mention_events",
+            "mention_withdrawals",
+            "global_collaboration_mention_event_append_only",
+            "thread.mention.withdraw",
+            "mention.inbox",
+        ] {
+            assert!(global_mentions.sql.contains(contract));
+        }
+        let global_mention_projection = CONTROL_READ_MIGRATOR
+            .iter()
+            .find(|migration| migration.sql.contains("opaque_mention_inbox_projection"))
+            .expect("rebuildable global typed mention projection migration");
+        assert!(
+            global_mention_projection
+                .sql
+                .contains("source_event_position")
+        );
     }
 
     #[test]

@@ -5,7 +5,8 @@
 
 use async_trait::async_trait;
 use erpx_collaboration::{
-    CommentProjectionContent, RelationView, ThreadProjectionV2, record_relation_graph_thread_id,
+    CommentId, CommentProjectionContent, MentionEventId, MentionTarget, RelationView,
+    ThreadProjectionV2, record_relation_graph_thread_id,
 };
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
 use erpx_integration_contracts::{
@@ -50,11 +51,23 @@ impl GlobalRelationDraft {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct GlobalThreadDocument {
     pub projection: ThreadProjectionV2,
+    #[serde(default)]
+    pub mentions: Vec<GlobalMentionEvent>,
     pub authorization_policy_id: PolicyId,
     pub created_by: PrincipalId,
     pub created_by_session_id: uuid::Uuid,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct GlobalMentionEvent {
+    pub id: MentionEventId,
+    pub comment_id: CommentId,
+    pub revision: u64,
+    pub target: MentionTarget,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub withdrawn_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 impl GlobalThreadDocument {
@@ -123,12 +136,50 @@ impl GlobalThreadDocument {
                 .collect::<std::collections::BTreeSet<_>>()
                 .len()
                 != projection.followers.len()
+            || !valid_mentions(self)
             || policy.retention.minimum_days == 0
         {
             return Err(failure("invalid global thread document"));
         }
         Ok(())
     }
+}
+
+fn valid_mentions(document: &GlobalThreadDocument) -> bool {
+    let mentions = &document.mentions;
+    if mentions
+        .iter()
+        .map(|mention| mention.id)
+        .collect::<std::collections::BTreeSet<_>>()
+        .len()
+        != mentions.len()
+    {
+        return false;
+    }
+    mentions.iter().all(|mention| {
+        mention.revision > 0
+            && mention.target.validate().is_ok()
+            && mention.target.principal.kind() == erpx_kernel::PrincipalKind::Human
+            && mention.created_at >= document.created_at
+            && mention.created_at <= document.updated_at
+            && mention.withdrawn_at.is_none_or(|withdrawn| {
+                withdrawn >= mention.created_at && withdrawn <= document.updated_at
+            })
+            && document.projection.comments.iter().any(|comment| {
+                comment.id == mention.comment_id && comment.revision >= mention.revision
+            })
+            && mention
+                .target
+                .delivery_principals()
+                .iter()
+                .all(|recipient| {
+                    document
+                        .projection
+                        .followers
+                        .iter()
+                        .any(|follower| follower.principal == *recipient)
+                })
+    })
 }
 
 #[derive(Debug, Clone)]
@@ -275,6 +326,7 @@ impl Projector for GlobalCollaborationProjector {
         // descriptors so no dangling authority or protected payload survives.
         for statement in [
             "DELETE FROM erpx_global_collaboration_read.attachments",
+            "DELETE FROM erpx_global_collaboration_read.opaque_mention_inbox_projection",
             "DELETE FROM erpx_global_collaboration_read.follower_projection",
             "DELETE FROM erpx_global_collaboration_read.reaction_projection",
             "DELETE FROM erpx_global_collaboration_read.comment_projection",
@@ -425,6 +477,27 @@ async fn apply_thread(
         .execute(&mut **transaction)
         .await
         .map_err(projection_failure)?;
+    }
+    for mention in &document.mentions {
+        for recipient in mention.target.delivery_principals() {
+            sqlx::query(
+                "INSERT INTO erpx_global_collaboration_read.opaque_mention_inbox_projection
+                 (recipient_principal_id,event_id,thread_id,mention_event_id,anchor_record_id,
+                  source_event_position,created_at)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7)
+                 ON CONFLICT (recipient_principal_id,mention_event_id) DO NOTHING",
+            )
+            .bind(recipient.id().as_uuid())
+            .bind(mention.id.as_uuid())
+            .bind(document.projection.id.as_uuid())
+            .bind(mention.id.as_uuid())
+            .bind(document.projection.anchor.id().as_uuid())
+            .bind(to_i64(event.global_sequence)?)
+            .bind(mention.created_at)
+            .execute(&mut **transaction)
+            .await
+            .map_err(projection_failure)?;
+        }
     }
     advance_checkpoint(transaction, event.global_sequence).await
 }

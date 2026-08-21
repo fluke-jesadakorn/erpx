@@ -15,18 +15,19 @@ use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
 use crate::{
-    DirectoryAdapterError, DirectoryLookup, DirectorySearchPage, DirectorySearchRequest,
-    GLOBAL_RELATION_DRAFT_EVENT_TYPE, GLOBAL_THREAD_SNAPSHOT_EVENT_TYPE, GlobalRelationDraft,
-    GlobalRelationDraftKind, GlobalThreadDocument, ProjectionFreshness,
+    DirectoryAdapterError, DirectoryAutocompleteTarget, DirectoryLookup, DirectorySearchPage,
+    DirectorySearchRequest, GLOBAL_RELATION_DRAFT_EVENT_TYPE, GLOBAL_THREAD_SNAPSHOT_EVENT_TYPE,
+    GlobalMentionEvent, GlobalRelationDraft, GlobalRelationDraftKind, GlobalThreadDocument,
+    ProjectionFreshness,
 };
 use erpx_collaboration::{
     AttachmentId, AttachmentLifecycle, AttachmentRef, AttachmentView, AttachmentWorkerTransition,
     Audience, CollaborationError, CommentDocument, CommentId, CommentProjectionContent,
     CommentProjectionV2, CommentVisibility, CommitReceipt, FollowerView, MAX_ATTACHMENTS,
-    MandatoryFollowReason, MutationIdentity, PortError, PrincipalRef, ReactionView,
-    RecordRelationGraph, RelationId, RelationKind, RelationMutationReceipt, RelationPage,
-    RelationView, RetentionPolicy, ThreadId, ThreadMutation, ThreadProjectionV2, ThreadState,
-    record_relation_graph_thread_id,
+    MandatoryFollowReason, MentionEventId, MentionTarget, MutationIdentity, PortError,
+    PrincipalRef, ReactionView, RecordRelationGraph, RelationId, RelationKind,
+    RelationMutationReceipt, RelationPage, RelationView, RetentionPolicy, ThreadId, ThreadMutation,
+    ThreadProjectionV2, ThreadState, record_relation_graph_thread_id, typed_mentions_from_document,
 };
 use erpx_integration_contracts::{
     AuthorizedItemSummary, ItemDescriptor, StableRecordRef, record_collaboration_policy,
@@ -112,6 +113,16 @@ pub struct GlobalThreadPage {
     pub projection_checkpoint: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GlobalMentionInboxItem {
+    pub cursor: u64,
+    pub event_id: Uuid,
+    pub thread_id: ThreadId,
+    pub mention_event_id: MentionEventId,
+    pub anchor_record_id: RecordId,
+    pub created_at: DateTime<Utc>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct GlobalAttachmentRecord {
     pub view: AttachmentView,
@@ -156,6 +167,7 @@ impl SqlxGlobalCollaborationGateway {
         record: StableRecordRef,
         comment_id: CommentId,
         document: CommentDocument,
+        supplied_mentions: Vec<(MentionEventId, MentionTarget)>,
         at: DateTime<Utc>,
     ) -> Result<CommitReceipt, PortError> {
         identity.validate()?;
@@ -181,6 +193,7 @@ impl SqlxGlobalCollaborationGateway {
             )))
             .ok_or(PortError::InvalidState)?;
         let actor = PrincipalRef::new(access.principal_id(), PrincipalKind::Human);
+        let mentions = platform_mentions(&document, supplied_mentions, &[])?;
         let projection = ThreadProjectionV2 {
             id: thread_id,
             anchor: record.clone(),
@@ -220,8 +233,9 @@ impl SqlxGlobalCollaborationGateway {
             projection_checkpoint: 0,
             stale: false,
         };
-        let global = GlobalThreadDocument {
+        let mut global = GlobalThreadDocument {
             projection,
+            mentions: Vec::new(),
             authorization_policy_id: record_policy_id(&record)
                 .map_err(|_| PortError::InvalidState)?,
             created_by: access.principal_id(),
@@ -229,7 +243,6 @@ impl SqlxGlobalCollaborationGateway {
             created_at: at,
             updated_at: at,
         };
-        global.validate(true).map_err(|_| PortError::InvalidState)?;
         let mut transaction = self.control_write.begin().await.map_err(database_error)?;
         if let Some(receipt) = load_thread_receipt(&mut transaction, &identity).await? {
             if receipt.thread_id != thread_id {
@@ -237,6 +250,9 @@ impl SqlxGlobalCollaborationGateway {
             }
             return Ok(receipt);
         }
+        validate_platform_mention_targets(&mut transaction, &mentions, at).await?;
+        let created_mentions = append_platform_mentions(&mut global, comment_id, 1, mentions, at)?;
+        global.validate(true).map_err(|_| PortError::InvalidState)?;
         let document_json = serde_json::to_value(&global).map_err(|_| PortError::InvalidState)?;
         let record_json = serde_json::to_value(&record).map_err(|_| PortError::InvalidState)?;
         let audience_json = serde_json::to_value(&global.projection.audience)
@@ -326,6 +342,7 @@ impl SqlxGlobalCollaborationGateway {
         .execute(&mut *transaction)
         .await
         .map_err(database_error)?;
+        persist_platform_mentions(&mut transaction, thread_id, &created_mentions, at).await?;
         let event_id = Uuid::new_v4();
         let event_cursor: i64 = sqlx::query_scalar(
             "INSERT INTO erpx_global_collaboration.thread_events
@@ -482,7 +499,6 @@ impl SqlxGlobalCollaborationGateway {
         let operation = match mutation {
             ThreadMutation::AddComment(comment) => {
                 if comment.author != actor
-                    || !comment.mentions.is_empty()
                     || global.projection.state == ThreadState::Resolved
                     || global
                         .projection
@@ -492,6 +508,9 @@ impl SqlxGlobalCollaborationGateway {
                 {
                     return Err(PortError::InvalidState);
                 }
+                let mentions =
+                    platform_mentions(&comment.document, comment.mentions, &global.mentions)?;
+                validate_platform_mention_targets(&mut transaction, &mentions, at).await?;
                 let attachment_views = load_ready_global_attachments(
                     &mut transaction,
                     &anchor,
@@ -553,6 +572,10 @@ impl SqlxGlobalCollaborationGateway {
                     created_at: at,
                     updated_at: at,
                 });
+                let created_mentions =
+                    append_platform_mentions(&mut global, comment.comment_id, 1, mentions, at)?;
+                persist_platform_mentions(&mut transaction, thread_id, &created_mentions, at)
+                    .await?;
                 if let Some(follower) = global
                     .projection
                     .followers
@@ -587,9 +610,12 @@ impl SqlxGlobalCollaborationGateway {
                 "thread.comment.add"
             }
             ThreadMutation::EditComment(comment) => {
-                if comment.editor != actor || !comment.mentions.is_empty() {
+                if comment.editor != actor {
                     return Err(PortError::InvalidState);
                 }
+                let mentions =
+                    platform_mentions(&comment.document, comment.mentions, &global.mentions)?;
+                validate_platform_mention_targets(&mut transaction, &mentions, at).await?;
                 let attachment_views = load_ready_global_attachments(
                     &mut transaction,
                     &anchor,
@@ -657,6 +683,15 @@ impl SqlxGlobalCollaborationGateway {
                 current.content = CommentProjectionContent::Visible(comment.document);
                 current.attachments = attachment_views;
                 current.updated_at = at;
+                let created_mentions = append_platform_mentions(
+                    &mut global,
+                    comment.comment_id,
+                    revision,
+                    mentions,
+                    at,
+                )?;
+                persist_platform_mentions(&mut transaction, thread_id, &created_mentions, at)
+                    .await?;
                 "thread.comment.edit"
             }
             ThreadMutation::TombstoneComment { comment_id } => {
@@ -688,6 +723,36 @@ impl SqlxGlobalCollaborationGateway {
                 current.attachments.clear();
                 current.updated_at = at;
                 "thread.comment.tombstone"
+            }
+            ThreadMutation::WithdrawMention { mention_event_id } => {
+                let mention = global
+                    .mentions
+                    .iter_mut()
+                    .find(|mention| mention.id == mention_event_id)
+                    .ok_or(PortError::NotFound)?;
+                if mention.withdrawn_at.is_some() || at < mention.created_at {
+                    return Err(PortError::InvalidState);
+                }
+                let changed = sqlx::query(
+                    "INSERT INTO erpx_global_collaboration.mention_withdrawals
+                     (mention_event_id,thread_id,withdrawn_by_principal_id,
+                      withdrawn_by_session_id,withdrawn_at)
+                     VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING",
+                )
+                .bind(mention_event_id.as_uuid())
+                .bind(thread_id.as_uuid())
+                .bind(access.principal_id().as_uuid())
+                .bind(access.session_id())
+                .bind(at)
+                .execute(&mut *transaction)
+                .await
+                .map_err(database_error)?
+                .rows_affected();
+                if changed != 1 {
+                    return Err(PortError::Conflict);
+                }
+                mention.withdrawn_at = Some(at);
+                "thread.mention.withdraw"
             }
             ThreadMutation::Resolve => {
                 if global.projection.state != ThreadState::Open {
@@ -870,8 +935,8 @@ impl SqlxGlobalCollaborationGateway {
                 }
                 "thread.following.set"
             }
-            // Typed mentions, moderation, action cards and internal policy
-            // transitions require their later-phase global stores/workers.
+            // Moderation, action cards and internal policy transitions require
+            // their dedicated global stores/workers.
             _ => return Err(PortError::Denied),
         };
 
@@ -1729,6 +1794,7 @@ impl SqlxGlobalCollaborationGateway {
                 | "thread.list"
                 | "thread.start"
                 | "thread.mutate"
+                | "mention.inbox"
                 | "attachment.prepare"
                 | "attachment.finalize"
                 | "attachment.download"
@@ -1822,6 +1888,171 @@ impl SqlxGlobalCollaborationGateway {
             .commit()
             .await
             .map_err(|_| PortError::Unavailable)
+    }
+
+    /// Returns only opaque mention delivery facts after current Platform
+    /// admission and a fresh projection checkpoint. No record or comment
+    /// payload is selected by this query.
+    pub async fn list_mention_inbox(
+        &self,
+        access: &GlobalCollaborationAccess,
+        after_cursor: u64,
+        page_size: u16,
+    ) -> Result<Vec<GlobalMentionInboxItem>, PortError> {
+        if page_size == 0 || page_size > 500 {
+            return Err(PortError::InvalidState);
+        }
+        let mut transaction = self.control_read.begin().await.map_err(database_error)?;
+        let rows = sqlx::query(
+            "WITH checkpoint AS MATERIALIZED (
+               SELECT applied_position FROM erpx_global_collaboration_read.projection_state
+               WHERE singleton=TRUE AND state='ready'
+                 AND applied_position=source_high_watermark
+                 AND last_success_at BETWEEN statement_timestamp()-INTERVAL '60 seconds'
+                                         AND statement_timestamp()
+             )
+             SELECT inbox.inbox_cursor,inbox.event_id,inbox.thread_id,
+                    inbox.mention_event_id,inbox.anchor_record_id,inbox.created_at
+             FROM checkpoint
+             JOIN erpx_global_collaboration_read.opaque_mention_inbox_projection inbox
+               ON inbox.recipient_principal_id=$1
+              AND inbox.inbox_cursor>$2
+              AND inbox.source_event_position<=checkpoint.applied_position
+             ORDER BY inbox.inbox_cursor LIMIT $3",
+        )
+        .bind(access.principal_id().as_uuid())
+        .bind(to_i64(after_cursor)?)
+        .bind(i64::from(page_size))
+        .fetch_all(&mut *transaction)
+        .await
+        .map_err(database_error)?;
+        let items = rows
+            .into_iter()
+            .map(|row| {
+                Ok(GlobalMentionInboxItem {
+                    cursor: to_u64(
+                        row.try_get::<i64, _>("inbox_cursor")
+                            .map_err(|_| PortError::Internal)?,
+                    )?,
+                    event_id: row.try_get("event_id").map_err(|_| PortError::Internal)?,
+                    thread_id: ThreadId::try_from_uuid(
+                        row.try_get("thread_id").map_err(|_| PortError::Internal)?,
+                    )
+                    .map_err(|_| PortError::Internal)?,
+                    mention_event_id: MentionEventId::try_from_uuid(
+                        row.try_get("mention_event_id")
+                            .map_err(|_| PortError::Internal)?,
+                    )
+                    .map_err(|_| PortError::Internal)?,
+                    anchor_record_id: RecordId::try_from_uuid(
+                        row.try_get("anchor_record_id")
+                            .map_err(|_| PortError::Internal)?,
+                    )
+                    .map_err(|_| PortError::Internal)?,
+                    created_at: row.try_get("created_at").map_err(|_| PortError::Internal)?,
+                })
+            })
+            .collect::<Result<Vec<_>, PortError>>()?;
+        transaction.commit().await.map_err(database_error)?;
+        Ok(items)
+    }
+
+    /// Platform autocomplete exposes only active human role assignees and
+    /// currently authorized, owner-labelled Platform records. Agent targets
+    /// remain fail-closed until a Platform-owned approved-agent directory is
+    /// published.
+    pub async fn autocomplete_targets(
+        &self,
+        access: &GlobalCollaborationAccess,
+        anchor: &StableRecordRef,
+        query: &str,
+        page_size: u16,
+        at: DateTime<Utc>,
+    ) -> Result<DirectoryLookup<Vec<DirectoryAutocompleteTarget>>, DirectoryAdapterError> {
+        if query.trim() != query
+            || query.is_empty()
+            || query.len() > 128
+            || query.chars().any(char::is_control)
+            || page_size == 0
+            || page_size > 50
+        {
+            return Err(DirectoryAdapterError::Invalid("autocomplete request"));
+        }
+        match self.authorize_record(access, anchor, false).await {
+            Ok(()) => {}
+            Err(PortError::Denied | PortError::NotFound) => return Ok(DirectoryLookup::Neutral),
+            Err(PortError::Stale) => {
+                return Ok(DirectoryLookup::Degraded(ProjectionFreshness::Stale));
+            }
+            Err(_) => return Ok(DirectoryLookup::Unavailable),
+        }
+        let mut targets = Vec::new();
+        let people = sqlx::query(
+            "SELECT DISTINCT ON (assignment.principal_ref) assignment.principal_ref,
+                    COALESCE(NULLIF(btrim(assignment.payload->>'display_label'),''),
+                             'Platform user') AS display_label
+             FROM erpx_control.role_assignments assignment
+             JOIN erpx_identity.principals principal
+               ON principal.principal_ref=assignment.principal_ref
+              AND principal.status='active'
+              AND principal.authenticated_realm='internal_workforce'
+              AND principal.principal_kind='human'
+             WHERE assignment.valid_from<=$1 AND assignment.valid_until>$1
+               AND COALESCE(NULLIF(btrim(assignment.payload->>'display_label'),''),'Platform user')
+                   ILIKE '%'||$2||'%'
+             ORDER BY assignment.principal_ref,assignment.assignment_version DESC LIMIT $3",
+        )
+        .bind(at)
+        .bind(query)
+        .bind(i64::from(page_size))
+        .fetch_all(&self.control_write)
+        .await
+        .map_err(|_| DirectoryAdapterError::Unavailable)?;
+        for row in people {
+            let Ok(raw) = row.try_get::<String, _>("principal_ref") else {
+                continue;
+            };
+            let Some(principal_id) = Uuid::parse_str(&raw)
+                .ok()
+                .and_then(|value| PrincipalId::try_from_uuid(value).ok())
+            else {
+                continue;
+            };
+            targets.push(DirectoryAutocompleteTarget::Human {
+                principal_id,
+                label: row
+                    .try_get("display_label")
+                    .map_err(|_| DirectoryAdapterError::Unavailable)?,
+            });
+        }
+        let remaining = usize::from(page_size).saturating_sub(targets.len());
+        if remaining > 0 {
+            let search = DirectorySearchRequest {
+                query: query.to_owned(),
+                page_size: u16::try_from(remaining)
+                    .map_err(|_| DirectoryAdapterError::Unavailable)?,
+                cursor: None,
+            };
+            match self.search_references(access, &search).await? {
+                DirectoryLookup::Visible { value, .. } => {
+                    targets.extend(value.authorized_summaries.into_iter().map(|summary| {
+                        DirectoryAutocompleteTarget::Record {
+                            record: summary.record,
+                            label: summary.display_label,
+                        }
+                    }));
+                }
+                DirectoryLookup::Degraded(freshness) => {
+                    return Ok(DirectoryLookup::Degraded(freshness));
+                }
+                DirectoryLookup::Unavailable => return Ok(DirectoryLookup::Unavailable),
+                DirectoryLookup::Neutral => {}
+            }
+        }
+        Ok(DirectoryLookup::Visible {
+            value: targets,
+            freshness: ProjectionFreshness::Fresh,
+        })
     }
 
     /// Resolve remains available to legacy NULL-label descriptors. Current
@@ -2850,6 +3081,158 @@ fn valid_global_attachment_text(value: &str, maximum: usize) -> bool {
         && !value.chars().any(char::is_control)
 }
 
+fn platform_mentions(
+    document: &CommentDocument,
+    supplied: Vec<(MentionEventId, MentionTarget)>,
+    existing: &[GlobalMentionEvent],
+) -> Result<Vec<(MentionEventId, MentionTarget)>, PortError> {
+    let existing = existing
+        .iter()
+        .map(|mention| mention.id)
+        .collect::<std::collections::BTreeSet<_>>();
+    let mentions = typed_mentions_from_document(document, supplied)
+        .map_err(|_| PortError::InvalidState)?
+        .into_iter()
+        .filter(|(id, _)| !existing.contains(id))
+        .collect::<Vec<_>>();
+    if mentions.iter().any(|(_, target)| {
+        target.principal.kind() != PrincipalKind::Human
+            || target.validate().is_err()
+            || target.delivery_principals().len() != 1
+    }) {
+        return Err(PortError::Denied);
+    }
+    Ok(mentions)
+}
+
+async fn validate_platform_mention_targets(
+    transaction: &mut Transaction<'_, Postgres>,
+    mentions: &[(MentionEventId, MentionTarget)],
+    at: DateTime<Utc>,
+) -> Result<(), PortError> {
+    for (_, target) in mentions {
+        let principal_ref = target.principal.id().to_string();
+        let active = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS (
+               SELECT 1 FROM erpx_control.role_assignments assignment
+               JOIN erpx_identity.principals principal
+                 ON principal.principal_ref=assignment.principal_ref
+                AND principal.status='active'
+                AND principal.authenticated_realm='internal_workforce'
+                AND principal.principal_kind='human'
+               WHERE assignment.principal_ref=$1
+                 AND assignment.valid_from <= $2 AND assignment.valid_until > $2
+             )",
+        )
+        .bind(principal_ref)
+        .bind(at)
+        .fetch_one(&mut **transaction)
+        .await
+        .map_err(database_error)?;
+        if !active {
+            return Err(PortError::Denied);
+        }
+    }
+    Ok(())
+}
+
+fn append_platform_mentions(
+    document: &mut GlobalThreadDocument,
+    comment_id: CommentId,
+    revision: u64,
+    mentions: Vec<(MentionEventId, MentionTarget)>,
+    at: DateTime<Utc>,
+) -> Result<Vec<GlobalMentionEvent>, PortError> {
+    let created = mentions
+        .into_iter()
+        .map(|(id, target)| GlobalMentionEvent {
+            id,
+            comment_id,
+            revision,
+            target,
+            created_at: at,
+            withdrawn_at: None,
+        })
+        .collect::<Vec<_>>();
+    for mention in &created {
+        for principal in mention.target.delivery_principals() {
+            if let Some(follower) = document
+                .projection
+                .followers
+                .iter_mut()
+                .find(|follower| follower.principal == principal)
+            {
+                if follower.mandatory_reason.is_none() {
+                    follower.mandatory_reason = Some(MandatoryFollowReason::Mentioned);
+                }
+            } else {
+                document.projection.followers.push(FollowerView {
+                    principal,
+                    mandatory_reason: Some(MandatoryFollowReason::Mentioned),
+                    muted_until: None,
+                    snoozed_until: None,
+                });
+            }
+        }
+    }
+    document.mentions.extend(created.iter().cloned());
+    Ok(created)
+}
+
+async fn persist_platform_mentions(
+    transaction: &mut Transaction<'_, Postgres>,
+    thread_id: ThreadId,
+    mentions: &[GlobalMentionEvent],
+    at: DateTime<Utc>,
+) -> Result<(), PortError> {
+    for mention in mentions {
+        sqlx::query(
+            "INSERT INTO erpx_global_collaboration.mention_events
+             (mention_event_id,thread_id,comment_id,revision,target,created_at)
+             VALUES ($1,$2,$3,$4,$5,$6)",
+        )
+        .bind(mention.id.as_uuid())
+        .bind(thread_id.as_uuid())
+        .bind(mention.comment_id.as_uuid())
+        .bind(to_i64(mention.revision)?)
+        .bind(serde_json::to_value(&mention.target).map_err(|_| PortError::InvalidState)?)
+        .bind(mention.created_at)
+        .execute(&mut **transaction)
+        .await
+        .map_err(database_error)?;
+        for recipient in mention.target.delivery_principals() {
+            sqlx::query(
+                "INSERT INTO erpx_global_collaboration.followers
+                 (thread_id,principal_id,principal_session_id,muted_until,snoozed_until,
+                  followed_at,updated_at) VALUES ($1,$2,NULL,NULL,NULL,$3,$3)
+                 ON CONFLICT (thread_id,principal_id) DO NOTHING",
+            )
+            .bind(thread_id.as_uuid())
+            .bind(recipient.id().as_uuid())
+            .bind(at)
+            .execute(&mut **transaction)
+            .await
+            .map_err(database_error)?;
+            sqlx::query(
+                "INSERT INTO erpx_global_collaboration.opaque_mention_inbox
+                 (event_id,recipient_principal_id,thread_id,mention_event_id,
+                  anchor_record_id,created_at)
+                 SELECT $1,$2,$3,$4,anchor_record_id,$5
+                 FROM erpx_global_collaboration.threads WHERE thread_id=$3",
+            )
+            .bind(mention.id.as_uuid())
+            .bind(recipient.id().as_uuid())
+            .bind(thread_id.as_uuid())
+            .bind(mention.id.as_uuid())
+            .bind(at)
+            .execute(&mut **transaction)
+            .await
+            .map_err(database_error)?;
+        }
+    }
+    Ok(())
+}
+
 async fn load_thread_receipt(
     transaction: &mut Transaction<'_, Postgres>,
     identity: &MutationIdentity,
@@ -3059,6 +3442,7 @@ fn database_error(error: sqlx::Error) -> PortError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use erpx_collaboration::{CommentTokenIdentity, CommentTokenKind, TypedCommentToken};
     use erpx_kernel::SessionId;
 
     fn attribution(kind: ActorKind) -> ActorAttribution {
@@ -3105,6 +3489,55 @@ mod tests {
                 correlation,
             )
             .is_err()
+        );
+    }
+
+    #[test]
+    fn platform_mentions_require_typed_direct_human_identity() {
+        let human = PrincipalRef::new(
+            PrincipalId::try_from_uuid(Uuid::from_u128(10)).expect("human"),
+            PrincipalKind::Human,
+        );
+        let token_id = Uuid::new_v4();
+        let document = CommentDocument::try_new_with_tokens(
+            1,
+            serde_json::json!({"type":"doc","blocks":[{"block":"token_ref","token_id":token_id}]}),
+            "@Platform user".into(),
+            vec![TypedCommentToken {
+                token_id,
+                kind: CommentTokenKind::User,
+                identity: CommentTokenIdentity::User { principal: human },
+                display_label_snapshot: "Platform user".into(),
+            }],
+        )
+        .expect("document");
+        let mentions = platform_mentions(&document, Vec::new(), &[]).expect("human mention");
+        assert_eq!(mentions.len(), 1);
+        assert_eq!(mentions[0].1.principal, human);
+
+        let agent = PrincipalRef::new(
+            PrincipalId::try_from_uuid(Uuid::from_u128(12)).expect("agent"),
+            PrincipalKind::Agent,
+        );
+        let agent_document = CommentDocument::try_new_with_tokens(
+            1,
+            serde_json::json!({"type":"doc","blocks":[{"block":"token_ref","token_id":token_id}]}),
+            "@Agent".into(),
+            vec![TypedCommentToken {
+                token_id,
+                kind: CommentTokenKind::Agent,
+                identity: CommentTokenIdentity::Agent {
+                    principal: agent,
+                    definition_id: Uuid::new_v4(),
+                    version_id: Uuid::new_v4(),
+                },
+                display_label_snapshot: "Agent".into(),
+            }],
+        )
+        .expect("agent document");
+        assert_eq!(
+            platform_mentions(&agent_document, Vec::new(), &[]),
+            Err(PortError::Denied)
         );
     }
 
