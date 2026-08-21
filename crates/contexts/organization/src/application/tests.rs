@@ -115,6 +115,63 @@ fn aggregate() -> OrganizationNode {
     aggregate
 }
 
+fn suspended_branch_aggregate() -> OrganizationNode {
+    let mut aggregate = aggregate();
+    aggregate.suspend(at()).unwrap();
+    aggregate.take_uncommitted_events();
+    aggregate
+}
+
+fn suspended_holding_aggregate() -> OrganizationNode {
+    let mut aggregate = OrganizationNode::create(
+        node_id(1),
+        OrganizationPlacement::Holding,
+        "HOLDING".into(),
+        "Holding".into(),
+        at(),
+    )
+    .unwrap();
+    aggregate.take_uncommitted_events();
+    aggregate.suspend(at()).unwrap();
+    aggregate.take_uncommitted_events();
+    aggregate
+}
+
+fn department_aggregate() -> OrganizationNode {
+    let mut aggregate = OrganizationNode::create(
+        node_id(4),
+        OrganizationPlacement::Department {
+            holding_id: id(1),
+            company_id: id(2),
+            branch_id: Some(id(3)),
+        },
+        "OPS".into(),
+        "Operations".into(),
+        at(),
+    )
+    .unwrap();
+    aggregate.take_uncommitted_events();
+    aggregate
+}
+
+fn team_aggregate() -> OrganizationNode {
+    let mut aggregate = OrganizationNode::create(
+        node_id(5),
+        OrganizationPlacement::Team {
+            holding_id: id(1),
+            company_id: id(2),
+            branch_id: Some(id(3)),
+            department_id: id(4),
+        },
+        "OPS-A".into(),
+        "Operations A".into(),
+        at(),
+    )
+    .unwrap();
+    aggregate.take_uncommitted_events();
+    aggregate
+}
+
 #[derive(Clone)]
 struct FakeAuthorization {
     allow: bool,
@@ -130,6 +187,36 @@ impl AuthorizationPort for FakeAuthorization {
         } else {
             Err(PortError::Denied)
         }
+    }
+}
+
+#[derive(Clone)]
+struct FakeScopeContainment {
+    allow: bool,
+    node_calls: Arc<AtomicUsize>,
+    parent_calls: Arc<AtomicUsize>,
+}
+
+#[async_trait]
+impl ScopeContainmentPort for FakeScopeContainment {
+    async fn contains_node(
+        &self,
+        _authority_scope: &AuthorityScope,
+        _node_id: OrganizationNodeId,
+        _placement: &OrganizationPlacement,
+    ) -> Result<bool, PortError> {
+        self.node_calls.fetch_add(1, Ordering::SeqCst);
+        Ok(self.allow)
+    }
+
+    async fn contains_parent(
+        &self,
+        _authority_scope: &AuthorityScope,
+        _node_id: OrganizationNodeId,
+        _placement: &OrganizationPlacement,
+    ) -> Result<bool, PortError> {
+        self.parent_calls.fetch_add(1, Ordering::SeqCst);
+        Ok(self.allow)
     }
 }
 
@@ -220,6 +307,7 @@ impl WriteRepository for FakeWriteRepository {
 struct FakeUnitOfWork {
     receipts: Arc<Mutex<Vec<(CommandIdentity, StoredCommit)>>>,
     commits: Arc<AtomicUsize>,
+    hierarchy_guards: Arc<Mutex<Vec<Option<HierarchyGuard>>>>,
 }
 
 #[async_trait]
@@ -245,6 +333,10 @@ impl CommandUnitOfWork for FakeUnitOfWork {
 
     async fn commit(&self, request: OrganizationCommit) -> Result<StoredCommit, PortError> {
         self.commits.fetch_add(1, Ordering::SeqCst);
+        self.hierarchy_guards
+            .lock()
+            .unwrap()
+            .push(request.hierarchy_guard.clone());
         let stored = StoredCommit {
             command_id: request.identity.command_id,
             correlation_id: request.correlation_id,
@@ -350,12 +442,53 @@ fn populated_write_repository() -> FakeWriteRepository {
     }
 }
 
+fn suspended_branch_write_repository() -> FakeWriteRepository {
+    FakeWriteRepository {
+        aggregate: Arc::new(Mutex::new(Some(suspended_branch_aggregate()))),
+        loads: Arc::new(AtomicUsize::new(0)),
+    }
+}
+
+fn suspended_holding_write_repository() -> FakeWriteRepository {
+    FakeWriteRepository {
+        aggregate: Arc::new(Mutex::new(Some(suspended_holding_aggregate()))),
+        loads: Arc::new(AtomicUsize::new(0)),
+    }
+}
+
+fn populated_department_write_repository() -> FakeWriteRepository {
+    FakeWriteRepository {
+        aggregate: Arc::new(Mutex::new(Some(department_aggregate()))),
+        loads: Arc::new(AtomicUsize::new(0)),
+    }
+}
+
+fn populated_team_write_repository() -> FakeWriteRepository {
+    FakeWriteRepository {
+        aggregate: Arc::new(Mutex::new(Some(team_aggregate()))),
+        loads: Arc::new(AtomicUsize::new(0)),
+    }
+}
+
 fn create_command() -> CreateOrganizationNode {
     CreateOrganizationNode {
         node_id: node_id(3),
         placement: branch_placement(),
         code: "BKK".into(),
         name: "Bangkok".into(),
+    }
+}
+
+fn department_create_command() -> CreateOrganizationNode {
+    CreateOrganizationNode {
+        node_id: node_id(4),
+        placement: OrganizationPlacement::Department {
+            holding_id: id(1),
+            company_id: id(2),
+            branch_id: Some(id(3)),
+        },
+        code: "OPS".into(),
+        name: "Operations".into(),
     }
 }
 
@@ -433,6 +566,84 @@ fn authorization_denial_prevents_hierarchy_check_and_commit() {
 }
 
 #[test]
+fn exact_department_scope_uses_the_containment_port_instead_of_kernel_inference() {
+    let node_containment_calls = Arc::new(AtomicUsize::new(0));
+    let parent_containment_calls = Arc::new(AtomicUsize::new(0));
+    let uow = FakeUnitOfWork::default();
+    let hierarchy = FakeHierarchy::allowing();
+    let authorization_calls = Arc::new(AtomicUsize::new(0));
+    let handler = OrganizationCommandHandler::new_with_scope_containment(
+        empty_write_repository(),
+        uow.clone(),
+        FakeAuthorization {
+            allow: true,
+            calls: authorization_calls.clone(),
+        },
+        FakeEntitlement { allow: true },
+        hierarchy.clone(),
+        FixedClock::new(at()),
+        FakeScopeContainment {
+            allow: true,
+            node_calls: node_containment_calls.clone(),
+            parent_calls: parent_containment_calls.clone(),
+        },
+    );
+    let mut envelope = command_envelope(8, None, department_create_command());
+    envelope.active_scope = branch_scope();
+    let exact_scope = AuthorityScope::Subtree {
+        holding_id: id(1),
+        organization_node_id: id(4),
+    };
+    assert!(!envelope.active_scope.contains(&exact_scope));
+
+    let receipt = block_on(handler.handle(envelope.clone())).unwrap();
+    let replay = block_on(handler.handle(envelope)).unwrap();
+
+    assert_eq!(receipt.response.node.scope, exact_scope);
+    assert!(replay.replayed);
+    assert_eq!(parent_containment_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(node_containment_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(authorization_calls.load(Ordering::SeqCst), 2);
+    assert_eq!(hierarchy.placement_checks.load(Ordering::SeqCst), 1);
+    assert_eq!(uow.commits.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn containment_denial_stops_authorization_hierarchy_and_commit() {
+    let node_containment_calls = Arc::new(AtomicUsize::new(0));
+    let parent_containment_calls = Arc::new(AtomicUsize::new(0));
+    let authorization_calls = Arc::new(AtomicUsize::new(0));
+    let hierarchy = FakeHierarchy::allowing();
+    let uow = FakeUnitOfWork::default();
+    let handler = OrganizationCommandHandler::new_with_scope_containment(
+        empty_write_repository(),
+        uow.clone(),
+        FakeAuthorization {
+            allow: true,
+            calls: authorization_calls.clone(),
+        },
+        FakeEntitlement { allow: true },
+        hierarchy.clone(),
+        FixedClock::new(at()),
+        FakeScopeContainment {
+            allow: false,
+            node_calls: node_containment_calls.clone(),
+            parent_calls: parent_containment_calls.clone(),
+        },
+    );
+
+    let error = block_on(handler.handle(command_envelope(9, None, department_create_command())))
+        .unwrap_err();
+
+    assert_eq!(error.category(), ErrorCategory::Denied);
+    assert_eq!(parent_containment_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(node_containment_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(authorization_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(hierarchy.placement_checks.load(Ordering::SeqCst), 0);
+    assert_eq!(uow.commits.load(Ordering::SeqCst), 0);
+}
+
+#[test]
 fn reparent_cannot_escape_command_authority() {
     let uow = FakeUnitOfWork::default();
     let hierarchy = FakeHierarchy::allowing();
@@ -460,6 +671,134 @@ fn reparent_cannot_escape_command_authority() {
 }
 
 #[test]
+fn department_self_scope_cannot_reparent_to_a_sibling_branch() {
+    let uow = FakeUnitOfWork::default();
+    let hierarchy = FakeHierarchy::allowing();
+    let handler = command_handler(
+        populated_department_write_repository(),
+        uow.clone(),
+        hierarchy.clone(),
+        true,
+    );
+    let mut envelope = command_envelope(
+        10,
+        Some(1),
+        ReparentOrganizationNode {
+            node_id: node_id(4),
+            placement: OrganizationPlacement::Department {
+                holding_id: id(1),
+                company_id: id(2),
+                branch_id: Some(id(5)),
+            },
+        },
+    );
+    envelope.active_scope = AuthorityScope::Subtree {
+        holding_id: id(1),
+        organization_node_id: id(4),
+    };
+
+    let error = block_on(handler.handle(envelope)).unwrap_err();
+
+    assert_eq!(error.category(), ErrorCategory::Denied);
+    assert_eq!(hierarchy.placement_checks.load(Ordering::SeqCst), 0);
+    assert_eq!(uow.commits.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn company_authority_can_reparent_a_department_between_its_branches() {
+    let uow = FakeUnitOfWork::default();
+    let hierarchy = FakeHierarchy::allowing();
+    let destination = OrganizationPlacement::Department {
+        holding_id: id(1),
+        company_id: id(2),
+        branch_id: Some(id(5)),
+    };
+    let handler = command_handler(
+        populated_department_write_repository(),
+        uow.clone(),
+        hierarchy.clone(),
+        true,
+    );
+    let mut envelope = command_envelope(
+        11,
+        Some(1),
+        ReparentOrganizationNode {
+            node_id: node_id(4),
+            placement: destination.clone(),
+        },
+    );
+    envelope.active_scope = AuthorityScope::Company {
+        holding_id: id(1),
+        company_id: id(2),
+    };
+
+    let receipt = block_on(handler.handle(envelope)).unwrap();
+
+    assert_eq!(receipt.response.node.placement, destination.clone());
+    assert_eq!(hierarchy.placement_checks.load(Ordering::SeqCst), 1);
+    assert_eq!(uow.commits.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        uow.hierarchy_guards.lock().unwrap().as_slice(),
+        &[Some(HierarchyGuard::ReparentPlacement(destination))]
+    );
+}
+
+#[test]
+fn branch_authority_can_reparent_a_team_between_departments_in_its_branch() {
+    let uow = FakeUnitOfWork::default();
+    let hierarchy = FakeHierarchy::allowing();
+    let destination = OrganizationPlacement::Team {
+        holding_id: id(1),
+        company_id: id(2),
+        branch_id: Some(id(3)),
+        department_id: id(6),
+    };
+    let handler = command_handler(
+        populated_team_write_repository(),
+        uow.clone(),
+        hierarchy.clone(),
+        true,
+    );
+    let mut envelope = command_envelope(
+        12,
+        Some(1),
+        ReparentOrganizationNode {
+            node_id: node_id(5),
+            placement: destination.clone(),
+        },
+    );
+    envelope.active_scope = branch_scope();
+
+    let receipt = block_on(handler.handle(envelope)).unwrap();
+
+    assert_eq!(receipt.response.node.placement, destination.clone());
+    assert_eq!(hierarchy.placement_checks.load(Ordering::SeqCst), 1);
+    assert_eq!(uow.commits.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        uow.hierarchy_guards.lock().unwrap().as_slice(),
+        &[Some(HierarchyGuard::ReparentPlacement(destination))]
+    );
+}
+
+#[test]
+fn reparent_blocked_by_children_maps_to_a_conflict() {
+    let error = to_cqrs(
+        PortError::ReparentBlockedByChildren.into(),
+        CorrelationId::try_from_uuid(id(999)).unwrap(),
+    );
+
+    assert_eq!(error.category(), ErrorCategory::Conflict);
+    let CqrsError::Operation(error) = error else {
+        panic!("expected an operation error");
+    };
+    assert_eq!(error.code, "organization.conflict");
+    assert_eq!(
+        error.safe_message,
+        "The Organization node cannot be reparented while it has children."
+    );
+}
+
+#[test]
 fn authoritative_parent_validation_prevents_commit() {
     let uow = FakeUnitOfWork::default();
     let hierarchy = FakeHierarchy::allowing();
@@ -474,6 +813,92 @@ fn authoritative_parent_validation_prevents_commit() {
     assert_eq!(error.category(), ErrorCategory::Invalid);
     assert_eq!(uow.commits.load(Ordering::SeqCst), 0);
     assert_eq!(hierarchy.placement_checks.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn activate_revalidates_current_parent_and_commits_a_placement_guard() {
+    let uow = FakeUnitOfWork::default();
+    let hierarchy = FakeHierarchy::allowing();
+    let handler = command_handler(
+        suspended_branch_write_repository(),
+        uow.clone(),
+        hierarchy.clone(),
+        true,
+    );
+
+    let receipt = block_on(handler.handle(command_envelope(
+        13,
+        Some(2),
+        ActivateOrganizationNode {
+            node_id: node_id(3),
+        },
+    )))
+    .unwrap();
+
+    assert_eq!(receipt.response.node.status, OrganizationNodeStatus::Active);
+    assert_eq!(hierarchy.placement_checks.load(Ordering::SeqCst), 1);
+    assert_eq!(uow.commits.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        uow.hierarchy_guards.lock().unwrap().as_slice(),
+        &[Some(HierarchyGuard::Placement(branch_placement()))]
+    );
+}
+
+#[test]
+fn activate_stops_before_commit_when_the_current_parent_is_invalid() {
+    let uow = FakeUnitOfWork::default();
+    let hierarchy = FakeHierarchy::allowing();
+    *hierarchy.error.lock().unwrap() = Some(PortError::InvalidParent);
+    let handler = command_handler(
+        suspended_branch_write_repository(),
+        uow.clone(),
+        hierarchy.clone(),
+        true,
+    );
+
+    let error = block_on(handler.handle(command_envelope(
+        14,
+        Some(2),
+        ActivateOrganizationNode {
+            node_id: node_id(3),
+        },
+    )))
+    .unwrap_err();
+
+    assert_eq!(error.category(), ErrorCategory::Invalid);
+    assert_eq!(hierarchy.placement_checks.load(Ordering::SeqCst), 1);
+    assert_eq!(uow.commits.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn activate_root_is_parentless_but_still_commits_the_atomic_guard() {
+    let uow = FakeUnitOfWork::default();
+    let hierarchy = FakeHierarchy::allowing();
+    let handler = command_handler(
+        suspended_holding_write_repository(),
+        uow.clone(),
+        hierarchy.clone(),
+        true,
+    );
+
+    let receipt = block_on(handler.handle(command_envelope(
+        15,
+        Some(2),
+        ActivateOrganizationNode {
+            node_id: node_id(1),
+        },
+    )))
+    .unwrap();
+
+    assert_eq!(receipt.response.node.status, OrganizationNodeStatus::Active);
+    assert_eq!(hierarchy.placement_checks.load(Ordering::SeqCst), 1);
+    assert_eq!(uow.commits.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        uow.hierarchy_guards.lock().unwrap().as_slice(),
+        &[Some(HierarchyGuard::Placement(
+            OrganizationPlacement::Holding
+        ))]
+    );
 }
 
 #[test]

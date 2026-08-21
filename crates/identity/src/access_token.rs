@@ -60,10 +60,9 @@ pub struct ActiveRoleClaim {
 /// Realm and principal facts asserted by the authenticated session boundary.
 /// Collaboration and other cross-realm services must not infer these values
 /// from request bodies, route text, or display labels.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AuthenticatedRealm {
-    #[default]
     InternalWorkforce,
     PlatformAdministration,
     CustomerPortal,
@@ -73,10 +72,9 @@ pub enum AuthenticatedRealm {
     SignatoryPortal,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AuthenticatedPrincipalKind {
-    #[default]
     Human,
     Agent,
     Service,
@@ -86,6 +84,32 @@ pub enum AuthenticatedPrincipalKind {
 pub struct AuthenticatedAuthority {
     pub realm: AuthenticatedRealm,
     pub principal_kind: AuthenticatedPrincipalKind,
+}
+
+impl AuthenticatedAuthority {
+    /// Compatibility authority for the human-only session model that existed
+    /// before realm and principal-kind attribution became persisted facts.
+    pub const fn legacy_human() -> Self {
+        Self {
+            realm: AuthenticatedRealm::InternalWorkforce,
+            principal_kind: AuthenticatedPrincipalKind::Human,
+        }
+    }
+
+    pub fn validate(self) -> Result<Self, IdentityError> {
+        if matches!(
+            self.realm,
+            AuthenticatedRealm::CustomerPortal
+                | AuthenticatedRealm::SupplierPortal
+                | AuthenticatedRealm::CommercePortal
+                | AuthenticatedRealm::CandidatePortal
+                | AuthenticatedRealm::SignatoryPortal
+        ) && self.principal_kind != AuthenticatedPrincipalKind::Human
+        {
+            return Err(IdentityError::InvalidIdentityReference);
+        }
+        Ok(self)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -98,9 +122,7 @@ pub struct AccessTokenClaims {
     /// an auth API, but the business boundary rejects it fail closed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub authorization_context_version: Option<u64>,
-    #[serde(default)]
     pub realm: AuthenticatedRealm,
-    #[serde(default)]
     pub principal_kind: AuthenticatedPrincipalKind,
     pub issued_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
@@ -119,6 +141,15 @@ impl AccessToken {
 
     pub fn claims(&self) -> &AccessTokenClaims {
         &self.claims
+    }
+}
+
+impl AccessTokenClaims {
+    pub const fn authority(&self) -> AuthenticatedAuthority {
+        AuthenticatedAuthority {
+            realm: self.realm,
+            principal_kind: self.principal_kind,
+        }
     }
 }
 
@@ -193,10 +224,7 @@ impl AccessTokenSigner {
             session_id,
             active_role,
             authorization_context_version,
-            AuthenticatedAuthority {
-                realm: AuthenticatedRealm::InternalWorkforce,
-                principal_kind: AuthenticatedPrincipalKind::Human,
-            },
+            AuthenticatedAuthority::legacy_human(),
             AccessTokenIssueWindow::new(issued_at, lifetime),
         )
     }
@@ -210,6 +238,7 @@ impl AccessTokenSigner {
         authority: AuthenticatedAuthority,
         window: AccessTokenIssueWindow,
     ) -> Result<AccessToken, IdentityError> {
+        let authority = authority.validate()?;
         let issued_at = window.issued_at;
         let lifetime = window.lifetime;
         let principal_ref = principal_ref.into();
@@ -217,14 +246,6 @@ impl AccessTokenSigner {
             || session_id.is_nil()
             || authorization_context_version == Some(0)
             || (active_role.is_some() && authorization_context_version.is_none())
-            || (matches!(
-                authority.realm,
-                AuthenticatedRealm::CustomerPortal
-                    | AuthenticatedRealm::SupplierPortal
-                    | AuthenticatedRealm::CommercePortal
-                    | AuthenticatedRealm::CandidatePortal
-                    | AuthenticatedRealm::SignatoryPortal
-            ) && authority.principal_kind != AuthenticatedPrincipalKind::Human)
             || active_role.as_ref().is_some_and(|role| {
                 role.source.trim().is_empty()
                     || role.selection_id.trim().is_empty()
@@ -273,6 +294,7 @@ impl AccessTokenSigner {
             .map_err(|_| IdentityError::MalformedAccessToken)?;
         let claims: AccessTokenClaims = serde_json::from_slice(&claims_bytes)
             .map_err(|_| IdentityError::MalformedAccessToken)?;
+        claims.authority().validate()?;
         if at < claims.issued_at || at >= claims.expires_at {
             return Err(IdentityError::AccessTokenExpired);
         }
@@ -360,6 +382,26 @@ mod tests {
             .expect("legacy verification");
         assert!(claims.active_role.is_none());
         assert!(claims.authorization_context_version.is_none());
+        assert_eq!(claims.authority(), AuthenticatedAuthority::legacy_human());
+    }
+
+    #[test]
+    fn signed_token_missing_authority_is_rejected_instead_of_defaulting_to_human() {
+        let signer = AccessTokenSigner::new(b"01234567890123456789012345678901").expect("signer");
+        let claims = serde_json::json!({
+            "principal_ref": "local:legacy-wire",
+            "session_id": Uuid::new_v4(),
+            "issued_at": at(),
+            "expires_at": at() + Duration::minutes(5),
+        });
+        let encoded_claims = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&claims).expect("claims"));
+        let signature = signer.sign(&encoded_claims).expect("signature");
+        let token = format!("{encoded_claims}.{}", URL_SAFE_NO_PAD.encode(signature));
+
+        assert!(matches!(
+            signer.verify(&token, at() + Duration::seconds(1)),
+            Err(IdentityError::MalformedAccessToken)
+        ));
     }
 
     #[test]

@@ -10,7 +10,9 @@ use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use erpx_integration_contracts::{
     EffectiveGrantChanged, EffectiveGrantRevoked, ItemDescriptor, ItemDirectoryFact,
-    RecordPolicyPrincipalKind, RecordPolicyRealm, RecordPolicyScopeRule, record_policy,
+    RecordPolicyPrincipalKind, RecordPolicyRealm, RecordPolicyScopeRule,
+    organization::{OrganizationLineageWitness, contains_scope},
+    record_policy,
 };
 use erpx_kernel::{AuthorityScope, DataClassification, PrincipalId};
 use thiserror::Error;
@@ -72,6 +74,9 @@ pub struct OrganizationScopeEvidence {
 pub struct RecordGrantEvaluation {
     pub descriptor: ItemDescriptor,
     pub iam: IamAuthorityEvidence,
+    /// Current Organization-authored witness for an exact Department/Team
+    /// target. Missing, inactive, stale, or mismatched witnesses fail closed.
+    pub target_lineage: Option<OrganizationLineageWitness>,
     pub organization: Option<OrganizationScopeEvidence>,
     pub evaluated_at: DateTime<Utc>,
     pub decision_source_position: u64,
@@ -224,11 +229,11 @@ impl RecordGrantDecisionProducer {
 }
 
 fn scope_is_permitted(evaluation: &RecordGrantEvaluation) -> bool {
-    if evaluation
-        .iam
-        .assignment_scope
-        .contains(evaluation.descriptor.scope())
-    {
+    if contains_scope(
+        &evaluation.iam.assignment_scope,
+        evaluation.descriptor.scope(),
+        evaluation.target_lineage.as_ref(),
+    ) {
         return true;
     }
     let Some(evidence) = &evaluation.organization else {
@@ -249,7 +254,10 @@ fn scope_is_permitted(evaluation: &RecordGrantEvaluation) -> bool {
     }
     match evidence.kind {
         OrganizationScopeEvidenceKind::PublishedAncestor => {
-            evidence.record_scope.contains(&evidence.actor_scope)
+            // The pilot deliberately has no deciding-assignment witness on an
+            // effective grant. Descendant Subtree sessions therefore remain
+            // denied for published ancestors until that evidence is stored.
+            contains_scope(&evidence.record_scope, &evidence.actor_scope, None)
                 && evidence.sharing_agreement_id.is_none()
         }
         OrganizationScopeEvidenceKind::TwoSidedSharingAgreement => {
@@ -466,7 +474,9 @@ mod tests {
 
     use erpx_integration_contracts::{
         CURRENT_RECORD_POLICIES, FUTURE_RECORD_POLICIES, ItemDescriptor, RecordTypeId,
-        StableRecordRef, record_policies,
+        StableRecordRef,
+        organization::{OrganizationLineageKey, OrganizationNodeKind, OrganizationNodeStatus},
+        record_policies,
     };
     use erpx_kernel::{PolicyId, RecordId};
 
@@ -482,6 +492,57 @@ mod tests {
             company_id,
             branch_id,
         }
+    }
+
+    fn subtree(holding_id: Uuid, organization_node_id: Uuid) -> AuthorityScope {
+        AuthorityScope::Subtree {
+            holding_id,
+            organization_node_id,
+        }
+    }
+
+    fn lineage(
+        holding_id: Uuid,
+        node_id: Uuid,
+        kind: OrganizationNodeKind,
+        status: OrganizationNodeStatus,
+        parent_node_id: Uuid,
+        lineage_node_ids: Vec<Uuid>,
+    ) -> OrganizationLineageWitness {
+        OrganizationLineageWitness::try_new(
+            OrganizationLineageKey::try_new(holding_id, node_id).unwrap(),
+            kind,
+            status,
+            Some(parent_node_id),
+            lineage_node_ids,
+            2,
+        )
+        .unwrap()
+    }
+
+    fn with_hierarchy_scope(
+        mut value: RecordGrantEvaluation,
+        assignment_scope: AuthorityScope,
+        target_scope: AuthorityScope,
+        target_lineage: Option<OrganizationLineageWitness>,
+    ) -> RecordGrantEvaluation {
+        value.iam.assignment_scope = assignment_scope;
+        value.descriptor = ItemDescriptor::try_new(
+            value.descriptor.record().clone(),
+            target_scope,
+            value.descriptor.lifecycle_state(),
+            value.descriptor.authorization_policy(),
+            value.descriptor.classification(),
+            value.descriptor.descriptor_version(),
+            value.descriptor.source_event_position(),
+        )
+        .unwrap();
+        value.target_lineage = target_lineage;
+        value
+    }
+
+    fn is_granted(fact: ItemDirectoryFact) -> bool {
+        matches!(fact, ItemDirectoryFact::EffectiveGrantChanged(_))
     }
 
     fn evaluation(
@@ -523,6 +584,7 @@ mod tests {
                 revoked_at: None,
                 membership: None,
             },
+            target_lineage: None,
             organization: None,
             evaluated_at: now,
             decision_source_position: 20,
@@ -541,6 +603,201 @@ mod tests {
             assert_eq!(grant.policy_version, definition.version);
             assert!(grant.expires_at <= grant.effective_at + MAX_EFFECTIVE_GRANT_TTL);
         }
+    }
+
+    #[test]
+    fn exact_department_and_team_containment_uses_only_bound_lineage_witnesses() {
+        let definition = record_policy("finance.invoice").unwrap();
+        let producer = RecordGrantDecisionProducer;
+        let holding_id = id();
+        let company_id = id();
+        let branch_id = id();
+        let department_id = id();
+        let sibling_department_id = id();
+        let team_id = id();
+        let department = lineage(
+            holding_id,
+            department_id,
+            OrganizationNodeKind::Department,
+            OrganizationNodeStatus::Active,
+            branch_id,
+            vec![holding_id, company_id, branch_id],
+        );
+        let team = lineage(
+            holding_id,
+            team_id,
+            OrganizationNodeKind::Team,
+            OrganizationNodeStatus::Active,
+            department_id,
+            vec![holding_id, company_id, branch_id, department_id],
+        );
+
+        let cases = [
+            (
+                "company_to_department",
+                AuthorityScope::Company {
+                    holding_id,
+                    company_id,
+                },
+                subtree(holding_id, department_id),
+                Some(department.clone()),
+                true,
+            ),
+            (
+                "branch_to_team",
+                branch(holding_id, company_id, branch_id),
+                subtree(holding_id, team_id),
+                Some(team.clone()),
+                true,
+            ),
+            (
+                "department_to_team",
+                subtree(holding_id, department_id),
+                subtree(holding_id, team_id),
+                Some(team.clone()),
+                true,
+            ),
+            (
+                "company_uuid_as_subtree_is_not_company_authority",
+                subtree(holding_id, company_id),
+                subtree(holding_id, department_id),
+                Some(department.clone()),
+                false,
+            ),
+            (
+                "branch_uuid_as_subtree_is_not_branch_authority",
+                subtree(holding_id, branch_id),
+                subtree(holding_id, team_id),
+                Some(team.clone()),
+                false,
+            ),
+            (
+                "sibling_department_to_team",
+                subtree(holding_id, sibling_department_id),
+                subtree(holding_id, team_id),
+                Some(team.clone()),
+                false,
+            ),
+            (
+                "missing_witness",
+                AuthorityScope::Company {
+                    holding_id,
+                    company_id,
+                },
+                subtree(holding_id, department_id),
+                None,
+                false,
+            ),
+            (
+                "mismatched_witness",
+                AuthorityScope::Company {
+                    holding_id,
+                    company_id,
+                },
+                subtree(holding_id, sibling_department_id),
+                Some(department.clone()),
+                false,
+            ),
+        ];
+        for (name, assignment, target, witness, expected) in cases {
+            let value = with_hierarchy_scope(evaluation(definition), assignment, target, witness);
+            assert_eq!(
+                is_granted(producer.evaluate(&value).unwrap()),
+                expected,
+                "{name}"
+            );
+        }
+
+        let cross_holding_id = id();
+        let cross_department_id = id();
+        let cross_department = lineage(
+            cross_holding_id,
+            cross_department_id,
+            OrganizationNodeKind::Department,
+            OrganizationNodeStatus::Active,
+            company_id,
+            vec![cross_holding_id, company_id],
+        );
+        let cross_holding = with_hierarchy_scope(
+            evaluation(definition),
+            AuthorityScope::Company {
+                holding_id,
+                company_id,
+            },
+            subtree(cross_holding_id, cross_department_id),
+            Some(cross_department),
+        );
+        assert!(!is_granted(producer.evaluate(&cross_holding).unwrap()));
+
+        for status in [
+            OrganizationNodeStatus::Suspended,
+            OrganizationNodeStatus::Archived,
+        ] {
+            let inactive = lineage(
+                holding_id,
+                department_id,
+                OrganizationNodeKind::Department,
+                status,
+                branch_id,
+                vec![holding_id, company_id, branch_id],
+            );
+            let value = with_hierarchy_scope(
+                evaluation(definition),
+                AuthorityScope::Company {
+                    holding_id,
+                    company_id,
+                },
+                subtree(holding_id, department_id),
+                Some(inactive),
+            );
+            assert!(!is_granted(producer.evaluate(&value).unwrap()));
+        }
+    }
+
+    #[test]
+    fn published_ancestor_does_not_authorize_a_subtree_actor_without_assignment_evidence() {
+        let definition = record_policy("finance.invoice").unwrap();
+        let producer = RecordGrantDecisionProducer;
+        let holding_id = id();
+        let company_id = id();
+        let department_id = id();
+        let actor_scope = subtree(holding_id, department_id);
+        let record_scope = AuthorityScope::Company {
+            holding_id,
+            company_id,
+        };
+        let mut value = with_hierarchy_scope(
+            evaluation(definition),
+            actor_scope.clone(),
+            record_scope.clone(),
+            None,
+        );
+        value.organization = Some(OrganizationScopeEvidence {
+            kind: OrganizationScopeEvidenceKind::PublishedAncestor,
+            actor_scope,
+            record_scope,
+            permits_open_record: true,
+            version: 2,
+            valid_from: value.evaluated_at - Duration::minutes(1),
+            valid_until: value.evaluated_at + Duration::minutes(5),
+            revoked_at: None,
+            sharing_agreement_id: None,
+        });
+        assert!(!is_granted(producer.evaluate(&value).unwrap()));
+    }
+
+    #[test]
+    fn scope_policy_has_no_kernel_contains_shortcut_for_subtree_targets() {
+        let source = include_str!("item_directory_policy.rs")
+            .split("fn scope_is_permitted")
+            .nth(1)
+            .expect("scope policy")
+            .split("fn holding_id")
+            .next()
+            .expect("scope policy boundary");
+        assert!(source.contains("contains_scope("));
+        assert!(!source.contains("assignment_scope.contains"));
+        assert!(!source.contains(".contains(evaluation.descriptor.scope())"));
     }
 
     #[test]

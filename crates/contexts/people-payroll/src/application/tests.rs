@@ -13,13 +13,13 @@ use erpx_cqrs::{
 use erpx_integration_contracts::people_payroll;
 use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
-    ErrorCategory, EventId, FixedClock, QueryId,
+    ErrorCategory, EventId, FixedClock, HumanDecisionProof, QueryId, SessionId,
 };
 use uuid::Uuid;
 
 use super::*;
 use crate::{
-    domain::{EmployeeStatus, PayrollStatus},
+    domain::{EmployeeStatus, ExpenseStatus, LeaveStatus, PayrollStatus},
     ports::{
         CommandIdentity, EmployeeListFilter, ExpenseClaimListFilter, LeaveRequestListFilter,
         PayrollRunListFilter, PeoplePayrollCommit, ReadProjection,
@@ -48,10 +48,23 @@ fn actor(name: &str) -> ActorAttribution {
     ActorAttribution {
         principal_ref: name.into(),
         kind: ActorKind::HoldingUser,
-        session_id: None,
+        session_id: Some(SessionId::try_from_uuid(id(102)).unwrap()),
         represented_principal_ref: None,
         support_capability_id: None,
     }
+}
+fn human_decision(
+    principal_ref: &str,
+    command_id: CommandId,
+    decided_at: chrono::DateTime<Utc>,
+) -> HumanDecisionProof {
+    HumanDecisionProof::try_new(
+        actor(principal_ref),
+        scope(),
+        command_id.to_string(),
+        decided_at,
+    )
+    .unwrap()
 }
 fn envelope(
     command: PeoplePayrollCommand,
@@ -86,6 +99,94 @@ fn employee() -> Employee {
         at(),
     )
     .unwrap()
+}
+
+fn submitted_leave() -> LeaveRequest {
+    let mut leave = LeaveRequest::create(
+        LeaveRequestId::try_from_uuid(id(20)).unwrap(),
+        scope(),
+        employee_id(10),
+        date(10),
+        date(12),
+        "annual leave".into(),
+        "requester".into(),
+        at() - Duration::minutes(2),
+    )
+    .unwrap();
+    leave
+        .transition(
+            LeaveTransition::Submit,
+            "workflow-agent",
+            at() - Duration::minutes(1),
+        )
+        .unwrap();
+    leave.take_uncommitted_events();
+    leave
+}
+
+fn approved_expense() -> ExpenseClaim {
+    let mut expense = ExpenseClaim::create(
+        ExpenseClaimId::try_from_uuid(id(30)).unwrap(),
+        scope(),
+        employee_id(10),
+        Currency::try_new("THB").unwrap(),
+        1_500,
+        "travel".into(),
+        "claimant".into(),
+        at() - Duration::minutes(3),
+    )
+    .unwrap();
+    expense
+        .transition(
+            ExpenseTransition::Submit,
+            "workflow-agent",
+            at() - Duration::minutes(2),
+        )
+        .unwrap();
+    let command_id = CommandId::try_from_uuid(id(130)).unwrap();
+    expense
+        .decide(
+            ExpenseTransition::Approve,
+            human_decision("reviewer", command_id, at() - Duration::minutes(1)),
+            command_id,
+            at() - Duration::minutes(1),
+        )
+        .unwrap();
+    expense.take_uncommitted_events();
+    expense
+}
+
+fn human_only_commands() -> Vec<PeoplePayrollCommand> {
+    vec![
+        PeoplePayrollCommand::TransitionLeaveRequest(TransitionLeaveRequest {
+            leave_request_id: LeaveRequestId::try_from_uuid(id(20)).unwrap(),
+            transition: LeaveTransition::Approve,
+        }),
+        PeoplePayrollCommand::TransitionLeaveRequest(TransitionLeaveRequest {
+            leave_request_id: LeaveRequestId::try_from_uuid(id(20)).unwrap(),
+            transition: LeaveTransition::Reject,
+        }),
+        PeoplePayrollCommand::TransitionExpenseClaim(TransitionExpenseClaim {
+            expense_claim_id: ExpenseClaimId::try_from_uuid(id(30)).unwrap(),
+            transition: ExpenseTransition::Approve,
+        }),
+        PeoplePayrollCommand::TransitionExpenseClaim(TransitionExpenseClaim {
+            expense_claim_id: ExpenseClaimId::try_from_uuid(id(30)).unwrap(),
+            transition: ExpenseTransition::Reject,
+        }),
+        PeoplePayrollCommand::TransitionExpenseClaim(TransitionExpenseClaim {
+            expense_claim_id: ExpenseClaimId::try_from_uuid(id(30)).unwrap(),
+            transition: ExpenseTransition::Reimburse,
+        }),
+        PeoplePayrollCommand::TransitionPayrollRun(TransitionPayrollRun {
+            payroll_run_id: PayrollRunId::try_from_uuid(id(40)).unwrap(),
+            transition: PayrollTransition::Review,
+        }),
+        PeoplePayrollCommand::TransitionPayrollRun(TransitionPayrollRun {
+            payroll_run_id: PayrollRunId::try_from_uuid(id(40)).unwrap(),
+            transition: PayrollTransition::Post,
+        }),
+    ]
 }
 
 #[derive(Clone)]
@@ -124,6 +225,7 @@ struct FakeWrite {
     leave: Option<LeaveRequest>,
     expense: Option<ExpenseClaim>,
     payroll: Option<PayrollRun>,
+    loads: Arc<AtomicUsize>,
 }
 
 #[async_trait]
@@ -133,6 +235,7 @@ impl WriteRepository for FakeWrite {
         _scope: &AuthorityScope,
         _id: EmployeeId,
     ) -> Result<Option<Employee>, PortError> {
+        self.loads.fetch_add(1, Ordering::SeqCst);
         Ok(self.employee.clone())
     }
     async fn load_leave_request(
@@ -140,6 +243,7 @@ impl WriteRepository for FakeWrite {
         _scope: &AuthorityScope,
         _id: LeaveRequestId,
     ) -> Result<Option<LeaveRequest>, PortError> {
+        self.loads.fetch_add(1, Ordering::SeqCst);
         Ok(self.leave.clone())
     }
     async fn load_expense_claim(
@@ -147,6 +251,7 @@ impl WriteRepository for FakeWrite {
         _scope: &AuthorityScope,
         _id: ExpenseClaimId,
     ) -> Result<Option<ExpenseClaim>, PortError> {
+        self.loads.fetch_add(1, Ordering::SeqCst);
         Ok(self.expense.clone())
     }
     async fn load_payroll_run(
@@ -154,6 +259,7 @@ impl WriteRepository for FakeWrite {
         _scope: &AuthorityScope,
         _id: PayrollRunId,
     ) -> Result<Option<PayrollRun>, PortError> {
+        self.loads.fetch_add(1, Ordering::SeqCst);
         Ok(self.payroll.clone())
     }
 }
@@ -161,6 +267,7 @@ impl WriteRepository for FakeWrite {
 #[derive(Clone, Default)]
 struct FakeUnitOfWork {
     commits: Arc<AtomicUsize>,
+    receipt_lookups: Arc<AtomicUsize>,
     request: Arc<Mutex<Option<PeoplePayrollCommit>>>,
 }
 
@@ -170,6 +277,7 @@ impl CommandUnitOfWork for FakeUnitOfWork {
         &self,
         _identity: &CommandIdentity,
     ) -> Result<Option<StoredCommit>, PortError> {
+        self.receipt_lookups.fetch_add(1, Ordering::SeqCst);
         Ok(None)
     }
 
@@ -253,6 +361,165 @@ async fn authorization_denial_prevents_any_commit() {
 }
 
 #[tokio::test]
+async fn human_only_transitions_reject_non_humans_before_receipt_or_record_access() {
+    for command in human_only_commands() {
+        for kind in [
+            ActorKind::Agent,
+            ActorKind::Service,
+            ActorKind::SystemWorker,
+        ] {
+            let loads = Arc::new(AtomicUsize::new(0));
+            let uow = FakeUnitOfWork::default();
+            let mut request = envelope(command.clone(), Some(1), "non-human");
+            request.actor.kind = kind;
+
+            let error = handler(
+                FakeWrite {
+                    loads: loads.clone(),
+                    ..FakeWrite::default()
+                },
+                uow.clone(),
+                true,
+            )
+            .handle(request)
+            .await
+            .unwrap_err();
+
+            assert_eq!(error.category(), ErrorCategory::Denied);
+            assert_eq!(uow.receipt_lookups.load(Ordering::SeqCst), 0);
+            assert_eq!(loads.load(Ordering::SeqCst), 0);
+            assert_eq!(uow.commits.load(Ordering::SeqCst), 0);
+        }
+    }
+}
+
+#[tokio::test]
+async fn leave_approval_derives_human_actor_and_enforces_requester_separation() {
+    let leave = submitted_leave();
+    let requester_uow = FakeUnitOfWork::default();
+    let requester_error = handler(
+        FakeWrite {
+            leave: Some(leave.clone()),
+            ..FakeWrite::default()
+        },
+        requester_uow.clone(),
+        true,
+    )
+    .handle(envelope(
+        PeoplePayrollCommand::TransitionLeaveRequest(TransitionLeaveRequest {
+            leave_request_id: leave.id(),
+            transition: LeaveTransition::Approve,
+        }),
+        Some(leave.version()),
+        "requester",
+    ))
+    .await
+    .unwrap_err();
+    assert_eq!(requester_error.category(), ErrorCategory::Invalid);
+    assert_eq!(requester_uow.commits.load(Ordering::SeqCst), 0);
+
+    let reviewer_uow = FakeUnitOfWork::default();
+    handler(
+        FakeWrite {
+            leave: Some(leave.clone()),
+            ..FakeWrite::default()
+        },
+        reviewer_uow.clone(),
+        true,
+    )
+    .handle(envelope(
+        PeoplePayrollCommand::TransitionLeaveRequest(TransitionLeaveRequest {
+            leave_request_id: leave.id(),
+            transition: LeaveTransition::Approve,
+        }),
+        Some(leave.version()),
+        "reviewer",
+    ))
+    .await
+    .unwrap();
+    let request = reviewer_uow.request.lock().unwrap().clone().unwrap();
+    let Aggregate::LeaveRequest(approved) = request.aggregate else {
+        panic!("leave request commit expected")
+    };
+    assert_eq!(approved.status(), LeaveStatus::Approved);
+    assert_eq!(approved.approved_by(), Some("reviewer"));
+    assert_eq!(request.actor.principal_ref, "reviewer");
+}
+
+#[tokio::test]
+async fn expense_reimbursement_uses_authenticated_human_decision() {
+    let expense = approved_expense();
+    let uow = FakeUnitOfWork::default();
+    handler(
+        FakeWrite {
+            expense: Some(expense.clone()),
+            ..FakeWrite::default()
+        },
+        uow.clone(),
+        true,
+    )
+    .handle(envelope(
+        PeoplePayrollCommand::TransitionExpenseClaim(TransitionExpenseClaim {
+            expense_claim_id: expense.id(),
+            transition: ExpenseTransition::Reimburse,
+        }),
+        Some(expense.version()),
+        "payments",
+    ))
+    .await
+    .unwrap();
+    let request = uow.request.lock().unwrap().clone().unwrap();
+    let Aggregate::ExpenseClaim(reimbursed) = request.aggregate else {
+        panic!("expense claim commit expected")
+    };
+    assert_eq!(reimbursed.status(), ExpenseStatus::Reimbursed);
+    assert_eq!(request.actor.principal_ref, "payments");
+}
+
+#[tokio::test]
+async fn non_decision_transition_preserves_existing_agent_behavior() {
+    let leave = LeaveRequest::create(
+        LeaveRequestId::try_from_uuid(id(23)).unwrap(),
+        scope(),
+        employee_id(10),
+        date(10),
+        date(12),
+        "annual leave".into(),
+        "requester".into(),
+        at() - Duration::minutes(1),
+    )
+    .unwrap();
+    let uow = FakeUnitOfWork::default();
+    let mut request = envelope(
+        PeoplePayrollCommand::TransitionLeaveRequest(TransitionLeaveRequest {
+            leave_request_id: leave.id(),
+            transition: LeaveTransition::Submit,
+        }),
+        Some(leave.version()),
+        "workflow-agent",
+    );
+    request.actor.kind = ActorKind::Agent;
+
+    handler(
+        FakeWrite {
+            leave: Some(leave),
+            ..FakeWrite::default()
+        },
+        uow.clone(),
+        true,
+    )
+    .handle(request)
+    .await
+    .unwrap();
+
+    let request = uow.request.lock().unwrap().clone().unwrap();
+    let Aggregate::LeaveRequest(submitted) = request.aggregate else {
+        panic!("leave request commit expected")
+    };
+    assert_eq!(submitted.status(), LeaveStatus::Submitted);
+}
+
+#[tokio::test]
 async fn hire_commits_snapshot_receipt_audit_and_employee_fact_as_one_request() {
     let uow = FakeUnitOfWork::default();
     let receipt = handler(FakeWrite::default(), uow.clone(), true)
@@ -313,9 +580,14 @@ async fn posting_payroll_emits_the_only_finance_facing_payroll_fact() {
         .unwrap();
     payroll.take_uncommitted_events();
     payroll
-        .transition(
+        .decide(
             PayrollTransition::Review,
-            "reviewer",
+            human_decision(
+                "reviewer",
+                CommandId::try_from_uuid(id(120)).unwrap(),
+                at() - Duration::minutes(1),
+            ),
+            CommandId::try_from_uuid(id(120)).unwrap(),
             at() - Duration::minutes(1),
         )
         .unwrap();
@@ -343,6 +615,10 @@ async fn posting_payroll_emits_the_only_finance_facing_payroll_fact() {
     .await
     .unwrap();
     let request = uow.request.lock().unwrap().clone().unwrap();
+    let Aggregate::PayrollRun(posted) = &request.aggregate else {
+        panic!("payroll run commit expected")
+    };
+    assert_eq!(posted.approved_by(), Some("poster"));
     assert!(matches!(
         request.integration_events.as_slice(),
         [people_payroll::Event::PayrollFinalized(fact)]

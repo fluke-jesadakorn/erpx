@@ -5,7 +5,7 @@ use erpx_cqrs::{
 };
 use erpx_kernel::{
     ActorAttribution, AuditContext, AuthorityScope, Clock, CorrelationId, ErrorCategory,
-    ErrorContext, EventId, KernelError,
+    ErrorContext, EventId, HumanDecisionProof, KernelError,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -13,6 +13,7 @@ use thiserror::Error;
 use crate::{
     domain::{
         ProcurementDomainError, PurchaseOrder, PurchaseOrderId, PurchaseOrderLine, SupplierId,
+        purchase_order_release_decision_ref,
     },
     integration,
     ports::{
@@ -86,6 +87,8 @@ pub enum ProcurementApplicationError {
     InvalidPageSize,
     #[error("procurement integration event mapping failed")]
     IntegrationMapping,
+    #[error("Procurement decision requires a directly authenticated human")]
+    HumanDecisionRequired,
     #[error(transparent)]
     Port(#[from] PortError),
 }
@@ -116,6 +119,7 @@ impl<W, U, A, E, C> ProcurementCommandHandler<W, U, A, E, C> {
     }
 }
 
+#[derive(Clone, Copy)]
 enum Mutation {
     Release,
     Cancel,
@@ -167,6 +171,27 @@ where
     }
 
     async fn execute_existing(&self, command: ExistingCommand) -> Result<StoredCommit, CqrsError> {
+        let at = self.clock.now();
+        let human_decision = match command.mutation {
+            Mutation::Release => Some(
+                HumanDecisionProof::try_new(
+                    command.actor.clone(),
+                    command.authority_scope.clone(),
+                    purchase_order_release_decision_ref(
+                        command.identity.command_id,
+                        command.purchase_order_id,
+                    ),
+                    at,
+                )
+                .map_err(|_| {
+                    to_cqrs(
+                        ProcurementApplicationError::HumanDecisionRequired,
+                        command.correlation_id,
+                    )
+                })?,
+            ),
+            Mutation::Cancel => None,
+        };
         if let Some(mut stored) = self
             .unit_of_work
             .find_receipt(&command.identity)
@@ -214,8 +239,14 @@ where
             ));
         }
         match command.mutation {
-            Mutation::Release => aggregate.release(self.clock.now()),
-            Mutation::Cancel => aggregate.cancel(self.clock.now()),
+            Mutation::Release => aggregate.release(
+                human_decision
+                    .as_ref()
+                    .expect("release decision was constructed above"),
+                command.identity.command_id,
+                at,
+            ),
+            Mutation::Cancel => aggregate.cancel(at),
         }
         .map_err(|error| to_cqrs(error.into(), command.correlation_id))?;
         let integration_events =
@@ -568,6 +599,7 @@ fn to_cqrs(error: ProcurementApplicationError, correlation_id: CorrelationId) ->
             false,
         ),
         ProcurementApplicationError::ScopeOutsideAuthority
+        | ProcurementApplicationError::HumanDecisionRequired
         | ProcurementApplicationError::Port(PortError::Denied)
         | ProcurementApplicationError::Port(PortError::EntitlementDenied) => (
             "procurement.denied",

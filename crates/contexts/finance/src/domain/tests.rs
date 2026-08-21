@@ -3,6 +3,7 @@ use erpx_integration_contracts::{
     BoundedContext, CostCenterRef, CurrencyCode, DimensionSet, MoneyAmount, RecordRef,
     ReferenceCode, customer, finance, organization, procurement, sales,
 };
+use erpx_kernel::{ActorAttribution, ActorKind, CommandId, HumanDecisionProof, SessionId};
 use uuid::Uuid;
 
 use super::*;
@@ -21,6 +22,41 @@ fn scope() -> AuthorityScope {
         holding_id: id(1),
         company_id: id(2),
     }
+}
+fn human_decision(
+    principal_ref: &str,
+    authority_scope: AuthorityScope,
+    decision_ref: impl Into<String>,
+    decided_at: DateTime<Utc>,
+) -> HumanDecisionProof {
+    HumanDecisionProof::try_new(
+        ActorAttribution {
+            principal_ref: principal_ref.into(),
+            kind: ActorKind::HoldingUser,
+            session_id: Some(SessionId::try_from_uuid(id(3)).unwrap()),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        },
+        authority_scope,
+        decision_ref,
+        decided_at,
+    )
+    .unwrap()
+}
+fn journal_post_decision(
+    command_id: CommandId,
+    journal_id: JournalId,
+    decided_at: DateTime<Utc>,
+) -> HumanDecisionProof {
+    human_decision(
+        "finance-controller",
+        scope(),
+        journal_post_decision_ref(command_id, journal_id),
+        decided_at,
+    )
+}
+fn command_id(value: u128) -> CommandId {
+    CommandId::try_from_uuid(id(value)).unwrap()
 }
 fn account_id(value: u128) -> AccountId {
     AccountId::try_from_uuid(id(value)).unwrap()
@@ -92,6 +128,25 @@ fn lines() -> Vec<JournalLine> {
     ]
 }
 
+fn journal(value: u128) -> Journal {
+    Journal::create(
+        JournalId::try_from_uuid(id(value)).unwrap(),
+        scope(),
+        ChartId::try_from_uuid(id(10)).unwrap(),
+        PeriodId::try_from_uuid(id(20)).unwrap(),
+        format!("J-{value}"),
+        date(5),
+        "THB".into(),
+        JournalSource::Manual {
+            reference: format!("MAN-{value}"),
+        },
+        "posting".into(),
+        lines(),
+        at(),
+    )
+    .unwrap()
+}
+
 #[test]
 fn chart_rejects_cycles_and_duplicate_codes_without_partial_mutation() {
     let duplicate = Chart::create(
@@ -151,30 +206,52 @@ fn journal_requires_balanced_unique_lines_in_one_currency() {
 fn posting_requires_open_bound_period_and_active_accounts() {
     let chart = chart();
     let period = period();
-    let mut journal = Journal::create(
-        JournalId::try_from_uuid(id(30)).unwrap(),
-        scope(),
-        chart.id(),
-        period.id(),
-        "J-30".into(),
-        date(5),
-        "THB".into(),
-        JournalSource::Manual {
-            reference: "MAN-30".into(),
-        },
-        "posting".into(),
-        lines(),
-        at(),
-    )
-    .unwrap();
+    let mut journal = journal(30);
+    let first_posted_at = at() + Duration::minutes(1);
+    let first_command = command_id(90);
     journal
-        .post(&chart, &period, at() + Duration::minutes(1))
+        .post(
+            &chart,
+            &period,
+            &journal_post_decision(first_command, journal.id(), first_posted_at),
+            first_command,
+            first_posted_at,
+        )
         .unwrap();
     assert_eq!(journal.status(), JournalStatus::Posted);
     assert_eq!(journal.debit_total_minor(), journal.credit_total_minor());
+    let second_command = command_id(91);
     assert_eq!(
-        journal.post(&chart, &period, at() + Duration::minutes(2)),
+        journal.post(
+            &chart,
+            &period,
+            &journal_post_decision(second_command, journal.id(), at() + Duration::minutes(2),),
+            second_command,
+            at() + Duration::minutes(2),
+        ),
         Err(FinanceDomainError::InvalidJournalTransition)
+    );
+}
+
+#[test]
+fn journal_post_decision_cannot_be_reused_for_another_command_or_journal() {
+    let chart = chart();
+    let period = period();
+    let decided_at = at() + Duration::minutes(1);
+    let approved_command = command_id(92);
+    let approved_journal_id = JournalId::try_from_uuid(id(30)).unwrap();
+    let decision = journal_post_decision(approved_command, approved_journal_id, decided_at);
+
+    let mut wrong_command = journal(30);
+    assert_eq!(
+        wrong_command.post(&chart, &period, &decision, command_id(93), decided_at,),
+        Err(FinanceDomainError::HumanDecisionRequired)
+    );
+
+    let mut wrong_journal = journal(33);
+    assert_eq!(
+        wrong_journal.post(&chart, &period, &decision, approved_command, decided_at),
+        Err(FinanceDomainError::HumanDecisionRequired)
     );
 }
 
@@ -185,22 +262,129 @@ fn close_requires_distinct_requester_and_approver_and_reopen_actor() {
         .begin_close("requester", at() + Duration::minutes(1))
         .unwrap();
     let before = value.clone();
+    let close_at = at() + Duration::minutes(2);
+    let close_command = command_id(90);
     assert_eq!(
-        value.close("requester", at() + Duration::minutes(2)),
+        value.close_with_decision(
+            human_decision("requester", scope(), close_command.to_string(), close_at,),
+            close_command,
+            close_at,
+        ),
         Err(FinanceDomainError::CloseApprovalSeparation)
     );
     assert_eq!(value, before);
     value
-        .close("approver", at() + Duration::minutes(2))
+        .close_with_decision(
+            human_decision("approver", scope(), close_command.to_string(), close_at),
+            close_command,
+            close_at,
+        )
         .unwrap();
+    assert_eq!(value.closed_by(), Some("approver"));
+    let closed = value.clone();
     assert_eq!(
-        value.reopen("approver", at() + Duration::minutes(3)),
+        value.reopen("controller", at() + Duration::minutes(3)),
+        Err(FinanceDomainError::InvalidPeriodDecision)
+    );
+    assert_eq!(value, closed);
+    let reopen_at = at() + Duration::minutes(3);
+    let reopen_command = command_id(91);
+    assert_eq!(
+        value.reopen_with_decision(
+            human_decision("approver", scope(), reopen_command.to_string(), reopen_at,),
+            reopen_command,
+            reopen_at,
+        ),
         Err(FinanceDomainError::InvalidPeriodTransition)
     );
     value
-        .reopen("controller", at() + Duration::minutes(3))
+        .reopen_with_decision(
+            human_decision("controller", scope(), reopen_command.to_string(), reopen_at),
+            reopen_command,
+            reopen_at,
+        )
         .unwrap();
     assert_eq!(value.status(), PeriodStatus::Open);
+}
+
+#[test]
+fn period_decisions_reject_non_humans_legacy_actor_bypass_and_mismatched_metadata() {
+    let mut value = period();
+    value
+        .begin_close("requester", at() + Duration::minutes(1))
+        .unwrap();
+    let before = value.clone();
+    let decided_at = at() + Duration::minutes(2);
+    let expected_command = command_id(92);
+
+    for kind in [
+        ActorKind::Agent,
+        ActorKind::Service,
+        ActorKind::SystemWorker,
+    ] {
+        assert!(
+            HumanDecisionProof::try_new(
+                ActorAttribution {
+                    principal_ref: "approver".into(),
+                    kind,
+                    session_id: Some(SessionId::try_from_uuid(id(3)).unwrap()),
+                    represented_principal_ref: None,
+                    support_capability_id: None,
+                },
+                scope(),
+                expected_command.to_string(),
+                decided_at,
+            )
+            .is_err()
+        );
+        assert_eq!(value, before);
+    }
+
+    assert_eq!(
+        value.close("approver", decided_at),
+        Err(FinanceDomainError::InvalidPeriodDecision)
+    );
+    assert_eq!(value, before);
+    assert_eq!(
+        value.close_with_decision(
+            human_decision("approver", scope(), command_id(93).to_string(), decided_at,),
+            expected_command,
+            decided_at,
+        ),
+        Err(FinanceDomainError::InvalidPeriodDecision)
+    );
+    assert_eq!(value, before);
+    assert_eq!(
+        value.close_with_decision(
+            human_decision(
+                "approver",
+                scope(),
+                expected_command.to_string(),
+                decided_at,
+            ),
+            expected_command,
+            decided_at + Duration::seconds(1),
+        ),
+        Err(FinanceDomainError::InvalidPeriodDecision)
+    );
+    assert_eq!(value, before);
+    assert_eq!(
+        value.close_with_decision(
+            human_decision(
+                "approver",
+                AuthorityScope::Company {
+                    holding_id: id(1),
+                    company_id: id(3),
+                },
+                expected_command.to_string(),
+                decided_at,
+            ),
+            expected_command,
+            decided_at,
+        ),
+        Err(FinanceDomainError::InvalidPeriodDecision)
+    );
+    assert_eq!(value, before);
 }
 
 fn billing_fact() -> sales::BillingEligibilityFact {
@@ -327,17 +511,130 @@ fn customer_invoice_requires_versioned_sales_source_and_maker_checker_posting() 
         [DomainEvent::CustomerInvoiceChanged]
     ));
     let before = invoice.clone();
+    let source = invoice.source().clone();
+    let post_command = command_id(100);
     assert_eq!(
         invoice.post("preparer", at()),
+        Err(FinanceDomainError::InvalidCustomerInvoiceDecision)
+    );
+    assert_eq!(invoice, before);
+    assert_eq!(
+        invoice.post_with_decision(
+            human_decision("preparer", scope(), post_command.to_string(), at(),),
+            post_command,
+            &source,
+            at(),
+        ),
         Err(FinanceDomainError::InvoiceApprovalSeparation)
     );
     assert_eq!(invoice, before);
-    invoice.post("controller", at()).unwrap();
+    invoice
+        .post_with_decision(
+            human_decision("controller", scope(), post_command.to_string(), at()),
+            post_command,
+            &source,
+            at(),
+        )
+        .unwrap();
     assert_eq!(invoice.status(), CustomerInvoiceStatus::Posted);
+    assert_eq!(invoice.posted_by(), Some("controller"));
     assert!(matches!(
         invoice.take_uncommitted_events().as_slice(),
         [DomainEvent::CustomerInvoicePosted(_)]
     ));
+}
+
+#[test]
+fn customer_invoice_decision_rejects_non_humans_and_mismatched_ref_time_scope_or_source() {
+    let mut invoice = CustomerInvoice::create_from_billing(
+        CustomerInvoiceId::try_from_uuid(id(49)).unwrap(),
+        scope(),
+        "INV-49".into(),
+        RecordRef::try_new(BoundedContext::Sales, "revenue_arrangement", id(37), 1).unwrap(),
+        billing_fact(),
+        date(30),
+        "preparer".into(),
+        at(),
+    )
+    .unwrap();
+    invoice.take_uncommitted_events();
+    let before = invoice.clone();
+    let source = invoice.source().clone();
+    let expected_command = command_id(101);
+
+    for kind in [
+        ActorKind::Agent,
+        ActorKind::Service,
+        ActorKind::SystemWorker,
+    ] {
+        assert!(
+            HumanDecisionProof::try_new(
+                ActorAttribution {
+                    principal_ref: "controller".into(),
+                    kind,
+                    session_id: Some(SessionId::try_from_uuid(id(3)).unwrap()),
+                    represented_principal_ref: None,
+                    support_capability_id: None,
+                },
+                scope(),
+                expected_command.to_string(),
+                at(),
+            )
+            .is_err()
+        );
+        assert_eq!(invoice, before);
+    }
+
+    assert_eq!(
+        invoice.post_with_decision(
+            human_decision("controller", scope(), command_id(102).to_string(), at(),),
+            expected_command,
+            &source,
+            at(),
+        ),
+        Err(FinanceDomainError::InvalidCustomerInvoiceDecision)
+    );
+    assert_eq!(invoice, before);
+    assert_eq!(
+        invoice.post_with_decision(
+            human_decision("controller", scope(), expected_command.to_string(), at(),),
+            expected_command,
+            &source,
+            at() + Duration::seconds(1),
+        ),
+        Err(FinanceDomainError::InvalidCustomerInvoiceDecision)
+    );
+    assert_eq!(invoice, before);
+    assert_eq!(
+        invoice.post_with_decision(
+            human_decision(
+                "controller",
+                AuthorityScope::Company {
+                    holding_id: id(1),
+                    company_id: id(3),
+                },
+                expected_command.to_string(),
+                at(),
+            ),
+            expected_command,
+            &source,
+            at(),
+        ),
+        Err(FinanceDomainError::InvalidCustomerInvoiceDecision)
+    );
+    assert_eq!(invoice, before);
+    let mismatched_source =
+        RecordRef::try_new(BoundedContext::Sales, "revenue_arrangement", id(37), 2).unwrap();
+    assert_eq!(
+        invoice.post_with_decision(
+            human_decision("controller", scope(), expected_command.to_string(), at(),),
+            expected_command,
+            &mismatched_source,
+            at(),
+        ),
+        Err(FinanceDomainError::InvalidCustomerInvoiceDecision)
+    );
+    assert_eq!(invoice, before);
 }
 
 #[test]

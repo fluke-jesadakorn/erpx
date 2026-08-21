@@ -11,9 +11,10 @@ use erpx_proto::erpx::{
         GetBenefitsRecordRequest, benefits_query_service_client::BenefitsQueryServiceClient,
     },
     common::{
-        ActorAttribution, ActorKind, AggregateVersionConsistency, AuditContext, AuthorityScope,
-        CommandContext, EventualConsistency, QueryConsistency as ProtoQueryConsistency,
-        QueryContext, authority_scope::Scope as ProtoHoldingScope,
+        ActorAttribution, ActorKind, AggregateVersionConsistency, AuditContext,
+        AuthorityScope as CommonAuthorityScope, CommandContext, EventualConsistency,
+        QueryConsistency as ProtoQueryConsistency, QueryContext, SubtreeScope,
+        authority_scope::Scope as ProtoHoldingScope,
         query_consistency::Requirement as ConsistencyRequirement,
     },
     ecommerce::{
@@ -1064,7 +1065,9 @@ impl EnterpriseWorkspaceGateway for FutureEnterpriseGrpcGateway {
     }
 }
 
-fn active_scope(authority: &AuthorityScope) -> Result<AuthorityScope, EnterpriseGatewayError> {
+fn active_scope(
+    authority: &AuthorityScope,
+) -> Result<CommonAuthorityScope, EnterpriseGatewayError> {
     use erpx_proto::erpx::common::{BranchScope, CompanyScope, HoldingScope};
     let holding_id = authority
         .holding_id
@@ -1090,9 +1093,16 @@ fn active_scope(authority: &AuthorityScope) -> Result<AuthorityScope, Enterprise
                 .clone()
                 .ok_or(EnterpriseGatewayError::Unavailable)?,
         }),
+        Ok(AuthorityScopeLevel::Subtree) => ProtoHoldingScope::Subtree(SubtreeScope {
+            holding_id,
+            organization_node_id: authority
+                .organization_node_id
+                .clone()
+                .ok_or(EnterpriseGatewayError::Unavailable)?,
+        }),
         _ => return Err(EnterpriseGatewayError::Unavailable),
     };
-    Ok(AuthorityScope { scope: Some(scope) })
+    Ok(CommonAuthorityScope { scope: Some(scope) })
 }
 
 fn query_context(
@@ -1250,11 +1260,11 @@ fn authenticated_principal_id(value: &str) -> Result<String, EnterpriseGatewayEr
 
 fn authority_scope(scope_key: &str) -> Result<AuthorityScope, EnterpriseGatewayError> {
     let mut scope = AuthorityScope {
-        holding_id: String::new(),
         level: AuthorityScopeLevel::Unspecified as i32,
         holding_id: None,
         company_id: None,
         branch_id: None,
+        organization_node_id: None,
     };
     let canonical = |value: &str| {
         Uuid::parse_str(value)
@@ -1281,6 +1291,13 @@ fn authority_scope(scope_key: &str) -> Result<AuthorityScope, EnterpriseGatewayE
         scope.holding_id = Some(canonical(holding)?);
         scope.company_id = Some(canonical(company)?);
         scope.branch_id = Some(canonical(branch)?);
+    } else if let Some(value) = scope_key.strip_prefix("subtree:") {
+        let (holding, organization_node) = value
+            .split_once(':')
+            .ok_or(EnterpriseGatewayError::Denied)?;
+        scope.level = AuthorityScopeLevel::Subtree as i32;
+        scope.holding_id = Some(canonical(holding)?);
+        scope.organization_node_id = Some(canonical(organization_node)?);
     } else {
         return Err(EnterpriseGatewayError::Denied);
     }
@@ -1288,7 +1305,7 @@ fn authority_scope(scope_key: &str) -> Result<AuthorityScope, EnterpriseGatewayE
 }
 
 fn same_hierarchy(expected: &AuthorityScope, actual: &AuthorityScope) -> bool {
-    if expected.holding_id != actual.holding_id {
+    if !same_present_id(&expected.holding_id, &actual.holding_id) {
         return false;
     }
     match (
@@ -1302,16 +1319,28 @@ fn same_hierarchy(expected: &AuthorityScope, actual: &AuthorityScope) -> bool {
                 | AuthorityScopeLevel::Branch
         ),
         (Ok(AuthorityScopeLevel::Company), Ok(actual_level)) => {
-            matches!(
+            if matches!(
                 actual_level,
                 AuthorityScopeLevel::Company | AuthorityScopeLevel::Branch
-            ) && expected.company_id == actual.company_id
+            ) {
+                same_present_id(&expected.company_id, &actual.company_id)
+            } else {
+                false
+            }
         }
         (Ok(AuthorityScopeLevel::Branch), Ok(AuthorityScopeLevel::Branch)) => {
-            expected.company_id == actual.company_id && expected.branch_id == actual.branch_id
+            same_present_id(&expected.company_id, &actual.company_id)
+                && same_present_id(&expected.branch_id, &actual.branch_id)
+        }
+        (Ok(AuthorityScopeLevel::Subtree), Ok(AuthorityScopeLevel::Subtree)) => {
+            same_present_id(&expected.organization_node_id, &actual.organization_node_id)
         }
         _ => false,
     }
+}
+
+fn same_present_id(left: &Option<String>, right: &Option<String>) -> bool {
+    matches!((left, right), (Some(left), Some(right)) if left == right)
 }
 
 const fn owner_context(workspace: WorkspaceKind) -> &'static str {
@@ -1373,6 +1402,7 @@ fn scope_label(scope: &AuthorityScope) -> &'static str {
         Ok(AuthorityScopeLevel::Holding) => "holding",
         Ok(AuthorityScopeLevel::Company) => "company",
         Ok(AuthorityScopeLevel::Branch) => "branch",
+        Ok(AuthorityScopeLevel::Subtree) => "subtree",
         _ => "restricted",
     }
 }
@@ -1475,18 +1505,18 @@ mod tests {
     fn holding_authority_accepts_an_authorized_descendant_branch() {
         let holding = Uuid::new_v4().to_string();
         let expected = AuthorityScope {
-            holding_id: String::new(),
             level: AuthorityScopeLevel::Holding as i32,
             holding_id: Some(holding.clone()),
             company_id: None,
             branch_id: None,
+            organization_node_id: None,
         };
         let actual = AuthorityScope {
-            holding_id: Uuid::new_v4().to_string(),
             level: AuthorityScopeLevel::Branch as i32,
             holding_id: Some(holding),
             company_id: Some(Uuid::new_v4().to_string()),
             branch_id: Some(Uuid::new_v4().to_string()),
+            organization_node_id: None,
         };
         assert!(same_hierarchy(&expected, &actual));
     }
@@ -1495,20 +1525,73 @@ mod tests {
     fn company_authority_rejects_a_sibling_company_branch() {
         let holding = Uuid::new_v4().to_string();
         let expected = AuthorityScope {
-            holding_id: String::new(),
             level: AuthorityScopeLevel::Company as i32,
             holding_id: Some(holding.clone()),
             company_id: Some(Uuid::new_v4().to_string()),
             branch_id: None,
+            organization_node_id: None,
         };
         let actual = AuthorityScope {
-            holding_id: Uuid::new_v4().to_string(),
             level: AuthorityScopeLevel::Branch as i32,
             holding_id: Some(holding),
             company_id: Some(Uuid::new_v4().to_string()),
             branch_id: Some(Uuid::new_v4().to_string()),
+            organization_node_id: None,
         };
         assert!(!same_hierarchy(&expected, &actual));
+    }
+
+    #[test]
+    fn subtree_scope_maps_to_common_wire_and_compares_fail_closed() {
+        let holding_id = Uuid::new_v4();
+        let organization_node_id = Uuid::new_v4();
+        let scope_key = format!("subtree:{holding_id}:{organization_node_id}");
+        let subtree = authority_scope(&scope_key).expect("valid subtree scope key");
+
+        assert_eq!(scope_label(&subtree), "subtree");
+        assert!(matches!(
+            active_scope(&subtree).expect("subtree maps to common scope").scope,
+            Some(ProtoHoldingScope::Subtree(value))
+                if value.holding_id == holding_id.to_string()
+                    && value.organization_node_id == organization_node_id.to_string()
+        ));
+
+        let holding =
+            authority_scope(&format!("holding:{holding_id}")).expect("valid holding scope key");
+        assert!(!same_hierarchy(&holding, &subtree));
+        assert!(same_hierarchy(&subtree, &subtree));
+
+        let sibling = authority_scope(&format!("subtree:{holding_id}:{}", Uuid::new_v4()))
+            .expect("valid sibling subtree scope key");
+        assert!(!same_hierarchy(&subtree, &sibling));
+
+        let mut missing_node = subtree;
+        missing_node.organization_node_id = None;
+        assert_eq!(
+            active_scope(&missing_node),
+            Err(EnterpriseGatewayError::Unavailable)
+        );
+    }
+
+    #[test]
+    fn subtree_uuid_is_never_reinterpreted_as_company_or_branch_lineage() {
+        let holding_id = Uuid::new_v4();
+        let company_id = Uuid::new_v4();
+        let branch_id = Uuid::new_v4();
+        let company = authority_scope(&format!("company:{holding_id}:{company_id}"))
+            .expect("valid company scope key");
+        let branch = authority_scope(&format!("branch:{holding_id}:{company_id}:{branch_id}"))
+            .expect("valid branch scope key");
+        let company_subtree = authority_scope(&format!("subtree:{holding_id}:{company_id}"))
+            .expect("valid company subtree scope key");
+        let branch_subtree = authority_scope(&format!("subtree:{holding_id}:{branch_id}"))
+            .expect("valid branch subtree scope key");
+
+        assert!(!same_hierarchy(&company, &company_subtree));
+        assert!(!same_hierarchy(&company_subtree, &company));
+        assert!(!same_hierarchy(&company_subtree, &branch));
+        assert!(!same_hierarchy(&branch_subtree, &branch));
+        assert!(!same_hierarchy(&branch, &branch_subtree));
     }
 
     #[test]

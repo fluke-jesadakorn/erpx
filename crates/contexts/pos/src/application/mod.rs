@@ -7,7 +7,10 @@ use erpx_cqrs::{
     CommandEnvelope, CommandHandler, CommandReceipt, CqrsError, QueryEnvelope, QueryHandler,
     QueryMetadata, QueryResult,
 };
-use erpx_kernel::{AuthorityScope, Clock, CorrelationId, ErrorCategory, ErrorContext, KernelError};
+use erpx_kernel::{
+    AuthorityScope, Clock, CorrelationId, ErrorCategory, ErrorContext, HumanDecisionProof,
+    KernelError,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -170,6 +173,8 @@ pub enum PosApplicationError {
     InvalidPageSize,
     #[error("POS integration event mapping failed")]
     IntegrationMapping,
+    #[error("refund approval or rejection requires an authenticated human decision")]
+    HumanDecisionDenied,
     #[error(transparent)]
     Port(#[from] PortError),
 }
@@ -405,6 +410,27 @@ where
             envelope.idempotency_key.clone(),
             &envelope.command,
         );
+        // Fail non-human refund decisions before even consulting an
+        // idempotency receipt or aggregate repository. Request/Post/Cancel
+        // retain their separately classified owner policies.
+        let decision_at = matches!(
+            &envelope.command,
+            PosRefundCommand::Approve(_) | PosRefundCommand::Reject(_)
+        )
+        .then(|| self.clock.now());
+        let human_decision = if let Some(decided_at) = decision_at {
+            Some(
+                HumanDecisionProof::try_new(
+                    envelope.actor.clone(),
+                    envelope.active_scope.clone(),
+                    envelope.command_id.to_string(),
+                    decided_at,
+                )
+                .map_err(|_| to_cqrs(PosApplicationError::HumanDecisionDenied, correlation_id))?,
+            )
+        } else {
+            None
+        };
         if let Some(mut stored) = self
             .unit_of_work
             .find_refund_receipt(&identity)
@@ -429,7 +455,7 @@ where
         }
 
         let expected_version = envelope.expected_aggregate_version;
-        let at = self.clock.now();
+        let at = decision_at.unwrap_or_else(|| self.clock.now());
         let mut aggregate = match envelope.command {
             PosRefundCommand::Request(command) => {
                 if expected_version.is_some() {
@@ -485,10 +511,22 @@ where
                     .map_err(|error| to_cqrs(error, correlation_id))?;
                 match command {
                     PosRefundCommand::Approve(_) => {
-                        aggregate.approve(envelope.actor.principal_ref.clone(), at)
+                        let Some(decision) = human_decision.as_ref() else {
+                            return Err(to_cqrs(
+                                PosApplicationError::HumanDecisionDenied,
+                                correlation_id,
+                            ));
+                        };
+                        aggregate.approve(decision, identity.command_id, at)
                     }
                     PosRefundCommand::Reject(_) => {
-                        aggregate.reject(envelope.actor.principal_ref.clone(), at)
+                        let Some(decision) = human_decision.as_ref() else {
+                            return Err(to_cqrs(
+                                PosApplicationError::HumanDecisionDenied,
+                                correlation_id,
+                            ));
+                        };
+                        aggregate.reject(decision, identity.command_id, at)
                     }
                     PosRefundCommand::Post(_) => aggregate.post(at),
                     PosRefundCommand::Cancel(_) => aggregate.cancel(at),
@@ -913,6 +951,7 @@ fn to_cqrs(error: PosApplicationError, correlation_id: CorrelationId) -> CqrsErr
             false,
         ),
         PosApplicationError::ScopeOutsideAuthority
+        | PosApplicationError::HumanDecisionDenied
         | PosApplicationError::Port(PortError::Denied)
         | PosApplicationError::Port(PortError::EntitlementDenied) => (
             "pos.denied",

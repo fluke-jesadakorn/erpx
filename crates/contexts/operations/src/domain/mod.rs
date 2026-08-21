@@ -12,7 +12,9 @@ use erpx_integration_contracts::{
     operations,
     reference::{RecordTypeId, ReferenceValidationError},
 };
-use erpx_kernel::{AggregateId, AuthorityScope, CorrelationId, EventId, RecordId};
+use erpx_kernel::{
+    AggregateId, AuthorityScope, CommandId, CorrelationId, EventId, HumanDecisionProof, RecordId,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -21,6 +23,22 @@ pub const MAX_REFERENCE_BYTES: usize = 256;
 pub const MAX_CLASSIFICATION_BYTES: usize = 128;
 pub const MAX_SLA_MINUTES: u32 = 7 * 24 * 60;
 pub const MAX_POLICY_SOURCES: usize = 18;
+
+pub fn approval_decision_ref(
+    command_id: CommandId,
+    exception_id: ExceptionId,
+    decision: operations::ApprovalDecision,
+) -> String {
+    let action = match decision {
+        operations::ApprovalDecision::Approved => "approved",
+        operations::ApprovalDecision::Rejected => "rejected",
+        operations::ApprovalDecision::Cancelled => "cancelled",
+    };
+    format!(
+        "operations.decide-approval:command:{command_id}:target:{}:gate:marketing-budget:action:{action}",
+        exception_id.as_uuid()
+    )
+}
 
 macro_rules! operations_id {
     ($name:ident, $field:literal) => {
@@ -694,16 +712,22 @@ impl OperationsException {
 
     pub fn decide_approval(
         &mut self,
+        command_id: CommandId,
         decision: operations::ApprovalDecision,
-        decided_by: String,
+        human_decision: HumanDecisionProof,
         reason_code: String,
-        at: DateTime<Utc>,
     ) -> Result<(), OperationsDomainError> {
         let operations::SourceFact::MarketingBudgetApproval(source) = &self.source_fact else {
             return Err(OperationsDomainError::InvalidApprovalDecision);
         };
         let approval = &source.approval;
-        let decided_by = ReferenceCode::try_new(decided_by)
+        if human_decision.authority_scope() != &self.scope
+            || human_decision.decision_ref() != approval_decision_ref(command_id, self.id, decision)
+        {
+            return Err(OperationsDomainError::InvalidApprovalDecision);
+        }
+        let at = human_decision.decided_at();
+        let decided_by = ReferenceCode::try_new(human_decision.principal_ref().to_owned())
             .map_err(|_| OperationsDomainError::InvalidApprovalDecision)?;
         let reason_code = ReferenceCode::try_new(reason_code)
             .map_err(|_| OperationsDomainError::InvalidApprovalDecision)?;

@@ -33,8 +33,8 @@ use erpx_customer_authority_sqlx::{
     CustomerAuthorityWriteRepository,
 };
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuthorityScope, CorrelationId, ErrorCategory, ErrorContext,
-    KernelError, SessionId, SystemClock,
+    ActorAttribution, AuthorityScope, CorrelationId, ErrorCategory, ErrorContext, KernelError,
+    SessionId, SystemClock,
 };
 use erpx_platform_administration::ports::AuthorizationRequest as PlatformAuthorizationRequest;
 use erpx_platform_administration::{
@@ -898,7 +898,7 @@ fn authenticated_actor(
         .map_err(|_| PlatformAdministrationAuthenticationError::Internal)?;
     Ok(ActorAttribution {
         principal_ref: claims.principal_ref.clone(),
-        kind: ActorKind::HoldingUser,
+        kind: crate::auth_actor::kernel_actor_kind(claims),
         session_id: Some(session_id),
         represented_principal_ref: None,
         support_capability_id: None,

@@ -5,7 +5,10 @@ use erpx_cqrs::{
     QueryMetadata, QueryResult,
 };
 use erpx_integration_contracts::{customer, identity_access};
-use erpx_kernel::{AuthorityScope, Clock, CorrelationId, ErrorCategory, ErrorContext, KernelError};
+use erpx_kernel::{
+    AuthorityScope, Clock, CorrelationId, ErrorCategory, ErrorContext, HumanDecisionProof,
+    KernelError,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -14,7 +17,7 @@ use crate::{
         BroadcastAudience, CapabilityEvidence, CapabilityId, CapabilityRevocationReason, Incident,
         IncidentId, IncidentStatus, MessageAudience, MessageId, SessionId, SupportAggregate,
         SupportCapability, SupportDomainError, SupportMode, SupportSession, SupportTicket,
-        SupportTicketId, TicketMessage, TicketStatus,
+        SupportTicketId, TicketMessage, TicketStatus, support_session_approval_decision_ref,
     },
     integration,
     ports::{
@@ -356,6 +359,8 @@ pub enum SupportApplicationError {
     Domain(#[from] SupportDomainError),
     #[error("command scope does not contain the Support record scope")]
     ScopeOutsideAuthority,
+    #[error("Support session approval requires a directly authenticated human")]
+    HumanApprovalRequired,
     #[error("create commands cannot declare an aggregate version")]
     UnexpectedCreateVersion,
     #[error("mutating commands require an expected aggregate version")]
@@ -487,6 +492,17 @@ where
     ) -> Result<CommandReceipt<Self::Response>, CqrsError> {
         envelope.validate()?;
         let correlation = envelope.correlation_id;
+        if matches!(&envelope.command, SupportCommand::ApproveSession(_))
+            && (!envelope.actor.is_human()
+                || envelope.actor.session_id.is_none()
+                || envelope.actor.represented_principal_ref.is_some()
+                || envelope.actor.support_capability_id.is_some())
+        {
+            return Err(to_cqrs(
+                SupportApplicationError::HumanApprovalRequired,
+                correlation,
+            ));
+        }
         let action = envelope.command.action();
         let identity = CommandIdentity {
             command_id: envelope.command_id,
@@ -509,6 +525,7 @@ where
         }
         let at = self.clock.now();
         let actor_ref = envelope.actor.principal_ref.clone();
+        let mut human_decision = None;
         let (mut aggregate, expected_version, dependency, session_id, device_ref) = match &envelope
             .command
         {
@@ -628,9 +645,19 @@ where
                     .ok_or_else(|| port_to_cqrs(PortError::NotFound, correlation))?;
                 let expected = Self::expected(envelope.expected_aggregate_version, value.version())
                     .map_err(|e| to_cqrs(e, correlation))?;
+                let decision = HumanDecisionProof::try_new(
+                    envelope.actor.clone(),
+                    value.scope().clone(),
+                    support_session_approval_decision_ref(v.session_id),
+                    at,
+                )
+                .map_err(|_| {
+                    to_cqrs(SupportApplicationError::HumanApprovalRequired, correlation)
+                })?;
                 value
-                    .approve(actor_ref.clone(), at)
+                    .approve(&decision)
                     .map_err(|e| to_cqrs(e.into(), correlation))?;
+                human_decision = Some(decision);
                 (
                     SupportAggregate::Session(value),
                     Some(expected),
@@ -815,6 +842,7 @@ where
                 actor: envelope.actor,
                 authority_scope: envelope.active_scope,
                 audit: envelope.audit,
+                human_decision,
                 expected_version,
                 dependency,
                 aggregate,
@@ -985,6 +1013,8 @@ fn port_to_cqrs(error: PortError, correlation: CorrelationId) -> CqrsError {
 fn to_cqrs(error: SupportApplicationError, correlation_id: CorrelationId) -> CqrsError {
     let (code, category, message, retryable) = match error {
         SupportApplicationError::ScopeOutsideAuthority
+        | SupportApplicationError::HumanApprovalRequired
+        | SupportApplicationError::Domain(SupportDomainError::HumanApprovalRequired)
         | SupportApplicationError::Port(PortError::Denied | PortError::EntitlementDenied) => (
             "support.denied",
             ErrorCategory::Denied,

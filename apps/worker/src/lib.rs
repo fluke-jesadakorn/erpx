@@ -253,7 +253,7 @@ pub use hr_projection::{
 pub use item_directory_authority::{
     AuthorityGrantReconciliationReport, AuthorityProjectionError,
     HoldingAuthorityEvidenceProjection, MAX_AUTHORITY_RECONCILIATION_ROWS,
-    decode_authority_evidence,
+    decode_authority_evidence, decode_organization_lineage,
 };
 pub use item_directory_policy::{
     IamAuthorityEvidence, MAX_EFFECTIVE_GRANT_TTL, MAX_RECORD_POLICY_FANOUT, MembershipEvidence,

@@ -7,7 +7,7 @@ pub use records::{
 use std::collections::BTreeSet;
 
 use chrono::{DateTime, Utc};
-use erpx_kernel::AuthorityScope;
+use erpx_kernel::{AuthorityScope, CommandId, HumanDecisionProof};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -95,6 +95,8 @@ pub enum PosDomainError {
     InvalidRefundLines,
     #[error("the requester cannot review their own refund")]
     SelfApproval,
+    #[error("refund review requires valid authenticated human decision evidence")]
+    InvalidRefundDecision,
     #[error("POS timestamp cannot move backwards")]
     InvalidTimestamp,
     #[error("POS aggregate version overflowed")]
@@ -690,32 +692,20 @@ impl PosRefund {
 
     pub fn approve(
         &mut self,
-        reviewer_principal_ref: String,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
         at: DateTime<Utc>,
     ) -> Result<(), PosDomainError> {
-        if self.status != RefundStatus::Requested {
-            return Err(PosDomainError::InvalidRefundTransition);
-        }
-        if reviewer_principal_ref == self.requester_principal_ref {
-            return Err(PosDomainError::SelfApproval);
-        }
-        validate_text(
-            &reviewer_principal_ref,
-            "reviewer_principal_ref",
-            MAX_TEXT_BYTES,
-        )?;
-        self.advance(at)?;
-        self.status = RefundStatus::Approved;
-        self.reviewer_principal_ref = Some(reviewer_principal_ref);
-        self.validate()
+        self.review(RefundStatus::Approved, decision, command_id, at)
     }
 
     pub fn reject(
         &mut self,
-        reviewer_principal_ref: String,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
         at: DateTime<Utc>,
     ) -> Result<(), PosDomainError> {
-        self.review(RefundStatus::Rejected, reviewer_principal_ref, at)
+        self.review(RefundStatus::Rejected, decision, command_id, at)
     }
 
     pub fn post(&mut self, at: DateTime<Utc>) -> Result<(), PosDomainError> {
@@ -747,23 +737,31 @@ impl PosRefund {
     fn review(
         &mut self,
         next: RefundStatus,
-        reviewer_principal_ref: String,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
         at: DateTime<Utc>,
     ) -> Result<(), PosDomainError> {
+        if decision.decision_ref() != command_id.to_string()
+            || decision.decided_at() != at
+            || !decision.authority_scope().contains(&self.scope)
+        {
+            return Err(PosDomainError::InvalidRefundDecision);
+        }
         if self.status != RefundStatus::Requested {
             return Err(PosDomainError::InvalidRefundTransition);
         }
+        let reviewer_principal_ref = decision.principal_ref();
         if reviewer_principal_ref == self.requester_principal_ref {
             return Err(PosDomainError::SelfApproval);
         }
         validate_text(
-            &reviewer_principal_ref,
+            reviewer_principal_ref,
             "reviewer_principal_ref",
             MAX_TEXT_BYTES,
         )?;
         self.advance(at)?;
         self.status = next;
-        self.reviewer_principal_ref = Some(reviewer_principal_ref);
+        self.reviewer_principal_ref = Some(reviewer_principal_ref.to_owned());
         self.validate()
     }
 
@@ -920,6 +918,7 @@ fn refund_total(lines: &[RefundLine]) -> Result<i64, PosDomainError> {
 #[cfg(test)]
 mod tests {
     use chrono::{Duration, TimeZone};
+    use erpx_kernel::{ActorAttribution, ActorKind, SessionId};
 
     use super::*;
 
@@ -934,6 +933,29 @@ mod tests {
             holding_id: id(1),
             company_id: id(2),
         }
+    }
+    fn command_id() -> CommandId {
+        CommandId::try_from_uuid(id(90)).unwrap()
+    }
+    fn human_decision(
+        principal_ref: &str,
+        authority_scope: AuthorityScope,
+        command_id: CommandId,
+        decided_at: DateTime<Utc>,
+    ) -> HumanDecisionProof {
+        HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: principal_ref.into(),
+                kind: ActorKind::HoldingUser,
+                session_id: Some(SessionId::try_from_uuid(id(91)).unwrap()),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            authority_scope,
+            command_id.to_string(),
+            decided_at,
+        )
+        .unwrap()
     }
     fn line() -> SaleLine {
         SaleLine {
@@ -1097,15 +1119,23 @@ mod tests {
             at(),
         )
         .unwrap();
+        let requester_decision = human_decision("requester", scope(), command_id(), at());
         assert_eq!(
-            refund.approve("requester".into(), at()).unwrap_err(),
+            refund
+                .approve(&requester_decision, command_id(), at())
+                .unwrap_err(),
             PosDomainError::SelfApproval
         );
         assert_eq!(
-            refund.reject("requester".into(), at()).unwrap_err(),
+            refund
+                .reject(&requester_decision, command_id(), at())
+                .unwrap_err(),
             PosDomainError::SelfApproval
         );
-        refund.approve("reviewer".into(), at()).unwrap();
+        let reviewer_decision = human_decision("reviewer", scope(), command_id(), at());
+        refund
+            .approve(&reviewer_decision, command_id(), at())
+            .unwrap();
         assert_eq!(refund.status(), RefundStatus::Approved);
         assert!(matches!(
             refund.take_uncommitted_events().as_slice(),
@@ -1117,6 +1147,76 @@ mod tests {
             refund.take_uncommitted_events().as_slice(),
             [DomainEvent::RefundPosted(_)]
         ));
+    }
+
+    #[test]
+    fn refund_review_rejects_non_human_or_mismatched_decision_evidence() {
+        let refund = PosRefund::request(
+            RefundId::try_from_uuid(id(40)).unwrap(),
+            &completed_sale(),
+            vec![RefundLine {
+                sale_line_id: line().line_id,
+                quantity: 1,
+                amount_minor: 107,
+            }],
+            "customer return".into(),
+            "requester".into(),
+            at(),
+        )
+        .unwrap();
+
+        for kind in [
+            ActorKind::Agent,
+            ActorKind::Service,
+            ActorKind::SystemWorker,
+        ] {
+            assert!(
+                HumanDecisionProof::try_new(
+                    ActorAttribution {
+                        principal_ref: "reviewer".into(),
+                        kind,
+                        session_id: Some(SessionId::try_from_uuid(id(91)).unwrap()),
+                        represented_principal_ref: None,
+                        support_capability_id: None,
+                    },
+                    scope(),
+                    command_id().to_string(),
+                    at(),
+                )
+                .is_err()
+            );
+        }
+
+        let mut changed = refund.clone();
+        let other_command = CommandId::try_from_uuid(id(92)).unwrap();
+        let wrong_ref = human_decision("reviewer", scope(), other_command, at());
+        assert_eq!(
+            changed.approve(&wrong_ref, command_id(), at()),
+            Err(PosDomainError::InvalidRefundDecision)
+        );
+        assert_eq!(changed, refund);
+
+        let wrong_time = human_decision("reviewer", scope(), command_id(), at());
+        assert_eq!(
+            changed.reject(&wrong_time, command_id(), at() + Duration::seconds(1)),
+            Err(PosDomainError::InvalidRefundDecision)
+        );
+        assert_eq!(changed, refund);
+
+        let wrong_scope = human_decision(
+            "reviewer",
+            AuthorityScope::Company {
+                holding_id: id(1),
+                company_id: id(3),
+            },
+            command_id(),
+            at(),
+        );
+        assert_eq!(
+            changed.approve(&wrong_scope, command_id(), at()),
+            Err(PosDomainError::InvalidRefundDecision)
+        );
+        assert_eq!(changed, refund);
     }
 
     #[test]

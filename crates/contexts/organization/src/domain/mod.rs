@@ -8,8 +8,8 @@ mod sharing;
 
 pub use sharing::{
     DirectoryVisibility, OrganizationSharingAgreement, ProposeSharingAgreement, SharingAgreementId,
-    SharingCapability, SharingDirection, SharingMutation, SharingStatus,
-    can_discover_across_hierarchy,
+    SharingApprovalSide, SharingCapability, SharingDirection, SharingMutation, SharingStatus,
+    can_discover_across_hierarchy, sharing_approval_decision_ref,
 };
 
 pub const MAX_ORGANIZATION_CODE_BYTES: usize = 128;
@@ -175,31 +175,130 @@ impl OrganizationPlacement {
                     .expect("branch placement always has a company"),
                 branch_id: node_id.as_uuid(),
             }),
-            Self::Department {
-                company_id,
-                branch_id,
-                ..
-            }
-            | Self::Team {
-                company_id,
-                branch_id,
-                ..
-            } => branch_id.map_or_else(
-                || {
-                    Ok(AuthorityScope::Company {
-                        holding_id,
-                        company_id: *company_id,
-                    })
-                },
-                |branch_id| {
-                    Ok(AuthorityScope::Branch {
-                        holding_id,
-                        company_id: *company_id,
-                        branch_id,
-                    })
-                },
-            ),
+            Self::Department { .. } | Self::Team { .. } => Ok(AuthorityScope::Subtree {
+                holding_id,
+                organization_node_id: node_id.as_uuid(),
+            }),
         }
+    }
+
+    /// Checks an authority against this node's typed placement. Unlike
+    /// [`AuthorityScope::contains`], this method has the organization lineage
+    /// required to decide whether company, branch, or subtree authority covers
+    /// an exact department/team scope.
+    pub fn is_within_scope(
+        &self,
+        node_id: OrganizationNodeId,
+        authority_scope: &AuthorityScope,
+    ) -> Result<bool, OrganizationDomainError> {
+        self.validate_for(node_id)?;
+        if authority_scope.validate().is_err() {
+            return Err(OrganizationDomainError::InvalidScope);
+        }
+
+        let holding_id = self.holding_id(node_id);
+        let company_id = self.company_id(node_id);
+        let branch_id = self.branch_id(node_id);
+        let department_id = self.department_id(node_id);
+        Ok(match authority_scope {
+            AuthorityScope::Platform => true,
+            AuthorityScope::Holding {
+                holding_id: authority_holding,
+            } => *authority_holding == holding_id,
+            AuthorityScope::Company {
+                holding_id: authority_holding,
+                company_id: authority_company,
+            } => *authority_holding == holding_id && company_id == Some(*authority_company),
+            AuthorityScope::Branch {
+                holding_id: authority_holding,
+                company_id: authority_company,
+                branch_id: authority_branch,
+            } => {
+                *authority_holding == holding_id
+                    && company_id == Some(*authority_company)
+                    && branch_id == Some(*authority_branch)
+            }
+            AuthorityScope::Subtree {
+                holding_id: authority_holding,
+                organization_node_id,
+            } => {
+                *authority_holding == holding_id
+                    && matches!(self, Self::Department { .. } | Self::Team { .. })
+                    && (*organization_node_id == node_id.as_uuid()
+                        || (matches!(self, Self::Team { .. })
+                            && department_id == Some(*organization_node_id)))
+            }
+        })
+    }
+
+    /// Checks authority over this placement's prospective parent. The node
+    /// itself is deliberately excluded, so an exact self-subtree grant cannot
+    /// be used to move that node beneath an otherwise unauthorized parent.
+    pub fn is_parent_within_scope(
+        &self,
+        node_id: OrganizationNodeId,
+        authority_scope: &AuthorityScope,
+    ) -> Result<bool, OrganizationDomainError> {
+        self.validate_for(node_id)?;
+        if authority_scope.validate().is_err() {
+            return Err(OrganizationDomainError::InvalidScope);
+        }
+
+        let (holding_id, company_id, branch_id, department_id) = match self {
+            Self::Holding => return Ok(false),
+            Self::Company { holding_id } => (*holding_id, None, None, None),
+            Self::Headquarters {
+                holding_id,
+                company_id,
+            }
+            | Self::Branch {
+                holding_id,
+                company_id,
+            } => (*holding_id, Some(*company_id), None, None),
+            Self::Department {
+                holding_id,
+                company_id,
+                branch_id,
+            } => (*holding_id, Some(*company_id), *branch_id, None),
+            Self::Team {
+                holding_id,
+                company_id,
+                branch_id,
+                department_id,
+            } => (
+                *holding_id,
+                Some(*company_id),
+                *branch_id,
+                Some(*department_id),
+            ),
+        };
+        Ok(match authority_scope {
+            AuthorityScope::Platform => true,
+            AuthorityScope::Holding {
+                holding_id: authority_holding,
+            } => *authority_holding == holding_id,
+            AuthorityScope::Company {
+                holding_id: authority_holding,
+                company_id: authority_company,
+            } => *authority_holding == holding_id && company_id == Some(*authority_company),
+            AuthorityScope::Branch {
+                holding_id: authority_holding,
+                company_id: authority_company,
+                branch_id: authority_branch,
+            } => {
+                *authority_holding == holding_id
+                    && company_id == Some(*authority_company)
+                    && branch_id == Some(*authority_branch)
+            }
+            AuthorityScope::Subtree {
+                holding_id: authority_holding,
+                organization_node_id,
+            } => {
+                *authority_holding == holding_id
+                    && matches!(self, Self::Team { .. })
+                    && department_id == Some(*organization_node_id)
+            }
+        })
     }
 
     pub fn validate_for(&self, node_id: OrganizationNodeId) -> Result<(), OrganizationDomainError> {
@@ -689,13 +788,194 @@ mod tests {
         assert_eq!(node.kind(), OrganizationNodeKind::Department);
         assert_eq!(
             node.scope(),
-            &AuthorityScope::Branch {
+            &AuthorityScope::Subtree {
                 holding_id: id(1),
-                company_id: id(2),
-                branch_id: id(3),
+                organization_node_id: id(4),
             }
         );
         assert_eq!(node.placement().parent_id(node.id()), Some(node_id(3)));
+    }
+
+    #[test]
+    fn typed_placement_resolves_hierarchical_authority_without_widening_scope() {
+        let team_id = node_id(5);
+        let placement = OrganizationPlacement::Team {
+            holding_id: id(1),
+            company_id: id(2),
+            branch_id: Some(id(3)),
+            department_id: id(4),
+        };
+        assert_eq!(
+            placement.active_scope(team_id).unwrap(),
+            AuthorityScope::Subtree {
+                holding_id: id(1),
+                organization_node_id: id(5),
+            }
+        );
+        assert!(
+            placement
+                .is_within_scope(
+                    team_id,
+                    &AuthorityScope::Company {
+                        holding_id: id(1),
+                        company_id: id(2),
+                    },
+                )
+                .unwrap()
+        );
+        assert!(
+            placement
+                .is_within_scope(
+                    team_id,
+                    &AuthorityScope::Branch {
+                        holding_id: id(1),
+                        company_id: id(2),
+                        branch_id: id(3),
+                    },
+                )
+                .unwrap()
+        );
+        assert!(
+            placement
+                .is_within_scope(
+                    team_id,
+                    &AuthorityScope::Subtree {
+                        holding_id: id(1),
+                        organization_node_id: id(4),
+                    },
+                )
+                .unwrap()
+        );
+        for noncanonical_ancestor in [id(1), id(2), id(3)] {
+            assert!(
+                !placement
+                    .is_within_scope(
+                        team_id,
+                        &AuthorityScope::Subtree {
+                            holding_id: id(1),
+                            organization_node_id: noncanonical_ancestor,
+                        },
+                    )
+                    .unwrap()
+            );
+        }
+        assert!(
+            !placement
+                .is_within_scope(
+                    team_id,
+                    &AuthorityScope::Branch {
+                        holding_id: id(1),
+                        company_id: id(2),
+                        branch_id: id(9),
+                    },
+                )
+                .unwrap()
+        );
+        assert!(
+            !placement
+                .is_within_scope(
+                    team_id,
+                    &AuthorityScope::Subtree {
+                        holding_id: id(1),
+                        organization_node_id: id(6),
+                    },
+                )
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn prospective_parent_excludes_self_and_accepts_destination_authority() {
+        let department_id = node_id(4);
+        let destination = OrganizationPlacement::Department {
+            holding_id: id(1),
+            company_id: id(2),
+            branch_id: Some(id(5)),
+        };
+        assert!(
+            !destination
+                .is_parent_within_scope(
+                    department_id,
+                    &AuthorityScope::Subtree {
+                        holding_id: id(1),
+                        organization_node_id: id(4),
+                    },
+                )
+                .unwrap()
+        );
+        assert!(
+            destination
+                .is_parent_within_scope(
+                    department_id,
+                    &AuthorityScope::Branch {
+                        holding_id: id(1),
+                        company_id: id(2),
+                        branch_id: id(5),
+                    },
+                )
+                .unwrap()
+        );
+        assert!(
+            destination
+                .is_parent_within_scope(
+                    department_id,
+                    &AuthorityScope::Company {
+                        holding_id: id(1),
+                        company_id: id(2),
+                    },
+                )
+                .unwrap()
+        );
+        assert!(
+            !destination
+                .is_parent_within_scope(
+                    department_id,
+                    &AuthorityScope::Branch {
+                        holding_id: id(1),
+                        company_id: id(2),
+                        branch_id: id(3),
+                    },
+                )
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn non_leaf_node_ids_cannot_be_reinterpreted_as_subtree_authority() {
+        let cases = [
+            (OrganizationPlacement::Holding, node_id(1)),
+            (
+                OrganizationPlacement::Company { holding_id: id(1) },
+                node_id(2),
+            ),
+            (
+                OrganizationPlacement::Headquarters {
+                    holding_id: id(1),
+                    company_id: id(2),
+                },
+                node_id(3),
+            ),
+            (
+                OrganizationPlacement::Branch {
+                    holding_id: id(1),
+                    company_id: id(2),
+                },
+                node_id(4),
+            ),
+        ];
+        for (placement, target) in cases {
+            assert!(
+                !placement
+                    .is_within_scope(
+                        target,
+                        &AuthorityScope::Subtree {
+                            holding_id: id(1),
+                            organization_node_id: target.as_uuid(),
+                        },
+                    )
+                    .unwrap()
+            );
+        }
     }
 
     #[test]
@@ -738,6 +1018,25 @@ mod tests {
     }
 
     #[test]
+    fn holding_root_can_reactivate_without_a_parent() {
+        let mut holding = OrganizationNode::create(
+            node_id(1),
+            OrganizationPlacement::Holding,
+            "HOLDING".into(),
+            "Holding".into(),
+            at(0),
+        )
+        .unwrap();
+
+        holding.suspend(at(1)).unwrap();
+        holding.activate(at(2)).unwrap();
+
+        assert_eq!(holding.status(), OrganizationNodeStatus::Active);
+        assert_eq!(holding.version(), 3);
+        assert_eq!(holding.placement().parent_id(holding.id()), None);
+    }
+
+    #[test]
     fn rejected_reparent_does_not_mutate_state_or_events() {
         let mut node = department();
         node.take_uncommitted_events();
@@ -769,10 +1068,9 @@ mod tests {
         .unwrap();
         assert_eq!(
             node.scope(),
-            &AuthorityScope::Branch {
+            &AuthorityScope::Subtree {
                 holding_id: id(1),
-                company_id: id(2),
-                branch_id: id(5),
+                organization_node_id: id(4),
             }
         );
         assert_eq!(node.version(), 2);

@@ -216,16 +216,6 @@ impl AuthorityScope {
                 },
             ) => parent_holding == child_holding && parent_company == child_company,
             (
-                Self::Company {
-                    holding_id: parent_holding,
-                    company_id: parent_company,
-                },
-                Self::Subtree {
-                    holding_id: child_holding,
-                    organization_node_id,
-                },
-            ) => parent_holding == child_holding && organization_node_id == parent_company,
-            (
                 Self::Branch {
                     holding_id: parent_holding,
                     company_id: parent_company,
@@ -240,31 +230,6 @@ impl AuthorityScope {
                 parent_holding == child_holding
                     && parent_company == child_company
                     && parent_branch == child_branch
-            }
-            (
-                Self::Subtree {
-                    holding_id: parent_holding,
-                    organization_node_id,
-                },
-                Self::Company {
-                    holding_id: child_holding,
-                    company_id: child_company,
-                },
-            ) => parent_holding == child_holding && organization_node_id == child_company,
-            (
-                Self::Subtree {
-                    holding_id: parent_holding,
-                    organization_node_id,
-                },
-                Self::Branch {
-                    holding_id: child_holding,
-                    company_id: child_company,
-                    branch_id: child_branch,
-                },
-            ) => {
-                parent_holding == child_holding
-                    && (organization_node_id == child_company
-                        || organization_node_id == child_branch)
             }
             (
                 Self::Subtree {
@@ -313,6 +278,13 @@ pub struct ActorAttribution {
 }
 
 impl ActorAttribution {
+    /// Returns whether this attribution represents a directly authenticated
+    /// human actor. Agent, service, and worker identities never become human
+    /// merely because they carry a represented principal reference.
+    pub const fn is_human(&self) -> bool {
+        matches!(self.kind, ActorKind::PlatformUser | ActorKind::HoldingUser)
+    }
+
     pub fn validate(&self) -> Result<(), ValidationError> {
         validate_reference(&self.principal_ref, "principal_ref")?;
         if let Some(reference) = &self.represented_principal_ref {
@@ -323,6 +295,91 @@ impl ActorAttribution {
         }
         Ok(())
     }
+}
+
+/// In-process evidence required by a business decision that only an
+/// authenticated human may make.
+///
+/// This proof does not grant authority by itself. Command boundaries must
+/// still evaluate role, scope, policy, separation-of-duties, and approval
+/// limits before constructing it, and must never populate `ActorAttribution`
+/// from an unverified transport payload. This is a type-level domain guard,
+/// not a cryptographic authentication token. Private fields prevent callers
+/// from bypassing its human/session/scope validation with an actor string.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HumanDecisionProof {
+    actor: ActorAttribution,
+    authority_scope: AuthorityScope,
+    decision_ref: String,
+    decided_at: DateTime<Utc>,
+}
+
+impl HumanDecisionProof {
+    pub fn try_new(
+        actor: ActorAttribution,
+        authority_scope: AuthorityScope,
+        decision_ref: impl Into<String>,
+        decided_at: DateTime<Utc>,
+    ) -> Result<Self, HumanDecisionError> {
+        actor.validate().map_err(HumanDecisionError::InvalidActor)?;
+        authority_scope
+            .validate()
+            .map_err(HumanDecisionError::InvalidScope)?;
+        let decision_ref = decision_ref.into();
+        validate_reference(&decision_ref, "human decision reference")
+            .map_err(|_| HumanDecisionError::InvalidDecisionReference)?;
+        if !actor.is_human() {
+            return Err(HumanDecisionError::HumanActorRequired);
+        }
+        if actor.session_id.is_none() {
+            return Err(HumanDecisionError::AuthenticatedSessionRequired);
+        }
+        if actor.represented_principal_ref.is_some() || actor.support_capability_id.is_some() {
+            return Err(HumanDecisionError::RepresentedDecisionDenied);
+        }
+        Ok(Self {
+            actor,
+            authority_scope,
+            decision_ref,
+            decided_at,
+        })
+    }
+
+    pub const fn actor(&self) -> &ActorAttribution {
+        &self.actor
+    }
+
+    pub fn principal_ref(&self) -> &str {
+        &self.actor.principal_ref
+    }
+
+    pub const fn authority_scope(&self) -> &AuthorityScope {
+        &self.authority_scope
+    }
+
+    pub fn decision_ref(&self) -> &str {
+        &self.decision_ref
+    }
+
+    pub const fn decided_at(&self) -> DateTime<Utc> {
+        self.decided_at
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum HumanDecisionError {
+    #[error("human decision actor is invalid: {0}")]
+    InvalidActor(ValidationError),
+    #[error("human decision scope is invalid: {0}")]
+    InvalidScope(ScopeError),
+    #[error("human decision reference is invalid")]
+    InvalidDecisionReference,
+    #[error("business decisions require a human actor")]
+    HumanActorRequired,
+    #[error("business decisions require an authenticated human session")]
+    AuthenticatedSessionRequired,
+    #[error("represented or support-session actors cannot make business decisions")]
+    RepresentedDecisionDenied,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -525,6 +582,33 @@ mod tests {
     }
 
     #[test]
+    fn subtree_ids_are_never_reinterpreted_as_company_or_branch_lineage() {
+        let company = AuthorityScope::Company {
+            holding_id: id(1),
+            company_id: id(2),
+        };
+        let branch = AuthorityScope::Branch {
+            holding_id: id(1),
+            company_id: id(2),
+            branch_id: id(3),
+        };
+        let company_shaped_subtree = AuthorityScope::Subtree {
+            holding_id: id(1),
+            organization_node_id: id(2),
+        };
+        let branch_shaped_subtree = AuthorityScope::Subtree {
+            holding_id: id(1),
+            organization_node_id: id(3),
+        };
+
+        assert!(!company.contains(&company_shaped_subtree));
+        assert!(!company_shaped_subtree.contains(&company));
+        assert!(!company_shaped_subtree.contains(&branch));
+        assert!(!branch_shaped_subtree.contains(&branch));
+        assert!(company_shaped_subtree.contains(&company_shaped_subtree));
+    }
+
+    #[test]
     fn error_context_is_bounded() {
         let mut context = ErrorContext::empty();
         for index in 0..MAX_ERROR_CONTEXT_ENTRIES {
@@ -544,5 +628,70 @@ mod tests {
         );
         assert!(DataClassification::Confidential.is_permitted_by(DataClassification::Restricted));
         assert!(!DataClassification::Restricted.is_permitted_by(DataClassification::Confidential));
+    }
+
+    fn actor(kind: ActorKind, with_session: bool) -> ActorAttribution {
+        ActorAttribution {
+            principal_ref: "principal:reviewer".into(),
+            kind,
+            session_id: with_session
+                .then(|| SessionId::try_from_uuid(id(7)).expect("non-nil session")),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        }
+    }
+
+    #[test]
+    fn human_decision_proof_requires_a_direct_authenticated_human() {
+        let scope = AuthorityScope::Holding { holding_id: id(1) };
+        let at = DateTime::from_timestamp(1_800_000_000, 0).unwrap();
+
+        let proof = HumanDecisionProof::try_new(
+            actor(ActorKind::HoldingUser, true),
+            scope.clone(),
+            "command:approve:1",
+            at,
+        )
+        .unwrap();
+        assert_eq!(proof.principal_ref(), "principal:reviewer");
+        assert_eq!(proof.authority_scope(), &scope);
+        assert_eq!(proof.decision_ref(), "command:approve:1");
+        assert_eq!(proof.decided_at(), at);
+
+        assert_eq!(
+            HumanDecisionProof::try_new(
+                actor(ActorKind::Agent, true),
+                scope.clone(),
+                "command:approve:2",
+                at,
+            ),
+            Err(HumanDecisionError::HumanActorRequired)
+        );
+        assert_eq!(
+            HumanDecisionProof::try_new(
+                actor(ActorKind::HoldingUser, false),
+                scope,
+                "command:approve:3",
+                at,
+            ),
+            Err(HumanDecisionError::AuthenticatedSessionRequired)
+        );
+    }
+
+    #[test]
+    fn represented_human_session_cannot_create_a_business_decision_proof() {
+        let mut represented = actor(ActorKind::PlatformUser, true);
+        represented.represented_principal_ref = Some("principal:customer".into());
+        represented.support_capability_id = Some(id(8));
+
+        assert_eq!(
+            HumanDecisionProof::try_new(
+                represented,
+                AuthorityScope::Platform,
+                "command:approve:4",
+                DateTime::from_timestamp(1_800_000_000, 0).unwrap(),
+            ),
+            Err(HumanDecisionError::RepresentedDecisionDenied)
+        );
     }
 }

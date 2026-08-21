@@ -1,6 +1,8 @@
 use chrono::{Duration, TimeZone, Utc};
 use erpx_integration_contracts::{BoundedContext, RecordRef};
-use erpx_kernel::AuthorityScope;
+use erpx_kernel::{
+    ActorAttribution, ActorKind, AuthorityScope, CommandId, HumanDecisionProof, SessionId,
+};
 use uuid::Uuid;
 
 use super::*;
@@ -27,6 +29,31 @@ fn contract() -> LegalContract {
         at() + Duration::days(30),
         "creator".into(),
         at(),
+    )
+    .unwrap()
+}
+
+fn command_id() -> CommandId {
+    CommandId::try_from_uuid(Uuid::from_u128(90)).unwrap()
+}
+
+fn human_decision(
+    principal_ref: &str,
+    authority_scope: AuthorityScope,
+    command_id: CommandId,
+    decided_at: DateTime<Utc>,
+) -> HumanDecisionProof {
+    HumanDecisionProof::try_new(
+        ActorAttribution {
+            principal_ref: principal_ref.into(),
+            kind: ActorKind::HoldingUser,
+            session_id: Some(SessionId::try_from_uuid(Uuid::from_u128(91)).unwrap()),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        },
+        authority_scope,
+        command_id.to_string(),
+        decided_at,
     )
     .unwrap()
 }
@@ -67,20 +94,31 @@ fn contract_requires_separated_approval_and_retention_before_terminal_archive() 
         )
         .unwrap();
     assert_eq!(
-        contract.transition(
-            ContractTransition::Approve,
-            "creator",
+        contract.approve(
+            human_decision(
+                "creator",
+                scope(),
+                command_id(),
+                at() + Duration::minutes(3),
+            ),
+            command_id(),
             at() + Duration::minutes(3),
         ),
         Err(LegalDomainError::ApprovalSeparation)
     );
     contract
-        .transition(
-            ContractTransition::Approve,
-            "reviewer",
+        .approve(
+            human_decision(
+                "reviewer",
+                scope(),
+                command_id(),
+                at() + Duration::minutes(3),
+            ),
+            command_id(),
             at() + Duration::minutes(3),
         )
         .unwrap();
+    assert_eq!(contract.approved_by(), Some("reviewer"));
     contract
         .transition(
             ContractTransition::Activate,
@@ -134,12 +172,99 @@ fn failed_contract_transition_does_not_partially_mutate_state() {
     let before = contract.clone();
     assert!(
         contract
-            .transition(
-                ContractTransition::Approve,
-                "creator",
+            .approve(
+                human_decision(
+                    "creator",
+                    scope(),
+                    command_id(),
+                    at() + Duration::minutes(2),
+                ),
+                command_id(),
                 at() + Duration::minutes(2),
             )
             .is_err()
+    );
+    assert_eq!(contract, before);
+}
+
+#[test]
+fn contract_approval_proof_rejects_non_humans_and_mismatched_ref_time_or_scope() {
+    let mut contract = contract();
+    contract
+        .transition(
+            ContractTransition::SubmitForReview,
+            "creator",
+            at() + Duration::minutes(1),
+        )
+        .unwrap();
+    let before = contract.clone();
+    let decided_at = at() + Duration::minutes(2);
+
+    for kind in [
+        ActorKind::Agent,
+        ActorKind::Service,
+        ActorKind::SystemWorker,
+    ] {
+        assert!(
+            HumanDecisionProof::try_new(
+                ActorAttribution {
+                    principal_ref: "reviewer".into(),
+                    kind,
+                    session_id: Some(SessionId::try_from_uuid(Uuid::from_u128(91)).unwrap(),),
+                    represented_principal_ref: None,
+                    support_capability_id: None,
+                },
+                scope(),
+                command_id().to_string(),
+                decided_at,
+            )
+            .is_err()
+        );
+        assert_eq!(contract, before);
+    }
+
+    assert_eq!(
+        contract.transition(ContractTransition::Approve, "reviewer", decided_at),
+        Err(LegalDomainError::InvalidApprovalDecision)
+    );
+    assert_eq!(
+        contract.approve(
+            human_decision(
+                "reviewer",
+                scope(),
+                CommandId::try_from_uuid(Uuid::from_u128(92)).unwrap(),
+                decided_at,
+            ),
+            command_id(),
+            decided_at,
+        ),
+        Err(LegalDomainError::InvalidApprovalDecision)
+    );
+    assert_eq!(contract, before);
+    assert_eq!(
+        contract.approve(
+            human_decision("reviewer", scope(), command_id(), decided_at),
+            command_id(),
+            decided_at + Duration::seconds(1),
+        ),
+        Err(LegalDomainError::InvalidApprovalDecision)
+    );
+    assert_eq!(contract, before);
+    assert_eq!(
+        contract.approve(
+            human_decision(
+                "reviewer",
+                AuthorityScope::Company {
+                    holding_id: Uuid::from_u128(1),
+                    company_id: Uuid::from_u128(3),
+                },
+                command_id(),
+                decided_at,
+            ),
+            command_id(),
+            decided_at,
+        ),
+        Err(LegalDomainError::InvalidApprovalDecision)
     );
     assert_eq!(contract, before);
 }

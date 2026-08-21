@@ -3452,6 +3452,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "erpx-domain",
+ "erpx-kernel",
  "hex",
  "hmac",
  "ldap3",
@@ -3842,6 +3843,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "sqlx",
+ "thiserror 2.0.19",
  "tokio",
  "uuid",
 ]
@@ -4026,6 +4028,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "thiserror 2.0.19",
+ "tokio",
  "uuid",
 ]
 

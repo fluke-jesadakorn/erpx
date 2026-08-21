@@ -138,6 +138,34 @@ impl ProjectionSource {
         to_u64(sequence)
     }
 
+    /// Return the last committed matching sequence, independent of outbox
+    /// delivery retry scheduling. Security projections use this source so a
+    /// lower-sequence event whose broker delivery was delayed cannot be
+    /// skipped after the cursor observes a later committed event.
+    pub async fn durable_high_watermark(
+        &self,
+        event_types: &[String],
+    ) -> Result<u64, CqrsSqlxError> {
+        let statement = if self.pool.holding_id().is_some() {
+            "SELECT COALESCE(MAX(global_sequence), 0)
+             FROM erpx_cqrs_write.outbox_events
+             WHERE (cardinality($1::text[]) = 0 OR event_type = ANY($1::text[]))
+               AND holding_id = $2"
+        } else {
+            "SELECT COALESCE(MAX(global_sequence), 0)
+             FROM erpx_cqrs_write.outbox_events
+             WHERE (cardinality($1::text[]) = 0 OR event_type = ANY($1::text[]))"
+        };
+        let mut transaction = self.pool.begin().await?;
+        let query = sqlx::query_scalar(statement).bind(event_types);
+        let sequence: i64 = match self.pool.holding_id() {
+            Some(holding_id) => query.bind(holding_id).fetch_one(&mut *transaction).await?,
+            None => query.fetch_one(&mut *transaction).await?,
+        };
+        transaction.commit().await?;
+        to_u64(sequence)
+    }
+
     /// Page a source without crossing an optional, source-local rebuild
     /// fence. Global sequences from different write databases are never
     /// compared by this API.
@@ -183,6 +211,70 @@ impl ProjectionSource {
                AND (cardinality($3::text[]) = 0 OR event_type = ANY($3::text[]))
              ORDER BY global_sequence ASC
              LIMIT $4"
+        };
+        let mut transaction = self.pool.begin().await?;
+        let query = sqlx::query(statement)
+            .bind(to_i64(after_sequence)?)
+            .bind(through_sequence)
+            .bind(event_types)
+            .bind(i64::from(limit));
+        let rows = match self.pool.holding_id() {
+            Some(holding_id) => query.bind(holding_id).fetch_all(&mut *transaction).await?,
+            None => query.fetch_all(&mut *transaction).await?,
+        };
+        transaction.commit().await?;
+        let events = rows
+            .into_iter()
+            .map(row_to_event)
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(EventPage {
+            events,
+            after_sequence,
+        })
+    }
+
+    /// Page committed matching events without consulting `available_at`.
+    /// Delivery availability belongs to broker publication; it is not an
+    /// ordering fence for an in-database authorization projection.
+    pub async fn page_durable_between(
+        &self,
+        after_sequence: u64,
+        through_sequence: Option<u64>,
+        event_types: &[String],
+        limit: u32,
+    ) -> Result<EventPage, CqrsSqlxError> {
+        if limit == 0 || limit > MAX_PROJECTION_PAGE_SIZE {
+            return Err(CqrsSqlxError::InvalidInput(
+                "projection page size is outside the allowed range",
+            ));
+        }
+        if through_sequence.is_some_and(|through| through < after_sequence) {
+            return Err(CqrsSqlxError::InvalidInput(
+                "projection source fence is behind its cursor",
+            ));
+        }
+        let through_sequence = through_sequence.map(to_i64).transpose()?;
+        let statement = if self.pool.holding_id().is_some() {
+            "SELECT event_id, global_sequence, context_name, partition_key, command_id,
+                    event_type, event_version, aggregate_type, aggregate_id,
+                    aggregate_version, active_scope, actor, correlation_id, causation_id,
+                    payload, occurred_at
+             FROM erpx_cqrs_write.outbox_events
+             WHERE global_sequence > $1
+               AND ($2::bigint IS NULL OR global_sequence <= $2)
+               AND (cardinality($3::text[]) = 0 OR event_type = ANY($3::text[]))
+               AND holding_id = $5
+             ORDER BY global_sequence ASC LIMIT $4"
+        } else {
+            "SELECT event_id, global_sequence, context_name, partition_key, command_id,
+                    event_type, event_version, aggregate_type, aggregate_id,
+                    aggregate_version, active_scope, actor, correlation_id, causation_id,
+                    payload, occurred_at
+             FROM erpx_cqrs_write.outbox_events
+             WHERE global_sequence > $1
+               AND ($2::bigint IS NULL OR global_sequence <= $2)
+               AND (cardinality($3::text[]) = 0 OR event_type = ANY($3::text[]))
+             ORDER BY global_sequence ASC LIMIT $4"
         };
         let mut transaction = self.pool.begin().await?;
         let query = sqlx::query(statement)
@@ -2272,6 +2364,26 @@ mod tests {
             .expect("page_between source");
         assert!(page_between.contains("global_sequence <= $2"));
         assert!(page_between.contains("ORDER BY global_sequence ASC"));
+    }
+
+    #[test]
+    fn durable_security_source_never_uses_delivery_availability_as_a_cursor_fence() {
+        let source = include_str!("projection.rs");
+        let durable_watermark = source
+            .split("pub async fn durable_high_watermark")
+            .nth(1)
+            .and_then(|tail| tail.split("pub async fn page_between").next())
+            .expect("durable watermark source");
+        let durable_page = source
+            .split("pub async fn page_durable_between")
+            .nth(1)
+            .and_then(|tail| tail.split("/// Stable identity").next())
+            .expect("durable page source");
+        for durable in [durable_watermark, durable_page] {
+            assert!(!durable.contains("available_at"));
+            assert!(durable.contains("event_type = ANY"));
+        }
+        assert!(durable_page.contains("ORDER BY global_sequence ASC"));
     }
 
     #[test]

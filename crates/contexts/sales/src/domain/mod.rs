@@ -18,7 +18,7 @@ use std::collections::BTreeSet;
 
 use chrono::{DateTime, NaiveDate, Utc};
 use erpx_integration_contracts::{DimensionSet, crm, customer, legal, sales};
-use erpx_kernel::AuthorityScope;
+use erpx_kernel::{AuthorityScope, CommandId, HumanDecisionProof};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -100,6 +100,8 @@ pub enum SalesDomainError {
     InvalidValidityWindow,
     #[error("quote lifecycle transition is not allowed")]
     InvalidQuoteTransition,
+    #[error("quote or sales-order decision requires valid authenticated human evidence")]
+    InvalidHumanDecision,
     #[error("quote validity has expired")]
     QuoteExpired,
     #[error("only an accepted quote can become a sales order")]
@@ -377,14 +379,26 @@ impl Quote {
         self.transition(QuoteStatus::Draft, QuoteStatus::Sent, at)
     }
 
-    pub fn accept(&mut self, at: DateTime<Utc>) -> Result<(), SalesDomainError> {
+    pub fn accept(
+        &mut self,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
+        at: DateTime<Utc>,
+    ) -> Result<(), SalesDomainError> {
+        validate_human_decision(decision, command_id, &self.scope, at)?;
         if at > self.valid_until {
             return Err(SalesDomainError::QuoteExpired);
         }
         self.transition(QuoteStatus::Sent, QuoteStatus::Accepted, at)
     }
 
-    pub fn reject(&mut self, at: DateTime<Utc>) -> Result<(), SalesDomainError> {
+    pub fn reject(
+        &mut self,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
+        at: DateTime<Utc>,
+    ) -> Result<(), SalesDomainError> {
+        validate_human_decision(decision, command_id, &self.scope, at)?;
         self.transition(QuoteStatus::Sent, QuoteStatus::Rejected, at)
     }
 
@@ -576,7 +590,13 @@ impl SalesOrder {
         Ok(())
     }
 
-    pub fn confirm(&mut self, at: DateTime<Utc>) -> Result<(), SalesDomainError> {
+    pub fn confirm(
+        &mut self,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
+        at: DateTime<Utc>,
+    ) -> Result<(), SalesDomainError> {
+        validate_human_decision(decision, command_id, &self.scope, at)?;
         self.transition(&[SalesOrderStatus::Draft], SalesOrderStatus::Confirmed, at)
     }
 
@@ -1349,6 +1369,21 @@ const fn fulfillment_kind(model: sales::RevenueModel) -> sales::FulfillmentKind 
     }
 }
 
+fn validate_human_decision(
+    decision: &HumanDecisionProof,
+    command_id: CommandId,
+    target_scope: &AuthorityScope,
+    at: DateTime<Utc>,
+) -> Result<(), SalesDomainError> {
+    if decision.decision_ref() != command_id.to_string()
+        || decision.decided_at() != at
+        || !decision.authority_scope().contains(target_scope)
+    {
+        return Err(SalesDomainError::InvalidHumanDecision);
+    }
+    Ok(())
+}
+
 fn validate_scope(scope: &AuthorityScope) -> Result<(), SalesDomainError> {
     scope
         .validate()
@@ -1416,6 +1451,7 @@ fn validate_currency(currency: &str) -> Result<(), SalesDomainError> {
 mod tests {
     use chrono::{Duration, TimeZone};
     use erpx_integration_contracts::{CurrencyCode, MoneyAmount};
+    use erpx_kernel::{ActorAttribution, ActorKind, SessionId};
 
     use super::*;
 
@@ -1434,6 +1470,30 @@ mod tests {
             holding_id: id(1),
             company_id: id(2),
         }
+    }
+
+    fn command_id(value: u128) -> CommandId {
+        CommandId::try_from_uuid(id(value)).unwrap()
+    }
+
+    fn human_decision(
+        authority_scope: AuthorityScope,
+        command_id: CommandId,
+        decided_at: DateTime<Utc>,
+    ) -> HumanDecisionProof {
+        HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: "sales-reviewer".into(),
+                kind: ActorKind::HoldingUser,
+                session_id: Some(SessionId::try_from_uuid(id(99)).unwrap()),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            authority_scope,
+            command_id.to_string(),
+            decided_at,
+        )
+        .unwrap()
     }
 
     fn opportunity(stage: crm::OpportunityStage) -> crm::OpportunityFact {
@@ -1474,7 +1534,13 @@ mod tests {
     fn confirmed_order() -> SalesOrder {
         let mut quote = quote();
         quote.send(at(10)).unwrap();
-        quote.accept(at(11)).unwrap();
+        quote
+            .accept(
+                &human_decision(scope(), command_id(90), at(11)),
+                command_id(90),
+                at(11),
+            )
+            .unwrap();
         let mut order = SalesOrder::create_from_quote(
             SalesOrderId::try_from_uuid(id(20)).unwrap(),
             &quote,
@@ -1482,7 +1548,13 @@ mod tests {
             at(11),
         )
         .unwrap();
-        order.confirm(at(11)).unwrap();
+        order
+            .confirm(
+                &human_decision(scope(), command_id(91), at(11)),
+                command_id(91),
+                at(11),
+            )
+            .unwrap();
         order
     }
 
@@ -1575,19 +1647,91 @@ mod tests {
     fn quote_acceptance_is_ordered_and_expiry_is_atomic() {
         let mut quote = quote();
         assert_eq!(
-            quote.accept(at(10)),
+            quote.accept(
+                &human_decision(scope(), command_id(90), at(10)),
+                command_id(90),
+                at(10),
+            ),
             Err(SalesDomainError::InvalidQuoteTransition)
         );
         quote.send(at(10)).unwrap();
         let before = quote.clone();
+        let expired_at = quote.valid_until() + Duration::seconds(1);
         assert_eq!(
-            quote.accept(quote.valid_until() + Duration::seconds(1)),
+            quote.accept(
+                &human_decision(scope(), command_id(90), expired_at),
+                command_id(90),
+                expired_at,
+            ),
             Err(SalesDomainError::QuoteExpired)
         );
         assert_eq!(quote, before);
-        quote.accept(at(11)).unwrap();
+        quote
+            .accept(
+                &human_decision(scope(), command_id(90), at(11)),
+                command_id(90),
+                at(11),
+            )
+            .unwrap();
         assert_eq!(quote.status(), QuoteStatus::Accepted);
         assert_eq!(quote.version(), 3);
+    }
+
+    #[test]
+    fn sales_decisions_reject_non_human_or_mismatched_evidence_without_mutation() {
+        let mut quote = quote();
+        quote.send(at(10)).unwrap();
+        let before = quote.clone();
+
+        for kind in [
+            ActorKind::Agent,
+            ActorKind::Service,
+            ActorKind::SystemWorker,
+        ] {
+            assert!(
+                HumanDecisionProof::try_new(
+                    ActorAttribution {
+                        principal_ref: "sales-reviewer".into(),
+                        kind,
+                        session_id: Some(SessionId::try_from_uuid(id(99)).unwrap()),
+                        represented_principal_ref: None,
+                        support_capability_id: None,
+                    },
+                    scope(),
+                    command_id(90).to_string(),
+                    at(11),
+                )
+                .is_err()
+            );
+        }
+
+        let wrong_ref = human_decision(scope(), command_id(92), at(11));
+        assert_eq!(
+            quote.accept(&wrong_ref, command_id(90), at(11)),
+            Err(SalesDomainError::InvalidHumanDecision)
+        );
+        assert_eq!(quote, before);
+
+        let wrong_time = human_decision(scope(), command_id(90), at(11));
+        assert_eq!(
+            quote.reject(&wrong_time, command_id(90), at(12)),
+            Err(SalesDomainError::InvalidHumanDecision)
+        );
+        assert_eq!(quote, before);
+
+        let wrong_scope = human_decision(
+            AuthorityScope::Company {
+                holding_id: id(1),
+                company_id: id(3),
+            },
+            command_id(90),
+            at(11),
+        );
+        assert_eq!(
+            quote.reject(&wrong_scope, command_id(90), at(11)),
+            Err(SalesDomainError::InvalidHumanDecision)
+        );
+        assert_eq!(quote, before);
     }
 
     #[test]
@@ -1603,7 +1747,13 @@ mod tests {
             ),
             Err(SalesDomainError::QuoteNotAccepted)
         );
-        quote.accept(at(11)).unwrap();
+        quote
+            .accept(
+                &human_decision(scope(), command_id(90), at(11)),
+                command_id(90),
+                at(11),
+            )
+            .unwrap();
         let mut order = SalesOrder::create_from_quote(
             SalesOrderId::try_from_uuid(id(20)).unwrap(),
             &quote,
@@ -1612,7 +1762,13 @@ mod tests {
         )
         .unwrap();
         assert_eq!(order.total_minor(), quote.total_minor());
-        order.confirm(at(11)).unwrap();
+        order
+            .confirm(
+                &human_decision(scope(), command_id(91), at(11)),
+                command_id(91),
+                at(11),
+            )
+            .unwrap();
         order.mark_partially_fulfilled(at(12)).unwrap();
         order.mark_fulfilled(at(12)).unwrap();
         assert_eq!(

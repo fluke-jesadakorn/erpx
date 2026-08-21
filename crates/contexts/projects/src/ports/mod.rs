@@ -6,6 +6,7 @@ use erpx_cqrs::{
 };
 use erpx_kernel::{
     ActorAttribution, AggregateId, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
+    HumanDecisionProof,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -109,6 +110,7 @@ pub enum CommandFingerprint {
     },
     DecideDependency {
         dependency_id: DependencyId,
+        decision: DependencyDecisionAction,
         request_digest: String,
     },
     ProposeHandoff {
@@ -117,8 +119,29 @@ pub enum CommandFingerprint {
     },
     ChangeHandoff {
         handoff_id: HandoffId,
+        change: HandoffChangeAction,
         request_digest: String,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DependencyDecisionAction {
+    AcceptSource,
+    AcceptTarget,
+    Reject,
+    Cancel,
+    Revoke,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HandoffChangeAction {
+    Approve,
+    MarkReady,
+    MarkUncertain,
+    Cancel,
+    Reconcile,
 }
 
 impl CommandFingerprint {
@@ -153,6 +176,7 @@ pub struct ProjectsCommit {
     pub actor: ActorAttribution,
     pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
+    pub human_decision: Option<HumanDecisionProof>,
     pub expected_version: Option<u64>,
     pub aggregate: ProjectsAggregate,
     pub events: Vec<ProjectEvent>,

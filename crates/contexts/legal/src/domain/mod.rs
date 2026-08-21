@@ -4,7 +4,7 @@ use erpx_integration_contracts::{
     catalog::ContextId,
     reference::{RecordTypeId, ReferenceValidationError},
 };
-use erpx_kernel::{AuthorityScope, RecordId};
+use erpx_kernel::{AuthorityScope, CommandId, HumanDecisionProof, RecordId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -83,6 +83,8 @@ pub enum LegalDomainError {
     InvalidTransition,
     #[error("the approval actor must be distinct from the contract creator")]
     ApprovalSeparation,
+    #[error("contract approval requires valid authenticated human decision evidence")]
+    InvalidApprovalDecision,
     #[error("the retention deadline is invalid or exceeds the bounded horizon")]
     InvalidRetention,
     #[error("the retention deadline has not elapsed")]
@@ -305,10 +307,8 @@ impl LegalContract {
             ContractTransition::SubmitForReview if self.status == ContractStatus::Draft => {
                 (ContractStatus::Review, None)
             }
-            ContractTransition::Approve
-                if self.status == ContractStatus::Review && actor != self.created_by =>
-            {
-                (ContractStatus::Approved, Some(actor.to_owned()))
+            ContractTransition::Approve => {
+                return Err(LegalDomainError::InvalidApprovalDecision);
             }
             ContractTransition::Activate if self.status == ContractStatus::Approved => {
                 (ContractStatus::Active, self.approved_by.clone())
@@ -328,9 +328,6 @@ impl LegalContract {
                 ) && at >= self.retention_until =>
             {
                 (ContractStatus::Archived, self.approved_by.clone())
-            }
-            ContractTransition::Approve if self.status == ContractStatus::Review => {
-                return Err(LegalDomainError::ApprovalSeparation);
             }
             ContractTransition::Expire
                 if self.status == ContractStatus::Active && at < self.retention_until =>
@@ -353,6 +350,39 @@ impl LegalContract {
         if approver.is_some() {
             next.approved_by = approver;
         }
+        next.uncommitted_events.push(DomainEvent::ContractChanged);
+        next.validate()?;
+        *self = next;
+        Ok(())
+    }
+
+    /// Approves from authenticated human evidence only. The approver is
+    /// derived from the proof and never accepted as an independent payload.
+    pub fn approve(
+        &mut self,
+        decision: HumanDecisionProof,
+        command_id: CommandId,
+        at: DateTime<Utc>,
+    ) -> Result<(), LegalDomainError> {
+        let approver = decision.principal_ref();
+        validate_text(approver, "approver", MAX_REFERENCE_BYTES)?;
+        if decision.decision_ref() != command_id.to_string()
+            || decision.decided_at() != at
+            || !decision.authority_scope().contains(&self.scope)
+        {
+            return Err(LegalDomainError::InvalidApprovalDecision);
+        }
+        if self.status != ContractStatus::Review {
+            return Err(LegalDomainError::InvalidTransition);
+        }
+        if approver == self.created_by {
+            return Err(LegalDomainError::ApprovalSeparation);
+        }
+
+        let mut next = self.clone();
+        next.advance(at)?;
+        next.status = ContractStatus::Approved;
+        next.approved_by = Some(approver.to_owned());
         next.uncommitted_events.push(DomainEvent::ContractChanged);
         next.validate()?;
         *self = next;

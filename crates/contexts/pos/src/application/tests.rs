@@ -12,7 +12,7 @@ use erpx_cqrs::{
 };
 use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
-    FixedClock, QueryId,
+    FixedClock, QueryId, SessionId,
 };
 use uuid::Uuid;
 
@@ -38,7 +38,7 @@ fn actor(name: &str) -> ActorAttribution {
     ActorAttribution {
         principal_ref: name.into(),
         kind: ActorKind::HoldingUser,
-        session_id: None,
+        session_id: Some(SessionId::try_from_uuid(id(99)).unwrap()),
         represented_principal_ref: None,
         support_capability_id: None,
     }
@@ -159,6 +159,7 @@ impl EntitlementPort for FakeEntitlement {
 struct FakeWrite {
     sale: Arc<Mutex<Option<Sale>>>,
     refund: Arc<Mutex<Option<PosRefund>>>,
+    refund_loads: Arc<AtomicUsize>,
 }
 
 #[async_trait]
@@ -176,6 +177,7 @@ impl WriteRepository for FakeWrite {
         _authority_scope: &AuthorityScope,
         _refund_id: RefundId,
     ) -> Result<Option<PosRefund>, PortError> {
+        self.refund_loads.fetch_add(1, Ordering::SeqCst);
         Ok(self.refund.lock().unwrap().clone())
     }
 }
@@ -230,6 +232,7 @@ impl SaleUnitOfWork for FakeSaleUow {
 #[derive(Clone, Default)]
 struct FakeRefundUow {
     commits: Arc<AtomicUsize>,
+    receipt_lookups: Arc<AtomicUsize>,
 }
 
 #[async_trait]
@@ -238,6 +241,7 @@ impl RefundUnitOfWork for FakeRefundUow {
         &self,
         _identity: &CommandIdentity,
     ) -> Result<Option<RefundStoredCommit>, PortError> {
+        self.receipt_lookups.fetch_add(1, Ordering::SeqCst);
         Ok(None)
     }
 
@@ -387,6 +391,110 @@ async fn refund_request_uses_authoritative_completed_sale_and_self_approval_neve
         .unwrap_err();
     assert_eq!(error.category(), ErrorCategory::Invalid);
     assert_eq!(uow.commits.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn refund_review_rejects_non_humans_before_receipt_or_aggregate_access() {
+    let refund_id = RefundId::try_from_uuid(id(40)).unwrap();
+    let requested = PosRefund::request(
+        refund_id,
+        &completed_sale(),
+        vec![RefundLine {
+            sale_line_id: line().line_id,
+            quantity: 1,
+            amount_minor: 107,
+        }],
+        "customer return".into(),
+        "requester".into(),
+        at(),
+    )
+    .unwrap();
+
+    for (offset, command) in [
+        PosRefundCommand::Approve(ApproveRefund { refund_id }),
+        PosRefundCommand::Reject(RejectRefund { refund_id }),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        for kind in [
+            ActorKind::Agent,
+            ActorKind::Service,
+            ActorKind::SystemWorker,
+        ] {
+            let refund_loads = Arc::new(AtomicUsize::new(0));
+            let uow = FakeRefundUow::default();
+            let handler = PosRefundCommandHandler::new(
+                FakeWrite {
+                    refund: Arc::new(Mutex::new(Some(requested.clone()))),
+                    refund_loads: refund_loads.clone(),
+                    ..Default::default()
+                },
+                uow.clone(),
+                FakeAuthorization(true),
+                FakeEntitlement(true),
+                FixedClock::new(at()),
+            );
+            let mut request = command_envelope(
+                30 + u128::try_from(offset).unwrap(),
+                Some(requested.version()),
+                "reviewer",
+                command.clone(),
+            );
+            request.actor.kind = kind;
+
+            let error = handler.handle(request).await.unwrap_err();
+            assert_eq!(error.category(), ErrorCategory::Denied);
+            assert_eq!(uow.receipt_lookups.load(Ordering::SeqCst), 0);
+            assert_eq!(refund_loads.load(Ordering::SeqCst), 0);
+            assert_eq!(uow.commits.load(Ordering::SeqCst), 0);
+        }
+    }
+}
+
+#[tokio::test]
+async fn refund_approval_derives_reviewer_from_the_authenticated_human() {
+    let refund_id = RefundId::try_from_uuid(id(40)).unwrap();
+    let requested = PosRefund::request(
+        refund_id,
+        &completed_sale(),
+        vec![RefundLine {
+            sale_line_id: line().line_id,
+            quantity: 1,
+            amount_minor: 107,
+        }],
+        "customer return".into(),
+        "requester".into(),
+        at(),
+    )
+    .unwrap();
+    let uow = FakeRefundUow::default();
+    let handler = PosRefundCommandHandler::new(
+        FakeWrite {
+            refund: Arc::new(Mutex::new(Some(requested.clone()))),
+            ..Default::default()
+        },
+        uow.clone(),
+        FakeAuthorization(true),
+        FakeEntitlement(true),
+        FixedClock::new(at()),
+    );
+
+    let receipt = handler
+        .handle(command_envelope(
+            40,
+            Some(requested.version()),
+            "reviewer",
+            PosRefundCommand::Approve(ApproveRefund { refund_id }),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(receipt.response.refund.status, RefundStatus::Approved);
+    assert_eq!(
+        receipt.response.refund.reviewer_principal_ref.as_deref(),
+        Some("reviewer")
+    );
+    assert_eq!(uow.commits.load(Ordering::SeqCst), 1);
 }
 
 #[derive(Clone)]

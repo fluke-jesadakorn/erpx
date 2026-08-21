@@ -4,7 +4,10 @@ use erpx_cqrs::{
     CommandEnvelope, CommandHandler, CommandReceipt, CqrsError, QueryEnvelope, QueryHandler,
     QueryMetadata, QueryResult,
 };
-use erpx_kernel::{AuthorityScope, Clock, CorrelationId, ErrorCategory, ErrorContext, KernelError};
+use erpx_kernel::{
+    AuthorityScope, Clock, CorrelationId, ErrorCategory, ErrorContext, HumanDecisionProof,
+    KernelError,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -184,6 +187,26 @@ impl PeoplePayrollCommand {
                 | Self::CreatePayrollRun(_)
         )
     }
+
+    const fn requires_human_decision(&self) -> bool {
+        match self {
+            Self::TransitionLeaveRequest(value) => matches!(
+                value.transition,
+                LeaveTransition::Approve | LeaveTransition::Reject
+            ),
+            Self::TransitionExpenseClaim(value) => matches!(
+                value.transition,
+                ExpenseTransition::Approve
+                    | ExpenseTransition::Reject
+                    | ExpenseTransition::Reimburse
+            ),
+            Self::TransitionPayrollRun(value) => matches!(
+                value.transition,
+                PayrollTransition::Review | PayrollTransition::Post
+            ),
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -294,6 +317,8 @@ pub enum PeoplePayrollApplicationError {
     VersionConflict { expected: u64, actual: u64 },
     #[error("People & Payroll list page size must be between 1 and 100")]
     InvalidPageSize,
+    #[error("the lifecycle transition requires an authenticated human decision")]
+    HumanDecisionDenied,
     #[error("People & Payroll integration event mapping failed")]
     IntegrationMapping,
     #[error(transparent)]
@@ -420,6 +445,31 @@ where
             idempotency_key: envelope.idempotency_key.clone(),
             fingerprint: envelope.command.fingerprint(),
         };
+        // Build the type-level proof before receipt replay or aggregate
+        // repository access. Non-decision transitions retain their existing
+        // actor-string behavior and do not require an authenticated session.
+        let decision_at = envelope
+            .command
+            .requires_human_decision()
+            .then(|| self.clock.now());
+        let mut human_decision = if let Some(decided_at) = decision_at {
+            Some(
+                HumanDecisionProof::try_new(
+                    envelope.actor.clone(),
+                    envelope.active_scope.clone(),
+                    envelope.command_id.to_string(),
+                    decided_at,
+                )
+                .map_err(|_| {
+                    to_cqrs(
+                        PeoplePayrollApplicationError::HumanDecisionDenied,
+                        correlation,
+                    )
+                })?,
+            )
+        } else {
+            None
+        };
         if let Some(stored) = self
             .replay(&identity, &envelope.actor, &envelope.active_scope, action)
             .await
@@ -435,7 +485,7 @@ where
             ));
         }
 
-        let at = self.clock.now();
+        let at = decision_at.unwrap_or_else(|| self.clock.now());
         let actor_ref = envelope.actor.principal_ref.as_str();
         let (mut aggregate, expected_version) = match envelope.command {
             PeoplePayrollCommand::HireEmployee(value) => {
@@ -527,9 +577,24 @@ where
                 let Aggregate::LeaveRequest(leave) = &mut aggregate else {
                     unreachable!()
                 };
-                leave
-                    .transition(value.transition, actor_ref, at)
-                    .map_err(|error| to_cqrs(error.into(), correlation))?;
+                if matches!(
+                    value.transition,
+                    LeaveTransition::Approve | LeaveTransition::Reject
+                ) {
+                    let decision = human_decision.take().ok_or_else(|| {
+                        to_cqrs(
+                            PeoplePayrollApplicationError::HumanDecisionDenied,
+                            correlation,
+                        )
+                    })?;
+                    leave
+                        .decide(value.transition, decision, identity.command_id, at)
+                        .map_err(|error| to_cqrs(error.into(), correlation))?;
+                } else {
+                    leave
+                        .transition(value.transition, actor_ref, at)
+                        .map_err(|error| to_cqrs(error.into(), correlation))?;
+                }
                 (aggregate, Some(expected))
             }
             PeoplePayrollCommand::CreateExpenseClaim(value) => {
@@ -575,9 +640,26 @@ where
                 let Aggregate::ExpenseClaim(expense) = &mut aggregate else {
                     unreachable!()
                 };
-                expense
-                    .transition(value.transition, actor_ref, at)
-                    .map_err(|error| to_cqrs(error.into(), correlation))?;
+                if matches!(
+                    value.transition,
+                    ExpenseTransition::Approve
+                        | ExpenseTransition::Reject
+                        | ExpenseTransition::Reimburse
+                ) {
+                    let decision = human_decision.take().ok_or_else(|| {
+                        to_cqrs(
+                            PeoplePayrollApplicationError::HumanDecisionDenied,
+                            correlation,
+                        )
+                    })?;
+                    expense
+                        .decide(value.transition, decision, identity.command_id, at)
+                        .map_err(|error| to_cqrs(error.into(), correlation))?;
+                } else {
+                    expense
+                        .transition(value.transition, actor_ref, at)
+                        .map_err(|error| to_cqrs(error.into(), correlation))?;
+                }
                 (aggregate, Some(expected))
             }
             PeoplePayrollCommand::CreatePayrollRun(value) => {
@@ -624,9 +706,24 @@ where
                 let Aggregate::PayrollRun(payroll) = &mut aggregate else {
                     unreachable!()
                 };
-                payroll
-                    .transition(value.transition, actor_ref, at)
-                    .map_err(|error| to_cqrs(error.into(), correlation))?;
+                if matches!(
+                    value.transition,
+                    PayrollTransition::Review | PayrollTransition::Post
+                ) {
+                    let decision = human_decision.take().ok_or_else(|| {
+                        to_cqrs(
+                            PeoplePayrollApplicationError::HumanDecisionDenied,
+                            correlation,
+                        )
+                    })?;
+                    payroll
+                        .decide(value.transition, decision, identity.command_id, at)
+                        .map_err(|error| to_cqrs(error.into(), correlation))?;
+                } else {
+                    payroll
+                        .transition(value.transition, actor_ref, at)
+                        .map_err(|error| to_cqrs(error.into(), correlation))?;
+                }
                 (aggregate, Some(expected))
             }
         };
@@ -948,6 +1045,7 @@ fn port_to_cqrs(error: PortError, correlation: CorrelationId) -> CqrsError {
 fn to_cqrs(error: PeoplePayrollApplicationError, correlation_id: CorrelationId) -> CqrsError {
     let (code, category, message, retryable) = match error {
         PeoplePayrollApplicationError::ScopeOutsideAuthority
+        | PeoplePayrollApplicationError::HumanDecisionDenied
         | PeoplePayrollApplicationError::Port(PortError::Denied | PortError::EntitlementDenied) => {
             (
                 "people_payroll.denied",

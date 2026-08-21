@@ -1,13 +1,43 @@
-use chrono::{Duration, TimeZone, Utc};
+use chrono::{DateTime, Duration, TimeZone, Utc};
 use erpx_integration_contracts::{
     AggregateKind, CurrencyCode, IntegrationEventEnvelope, MoneyAmount, ReferenceCode, customer,
     identity_access, marketing, operations, sales,
 };
-use erpx_kernel::{AggregateId, AuthorityScope, CorrelationId, EventId};
+use erpx_kernel::{
+    ActorAttribution, ActorKind, AggregateId, AuthorityScope, CommandId, CorrelationId, EventId,
+    HumanDecisionProof, SessionId,
+};
 use uuid::Uuid;
 
 use super::*;
 use crate::{SourceDatabase, SourcePosition};
+
+fn approval_scope() -> AuthorityScope {
+    AuthorityScope::Company {
+        holding_id: Uuid::from_u128(2),
+        company_id: Uuid::from_u128(3),
+    }
+}
+
+fn human_decision(
+    principal_ref: &str,
+    reference: &str,
+    decided_at: DateTime<Utc>,
+) -> HumanDecisionProof {
+    HumanDecisionProof::try_new(
+        ActorAttribution {
+            principal_ref: principal_ref.into(),
+            kind: ActorKind::HoldingUser,
+            session_id: Some(SessionId::try_from_uuid(Uuid::from_u128(99)).unwrap()),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        },
+        approval_scope(),
+        reference,
+        decided_at,
+    )
+    .unwrap()
+}
 
 fn at() -> chrono::DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap()
@@ -291,26 +321,53 @@ fn exception_exposes_stable_first_class_record_identity() {
 fn approval_requires_typed_decision_and_enforces_maker_checker() {
     let mut value = approval_exception();
     value.take_uncommitted_events();
+    let command_id = CommandId::try_from_uuid(Uuid::from_u128(120)).unwrap();
+    let expected_ref = approval_decision_ref(
+        command_id,
+        value.id(),
+        operations::ApprovalDecision::Approved,
+    );
     assert_eq!(
         value.resolve(at() + Duration::minutes(1)),
         Err(OperationsDomainError::InvalidApprovalDecision)
     );
     assert_eq!(
         value.decide_approval(
+            command_id,
             operations::ApprovalDecision::Approved,
-            "budget-maker".into(),
+            human_decision(
+                "finance-controller",
+                &approval_decision_ref(
+                    CommandId::try_from_uuid(Uuid::from_u128(121)).unwrap(),
+                    value.id(),
+                    operations::ApprovalDecision::Approved,
+                ),
+                at() + Duration::minutes(1),
+            ),
             "within-ceiling".into(),
-            at() + Duration::minutes(1),
+        ),
+        Err(OperationsDomainError::InvalidApprovalDecision)
+    );
+    assert_eq!(
+        value.decide_approval(
+            command_id,
+            operations::ApprovalDecision::Approved,
+            human_decision("budget-maker", &expected_ref, at() + Duration::minutes(1),),
+            "within-ceiling".into(),
         ),
         Err(OperationsDomainError::InvalidApprovalDecision)
     );
 
     value
         .decide_approval(
+            command_id,
             operations::ApprovalDecision::Approved,
-            "finance-controller".into(),
+            human_decision(
+                "finance-controller",
+                &expected_ref,
+                at() + Duration::minutes(1),
+            ),
             "within-ceiling".into(),
-            at() + Duration::minutes(1),
         )
         .unwrap();
     assert_eq!(value.status(), ExceptionStatus::Resolved);

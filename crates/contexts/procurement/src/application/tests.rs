@@ -16,7 +16,7 @@ use erpx_cqrs::{
 };
 use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
-    FixedClock, QueryId,
+    FixedClock, QueryId, SessionId,
 };
 use uuid::Uuid;
 
@@ -45,7 +45,7 @@ fn actor() -> ActorAttribution {
     ActorAttribution {
         principal_ref: "procurement-test".into(),
         kind: ActorKind::HoldingUser,
-        session_id: None,
+        session_id: Some(SessionId::try_from_uuid(id(3)).unwrap()),
         represented_principal_ref: None,
         support_capability_id: None,
     }
@@ -141,7 +141,10 @@ impl EntitlementPort for FakeEntitlement {
 }
 
 #[derive(Clone)]
-struct FakeWrite(Arc<Mutex<Option<PurchaseOrder>>>);
+struct FakeWrite {
+    value: Arc<Mutex<Option<PurchaseOrder>>>,
+    loads: Arc<AtomicUsize>,
+}
 
 #[async_trait]
 impl WriteRepository for FakeWrite {
@@ -150,7 +153,8 @@ impl WriteRepository for FakeWrite {
         _authority_scope: &AuthorityScope,
         _purchase_order_id: PurchaseOrderId,
     ) -> Result<Option<PurchaseOrder>, PortError> {
-        Ok(self.0.lock().unwrap().clone())
+        self.loads.fetch_add(1, Ordering::SeqCst);
+        Ok(self.value.lock().unwrap().clone())
     }
 }
 
@@ -158,6 +162,7 @@ impl WriteRepository for FakeWrite {
 struct FakeUow {
     receipts: Arc<Mutex<Vec<(CommandIdentity, StoredCommit)>>>,
     commits: Arc<AtomicUsize>,
+    receipt_lookups: Arc<AtomicUsize>,
 }
 
 #[async_trait]
@@ -166,6 +171,7 @@ impl CommandUnitOfWork for FakeUow {
         &self,
         identity: &CommandIdentity,
     ) -> Result<Option<StoredCommit>, PortError> {
+        self.receipt_lookups.fetch_add(1, Ordering::SeqCst);
         for (stored_identity, receipt) in self.receipts.lock().unwrap().iter() {
             if stored_identity.command_id == identity.command_id
                 || stored_identity.idempotency_key == identity.idempotency_key
@@ -207,8 +213,27 @@ fn handler(
     authorized: bool,
     entitled: bool,
 ) -> ProcurementCommandHandler<FakeWrite, FakeUow, FakeAuthorization, FakeEntitlement, FixedClock> {
+    handler_with_loads(
+        write,
+        Arc::new(AtomicUsize::new(0)),
+        uow,
+        authorized,
+        entitled,
+    )
+}
+
+fn handler_with_loads(
+    write: Option<PurchaseOrder>,
+    loads: Arc<AtomicUsize>,
+    uow: FakeUow,
+    authorized: bool,
+    entitled: bool,
+) -> ProcurementCommandHandler<FakeWrite, FakeUow, FakeAuthorization, FakeEntitlement, FixedClock> {
     ProcurementCommandHandler::new(
-        FakeWrite(Arc::new(Mutex::new(write))),
+        FakeWrite {
+            value: Arc::new(Mutex::new(write)),
+            loads,
+        },
         uow,
         FakeAuthorization(authorized),
         FakeEntitlement(entitled),
@@ -271,6 +296,34 @@ fn expected_version_is_required_and_checked_before_release() {
     .unwrap_err();
     assert_eq!(conflict.category(), ErrorCategory::Conflict);
     assert_eq!(uow.commits.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn release_rejects_non_human_actor_before_receipt_or_purchase_order_access() {
+    for kind in [
+        ActorKind::Agent,
+        ActorKind::Service,
+        ActorKind::SystemWorker,
+    ] {
+        let loads = Arc::new(AtomicUsize::new(0));
+        let uow = FakeUow::default();
+        let mut envelope = command_envelope(
+            40,
+            Some(1),
+            ReleasePurchaseOrder {
+                purchase_order_id: PurchaseOrderId::try_from_uuid(id(10)).unwrap(),
+            },
+        );
+        envelope.actor.kind = kind;
+        let error = block_on(
+            handler_with_loads(None, loads.clone(), uow.clone(), true, true).handle(envelope),
+        )
+        .unwrap_err();
+        assert_eq!(error.category(), ErrorCategory::Denied);
+        assert_eq!(uow.receipt_lookups.load(Ordering::SeqCst), 0);
+        assert_eq!(loads.load(Ordering::SeqCst), 0);
+        assert_eq!(uow.commits.load(Ordering::SeqCst), 0);
+    }
 }
 
 #[derive(Clone)]

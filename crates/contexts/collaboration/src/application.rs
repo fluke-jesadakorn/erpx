@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use erpx_kernel::HumanDecisionProof;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -7,7 +8,7 @@ use crate::{
         ActionCard, AnchorPolicy, AttachmentRef, Audience, CollaborationError, CommentDocument,
         CommentId, EncryptedDraft, MentionEventId, MentionTarget, ModerationCase, OpaqueInboxFact,
         PrincipalRef, PromotionProposal, ReferenceRelation, RetentionPolicy, Thread, ThreadAnchor,
-        ThreadId,
+        ThreadId, action_card_confirmation_decision_ref,
     },
     ports::{
         ActorContext, AuthorizationPort, CollaborationAction, CommitReceipt, DraftRepository,
@@ -25,6 +26,8 @@ pub enum CollaborationApplicationError {
     Conflict,
     #[error("collaboration request is invalid: {0}")]
     Invalid(String),
+    #[error("an authenticated human decision bound to this command is required")]
+    HumanDecisionDenied,
     #[error("collaboration projection or dependency is unavailable")]
     Unavailable,
     #[error("collaboration projection is stale")]
@@ -133,7 +136,7 @@ pub enum ThreadMutation {
     },
     ConfirmActionCard {
         card_id: crate::domain::ActionCardId,
-        confirmer: PrincipalRef,
+        decision: HumanDecisionProof,
     },
     MarkAnchorStale {
         observed_source_revision: u64,
@@ -156,9 +159,8 @@ impl ThreadMutation {
             Self::AddRelation { .. } => CollaborationAction::RelateRecord,
             Self::Moderate { .. } => CollaborationAction::Moderate,
             Self::ProposePromotion { .. } => CollaborationAction::Promote,
-            Self::ProposeActionCard { .. } | Self::ConfirmActionCard { .. } => {
-                CollaborationAction::ProposeAction
-            }
+            Self::ProposeActionCard { .. } => CollaborationAction::ProposeAction,
+            Self::ConfirmActionCard { .. } => CollaborationAction::ConfirmAction,
             Self::MarkAnchorStale { .. } => CollaborationAction::EditComment,
         }
     }
@@ -248,16 +250,18 @@ where
     pub async fn mutate_thread(
         &self,
         actor: &ActorContext,
-        command: MutateThreadCommand,
+        mut command: MutateThreadCommand,
     ) -> Result<CommitReceipt, CollaborationApplicationError> {
         actor.validate()?;
         command.identity.validate()?;
+        validate_confirmation_decision(actor, &command)?;
         let action = command.mutation.action();
         let access = self
             .authorization
             .authorize_thread(actor, command.thread_id, action)
             .await?;
         validate_access(actor, &access, command.thread_id, action)?;
+        bind_confirmation_decision_to_visibility(&access, &mut command)?;
 
         match &command.mutation {
             ThreadMutation::AddComment(value) => {
@@ -303,6 +307,7 @@ where
         apply_mutation(
             &mut thread,
             command.expected_version,
+            command.identity.command_id,
             command.mutation,
             command.at,
         )?;
@@ -600,6 +605,7 @@ fn validate_access(
 fn apply_mutation(
     thread: &mut Thread,
     expected_version: u64,
+    command_id: erpx_kernel::CommandId,
     mutation: ThreadMutation,
     at: DateTime<Utc>,
 ) -> Result<(), CollaborationError> {
@@ -669,8 +675,8 @@ fn apply_mutation(
         ThreadMutation::ProposeActionCard { card } => {
             thread.propose_action_card(expected_version, card, at)
         }
-        ThreadMutation::ConfirmActionCard { card_id, confirmer } => {
-            thread.confirm_action_card(expected_version, card_id, confirmer, at)
+        ThreadMutation::ConfirmActionCard { card_id, decision } => {
+            thread.confirm_action_card(expected_version, card_id, command_id, decision, at)
         }
         ThreadMutation::MarkAnchorStale {
             observed_source_revision,
@@ -682,6 +688,49 @@ fn apply_mutation(
             at,
         ),
     }
+}
+
+fn validate_confirmation_decision(
+    actor: &ActorContext,
+    command: &MutateThreadCommand,
+) -> Result<(), CollaborationApplicationError> {
+    let command_id = command.identity.command_id;
+    let decided_at = command.at;
+    let ThreadMutation::ConfirmActionCard { card_id, decision } = &command.mutation else {
+        return Ok(());
+    };
+    let decision_principal = Uuid::parse_str(decision.principal_ref()).ok();
+    let exact_ref = action_card_confirmation_decision_ref(*card_id, command_id);
+    if actor.principal.kind() != erpx_kernel::PrincipalKind::Human
+        || decision.actor() != &actor.attribution
+        || decision_principal != Some(actor.principal.id().as_uuid())
+        || decision.authority_scope() != &actor.authority_scope
+        || (decision.decision_ref() != command_id.to_string()
+            && decision.decision_ref() != exact_ref)
+        || decision.decided_at() != decided_at
+    {
+        return Err(CollaborationApplicationError::HumanDecisionDenied);
+    }
+    Ok(())
+}
+
+fn bind_confirmation_decision_to_visibility(
+    access: &crate::ports::AuthorizedThreadAccess,
+    command: &mut MutateThreadCommand,
+) -> Result<(), CollaborationApplicationError> {
+    let command_id = command.identity.command_id;
+    let ThreadMutation::ConfirmActionCard { card_id, decision } = &mut command.mutation else {
+        return Ok(());
+    };
+    let exact_ref = action_card_confirmation_decision_ref(*card_id, command_id);
+    *decision = HumanDecisionProof::try_new(
+        decision.actor().clone(),
+        access.visibility_scope().clone(),
+        exact_ref,
+        decision.decided_at(),
+    )
+    .map_err(|_| CollaborationApplicationError::HumanDecisionDenied)?;
+    Ok(())
 }
 
 fn opaque_inbox_facts(
@@ -739,8 +788,8 @@ mod tests {
     use chrono::Duration;
     use erpx_integration_contracts::{RecordTypeId, StableRecordRef, catalog::ContextId};
     use erpx_kernel::{
-        AuthorityScope, CommandId, CorrelationId, DataClassification, HoldingId, PolicyId,
-        PrincipalId, PrincipalKind, RecordId,
+        ActorAttribution, ActorKind, AuthorityScope, CommandId, CorrelationId, DataClassification,
+        HoldingId, PolicyId, PrincipalId, PrincipalKind, RecordId, SessionId,
     };
     use serde_json::json;
 
@@ -754,6 +803,7 @@ mod tests {
     struct FakeAuthorization {
         deny: bool,
         anchor_record_id: RecordId,
+        visibility_scope: Option<AuthorityScope>,
         calls: Arc<Mutex<Vec<&'static str>>>,
     }
 
@@ -855,6 +905,9 @@ mod tests {
                 thread_id,
                 self.anchor_record_id,
                 actor.authority_scope.clone(),
+                self.visibility_scope
+                    .clone()
+                    .unwrap_or_else(|| actor.authority_scope.clone()),
                 actor.principal,
                 actor.external_portal,
                 action,
@@ -1049,6 +1102,13 @@ mod tests {
                 holding_id,
                 principal: actor,
                 authority_scope: scope,
+                attribution: ActorAttribution {
+                    principal_ref: actor.id().to_string(),
+                    kind: ActorKind::HoldingUser,
+                    session_id: Some(SessionId::try_from_uuid(Uuid::new_v4()).unwrap()),
+                    represented_principal_ref: None,
+                    support_capability_id: None,
+                },
                 external_portal: None,
             },
             thread,
@@ -1066,6 +1126,341 @@ mod tests {
         }
     }
 
+    fn ancestor_fixture() -> (
+        ActorContext,
+        Thread,
+        RecordId,
+        AuthorityScope,
+        DateTime<Utc>,
+    ) {
+        let holding_id = HoldingId::try_from_uuid(Uuid::new_v4()).unwrap();
+        let principal = principal();
+        let company_id = Uuid::new_v4();
+        let department_id = Uuid::new_v4();
+        let actor_scope = AuthorityScope::Company {
+            holding_id: holding_id.as_uuid(),
+            company_id,
+        };
+        let visibility_scope = AuthorityScope::Subtree {
+            holding_id: holding_id.as_uuid(),
+            organization_node_id: department_id,
+        };
+        let record_id = RecordId::try_from_uuid(Uuid::new_v4()).unwrap();
+        let record = StableRecordRef::try_new(
+            record_id,
+            ContextId::Finance,
+            RecordTypeId::try_new("finance.invoice").unwrap(),
+        )
+        .unwrap();
+        let policy = AnchorPolicy::try_new(
+            holding_id,
+            record.clone(),
+            visibility_scope.clone(),
+            None,
+            DataClassification::Confidential,
+            PolicyId::try_from_uuid(Uuid::new_v4()).unwrap(),
+        )
+        .unwrap();
+        let now = Utc::now();
+        let thread = Thread::create(
+            ThreadId::try_from_uuid(Uuid::new_v4()).unwrap(),
+            policy,
+            ThreadAnchor::try_new(record, None).unwrap(),
+            Audience::Internal {
+                scope: visibility_scope.clone(),
+                principals: vec![principal],
+            },
+            RetentionPolicy {
+                parent_retain_until: now + Duration::days(30),
+                comment_retain_until: now + Duration::days(30),
+                jurisdiction_retain_until: now + Duration::days(30),
+                legal_holds: Default::default(),
+            },
+            principal,
+            now,
+        )
+        .unwrap();
+        (
+            ActorContext {
+                holding_id,
+                principal,
+                authority_scope: actor_scope,
+                attribution: ActorAttribution {
+                    principal_ref: principal.id().to_string(),
+                    kind: ActorKind::HoldingUser,
+                    session_id: Some(SessionId::try_from_uuid(Uuid::new_v4()).unwrap()),
+                    represented_principal_ref: None,
+                    support_capability_id: None,
+                },
+                external_portal: None,
+            },
+            thread,
+            record_id,
+            visibility_scope,
+            now,
+        )
+    }
+
+    fn proposed_action_card(
+        thread: &mut Thread,
+        proposer: PrincipalRef,
+        now: DateTime<Utc>,
+    ) -> crate::domain::ActionCardId {
+        let card_id = crate::domain::ActionCardId::try_from_uuid(Uuid::new_v4()).unwrap();
+        thread
+            .propose_action_card(
+                thread.version(),
+                ActionCard {
+                    id: card_id,
+                    owner_context: ContextId::Finance,
+                    command_type: "invoice.approve".into(),
+                    payload_digest: [9; 32],
+                    state: crate::domain::ActionCardState::Proposed,
+                    proposed_by: proposer,
+                    confirmed_by: None,
+                    confirmation: None,
+                    created_at: now,
+                    expires_at: now + Duration::hours(1),
+                },
+                now + Duration::seconds(1),
+            )
+            .unwrap();
+        card_id
+    }
+
+    fn confirmation_decision(
+        actor: &ActorContext,
+        identity: &MutationIdentity,
+        at: DateTime<Utc>,
+    ) -> HumanDecisionProof {
+        HumanDecisionProof::try_new(
+            actor.attribution.clone(),
+            actor.authority_scope.clone(),
+            identity.command_id.to_string(),
+            at,
+        )
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn confirmation_binds_and_persists_authenticated_human_evidence() {
+        let (actor, mut thread, record_id, now) = fixture();
+        let card_id = proposed_action_card(&mut thread, actor.principal, now);
+        let stored = Arc::new(Mutex::new(Some(thread.clone())));
+        let service = CollaborationCommandService::new(
+            FakeAuthorization {
+                deny: false,
+                anchor_record_id: record_id,
+                visibility_scope: None,
+                calls: Default::default(),
+            },
+            FakeDirectory,
+            FakeWrite {
+                loads: Default::default(),
+                thread: stored.clone(),
+            },
+            FakeDraft,
+        );
+        let identity = identity();
+        let decided_at = now + Duration::seconds(2);
+        let decision = confirmation_decision(&actor, &identity, decided_at);
+        service
+            .mutate_thread(
+                &actor,
+                MutateThreadCommand {
+                    identity: identity.clone(),
+                    thread_id: thread.id(),
+                    expected_version: thread.version(),
+                    mutation: ThreadMutation::ConfirmActionCard { card_id, decision },
+                    at: decided_at,
+                },
+            )
+            .await
+            .unwrap();
+
+        let stored = stored.lock().unwrap();
+        let card = &stored.as_ref().unwrap().action_cards()[0];
+        assert_eq!(card.confirmed_by, Some(actor.principal));
+        let evidence = card.confirmation.as_ref().unwrap();
+        assert_eq!(evidence.actor(), &actor.attribution);
+        assert_eq!(evidence.authority_scope(), &actor.authority_scope);
+        assert_eq!(
+            evidence.decision_ref(),
+            action_card_confirmation_decision_ref(card_id, identity.command_id)
+        );
+        assert_eq!(evidence.decided_at(), decided_at);
+    }
+
+    #[tokio::test]
+    async fn ancestor_confirmation_binds_owner_proof_to_authorized_thread_visibility() {
+        let (actor, mut thread, record_id, visibility_scope, now) = ancestor_fixture();
+        let card_id = proposed_action_card(&mut thread, actor.principal, now);
+        let stored = Arc::new(Mutex::new(Some(thread.clone())));
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let service = CollaborationCommandService::new(
+            FakeAuthorization {
+                deny: false,
+                anchor_record_id: record_id,
+                visibility_scope: Some(visibility_scope.clone()),
+                calls: calls.clone(),
+            },
+            FakeDirectory,
+            FakeWrite {
+                loads: Default::default(),
+                thread: stored.clone(),
+            },
+            FakeDraft,
+        );
+        let identity = identity();
+        let decided_at = now + Duration::seconds(2);
+        let decision = confirmation_decision(&actor, &identity, decided_at);
+        assert_eq!(decision.authority_scope(), &actor.authority_scope);
+
+        service
+            .mutate_thread(
+                &actor,
+                MutateThreadCommand {
+                    identity: identity.clone(),
+                    thread_id: thread.id(),
+                    expected_version: thread.version(),
+                    mutation: ThreadMutation::ConfirmActionCard { card_id, decision },
+                    at: decided_at,
+                },
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(calls.lock().unwrap().as_slice(), &["authorize-thread"]);
+        let stored = stored.lock().unwrap();
+        let evidence = stored.as_ref().unwrap().action_cards()[0]
+            .confirmation
+            .as_ref()
+            .unwrap();
+        assert_eq!(evidence.actor(), &actor.attribution);
+        assert_eq!(evidence.authority_scope(), &visibility_scope);
+        assert_eq!(
+            evidence.decision_ref(),
+            action_card_confirmation_decision_ref(card_id, identity.command_id)
+        );
+    }
+
+    #[tokio::test]
+    async fn confirmation_rejects_forged_or_non_human_actor_before_authorization() {
+        let (human, thread, record_id, now) = fixture();
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let loads = Arc::new(AtomicUsize::new(0));
+        let service = CollaborationCommandService::new(
+            FakeAuthorization {
+                deny: false,
+                anchor_record_id: record_id,
+                visibility_scope: None,
+                calls: calls.clone(),
+            },
+            FakeDirectory,
+            FakeWrite {
+                loads: loads.clone(),
+                thread: Arc::new(Mutex::new(Some(thread.clone()))),
+            },
+            FakeDraft,
+        );
+        let at = now + Duration::seconds(1);
+
+        for (principal_kind, actor_kind) in [
+            (PrincipalKind::Agent, ActorKind::Agent),
+            (PrincipalKind::Service, ActorKind::Service),
+            (PrincipalKind::Service, ActorKind::SystemWorker),
+        ] {
+            let mut actor = human.clone();
+            actor.principal = PrincipalRef::new(human.principal.id(), principal_kind);
+            actor.attribution.kind = actor_kind;
+            let identity = identity();
+            let human_decision = confirmation_decision(&human, &identity, at);
+            let result = service
+                .mutate_thread(
+                    &actor,
+                    MutateThreadCommand {
+                        identity,
+                        thread_id: thread.id(),
+                        expected_version: thread.version(),
+                        mutation: ThreadMutation::ConfirmActionCard {
+                            card_id: crate::domain::ActionCardId::try_from_uuid(Uuid::new_v4())
+                                .unwrap(),
+                            decision: human_decision,
+                        },
+                        at,
+                    },
+                )
+                .await;
+            assert_eq!(
+                result,
+                Err(CollaborationApplicationError::HumanDecisionDenied)
+            );
+        }
+
+        let forged_identity = identity();
+        let mut forged_attribution = human.attribution.clone();
+        forged_attribution.session_id = Some(SessionId::try_from_uuid(Uuid::new_v4()).unwrap());
+        let forged = HumanDecisionProof::try_new(
+            forged_attribution,
+            human.authority_scope.clone(),
+            forged_identity.command_id.to_string(),
+            at,
+        )
+        .unwrap();
+        let result = service
+            .mutate_thread(
+                &human,
+                MutateThreadCommand {
+                    identity: forged_identity,
+                    thread_id: thread.id(),
+                    expected_version: thread.version(),
+                    mutation: ThreadMutation::ConfirmActionCard {
+                        card_id: crate::domain::ActionCardId::try_from_uuid(Uuid::new_v4())
+                            .unwrap(),
+                        decision: forged,
+                    },
+                    at,
+                },
+            )
+            .await;
+        assert_eq!(
+            result,
+            Err(CollaborationApplicationError::HumanDecisionDenied)
+        );
+
+        let mismatch_identity = identity();
+        let card_id = crate::domain::ActionCardId::try_from_uuid(Uuid::new_v4()).unwrap();
+        let other_card_id = crate::domain::ActionCardId::try_from_uuid(Uuid::new_v4()).unwrap();
+        let mismatched = HumanDecisionProof::try_new(
+            human.attribution.clone(),
+            human.authority_scope.clone(),
+            action_card_confirmation_decision_ref(other_card_id, mismatch_identity.command_id),
+            at,
+        )
+        .unwrap();
+        let result = service
+            .mutate_thread(
+                &human,
+                MutateThreadCommand {
+                    identity: mismatch_identity,
+                    thread_id: thread.id(),
+                    expected_version: thread.version(),
+                    mutation: ThreadMutation::ConfirmActionCard {
+                        card_id,
+                        decision: mismatched,
+                    },
+                    at,
+                },
+            )
+            .await;
+        assert_eq!(
+            result,
+            Err(CollaborationApplicationError::HumanDecisionDenied)
+        );
+        assert!(calls.lock().unwrap().is_empty());
+        assert_eq!(loads.load(Ordering::Relaxed), 0);
+    }
+
     #[tokio::test]
     async fn denial_precedes_thread_snapshot_lookup() {
         let (actor, thread, record_id, now) = fixture();
@@ -1074,6 +1469,7 @@ mod tests {
             FakeAuthorization {
                 deny: true,
                 anchor_record_id: record_id,
+                visibility_scope: None,
                 calls: Default::default(),
             },
             FakeDirectory,
@@ -1107,6 +1503,7 @@ mod tests {
             FakeAuthorization {
                 deny: true,
                 anchor_record_id: record_id,
+                visibility_scope: None,
                 calls: Default::default(),
             },
             FakeRead {
@@ -1122,6 +1519,7 @@ mod tests {
             FakeAuthorization {
                 deny: false,
                 anchor_record_id: record_id,
+                visibility_scope: None,
                 calls: Default::default(),
             },
             FakeRead {
@@ -1142,6 +1540,7 @@ mod tests {
             FakeAuthorization {
                 deny: false,
                 anchor_record_id: record_id,
+                visibility_scope: None,
                 calls: calls.clone(),
             },
             FakeRead {

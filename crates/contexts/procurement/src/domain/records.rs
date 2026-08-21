@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use erpx_kernel::AuthorityScope;
+use erpx_kernel::{AuthorityScope, CommandId, HumanDecisionProof};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -13,6 +13,8 @@ pub enum ProcurementRecordError {
     InvalidTitle,
     #[error("Procurement record transition is not allowed")]
     InvalidTransition,
+    #[error("Procurement record decision requires valid authenticated human evidence")]
+    InvalidHumanDecision,
     #[error("Procurement record version conflict (expected {expected}, actual {actual})")]
     VersionConflict { expected: u64, actual: u64 },
     #[error("Procurement record version overflowed")]
@@ -78,6 +80,13 @@ impl ProcurementRecordStatus {
             Self::Cancelled => "cancelled",
         }
     }
+
+    pub const fn requires_human_decision(self) -> bool {
+        matches!(
+            self,
+            Self::Approved | Self::Rejected | Self::Accepted | Self::Authorized
+        )
+    }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProcurementRecord {
@@ -115,6 +124,36 @@ impl ProcurementRecord {
         })
     }
     pub fn transition(
+        &mut self,
+        expected: u64,
+        next: ProcurementRecordStatus,
+        at: DateTime<Utc>,
+    ) -> Result<(), ProcurementRecordError> {
+        if next.requires_human_decision() {
+            return Err(ProcurementRecordError::InvalidHumanDecision);
+        }
+        self.apply_transition(expected, next, at)
+    }
+
+    pub fn decide(
+        &mut self,
+        expected: u64,
+        next: ProcurementRecordStatus,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
+        at: DateTime<Utc>,
+    ) -> Result<(), ProcurementRecordError> {
+        if !next.requires_human_decision()
+            || decision.decision_ref() != command_id.to_string()
+            || decision.decided_at() != at
+            || !decision.authority_scope().contains(&self.scope)
+        {
+            return Err(ProcurementRecordError::InvalidHumanDecision);
+        }
+        self.apply_transition(expected, next, at)
+    }
+
+    fn apply_transition(
         &mut self,
         expected: u64,
         next: ProcurementRecordStatus,
@@ -219,6 +258,27 @@ fn validate_title(value: &str) -> Result<(), ProcurementRecordError> {
 mod tests {
     use super::*;
     use chrono::TimeZone;
+    use erpx_kernel::{ActorAttribution, ActorKind, SessionId};
+
+    fn human_decision(
+        scope: AuthorityScope,
+        command_id: CommandId,
+        at: DateTime<Utc>,
+    ) -> HumanDecisionProof {
+        HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: "procurement-reviewer".into(),
+                kind: ActorKind::HoldingUser,
+                session_id: Some(SessionId::try_from_uuid(Uuid::from_u128(9)).unwrap()),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            scope,
+            command_id.to_string(),
+            at,
+        )
+        .unwrap()
+    }
     #[test]
     fn receiving_and_returning_follow_distinct_lifecycles() {
         let scope = AuthorityScope::Company {
@@ -242,9 +302,88 @@ mod tests {
         receipt
             .transition(1, ProcurementRecordStatus::Received, at)
             .unwrap();
+        assert_eq!(
+            receipt.transition(2, ProcurementRecordStatus::Accepted, at),
+            Err(ProcurementRecordError::InvalidHumanDecision)
+        );
+        let command_id = CommandId::try_from_uuid(Uuid::from_u128(10)).unwrap();
         receipt
-            .transition(2, ProcurementRecordStatus::Accepted, at)
+            .decide(
+                2,
+                ProcurementRecordStatus::Accepted,
+                &human_decision(receipt.scope().clone(), command_id, at),
+                command_id,
+                at,
+            )
             .unwrap();
         assert_eq!(receipt.version(), 3);
+    }
+
+    #[test]
+    fn requisition_and_receipt_decisions_reject_non_human_or_mismatched_evidence() {
+        let scope = AuthorityScope::Company {
+            holding_id: Uuid::from_u128(1),
+            company_id: Uuid::from_u128(2),
+        };
+        let at = Utc.with_ymd_and_hms(2026, 8, 16, 8, 0, 0).single().unwrap();
+        let mut requisition = ProcurementRecord::create(
+            Uuid::from_u128(3),
+            ProcurementRecordKind::Requisition,
+            scope.clone(),
+            "Requisition 1".into(),
+            at,
+        )
+        .unwrap();
+        requisition
+            .transition(1, ProcurementRecordStatus::Submitted, at)
+            .unwrap();
+        let before = requisition.clone();
+
+        for kind in [
+            ActorKind::Agent,
+            ActorKind::Service,
+            ActorKind::SystemWorker,
+        ] {
+            assert!(
+                HumanDecisionProof::try_new(
+                    ActorAttribution {
+                        principal_ref: "procurement-reviewer".into(),
+                        kind,
+                        session_id: Some(SessionId::try_from_uuid(Uuid::from_u128(9)).unwrap(),),
+                        represented_principal_ref: None,
+                        support_capability_id: None,
+                    },
+                    scope.clone(),
+                    Uuid::from_u128(10).to_string(),
+                    at,
+                )
+                .is_err()
+            );
+        }
+
+        let command_id = CommandId::try_from_uuid(Uuid::from_u128(10)).unwrap();
+        let other = CommandId::try_from_uuid(Uuid::from_u128(11)).unwrap();
+        assert_eq!(
+            requisition.decide(
+                2,
+                ProcurementRecordStatus::Approved,
+                &human_decision(scope.clone(), other, at),
+                command_id,
+                at,
+            ),
+            Err(ProcurementRecordError::InvalidHumanDecision)
+        );
+        assert_eq!(requisition, before);
+        assert_eq!(
+            requisition.decide(
+                2,
+                ProcurementRecordStatus::Approved,
+                &human_decision(scope, command_id, at),
+                command_id,
+                at + chrono::Duration::seconds(1),
+            ),
+            Err(ProcurementRecordError::InvalidHumanDecision)
+        );
+        assert_eq!(requisition, before);
     }
 }

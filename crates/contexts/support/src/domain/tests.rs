@@ -2,7 +2,9 @@ use chrono::{Duration, TimeZone, Utc};
 use erpx_integration_contracts::{
     DisplayName, ReferenceCode, customer, identity_access, organization,
 };
-use erpx_kernel::AuthorityScope;
+use erpx_kernel::{
+    ActorAttribution, ActorKind, AuthorityScope, HumanDecisionProof, SessionId as KernelSessionId,
+};
 use uuid::Uuid;
 
 use super::*;
@@ -55,6 +57,26 @@ fn access_requested_ticket() -> SupportTicket {
 fn principal(value: u128) -> identity_access::PrincipalRef {
     identity_access::PrincipalRef::try_from_uuid(id(value)).unwrap()
 }
+fn human_decision(
+    principal_ref: String,
+    authority_scope: AuthorityScope,
+    decision_ref: String,
+    decided_at: DateTime<Utc>,
+) -> HumanDecisionProof {
+    HumanDecisionProof::try_new(
+        ActorAttribution {
+            principal_ref,
+            kind: ActorKind::HoldingUser,
+            session_id: Some(KernelSessionId::try_from_uuid(id(90)).unwrap()),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        },
+        authority_scope,
+        decision_ref,
+        decided_at,
+    )
+    .unwrap()
+}
 fn approved_session(mode: SupportMode) -> SupportSession {
     let represented = (mode == SupportMode::Impersonation).then(|| principal(31));
     let mut value = SupportSession::request(
@@ -71,12 +93,13 @@ fn approved_session(mode: SupportMode) -> SupportSession {
         at(),
     )
     .unwrap();
-    value
-        .approve(
-            principal(33).as_uuid().to_string(),
-            at() + Duration::minutes(1),
-        )
-        .unwrap();
+    let decision = human_decision(
+        principal(33).as_uuid().to_string(),
+        value.scope().clone(),
+        support_session_approval_decision_ref(value.id()),
+        at() + Duration::minutes(1),
+    );
+    value.approve(&decision).unwrap();
     value
 }
 
@@ -215,10 +238,67 @@ fn impersonation_requires_a_represented_principal_and_distinct_approver() {
         at(),
     )
     .unwrap();
+    let decision = human_decision(
+        principal(32).as_uuid().to_string(),
+        session.scope().clone(),
+        support_session_approval_decision_ref(session.id()),
+        at(),
+    );
     assert!(matches!(
-        session.approve(principal(32).as_uuid().to_string(), at()),
+        session.approve(&decision),
         Err(SupportDomainError::ApprovalSeparation)
     ));
+}
+
+#[test]
+fn support_session_approval_requires_exact_scope_reference_and_uses_proof_time() {
+    let mut session = SupportSession::request(
+        SessionId::try_from_uuid(id(34)).unwrap(),
+        &access_requested_ticket(),
+        principal(35),
+        None,
+        SupportMode::DiagnosticRead,
+        vec!["holding.read".into()],
+        scope(),
+        "support".into(),
+        "customer approved investigation".into(),
+        Duration::minutes(30),
+        at(),
+    )
+    .unwrap();
+    let decision_at = at() + Duration::minutes(1);
+    let wrong_scope = human_decision(
+        principal(36).as_uuid().to_string(),
+        AuthorityScope::Company {
+            holding_id: id(1),
+            company_id: id(99),
+        },
+        support_session_approval_decision_ref(session.id()),
+        decision_at,
+    );
+    assert_eq!(
+        session.approve(&wrong_scope),
+        Err(SupportDomainError::HumanApprovalRequired)
+    );
+    let wrong_reference = human_decision(
+        principal(36).as_uuid().to_string(),
+        session.scope().clone(),
+        format!("support.session:{}:reject", session.id().as_uuid()),
+        decision_at,
+    );
+    assert_eq!(
+        session.approve(&wrong_reference),
+        Err(SupportDomainError::HumanApprovalRequired)
+    );
+    let exact = human_decision(
+        principal(36).as_uuid().to_string(),
+        session.scope().clone(),
+        support_session_approval_decision_ref(session.id()),
+        decision_at,
+    );
+    session.approve(&exact).unwrap();
+    assert_eq!(session.approved_by(), Some(exact.principal_ref()));
+    assert_eq!(session.approved_at(), Some(decision_at));
 }
 
 #[test]

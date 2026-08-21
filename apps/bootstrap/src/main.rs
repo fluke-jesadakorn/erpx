@@ -10,7 +10,10 @@ use erpx_domain::{
     data_plane::BusinessUnitId,
     holding_administration::HoldingRegistryBinding,
 };
-use erpx_identity::{SqlxIdentityStore, apply_identity_migration};
+use erpx_identity::{
+    AuthenticatedAuthority, AuthenticatedPrincipalKind, AuthenticatedRealm, SqlxIdentityStore,
+    apply_identity_migration,
+};
 use erpx_infrastructure::{
     ControlPlanePools, DatabaseProfileRegistration, FRESH_INITIAL_HOLDING_PROJECTIONS,
     HoldingDatabaseHealth, HoldingHoldingBinding, HoldingProjectionSchedulerRepository,
@@ -451,10 +454,23 @@ async fn bootstrap() -> Result<()> {
     progress.update_phase(BootstrapPhase::PrincipalSeed, Utc::now())?;
 
     let identity = SqlxIdentityStore::new(control_write.clone());
-    let root_credentials =
-        ensure_principal(&identity, &control_write, &config.root_principal).await?;
-    let owner_credentials =
-        ensure_principal(&identity, &control_write, &config.owner_principal).await?;
+    let root_credentials = ensure_principal(
+        &identity,
+        &control_write,
+        &config.root_principal,
+        AuthenticatedAuthority {
+            realm: AuthenticatedRealm::PlatformAdministration,
+            principal_kind: AuthenticatedPrincipalKind::Human,
+        },
+    )
+    .await?;
+    let owner_credentials = ensure_principal(
+        &identity,
+        &control_write,
+        &config.owner_principal,
+        AuthenticatedAuthority::legacy_human(),
+    )
+    .await?;
     sqlx::query(
         "INSERT INTO erpx_identity.protected_local_principals
             (principal_id, protection_kind, designated_by)
@@ -1147,15 +1163,27 @@ async fn ensure_principal(
     identity: &SqlxIdentityStore,
     pool: &PgPool,
     principal: &str,
+    authority: AuthenticatedAuthority,
 ) -> Result<Option<OneTimeCredentials>> {
-    let exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM erpx_identity.principals WHERE principal_ref=$1)",
+    let existing: Option<(String, String)> = sqlx::query_as(
+        "SELECT authenticated_realm, principal_kind
+         FROM erpx_identity.principals WHERE principal_ref=$1",
     )
     .bind(principal)
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await
     .map_err(|_| BootstrapError("principal state could not be read"))?;
-    if exists {
+    if let Some((realm, kind)) = existing {
+        let expected_realm = match authority.realm {
+            AuthenticatedRealm::InternalWorkforce => "internal_workforce",
+            AuthenticatedRealm::PlatformAdministration => "platform_administration",
+            _ => return Err(BootstrapError("bootstrap principal realm is unsupported")),
+        };
+        if realm != expected_realm || kind != "human" {
+            return Err(BootstrapError(
+                "bootstrap principal authenticated authority is contradictory",
+            ));
+        }
         return Ok(None);
     }
     let password = format!(
@@ -1164,7 +1192,7 @@ async fn ensure_principal(
         Uuid::new_v4().simple()
     );
     identity
-        .create_principal_with_password(principal, &password, Utc::now())
+        .create_principal_with_password_and_authority(principal, &password, authority, Utc::now())
         .await
         .map_err(|_| BootstrapError("principal creation failed"))?;
     let recovery = identity

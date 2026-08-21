@@ -8,6 +8,7 @@ enum AuthorityScopeLevel {
   AUTHORITY_SCOPE_LEVEL_HOLDING = 2;
   AUTHORITY_SCOPE_LEVEL_COMPANY = 3;
   AUTHORITY_SCOPE_LEVEL_BRANCH = 4;
+  AUTHORITY_SCOPE_LEVEL_SUBTREE = 5;
 }
 
 message AuthorityScope {
@@ -15,6 +16,7 @@ message AuthorityScope {
   optional string holding_id = 3;
   optional string company_id = 4;
   optional string branch_id = 5;
+  optional string organization_node_id = 6;
 }
 
 message RecordRef {

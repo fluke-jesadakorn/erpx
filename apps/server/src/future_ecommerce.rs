@@ -409,6 +409,9 @@ impl wire::ecommerce_command_service_server::EcommerceCommandService for Ecommer
             COMMERCE_WRITE,
         )
         .await?;
+        let decided_at = Utc::now();
+        let _human_decision =
+            future_auth::human_decision(&invocation, "ecommerce.channel.approve", decided_at)?;
         let approver = uuid(&body.approved_by_principal_id, "approved_by_principal_id")?;
         if approver != invocation.principal_id.as_uuid() {
             return Err(Status::permission_denied(
@@ -424,7 +427,7 @@ impl wire::ecommerce_command_service_server::EcommerceCommandService for Ecommer
                     .map_err(|error| Status::invalid_argument(error.to_string()))?,
                 expected(context)?,
                 approver,
-                Utc::now(),
+                decided_at,
             )
             .await
             .map_err(status)?;
@@ -550,6 +553,9 @@ impl wire::ecommerce_command_service_server::EcommerceCommandService for Ecommer
             COMMERCE_WRITE,
         )
         .await?;
+        let decided_at = Utc::now();
+        let _human_decision =
+            future_auth::human_decision(&invocation, "ecommerce.listing.approve", decided_at)?;
         let approver = uuid(&body.approved_by_principal_id, "approved_by_principal_id")?;
         if approver != invocation.principal_id.as_uuid() {
             return Err(Status::permission_denied(
@@ -565,7 +571,7 @@ impl wire::ecommerce_command_service_server::EcommerceCommandService for Ecommer
                     .map_err(|error| Status::invalid_argument(error.to_string()))?,
                 expected(context)?,
                 approver,
-                Utc::now(),
+                decided_at,
             )
             .await
             .map_err(status)?;

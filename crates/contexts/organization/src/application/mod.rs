@@ -21,7 +21,8 @@ use crate::{
     ports::{
         AuthorizationPort, AuthorizationRequest, CommandFingerprint, CommandIdentity,
         CommandUnitOfWork, EntitlementPort, HierarchyGuard, HierarchyPort, OrganizationAction,
-        OrganizationCommit, PortError, ReadRepository, StoredCommit, WriteRepository,
+        OrganizationCommit, PlacementScopeContainment, PortError, ReadRepository,
+        ScopeContainmentPort, StoredCommit, WriteRepository,
     },
 };
 
@@ -115,16 +116,17 @@ pub enum OrganizationApplicationError {
     Port(#[from] PortError),
 }
 
-pub struct OrganizationCommandHandler<W, U, A, E, H, C> {
+pub struct OrganizationCommandHandler<W, U, A, E, H, C, S = PlacementScopeContainment> {
     write_repository: W,
     unit_of_work: U,
     authorization: A,
     entitlement: E,
     hierarchy: H,
     clock: C,
+    scope_containment: S,
 }
 
-impl<W, U, A, E, H, C> OrganizationCommandHandler<W, U, A, E, H, C> {
+impl<W, U, A, E, H, C> OrganizationCommandHandler<W, U, A, E, H, C, PlacementScopeContainment> {
     pub const fn new(
         write_repository: W,
         unit_of_work: U,
@@ -140,13 +142,37 @@ impl<W, U, A, E, H, C> OrganizationCommandHandler<W, U, A, E, H, C> {
             entitlement,
             hierarchy,
             clock,
+            scope_containment: PlacementScopeContainment,
+        }
+    }
+}
+
+impl<W, U, A, E, H, C, S> OrganizationCommandHandler<W, U, A, E, H, C, S> {
+    pub const fn new_with_scope_containment(
+        write_repository: W,
+        unit_of_work: U,
+        authorization: A,
+        entitlement: E,
+        hierarchy: H,
+        clock: C,
+        scope_containment: S,
+    ) -> Self {
+        Self {
+            write_repository,
+            unit_of_work,
+            authorization,
+            entitlement,
+            hierarchy,
+            clock,
+            scope_containment,
         }
     }
 }
 
 enum HierarchyCheck {
     None,
-    Placement(OrganizationPlacement),
+    Activate,
+    ReparentPlacement(OrganizationPlacement),
     Archive,
 }
 
@@ -163,7 +189,7 @@ struct ExistingCommand {
     hierarchy_check: HierarchyCheck,
 }
 
-impl<W, U, A, E, H, C> OrganizationCommandHandler<W, U, A, E, H, C>
+impl<W, U, A, E, H, C, S> OrganizationCommandHandler<W, U, A, E, H, C, S>
 where
     W: WriteRepository,
     U: CommandUnitOfWork,
@@ -171,17 +197,55 @@ where
     E: EntitlementPort,
     H: HierarchyPort,
     C: Clock,
+    S: ScopeContainmentPort,
 {
     async fn preflight(
+        &self,
+        actor: &ActorAttribution,
+        authority_scope: &AuthorityScope,
+        node_id: OrganizationNodeId,
+        placement: &OrganizationPlacement,
+        action: OrganizationAction,
+    ) -> Result<(), OrganizationApplicationError> {
+        let target_scope = placement.active_scope(node_id)?;
+        if !self
+            .scope_containment
+            .contains_node(authority_scope, node_id, placement)
+            .await?
+        {
+            return Err(OrganizationApplicationError::ScopeOutsideAuthority);
+        }
+        self.authorize_target(actor, authority_scope, &target_scope, action)
+            .await
+    }
+
+    async fn preflight_parent(
+        &self,
+        actor: &ActorAttribution,
+        authority_scope: &AuthorityScope,
+        node_id: OrganizationNodeId,
+        placement: &OrganizationPlacement,
+        action: OrganizationAction,
+    ) -> Result<(), OrganizationApplicationError> {
+        let target_scope = placement.active_scope(node_id)?;
+        if !self
+            .scope_containment
+            .contains_parent(authority_scope, node_id, placement)
+            .await?
+        {
+            return Err(OrganizationApplicationError::ScopeOutsideAuthority);
+        }
+        self.authorize_target(actor, authority_scope, &target_scope, action)
+            .await
+    }
+
+    async fn authorize_target(
         &self,
         actor: &ActorAttribution,
         authority_scope: &AuthorityScope,
         target_scope: &AuthorityScope,
         action: OrganizationAction,
     ) -> Result<(), OrganizationApplicationError> {
-        if !authority_scope.contains(target_scope) {
-            return Err(OrganizationApplicationError::ScopeOutsideAuthority);
-        }
         self.entitlement
             .ensure_organization_enabled(target_scope, action.requires_write_entitlement())
             .await?;
@@ -217,7 +281,8 @@ where
             self.preflight(
                 &command.actor,
                 &command.authority_scope,
-                receipt.aggregate.scope(),
+                receipt.aggregate.id(),
+                receipt.aggregate.placement(),
                 command.action,
             )
             .await
@@ -235,7 +300,8 @@ where
         self.preflight(
             &command.actor,
             &command.authority_scope,
-            aggregate.scope(),
+            aggregate.id(),
+            aggregate.placement(),
             command.action,
         )
         .await
@@ -258,14 +324,23 @@ where
 
         let hierarchy_guard = match &command.hierarchy_check {
             HierarchyCheck::None => None,
-            HierarchyCheck::Placement(placement) => {
-                let target_scope = placement
-                    .active_scope(command.node_id)
+            HierarchyCheck::Activate => {
+                self.hierarchy
+                    .validate_placement(
+                        &command.authority_scope,
+                        command.node_id,
+                        aggregate.placement(),
+                    )
+                    .await
                     .map_err(|error| to_cqrs(error.into(), command.correlation_id))?;
-                self.preflight(
+                Some(HierarchyGuard::Placement(aggregate.placement().clone()))
+            }
+            HierarchyCheck::ReparentPlacement(placement) => {
+                self.preflight_parent(
                     &command.actor,
                     &command.authority_scope,
-                    &target_scope,
+                    command.node_id,
+                    placement,
                     command.action,
                 )
                 .await
@@ -274,7 +349,7 @@ where
                     .validate_placement(&command.authority_scope, command.node_id, placement)
                     .await
                     .map_err(|error| to_cqrs(error.into(), command.correlation_id))?;
-                Some(HierarchyGuard::Placement(placement.clone()))
+                Some(HierarchyGuard::ReparentPlacement(placement.clone()))
             }
             HierarchyCheck::Archive => {
                 self.hierarchy
@@ -315,8 +390,8 @@ where
 macro_rules! existing_handler {
     ($command:ty, $action:expr, $fingerprint:expr, $hierarchy:expr, $mutation:expr) => {
         #[async_trait]
-        impl<W, U, A, E, H, C> CommandHandler<$command>
-            for OrganizationCommandHandler<W, U, A, E, H, C>
+        impl<W, U, A, E, H, C, S> CommandHandler<$command>
+            for OrganizationCommandHandler<W, U, A, E, H, C, S>
         where
             W: WriteRepository,
             U: CommandUnitOfWork,
@@ -324,6 +399,7 @@ macro_rules! existing_handler {
             E: EntitlementPort,
             H: HierarchyPort,
             C: Clock,
+            S: ScopeContainmentPort,
         {
             type Response = OrganizationMutationResult;
 
@@ -364,8 +440,8 @@ macro_rules! existing_handler {
 }
 
 #[async_trait]
-impl<W, U, A, E, H, C> CommandHandler<CreateOrganizationNode>
-    for OrganizationCommandHandler<W, U, A, E, H, C>
+impl<W, U, A, E, H, C, S> CommandHandler<CreateOrganizationNode>
+    for OrganizationCommandHandler<W, U, A, E, H, C, S>
 where
     W: WriteRepository,
     U: CommandUnitOfWork,
@@ -373,6 +449,7 @@ where
     E: EntitlementPort,
     H: HierarchyPort,
     C: Clock,
+    S: ScopeContainmentPort,
 {
     type Response = CreateOrganizationNodeResult;
 
@@ -402,7 +479,8 @@ where
             self.preflight(
                 &envelope.actor,
                 &envelope.active_scope,
-                stored.aggregate.scope(),
+                stored.aggregate.id(),
+                stored.aggregate.placement(),
                 OrganizationAction::Create,
             )
             .await
@@ -419,14 +497,14 @@ where
                 correlation_id,
             ));
         }
-        let target_scope = command
-            .placement
-            .active_scope(command.node_id)
-            .map_err(|error| to_cqrs(error.into(), correlation_id))?;
-        self.preflight(
+        // A fresh node has no authoritative target row yet. Authorize its
+        // current proposed parent; idempotent replay above remains bound to
+        // the already-committed target lineage.
+        self.preflight_parent(
             &envelope.actor,
             &envelope.active_scope,
-            &target_scope,
+            command.node_id,
+            &command.placement,
             OrganizationAction::Create,
         )
         .await
@@ -503,7 +581,9 @@ existing_handler!(
         node_id: command.node_id,
         placement: command.placement.clone(),
     },
-    |command: &ReparentOrganizationNode| HierarchyCheck::Placement(command.placement.clone()),
+    |command: &ReparentOrganizationNode| HierarchyCheck::ReparentPlacement(
+        command.placement.clone()
+    ),
     |aggregate: &mut OrganizationNode, command: ReparentOrganizationNode, at| aggregate
         .reparent(command.placement, at)
 );
@@ -522,7 +602,7 @@ existing_handler!(
     |command: &ActivateOrganizationNode| CommandFingerprint::Activate {
         node_id: command.node_id,
     },
-    |_command: &ActivateOrganizationNode| HierarchyCheck::None,
+    |_command: &ActivateOrganizationNode| HierarchyCheck::Activate,
     |aggregate: &mut OrganizationNode, _command: ActivateOrganizationNode, at| aggregate
         .activate(at)
 );
@@ -536,27 +616,46 @@ existing_handler!(
     |aggregate: &mut OrganizationNode, _command: ArchiveOrganizationNode, at| aggregate.archive(at)
 );
 
-pub struct OrganizationQueryHandler<R, A, E> {
+pub struct OrganizationQueryHandler<R, A, E, S = PlacementScopeContainment> {
     read_repository: R,
     authorization: A,
     entitlement: E,
+    scope_containment: S,
 }
 
-impl<R, A, E> OrganizationQueryHandler<R, A, E> {
+impl<R, A, E> OrganizationQueryHandler<R, A, E, PlacementScopeContainment> {
     pub const fn new(read_repository: R, authorization: A, entitlement: E) -> Self {
         Self {
             read_repository,
             authorization,
             entitlement,
+            scope_containment: PlacementScopeContainment,
         }
     }
 }
 
-impl<R, A, E> OrganizationQueryHandler<R, A, E>
+impl<R, A, E, S> OrganizationQueryHandler<R, A, E, S> {
+    pub const fn new_with_scope_containment(
+        read_repository: R,
+        authorization: A,
+        entitlement: E,
+        scope_containment: S,
+    ) -> Self {
+        Self {
+            read_repository,
+            authorization,
+            entitlement,
+            scope_containment,
+        }
+    }
+}
+
+impl<R, A, E, S> OrganizationQueryHandler<R, A, E, S>
 where
     R: ReadRepository,
     A: AuthorizationPort,
     E: EntitlementPort,
+    S: ScopeContainmentPort,
 {
     async fn authorize_query(
         &self,
@@ -579,11 +678,12 @@ where
 }
 
 #[async_trait]
-impl<R, A, E> QueryHandler<GetOrganizationNode> for OrganizationQueryHandler<R, A, E>
+impl<R, A, E, S> QueryHandler<GetOrganizationNode> for OrganizationQueryHandler<R, A, E, S>
 where
     R: ReadRepository,
     A: AuthorizationPort,
     E: EntitlementPort,
+    S: ScopeContainmentPort,
 {
     type Response = GetOrganizationNodeResult;
 
@@ -608,15 +708,18 @@ where
             )
             .await
             .map_err(|error| port_to_cqrs(error, envelope.correlation_id))?;
-        if projection
-            .value
-            .as_ref()
-            .is_some_and(|view| !envelope.active_scope.contains(&view.scope))
-        {
-            return Err(to_cqrs(
-                OrganizationApplicationError::ScopeOutsideAuthority,
-                envelope.correlation_id,
-            ));
+        if let Some(view) = projection.value.as_ref() {
+            let contained = self
+                .scope_containment
+                .contains_node(&envelope.active_scope, view.node_id, &view.placement)
+                .await
+                .map_err(|error| to_cqrs(error.into(), envelope.correlation_id))?;
+            if !contained {
+                return Err(to_cqrs(
+                    OrganizationApplicationError::ScopeOutsideAuthority,
+                    envelope.correlation_id,
+                ));
+            }
         }
         Ok(QueryResult {
             value: GetOrganizationNodeResult {
@@ -632,11 +735,12 @@ where
 }
 
 #[async_trait]
-impl<R, A, E> QueryHandler<ListOrganizationNodes> for OrganizationQueryHandler<R, A, E>
+impl<R, A, E, S> QueryHandler<ListOrganizationNodes> for OrganizationQueryHandler<R, A, E, S>
 where
     R: ReadRepository,
     A: AuthorizationPort,
     E: EntitlementPort,
+    S: ScopeContainmentPort,
 {
     type Response = NodeList;
 
@@ -667,12 +771,18 @@ where
             )
             .await
             .map_err(|error| port_to_cqrs(error, envelope.correlation_id))?;
-        if projection
+        let targets = projection
             .value
             .nodes
             .iter()
-            .any(|view| !envelope.active_scope.contains(&view.scope))
-        {
+            .map(|view| (view.node_id, view.placement.clone()))
+            .collect::<Vec<_>>();
+        let contained = self
+            .scope_containment
+            .contains_nodes(&envelope.active_scope, &targets)
+            .await
+            .map_err(|error| to_cqrs(error.into(), envelope.correlation_id))?;
+        if contained.len() != targets.len() || contained.iter().any(|decision| !decision) {
             return Err(to_cqrs(
                 OrganizationApplicationError::ScopeOutsideAuthority,
                 envelope.correlation_id,
@@ -717,6 +827,12 @@ fn to_cqrs(error: OrganizationApplicationError, correlation_id: CorrelationId) -
             "organization.denied",
             ErrorCategory::Denied,
             "The Organization operation is not permitted.",
+            false,
+        ),
+        OrganizationApplicationError::Port(PortError::ReparentBlockedByChildren) => (
+            "organization.conflict",
+            ErrorCategory::Conflict,
+            "The Organization node cannot be reparented while it has children.",
             false,
         ),
         OrganizationApplicationError::VersionConflict { .. }

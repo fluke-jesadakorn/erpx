@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use erpx_kernel::AuthorityScope;
+use erpx_kernel::{AuthorityScope, CommandId, HumanDecisionProof};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -22,6 +22,27 @@ impl SharingAgreementId {
     pub const fn as_uuid(self) -> Uuid {
         self.0
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SharingApprovalSide {
+    Source,
+    Target,
+}
+
+pub fn sharing_approval_decision_ref(
+    command_id: CommandId,
+    agreement_id: SharingAgreementId,
+    side: SharingApprovalSide,
+) -> String {
+    let side = match side {
+        SharingApprovalSide::Source => "source",
+        SharingApprovalSide::Target => "target",
+    };
+    format!(
+        "organization.sharing-approval:command:{command_id}:target:{}:side:{side}:action:approve",
+        agreement_id.as_uuid()
+    )
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -167,28 +188,53 @@ impl OrganizationSharingAgreement {
     pub fn approve_source(
         &mut self,
         expected_version: u64,
-        approver_ref: &str,
+        command_id: CommandId,
+        decision: HumanDecisionProof,
     ) -> Result<SharingMutation, OrganizationDomainError> {
-        self.approve(expected_version, approver_ref, true)
+        self.approve(
+            expected_version,
+            command_id,
+            decision,
+            SharingApprovalSide::Source,
+        )
     }
 
     pub fn approve_target(
         &mut self,
         expected_version: u64,
-        approver_ref: &str,
+        command_id: CommandId,
+        decision: HumanDecisionProof,
     ) -> Result<SharingMutation, OrganizationDomainError> {
-        self.approve(expected_version, approver_ref, false)
+        self.approve(
+            expected_version,
+            command_id,
+            decision,
+            SharingApprovalSide::Target,
+        )
     }
 
     fn approve(
         &mut self,
         expected_version: u64,
-        approver_ref: &str,
-        source: bool,
+        command_id: CommandId,
+        decision: HumanDecisionProof,
+        side: SharingApprovalSide,
     ) -> Result<SharingMutation, OrganizationDomainError> {
         self.expect_version(expected_version)?;
+        let approver_ref = decision.principal_ref();
         validate_text(approver_ref, "sharing_approver_ref")?;
-        if self.status != SharingStatus::Proposed || approver_ref == self.proposed_by {
+        let source = side == SharingApprovalSide::Source;
+        let required_scope = if source {
+            &self.source_scope
+        } else {
+            &self.target_scope
+        };
+        if !decision.authority_scope().contains(required_scope)
+            || decision.decision_ref() != sharing_approval_decision_ref(command_id, self.id, side)
+            || self.status != SharingStatus::Proposed
+            || decision.decided_at() >= self.valid_until
+            || approver_ref == self.proposed_by
+        {
             return Err(OrganizationDomainError::InvalidSharingApproval);
         }
         let selected = if source {
@@ -444,6 +490,7 @@ fn validate_text(value: &str, field: &'static str) -> Result<(), OrganizationDom
 #[cfg(test)]
 mod tests {
     use chrono::TimeZone;
+    use erpx_kernel::{ActorAttribution, ActorKind, SessionId};
 
     use super::*;
 
@@ -461,6 +508,33 @@ mod tests {
             company_id: id(2),
             branch_id: id(branch_id),
         }
+    }
+    fn command_id(value: u128) -> CommandId {
+        CommandId::try_from_uuid(id(value)).unwrap()
+    }
+    fn human_decision(
+        principal_ref: &str,
+        scope: AuthorityScope,
+        command_id: CommandId,
+        side: SharingApprovalSide,
+    ) -> HumanDecisionProof {
+        HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: principal_ref.into(),
+                kind: ActorKind::HoldingUser,
+                session_id: Some(SessionId::try_from_uuid(id(99)).unwrap()),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            scope,
+            sharing_approval_decision_ref(
+                command_id,
+                SharingAgreementId::try_from_uuid(id(10)).unwrap(),
+                side,
+            ),
+            at(20),
+        )
+        .unwrap()
     }
     fn agreement() -> OrganizationSharingAgreement {
         OrganizationSharingAgreement::propose(ProposeSharingAgreement {
@@ -488,9 +562,31 @@ mod tests {
             &[agreement.clone()],
             at(20)
         ));
-        agreement.approve_source(1, "source-owner").unwrap();
+        agreement
+            .approve_source(
+                1,
+                command_id(100),
+                human_decision(
+                    "source-owner",
+                    branch(3),
+                    command_id(100),
+                    SharingApprovalSide::Source,
+                ),
+            )
+            .unwrap();
         assert!(!agreement.permits(&branch(3), &branch(4), SharingCapability::Mention, at(20)));
-        agreement.approve_target(2, "target-owner").unwrap();
+        agreement
+            .approve_target(
+                2,
+                command_id(101),
+                human_decision(
+                    "target-owner",
+                    branch(4),
+                    command_id(101),
+                    SharingApprovalSide::Target,
+                ),
+            )
+            .unwrap();
         assert!(agreement.permits(&branch(3), &branch(4), SharingCapability::Mention, at(20)));
         assert!(agreement.permits(&branch(4), &branch(3), SharingCapability::Reference, at(20)));
         assert!(!agreement.permits(
@@ -533,8 +629,30 @@ mod tests {
     #[test]
     fn revocation_is_immediate_idempotent_and_version_checked() {
         let mut agreement = agreement();
-        agreement.approve_source(1, "source-owner").unwrap();
-        agreement.approve_target(2, "target-owner").unwrap();
+        agreement
+            .approve_source(
+                1,
+                command_id(102),
+                human_decision(
+                    "source-owner",
+                    branch(3),
+                    command_id(102),
+                    SharingApprovalSide::Source,
+                ),
+            )
+            .unwrap();
+        agreement
+            .approve_target(
+                2,
+                command_id(103),
+                human_decision(
+                    "target-owner",
+                    branch(4),
+                    command_id(103),
+                    SharingApprovalSide::Target,
+                ),
+            )
+            .unwrap();
         assert_eq!(
             agreement.revoke(2, "security", at(21)),
             Err(OrganizationDomainError::SharingVersionConflict {
@@ -552,6 +670,50 @@ mod tests {
             SharingMutation::Idempotent
         );
         assert_eq!(agreement.version(), 4);
+    }
+
+    #[test]
+    fn approval_reference_cannot_be_reused_for_another_side_or_command() {
+        let mut agreement = agreement();
+        let source_command = command_id(104);
+        assert_eq!(
+            agreement.approve_source(
+                1,
+                source_command,
+                human_decision(
+                    "source-owner",
+                    branch(3),
+                    source_command,
+                    SharingApprovalSide::Target,
+                ),
+            ),
+            Err(OrganizationDomainError::InvalidSharingApproval)
+        );
+        assert_eq!(
+            agreement.approve_source(
+                1,
+                source_command,
+                human_decision(
+                    "source-owner",
+                    branch(3),
+                    command_id(105),
+                    SharingApprovalSide::Source,
+                ),
+            ),
+            Err(OrganizationDomainError::InvalidSharingApproval)
+        );
+        agreement
+            .approve_source(
+                1,
+                source_command,
+                human_decision(
+                    "source-owner",
+                    branch(3),
+                    source_command,
+                    SharingApprovalSide::Source,
+                ),
+            )
+            .unwrap();
     }
 
     #[test]

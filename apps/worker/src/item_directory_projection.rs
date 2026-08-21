@@ -12,11 +12,12 @@ use erpx_infrastructure::{
     ProjectionClaimRecord, ProjectionJobKind, RoutedDatabaseSide, RoutedHoldingDatabase,
 };
 use erpx_integration_contracts::{
-    AUTHORITY_EVIDENCE_EVENT_TYPE, HoldingItemDirectoryFact, ITEM_DIRECTORY_FACT_EVENT_TYPE,
-    ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, ITEM_DIRECTORY_PROJECTION_NAME,
-    ItemDescriptorDraft, ItemDirectoryFact,
+    AUTHORITY_EVIDENCE_EVENT_TYPE, HoldingItemDirectoryFact, ITEM_DIRECTORY_FACT_VERSION,
+    ITEM_DIRECTORY_OWNER_EVENT_TYPE, ITEM_DIRECTORY_PROJECTION_NAME, ItemDescriptorDraft,
+    organization::ORGANIZATION_LINEAGE_CHANGED_EVENT_TYPE,
 };
 use erpx_kernel::HoldingId;
+use erpx_organization_sqlx::SNAPSHOT_EVENT_TYPE as ORGANIZATION_SNAPSHOT_EVENT_TYPE;
 use serde::Deserialize;
 use thiserror::Error;
 use uuid::Uuid;
@@ -148,25 +149,15 @@ pub fn decode_item_directory_event(
     holding_id: HoldingId,
     event: &ProjectionEvent,
 ) -> Result<HoldingItemDirectoryFact, ItemDirectoryProjectionError> {
-    if event.event_type == ITEM_DIRECTORY_OWNER_EVENT_TYPE {
-        return decode_item_directory_owner_event(holding_id, event);
-    }
-    if event.event_type != ITEM_DIRECTORY_FACT_EVENT_TYPE
-        || event.event_version != ITEM_DIRECTORY_FACT_VERSION
-    {
+    // No live write-side owner is authorized to publish the reserved final-fact
+    // transport. Final policy facts are produced and applied inside this worker,
+    // while descriptors cross the outbox only as owner-bound drafts. Keep this
+    // gate closed until a variant-specific envelope contract can bind every
+    // mutation to its authoritative owner identity.
+    if event.event_type != ITEM_DIRECTORY_OWNER_EVENT_TYPE {
         return Err(ItemDirectoryProjectionError::UnsupportedContract);
     }
-    let fact = decode_final_fact(event.payload.clone())?;
-    fact.validate()
-        .map_err(|_| ItemDirectoryProjectionError::MalformedOwnerFact)?;
-    // A final policy/relation fact may be emitted after the authoritative
-    // decision that supplied its source position. It may never claim a future
-    // position relative to its durable delivery envelope.
-    if fact.source_event_position() > event.global_sequence {
-        return Err(ItemDirectoryProjectionError::OwnerEnvelopeMismatch);
-    }
-    HoldingItemDirectoryFact::try_new(holding_id, fact)
-        .map_err(|_| ItemDirectoryProjectionError::MalformedOwnerFact)
+    decode_item_directory_owner_event(holding_id, event)
 }
 
 #[derive(Debug, Deserialize)]
@@ -188,25 +179,6 @@ enum OwnerDraftKind {
     Directory,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-enum FinalFactWire {
-    Direct(ItemDirectoryFact),
-    PayloadKind(FinalFactPayloadKind),
-}
-
-#[derive(Debug, Deserialize)]
-struct FinalFactPayloadKind {
-    payload_kind: FinalFactKind,
-    payload: ItemDirectoryFact,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "snake_case")]
-enum FinalFactKind {
-    DirectoryFact,
-}
-
 fn decode_draft(
     value: serde_json::Value,
 ) -> Result<ItemDescriptorDraft, ItemDirectoryProjectionError> {
@@ -216,20 +188,6 @@ fn decode_draft(
         OwnerDraftWire::Direct(value) => Ok(value),
         OwnerDraftWire::PayloadKind(OwnerDraftPayloadKind {
             payload_kind: OwnerDraftKind::Directory,
-            payload,
-        }) => Ok(payload),
-    }
-}
-
-fn decode_final_fact(
-    value: serde_json::Value,
-) -> Result<ItemDirectoryFact, ItemDirectoryProjectionError> {
-    match serde_json::from_value::<FinalFactWire>(value)
-        .map_err(|_| ItemDirectoryProjectionError::MalformedOwnerFact)?
-    {
-        FinalFactWire::Direct(value) => Ok(value),
-        FinalFactWire::PayloadKind(FinalFactPayloadKind {
-            payload_kind: FinalFactKind::DirectoryFact,
             payload,
         }) => Ok(payload),
     }
@@ -271,8 +229,9 @@ impl ItemDirectoryHoldingProjectionExecutor {
             HoldingAuthorityEvidenceProjection::new(holding_id, authority_pool, authority_write);
         let event_types = vec![
             ITEM_DIRECTORY_OWNER_EVENT_TYPE.to_owned(),
-            ITEM_DIRECTORY_FACT_EVENT_TYPE.to_owned(),
             AUTHORITY_EVIDENCE_EVENT_TYPE.to_owned(),
+            ORGANIZATION_LINEAGE_CHANGED_EVENT_TYPE.to_owned(),
+            ORGANIZATION_SNAPSHOT_EVENT_TYPE.to_owned(),
         ];
         let (generation, source_high_watermark, mut cursor) = match claim.job.kind {
             ProjectionJobKind::Rebuild => {
@@ -285,7 +244,7 @@ impl ItemDirectoryHoldingProjectionExecutor {
             }
             ProjectionJobKind::Incremental => {
                 let source_high_watermark = source
-                    .high_watermark(&event_types)
+                    .durable_high_watermark(&event_types)
                     .await
                     .map_err(|_| HoldingProjectionExecutorError::Retryable)?;
                 let checkpoint = directory
@@ -302,7 +261,7 @@ impl ItemDirectoryHoldingProjectionExecutor {
         let mut events_seen = 0_u64;
         while cursor < source_high_watermark {
             let page = source
-                .page_between(
+                .page_durable_between(
                     cursor,
                     Some(source_high_watermark),
                     &event_types,
@@ -326,6 +285,25 @@ impl ItemDirectoryHoldingProjectionExecutor {
                         }
                         _ => HoldingProjectionExecutorError::Permanent,
                     })?;
+                } else if event.event_type == ORGANIZATION_LINEAGE_CHANGED_EVENT_TYPE {
+                    authority.apply_organization_lineage(&event).await.map_err(
+                        |error| match error {
+                            crate::AuthorityProjectionError::Unavailable => {
+                                HoldingProjectionExecutorError::Retryable
+                            }
+                            _ => HoldingProjectionExecutorError::Permanent,
+                        },
+                    )?;
+                } else if event.event_type == ORGANIZATION_SNAPSHOT_EVENT_TYPE {
+                    authority
+                        .apply_organization_snapshot_lineage(&event)
+                        .await
+                        .map_err(|error| match error {
+                            crate::AuthorityProjectionError::Unavailable => {
+                                HoldingProjectionExecutorError::Retryable
+                            }
+                            _ => HoldingProjectionExecutorError::Permanent,
+                        })?;
                 } else {
                     let fact = decode_item_directory_event(holding_id, &event)
                         .map_err(|_| HoldingProjectionExecutorError::Permanent)?;
@@ -429,9 +407,8 @@ pub enum ItemDirectoryProjectionError {
 mod tests {
     use chrono::Utc;
     use erpx_integration_contracts::{
-        CanonicalRouteMoved, EffectiveGrantChanged, EffectiveGrantRevoked, ItemTombstoned,
-        ReferenceRelationChanged, ReferenceRelationRevoked, StableRecordRef, catalog::ContextId,
-        reference::RecordTypeId,
+        EffectiveGrantChanged, ITEM_DIRECTORY_FACT_EVENT_TYPE, ItemDirectoryFact, ItemTombstoned,
+        StableRecordRef, catalog::ContextId, reference::RecordTypeId,
     };
     use erpx_kernel::{
         ActorAttribution, ActorKind, AggregateId, AuthorityScope, CommandId, CorrelationId,
@@ -533,105 +510,73 @@ mod tests {
     }
 
     #[test]
-    fn final_revocation_facts_accept_committed_past_positions_and_reject_future_claims() {
+    fn forged_final_descriptor_grant_and_tombstone_are_rejected_before_projection_mutation() {
         let holding_id = HoldingId::try_from_uuid(id()).unwrap();
-        let mut value = event();
-        value.event_type = ITEM_DIRECTORY_FACT_EVENT_TYPE.into();
-        value.payload = serde_json::to_value(ItemDirectoryFact::Tombstoned(ItemTombstoned {
-            record_id: RecordId::try_from_uuid(id()).unwrap(),
-            descriptor_version: 5,
-            source_event_position: 80,
-        }))
-        .unwrap();
-        assert!(matches!(
-            decode_item_directory_event(holding_id, &value)
-                .unwrap()
-                .fact,
-            ItemDirectoryFact::Tombstoned(_)
-        ));
-
-        value.payload = serde_json::to_value(ItemDirectoryFact::Tombstoned(ItemTombstoned {
-            record_id: RecordId::try_from_uuid(id()).unwrap(),
-            descriptor_version: 6,
-            source_event_position: 82,
-        }))
-        .unwrap();
-        assert!(matches!(
-            decode_item_directory_event(holding_id, &value),
-            Err(ItemDirectoryProjectionError::OwnerEnvelopeMismatch)
-        ));
-    }
-
-    #[test]
-    fn worker_decodes_only_typed_grant_relation_route_and_tombstone_mutations() {
-        let holding_id = HoldingId::try_from_uuid(id()).unwrap();
+        let owner_event = event();
+        let descriptor = decode_item_directory_owner_event(holding_id, &owner_event)
+            .unwrap()
+            .fact;
         let invoice = StableRecordRef::try_new(
-            RecordId::try_from_uuid(id()).unwrap(),
+            RecordId::try_from_uuid(owner_event.aggregate_id.as_uuid()).unwrap(),
             ContextId::Finance,
             RecordTypeId::try_new("finance.invoice").unwrap(),
         )
         .unwrap();
-        let order = StableRecordRef::try_new(
-            RecordId::try_from_uuid(id()).unwrap(),
-            ContextId::Sales,
-            RecordTypeId::try_new("sales.order").unwrap(),
-        )
-        .unwrap();
         let principal_id = PrincipalId::try_from_uuid(id()).unwrap();
         let definition = erpx_integration_contracts::record_policy("finance.invoice").unwrap();
-        let policy = definition.policy_id();
         let effective_at = Utc::now();
-        let facts = [
-            ItemDirectoryFact::EffectiveGrantChanged(EffectiveGrantChanged {
-                record: invoice.clone(),
-                principal_id,
-                authorization_policy: policy,
-                policy_version: definition.version,
-                effective_at,
-                expires_at: effective_at + chrono::Duration::minutes(30),
-                source_event_position: 80,
-            }),
-            ItemDirectoryFact::EffectiveGrantRevoked(EffectiveGrantRevoked {
-                record_id: invoice.id(),
-                principal_id,
-                authorization_policy: policy,
-                policy_version: 4,
-                source_event_position: 80,
-            }),
-            ItemDirectoryFact::RelationChanged(ReferenceRelationChanged {
-                relation_id: id(),
-                source: invoice.clone(),
-                target: order,
-                relation_type: "relates-to".into(),
-                relation_version: 1,
-                source_event_position: 80,
-            }),
-            ItemDirectoryFact::RelationRevoked(ReferenceRelationRevoked {
-                relation_id: id(),
-                source_event_position: 80,
-            }),
-            ItemDirectoryFact::RouteMoved(CanonicalRouteMoved {
-                canonical_route: invoice.canonical_detail_route(),
-                record: invoice.clone(),
-                descriptor_version: 5,
-                source_event_position: 80,
-            }),
-            ItemDirectoryFact::Tombstoned(ItemTombstoned {
-                record_id: invoice.id(),
-                descriptor_version: 6,
-                source_event_position: 80,
-            }),
+        let grant = ItemDirectoryFact::EffectiveGrantChanged(EffectiveGrantChanged {
+            record: invoice.clone(),
+            principal_id,
+            authorization_policy: definition.policy_id(),
+            policy_version: definition.version,
+            effective_at,
+            expires_at: effective_at + chrono::Duration::minutes(30),
+            source_event_position: 80,
+        });
+        let tombstone = ItemDirectoryFact::Tombstoned(ItemTombstoned {
+            record_id: invoice.id(),
+            descriptor_version: 5,
+            source_event_position: 80,
+        });
+        for fact in [&descriptor, &grant, &tombstone] {
+            fact.validate().unwrap();
+        }
+
+        let mut wrong_context_descriptor = owner_event.clone();
+        wrong_context_descriptor.event_type = ITEM_DIRECTORY_FACT_EVENT_TYPE.into();
+        wrong_context_descriptor.context = "sales".into();
+        wrong_context_descriptor.payload = serde_json::to_value(descriptor).unwrap();
+
+        let mut wrong_aggregate_grant = owner_event.clone();
+        wrong_aggregate_grant.event_type = ITEM_DIRECTORY_FACT_EVENT_TYPE.into();
+        wrong_aggregate_grant.aggregate_id = AggregateId::try_from_uuid(id()).unwrap();
+        wrong_aggregate_grant.payload = serde_json::to_value(grant).unwrap();
+
+        let mut wrong_context_and_aggregate_tombstone = owner_event;
+        wrong_context_and_aggregate_tombstone.event_type = ITEM_DIRECTORY_FACT_EVENT_TYPE.into();
+        wrong_context_and_aggregate_tombstone.context = "sales".into();
+        wrong_context_and_aggregate_tombstone.aggregate_id =
+            AggregateId::try_from_uuid(id()).unwrap();
+        wrong_context_and_aggregate_tombstone.actor = ActorAttribution {
+            principal_ref: "principal:forged-publisher".into(),
+            kind: ActorKind::PlatformUser,
+            session_id: None,
+            represented_principal_ref: None,
+            support_capability_id: None,
+        };
+        wrong_context_and_aggregate_tombstone.payload = serde_json::to_value(tombstone).unwrap();
+
+        let forged_events = [
+            wrong_context_descriptor,
+            wrong_aggregate_grant,
+            wrong_context_and_aggregate_tombstone,
         ];
-        for fact in facts {
-            let mut value = event();
-            value.event_type = ITEM_DIRECTORY_FACT_EVENT_TYPE.into();
-            value.payload = serde_json::to_value(&fact).unwrap();
-            assert_eq!(
-                decode_item_directory_event(holding_id, &value)
-                    .unwrap()
-                    .fact,
-                fact
-            );
+        for forged in forged_events {
+            assert!(matches!(
+                decode_item_directory_event(holding_id, &forged),
+                Err(ItemDirectoryProjectionError::UnsupportedContract)
+            ));
         }
     }
 
@@ -660,6 +605,13 @@ mod tests {
         );
         assert!(!branch.contains("ERPX_HOLDING_ID"));
         assert!(!branch.contains("ERPX_DATA_PROFILE_KEY"));
+
+        let projector = include_str!("item_directory_projection.rs");
+        assert!(projector.contains("AUTHORITY_EVIDENCE_EVENT_TYPE.to_owned()"));
+        assert!(projector.contains("ORGANIZATION_LINEAGE_CHANGED_EVENT_TYPE.to_owned()"));
+        assert!(projector.contains("ORGANIZATION_SNAPSHOT_EVENT_TYPE.to_owned()"));
+        assert!(projector.contains("apply_organization_lineage(&event)"));
+        assert!(projector.contains("apply_organization_snapshot_lineage(&event)"));
     }
 
     #[test]
@@ -694,6 +646,11 @@ mod tests {
                     "a record identifier is not an authorization policy"
                 );
             }
+            assert!(
+                !source.contains("ITEM_DIRECTORY_FACT_EVENT_TYPE")
+                    && !source.contains("erpx.item-directory.fact"),
+                "live owners may emit only owner-bound directory drafts"
+            );
             let fact = source
                 .find("ITEM_DIRECTORY_OWNER_EVENT_TYPE")
                 .expect("owner fact event");
@@ -753,6 +710,8 @@ mod tests {
             assert!(source.contains("record_policy_id(&record)"));
             assert!(source.contains("outbox_events"));
             assert!(!source.contains("ItemDescriptorDraft::from_snapshot"));
+            assert!(!source.contains("ITEM_DIRECTORY_FACT_EVENT_TYPE"));
+            assert!(!source.contains("erpx.item-directory.fact"));
         }
     }
 }

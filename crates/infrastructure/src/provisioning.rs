@@ -3069,12 +3069,13 @@ impl<'a> HoldingSourceRebuildLock<'a> {
                     "SELECT COALESCE(MAX(global_sequence), 0)
                      FROM erpx_cqrs_write.outbox_events
                      WHERE holding_id = current_setting('app.holding_id')::uuid
-                       AND available_at <= now()
                        AND event_type = ANY($1)",
                 )
                 .bind([
                     erpx_integration_contracts::ITEM_DIRECTORY_OWNER_EVENT_TYPE,
-                    erpx_integration_contracts::ITEM_DIRECTORY_FACT_EVENT_TYPE,
+                    erpx_integration_contracts::AUTHORITY_EVIDENCE_EVENT_TYPE,
+                    erpx_integration_contracts::organization::ORGANIZATION_LINEAGE_CHANGED_EVENT_TYPE,
+                    erpx_organization_sqlx::SNAPSHOT_EVENT_TYPE,
                 ])
                 .fetch_one(&mut *self.transaction)
                 .await?
@@ -8781,7 +8782,11 @@ mod tests {
         assert!(lock.contains("bound_holding != holding_id"));
         assert!(lock.contains("holding_id = current_setting('app.holding_id')::uuid"));
         assert!(lock.contains("ITEM_DIRECTORY_OWNER_EVENT_TYPE"));
-        assert!(lock.contains("ITEM_DIRECTORY_FACT_EVENT_TYPE"));
+        assert!(!lock.contains("ITEM_DIRECTORY_FACT_EVENT_TYPE"));
+        assert!(lock.contains("AUTHORITY_EVIDENCE_EVENT_TYPE"));
+        assert!(lock.contains("ORGANIZATION_LINEAGE_CHANGED_EVENT_TYPE"));
+        assert!(lock.contains("SNAPSHOT_EVENT_TYPE"));
+        assert!(!lock.contains("available_at <= now()"));
         let table_lock = lock
             .find("LOCK TABLE erpx_cqrs_write.outbox_events IN SHARE MODE")
             .expect("Item Directory source table fence");

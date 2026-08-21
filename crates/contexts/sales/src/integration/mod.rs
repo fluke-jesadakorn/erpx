@@ -161,7 +161,9 @@ fn fact(state: &SalesOrderFactState) -> Result<sales::SalesOrderFact, Integratio
 mod tests {
     use chrono::{TimeZone, Utc};
     use erpx_integration_contracts::{CurrencyCode, IntegrationEvent, MoneyAmount, crm, customer};
-    use erpx_kernel::AuthorityScope;
+    use erpx_kernel::{
+        ActorAttribution, ActorKind, AuthorityScope, CommandId, HumanDecisionProof, SessionId,
+    };
     use uuid::Uuid;
 
     use super::*;
@@ -178,7 +180,7 @@ mod tests {
         };
         let mut quote = Quote::create_from_opportunity(
             QuoteId::try_from_uuid(Uuid::from_u128(3)).unwrap(),
-            scope,
+            scope.clone(),
             crm::OpportunityFact {
                 opportunity: crm::OpportunityRef::try_from_uuid(Uuid::from_u128(4)).unwrap(),
                 customer: customer::CustomerRef::try_from_uuid(Uuid::from_u128(5)).unwrap(),
@@ -206,7 +208,21 @@ mod tests {
                 .is_empty()
         );
         quote.send(at).unwrap();
-        quote.accept(at).unwrap();
+        let quote_command_id = CommandId::try_from_uuid(Uuid::from_u128(90)).unwrap();
+        let quote_decision = HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: "sales-reviewer".into(),
+                kind: ActorKind::HoldingUser,
+                session_id: Some(SessionId::try_from_uuid(Uuid::from_u128(99)).unwrap()),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            scope.clone(),
+            quote_command_id.to_string(),
+            at,
+        )
+        .unwrap();
+        quote.accept(&quote_decision, quote_command_id, at).unwrap();
         let mut order = SalesOrder::create_from_quote(
             SalesOrderId::try_from_uuid(Uuid::from_u128(7)).unwrap(),
             &quote,
@@ -214,7 +230,17 @@ mod tests {
             at,
         )
         .unwrap();
-        order.confirm(at).unwrap();
+        let order_command_id = CommandId::try_from_uuid(Uuid::from_u128(91)).unwrap();
+        let order_decision = HumanDecisionProof::try_new(
+            quote_decision.actor().clone(),
+            scope,
+            order_command_id.to_string(),
+            at,
+        )
+        .unwrap();
+        order
+            .confirm(&order_decision, order_command_id, at)
+            .unwrap();
         let events = published_events(&order.take_uncommitted_events()).unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].event_type(), "sales.order_changed");

@@ -15,7 +15,8 @@ pub use approval_application::{
 };
 pub use approval_session::{
     ApprovalGate, ApprovalGateKind, ApprovalGateSpec, ApprovalGateStatus, ApprovalSession,
-    ApprovalSessionError, ApprovalSessionId, ApprovalSessionStatus, my_approval_work,
+    ApprovalSessionError, ApprovalSessionId, ApprovalSessionStatus, approval_session_decision_ref,
+    my_approval_work,
 };
 
 pub use application::{
@@ -32,7 +33,7 @@ pub use domain::{
     OperationsExceptionState, OperationsLifecycleRecord, OperationsLifecycleRecordError,
     OperationsLifecycleRecordKind, OperationsLifecycleRecordStatus, PrincipalAssignment,
     SourceFactMessage, SourceReference, WorkQueuePolicy, WorkQueuePolicyId, WorkQueuePolicyState,
-    WorkQueuePolicyStatus,
+    WorkQueuePolicyStatus, approval_decision_ref,
 };
 pub use integration::PublishedSourceEvent;
 pub use ports::{

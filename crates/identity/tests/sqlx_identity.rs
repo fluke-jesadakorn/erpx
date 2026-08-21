@@ -1,13 +1,35 @@
 use chrono::{Duration, TimeZone, Utc};
+use erpx_domain::{
+    access::{RiskTier, RoleAssignment},
+    contracts::AuthorityScope,
+};
 use erpx_identity::{
     AccessTokenLifetime, AccessTokenSigner, ActiveRoleClaim, AssertionRequest,
-    AssertionVerification, ConfiguredWebAuthnProvider, IdentityStoreError, PasskeyCeremonyService,
-    PasskeyCredential, RateLimitDecision, RateLimitPolicy, RegistrationRequest,
-    SecurityCommandContext, SqlxIdentityStore, TotpKeyResolver, VerifiedRegistration,
-    WebAuthnProvider, WebAuthnProviderConfig, apply_identity_migration,
+    AssertionVerification, AuthenticatedAuthority, AuthenticatedPrincipalKind, AuthenticatedRealm,
+    ConfiguredWebAuthnProvider, DirectoryConnector, DirectoryFeedKind,
+    DirectoryIdentityReplacementDecision, DirectoryIdentityReplacementDecisionAction,
+    DirectoryProvider, DirectoryScope, DirectoryTlsMode, DirectoryTlsPolicy,
+    IDENTITY_ACTIVE_ROLE_SESSION_CONTEXT_MIGRATION_SQL,
+    IDENTITY_AUTHENTICATED_AUTHORITY_MIGRATION_SQL, IDENTITY_DEVELOPMENT_ACCESS_MIGRATION_SQL,
+    IDENTITY_DEVELOPMENT_CONTEXT_LIFETIME_MIGRATION_SQL,
+    IDENTITY_DIRECTORY_CAPABILITIES_MIGRATION_SQL,
+    IDENTITY_DIRECTORY_PROFILE_LEGACY_DEFAULT_MIGRATION_SQL,
+    IDENTITY_DIRECTORY_ROLE_TARGET_SCOPE_MIGRATION_SQL, IDENTITY_MIGRATION_SQL,
+    IDENTITY_RECONCILIATION_MIGRATION_SQL, IDENTITY_REVOCATION_APPLIED_AT_MIGRATION_SQL,
+    IDENTITY_ROLE_PROJECTION_CONSTRAINTS_MIGRATION_SQL,
+    IDENTITY_SCOPED_DIRECTORY_ADMINISTRATION_MIGRATION_SQL,
+    IDENTITY_SECURITY_COMMAND_AUDIT_MIGRATION_SQL, IDENTITY_SOURCE_PAYLOAD_MIGRATION_SQL,
+    IdentityStoreError, PasskeyCeremonyService, PasskeyCredential, RateLimitDecision,
+    RateLimitPolicy, RegistrationRequest, SecurityCommandContext, SqlxDirectoryStore,
+    SqlxIdentityStore, TotpKeyResolver, VerifiedRegistration, WebAuthnProvider,
+    WebAuthnProviderConfig, apply_identity_migration, directory_identity_replacement_decision_ref,
+};
+use erpx_kernel::{
+    ActorAttribution as KernelActorAttribution, ActorKind as KernelActorKind,
+    AuthorityScope as KernelAuthorityScope, HumanDecisionProof, SessionId,
 };
 use hmac::{Hmac, Mac};
-use sha2::Sha256;
+use sha2::{Digest, Sha256};
 
 #[derive(Debug, Clone, Copy)]
 struct PersistedPasskeyProvider {
@@ -90,6 +112,10 @@ async fn identity_store_persists_and_revokes_sessions() {
         .login(&signer, "principal-1", "correct horse", "test-device", at)
         .await
         .expect("login");
+    assert_eq!(
+        issued.access_token().claims().authority(),
+        AuthenticatedAuthority::legacy_human()
+    );
     store
         .authorize_access_token(
             &signer,
@@ -132,6 +158,543 @@ async fn identity_store_persists_and_revokes_sessions() {
         .await
         .expect_err("reuse revokes the entire session family");
     assert!(matches!(revoked, IdentityStoreError::SessionInactive));
+}
+
+#[tokio::test]
+#[ignore = "requires ERPX_TEST_IDENTITY_UPGRADE_DATABASE_URL pointing to a dedicated disposable PostgreSQL database; drops erpx_identity"]
+async fn authenticated_authority_upgrade_revokes_legacy_sessions_that_change_authority() {
+    let write_url = std::env::var("ERPX_TEST_IDENTITY_UPGRADE_DATABASE_URL")
+        .expect("ERPX_TEST_IDENTITY_UPGRADE_DATABASE_URL is required");
+    let write = sqlx::PgPool::connect(&write_url).await.expect("write pool");
+    let database_name: String = sqlx::query_scalar("SELECT current_database()")
+        .fetch_one(&write)
+        .await
+        .expect("upgrade test database name");
+    assert!(
+        database_name.ends_with("_identity_upgrade_test"),
+        "identity upgrade acceptance refuses to drop a database schema unless the database name ends with _identity_upgrade_test"
+    );
+    sqlx::raw_sql("DROP SCHEMA IF EXISTS erpx_identity CASCADE")
+        .execute(&write)
+        .await
+        .expect("reset dedicated identity upgrade schema");
+
+    let mut migration = write.begin().await.expect("migration transaction");
+    for sql in [
+        IDENTITY_MIGRATION_SQL,
+        IDENTITY_RECONCILIATION_MIGRATION_SQL,
+        IDENTITY_SOURCE_PAYLOAD_MIGRATION_SQL,
+        IDENTITY_REVOCATION_APPLIED_AT_MIGRATION_SQL,
+        IDENTITY_ROLE_PROJECTION_CONSTRAINTS_MIGRATION_SQL,
+        IDENTITY_DIRECTORY_CAPABILITIES_MIGRATION_SQL,
+        IDENTITY_SCOPED_DIRECTORY_ADMINISTRATION_MIGRATION_SQL,
+        IDENTITY_DIRECTORY_PROFILE_LEGACY_DEFAULT_MIGRATION_SQL,
+        IDENTITY_DEVELOPMENT_ACCESS_MIGRATION_SQL,
+        IDENTITY_DIRECTORY_ROLE_TARGET_SCOPE_MIGRATION_SQL,
+        IDENTITY_ACTIVE_ROLE_SESSION_CONTEXT_MIGRATION_SQL,
+        IDENTITY_DEVELOPMENT_CONTEXT_LIFETIME_MIGRATION_SQL,
+        IDENTITY_SECURITY_COMMAND_AUDIT_MIGRATION_SQL,
+    ] {
+        sqlx::raw_sql(sql)
+            .execute(&mut *migration)
+            .await
+            .expect("pre-authority identity migration");
+    }
+    migration.commit().await.expect("pre-authority schema");
+
+    let issued_at = Utc::now() - Duration::minutes(10);
+    let platform_root_id = uuid::Uuid::new_v4();
+    let controller_id = uuid::Uuid::new_v4();
+    let workforce_id = uuid::Uuid::new_v4();
+    for (principal_id, principal_ref) in [
+        (platform_root_id, "local:platform-root"),
+        (controller_id, "local:dev-controller"),
+        (workforce_id, "holding:legacy-workforce"),
+    ] {
+        sqlx::query(
+            "INSERT INTO erpx_identity.principals
+                (id, principal_ref, status, created_at, updated_at)
+             VALUES ($1,$2,'active',$3,$3)",
+        )
+        .bind(principal_id)
+        .bind(principal_ref)
+        .bind(issued_at)
+        .execute(&write)
+        .await
+        .expect("legacy principal");
+    }
+    sqlx::query(
+        "INSERT INTO erpx_identity.protected_local_principals
+            (principal_id, protection_kind, designated_by, designated_at)
+         VALUES ($1,'platform_root','test:legacy-upgrade',$2)",
+    )
+    .bind(platform_root_id)
+    .bind(issued_at)
+    .execute(&write)
+    .await
+    .expect("legacy protected Platform Root");
+
+    let platform_root_session_id = uuid::Uuid::new_v4();
+    let controller_session_id = uuid::Uuid::new_v4();
+    let workforce_session_id = uuid::Uuid::new_v4();
+    for (principal_id, session_id, refresh_token) in [
+        (
+            platform_root_id,
+            platform_root_session_id,
+            "legacy-platform-root-refresh",
+        ),
+        (
+            controller_id,
+            controller_session_id,
+            "legacy-controller-refresh",
+        ),
+        (
+            workforce_id,
+            workforce_session_id,
+            "legacy-workforce-refresh",
+        ),
+    ] {
+        let device_id = uuid::Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO erpx_identity.devices
+                (id, principal_id, label, created_at, last_seen_at)
+             VALUES ($1,$2,'legacy-upgrade-device',$3,$3)",
+        )
+        .bind(device_id)
+        .bind(principal_id)
+        .bind(issued_at)
+        .execute(&write)
+        .await
+        .expect("legacy device");
+        sqlx::query(
+            "INSERT INTO erpx_identity.sessions
+                (id, principal_id, device_id, refresh_token_hash, issued_at,
+                 refresh_expires_at, revoked_at, last_used_at)
+             VALUES ($1,$2,$3,$4,$5,$6,NULL,$5)",
+        )
+        .bind(session_id)
+        .bind(principal_id)
+        .bind(device_id)
+        .bind(Sha256::digest(refresh_token.as_bytes()).to_vec())
+        .bind(issued_at)
+        .bind(issued_at + Duration::days(30))
+        .execute(&write)
+        .await
+        .expect("legacy session");
+    }
+
+    sqlx::raw_sql(IDENTITY_AUTHENTICATED_AUTHORITY_MIGRATION_SQL)
+        .execute(&write)
+        .await
+        .expect("authenticated-authority upgrade");
+
+    for session_id in [platform_root_session_id, controller_session_id] {
+        let (realm, kind, revoked_at, last_used_at): (
+            String,
+            String,
+            Option<chrono::DateTime<Utc>>,
+            chrono::DateTime<Utc>,
+        ) = sqlx::query_as(
+            "SELECT authenticated_realm, principal_kind, revoked_at, last_used_at
+             FROM erpx_identity.sessions WHERE id=$1",
+        )
+        .bind(session_id)
+        .fetch_one(&write)
+        .await
+        .expect("elevated legacy session");
+        assert_eq!(realm, "platform_administration");
+        assert_eq!(kind, "human");
+        let revoked_at = revoked_at.expect("changed authority session is fenced");
+        assert!(last_used_at >= revoked_at);
+    }
+
+    let (realm, kind, revoked_at): (String, String, Option<chrono::DateTime<Utc>>) =
+        sqlx::query_as(
+            "SELECT authenticated_realm, principal_kind, revoked_at
+             FROM erpx_identity.sessions WHERE id=$1",
+        )
+        .bind(workforce_session_id)
+        .fetch_one(&write)
+        .await
+        .expect("unchanged legacy session");
+    assert_eq!(realm, "internal_workforce");
+    assert_eq!(kind, "human");
+    assert!(revoked_at.is_none());
+
+    let signer = AccessTokenSigner::new(b"01234567890123456789012345678901").expect("signer");
+    let store = SqlxIdentityStore::new(write.clone());
+    let root_refresh = store
+        .refresh(
+            &signer,
+            platform_root_session_id,
+            "legacy-platform-root-refresh",
+            Utc::now(),
+        )
+        .await
+        .expect_err("legacy Platform Root refresh must require reauthentication");
+    assert!(matches!(
+        root_refresh,
+        IdentityStoreError::Primitive(erpx_identity::IdentityError::SessionInactive)
+    ));
+    let workforce_refresh = store
+        .refresh(
+            &signer,
+            workforce_session_id,
+            "legacy-workforce-refresh",
+            Utc::now(),
+        )
+        .await
+        .expect("unchanged workforce refresh remains valid");
+    assert_eq!(
+        workforce_refresh.access_token().claims().authority(),
+        AuthenticatedAuthority::legacy_human()
+    );
+
+    sqlx::raw_sql(IDENTITY_AUTHENTICATED_AUTHORITY_MIGRATION_SQL)
+        .execute(&write)
+        .await
+        .expect("authenticated-authority migration is rerunnable");
+    let workforce_revoked: Option<chrono::DateTime<Utc>> =
+        sqlx::query_scalar("SELECT revoked_at FROM erpx_identity.sessions WHERE id=$1")
+            .bind(workforce_session_id)
+            .fetch_one(&write)
+            .await
+            .expect("rerun workforce session");
+    assert!(workforce_revoked.is_none());
+}
+
+#[tokio::test]
+#[ignore = "requires a disposable PostgreSQL database"]
+async fn non_human_authority_survives_login_role_selection_and_refresh() {
+    let write_url = std::env::var("ERPX_TEST_CONTROL_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_CONTROL_WRITE_DATABASE_URL is required");
+    let write = sqlx::PgPool::connect(&write_url).await.expect("write pool");
+    apply_identity_migration(&write)
+        .await
+        .expect("identity migration");
+    let store = SqlxIdentityStore::new(write.clone());
+    let at = Utc
+        .with_ymd_and_hms(2026, 8, 4, 13, 0, 0)
+        .single()
+        .expect("fixed time");
+    let signer = AccessTokenSigner::new(b"01234567890123456789012345678901").expect("signer");
+
+    for principal_kind in [
+        AuthenticatedPrincipalKind::Agent,
+        AuthenticatedPrincipalKind::Service,
+    ] {
+        let authority = AuthenticatedAuthority {
+            realm: AuthenticatedRealm::InternalWorkforce,
+            principal_kind,
+        };
+        let principal = format!(
+            "authority-{}-{}",
+            match principal_kind {
+                AuthenticatedPrincipalKind::Agent => "agent",
+                AuthenticatedPrincipalKind::Service => "service",
+                AuthenticatedPrincipalKind::Human => unreachable!(),
+            },
+            uuid::Uuid::new_v4()
+        );
+        store
+            .create_principal_with_password_and_authority(
+                &principal,
+                "correct horse",
+                authority,
+                at,
+            )
+            .await
+            .expect("non-human principal");
+        let issued = store
+            .login(&signer, &principal, "correct horse", "authority-device", at)
+            .await
+            .expect("non-human login");
+        assert_eq!(issued.access_token().claims().authority(), authority);
+
+        let assignment_id = uuid::Uuid::new_v4();
+        let assignment = RoleAssignment {
+            id: assignment_id,
+            principal_ref: principal.clone(),
+            role_key: "authority-test".into(),
+            permissions: vec!["operations.read".into()],
+            functional_domain: "operations".into(),
+            authority_level: 1,
+            approval_limit_minor: 0,
+            scope: AuthorityScope::Platform,
+            valid_from: at - Duration::minutes(1),
+            valid_until: at + Duration::days(1),
+            timezone: "Asia/Bangkok".into(),
+            risk_tier: RiskTier::Standard,
+            grant_reason: "authenticated authority propagation test".into(),
+            ticket_reference: Some("test:authority-propagation".into()),
+            grantor: "test:bootstrap".into(),
+            approver: Some("test:approver".into()),
+            renewal_reviewer: None,
+            parent_assignment_id: None,
+            assignment_version: 1,
+        };
+        sqlx::query(
+            "INSERT INTO erpx_control.role_assignments
+                (id, principal_ref, role_key, parent_assignment_id, valid_from,
+                 valid_until, assignment_version, payload)
+             VALUES ($1,$2,$3,NULL,$4,$5,1,$6)",
+        )
+        .bind(assignment_id)
+        .bind(&principal)
+        .bind(&assignment.role_key)
+        .bind(assignment.valid_from)
+        .bind(assignment.valid_until)
+        .bind(serde_json::to_value(&assignment).expect("role payload"))
+        .execute(&write)
+        .await
+        .expect("role assignment");
+        sqlx::query(
+            "INSERT INTO erpx_control.role_assignment_target_policies
+                (assignment_id, policy_kind, environment_gate, configured_by, configured_at)
+             VALUES ($1,'unrestricted',NULL,'test:bootstrap',$2)",
+        )
+        .bind(assignment_id)
+        .bind(at)
+        .execute(&write)
+        .await
+        .expect("role target policy");
+
+        let selection_id = assignment_id.to_string();
+        let (_, selected_token) = store
+            .select_active_role(
+                &signer,
+                &principal,
+                issued.record().id(),
+                &selection_id,
+                at + Duration::seconds(1),
+            )
+            .await
+            .expect("role selection");
+        assert_eq!(selected_token.claims().authority(), authority);
+        store
+            .authorize_access_token(&signer, selected_token.token(), at + Duration::seconds(2))
+            .await
+            .expect("selected token authority");
+
+        let refreshed = store
+            .refresh(
+                &signer,
+                issued.record().id(),
+                issued.refresh_token().as_str(),
+                at + Duration::seconds(2),
+            )
+            .await
+            .expect("selected-role refresh");
+        assert_eq!(refreshed.access_token().claims().authority(), authority);
+        assert_eq!(
+            refreshed
+                .access_token()
+                .claims()
+                .active_role
+                .as_ref()
+                .map(|role| role.selection_id.as_str()),
+            Some(selection_id.as_str())
+        );
+    }
+}
+
+#[tokio::test]
+#[ignore = "requires a disposable PostgreSQL database"]
+async fn directory_replacement_decision_requires_distinct_authenticated_sessions_before_mutation() {
+    let write_url = std::env::var("ERPX_TEST_CONTROL_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_CONTROL_WRITE_DATABASE_URL is required");
+    let write = sqlx::PgPool::connect(&write_url).await.expect("write pool");
+    apply_identity_migration(&write)
+        .await
+        .expect("identity migration");
+    let identity = SqlxIdentityStore::new(write.clone());
+    let directory = SqlxDirectoryStore::new(write.clone());
+    let at = Utc
+        .with_ymd_and_hms(2026, 8, 4, 14, 0, 0)
+        .single()
+        .expect("fixed time");
+    let connector_id = uuid::Uuid::new_v4();
+    let holding_id = uuid::Uuid::new_v4();
+    directory
+        .save_connector(
+            &DirectoryConnector {
+                id: connector_id,
+                provider: DirectoryProvider::GenericLdap,
+                scope: DirectoryScope::Holding {
+                    data_profile_key: holding_id.to_string(),
+                },
+                endpoint: "ldaps://replacement.example.test:636".into(),
+                base_dn: "dc=replacement,dc=example,dc=test".into(),
+                tls: DirectoryTlsPolicy {
+                    mode: DirectoryTlsMode::Ldaps,
+                    ca_certificate_sha256: "a".repeat(64),
+                    server_name: "replacement.example.test".into(),
+                    minimum_tls_version: "1.3".into(),
+                },
+                feed: DirectoryFeedKind::Polling,
+                credential_ref: "secret://directory/replacement".into(),
+                credential_profile_key: "replacement-test".into(),
+                parent_connector_id: None,
+                directory_authority_fingerprint: None,
+                fallback_to_holding: false,
+                enabled: true,
+                max_import_users: 10,
+                revision: 1,
+            },
+            at,
+        )
+        .await
+        .expect("connector");
+    let local_ref = format!("replacement-local-{}", uuid::Uuid::new_v4());
+    let principal_id = identity
+        .create_principal_with_password(&local_ref, "correct horse", at)
+        .await
+        .expect("local principal");
+    let conflict_id = uuid::Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO erpx_identity.directory_identity_conflicts
+            (id,connector_id,external_object_id,principal_id,conflict_kind,state,
+             detected_at,match_reasons,conflict_version)
+         VALUES ($1,$2,'replacement-object',$3,'local_identity_collision',
+                 'unresolved',$4,ARRAY['canonical_principal'],1)",
+    )
+    .bind(conflict_id)
+    .bind(connector_id)
+    .bind(principal_id)
+    .bind(at)
+    .execute(&write)
+    .await
+    .expect("identity conflict");
+
+    let proposer_session = SessionId::try_from_uuid(uuid::Uuid::new_v4()).expect("session");
+    let proposer = KernelActorAttribution {
+        principal_ref: "holding:replacement-proposer".into(),
+        kind: KernelActorKind::HoldingUser,
+        session_id: Some(proposer_session),
+        represented_principal_ref: None,
+        support_capability_id: None,
+    };
+    let proposed = directory
+        .propose_identity_replacement(
+            conflict_id,
+            1,
+            &proposer,
+            uuid::Uuid::new_v4(),
+            at + Duration::seconds(1),
+        )
+        .await
+        .expect("proposal");
+    assert_eq!(proposed.conflict_version, 2);
+
+    let decision = |principal_ref: &str, session: SessionId, correlation_id: uuid::Uuid| {
+        let scope = KernelAuthorityScope::Holding { holding_id };
+        let proof = HumanDecisionProof::try_new(
+            KernelActorAttribution {
+                principal_ref: principal_ref.into(),
+                kind: KernelActorKind::HoldingUser,
+                session_id: Some(session),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            scope.clone(),
+            directory_identity_replacement_decision_ref(
+                DirectoryIdentityReplacementDecisionAction::Reject,
+                conflict_id,
+                2,
+                correlation_id,
+            ),
+            at + Duration::seconds(2),
+        )
+        .expect("human proof");
+        DirectoryIdentityReplacementDecision::try_new(
+            DirectoryIdentityReplacementDecisionAction::Reject,
+            conflict_id,
+            2,
+            correlation_id,
+            scope,
+            proof,
+        )
+        .expect("replacement decision")
+    };
+
+    let same_principal = decision(
+        &proposer.principal_ref,
+        SessionId::try_from_uuid(uuid::Uuid::new_v4()).expect("session"),
+        uuid::Uuid::new_v4(),
+    );
+    assert!(
+        directory
+            .reject_identity_replacement(&same_principal)
+            .await
+            .is_err()
+    );
+    let same_session = decision(
+        "platform:replacement-approver",
+        proposer_session,
+        uuid::Uuid::new_v4(),
+    );
+    assert!(
+        directory
+            .reject_identity_replacement(&same_session)
+            .await
+            .is_err()
+    );
+    let state: String = sqlx::query_scalar(
+        "SELECT state FROM erpx_identity.directory_identity_replacement_approvals
+         WHERE conflict_id=$1",
+    )
+    .bind(conflict_id)
+    .fetch_one(&write)
+    .await
+    .expect("proposal state");
+    assert_eq!(state, "awaiting_approval");
+    let evidence_before: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)
+         FROM erpx_identity.directory_identity_replacement_decision_evidence
+         WHERE conflict_id=$1",
+    )
+    .bind(conflict_id)
+    .fetch_one(&write)
+    .await
+    .expect("decision evidence count");
+    assert_eq!(evidence_before, 0);
+
+    let approver_session = SessionId::try_from_uuid(uuid::Uuid::new_v4()).expect("session");
+    let approved_correlation = uuid::Uuid::new_v4();
+    let valid = decision(
+        "platform:replacement-approver",
+        approver_session,
+        approved_correlation,
+    );
+    directory
+        .reject_identity_replacement(&valid)
+        .await
+        .expect("independent human rejection");
+    let evidence: (
+        String,
+        uuid::Uuid,
+        String,
+        String,
+        uuid::Uuid,
+        String,
+        String,
+    ) = sqlx::query_as(
+        "SELECT initiator_ref,initiator_session_id,decision_actor_ref,
+                decision_actor_kind,decision_session_id,authority_scope_key,decision_ref
+         FROM erpx_identity.directory_identity_replacement_decision_evidence
+         WHERE conflict_id=$1 AND expected_conflict_version=2",
+    )
+    .bind(conflict_id)
+    .fetch_one(&write)
+    .await
+    .expect("bound decision evidence");
+    assert_eq!(evidence.0, proposer.principal_ref);
+    assert_eq!(evidence.1, proposer_session.as_uuid());
+    assert_eq!(evidence.2, valid.principal_ref());
+    assert_eq!(evidence.3, "human");
+    assert_eq!(evidence.4, approver_session.as_uuid());
+    assert_eq!(evidence.5, format!("holding:{holding_id}"));
+    assert_eq!(evidence.6, valid.proof().decision_ref());
 }
 
 #[tokio::test]

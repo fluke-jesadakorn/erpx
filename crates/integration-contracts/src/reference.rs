@@ -1824,9 +1824,13 @@ fn canonical_route_matches_record(route: &str, record_id: RecordId) -> bool {
 
 pub const ITEM_DIRECTORY_FACT_VERSION: u32 = 1;
 pub const ITEM_DIRECTORY_OWNER_EVENT_TYPE: &str = "erpx.item-directory.owner-fact";
-/// Fully typed grant, revocation, relation, route, and tombstone facts. These
-/// facts already carry their immutable owner source position; the worker
-/// rejects a fact that claims a position after its durable delivery envelope.
+/// Reserved transport discriminator for final directory facts.
+///
+/// No live write-side producer is authorized to publish this event. Descriptor
+/// drafts use [`ITEM_DIRECTORY_OWNER_EVENT_TYPE`], while policy/relation facts
+/// are produced and applied inside the trusted worker. Consumers must reject
+/// this transport until each mutation variant has a versioned envelope that
+/// binds it to its authoritative owner identity.
 pub const ITEM_DIRECTORY_FACT_EVENT_TYPE: &str = "erpx.item-directory.fact";
 pub const ITEM_DIRECTORY_PROJECTION_NAME: &str = "item_directory";
 pub const MAX_AUTHORIZED_SEARCH_TEXT_BYTES: usize = 4_096;

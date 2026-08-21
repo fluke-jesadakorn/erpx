@@ -11,7 +11,7 @@ use erpx_collaboration::{
 };
 use erpx_integration_contracts::StableRecordRef;
 use erpx_kernel::{AuthorityScope, HoldingId, RecordId};
-use sqlx::{PgPool, Postgres, Row, Transaction};
+use sqlx::{PgPool, Postgres, Transaction};
 
 use crate::{DirectoryAccess, DirectoryLookup, ProjectionFreshness, SqlxItemDirectory};
 
@@ -68,6 +68,29 @@ impl SqlxCollaborationAuthorization {
             .ok_or(PortError::Denied)
     }
 
+    async fn scope_contains(
+        &self,
+        actor: &ActorContext,
+        target: &AuthorityScope,
+    ) -> Result<bool, PortError> {
+        let mut tx = self
+            .directory
+            .pool()
+            .begin()
+            .await
+            .map_err(map_database_error)?;
+        set_holding(&mut tx, actor.holding_id).await?;
+        let contains =
+            sqlx::query_scalar::<_, bool>("SELECT erpx_collaboration_read.scope_contains($1, $2)")
+                .bind(serde_json::to_value(&actor.authority_scope).map_err(|_| PortError::Denied)?)
+                .bind(serde_json::to_value(target).map_err(|_| PortError::Denied)?)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(map_database_error)?;
+        tx.commit().await.map_err(map_database_error)?;
+        Ok(contains)
+    }
+
     async fn opaque_anchor(
         &self,
         actor: &ActorContext,
@@ -96,17 +119,14 @@ impl SqlxCollaborationAuthorization {
         actor: &ActorContext,
         thread_id: ThreadId,
         anchor_record_id: RecordId,
-    ) -> Result<(), PortError> {
+    ) -> Result<AuthorityScope, PortError> {
         let mut tx = self.write_pool.begin().await.map_err(map_database_error)?;
         set_holding(&mut tx, actor.holding_id).await?;
-        let row = sqlx::query(
-            "SELECT policy.policy_document->'visibility_scope' AS visibility_scope, \
-                    audience.audience_document AS audience \
+        let visibility = sqlx::query_scalar::<_, serde_json::Value>(
+            "SELECT policy.policy_document->'visibility_scope' \
              FROM erpx_collaboration.threads thread \
              JOIN erpx_collaboration.thread_policies policy \
                ON policy.holding_id=thread.holding_id AND policy.thread_id=thread.thread_id \
-             JOIN erpx_collaboration.thread_audiences audience \
-               ON audience.holding_id=thread.holding_id AND audience.thread_id=thread.thread_id \
              WHERE thread.holding_id=$1 AND thread.thread_id=$2 AND thread.anchor_record_id=$3",
         )
         .bind(actor.holding_id.as_uuid())
@@ -116,24 +136,48 @@ impl SqlxCollaborationAuthorization {
         .await
         .map_err(map_database_error)?;
         tx.commit().await.map_err(map_database_error)?;
-        let Some(row) = row else {
+        let Some(visibility) = visibility else {
             return Err(PortError::Denied);
         };
-        let visibility = serde_json::from_value::<AuthorityScope>(
-            row.try_get("visibility_scope")
-                .map_err(|_| PortError::Unavailable)?,
+        let visibility = serde_json::from_value::<AuthorityScope>(visibility)
+            .map_err(|_| PortError::Unavailable)?;
+        if !self.scope_contains(actor, &visibility).await? {
+            return Err(PortError::Denied);
+        }
+
+        // The current Organization lineage is proven before the audience
+        // document is selected. The exact visibility predicate also prevents
+        // a policy change between the two databases from widening access.
+        let mut tx = self.write_pool.begin().await.map_err(map_database_error)?;
+        set_holding(&mut tx, actor.holding_id).await?;
+        let audience = sqlx::query_scalar::<_, serde_json::Value>(
+            "SELECT audience.audience_document \
+             FROM erpx_collaboration.threads thread \
+             JOIN erpx_collaboration.thread_policies policy \
+               ON policy.holding_id=thread.holding_id AND policy.thread_id=thread.thread_id \
+             JOIN erpx_collaboration.thread_audiences audience \
+               ON audience.holding_id=thread.holding_id AND audience.thread_id=thread.thread_id \
+             WHERE thread.holding_id=$1 AND thread.thread_id=$2 AND thread.anchor_record_id=$3 \
+               AND policy.policy_document->'visibility_scope'=$4::JSONB",
         )
-        .map_err(|_| PortError::Unavailable)?;
-        let audience = serde_json::from_value::<Audience>(
-            row.try_get("audience")
-                .map_err(|_| PortError::Unavailable)?,
-        )
-        .map_err(|_| PortError::Unavailable)?;
-        if !actor.authority_scope.contains(&visibility) || !audience.includes(actor.principal) {
+        .bind(actor.holding_id.as_uuid())
+        .bind(thread_id.as_uuid())
+        .bind(anchor_record_id.as_uuid())
+        .bind(serde_json::to_value(&visibility).map_err(|_| PortError::Unavailable)?)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(map_database_error)?;
+        tx.commit().await.map_err(map_database_error)?;
+        let Some(audience) = audience else {
+            return Err(PortError::Denied);
+        };
+        let audience =
+            serde_json::from_value::<Audience>(audience).map_err(|_| PortError::Unavailable)?;
+        if !audience.includes(actor.principal) {
             return Err(PortError::Denied);
         }
         audience_realm_permits(&audience, actor.external_portal)
-            .then_some(())
+            .then_some(visibility)
             .ok_or(PortError::Denied)
     }
 
@@ -141,6 +185,7 @@ impl SqlxCollaborationAuthorization {
         actor: &ActorContext,
         thread_id: ThreadId,
         anchor_record_id: RecordId,
+        visibility_scope: AuthorityScope,
         action: CollaborationAction,
     ) -> Result<AuthorizedThreadAccess, PortError> {
         AuthorizedThreadAccess::try_from_authorization(
@@ -148,6 +193,7 @@ impl SqlxCollaborationAuthorization {
             thread_id,
             anchor_record_id,
             actor.authority_scope.clone(),
+            visibility_scope,
             actor.principal,
             actor.external_portal,
             action,
@@ -177,7 +223,6 @@ impl AuthorizationPort for SqlxCollaborationAuthorization {
     ) -> Result<AuthorizedThreadAccess, PortError> {
         self.permits(CollaborationAction::CreateThread)?;
         if anchor.holding_id() != actor.holding_id
-            || !actor.authority_scope.contains(anchor.visibility_scope())
             || audience.validate_against(anchor).is_err()
             || !audience_realm_permits(audience, actor.external_portal)
         {
@@ -201,7 +246,10 @@ impl AuthorizationPort for SqlxCollaborationAuthorization {
         };
         if descriptor.record() != anchor.record()
             || descriptor.authorization_policy() != anchor.authorization_policy()
-            || !actor.authority_scope.contains(descriptor.scope())
+            || !self
+                .scope_contains(actor, anchor.visibility_scope())
+                .await?
+            || !self.scope_contains(actor, descriptor.scope()).await?
             || anchor.classification() < descriptor.classification()
         {
             return Err(PortError::Denied);
@@ -210,6 +258,7 @@ impl AuthorizationPort for SqlxCollaborationAuthorization {
             actor,
             thread_id,
             anchor.record().id(),
+            anchor.visibility_scope().clone(),
             CollaborationAction::CreateThread,
         )
     }
@@ -223,9 +272,10 @@ impl AuthorizationPort for SqlxCollaborationAuthorization {
         self.permits(action)?;
         let anchor_record_id = self.opaque_anchor(actor, thread_id).await?;
         self.authorize_record(actor, anchor_record_id).await?;
-        self.enforce_thread_audience(actor, thread_id, anchor_record_id)
+        let visibility_scope = self
+            .enforce_thread_audience(actor, thread_id, anchor_record_id)
             .await?;
-        Self::access(actor, thread_id, anchor_record_id, action)
+        Self::access(actor, thread_id, anchor_record_id, visibility_scope, action)
     }
 
     async fn authorize_search(
@@ -338,6 +388,39 @@ mod tests {
             .find("self.enforce_thread_audience(actor, thread_id, anchor_record_id)")
             .expect("audience check");
         assert!(anchor < grant && grant < audience);
+    }
+
+    #[test]
+    fn hierarchy_is_database_proven_and_exact_visibility_is_carried_forward() {
+        let source = include_str!("authorization.rs");
+        let production = source.split("#[cfg(test)]").next().unwrap();
+        assert!(production.contains("SELECT erpx_collaboration_read.scope_contains($1, $2)"));
+        assert!(!production.contains("actor.authority_scope.contains("));
+        assert!(production.contains("anchor.visibility_scope().clone()"));
+        assert!(production.contains("then_some(visibility)"));
+        let audience_enforcement = production
+            .split("async fn enforce_thread_audience")
+            .nth(1)
+            .expect("thread audience authorization")
+            .split("fn access")
+            .next()
+            .unwrap();
+        let hierarchy = audience_enforcement
+            .find("self.scope_contains(actor, &visibility)")
+            .expect("lineage proof");
+        let audience = audience_enforcement
+            .find("SELECT audience.audience_document")
+            .expect("audience payload query");
+        assert!(hierarchy < audience);
+
+        let write = include_str!("write.rs");
+        assert!(!write.contains("authority_scope()\n                .contains("));
+        assert!(write.contains("thread.anchor_record_id=$3"));
+        assert!(write.contains("policy.policy_document->'visibility_scope'=$4::JSONB"));
+        assert!(
+            write.matches("access.visibility_scope() !=").count() >= 2,
+            "load and commit must both bind the authorization witness to exact persisted policy"
+        );
     }
 
     #[test]

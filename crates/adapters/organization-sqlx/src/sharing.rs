@@ -17,7 +17,7 @@ use sha2::{Digest, Sha256};
 use sqlx::{Postgres, Row, Transaction};
 use uuid::Uuid;
 
-use crate::{EVENT_VERSION, SHARING_SNAPSHOT_EVENT_TYPE, sharing_partition};
+use crate::{SHARING_SNAPSHOT_EVENT_TYPE, SHARING_SNAPSHOT_EVENT_VERSION, sharing_partition};
 
 #[derive(Debug, Clone)]
 pub struct OrganizationSharingSqlxAdapter {
@@ -140,7 +140,7 @@ async fn append_projection_event(
     .bind(sharing_partition(request.aggregate.id()))
     .bind(command_id.as_uuid())
     .bind(SHARING_SNAPSHOT_EVENT_TYPE)
-    .bind(i32::try_from(EVENT_VERSION).map_err(|_| PortError::Internal)?)
+    .bind(i32::try_from(SHARING_SNAPSHOT_EVENT_VERSION).map_err(|_| PortError::Internal)?)
     .bind(request.aggregate.id().as_uuid())
     .bind(to_i64(request.aggregate.version())?)
     .bind(serde_json::to_value(request.aggregate.source_scope()).map_err(|_| PortError::Internal)?)

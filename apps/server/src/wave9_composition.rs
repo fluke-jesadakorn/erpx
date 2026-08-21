@@ -12,8 +12,8 @@ use erpx_customer_360 as customer_360;
 use erpx_customer_360_sqlx::Customer360ReadRepository;
 use erpx_infrastructure::{HoldingDatabaseRouter, RoutedDatabaseSide, SqlxControlPlane};
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuthorityScope, CorrelationId, ErrorCategory, ErrorContext,
-    KernelError, SessionId, SystemClock,
+    ActorAttribution, AuthorityScope, CorrelationId, ErrorCategory, ErrorContext, KernelError,
+    SessionId, SystemClock,
 };
 use erpx_operations as operations;
 use erpx_operations_sqlx::{
@@ -458,10 +458,11 @@ impl Customer360RequestAuthenticator for Wave9ServerAuthenticator {
         }
         let session_id = SessionId::try_from_uuid(claims.session_id)
             .map_err(|_| Customer360AuthenticationError::Internal)?;
+        let kind = crate::auth_actor::kernel_actor_kind(&claims);
         AuthenticatedCustomer360Request::try_new(
             ActorAttribution {
                 principal_ref: claims.principal_ref,
-                kind: ActorKind::HoldingUser,
+                kind,
                 session_id: Some(session_id),
                 represented_principal_ref: None,
                 support_capability_id: None,

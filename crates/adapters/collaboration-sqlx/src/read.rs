@@ -7,7 +7,7 @@ use erpx_collaboration::{
 use erpx_kernel::{HoldingId, PrincipalId, RecordId};
 use sqlx::{PgPool, Postgres, Row, Transaction};
 
-use crate::{INBOX_PROJECTION, STREAM_PROJECTION, THREAD_PROJECTION};
+use crate::{DIRECTORY_FRESHNESS_SECONDS, INBOX_PROJECTION, STREAM_PROJECTION, THREAD_PROJECTION};
 
 #[derive(Debug, Clone)]
 pub struct SqlxThreadReadRepository {
@@ -86,17 +86,79 @@ impl ThreadReadRepository for SqlxThreadReadRepository {
         let generation =
             require_active_generation(&mut tx, access.holding_id(), THREAD_PROJECTION).await?;
         let (actor_realm, actor_portal) = audience_realm(access.external_portal());
-        // Audience and hierarchy authorization are intentionally evaluated
-        // before the full-text predicate in both source and SQL order.
+        // The Item Directory freshness, exact anchor grant, hierarchy, and
+        // audience gates form a materialized candidate set. Full-text
+        // matching, payload loading, pagination, and counting can therefore
+        // observe only authorized anchors. The outer freshness row is an
+        // availability sentinel; an absent/stale directory never becomes an
+        // apparently successful empty search.
         let rows = sqlx::query(
-            "SELECT projection, count(*) OVER() AS authorized_count \
-             FROM erpx_collaboration_read.thread_projection \
-             WHERE holding_id=$1 AND projection_name=$2 AND generation=$3 \
-             AND erpx_collaboration_read.scope_contains($4, visibility_scope) \
-             AND erpx_collaboration_read.audience_allows(audience, $5, $4, $6, $7) \
-             AND search_vector @@ websearch_to_tsquery('simple', $8) \
-             ORDER BY updated_at DESC, thread_id \
-             LIMIT $9 OFFSET $10",
+            "WITH directory_freshness AS MATERIALIZED (\
+               SELECT COALESCE(\
+                        state.state='ready' \
+                        AND state.applied_position=state.source_high_watermark \
+                        AND state.last_success_at IS NOT NULL \
+                        AND state.last_success_at<=statement_timestamp() \
+                        AND state.last_success_at>=statement_timestamp() \
+                            - ($11::BIGINT * INTERVAL '1 second'), \
+                        FALSE\
+                      ) AS is_fresh, \
+                      COALESCE(state.applied_position, -1) AS applied_position \
+               FROM (VALUES (TRUE)) AS required(singleton) \
+               LEFT JOIN erpx_collaboration_read.item_directory_projection_state state \
+                 ON state.holding_id=$1\
+             ), authorized AS MATERIALIZED (\
+               SELECT thread.thread_id, thread.updated_at, thread.search_vector \
+               FROM directory_freshness freshness \
+               JOIN erpx_collaboration_read.thread_projection thread \
+                 ON freshness.is_fresh \
+                AND thread.holding_id=$1 \
+                AND thread.projection_name=$2 \
+                AND thread.generation=$3 \
+               JOIN erpx_collaboration_read.item_directory_descriptors descriptor \
+                 ON descriptor.holding_id=thread.holding_id \
+                AND descriptor.record_id=thread.anchor_record_id \
+               JOIN erpx_collaboration_read.item_directory_effective_grants grant_fact \
+                 ON grant_fact.holding_id=descriptor.holding_id \
+                AND grant_fact.record_id=descriptor.record_id \
+                AND grant_fact.principal_id=$5 \
+                AND grant_fact.authorization_policy_id=descriptor.authorization_policy_id \
+                AND grant_fact.policy_version=descriptor.authorization_policy_version \
+                AND grant_fact.source_event_position>=descriptor.source_event_position \
+               WHERE grant_fact.can_view \
+                 AND grant_fact.effective_at<=statement_timestamp() \
+                 AND grant_fact.expires_at>statement_timestamp() \
+                 AND descriptor.tombstoned_at IS NULL \
+                 AND descriptor.source_event_position<=freshness.applied_position \
+                 AND grant_fact.source_event_position<=freshness.applied_position \
+                 AND erpx_collaboration_read.scope_contains($4, descriptor.record_scope) \
+                 AND erpx_collaboration_read.scope_contains($4, thread.visibility_scope) \
+                 AND erpx_collaboration_read.audience_allows(\
+                       thread.audience, $5, $4, $6, $7\
+                     )\
+             ), matched AS MATERIALIZED (\
+               SELECT thread_id, updated_at \
+               FROM authorized \
+               WHERE search_vector @@ websearch_to_tsquery('simple', $8)\
+             ), matched_count AS MATERIALIZED (\
+               SELECT count(*)::BIGINT AS authorized_count FROM matched\
+             ), paged AS MATERIALIZED (\
+               SELECT thread_id, updated_at \
+               FROM matched \
+               ORDER BY updated_at DESC, thread_id \
+               LIMIT $9 OFFSET $10\
+             ) \
+             SELECT freshness.is_fresh, matched_count.authorized_count, \
+                    paged.thread_id AS matched_thread_id, payload.projection \
+             FROM directory_freshness freshness \
+             CROSS JOIN matched_count \
+             LEFT JOIN paged ON freshness.is_fresh \
+             LEFT JOIN erpx_collaboration_read.thread_projection payload \
+               ON payload.holding_id=$1 \
+              AND payload.projection_name=$2 \
+              AND payload.generation=$3 \
+              AND payload.thread_id=paged.thread_id \
+             ORDER BY paged.updated_at DESC NULLS LAST, paged.thread_id NULLS LAST",
         )
         .bind(access.holding_id().as_uuid())
         .bind(THREAD_PROJECTION)
@@ -108,27 +170,47 @@ impl ThreadReadRepository for SqlxThreadReadRepository {
         .bind(&request.query)
         .bind(i64::from(request.page_size))
         .bind(offset)
+        .bind(DIRECTORY_FRESHNESS_SECONDS)
         .fetch_all(&mut *tx)
         .await
         .map_err(map_database_error)?;
         tx.commit().await.map_err(map_database_error)?;
-        let authorized_count = rows
-            .first()
-            .map(|row| row.try_get::<i64, _>("authorized_count"))
-            .transpose()
+        let first = rows.first().ok_or(PortError::Unavailable)?;
+        if !first
+            .try_get::<bool, _>("is_fresh")
             .map_err(|_| PortError::Internal)?
-            .map(u64::try_from)
-            .transpose()
-            .map_err(|_| PortError::Internal)?
-            .unwrap_or(0);
-        let items = rows
-            .into_iter()
-            .map(|row| {
-                let value: serde_json::Value =
-                    row.try_get("projection").map_err(|_| PortError::Internal)?;
-                serde_json::from_value(value).map_err(|_| PortError::Internal)
-            })
-            .collect::<Result<Vec<ThreadProjection>, PortError>>()?;
+        {
+            return Err(PortError::Unavailable);
+        }
+        let authorized_count = u64::try_from(
+            first
+                .try_get::<i64, _>("authorized_count")
+                .map_err(|_| PortError::Internal)?,
+        )
+        .map_err(|_| PortError::Internal)?;
+        let mut items = Vec::with_capacity(rows.len());
+        for row in rows {
+            let thread_id: Option<uuid::Uuid> = row
+                .try_get("matched_thread_id")
+                .map_err(|_| PortError::Internal)?;
+            let value: Option<serde_json::Value> =
+                row.try_get("projection").map_err(|_| PortError::Internal)?;
+            match (thread_id, value) {
+                (None, None) => {}
+                (Some(thread_id), Some(value)) => {
+                    let projection = serde_json::from_value::<ThreadProjection>(value)
+                        .map_err(|_| PortError::Internal)?;
+                    if projection.id.as_uuid() != thread_id {
+                        return Err(PortError::Internal);
+                    }
+                    items.push(projection);
+                }
+                _ => return Err(PortError::Internal),
+            }
+        }
+        if u64::try_from(items.len()).map_err(|_| PortError::Internal)? > authorized_count {
+            return Err(PortError::Internal);
+        }
         let consumed = offset
             .checked_add(i64::try_from(items.len()).map_err(|_| PortError::Internal)?)
             .ok_or(PortError::Internal)?;

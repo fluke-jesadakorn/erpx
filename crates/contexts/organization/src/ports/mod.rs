@@ -98,6 +98,90 @@ pub trait AuthorizationPort: Send + Sync {
     async fn authorize(&self, request: AuthorizationRequest<'_>) -> Result<(), PortError>;
 }
 
+/// Resolves organization-aware scope containment. The target placement is
+/// supplied explicitly because an exact `Subtree` scope intentionally carries
+/// only its node identity, not mutable hierarchy metadata.
+#[async_trait]
+pub trait ScopeContainmentPort: Send + Sync {
+    async fn contains_node(
+        &self,
+        authority_scope: &AuthorityScope,
+        node_id: OrganizationNodeId,
+        placement: &OrganizationPlacement,
+    ) -> Result<bool, PortError>;
+
+    async fn contains_parent(
+        &self,
+        authority_scope: &AuthorityScope,
+        node_id: OrganizationNodeId,
+        placement: &OrganizationPlacement,
+    ) -> Result<bool, PortError>;
+
+    /// Bounded list authorization. SQL-backed implementations override this
+    /// to resolve the page in one request-local batch; the default preserves
+    /// the scalar contract for pure adapters and tests.
+    async fn contains_nodes(
+        &self,
+        authority_scope: &AuthorityScope,
+        nodes: &[(OrganizationNodeId, OrganizationPlacement)],
+    ) -> Result<Vec<bool>, PortError> {
+        let mut decisions = Vec::with_capacity(nodes.len());
+        for (node_id, placement) in nodes {
+            decisions.push(
+                self.contains_node(authority_scope, *node_id, placement)
+                    .await?,
+            );
+        }
+        Ok(decisions)
+    }
+}
+
+/// Pure containment for callers that already hold a trusted typed placement.
+/// SQL adapters may replace this with an implementation bound to the same
+/// authoritative hierarchy snapshot used by their read or write operation.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PlacementScopeContainment;
+
+#[async_trait]
+impl ScopeContainmentPort for PlacementScopeContainment {
+    async fn contains_node(
+        &self,
+        authority_scope: &AuthorityScope,
+        node_id: OrganizationNodeId,
+        placement: &OrganizationPlacement,
+    ) -> Result<bool, PortError> {
+        placement
+            .is_within_scope(node_id, authority_scope)
+            .map_err(|_| PortError::Denied)
+    }
+
+    async fn contains_parent(
+        &self,
+        authority_scope: &AuthorityScope,
+        node_id: OrganizationNodeId,
+        placement: &OrganizationPlacement,
+    ) -> Result<bool, PortError> {
+        if matches!(placement, OrganizationPlacement::Holding) {
+            placement
+                .validate_for(node_id)
+                .map_err(|_| PortError::Denied)?;
+            if authority_scope.validate().is_err() {
+                return Ok(false);
+            }
+            return Ok(match authority_scope {
+                AuthorityScope::Platform => true,
+                AuthorityScope::Holding { holding_id } => *holding_id == node_id.as_uuid(),
+                AuthorityScope::Company { .. }
+                | AuthorityScope::Branch { .. }
+                | AuthorityScope::Subtree { .. } => false,
+            });
+        }
+        placement
+            .is_parent_within_scope(node_id, authority_scope)
+            .map_err(|_| PortError::Denied)
+    }
+}
+
 #[async_trait]
 pub trait EntitlementPort: Send + Sync {
     async fn ensure_organization_enabled(
@@ -143,6 +227,7 @@ pub trait WriteRepository: Send + Sync {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HierarchyGuard {
     Placement(OrganizationPlacement),
+    ReparentPlacement(OrganizationPlacement),
     NoActiveChildren,
 }
 
@@ -290,6 +375,8 @@ pub enum PortError {
     HierarchyCycle,
     #[error("organization node has active children and cannot be archived")]
     ActiveChildren,
+    #[error("organization node has children and cannot be reparented")]
+    ReparentBlockedByChildren,
     #[error("organization aggregate version conflict (expected {expected}, actual {actual})")]
     Conflict { expected: u64, actual: u64 },
     #[error("idempotency identity was reused for a different command")]

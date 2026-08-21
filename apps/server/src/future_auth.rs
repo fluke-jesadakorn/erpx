@@ -4,8 +4,11 @@
 //! plane lookup. Request scopes are treated only as presented claims and are
 //! rebound to the active role and authoritative control-plane holding route.
 
+use chrono::{DateTime, Utc};
 use erpx_infrastructure::RoutedDatabaseSide;
-use erpx_kernel::{ActorAttribution, ActorKind, AuthorityScope, HoldingId, PrincipalId, SessionId};
+use erpx_kernel::{
+    ActorAttribution, AuthorityScope, HoldingId, HumanDecisionProof, PrincipalId, SessionId,
+};
 use erpx_proto::common as wire;
 use sqlx::PgPool;
 use tonic::{Request, Status, metadata::MetadataMap};
@@ -17,6 +20,10 @@ use crate::{AppState, boundary};
 
 #[derive(Debug, Clone)]
 pub(crate) struct FutureInvocation {
+    /// Trusted attribution returned by the authenticated holding boundary.
+    /// Future owner transports must retain this value through decision
+    /// commands instead of reducing the caller to an opaque UUID.
+    pub actor: ActorAttribution,
     pub principal_id: PrincipalId,
     pub holding_id: HoldingId,
     pub scope: AuthorityScope,
@@ -109,11 +116,7 @@ async fn authorize_presented_context(
         .map_err(|_| Status::internal("authenticated session attribution is invalid"))?;
     let presented_actor = ActorAttribution {
         principal_ref: claims.principal_ref.clone(),
-        kind: match claims.principal_kind {
-            erpx_identity::AuthenticatedPrincipalKind::Human => ActorKind::HoldingUser,
-            erpx_identity::AuthenticatedPrincipalKind::Agent
-            | erpx_identity::AuthenticatedPrincipalKind::Service => ActorKind::Service,
-        },
+        kind: crate::auth_actor::kernel_actor_kind(claims),
         session_id: Some(session_id),
         represented_principal_ref: None,
         support_capability_id: None,
@@ -143,6 +146,7 @@ async fn authorize_presented_context(
     let holding_id = HoldingId::try_from_uuid(holding_uuid)
         .map_err(|_| Status::failed_precondition("holding binding is invalid"))?;
     Ok(FutureInvocation {
+        actor,
         principal_id,
         holding_id,
         scope,
@@ -169,6 +173,24 @@ pub(crate) async fn pool(
         .await
         .map(|route| route.database_pool().clone())
         .map_err(|_| Status::unavailable("future-context storage is unavailable"))
+}
+
+/// Transitional transport guard for future-context decisions. Owner contexts
+/// must ultimately accept this proof directly; retaining it here prevents an
+/// authenticated Agent or Service invocation from being reduced to a UUID and
+/// treated as a human in the meantime.
+pub(crate) fn human_decision(
+    invocation: &FutureInvocation,
+    decision_ref: impl Into<String>,
+    decided_at: DateTime<Utc>,
+) -> Result<HumanDecisionProof, Status> {
+    HumanDecisionProof::try_new(
+        invocation.actor.clone(),
+        invocation.scope.clone(),
+        decision_ref,
+        decided_at,
+    )
+    .map_err(|_| Status::permission_denied("this decision requires an authenticated human"))
 }
 
 fn decode_scope(scope: Option<&wire::AuthorityScope>) -> Result<AuthorityScope, Status> {
@@ -208,6 +230,33 @@ fn decode_scope(scope: Option<&wire::AuthorityScope>) -> Result<AuthorityScope, 
 mod tests {
     use super::*;
 
+    fn invocation(kind: erpx_kernel::ActorKind) -> FutureInvocation {
+        let principal_uuid = Uuid::from_u128(10);
+        let holding_uuid = Uuid::from_u128(20);
+        FutureInvocation {
+            actor: ActorAttribution {
+                principal_ref: principal_uuid.to_string(),
+                kind,
+                session_id: Some(SessionId::try_from_uuid(Uuid::from_u128(30)).unwrap()),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            principal_id: PrincipalId::try_from_uuid(principal_uuid).unwrap(),
+            holding_id: HoldingId::try_from_uuid(holding_uuid).unwrap(),
+            scope: AuthorityScope::Holding {
+                holding_id: holding_uuid,
+            },
+            workspace: ResolvedHoldingWorkspace {
+                customer_id: Uuid::from_u128(40),
+                holding_id: holding_uuid.to_string(),
+                data_profile_key: "future-auth-test".into(),
+                canonical_holding_id: holding_uuid,
+                subscription_id: None,
+            },
+            realm: erpx_identity::AuthenticatedRealm::InternalWorkforce,
+        }
+    }
+
     #[test]
     fn holding_scope_decoder_rejects_nil_and_malformed_identifiers() {
         let nil = wire::AuthorityScope {
@@ -228,5 +277,30 @@ mod tests {
             decode_scope(Some(&malformed)).unwrap_err().code(),
             tonic::Code::InvalidArgument
         );
+    }
+
+    #[test]
+    fn future_decision_evidence_rejects_agent_and_service_attribution() {
+        let at = Utc::now();
+        assert!(
+            human_decision(
+                &invocation(erpx_kernel::ActorKind::HoldingUser),
+                "future.test.approve",
+                at,
+            )
+            .is_ok()
+        );
+        for kind in [
+            erpx_kernel::ActorKind::Agent,
+            erpx_kernel::ActorKind::Service,
+            erpx_kernel::ActorKind::SystemWorker,
+        ] {
+            assert_eq!(
+                human_decision(&invocation(kind), "future.test.approve", at)
+                    .unwrap_err()
+                    .code(),
+                tonic::Code::PermissionDenied
+            );
+        }
     }
 }

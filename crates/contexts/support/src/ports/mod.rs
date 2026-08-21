@@ -7,6 +7,7 @@ use erpx_cqrs::{
 use erpx_integration_contracts::{customer, identity_access, support};
 use erpx_kernel::{
     ActorAttribution, AggregateId, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
+    HumanDecisionProof,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -221,6 +222,9 @@ pub struct SupportCommit {
     pub actor: ActorAttribution,
     pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
+    /// Exact authenticated-human evidence for human-only decisions. It is
+    /// absent for commands that are not human decisions.
+    pub human_decision: Option<HumanDecisionProof>,
     pub expected_version: Option<u64>,
     /// A create derived from another aggregate (session from ticket,
     /// capability from session) carries this optimistic guard in the same

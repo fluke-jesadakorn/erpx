@@ -5,7 +5,10 @@ use erpx_cqrs::{
     QueryMetadata, QueryResult,
 };
 use erpx_integration_contracts::{RecordRef, finance, procurement, sales};
-use erpx_kernel::{AuthorityScope, Clock, CorrelationId, ErrorCategory, ErrorContext, KernelError};
+use erpx_kernel::{
+    AuthorityScope, Clock, CommandId, CorrelationId, ErrorCategory, ErrorContext,
+    HumanDecisionProof, KernelError,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -14,6 +17,7 @@ use crate::{
         Account, AccountId, AccountStatus, AccountingPeriod, Chart, ChartId, CustomerInvoice,
         CustomerInvoiceId, FinanceAggregate, FinanceDomainError, Journal, JournalId, JournalLine,
         JournalSource, PeriodId, RevenueSchedule, RevenueScheduleId, SubledgerId, SubledgerItem,
+        journal_post_decision_ref,
     },
     integration,
     ports::{
@@ -192,6 +196,26 @@ impl FinanceCommand {
                 | Self::CreateReceivableFromInvoice(_)
                 | Self::CreatePayableFromProcurement(_)
         )
+    }
+
+    const fn requires_preload_human_decision(&self) -> bool {
+        matches!(
+            self,
+            Self::ClosePeriod(_)
+                | Self::ReopenPeriod(_)
+                | Self::PostJournal(_)
+                | Self::PostCustomerInvoice(_)
+        )
+    }
+
+    fn human_decision_ref(&self, command_id: CommandId) -> Option<String> {
+        if !self.requires_preload_human_decision() {
+            return None;
+        }
+        Some(match self {
+            Self::PostJournal(value) => journal_post_decision_ref(command_id, value.journal_id),
+            _ => command_id.to_string(),
+        })
     }
 
     fn fingerprint(&self) -> CommandFingerprint {
@@ -444,6 +468,8 @@ pub enum FinanceApplicationError {
     InvalidPageSize,
     #[error("Finance integration event mapping failed")]
     IntegrationMapping,
+    #[error("Finance decision requires a directly authenticated human")]
+    HumanDecisionRequired,
     #[error(transparent)]
     Port(#[from] PortError),
 }
@@ -565,6 +591,26 @@ where
             idempotency_key: envelope.idempotency_key.clone(),
             fingerprint: envelope.command.fingerprint(),
         };
+        // Every human-only Finance decision is bound before idempotency replay
+        // or aggregate access, including journal posting.
+        let command_decision_ref = envelope.command.human_decision_ref(envelope.command_id);
+        let command_decision_at = command_decision_ref.as_ref().map(|_| self.clock.now());
+        let mut command_decision = if let Some(decided_at) = command_decision_at {
+            Some(
+                HumanDecisionProof::try_new(
+                    envelope.actor.clone(),
+                    envelope.active_scope.clone(),
+                    command_decision_ref
+                        .expect("preloaded Finance decision has an exact reference"),
+                    decided_at,
+                )
+                .map_err(|_| {
+                    to_cqrs(FinanceApplicationError::HumanDecisionRequired, correlation)
+                })?,
+            )
+        } else {
+            None
+        };
         if let Some(stored) = self
             .replay(&identity, &envelope.actor, &envelope.active_scope, action)
             .await
@@ -579,7 +625,7 @@ where
                 correlation,
             ));
         }
-        let at = self.clock.now();
+        let at = command_decision_at.unwrap_or_else(|| self.clock.now());
         let actor_ref = envelope.actor.principal_ref.as_str();
         let mut reference_versions = Vec::new();
         let (mut aggregate, expected_version) = match envelope.command {
@@ -715,8 +761,11 @@ where
                 let FinanceAggregate::Period(period) = &mut value else {
                     unreachable!()
                 };
+                let decision = command_decision.take().ok_or_else(|| {
+                    to_cqrs(FinanceApplicationError::HumanDecisionRequired, correlation)
+                })?;
                 period
-                    .close(actor_ref, at)
+                    .close_with_decision(decision, identity.command_id, at)
                     .map_err(|e| to_cqrs(e.into(), correlation))?;
                 (value, Some(expected))
             }
@@ -741,8 +790,11 @@ where
                 let FinanceAggregate::Period(period) = &mut value else {
                     unreachable!()
                 };
+                let decision = command_decision.take().ok_or_else(|| {
+                    to_cqrs(FinanceApplicationError::HumanDecisionRequired, correlation)
+                })?;
                 period
-                    .reopen(actor_ref, at)
+                    .reopen_with_decision(decision, identity.command_id, at)
                     .map_err(|e| to_cqrs(e.into(), correlation))?;
                 (value, Some(expected))
             }
@@ -771,6 +823,9 @@ where
                 )
             }
             FinanceCommand::PostJournal(v) => {
+                let human_decision = command_decision.take().ok_or_else(|| {
+                    to_cqrs(FinanceApplicationError::HumanDecisionRequired, correlation)
+                })?;
                 let journal = self
                     .write
                     .load_journal(&envelope.active_scope, v.journal_id)
@@ -812,7 +867,7 @@ where
                     unreachable!()
                 };
                 journal
-                    .post(&chart, &period, at)
+                    .post(&chart, &period, &human_decision, identity.command_id, at)
                     .map_err(|e| to_cqrs(e.into(), correlation))?;
                 reference_versions.push(ReferenceVersion {
                     aggregate_type: "chart",
@@ -868,8 +923,12 @@ where
                 let FinanceAggregate::CustomerInvoice(invoice) = &mut value else {
                     unreachable!()
                 };
+                let decision = command_decision.take().ok_or_else(|| {
+                    to_cqrs(FinanceApplicationError::HumanDecisionRequired, correlation)
+                })?;
+                let source = invoice.source().clone();
                 invoice
-                    .post(actor_ref, at)
+                    .post_with_decision(decision, identity.command_id, &source, at)
                     .map_err(|e| to_cqrs(e.into(), correlation))?;
                 (value, Some(expected))
             }
@@ -1279,6 +1338,7 @@ fn to_cqrs(error: FinanceApplicationError, correlation_id: CorrelationId) -> Cqr
             false,
         ),
         FinanceApplicationError::ScopeOutsideAuthority
+        | FinanceApplicationError::HumanDecisionRequired
         | FinanceApplicationError::Port(PortError::Denied)
         | FinanceApplicationError::Port(PortError::EntitlementDenied) => (
             "finance.denied",

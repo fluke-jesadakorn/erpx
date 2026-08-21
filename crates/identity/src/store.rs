@@ -22,7 +22,8 @@ use crate::totp::{
     KeyResolver, TotpEnrollmentStart, TotpSecret, TotpSecretEnvelope, validate_enrollment_lifetime,
 };
 use crate::{
-    AccessToken, AccessTokenClaims, AccessTokenLifetime, AccessTokenSigner, ActiveRoleClaim,
+    AccessToken, AccessTokenClaims, AccessTokenIssueWindow, AccessTokenLifetime, AccessTokenSigner,
+    ActiveRoleClaim, AuthenticatedAuthority, AuthenticatedPrincipalKind, AuthenticatedRealm,
     DEVELOPMENT_CLUSTER_MARKER, DEVELOPMENT_CONTROLLER_READ_PERMISSIONS, DirectoryRoleTargetScope,
     IdentityError, PasswordService, RecoveryCodeBatch, RecoveryCodeSet, RecoverySession,
     RefreshRotationOutcome, SessionRecord, SessionService, TokenHash, decrypt_totp_secret,
@@ -628,21 +629,44 @@ impl SqlxIdentityStore {
         password: &str,
         at: DateTime<Utc>,
     ) -> Result<Uuid, IdentityStoreError> {
+        self.create_principal_with_password_and_authority(
+            principal_ref,
+            password,
+            AuthenticatedAuthority::legacy_human(),
+            at,
+        )
+        .await
+    }
+
+    /// Authority-aware provisioning primitive. New non-human principals must
+    /// use this path so their realm and kind are never inferred from a login
+    /// method or silently replaced with the legacy human authority.
+    pub async fn create_principal_with_password_and_authority(
+        &self,
+        principal_ref: &str,
+        password: &str,
+        authority: AuthenticatedAuthority,
+        at: DateTime<Utc>,
+    ) -> Result<Uuid, IdentityStoreError> {
         if principal_ref.trim().is_empty() {
             return Err(IdentityStoreError::Primitive(
                 IdentityError::InvalidIdentityReference,
             ));
         }
+        let authority = authority.validate()?;
         let id = Uuid::new_v4();
         let digest = PasswordService::default().hash(password)?;
         let mut transaction = self.pool.begin().await?;
         sqlx::query(
             "INSERT INTO erpx_identity.principals
-                (id, principal_ref, status, created_at, updated_at)
-             VALUES ($1, $2, 'active', $3, $3)",
+                (id, principal_ref, status, authenticated_realm, principal_kind,
+                 created_at, updated_at)
+             VALUES ($1, $2, 'active', $3, $4, $5, $5)",
         )
         .bind(id)
         .bind(principal_ref)
+        .bind(authority_realm_name(authority.realm))
+        .bind(authority_kind_name(authority.principal_kind))
         .bind(at)
         .execute(&mut *transaction)
         .await?;
@@ -719,7 +743,8 @@ impl SqlxIdentityStore {
         at: DateTime<Utc>,
     ) -> Result<crate::IssuedSession, IdentityStoreError> {
         let row = sqlx::query(
-            "SELECT p.id, p.status, pc.argon2id_digest
+            "SELECT p.id, p.status, p.authenticated_realm, p.principal_kind,
+                    pc.argon2id_digest
              FROM erpx_identity.principals p
              JOIN erpx_identity.password_credentials pc ON pc.principal_id = p.id
              WHERE p.principal_ref = $1
@@ -749,11 +774,13 @@ impl SqlxIdentityStore {
             ));
         }
         let principal_id: Uuid = row.try_get("id")?;
+        let authority = authority_from_row(&row, "authenticated_realm", "principal_kind")?;
         let device_id = Uuid::new_v4();
         let service = SessionService::new(signer.clone(), REFRESH_LIFETIME)?;
-        let issued = service.issue(
+        let issued = service.issue_with_authority(
             principal_ref,
             device_id,
+            authority,
             at,
             AccessTokenLifetime::five_minutes(),
         )?;
@@ -794,6 +821,7 @@ impl SqlxIdentityStore {
         let mut transaction = self.pool.begin().await?;
         let row = sqlx::query(
             "SELECT binding.principal_id, principal.principal_ref, principal.status,
+                    principal.authenticated_realm, principal.principal_kind,
                     l.external_object_id, l.active, l.revoked_at,
                     l.immutable_authority, l.immutable_value
              FROM erpx_identity.directory_identity_links l
@@ -824,6 +852,7 @@ impl SqlxIdentityStore {
         }
         let principal_id: Uuid = row.try_get("principal_id")?;
         let principal_ref: String = row.try_get("principal_ref")?;
+        let authority = authority_from_row(&row, "authenticated_realm", "principal_kind")?;
         let immutable_authority: String = row.try_get("immutable_authority")?;
         let immutable_value: String = row.try_get("immutable_value")?;
         let canonical_link = ImmutableIdentityLink::new(immutable_authority, immutable_value)
@@ -890,9 +919,10 @@ impl SqlxIdentityStore {
         .execute(&mut *transaction)
         .await?;
         let service = SessionService::new(signer.clone(), REFRESH_LIFETIME)?;
-        let issued = service.issue(
+        let issued = service.issue_with_authority(
             principal_ref.clone(),
             device_id,
+            authority,
             at,
             AccessTokenLifetime::five_minutes(),
         )?;
@@ -939,7 +969,7 @@ impl SqlxIdentityStore {
         validate_device_label(device_label)?;
         let mut transaction = self.pool.begin().await?;
         let row = sqlx::query(
-            "SELECT id, status
+            "SELECT id, status, authenticated_realm, principal_kind
              FROM erpx_identity.principals p
              WHERE p.principal_ref = $1
                AND NOT EXISTS (
@@ -958,11 +988,13 @@ impl SqlxIdentityStore {
             return Err(IdentityStoreError::PrincipalInactive);
         }
         let principal_id: Uuid = row.try_get("id")?;
+        let authority = authority_from_row(&row, "authenticated_realm", "principal_kind")?;
         let device_id = Uuid::new_v4();
         let service = SessionService::new(signer.clone(), REFRESH_LIFETIME)?;
-        let issued = service.issue(
+        let issued = service.issue_with_authority(
             principal_ref,
             device_id,
+            authority,
             at,
             AccessTokenLifetime::five_minutes(),
         )?;
@@ -995,6 +1027,10 @@ impl SqlxIdentityStore {
                     s.refresh_token_hash, s.issued_at, s.refresh_expires_at,
                     s.revoked_at, s.last_used_at, s.active_role_source,
                     s.active_role_selection_id, s.authorization_context_version,
+                    s.authenticated_realm AS session_authenticated_realm,
+                    s.principal_kind AS session_principal_kind,
+                    p.authenticated_realm AS principal_authenticated_realm,
+                    p.principal_kind AS principal_principal_kind,
                     d.revoked_at AS device_revoked_at
              FROM erpx_identity.sessions s
              JOIN erpx_identity.principals p ON p.id = s.principal_id
@@ -1015,6 +1051,19 @@ impl SqlxIdentityStore {
         {
             return Err(IdentityStoreError::DeviceRevoked);
         }
+        let session_authority = authority_from_row(
+            &row,
+            "session_authenticated_realm",
+            "session_principal_kind",
+        )?;
+        let principal_authority = authority_from_row(
+            &row,
+            "principal_authenticated_realm",
+            "principal_principal_kind",
+        )?;
+        if session_authority != principal_authority {
+            return Err(IdentityStoreError::SessionInactive);
+        }
         let record = SessionRecord::from_persisted(PersistedSession {
             id: row.try_get("id")?,
             principal_ref: row.try_get("principal_ref")?,
@@ -1034,6 +1083,7 @@ impl SqlxIdentityStore {
             .map_err(|_| {
                 IdentityStoreError::InvalidRecord("authorization context version is invalid".into())
             })?,
+            authority: session_authority,
         })?;
         let service = SessionService::new(signer.clone(), REFRESH_LIFETIME)?;
         let outcome = service.rotate_refresh(&record, presented_refresh_token, at)?;
@@ -1079,7 +1129,11 @@ impl SqlxIdentityStore {
         let claims = signer.verify(token, at)?;
         let row = sqlx::query(
             "SELECT s.active_role_source, s.active_role_selection_id,
-                    s.authorization_context_version
+                    s.authorization_context_version,
+                    s.authenticated_realm AS session_authenticated_realm,
+                    s.principal_kind AS session_principal_kind,
+                    p.authenticated_realm AS principal_authenticated_realm,
+                    p.principal_kind AS principal_principal_kind
              FROM erpx_identity.sessions s
              JOIN erpx_identity.principals p ON p.id = s.principal_id
              JOIN erpx_identity.devices d ON d.id = s.device_id
@@ -1103,6 +1157,16 @@ impl SqlxIdentityStore {
             .map_err(|_| {
                 IdentityStoreError::InvalidRecord("authorization context version is invalid".into())
             })?;
+        let session_authority = authority_from_row(
+            &row,
+            "session_authenticated_realm",
+            "session_principal_kind",
+        )?;
+        let principal_authority = authority_from_row(
+            &row,
+            "principal_authenticated_realm",
+            "principal_principal_kind",
+        )?;
         let persisted_role = source.zip(selection_id);
         let claimed_role = claims
             .active_role
@@ -1115,7 +1179,10 @@ impl SqlxIdentityStore {
             // boundary rejects its missing claim.
             None => persisted_role.is_none() && claimed_role.is_none(),
         };
-        if !context_matches {
+        if !context_matches
+            || session_authority != principal_authority
+            || claims.authority() != session_authority
+        {
             return Err(IdentityStoreError::SessionInactive);
         }
         Ok(claims)
@@ -1177,7 +1244,11 @@ impl SqlxIdentityStore {
         let mut transaction = self.pool.begin().await?;
         let row = sqlx::query(
             "SELECT s.active_role_source, s.active_role_selection_id,
-                    s.authorization_context_version
+                    s.authorization_context_version,
+                    s.authenticated_realm AS session_authenticated_realm,
+                    s.principal_kind AS session_principal_kind,
+                    p.authenticated_realm AS principal_authenticated_realm,
+                    p.principal_kind AS principal_principal_kind
              FROM erpx_identity.sessions s
              JOIN erpx_identity.principals p ON p.id=s.principal_id
              JOIN erpx_identity.devices d ON d.id=s.device_id
@@ -1195,6 +1266,19 @@ impl SqlxIdentityStore {
         let previous_source: Option<String> = row.try_get("active_role_source")?;
         let previous_selection: Option<String> = row.try_get("active_role_selection_id")?;
         let current_version: i64 = row.try_get("authorization_context_version")?;
+        let session_authority = authority_from_row(
+            &row,
+            "session_authenticated_realm",
+            "session_principal_kind",
+        )?;
+        let principal_authority = authority_from_row(
+            &row,
+            "principal_authenticated_realm",
+            "principal_principal_kind",
+        )?;
+        if session_authority != principal_authority {
+            return Err(IdentityStoreError::SessionInactive);
+        }
         let next_version = current_version.checked_add(1).ok_or_else(|| {
             IdentityStoreError::InvalidRecord("authorization context version overflow".into())
         })?;
@@ -1239,7 +1323,7 @@ impl SqlxIdentityStore {
         let version = u64::try_from(next_version).map_err(|_| {
             IdentityStoreError::InvalidRecord("authorization context version is invalid".into())
         })?;
-        let token = signer.issue_with_context(
+        let token = signer.issue_with_authority(
             principal_ref,
             session_id,
             Some(ActiveRoleClaim {
@@ -1247,8 +1331,8 @@ impl SqlxIdentityStore {
                 selection_id: option.selection_id.clone(),
             }),
             Some(version),
-            at,
-            AccessTokenLifetime::five_minutes(),
+            session_authority,
+            AccessTokenIssueWindow::new(at, AccessTokenLifetime::five_minutes()),
         )?;
         Ok((option, token))
     }
@@ -2598,7 +2682,8 @@ impl SqlxIdentityStore {
         let mut transaction = self.pool.begin().await?;
         let row = sqlx::query(
             "SELECT rs.id, rs.issued_at, rs.expires_at, rs.consumed_at,
-                    p.id AS principal_id, p.principal_ref, p.status
+                    p.id AS principal_id, p.principal_ref, p.status,
+                    p.authenticated_realm, p.principal_kind
              FROM erpx_identity.recovery_sessions rs
              JOIN erpx_identity.principals p ON p.id = rs.principal_id
              WHERE rs.token_hash = $1
@@ -2626,11 +2711,13 @@ impl SqlxIdentityStore {
         }
         let principal_id: Uuid = row.try_get("principal_id")?;
         let principal_ref: String = row.try_get("principal_ref")?;
+        let authority = authority_from_row(&row, "authenticated_realm", "principal_kind")?;
         let device_id = Uuid::new_v4();
         let service = SessionService::new(signer.clone(), REFRESH_LIFETIME)?;
-        let issued = service.issue(
+        let issued = service.issue_with_authority(
             principal_ref,
             device_id,
+            authority,
             at,
             AccessTokenLifetime::five_minutes(),
         )?;
@@ -2701,7 +2788,8 @@ impl SqlxIdentityStore {
         let mut transaction = self.pool.begin().await?;
         let row = sqlx::query(
             "SELECT rs.issued_at, rs.expires_at, rs.consumed_at,
-                    p.id AS principal_id, p.principal_ref, p.status
+                    p.id AS principal_id, p.principal_ref, p.status,
+                    p.authenticated_realm, p.principal_kind
              FROM erpx_identity.recovery_sessions rs
              JOIN erpx_identity.principals p ON p.id = rs.principal_id
              WHERE rs.token_hash = $1
@@ -2729,11 +2817,13 @@ impl SqlxIdentityStore {
         }
         let principal_id: Uuid = row.try_get("principal_id")?;
         let principal_ref: String = row.try_get("principal_ref")?;
+        let authority = authority_from_row(&row, "authenticated_realm", "principal_kind")?;
         let device_id = Uuid::new_v4();
         let service = SessionService::new(signer.clone(), REFRESH_LIFETIME)?;
-        let issued = service.issue(
+        let issued = service.issue_with_authority(
             principal_ref,
             device_id,
+            authority,
             at,
             AccessTokenLifetime::five_minutes(),
         )?;
@@ -3889,6 +3979,62 @@ fn validate_password_input(password: &str) -> Result<(), IdentityStoreError> {
     Ok(())
 }
 
+fn authority_from_row(
+    row: &sqlx::postgres::PgRow,
+    realm_column: &str,
+    kind_column: &str,
+) -> Result<AuthenticatedAuthority, IdentityStoreError> {
+    let realm: String = row.try_get(realm_column)?;
+    let kind: String = row.try_get(kind_column)?;
+    let authority = AuthenticatedAuthority {
+        realm: match realm.as_str() {
+            "internal_workforce" => AuthenticatedRealm::InternalWorkforce,
+            "platform_administration" => AuthenticatedRealm::PlatformAdministration,
+            "customer_portal" => AuthenticatedRealm::CustomerPortal,
+            "supplier_portal" => AuthenticatedRealm::SupplierPortal,
+            "commerce_portal" => AuthenticatedRealm::CommercePortal,
+            "candidate_portal" => AuthenticatedRealm::CandidatePortal,
+            "signatory_portal" => AuthenticatedRealm::SignatoryPortal,
+            _ => {
+                return Err(IdentityStoreError::InvalidRecord(
+                    "authenticated realm is invalid".into(),
+                ));
+            }
+        },
+        principal_kind: match kind.as_str() {
+            "human" => AuthenticatedPrincipalKind::Human,
+            "agent" => AuthenticatedPrincipalKind::Agent,
+            "service" => AuthenticatedPrincipalKind::Service,
+            _ => {
+                return Err(IdentityStoreError::InvalidRecord(
+                    "authenticated principal kind is invalid".into(),
+                ));
+            }
+        },
+    };
+    authority.validate().map_err(IdentityStoreError::from)
+}
+
+const fn authority_realm_name(realm: AuthenticatedRealm) -> &'static str {
+    match realm {
+        AuthenticatedRealm::InternalWorkforce => "internal_workforce",
+        AuthenticatedRealm::PlatformAdministration => "platform_administration",
+        AuthenticatedRealm::CustomerPortal => "customer_portal",
+        AuthenticatedRealm::SupplierPortal => "supplier_portal",
+        AuthenticatedRealm::CommercePortal => "commerce_portal",
+        AuthenticatedRealm::CandidatePortal => "candidate_portal",
+        AuthenticatedRealm::SignatoryPortal => "signatory_portal",
+    }
+}
+
+const fn authority_kind_name(kind: AuthenticatedPrincipalKind) -> &'static str {
+    match kind {
+        AuthenticatedPrincipalKind::Human => "human",
+        AuthenticatedPrincipalKind::Agent => "agent",
+        AuthenticatedPrincipalKind::Service => "service",
+    }
+}
+
 async fn insert_session_in_transaction(
     transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     principal_id: Uuid,
@@ -3899,8 +4045,8 @@ async fn insert_session_in_transaction(
             (id, principal_id, device_id, refresh_token_hash, issued_at,
              refresh_expires_at, revoked_at, last_used_at,
              active_role_source, active_role_selection_id,
-             authorization_context_version)
-         VALUES ($1, $2, $3, $4, $5, $6, NULL, $7, NULL, NULL, $8)",
+             authorization_context_version, authenticated_realm, principal_kind)
+         VALUES ($1, $2, $3, $4, $5, $6, NULL, $7, NULL, NULL, $8, $9, $10)",
     )
     .bind(issued.record().id())
     .bind(principal_id)
@@ -3914,6 +4060,10 @@ async fn insert_session_in_transaction(
             IdentityStoreError::InvalidRecord("authorization context version is too large".into())
         })?,
     )
+    .bind(authority_realm_name(issued.record().authority().realm))
+    .bind(authority_kind_name(
+        issued.record().authority().principal_kind,
+    ))
     .execute(&mut **transaction)
     .await?;
     Ok(())

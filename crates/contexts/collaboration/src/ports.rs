@@ -1,9 +1,13 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_integration_contracts::StableRecordRef;
-use erpx_kernel::{AuthorityScope, CommandId, CorrelationId, HoldingId, PrincipalId, RecordId};
+use erpx_kernel::{
+    ActorAttribution, ActorKind, AuthorityScope, CommandId, CorrelationId, HoldingId, PrincipalId,
+    PrincipalKind, RecordId,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use uuid::Uuid;
 
 use crate::domain::{
     Audience, CollaborationStreamEvent, CommentDocument, CommentId, CommentVisibility,
@@ -34,6 +38,9 @@ pub struct ActorContext {
     pub holding_id: HoldingId,
     pub principal: PrincipalRef,
     pub authority_scope: AuthorityScope,
+    /// Trusted attribution constructed from authenticated session claims at the
+    /// transport boundary. Payload principals are never copied into this field.
+    pub attribution: ActorAttribution,
     pub external_portal: Option<crate::domain::ExternalPortal>,
 }
 
@@ -41,7 +48,24 @@ impl ActorContext {
     pub fn validate(&self) -> Result<(), PortError> {
         self.authority_scope
             .validate()
-            .map_err(|_| PortError::Denied)
+            .map_err(|_| PortError::Denied)?;
+        self.attribution.validate().map_err(|_| PortError::Denied)?;
+        let attributed_principal = Uuid::parse_str(&self.attribution.principal_ref)
+            .ok()
+            .and_then(|value| PrincipalId::try_from_uuid(value).ok())
+            .ok_or(PortError::Denied)?;
+        let attributed_kind = match self.attribution.kind {
+            ActorKind::PlatformUser | ActorKind::HoldingUser => PrincipalKind::Human,
+            ActorKind::Agent => PrincipalKind::Agent,
+            ActorKind::Service | ActorKind::SystemWorker => PrincipalKind::Service,
+        };
+        if self.attribution.session_id.is_none()
+            || attributed_principal != self.principal.id()
+            || attributed_kind != self.principal.kind()
+        {
+            return Err(PortError::Denied);
+        }
+        Ok(())
     }
 }
 
@@ -63,6 +87,7 @@ pub enum CollaborationAction {
     Moderate,
     Promote,
     ProposeAction,
+    ConfirmAction,
     ManageDraft,
     ReadStream,
     ReadInbox,
@@ -76,6 +101,10 @@ pub struct AuthorizedThreadAccess {
     thread_id: ThreadId,
     anchor_record_id: RecordId,
     authority_scope: AuthorityScope,
+    /// Exact thread visibility scope proven by the authorization adapter.
+    /// Repositories compare this witness to persisted policy instead of
+    /// attempting hierarchy containment without Organization lineage.
+    visibility_scope: AuthorityScope,
     actor: PrincipalRef,
     external_portal: Option<crate::domain::ExternalPortal>,
     action: CollaborationAction,
@@ -88,16 +117,19 @@ impl AuthorizedThreadAccess {
         thread_id: ThreadId,
         anchor_record_id: RecordId,
         authority_scope: AuthorityScope,
+        visibility_scope: AuthorityScope,
         actor: PrincipalRef,
         external_portal: Option<crate::domain::ExternalPortal>,
         action: CollaborationAction,
     ) -> Result<Self, PortError> {
         authority_scope.validate().map_err(|_| PortError::Denied)?;
+        visibility_scope.validate().map_err(|_| PortError::Denied)?;
         Ok(Self {
             holding_id,
             thread_id,
             anchor_record_id,
             authority_scope,
+            visibility_scope,
             actor,
             external_portal,
             action,
@@ -115,6 +147,9 @@ impl AuthorizedThreadAccess {
     }
     pub const fn authority_scope(&self) -> &AuthorityScope {
         &self.authority_scope
+    }
+    pub const fn visibility_scope(&self) -> &AuthorityScope {
+        &self.visibility_scope
     }
     pub const fn actor(&self) -> PrincipalRef {
         self.actor

@@ -78,6 +78,60 @@ CREATE TABLE IF NOT EXISTS erpx_cqrs_write.outbox_events (
     UNIQUE (holding_id, event_id)
 );
 
+-- A projection cursor needs commit order, while BIGSERIAL alone supplies only
+-- allocation order. Acquire the holding-local transaction lock before nextval;
+-- it remains held until commit and applies to direct INSERT producers as well
+-- as the shared command adapter. The trigger owns allocation and rejects an
+-- explicitly supplied sequence; ALTER keeps this contract effective when the
+-- version-neutral DDL is reconciled against an existing table.
+CREATE OR REPLACE FUNCTION erpx_cqrs_write.lock_outbox_commit_order()
+RETURNS VOID
+LANGUAGE plpgsql
+VOLATILE
+AS $$
+DECLARE
+    bound_holding UUID := erpx_cqrs_write.current_holding_id();
+BEGIN
+    IF bound_holding IS NULL THEN
+        RAISE EXCEPTION 'holding authority is required for outbox sequence allocation'
+            USING ERRCODE = '42501';
+    END IF;
+    PERFORM pg_catalog.pg_advisory_xact_lock(
+        1163022424,
+        pg_catalog.hashtext(bound_holding::TEXT)
+    );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION erpx_cqrs_write.assign_outbox_global_sequence()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+VOLATILE
+AS $$
+BEGIN
+    IF NEW.global_sequence IS NOT NULL THEN
+        RAISE EXCEPTION 'global_sequence is database assigned'
+            USING ERRCODE = '22023';
+    END IF;
+    PERFORM erpx_cqrs_write.lock_outbox_commit_order();
+    NEW.global_sequence := pg_catalog.nextval(
+        'erpx_cqrs_write.outbox_events_global_sequence_seq'::REGCLASS
+    );
+    RETURN NEW;
+END;
+$$;
+
+ALTER TABLE erpx_cqrs_write.outbox_events
+    ALTER COLUMN global_sequence
+    DROP DEFAULT;
+
+DROP TRIGGER IF EXISTS cqrs_outbox_assign_global_sequence
+    ON erpx_cqrs_write.outbox_events;
+CREATE TRIGGER cqrs_outbox_assign_global_sequence
+BEFORE INSERT ON erpx_cqrs_write.outbox_events
+FOR EACH ROW
+EXECUTE FUNCTION erpx_cqrs_write.assign_outbox_global_sequence();
+
 CREATE INDEX IF NOT EXISTS cqrs_outbox_projection_source
     ON erpx_cqrs_write.outbox_events (holding_id, global_sequence)
     WHERE published_at IS NULL;

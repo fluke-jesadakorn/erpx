@@ -14,6 +14,7 @@ use erpx_domain::{
     data_plane::BusinessUnitId,
 };
 use erpx_identity::{
+    AuthenticatedAuthority, AuthenticatedPrincipalKind, AuthenticatedRealm,
     DEVELOPMENT_CLUSTER_MARKER, DEVELOPMENT_CONTROLLER_PRINCIPAL, DEVELOPMENT_CONTROLLER_ROLE,
     DEVELOPMENT_CONTROLLER_TARGET_HOLDING, DirectoryRoleTargetScope, SqlxIdentityStore,
     demo_personas, development_controller_permissions, permission_catalog, platform_personas,
@@ -727,17 +728,26 @@ async fn reconcile_controller_principal(
 ) -> TaskResult {
     let identity = SqlxIdentityStore::new(write.clone());
     let controller_password = fs::read_to_string(controller_password_path(root))?;
-    let controller_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM erpx_identity.principals WHERE principal_ref=$1)",
+    let controller_authority: Option<(String, String)> = sqlx::query_as(
+        "SELECT authenticated_realm, principal_kind
+         FROM erpx_identity.principals WHERE principal_ref=$1",
     )
     .bind(DEVELOPMENT_CONTROLLER_PRINCIPAL)
-    .fetch_one(write)
+    .fetch_optional(write)
     .await?;
-    if !controller_exists {
+    if let Some((realm, kind)) = controller_authority {
+        if realm != "platform_administration" || kind != "human" {
+            return Err("development controller authenticated authority is contradictory".into());
+        }
+    } else {
         identity
-            .create_principal_with_password(
+            .create_principal_with_password_and_authority(
                 DEVELOPMENT_CONTROLLER_PRINCIPAL,
                 controller_password.trim(),
+                AuthenticatedAuthority {
+                    realm: AuthenticatedRealm::PlatformAdministration,
+                    principal_kind: AuthenticatedPrincipalKind::Human,
+                },
                 now,
             )
             .await?;
@@ -864,7 +874,13 @@ async fn reconcile_persona_catalog(
         .reconcile_development_personas(&platform_personas, now)
         .await?;
     for persona in platform_personas {
-        ensure_principal(&write, &persona.principal_ref, now).await?;
+        ensure_principal(
+            &write,
+            &persona.principal_ref,
+            "platform_administration",
+            now,
+        )
+        .await?;
         let assignment_id = platform_assignment_id(&persona.role_key);
         let exists: bool = sqlx::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM erpx_control.role_assignments WHERE id=$1)",
@@ -924,7 +940,7 @@ async fn reconcile_persona_catalog(
             .reconcile_development_personas(&personas, now)
             .await?;
         for persona in personas {
-            ensure_principal(&write, &persona.principal_ref, now).await?;
+            ensure_principal(&write, &persona.principal_ref, "internal_workforce", now).await?;
             for (scope, scope_key) in
                 persona_assignment_scopes(&holding_id, &data_profile_key, &persona.role_key)
             {
@@ -1066,7 +1082,7 @@ pub(crate) async fn reconcile(root: &Path, config: &DevConfig) -> TaskResult {
             .await?;
         let holding_id = holding_holding_scope_id(&data_profile_key);
         for persona in personas {
-            ensure_principal(&write, &persona.principal_ref, now).await?;
+            ensure_principal(&write, &persona.principal_ref, "internal_workforce", now).await?;
             let assignment_id = Uuid::new_v5(
                 &Uuid::NAMESPACE_URL,
                 format!(
@@ -1483,7 +1499,7 @@ async fn insert_typed_organization_read_fixture(
     sqlx::query(
         "INSERT INTO erpx_organization_read.node_projection
             (holding_id,projection_name,generation,partition_key,node_id,source_aggregate_version,
-             source_global_sequence,node_kind,node_status,parent_node_id,active_scope,
+             source_global_sequence,node_kind,node_status,parent_node_id,holding_scope,
              scope_key,placement,node_code,display_name,state,aggregate_created_at,
              aggregate_updated_at,projected_at)
          VALUES ($1,'organization.nodes',$2,$3,$4,1,$5,$6,'active',$7,$8,$9,$10,$11,$12,$13,$14,$14,$14)
@@ -2805,19 +2821,36 @@ fn update_manifest_digest(digest: &mut Sha256, value: &str) {
 async fn ensure_principal(
     pool: &PgPool,
     principal_ref: &str,
+    authenticated_realm: &'static str,
     at: chrono::DateTime<Utc>,
 ) -> TaskResult {
     sqlx::query(
         "INSERT INTO erpx_identity.principals
-            (id, principal_ref, status, created_at, updated_at)
-         VALUES ($1,$2,'active',$3,$3)
-         ON CONFLICT (principal_ref) DO UPDATE SET status='active', updated_at=EXCLUDED.updated_at",
+            (id, principal_ref, status, authenticated_realm, principal_kind,
+             created_at, updated_at)
+         VALUES ($1,$2,'active',$3,'human',$4,$4)
+         ON CONFLICT (principal_ref) DO UPDATE
+             SET status='active', updated_at=EXCLUDED.updated_at",
     )
     .bind(Uuid::new_v4())
     .bind(principal_ref)
+    .bind(authenticated_realm)
     .bind(at)
     .execute(pool)
     .await?;
+    let stored: (String, String) = sqlx::query_as(
+        "SELECT authenticated_realm, principal_kind
+         FROM erpx_identity.principals WHERE principal_ref=$1",
+    )
+    .bind(principal_ref)
+    .fetch_one(pool)
+    .await?;
+    if stored.0 != authenticated_realm || stored.1 != "human" {
+        return Err(format!(
+            "development principal {principal_ref} authenticated authority is contradictory"
+        )
+        .into());
+    }
     Ok(())
 }
 
@@ -2883,6 +2916,20 @@ mod tests {
             writable_development_command_modules(assets_operator),
             ["assets"]
         );
+    }
+
+    #[test]
+    fn organization_fixture_insert_uses_the_current_projection_scope_column() {
+        let source = include_str!("dev_access.rs");
+        let insert = source
+            .split_once("INSERT INTO erpx_organization_read.node_projection")
+            .expect("organization fixture projection insert")
+            .1
+            .split_once("ON CONFLICT")
+            .expect("organization fixture projection upsert")
+            .0;
+        assert!(insert.contains("holding_scope"));
+        assert!(!insert.contains("active_scope"));
     }
 
     #[test]

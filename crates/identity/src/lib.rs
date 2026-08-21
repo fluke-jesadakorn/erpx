@@ -65,13 +65,14 @@ pub use directory::{
     DirectoryAuthPolicy, DirectoryAuthRequest, DirectoryChange, DirectoryConnector,
     DirectoryConnectorLifecycle, DirectoryConnectorReadinessSnapshot,
     DirectoryConnectorRuntimeSettings, DirectoryConnectorSnapshot, DirectoryError,
-    DirectoryFeedKind, DirectoryIdentityConflictSnapshot, DirectoryImportPlan,
-    DirectoryImportStatus, DirectoryPrincipalBindingSnapshot, DirectoryProvider,
-    DirectoryRevocationState, DirectoryRisk, DirectoryRoleAction, DirectoryRoleFact,
-    DirectoryRoleMapping, DirectoryScope, DirectorySupervisorClaim, DirectorySyncCursor,
-    DirectorySyncPage, DirectoryTlsMode, DirectoryTlsPolicy, DirectoryUser,
-    MAX_DIRECTORY_BATCH_SIZE, MAX_DIRECTORY_IMPORT_USERS, MAX_DIRECTORY_PAGE_SIZE,
-    SqlxDirectoryStore, directory_authority_key, immutable_identity_link,
+    DirectoryFeedKind, DirectoryIdentityConflictSnapshot, DirectoryIdentityReplacementDecision,
+    DirectoryIdentityReplacementDecisionAction, DirectoryImportPlan, DirectoryImportStatus,
+    DirectoryPrincipalBindingSnapshot, DirectoryProvider, DirectoryRevocationState, DirectoryRisk,
+    DirectoryRoleAction, DirectoryRoleFact, DirectoryRoleMapping, DirectoryScope,
+    DirectorySupervisorClaim, DirectorySyncCursor, DirectorySyncPage, DirectoryTlsMode,
+    DirectoryTlsPolicy, DirectoryUser, MAX_DIRECTORY_BATCH_SIZE, MAX_DIRECTORY_IMPORT_USERS,
+    MAX_DIRECTORY_PAGE_SIZE, SqlxDirectoryStore, directory_authority_key,
+    directory_identity_replacement_decision_ref, immutable_identity_link,
 };
 pub use error::IdentityError;
 pub use password::{PasswordDigest, PasswordHashingConfig, PasswordService};
@@ -133,6 +134,10 @@ pub const IDENTITY_DEVELOPMENT_CONTEXT_LIFETIME_MIGRATION_SQL: &str =
     include_str!("../migrations/0012_development_persona_context_lifetime.sql");
 pub const IDENTITY_SECURITY_COMMAND_AUDIT_MIGRATION_SQL: &str =
     include_str!("../migrations/0013_security_command_audit.sql");
+pub const IDENTITY_AUTHENTICATED_AUTHORITY_MIGRATION_SQL: &str =
+    include_str!("../migrations/0014_authenticated_authority.sql");
+pub const IDENTITY_DIRECTORY_REPLACEMENT_DECISION_MIGRATION_SQL: &str =
+    include_str!("../migrations/0015_directory_replacement_human_decision.sql");
 
 /// Apply the identity schema and its forward reconciliation/outbox migration
 /// to a write-side pool. Callers must not run this function against a read
@@ -181,6 +186,12 @@ pub async fn apply_identity_migration(pool: &sqlx::PgPool) -> Result<(), sqlx::E
     sqlx::raw_sql(IDENTITY_SECURITY_COMMAND_AUDIT_MIGRATION_SQL)
         .execute(&mut *transaction)
         .await?;
+    sqlx::raw_sql(IDENTITY_AUTHENTICATED_AUTHORITY_MIGRATION_SQL)
+        .execute(&mut *transaction)
+        .await?;
+    sqlx::raw_sql(IDENTITY_DIRECTORY_REPLACEMENT_DECISION_MIGRATION_SQL)
+        .execute(&mut *transaction)
+        .await?;
     transaction.commit().await?;
     Ok(())
 }
@@ -197,6 +208,31 @@ mod tests {
         Utc.with_ymd_and_hms(2026, 7, 24, 12, 0, 0)
             .single()
             .expect("fixed test time")
+    }
+
+    #[test]
+    fn authenticated_authority_upgrade_fences_changed_legacy_sessions_before_backfill() {
+        let sql = IDENTITY_AUTHENTICATED_AUTHORITY_MIGRATION_SQL;
+        let principal_backfill = sql
+            .find("UPDATE erpx_identity.principals\nSET authenticated_realm")
+            .expect("principal authority is resolved before session fencing");
+        let (before_fence, after_fence_start) = sql
+            .split_once("-- BEGIN LEGACY AUTHORITY CHANGE FENCE")
+            .expect("legacy authority-change fence start marker");
+        let (fence, after_fence) = after_fence_start
+            .split_once("-- END LEGACY AUTHORITY CHANGE FENCE")
+            .expect("legacy authority-change fence end marker");
+        after_fence
+            .find("SET authenticated_realm = principal.authenticated_realm")
+            .expect("session authority backfill follows the fence");
+
+        assert!(principal_backfill < before_fence.len());
+        assert!(fence.contains("SET revoked_at = COALESCE"));
+        assert!(fence.contains("last_used_at = GREATEST"));
+        assert!(fence.contains("identity_session.authenticated_realm IS NULL"));
+        assert!(fence.contains("identity_session.principal_kind IS NULL"));
+        assert!(fence.contains("principal.authenticated_realm <> 'internal_workforce'"));
+        assert!(fence.contains("principal.principal_kind <> 'human'"));
     }
 
     #[test]

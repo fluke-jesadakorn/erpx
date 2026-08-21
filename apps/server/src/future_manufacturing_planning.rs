@@ -1097,6 +1097,7 @@ async fn mutate_planning_recommendation<M, F>(
     recommendation_id: &str,
     action: planning::PlanningAction,
     event_type: &'static str,
+    human_decision_ref: Option<&'static str>,
     change: F,
 ) -> Result<Response<planning_wire::MutationReceipt>, Status>
 where
@@ -1105,6 +1106,9 @@ where
 {
     let invocation =
         future_auth::command(state, request, Some(context), "planning", PLANNING_WRITE).await?;
+    if let Some(decision_ref) = human_decision_ref {
+        let _human_decision = future_auth::human_decision(&invocation, decision_ref, Utc::now())?;
+    }
     ensure_scope(&invocation, scope)?;
     let pool = future_auth::pool(state, &invocation, RoutedDatabaseSide::Write).await?;
     let actor = planning_actor(&invocation);
@@ -1440,6 +1444,7 @@ impl planning_wire::planning_command_service_server::PlanningCommandService for 
             &body.recommendation_id,
             planning::PlanningAction::OverrideRecommendation,
             "planning.recommendation_overridden",
+            None,
             move |recommendation| recommendation.override_quantity(value).map(|_| ()),
         )
         .await
@@ -1459,6 +1464,7 @@ impl planning_wire::planning_command_service_server::PlanningCommandService for 
             &body.recommendation_id,
             planning::PlanningAction::ApproveRecommendation,
             "planning.recommendation_approved",
+            Some("planning.recommendation.approve"),
             planning::PlanningRecommendation::approve,
         )
         .await
@@ -1478,6 +1484,7 @@ impl planning_wire::planning_command_service_server::PlanningCommandService for 
             &body.recommendation_id,
             planning::PlanningAction::RejectRecommendation,
             "planning.recommendation_rejected",
+            Some("planning.recommendation.reject"),
             planning::PlanningRecommendation::reject,
         )
         .await

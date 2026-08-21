@@ -56,6 +56,13 @@ mod ddl_contract_tests {
             "PRIMARY KEY (holding_id",
             "FORCE ROW LEVEL SECURITY",
             "WITH CHECK (holding_id =",
+            "lock_outbox_commit_order",
+            "assign_outbox_global_sequence",
+            "pg_advisory_xact_lock",
+            "ALTER COLUMN global_sequence",
+            "DROP DEFAULT",
+            "NEW.global_sequence IS NOT NULL",
+            "BEFORE INSERT ON erpx_cqrs_write.outbox_events",
         ] {
             assert!(
                 WRITE_DDL.contains(contract),

@@ -20,7 +20,7 @@ use erpx_integration_contracts::{
 };
 use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
-    ErrorCategory, EventId, FixedClock, QueryId,
+    ErrorCategory, EventId, FixedClock, HumanDecisionProof, QueryId, SessionId,
 };
 use uuid::Uuid;
 
@@ -53,10 +53,14 @@ fn actor() -> ActorAttribution {
     ActorAttribution {
         principal_ref: "sales-test-actor".into(),
         kind: ActorKind::HoldingUser,
-        session_id: None,
+        session_id: Some(SessionId::try_from_uuid(id(99)).unwrap()),
         represented_principal_ref: None,
         support_capability_id: None,
     }
+}
+
+fn human_decision(command_id: CommandId, decided_at: chrono::DateTime<Utc>) -> HumanDecisionProof {
+    HumanDecisionProof::try_new(actor(), scope(), command_id.to_string(), decided_at).unwrap()
 }
 
 fn opportunity(stage: crm::OpportunityStage) -> crm::OpportunityFact {
@@ -92,7 +96,7 @@ fn create_quote() -> CreateQuote {
     }
 }
 
-fn accepted_quote() -> Quote {
+fn sent_quote() -> Quote {
     let mut quote = Quote::create_from_opportunity(
         QuoteId::try_from_uuid(id(10)).unwrap(),
         scope(),
@@ -106,7 +110,15 @@ fn accepted_quote() -> Quote {
     .unwrap();
     quote.take_uncommitted_events();
     quote.send(at(9)).unwrap();
-    quote.accept(at(9)).unwrap();
+    quote
+}
+
+fn accepted_quote() -> Quote {
+    let mut quote = sent_quote();
+    let command_id = CommandId::try_from_uuid(id(90)).unwrap();
+    quote
+        .accept(&human_decision(command_id, at(9)), command_id, at(9))
+        .unwrap();
     quote.take_uncommitted_events();
     quote
 }
@@ -123,7 +135,10 @@ fn draft_order() -> SalesOrder {
 
 fn confirmed_order() -> SalesOrder {
     let mut order = draft_order();
-    order.confirm(at(9)).unwrap();
+    let command_id = CommandId::try_from_uuid(id(91)).unwrap();
+    order
+        .confirm(&human_decision(command_id, at(9)), command_id, at(9))
+        .unwrap();
     order.take_uncommitted_events();
     order
 }
@@ -252,6 +267,7 @@ impl WriteRepository for FakeWriteRepository {
 #[derive(Clone, Default)]
 struct FakeUnitOfWork {
     receipts: Arc<Mutex<Vec<(CommandIdentity, StoredCommit)>>>,
+    receipt_lookups: Arc<AtomicUsize>,
     commits: Arc<AtomicUsize>,
     event_types: Arc<Mutex<Vec<Vec<&'static str>>>>,
 }
@@ -262,6 +278,7 @@ impl CommandUnitOfWork for FakeUnitOfWork {
         &self,
         identity: &CommandIdentity,
     ) -> Result<Option<StoredCommit>, PortError> {
+        self.receipt_lookups.fetch_add(1, Ordering::SeqCst);
         for (stored_identity, receipt) in self.receipts.lock().unwrap().iter() {
             let reused = stored_identity.command_id == identity.command_id
                 || stored_identity.idempotency_key == identity.idempotency_key;
@@ -359,6 +376,61 @@ fn authorization_and_entitlement_gate_atomic_commit() {
         .unwrap_err();
         assert_eq!(error.category(), ErrorCategory::Denied);
         assert_eq!(unit_of_work.commits.load(Ordering::SeqCst), 0);
+    }
+}
+
+#[test]
+fn quote_and_order_decisions_reject_non_humans_before_receipt_or_aggregate_access() {
+    for decision in 0..3_u128 {
+        for kind in [
+            ActorKind::Agent,
+            ActorKind::Service,
+            ActorKind::SystemWorker,
+        ] {
+            let (command, expected, write) = match decision {
+                0 => (
+                    SalesCommand::AcceptQuote(AcceptQuote {
+                        quote_id: QuoteId::try_from_uuid(id(10)).unwrap(),
+                    }),
+                    sent_quote().version(),
+                    FakeWriteRepository {
+                        quote: Some(sent_quote()),
+                        ..Default::default()
+                    },
+                ),
+                1 => (
+                    SalesCommand::RejectQuote(RejectQuote {
+                        quote_id: QuoteId::try_from_uuid(id(10)).unwrap(),
+                    }),
+                    sent_quote().version(),
+                    FakeWriteRepository {
+                        quote: Some(sent_quote()),
+                        ..Default::default()
+                    },
+                ),
+                _ => (
+                    SalesCommand::ConfirmSalesOrder(ConfirmSalesOrder {
+                        sales_order_id: SalesOrderId::try_from_uuid(id(20)).unwrap(),
+                    }),
+                    draft_order().version(),
+                    FakeWriteRepository {
+                        order: Some(draft_order()),
+                        ..Default::default()
+                    },
+                ),
+            };
+            let loads = write.loads.clone();
+            let unit_of_work = FakeUnitOfWork::default();
+            let mut request = command_envelope(20 + decision, Some(expected), command);
+            request.actor.kind = kind;
+
+            let error = block_on(handler(write, unit_of_work.clone(), true, true).handle(request))
+                .unwrap_err();
+            assert_eq!(error.category(), ErrorCategory::Denied);
+            assert_eq!(unit_of_work.receipt_lookups.load(Ordering::SeqCst), 0);
+            assert_eq!(loads.load(Ordering::SeqCst), 0);
+            assert_eq!(unit_of_work.commits.load(Ordering::SeqCst), 0);
+        }
     }
 }
 

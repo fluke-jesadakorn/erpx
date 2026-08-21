@@ -1,12 +1,12 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use erpx_kernel::AuthorityScope;
+use erpx_kernel::{ActorAttribution, AuthorityScope, HumanDecisionProof};
 use thiserror::Error;
 use uuid::Uuid;
 
 use crate::{
     SuggestionCapability, SuggestionEnvelope, SuggestionError, SuggestionId, SuggestionProvenance,
-    SuggestionSource,
+    SuggestionSource, suggestion_apply_decision_ref,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -63,7 +63,7 @@ pub struct SuggestionCommandRequest {
     pub command_id: Uuid,
     pub idempotency_key: String,
     pub scope: AuthorityScope,
-    pub actor_ref: String,
+    pub actor: ActorAttribution,
     pub expected_version: u64,
     pub command: SuggestionCommand,
     pub at: DateTime<Utc>,
@@ -88,7 +88,7 @@ pub trait SuggestionAuthorizationPort: Send + Sync {
     async fn authorize(
         &self,
         scope: &AuthorityScope,
-        actor_ref: &str,
+        actor: &ActorAttribution,
         command: &SuggestionCommand,
     ) -> Result<bool, SuggestionApplicationError>;
 }
@@ -131,9 +131,21 @@ where
         request: SuggestionCommandRequest,
     ) -> Result<SuggestionReceipt, SuggestionApplicationError> {
         validate_request(&request)?;
+        let mut human_decision = match &request.command {
+            SuggestionCommand::Apply { suggestion_id, .. } => Some(
+                HumanDecisionProof::try_new(
+                    request.actor.clone(),
+                    request.scope.clone(),
+                    suggestion_apply_decision_ref(*suggestion_id),
+                    request.at,
+                )
+                .map_err(|_| SuggestionApplicationError::HumanDecisionRequired)?,
+            ),
+            _ => None,
+        };
         if !self
             .authorization
-            .authorize(&request.scope, &request.actor_ref, &request.command)
+            .authorize(&request.scope, &request.actor, &request.command)
             .await?
         {
             return Err(SuggestionApplicationError::Denied);
@@ -159,7 +171,7 @@ where
                     *policy_version,
                     payload_digest.clone(),
                     provenance.clone(),
-                    request.actor_ref.clone(),
+                    request.actor.principal_ref.clone(),
                     *local_development,
                     request.at,
                 )?
@@ -186,12 +198,12 @@ where
                 current_source_version,
                 current_payload_digest,
                 ..
-            } => envelope.apply(
-                current_source_version,
-                &current_payload_digest,
-                request.actor_ref,
-                request.at,
-            )?,
+            } => {
+                let decision = human_decision
+                    .take()
+                    .ok_or(SuggestionApplicationError::HumanDecisionRequired)?;
+                envelope.apply(current_source_version, &current_payload_digest, decision)?;
+            }
             SuggestionCommand::Reject { .. } => envelope.reject(request.at)?,
             SuggestionCommand::Supersede { .. } => envelope.supersede(request.at)?,
             SuggestionCommand::Fail { failure_code, .. } => {
@@ -232,6 +244,8 @@ pub enum SuggestionApplicationError {
     VersionConflict,
     #[error("suggestion storage is unavailable")]
     Unavailable,
+    #[error("an authenticated human decision is required")]
+    HumanDecisionRequired,
     #[error(transparent)]
     Domain(#[from] SuggestionError),
 }
@@ -244,8 +258,7 @@ fn validate_request(request: &SuggestionCommandRequest) -> Result<(), Suggestion
     if request.command_id.is_nil()
         || request.idempotency_key.trim().is_empty()
         || request.idempotency_key.len() > 256
-        || request.actor_ref.trim().is_empty()
-        || request.actor_ref.len() > 256
+        || request.actor.validate().is_err()
     {
         return Err(SuggestionApplicationError::InvalidRequest);
     }

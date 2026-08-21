@@ -5,7 +5,10 @@ use erpx_cqrs::{
     QueryMetadata, QueryResult,
 };
 use erpx_integration_contracts::RecordRef;
-use erpx_kernel::{AuthorityScope, Clock, CorrelationId, ErrorCategory, ErrorContext, KernelError};
+use erpx_kernel::{
+    AuthorityScope, Clock, CorrelationId, ErrorCategory, ErrorContext, HumanDecisionProof,
+    KernelError,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -328,6 +331,8 @@ pub enum LegalApplicationError {
     DocumentVersionNotFound,
     #[error("Legal list page size must be between 1 and 100")]
     InvalidPageSize,
+    #[error("contract approval requires an authenticated human decision")]
+    HumanDecisionDenied,
     #[error(transparent)]
     Port(#[from] PortError),
 }
@@ -450,6 +455,30 @@ where
             idempotency_key: envelope.idempotency_key.clone(),
             fingerprint: envelope.command.fingerprint(),
         };
+        // Construct the type-level human proof before receipt or aggregate
+        // repository access. Non-approval transitions retain their existing
+        // actor-string behavior and do not require this proof.
+        let approval_at = matches!(
+            &envelope.command,
+            LegalCommand::TransitionContract(TransitionContract {
+                transition: ContractTransition::Approve,
+                ..
+            })
+        )
+        .then(|| self.clock.now());
+        let mut approval_decision = if let Some(decided_at) = approval_at {
+            Some(
+                HumanDecisionProof::try_new(
+                    envelope.actor.clone(),
+                    envelope.active_scope.clone(),
+                    envelope.command_id.to_string(),
+                    decided_at,
+                )
+                .map_err(|_| to_cqrs(LegalApplicationError::HumanDecisionDenied, correlation))?,
+            )
+        } else {
+            None
+        };
         if let Some(stored) = self
             .replay(&identity, &envelope.actor, &envelope.active_scope, action)
             .await
@@ -465,7 +494,7 @@ where
             ));
         }
 
-        let now = self.clock.now();
+        let now = approval_at.unwrap_or_else(|| self.clock.now());
         let actor_ref = envelope.actor.principal_ref.clone();
         let (mut aggregate, expected_version) = match envelope.command {
             LegalCommand::CreateContract(value) => {
@@ -538,9 +567,18 @@ where
                 let LegalAggregate::Contract(contract) = &mut aggregate else {
                     unreachable!()
                 };
-                contract
-                    .transition(value.transition, &actor_ref, now)
-                    .map_err(|error| to_cqrs(error.into(), correlation))?;
+                if value.transition == ContractTransition::Approve {
+                    let decision = approval_decision.take().ok_or_else(|| {
+                        to_cqrs(LegalApplicationError::HumanDecisionDenied, correlation)
+                    })?;
+                    contract
+                        .approve(decision, identity.command_id, now)
+                        .map_err(|error| to_cqrs(error.into(), correlation))?;
+                } else {
+                    contract
+                        .transition(value.transition, &actor_ref, now)
+                        .map_err(|error| to_cqrs(error.into(), correlation))?;
+                }
                 (aggregate, Some(expected))
             }
             LegalCommand::CreateDocument(value) => {
@@ -978,6 +1016,7 @@ fn port_to_cqrs(error: PortError, correlation: CorrelationId) -> CqrsError {
 fn to_cqrs(error: LegalApplicationError, correlation_id: CorrelationId) -> CqrsError {
     let (code, category, message, retryable) = match error {
         LegalApplicationError::ScopeOutsideAuthority
+        | LegalApplicationError::HumanDecisionDenied
         | LegalApplicationError::Port(PortError::Denied | PortError::EntitlementDenied) => (
             "legal.denied",
             ErrorCategory::Denied,

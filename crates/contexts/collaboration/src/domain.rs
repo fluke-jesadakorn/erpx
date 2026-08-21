@@ -3,7 +3,8 @@ use std::collections::BTreeSet;
 use chrono::{DateTime, Utc};
 use erpx_integration_contracts::{StableRecordRef, catalog::ContextId};
 use erpx_kernel::{
-    AuthorityScope, DataClassification, HoldingId, PolicyId, PrincipalId, PrincipalKind,
+    ActorAttribution, AuthorityScope, CommandId, DataClassification, HoldingId, HumanDecisionProof,
+    PolicyId, PrincipalId, PrincipalKind,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -52,6 +53,17 @@ collaboration_id!(ModerationCaseId, "moderation_case_id");
 collaboration_id!(PromotionId, "promotion_id");
 collaboration_id!(ActionCardId, "action_card_id");
 collaboration_id!(DraftId, "draft_id");
+
+pub fn action_card_confirmation_decision_ref(
+    action_card_id: ActionCardId,
+    command_id: CommandId,
+) -> String {
+    format!(
+        "collaboration.action-card:{}:confirm:{}",
+        action_card_id.as_uuid(),
+        command_id
+    )
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum CollaborationError {
@@ -818,6 +830,77 @@ pub enum ActionCardState {
     Expired,
 }
 
+/// Durable evidence that an authenticated human confirmed an action-card
+/// proposal. Confirmation remains collaboration intent only; the owner context
+/// must independently authorize and execute its typed business command.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ActionCardConfirmation {
+    actor: ActorAttribution,
+    authority_scope: AuthorityScope,
+    decision_ref: String,
+    decided_at: DateTime<Utc>,
+}
+
+impl ActionCardConfirmation {
+    fn try_from_decision(
+        decision: &HumanDecisionProof,
+    ) -> Result<(PrincipalRef, Self), CollaborationError> {
+        let principal_id = Uuid::parse_str(decision.principal_ref())
+            .ok()
+            .and_then(|value| PrincipalId::try_from_uuid(value).ok())
+            .ok_or(CollaborationError::BusinessMutationDenied)?;
+        let confirmer = PrincipalRef::new(principal_id, PrincipalKind::Human);
+        Ok((
+            confirmer,
+            Self {
+                actor: decision.actor().clone(),
+                authority_scope: decision.authority_scope().clone(),
+                decision_ref: decision.decision_ref().to_owned(),
+                decided_at: decision.decided_at(),
+            },
+        ))
+    }
+
+    fn validate_for(
+        &self,
+        confirmer: PrincipalRef,
+        action_card_id: ActionCardId,
+        thread_scope: &AuthorityScope,
+    ) -> Result<(), CollaborationError> {
+        let decision = HumanDecisionProof::try_new(
+            self.actor.clone(),
+            self.authority_scope.clone(),
+            self.decision_ref.clone(),
+            self.decided_at,
+        )
+        .map_err(|_| CollaborationError::BusinessMutationDenied)?;
+        let (evidence_principal, _) = Self::try_from_decision(&decision)?;
+        if evidence_principal != confirmer
+            || decision.authority_scope() != thread_scope
+            || !valid_loaded_action_card_confirmation_ref(decision.decision_ref(), action_card_id)
+        {
+            return Err(CollaborationError::BusinessMutationDenied);
+        }
+        Ok(())
+    }
+
+    pub const fn actor(&self) -> &ActorAttribution {
+        &self.actor
+    }
+
+    pub const fn authority_scope(&self) -> &AuthorityScope {
+        &self.authority_scope
+    }
+
+    pub fn decision_ref(&self) -> &str {
+        &self.decision_ref
+    }
+
+    pub const fn decided_at(&self) -> DateTime<Utc> {
+        self.decided_at
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ActionCard {
     pub id: ActionCardId,
@@ -827,8 +910,68 @@ pub struct ActionCard {
     pub state: ActionCardState,
     pub proposed_by: PrincipalRef,
     pub confirmed_by: Option<PrincipalRef>,
+    /// `None` is accepted on loaded legacy confirmed cards. Every confirmation
+    /// produced by the current domain writes this evidence.
+    #[serde(default)]
+    pub confirmation: Option<ActionCardConfirmation>,
     pub created_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
+}
+
+impl ActionCard {
+    fn validate_loaded(&self, thread_scope: &AuthorityScope) -> Result<(), CollaborationError> {
+        if self.state == ActionCardState::Proposed
+            && (self.confirmed_by.is_some() || self.confirmation.is_some())
+        {
+            return Err(CollaborationError::BusinessMutationDenied);
+        }
+        if self.state == ActionCardState::Confirmed {
+            let confirmer = self
+                .confirmed_by
+                .ok_or(CollaborationError::BusinessMutationDenied)?;
+            if confirmer.kind() != PrincipalKind::Human {
+                return Err(CollaborationError::BusinessMutationDenied);
+            }
+            // Older persisted cards predate typed decision evidence. They stay
+            // readable, but no current confirmation path may create one.
+            if let Some(confirmation) = &self.confirmation {
+                if confirmation.decided_at() < self.created_at
+                    || confirmation.decided_at() >= self.expires_at
+                {
+                    return Err(CollaborationError::BusinessMutationDenied);
+                }
+                confirmation.validate_for(confirmer, self.id, thread_scope)?;
+            }
+        } else if self.confirmation.is_some() {
+            return Err(CollaborationError::BusinessMutationDenied);
+        }
+        Ok(())
+    }
+}
+
+fn valid_loaded_action_card_confirmation_ref(
+    decision_ref: &str,
+    action_card_id: ActionCardId,
+) -> bool {
+    // Typed confirmation evidence briefly shipped with a plain command UUID.
+    // Keep those snapshots readable while requiring every new mutation to use
+    // the target/action/command-bound reference checked by the aggregate.
+    if Uuid::parse_str(decision_ref)
+        .ok()
+        .and_then(|value| CommandId::try_from_uuid(value).ok())
+        .is_some()
+    {
+        return true;
+    }
+    let prefix = format!(
+        "collaboration.action-card:{}:confirm:",
+        action_card_id.as_uuid()
+    );
+    decision_ref
+        .strip_prefix(&prefix)
+        .and_then(|value| Uuid::parse_str(value).ok())
+        .and_then(|value| CommandId::try_from_uuid(value).ok())
+        .is_some()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1050,6 +1193,10 @@ impl Thread {
                 .mentions
                 .iter()
                 .any(|mention| mention.revision == 0 || mention.target.validate().is_err())
+            || self.action_cards.iter().any(|card| {
+                card.validate_loaded(self.policy.visibility_scope())
+                    .is_err()
+            })
         {
             return Err(CollaborationError::InvalidContent("thread_snapshot"));
         }
@@ -1394,6 +1541,7 @@ impl Thread {
         if card.owner_context == ContextId::Collaboration
             || card.state != ActionCardState::Proposed
             || card.confirmed_by.is_some()
+            || card.confirmation.is_some()
             || card.payload_digest == [0; 32]
             || !valid_token(&card.command_type, MAX_ACTION_TYPE_BYTES)
             || card.expires_at <= at
@@ -1416,9 +1564,17 @@ impl Thread {
         &mut self,
         expected_version: u64,
         id: ActionCardId,
-        confirmer: PrincipalRef,
+        command_id: CommandId,
+        decision: HumanDecisionProof,
         at: DateTime<Utc>,
     ) -> Result<(), CollaborationError> {
+        if decision.authority_scope() != self.policy.visibility_scope()
+            || decision.decision_ref() != action_card_confirmation_decision_ref(id, command_id)
+            || decision.decided_at() != at
+        {
+            return Err(CollaborationError::BusinessMutationDenied);
+        }
+        let (confirmer, confirmation) = ActionCardConfirmation::try_from_decision(&decision)?;
         self.prepare_mutation(expected_version, at)?;
         let card = self
             .action_cards
@@ -1430,6 +1586,7 @@ impl Thread {
         }
         card.state = ActionCardState::Confirmed;
         card.confirmed_by = Some(confirmer);
+        card.confirmation = Some(confirmation);
         self.commit_mutation(
             CollaborationEventKind::ActionCardChanged { action_card_id: id },
             at,
@@ -1723,6 +1880,27 @@ mod tests {
         .unwrap()
     }
 
+    fn human_decision(
+        principal: PrincipalRef,
+        scope: AuthorityScope,
+        decision_ref: &str,
+        decided_at: DateTime<Utc>,
+    ) -> HumanDecisionProof {
+        HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: principal.id().to_string(),
+                kind: erpx_kernel::ActorKind::HoldingUser,
+                session_id: Some(erpx_kernel::SessionId::try_from_uuid(Uuid::new_v4()).unwrap()),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            scope,
+            decision_ref,
+            decided_at,
+        )
+        .unwrap()
+    }
+
     fn fixture(external: Option<ExternalPortal>) -> (Thread, PrincipalRef, DateTime<Utc>) {
         let record = StableRecordRef::try_new(
             RecordId::try_from_uuid(Uuid::new_v4()).unwrap(),
@@ -1941,21 +2119,238 @@ mod tests {
                     state: ActionCardState::Proposed,
                     proposed_by: author,
                     confirmed_by: None,
+                    confirmation: None,
                     created_at: now,
                     expires_at: now + Duration::hours(1),
                 },
                 now + Duration::seconds(1),
             )
             .unwrap();
+        let decided_at = now + Duration::seconds(2);
+        let command_id = CommandId::try_from_uuid(Uuid::new_v4()).unwrap();
+        let decision_ref = action_card_confirmation_decision_ref(card_id, command_id);
+        let decision = human_decision(
+            author,
+            thread.policy().visibility_scope().clone(),
+            &decision_ref,
+            decided_at,
+        );
+        let session_id = decision.actor().session_id;
         thread
-            .confirm_action_card(
-                thread.version(),
-                card_id,
-                author,
-                now + Duration::seconds(2),
-            )
+            .confirm_action_card(thread.version(), card_id, command_id, decision, decided_at)
             .unwrap();
         assert_eq!(thread.action_cards()[0].state, ActionCardState::Confirmed);
         assert_eq!(thread.action_cards()[0].owner_context, ContextId::Finance);
+        let evidence = thread.action_cards()[0]
+            .confirmation
+            .as_ref()
+            .expect("current confirmation persists human evidence");
+        assert_eq!(evidence.actor().session_id, session_id);
+        assert_eq!(
+            evidence.authority_scope(),
+            thread.policy().visibility_scope()
+        );
+        assert_eq!(evidence.decision_ref(), decision_ref);
+        assert_eq!(evidence.decided_at(), decided_at);
+
+        let persisted = serde_json::to_value(&thread).unwrap();
+        let restored: Thread = serde_json::from_value(persisted.clone()).unwrap();
+        restored.validate_loaded().unwrap();
+        assert_eq!(
+            restored.action_cards()[0]
+                .confirmation
+                .as_ref()
+                .unwrap()
+                .actor()
+                .session_id,
+            session_id
+        );
+
+        let mut legacy_typed = persisted.clone();
+        legacy_typed["action_cards"][0]["confirmation"]["decision_ref"] =
+            Value::String(command_id.to_string());
+        let legacy_typed: Thread = serde_json::from_value(legacy_typed).unwrap();
+        legacy_typed
+            .validate_loaded()
+            .expect("plain-command typed confirmation evidence remains readable");
+
+        let mut legacy = persisted;
+        legacy["action_cards"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("confirmation");
+        let legacy: Thread = serde_json::from_value(legacy).unwrap();
+        legacy
+            .validate_loaded()
+            .expect("legacy confirmed card remains readable");
+        assert!(legacy.action_cards()[0].confirmation.is_none());
+    }
+
+    #[test]
+    fn action_card_confirmation_requires_a_human_principal() {
+        let (mut thread, author, now) = fixture(None);
+        let card_id = id(ActionCardId::try_from_uuid);
+        thread
+            .propose_action_card(
+                thread.version(),
+                ActionCard {
+                    id: card_id,
+                    owner_context: ContextId::Finance,
+                    command_type: "invoice.approve".into(),
+                    payload_digest: [9; 32],
+                    state: ActionCardState::Proposed,
+                    proposed_by: author,
+                    confirmed_by: None,
+                    confirmation: None,
+                    created_at: now,
+                    expires_at: now + Duration::hours(1),
+                },
+                now + Duration::seconds(1),
+            )
+            .unwrap();
+        let proposed_version = thread.version();
+
+        for kind in [
+            erpx_kernel::ActorKind::Agent,
+            erpx_kernel::ActorKind::Service,
+            erpx_kernel::ActorKind::SystemWorker,
+        ] {
+            let proof = HumanDecisionProof::try_new(
+                ActorAttribution {
+                    principal_ref: author.id().to_string(),
+                    kind,
+                    session_id: Some(
+                        erpx_kernel::SessionId::try_from_uuid(Uuid::new_v4()).unwrap(),
+                    ),
+                    represented_principal_ref: None,
+                    support_capability_id: None,
+                },
+                thread.policy().visibility_scope().clone(),
+                Uuid::new_v4().to_string(),
+                now + Duration::seconds(2),
+            );
+            assert!(proof.is_err());
+            assert_eq!(thread.version(), proposed_version);
+            assert_eq!(thread.action_cards()[0].state, ActionCardState::Proposed);
+            assert_eq!(thread.action_cards()[0].confirmed_by, None);
+            assert_eq!(thread.action_cards()[0].confirmation, None);
+        }
+
+        let decided_at = now + Duration::seconds(2);
+        let command_id = CommandId::try_from_uuid(Uuid::new_v4()).unwrap();
+        let decision_ref = action_card_confirmation_decision_ref(card_id, command_id);
+        let decision = human_decision(
+            author,
+            thread.policy().visibility_scope().clone(),
+            &decision_ref,
+            decided_at,
+        );
+        assert_eq!(
+            thread.confirm_action_card(
+                thread.version(),
+                card_id,
+                command_id,
+                decision,
+                decided_at + Duration::seconds(1),
+            ),
+            Err(CollaborationError::BusinessMutationDenied)
+        );
+    }
+
+    #[test]
+    fn action_card_confirmation_rejects_mismatched_or_reused_decision_evidence() {
+        let (mut thread, author, now) = fixture(None);
+        let first_card_id = id(ActionCardId::try_from_uuid);
+        let second_card_id = id(ActionCardId::try_from_uuid);
+        for (card_id, at) in [
+            (first_card_id, now + Duration::seconds(1)),
+            (second_card_id, now + Duration::seconds(2)),
+        ] {
+            thread
+                .propose_action_card(
+                    thread.version(),
+                    ActionCard {
+                        id: card_id,
+                        owner_context: ContextId::Finance,
+                        command_type: "invoice.approve".into(),
+                        payload_digest: [9; 32],
+                        state: ActionCardState::Proposed,
+                        proposed_by: author,
+                        confirmed_by: None,
+                        confirmation: None,
+                        created_at: now,
+                        expires_at: now + Duration::hours(1),
+                    },
+                    at,
+                )
+                .unwrap();
+        }
+        let proposed_version = thread.version();
+        let decided_at = now + Duration::seconds(3);
+        let first_command_id = CommandId::try_from_uuid(Uuid::new_v4()).unwrap();
+        let second_command_id = CommandId::try_from_uuid(Uuid::new_v4()).unwrap();
+        let first_ref = action_card_confirmation_decision_ref(first_card_id, first_command_id);
+        let first_decision = human_decision(
+            author,
+            thread.policy().visibility_scope().clone(),
+            &first_ref,
+            decided_at,
+        );
+
+        assert_eq!(
+            thread.confirm_action_card(
+                thread.version(),
+                first_card_id,
+                second_command_id,
+                first_decision.clone(),
+                decided_at,
+            ),
+            Err(CollaborationError::BusinessMutationDenied)
+        );
+        assert_eq!(
+            thread.confirm_action_card(
+                thread.version(),
+                second_card_id,
+                first_command_id,
+                first_decision.clone(),
+                decided_at,
+            ),
+            Err(CollaborationError::BusinessMutationDenied)
+        );
+        let wrong_scope_decision = human_decision(
+            author,
+            AuthorityScope::Holding {
+                holding_id: Uuid::new_v4(),
+            },
+            &first_ref,
+            decided_at,
+        );
+        assert_eq!(
+            thread.confirm_action_card(
+                thread.version(),
+                first_card_id,
+                first_command_id,
+                wrong_scope_decision,
+                decided_at,
+            ),
+            Err(CollaborationError::BusinessMutationDenied)
+        );
+        assert_eq!(thread.version(), proposed_version);
+        assert!(
+            thread
+                .action_cards()
+                .iter()
+                .all(|card| card.state == ActionCardState::Proposed)
+        );
+
+        thread
+            .confirm_action_card(
+                thread.version(),
+                first_card_id,
+                first_command_id,
+                first_decision,
+                decided_at,
+            )
+            .unwrap();
     }
 }

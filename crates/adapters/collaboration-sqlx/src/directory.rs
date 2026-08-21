@@ -185,36 +185,57 @@ impl SqlxItemDirectory {
         access: &DirectoryAccess,
         record_id: RecordId,
     ) -> Result<Option<AuthorizedDirectoryRecord>, DirectoryAdapterError> {
-        if self.freshness(access.holding_id(), Utc::now()).await? != ProjectionFreshness::Fresh {
-            return Err(DirectoryAdapterError::Unavailable);
-        }
+        let now = Utc::now();
         let mut tx = self.begin(access.holding_id()).await?;
-        let authorized = sqlx::query_scalar::<_, bool>(
-            "SELECT EXISTS (\
+        let row = sqlx::query(
+            "WITH projection AS MATERIALIZED (\
+               SELECT state,source_high_watermark,applied_position,last_success_at \
+               FROM erpx_collaboration_read.item_directory_projection_state \
+               WHERE holding_id=$1\
+             ), authorized AS MATERIALIZED (\
                SELECT 1 \
-               FROM erpx_collaboration_read.item_directory_effective_grants grant_fact \
+               FROM projection \
+               JOIN erpx_collaboration_read.item_directory_effective_grants grant_fact \
+                 ON grant_fact.holding_id=$1 AND grant_fact.record_id=$2 \
+                AND grant_fact.principal_id=$3 AND grant_fact.can_view \
                JOIN erpx_collaboration_read.item_directory_descriptors descriptor \
                  ON descriptor.holding_id=grant_fact.holding_id \
                 AND descriptor.record_id=grant_fact.record_id \
                 AND descriptor.authorization_policy_id=grant_fact.authorization_policy_id \
                 AND descriptor.authorization_policy_version=grant_fact.policy_version \
                 AND grant_fact.source_event_position>=descriptor.source_event_position \
-               WHERE grant_fact.holding_id=$1 AND grant_fact.record_id=$2 \
-                 AND grant_fact.principal_id=$3 AND grant_fact.can_view \
-                 AND grant_fact.effective_at<=statement_timestamp() \
-                 AND grant_fact.expires_at>statement_timestamp() \
+               WHERE projection.state='ready' \
+                 AND projection.applied_position=projection.source_high_watermark \
+                 AND projection.last_success_at BETWEEN $5-INTERVAL '60 seconds' AND $5 \
+                 AND descriptor.source_event_position<=projection.applied_position \
+                 AND grant_fact.source_event_position<=projection.applied_position \
+                 AND grant_fact.effective_at<=$5 AND grant_fact.expires_at>$5 \
                  AND descriptor.tombstoned_at IS NULL \
                  AND erpx_collaboration_read.scope_contains($4, descriptor.record_scope)\
-             )",
+             ) \
+             SELECT projection.state,projection.source_high_watermark, \
+                    projection.applied_position,projection.last_success_at, \
+                    EXISTS (SELECT 1 FROM authorized) AS authorized \
+             FROM projection",
         )
         .bind(access.holding_id().as_uuid())
         .bind(record_id.as_uuid())
         .bind(access.principal_id().as_uuid())
         .bind(scope_json(access.authority_scope())?)
-        .fetch_one(&mut *tx)
+        .bind(now)
+        .fetch_optional(&mut *tx)
         .await
         .map_err(map_database_error)?;
         tx.commit().await.map_err(map_database_error)?;
+        let Some(row) = row else {
+            return Err(DirectoryAdapterError::Unavailable);
+        };
+        if projection_freshness_from_row(&row, now)? != ProjectionFreshness::Fresh {
+            return Err(DirectoryAdapterError::Unavailable);
+        }
+        let authorized = row
+            .try_get::<bool, _>("authorized")
+            .map_err(|_| DirectoryAdapterError::Unavailable)?;
         Ok(authorized.then(|| AuthorizedDirectoryRecord {
             access: access.clone(),
             record_id,
@@ -227,27 +248,65 @@ impl SqlxItemDirectory {
         record_id: RecordId,
         now: DateTime<Utc>,
     ) -> Result<DirectoryLookup<ItemDescriptor>, DirectoryAdapterError> {
-        let freshness = self.freshness(access.holding_id(), now).await?;
+        let mut tx = self.begin(access.holding_id()).await?;
+        // Projection freshness, the complete effective-grant proof, hierarchy
+        // containment, and the protected descriptor are read by one SQL
+        // statement. A projection replacement can therefore expose either
+        // the old authorized descriptor or no descriptor, never a newer
+        // payload that was not covered by the observed grant.
+        let row = sqlx::query(
+            "WITH projection AS MATERIALIZED (\
+               SELECT state,source_high_watermark,applied_position,last_success_at \
+               FROM erpx_collaboration_read.item_directory_projection_state \
+               WHERE holding_id=$1\
+             ), authorized AS MATERIALIZED (\
+               SELECT descriptor.descriptor \
+               FROM projection \
+               JOIN erpx_collaboration_read.item_directory_effective_grants grant_fact \
+                 ON grant_fact.holding_id=$1 AND grant_fact.record_id=$2 \
+                AND grant_fact.principal_id=$3 AND grant_fact.can_view \
+               JOIN erpx_collaboration_read.item_directory_descriptors descriptor \
+                 ON descriptor.holding_id=grant_fact.holding_id \
+                AND descriptor.record_id=grant_fact.record_id \
+                AND descriptor.authorization_policy_id=grant_fact.authorization_policy_id \
+                AND descriptor.authorization_policy_version=grant_fact.policy_version \
+                AND grant_fact.source_event_position>=descriptor.source_event_position \
+               WHERE projection.state='ready' \
+                 AND projection.applied_position=projection.source_high_watermark \
+                 AND projection.last_success_at BETWEEN $5-INTERVAL '60 seconds' AND $5 \
+                 AND descriptor.source_event_position<=projection.applied_position \
+                 AND grant_fact.source_event_position<=projection.applied_position \
+                 AND grant_fact.effective_at<=$5 AND grant_fact.expires_at>$5 \
+                 AND descriptor.tombstoned_at IS NULL \
+                 AND erpx_collaboration_read.scope_contains($4, descriptor.record_scope)\
+             ) \
+             SELECT projection.state,projection.source_high_watermark, \
+                    projection.applied_position,projection.last_success_at, \
+                    authorized.descriptor \
+             FROM projection LEFT JOIN authorized ON TRUE",
+        )
+        .bind(access.holding_id().as_uuid())
+        .bind(record_id.as_uuid())
+        .bind(access.principal_id().as_uuid())
+        .bind(scope_json(access.authority_scope())?)
+        .bind(now)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(map_database_error)?;
+        tx.commit().await.map_err(map_database_error)?;
+        let Some(row) = row else {
+            return Ok(DirectoryLookup::Unavailable);
+        };
+        let freshness = projection_freshness_from_row(&row, now)?;
         if freshness == ProjectionFreshness::Unavailable {
             return Ok(DirectoryLookup::Unavailable);
         }
         if freshness == ProjectionFreshness::Stale {
             return Ok(DirectoryLookup::Degraded(freshness));
         }
-        let Some(authorized) = self.authorize_record(access, record_id).await? else {
-            return Ok(DirectoryLookup::Neutral);
-        };
-        let mut tx = self.begin(access.holding_id()).await?;
-        let value = sqlx::query_scalar::<_, serde_json::Value>(
-            "SELECT descriptor FROM erpx_collaboration_read.item_directory_descriptors \
-             WHERE holding_id=$1 AND record_id=$2 AND tombstoned_at IS NULL",
-        )
-        .bind(access.holding_id().as_uuid())
-        .bind(authorized.record_id().as_uuid())
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(map_database_error)?;
-        tx.commit().await.map_err(map_database_error)?;
+        let value = row
+            .try_get::<Option<serde_json::Value>, _>("descriptor")
+            .map_err(|_| DirectoryAdapterError::Unavailable)?;
         let Some(value) = value else {
             return Ok(DirectoryLookup::Neutral);
         };
@@ -272,37 +331,50 @@ impl SqlxItemDirectory {
         now: DateTime<Utc>,
     ) -> Result<DirectoryLookup<DirectorySearchPage>, DirectoryAdapterError> {
         request.validate()?;
-        let freshness = self.freshness(access.holding_id(), now).await?;
-        if freshness == ProjectionFreshness::Unavailable {
-            return Ok(DirectoryLookup::Unavailable);
-        }
-        if freshness == ProjectionFreshness::Stale {
-            return Ok(DirectoryLookup::Degraded(freshness));
-        }
         let offset = parse_cursor(request.cursor.as_deref())?;
         let mut tx = self.begin(access.holding_id()).await?;
-        // The grant join and scope predicate deliberately precede the FTS
-        // predicate in source and form the only rows eligible for matching.
+        // Freshness and the grant join precede the FTS predicate in the same
+        // statement and form the only rows eligible for payload or counts.
         let rows = sqlx::query(
-            "WITH authorized AS (\
-               SELECT descriptor.* \
-               FROM erpx_collaboration_read.item_directory_effective_grants grant_fact \
+            "WITH projection AS MATERIALIZED (\
+               SELECT state,source_high_watermark,applied_position,last_success_at \
+               FROM erpx_collaboration_read.item_directory_projection_state \
+               WHERE holding_id=$1\
+             ), authorized AS MATERIALIZED (\
+               SELECT descriptor.descriptor,descriptor.search_vector, \
+                      descriptor.source_event_position,descriptor.record_id \
+               FROM projection \
+               JOIN erpx_collaboration_read.item_directory_effective_grants grant_fact \
+                 ON grant_fact.holding_id=$1 AND grant_fact.principal_id=$2 \
+                AND grant_fact.can_view \
                JOIN erpx_collaboration_read.item_directory_descriptors descriptor \
                  ON descriptor.holding_id=grant_fact.holding_id \
                 AND descriptor.record_id=grant_fact.record_id \
                 AND descriptor.authorization_policy_id=grant_fact.authorization_policy_id \
                 AND descriptor.authorization_policy_version=grant_fact.policy_version \
                 AND grant_fact.source_event_position>=descriptor.source_event_position \
-               WHERE grant_fact.holding_id=$1 AND grant_fact.principal_id=$2 \
-                 AND grant_fact.can_view AND descriptor.tombstoned_at IS NULL \
+               WHERE projection.state='ready' \
+                 AND projection.applied_position=projection.source_high_watermark \
+                 AND projection.last_success_at BETWEEN $7-INTERVAL '60 seconds' AND $7 \
+                 AND descriptor.source_event_position<=projection.applied_position \
+                 AND grant_fact.source_event_position<=projection.applied_position \
+                 AND descriptor.tombstoned_at IS NULL \
                  AND grant_fact.effective_at<=$7 AND grant_fact.expires_at>$7 \
                  AND erpx_collaboration_read.scope_contains($3, descriptor.record_scope)\
+             ), matching AS MATERIALIZED (\
+               SELECT descriptor,source_event_position,record_id \
+               FROM authorized \
+               WHERE search_vector @@ websearch_to_tsquery('simple', $4)\
+             ), authorized_count AS (\
+               SELECT count(*)::BIGINT AS authorized_count FROM matching\
+             ), page AS (\
+               SELECT descriptor FROM matching \
+               ORDER BY source_event_position DESC,record_id LIMIT $5 OFFSET $6\
              ) \
-             SELECT descriptor, count(*) OVER() AS authorized_count \
-             FROM authorized \
-             WHERE search_vector @@ websearch_to_tsquery('simple', $4) \
-             ORDER BY source_event_position DESC, record_id \
-             LIMIT $5 OFFSET $6",
+             SELECT projection.state,projection.source_high_watermark, \
+                    projection.applied_position,projection.last_success_at, \
+                    page.descriptor,authorized_count.authorized_count \
+             FROM projection CROSS JOIN authorized_count LEFT JOIN page ON TRUE",
         )
         .bind(access.holding_id().as_uuid())
         .bind(access.principal_id().as_uuid())
@@ -315,19 +387,36 @@ impl SqlxItemDirectory {
         .await
         .map_err(map_database_error)?;
         tx.commit().await.map_err(map_database_error)?;
+        let Some(first) = rows.first() else {
+            return Ok(DirectoryLookup::Unavailable);
+        };
+        let freshness = projection_freshness_from_row(first, now)?;
+        if freshness == ProjectionFreshness::Unavailable {
+            return Ok(DirectoryLookup::Unavailable);
+        }
+        if freshness == ProjectionFreshness::Stale {
+            return Ok(DirectoryLookup::Degraded(freshness));
+        }
         let authorized_count = authorized_count(&rows)?;
         let items = rows
             .iter()
-            .map(|row| {
-                let value: serde_json::Value = row
-                    .try_get("descriptor")
-                    .map_err(|_| DirectoryAdapterError::Unavailable)?;
-                let descriptor = serde_json::from_value::<ItemDescriptor>(value)
-                    .map_err(|_| DirectoryAdapterError::Unavailable)?;
-                descriptor
-                    .validate()
-                    .map_err(|_| DirectoryAdapterError::Unavailable)?;
-                Ok(descriptor)
+            .filter_map(|row| {
+                let value = match row
+                    .try_get::<Option<serde_json::Value>, _>("descriptor")
+                    .map_err(|_| DirectoryAdapterError::Unavailable)
+                {
+                    Ok(Some(value)) => value,
+                    Ok(None) => return None,
+                    Err(error) => return Some(Err(error)),
+                };
+                Some((|| {
+                    let descriptor = serde_json::from_value::<ItemDescriptor>(value)
+                        .map_err(|_| DirectoryAdapterError::Unavailable)?;
+                    descriptor
+                        .validate()
+                        .map_err(|_| DirectoryAdapterError::Unavailable)?;
+                    Ok(descriptor)
+                })())
             })
             .collect::<Result<Vec<_>, DirectoryAdapterError>>()?;
         let consumed = offset
@@ -361,27 +450,44 @@ impl SqlxItemDirectory {
             return Err(DirectoryAdapterError::Invalid("page_size"));
         }
         let offset = parse_cursor(cursor)?;
-        let freshness = self.freshness(access.holding_id(), now).await?;
-        if freshness == ProjectionFreshness::Unavailable {
-            return Ok(DirectoryLookup::Unavailable);
-        }
-        if freshness == ProjectionFreshness::Stale {
-            return Ok(DirectoryLookup::Degraded(freshness));
-        }
-        if self.authorize_record(access, record_id).await?.is_none() {
-            return Ok(DirectoryLookup::Neutral);
-        }
         let mut tx = self.begin(access.holding_id()).await?;
         let rows = sqlx::query(
-            "WITH linked AS (\
-               SELECT relation.relation_id, relation.source_record_id, relation.target_record_id, \
+            "WITH projection AS MATERIALIZED (\
+               SELECT state,source_high_watermark,applied_position,last_success_at \
+               FROM erpx_collaboration_read.item_directory_projection_state \
+               WHERE holding_id=$1\
+             ), anchor_authorized AS MATERIALIZED (\
+               SELECT projection.applied_position \
+               FROM projection \
+               JOIN erpx_collaboration_read.item_directory_effective_grants grant_fact \
+                 ON grant_fact.holding_id=$1 AND grant_fact.record_id=$2 \
+                AND grant_fact.principal_id=$3 AND grant_fact.can_view \
+               JOIN erpx_collaboration_read.item_directory_descriptors descriptor \
+                 ON descriptor.holding_id=grant_fact.holding_id \
+                AND descriptor.record_id=grant_fact.record_id \
+                AND descriptor.authorization_policy_id=grant_fact.authorization_policy_id \
+                AND descriptor.authorization_policy_version=grant_fact.policy_version \
+                AND grant_fact.source_event_position>=descriptor.source_event_position \
+               WHERE projection.state='ready' \
+                 AND projection.applied_position=projection.source_high_watermark \
+                 AND projection.last_success_at BETWEEN $7-INTERVAL '60 seconds' AND $7 \
+                 AND descriptor.source_event_position<=projection.applied_position \
+                 AND grant_fact.source_event_position<=projection.applied_position \
+                 AND grant_fact.effective_at<=$7 AND grant_fact.expires_at>$7 \
+                 AND descriptor.tombstoned_at IS NULL \
+                 AND erpx_collaboration_read.scope_contains($4, descriptor.record_scope)\
+             ), linked AS MATERIALIZED (\
+               SELECT anchor_authorized.applied_position,relation.relation_id, \
+                      relation.source_record_id,relation.target_record_id, \
                       CASE WHEN relation.source_record_id=$2 \
                            THEN relation.target_record_id ELSE relation.source_record_id END AS linked_id, \
                       relation.target_record_id=$2 AS incoming \
-               FROM erpx_collaboration_read.item_directory_relations relation \
-               WHERE relation.holding_id=$1 AND relation.tombstoned_at IS NULL \
+               FROM anchor_authorized \
+               JOIN erpx_collaboration_read.item_directory_relations relation \
+                 ON relation.holding_id=$1 AND relation.tombstoned_at IS NULL \
+                 AND relation.source_event_position<=anchor_authorized.applied_position \
                  AND (relation.source_record_id=$2 OR relation.target_record_id=$2)\
-             ), authorized AS (\
+             ), authorized AS MATERIALIZED (\
                SELECT linked.*, descriptor.descriptor \
                FROM linked \
                JOIN erpx_collaboration_read.item_directory_effective_grants grant_fact \
@@ -395,10 +501,20 @@ impl SqlxItemDirectory {
                 AND descriptor.authorization_policy_version=grant_fact.policy_version \
                 AND grant_fact.source_event_position>=descriptor.source_event_position \
                WHERE descriptor.tombstoned_at IS NULL \
+                 AND descriptor.source_event_position<=linked.applied_position \
+                 AND grant_fact.source_event_position<=linked.applied_position \
                  AND erpx_collaboration_read.scope_contains($4, descriptor.record_scope)\
+             ), authorized_count AS (\
+               SELECT count(*)::BIGINT AS authorized_count FROM authorized\
+             ), page AS (\
+               SELECT descriptor,incoming,relation_id FROM authorized \
+               ORDER BY relation_id LIMIT $5 OFFSET $6\
              ) \
-             SELECT descriptor, incoming, count(*) OVER() AS authorized_count \
-             FROM authorized ORDER BY relation_id LIMIT $5 OFFSET $6",
+             SELECT projection.state,projection.source_high_watermark, \
+                    projection.applied_position,projection.last_success_at, \
+                    EXISTS (SELECT 1 FROM anchor_authorized) AS anchor_authorized, \
+                    page.descriptor,page.incoming,authorized_count.authorized_count \
+             FROM projection CROSS JOIN authorized_count LEFT JOIN page ON TRUE",
         )
         .bind(access.holding_id().as_uuid())
         .bind(record_id.as_uuid())
@@ -411,13 +527,32 @@ impl SqlxItemDirectory {
         .await
         .map_err(map_database_error)?;
         tx.commit().await.map_err(map_database_error)?;
+        let Some(first) = rows.first() else {
+            return Ok(DirectoryLookup::Unavailable);
+        };
+        let freshness = projection_freshness_from_row(first, now)?;
+        if freshness == ProjectionFreshness::Unavailable {
+            return Ok(DirectoryLookup::Unavailable);
+        }
+        if freshness == ProjectionFreshness::Stale {
+            return Ok(DirectoryLookup::Degraded(freshness));
+        }
+        if !first
+            .try_get::<bool, _>("anchor_authorized")
+            .map_err(|_| DirectoryAdapterError::Unavailable)?
+        {
+            return Ok(DirectoryLookup::Neutral);
+        }
         let authorized_count = authorized_count(&rows)?;
         let mut incoming = Vec::new();
         let mut outgoing = Vec::new();
         for row in &rows {
-            let value: serde_json::Value = row
-                .try_get("descriptor")
+            let value = row
+                .try_get::<Option<serde_json::Value>, _>("descriptor")
                 .map_err(|_| DirectoryAdapterError::Unavailable)?;
+            let Some(value) = value else {
+                continue;
+            };
             let descriptor = serde_json::from_value::<ItemDescriptor>(value)
                 .map_err(|_| DirectoryAdapterError::Unavailable)?;
             descriptor
@@ -432,8 +567,14 @@ impl SqlxItemDirectory {
                 outgoing.push(descriptor.record().clone());
             }
         }
+        let returned_count = incoming
+            .len()
+            .checked_add(outgoing.len())
+            .ok_or(DirectoryAdapterError::Unavailable)?;
         let consumed = offset
-            .checked_add(i64::try_from(rows.len()).map_err(|_| DirectoryAdapterError::Unavailable)?)
+            .checked_add(
+                i64::try_from(returned_count).map_err(|_| DirectoryAdapterError::Unavailable)?,
+            )
             .ok_or(DirectoryAdapterError::Unavailable)?;
         let next_cursor = (u64::try_from(consumed)
             .map_err(|_| DirectoryAdapterError::Unavailable)?
@@ -1332,6 +1473,23 @@ fn projection_freshness(
     })
 }
 
+fn projection_freshness_from_row(
+    row: &sqlx::postgres::PgRow,
+    now: DateTime<Utc>,
+) -> Result<ProjectionFreshness, DirectoryAdapterError> {
+    projection_freshness(
+        row.try_get("state")
+            .map_err(|_| DirectoryAdapterError::Unavailable)?,
+        row.try_get("source_high_watermark")
+            .map_err(|_| DirectoryAdapterError::Unavailable)?,
+        row.try_get("applied_position")
+            .map_err(|_| DirectoryAdapterError::Unavailable)?,
+        row.try_get("last_success_at")
+            .map_err(|_| DirectoryAdapterError::Unavailable)?,
+        now,
+    )
+}
+
 fn validate_search_text(
     value: &str,
     max_bytes: usize,
@@ -1426,8 +1584,17 @@ mod tests {
     #[test]
     fn query_source_authorizes_before_search_and_never_counts_hidden_rows() {
         let source = include_str!("directory.rs");
-        let grants = source.find("WITH authorized AS").expect("authorized CTE");
-        let matching = source
+        let search = source
+            .split("pub async fn search")
+            .nth(1)
+            .expect("search")
+            .split("pub async fn backlinks")
+            .next()
+            .expect("search boundary");
+        let grants = search
+            .find("authorized AS MATERIALIZED")
+            .expect("authorized CTE");
+        let matching = search
             .find("search_vector @@ websearch_to_tsquery")
             .expect("full-text match");
         assert!(grants < matching);
@@ -1437,6 +1604,137 @@ mod tests {
         ]
         .concat();
         assert!(!source.contains(&unscoped_count));
+        assert!(
+            source
+                .matches("erpx_collaboration_read.scope_contains(")
+                .count()
+                >= 3,
+            "resolve, search, and backlinks must all apply lineage containment in SQL"
+        );
+    }
+
+    #[test]
+    fn directory_reads_bind_freshness_proof_and_payload_to_one_statement_snapshot() {
+        let source = include_str!("directory.rs");
+        let authorize = source
+            .split("pub async fn authorize_record")
+            .nth(1)
+            .expect("authorize record")
+            .split("pub async fn resolve")
+            .next()
+            .expect("authorize boundary");
+        let resolve = source
+            .split("pub async fn resolve")
+            .nth(1)
+            .expect("resolve")
+            .split("pub async fn search")
+            .next()
+            .expect("resolve boundary");
+        let search = source
+            .split("pub async fn search")
+            .nth(1)
+            .expect("search")
+            .split("pub async fn backlinks")
+            .next()
+            .expect("search boundary");
+        let backlinks = source
+            .split("pub async fn backlinks")
+            .nth(1)
+            .expect("backlinks")
+            .split("pub async fn freshness")
+            .next()
+            .expect("backlinks boundary");
+
+        for (name, operation) in [
+            ("authorize_record", authorize),
+            ("resolve", resolve),
+            ("search", search),
+            ("backlinks", backlinks),
+        ] {
+            assert_eq!(
+                operation.matches("let rows = sqlx::query(").count()
+                    + operation.matches("let row = sqlx::query(").count(),
+                1,
+                "{name} must select freshness, proof, and payload in one statement"
+            );
+            assert!(operation.contains("WITH projection AS MATERIALIZED"));
+            assert!(operation.contains("projection.state='ready'"));
+            assert!(
+                operation.contains("projection.applied_position=projection.source_high_watermark")
+            );
+            assert!(operation.contains("projection.last_success_at BETWEEN"));
+            assert!(
+                operation.contains("descriptor.source_event_position<=projection.applied_position")
+                    || operation
+                        .contains("descriptor.source_event_position<=linked.applied_position")
+            );
+            assert!(
+                operation.contains("grant_fact.source_event_position<=projection.applied_position")
+                    || operation
+                        .contains("grant_fact.source_event_position<=linked.applied_position")
+            );
+            assert!(
+                operation.contains(
+                    "descriptor.authorization_policy_id=grant_fact.authorization_policy_id"
+                )
+            );
+            assert!(
+                operation
+                    .contains("descriptor.authorization_policy_version=grant_fact.policy_version")
+            );
+            assert!(
+                operation
+                    .contains("grant_fact.source_event_position>=descriptor.source_event_position")
+            );
+            assert!(operation.contains("erpx_collaboration_read.scope_contains("));
+            assert!(!operation.contains("self.freshness("));
+            assert!(!operation.contains("self.authorize_record("));
+        }
+        assert!(backlinks.contains("anchor_authorized AS MATERIALIZED"));
+        assert!(backlinks.contains("FROM anchor_authorized"));
+        assert_eq!(
+            backlinks
+                .matches("descriptor.source_event_position<=")
+                .count(),
+            2,
+            "both anchor and linked descriptors must be checkpoint-fenced"
+        );
+        assert_eq!(
+            backlinks
+                .matches("grant_fact.source_event_position<=")
+                .count(),
+            2,
+            "both anchor and linked grants must be checkpoint-fenced"
+        );
+        assert!(
+            backlinks
+                .contains("relation.source_event_position<=anchor_authorized.applied_position")
+        );
+        assert!(search.contains("authorized_count AS"));
+        assert!(backlinks.contains("authorized_count AS"));
+    }
+
+    #[test]
+    fn scope_containment_uses_the_active_canonical_organization_chain() {
+        let ddl = crate::READ_DDL;
+        let function = ddl
+            .split(
+                "CREATE FUNCTION erpx_collaboration_read.scope_contains(authority JSONB, target JSONB)",
+            )
+            .nth(1)
+            .expect("scope containment function")
+            .split("CREATE FUNCTION erpx_collaboration_read.audience_allows")
+            .next()
+            .expect("scope containment boundary");
+
+        assert!(function.contains("LANGUAGE plpgsql\nSTABLE"));
+        assert!(function.contains("erpx_authority_read.organization_nodes"));
+        assert!(function.contains("candidate.node_kind IN ('department','team')"));
+        assert!(function.contains("ancestor.node_status <> 'active'"));
+        assert!(function.contains("ancestor.lineage_node_ids IS DISTINCT FROM"));
+        assert!(function.contains("ancestor.node_kind IN ('department','team')"));
+        assert!(!function.contains("company_ids"));
+        assert!(!function.contains("branch_ids"));
     }
 
     #[test]

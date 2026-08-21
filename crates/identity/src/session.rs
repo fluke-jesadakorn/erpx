@@ -4,8 +4,8 @@ use chrono::{DateTime, Duration, Utc};
 use uuid::Uuid;
 
 use crate::{
-    AccessToken, AccessTokenLifetime, AccessTokenSigner, ActiveRoleClaim, IdentityError,
-    SecretValue, TokenHash,
+    AccessToken, AccessTokenIssueWindow, AccessTokenLifetime, AccessTokenSigner, ActiveRoleClaim,
+    AuthenticatedAuthority, IdentityError, SecretValue, TokenHash,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,6 +21,7 @@ pub struct SessionRecord {
     active_role_source: Option<String>,
     active_role_selection_id: Option<String>,
     authorization_context_version: u64,
+    authority: AuthenticatedAuthority,
 }
 
 impl SessionRecord {
@@ -57,6 +58,7 @@ impl SessionRecord {
         {
             return Err(IdentityError::SessionInactive);
         }
+        let authority = value.authority.validate()?;
         Ok(Self {
             id: value.id,
             principal_ref,
@@ -69,6 +71,7 @@ impl SessionRecord {
             active_role_source: value.active_role_source,
             active_role_selection_id: value.active_role_selection_id,
             authorization_context_version: value.authorization_context_version,
+            authority,
         })
     }
 
@@ -111,6 +114,9 @@ impl SessionRecord {
     pub fn authorization_context_version(&self) -> u64 {
         self.authorization_context_version
     }
+    pub const fn authority(&self) -> AuthenticatedAuthority {
+        self.authority
+    }
     pub fn revoke_at(&self, at: DateTime<Utc>) -> Self {
         let mut next = self.clone();
         next.revoked_at = Some(self.revoked_at.map_or(at, |revoked_at| revoked_at.min(at)));
@@ -132,6 +138,7 @@ pub(crate) struct PersistedSession {
     pub(crate) active_role_source: Option<String>,
     pub(crate) active_role_selection_id: Option<String>,
     pub(crate) authorization_context_version: u64,
+    pub(crate) authority: AuthenticatedAuthority,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -227,6 +234,25 @@ impl SessionService {
         at: DateTime<Utc>,
         access_lifetime: AccessTokenLifetime,
     ) -> Result<IssuedSession, IdentityError> {
+        self.issue_with_authority(
+            principal_ref,
+            device_id,
+            AuthenticatedAuthority::legacy_human(),
+            at,
+            access_lifetime,
+        )
+    }
+
+    /// Issue a session while preserving the authenticated realm and principal
+    /// kind established by the authentication boundary.
+    pub fn issue_with_authority(
+        &self,
+        principal_ref: impl Into<String>,
+        device_id: Uuid,
+        authority: AuthenticatedAuthority,
+        at: DateTime<Utc>,
+        access_lifetime: AccessTokenLifetime,
+    ) -> Result<IssuedSession, IdentityError> {
         let principal_ref = principal_ref.into();
         if principal_ref.trim().is_empty() {
             return Err(IdentityError::InvalidIdentityReference);
@@ -234,6 +260,7 @@ impl SessionService {
         if device_id.is_nil() {
             return Err(IdentityError::InvalidIdentityReference);
         }
+        let authority = authority.validate()?;
         let id = Uuid::new_v4();
         let refresh_token = SecretValue::random(32)?;
         let record = SessionRecord {
@@ -248,14 +275,15 @@ impl SessionService {
             active_role_source: None,
             active_role_selection_id: None,
             authorization_context_version: 1,
+            authority,
         };
-        let access_token = self.access_tokens.issue_with_context(
+        let access_token = self.access_tokens.issue_with_authority(
             principal_ref,
             id,
             None,
             Some(1),
-            at,
-            access_lifetime,
+            authority,
+            AccessTokenIssueWindow::new(at, access_lifetime),
         )?;
         Ok(IssuedSession {
             record,
@@ -293,13 +321,13 @@ impl SessionService {
                 source: source.clone(),
                 selection_id: selection_id.clone(),
             });
-        let access_token = self.access_tokens.issue_with_context(
+        let access_token = self.access_tokens.issue_with_authority(
             record.principal_ref.clone(),
             record.id,
             active_role,
             Some(record.authorization_context_version),
-            at,
-            AccessTokenLifetime::five_minutes(),
+            record.authority,
+            AccessTokenIssueWindow::new(at, AccessTokenLifetime::five_minutes()),
         )?;
         Ok(RefreshRotationOutcome::Rotated(RotatedSession {
             record: next_record,
@@ -319,6 +347,10 @@ mod tests {
         Utc.with_ymd_and_hms(2026, 7, 27, 12, 0, 0)
             .single()
             .expect("fixed test time")
+    }
+
+    const fn human_authority() -> AuthenticatedAuthority {
+        AuthenticatedAuthority::legacy_human()
     }
 
     #[test]
@@ -367,6 +399,7 @@ mod tests {
             active_role_source: None,
             active_role_selection_id: None,
             authorization_context_version: 1,
+            authority: human_authority(),
         };
         assert!(matches!(
             SessionRecord::from_persisted(PersistedSession {
@@ -402,6 +435,7 @@ mod tests {
             active_role_source: None,
             active_role_selection_id: None,
             authorization_context_version: 1,
+            authority: human_authority(),
         };
         assert!(matches!(
             SessionRecord::from_persisted(base),
@@ -462,6 +496,10 @@ mod tests {
             active_role_source: Some("local".into()),
             active_role_selection_id: Some(selection_id.clone()),
             authorization_context_version: 9,
+            authority: AuthenticatedAuthority {
+                realm: crate::AuthenticatedRealm::InternalWorkforce,
+                principal_kind: crate::AuthenticatedPrincipalKind::Agent,
+            },
         })
         .expect("persisted selected-role session");
 
@@ -477,6 +515,10 @@ mod tests {
             Some(selection_id.as_str())
         );
         assert_eq!(rotated.record().authorization_context_version(), 9);
+        assert_eq!(
+            rotated.access_token().claims().principal_kind,
+            crate::AuthenticatedPrincipalKind::Agent
+        );
         assert_eq!(
             rotated.access_token().claims().active_role,
             Some(ActiveRoleClaim {
@@ -507,6 +549,7 @@ mod tests {
             active_role_source: Some("local".into()),
             active_role_selection_id: None,
             authorization_context_version: 1,
+            authority: human_authority(),
         };
         assert!(matches!(
             SessionRecord::from_persisted(base.clone()),
@@ -520,5 +563,44 @@ mod tests {
             }),
             Err(IdentityError::SessionInactive)
         ));
+    }
+
+    #[test]
+    fn issue_and_refresh_preserve_non_human_authority() {
+        let signer = AccessTokenSigner::new(b"01234567890123456789012345678901").expect("signer");
+        let service = SessionService::new(signer, Duration::days(30)).expect("service");
+        for principal_kind in [
+            crate::AuthenticatedPrincipalKind::Agent,
+            crate::AuthenticatedPrincipalKind::Service,
+        ] {
+            let authority = AuthenticatedAuthority {
+                realm: crate::AuthenticatedRealm::InternalWorkforce,
+                principal_kind,
+            };
+            let issued = service
+                .issue_with_authority(
+                    format!("local:{principal_kind:?}"),
+                    Uuid::new_v4(),
+                    authority,
+                    at(),
+                    AccessTokenLifetime::five_minutes(),
+                )
+                .expect("non-human session");
+            assert_eq!(issued.record().authority(), authority);
+            assert_eq!(issued.access_token().claims().authority(), authority);
+
+            let RefreshRotationOutcome::Rotated(rotated) = service
+                .rotate_refresh(
+                    issued.record(),
+                    issued.refresh_token().as_str(),
+                    at() + Duration::seconds(1),
+                )
+                .expect("refresh")
+            else {
+                panic!("unexpected refresh reuse");
+            };
+            assert_eq!(rotated.record().authority(), authority);
+            assert_eq!(rotated.access_token().claims().authority(), authority);
+        }
     }
 }

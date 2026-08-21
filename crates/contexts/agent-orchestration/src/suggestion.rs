@@ -5,7 +5,7 @@
 //! draft only after the owner validates the source version and payload digest.
 
 use chrono::{DateTime, Utc};
-use erpx_kernel::AuthorityScope;
+use erpx_kernel::{ActorKind, AuthorityScope, HumanDecisionProof, SessionId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -27,6 +27,10 @@ impl SuggestionId {
     pub const fn as_uuid(self) -> Uuid {
         self.0
     }
+}
+
+pub fn suggestion_apply_decision_ref(suggestion_id: SuggestionId) -> String {
+    format!("agent.suggestion:{}:apply", suggestion_id.as_uuid())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -154,6 +158,12 @@ pub struct SuggestionEnvelope {
     status: SuggestionStatus,
     requested_by: String,
     applied_by: Option<String>,
+    #[serde(default)]
+    applied_actor_kind: Option<ActorKind>,
+    #[serde(default)]
+    applied_decision_ref: Option<String>,
+    #[serde(default)]
+    applied_session_id: Option<SessionId>,
     failure_code: Option<String>,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
@@ -197,6 +207,9 @@ impl SuggestionEnvelope {
             status: SuggestionStatus::Queued,
             requested_by,
             applied_by: None,
+            applied_actor_kind: None,
+            applied_decision_ref: None,
+            applied_session_id: None,
             failure_code: None,
             created_at: at,
             updated_at: at,
@@ -226,19 +239,28 @@ impl SuggestionEnvelope {
         &mut self,
         current_source_version: u64,
         current_payload_digest: &str,
-        applied_by: String,
-        at: DateTime<Utc>,
+        decision: HumanDecisionProof,
     ) -> Result<(), SuggestionError> {
+        if decision.authority_scope() != &self.scope
+            || decision.decision_ref() != suggestion_apply_decision_ref(self.id)
+        {
+            return Err(SuggestionError::HumanCommandRequired);
+        }
         if current_source_version != self.source.record_version
             || current_payload_digest != self.payload_digest
         {
             return Err(SuggestionError::StaleSuggestion);
         }
-        if !valid_text(&applied_by, 256) {
-            return Err(SuggestionError::HumanCommandRequired);
-        }
+        let applied_by = decision.principal_ref().to_owned();
+        let applied_actor_kind = decision.actor().kind;
+        let applied_decision_ref = decision.decision_ref().to_owned();
+        let applied_session_id = decision.actor().session_id;
+        let at = decision.decided_at();
         self.transition(SuggestionStatus::Ready, SuggestionStatus::Applied, at)?;
         self.applied_by = Some(applied_by);
+        self.applied_actor_kind = Some(applied_actor_kind);
+        self.applied_decision_ref = Some(applied_decision_ref);
+        self.applied_session_id = applied_session_id;
         Ok(())
     }
 
@@ -340,6 +362,15 @@ impl SuggestionEnvelope {
     pub fn applied_by(&self) -> Option<&str> {
         self.applied_by.as_deref()
     }
+    pub const fn applied_actor_kind(&self) -> Option<ActorKind> {
+        self.applied_actor_kind
+    }
+    pub fn applied_decision_ref(&self) -> Option<&str> {
+        self.applied_decision_ref.as_deref()
+    }
+    pub const fn applied_session_id(&self) -> Option<SessionId> {
+        self.applied_session_id
+    }
     pub fn failure_code(&self) -> Option<&str> {
         self.failure_code.as_deref()
     }
@@ -390,14 +421,40 @@ fn valid_digest(value: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use erpx_kernel::{
+        ActorAttribution, ActorKind, HumanDecisionError, HumanDecisionProof, SessionId,
+    };
+
     use super::*;
+
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Holding {
+            holding_id: Uuid::from_u128(2),
+        }
+    }
+
+    fn human_decision(reference: &str, at: DateTime<Utc>) -> HumanDecisionProof {
+        HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: "human:maker".into(),
+                kind: ActorKind::HoldingUser,
+                session_id: Some(
+                    SessionId::try_from_uuid(Uuid::from_u128(9)).expect("non-nil session"),
+                ),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            scope(),
+            reference,
+            at,
+        )
+        .unwrap()
+    }
 
     fn envelope() -> SuggestionEnvelope {
         SuggestionEnvelope::request(
             SuggestionId::try_from_uuid(Uuid::from_u128(1)).unwrap(),
-            AuthorityScope::Holding {
-                holding_id: Uuid::from_u128(2),
-            },
+            scope(),
             SuggestionCapability::SalesQuoteCompose,
             SuggestionSource {
                 record_kind: "quote".into(),
@@ -424,34 +481,65 @@ mod tests {
     fn suggestion_never_applies_before_ready_or_without_a_human_command() {
         let mut value = envelope();
         let at = value.created_at();
+        let decision_ref = suggestion_apply_decision_ref(value.id());
         assert_eq!(
-            value.apply(7, &"a".repeat(64), "human:maker".into(), at),
+            value.apply(7, &"a".repeat(64), human_decision(&decision_ref, at)),
             Err(SuggestionError::InvalidTransition)
         );
         value.start(at).unwrap();
         value.complete("c".repeat(64), at).unwrap();
         assert_eq!(
-            value.apply(7, &"a".repeat(64), "".into(), at),
+            HumanDecisionProof::try_new(
+                ActorAttribution {
+                    principal_ref: "agent:suggester".into(),
+                    kind: ActorKind::Agent,
+                    session_id: Some(
+                        SessionId::try_from_uuid(Uuid::from_u128(10)).expect("non-nil session"),
+                    ),
+                    represented_principal_ref: None,
+                    support_capability_id: None,
+                },
+                scope(),
+                decision_ref.clone(),
+                at,
+            ),
+            Err(HumanDecisionError::HumanActorRequired)
+        );
+        assert_eq!(
+            value.apply(
+                7,
+                &"a".repeat(64),
+                human_decision(
+                    &suggestion_apply_decision_ref(
+                        SuggestionId::try_from_uuid(Uuid::from_u128(99)).unwrap(),
+                    ),
+                    at,
+                ),
+            ),
             Err(SuggestionError::HumanCommandRequired)
         );
         value
-            .apply(7, &"a".repeat(64), "human:maker".into(), at)
+            .apply(7, &"a".repeat(64), human_decision(&decision_ref, at))
             .unwrap();
         assert_eq!(value.status(), SuggestionStatus::Applied);
+        assert_eq!(value.applied_actor_kind(), Some(ActorKind::HoldingUser));
+        assert_eq!(value.applied_decision_ref(), Some(decision_ref.as_str()));
+        assert!(value.applied_session_id().is_some());
     }
 
     #[test]
     fn stale_source_or_payload_is_rejected() {
         let mut value = envelope();
         let at = value.created_at();
+        let decision_ref = suggestion_apply_decision_ref(value.id());
         value.start(at).unwrap();
         value.complete("c".repeat(64), at).unwrap();
         assert_eq!(
-            value.apply(8, &"a".repeat(64), "human:maker".into(), at),
+            value.apply(8, &"a".repeat(64), human_decision(&decision_ref, at)),
             Err(SuggestionError::StaleSuggestion)
         );
         assert_eq!(
-            value.apply(7, &"d".repeat(64), "human:maker".into(), at),
+            value.apply(7, &"d".repeat(64), human_decision(&decision_ref, at)),
             Err(SuggestionError::StaleSuggestion)
         );
         assert_eq!(value.status(), SuggestionStatus::Ready);

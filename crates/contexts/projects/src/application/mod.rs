@@ -2,6 +2,7 @@ use erpx_cqrs::{CommandReceipt, IdempotencyKey};
 use erpx_integration_contracts::StableRecordRef;
 use erpx_kernel::{
     ActorAttribution, AuditContext, AuthorityScope, Clock, CommandId, CorrelationId, EventId,
+    HumanDecisionProof,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -14,11 +15,13 @@ use crate::{
         DependencyKind, DependencySide, HandoffId, HandoffKind, HandoffOutcome, Project,
         ProjectClass, ProjectCloseEvidence, ProjectDomainError, ProjectHandoff, ProjectId,
         ProjectNode, ProjectNodeId, ProjectStatus, ProjectsAggregate, TimeFact, WorkflowTemplateId,
+        dependency_acceptance_decision_ref, dependency_rejection_decision_ref,
+        handoff_approval_decision_ref,
     },
     ports::{
         AuthorizationPort, AuthorizationRequest, CommandFingerprint, CommandIdentity,
-        CommandUnitOfWork, DependencyGraphPort, EntitlementPort, PortError, ProjectAction,
-        ProjectsCommit, WriteRepository,
+        CommandUnitOfWork, DependencyDecisionAction, DependencyGraphPort, EntitlementPort,
+        HandoffChangeAction, PortError, ProjectAction, ProjectsCommit, WriteRepository,
     },
 };
 
@@ -95,19 +98,10 @@ pub struct ChangeProjectNode {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DependencyDecision {
-    Accept {
-        side: DependencySide,
-        owner_id: Uuid,
-    },
-    Reject {
-        owner_id: Uuid,
-    },
-    Cancel {
-        owner_id: Uuid,
-    },
-    Revoke {
-        owner_id: Uuid,
-    },
+    Accept { side: DependencySide },
+    Reject,
+    Cancel { owner_id: Uuid },
+    Revoke { owner_id: Uuid },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -118,11 +112,43 @@ pub struct DecideDependency {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HandoffChange {
-    Approve { approved_by: Uuid },
+    Approve,
     MarkReady,
     MarkUncertain,
     Cancel,
     Reconcile { outcome: HandoffOutcome },
+}
+
+impl DependencyDecision {
+    const fn action(&self) -> DependencyDecisionAction {
+        match self {
+            Self::Accept {
+                side: DependencySide::Source,
+            } => DependencyDecisionAction::AcceptSource,
+            Self::Accept {
+                side: DependencySide::Target,
+            } => DependencyDecisionAction::AcceptTarget,
+            Self::Reject => DependencyDecisionAction::Reject,
+            Self::Cancel { .. } => DependencyDecisionAction::Cancel,
+            Self::Revoke { .. } => DependencyDecisionAction::Revoke,
+        }
+    }
+
+    const fn requires_human_decision(&self) -> bool {
+        matches!(self, Self::Accept { .. } | Self::Reject)
+    }
+}
+
+impl HandoffChange {
+    const fn action(&self) -> HandoffChangeAction {
+        match self {
+            Self::Approve => HandoffChangeAction::Approve,
+            Self::MarkReady => HandoffChangeAction::MarkReady,
+            Self::MarkUncertain => HandoffChangeAction::MarkUncertain,
+            Self::Cancel => HandoffChangeAction::Cancel,
+            Self::Reconcile { .. } => HandoffChangeAction::Reconcile,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -235,6 +261,26 @@ where
         aggregate: ProjectsAggregate,
         events: Vec<crate::domain::ProjectEvent>,
     ) -> Result<CommandReceipt<ProjectsAggregate>, ProjectApplicationError> {
+        self.persist_with_human_decision(
+            context,
+            identity,
+            expected_version,
+            aggregate,
+            events,
+            None,
+        )
+        .await
+    }
+
+    async fn persist_with_human_decision(
+        &self,
+        context: CommandContext,
+        identity: CommandIdentity,
+        expected_version: Option<u64>,
+        aggregate: ProjectsAggregate,
+        events: Vec<crate::domain::ProjectEvent>,
+        human_decision: Option<HumanDecisionProof>,
+    ) -> Result<CommandReceipt<ProjectsAggregate>, ProjectApplicationError> {
         let stored = self
             .unit_of_work
             .commit(ProjectsCommit {
@@ -244,6 +290,7 @@ where
                 actor: context.actor,
                 authority_scope: context.authority_scope,
                 audit: context.audit,
+                human_decision,
                 expected_version,
                 aggregate,
                 events,
@@ -603,11 +650,17 @@ where
         context: CommandContext,
         command: DecideDependency,
     ) -> Result<CommandReceipt<ProjectsAggregate>, ProjectApplicationError> {
+        if command.decision.requires_human_decision() {
+            require_authenticated_human_decision(&context.actor)?;
+            decision_actor_uuid(&context.actor)?;
+        }
+        let decision_action = command.decision.action();
         let identity = CommandIdentity {
             command_id: context.command_id,
             idempotency_key: context.idempotency_key.clone(),
             fingerprint: CommandFingerprint::DecideDependency {
                 dependency_id: command.dependency_id,
+                decision: decision_action,
                 request_digest: digest(&command)?,
             },
         };
@@ -622,28 +675,58 @@ where
             .load_dependency(&context.authority_scope, command.dependency_id)
             .await?
             .ok_or(PortError::NotFound)?;
-        self.preflight(
-            &context,
-            &dependency.source().scope,
-            ProjectAction::DecideDependency,
-        )
-        .await?;
+        let decision_scope = match &command.decision {
+            DependencyDecision::Accept { side } => match side {
+                DependencySide::Source => dependency.source().scope.clone(),
+                DependencySide::Target => dependency.target().scope.clone(),
+            },
+            DependencyDecision::Reject => {
+                let owner_id = decision_actor_uuid(&context.actor)?;
+                dependency
+                    .owner_scope(owner_id)
+                    .cloned()
+                    .ok_or(ProjectApplicationError::HumanDecisionRequired)?
+            }
+            DependencyDecision::Cancel { .. } | DependencyDecision::Revoke { .. } => {
+                dependency.source().scope.clone()
+            }
+        };
+        self.preflight(&context, &decision_scope, ProjectAction::DecideDependency)
+            .await?;
         let expected = required_version(context.expected_version, dependency.version())?;
         let at = self.clock.now();
+        let mut human_decision = None;
         match command.decision {
-            DependencyDecision::Accept { side, owner_id } => {
-                dependency.accept(side, owner_id, dependency.terms_version(), at)?;
+            DependencyDecision::Accept { side } => {
+                let decision = bind_human_decision(
+                    &context.actor,
+                    decision_scope,
+                    dependency_acceptance_decision_ref(command.dependency_id, side),
+                    at,
+                )?;
+                dependency.accept(side, dependency.terms_version(), &decision)?;
+                human_decision = Some(decision);
             }
-            DependencyDecision::Reject { owner_id } => dependency.reject(owner_id, at)?,
+            DependencyDecision::Reject => {
+                let decision = bind_human_decision(
+                    &context.actor,
+                    decision_scope,
+                    dependency_rejection_decision_ref(command.dependency_id),
+                    at,
+                )?;
+                dependency.reject(&decision)?;
+                human_decision = Some(decision);
+            }
             DependencyDecision::Cancel { owner_id } => dependency.cancel(owner_id, at)?,
             DependencyDecision::Revoke { owner_id } => dependency.revoke(owner_id, at)?,
         }
-        self.persist(
+        self.persist_with_human_decision(
             context,
             identity,
             Some(expected),
             ProjectsAggregate::Dependency(dependency),
             Vec::new(),
+            human_decision,
         )
         .await
     }
@@ -707,11 +790,17 @@ where
         context: CommandContext,
         command: ChangeHandoff,
     ) -> Result<CommandReceipt<ProjectsAggregate>, ProjectApplicationError> {
+        if matches!(command.change, HandoffChange::Approve) {
+            require_authenticated_human_decision(&context.actor)?;
+            decision_actor_uuid(&context.actor)?;
+        }
+        let change_action = command.change.action();
         let identity = CommandIdentity {
             command_id: context.command_id,
             idempotency_key: context.idempotency_key.clone(),
             fingerprint: CommandFingerprint::ChangeHandoff {
                 handoff_id: command.handoff_id,
+                change: change_action,
                 request_digest: digest(&command)?,
             },
         };
@@ -730,8 +819,18 @@ where
         self.preflight(&context, handoff.scope(), action).await?;
         let expected = required_version(context.expected_version, handoff.version())?;
         let at = self.clock.now();
+        let mut human_decision = None;
         match command.change {
-            HandoffChange::Approve { approved_by } => handoff.approve(approved_by, at)?,
+            HandoffChange::Approve => {
+                let decision = bind_human_decision(
+                    &context.actor,
+                    handoff.scope().clone(),
+                    handoff_approval_decision_ref(command.handoff_id),
+                    at,
+                )?;
+                handoff.approve(&decision)?;
+                human_decision = Some(decision);
+            }
             HandoffChange::MarkReady => handoff.mark_ready(at)?,
             HandoffChange::MarkUncertain => handoff.mark_uncertain(at)?,
             HandoffChange::Cancel => handoff.cancel(at)?,
@@ -740,15 +839,46 @@ where
                 handoff.reconcile(outcome)?;
             }
         }
-        self.persist(
+        self.persist_with_human_decision(
             context,
             identity,
             Some(expected),
             ProjectsAggregate::Handoff(handoff),
             Vec::new(),
+            human_decision,
         )
         .await
     }
+}
+
+fn require_authenticated_human_decision(
+    actor: &ActorAttribution,
+) -> Result<(), ProjectApplicationError> {
+    if actor.is_human()
+        && actor.session_id.is_some()
+        && actor.represented_principal_ref.is_none()
+        && actor.support_capability_id.is_none()
+    {
+        Ok(())
+    } else {
+        Err(ProjectApplicationError::HumanDecisionRequired)
+    }
+}
+
+fn decision_actor_uuid(actor: &ActorAttribution) -> Result<Uuid, ProjectApplicationError> {
+    Uuid::parse_str(&actor.principal_ref)
+        .map_err(|_| ProjectApplicationError::HumanDecisionRequired)
+}
+
+fn bind_human_decision(
+    actor: &ActorAttribution,
+    scope: AuthorityScope,
+    decision_ref: String,
+    decided_at: chrono::DateTime<chrono::Utc>,
+) -> Result<HumanDecisionProof, ProjectApplicationError> {
+    require_authenticated_human_decision(actor)?;
+    HumanDecisionProof::try_new(actor.clone(), scope, decision_ref, decided_at)
+        .map_err(|_| ProjectApplicationError::HumanDecisionRequired)
 }
 
 fn validate_endpoint(
@@ -798,13 +928,238 @@ pub enum ProjectApplicationError {
     ScopeOutsideAuthority,
     #[error("project dependency or handoff endpoint is missing or stale")]
     StaleEndpoint,
+    #[error("Projects decision requires a directly authenticated human session")]
+    HumanDecisionRequired,
     #[error("command fingerprint serialization failed")]
     Serialization,
 }
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    use async_trait::async_trait;
+    use chrono::{Duration, TimeZone, Utc};
+    use erpx_kernel::{ActorKind, FixedClock, SessionId};
+
     use super::*;
+
+    fn id(value: u128) -> Uuid {
+        Uuid::from_u128(value)
+    }
+
+    fn test_at(minute: i64) -> chrono::DateTime<Utc> {
+        Utc.with_ymd_and_hms(2026, 8, 21, 9, 0, 0).single().unwrap() + Duration::minutes(minute)
+    }
+
+    fn branch_scope(branch_id: u128) -> AuthorityScope {
+        AuthorityScope::Branch {
+            holding_id: id(1),
+            company_id: id(2),
+            branch_id: id(branch_id),
+        }
+    }
+
+    fn command_context(
+        kind: ActorKind,
+        principal_id: u128,
+        expected_version: u64,
+    ) -> CommandContext {
+        CommandContext {
+            command_id: CommandId::try_from_uuid(id(500)).unwrap(),
+            idempotency_key: IdempotencyKey::try_new("projects-human-decision-test").unwrap(),
+            correlation_id: CorrelationId::try_from_uuid(id(501)).unwrap(),
+            causation_id: None,
+            actor: ActorAttribution {
+                principal_ref: id(principal_id).to_string(),
+                kind,
+                session_id: Some(SessionId::try_from_uuid(id(502)).unwrap()),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            authority_scope: AuthorityScope::Holding { holding_id: id(1) },
+            audit: AuditContext {
+                purpose: "projects human decision test".into(),
+                customer_visible: false,
+                module: Some("projects".into()),
+            },
+            expected_version: Some(expected_version),
+        }
+    }
+
+    fn dependency_endpoint(
+        project_id: u128,
+        node_id: u128,
+        branch_id: u128,
+        owner_id: u128,
+    ) -> DependencyEndpoint {
+        DependencyEndpoint {
+            project_id: ProjectId::try_from_uuid(id(project_id)).unwrap(),
+            project_version: 1,
+            node_id: ProjectNodeId::try_from_uuid(id(node_id)).unwrap(),
+            node_version: 1,
+            scope: branch_scope(branch_id),
+            owner_id: id(owner_id),
+        }
+    }
+
+    fn proposed_dependency() -> DependencyAgreement {
+        DependencyAgreement::propose(
+            DependencyId::try_from_uuid(id(520)).unwrap(),
+            dependency_endpoint(100, 101, 3, 110),
+            dependency_endpoint(102, 103, 4, 111),
+            DependencyKind::FinishToStart,
+            id(110),
+            test_at(0),
+        )
+        .unwrap()
+    }
+
+    fn proposed_handoff() -> ProjectHandoff {
+        ProjectHandoff::propose(
+            HandoffId::try_from_uuid(id(530)).unwrap(),
+            ProjectId::try_from_uuid(id(100)).unwrap(),
+            ProjectNodeId::try_from_uuid(id(101)).unwrap(),
+            branch_scope(3),
+            HandoffKind::AssetCapitalization,
+            "a".repeat(64),
+            "projects-handoff-test",
+            CorrelationId::try_from_uuid(id(531)).unwrap(),
+            id(132),
+            test_at(0),
+        )
+        .unwrap()
+    }
+
+    #[derive(Clone, Default)]
+    struct TestWrite {
+        dependency: Option<DependencyAgreement>,
+        handoff: Option<ProjectHandoff>,
+        loads: Arc<AtomicUsize>,
+    }
+
+    #[async_trait]
+    impl WriteRepository for TestWrite {
+        async fn load_project(
+            &self,
+            _: &AuthorityScope,
+            _: ProjectId,
+        ) -> Result<Option<Project>, PortError> {
+            self.loads.fetch_add(1, Ordering::SeqCst);
+            Ok(None)
+        }
+
+        async fn load_workflow(
+            &self,
+            _: &AuthorityScope,
+            _: WorkflowTemplateId,
+        ) -> Result<Option<crate::domain::WorkflowTemplate>, PortError> {
+            self.loads.fetch_add(1, Ordering::SeqCst);
+            Ok(None)
+        }
+
+        async fn load_dependency(
+            &self,
+            _: &AuthorityScope,
+            _: DependencyId,
+        ) -> Result<Option<DependencyAgreement>, PortError> {
+            self.loads.fetch_add(1, Ordering::SeqCst);
+            Ok(self.dependency.clone())
+        }
+
+        async fn load_handoff(
+            &self,
+            _: &AuthorityScope,
+            _: HandoffId,
+        ) -> Result<Option<ProjectHandoff>, PortError> {
+            self.loads.fetch_add(1, Ordering::SeqCst);
+            Ok(self.handoff.clone())
+        }
+    }
+
+    #[derive(Clone, Default)]
+    struct TestUnitOfWork {
+        receipt_reads: Arc<AtomicUsize>,
+        commits: Arc<Mutex<Vec<ProjectsCommit>>>,
+    }
+
+    #[async_trait]
+    impl CommandUnitOfWork for TestUnitOfWork {
+        async fn find_receipt(
+            &self,
+            _: &CommandIdentity,
+        ) -> Result<Option<crate::ports::StoredCommit>, PortError> {
+            self.receipt_reads.fetch_add(1, Ordering::SeqCst);
+            Ok(None)
+        }
+
+        async fn commit(
+            &self,
+            request: ProjectsCommit,
+        ) -> Result<crate::ports::StoredCommit, PortError> {
+            let stored = crate::ports::StoredCommit {
+                command_id: request.identity.command_id,
+                correlation_id: request.correlation_id,
+                aggregate: request.aggregate.clone(),
+                committed_events: Vec::new(),
+                committed_at: request.aggregate.occurred_at(),
+                replayed: false,
+            };
+            self.commits.lock().unwrap().push(request);
+            Ok(stored)
+        }
+    }
+
+    #[derive(Clone, Copy)]
+    struct Allow;
+
+    #[async_trait]
+    impl AuthorizationPort for Allow {
+        async fn authorize(&self, request: AuthorizationRequest<'_>) -> Result<(), PortError> {
+            assert!(request.authority_scope.contains(request.target_scope));
+            Ok(())
+        }
+    }
+
+    #[async_trait]
+    impl EntitlementPort for Allow {
+        async fn ensure_projects_enabled(
+            &self,
+            _: &AuthorityScope,
+            _: bool,
+        ) -> Result<(), PortError> {
+            Ok(())
+        }
+    }
+
+    #[async_trait]
+    impl DependencyGraphPort for Allow {
+        async fn would_create_cycle(
+            &self,
+            _: &DependencyEndpoint,
+            _: &DependencyEndpoint,
+        ) -> Result<bool, PortError> {
+            Ok(false)
+        }
+    }
+
+    fn service(
+        write: TestWrite,
+        unit_of_work: TestUnitOfWork,
+        minute: i64,
+    ) -> ProjectsCommandService<TestWrite, TestUnitOfWork, Allow, Allow, Allow, FixedClock> {
+        ProjectsCommandService::new(
+            write,
+            unit_of_work,
+            Allow,
+            Allow,
+            Allow,
+            FixedClock::new(test_at(minute)),
+        )
+    }
 
     #[test]
     fn fingerprint_digest_is_stable_and_payload_sensitive() {
@@ -825,5 +1180,215 @@ mod tests {
         let mut changed = base.clone();
         changed.name = "Changed".into();
         assert_ne!(digest(&base).unwrap(), digest(&changed).unwrap());
+    }
+
+    #[tokio::test]
+    async fn non_humans_are_denied_before_projects_receipt_or_owner_load() {
+        for kind in [
+            ActorKind::Agent,
+            ActorKind::Service,
+            ActorKind::SystemWorker,
+        ] {
+            let write = TestWrite {
+                dependency: Some(proposed_dependency()),
+                handoff: Some(proposed_handoff()),
+                ..Default::default()
+            };
+            let loads = write.loads.clone();
+            let uow = TestUnitOfWork::default();
+            let application = service(write, uow.clone(), 1);
+            let error = application
+                .decide_dependency(
+                    command_context(kind, 110, 1),
+                    DecideDependency {
+                        dependency_id: DependencyId::try_from_uuid(id(520)).unwrap(),
+                        decision: DependencyDecision::Accept {
+                            side: DependencySide::Source,
+                        },
+                    },
+                )
+                .await
+                .unwrap_err();
+            assert!(matches!(
+                error,
+                ProjectApplicationError::HumanDecisionRequired
+            ));
+            assert_eq!(loads.load(Ordering::SeqCst), 0);
+            assert_eq!(uow.receipt_reads.load(Ordering::SeqCst), 0);
+            assert!(uow.commits.lock().unwrap().is_empty());
+
+            let write = TestWrite {
+                handoff: Some(proposed_handoff()),
+                ..Default::default()
+            };
+            let loads = write.loads.clone();
+            let uow = TestUnitOfWork::default();
+            let application = service(write, uow.clone(), 1);
+            let error = application
+                .change_handoff(
+                    command_context(kind, 133, 1),
+                    ChangeHandoff {
+                        handoff_id: HandoffId::try_from_uuid(id(530)).unwrap(),
+                        change: HandoffChange::Approve,
+                    },
+                )
+                .await
+                .unwrap_err();
+            assert!(matches!(
+                error,
+                ProjectApplicationError::HumanDecisionRequired
+            ));
+            assert_eq!(loads.load(Ordering::SeqCst), 0);
+            assert_eq!(uow.receipt_reads.load(Ordering::SeqCst), 0);
+            assert!(uow.commits.lock().unwrap().is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn dependency_decisions_derive_owner_and_commit_exact_human_evidence() {
+        for (principal_id, decision, expected_scope, expected_ref) in [
+            (
+                110,
+                DependencyDecision::Accept {
+                    side: DependencySide::Source,
+                },
+                branch_scope(3),
+                dependency_acceptance_decision_ref(
+                    DependencyId::try_from_uuid(id(520)).unwrap(),
+                    DependencySide::Source,
+                ),
+            ),
+            (
+                111,
+                DependencyDecision::Reject,
+                branch_scope(4),
+                dependency_rejection_decision_ref(DependencyId::try_from_uuid(id(520)).unwrap()),
+            ),
+        ] {
+            let write = TestWrite {
+                dependency: Some(proposed_dependency()),
+                ..Default::default()
+            };
+            let uow = TestUnitOfWork::default();
+            service(write, uow.clone(), 1)
+                .decide_dependency(
+                    command_context(ActorKind::HoldingUser, principal_id, 1),
+                    DecideDependency {
+                        dependency_id: DependencyId::try_from_uuid(id(520)).unwrap(),
+                        decision,
+                    },
+                )
+                .await
+                .unwrap();
+            let commits = uow.commits.lock().unwrap();
+            let commit = commits.first().expect("one dependency decision commit");
+            let proof = commit
+                .human_decision
+                .as_ref()
+                .expect("dependency decision carries human evidence");
+            assert_eq!(proof.actor(), &commit.actor);
+            assert_eq!(proof.principal_ref(), id(principal_id).to_string());
+            assert_eq!(proof.authority_scope(), &expected_scope);
+            assert_eq!(proof.decision_ref(), expected_ref);
+            assert_eq!(proof.decided_at(), test_at(1));
+            let ProjectsAggregate::Dependency(dependency) = &commit.aggregate else {
+                panic!("dependency decision must commit a dependency");
+            };
+            assert_eq!(dependency.updated_at(), proof.decided_at());
+        }
+    }
+
+    #[tokio::test]
+    async fn handoff_approval_derives_checker_and_commits_exact_human_evidence() {
+        let write = TestWrite {
+            handoff: Some(proposed_handoff()),
+            ..Default::default()
+        };
+        let uow = TestUnitOfWork::default();
+        service(write, uow.clone(), 1)
+            .change_handoff(
+                command_context(ActorKind::HoldingUser, 133, 1),
+                ChangeHandoff {
+                    handoff_id: HandoffId::try_from_uuid(id(530)).unwrap(),
+                    change: HandoffChange::Approve,
+                },
+            )
+            .await
+            .unwrap();
+        let commits = uow.commits.lock().unwrap();
+        let commit = commits.first().expect("one handoff approval commit");
+        let proof = commit
+            .human_decision
+            .as_ref()
+            .expect("handoff approval carries human evidence");
+        assert_eq!(proof.actor(), &commit.actor);
+        assert_eq!(proof.principal_ref(), id(133).to_string());
+        assert_eq!(proof.authority_scope(), &branch_scope(3));
+        assert_eq!(
+            proof.decision_ref(),
+            handoff_approval_decision_ref(HandoffId::try_from_uuid(id(530)).unwrap())
+        );
+        assert_eq!(proof.decided_at(), test_at(1));
+        let ProjectsAggregate::Handoff(handoff) = &commit.aggregate else {
+            panic!("handoff approval must commit a handoff");
+        };
+        assert_eq!(handoff.approved_by(), Some(id(133)));
+        assert_eq!(handoff.updated_at(), proof.decided_at());
+    }
+
+    #[tokio::test]
+    async fn owner_cancel_and_reconcile_policies_do_not_require_human_proof() {
+        let write = TestWrite {
+            dependency: Some(proposed_dependency()),
+            ..Default::default()
+        };
+        let uow = TestUnitOfWork::default();
+        service(write, uow.clone(), 1)
+            .decide_dependency(
+                command_context(ActorKind::Service, 999, 1),
+                DecideDependency {
+                    dependency_id: DependencyId::try_from_uuid(id(520)).unwrap(),
+                    decision: DependencyDecision::Cancel { owner_id: id(110) },
+                },
+            )
+            .await
+            .unwrap();
+        assert!(uow.commits.lock().unwrap()[0].human_decision.is_none());
+
+        let mut handoff = proposed_handoff();
+        let checker = HumanDecisionProof::try_new(
+            command_context(ActorKind::HoldingUser, 133, 1).actor,
+            branch_scope(3),
+            handoff_approval_decision_ref(handoff.id()),
+            test_at(1),
+        )
+        .unwrap();
+        handoff.approve(&checker).unwrap();
+        handoff.mark_ready(test_at(2)).unwrap();
+        let write = TestWrite {
+            handoff: Some(handoff),
+            ..Default::default()
+        };
+        let uow = TestUnitOfWork::default();
+        service(write, uow.clone(), 3)
+            .change_handoff(
+                command_context(ActorKind::Service, 999, 3),
+                ChangeHandoff {
+                    handoff_id: HandoffId::try_from_uuid(id(530)).unwrap(),
+                    change: HandoffChange::Reconcile {
+                        outcome: HandoffOutcome {
+                            owner_context: erpx_integration_contracts::catalog::ContextId::Assets,
+                            owner_receipt_id: "asset-receipt-530".into(),
+                            owner_record: None,
+                            accepted: true,
+                            reason_code: "capitalized".into(),
+                            reconciled_at: test_at(0),
+                        },
+                    },
+                },
+            )
+            .await
+            .unwrap();
+        assert!(uow.commits.lock().unwrap()[0].human_decision.is_none());
     }
 }

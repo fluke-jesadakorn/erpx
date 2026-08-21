@@ -127,14 +127,19 @@ fn source_identity(
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
-    use erpx_integration_contracts::IntegrationEvent;
-    use erpx_kernel::AuthorityScope;
+    use erpx_integration_contracts::{
+        CostCenterRef, DimensionSet, IntegrationEvent, RecordRef, customer, organization, sales,
+    };
+    use erpx_kernel::{
+        ActorAttribution, ActorKind, AuthorityScope, CommandId, HumanDecisionProof, SessionId,
+    };
     use uuid::Uuid;
 
     use super::*;
     use crate::domain::{
         Account, AccountCategory, AccountId, AccountStatus, AccountingPeriod, Chart, ChartId,
-        Journal, JournalId, JournalLine, JournalLineId, NormalBalance, PeriodId,
+        CustomerInvoice, CustomerInvoiceId, Journal, JournalId, JournalLine, JournalLineId,
+        NormalBalance, PeriodId,
     };
 
     fn id(value: u128) -> Uuid {
@@ -148,6 +153,22 @@ mod tests {
             holding_id: id(1),
             company_id: id(2),
         };
+        let human_decision = HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: "finance-controller".into(),
+                kind: ActorKind::HoldingUser,
+                session_id: Some(SessionId::try_from_uuid(id(3)).unwrap()),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            scope.clone(),
+            crate::domain::journal_post_decision_ref(
+                CommandId::try_from_uuid(id(90)).unwrap(),
+                JournalId::try_from_uuid(id(30)).unwrap(),
+            ),
+            at,
+        )
+        .unwrap();
         let account = |value, code: &str, category| Account {
             account_id: AccountId::try_from_uuid(id(value)).unwrap(),
             code: code.into(),
@@ -221,7 +242,15 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
-        journal.post(&chart, &period, at).unwrap();
+        journal
+            .post(
+                &chart,
+                &period,
+                &human_decision,
+                CommandId::try_from_uuid(id(90)).unwrap(),
+                at,
+            )
+            .unwrap();
         let events = published_events(&journal.take_uncommitted_events()).unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].event_type(), "finance.journal_posted");
@@ -230,5 +259,76 @@ mod tests {
         };
         assert_eq!(fact.source_context, BoundedContext::Finance);
         assert_eq!(fact.debit_total.minor_units(), 500);
+    }
+
+    #[test]
+    fn posted_customer_invoice_preserves_exact_sales_source_in_public_fact() {
+        let at = Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap();
+        let scope = AuthorityScope::Company {
+            holding_id: id(1),
+            company_id: id(2),
+        };
+        let mut dimensions =
+            DimensionSet::for_legal_entity(organization::CompanyRef::try_from_uuid(id(2)).unwrap());
+        dimensions.business_unit =
+            Some(organization::BusinessUnitRef::try_from_uuid(id(30)).unwrap());
+        dimensions.cost_center = Some(CostCenterRef::try_from_uuid(id(31)).unwrap());
+        let source =
+            RecordRef::try_new(BoundedContext::Sales, "revenue_arrangement", id(37), 1).unwrap();
+        let billing = sales::BillingEligibilityFact {
+            billing_event: sales::BillingEventRef::try_from_uuid(id(39)).unwrap(),
+            fulfillment: sales::FulfillmentRef::try_from_uuid(id(38)).unwrap(),
+            arrangement: sales::RevenueArrangementRef::try_from_uuid(id(37)).unwrap(),
+            sales_order: sales::SalesOrderRef::try_from_uuid(id(40)).unwrap(),
+            order_code: ReferenceCode::try_new("SO-40").unwrap(),
+            customer: customer::CustomerRef::try_from_uuid(id(41)).unwrap(),
+            billable_amount: MoneyAmount::new(500, CurrencyCode::try_new("THB").unwrap()),
+            tax_amount: MoneyAmount::new(35, CurrencyCode::try_new("THB").unwrap()),
+            eligible_on: chrono::NaiveDate::from_ymd_opt(2026, 8, 5).unwrap(),
+            dimensions,
+        };
+        let mut invoice = CustomerInvoice::create_from_billing(
+            CustomerInvoiceId::try_from_uuid(id(48)).unwrap(),
+            scope.clone(),
+            "INV-48".into(),
+            source.clone(),
+            billing,
+            chrono::NaiveDate::from_ymd_opt(2026, 8, 30).unwrap(),
+            "preparer".into(),
+            at,
+        )
+        .unwrap();
+        assert!(
+            published_events(&invoice.take_uncommitted_events())
+                .unwrap()
+                .is_empty()
+        );
+        let command_id = CommandId::try_from_uuid(id(100)).unwrap();
+        let decision = HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: "controller".into(),
+                kind: ActorKind::HoldingUser,
+                session_id: Some(SessionId::try_from_uuid(id(3)).unwrap()),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            scope,
+            command_id.to_string(),
+            at,
+        )
+        .unwrap();
+        invoice
+            .post_with_decision(decision, command_id, &source, at)
+            .unwrap();
+
+        let events = published_events(&invoice.take_uncommitted_events()).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].event_type(), "finance.customer_invoice_posted");
+        let finance::Event::CustomerInvoicePosted(fact) = &events[0] else {
+            panic!("expected customer invoice fact")
+        };
+        assert_eq!(fact.source, source);
+        assert_eq!(fact.posted_at, at);
+        assert_eq!(fact.receivable_amount.minor_units(), 535);
     }
 }

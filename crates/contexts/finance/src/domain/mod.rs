@@ -17,7 +17,7 @@ use erpx_integration_contracts::{
     BoundedContext, DimensionSet, RecordRef, customer, finance, inventory, people_payroll, pos,
     procurement, sales,
 };
-use erpx_kernel::AuthorityScope;
+use erpx_kernel::{AuthorityScope, CommandId, HumanDecisionProof};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -67,6 +67,14 @@ finance_id!(SubledgerId, "subledger_id");
 finance_id!(CustomerInvoiceId, "customer_invoice_id");
 finance_id!(RevenueScheduleId, "revenue_schedule_id");
 
+pub(crate) fn journal_post_decision_ref(command_id: CommandId, journal_id: JournalId) -> String {
+    format!(
+        "finance.journal.post:{}:{}",
+        journal_id.as_uuid(),
+        command_id
+    )
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum FinanceDomainError {
     #[error("{field} cannot be nil")]
@@ -95,6 +103,8 @@ pub enum FinanceDomainError {
     InvalidPeriodTransition,
     #[error("period-close requester and approver must be distinct")]
     CloseApprovalSeparation,
+    #[error("accounting-period decisions require matching authenticated human evidence")]
+    InvalidPeriodDecision,
     #[error("journal requires between two and 10,000 unique lines")]
     InvalidJournalLines,
     #[error("journal line amounts must contain exactly one positive debit or credit")]
@@ -111,6 +121,8 @@ pub enum FinanceDomainError {
     JournalAccountUnavailable,
     #[error("journal lifecycle transition is not allowed")]
     InvalidJournalTransition,
+    #[error("posting a journal requires an authenticated human decision")]
+    HumanDecisionRequired,
     #[error("subledger amount must be positive")]
     InvalidSubledgerAmount,
     #[error("subledger source currency or amount is invalid")]
@@ -121,6 +133,8 @@ pub enum FinanceDomainError {
     InvalidCustomerInvoiceSource,
     #[error("customer invoice lifecycle transition is not allowed")]
     InvalidCustomerInvoiceTransition,
+    #[error("customer-invoice posting requires matching authenticated human evidence")]
+    InvalidCustomerInvoiceDecision,
     #[error("customer invoice preparer and poster must be distinct")]
     InvoiceApprovalSeparation,
     #[error("revenue schedule source, dimensions, or obligation allocation is invalid")]
@@ -557,31 +571,59 @@ impl AccountingPeriod {
         Ok(())
     }
 
-    pub fn close(&mut self, approver: &str, at: DateTime<Utc>) -> Result<(), FinanceDomainError> {
-        validate_text(approver, "close_approver", MAX_CODE_BYTES)?;
+    pub fn close(&mut self, _approver: &str, _at: DateTime<Utc>) -> Result<(), FinanceDomainError> {
+        Err(FinanceDomainError::InvalidPeriodDecision)
+    }
+
+    /// Closes the period using authenticated human evidence. The approver is
+    /// derived from the proof and cannot be supplied independently.
+    pub fn close_with_decision(
+        &mut self,
+        decision: HumanDecisionProof,
+        command_id: CommandId,
+        at: DateTime<Utc>,
+    ) -> Result<(), FinanceDomainError> {
+        let approver = period_decision_actor(&decision, command_id, at, &self.scope)?;
         if self.status != PeriodStatus::Closing {
             return Err(FinanceDomainError::InvalidPeriodTransition);
         }
         if self.close_requested_by.as_deref() == Some(approver) {
             return Err(FinanceDomainError::CloseApprovalSeparation);
         }
-        self.bump(at)?;
-        self.status = PeriodStatus::Closed;
-        self.closed_by = Some(approver.into());
-        self.uncommitted_events.push(DomainEvent::PeriodChanged);
+        let mut next = self.clone();
+        next.bump(at)?;
+        next.status = PeriodStatus::Closed;
+        next.closed_by = Some(approver.into());
+        next.uncommitted_events.push(DomainEvent::PeriodChanged);
+        next.validate()?;
+        *self = next;
         Ok(())
     }
 
-    pub fn reopen(&mut self, actor: &str, at: DateTime<Utc>) -> Result<(), FinanceDomainError> {
-        validate_text(actor, "reopen_actor", MAX_CODE_BYTES)?;
+    pub fn reopen(&mut self, _actor: &str, _at: DateTime<Utc>) -> Result<(), FinanceDomainError> {
+        Err(FinanceDomainError::InvalidPeriodDecision)
+    }
+
+    /// Reopens the period using authenticated human evidence. The reopening
+    /// actor is derived from the proof and remains separated from the closer.
+    pub fn reopen_with_decision(
+        &mut self,
+        decision: HumanDecisionProof,
+        command_id: CommandId,
+        at: DateTime<Utc>,
+    ) -> Result<(), FinanceDomainError> {
+        let actor = period_decision_actor(&decision, command_id, at, &self.scope)?;
         if self.status != PeriodStatus::Closed || self.closed_by.as_deref() == Some(actor) {
             return Err(FinanceDomainError::InvalidPeriodTransition);
         }
-        self.bump(at)?;
-        self.status = PeriodStatus::Open;
-        self.close_requested_by = None;
-        self.closed_by = None;
-        self.uncommitted_events.push(DomainEvent::PeriodChanged);
+        let mut next = self.clone();
+        next.bump(at)?;
+        next.status = PeriodStatus::Open;
+        next.close_requested_by = None;
+        next.closed_by = None;
+        next.uncommitted_events.push(DomainEvent::PeriodChanged);
+        next.validate()?;
+        *self = next;
         Ok(())
     }
 
@@ -884,8 +926,16 @@ impl Journal {
         &mut self,
         chart: &Chart,
         period: &AccountingPeriod,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
         at: DateTime<Utc>,
     ) -> Result<(), FinanceDomainError> {
+        if decision.decision_ref() != journal_post_decision_ref(command_id, self.id)
+            || decision.decided_at() != at
+            || !decision.authority_scope().contains(&self.scope)
+        {
+            return Err(FinanceDomainError::HumanDecisionRequired);
+        }
         if self.status != JournalStatus::Draft {
             return Err(FinanceDomainError::InvalidJournalTransition);
         }
@@ -1569,33 +1619,55 @@ impl CustomerInvoice {
         Ok(value)
     }
 
-    pub fn post(&mut self, posted_by: &str, at: DateTime<Utc>) -> Result<(), FinanceDomainError> {
+    pub fn post(&mut self, _posted_by: &str, _at: DateTime<Utc>) -> Result<(), FinanceDomainError> {
+        Err(FinanceDomainError::InvalidCustomerInvoiceDecision)
+    }
+
+    /// Posts from authenticated human evidence and binds the decision to the
+    /// exact command, immutable Sales source, timestamp, and authority scope.
+    pub fn post_with_decision(
+        &mut self,
+        decision: HumanDecisionProof,
+        command_id: CommandId,
+        expected_source: &RecordRef,
+        at: DateTime<Utc>,
+    ) -> Result<(), FinanceDomainError> {
+        let posted_by = customer_invoice_decision_actor(
+            &decision,
+            command_id,
+            expected_source,
+            at,
+            &self.scope,
+            &self.source,
+        )?;
         if self.status != CustomerInvoiceStatus::Draft {
             return Err(FinanceDomainError::InvalidCustomerInvoiceTransition);
         }
-        validate_text(posted_by, "invoice_posted_by", MAX_CODE_BYTES)?;
         if posted_by == self.prepared_by {
             return Err(FinanceDomainError::InvoiceApprovalSeparation);
         }
-        self.bump_invoice(at)?;
-        self.status = CustomerInvoiceStatus::Posted;
-        self.posted_by = Some(posted_by.into());
-        self.posted_at = Some(at);
-        self.uncommitted_events
+        let mut next = self.clone();
+        next.bump_invoice(at)?;
+        next.status = CustomerInvoiceStatus::Posted;
+        next.posted_by = Some(posted_by.into());
+        next.posted_at = Some(at);
+        next.uncommitted_events
             .push(DomainEvent::CustomerInvoicePosted(
                 CustomerInvoicePostingState {
-                    invoice_id: self.id,
-                    customer: self.billing.customer,
-                    invoice_code: self.invoice_code.clone(),
-                    source: self.source.clone(),
-                    currency: self.billing.billable_amount.currency().as_str().into(),
-                    net_minor: self.billing.billable_amount.minor_units(),
-                    tax_minor: self.billing.tax_amount.minor_units(),
-                    receivable_minor: self.receivable_minor()?,
-                    dimensions: self.billing.dimensions.clone(),
+                    invoice_id: next.id,
+                    customer: next.billing.customer,
+                    invoice_code: next.invoice_code.clone(),
+                    source: next.source.clone(),
+                    currency: next.billing.billable_amount.currency().as_str().into(),
+                    net_minor: next.billing.billable_amount.minor_units(),
+                    tax_minor: next.billing.tax_amount.minor_units(),
+                    receivable_minor: next.receivable_minor()?,
+                    dimensions: next.billing.dimensions.clone(),
                     posted_at: at,
                 },
             ));
+        next.validate()?;
+        *self = next;
         Ok(())
     }
 
@@ -2150,6 +2222,43 @@ fn validate_account_code(value: &str) -> Result<(), FinanceDomainError> {
 
 fn validate_code(value: &str, field: &'static str) -> Result<(), FinanceDomainError> {
     validate_text(value, field, MAX_CODE_BYTES)
+}
+
+fn period_decision_actor<'a>(
+    decision: &'a HumanDecisionProof,
+    command_id: CommandId,
+    at: DateTime<Utc>,
+    period_scope: &AuthorityScope,
+) -> Result<&'a str, FinanceDomainError> {
+    let actor = decision.principal_ref();
+    validate_text(actor, "period_decision_actor", MAX_CODE_BYTES)?;
+    if decision.decision_ref() != command_id.to_string()
+        || decision.decided_at() != at
+        || !decision.authority_scope().contains(period_scope)
+    {
+        return Err(FinanceDomainError::InvalidPeriodDecision);
+    }
+    Ok(actor)
+}
+
+fn customer_invoice_decision_actor<'a>(
+    decision: &'a HumanDecisionProof,
+    command_id: CommandId,
+    expected_source: &RecordRef,
+    at: DateTime<Utc>,
+    invoice_scope: &AuthorityScope,
+    invoice_source: &RecordRef,
+) -> Result<&'a str, FinanceDomainError> {
+    let actor = decision.principal_ref();
+    validate_text(actor, "invoice_posted_by", MAX_CODE_BYTES)?;
+    if decision.decision_ref() != command_id.to_string()
+        || decision.decided_at() != at
+        || !decision.authority_scope().contains(invoice_scope)
+        || expected_source != invoice_source
+    {
+        return Err(FinanceDomainError::InvalidCustomerInvoiceDecision);
+    }
+    Ok(actor)
 }
 
 fn validate_text(

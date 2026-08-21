@@ -13,7 +13,7 @@ use erpx_cqrs::{
 use erpx_integration_contracts::identity_access;
 use erpx_kernel::{
     ActorAttribution, AuditContext, AuthorityScope, Clock, CorrelationId, ErrorCategory,
-    ErrorContext, EventId, KernelError,
+    ErrorContext, EventId, HumanDecisionError, HumanDecisionProof, KernelError,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -21,6 +21,7 @@ use thiserror::Error;
 use crate::{
     domain::{
         ExceptionId, OperationsDomainError, SourceFactMessage, WorkQueuePolicy, WorkQueuePolicyId,
+        approval_decision_ref,
     },
     integration,
     ports::{
@@ -291,6 +292,10 @@ pub enum OperationsApplicationError {
     #[error("Operations integration event mapping failed")]
     IntegrationMapping,
     #[error(transparent)]
+    HumanDecision(#[from] HumanDecisionError),
+    #[error("human decision proof is not bound to the exact Operations command")]
+    HumanDecisionBinding,
+    #[error(transparent)]
     Port(#[from] PortError),
 }
 
@@ -504,6 +509,16 @@ where
         envelope: CommandEnvelope<OperationsCommand>,
     ) -> Result<CommandReceipt<Self::Response>, CqrsError> {
         envelope.validate()?;
+        let human_decision = match &envelope.command {
+            OperationsCommand::DecideApproval(value) => {
+                let at = self.clock.now();
+                Some(
+                    operations_human_decision(&envelope, value, at)
+                        .map_err(|error| to_cqrs(error, envelope.correlation_id))?,
+                )
+            }
+            _ => None,
+        };
         if let OperationsCommand::PublishWorkQueuePolicy(command) = envelope.command.clone() {
             return self.handle_policy(envelope, command).await;
         }
@@ -556,7 +571,9 @@ where
             ));
         }
 
-        let at = self.clock.now();
+        let at = human_decision
+            .as_ref()
+            .map_or_else(|| self.clock.now(), HumanDecisionProof::decided_at);
         match &envelope.command {
             OperationsCommand::Reassign(value) => {
                 let assignment = self
@@ -586,14 +603,22 @@ where
                     .escalate(assignment, at)
                     .map_err(|error| to_cqrs(error.into(), correlation))?;
             }
-            OperationsCommand::DecideApproval(value) => aggregate
-                .decide_approval(
-                    value.decision,
-                    envelope.actor.principal_ref.clone(),
-                    value.reason_code.clone(),
-                    at,
-                )
-                .map_err(|error| to_cqrs(error.into(), correlation))?,
+            OperationsCommand::DecideApproval(value) => {
+                let human_decision = human_decision.clone().ok_or_else(|| {
+                    to_cqrs(
+                        OperationsApplicationError::HumanDecisionBinding,
+                        correlation,
+                    )
+                })?;
+                aggregate
+                    .decide_approval(
+                        envelope.command_id,
+                        value.decision,
+                        human_decision,
+                        value.reason_code.clone(),
+                    )
+                    .map_err(|error| to_cqrs(error.into(), correlation))?;
+            }
             OperationsCommand::Resolve(_) => aggregate
                 .resolve(at)
                 .map_err(|error| to_cqrs(error.into(), correlation))?,
@@ -624,6 +649,38 @@ where
         let response = OperationsMutationResult::Exception((&stored.aggregate).into());
         Ok(stored.into_receipt(response))
     }
+}
+
+fn operations_human_decision(
+    envelope: &CommandEnvelope<OperationsCommand>,
+    command: &DecideApproval,
+    at: DateTime<Utc>,
+) -> Result<HumanDecisionProof, OperationsApplicationError> {
+    let proof = HumanDecisionProof::try_new(
+        envelope.actor.clone(),
+        envelope.active_scope.clone(),
+        approval_decision_ref(envelope.command_id, command.exception_id, command.decision),
+        at,
+    )?;
+    validate_operations_human_decision(envelope, command, at, &proof)?;
+    Ok(proof)
+}
+
+fn validate_operations_human_decision(
+    envelope: &CommandEnvelope<OperationsCommand>,
+    command: &DecideApproval,
+    at: DateTime<Utc>,
+    proof: &HumanDecisionProof,
+) -> Result<(), OperationsApplicationError> {
+    if proof.actor() != &envelope.actor
+        || proof.authority_scope() != &envelope.active_scope
+        || proof.decided_at() != at
+        || proof.decision_ref()
+            != approval_decision_ref(envelope.command_id, command.exception_id, command.decision)
+    {
+        return Err(OperationsApplicationError::HumanDecisionBinding);
+    }
+    Ok(())
 }
 
 pub struct OperationsSourceHandler<U, P, A, E, C> {
@@ -897,6 +954,8 @@ fn port_to_cqrs(error: PortError, correlation: CorrelationId) -> CqrsError {
 fn to_cqrs(error: OperationsApplicationError, correlation_id: CorrelationId) -> CqrsError {
     let (code, category, message, retryable) = match error {
         OperationsApplicationError::ScopeOutsideAuthority
+        | OperationsApplicationError::HumanDecision(_)
+        | OperationsApplicationError::HumanDecisionBinding
         | OperationsApplicationError::Port(PortError::Denied | PortError::EntitlementDenied) => (
             "operations.denied",
             ErrorCategory::Denied,

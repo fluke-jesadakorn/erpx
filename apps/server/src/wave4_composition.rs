@@ -26,8 +26,8 @@ use erpx_cqrs::{
 };
 use erpx_cqrs_sqlx::{ReadPool, WritePool};
 use erpx_domain::contracts::{
-    ActorAttribution as LegacyActorAttribution, ActorKind as LegacyActorKind,
-    AuditContext as LegacyAuditContext, CONTRACT_VERSION, CommandContext,
+    ActorAttribution as LegacyActorAttribution, AuditContext as LegacyAuditContext,
+    CONTRACT_VERSION, CommandContext,
 };
 use erpx_identity::AccessTokenClaims;
 use erpx_identity_access::ports::AuthorizationRequest as IdentityAuthorizationRequest;
@@ -51,8 +51,8 @@ use erpx_infrastructure::{
     SqlxHoldingStoreRegistry,
 };
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuthorityScope, CorrelationId, ErrorCategory, ErrorContext,
-    KernelError, SessionId, SystemClock,
+    ActorAttribution, AuthorityScope, CorrelationId, ErrorCategory, ErrorContext, KernelError,
+    SessionId, SystemClock,
 };
 use erpx_organization::ports::AuthorizationRequest as OrganizationAuthorizationRequest;
 use erpx_organization::{
@@ -65,8 +65,8 @@ use erpx_organization::{
     ReparentOrganizationNode, SuspendOrganizationNode,
 };
 use erpx_organization_sqlx::{
-    OrganizationCommandAdapter, OrganizationHierarchyRepository, OrganizationReadRepository,
-    OrganizationWriteRepository,
+    OrganizationCommandAdapter, OrganizationHierarchyRepository, OrganizationLineageResolver,
+    OrganizationReadRepository, OrganizationWriteRepository,
 };
 use tonic::{Request, Status, metadata::MetadataMap};
 use uuid::Uuid;
@@ -599,7 +599,7 @@ impl OrganizationAuthorizationPort for OrganizationPreauthorizedAccess {
         };
         if request.actor.principal_ref != self.principal_ref
             || request.authority_scope != &self.authority_scope
-            || !self.authority_scope.contains(request.target_scope)
+            || !organization_scopes_share_holding(&self.authority_scope, request.target_scope)
             || !correct_mode
         {
             return Err(OrganizationPortError::Denied);
@@ -615,10 +615,54 @@ impl OrganizationEntitlementPort for OrganizationPreauthorizedAccess {
         scope: &AuthorityScope,
         write: bool,
     ) -> Result<(), OrganizationPortError> {
-        if write != (self.mode == AuthorizedMode::Write) || !self.authority_scope.contains(scope) {
+        if write != (self.mode == AuthorizedMode::Write)
+            || !organization_scopes_share_holding(&self.authority_scope, scope)
+        {
             return Err(OrganizationPortError::EntitlementDenied);
         }
         Ok(())
+    }
+}
+
+fn organization_scopes_share_holding(authority: &AuthorityScope, target: &AuthorityScope) -> bool {
+    if authority.validate().is_err() || target.validate().is_err() {
+        return false;
+    }
+    match (authority, target) {
+        (AuthorityScope::Platform, _) => true,
+        (_, AuthorityScope::Platform) => false,
+        (
+            AuthorityScope::Holding {
+                holding_id: authority_holding,
+            }
+            | AuthorityScope::Company {
+                holding_id: authority_holding,
+                ..
+            }
+            | AuthorityScope::Branch {
+                holding_id: authority_holding,
+                ..
+            }
+            | AuthorityScope::Subtree {
+                holding_id: authority_holding,
+                ..
+            },
+            AuthorityScope::Holding {
+                holding_id: target_holding,
+            }
+            | AuthorityScope::Company {
+                holding_id: target_holding,
+                ..
+            }
+            | AuthorityScope::Branch {
+                holding_id: target_holding,
+                ..
+            }
+            | AuthorityScope::Subtree {
+                holding_id: target_holding,
+                ..
+            },
+        ) => authority_holding == target_holding,
     }
 }
 
@@ -629,11 +673,13 @@ type OrganizationCommandHandlerImpl = OrganizationCommandHandler<
     OrganizationPreauthorizedAccess,
     OrganizationHierarchyRepository,
     SystemClock,
+    OrganizationLineageResolver,
 >;
 type OrganizationQueryHandlerImpl = OrganizationQueryHandler<
     OrganizationReadRepository,
     OrganizationPreauthorizedAccess,
     OrganizationPreauthorizedAccess,
+    OrganizationLineageResolver,
 >;
 
 #[derive(Clone)]
@@ -677,13 +723,15 @@ impl OrganizationServerApplication {
             cqrs_holding_uuid(&routed.holding_id, correlation_id, "organization")?,
         )
         .map_err(|_| invalid_holding_binding(correlation_id, "organization"))?;
-        OrganizationCommandHandler::new(
+        let lineage = OrganizationLineageResolver::new(pool.clone());
+        OrganizationCommandHandler::new_with_scope_containment(
             OrganizationWriteRepository::new(pool.clone()),
             OrganizationCommandAdapter::new(pool),
             access.clone(),
             access,
             OrganizationHierarchyRepository,
             SystemClock,
+            lineage,
         )
         .handle(envelope)
         .await
@@ -704,6 +752,19 @@ impl OrganizationServerApplication {
             mode: AuthorizedMode::Read,
         };
         let router = required_router(&self.router, correlation_id, "organization")?;
+        let authority_route = router
+            .route(
+                &route.holding_id,
+                &route.data_profile_key,
+                RoutedDatabaseSide::Write,
+            )
+            .await
+            .map_err(|_| context_unavailable(correlation_id, "organization", "write authority"))?;
+        let authority_pool = WritePool::for_holding(
+            authority_route.database_pool().clone(),
+            cqrs_holding_uuid(&authority_route.holding_id, correlation_id, "organization")?,
+        )
+        .map_err(|_| invalid_holding_binding(correlation_id, "organization"))?;
         let routed = router
             .route(
                 &route.holding_id,
@@ -726,9 +787,14 @@ impl OrganizationServerApplication {
                 false,
             )
         })?;
-        OrganizationQueryHandler::new(repository, access.clone(), access)
-            .handle(envelope)
-            .await
+        OrganizationQueryHandler::new_with_scope_containment(
+            repository,
+            access.clone(),
+            access,
+            OrganizationLineageResolver::new(authority_pool),
+        )
+        .handle(envelope)
+        .await
     }
 }
 
@@ -1478,9 +1544,10 @@ impl CommercialServerAuthenticator {
         }
         let session_id = SessionId::try_from_uuid(claims.session_id)
             .map_err(|_| CommercialAuthenticationError::Internal)?;
+        let kind = crate::auth_actor::kernel_actor_kind(&claims);
         let actor = ActorAttribution {
             principal_ref: claims.principal_ref,
-            kind: ActorKind::Service,
+            kind,
             session_id: Some(session_id),
             represented_principal_ref: None,
             support_capability_id: None,
@@ -1715,6 +1782,11 @@ async fn authenticate_context_with_permissions(
     subscription_id: Option<&str>,
     mfa_code: Option<&str>,
 ) -> Result<ActorAttribution, Status> {
+    if !product_allows_authority_scope(product, presented_scope) {
+        return Err(Status::permission_denied(
+            "exact organization subtree authority is not enabled for this product",
+        ));
+    }
     let mut transport_request = Request::new(());
     *transport_request.metadata_mut() = metadata.clone();
     let claims = state.auth.authorize(&transport_request).await?;
@@ -1730,17 +1802,30 @@ async fn authenticate_context_with_permissions(
     let access_scope = crate::quality_access_scope(presented_scope);
     let mut authorized_permission = None;
     for permission in permissions {
-        match state
-            .auth
-            .authorize_role_for_holding(
-                &state.store,
-                &claims,
-                &access_scope,
-                permission,
-                authorization_holding,
-            )
-            .await
-        {
+        let authorization = if product == "organization" {
+            state
+                .auth
+                .authorize_role_for_holding_with_exact_subtree(
+                    &state.store,
+                    &claims,
+                    &access_scope,
+                    permission,
+                    authorization_holding,
+                )
+                .await
+        } else {
+            state
+                .auth
+                .authorize_role_for_holding(
+                    &state.store,
+                    &claims,
+                    &access_scope,
+                    permission,
+                    authorization_holding,
+                )
+                .await
+        };
+        match authorization {
             Ok(()) => {
                 authorized_permission = Some(*permission);
                 break;
@@ -1814,13 +1899,22 @@ async fn authenticate_context_with_permissions(
     }
     let session_id = SessionId::try_from_uuid(claims.session_id)
         .map_err(|_| Status::internal("authenticated session attribution is invalid"))?;
+    let kind = crate::auth_actor::kernel_actor_kind(&claims);
     Ok(ActorAttribution {
         principal_ref: claims.principal_ref,
-        kind: ActorKind::HoldingUser,
+        kind,
         session_id: Some(session_id),
         represented_principal_ref: None,
         support_capability_id: None,
     })
+}
+
+/// Phase 1 enables exact Department/Team authority only for the Organization
+/// owner context. Other products still have legacy adapters that can
+/// reinterpret a Subtree UUID as a company key, so they fail closed before
+/// role lookup, entitlement evaluation, or storage access.
+fn product_allows_authority_scope(product: &str, scope: &AuthorityScope) -> bool {
+    !matches!(scope, AuthorityScope::Subtree { .. }) || product == "organization"
 }
 
 fn legacy_command_context(
@@ -1838,7 +1932,7 @@ fn legacy_command_context(
         causation_id: None,
         actor: LegacyActorAttribution {
             principal_ref: claims.principal_ref.clone(),
-            kind: LegacyActorKind::HoldingUser,
+            kind: crate::auth_actor::legacy_actor_kind(claims),
             session_id: Some(claims.session_id),
             represented_principal_ref: None,
             support_capability_id: None,
@@ -1975,5 +2069,105 @@ fn organization_auth_error(status: Status) -> OrganizationAuthenticationError {
         | tonic::Code::DeadlineExceeded
         | tonic::Code::FailedPrecondition => OrganizationAuthenticationError::Unavailable,
         _ => OrganizationAuthenticationError::Internal,
+    }
+}
+
+#[cfg(test)]
+mod scope_tests {
+    use super::*;
+
+    #[test]
+    fn organization_preauthorization_defers_same_holding_subtree_lineage_to_owner_context() {
+        let holding_id = Uuid::from_u128(1);
+        let branch = AuthorityScope::Branch {
+            holding_id,
+            company_id: Uuid::from_u128(2),
+            branch_id: Uuid::from_u128(3),
+        };
+        let department = AuthorityScope::Subtree {
+            holding_id,
+            organization_node_id: Uuid::from_u128(4),
+        };
+
+        assert!(organization_scopes_share_holding(&branch, &department));
+        assert!(!branch.contains(&department));
+    }
+
+    #[test]
+    fn organization_preauthorization_never_crosses_holding_or_platform_boundaries() {
+        let company = AuthorityScope::Company {
+            holding_id: Uuid::from_u128(1),
+            company_id: Uuid::from_u128(2),
+        };
+        let foreign_department = AuthorityScope::Subtree {
+            holding_id: Uuid::from_u128(9),
+            organization_node_id: Uuid::from_u128(4),
+        };
+
+        assert!(!organization_scopes_share_holding(
+            &company,
+            &foreign_department
+        ));
+        assert!(!organization_scopes_share_holding(
+            &company,
+            &AuthorityScope::Platform
+        ));
+        assert!(organization_scopes_share_holding(
+            &AuthorityScope::Platform,
+            &foreign_department
+        ));
+    }
+
+    #[test]
+    fn exact_subtree_product_gate_is_limited_to_the_phase_one_owner() {
+        let holding_id = Uuid::from_u128(1);
+        let structured = [
+            AuthorityScope::Platform,
+            AuthorityScope::Holding { holding_id },
+            AuthorityScope::Company {
+                holding_id,
+                company_id: Uuid::from_u128(2),
+            },
+            AuthorityScope::Branch {
+                holding_id,
+                company_id: Uuid::from_u128(2),
+                branch_id: Uuid::from_u128(3),
+            },
+        ];
+        for scope in &structured {
+            assert!(product_allows_authority_scope("organization", scope));
+            assert!(product_allows_authority_scope("procurement", scope));
+            assert!(product_allows_authority_scope("future_product", scope));
+        }
+
+        let subtree = AuthorityScope::Subtree {
+            holding_id,
+            organization_node_id: Uuid::from_u128(4),
+        };
+        assert!(product_allows_authority_scope("organization", &subtree));
+        assert!(!product_allows_authority_scope("procurement", &subtree));
+        assert!(!product_allows_authority_scope("future_product", &subtree));
+    }
+
+    #[test]
+    fn subtree_product_gate_runs_before_identity_role_or_storage_authority() {
+        let source = include_str!("wave4_composition.rs");
+        let function = source
+            .find("async fn authenticate_context_with_permissions")
+            .expect("central context authenticator is present");
+        let source = &source[function..];
+        let gate = source
+            .find("if !product_allows_authority_scope")
+            .expect("the exact subtree product gate is present");
+        let identity = source
+            .find("state.auth.authorize(&transport_request)")
+            .expect("identity authentication follows the product gate");
+        let role = source
+            .find("authorize_role_for_holding")
+            .expect("role authorization follows the product gate");
+        let storage = source
+            .find("customer_scope_contains")
+            .expect("scope storage authority follows the product gate");
+        assert!(gate < identity && identity < role && role < storage);
     }
 }

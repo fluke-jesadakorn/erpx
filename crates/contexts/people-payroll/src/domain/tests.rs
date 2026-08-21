@@ -1,5 +1,7 @@
 use chrono::{Duration, TimeZone, Utc};
-use erpx_kernel::AuthorityScope;
+use erpx_kernel::{
+    ActorAttribution, ActorKind, AuthorityScope, CommandId, HumanDecisionProof, SessionId,
+};
 use uuid::Uuid;
 
 use super::*;
@@ -21,6 +23,29 @@ fn scope() -> AuthorityScope {
 }
 fn employee_id(value: u128) -> EmployeeId {
     EmployeeId::try_from_uuid(id(value)).unwrap()
+}
+fn command_id(value: u128) -> CommandId {
+    CommandId::try_from_uuid(id(value)).unwrap()
+}
+fn human_decision(
+    principal_ref: &str,
+    authority_scope: AuthorityScope,
+    command_id: CommandId,
+    decided_at: DateTime<Utc>,
+) -> HumanDecisionProof {
+    HumanDecisionProof::try_new(
+        ActorAttribution {
+            principal_ref: principal_ref.into(),
+            kind: ActorKind::HoldingUser,
+            session_id: Some(SessionId::try_from_uuid(id(99)).unwrap()),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        },
+        authority_scope,
+        command_id.to_string(),
+        decided_at,
+    )
+    .unwrap()
 }
 fn payroll_evidence(captured_at: DateTime<Utc>) -> PayrollCalculationEvidence {
     PayrollCalculationEvidence {
@@ -141,20 +166,24 @@ fn leave_approval_separates_requester_and_reviewer_without_partial_mutation() {
         )
         .unwrap();
     let before = leave.clone();
+    let approve_at = at() + Duration::minutes(2);
+    let approve_command = command_id(90);
     assert_eq!(
-        leave.transition(
+        leave.decide(
             LeaveTransition::Approve,
-            "requester",
-            at() + Duration::minutes(2)
+            human_decision("requester", scope(), approve_command, approve_at),
+            approve_command,
+            approve_at,
         ),
         Err(PeoplePayrollDomainError::ApprovalSeparation),
     );
     assert_eq!(leave, before);
     leave
-        .transition(
+        .decide(
             LeaveTransition::Approve,
-            "reviewer",
-            at() + Duration::minutes(2),
+            human_decision("reviewer", scope(), approve_command, approve_at),
+            approve_command,
+            approve_at,
         )
         .unwrap();
     leave
@@ -191,29 +220,191 @@ fn expense_uses_minor_units_and_separated_approval() {
             at() + Duration::minutes(1),
         )
         .unwrap();
+    let approve_at = at() + Duration::minutes(2);
+    let approve_command = command_id(91);
     assert_eq!(
-        expense.transition(
+        expense.decide(
             ExpenseTransition::Approve,
-            "claimant",
-            at() + Duration::minutes(2)
+            human_decision("claimant", scope(), approve_command, approve_at),
+            approve_command,
+            approve_at,
         ),
         Err(PeoplePayrollDomainError::ApprovalSeparation),
     );
     expense
-        .transition(
+        .decide(
             ExpenseTransition::Approve,
-            "reviewer",
-            at() + Duration::minutes(2),
+            human_decision("reviewer", scope(), approve_command, approve_at),
+            approve_command,
+            approve_at,
         )
         .unwrap();
+    let reimburse_at = at() + Duration::minutes(3);
+    let reimburse_command = command_id(92);
     expense
-        .transition(
+        .decide(
             ExpenseTransition::Reimburse,
-            "payments",
-            at() + Duration::minutes(3),
+            human_decision("payments", scope(), reimburse_command, reimburse_at),
+            reimburse_command,
+            reimburse_at,
         )
         .unwrap();
     assert_eq!(expense.status(), ExpenseStatus::Reimbursed);
+}
+
+#[test]
+fn leave_and_expense_rejections_require_and_accept_matching_human_decisions() {
+    let decided_at = at() + Duration::minutes(2);
+
+    let mut leave = LeaveRequest::create(
+        LeaveRequestId::try_from_uuid(id(21)).unwrap(),
+        scope(),
+        employee_id(10),
+        date(10),
+        date(12),
+        "annual leave".into(),
+        "requester".into(),
+        at(),
+    )
+    .unwrap();
+    leave
+        .transition(
+            LeaveTransition::Submit,
+            "workflow-agent",
+            at() + Duration::minutes(1),
+        )
+        .unwrap();
+    let leave_command = command_id(97);
+    leave
+        .decide(
+            LeaveTransition::Reject,
+            human_decision("reviewer", scope(), leave_command, decided_at),
+            leave_command,
+            decided_at,
+        )
+        .unwrap();
+    assert_eq!(leave.status(), LeaveStatus::Rejected);
+
+    let mut expense = ExpenseClaim::create(
+        ExpenseClaimId::try_from_uuid(id(31)).unwrap(),
+        scope(),
+        employee_id(10),
+        Currency::try_new("THB").unwrap(),
+        1_500,
+        "travel".into(),
+        "claimant".into(),
+        at(),
+    )
+    .unwrap();
+    expense
+        .transition(
+            ExpenseTransition::Submit,
+            "workflow-agent",
+            at() + Duration::minutes(1),
+        )
+        .unwrap();
+    let expense_command = command_id(98);
+    expense
+        .decide(
+            ExpenseTransition::Reject,
+            human_decision("reviewer", scope(), expense_command, decided_at),
+            expense_command,
+            decided_at,
+        )
+        .unwrap();
+    assert_eq!(expense.status(), ExpenseStatus::Rejected);
+}
+
+#[test]
+fn decision_proofs_reject_non_humans_legacy_actor_bypass_and_mismatched_metadata() {
+    let mut leave = LeaveRequest::create(
+        LeaveRequestId::try_from_uuid(id(22)).unwrap(),
+        scope(),
+        employee_id(10),
+        date(10),
+        date(12),
+        "annual leave".into(),
+        "requester".into(),
+        at(),
+    )
+    .unwrap();
+    leave
+        .transition(
+            LeaveTransition::Submit,
+            "requester",
+            at() + Duration::minutes(1),
+        )
+        .unwrap();
+    let before = leave.clone();
+    let decided_at = at() + Duration::minutes(2);
+    let expected_command = command_id(110);
+
+    for kind in [
+        ActorKind::Agent,
+        ActorKind::Service,
+        ActorKind::SystemWorker,
+    ] {
+        assert!(
+            HumanDecisionProof::try_new(
+                ActorAttribution {
+                    principal_ref: "reviewer".into(),
+                    kind,
+                    session_id: Some(SessionId::try_from_uuid(id(99)).unwrap()),
+                    represented_principal_ref: None,
+                    support_capability_id: None,
+                },
+                scope(),
+                expected_command.to_string(),
+                decided_at,
+            )
+            .is_err()
+        );
+        assert_eq!(leave, before);
+    }
+
+    assert_eq!(
+        leave.transition(LeaveTransition::Approve, "reviewer", decided_at),
+        Err(PeoplePayrollDomainError::InvalidHumanDecision)
+    );
+    assert_eq!(leave, before);
+    assert_eq!(
+        leave.decide(
+            LeaveTransition::Approve,
+            human_decision("reviewer", scope(), command_id(111), decided_at),
+            expected_command,
+            decided_at,
+        ),
+        Err(PeoplePayrollDomainError::InvalidHumanDecision)
+    );
+    assert_eq!(leave, before);
+    assert_eq!(
+        leave.decide(
+            LeaveTransition::Approve,
+            human_decision("reviewer", scope(), expected_command, decided_at),
+            expected_command,
+            decided_at + Duration::seconds(1),
+        ),
+        Err(PeoplePayrollDomainError::InvalidHumanDecision)
+    );
+    assert_eq!(leave, before);
+    assert_eq!(
+        leave.decide(
+            LeaveTransition::Approve,
+            human_decision(
+                "reviewer",
+                AuthorityScope::Company {
+                    holding_id: id(1),
+                    company_id: id(3),
+                },
+                expected_command,
+                decided_at,
+            ),
+            expected_command,
+            decided_at,
+        ),
+        Err(PeoplePayrollDomainError::InvalidHumanDecision)
+    );
+    assert_eq!(leave, before);
 }
 
 #[test]
@@ -275,32 +466,40 @@ fn payroll_requires_unique_lines_and_three_distinct_lifecycle_actors() {
         Err(PeoplePayrollDomainError::InvalidPayrollEvidence),
     );
     assert_eq!(run.calculation_evidence(), Some(&pinned));
+    let review_at = at() + Duration::minutes(2);
+    let review_command = command_id(93);
     assert_eq!(
-        run.transition(
+        run.decide(
             PayrollTransition::Review,
-            "preparer",
-            at() + Duration::minutes(2)
+            human_decision("preparer", scope(), review_command, review_at),
+            review_command,
+            review_at,
         ),
         Err(PeoplePayrollDomainError::ApprovalSeparation),
     );
-    run.transition(
+    run.decide(
         PayrollTransition::Review,
-        "reviewer",
-        at() + Duration::minutes(2),
+        human_decision("reviewer", scope(), review_command, review_at),
+        review_command,
+        review_at,
     )
     .unwrap();
+    let post_at = at() + Duration::minutes(3);
+    let post_command = command_id(94);
     assert_eq!(
-        run.transition(
+        run.decide(
             PayrollTransition::Post,
-            "reviewer",
-            at() + Duration::minutes(3)
+            human_decision("reviewer", scope(), post_command, post_at),
+            post_command,
+            post_at,
         ),
         Err(PeoplePayrollDomainError::ApprovalSeparation),
     );
-    run.transition(
+    run.decide(
         PayrollTransition::Post,
-        "poster",
-        at() + Duration::minutes(3),
+        human_decision("poster", scope(), post_command, post_at),
+        post_command,
+        post_at,
     )
     .unwrap();
     assert_eq!(run.status(), PayrollStatus::Posted);
@@ -360,16 +559,22 @@ fn leave_and_expense_events_remain_private_while_payroll_finalization_is_publish
         at() + Duration::minutes(1),
     )
     .unwrap();
-    run.transition(
+    let review_at = at() + Duration::minutes(2);
+    let review_command = command_id(95);
+    run.decide(
         PayrollTransition::Review,
-        "reviewer",
-        at() + Duration::minutes(2),
+        human_decision("reviewer", scope(), review_command, review_at),
+        review_command,
+        review_at,
     )
     .unwrap();
-    run.transition(
+    let post_at = at() + Duration::minutes(3);
+    let post_command = command_id(96);
+    run.decide(
         PayrollTransition::Post,
-        "poster",
-        at() + Duration::minutes(3),
+        human_decision("poster", scope(), post_command, post_at),
+        post_command,
+        post_at,
     )
     .unwrap();
     let events = run.take_uncommitted_events();

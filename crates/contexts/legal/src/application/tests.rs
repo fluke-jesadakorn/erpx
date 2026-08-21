@@ -13,11 +13,12 @@ use erpx_cqrs::{
 use erpx_integration_contracts::{BoundedContext, IntegrationEvent, RecordRef};
 use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
-    FixedClock, QueryId,
+    FixedClock, QueryId, SessionId,
 };
 use uuid::Uuid;
 
 use super::*;
+use crate::domain::ContractStatus;
 use crate::ports::{
     CommandIdentity, ContractListFilter, DocumentListFilter, LegalCommit, ReadProjection,
 };
@@ -38,7 +39,7 @@ fn actor(name: &str) -> ActorAttribution {
     ActorAttribution {
         principal_ref: name.into(),
         kind: ActorKind::HoldingUser,
-        session_id: None,
+        session_id: Some(SessionId::try_from_uuid(id(102)).unwrap()),
         represented_principal_ref: None,
         support_capability_id: None,
     }
@@ -95,6 +96,14 @@ fn contract() -> LegalContract {
         at(),
     )
     .unwrap()
+}
+
+fn review_contract() -> LegalContract {
+    let mut value = contract();
+    value
+        .transition(ContractTransition::SubmitForReview, "creator", at())
+        .unwrap();
+    value
 }
 
 fn document() -> LegalDocument {
@@ -157,6 +166,7 @@ struct FakeWrite {
     contract: Option<LegalContract>,
     document: Option<LegalDocument>,
     matter: Option<LegalMatter>,
+    contract_loads: Arc<AtomicUsize>,
 }
 
 #[async_trait]
@@ -166,6 +176,7 @@ impl WriteRepository for FakeWrite {
         _scope: &AuthorityScope,
         _id: LegalContractId,
     ) -> Result<Option<LegalContract>, PortError> {
+        self.contract_loads.fetch_add(1, Ordering::SeqCst);
         Ok(self.contract.clone())
     }
 
@@ -189,6 +200,7 @@ impl WriteRepository for FakeWrite {
 #[derive(Clone, Default)]
 struct FakeUnitOfWork {
     commits: Arc<AtomicUsize>,
+    receipt_lookups: Arc<AtomicUsize>,
     request: Arc<Mutex<Option<LegalCommit>>>,
     stored: Arc<Mutex<Option<(CommandIdentity, StoredCommit)>>>,
 }
@@ -199,6 +211,7 @@ impl CommandUnitOfWork for FakeUnitOfWork {
         &self,
         identity: &CommandIdentity,
     ) -> Result<Option<StoredCommit>, PortError> {
+        self.receipt_lookups.fetch_add(1, Ordering::SeqCst);
         let stored = self.stored.lock().unwrap();
         let Some((stored_identity, receipt)) = stored.as_ref() else {
             return Ok(None);
@@ -253,6 +266,7 @@ async fn mutation_requires_expected_version_before_atomic_commit() {
             contract: Some(contract()),
             document: None,
             matter: None,
+            contract_loads: Default::default(),
         },
         uow.clone(),
         true,
@@ -288,6 +302,136 @@ async fn authorization_denial_prevents_any_commit() {
         .unwrap_err();
     assert_eq!(error.category(), ErrorCategory::Denied);
     assert_eq!(uow.commits.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn contract_approval_rejects_non_humans_before_receipt_or_contract_repository_access() {
+    for kind in [
+        ActorKind::Agent,
+        ActorKind::Service,
+        ActorKind::SystemWorker,
+    ] {
+        let contract_loads = Arc::new(AtomicUsize::new(0));
+        let uow = FakeUnitOfWork::default();
+        let contract = review_contract();
+        let mut request = envelope(
+            LegalCommand::TransitionContract(TransitionContract {
+                contract_id: contract_id(),
+                transition: ContractTransition::Approve,
+            }),
+            Some(contract.version()),
+            "non-human",
+        );
+        request.actor.kind = kind;
+
+        let error = handler(
+            FakeWrite {
+                contract: Some(contract),
+                document: None,
+                matter: None,
+                contract_loads: contract_loads.clone(),
+            },
+            uow.clone(),
+            true,
+        )
+        .handle(request)
+        .await
+        .unwrap_err();
+        assert_eq!(error.category(), ErrorCategory::Denied);
+        assert_eq!(uow.receipt_lookups.load(Ordering::SeqCst), 0);
+        assert_eq!(contract_loads.load(Ordering::SeqCst), 0);
+        assert_eq!(uow.commits.load(Ordering::SeqCst), 0);
+    }
+}
+
+#[tokio::test]
+async fn contract_approval_derives_human_approver_and_enforces_creator_separation() {
+    let review = review_contract();
+    let creator_uow = FakeUnitOfWork::default();
+    let creator_error = handler(
+        FakeWrite {
+            contract: Some(review.clone()),
+            document: None,
+            matter: None,
+            contract_loads: Default::default(),
+        },
+        creator_uow.clone(),
+        true,
+    )
+    .handle(envelope(
+        LegalCommand::TransitionContract(TransitionContract {
+            contract_id: contract_id(),
+            transition: ContractTransition::Approve,
+        }),
+        Some(review.version()),
+        "creator",
+    ))
+    .await
+    .unwrap_err();
+    assert_eq!(creator_error.category(), ErrorCategory::Invalid);
+    assert_eq!(creator_uow.commits.load(Ordering::SeqCst), 0);
+
+    let reviewer_uow = FakeUnitOfWork::default();
+    handler(
+        FakeWrite {
+            contract: Some(review.clone()),
+            document: None,
+            matter: None,
+            contract_loads: Default::default(),
+        },
+        reviewer_uow.clone(),
+        true,
+    )
+    .handle(envelope(
+        LegalCommand::TransitionContract(TransitionContract {
+            contract_id: contract_id(),
+            transition: ContractTransition::Approve,
+        }),
+        Some(review.version()),
+        "reviewer",
+    ))
+    .await
+    .unwrap();
+    let request = reviewer_uow.request.lock().unwrap().clone().unwrap();
+    let LegalAggregate::Contract(approved) = request.aggregate else {
+        panic!("contract commit expected")
+    };
+    assert_eq!(approved.status(), ContractStatus::Approved);
+    assert_eq!(approved.approved_by(), Some("reviewer"));
+    assert_eq!(request.actor.principal_ref, "reviewer");
+}
+
+#[tokio::test]
+async fn non_approval_contract_transition_preserves_existing_agent_behavior() {
+    let contract = contract();
+    let uow = FakeUnitOfWork::default();
+    let mut request = envelope(
+        LegalCommand::TransitionContract(TransitionContract {
+            contract_id: contract_id(),
+            transition: ContractTransition::SubmitForReview,
+        }),
+        Some(contract.version()),
+        "workflow-agent",
+    );
+    request.actor.kind = ActorKind::Agent;
+    handler(
+        FakeWrite {
+            contract: Some(contract),
+            document: None,
+            matter: None,
+            contract_loads: Default::default(),
+        },
+        uow.clone(),
+        true,
+    )
+    .handle(request)
+    .await
+    .unwrap();
+    let request = uow.request.lock().unwrap().clone().unwrap();
+    let LegalAggregate::Contract(review) = request.aggregate else {
+        panic!("contract commit expected")
+    };
+    assert_eq!(review.status(), ContractStatus::Review);
 }
 
 #[tokio::test]
@@ -352,6 +496,7 @@ async fn company_authority_cannot_link_a_sibling_company_record() {
             contract: None,
             document: None,
             matter: Some(matter()),
+            contract_loads: Default::default(),
         },
         uow.clone(),
         true,
@@ -406,6 +551,7 @@ async fn access_audit_is_bound_to_existing_document_version_and_committed_append
             contract: None,
             document: Some(document()),
             matter: None,
+            contract_loads: Default::default(),
         },
         uow.clone(),
         true,
@@ -441,6 +587,7 @@ async fn access_audit_rejects_a_document_version_that_is_not_authoritative() {
             contract: None,
             document: Some(document()),
             matter: None,
+            contract_loads: Default::default(),
         },
         uow.clone(),
         true,

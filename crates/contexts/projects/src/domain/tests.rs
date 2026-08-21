@@ -1,4 +1,5 @@
 use chrono::{Duration, TimeZone, Utc};
+use erpx_kernel::{ActorAttribution, ActorKind, HumanDecisionProof, SessionId};
 
 use super::*;
 
@@ -14,6 +15,26 @@ fn scope(branch: u128) -> AuthorityScope {
         company_id: id(2),
         branch_id: id(branch),
     }
+}
+fn human_decision(
+    principal: u128,
+    authority_scope: AuthorityScope,
+    decision_ref: String,
+    decided_at: DateTime<Utc>,
+) -> HumanDecisionProof {
+    HumanDecisionProof::try_new(
+        ActorAttribution {
+            principal_ref: id(principal).to_string(),
+            kind: ActorKind::HoldingUser,
+            session_id: Some(SessionId::try_from_uuid(id(900)).unwrap()),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        },
+        authority_scope,
+        decision_ref,
+        decided_at,
+    )
+    .unwrap()
 }
 fn workflow() -> WorkflowTemplate {
     WorkflowTemplate::publish(
@@ -178,16 +199,34 @@ fn cross_branch_dependency_needs_both_exact_owner_acceptances() {
         at(0),
     )
     .unwrap();
-    value
-        .accept(DependencySide::Source, id(110), 1, at(1))
-        .unwrap();
-    assert_eq!(value.status(), DependencyStatus::Proposed);
-    assert_eq!(
-        value.accept(DependencySide::Target, id(999), 1, at(2)),
-        Err(ProjectDomainError::DependencyAuthorityDenied)
+    let source_decision = human_decision(
+        110,
+        scope(3),
+        dependency_acceptance_decision_ref(value.id(), DependencySide::Source),
+        at(1),
     );
     value
-        .accept(DependencySide::Target, id(111), 1, at(2))
+        .accept(DependencySide::Source, 1, &source_decision)
+        .unwrap();
+    assert_eq!(value.status(), DependencyStatus::Proposed);
+    let wrong_owner_decision = human_decision(
+        999,
+        scope(4),
+        dependency_acceptance_decision_ref(value.id(), DependencySide::Target),
+        at(2),
+    );
+    assert_eq!(
+        value.accept(DependencySide::Target, 1, &wrong_owner_decision),
+        Err(ProjectDomainError::DependencyAuthorityDenied)
+    );
+    let target_decision = human_decision(
+        111,
+        scope(4),
+        dependency_acceptance_decision_ref(value.id(), DependencySide::Target),
+        at(2),
+    );
+    value
+        .accept(DependencySide::Target, 1, &target_decision)
         .unwrap();
     assert_eq!(value.status(), DependencyStatus::Accepted);
     value.revoke(id(111), at(3)).unwrap();
@@ -209,11 +248,23 @@ fn typed_handoff_enforces_maker_checker_and_owner_receipt() {
         at(0),
     )
     .unwrap();
+    let maker_decision = human_decision(
+        132,
+        scope(3),
+        handoff_approval_decision_ref(value.id()),
+        at(1),
+    );
     assert_eq!(
-        value.approve(id(132), at(1)),
+        value.approve(&maker_decision),
         Err(ProjectDomainError::HandoffAuthorityDenied)
     );
-    value.approve(id(133), at(1)).unwrap();
+    let checker_decision = human_decision(
+        133,
+        scope(3),
+        handoff_approval_decision_ref(value.id()),
+        at(1),
+    );
+    value.approve(&checker_decision).unwrap();
     value.mark_ready(at(2)).unwrap();
     assert_eq!(
         value.reconcile(HandoffOutcome {
@@ -237,6 +288,73 @@ fn typed_handoff_enforces_maker_checker_and_owner_receipt() {
         })
         .unwrap();
     assert_eq!(value.status(), HandoffStatus::Accepted);
+}
+
+#[test]
+fn dependency_and_handoff_decisions_require_exact_scope_reference_and_time() {
+    let mut dependency = DependencyAgreement::propose(
+        DependencyId::try_from_uuid(id(140)).unwrap(),
+        endpoint(100, 101, 3, 110),
+        endpoint(102, 103, 4, 111),
+        DependencyKind::FinishToStart,
+        id(110),
+        at(2),
+    )
+    .unwrap();
+    let wrong_scope = human_decision(
+        110,
+        scope(4),
+        dependency_acceptance_decision_ref(dependency.id(), DependencySide::Source),
+        at(3),
+    );
+    assert_eq!(
+        dependency.accept(DependencySide::Source, 1, &wrong_scope),
+        Err(ProjectDomainError::HumanDecisionRequired)
+    );
+    let wrong_ref = human_decision(
+        110,
+        scope(3),
+        "projects.dependency:other:accept:source".into(),
+        at(3),
+    );
+    assert_eq!(
+        dependency.accept(DependencySide::Source, 1, &wrong_ref),
+        Err(ProjectDomainError::HumanDecisionRequired)
+    );
+    let stale = human_decision(
+        110,
+        scope(3),
+        dependency_acceptance_decision_ref(dependency.id(), DependencySide::Source),
+        at(1),
+    );
+    assert_eq!(
+        dependency.accept(DependencySide::Source, 1, &stale),
+        Err(ProjectDomainError::InvalidDependencyTransition)
+    );
+
+    let mut handoff = ProjectHandoff::propose(
+        HandoffId::try_from_uuid(id(141)).unwrap(),
+        ProjectId::try_from_uuid(id(20)).unwrap(),
+        ProjectNodeId::try_from_uuid(id(41)).unwrap(),
+        scope(3),
+        HandoffKind::AssetCapitalization,
+        "c".repeat(64),
+        "capitalization-141",
+        CorrelationId::try_from_uuid(id(142)).unwrap(),
+        id(132),
+        at(2),
+    )
+    .unwrap();
+    let wrong_ref = human_decision(
+        133,
+        scope(3),
+        "projects.handoff:other:approve".into(),
+        at(3),
+    );
+    assert_eq!(
+        handoff.approve(&wrong_ref),
+        Err(ProjectDomainError::HumanDecisionRequired)
+    );
 }
 
 #[test]

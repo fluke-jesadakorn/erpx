@@ -1,5 +1,7 @@
 use chrono::{DateTime, Utc};
-use erpx_kernel::{ActorAttribution, AuditContext, AuthorityScope, Clock};
+use erpx_kernel::{
+    ActorAttribution, AuditContext, AuthorityScope, Clock, HumanDecisionError, HumanDecisionProof,
+};
 use thiserror::Error;
 
 use crate::{
@@ -7,6 +9,7 @@ use crate::{
         AgentDefinition, AgentDefinitionId, AgentDomainError, AgentManifest, AgentPin,
         AgentVersionId, Assignment, AssignmentFailure, AssignmentId, BudgetDecision, BudgetRequest,
         BudgetReservation, BudgetReservationId, DelegationLimits, PayloadManifest, RootInvocation,
+        agent_version_approval_decision_ref,
     },
     ports::{
         AgentAuthorizationPort, AgentDefinitionRepository, AssignmentCommit, AssignmentRepository,
@@ -130,6 +133,8 @@ pub enum AgentOrchestrationError {
     VersionConflict,
     #[error("budget requires explicit over-limit approval")]
     BudgetApprovalRequired,
+    #[error(transparent)]
+    HumanDecision(#[from] HumanDecisionError),
 }
 
 pub struct AgentOrchestrationService<D, R, B, U, A, C> {
@@ -303,6 +308,12 @@ where
         audit: AuditContext,
         command: ApproveAgentVersion,
     ) -> Result<AgentDefinition, AgentOrchestrationError> {
+        let decision = HumanDecisionProof::try_new(
+            actor.clone(),
+            authority_scope.clone(),
+            agent_version_approval_decision_ref(command.definition_id, command.version_id),
+            self.clock.now(),
+        )?;
         let mut definition = self
             .load_definition_versioned(
                 &authority_scope,
@@ -319,11 +330,7 @@ where
             None,
         )
         .await?;
-        definition.approve_version(
-            command.version_id,
-            actor.principal_ref.clone(),
-            self.clock.now(),
-        )?;
+        definition.approve_version(command.version_id, decision)?;
         self.commit_definition_mutation(
             actor,
             authority_scope,

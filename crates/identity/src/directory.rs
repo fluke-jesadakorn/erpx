@@ -8,6 +8,10 @@
 use std::collections::BTreeSet;
 
 use chrono::{DateTime, Duration, Utc};
+use erpx_kernel::{
+    ActorAttribution as AuthenticatedActor, AuthorityScope as DecisionAuthorityScope,
+    HumanDecisionProof, SessionId,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Row};
@@ -368,6 +372,121 @@ pub struct DirectoryIdentityConflictSnapshot {
     pub conflict_version: u64,
     pub detected_at: DateTime<Utc>,
     pub proposed_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DirectoryIdentityReplacementDecisionAction {
+    Approve,
+    Reject,
+}
+
+impl DirectoryIdentityReplacementDecisionAction {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Approve => "approve",
+            Self::Reject => "reject",
+        }
+    }
+}
+
+/// Human-only command material for one exact directory replacement proposal.
+/// The trusted boundary constructs the proof; the owner validates that it is
+/// bound to this action, proposal version, scope, correlation, and timestamp.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DirectoryIdentityReplacementDecision {
+    action: DirectoryIdentityReplacementDecisionAction,
+    conflict_id: Uuid,
+    expected_conflict_version: u64,
+    correlation_id: Uuid,
+    proof: HumanDecisionProof,
+}
+
+impl DirectoryIdentityReplacementDecision {
+    pub fn try_new(
+        action: DirectoryIdentityReplacementDecisionAction,
+        conflict_id: Uuid,
+        expected_conflict_version: u64,
+        correlation_id: Uuid,
+        expected_scope: DecisionAuthorityScope,
+        proof: HumanDecisionProof,
+    ) -> Result<Self, DirectoryError> {
+        validate_replacement_request(
+            conflict_id,
+            expected_conflict_version,
+            proof.principal_ref(),
+            correlation_id,
+        )?;
+        if !matches!(
+            expected_scope,
+            DecisionAuthorityScope::Platform | DecisionAuthorityScope::Holding { .. }
+        ) || proof.authority_scope() != &expected_scope
+            || proof.decision_ref()
+                != directory_identity_replacement_decision_ref(
+                    action,
+                    conflict_id,
+                    expected_conflict_version,
+                    correlation_id,
+                )
+        {
+            return Err(DirectoryError::InvalidPolicy(
+                "directory replacement decision proof is not bound to the exact proposal".into(),
+            ));
+        }
+        Ok(Self {
+            action,
+            conflict_id,
+            expected_conflict_version,
+            correlation_id,
+            proof,
+        })
+    }
+
+    pub const fn action(&self) -> DirectoryIdentityReplacementDecisionAction {
+        self.action
+    }
+
+    pub const fn conflict_id(&self) -> Uuid {
+        self.conflict_id
+    }
+
+    pub const fn expected_conflict_version(&self) -> u64 {
+        self.expected_conflict_version
+    }
+
+    pub const fn correlation_id(&self) -> Uuid {
+        self.correlation_id
+    }
+
+    pub const fn proof(&self) -> &HumanDecisionProof {
+        &self.proof
+    }
+
+    pub fn principal_ref(&self) -> &str {
+        self.proof.principal_ref()
+    }
+
+    pub fn session_id(&self) -> SessionId {
+        self.proof
+            .actor()
+            .session_id
+            .expect("HumanDecisionProof always contains an authenticated session")
+    }
+
+    pub const fn decided_at(&self) -> DateTime<Utc> {
+        self.proof.decided_at()
+    }
+}
+
+pub fn directory_identity_replacement_decision_ref(
+    action: DirectoryIdentityReplacementDecisionAction,
+    conflict_id: Uuid,
+    expected_conflict_version: u64,
+    correlation_id: Uuid,
+) -> String {
+    format!(
+        "identity.directory-replacement.{}:{conflict_id}:v{expected_conflict_version}:{correlation_id}",
+        action.as_str()
+    )
 }
 
 impl DirectoryConnectorReadinessSnapshot {
@@ -1343,11 +1462,33 @@ impl SqlxDirectoryStore {
         &self,
         conflict_id: Uuid,
         expected_version: u64,
-        initiator_ref: &str,
+        initiator: &AuthenticatedActor,
         correlation_id: Uuid,
         at: DateTime<Utc>,
     ) -> Result<DirectoryIdentityConflictSnapshot, DirectoryError> {
-        validate_replacement_request(conflict_id, expected_version, initiator_ref, correlation_id)?;
+        initiator.validate().map_err(|_| {
+            DirectoryError::InvalidReference(
+                "directory replacement proposer attribution is invalid".into(),
+            )
+        })?;
+        let initiator_session_id = initiator.session_id.ok_or_else(|| {
+            DirectoryError::InvalidPolicy(
+                "directory replacement proposal requires an authenticated session".into(),
+            )
+        })?;
+        if initiator.represented_principal_ref.is_some()
+            || initiator.support_capability_id.is_some()
+        {
+            return Err(DirectoryError::InvalidPolicy(
+                "represented actors cannot propose directory identity replacement".into(),
+            ));
+        }
+        validate_replacement_request(
+            conflict_id,
+            expected_version,
+            &initiator.principal_ref,
+            correlation_id,
+        )?;
         let version = as_conflict_version(expected_version)?;
         let next_version =
             as_conflict_version(expected_version.checked_add(1).ok_or_else(|| {
@@ -1384,7 +1525,7 @@ impl SqlxDirectoryStore {
                  correlation_id=$5, conflict_version=$6 WHERE id=$1",
         )
         .bind(conflict_id)
-        .bind(initiator_ref)
+        .bind(&initiator.principal_ref)
         .bind(at)
         .bind(local_ref)
         .bind(correlation_id)
@@ -1394,18 +1535,20 @@ impl SqlxDirectoryStore {
         .map_err(sqlx_error)?;
         sqlx::query(
             "INSERT INTO erpx_identity.directory_identity_replacement_approvals
-                (conflict_id, initiator_ref, state, expected_conflict_version,
-                 initiated_at, correlation_id)
-             VALUES ($1,$2,'awaiting_approval',$3,$4,$5)
+                (conflict_id, initiator_ref, initiator_session_id, state,
+                 expected_conflict_version, initiated_at, correlation_id)
+             VALUES ($1,$2,$3,'awaiting_approval',$4,$5,$6)
              ON CONFLICT (conflict_id) DO UPDATE SET
                  initiator_ref=EXCLUDED.initiator_ref, approver_ref=NULL,
+                 initiator_session_id=EXCLUDED.initiator_session_id,
                  state='awaiting_approval',
                  expected_conflict_version=EXCLUDED.expected_conflict_version,
                  initiated_at=EXCLUDED.initiated_at, approved_at=NULL,
                  rejected_at=NULL, correlation_id=EXCLUDED.correlation_id",
         )
         .bind(conflict_id)
-        .bind(initiator_ref)
+        .bind(&initiator.principal_ref)
+        .bind(initiator_session_id.as_uuid())
         .bind(next_version)
         .bind(at)
         .bind(correlation_id)
@@ -1418,30 +1561,56 @@ impl SqlxDirectoryStore {
 
     pub async fn reject_identity_replacement(
         &self,
-        conflict_id: Uuid,
-        expected_version: u64,
-        approver_ref: &str,
-        correlation_id: Uuid,
-        at: DateTime<Utc>,
+        decision: &DirectoryIdentityReplacementDecision,
     ) -> Result<DirectoryIdentityConflictSnapshot, DirectoryError> {
-        validate_replacement_request(conflict_id, expected_version, approver_ref, correlation_id)?;
-        let result = sqlx::query(
-            "UPDATE erpx_identity.directory_identity_replacement_approvals approval
-             SET state='rejected', approver_ref=$3, rejected_at=$4,
-                 correlation_id=$5
+        require_replacement_decision_action(
+            decision,
+            DirectoryIdentityReplacementDecisionAction::Reject,
+        )?;
+        let version = as_conflict_version(decision.expected_conflict_version())?;
+        let mut tx = self.pool.begin().await.map_err(sqlx_error)?;
+        let row = sqlx::query(
+            "SELECT approval.initiator_ref, approval.initiator_session_id,
+                    approval.initiated_at, conflict.proposed_by,
+                    connector.scope_key AS connector_scope_key
              FROM erpx_identity.directory_identity_conflicts conflict
-             WHERE approval.conflict_id=$1 AND conflict.id=approval.conflict_id
+             JOIN erpx_identity.directory_identity_replacement_approvals approval
+               ON approval.conflict_id=conflict.id
+             JOIN erpx_identity.directory_connectors connector
+               ON connector.id=conflict.connector_id
+             WHERE conflict.id=$1 AND conflict.state='unresolved'
                AND conflict.conflict_version=$2
                AND approval.expected_conflict_version=$2
                AND approval.state='awaiting_approval'
-               AND approval.initiator_ref<>$3",
+             FOR UPDATE OF conflict, approval",
         )
-        .bind(conflict_id)
-        .bind(as_conflict_version(expected_version)?)
-        .bind(approver_ref)
-        .bind(at)
-        .bind(correlation_id)
-        .execute(&self.pool)
+        .bind(decision.conflict_id())
+        .bind(version)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(sqlx_error)?
+        .ok_or_else(|| {
+            DirectoryError::InvalidPolicy("directory replacement rejection is stale".into())
+        })?;
+        let separation = replacement_decision_separation(&row, decision)?;
+        insert_replacement_decision_evidence(
+            &mut tx,
+            decision,
+            &separation.initiator_ref,
+            separation.initiator_session_id,
+        )
+        .await?;
+        let result = sqlx::query(
+            "UPDATE erpx_identity.directory_identity_replacement_approvals
+             SET state='rejected', approver_ref=$2, rejected_at=$3,
+                 correlation_id=$4
+             WHERE conflict_id=$1 AND state='awaiting_approval'",
+        )
+        .bind(decision.conflict_id())
+        .bind(decision.principal_ref())
+        .bind(decision.decided_at())
+        .bind(decision.correlation_id())
+        .execute(&mut *tx)
         .await
         .map_err(sqlx_error)?;
         if result.rows_affected() != 1 {
@@ -1449,34 +1618,38 @@ impl SqlxDirectoryStore {
                 "directory replacement rejection is stale or not independent".into(),
             ));
         }
-        self.identity_conflict(conflict_id).await
+        tx.commit().await.map_err(sqlx_error)?;
+        self.identity_conflict(decision.conflict_id()).await
     }
 
     pub async fn approve_identity_replacement(
         &self,
-        conflict_id: Uuid,
-        expected_version: u64,
-        approver_ref: &str,
-        correlation_id: Uuid,
-        at: DateTime<Utc>,
+        decision: &DirectoryIdentityReplacementDecision,
     ) -> Result<DirectoryIdentityConflictSnapshot, DirectoryError> {
-        validate_replacement_request(conflict_id, expected_version, approver_ref, correlation_id)?;
-        let version = as_conflict_version(expected_version)?;
+        require_replacement_decision_action(
+            decision,
+            DirectoryIdentityReplacementDecisionAction::Approve,
+        )?;
+        let version = as_conflict_version(decision.expected_conflict_version())?;
         let mut tx = self.pool.begin().await.map_err(sqlx_error)?;
         let row = sqlx::query(
             "SELECT c.connector_id, c.external_object_id, c.principal_id,
-                    approval.initiator_ref,
+                    approval.initiator_ref, approval.initiator_session_id,
+                    approval.initiated_at, c.proposed_by,
+                    connector.scope_key AS connector_scope_key,
                     EXISTS(SELECT 1 FROM erpx_identity.protected_local_principals protected
                            WHERE protected.principal_id=c.principal_id) AS protected
              FROM erpx_identity.directory_identity_conflicts c
              JOIN erpx_identity.directory_identity_replacement_approvals approval
                ON approval.conflict_id=c.id
+             JOIN erpx_identity.directory_connectors connector
+               ON connector.id=c.connector_id
              WHERE c.id=$1 AND c.state='unresolved' AND c.conflict_version=$2
                AND approval.state='awaiting_approval'
                AND approval.expected_conflict_version=$2
              FOR UPDATE OF c, approval",
         )
-        .bind(conflict_id)
+        .bind(decision.conflict_id())
         .bind(version)
         .fetch_optional(&mut *tx)
         .await
@@ -1484,12 +1657,11 @@ impl SqlxDirectoryStore {
         .ok_or_else(|| {
             DirectoryError::InvalidPolicy("directory replacement approval is stale".into())
         })?;
-        let initiator_ref: String = row.try_get("initiator_ref").map_err(sqlx_error)?;
-        if initiator_ref == approver_ref {
-            return Err(DirectoryError::InvalidPolicy(
-                "directory replacement requires a distinct approver".into(),
-            ));
-        }
+        let separation = replacement_decision_separation(&row, decision)?;
+        let conflict_id = decision.conflict_id();
+        let approver_ref = decision.principal_ref();
+        let correlation_id = decision.correlation_id();
+        let at = decision.decided_at();
         if row.try_get::<bool, _>("protected").map_err(sqlx_error)? {
             return Err(DirectoryError::InvalidPolicy(
                 "protected local principal cannot be replaced".into(),
@@ -1519,10 +1691,19 @@ impl SqlxDirectoryStore {
             &connector_id.simple().to_string()[..12],
             &directory_principal_id.simple().to_string()[..20]
         );
+        insert_replacement_decision_evidence(
+            &mut tx,
+            decision,
+            &separation.initiator_ref,
+            separation.initiator_session_id,
+        )
+        .await?;
         sqlx::query(
             "INSERT INTO erpx_identity.principals
-                (id, principal_ref, status, created_at, updated_at)
-             VALUES ($1,$2,'active',$3,$3) ON CONFLICT (id) DO NOTHING",
+                (id, principal_ref, status, authenticated_realm, principal_kind,
+                 created_at, updated_at)
+             VALUES ($1,$2,'active','internal_workforce','human',$3,$3)
+             ON CONFLICT (id) DO NOTHING",
         )
         .bind(directory_principal_id)
         .bind(&directory_principal_ref)
@@ -1530,6 +1711,19 @@ impl SqlxDirectoryStore {
         .execute(&mut *tx)
         .await
         .map_err(sqlx_error)?;
+        let (realm, kind): (String, String) = sqlx::query_as(
+            "SELECT authenticated_realm, principal_kind
+             FROM erpx_identity.principals WHERE id=$1",
+        )
+        .bind(directory_principal_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        if realm != "internal_workforce" || kind != "human" {
+            return Err(DirectoryError::InvalidPolicy(
+                "directory replacement principal authority is contradictory".into(),
+            ));
+        }
         sqlx::query(
             "UPDATE erpx_identity.principals
              SET status='suspended', updated_at=$2 WHERE id=$1",
@@ -4302,6 +4496,136 @@ fn validate_replacement_request(
     Ok(())
 }
 
+struct ReplacementDecisionSeparation {
+    initiator_ref: String,
+    initiator_session_id: Uuid,
+}
+
+fn require_replacement_decision_action(
+    decision: &DirectoryIdentityReplacementDecision,
+    required: DirectoryIdentityReplacementDecisionAction,
+) -> Result<(), DirectoryError> {
+    if decision.action() != required {
+        return Err(DirectoryError::InvalidPolicy(
+            "directory replacement decision action is contradictory".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn replacement_decision_separation(
+    row: &sqlx::postgres::PgRow,
+    decision: &DirectoryIdentityReplacementDecision,
+) -> Result<ReplacementDecisionSeparation, DirectoryError> {
+    let initiator_ref: String = row.try_get("initiator_ref").map_err(sqlx_error)?;
+    let proposed_by: Option<String> = row.try_get("proposed_by").map_err(sqlx_error)?;
+    let initiator_session_id: Option<Uuid> =
+        row.try_get("initiator_session_id").map_err(sqlx_error)?;
+    let initiated_at: DateTime<Utc> = row.try_get("initiated_at").map_err(sqlx_error)?;
+    let connector_scope_key: String = row.try_get("connector_scope_key").map_err(sqlx_error)?;
+    validate_replacement_decision_connector_scope(&parse_scope(&connector_scope_key)?, decision)?;
+    let initiator_session_id = validate_replacement_decision_separation(
+        &initiator_ref,
+        proposed_by.as_deref(),
+        initiator_session_id,
+        initiated_at,
+        decision,
+    )?;
+    Ok(ReplacementDecisionSeparation {
+        initiator_ref,
+        initiator_session_id,
+    })
+}
+
+fn validate_replacement_decision_separation(
+    initiator_ref: &str,
+    proposed_by: Option<&str>,
+    initiator_session_id: Option<Uuid>,
+    initiated_at: DateTime<Utc>,
+    decision: &DirectoryIdentityReplacementDecision,
+) -> Result<Uuid, DirectoryError> {
+    let initiator_session_id = initiator_session_id.ok_or_else(|| {
+        DirectoryError::InvalidPolicy(
+            "legacy directory replacement proposal lacks authenticated session evidence; propose again"
+                .into(),
+        )
+    })?;
+    if proposed_by != Some(initiator_ref)
+        || initiator_ref == decision.principal_ref()
+        || initiator_session_id == decision.session_id().as_uuid()
+        || decision.decided_at() < initiated_at
+    {
+        return Err(DirectoryError::InvalidPolicy(
+            "directory replacement requires distinct authenticated principals and sessions bound to proposal time"
+                .into(),
+        ));
+    }
+    Ok(initiator_session_id)
+}
+
+fn validate_replacement_decision_connector_scope(
+    connector_scope: &DirectoryScope,
+    decision: &DirectoryIdentityReplacementDecision,
+) -> Result<(), DirectoryError> {
+    let allowed = match decision.proof().authority_scope() {
+        DecisionAuthorityScope::Platform => true,
+        DecisionAuthorityScope::Holding { holding_id } => {
+            connector_scope.holding_id() == Some(*holding_id)
+        }
+        _ => false,
+    };
+    if !allowed {
+        return Err(DirectoryError::InvalidPolicy(
+            "directory replacement decision scope does not contain the proposal connector".into(),
+        ));
+    }
+    Ok(())
+}
+
+async fn insert_replacement_decision_evidence(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    decision: &DirectoryIdentityReplacementDecision,
+    initiator_ref: &str,
+    initiator_session_id: Uuid,
+) -> Result<(), DirectoryError> {
+    let decision_actor_kind = replacement_decision_actor_kind(decision)?;
+    sqlx::query(
+        "INSERT INTO erpx_identity.directory_identity_replacement_decision_evidence
+            (conflict_id, expected_conflict_version, decision_action,
+             initiator_ref, initiator_session_id, decision_actor_ref,
+             decision_actor_kind, decision_session_id, authority_scope_key,
+             decision_ref, decided_at, correlation_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",
+    )
+    .bind(decision.conflict_id())
+    .bind(as_conflict_version(decision.expected_conflict_version())?)
+    .bind(decision.action().as_str())
+    .bind(initiator_ref)
+    .bind(initiator_session_id)
+    .bind(decision.principal_ref())
+    .bind(decision_actor_kind)
+    .bind(decision.session_id().as_uuid())
+    .bind(decision.proof().authority_scope().canonical_key())
+    .bind(decision.proof().decision_ref())
+    .bind(decision.decided_at())
+    .bind(decision.correlation_id())
+    .execute(&mut **transaction)
+    .await
+    .map_err(sqlx_error)?;
+    Ok(())
+}
+
+fn replacement_decision_actor_kind(
+    decision: &DirectoryIdentityReplacementDecision,
+) -> Result<&'static str, DirectoryError> {
+    match decision.proof().actor().kind {
+        erpx_kernel::ActorKind::PlatformUser | erpx_kernel::ActorKind::HoldingUser => Ok("human"),
+        _ => Err(DirectoryError::InvalidPolicy(
+            "directory replacement decision actor kind is not human".into(),
+        )),
+    }
+}
+
 fn as_conflict_version(value: u64) -> Result<i64, DirectoryError> {
     i64::try_from(value)
         .map_err(|_| DirectoryError::InvalidReference("conflict version overflow".into()))
@@ -4469,6 +4793,208 @@ fn non_negative_u64(value: i64) -> Result<u64, DirectoryError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn replacement_decision(
+        principal_ref: &str,
+        session: Uuid,
+        action: DirectoryIdentityReplacementDecisionAction,
+        scope: DecisionAuthorityScope,
+        decided_at: DateTime<Utc>,
+    ) -> DirectoryIdentityReplacementDecision {
+        let conflict_id = Uuid::from_u128(101);
+        let correlation_id = Uuid::from_u128(102);
+        let proof = HumanDecisionProof::try_new(
+            AuthenticatedActor {
+                principal_ref: principal_ref.into(),
+                kind: erpx_kernel::ActorKind::HoldingUser,
+                session_id: Some(SessionId::try_from_uuid(session).expect("session")),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            scope.clone(),
+            directory_identity_replacement_decision_ref(action, conflict_id, 2, correlation_id),
+            decided_at,
+        )
+        .expect("human proof");
+        DirectoryIdentityReplacementDecision::try_new(
+            action,
+            conflict_id,
+            2,
+            correlation_id,
+            scope,
+            proof,
+        )
+        .expect("bound replacement decision")
+    }
+
+    #[test]
+    fn replacement_decision_owner_binds_action_proposal_scope_reference_and_time() {
+        let decided_at = Utc::now();
+        let scope = DecisionAuthorityScope::Holding {
+            holding_id: Uuid::from_u128(103),
+        };
+        let decision = replacement_decision(
+            "holding:approver",
+            Uuid::from_u128(104),
+            DirectoryIdentityReplacementDecisionAction::Approve,
+            scope.clone(),
+            decided_at,
+        );
+        assert_eq!(
+            decision.action(),
+            DirectoryIdentityReplacementDecisionAction::Approve
+        );
+        assert_eq!(decision.proof().authority_scope(), &scope);
+        assert_eq!(decision.decided_at(), decided_at);
+        assert_eq!(replacement_decision_actor_kind(&decision), Ok("human"));
+        assert!(
+            validate_replacement_decision_connector_scope(
+                &DirectoryScope::Holding {
+                    data_profile_key: Uuid::from_u128(103).to_string(),
+                },
+                &decision,
+            )
+            .is_ok()
+        );
+        assert!(
+            validate_replacement_decision_connector_scope(
+                &DirectoryScope::Holding {
+                    data_profile_key: Uuid::from_u128(999).to_string(),
+                },
+                &decision,
+            )
+            .is_err()
+        );
+        assert_eq!(
+            decision.proof().decision_ref(),
+            directory_identity_replacement_decision_ref(
+                decision.action(),
+                decision.conflict_id(),
+                decision.expected_conflict_version(),
+                decision.correlation_id(),
+            )
+        );
+
+        let forged_ref = HumanDecisionProof::try_new(
+            decision.proof().actor().clone(),
+            scope.clone(),
+            "identity.directory-replacement.approve:another-proposal",
+            decided_at,
+        )
+        .expect("structurally valid but unbound proof");
+        assert!(
+            DirectoryIdentityReplacementDecision::try_new(
+                decision.action(),
+                decision.conflict_id(),
+                decision.expected_conflict_version(),
+                decision.correlation_id(),
+                scope.clone(),
+                forged_ref,
+            )
+            .is_err()
+        );
+        assert!(
+            DirectoryIdentityReplacementDecision::try_new(
+                decision.action(),
+                decision.conflict_id(),
+                decision.expected_conflict_version(),
+                decision.correlation_id(),
+                DecisionAuthorityScope::Platform,
+                decision.proof().clone(),
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn replacement_decision_owner_rejects_non_human_actor_kinds() {
+        let scope = DecisionAuthorityScope::Platform;
+        for kind in [
+            erpx_kernel::ActorKind::Agent,
+            erpx_kernel::ActorKind::Service,
+            erpx_kernel::ActorKind::SystemWorker,
+        ] {
+            assert!(
+                HumanDecisionProof::try_new(
+                    AuthenticatedActor {
+                        principal_ref: "non-human".into(),
+                        kind,
+                        session_id: Some(
+                            SessionId::try_from_uuid(Uuid::new_v4()).expect("session"),
+                        ),
+                        represented_principal_ref: None,
+                        support_capability_id: None,
+                    },
+                    scope.clone(),
+                    "identity.directory-replacement.reject:test",
+                    Utc::now(),
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn replacement_decision_evidence_schema_requires_durable_human_actor_kind() {
+        let migration = crate::IDENTITY_DIRECTORY_REPLACEMENT_DECISION_MIGRATION_SQL;
+        assert!(migration.contains("decision_actor_kind TEXT NOT NULL"));
+        assert!(migration.contains("CHECK (decision_actor_kind = 'human')"));
+    }
+
+    #[test]
+    fn replacement_decision_policy_requires_distinct_principals_sessions_and_time_order() {
+        let decided_at = Utc::now();
+        let proposer_session = Uuid::from_u128(105);
+        let decision = replacement_decision(
+            "holding:approver",
+            Uuid::from_u128(106),
+            DirectoryIdentityReplacementDecisionAction::Reject,
+            DecisionAuthorityScope::Platform,
+            decided_at,
+        );
+        assert_eq!(
+            validate_replacement_decision_separation(
+                "holding:proposer",
+                Some("holding:proposer"),
+                Some(proposer_session),
+                decided_at,
+                &decision,
+            ),
+            Ok(proposer_session)
+        );
+        for result in [
+            validate_replacement_decision_separation(
+                decision.principal_ref(),
+                Some(decision.principal_ref()),
+                Some(proposer_session),
+                decided_at,
+                &decision,
+            ),
+            validate_replacement_decision_separation(
+                "holding:proposer",
+                Some("holding:proposer"),
+                Some(decision.session_id().as_uuid()),
+                decided_at,
+                &decision,
+            ),
+            validate_replacement_decision_separation(
+                "holding:proposer",
+                Some("holding:proposer"),
+                Some(proposer_session),
+                decided_at + Duration::seconds(1),
+                &decision,
+            ),
+            validate_replacement_decision_separation(
+                "holding:proposer",
+                Some("holding:proposer"),
+                None,
+                decided_at,
+                &decision,
+            ),
+        ] {
+            assert!(result.is_err());
+        }
+    }
 
     fn tls() -> DirectoryTlsPolicy {
         DirectoryTlsPolicy {

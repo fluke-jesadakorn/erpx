@@ -40,10 +40,14 @@ impl ThreadWriteRepository for SqlxThreadWriteRepository {
                ON audience.holding_id=thread.holding_id AND audience.thread_id=thread.thread_id \
              JOIN erpx_collaboration.thread_retention retention \
                ON retention.holding_id=thread.holding_id AND retention.thread_id=thread.thread_id \
-             WHERE thread.holding_id = $1 AND thread.thread_id = $2",
+             WHERE thread.holding_id=$1 AND thread.thread_id=$2 \
+               AND thread.anchor_record_id=$3 \
+               AND policy.policy_document->'visibility_scope'=$4::JSONB",
         )
         .bind(access.holding_id().as_uuid())
         .bind(access.thread_id().as_uuid())
+        .bind(access.anchor_record_id().as_uuid())
+        .bind(serde_json::to_value(access.visibility_scope()).map_err(|_| PortError::InvalidState)?)
         .fetch_optional(&mut *tx)
         .await
         .map_err(map_database_error)?;
@@ -87,9 +91,7 @@ impl ThreadWriteRepository for SqlxThreadWriteRepository {
         if thread.id() != access.thread_id()
             || thread.policy().holding_id() != access.holding_id()
             || thread.anchor().record().id() != access.anchor_record_id()
-            || !access
-                .authority_scope()
-                .contains(thread.policy().visibility_scope())
+            || access.visibility_scope() != thread.policy().visibility_scope()
         {
             return Err(PortError::Internal);
         }
@@ -116,11 +118,19 @@ impl ThreadWriteRepository for SqlxThreadWriteRepository {
         }
 
         let current = sqlx::query_scalar::<_, i64>(
-            "SELECT aggregate_version FROM erpx_collaboration.threads \
-             WHERE holding_id = $1 AND thread_id = $2 FOR UPDATE",
+            "SELECT thread.aggregate_version \
+             FROM erpx_collaboration.threads thread \
+             JOIN erpx_collaboration.thread_policies policy \
+               ON policy.holding_id=thread.holding_id AND policy.thread_id=thread.thread_id \
+             WHERE thread.holding_id=$1 AND thread.thread_id=$2 \
+               AND thread.anchor_record_id=$3 \
+               AND policy.policy_document->'visibility_scope'=$4::JSONB \
+             FOR UPDATE OF thread",
         )
         .bind(access.holding_id().as_uuid())
         .bind(access.thread_id().as_uuid())
+        .bind(access.anchor_record_id().as_uuid())
+        .bind(serde_json::to_value(access.visibility_scope()).map_err(|_| PortError::InvalidState)?)
         .fetch_optional(&mut *tx)
         .await
         .map_err(map_database_error)?;
@@ -360,9 +370,7 @@ fn validate_commit(
     if commit.thread.id() != access.thread_id()
         || commit.thread.policy().holding_id() != access.holding_id()
         || commit.thread.anchor().record().id() != access.anchor_record_id()
-        || !access
-            .authority_scope()
-            .contains(commit.thread.policy().visibility_scope())
+        || access.visibility_scope() != commit.thread.policy().visibility_scope()
         || commit.events.is_empty()
         || commit
             .events
@@ -380,12 +388,21 @@ async fn replay_receipt(
     commit: &ThreadCommit,
 ) -> Result<Option<CommitReceipt>, PortError> {
     let row = sqlx::query(
-        "SELECT request_digest, thread_id, aggregate_version, last_event_cursor \
-         FROM erpx_collaboration.command_receipts \
-         WHERE holding_id=$1 AND idempotency_key=$2",
+        "SELECT receipt.request_digest,receipt.thread_id,receipt.aggregate_version, \
+                receipt.last_event_cursor \
+         FROM erpx_collaboration.command_receipts receipt \
+         JOIN erpx_collaboration.threads thread \
+           ON thread.holding_id=receipt.holding_id AND thread.thread_id=receipt.thread_id \
+         JOIN erpx_collaboration.thread_policies policy \
+           ON policy.holding_id=thread.holding_id AND policy.thread_id=thread.thread_id \
+         WHERE receipt.holding_id=$1 AND receipt.idempotency_key=$2 \
+           AND thread.anchor_record_id=$3 \
+           AND policy.policy_document->'visibility_scope'=$4::JSONB",
     )
     .bind(access.holding_id().as_uuid())
     .bind(&commit.identity.idempotency_key)
+    .bind(access.anchor_record_id().as_uuid())
+    .bind(serde_json::to_value(access.visibility_scope()).map_err(|_| PortError::InvalidState)?)
     .fetch_optional(&mut **tx)
     .await
     .map_err(map_database_error)?;

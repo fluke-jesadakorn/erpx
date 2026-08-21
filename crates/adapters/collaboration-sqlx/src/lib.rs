@@ -67,13 +67,63 @@ mod tests {
     }
 
     #[test]
-    fn read_schema_filters_authority_before_fts_matching() {
+    fn thread_search_materializes_exact_anchor_authority_before_observable_work() {
         assert!(READ_DDL.contains("audience_allows"));
         assert!(READ_DDL.contains("ENABLE ROW LEVEL SECURITY"));
         let source = include_str!("read.rs");
-        let authority = source.find("audience_allows").unwrap();
-        let matching = source.find("search_vector @@").unwrap();
-        assert!(authority < matching);
+        let search = source
+            .split("async fn search(")
+            .nth(1)
+            .expect("thread search implementation")
+            .split("async fn list_ids_for_record")
+            .next()
+            .unwrap();
+        let freshness = search
+            .find("directory_freshness AS MATERIALIZED")
+            .expect("freshness gate");
+        let candidate = search
+            .find("authorized AS MATERIALIZED")
+            .expect("authorized candidate set");
+        let matching = search
+            .find("search_vector @@ websearch_to_tsquery")
+            .expect("full-text match");
+        let count = search
+            .find("SELECT count(*)::BIGINT AS authorized_count FROM matched")
+            .expect("authorized count");
+        let pagination = search
+            .find("LIMIT $9 OFFSET $10")
+            .expect("authorized pagination");
+        let payload = search
+            .find("paged.thread_id AS matched_thread_id, payload.projection")
+            .expect("protected payload load");
+        assert!(
+            freshness < candidate
+                && candidate < matching
+                && matching < count
+                && matching < pagination
+                && pagination < payload
+        );
+        for exact_gate in [
+            "item_directory_projection_state",
+            "item_directory_descriptors",
+            "item_directory_effective_grants",
+            "grant_fact.principal_id=$5",
+            "grant_fact.authorization_policy_id=descriptor.authorization_policy_id",
+            "grant_fact.policy_version=descriptor.authorization_policy_version",
+            "grant_fact.source_event_position>=descriptor.source_event_position",
+            "descriptor.source_event_position<=freshness.applied_position",
+            "grant_fact.source_event_position<=freshness.applied_position",
+            "scope_contains($4, descriptor.record_scope)",
+            "audience_allows(",
+        ] {
+            assert!(
+                search.contains(exact_gate),
+                "missing search gate {exact_gate}"
+            );
+        }
+        assert!(search.contains("FROM (VALUES (TRUE)) AS required(singleton)"));
+        assert!(search.contains("LEFT JOIN paged ON freshness.is_fresh"));
+        assert!(!search.contains("count(*) OVER()"));
     }
 
     #[test]

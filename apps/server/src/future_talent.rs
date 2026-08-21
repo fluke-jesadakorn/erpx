@@ -455,6 +455,9 @@ impl wire::talent_command_service_server::TalentCommandService for TalentCommand
             talent::TalentRealm::Workforce,
         )
         .await?;
+        let decided_at = Utc::now();
+        let _human_decision =
+            future_auth::human_decision(&invocation, "talent.requisition.approve", decided_at)?;
         let expected = mutation_expected(context)?;
         let approver = enforce_actor(
             &body.approved_by_principal_id,
@@ -470,7 +473,7 @@ impl wire::talent_command_service_server::TalentCommandService for TalentCommand
                     .map_err(|error| Status::invalid_argument(error.to_string()))?,
                 expected,
                 approver,
-                Utc::now(),
+                decided_at,
             )
             .await
             .map_err(status)?;
@@ -832,6 +835,9 @@ impl wire::talent_command_service_server::TalentCommandService for TalentCommand
             talent::TalentRealm::Workforce,
         )
         .await?;
+        let decided_at = Utc::now();
+        let _human_decision =
+            future_auth::human_decision(&invocation, "talent.offer.approve", decided_at)?;
         let expected = mutation_expected(context)?;
         let approver = enforce_actor(
             &body.approved_by_principal_id,
@@ -847,7 +853,7 @@ impl wire::talent_command_service_server::TalentCommandService for TalentCommand
                     .map_err(|error| Status::invalid_argument(error.to_string()))?,
                 expected,
                 approver,
-                Utc::now(),
+                decided_at,
             )
             .await
             .map_err(status)?;
@@ -1078,6 +1084,9 @@ impl wire::talent_command_service_server::TalentCommandService for TalentCommand
             talent::TalentRealm::Workforce,
         )
         .await?;
+        let decided_at = Utc::now();
+        let _human_decision =
+            future_auth::human_decision(&invocation, "talent.proposal.approve", decided_at)?;
         let expected = mutation_expected(context)?;
         let approver = enforce_actor(
             &body.approved_by_principal_id,
@@ -1093,7 +1102,7 @@ impl wire::talent_command_service_server::TalentCommandService for TalentCommand
                     .map_err(|error| Status::invalid_argument(error.to_string()))?,
                 expected,
                 approver,
-                Utc::now(),
+                decided_at,
             )
             .await
             .map_err(status)?;

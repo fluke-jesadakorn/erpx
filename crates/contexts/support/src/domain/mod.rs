@@ -7,7 +7,7 @@ use erpx_integration_contracts::{
     customer, identity_access,
     reference::{RecordTypeId, ReferenceValidationError},
 };
-use erpx_kernel::{AuthorityScope, RecordId};
+use erpx_kernel::{AuthorityScope, HumanDecisionProof, RecordId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -93,6 +93,8 @@ pub enum SupportDomainError {
     InvalidRepresentedPrincipal,
     #[error("support approval violates segregation of duties")]
     ApprovalSeparation,
+    #[error("support session approval requires exact authenticated-human decision evidence")]
+    HumanApprovalRequired,
     #[error("support capability binding is invalid")]
     InvalidCapabilityBinding,
     #[error("high-risk support access requires recent MFA evidence")]
@@ -986,18 +988,24 @@ impl SupportSession {
         })
     }
 
-    pub fn approve(
-        &mut self,
-        approver_ref: String,
-        at: DateTime<Utc>,
-    ) -> Result<(), SupportDomainError> {
+    pub fn approve(&mut self, decision: &HumanDecisionProof) -> Result<(), SupportDomainError> {
+        let at = decision.decided_at();
+        let expected_ref = support_session_approval_decision_ref(self.id);
+        if decision.authority_scope() != &self.scope
+            || decision.decision_ref() != expected_ref
+            || !decision.actor().is_human()
+            || decision.actor().session_id.is_none()
+        {
+            return Err(SupportDomainError::HumanApprovalRequired);
+        }
         if self.status != SessionStatus::Requested
             || at < self.requested_at
             || at >= self.expires_at
         {
             return Err(SupportDomainError::InvalidSession);
         }
-        validate_text(&approver_ref, "approver_ref", MAX_REFERENCE_BYTES)?;
+        let approver_ref = decision.principal_ref();
+        validate_text(approver_ref, "approver_ref", MAX_REFERENCE_BYTES)?;
         if approver_ref == self.agent.as_uuid().to_string()
             || self
                 .represented_principal
@@ -1007,7 +1015,7 @@ impl SupportSession {
         }
         self.advance()?;
         self.status = SessionStatus::Approved;
-        self.approved_by = Some(approver_ref);
+        self.approved_by = Some(approver_ref.to_owned());
         self.approved_at = Some(at);
         self.uncommitted_events.push(DomainEvent::Session);
         Ok(())
@@ -1101,6 +1109,10 @@ impl SupportSession {
     pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
         std::mem::take(&mut self.uncommitted_events)
     }
+}
+
+pub fn support_session_approval_decision_ref(session_id: SessionId) -> String {
+    format!("support.session:{}:approve", session_id.as_uuid())
 }
 
 fn support_record_ref(

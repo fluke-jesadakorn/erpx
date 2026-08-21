@@ -24,7 +24,10 @@ use erpx_domain::{
     contracts::AuthorityScope as Scope,
     holding_administration::HoldingRegistryBinding,
 };
-use erpx_identity::{SqlxIdentityStore, apply_identity_migration};
+use erpx_identity::{
+    AuthenticatedAuthority, AuthenticatedPrincipalKind, AuthenticatedRealm, SqlxIdentityStore,
+    apply_identity_migration,
+};
 use erpx_infrastructure::{
     ControlPlanePools, FRESH_INITIAL_HOLDING_PROJECTIONS, HoldingStoreRegistration,
     SqlxControlPlane, SqlxHoldingAdministrationStore, SqlxHoldingStoreRegistry,
@@ -1670,22 +1673,33 @@ async fn seed_demo(root: &Path, config: &DevConfig) -> TaskResult {
     let identity = SqlxIdentityStore::new(write.clone());
     ensure_native_demo_principal(root, &write, &identity).await?;
     let principal_ref = "local:platform-root";
-    let principal_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(
-             SELECT 1 FROM erpx_identity.principals WHERE principal_ref = $1
-         )",
+    let principal_authority: Option<(String, String)> = sqlx::query_as(
+        "SELECT authenticated_realm, principal_kind
+         FROM erpx_identity.principals WHERE principal_ref = $1",
     )
     .bind(principal_ref)
-    .fetch_one(&write)
+    .fetch_optional(&write)
     .await?;
-    if !principal_exists {
+    if let Some((realm, kind)) = principal_authority {
+        if realm != "platform_administration" || kind != "human" {
+            return Err("Platform Root authenticated authority is contradictory".into());
+        }
+    } else {
         let one_time_password = format!(
             "ERPX-{}-{}",
             Uuid::new_v4().simple(),
             Uuid::new_v4().simple()
         );
         identity
-            .create_principal_with_password(principal_ref, &one_time_password, Utc::now())
+            .create_principal_with_password_and_authority(
+                principal_ref,
+                &one_time_password,
+                AuthenticatedAuthority {
+                    realm: AuthenticatedRealm::PlatformAdministration,
+                    principal_kind: AuthenticatedPrincipalKind::Human,
+                },
+                Utc::now(),
+            )
             .await?;
         let recovery = identity
             .issue_recovery_codes(principal_ref, 1, Utc::now())
@@ -2041,19 +2055,23 @@ async fn ensure_native_demo_principal(
     fs::set_permissions(&secret_root, fs::Permissions::from_mode(0o700))?;
     let password_component = secret_file(&secret_root.join("native-demo-password.key"))?;
     let principal_ref = "local:native-demo";
-    let exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(
-             SELECT 1 FROM erpx_identity.principals WHERE principal_ref=$1
-         )",
+    let existing_authority: Option<(String, String)> = sqlx::query_as(
+        "SELECT authenticated_realm, principal_kind
+         FROM erpx_identity.principals WHERE principal_ref=$1",
     )
     .bind(principal_ref)
-    .fetch_one(write)
+    .fetch_optional(write)
     .await?;
-    if !exists {
+    if let Some((realm, kind)) = existing_authority {
+        if realm != "internal_workforce" || kind != "human" {
+            return Err("native demo authenticated authority is contradictory".into());
+        }
+    } else {
         identity
-            .create_principal_with_password(
+            .create_principal_with_password_and_authority(
                 principal_ref,
                 &format!("ERPX-NATIVE-{password_component}"),
+                AuthenticatedAuthority::legacy_human(),
                 Utc::now(),
             )
             .await?;
@@ -2068,18 +2086,42 @@ async fn seed_demo_identities_and_roles(
 ) -> TaskResult {
     let now = Utc::now();
     for (principal_ref, _, _) in DEMO_IDENTITIES.iter().copied() {
-        let exists: bool = sqlx::query_scalar(
-            "SELECT EXISTS(
-                 SELECT 1 FROM erpx_identity.principals WHERE principal_ref = $1
-             )",
+        let existing_authority: Option<(String, String)> = sqlx::query_as(
+            "SELECT authenticated_realm, principal_kind
+             FROM erpx_identity.principals WHERE principal_ref = $1",
         )
         .bind(principal_ref)
-        .fetch_one(write)
+        .fetch_optional(write)
         .await?;
-        if !exists {
+        let authority = if principal_ref == "local:platform-root" {
+            AuthenticatedAuthority {
+                realm: AuthenticatedRealm::PlatformAdministration,
+                principal_kind: AuthenticatedPrincipalKind::Human,
+            }
+        } else {
+            AuthenticatedAuthority::legacy_human()
+        };
+        let expected_realm = if authority.realm == AuthenticatedRealm::PlatformAdministration {
+            "platform_administration"
+        } else {
+            "internal_workforce"
+        };
+        if let Some((realm, kind)) = existing_authority {
+            if realm != expected_realm || kind != "human" {
+                return Err(format!(
+                    "demo principal {principal_ref} authenticated authority is contradictory"
+                )
+                .into());
+            }
+        } else {
             let discarded_bootstrap_secret = format!("ERPX-DEMO-{}", Uuid::new_v4().simple());
             identity
-                .create_principal_with_password(principal_ref, &discarded_bootstrap_secret, now)
+                .create_principal_with_password_and_authority(
+                    principal_ref,
+                    &discarded_bootstrap_secret,
+                    authority,
+                    now,
+                )
                 .await?;
         }
     }
@@ -5459,6 +5501,11 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
 async fn verify_local_sqlx(root: &Path, config: &DevConfig) -> TaskResult {
     config.validate_local()?;
     let stamp = Uuid::new_v4().simple().to_string();
+    // The authenticated-authority upgrade test drops only its own identity
+    // schema and additionally requires this suffix as a destructive-test
+    // fence. Keep the random component short enough for PostgreSQL's
+    // 63-byte identifier limit.
+    let identity_upgrade_key = format!("erpx_verify_{}_identity_upgrade_test", &stamp[..16]);
     let database_keys = [
         format!("erpx_verify_cw_{stamp}"),
         format!("erpx_verify_cr_{stamp}"),
@@ -5468,6 +5515,7 @@ async fn verify_local_sqlx(root: &Path, config: &DevConfig) -> TaskResult {
         format!("erpx_verify_com_{stamp}"),
         format!("erpx_verify_mkt_{stamp}"),
         format!("erpx_verify_sup_{stamp}"),
+        identity_upgrade_key,
     ];
     let physical_write_key = format!("erpx_verify_ptw_{stamp}");
     let physical_read_key = format!("erpx_verify_ptr_{stamp}");
@@ -5502,6 +5550,7 @@ async fn verify_local_sqlx(root: &Path, config: &DevConfig) -> TaskResult {
     let commercial_url = verification_url(&database_keys[5]);
     let marketing_url = verification_url(&database_keys[6]);
     let support_url = verification_url(&database_keys[7]);
+    let identity_upgrade_url = verification_url(&database_keys[8]);
     let application_control_write_url = application_url(&database_keys[0]);
     let application_control_read_url = application_url(&database_keys[1]);
     let application_holding_write_url = application_url(&database_keys[2]);
@@ -5560,6 +5609,10 @@ async fn verify_local_sqlx(root: &Path, config: &DevConfig) -> TaskResult {
         ("ERPX_TEST_COMMERCIAL_DATABASE_URL", commercial_url),
         ("ERPX_TEST_MARKETING_SCHEDULER_DATABASE_URL", marketing_url),
         ("ERPX_SUPPORT_TEST_DATABASE_URL", support_url),
+        (
+            "ERPX_TEST_IDENTITY_UPGRADE_DATABASE_URL",
+            identity_upgrade_url,
+        ),
         ("ERPX_TEST_ADMIN_DATABASE_URL", admin_url.clone()),
         ("ERPX_G13_DISPOSABLE_ADMIN_DATABASE_URL", admin_url.clone()),
         (

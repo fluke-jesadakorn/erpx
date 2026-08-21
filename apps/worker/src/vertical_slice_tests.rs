@@ -8,10 +8,10 @@ use erpx_finance::{
     PostingValidationContext, SalesAccountRoles,
 };
 use erpx_integration_contracts::{BoundedContext, DimensionSet, RecordRef, organization};
-use erpx_kernel::AuthorityScope;
+use erpx_kernel::{ActorAttribution, ActorKind, AuthorityScope, HumanDecisionProof, SessionId};
 use erpx_operations::{
     ApprovalGateKind, ApprovalGateSpec, ApprovalGateStatus, ApprovalSession, ApprovalSessionId,
-    ApprovalSessionStatus,
+    ApprovalSessionStatus, approval_session_decision_ref,
 };
 use erpx_sales::{
     AuthoritativeTaxProfile, ExternalQuoteDecision, ExternalQuoteDecisionKind,
@@ -29,6 +29,27 @@ fn id(value: u128) -> Uuid {
 
 fn at(seconds: i64) -> DateTime<Utc> {
     DateTime::from_timestamp(1_800_000_000 + seconds, 0).unwrap()
+}
+
+fn human_decision(
+    scope: &AuthorityScope,
+    principal_ref: &str,
+    decision_ref: String,
+    decided_at: DateTime<Utc>,
+) -> HumanDecisionProof {
+    HumanDecisionProof::try_new(
+        ActorAttribution {
+            principal_ref: principal_ref.into(),
+            kind: ActorKind::HoldingUser,
+            session_id: Some(SessionId::try_from_uuid(id(99)).expect("non-nil human session")),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        },
+        scope.clone(),
+        decision_ref,
+        decided_at,
+    )
+    .expect("valid human decision proof")
 }
 
 fn account(value: u128) -> AccountId {
@@ -143,12 +164,23 @@ async fn quote_to_final_finance_posting_requires_every_human_gate() {
     .unwrap();
     approval
         .decide(
+            id(16),
             ApprovalGateKind::SalesCommercial,
             2,
             ApprovalGateStatus::Approved,
-            "sales-approver".into(),
+            human_decision(
+                &scope,
+                "sales-approver",
+                approval_session_decision_ref(
+                    id(16),
+                    ApprovalSessionId::try_from_uuid(id(15)).unwrap(),
+                    2,
+                    ApprovalGateKind::SalesCommercial,
+                    ApprovalGateStatus::Approved,
+                ),
+                at(4),
+            ),
             "commercial_terms_ok".into(),
-            at(4),
         )
         .unwrap();
 
@@ -191,12 +223,23 @@ async fn quote_to_final_finance_posting_requires_every_human_gate() {
     plan.approve("finance-approver".into(), at(7)).unwrap();
     approval
         .decide(
+            id(17),
             ApprovalGateKind::FinanceAccountingPlan,
             2,
             ApprovalGateStatus::Approved,
-            "finance-approver".into(),
+            human_decision(
+                &scope,
+                "finance-approver",
+                approval_session_decision_ref(
+                    id(17),
+                    ApprovalSessionId::try_from_uuid(id(15)).unwrap(),
+                    2,
+                    ApprovalGateKind::FinanceAccountingPlan,
+                    ApprovalGateStatus::Approved,
+                ),
+                at(8),
+            ),
             "tax_and_plan_ok".into(),
-            at(8),
         )
         .unwrap();
     assert_eq!(approval.status(), ApprovalSessionStatus::Approved);

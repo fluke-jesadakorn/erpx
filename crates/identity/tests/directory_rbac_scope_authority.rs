@@ -512,8 +512,9 @@ async fn authorization_rejects_a_requested_holding_different_from_the_authorized
     let principal_id = Uuid::new_v4();
     sqlx::query(
         "INSERT INTO erpx_identity.principals
-            (id, principal_ref, status, created_at, updated_at)
-         VALUES ($1,'scope-access-principal','active',$2,$2)",
+            (id, principal_ref, status, authenticated_realm, principal_kind,
+             created_at, updated_at)
+         VALUES ($1,'scope-access-principal','active','internal_workforce','human',$2,$2)",
     )
     .bind(principal_id)
     .bind(now)

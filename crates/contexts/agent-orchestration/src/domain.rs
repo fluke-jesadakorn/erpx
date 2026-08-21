@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, Utc};
-use erpx_kernel::{AuthorityScope, DataClassification, RecordId};
+use erpx_kernel::{AuthorityScope, DataClassification, HumanDecisionProof, RecordId};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
@@ -43,6 +43,17 @@ uuid_id!(BudgetReservationId);
 uuid_id!(ProviderPolicyId);
 uuid_id!(PoolRoutingDecisionId);
 uuid_id!(ProviderInvocationId);
+
+pub fn agent_version_approval_decision_ref(
+    definition_id: AgentDefinitionId,
+    version_id: AgentVersionId,
+) -> String {
+    format!(
+        "agent.definition:{}:version:{}:approve",
+        definition_id.as_uuid(),
+        version_id.as_uuid()
+    )
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum AgentDomainError {
@@ -344,10 +355,12 @@ impl AgentDefinition {
     pub fn approve_version(
         &mut self,
         version_id: AgentVersionId,
-        approver: String,
-        at: DateTime<Utc>,
+        decision: HumanDecisionProof,
     ) -> Result<(), AgentDomainError> {
-        if self.status == AgentDefinitionStatus::Retired || !valid_text(&approver, 256) {
+        if self.status == AgentDefinitionStatus::Retired
+            || decision.authority_scope() != &self.scope
+            || decision.decision_ref() != agent_version_approval_decision_ref(self.id, version_id)
+        {
             return Err(AgentDomainError::AgentUnavailable);
         }
         let version = self
@@ -358,6 +371,8 @@ impl AgentDefinition {
             return Err(AgentDomainError::InvalidAssignmentTransition);
         }
         version.manifest.validate()?;
+        let approver = decision.principal_ref().to_owned();
+        let at = decision.decided_at();
         self.advance(at)?;
         let version = self
             .versions
@@ -2229,11 +2244,28 @@ impl ActionCardProposal {
 #[cfg(test)]
 mod tests {
     use chrono::{Duration, TimeZone};
+    use erpx_kernel::{ActorAttribution, ActorKind, SessionId};
 
     use super::*;
 
     fn id(value: u128) -> Uuid {
         Uuid::from_u128(value)
+    }
+
+    fn human_decision(scope: AuthorityScope, reference: &str) -> HumanDecisionProof {
+        HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: "reviewer:1".into(),
+                kind: ActorKind::HoldingUser,
+                session_id: Some(SessionId::try_from_uuid(id(99)).unwrap()),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            scope,
+            reference,
+            at(),
+        )
+        .unwrap()
     }
 
     fn at() -> DateTime<Utc> {
@@ -2299,8 +2331,9 @@ mod tests {
 
     #[test]
     fn governance_requires_approved_complete_version() {
+        let definition_id = AgentDefinitionId::try_from_uuid(id(10)).unwrap();
         let mut definition = AgentDefinition::register(
-            AgentDefinitionId::try_from_uuid(id(10)).unwrap(),
+            definition_id,
             AuthorityScope::Holding { holding_id: id(1) },
             "agent:10".into(),
             "owner:business".into(),
@@ -2317,8 +2350,27 @@ mod tests {
             definition.pin(manifest.version_id),
             Err(AgentDomainError::AgentUnavailable)
         );
+        assert_eq!(
+            definition.approve_version(
+                manifest.version_id,
+                human_decision(
+                    AuthorityScope::Holding { holding_id: id(1) },
+                    &agent_version_approval_decision_ref(
+                        AgentDefinitionId::try_from_uuid(id(99)).unwrap(),
+                        manifest.version_id,
+                    ),
+                ),
+            ),
+            Err(AgentDomainError::AgentUnavailable)
+        );
         definition
-            .approve_version(manifest.version_id, "reviewer:1".into(), at())
+            .approve_version(
+                manifest.version_id,
+                human_decision(
+                    AuthorityScope::Holding { holding_id: id(1) },
+                    &agent_version_approval_decision_ref(definition_id, manifest.version_id),
+                ),
+            )
             .unwrap();
         assert_eq!(
             definition.pin(manifest.version_id).unwrap().manifest,

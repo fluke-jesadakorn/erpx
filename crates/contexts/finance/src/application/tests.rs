@@ -20,14 +20,15 @@ use erpx_integration_contracts::{
 };
 use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
-    FixedClock, QueryId,
+    FixedClock, HumanDecisionProof, QueryId, SessionId,
 };
 use uuid::Uuid;
 
 use super::*;
 use crate::{
     domain::{
-        AccountCategory, CustomerInvoiceStatus, JournalLineId, NormalBalance, RevenueScheduleStatus,
+        AccountCategory, CustomerInvoiceStatus, JournalLineId, NormalBalance, PeriodStatus,
+        RevenueScheduleStatus,
     },
     ports::{ReadProjection, SubledgerView},
 };
@@ -48,7 +49,7 @@ fn actor(name: &str) -> ActorAttribution {
     ActorAttribution {
         principal_ref: name.into(),
         kind: ActorKind::HoldingUser,
-        session_id: None,
+        session_id: Some(SessionId::try_from_uuid(id(3)).unwrap()),
         represented_principal_ref: None,
         support_capability_id: None,
     }
@@ -93,6 +94,25 @@ fn period() -> AccountingPeriod {
         at(),
     )
     .unwrap()
+}
+fn period_decision(principal_ref: &str, command_id: CommandId) -> HumanDecisionProof {
+    HumanDecisionProof::try_new(actor(principal_ref), scope(), command_id.to_string(), at())
+        .unwrap()
+}
+fn closing_period(requester: &str) -> AccountingPeriod {
+    let mut value = period();
+    value.begin_close(requester, at()).unwrap();
+    value.take_uncommitted_events();
+    value
+}
+fn closed_period(closer: &str) -> AccountingPeriod {
+    let mut value = closing_period("requester");
+    let command_id = CommandId::try_from_uuid(id(990)).unwrap();
+    value
+        .close_with_decision(period_decision(closer, command_id), command_id, at())
+        .unwrap();
+    value.take_uncommitted_events();
+    value
 }
 fn journal() -> Journal {
     Journal::create(
@@ -168,6 +188,10 @@ fn invoice_fact() -> finance::CustomerInvoicePostedFact {
 }
 
 fn draft_invoice() -> CustomerInvoice {
+    draft_invoice_by("preparer")
+}
+
+fn draft_invoice_by(prepared_by: &str) -> CustomerInvoice {
     CustomerInvoice::create_from_billing(
         CustomerInvoiceId::try_from_uuid(id(48)).unwrap(),
         scope(),
@@ -175,7 +199,7 @@ fn draft_invoice() -> CustomerInvoice {
         RecordRef::try_new(BoundedContext::Sales, "revenue_arrangement", id(37), 1).unwrap(),
         billing_fact(),
         chrono::NaiveDate::from_ymd_opt(2026, 8, 30).unwrap(),
-        "preparer".into(),
+        prepared_by.into(),
         at(),
     )
     .unwrap()
@@ -333,12 +357,14 @@ impl WriteRepository for FakeWrite {
 #[derive(Clone, Default)]
 struct FakeUnitOfWork {
     commits: Arc<AtomicUsize>,
+    receipt_lookups: Arc<AtomicUsize>,
     event_types: Arc<Mutex<Vec<Vec<&'static str>>>>,
     references: Arc<Mutex<Vec<Vec<ReferenceVersion>>>>,
 }
 #[async_trait]
 impl CommandUnitOfWork for FakeUnitOfWork {
     async fn find_receipt(&self, _: &CommandIdentity) -> Result<Option<StoredCommit>, PortError> {
+        self.receipt_lookups.fetch_add(1, Ordering::SeqCst);
         Ok(None)
     }
     async fn commit(&self, request: FinanceCommit) -> Result<StoredCommit, PortError> {
@@ -429,6 +455,192 @@ fn mutating_command_requires_exact_expected_version() {
 }
 
 #[test]
+fn period_decisions_reject_non_humans_before_receipt_or_period_access() {
+    let commands = [
+        FinanceCommand::ClosePeriod(ClosePeriod {
+            period_id: PeriodId::try_from_uuid(id(20)).unwrap(),
+        }),
+        FinanceCommand::ReopenPeriod(ReopenPeriod {
+            period_id: PeriodId::try_from_uuid(id(20)).unwrap(),
+        }),
+    ];
+    for command in commands {
+        for kind in [
+            ActorKind::Agent,
+            ActorKind::Service,
+            ActorKind::SystemWorker,
+        ] {
+            let loads = Arc::new(AtomicUsize::new(0));
+            let uow = FakeUnitOfWork::default();
+            let mut envelope = command_envelope(31, Some(2), command.clone());
+            envelope.actor.kind = kind;
+
+            let error = block_on(
+                handler(
+                    FakeWrite {
+                        loads: loads.clone(),
+                        ..FakeWrite::default()
+                    },
+                    uow.clone(),
+                    true,
+                )
+                .handle(envelope),
+            )
+            .unwrap_err();
+
+            assert_eq!(error.category(), ErrorCategory::Denied);
+            assert_eq!(uow.receipt_lookups.load(Ordering::SeqCst), 0);
+            assert_eq!(loads.load(Ordering::SeqCst), 0);
+            assert_eq!(uow.commits.load(Ordering::SeqCst), 0);
+        }
+    }
+}
+
+#[test]
+fn closing_period_derives_human_approver_and_enforces_requester_separation() {
+    let period = closing_period("controller");
+    let requester_uow = FakeUnitOfWork::default();
+    let requester_error = block_on(
+        handler(
+            FakeWrite {
+                period: Some(period.clone()),
+                ..FakeWrite::default()
+            },
+            requester_uow.clone(),
+            true,
+        )
+        .handle(command_envelope(
+            32,
+            Some(period.version()),
+            FinanceCommand::ClosePeriod(ClosePeriod {
+                period_id: period.id(),
+            }),
+        )),
+    )
+    .unwrap_err();
+    assert_eq!(requester_error.category(), ErrorCategory::Invalid);
+    assert_eq!(requester_uow.commits.load(Ordering::SeqCst), 0);
+
+    let approver_uow = FakeUnitOfWork::default();
+    let mut envelope = command_envelope(
+        33,
+        Some(period.version()),
+        FinanceCommand::ClosePeriod(ClosePeriod {
+            period_id: period.id(),
+        }),
+    );
+    envelope.actor.principal_ref = "approver".into();
+    let receipt = block_on(
+        handler(
+            FakeWrite {
+                period: Some(period),
+                ..FakeWrite::default()
+            },
+            approver_uow.clone(),
+            true,
+        )
+        .handle(envelope),
+    )
+    .unwrap();
+    let FinanceMutationResult::Period(closed) = receipt.response else {
+        panic!("expected period response")
+    };
+    assert_eq!(closed.status, PeriodStatus::Closed);
+    assert_eq!(closed.closed_by.as_deref(), Some("approver"));
+    assert_eq!(approver_uow.commits.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn reopening_period_derives_human_actor_and_enforces_closer_separation() {
+    let period = closed_period("approver");
+    let closer_uow = FakeUnitOfWork::default();
+    let mut closer_envelope = command_envelope(
+        34,
+        Some(period.version()),
+        FinanceCommand::ReopenPeriod(ReopenPeriod {
+            period_id: period.id(),
+        }),
+    );
+    closer_envelope.actor.principal_ref = "approver".into();
+    let closer_error = block_on(
+        handler(
+            FakeWrite {
+                period: Some(period.clone()),
+                ..FakeWrite::default()
+            },
+            closer_uow.clone(),
+            true,
+        )
+        .handle(closer_envelope),
+    )
+    .unwrap_err();
+    assert_eq!(closer_error.category(), ErrorCategory::Invalid);
+    assert_eq!(closer_uow.commits.load(Ordering::SeqCst), 0);
+
+    let controller_uow = FakeUnitOfWork::default();
+    let receipt = block_on(
+        handler(
+            FakeWrite {
+                period: Some(period.clone()),
+                ..FakeWrite::default()
+            },
+            controller_uow.clone(),
+            true,
+        )
+        .handle(command_envelope(
+            35,
+            Some(period.version()),
+            FinanceCommand::ReopenPeriod(ReopenPeriod {
+                period_id: period.id(),
+            }),
+        )),
+    )
+    .unwrap();
+    let FinanceMutationResult::Period(open) = receipt.response else {
+        panic!("expected period response")
+    };
+    assert_eq!(open.status, PeriodStatus::Open);
+    assert_eq!(open.close_requested_by, None);
+    assert_eq!(open.closed_by, None);
+    assert_eq!(controller_uow.commits.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn beginning_period_close_preserves_existing_agent_behavior() {
+    let period = period();
+    let uow = FakeUnitOfWork::default();
+    let mut envelope = command_envelope(
+        36,
+        Some(period.version()),
+        FinanceCommand::BeginPeriodClose(BeginPeriodClose {
+            period_id: period.id(),
+        }),
+    );
+    envelope.actor.principal_ref = "close-workflow".into();
+    envelope.actor.kind = ActorKind::Agent;
+    let receipt = block_on(
+        handler(
+            FakeWrite {
+                period: Some(period),
+                ..FakeWrite::default()
+            },
+            uow,
+            true,
+        )
+        .handle(envelope),
+    )
+    .unwrap();
+    let FinanceMutationResult::Period(closing) = receipt.response else {
+        panic!("expected period response")
+    };
+    assert_eq!(closing.status, PeriodStatus::Closing);
+    assert_eq!(
+        closing.close_requested_by.as_deref(),
+        Some("close-workflow")
+    );
+}
+
+#[test]
 fn posting_fences_chart_and_period_and_publishes_owner_fact() {
     let uow = FakeUnitOfWork::default();
     block_on(
@@ -464,6 +676,109 @@ fn posting_fences_chart_and_period_and_publishes_owner_fact() {
 }
 
 #[test]
+fn posting_rejects_non_human_actor_before_receipt_or_journal_access() {
+    for kind in [
+        ActorKind::Agent,
+        ActorKind::Service,
+        ActorKind::SystemWorker,
+    ] {
+        let loads = Arc::new(AtomicUsize::new(0));
+        let uow = FakeUnitOfWork::default();
+        let mut envelope = command_envelope(
+            30,
+            Some(1),
+            FinanceCommand::PostJournal(PostJournal {
+                journal_id: JournalId::try_from_uuid(id(30)).unwrap(),
+                expected_chart_version: 1,
+                expected_period_version: 1,
+            }),
+        );
+        envelope.actor.kind = kind;
+        let error = block_on(
+            handler(
+                FakeWrite {
+                    loads: loads.clone(),
+                    ..FakeWrite::default()
+                },
+                uow.clone(),
+                true,
+            )
+            .handle(envelope),
+        )
+        .unwrap_err();
+        assert_eq!(error.category(), ErrorCategory::Denied);
+        assert_eq!(uow.receipt_lookups.load(Ordering::SeqCst), 0);
+        assert_eq!(loads.load(Ordering::SeqCst), 0);
+        assert_eq!(uow.commits.load(Ordering::SeqCst), 0);
+    }
+}
+
+#[test]
+fn customer_invoice_posting_rejects_non_humans_before_receipt_or_invoice_access() {
+    for kind in [
+        ActorKind::Agent,
+        ActorKind::Service,
+        ActorKind::SystemWorker,
+    ] {
+        let loads = Arc::new(AtomicUsize::new(0));
+        let uow = FakeUnitOfWork::default();
+        let mut envelope = command_envelope(
+            37,
+            Some(1),
+            FinanceCommand::PostCustomerInvoice(PostCustomerInvoice {
+                invoice_id: CustomerInvoiceId::try_from_uuid(id(48)).unwrap(),
+            }),
+        );
+        envelope.actor.kind = kind;
+
+        let error = block_on(
+            handler(
+                FakeWrite {
+                    loads: loads.clone(),
+                    ..FakeWrite::default()
+                },
+                uow.clone(),
+                true,
+            )
+            .handle(envelope),
+        )
+        .unwrap_err();
+
+        assert_eq!(error.category(), ErrorCategory::Denied);
+        assert_eq!(uow.receipt_lookups.load(Ordering::SeqCst), 0);
+        assert_eq!(loads.load(Ordering::SeqCst), 0);
+        assert_eq!(uow.commits.load(Ordering::SeqCst), 0);
+    }
+}
+
+#[test]
+fn customer_invoice_posting_derives_human_poster_and_enforces_preparer_separation() {
+    let invoice = draft_invoice_by("controller");
+    let uow = FakeUnitOfWork::default();
+    let error = block_on(
+        handler(
+            FakeWrite {
+                invoice: Some(invoice.clone()),
+                ..FakeWrite::default()
+            },
+            uow.clone(),
+            true,
+        )
+        .handle(command_envelope(
+            38,
+            Some(invoice.version()),
+            FinanceCommand::PostCustomerInvoice(PostCustomerInvoice {
+                invoice_id: invoice.id(),
+            }),
+        )),
+    )
+    .unwrap_err();
+
+    assert_eq!(error.category(), ErrorCategory::Invalid);
+    assert_eq!(uow.commits.load(Ordering::SeqCst), 0);
+}
+
+#[test]
 fn posting_customer_invoice_publishes_invoice_fact_before_ar_creation() {
     let uow = FakeUnitOfWork::default();
     let receipt = block_on(
@@ -488,6 +803,8 @@ fn posting_customer_invoice_publishes_invoice_fact_before_ar_creation() {
         panic!("expected customer invoice response");
     };
     assert_eq!(value.status, CustomerInvoiceStatus::Posted);
+    assert_eq!(value.posted_by.as_deref(), Some("controller"));
+    assert_eq!(value.source, draft_invoice().source().clone());
     assert_eq!(
         uow.event_types.lock().unwrap().as_slice(),
         &[vec!["finance.customer_invoice_posted"]]

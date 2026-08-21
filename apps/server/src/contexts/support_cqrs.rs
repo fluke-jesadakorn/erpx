@@ -36,6 +36,8 @@ const MAX_ROUTE_LENGTH: usize = 255;
 const SUPPORT_CAPABILITY_DELIVERY_METADATA: &str = "x-erpx-support-capability-bin";
 const SUPPORT_MFA_REQUIRED_MESSAGE: &str =
     "current MFA verification is required for this Support action";
+const SUPPORT_HUMAN_APPROVAL_REQUIRED_MESSAGE: &str =
+    "Support session approval requires a directly authenticated human";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SupportHoldingRoute {
@@ -1035,6 +1037,7 @@ async fn authenticate_command<G: SupportRequestAuthenticator>(
         })
         .await
         .map_err(status_from_auth)?;
+    require_authenticated_human_approval(action, a.actor())?;
     let mut e = d.envelope;
     e.actor = a.actor().clone();
     e.active_scope = a.active_scope().clone();
@@ -1106,6 +1109,24 @@ fn require_current_mfa(action: SupportAction, mfa_code: Option<&str>) -> Result<
         Ok(())
     } else {
         Err(Status::failed_precondition(SUPPORT_MFA_REQUIRED_MESSAGE))
+    }
+}
+
+fn require_authenticated_human_approval(
+    action: SupportAction,
+    actor: &ActorAttribution,
+) -> Result<(), Status> {
+    if action == SupportAction::ApproveSession
+        && (!actor.is_human()
+            || actor.session_id.is_none()
+            || actor.represented_principal_ref.is_some()
+            || actor.support_capability_id.is_some())
+    {
+        Err(Status::permission_denied(
+            SUPPORT_HUMAN_APPROVAL_REQUIRED_MESSAGE,
+        ))
+    } else {
+        Ok(())
     }
 }
 fn decode_query<Q>(
@@ -1708,6 +1729,7 @@ mod tests {
     use erpx_cqrs::{CommandEnvelope, IdempotencyKey};
     use erpx_kernel::{
         ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+        SessionId as KernelSessionId,
     };
     use erpx_proto::common;
     use erpx_support::SupportAction;
@@ -1727,6 +1749,10 @@ mod tests {
     struct ObserveAction {
         expected: SupportAction,
         called: AtomicBool,
+    }
+
+    struct AuthenticateAs {
+        kind: ActorKind,
     }
 
     #[async_trait]
@@ -1749,6 +1775,28 @@ mod tests {
             assert_eq!(request.action(), self.expected);
             self.called.store(true, Ordering::SeqCst);
             Err(SupportAuthenticationError::Denied)
+        }
+    }
+
+    #[async_trait]
+    impl SupportRequestAuthenticator for AuthenticateAs {
+        async fn authenticate(
+            &self,
+            request: SupportAuthenticationRequest,
+        ) -> Result<AuthenticatedSupportRequest, SupportAuthenticationError> {
+            AuthenticatedSupportRequest::try_new(
+                ActorAttribution {
+                    principal_ref: Uuid::from_u128(6).to_string(),
+                    kind: self.kind,
+                    session_id: Some(
+                        KernelSessionId::try_from_uuid(Uuid::from_u128(5)).expect("session"),
+                    ),
+                    represented_principal_ref: None,
+                    support_capability_id: None,
+                },
+                request.presented_scope().clone(),
+                request.presented_route().clone(),
+            )
         }
     }
 
@@ -1886,6 +1934,49 @@ mod tests {
     #[tokio::test]
     async fn approve_session_requires_current_mfa_before_authentication() {
         assert_rejected_before_authentication(SupportAction::ApproveSession).await;
+    }
+
+    #[tokio::test]
+    async fn approve_session_rejects_trusted_non_human_kinds() {
+        for kind in [
+            ActorKind::Agent,
+            ActorKind::Service,
+            ActorKind::SystemWorker,
+        ] {
+            let error = super::authenticate_command(
+                &AuthenticateAs { kind },
+                MetadataMap::new(),
+                decoded_command(Some("present")),
+                SupportAction::ApproveSession,
+            )
+            .await
+            .expect_err("non-human Support approver must fail closed");
+            assert_eq!(error.code(), tonic::Code::PermissionDenied);
+            assert_eq!(
+                error.message(),
+                super::SUPPORT_HUMAN_APPROVAL_REQUIRED_MESSAGE
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn approve_session_preserves_trusted_human_kind_and_session() {
+        let (_, envelope) = super::authenticate_command(
+            &AuthenticateAs {
+                kind: ActorKind::HoldingUser,
+            },
+            MetadataMap::new(),
+            decoded_command(Some("present")),
+            SupportAction::ApproveSession,
+        )
+        .await
+        .expect("authenticated human approval");
+        assert_eq!(envelope.actor.principal_ref, Uuid::from_u128(6).to_string());
+        assert_eq!(envelope.actor.kind, ActorKind::HoldingUser);
+        assert_eq!(
+            envelope.actor.session_id.map(|session| session.as_uuid()),
+            Some(Uuid::from_u128(5))
+        );
     }
 
     #[tokio::test]

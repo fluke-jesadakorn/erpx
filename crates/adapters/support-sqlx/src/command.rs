@@ -7,7 +7,9 @@ use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
     ItemDescriptorDraft, customer, identity_access, record_policy_id,
 };
-use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId};
+use erpx_kernel::{
+    AggregateId, AuthorityScope, CommandId, DataClassification, EventId, HumanDecisionProof,
+};
 use erpx_support::{
     BroadcastAudience, CapabilityId, CapabilityRevocationReason, CommandUnitOfWork, Incident,
     IncidentBroadcast, IncidentId, IncidentStatus, IncidentTimelineEntry, MessageAudience,
@@ -15,8 +17,9 @@ use erpx_support::{
     SupportCapability, SupportCommit, SupportMode, SupportSession, SupportTicket, SupportTicketId,
     TicketMessage, TicketStatus, WriteRepository,
     ports::{CommandFingerprint, CommandIdentity, DependencyVersion, PortError, StoredCommit},
+    support_session_approval_decision_ref,
 };
-use serde_json::json;
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use sqlx::{Postgres, Row, Transaction};
 use uuid::Uuid;
@@ -723,6 +726,7 @@ impl CommandUnitOfWork for SupportCommandAdapter {
                 payload: SupportOutboxPayload::Directory(directory_draft),
             });
         }
+        let human_decision = request.human_decision.as_ref().map(human_decision_payload);
         let guard = SupportAtomicGuard {
             aggregate: request.aggregate.clone(),
             dependency: request.dependency.clone(),
@@ -748,7 +752,7 @@ impl CommandUnitOfWork for SupportCommandAdapter {
                 audit_id: deterministic_uuid(command_id.as_uuid(), b"support-audit-v1"),
                 action: audit_action(&request.identity.fingerprint).into(),
                 occurred_at,
-                details: json!({"aggregate_id": aggregate_id.as_uuid(), "aggregate_type": aggregate_type, "expected_version": request.expected_version, "dependency": request.dependency.as_ref().map(|v| (v.aggregate_type, v.aggregate_id, v.expected_version))}),
+                details: json!({"aggregate_id": aggregate_id.as_uuid(), "aggregate_type": aggregate_type, "expected_version": request.expected_version, "dependency": request.dependency.as_ref().map(|v| (v.aggregate_type, v.aggregate_id, v.expected_version)), "human_decision": human_decision}),
             },
             events,
         };
@@ -1189,11 +1193,56 @@ fn validate_commit(request: &SupportCommit) -> Result<(), PortError> {
         || aggregate_type != request.aggregate.aggregate_type()
         || !request.authority_scope.contains(request.aggregate.scope())
         || !valid_authority_effects(request)
+        || !valid_human_decision(request)
     {
         Err(PortError::Internal)
     } else {
         Ok(())
     }
+}
+
+fn valid_human_decision(request: &SupportCommit) -> bool {
+    if requires_human_decision(&request.identity.fingerprint) != request.human_decision.is_some() {
+        return false;
+    }
+    match (
+        &request.identity.fingerprint,
+        &request.aggregate,
+        request.human_decision.as_ref(),
+    ) {
+        (
+            CommandFingerprint::ApproveSession { session_id },
+            SupportAggregate::Session(session),
+            Some(decision),
+        ) => {
+            session.id() == *session_id
+                && session.status() == SessionStatus::Approved
+                && decision.authority_scope() == session.scope()
+                && decision.decision_ref() == support_session_approval_decision_ref(*session_id)
+                && decision.actor().is_human()
+                && decision.actor().session_id.is_some()
+                && decision.actor() == &request.actor
+                && session.approved_by() == Some(decision.principal_ref())
+                && session.approved_at() == Some(decision.decided_at())
+        }
+        (CommandFingerprint::ApproveSession { .. }, _, _) | (_, _, Some(_)) => false,
+        (_, _, None) => true,
+    }
+}
+
+fn requires_human_decision(fingerprint: &CommandFingerprint) -> bool {
+    matches!(fingerprint, CommandFingerprint::ApproveSession { .. })
+}
+
+fn human_decision_payload(decision: &HumanDecisionProof) -> Value {
+    json!({
+        "principal_ref": decision.principal_ref(),
+        "actor_kind": decision.actor().kind,
+        "session_id": decision.actor().session_id.map(|session| session.as_uuid()),
+        "authority_scope": decision.authority_scope(),
+        "decision_ref": decision.decision_ref(),
+        "decided_at": decision.decided_at(),
+    })
 }
 
 fn valid_authority_effects(request: &SupportCommit) -> bool {
@@ -1363,6 +1412,7 @@ fn map_store_error(e: CqrsSqlxError) -> PortError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use erpx_kernel::{ActorAttribution, ActorKind, SessionId as KernelSessionId};
     #[test]
     fn stable_hash_and_all_targets_are_distinct() {
         let id = SupportTicketId::try_from_uuid(Uuid::from_u128(1)).unwrap();
@@ -1378,6 +1428,40 @@ mod tests {
         assert_ne!(
             ticket_partition(id),
             format!("support.session:{}", id.as_uuid().simple())
+        );
+    }
+
+    #[test]
+    fn support_approval_requires_auditable_human_decision_evidence() {
+        let session_id = SessionId::try_from_uuid(Uuid::from_u128(8)).unwrap();
+        let fingerprint = CommandFingerprint::ApproveSession { session_id };
+        assert!(requires_human_decision(&fingerprint));
+        let decided_at = chrono::DateTime::from_timestamp(1_800_000_000, 0).unwrap();
+        let decision = HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: "holding-approver".into(),
+                kind: ActorKind::HoldingUser,
+                session_id: Some(
+                    KernelSessionId::try_from_uuid(Uuid::from_u128(9)).expect("session"),
+                ),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            AuthorityScope::Company {
+                holding_id: Uuid::from_u128(10),
+                company_id: Uuid::from_u128(11),
+            },
+            support_session_approval_decision_ref(session_id),
+            decided_at,
+        )
+        .unwrap();
+        let payload = human_decision_payload(&decision);
+        assert_eq!(payload["principal_ref"], decision.principal_ref());
+        assert_eq!(payload["decision_ref"], decision.decision_ref());
+        assert_eq!(payload["decided_at"], json!(decided_at));
+        assert_eq!(
+            payload["session_id"],
+            json!(decision.actor().session_id.map(|session| session.as_uuid()))
         );
     }
 }

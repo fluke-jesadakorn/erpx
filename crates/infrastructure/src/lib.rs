@@ -129,7 +129,7 @@ pub use corporate_identity::{
 pub use data_plane::{
     ApprovedDesiredConfiguration, DataPlaneEnrollmentConsumption, DataPlaneEnrollmentIssue,
     HoldingInfrastructureSummary, RootAccessGrant, RootAccessQueueRecord,
-    SqlxDataPlaneControlStore,
+    SqlxDataPlaneControlStore, desired_configuration_decision_ref, root_access_decision_ref,
 };
 pub use erpx_domain::commercial::{
     CatalogError, CatalogReconciliationReport, ProviderCatalogPrice, ProviderCatalogRevision,

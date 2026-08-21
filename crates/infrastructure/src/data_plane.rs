@@ -17,6 +17,7 @@ use erpx_domain::{
         RootAccessApproval, RootAccessCapability, RootAccessMode, RootAccessRequest,
     },
 };
+use erpx_kernel::HumanDecisionProof;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use sqlx::{Postgres, Row, Transaction};
@@ -58,9 +59,25 @@ pub struct DataPlaneEnrollmentConsumption {
 #[derive(Clone)]
 pub struct RootAccessGrant {
     pub approval: RootAccessApproval,
+    /// Authenticated human/session/scope evidence that must match `approval`.
+    pub human_decision: HumanDecisionProof,
     pub capability_id: Uuid,
     /// SHA-256 of the one-time capability bearer value.
     pub capability_token_hash: [u8; 32],
+}
+
+pub fn desired_configuration_decision_ref(configuration_id: Uuid, approve: bool) -> String {
+    format!(
+        "data-plane.desired-configuration:{configuration_id}:{}",
+        decision_outcome(approve)
+    )
+}
+
+pub fn root_access_decision_ref(request_id: Uuid, approve: bool) -> String {
+    format!(
+        "data-plane.root-access:{request_id}:{}",
+        decision_outcome(approve)
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -873,16 +890,14 @@ impl SqlxDataPlaneControlStore {
     pub async fn approve_configuration(
         &self,
         configuration_id: Uuid,
-        approver: &str,
+        human_decision: &HumanDecisionProof,
         fresh_mfa_at: DateTime<Utc>,
-        at: DateTime<Utc>,
         correlation_id: Uuid,
     ) -> Result<(), PersistenceError> {
         self.approve_configuration_with_policy(
             configuration_id,
-            approver,
+            human_decision,
             fresh_mfa_at,
-            at,
             correlation_id,
             ApprovalPolicy::Strict,
         )
@@ -892,12 +907,13 @@ impl SqlxDataPlaneControlStore {
     pub async fn approve_configuration_with_policy(
         &self,
         configuration_id: Uuid,
-        approver: &str,
+        human_decision: &HumanDecisionProof,
         fresh_mfa_at: DateTime<Utc>,
-        at: DateTime<Utc>,
         correlation_id: Uuid,
         approval_policy: ApprovalPolicy,
     ) -> Result<(), PersistenceError> {
+        let approver = human_decision.principal_ref();
+        let at = human_decision.decided_at();
         validate_reference(approver, "approver", 255)?;
         validate_correlation_id(correlation_id)?;
         if configuration_id.is_nil()
@@ -926,6 +942,13 @@ impl SqlxDataPlaneControlStore {
         let requester: String = row.try_get("requester")?;
         let expires_at: DateTime<Utc> = row.try_get("expires_at")?;
         let lifecycle: String = row.try_get("lifecycle")?;
+        let holding_key: String = row.try_get("holding_id")?;
+        let holding_id: Uuid = row.try_get("canonical_holding_id")?;
+        validate_human_decision(
+            human_decision,
+            holding_id,
+            &desired_configuration_decision_ref(configuration_id, true),
+        )?;
         if (requester == approver && matches!(approval_policy, ApprovalPolicy::Strict))
             || at >= expires_at
             || lifecycle != "awaiting_approval"
@@ -934,8 +957,6 @@ impl SqlxDataPlaneControlStore {
                 "configuration is not eligible for customer approval".into(),
             ));
         }
-        let _holding_key: String = row.try_get("holding_id")?;
-        let holding_id: Uuid = row.try_get("canonical_holding_id")?;
         let version = u64::try_from(row.try_get::<i64, _>("desired_version")?)
             .map_err(|_| PersistenceError::InvalidData("invalid desired version".into()))?;
         sqlx::query(
@@ -956,7 +977,7 @@ impl SqlxDataPlaneControlStore {
             "holding_desired_configuration",
             configuration_id,
             version,
-            &holding_id,
+            &holding_key,
             holding_id,
             approver,
             "customer-approved configuration",
@@ -966,6 +987,7 @@ impl SqlxDataPlaneControlStore {
                 "configuration_id": configuration_id,
                 "desired_version": version,
                 "fresh_mfa": true,
+                "human_decision": human_decision_payload(human_decision),
             }),
             at,
         )
@@ -1062,31 +1084,39 @@ impl SqlxDataPlaneControlStore {
     pub async fn reject_configuration(
         &self,
         configuration_id: Uuid,
-        rejected_by: &str,
+        human_decision: &HumanDecisionProof,
         reason: &str,
-        at: DateTime<Utc>,
         correlation_id: Uuid,
     ) -> Result<(), PersistenceError> {
+        let rejected_by = human_decision.principal_ref();
+        let at = human_decision.decided_at();
         validate_reference(rejected_by, "rejected_by", 255)?;
         validate_reference(reason, "rejection reason", 512)?;
         validate_correlation_id(correlation_id)?;
+        let holding_id = validate_human_decision_scope(
+            human_decision,
+            &desired_configuration_decision_ref(configuration_id, false),
+        )?;
         let mut tx = self.control.pools.write.begin().await?;
         let row = sqlx::query(
             "UPDATE erpx_control.holding_desired_configurations
              SET lifecycle = 'rejected', rejected_at = $2
              WHERE configuration_id = $1 AND lifecycle = 'awaiting_approval'
+               AND canonical_holding_id = $3
              RETURNING holding_id, canonical_holding_id, desired_version",
         )
         .bind(configuration_id)
         .bind(at)
+        .bind(holding_id)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(PersistenceError::NotFound {
             entity: "configuration awaiting approval",
             id: configuration_id,
         })?;
-        let _holding_key: String = row.try_get("holding_id")?;
-        let holding_id: Uuid = row.try_get("canonical_holding_id")?;
+        let holding_key: String = row.try_get("holding_id")?;
+        let persisted_holding_id: Uuid = row.try_get("canonical_holding_id")?;
+        debug_assert_eq!(holding_id, persisted_holding_id);
         let version = u64::try_from(row.try_get::<i64, _>("desired_version")?)
             .map_err(|_| PersistenceError::InvalidData("invalid desired version".into()))?;
         append_control_event(
@@ -1095,7 +1125,7 @@ impl SqlxDataPlaneControlStore {
             "holding_desired_configuration",
             configuration_id,
             version,
-            &holding_id,
+            &holding_key,
             holding_id,
             rejected_by,
             reason,
@@ -1104,6 +1134,7 @@ impl SqlxDataPlaneControlStore {
                 "holding_id": holding_id,
                 "configuration_id": configuration_id,
                 "desired_version": version,
+                "human_decision": human_decision_payload(human_decision),
             }),
             at,
         )
@@ -1253,11 +1284,19 @@ impl SqlxDataPlaneControlStore {
         approval_policy: ApprovalPolicy,
     ) -> Result<RootAccessCapability, PersistenceError> {
         validate_correlation_id(correlation_id)?;
-        if grant.capability_id.is_nil() || grant.capability_token_hash == [0; 32] {
+        if grant.capability_id.is_nil()
+            || grant.capability_token_hash == [0; 32]
+            || grant.approval.approver != grant.human_decision.principal_ref()
+            || grant.approval.approved_at != grant.human_decision.decided_at()
+        {
             return Err(PersistenceError::InvalidData(
                 "invalid Root access capability".into(),
             ));
         }
+        let decision_holding_id = validate_human_decision_scope(
+            &grant.human_decision,
+            &root_access_decision_ref(grant.approval.request_id, true),
+        )?;
         let mut tx = self.control.pools.write.begin().await?;
         let row = sqlx::query(
             "SELECT requester_ref, device_ref, holding_id, canonical_holding_id,
@@ -1265,10 +1304,11 @@ impl SqlxDataPlaneControlStore {
                     business_units, reason, ticket_reference, requested_at,
                     requested_until, state
              FROM erpx_control.holding_root_access_requests
-             WHERE request_id = $1
+             WHERE request_id = $1 AND canonical_holding_id = $2
              FOR UPDATE",
         )
         .bind(grant.approval.request_id)
+        .bind(decision_holding_id)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(PersistenceError::NotFound {
@@ -1287,6 +1327,7 @@ impl SqlxDataPlaneControlStore {
             .validate_for_with_policy(&request, approval_policy)
             .map_err(contract_error)?;
         let holding_id: Uuid = row.try_get("canonical_holding_id")?;
+        debug_assert_eq!(holding_id, decision_holding_id);
         let agent_state: String = sqlx::query_scalar(
             "SELECT state
              FROM erpx_control.data_plane_agents
@@ -1377,6 +1418,7 @@ impl SqlxDataPlaneControlStore {
                 "expires_at": capability.expires_at,
                 "fresh_mfa": true,
                 "hash_only": true,
+                "human_decision": human_decision_payload(&grant.human_decision),
             }),
             grant.approval.approved_at,
         )
@@ -1524,43 +1566,55 @@ impl SqlxDataPlaneControlStore {
     pub async fn reject_root_access(
         &self,
         request_id: Uuid,
-        rejected_by: &str,
+        human_decision: &HumanDecisionProof,
         reason: &str,
         correlation_id: Uuid,
-        at: DateTime<Utc>,
     ) -> Result<(), PersistenceError> {
+        let rejected_by = human_decision.principal_ref();
+        let at = human_decision.decided_at();
         validate_reference(rejected_by, "rejected_by", 255)?;
         validate_reference(reason, "rejection reason", 512)?;
         validate_correlation_id(correlation_id)?;
+        let holding_id = validate_human_decision_scope(
+            human_decision,
+            &root_access_decision_ref(request_id, false),
+        )?;
         let mut tx = self.control.pools.write.begin().await?;
         let row = sqlx::query(
             "UPDATE erpx_control.holding_root_access_requests
              SET state = 'rejected', rejected_at = $2
              WHERE request_id = $1 AND state = 'awaiting_customer_approval'
+               AND canonical_holding_id = $3
              RETURNING holding_id, canonical_holding_id",
         )
         .bind(request_id)
         .bind(at)
+        .bind(holding_id)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(PersistenceError::NotFound {
             entity: "Root access request awaiting approval",
             id: request_id,
         })?;
-        let _holding_key: String = row.try_get("holding_id")?;
-        let holding_id: Uuid = row.try_get("canonical_holding_id")?;
+        let holding_key: String = row.try_get("holding_id")?;
+        let persisted_holding_id: Uuid = row.try_get("canonical_holding_id")?;
+        debug_assert_eq!(holding_id, persisted_holding_id);
         append_control_event(
             &mut tx,
             "holding.root_access.rejected",
             "holding_root_access_request",
             request_id,
             2,
-            &holding_id,
+            &holding_key,
             holding_id,
             rejected_by,
             reason,
             correlation_id,
-            json!({"holding_id": holding_id, "request_id": request_id}),
+            json!({
+                "holding_id": holding_id,
+                "request_id": request_id,
+                "human_decision": human_decision_payload(human_decision),
+            }),
             at,
         )
         .await?;
@@ -2229,6 +2283,51 @@ fn scope_holding_id(scope: &Scope) -> Uuid {
     }
 }
 
+const fn decision_outcome(approve: bool) -> &'static str {
+    if approve { "approve" } else { "reject" }
+}
+
+fn validate_human_decision_scope(
+    decision: &HumanDecisionProof,
+    expected_ref: &str,
+) -> Result<Uuid, PersistenceError> {
+    let Scope::Holding { holding_id } = decision.authority_scope() else {
+        return Err(PersistenceError::InvalidData(
+            "data-plane decision requires exact holding-scoped human evidence".into(),
+        ));
+    };
+    validate_human_decision(decision, *holding_id, expected_ref)?;
+    Ok(*holding_id)
+}
+
+fn validate_human_decision(
+    decision: &HumanDecisionProof,
+    holding_id: Uuid,
+    expected_ref: &str,
+) -> Result<(), PersistenceError> {
+    if decision.authority_scope() != &(Scope::Holding { holding_id })
+        || decision.decision_ref() != expected_ref
+        || !decision.actor().is_human()
+        || decision.actor().session_id.is_none()
+    {
+        return Err(PersistenceError::InvalidData(
+            "data-plane human decision evidence does not match the mutation".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn human_decision_payload(decision: &HumanDecisionProof) -> Value {
+    json!({
+        "principal_ref": decision.principal_ref(),
+        "actor_kind": decision.actor().kind,
+        "session_id": decision.actor().session_id.map(|session| session.as_uuid()),
+        "authority_scope": decision.authority_scope(),
+        "decision_ref": decision.decision_ref(),
+        "decided_at": decision.decided_at(),
+    })
+}
+
 fn constant_time_hash_eq(stored: &[u8], presented: &[u8; 32]) -> bool {
     stored.len() == 32 && stored.ct_eq(presented.as_slice()).unwrap_u8() == 1
 }
@@ -2277,6 +2376,59 @@ fn contract_error(error: DataPlaneContractError) -> PersistenceError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use erpx_kernel::{ActorAttribution, ActorKind, SessionId};
+
+    fn human_decision(scope: Scope, decision_ref: String, at: DateTime<Utc>) -> HumanDecisionProof {
+        HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: "holding-security-head".into(),
+                kind: ActorKind::HoldingUser,
+                session_id: Some(
+                    SessionId::try_from_uuid(Uuid::new_v4()).expect("non-nil session"),
+                ),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            scope,
+            decision_ref,
+            at,
+        )
+        .expect("valid human decision")
+    }
+
+    #[test]
+    fn data_plane_human_decision_is_exactly_bound_and_auditable() {
+        let holding_id = Uuid::new_v4();
+        let configuration_id = Uuid::new_v4();
+        let decision_ref = desired_configuration_decision_ref(configuration_id, true);
+        let at = Utc::now();
+        let decision = human_decision(Scope::Holding { holding_id }, decision_ref.clone(), at);
+        validate_human_decision(&decision, holding_id, &decision_ref).expect("exact decision");
+        assert!(
+            validate_human_decision(
+                &decision,
+                holding_id,
+                &desired_configuration_decision_ref(configuration_id, false),
+            )
+            .is_err()
+        );
+        let payload = human_decision_payload(&decision);
+        assert_eq!(payload["principal_ref"], decision.principal_ref());
+        assert_eq!(payload["decision_ref"], decision_ref);
+        assert_eq!(
+            serde_json::from_value::<Uuid>(payload["session_id"].clone()).expect("session UUID"),
+            decision
+                .actor()
+                .session_id
+                .map(|session| session.as_uuid())
+                .expect("session")
+        );
+        assert_eq!(
+            serde_json::from_value::<DateTime<Utc>>(payload["decided_at"].clone())
+                .expect("decision time"),
+            at
+        );
+    }
 
     #[test]
     fn desired_state_rejects_embedded_secret_material() {

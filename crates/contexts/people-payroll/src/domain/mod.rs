@@ -6,7 +6,7 @@ use erpx_integration_contracts::{
     catalog::ContextId,
     reference::{RecordTypeId, ReferenceValidationError},
 };
-use erpx_kernel::{AuthorityScope, RecordId};
+use erpx_kernel::{AuthorityScope, CommandId, HumanDecisionProof, RecordId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -78,6 +78,8 @@ pub enum PeoplePayrollDomainError {
     InvalidTransition,
     #[error("the approval actor must be distinct from prior lifecycle actors")]
     ApprovalSeparation,
+    #[error("the lifecycle decision requires matching authenticated human evidence")]
+    InvalidHumanDecision,
     #[error("the date or timestamp window is invalid")]
     InvalidWindow,
     #[error("currency must be a three-letter uppercase ASCII code")]
@@ -537,18 +539,16 @@ impl LeaveRequest {
         actor: &str,
         at: DateTime<Utc>,
     ) -> Result<(), PeoplePayrollDomainError> {
+        if matches!(
+            transition,
+            LeaveTransition::Approve | LeaveTransition::Reject
+        ) {
+            return Err(PeoplePayrollDomainError::InvalidHumanDecision);
+        }
         validate_text(actor, "actor", MAX_REFERENCE_BYTES)?;
         let (next, approver) = match transition {
             LeaveTransition::Submit if self.status == LeaveStatus::Draft => {
                 (LeaveStatus::Submitted, None)
-            }
-            LeaveTransition::Approve
-                if self.status == LeaveStatus::Submitted && actor != self.requested_by =>
-            {
-                (LeaveStatus::Approved, Some(actor.to_owned()))
-            }
-            LeaveTransition::Reject if self.status == LeaveStatus::Submitted => {
-                (LeaveStatus::Rejected, None)
             }
             LeaveTransition::Cancel
                 if matches!(self.status, LeaveStatus::Submitted | LeaveStatus::Approved) =>
@@ -558,7 +558,6 @@ impl LeaveRequest {
             LeaveTransition::MarkTaken if self.status == LeaveStatus::Approved => {
                 (LeaveStatus::Taken, self.approved_by.clone())
             }
-            LeaveTransition::Approve => return Err(PeoplePayrollDomainError::ApprovalSeparation),
             _ => return Err(PeoplePayrollDomainError::InvalidTransition),
         };
         self.advance(at)?;
@@ -572,6 +571,50 @@ impl LeaveRequest {
                 status: self.status,
                 at,
             });
+        Ok(())
+    }
+
+    /// Applies an approve or reject decision from authenticated human
+    /// evidence. The lifecycle actor is derived from the proof rather than
+    /// accepted independently from a command payload.
+    pub fn decide(
+        &mut self,
+        transition: LeaveTransition,
+        decision: HumanDecisionProof,
+        command_id: CommandId,
+        at: DateTime<Utc>,
+    ) -> Result<(), PeoplePayrollDomainError> {
+        let actor = human_decision_actor(&decision, command_id, at, &self.scope)?;
+        let (status, approver) = match transition {
+            LeaveTransition::Approve
+                if self.status == LeaveStatus::Submitted && actor != self.requested_by =>
+            {
+                (LeaveStatus::Approved, Some(actor.to_owned()))
+            }
+            LeaveTransition::Reject if self.status == LeaveStatus::Submitted => {
+                (LeaveStatus::Rejected, None)
+            }
+            LeaveTransition::Approve => {
+                return Err(PeoplePayrollDomainError::ApprovalSeparation);
+            }
+            LeaveTransition::Reject => return Err(PeoplePayrollDomainError::InvalidTransition),
+            _ => return Err(PeoplePayrollDomainError::InvalidHumanDecision),
+        };
+
+        let mut next = self.clone();
+        next.advance(at)?;
+        next.status = status;
+        if approver.is_some() {
+            next.approved_by = approver;
+        }
+        next.uncommitted_events
+            .push(DomainEvent::LeaveStatusChanged {
+                leave_request_id: next.id,
+                status: next.status,
+                at,
+            });
+        next.validate()?;
+        *self = next;
         Ok(())
     }
 
@@ -743,23 +786,17 @@ impl ExpenseClaim {
         actor: &str,
         at: DateTime<Utc>,
     ) -> Result<(), PeoplePayrollDomainError> {
+        if matches!(
+            transition,
+            ExpenseTransition::Approve | ExpenseTransition::Reject | ExpenseTransition::Reimburse
+        ) {
+            return Err(PeoplePayrollDomainError::InvalidHumanDecision);
+        }
         validate_text(actor, "actor", MAX_REFERENCE_BYTES)?;
         let (next, approver) = match transition {
             ExpenseTransition::Submit if self.status == ExpenseStatus::Draft => {
                 (ExpenseStatus::Submitted, None)
             }
-            ExpenseTransition::Approve
-                if self.status == ExpenseStatus::Submitted && actor != self.claimed_by =>
-            {
-                (ExpenseStatus::Approved, Some(actor.to_owned()))
-            }
-            ExpenseTransition::Reject if self.status == ExpenseStatus::Submitted => {
-                (ExpenseStatus::Rejected, None)
-            }
-            ExpenseTransition::Reimburse if self.status == ExpenseStatus::Approved => {
-                (ExpenseStatus::Reimbursed, self.approved_by.clone())
-            }
-            ExpenseTransition::Approve => return Err(PeoplePayrollDomainError::ApprovalSeparation),
             _ => return Err(PeoplePayrollDomainError::InvalidTransition),
         };
         self.advance(at)?;
@@ -773,6 +810,54 @@ impl ExpenseClaim {
                 status: self.status,
                 at,
             });
+        Ok(())
+    }
+
+    /// Applies an approve, reject, or reimburse decision from authenticated
+    /// human evidence and derives the lifecycle actor from that evidence.
+    pub fn decide(
+        &mut self,
+        transition: ExpenseTransition,
+        decision: HumanDecisionProof,
+        command_id: CommandId,
+        at: DateTime<Utc>,
+    ) -> Result<(), PeoplePayrollDomainError> {
+        let actor = human_decision_actor(&decision, command_id, at, &self.scope)?;
+        let (status, approver) = match transition {
+            ExpenseTransition::Approve
+                if self.status == ExpenseStatus::Submitted && actor != self.claimed_by =>
+            {
+                (ExpenseStatus::Approved, Some(actor.to_owned()))
+            }
+            ExpenseTransition::Reject if self.status == ExpenseStatus::Submitted => {
+                (ExpenseStatus::Rejected, None)
+            }
+            ExpenseTransition::Reimburse if self.status == ExpenseStatus::Approved => {
+                (ExpenseStatus::Reimbursed, self.approved_by.clone())
+            }
+            ExpenseTransition::Approve => {
+                return Err(PeoplePayrollDomainError::ApprovalSeparation);
+            }
+            ExpenseTransition::Reject | ExpenseTransition::Reimburse => {
+                return Err(PeoplePayrollDomainError::InvalidTransition);
+            }
+            _ => return Err(PeoplePayrollDomainError::InvalidHumanDecision),
+        };
+
+        let mut next = self.clone();
+        next.advance(at)?;
+        next.status = status;
+        if approver.is_some() {
+            next.approved_by = approver;
+        }
+        next.uncommitted_events
+            .push(DomainEvent::ExpenseStatusChanged {
+                expense_claim_id: next.id,
+                status: next.status,
+                at,
+            });
+        next.validate()?;
+        *self = next;
         Ok(())
     }
 
@@ -1080,6 +1165,12 @@ impl PayrollRun {
         actor: &str,
         at: DateTime<Utc>,
     ) -> Result<(), PeoplePayrollDomainError> {
+        if matches!(
+            transition,
+            PayrollTransition::Review | PayrollTransition::Post
+        ) {
+            return Err(PeoplePayrollDomainError::InvalidHumanDecision);
+        }
         validate_text(actor, "actor", MAX_REFERENCE_BYTES)?;
         let (next, reviewer, approver) = match transition {
             PayrollTransition::SubmitForReview
@@ -1087,29 +1178,10 @@ impl PayrollRun {
             {
                 (PayrollStatus::Review, None, None)
             }
-            PayrollTransition::Review
-                if self.status == PayrollStatus::Review && actor != self.prepared_by =>
-            {
-                (PayrollStatus::Approved, Some(actor.to_owned()), None)
-            }
-            PayrollTransition::Post
-                if self.status == PayrollStatus::Approved
-                    && actor != self.prepared_by
-                    && self.reviewed_by.as_deref() != Some(actor) =>
-            {
-                (
-                    PayrollStatus::Posted,
-                    self.reviewed_by.clone(),
-                    Some(actor.to_owned()),
-                )
-            }
             PayrollTransition::Cancel
                 if matches!(self.status, PayrollStatus::Draft | PayrollStatus::Review) =>
             {
                 (PayrollStatus::Cancelled, self.reviewed_by.clone(), None)
-            }
-            PayrollTransition::Review | PayrollTransition::Post => {
-                return Err(PeoplePayrollDomainError::ApprovalSeparation);
             }
             _ => return Err(PeoplePayrollDomainError::InvalidTransition),
         };
@@ -1138,6 +1210,71 @@ impl PayrollRun {
                 at,
             });
         }
+        Ok(())
+    }
+
+    /// Applies review or posting from authenticated human evidence. Review
+    /// and posting actors are derived from the proof so preparation, review,
+    /// and posting separation cannot be forged through an actor field.
+    pub fn decide(
+        &mut self,
+        transition: PayrollTransition,
+        decision: HumanDecisionProof,
+        command_id: CommandId,
+        at: DateTime<Utc>,
+    ) -> Result<(), PeoplePayrollDomainError> {
+        let actor = human_decision_actor(&decision, command_id, at, &self.scope)?;
+        let (status, reviewer, approver) = match transition {
+            PayrollTransition::Review
+                if self.status == PayrollStatus::Review && actor != self.prepared_by =>
+            {
+                (PayrollStatus::Approved, Some(actor.to_owned()), None)
+            }
+            PayrollTransition::Post
+                if self.status == PayrollStatus::Approved
+                    && actor != self.prepared_by
+                    && self.reviewed_by.as_deref() != Some(actor) =>
+            {
+                (
+                    PayrollStatus::Posted,
+                    self.reviewed_by.clone(),
+                    Some(actor.to_owned()),
+                )
+            }
+            PayrollTransition::Review | PayrollTransition::Post => {
+                return Err(PeoplePayrollDomainError::ApprovalSeparation);
+            }
+            _ => return Err(PeoplePayrollDomainError::InvalidHumanDecision),
+        };
+
+        let mut next = self.clone();
+        next.advance(at)?;
+        next.status = status;
+        if reviewer.is_some() {
+            next.reviewed_by = reviewer;
+        }
+        if approver.is_some() {
+            next.approved_by = approver;
+        }
+        next.uncommitted_events
+            .push(DomainEvent::PayrollStatusChanged {
+                payroll_run_id: next.id,
+                status: next.status,
+                at,
+            });
+        if next.status == PayrollStatus::Posted {
+            next.uncommitted_events.push(DomainEvent::PayrollFinalized {
+                payroll_run_id: next.id,
+                period_code: next.period_code.clone(),
+                currency: next.currency,
+                total_gross_minor: next.total_gross_minor,
+                total_deductions_minor: next.total_deductions_minor,
+                total_net_minor: next.total_net_minor,
+                at,
+            });
+        }
+        next.validate()?;
+        *self = next;
         Ok(())
     }
 
@@ -1347,6 +1484,23 @@ fn validate_scope(scope: &AuthorityScope) -> Result<(), PeoplePayrollDomainError
         }
         _ => Err(PeoplePayrollDomainError::InvalidScope),
     }
+}
+
+fn human_decision_actor<'a>(
+    decision: &'a HumanDecisionProof,
+    command_id: CommandId,
+    at: DateTime<Utc>,
+    record_scope: &AuthorityScope,
+) -> Result<&'a str, PeoplePayrollDomainError> {
+    let actor = decision.principal_ref();
+    validate_text(actor, "decision_actor", MAX_REFERENCE_BYTES)?;
+    if decision.decision_ref() != command_id.to_string()
+        || decision.decided_at() != at
+        || !decision.authority_scope().contains(record_scope)
+    {
+        return Err(PeoplePayrollDomainError::InvalidHumanDecision);
+    }
+    Ok(actor)
 }
 
 fn validate_text(

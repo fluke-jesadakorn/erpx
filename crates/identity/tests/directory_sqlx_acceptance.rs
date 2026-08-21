@@ -642,8 +642,9 @@ async fn g14_local_directory_sqlx_acceptance() {
     for principal_ref in ["user-001@example.test", "user-003@example.test"] {
         sqlx::query(
             "INSERT INTO erpx_identity.principals
-                (id, principal_ref, status, created_at, updated_at)
-             VALUES ($1,$2,'active',$3,$3)
+                (id, principal_ref, status, authenticated_realm, principal_kind,
+                 created_at, updated_at)
+             VALUES ($1,$2,'active','internal_workforce','human',$3,$3)
              ON CONFLICT (principal_ref) DO NOTHING",
         )
         .bind(Uuid::new_v4())
@@ -797,8 +798,9 @@ async fn g14_local_directory_sqlx_acceptance() {
     let platform_principal_id = Uuid::new_v4();
     sqlx::query(
         "INSERT INTO erpx_identity.principals
-            (id, principal_ref, status, created_at, updated_at)
-         VALUES ($1,'platform-user@example.test','active',$2,$2)",
+            (id, principal_ref, status, authenticated_realm, principal_kind,
+             created_at, updated_at)
+         VALUES ($1,'platform-user@example.test','active','platform_administration','human',$2,$2)",
     )
     .bind(platform_principal_id)
     .bind(fixed_at())
@@ -927,8 +929,9 @@ async fn g14_local_directory_sqlx_acceptance() {
     );
     let principal_id: Uuid = sqlx::query_scalar(
         "INSERT INTO erpx_identity.principals
-            (id, principal_ref, status, created_at, updated_at)
-         VALUES ($1, $2, 'active', $3, $3)
+            (id, principal_ref, status, authenticated_realm, principal_kind,
+             created_at, updated_at)
+         VALUES ($1, $2, 'active', 'internal_workforce', 'human', $3, $3)
          ON CONFLICT (principal_ref) DO UPDATE
              SET updated_at=EXCLUDED.updated_at
          RETURNING id",

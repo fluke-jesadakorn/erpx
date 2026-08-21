@@ -10,7 +10,13 @@ use erpx_integration_contracts::{
     AUTHORITY_EVIDENCE_EVENT_TYPE, AUTHORITY_EVIDENCE_VERSION, AuthorityEvidenceFact,
     AuthorityPrincipalKind, AuthorityRealm, AuthoritySharingDirection, AuthoritySharingStatus,
     EffectiveGrantRevoked, HoldingItemDirectoryFact, ItemDescriptor, ItemDirectoryFact,
-    RecordPolicyPrincipalKind, RecordPolicyRealm, RecordVersionRef, StableRecordRef, record_policy,
+    RecordPolicyPrincipalKind, RecordPolicyRealm, RecordVersionRef, StableRecordRef,
+    organization::{
+        self, ORGANIZATION_LINEAGE_CHANGED_EVENT_TYPE, ORGANIZATION_LINEAGE_CHANGED_VERSION,
+        OrganizationLineageKey, OrganizationLineageWitness, OrganizationNodeKind,
+        OrganizationNodeStatus, contains_scope,
+    },
+    record_policy,
 };
 use erpx_kernel::{AuthorityScope, DataClassification, HoldingId, PrincipalId, RecordId};
 use sqlx::Row;
@@ -355,6 +361,80 @@ impl HoldingAuthorityEvidenceProjection {
         transaction.commit().await.map_err(database)
     }
 
+    /// Projects only the Organization-owned, version-pinned lineage witness.
+    /// The cache is disposable and never becomes Organization command
+    /// authority; monotonic aggregate and outbox positions prevent an older
+    /// placement from replacing the current witness during replay.
+    pub async fn apply_organization_lineage(
+        &self,
+        event: &ProjectionEvent,
+    ) -> Result<(), AuthorityProjectionError> {
+        let witness = decode_organization_lineage(event)?;
+        self.apply_organization_lineage_witness(event, witness)
+            .await
+    }
+
+    /// Rebuild compatibility for Organization nodes committed before the
+    /// dedicated lineage fact existed. The owner adapter validates/upcasts the
+    /// snapshot first; this projector persists only the neutral witness.
+    pub async fn apply_organization_snapshot_lineage(
+        &self,
+        event: &ProjectionEvent,
+    ) -> Result<(), AuthorityProjectionError> {
+        let witness = erpx_organization_sqlx::lineage_witness_from_snapshot_event(event)
+            .map_err(|_| AuthorityProjectionError::MalformedEvidence)?;
+        self.apply_organization_lineage_witness(event, witness)
+            .await
+    }
+
+    async fn apply_organization_lineage_witness(
+        &self,
+        event: &ProjectionEvent,
+        witness: OrganizationLineageWitness,
+    ) -> Result<(), AuthorityProjectionError> {
+        if witness.key().holding_id() != self.holding_id {
+            return Err(AuthorityProjectionError::EnvelopeMismatch);
+        }
+        let key = witness.key();
+        let lineage = witness
+            .lineage_node_ids()
+            .iter()
+            .map(|node| node.as_uuid())
+            .collect::<Vec<_>>();
+        let mut transaction = self.pool.begin().await.map_err(database)?;
+        sqlx::query(
+            "INSERT INTO erpx_authority_read.organization_nodes
+                (holding_id,node_id,node_kind,node_status,parent_node_id,lineage_node_ids,
+                 aggregate_version,source_event_position,changed_at,projected_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,now())
+             ON CONFLICT (holding_id,node_id) DO UPDATE SET
+                node_kind=EXCLUDED.node_kind,node_status=EXCLUDED.node_status,
+                parent_node_id=EXCLUDED.parent_node_id,
+                lineage_node_ids=EXCLUDED.lineage_node_ids,
+                aggregate_version=EXCLUDED.aggregate_version,
+                source_event_position=EXCLUDED.source_event_position,
+                changed_at=EXCLUDED.changed_at,projected_at=now()
+             WHERE erpx_authority_read.organization_nodes.holding_id=$1
+               AND erpx_authority_read.organization_nodes.aggregate_version
+                   < EXCLUDED.aggregate_version
+               AND erpx_authority_read.organization_nodes.source_event_position
+                   < EXCLUDED.source_event_position",
+        )
+        .bind(self.holding_id.as_uuid())
+        .bind(key.node_id().as_uuid())
+        .bind(organization_node_kind_name(witness.kind()))
+        .bind(organization_node_status_name(witness.status()))
+        .bind(witness.parent_node_id().map(|node| node.as_uuid()))
+        .bind(lineage)
+        .bind(to_i64(witness.aggregate_version())?)
+        .bind(to_i64(event.global_sequence)?)
+        .bind(event.occurred_at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(database)?;
+        transaction.commit().await.map_err(database)
+    }
+
     pub async fn reconcile_grants(
         &self,
         directory: &ItemDirectoryProjectionAdapter,
@@ -426,6 +506,17 @@ impl HoldingAuthorityEvidenceProjection {
                     revoked_at,sharing_status
              FROM erpx_authority_read.organization_sharing_agreements
              WHERE holding_id=$1 ORDER BY sharing_agreement_id LIMIT $2",
+        )
+        .bind(self.holding_id.as_uuid())
+        .bind(MAX_AUTHORITY_RECONCILIATION_ROWS + 1)
+        .fetch_all(&mut *transaction)
+        .await
+        .map_err(database)?;
+        let organization_node_rows = sqlx::query(
+            "SELECT node_id,node_kind,node_status,parent_node_id,lineage_node_ids,
+                    aggregate_version,source_event_position
+             FROM erpx_authority_read.organization_nodes
+             WHERE holding_id=$1 ORDER BY node_id LIMIT $2",
         )
         .bind(self.holding_id.as_uuid())
         .bind(MAX_AUTHORITY_RECONCILIATION_ROWS + 1)
@@ -541,6 +632,7 @@ impl HoldingAuthorityEvidenceProjection {
             direct_rows.len(),
             group_rows.len(),
             sharing_rows.len(),
+            organization_node_rows.len(),
             grant_rows.len(),
             portal_binding_rows.len(),
             collaboration_rows.len(),
@@ -592,6 +684,10 @@ impl HoldingAuthorityEvidenceProjection {
             .into_iter()
             .map(sharing_from_row)
             .collect::<Result<Vec<_>, _>>()?;
+        let organization_nodes = organization_node_rows
+            .into_iter()
+            .map(|row| organization_lineage_from_row(row, self.holding_id, source_event_position))
+            .collect::<Result<BTreeMap<_, _>, _>>()?;
         let collaboration = collaboration_rows
             .into_iter()
             .map(collaboration_authority_from_row)
@@ -613,6 +709,8 @@ impl HoldingAuthorityEvidenceProjection {
         let mut desired = BTreeSet::new();
         let mut changed = Vec::new();
         for descriptor in &descriptors {
+            let descriptor_target_lineage =
+                target_lineage_for_scope(descriptor.scope(), self.holding_id, &organization_nodes)?;
             let Some(definition) = record_policy(descriptor.record().record_type().as_str()) else {
                 continue;
             };
@@ -632,6 +730,8 @@ impl HoldingAuthorityEvidenceProjection {
                 else {
                     continue;
                 };
+                let anchor_target_lineage =
+                    target_lineage_for_scope(anchor.scope(), self.holding_id, &organization_nodes)?;
                 let mut principals = BTreeSet::new();
                 for candidate in &candidates {
                     if principals.contains(&candidate.evidence.principal_id)
@@ -667,6 +767,7 @@ impl HoldingAuthorityEvidenceProjection {
                     iam.permission = permission;
                     let evaluation = RecordGrantEvaluation {
                         descriptor: anchor.clone(),
+                        target_lineage: anchor_target_lineage.clone(),
                         organization: organization_evidence(
                             anchor,
                             &iam.assignment_scope,
@@ -769,6 +870,7 @@ impl HoldingAuthorityEvidenceProjection {
                 let evaluation = RecordGrantEvaluation {
                     descriptor: descriptor.clone(),
                     iam,
+                    target_lineage: descriptor_target_lineage.clone(),
                     organization,
                     evaluated_at: now,
                     decision_source_position: source_event_position,
@@ -1271,6 +1373,116 @@ fn sharing_from_row(
     })
 }
 
+fn organization_lineage_from_row(
+    row: sqlx::postgres::PgRow,
+    holding_id: HoldingId,
+    source_event_position: u64,
+) -> Result<(OrganizationLineageKey, OrganizationLineageWitness), AuthorityProjectionError> {
+    let key = OrganizationLineageKey::try_new(
+        holding_id.as_uuid(),
+        row.try_get("node_id").map_err(database)?,
+    )
+    .map_err(|_| AuthorityProjectionError::MalformedEvidence)?;
+    let aggregate_version = to_u64(row.try_get("aggregate_version").map_err(database)?)?;
+    let projected_source_position =
+        to_u64(row.try_get("source_event_position").map_err(database)?)?;
+    if projected_source_position > source_event_position {
+        return Err(AuthorityProjectionError::MalformedEvidence);
+    }
+    let kind = parse_organization_node_kind(row.try_get("node_kind").map_err(database)?)?;
+    let status = parse_organization_node_status(row.try_get("node_status").map_err(database)?)?;
+    let witness = OrganizationLineageWitness::try_new(
+        key,
+        kind,
+        status,
+        row.try_get("parent_node_id").map_err(database)?,
+        row.try_get("lineage_node_ids").map_err(database)?,
+        aggregate_version,
+    )
+    .map_err(|_| AuthorityProjectionError::MalformedEvidence)?;
+    Ok((key, witness))
+}
+
+fn target_lineage_for_scope(
+    scope: &AuthorityScope,
+    holding_id: HoldingId,
+    organization_nodes: &BTreeMap<OrganizationLineageKey, OrganizationLineageWitness>,
+) -> Result<Option<OrganizationLineageWitness>, AuthorityProjectionError> {
+    let AuthorityScope::Subtree {
+        holding_id: scope_holding_id,
+        organization_node_id,
+    } = scope
+    else {
+        return Ok(None);
+    };
+    if *scope_holding_id != holding_id.as_uuid() {
+        return Ok(None);
+    }
+    let key = OrganizationLineageKey::try_new(*scope_holding_id, *organization_node_id)
+        .map_err(|_| AuthorityProjectionError::MalformedEvidence)?;
+    let Some(witness) = organization_nodes.get(&key) else {
+        return Ok(None);
+    };
+    Ok(active_lineage_chain_is_complete(witness, organization_nodes).then(|| witness.clone()))
+}
+
+fn active_lineage_chain_is_complete(
+    witness: &OrganizationLineageWitness,
+    organization_nodes: &BTreeMap<OrganizationLineageKey, OrganizationLineageWitness>,
+) -> bool {
+    if witness.validate().is_err() || witness.status() != OrganizationNodeStatus::Active {
+        return false;
+    }
+    let Some(expected_kinds) =
+        expected_ancestor_kinds(witness.kind(), witness.lineage_node_ids().len())
+    else {
+        return false;
+    };
+    if !matches!(
+        witness.kind(),
+        OrganizationNodeKind::Department | OrganizationNodeKind::Team
+    ) || expected_kinds.len() != witness.lineage_node_ids().len()
+    {
+        return false;
+    }
+
+    let holding_id = witness.key().holding_id().as_uuid();
+    witness
+        .lineage_node_ids()
+        .iter()
+        .zip(expected_kinds)
+        .enumerate()
+        .all(|(index, (ancestor_id, expected_kind))| {
+            let Ok(ancestor_key) =
+                OrganizationLineageKey::try_new(holding_id, ancestor_id.as_uuid())
+            else {
+                return false;
+            };
+            organization_nodes
+                .get(&ancestor_key)
+                .is_some_and(|ancestor| {
+                    ancestor.status() == OrganizationNodeStatus::Active
+                        && ancestor.kind() == *expected_kind
+                        && ancestor.lineage_node_ids() == &witness.lineage_node_ids()[..index]
+                })
+        })
+}
+
+fn expected_ancestor_kinds(
+    kind: OrganizationNodeKind,
+    lineage_length: usize,
+) -> Option<&'static [OrganizationNodeKind]> {
+    use OrganizationNodeKind::{Branch, Company, Department, Holding};
+
+    match (kind, lineage_length) {
+        (OrganizationNodeKind::Department, 2) => Some(&[Holding, Company]),
+        (OrganizationNodeKind::Department, 3) => Some(&[Holding, Company, Branch]),
+        (OrganizationNodeKind::Team, 3) => Some(&[Holding, Company, Department]),
+        (OrganizationNodeKind::Team, 4) => Some(&[Holding, Company, Branch, Department]),
+        _ => None,
+    }
+}
+
 fn organization_evidence(
     descriptor: &ItemDescriptor,
     actor_scope: &AuthorityScope,
@@ -1278,7 +1490,7 @@ fn organization_evidence(
     sharing: &[SharingEvidence],
     now: DateTime<Utc>,
 ) -> Option<OrganizationScopeEvidence> {
-    if published_to_descendants && descriptor.scope().contains(actor_scope) {
+    if published_to_descendants && contains_scope(descriptor.scope(), actor_scope, None) {
         return Some(OrganizationScopeEvidence {
             kind: OrganizationScopeEvidenceKind::PublishedAncestor,
             actor_scope: actor_scope.clone(),
@@ -1317,6 +1529,75 @@ fn organization_evidence(
                 sharing_agreement_id: Some(agreement.id),
             })
     })
+}
+
+pub fn decode_organization_lineage(
+    event: &ProjectionEvent,
+) -> Result<OrganizationLineageWitness, AuthorityProjectionError> {
+    if event.event_type != ORGANIZATION_LINEAGE_CHANGED_EVENT_TYPE
+        || event.event_version != u32::from(ORGANIZATION_LINEAGE_CHANGED_VERSION)
+    {
+        return Err(AuthorityProjectionError::UnsupportedContract);
+    }
+    let payload: organization::Event = serde_json::from_value(event.payload.clone())
+        .map_err(|_| AuthorityProjectionError::MalformedEvidence)?;
+    let organization::Event::OrganizationLineageChanged(witness) = payload else {
+        return Err(AuthorityProjectionError::MalformedEvidence);
+    };
+    witness
+        .validate()
+        .map_err(|_| AuthorityProjectionError::MalformedEvidence)?;
+    let key = witness.key();
+    let node_id = key.node_id().as_uuid();
+    let expected_partition = format!("organization.node:{}", node_id.simple());
+    let expected_scope = organization_lineage_scope(&witness)?;
+    if event.context != "organization"
+        || event.aggregate_type != "organization_node"
+        || event.aggregate_id.as_uuid() != node_id
+        || event.aggregate_version != witness.aggregate_version()
+        || event.partition != expected_partition
+        || event.active_scope != expected_scope
+        || event.global_sequence == 0
+    {
+        return Err(AuthorityProjectionError::EnvelopeMismatch);
+    }
+    Ok(witness)
+}
+
+fn organization_lineage_scope(
+    witness: &OrganizationLineageWitness,
+) -> Result<AuthorityScope, AuthorityProjectionError> {
+    let key = witness.key();
+    let holding_id = key.holding_id().as_uuid();
+    let node_id = key.node_id().as_uuid();
+    match witness.kind() {
+        OrganizationNodeKind::Holding => Ok(AuthorityScope::Holding { holding_id }),
+        OrganizationNodeKind::Company => Ok(AuthorityScope::Company {
+            holding_id,
+            company_id: node_id,
+        }),
+        OrganizationNodeKind::Headquarters => Ok(AuthorityScope::Company {
+            holding_id,
+            company_id: witness
+                .company_id()
+                .ok_or(AuthorityProjectionError::MalformedEvidence)?
+                .as_uuid(),
+        }),
+        OrganizationNodeKind::Branch => Ok(AuthorityScope::Branch {
+            holding_id,
+            company_id: witness
+                .company_id()
+                .ok_or(AuthorityProjectionError::MalformedEvidence)?
+                .as_uuid(),
+            branch_id: node_id,
+        }),
+        OrganizationNodeKind::Department | OrganizationNodeKind::Team => {
+            Ok(AuthorityScope::Subtree {
+                holding_id,
+                organization_node_id: node_id,
+            })
+        }
+    }
 }
 
 pub fn decode_authority_evidence(
@@ -1489,6 +1770,50 @@ const fn sharing_status_name(value: AuthoritySharingStatus) -> &'static str {
     }
 }
 
+const fn organization_node_kind_name(value: OrganizationNodeKind) -> &'static str {
+    match value {
+        OrganizationNodeKind::Holding => "holding",
+        OrganizationNodeKind::Company => "company",
+        OrganizationNodeKind::Headquarters => "headquarters",
+        OrganizationNodeKind::Branch => "branch",
+        OrganizationNodeKind::Department => "department",
+        OrganizationNodeKind::Team => "team",
+    }
+}
+
+fn parse_organization_node_kind(
+    value: &str,
+) -> Result<OrganizationNodeKind, AuthorityProjectionError> {
+    match value {
+        "holding" => Ok(OrganizationNodeKind::Holding),
+        "company" => Ok(OrganizationNodeKind::Company),
+        "headquarters" => Ok(OrganizationNodeKind::Headquarters),
+        "branch" => Ok(OrganizationNodeKind::Branch),
+        "department" => Ok(OrganizationNodeKind::Department),
+        "team" => Ok(OrganizationNodeKind::Team),
+        _ => Err(AuthorityProjectionError::MalformedEvidence),
+    }
+}
+
+const fn organization_node_status_name(value: OrganizationNodeStatus) -> &'static str {
+    match value {
+        OrganizationNodeStatus::Active => "active",
+        OrganizationNodeStatus::Suspended => "suspended",
+        OrganizationNodeStatus::Archived => "archived",
+    }
+}
+
+fn parse_organization_node_status(
+    value: &str,
+) -> Result<OrganizationNodeStatus, AuthorityProjectionError> {
+    match value {
+        "active" => Ok(OrganizationNodeStatus::Active),
+        "suspended" => Ok(OrganizationNodeStatus::Suspended),
+        "archived" => Ok(OrganizationNodeStatus::Archived),
+        _ => Err(AuthorityProjectionError::MalformedEvidence),
+    }
+}
+
 const fn portal_use_case_name(
     value: erpx_integration_contracts::AuthorityPortalUseCase,
 ) -> &'static str {
@@ -1515,7 +1840,9 @@ const fn portal_binding_status_name(
 mod tests {
     use erpx_collaboration::PrincipalRef as CollaborationPrincipalRef;
     use erpx_integration_contracts::{
-        AuthorityAssignmentEvidence, PrincipalAuthorityEvidence, RecordTypeId, catalog::ContextId,
+        AuthorityAssignmentEvidence, PrincipalAuthorityEvidence, RecordTypeId,
+        catalog::ContextId,
+        organization::{OrganizationLineageKey, OrganizationLineageWitness, OrganizationNodeKind},
     };
     use erpx_kernel::{
         ActorAttribution, ActorKind, AggregateId, CommandId, CorrelationId, EventId, PrincipalKind,
@@ -1525,6 +1852,250 @@ mod tests {
 
     fn id() -> Uuid {
         Uuid::new_v4()
+    }
+
+    fn lineage_event() -> (ProjectionEvent, OrganizationLineageWitness) {
+        let holding_id = id();
+        let company_id = id();
+        let branch_id = id();
+        let department_id = id();
+        let team_id = id();
+        let witness = OrganizationLineageWitness::try_new(
+            OrganizationLineageKey::try_new(holding_id, team_id).unwrap(),
+            OrganizationNodeKind::Team,
+            OrganizationNodeStatus::Active,
+            Some(department_id),
+            vec![holding_id, company_id, branch_id, department_id],
+            3,
+        )
+        .unwrap();
+        let event = ProjectionEvent {
+            event_id: EventId::try_from_uuid(id()).unwrap(),
+            global_sequence: 9,
+            context: "organization".into(),
+            partition: format!("organization.node:{}", team_id.simple()),
+            command_id: CommandId::try_from_uuid(id()).unwrap(),
+            event_type: ORGANIZATION_LINEAGE_CHANGED_EVENT_TYPE.into(),
+            event_version: u32::from(ORGANIZATION_LINEAGE_CHANGED_VERSION),
+            aggregate_type: "organization_node".into(),
+            aggregate_id: AggregateId::try_from_uuid(team_id).unwrap(),
+            aggregate_version: 3,
+            active_scope: AuthorityScope::Subtree {
+                holding_id,
+                organization_node_id: team_id,
+            },
+            actor: ActorAttribution {
+                principal_ref: "worker:organization-lineage".into(),
+                kind: ActorKind::SystemWorker,
+                session_id: None,
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            correlation_id: CorrelationId::try_from_uuid(id()).unwrap(),
+            causation_id: None,
+            payload: serde_json::to_value(organization::Event::OrganizationLineageChanged(
+                witness.clone(),
+            ))
+            .unwrap(),
+            occurred_at: Utc::now(),
+        };
+        (event, witness)
+    }
+
+    fn lineage_id(value: u128) -> Uuid {
+        Uuid::from_u128(value)
+    }
+
+    fn cached_witness(
+        node_id: u128,
+        kind: OrganizationNodeKind,
+        status: OrganizationNodeStatus,
+        parent_node_id: Option<u128>,
+        lineage_node_ids: &[u128],
+    ) -> OrganizationLineageWitness {
+        OrganizationLineageWitness::try_new(
+            OrganizationLineageKey::try_new(lineage_id(1), lineage_id(node_id)).unwrap(),
+            kind,
+            status,
+            parent_node_id.map(lineage_id),
+            lineage_node_ids.iter().copied().map(lineage_id).collect(),
+            2,
+        )
+        .unwrap()
+    }
+
+    fn cached_lineage_tree() -> BTreeMap<OrganizationLineageKey, OrganizationLineageWitness> {
+        [
+            cached_witness(
+                1,
+                OrganizationNodeKind::Holding,
+                OrganizationNodeStatus::Active,
+                None,
+                &[],
+            ),
+            cached_witness(
+                2,
+                OrganizationNodeKind::Company,
+                OrganizationNodeStatus::Active,
+                Some(1),
+                &[1],
+            ),
+            cached_witness(
+                3,
+                OrganizationNodeKind::Branch,
+                OrganizationNodeStatus::Active,
+                Some(2),
+                &[1, 2],
+            ),
+            cached_witness(
+                4,
+                OrganizationNodeKind::Department,
+                OrganizationNodeStatus::Active,
+                Some(3),
+                &[1, 2, 3],
+            ),
+            cached_witness(
+                5,
+                OrganizationNodeKind::Team,
+                OrganizationNodeStatus::Active,
+                Some(4),
+                &[1, 2, 3, 4],
+            ),
+        ]
+        .into_iter()
+        .map(|witness| (witness.key(), witness))
+        .collect()
+    }
+
+    #[test]
+    fn organization_lineage_decoder_binds_the_validated_witness_to_its_owner_envelope() {
+        let (event, witness) = lineage_event();
+        assert_eq!(decode_organization_lineage(&event).unwrap(), witness);
+
+        let mut wrong_scope = event.clone();
+        wrong_scope.active_scope = AuthorityScope::Holding {
+            holding_id: witness.key().holding_id().as_uuid(),
+        };
+        assert_eq!(
+            decode_organization_lineage(&wrong_scope),
+            Err(AuthorityProjectionError::EnvelopeMismatch)
+        );
+
+        let mut wrong_version = event;
+        wrong_version.aggregate_version += 1;
+        assert_eq!(
+            decode_organization_lineage(&wrong_version),
+            Err(AuthorityProjectionError::EnvelopeMismatch)
+        );
+    }
+
+    #[test]
+    fn organization_lineage_cache_is_holding_scoped_monotonic_and_contract_shaped() {
+        let source = include_str!("item_directory_authority.rs")
+            .split("pub async fn apply_organization_lineage")
+            .nth(1)
+            .expect("lineage projection")
+            .split("pub async fn reconcile_grants")
+            .next()
+            .expect("lineage projection boundary");
+        assert!(source.contains("erpx_authority_read.organization_nodes"));
+        assert!(
+            source.contains("aggregate_version\n                   < EXCLUDED.aggregate_version")
+        );
+        assert!(source.contains(
+            "source_event_position\n                   < EXCLUDED.source_event_position"
+        ));
+        assert!(!source.contains("company_id"));
+        assert!(!source.contains("branch_id"));
+
+        let ddl =
+            include_str!("../../../crates/migration/migrations_holding_read/0001_baseline.sql");
+        let table = ddl
+            .split("CREATE TABLE erpx_authority_read.organization_nodes")
+            .nth(1)
+            .expect("organization lineage cache")
+            .split("CREATE TABLE erpx_authority_read.policy_decision_checkpoint")
+            .next()
+            .expect("organization lineage cache boundary");
+        assert!(table.contains("PRIMARY KEY (holding_id,node_id)"));
+        assert!(table.contains("lineage_node_ids UUID[] NOT NULL"));
+        assert!(table.contains("cardinality(lineage_node_ids) BETWEEN 0 AND 4"));
+        assert!(!table.contains("company_id UUID"));
+        assert!(!table.contains("branch_id UUID"));
+    }
+
+    #[test]
+    fn reconciliation_requires_a_complete_active_and_ordered_ancestor_chain() {
+        let holding_id = HoldingId::try_from_uuid(lineage_id(1)).unwrap();
+        let team_scope = AuthorityScope::Subtree {
+            holding_id: lineage_id(1),
+            organization_node_id: lineage_id(5),
+        };
+        let complete = cached_lineage_tree();
+        assert_eq!(
+            target_lineage_for_scope(&team_scope, holding_id, &complete)
+                .unwrap()
+                .map(|witness| witness.key()),
+            Some(OrganizationLineageKey::try_new(lineage_id(1), lineage_id(5)).unwrap())
+        );
+
+        let branch_key = OrganizationLineageKey::try_new(lineage_id(1), lineage_id(3)).unwrap();
+        let mut missing = complete.clone();
+        missing.remove(&branch_key);
+        assert_eq!(
+            target_lineage_for_scope(&team_scope, holding_id, &missing).unwrap(),
+            None
+        );
+
+        let mut wrong_kind = complete.clone();
+        wrong_kind.insert(
+            branch_key,
+            cached_witness(
+                3,
+                OrganizationNodeKind::Headquarters,
+                OrganizationNodeStatus::Active,
+                Some(2),
+                &[1, 2],
+            ),
+        );
+        assert_eq!(
+            target_lineage_for_scope(&team_scope, holding_id, &wrong_kind).unwrap(),
+            None
+        );
+
+        let mut wrong_lineage = complete.clone();
+        wrong_lineage.insert(
+            branch_key,
+            OrganizationLineageWitness::try_new(
+                branch_key,
+                OrganizationNodeKind::Branch,
+                OrganizationNodeStatus::Active,
+                Some(lineage_id(9)),
+                vec![lineage_id(1), lineage_id(9)],
+                2,
+            )
+            .unwrap(),
+        );
+        assert_eq!(
+            target_lineage_for_scope(&team_scope, holding_id, &wrong_lineage).unwrap(),
+            None
+        );
+
+        for status in [
+            OrganizationNodeStatus::Suspended,
+            OrganizationNodeStatus::Archived,
+        ] {
+            let mut inactive_ancestor = complete.clone();
+            inactive_ancestor.insert(
+                branch_key,
+                cached_witness(3, OrganizationNodeKind::Branch, status, Some(2), &[1, 2]),
+            );
+            assert_eq!(
+                target_lineage_for_scope(&team_scope, holding_id, &inactive_ancestor).unwrap(),
+                None,
+                "{status:?} ancestor"
+            );
+        }
     }
 
     #[test]

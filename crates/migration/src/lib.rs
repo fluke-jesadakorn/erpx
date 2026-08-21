@@ -1036,7 +1036,7 @@ mod tests {
 
     #[test]
     fn control_plane_migration_is_embedded_and_has_the_expected_schema() {
-        assert_eq!(CONTROL_PLANE_MIGRATOR.iter().count(), 1);
+        assert_eq!(CONTROL_PLANE_MIGRATOR.iter().count(), 2);
         let initial = CONTROL_PLANE_MIGRATOR
             .iter()
             .next()
@@ -1193,7 +1193,7 @@ mod tests {
 
     #[test]
     fn holding_write_and_read_migrations_are_separate_and_rls_backed() {
-        assert_eq!(HOLDING_WRITE_MIGRATOR.iter().count(), 1);
+        assert_eq!(HOLDING_WRITE_MIGRATOR.iter().count(), 2);
         assert_eq!(HOLDING_READ_MIGRATOR.iter().count(), 1);
         let write = HOLDING_WRITE_MIGRATOR
             .iter()
@@ -1229,8 +1229,12 @@ mod tests {
         assert!(operations_read.sql.contains("FORCE ROW LEVEL SECURITY"));
         let final_write = HOLDING_WRITE_MIGRATOR
             .iter()
-            .max_by_key(|migration| migration.version)
-            .expect("final holding write migration");
+            .find(|migration| {
+                migration
+                    .sql
+                    .contains("DROP TABLE IF EXISTS erpx_holding.operations_aggregate_snapshots")
+            })
+            .expect("holding write hard-cutover migration");
         assert!(
             final_write
                 .sql
@@ -1783,6 +1787,56 @@ mod tests {
                 .sql
                 .contains("UNIQUE (provider_account_ref)")
         );
+    }
+
+    #[test]
+    fn cqrs_outbox_sequences_are_allocated_under_commit_order_locks() {
+        let control = CONTROL_PLANE_MIGRATOR
+            .iter()
+            .last()
+            .expect("control outbox commit-order migration");
+        let holding = HOLDING_WRITE_MIGRATOR
+            .iter()
+            .last()
+            .expect("holding outbox commit-order migration");
+
+        for migration in [control, holding] {
+            assert!(
+                migration.sql.contains("lock_outbox_commit_order"),
+                "outbox commit-order lock helper is missing"
+            );
+            assert!(
+                migration.sql.contains("assign_outbox_global_sequence"),
+                "outbox sequence trigger function is missing"
+            );
+            assert!(
+                migration.sql.contains("pg_advisory_xact_lock"),
+                "outbox transaction-order lock is missing"
+            );
+            assert!(
+                migration
+                    .sql
+                    .contains("ALTER COLUMN global_sequence\n    DROP DEFAULT"),
+                "outbox sequence default remains bypassable"
+            );
+            assert!(
+                migration
+                    .sql
+                    .contains("BEFORE INSERT ON erpx_cqrs_write.outbox_events"),
+                "outbox sequence allocation trigger is missing"
+            );
+            assert!(
+                migration.sql.contains("NEW.global_sequence IS NOT NULL")
+                    && migration.sql.contains("ERRCODE = '22023'"),
+                "explicit outbox sequences are not rejected"
+            );
+        }
+        assert!(
+            holding
+                .sql
+                .contains("pg_catalog.hashtext(bound_holding::TEXT)")
+        );
+        assert!(control.sql.contains("1163022424"));
     }
 
     #[test]

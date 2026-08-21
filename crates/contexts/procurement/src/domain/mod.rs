@@ -4,7 +4,7 @@ pub use records::{
 };
 
 use chrono::{DateTime, Utc};
-use erpx_kernel::AuthorityScope;
+use erpx_kernel::{AuthorityScope, CommandId, HumanDecisionProof};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -48,6 +48,17 @@ domain_id!(PurchaseOrderId, "purchase_order_id");
 domain_id!(PurchaseOrderLineId, "purchase_order_line_id");
 domain_id!(SupplierId, "supplier_id");
 
+pub(crate) fn purchase_order_release_decision_ref(
+    command_id: CommandId,
+    purchase_order_id: PurchaseOrderId,
+) -> String {
+    format!(
+        "procurement.purchase_order.release:{}:{}",
+        purchase_order_id.as_uuid(),
+        command_id
+    )
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum ProcurementDomainError {
     #[error("{field} cannot be nil")]
@@ -70,6 +81,8 @@ pub enum ProcurementDomainError {
     ArithmeticOverflow,
     #[error("purchase order lifecycle transition is not allowed")]
     InvalidTransition,
+    #[error("releasing a purchase order requires an authenticated human decision")]
+    HumanDecisionRequired,
     #[error("purchase order timestamp cannot move backwards")]
     InvalidTime,
     #[error("aggregate version overflowed")]
@@ -229,7 +242,18 @@ impl PurchaseOrder {
         Ok(())
     }
 
-    pub fn release(&mut self, at: DateTime<Utc>) -> Result<(), ProcurementDomainError> {
+    pub fn release(
+        &mut self,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
+        at: DateTime<Utc>,
+    ) -> Result<(), ProcurementDomainError> {
+        if decision.decision_ref() != purchase_order_release_decision_ref(command_id, self.id)
+            || decision.decided_at() != at
+            || !decision.authority_scope().contains(&self.scope)
+        {
+            return Err(ProcurementDomainError::HumanDecisionRequired);
+        }
         if self.status != PurchaseOrderStatus::Draft {
             return Err(ProcurementDomainError::InvalidTransition);
         }
@@ -370,6 +394,7 @@ fn validate_currency(value: &str) -> Result<(), ProcurementDomainError> {
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
+    use erpx_kernel::{ActorAttribution, ActorKind, SessionId};
 
     use super::*;
 
@@ -390,6 +415,30 @@ mod tests {
             .unwrap()
     }
 
+    fn command_id(value: u128) -> CommandId {
+        CommandId::try_from_uuid(id(value)).unwrap()
+    }
+
+    fn human_decision(
+        command_id: CommandId,
+        purchase_order_id: PurchaseOrderId,
+        decided_at: DateTime<Utc>,
+    ) -> HumanDecisionProof {
+        HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: "procurement-controller".into(),
+                kind: ActorKind::HoldingUser,
+                session_id: Some(SessionId::try_from_uuid(id(3)).unwrap()),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            scope(),
+            purchase_order_release_decision_ref(command_id, purchase_order_id),
+            decided_at,
+        )
+        .unwrap()
+    }
+
     fn line(line_id: u128) -> PurchaseOrderLine {
         PurchaseOrderLine {
             line_id: PurchaseOrderLineId::try_from_uuid(id(line_id)).unwrap(),
@@ -401,17 +450,21 @@ mod tests {
         }
     }
 
-    fn order() -> PurchaseOrder {
+    fn order_with_id(value: u128) -> PurchaseOrder {
         PurchaseOrder::create(
-            PurchaseOrderId::try_from_uuid(id(10)).unwrap(),
+            PurchaseOrderId::try_from_uuid(id(value)).unwrap(),
             scope(),
-            "PO-1".into(),
+            format!("PO-{value}"),
             SupplierId::try_from_uuid(id(11)).unwrap(),
             "THB".into(),
             vec![line(12)],
             at(9),
         )
         .unwrap()
+    }
+
+    fn order() -> PurchaseOrder {
+        order_with_id(10)
     }
 
     #[test]
@@ -465,11 +518,23 @@ mod tests {
     fn release_is_one_way_and_cancel_is_terminal() {
         let mut order = order();
         order.take_uncommitted_events();
-        order.release(at(10)).unwrap();
+        let first_command = command_id(90);
+        order
+            .release(
+                &human_decision(first_command, order.id(), at(10)),
+                first_command,
+                at(10),
+            )
+            .unwrap();
         assert_eq!(order.status(), PurchaseOrderStatus::Released);
         assert_eq!(order.version(), 2);
+        let second_command = command_id(91);
         assert_eq!(
-            order.release(at(11)),
+            order.release(
+                &human_decision(second_command, order.id(), at(11)),
+                second_command,
+                at(11),
+            ),
             Err(ProcurementDomainError::InvalidTransition)
         );
         order.cancel(at(11)).unwrap();
@@ -482,11 +547,35 @@ mod tests {
     #[test]
     fn timestamp_cannot_move_backwards() {
         let mut order = order();
+        let command_id = command_id(92);
         assert_eq!(
-            order.release(at(8)),
+            order.release(
+                &human_decision(command_id, order.id(), at(8)),
+                command_id,
+                at(8),
+            ),
             Err(ProcurementDomainError::InvalidTime)
         );
         assert_eq!(order.version(), 1);
+    }
+
+    #[test]
+    fn release_decision_cannot_be_reused_for_another_command_or_purchase_order() {
+        let approved_command = command_id(93);
+        let approved_order_id = PurchaseOrderId::try_from_uuid(id(10)).unwrap();
+        let decision = human_decision(approved_command, approved_order_id, at(10));
+
+        let mut wrong_command = order();
+        assert_eq!(
+            wrong_command.release(&decision, command_id(94), at(10)),
+            Err(ProcurementDomainError::HumanDecisionRequired)
+        );
+
+        let mut wrong_order = order_with_id(13);
+        assert_eq!(
+            wrong_order.release(&decision, approved_command, at(10)),
+            Err(ProcurementDomainError::HumanDecisionRequired)
+        );
     }
 
     #[test]

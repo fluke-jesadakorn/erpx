@@ -1,3 +1,4 @@
+mod auth_actor;
 mod contexts {
     pub mod assets_cqrs;
     pub mod brand_cqrs;
@@ -204,12 +205,14 @@ use erpx_domain::{
 use erpx_identity::{
     AccessTokenClaims, AccessTokenSigner, DIRECTORY_PREFLIGHT_MAX_AGE, DIRECTORY_REVOCATION_SLA,
     DirectoryConnector, DirectoryConnectorLifecycle, DirectoryFeedKind,
-    DirectoryIdentityConflictSnapshot, DirectoryProvider, DirectoryRoleAccess,
+    DirectoryIdentityConflictSnapshot, DirectoryIdentityReplacementDecision,
+    DirectoryIdentityReplacementDecisionAction, DirectoryProvider, DirectoryRoleAccess,
     DirectoryRoleMapping, DirectoryScope, DirectorySecretResolver, DirectoryTlsMode,
     DirectoryTlsPolicy, HttpsDirectorySecretResolver, IdentityStoreError, LiveDirectoryError,
     LocalDirectorySecretResolver, PasskeyCeremonyService, SqlxDirectoryStore, SqlxIdentityStore,
     TotpKeyResolver, UnconfiguredDirectorySecretResolver, WebAuthnProvider, WebAuthnProviderConfig,
-    WebAuthnRsProvider, apply_identity_migration, preflight_directory_connector,
+    WebAuthnRsProvider, apply_identity_migration, directory_identity_replacement_decision_ref,
+    preflight_directory_connector,
 };
 use erpx_infrastructure::{
     ClusterPitrRepository, ControlPlaneDatabaseConfig, ControlPlanePools, DeadLetterReplayCommand,
@@ -238,10 +241,10 @@ use erpx_infrastructure::{
     holding_holding_scope_id,
 };
 use erpx_kernel::{
-    ActorAttribution as KernelActorAttribution, ActorKind as KernelActorKind,
-    AuditContext as KernelAuditContext, AuthorityScope as KernelHoldingScope,
-    CommandId as KernelCommandId, CorrelationId as KernelCorrelationId,
-    ErrorCategory as KernelErrorCategory, ErrorContext as KernelErrorContext, KernelError,
+    ActorAttribution as KernelActorAttribution, AuditContext as KernelAuditContext,
+    AuthorityScope as KernelHoldingScope, CommandId as KernelCommandId,
+    CorrelationId as KernelCorrelationId, ErrorCategory as KernelErrorCategory,
+    ErrorContext as KernelErrorContext, HumanDecisionProof, KernelError,
     RecordId as KernelRecordId, SessionId as KernelSessionId, SystemClock as KernelSystemClock,
 };
 use erpx_operations::SourceHighWatermarkPort;
@@ -1899,6 +1902,55 @@ impl AuthContext {
         required_permission: &str,
         target_holding: Option<&str>,
     ) -> Result<(), Status> {
+        self.authorize_role_for_holding_inner(
+            store,
+            claims,
+            requested_scope,
+            required_permission,
+            target_holding,
+            false,
+        )
+        .await
+    }
+
+    /// Explicit Phase-1 opt-in used only by Organization and the shared
+    /// Collaboration/Item Directory pilot. Every legacy/custom ingress stays
+    /// on `authorize_role_for_holding`, which rejects exact Subtree authority
+    /// before role or storage lookup.
+    async fn authorize_role_for_holding_with_exact_subtree(
+        &self,
+        store: &SqlxControlPlane,
+        claims: &AccessTokenClaims,
+        requested_scope: &Scope,
+        required_permission: &str,
+        target_holding: Option<&str>,
+    ) -> Result<(), Status> {
+        self.authorize_role_for_holding_inner(
+            store,
+            claims,
+            requested_scope,
+            required_permission,
+            target_holding,
+            true,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn authorize_role_for_holding_inner(
+        &self,
+        store: &SqlxControlPlane,
+        claims: &AccessTokenClaims,
+        requested_scope: &Scope,
+        required_permission: &str,
+        target_holding: Option<&str>,
+        exact_subtree_enabled: bool,
+    ) -> Result<(), Status> {
+        if !exact_subtree_ingress_allowed(requested_scope, exact_subtree_enabled) {
+            return Err(Status::permission_denied(
+                "exact organization subtree authority is not enabled for this ingress",
+            ));
+        }
         if claims.principal_ref == erpx_identity::DEVELOPMENT_CONTROLLER_PRINCIPAL
             && self.development_controller.is_none()
         {
@@ -2045,6 +2097,10 @@ impl AuthContext {
         }
         Ok(())
     }
+}
+
+fn exact_subtree_ingress_allowed(scope: &Scope, exact_subtree_enabled: bool) -> bool {
+    !matches!(scope, Scope::Subtree { .. }) || exact_subtree_enabled
 }
 
 async fn validate_holding_admin_context<T>(
@@ -2748,10 +2804,11 @@ impl QualityRequestAuthenticator for QualityServerAuthenticator {
 
         let session_id = KernelSessionId::try_from_uuid(claims.session_id)
             .map_err(|_| QualityAuthenticationError::Internal)?;
+        let kind = auth_actor::kernel_actor_kind(&claims);
         AuthenticatedQualityRequest::try_new(
             KernelActorAttribution {
                 principal_ref: claims.principal_ref,
-                kind: KernelActorKind::HoldingUser,
+                kind,
                 session_id: Some(session_id),
                 represented_principal_ref: None,
                 support_capability_id: None,
@@ -2776,7 +2833,7 @@ fn quality_legacy_command_context(
         causation_id: None,
         actor: ActorAttribution {
             principal_ref: claims.principal_ref.clone(),
-            kind: erpx_domain::contracts::ActorKind::HoldingUser,
+            kind: auth_actor::legacy_actor_kind(claims),
             session_id: Some(claims.session_id),
             represented_principal_ref: None,
             support_capability_id: None,
@@ -2854,6 +2911,187 @@ fn legacy_kernel_scope(scope: &AuthorityScope) -> KernelHoldingScope {
             holding_id: *holding_id,
             organization_node_id: *organization_node_id,
         },
+    }
+}
+
+fn authenticated_directory_replacement_actor(
+    claims: &AccessTokenClaims,
+    presented_actor: &ActorAttribution,
+) -> Result<KernelActorAttribution, Status> {
+    require_actor_match(
+        &claims.principal_ref,
+        &presented_actor.principal_ref,
+        "directory replacement actor must match the authenticated principal",
+    )?;
+    if presented_actor.session_id != Some(claims.session_id)
+        || presented_actor.represented_principal_ref.is_some()
+        || presented_actor.support_capability_id.is_some()
+    {
+        return Err(Status::permission_denied(
+            "directory replacement requires the direct authenticated command session",
+        ));
+    }
+    Ok(KernelActorAttribution {
+        principal_ref: claims.principal_ref.clone(),
+        kind: auth_actor::kernel_actor_kind(claims),
+        session_id: Some(
+            KernelSessionId::try_from_uuid(claims.session_id)
+                .map_err(|_| Status::internal("authenticated session attribution is invalid"))?,
+        ),
+        represented_principal_ref: None,
+        support_capability_id: None,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn authenticated_directory_replacement_decision(
+    claims: &AccessTokenClaims,
+    presented_actor: &ActorAttribution,
+    scope: &AuthorityScope,
+    action: DirectoryIdentityReplacementDecisionAction,
+    conflict_id: Uuid,
+    expected_conflict_version: u64,
+    correlation_id: Uuid,
+    decided_at: DateTime<Utc>,
+) -> Result<DirectoryIdentityReplacementDecision, Status> {
+    let actor = authenticated_directory_replacement_actor(claims, presented_actor)?;
+    let authority_scope = legacy_kernel_scope(scope);
+    let decision_ref = directory_identity_replacement_decision_ref(
+        action,
+        conflict_id,
+        expected_conflict_version,
+        correlation_id,
+    );
+    let proof =
+        HumanDecisionProof::try_new(actor, authority_scope.clone(), decision_ref, decided_at)
+            .map_err(|_| {
+                Status::permission_denied(
+                    "directory replacement decisions require an authenticated human",
+                )
+            })?;
+    DirectoryIdentityReplacementDecision::try_new(
+        action,
+        conflict_id,
+        expected_conflict_version,
+        correlation_id,
+        authority_scope,
+        proof,
+    )
+    .map_err(|_| Status::permission_denied("directory replacement decision proof is invalid"))
+}
+
+#[cfg(test)]
+mod directory_replacement_decision_boundary_tests {
+    use super::*;
+    use erpx_identity::{AuthenticatedPrincipalKind, AuthenticatedRealm};
+
+    fn claims(principal_kind: AuthenticatedPrincipalKind) -> AccessTokenClaims {
+        let issued_at = Utc::now();
+        AccessTokenClaims {
+            principal_ref: "holding:replacement-approver".into(),
+            session_id: Uuid::from_u128(201),
+            active_role: None,
+            authorization_context_version: Some(1),
+            realm: AuthenticatedRealm::InternalWorkforce,
+            principal_kind,
+            issued_at,
+            expires_at: issued_at + Duration::minutes(5),
+        }
+    }
+
+    fn presented_actor(claims: &AccessTokenClaims) -> ActorAttribution {
+        ActorAttribution {
+            principal_ref: claims.principal_ref.clone(),
+            kind: ActorKind::HoldingUser,
+            session_id: Some(claims.session_id),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        }
+    }
+
+    #[test]
+    fn authenticated_human_decision_boundary_binds_exact_request_material() {
+        let claims = claims(AuthenticatedPrincipalKind::Human);
+        let actor = presented_actor(&claims);
+        let scope = AuthorityScope::Holding {
+            holding_id: Uuid::from_u128(202),
+        };
+        let conflict_id = Uuid::from_u128(203);
+        let correlation_id = Uuid::from_u128(204);
+        let decided_at = Utc::now();
+        let decision = authenticated_directory_replacement_decision(
+            &claims,
+            &actor,
+            &scope,
+            DirectoryIdentityReplacementDecisionAction::Approve,
+            conflict_id,
+            7,
+            correlation_id,
+            decided_at,
+        )
+        .expect("human decision");
+
+        assert_eq!(decision.principal_ref(), claims.principal_ref);
+        assert_eq!(decision.session_id().as_uuid(), claims.session_id);
+        assert_eq!(
+            decision.proof().authority_scope(),
+            &legacy_kernel_scope(&scope)
+        );
+        assert_eq!(decision.decided_at(), decided_at);
+        assert_eq!(
+            decision.proof().decision_ref(),
+            directory_identity_replacement_decision_ref(
+                DirectoryIdentityReplacementDecisionAction::Approve,
+                conflict_id,
+                7,
+                correlation_id,
+            )
+        );
+    }
+
+    #[test]
+    fn authenticated_decision_boundary_rejects_agent_and_service_before_repository_use() {
+        for kind in [
+            AuthenticatedPrincipalKind::Agent,
+            AuthenticatedPrincipalKind::Service,
+        ] {
+            let claims = claims(kind);
+            let status = authenticated_directory_replacement_decision(
+                &claims,
+                &presented_actor(&claims),
+                &AuthorityScope::Platform,
+                DirectoryIdentityReplacementDecisionAction::Reject,
+                Uuid::from_u128(205),
+                2,
+                Uuid::from_u128(206),
+                Utc::now(),
+            )
+            .expect_err("non-human decision");
+            assert_eq!(status.code(), tonic::Code::PermissionDenied);
+        }
+    }
+
+    #[test]
+    fn authenticated_decision_boundary_rejects_presented_actor_or_session_substitution() {
+        let claims = claims(AuthenticatedPrincipalKind::Human);
+        let mut actor = presented_actor(&claims);
+        actor.session_id = Some(Uuid::from_u128(207));
+        assert!(
+            authenticated_directory_replacement_decision(
+                &claims,
+                &actor,
+                &AuthorityScope::Platform,
+                DirectoryIdentityReplacementDecisionAction::Approve,
+                Uuid::from_u128(208),
+                3,
+                Uuid::from_u128(209),
+                Utc::now(),
+            )
+            .is_err()
+        );
+        let mut actor = presented_actor(&claims);
+        actor.principal_ref = "holding:another-principal".into();
+        assert!(authenticated_directory_replacement_actor(&claims, &actor).is_err());
     }
 }
 
@@ -3907,7 +4145,7 @@ impl erpx_proto::erpx::customer_360::customer360_command_service_server::Custome
                     expected_version: context.expected_aggregate_version,
                     actor: KernelActorAttribution {
                         principal_ref: claims.principal_ref.clone(),
-                        kind: KernelActorKind::HoldingUser,
+                        kind: auth_actor::kernel_actor_kind(&claims),
                         session_id: Some(
                             KernelSessionId::try_from_uuid(claims.session_id)
                                 .map_err(|_| Status::internal("session identity is invalid"))?,
@@ -9262,6 +9500,7 @@ impl DirectoryRpcImpl {
                     "directory identity replacement requires platform or holding scope",
                 ));
             }
+            let proposer = authenticated_directory_replacement_actor(&claims, &context.actor)?;
             if matches!(scope, Scope::Platform) {
                 self.state
                     .auth
@@ -9301,7 +9540,7 @@ impl DirectoryRpcImpl {
                 .propose_identity_replacement(
                     conflict_id,
                     request.get_ref().expected_conflict_version,
-                    &claims.principal_ref,
+                    &proposer,
                     context.correlation_id,
                     Utc::now(),
                 )
@@ -9355,6 +9594,18 @@ impl DirectoryRpcImpl {
                     "directory identity replacement requires platform or holding scope",
                 ));
             }
+            let conflict_id = Uuid::parse_str(request.get_ref().conflict_id.trim())
+                .map_err(|_| Status::invalid_argument("conflict_id is invalid"))?;
+            let decision = authenticated_directory_replacement_decision(
+                &claims,
+                &context.actor,
+                &context.active_scope,
+                DirectoryIdentityReplacementDecisionAction::Approve,
+                conflict_id,
+                request.get_ref().expected_conflict_version,
+                context.correlation_id,
+                Utc::now(),
+            )?;
             if matches!(scope, Scope::Platform) {
                 self.state
                     .auth
@@ -9378,8 +9629,6 @@ impl DirectoryRpcImpl {
                 .auth
                 .authorize_mfa(&claims, &request.get_ref().mfa_code)
                 .await?;
-            let conflict_id = Uuid::parse_str(request.get_ref().conflict_id.trim())
-                .map_err(|_| Status::invalid_argument("conflict_id is invalid"))?;
             let directory = SqlxDirectoryStore::new(self.state.store.pools().write.clone());
             let existing = directory
                 .identity_conflict(conflict_id)
@@ -9391,19 +9640,13 @@ impl DirectoryRpcImpl {
                 .map_err(|_| Status::not_found("directory connector not found"))?;
             directory_scope_access(&scope, &connector.scope)?;
             let conflict = directory
-                .approve_identity_replacement(
-                    conflict_id,
-                    request.get_ref().expected_conflict_version,
-                    &claims.principal_ref,
-                    context.correlation_id,
-                    Utc::now(),
-                )
+                .approve_identity_replacement(&decision)
                 .await
                 .map_err(|error| Status::failed_precondition(error.to_string()))?;
             self.state
                 .store
                 .record(AuditEvent {
-                    actor_ref: claims.principal_ref,
+                    actor_ref: decision.principal_ref().to_owned(),
                     customer_account_id: directory_audit_customer(&self.state.store, &scope)
                         .await?,
                     action: directory_audit_action(&scope, "identity_replacement.approve"),
@@ -9447,6 +9690,18 @@ impl DirectoryRpcImpl {
                     "directory identity replacement requires platform or holding scope",
                 ));
             }
+            let conflict_id = Uuid::parse_str(request.get_ref().conflict_id.trim())
+                .map_err(|_| Status::invalid_argument("conflict_id is invalid"))?;
+            let decision = authenticated_directory_replacement_decision(
+                &claims,
+                &context.actor,
+                &context.active_scope,
+                DirectoryIdentityReplacementDecisionAction::Reject,
+                conflict_id,
+                request.get_ref().expected_conflict_version,
+                context.correlation_id,
+                Utc::now(),
+            )?;
             if matches!(scope, Scope::Platform) {
                 self.state
                     .auth
@@ -9470,8 +9725,6 @@ impl DirectoryRpcImpl {
                 .auth
                 .authorize_mfa(&claims, &request.get_ref().mfa_code)
                 .await?;
-            let conflict_id = Uuid::parse_str(request.get_ref().conflict_id.trim())
-                .map_err(|_| Status::invalid_argument("conflict_id is invalid"))?;
             let directory = SqlxDirectoryStore::new(self.state.store.pools().write.clone());
             let existing = directory
                 .identity_conflict(conflict_id)
@@ -9483,19 +9736,13 @@ impl DirectoryRpcImpl {
                 .map_err(|_| Status::not_found("directory connector not found"))?;
             directory_scope_access(&scope, &connector.scope)?;
             let conflict = directory
-                .reject_identity_replacement(
-                    conflict_id,
-                    request.get_ref().expected_conflict_version,
-                    &claims.principal_ref,
-                    context.correlation_id,
-                    Utc::now(),
-                )
+                .reject_identity_replacement(&decision)
                 .await
                 .map_err(|error| Status::failed_precondition(error.to_string()))?;
             self.state
                 .store
                 .record(AuditEvent {
-                    actor_ref: claims.principal_ref,
+                    actor_ref: decision.principal_ref().to_owned(),
                     customer_account_id: directory_audit_customer(&self.state.store, &scope)
                         .await?,
                     action: directory_audit_action(&scope, "identity_replacement.reject"),
@@ -17753,5 +18000,64 @@ mod directory_scope_tests {
             }
         );
         assert!(parse_directory_scope("holding:other", "holding-ref-42").is_err());
+    }
+}
+
+#[cfg(test)]
+mod phase_one_subtree_ingress_tests {
+    use super::*;
+
+    #[test]
+    fn exact_subtree_requires_an_explicit_pilot_opt_in() {
+        let subtree = Scope::Subtree {
+            holding_id: Uuid::from_u128(1),
+            organization_node_id: Uuid::from_u128(4),
+        };
+        assert!(!exact_subtree_ingress_allowed(&subtree, false));
+        assert!(exact_subtree_ingress_allowed(&subtree, true));
+        assert!(exact_subtree_ingress_allowed(
+            &Scope::Company {
+                holding_id: Uuid::from_u128(1),
+                company_id: Uuid::from_u128(2),
+            },
+            false,
+        ));
+    }
+
+    #[test]
+    fn custom_ingresses_use_default_deny_and_only_pilot_paths_opt_in() {
+        let wave9 = include_str!("wave9_composition.rs");
+        let customer_360 = wave9
+            .split("impl Customer360RequestAuthenticator")
+            .nth(1)
+            .and_then(|tail| tail.split("fn map_operations_auth").next())
+            .expect("Customer 360 authenticator");
+        assert!(customer_360.contains(".authorize_role("));
+        assert!(!customer_360.contains("with_exact_subtree"));
+
+        let target = include_str!("target_transport.rs");
+        let stream = target
+            .split("impl DataPlaneStreamService")
+            .nth(1)
+            .and_then(|tail| tail.split("fn readiness_state").next())
+            .expect("data-plane stream ingress");
+        assert!(stream.contains(".authorize_role_for_holding("));
+        assert!(!stream.contains("with_exact_subtree"));
+
+        let pilot = target
+            .split("async fn authorize_known_holding_request")
+            .nth(1)
+            .and_then(|tail| tail.split("fn collaboration_action").next())
+            .expect("Collaboration/Item Directory pilot authorization");
+        assert!(pilot.contains("authorize_role_for_holding_with_exact_subtree"));
+
+        let wave4 = include_str!("wave4_composition.rs");
+        let organization = wave4
+            .split("async fn authenticate_context_with_permissions")
+            .nth(1)
+            .and_then(|tail| tail.split("fn legacy_command_context").next())
+            .expect("Organization context authenticator");
+        assert!(organization.contains("product == \"organization\""));
+        assert!(organization.contains("authorize_role_for_holding_with_exact_subtree"));
     }
 }

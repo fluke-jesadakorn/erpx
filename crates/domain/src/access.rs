@@ -1099,7 +1099,7 @@ mod tests {
     }
 
     #[test]
-    fn subtree_delegation_is_local_only_for_its_root_node() {
+    fn subtree_delegation_is_exact_and_never_aliases_a_branch_uuid() {
         let holding = Uuid::new_v4();
         let company = Uuid::new_v4();
         let selected_branch = Uuid::new_v4();
@@ -1108,7 +1108,7 @@ mod tests {
             holding_id: holding,
             organization_node_id: selected_branch,
         };
-        assert!(parent.contains(&AuthorityScope::Branch {
+        assert!(!parent.contains(&AuthorityScope::Branch {
             holding_id: holding,
             company_id: company,
             branch_id: selected_branch,
@@ -1121,6 +1121,14 @@ mod tests {
         assert!(!parent.contains(&AuthorityScope::Company {
             holding_id: holding,
             company_id: company,
+        }));
+        assert!(parent.contains(&AuthorityScope::Subtree {
+            holding_id: holding,
+            organization_node_id: selected_branch,
+        }));
+        assert!(!parent.contains(&AuthorityScope::Subtree {
+            holding_id: holding,
+            organization_node_id: other_branch,
         }));
     }
 

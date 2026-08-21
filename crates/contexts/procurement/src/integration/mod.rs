@@ -83,7 +83,9 @@ fn fact(
 mod tests {
     use chrono::{TimeZone, Utc};
     use erpx_integration_contracts::IntegrationEvent;
-    use erpx_kernel::AuthorityScope;
+    use erpx_kernel::{
+        ActorAttribution, ActorKind, AuthorityScope, CommandId, HumanDecisionProof, SessionId,
+    };
     use uuid::Uuid;
 
     use super::*;
@@ -93,12 +95,13 @@ mod tests {
 
     #[test]
     fn only_released_and_cancelled_states_cross_the_context_boundary() {
+        let scope = AuthorityScope::Company {
+            holding_id: Uuid::from_u128(2),
+            company_id: Uuid::from_u128(3),
+        };
         let mut order = PurchaseOrder::create(
             PurchaseOrderId::try_from_uuid(Uuid::from_u128(1)).unwrap(),
-            AuthorityScope::Company {
-                holding_id: Uuid::from_u128(2),
-                company_id: Uuid::from_u128(3),
-            },
+            scope.clone(),
             "PO-001".into(),
             SupplierId::try_from_uuid(Uuid::from_u128(4)).unwrap(),
             "THB".into(),
@@ -118,8 +121,29 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
+        let released_at = Utc.with_ymd_and_hms(2026, 8, 5, 10, 0, 0).single().unwrap();
+        let human_decision = HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: "procurement-controller".into(),
+                kind: ActorKind::HoldingUser,
+                session_id: Some(SessionId::try_from_uuid(Uuid::from_u128(6)).unwrap()),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            scope,
+            crate::domain::purchase_order_release_decision_ref(
+                CommandId::try_from_uuid(Uuid::from_u128(7)).unwrap(),
+                PurchaseOrderId::try_from_uuid(Uuid::from_u128(1)).unwrap(),
+            ),
+            released_at,
+        )
+        .unwrap();
         order
-            .release(Utc.with_ymd_and_hms(2026, 8, 5, 10, 0, 0).single().unwrap())
+            .release(
+                &human_decision,
+                CommandId::try_from_uuid(Uuid::from_u128(7)).unwrap(),
+                released_at,
+            )
             .unwrap();
         let events = published_events(&order.take_uncommitted_events()).unwrap();
         assert!(matches!(

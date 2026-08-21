@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
 use erpx_integration_contracts::{BoundedContext, RecordRef};
-use erpx_kernel::AuthorityScope;
+use erpx_kernel::{ActorKind, AuthorityScope, HumanDecisionProof, SessionId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -56,6 +56,30 @@ pub enum ApprovalGateStatus {
     Cancelled,
 }
 
+pub fn approval_session_decision_ref(
+    command_id: Uuid,
+    session_id: ApprovalSessionId,
+    subject_version: u64,
+    gate: ApprovalGateKind,
+    outcome: ApprovalGateStatus,
+) -> String {
+    let gate = match gate {
+        ApprovalGateKind::SalesCommercial => "sales-commercial",
+        ApprovalGateKind::FinanceAccountingPlan => "finance-accounting-plan",
+        ApprovalGateKind::FinancePosting => "finance-posting",
+    };
+    let action = match outcome {
+        ApprovalGateStatus::Pending => "pending",
+        ApprovalGateStatus::Approved => "approved",
+        ApprovalGateStatus::Rejected => "rejected",
+        ApprovalGateStatus::Cancelled => "cancelled",
+    };
+    format!(
+        "operations.approval-session:command:{command_id}:target:{}:subject-version:{subject_version}:gate:{gate}:action:{action}",
+        session_id.as_uuid()
+    )
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ApprovalGateSpec {
     pub kind: ApprovalGateKind,
@@ -68,6 +92,12 @@ pub struct ApprovalGate {
     assigned_to: Option<String>,
     status: ApprovalGateStatus,
     decided_by: Option<String>,
+    #[serde(default)]
+    decision_actor_kind: Option<ActorKind>,
+    #[serde(default)]
+    human_decision_ref: Option<String>,
+    #[serde(default)]
+    decision_session_id: Option<SessionId>,
     reason_code: Option<String>,
     decided_at: Option<DateTime<Utc>>,
 }
@@ -84,6 +114,15 @@ impl ApprovalGate {
     }
     pub fn decided_by(&self) -> Option<&str> {
         self.decided_by.as_deref()
+    }
+    pub const fn decision_actor_kind(&self) -> Option<ActorKind> {
+        self.decision_actor_kind
+    }
+    pub fn human_decision_ref(&self) -> Option<&str> {
+        self.human_decision_ref.as_deref()
+    }
+    pub const fn decision_session_id(&self) -> Option<SessionId> {
+        self.decision_session_id
     }
     pub fn reason_code(&self) -> Option<&str> {
         self.reason_code.as_deref()
@@ -161,6 +200,9 @@ impl ApprovalSession {
                     assigned_to: spec.assigned_to,
                     status: ApprovalGateStatus::Pending,
                     decided_by: None,
+                    decision_actor_kind: None,
+                    human_decision_ref: None,
+                    decision_session_id: None,
                     reason_code: None,
                     decided_at: None,
                 },
@@ -182,20 +224,34 @@ impl ApprovalSession {
 
     pub fn decide(
         &mut self,
+        command_id: Uuid,
         kind: ApprovalGateKind,
         subject_version: u64,
-        decision: ApprovalGateStatus,
-        decided_by: String,
+        outcome: ApprovalGateStatus,
+        human_decision: HumanDecisionProof,
         reason_code: String,
-        at: DateTime<Utc>,
     ) -> Result<(), ApprovalSessionError> {
+        let decided_by = human_decision.principal_ref().to_owned();
+        let at = human_decision.decided_at();
+        let decision_actor_kind = human_decision.actor().kind;
+        let human_decision_ref = human_decision.decision_ref().to_owned();
+        let decision_session_id = human_decision.actor().session_id;
         if self.status != ApprovalSessionStatus::Pending
+            || command_id.is_nil()
             || subject_version != self.subject.aggregate_version
             || !matches!(
-                decision,
+                outcome,
                 ApprovalGateStatus::Approved | ApprovalGateStatus::Rejected
             )
-            || !valid_text(&decided_by, 256)
+            || human_decision.authority_scope() != &self.scope
+            || human_decision.decision_ref()
+                != approval_session_decision_ref(
+                    command_id,
+                    self.id,
+                    subject_version,
+                    kind,
+                    outcome,
+                )
             || !valid_text(&reason_code, 128)
         {
             return Err(ApprovalSessionError::InvalidDecision);
@@ -228,11 +284,14 @@ impl ApprovalSession {
             .gates
             .get_mut(&kind)
             .expect("approval gate was checked before session advance");
-        gate.status = decision;
+        gate.status = outcome;
         gate.decided_by = Some(decided_by);
+        gate.decision_actor_kind = Some(decision_actor_kind);
+        gate.human_decision_ref = Some(human_decision_ref);
+        gate.decision_session_id = decision_session_id;
         gate.reason_code = Some(reason_code);
         gate.decided_at = Some(at);
-        self.status = if decision == ApprovalGateStatus::Rejected {
+        self.status = if outcome == ApprovalGateStatus::Rejected {
             ApprovalSessionStatus::Rejected
         } else if self
             .gates
@@ -406,7 +465,52 @@ fn valid_text(value: &str, max: usize) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use erpx_kernel::{ActorAttribution, ActorKind, SessionId};
+
     use super::*;
+
+    fn human_decision(principal_ref: &str, reference: &str) -> HumanDecisionProof {
+        HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: principal_ref.into(),
+                kind: ActorKind::HoldingUser,
+                session_id: Some(
+                    SessionId::try_from_uuid(Uuid::from_u128(9)).expect("non-nil session"),
+                ),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            AuthorityScope::Holding {
+                holding_id: Uuid::from_u128(2),
+            },
+            reference,
+            DateTime::from_timestamp(1_800_000_000, 0).unwrap(),
+        )
+        .unwrap()
+    }
+
+    fn command_id(value: u128) -> Uuid {
+        Uuid::from_u128(value)
+    }
+
+    fn bound_human_decision(
+        principal_ref: &str,
+        command_id: Uuid,
+        subject_version: u64,
+        gate: ApprovalGateKind,
+        outcome: ApprovalGateStatus,
+    ) -> HumanDecisionProof {
+        human_decision(
+            principal_ref,
+            &approval_session_decision_ref(
+                command_id,
+                ApprovalSessionId::try_from_uuid(Uuid::from_u128(1)).unwrap(),
+                subject_version,
+                gate,
+                outcome,
+            ),
+        )
+    }
 
     fn session() -> ApprovalSession {
         ApprovalSession::create(
@@ -435,51 +539,96 @@ mod tests {
     #[test]
     fn parallel_quote_gates_enforce_maker_checker_and_cross_function_separation() {
         let mut value = session();
-        let at = value.created_at();
         assert_eq!(
             value.decide(
+                command_id(20),
                 ApprovalGateKind::SalesCommercial,
                 4,
                 ApprovalGateStatus::Approved,
-                "sales-maker".into(),
+                bound_human_decision(
+                    "sales-maker",
+                    command_id(20),
+                    4,
+                    ApprovalGateKind::SalesCommercial,
+                    ApprovalGateStatus::Approved,
+                ),
                 "ok".into(),
-                at,
             ),
             Err(ApprovalSessionError::MakerCheckerViolation)
         );
         value
             .decide(
+                command_id(21),
                 ApprovalGateKind::SalesCommercial,
                 4,
                 ApprovalGateStatus::Approved,
-                "sales-approver".into(),
+                bound_human_decision(
+                    "sales-approver",
+                    command_id(21),
+                    4,
+                    ApprovalGateKind::SalesCommercial,
+                    ApprovalGateStatus::Approved,
+                ),
                 "commercial-ok".into(),
-                at,
             )
             .unwrap();
         assert_eq!(value.status(), ApprovalSessionStatus::Pending);
         assert_eq!(
             value.decide(
+                command_id(22),
                 ApprovalGateKind::FinanceAccountingPlan,
                 4,
                 ApprovalGateStatus::Approved,
-                "sales-approver".into(),
+                bound_human_decision(
+                    "sales-approver",
+                    command_id(22),
+                    4,
+                    ApprovalGateKind::FinanceAccountingPlan,
+                    ApprovalGateStatus::Approved,
+                ),
                 "finance-ok".into(),
-                at,
             ),
             Err(ApprovalSessionError::InvalidDecision)
         );
         value
             .decide(
+                command_id(23),
                 ApprovalGateKind::FinanceAccountingPlan,
                 4,
                 ApprovalGateStatus::Approved,
-                "finance-approver".into(),
+                bound_human_decision(
+                    "finance-approver",
+                    command_id(23),
+                    4,
+                    ApprovalGateKind::FinanceAccountingPlan,
+                    ApprovalGateStatus::Approved,
+                ),
                 "finance-ok".into(),
-                at,
             )
             .unwrap();
         assert_eq!(value.status(), ApprovalSessionStatus::Approved);
+        let finance_gate = value
+            .gates()
+            .get(&ApprovalGateKind::FinanceAccountingPlan)
+            .unwrap();
+        assert_eq!(
+            finance_gate.decision_actor_kind(),
+            Some(ActorKind::HoldingUser)
+        );
+        assert_eq!(
+            finance_gate.human_decision_ref(),
+            Some(
+                approval_session_decision_ref(
+                    command_id(23),
+                    value.id(),
+                    4,
+                    ApprovalGateKind::FinanceAccountingPlan,
+                    ApprovalGateStatus::Approved,
+                )
+                .as_str()
+            )
+        );
+        assert!(finance_gate.decision_session_id().is_some());
     }
 
     #[test]
@@ -488,17 +637,63 @@ mod tests {
         let at = value.created_at();
         assert_eq!(
             value.decide(
+                command_id(24),
                 ApprovalGateKind::SalesCommercial,
                 5,
                 ApprovalGateStatus::Approved,
-                "sales-approver".into(),
+                bound_human_decision(
+                    "sales-approver",
+                    command_id(24),
+                    5,
+                    ApprovalGateKind::SalesCommercial,
+                    ApprovalGateStatus::Approved,
+                ),
                 "ok".into(),
-                at,
             ),
             Err(ApprovalSessionError::InvalidDecision)
         );
         assert!(value.supersede_if_source_changed(5, at).unwrap());
         assert_eq!(value.status(), ApprovalSessionStatus::Superseded);
+    }
+
+    #[test]
+    fn decision_reference_cannot_be_wrong_or_reused_for_another_gate() {
+        let mut value = session();
+        let command_id = command_id(25);
+        let reused = bound_human_decision(
+            "sales-approver",
+            command_id,
+            4,
+            ApprovalGateKind::FinanceAccountingPlan,
+            ApprovalGateStatus::Approved,
+        );
+        assert_eq!(
+            value.decide(
+                command_id,
+                ApprovalGateKind::SalesCommercial,
+                4,
+                ApprovalGateStatus::Approved,
+                reused,
+                "commercial-ok".into(),
+            ),
+            Err(ApprovalSessionError::InvalidDecision)
+        );
+        value
+            .decide(
+                command_id,
+                ApprovalGateKind::SalesCommercial,
+                4,
+                ApprovalGateStatus::Approved,
+                bound_human_decision(
+                    "sales-approver",
+                    command_id,
+                    4,
+                    ApprovalGateKind::SalesCommercial,
+                    ApprovalGateStatus::Approved,
+                ),
+                "commercial-ok".into(),
+            )
+            .unwrap();
     }
 
     #[test]

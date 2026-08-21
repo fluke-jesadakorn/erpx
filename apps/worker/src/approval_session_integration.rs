@@ -10,7 +10,7 @@ use erpx_finance::{AccountingPlanId, PostingPacketId, SalesPostingCommand};
 use erpx_integration_contracts::{
     IntegrationEventEnvelope, RecordRef, finance, operations as contract, sales,
 };
-use erpx_kernel::{AuthorityScope, EventId};
+use erpx_kernel::{ActorAttribution, ActorKind, AuthorityScope, EventId};
 use erpx_operations::{
     ApprovalGateKind, ApprovalGateSpec, ApprovalGateStatus, ApprovalSession,
     ApprovalSessionCommand, ApprovalSessionCommandRequest, ApprovalSessionId,
@@ -143,7 +143,13 @@ fn request_from_fact(
         command_id: event_id.as_uuid(),
         idempotency_key: format!("operations.approval-session:{}", event_id.as_uuid()),
         scope,
-        actor_ref: "system-worker:approval-session-ingress".into(),
+        actor: ActorAttribution {
+            principal_ref: "system-worker:approval-session-ingress".into(),
+            kind: ActorKind::SystemWorker,
+            session_id: None,
+            represented_principal_ref: None,
+            support_capability_id: None,
+        },
         expected_version: 0,
         command: ApprovalSessionCommand::Create {
             session_id,
@@ -342,7 +348,8 @@ pub enum ApprovalIntegrationError {
 mod tests {
     use chrono::{TimeZone, Utc};
     use erpx_integration_contracts::{AggregateKind, ReferenceCode};
-    use erpx_kernel::{AggregateId, CorrelationId};
+    use erpx_kernel::{AggregateId, CorrelationId, HumanDecisionProof, SessionId};
+    use erpx_operations::approval_session_decision_ref;
 
     use super::*;
 
@@ -359,6 +366,32 @@ mod tests {
 
     fn at(second: u32) -> chrono::DateTime<Utc> {
         Utc.with_ymd_and_hms(2026, 8, 18, 10, 0, second).unwrap()
+    }
+
+    fn human_decision(
+        principal_ref: &str,
+        command_id: Uuid,
+        session_id: ApprovalSessionId,
+        subject_version: u64,
+        gate: ApprovalGateKind,
+        outcome: ApprovalGateStatus,
+        decided_at: chrono::DateTime<Utc>,
+    ) -> HumanDecisionProof {
+        HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: principal_ref.into(),
+                kind: ActorKind::HoldingUser,
+                session_id: Some(
+                    SessionId::try_from_uuid(uuid(99)).expect("non-nil human session"),
+                ),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            scope(),
+            approval_session_decision_ref(command_id, session_id, subject_version, gate, outcome),
+            decided_at,
+        )
+        .expect("valid human decision proof")
     }
 
     fn quote_subject() -> RecordRef {
@@ -417,7 +450,11 @@ mod tests {
         else {
             panic!("ingress must create a session")
         };
-        assert_eq!(first.actor_ref, "system-worker:approval-session-ingress");
+        assert_eq!(
+            first.actor.principal_ref,
+            "system-worker:approval-session-ingress"
+        );
+        assert_eq!(first.actor.kind, ActorKind::SystemWorker);
         assert_eq!(requested_by, "sales-maker");
         assert_eq!(subject, &quote_subject());
         assert_eq!(gates.len(), 2);
@@ -451,22 +488,38 @@ mod tests {
         .unwrap();
         approved
             .decide(
+                uuid(12),
                 ApprovalGateKind::SalesCommercial,
                 4,
                 ApprovalGateStatus::Approved,
-                "sales-reviewer".into(),
+                human_decision(
+                    "sales-reviewer",
+                    uuid(12),
+                    ApprovalSessionId::try_from_uuid(uuid(11)).unwrap(),
+                    4,
+                    ApprovalGateKind::SalesCommercial,
+                    ApprovalGateStatus::Approved,
+                    at(1),
+                ),
                 "terms_ok".into(),
-                at(1),
             )
             .unwrap();
         approved
             .decide(
+                uuid(13),
                 ApprovalGateKind::FinanceAccountingPlan,
                 4,
                 ApprovalGateStatus::Approved,
-                "finance-reviewer".into(),
+                human_decision(
+                    "finance-reviewer",
+                    uuid(13),
+                    ApprovalSessionId::try_from_uuid(uuid(11)).unwrap(),
+                    4,
+                    ApprovalGateKind::FinanceAccountingPlan,
+                    ApprovalGateStatus::Approved,
+                    at(2),
+                ),
                 "plan_ok".into(),
-                at(2),
             )
             .unwrap();
         let handoff = owner_handoff(&approved).unwrap().unwrap();
@@ -494,12 +547,20 @@ mod tests {
         .unwrap();
         rejected
             .decide(
+                uuid(22),
                 ApprovalGateKind::SalesCommercial,
                 4,
                 ApprovalGateStatus::Rejected,
-                "sales-reviewer".into(),
+                human_decision(
+                    "sales-reviewer",
+                    uuid(22),
+                    ApprovalSessionId::try_from_uuid(uuid(21)).unwrap(),
+                    4,
+                    ApprovalGateKind::SalesCommercial,
+                    ApprovalGateStatus::Rejected,
+                    at(1),
+                ),
                 "discount_out_of_policy".into(),
-                at(1),
             )
             .unwrap();
         let handoff = owner_handoff(&rejected).unwrap().unwrap();
@@ -537,12 +598,20 @@ mod tests {
         .unwrap();
         session
             .decide(
+                uuid(32),
                 ApprovalGateKind::FinancePosting,
                 2,
                 ApprovalGateStatus::Approved,
-                "finance-reviewer".into(),
+                human_decision(
+                    "finance-reviewer",
+                    uuid(32),
+                    ApprovalSessionId::try_from_uuid(uuid(31)).unwrap(),
+                    2,
+                    ApprovalGateKind::FinancePosting,
+                    ApprovalGateStatus::Approved,
+                    at(1),
+                ),
                 "actuals_match".into(),
-                at(1),
             )
             .unwrap();
         assert!(matches!(

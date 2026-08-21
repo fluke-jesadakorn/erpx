@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use chrono::{DateTime, Duration, Utc};
 use erpx_integration_contracts::RecordVersionRef;
-use erpx_kernel::AuthorityScope;
+use erpx_kernel::{ActorKind, AuthorityScope, HumanDecisionProof};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -154,6 +154,29 @@ pub enum ApprovalOutcome {
     RequestChanges,
 }
 
+/// Stable binding for a human decision over one approval-session gate.
+///
+/// Gate identifiers are hashed so every valid identifier fits inside the
+/// kernel's bounded decision-reference field while remaining bound to its
+/// exact UTF-8 bytes.
+pub fn approval_governance_decision_ref(
+    session_id: Uuid,
+    gate_id: &str,
+    outcome: ApprovalOutcome,
+) -> String {
+    use sha2::{Digest, Sha256};
+
+    let action = match outcome {
+        ApprovalOutcome::Approve => "approve",
+        ApprovalOutcome::Reject => "reject",
+        ApprovalOutcome::RequestChanges => "request-changes",
+    };
+    let gate_sha256 = hex::encode(Sha256::digest(gate_id.as_bytes()));
+    format!(
+        "application.approval-session:target:{session_id}:gate-sha256:{gate_sha256}:action:{action}"
+    )
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ApprovalSessionStatus {
@@ -165,9 +188,9 @@ pub enum ApprovalSessionStatus {
     Expired,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ApprovalAuthorityEvidence {
-    pub principal_ref: String,
+    pub human_decision: HumanDecisionProof,
     pub role: String,
     pub scope: AuthorityScope,
     pub assignment_version: u64,
@@ -196,7 +219,7 @@ impl ApprovalDelegation {
         at: DateTime<Utc>,
     ) -> Result<(), ApprovalError> {
         if self.delegator_ref == self.delegate_ref
-            || self.delegate_ref != authority.principal_ref
+            || self.delegate_ref != authority.human_decision.principal_ref()
             || self.scope != authority.scope
             || self.source_assignment_version == 0
             || self.valid_from > at
@@ -219,6 +242,10 @@ pub struct ApprovalDecision {
     pub reason: String,
     pub authority_version: u64,
     pub authority_sha256: String,
+    #[serde(default)]
+    pub decision_actor_kind: Option<ActorKind>,
+    #[serde(default)]
+    pub human_decision_ref: Option<String>,
     pub evidence_versions: Vec<String>,
     pub decided_at: DateTime<Utc>,
 }
@@ -305,8 +332,13 @@ impl ApprovalSession {
         evidence_versions: Vec<String>,
         authority: ApprovalAuthorityEvidence,
         delegation: Option<&ApprovalDelegation>,
-        at: DateTime<Utc>,
     ) -> Result<Option<OwnerCommandRequest>, ApprovalError> {
+        let at = authority.human_decision.decided_at();
+        if authority.human_decision.decision_ref()
+            != approval_governance_decision_ref(self.session_id, gate_id, outcome)
+        {
+            return Err(ApprovalError::AuthorityDenied);
+        }
         if expected_version != self.version {
             return Err(ApprovalError::VersionConflict {
                 expected: expected_version,
@@ -324,13 +356,15 @@ impl ApprovalSession {
             .iter()
             .find(|gate| gate.gate_id == gate_id)
             .ok_or(ApprovalError::Invalid)?;
-        if authority.scope != self.scope
+        if authority.human_decision.authority_scope() != &self.scope
+            || authority.scope != self.scope
             || authority.assignment_version == 0
             || authority.valid_until <= at
             || authority.role != gate.required_role
             || authority.approval_limit_minor < self.amount_minor
             || !valid_digest(&authority.evidence_sha256)
-            || (gate.requires_maker_checker && authority.principal_ref == self.requester_ref)
+            || (gate.requires_maker_checker
+                && authority.human_decision.principal_ref() == self.requester_ref)
             || (gate.requires_fresh_mfa
                 && authority
                     .fresh_mfa_at
@@ -353,20 +387,26 @@ impl ApprovalSession {
             return Err(ApprovalError::EvidenceUnavailable);
         }
         if self.decisions.iter().any(|decision| {
-            decision.gate_id == gate_id && decision.actor_ref == authority.principal_ref
+            decision.gate_id == gate_id
+                && decision.actor_ref == authority.human_decision.principal_ref()
         }) {
             return Err(ApprovalError::InvalidTransition);
         }
         self.version = self.version.checked_add(1).ok_or(ApprovalError::Invalid)?;
         self.updated_at = at;
+        let actor_ref = authority.human_decision.principal_ref().to_owned();
+        let decision_actor_kind = authority.human_decision.actor().kind;
+        let human_decision_ref = authority.human_decision.decision_ref().to_owned();
         self.decisions.push(ApprovalDecision {
             gate_id: gate_id.into(),
-            actor_ref: authority.principal_ref,
+            actor_ref,
             represented_actor_ref: represented,
             outcome,
             reason,
             authority_version: authority.assignment_version,
             authority_sha256: authority.evidence_sha256,
+            decision_actor_kind: Some(decision_actor_kind),
+            human_decision_ref: Some(human_decision_ref),
             evidence_versions,
             decided_at: at,
         });
@@ -458,7 +498,7 @@ mod tests {
         catalog::ContextId,
         reference::{RecordTypeId, RecordVersionRef},
     };
-    use erpx_kernel::RecordId;
+    use erpx_kernel::{ActorAttribution, ActorKind, RecordId, SessionId};
 
     use super::*;
 
@@ -501,9 +541,28 @@ mod tests {
         .unwrap();
         RecordVersionRef::try_new(record, 7).unwrap()
     }
-    fn authority(principal: &str) -> ApprovalAuthorityEvidence {
+    fn authority(
+        session_id: Uuid,
+        gate_id: &str,
+        outcome: ApprovalOutcome,
+        principal: &str,
+    ) -> ApprovalAuthorityEvidence {
         ApprovalAuthorityEvidence {
-            principal_ref: principal.into(),
+            human_decision: HumanDecisionProof::try_new(
+                ActorAttribution {
+                    principal_ref: principal.into(),
+                    kind: ActorKind::HoldingUser,
+                    session_id: Some(
+                        SessionId::try_from_uuid(Uuid::from_u128(99)).expect("non-nil session"),
+                    ),
+                    represented_principal_ref: None,
+                    support_capability_id: None,
+                },
+                scope(),
+                approval_governance_decision_ref(session_id, gate_id, outcome),
+                at() + Duration::minutes(1),
+            )
+            .unwrap(),
             role: "finance-approver".into(),
             scope: scope(),
             assignment_version: 4,
@@ -516,15 +575,10 @@ mod tests {
 
     #[test]
     fn approval_pins_policy_and_requires_fresh_independent_authority() {
-        let mut session = ApprovalSession::start(
-            Uuid::from_u128(20),
-            source(),
-            &policy(),
-            "maker".into(),
-            5_000,
-            at(),
-        )
-        .unwrap();
+        let session_id = Uuid::from_u128(20);
+        let mut session =
+            ApprovalSession::start(session_id, source(), &policy(), "maker".into(), 5_000, at())
+                .unwrap();
         assert_eq!(
             session.decide(
                 1,
@@ -532,9 +586,13 @@ mod tests {
                 ApprovalOutcome::Approve,
                 "self".into(),
                 vec!["invoice-v7".into()],
-                authority("maker"),
+                authority(
+                    session_id,
+                    "finance-review",
+                    ApprovalOutcome::Approve,
+                    "maker",
+                ),
                 None,
-                at() + Duration::minutes(1),
             ),
             Err(ApprovalError::AuthorityDenied)
         );
@@ -545,28 +603,42 @@ mod tests {
                 ApprovalOutcome::Approve,
                 "within limit".into(),
                 vec!["invoice-v7".into()],
-                authority("checker"),
+                authority(
+                    session_id,
+                    "finance-review",
+                    ApprovalOutcome::Approve,
+                    "checker",
+                ),
                 None,
-                at() + Duration::minutes(1),
             )
             .unwrap()
             .unwrap();
         assert_eq!(session.status, ApprovalSessionStatus::Approved);
+        assert_eq!(
+            session.decisions[0].decision_actor_kind,
+            Some(ActorKind::HoldingUser)
+        );
+        assert_eq!(
+            session.decisions[0].human_decision_ref.as_deref(),
+            Some(
+                approval_governance_decision_ref(
+                    session_id,
+                    "finance-review",
+                    ApprovalOutcome::Approve,
+                )
+                .as_str()
+            )
+        );
         assert_eq!(command.source.version(), 7);
         assert!(command.request_sha256.starts_with("sha256:"));
     }
 
     #[test]
     fn stale_version_and_expired_delegation_fail_closed() {
-        let mut session = ApprovalSession::start(
-            Uuid::from_u128(21),
-            source(),
-            &policy(),
-            "maker".into(),
-            5_000,
-            at(),
-        )
-        .unwrap();
+        let session_id = Uuid::from_u128(21);
+        let mut session =
+            ApprovalSession::start(session_id, source(), &policy(), "maker".into(), 5_000, at())
+                .unwrap();
         assert!(matches!(
             session.decide(
                 99,
@@ -574,9 +646,13 @@ mod tests {
                 ApprovalOutcome::Approve,
                 "stale".into(),
                 vec!["invoice-v7".into()],
-                authority("checker"),
+                authority(
+                    session_id,
+                    "finance-review",
+                    ApprovalOutcome::Approve,
+                    "checker",
+                ),
                 None,
-                at(),
             ),
             Err(ApprovalError::VersionConflict { .. })
         ));
@@ -591,8 +667,74 @@ mod tests {
             reason: "leave coverage".into(),
         };
         assert_eq!(
-            delegation.validate_against(&authority("checker"), at()),
+            delegation.validate_against(
+                &authority(
+                    session_id,
+                    "finance-review",
+                    ApprovalOutcome::Approve,
+                    "checker",
+                ),
+                at()
+            ),
             Err(ApprovalError::AuthorityDenied)
         );
+    }
+
+    #[test]
+    fn decision_reference_cannot_be_reused_for_another_session_gate_or_outcome() {
+        let session_id = Uuid::from_u128(22);
+        let mut session =
+            ApprovalSession::start(session_id, source(), &policy(), "maker".into(), 5_000, at())
+                .unwrap();
+        let proof = authority(
+            session_id,
+            "finance-review",
+            ApprovalOutcome::Approve,
+            "checker",
+        );
+
+        for (gate_id, outcome) in [
+            ("controller-review", ApprovalOutcome::Approve),
+            ("finance-review", ApprovalOutcome::Reject),
+        ] {
+            assert_eq!(
+                session.decide(
+                    1,
+                    gate_id,
+                    outcome,
+                    "not the bound decision".into(),
+                    vec!["invoice-v7".into()],
+                    proof.clone(),
+                    None,
+                ),
+                Err(ApprovalError::AuthorityDenied)
+            );
+            assert_eq!(session.version, 1);
+            assert!(session.decisions.is_empty());
+        }
+
+        let mut another_session = ApprovalSession::start(
+            Uuid::from_u128(23),
+            source(),
+            &policy(),
+            "maker".into(),
+            5_000,
+            at(),
+        )
+        .unwrap();
+        assert_eq!(
+            another_session.decide(
+                1,
+                "finance-review",
+                ApprovalOutcome::Approve,
+                "not the bound session".into(),
+                vec!["invoice-v7".into()],
+                proof,
+                None,
+            ),
+            Err(ApprovalError::AuthorityDenied)
+        );
+        assert_eq!(another_session.version, 1);
+        assert!(another_session.decisions.is_empty());
     }
 }

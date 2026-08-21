@@ -860,6 +860,35 @@ fn g14_generated_descriptor_is_self_consistent_and_g14_fields_are_wire_stable() 
         );
     }
 
+    let interface_scope = inventory
+        .messages
+        .get("erpx.interface.AuthorityScope")
+        .expect("typed reference authority scope must be generated");
+    for (number, name) in [
+        (2, "level"),
+        (3, "holding_id"),
+        (4, "company_id"),
+        (5, "branch_id"),
+        (6, "organization_node_id"),
+    ] {
+        assert_eq!(
+            interface_scope
+                .fields
+                .get(&number)
+                .map(|field| field.name.as_str()),
+            Some(name),
+            "reference authority-scope field number changed for {name}"
+        );
+    }
+    let scope_levels = inventory
+        .enums
+        .get("erpx.interface.AuthorityScopeLevel")
+        .expect("typed reference authority-scope levels must be generated");
+    assert_eq!(
+        scope_levels.values.get(&5).map(String::as_str),
+        Some("AUTHORITY_SCOPE_LEVEL_SUBTREE")
+    );
+
     let reference_service = inventory
         .services
         .get("erpx.reference.ReferenceQueryService")

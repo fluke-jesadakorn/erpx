@@ -25,13 +25,17 @@ pub use domain::{
     PrincipalKind, ProposedActionStatus, ProviderInvocationEvidence, ProviderInvocationId,
     ProviderInvocationOutcome, ProviderPolicy, ProviderPolicyDecision, ProviderPolicyId,
     RootInvocation, SessionContext, SessionMessage, SessionMessageId, UsageReconciliation,
+    agent_version_approval_decision_ref,
 };
 pub use experience_application::{
     AgentExperienceService, AppendPrivateSessionMessage, ComparePoolSelection,
     ExpirePrivateSession, PublishPrivateSessionMessage, RegisterAgentPool, ReplaceAgentPoolMembers,
     RouteAgentPool, SetPrivateSessionLegalHold, StartPrivateSession,
 };
-pub use governance::{AgentGovernanceRecord, AgentGovernanceRecordKind, AgentGovernanceStatus};
+pub use governance::{
+    AgentGovernanceRecord, AgentGovernanceRecordKind, AgentGovernanceStatus,
+    agent_governance_approval_decision_ref,
+};
 pub use ports::{
     AgentAuthorizationPort, AgentDefinitionRepository, AgentExperienceQueryPort,
     AgentExperienceRepository, AgentExperienceUnitOfWork, AgentGovernanceQueryPort,
@@ -47,7 +51,7 @@ pub use ports::{
 pub use suggestion::{
     SUGGESTION_SCHEMA_VERSION, SuggestionCapability, SuggestionEnvelope, SuggestionError,
     SuggestionId, SuggestionOwner, SuggestionProvenance, SuggestionProviderKind, SuggestionSource,
-    SuggestionStatus,
+    SuggestionStatus, suggestion_apply_decision_ref,
 };
 pub use suggestion_application::{
     SuggestionApplicationError, SuggestionAuthorizationPort, SuggestionCommand,

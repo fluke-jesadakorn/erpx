@@ -17,15 +17,17 @@ pub use application::{
 pub use domain::{
     DirectoryVisibility, OrganizationDomainError, OrganizationNode, OrganizationNodeId,
     OrganizationNodeKind, OrganizationNodeState, OrganizationNodeStatus, OrganizationPlacement,
-    OrganizationSharingAgreement, ProposeSharingAgreement, SharingAgreementId, SharingCapability,
-    SharingDirection, SharingMutation, SharingStatus, can_discover_across_hierarchy,
+    OrganizationSharingAgreement, ProposeSharingAgreement, SharingAgreementId, SharingApprovalSide,
+    SharingCapability, SharingDirection, SharingMutation, SharingStatus,
+    can_discover_across_hierarchy, sharing_approval_decision_ref,
 };
 pub use ports::{
     AuthorizationPort, CommandFingerprint, CommandIdentity, CommandUnitOfWork, EntitlementPort,
     HierarchyGuard, HierarchyPort, NodeList, NodeListFilter, NodeView, OrganizationAction,
-    OrganizationCommit, PortError, ReadProjection, ReadRepository, SharingAction,
-    SharingAgreementList, SharingAuthorizationPort, SharingAuthorizationRequest,
-    SharingCommandIdentity, SharingCommandPayload, SharingCommandRequest, SharingCommandUnitOfWork,
-    SharingCommit, SharingListFilter, SharingReadRepository, SharingWriteRepository, StoredCommit,
-    StoredSharingCommit, WriteRepository,
+    OrganizationCommit, PlacementScopeContainment, PortError, ReadProjection, ReadRepository,
+    ScopeContainmentPort, SharingAction, SharingAgreementList, SharingAuthorizationPort,
+    SharingAuthorizationRequest, SharingCommandIdentity, SharingCommandPayload,
+    SharingCommandRequest, SharingCommandUnitOfWork, SharingCommit, SharingListFilter,
+    SharingReadRepository, SharingWriteRepository, StoredCommit, StoredSharingCommit,
+    WriteRepository,
 };

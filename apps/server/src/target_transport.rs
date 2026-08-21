@@ -31,8 +31,8 @@ use erpx_infrastructure::{
     HoldingDataRouteScope, ReadinessState, RoutedDatabaseSide, SqlxHoldingAdministrationStore,
 };
 use erpx_kernel::{
-    AuthorityScope, CommandId, CorrelationId, DataClassification, HoldingId, PolicyId, PrincipalId,
-    PrincipalKind, RecordId,
+    ActorAttribution, AuthorityScope, CommandId, CorrelationId, DataClassification, HoldingId,
+    HumanDecisionProof, PolicyId, PrincipalId, PrincipalKind, RecordId, SessionId,
 };
 use erpx_proto::erpx::{
     collaboration::{
@@ -612,6 +612,7 @@ impl CollaborationCommandService for CollaborationCommandRpc {
                 state: ActionCardState::Proposed,
                 proposed_by: runtime.actor.principal,
                 confirmed_by: None,
+                confirmation: None,
                 created_at: Utc::now(),
                 expires_at: timestamp(&input.expires_at, "expires_at")?,
             },
@@ -629,14 +630,17 @@ impl CollaborationCommandService for CollaborationCommandRpc {
             &self.state,
             &claims,
             required(input.metadata.as_ref(), "metadata")?,
-            [CollaborationAction::ProposeAction],
+            [CollaborationAction::ConfirmAction],
         )
         .await?;
+        let decided_at = Utc::now();
+        let decision =
+            confirmation_decision(&runtime.actor, runtime.identity.command_id, decided_at)?;
         let mutation = ThreadMutation::ConfirmActionCard {
             card_id: action_card_id(&input.action_card_id)?,
-            confirmer: runtime.actor.principal,
+            decision,
         };
-        mutate(runtime, &input.thread_id, mutation).await
+        mutate_at(runtime, &input.thread_id, mutation, decided_at).await
     }
 }
 
@@ -977,6 +981,15 @@ async fn mutate(
     raw_thread_id: &str,
     mutation: ThreadMutation,
 ) -> Result<Response<MutationReceipt>, Status> {
+    mutate_at(runtime, raw_thread_id, mutation, Utc::now()).await
+}
+
+async fn mutate_at(
+    runtime: CollaborationCommandRuntime,
+    raw_thread_id: &str,
+    mutation: ThreadMutation,
+    at: DateTime<Utc>,
+) -> Result<Response<MutationReceipt>, Status> {
     let expected_version = runtime
         .expected_version
         .filter(|value| *value > 0)
@@ -990,7 +1003,7 @@ async fn mutate(
                 thread_id: thread_id(raw_thread_id)?,
                 expected_version,
                 mutation,
-                at: Utc::now(),
+                at,
             },
         )
         .await
@@ -1070,7 +1083,40 @@ fn collaboration_actor(
         holding_id: authorized.holding_id,
         principal: CollaborationPrincipalRef::new(authorized.principal_id, principal_kind),
         authority_scope: authorized.active_scope.clone(),
+        attribution: collaboration_attribution(claims)?,
         external_portal,
+    })
+}
+
+fn collaboration_attribution(
+    claims: &erpx_identity::AccessTokenClaims,
+) -> Result<ActorAttribution, Status> {
+    let session_id = SessionId::try_from_uuid(claims.session_id)
+        .map_err(|_| Status::permission_denied("authenticated session is invalid"))?;
+    Ok(ActorAttribution {
+        principal_ref: claims.principal_ref.clone(),
+        kind: crate::auth_actor::kernel_actor_kind(claims),
+        session_id: Some(session_id),
+        represented_principal_ref: None,
+        support_capability_id: None,
+    })
+}
+
+fn confirmation_decision(
+    actor: &ActorContext,
+    command_id: CommandId,
+    decided_at: DateTime<Utc>,
+) -> Result<HumanDecisionProof, Status> {
+    HumanDecisionProof::try_new(
+        actor.attribution.clone(),
+        actor.authority_scope.clone(),
+        command_id.to_string(),
+        decided_at,
+    )
+    .map_err(|_| {
+        Status::permission_denied(
+            "action-card confirmation requires the authenticated human caller",
+        )
     })
 }
 
@@ -1160,7 +1206,7 @@ async fn authorize_known_holding_request(
     let principal_id = principal_id(&claims.principal_ref)?;
     state
         .auth
-        .authorize_role_for_holding(
+        .authorize_role_for_holding_with_exact_subtree(
             &state.store,
             claims,
             &domain_scope,
@@ -1391,12 +1437,14 @@ fn scope_to_proto(
             holding_id: None,
             company_id: None,
             branch_id: None,
+            organization_node_id: None,
         },
         AuthorityScope::Holding { holding_id } => InterfaceAuthorityScope {
             level: AuthorityScopeLevel::Holding as i32,
             holding_id: Some(holding_id.to_string()),
             company_id: None,
             branch_id: None,
+            organization_node_id: None,
         },
         AuthorityScope::Company {
             holding_id,
@@ -1406,6 +1454,7 @@ fn scope_to_proto(
             holding_id: Some(holding_id.to_string()),
             company_id: Some(company_id.to_string()),
             branch_id: None,
+            organization_node_id: None,
         },
         AuthorityScope::Branch {
             holding_id,
@@ -1416,12 +1465,18 @@ fn scope_to_proto(
             holding_id: Some(holding_id.to_string()),
             company_id: Some(company_id.to_string()),
             branch_id: Some(branch_id.to_string()),
+            organization_node_id: None,
         },
-        AuthorityScope::Subtree { .. } => {
-            return Err(Status::unavailable(
-                "subtree directory scope is not representable by the current wire contract",
-            ));
-        }
+        AuthorityScope::Subtree {
+            holding_id,
+            organization_node_id,
+        } => InterfaceAuthorityScope {
+            level: AuthorityScopeLevel::Subtree as i32,
+            holding_id: Some(holding_id.to_string()),
+            company_id: None,
+            branch_id: None,
+            organization_node_id: Some(organization_node_id.to_string()),
+        },
     })
 }
 
@@ -1724,6 +1779,9 @@ fn map_collaboration_error(value: CollaborationApplicationError) -> Status {
     match value {
         CollaborationApplicationError::Neutral => Status::not_found("thread unavailable"),
         CollaborationApplicationError::Conflict => Status::aborted("thread version conflict"),
+        CollaborationApplicationError::HumanDecisionDenied => {
+            Status::permission_denied("authenticated human decision is required")
+        }
         CollaborationApplicationError::Unavailable
         | CollaborationApplicationError::Stale
         | CollaborationApplicationError::Internal => {
@@ -1871,6 +1929,13 @@ fn authority_scope(value: Option<&InterfaceAuthorityScope>) -> Result<(String, S
             company_id: parse(value.company_id.as_ref(), "company_id")?,
             branch_id: parse(value.branch_id.as_ref(), "branch_id")?,
         },
+        AuthorityScopeLevel::Subtree => Scope::Subtree {
+            holding_id: parse(value.holding_id.as_ref(), "holding_id")?,
+            organization_node_id: parse(
+                value.organization_node_id.as_ref(),
+                "organization_node_id",
+            )?,
+        },
         AuthorityScopeLevel::Unspecified => {
             return Err(Status::invalid_argument(
                 "authority scope level is required",
@@ -1962,6 +2027,17 @@ mod tests {
             holding_id: Some(Uuid::new_v4().to_string()),
             company_id: Some(Uuid::new_v4().to_string()),
             branch_id: Some(Uuid::new_v4().to_string()),
+            organization_node_id: None,
+        }
+    }
+
+    fn subtree_scope(holding_id: Uuid, organization_node_id: Uuid) -> InterfaceAuthorityScope {
+        InterfaceAuthorityScope {
+            level: AuthorityScopeLevel::Subtree as i32,
+            holding_id: Some(holding_id.to_string()),
+            company_id: None,
+            branch_id: None,
+            organization_node_id: Some(organization_node_id.to_string()),
         }
     }
 
@@ -1995,6 +2071,39 @@ mod tests {
         invalid = branch_scope();
         invalid.holding_id = None;
         assert!(authority_scope(Some(&invalid)).is_err());
+    }
+
+    #[test]
+    fn subtree_scope_round_trips_and_requires_an_organization_node() {
+        let holding_id = Uuid::new_v4();
+        let organization_node_id = Uuid::new_v4();
+        let wire = subtree_scope(holding_id, organization_node_id);
+
+        let (decoded_holding, decoded_scope) =
+            authority_scope(Some(&wire)).expect("subtree scope decodes");
+        assert_eq!(decoded_holding, holding_id.to_string());
+        assert_eq!(
+            decoded_scope,
+            Scope::Subtree {
+                holding_id,
+                organization_node_id,
+            }
+        );
+        assert_eq!(
+            scope_to_proto(
+                &AuthorityScope::Subtree {
+                    holding_id,
+                    organization_node_id,
+                },
+                &holding_id.to_string(),
+            )
+            .expect("subtree scope is representable"),
+            wire
+        );
+
+        let mut missing_node = subtree_scope(holding_id, organization_node_id);
+        missing_node.organization_node_id = None;
+        assert!(authority_scope(Some(&missing_node)).is_err());
     }
 
     #[test]
@@ -2108,5 +2217,51 @@ mod tests {
             AuthenticatedPrincipalKind::Service,
         );
         assert!(collaboration_identity(&service).is_err());
+    }
+
+    #[test]
+    fn action_card_confirmation_proof_comes_from_authenticated_human_claims() {
+        let human_claims = claims(
+            AuthenticatedRealm::InternalWorkforce,
+            AuthenticatedPrincipalKind::Human,
+        );
+        let holding_id = HoldingId::try_from_uuid(Uuid::new_v4()).unwrap();
+        let scope = AuthorityScope::Holding {
+            holding_id: holding_id.as_uuid(),
+        };
+        let principal_id =
+            PrincipalId::try_from_uuid(Uuid::parse_str(&human_claims.principal_ref).unwrap())
+                .unwrap();
+        let human = ActorContext {
+            holding_id,
+            principal: CollaborationPrincipalRef::new(principal_id, PrincipalKind::Human),
+            authority_scope: scope.clone(),
+            attribution: collaboration_attribution(&human_claims).unwrap(),
+            external_portal: None,
+        };
+        let command_id = CommandId::try_from_uuid(Uuid::new_v4()).unwrap();
+        let decided_at = Utc::now();
+        let proof = confirmation_decision(&human, command_id, decided_at).unwrap();
+        assert_eq!(proof.actor(), &human.attribution);
+        assert_eq!(proof.authority_scope(), &scope);
+        assert_eq!(proof.decision_ref(), command_id.to_string());
+        assert_eq!(proof.decided_at(), decided_at);
+
+        for (principal_kind, actor_kind) in [
+            (PrincipalKind::Agent, erpx_kernel::ActorKind::Agent),
+            (PrincipalKind::Service, erpx_kernel::ActorKind::Service),
+            (PrincipalKind::Service, erpx_kernel::ActorKind::SystemWorker),
+        ] {
+            let mut non_human = human.clone();
+            non_human.principal = CollaborationPrincipalRef::new(principal_id, principal_kind);
+            non_human.attribution.kind = actor_kind;
+            assert!(non_human.validate().is_ok());
+            let error = confirmation_decision(&non_human, command_id, decided_at).unwrap_err();
+            assert_eq!(error.code(), tonic::Code::PermissionDenied);
+        }
+        assert_eq!(
+            map_collaboration_error(CollaborationApplicationError::HumanDecisionDenied).code(),
+            tonic::Code::PermissionDenied
+        );
     }
 }

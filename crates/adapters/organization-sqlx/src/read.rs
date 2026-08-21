@@ -15,7 +15,7 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
-    PROJECTION_NAME, node_partition,
+    PROJECTION_NAME, canonical_node_scope, node_partition,
     projection::{kind_name, status_name},
 };
 
@@ -150,7 +150,14 @@ impl ReadRepository for OrganizationReadRepository {
              WHERE projection.projection_name = $1
                AND projection.node_id = $2 AND projection.partition_key = $3
                AND ($4 OR projection.scope_key = ANY($5::text[])
-                       OR projection.scope_key LIKE ANY($6::text[]))",
+                       OR projection.scope_key LIKE ANY($6::text[])
+                       OR ($7::uuid IS NOT NULL AND (
+                           projection.node_id = $7
+                           OR projection.placement ->> 'holding_id' = $7::text
+                           OR projection.placement ->> 'company_id' = $7::text
+                           OR projection.placement ->> 'branch_id' = $7::text
+                           OR projection.placement ->> 'department_id' = $7::text
+                       )))",
         )
         .bind(PROJECTION_NAME)
         .bind(node_id.as_uuid())
@@ -158,6 +165,7 @@ impl ReadRepository for OrganizationReadRepository {
         .bind(filter.platform)
         .bind(&filter.exact)
         .bind(&filter.prefixes)
+        .bind(filter.subtree_node_id)
         .fetch_optional(
             &mut *self
                 .pool
@@ -168,10 +176,12 @@ impl ReadRepository for OrganizationReadRepository {
         .await
         .map_err(|_| PortError::Unavailable)?;
         let view = row.map(decode_view).transpose()?;
-        if view
-            .as_ref()
-            .is_some_and(|view| !authority_scope.contains(&view.scope))
-        {
+        if view.as_ref().is_some_and(|view| {
+            !view
+                .placement
+                .is_within_scope(view.node_id, authority_scope)
+                .unwrap_or(false)
+        }) {
             return Err(PortError::Internal);
         }
         Ok(ReadProjection {
@@ -204,19 +214,27 @@ impl ReadRepository for OrganizationReadRepository {
               AND generation.status = 'active'
              WHERE projection.projection_name = $1
                AND ($2 OR projection.scope_key = ANY($3::text[])
-                       OR projection.scope_key LIKE ANY($4::text[]))
-               AND ($5::text IS NULL OR projection.node_kind = $5)
-               AND ($6::text IS NULL OR projection.node_status = $6)
-               AND ($7::uuid IS NULL OR projection.parent_node_id = $7)
-               AND ($8::timestamptz IS NULL OR
-                    (projection.aggregate_updated_at, projection.node_id) < ($8, $9))
+                       OR projection.scope_key LIKE ANY($4::text[])
+                       OR ($5::uuid IS NOT NULL AND (
+                           projection.node_id = $5
+                           OR projection.placement ->> 'holding_id' = $5::text
+                           OR projection.placement ->> 'company_id' = $5::text
+                           OR projection.placement ->> 'branch_id' = $5::text
+                           OR projection.placement ->> 'department_id' = $5::text
+                       )))
+               AND ($6::text IS NULL OR projection.node_kind = $6)
+               AND ($7::text IS NULL OR projection.node_status = $7)
+               AND ($8::uuid IS NULL OR projection.parent_node_id = $8)
+               AND ($9::timestamptz IS NULL OR
+                    (projection.aggregate_updated_at, projection.node_id) < ($9, $10))
              ORDER BY projection.aggregate_updated_at DESC, projection.node_id DESC
-             LIMIT $10",
+             LIMIT $11",
         )
         .bind(PROJECTION_NAME)
         .bind(scope.platform)
         .bind(&scope.exact)
         .bind(&scope.prefixes)
+        .bind(scope.subtree_node_id)
         .bind(kind)
         .bind(status)
         .bind(parent_id)
@@ -236,10 +254,12 @@ impl ReadRepository for OrganizationReadRepository {
             .into_iter()
             .map(decode_view)
             .collect::<Result<Vec<_>, _>>()?;
-        if nodes
-            .iter()
-            .any(|view| !authority_scope.contains(&view.scope))
-        {
+        if nodes.iter().any(|view| {
+            !view
+                .placement
+                .is_within_scope(view.node_id, authority_scope)
+                .unwrap_or(false)
+        }) {
             return Err(PortError::Internal);
         }
         let next_cursor = if nodes.len() > usize::from(filter.page_size) {
@@ -262,6 +282,7 @@ struct ScopeFilter {
     platform: bool,
     exact: Vec<String>,
     prefixes: Vec<String>,
+    subtree_node_id: Option<Uuid>,
 }
 
 impl ScopeFilter {
@@ -272,6 +293,7 @@ impl ScopeFilter {
                 platform: true,
                 exact: Vec::new(),
                 prefixes: Vec::new(),
+                subtree_node_id: None,
             },
             AuthorityScope::Holding { holding_id } => {
                 let key = format!("h:{holding_id}");
@@ -279,6 +301,7 @@ impl ScopeFilter {
                     platform: false,
                     exact: vec![key.clone()],
                     prefixes: vec![format!("{key}/%")],
+                    subtree_node_id: None,
                 }
             }
             AuthorityScope::Company {
@@ -290,26 +313,56 @@ impl ScopeFilter {
                     platform: false,
                     exact: vec![key.clone()],
                     prefixes: vec![format!("{key}/%")],
+                    subtree_node_id: None,
                 }
             }
             AuthorityScope::Branch {
                 holding_id,
                 company_id,
                 branch_id,
-            } => Self {
-                platform: false,
-                exact: vec![format!("h:{holding_id}/c:{company_id}/b:{branch_id}")],
-                prefixes: Vec::new(),
-            },
+            } => {
+                let key = format!("h:{holding_id}/c:{company_id}/b:{branch_id}");
+                Self {
+                    platform: false,
+                    exact: vec![key.clone()],
+                    prefixes: vec![format!("{key}/%")],
+                    subtree_node_id: None,
+                }
+            }
             AuthorityScope::Subtree {
                 holding_id,
                 organization_node_id,
             } => {
-                let root = format!("h:{holding_id}/c:{organization_node_id}");
+                let holding = format!("h:{holding_id}");
+                let mut exact = Vec::new();
+                let mut prefixes = Vec::new();
+                if holding_id == organization_node_id {
+                    exact.push(holding.clone());
+                    prefixes.push(format!("{holding}/%"));
+                } else {
+                    // The exact node kind is intentionally resolved from the
+                    // projected hierarchy rather than inferred from an opaque
+                    // UUID. Every candidate is followed by a structural
+                    // placement post-check before a row can leave the adapter.
+                    let candidates = [
+                        format!("{holding}/c:{organization_node_id}"),
+                        format!("{holding}/c:%/hq:{organization_node_id}"),
+                        format!("{holding}/c:%/b:{organization_node_id}"),
+                        format!("{holding}/c:%/d:{organization_node_id}"),
+                        format!("{holding}/c:%/b:%/d:{organization_node_id}"),
+                        format!("{holding}/c:%/d:%/t:{organization_node_id}"),
+                        format!("{holding}/c:%/b:%/d:%/t:{organization_node_id}"),
+                    ];
+                    for candidate in candidates {
+                        prefixes.push(candidate.clone());
+                        prefixes.push(format!("{candidate}/%"));
+                    }
+                }
                 Self {
                     platform: false,
-                    exact: vec![root.clone()],
-                    prefixes: vec![format!("{root}/%")],
+                    exact,
+                    prefixes,
+                    subtree_node_id: Some(*organization_node_id),
                 }
             }
         })
@@ -339,7 +392,22 @@ pub fn decode_cursor(value: &str) -> Result<(DateTime<Utc>, OrganizationNodeId),
 
 fn decode_view(row: sqlx::postgres::PgRow) -> Result<NodeView, PortError> {
     let value: serde_json::Value = row.try_get("state").map_err(|_| PortError::Internal)?;
-    serde_json::from_value(value).map_err(|_| PortError::Internal)
+    let view: NodeView = serde_json::from_value(value).map_err(|_| PortError::Internal)?;
+    normalize_view(view)
+}
+
+fn normalize_view(mut view: NodeView) -> Result<NodeView, PortError> {
+    if view.kind != view.placement.kind()
+        || view.parent_id != view.placement.parent_id(view.node_id)
+    {
+        return Err(PortError::Internal);
+    }
+    // Disposable rows written before node-root scopes retain the legacy
+    // company/branch witness. The typed placement is the stable source for a
+    // deterministic read upcast until the generation is rebuilt.
+    view.scope = canonical_node_scope(&view.placement, view.node_id, &view.scope)
+        .map_err(|_| PortError::Internal)?;
+    Ok(view)
 }
 
 fn map_read_error(error: CqrsSqlxError) -> PortError {
@@ -352,6 +420,7 @@ fn map_read_error(error: CqrsSqlxError) -> PortError {
 #[cfg(test)]
 mod tests {
     use chrono::TimeZone;
+    use erpx_organization::{OrganizationNode, OrganizationPlacement};
 
     use super::*;
 
@@ -375,21 +444,81 @@ mod tests {
     }
 
     #[test]
-    fn subtree_filter_preserves_kernel_containment_semantics() {
-        let companies_only = ScopeFilter::from_scope(&AuthorityScope::Subtree {
+    fn subtree_filter_covers_every_typed_hierarchy_position() {
+        let company = ScopeFilter::from_scope(&AuthorityScope::Subtree {
             holding_id: Uuid::from_u128(1),
             organization_node_id: Uuid::from_u128(2),
         })
         .unwrap();
-        assert_eq!(companies_only.exact.len(), 1);
-        assert!(companies_only.exact[0].contains("/c:"));
+        assert!(company.exact.is_empty());
+        assert!(company.prefixes.iter().any(|value| value
+            == "h:00000000-0000-0000-0000-000000000001/c:00000000-0000-0000-0000-000000000002"));
+        assert!(
+            company
+                .prefixes
+                .iter()
+                .any(|value| value.contains("/b:%/d:"))
+        );
+        assert!(company.prefixes.iter().any(|value| value.contains("/t:")));
+        assert_eq!(company.subtree_node_id, Some(Uuid::from_u128(2)));
 
-        let branches = ScopeFilter::from_scope(&AuthorityScope::Subtree {
+        let holding = ScopeFilter::from_scope(&AuthorityScope::Subtree {
             holding_id: Uuid::from_u128(1),
-            organization_node_id: Uuid::from_u128(3),
+            organization_node_id: Uuid::from_u128(1),
         })
         .unwrap();
-        assert!(branches.exact[0].contains("/c:"));
-        assert_eq!(branches.prefixes.len(), 1);
+        assert_eq!(
+            holding.exact,
+            vec!["h:00000000-0000-0000-0000-000000000001"]
+        );
+        assert_eq!(holding.prefixes.len(), 1);
+        assert_eq!(holding.subtree_node_id, Some(Uuid::from_u128(1)));
+    }
+
+    #[test]
+    fn legacy_projection_view_is_upcast_without_changing_placement() {
+        let node = OrganizationNode::create(
+            OrganizationNodeId::try_from_uuid(Uuid::from_u128(4)).unwrap(),
+            OrganizationPlacement::Department {
+                holding_id: Uuid::from_u128(1),
+                company_id: Uuid::from_u128(2),
+                branch_id: Some(Uuid::from_u128(3)),
+            },
+            "OPS".into(),
+            "Operations".into(),
+            Utc.with_ymd_and_hms(2026, 8, 5, 14, 30, 0)
+                .single()
+                .unwrap(),
+        )
+        .unwrap();
+        let mut legacy = NodeView::from(&node);
+        legacy.scope = AuthorityScope::Branch {
+            holding_id: Uuid::from_u128(1),
+            company_id: Uuid::from_u128(2),
+            branch_id: Uuid::from_u128(3),
+        };
+
+        let normalized = normalize_view(legacy.clone()).unwrap();
+        assert_eq!(
+            normalized.scope,
+            AuthorityScope::Subtree {
+                holding_id: Uuid::from_u128(1),
+                organization_node_id: Uuid::from_u128(4),
+            }
+        );
+        assert_eq!(
+            normalized.parent_id,
+            Some(OrganizationNodeId::try_from_uuid(Uuid::from_u128(3)).unwrap())
+        );
+
+        let mut contradictory = normalized;
+        contradictory.kind = erpx_organization::OrganizationNodeKind::Team;
+        assert_eq!(normalize_view(contradictory), Err(PortError::Internal));
+
+        legacy.scope = AuthorityScope::Company {
+            holding_id: Uuid::from_u128(1),
+            company_id: Uuid::from_u128(99),
+        };
+        assert_eq!(normalize_view(legacy), Err(PortError::Internal));
     }
 }

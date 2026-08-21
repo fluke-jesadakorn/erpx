@@ -10,7 +10,7 @@ use erpx_cqrs::{
 use erpx_integration_contracts::{DimensionSet, crm, legal, sales};
 use erpx_kernel::{
     ActorAttribution, AuthorityScope, Clock, CorrelationId, ErrorCategory, ErrorContext,
-    KernelError,
+    HumanDecisionProof, KernelError,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -202,6 +202,8 @@ pub enum SalesApplicationError {
     InvalidPageSize,
     #[error("Sales integration event mapping failed")]
     IntegrationMapping,
+    #[error("quote or sales-order decision requires an authenticated human")]
+    HumanDecisionDenied,
     #[error(transparent)]
     Port(#[from] PortError),
 }
@@ -537,6 +539,30 @@ where
             idempotency_key: envelope.idempotency_key,
             fingerprint,
         };
+        let decision_at = matches!(
+            &execution,
+            Execution::MutateQuote {
+                mutation: QuoteMutation::Accept | QuoteMutation::Reject,
+                ..
+            } | Execution::MutateOrder {
+                mutation: OrderMutation::Confirm,
+                ..
+            }
+        )
+        .then(|| self.clock.now());
+        let human_decision = if let Some(decided_at) = decision_at {
+            Some(
+                HumanDecisionProof::try_new(
+                    envelope.actor.clone(),
+                    envelope.active_scope.clone(),
+                    envelope.command_id.to_string(),
+                    decided_at,
+                )
+                .map_err(|_| to_cqrs(SalesApplicationError::HumanDecisionDenied, correlation_id))?,
+            )
+        } else {
+            None
+        };
         if let Some(stored) = self
             .replay(&identity, &envelope.actor, &envelope.active_scope, action)
             .await
@@ -546,7 +572,7 @@ where
             return Ok(stored.into_receipt(response));
         }
 
-        let now = self.clock.now();
+        let now = decision_at.unwrap_or_else(|| self.clock.now());
         let (mut aggregate, expected_version) = match execution {
             Execution::CreateQuote(command) => {
                 if envelope.expected_aggregate_version.is_some() {
@@ -593,8 +619,24 @@ where
                     .map_err(|error| to_cqrs(error, correlation_id))?;
                 match mutation {
                     QuoteMutation::Send => quote.send(now),
-                    QuoteMutation::Accept => quote.accept(now),
-                    QuoteMutation::Reject => quote.reject(now),
+                    QuoteMutation::Accept => {
+                        let Some(decision) = human_decision.as_ref() else {
+                            return Err(to_cqrs(
+                                SalesApplicationError::HumanDecisionDenied,
+                                correlation_id,
+                            ));
+                        };
+                        quote.accept(decision, identity.command_id, now)
+                    }
+                    QuoteMutation::Reject => {
+                        let Some(decision) = human_decision.as_ref() else {
+                            return Err(to_cqrs(
+                                SalesApplicationError::HumanDecisionDenied,
+                                correlation_id,
+                            ));
+                        };
+                        quote.reject(decision, identity.command_id, now)
+                    }
                     QuoteMutation::Expire => quote.expire(now),
                 }
                 .map_err(|error| to_cqrs(error.into(), correlation_id))?;
@@ -656,7 +698,15 @@ where
                 let expected = Self::expected(envelope.expected_aggregate_version, order.version())
                     .map_err(|error| to_cqrs(error, correlation_id))?;
                 match mutation {
-                    OrderMutation::Confirm => order.confirm(now),
+                    OrderMutation::Confirm => {
+                        let Some(decision) = human_decision.as_ref() else {
+                            return Err(to_cqrs(
+                                SalesApplicationError::HumanDecisionDenied,
+                                correlation_id,
+                            ));
+                        };
+                        order.confirm(decision, identity.command_id, now)
+                    }
                     OrderMutation::PartiallyFulfill => order.mark_partially_fulfilled(now),
                     OrderMutation::Fulfill => order.mark_fulfilled(now),
                     OrderMutation::Cancel => order.cancel(now),
@@ -990,6 +1040,7 @@ fn to_cqrs(error: SalesApplicationError, correlation_id: CorrelationId) -> CqrsE
             false,
         ),
         SalesApplicationError::ScopeOutsideAuthority
+        | SalesApplicationError::HumanDecisionDenied
         | SalesApplicationError::Port(PortError::Denied)
         | SalesApplicationError::Port(PortError::EntitlementDenied) => (
             "sales.denied",

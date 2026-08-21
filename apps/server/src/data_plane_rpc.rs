@@ -35,9 +35,11 @@ use erpx_infrastructure::{
     ApprovedDesiredConfiguration, CorporateIdentityHistoryEntry, CorporateIdentityRollback,
     DataPlaneEnrollmentConsumption, DataPlaneEnrollmentIssue, PersistenceError, RootAccessGrant,
     RootAccessQueueRecord, SqlxCorporateIdentityStore, SqlxDataPlaneControlStore,
-    SqlxHoldingAdministrationStore,
+    SqlxHoldingAdministrationStore, desired_configuration_decision_ref,
+    root_access_decision_ref,
 };
 use erpx_integration_contracts::catalog::{WORKSPACES, WorkspaceId};
+use erpx_kernel::{ActorAttribution as KernelActorAttribution, HumanDecisionProof, SessionId};
 use erpx_proto::erpx::platform_administration as target;
 use erpx_proto::erpx::platform_administration::data_plane_agent::data_plane_agent_service_server::{
     DataPlaneAgentService, DataPlaneAgentServiceServer,
@@ -72,6 +74,44 @@ use crate::{
 
 const MAX_AGENT_MESSAGE_BYTES: usize = 1024 * 1024;
 const MAX_CONFIGURATION_JSON_BYTES: usize = 64 * 1024;
+
+fn authenticated_human_actor(
+    claims: &erpx_identity::AccessTokenClaims,
+) -> Result<KernelActorAttribution, Status> {
+    let kind = crate::auth_actor::kernel_actor_kind(claims);
+    if !matches!(
+        kind,
+        erpx_kernel::ActorKind::PlatformUser | erpx_kernel::ActorKind::HoldingUser
+    ) {
+        return Err(Status::permission_denied(
+            "data-plane decisions require an authenticated human",
+        ));
+    }
+    let session_id = SessionId::try_from_uuid(claims.session_id)
+        .map_err(|_| Status::permission_denied("authenticated human session is invalid"))?;
+    let actor = KernelActorAttribution {
+        principal_ref: claims.principal_ref.clone(),
+        kind,
+        session_id: Some(session_id),
+        represented_principal_ref: None,
+        support_capability_id: None,
+    };
+    actor
+        .validate()
+        .map_err(|_| Status::permission_denied("authenticated human attribution is invalid"))?;
+    Ok(actor)
+}
+
+fn bind_human_decision(
+    actor: KernelActorAttribution,
+    authority_scope: Scope,
+    decision_ref: String,
+    decided_at: DateTime<Utc>,
+) -> Result<HumanDecisionProof, Status> {
+    HumanDecisionProof::try_new(actor, authority_scope, decision_ref, decided_at).map_err(|_| {
+        Status::permission_denied("data-plane decisions require an authenticated human")
+    })
+}
 
 async fn resolve_holding_target(
     state: &AppState,
@@ -807,6 +847,7 @@ impl DataPlaneControlRpcImpl {
             &command.actor.principal_ref,
             "command actor must match the authenticated principal",
         )?;
+        let human_actor = authenticated_human_actor(&claims)?;
         let scope = access_scope(&command.active_scope);
         if matches!(scope, Scope::Platform) {
             return Err(Status::permission_denied(
@@ -852,13 +893,20 @@ impl DataPlaneControlRpcImpl {
             )
             .await?;
         let at = Utc::now();
-        let lifecycle = if request.get_ref().approve {
+        let approve = request.get_ref().approve;
+        let human_decision = bind_human_decision(
+            human_actor,
+            authoritative_scope,
+            desired_configuration_decision_ref(configuration_id, approve),
+            at,
+        )?;
+        let lifecycle = if approve {
             if self.broker.signer.is_none() {
                 return Err(Status::failed_precondition(
                     "data-plane signing key is not configured",
                 ));
             }
-            let approval_policy = if requester == claims.principal_ref {
+            let approval_policy = if requester == human_decision.principal_ref() {
                 if self
                     .state
                     .auth
@@ -883,8 +931,7 @@ impl DataPlaneControlRpcImpl {
                 .store
                 .approve_configuration_with_policy(
                     configuration_id,
-                    &claims.principal_ref,
-                    at,
+                    &human_decision,
                     at,
                     command.correlation_id,
                     approval_policy,
@@ -913,9 +960,8 @@ impl DataPlaneControlRpcImpl {
                 .store
                 .reject_configuration(
                     configuration_id,
-                    &claims.principal_ref,
+                    &human_decision,
                     &request.get_ref().reason,
-                    at,
                     command.correlation_id,
                 )
                 .await
@@ -1032,6 +1078,7 @@ impl DataPlaneControlRpcImpl {
             &command.actor.principal_ref,
             "command actor must match the authenticated principal",
         )?;
+        let human_actor = authenticated_human_actor(&claims)?;
         let scope = access_scope(&command.active_scope);
         if matches!(scope, Scope::Platform) {
             return Err(Status::permission_denied(
@@ -1077,8 +1124,15 @@ impl DataPlaneControlRpcImpl {
             )
             .await?;
         let at = Utc::now();
-        if request.get_ref().approve {
-            let approval_policy = if requester == claims.principal_ref {
+        let approve = request.get_ref().approve;
+        let human_decision = bind_human_decision(
+            human_actor,
+            authoritative_scope,
+            root_access_decision_ref(request_id, approve),
+            at,
+        )?;
+        if approve {
+            let approval_policy = if requester == human_decision.principal_ref() {
                 if self
                     .state
                     .auth
@@ -1112,10 +1166,11 @@ impl DataPlaneControlRpcImpl {
                     &RootAccessGrant {
                         approval: RootAccessApproval {
                             request_id,
-                            approver: claims.principal_ref.clone(),
-                            approved_at: at,
+                            approver: human_decision.principal_ref().to_owned(),
+                            approved_at: human_decision.decided_at(),
                             fresh_mfa: true,
                         },
+                        human_decision: human_decision.clone(),
                         capability_id: Uuid::new_v4(),
                         capability_token_hash: token_hash,
                     },
@@ -1186,10 +1241,9 @@ impl DataPlaneControlRpcImpl {
                 .store
                 .reject_root_access(
                     request_id,
-                    &claims.principal_ref,
+                    &human_decision,
                     &request.get_ref().reason,
                     command.correlation_id,
-                    at,
                 )
                 .await
                 .map_err(persistence_status)?;
@@ -3779,6 +3833,101 @@ fn proto_root_access_mode(value: RootAccessMode) -> agent_contract::RootAccessMo
 #[cfg(test)]
 mod tests {
     use super::*;
+    use erpx_identity::{AccessTokenClaims, AuthenticatedPrincipalKind, AuthenticatedRealm};
+
+    fn claims(
+        principal_kind: AuthenticatedPrincipalKind,
+        realm: AuthenticatedRealm,
+    ) -> AccessTokenClaims {
+        let issued_at = Utc::now();
+        AccessTokenClaims {
+            principal_ref: format!("data-plane-test-{principal_kind:?}"),
+            session_id: Uuid::new_v4(),
+            active_role: None,
+            authorization_context_version: Some(1),
+            realm,
+            principal_kind,
+            issued_at,
+            expires_at: issued_at + Duration::minutes(5),
+        }
+    }
+
+    #[test]
+    fn authenticated_human_actor_preserves_claim_kind_and_session() {
+        let holding_claims = claims(
+            AuthenticatedPrincipalKind::Human,
+            AuthenticatedRealm::InternalWorkforce,
+        );
+        let holding_actor = authenticated_human_actor(&holding_claims).expect("holding human");
+        assert_eq!(holding_actor.kind, erpx_kernel::ActorKind::HoldingUser);
+        assert_eq!(
+            holding_actor.session_id.map(|session| session.as_uuid()),
+            Some(holding_claims.session_id)
+        );
+
+        let platform_claims = claims(
+            AuthenticatedPrincipalKind::Human,
+            AuthenticatedRealm::PlatformAdministration,
+        );
+        let platform_actor = authenticated_human_actor(&platform_claims).expect("platform human");
+        assert_eq!(platform_actor.kind, erpx_kernel::ActorKind::PlatformUser);
+    }
+
+    #[test]
+    fn agent_service_and_system_worker_cannot_form_data_plane_decisions() {
+        for principal_kind in [
+            AuthenticatedPrincipalKind::Agent,
+            AuthenticatedPrincipalKind::Service,
+        ] {
+            let status = authenticated_human_actor(&claims(
+                principal_kind,
+                AuthenticatedRealm::InternalWorkforce,
+            ))
+            .expect_err("non-human claims must fail closed");
+            assert_eq!(status.code(), tonic::Code::PermissionDenied);
+        }
+
+        let system_actor = KernelActorAttribution {
+            principal_ref: "system-worker".into(),
+            kind: erpx_kernel::ActorKind::SystemWorker,
+            session_id: Some(SessionId::try_from_uuid(Uuid::new_v4()).expect("session")),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        };
+        let status = bind_human_decision(
+            system_actor,
+            Scope::Holding {
+                holding_id: Uuid::new_v4(),
+            },
+            "data-plane.root-access:test:approve".into(),
+            Utc::now(),
+        )
+        .expect_err("system workers must not decide");
+        assert_eq!(status.code(), tonic::Code::PermissionDenied);
+    }
+
+    #[test]
+    fn human_decision_binds_claim_session_scope_reference_and_time() {
+        let claims = claims(
+            AuthenticatedPrincipalKind::Human,
+            AuthenticatedRealm::InternalWorkforce,
+        );
+        let actor = authenticated_human_actor(&claims).expect("human actor");
+        let holding_id = Uuid::new_v4();
+        let scope = Scope::Holding { holding_id };
+        let decision_ref = desired_configuration_decision_ref(Uuid::new_v4(), false);
+        let at = Utc::now();
+        let proof = bind_human_decision(actor, scope.clone(), decision_ref.clone(), at)
+            .expect("human proof");
+        assert_eq!(proof.principal_ref(), claims.principal_ref);
+        assert_eq!(proof.authority_scope(), &scope);
+        assert_eq!(proof.decision_ref(), decision_ref);
+        assert_eq!(proof.decided_at(), at);
+        assert_eq!(
+            proof.actor().session_id.map(|session| session.as_uuid()),
+            Some(claims.session_id)
+        );
+    }
 
     #[test]
     fn root_access_modes_are_closed() {

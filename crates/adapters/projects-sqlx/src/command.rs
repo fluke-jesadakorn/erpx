@@ -5,13 +5,17 @@ use erpx_cqrs_sqlx::{
 };
 use erpx_kernel::{
     ActorAttribution, AggregateId, AuthorityScope, CommandId, CorrelationId, EventId, HoldingId,
+    HumanDecisionProof,
 };
 use erpx_projects::{
-    CommandFingerprint, CommandIdentity, CommandUnitOfWork, DependencyAgreement, DependencyId,
-    HandoffId, PortError, Project, ProjectHandoff, ProjectId, ProjectsAggregate, ProjectsCommit,
-    StoredCommit, WorkflowTemplate, WorkflowTemplateId, WriteRepository,
+    CommandFingerprint, CommandIdentity, CommandUnitOfWork, DependencyAgreement,
+    DependencyDecisionAction, DependencyId, DependencySide, DependencyStatus, HandoffChangeAction,
+    HandoffId, HandoffStatus, PortError, Project, ProjectHandoff, ProjectId, ProjectsAggregate,
+    ProjectsCommit, StoredCommit, WorkflowTemplate, WorkflowTemplateId, WriteRepository,
+    dependency_acceptance_decision_ref, dependency_rejection_decision_ref,
+    handoff_approval_decision_ref,
 };
-use serde_json::json;
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
@@ -342,6 +346,7 @@ impl CommandUnitOfWork for ProjectsCommandAdapter {
             }
             ProjectsAggregate::Dependency(_) => {}
         }
+        let human_decision = request.human_decision.as_ref().map(human_decision_payload);
         let aggregate = request.aggregate;
         let aggregate_id =
             AggregateId::try_from_uuid(aggregate.id_uuid()).map_err(|_| PortError::Internal)?;
@@ -378,6 +383,7 @@ impl CommandUnitOfWork for ProjectsCommandAdapter {
                     "aggregate_id": aggregate_id.as_uuid(),
                     "aggregate_type": aggregate_type,
                     "expected_version": request.expected_version,
+                    "human_decision": human_decision,
                 }),
             },
             events,
@@ -746,11 +752,137 @@ fn validate_commit(request: &ProjectsCommit) -> Result<(), PortError> {
         || aggregate_type != request.aggregate.aggregate_type()
         || !request.authority_scope.contains(request.aggregate.scope())
         || !valid_aggregate(&request.aggregate)
+        || !valid_human_decision(request)
     {
         Err(PortError::Internal)
     } else {
         Ok(())
     }
+}
+
+fn valid_human_decision(request: &ProjectsCommit) -> bool {
+    if requires_human_decision(&request.identity.fingerprint) != request.human_decision.is_some() {
+        return false;
+    }
+    match (
+        &request.identity.fingerprint,
+        &request.aggregate,
+        request.human_decision.as_ref(),
+    ) {
+        (
+            CommandFingerprint::DecideDependency {
+                dependency_id,
+                decision,
+                ..
+            },
+            ProjectsAggregate::Dependency(dependency),
+            Some(proof),
+        ) => valid_dependency_human_decision(
+            *dependency_id,
+            *decision,
+            dependency,
+            proof,
+            &request.actor,
+        ),
+        (
+            CommandFingerprint::ChangeHandoff {
+                handoff_id,
+                change: HandoffChangeAction::Approve,
+                ..
+            },
+            ProjectsAggregate::Handoff(handoff),
+            Some(proof),
+        ) => {
+            let approver = Uuid::parse_str(proof.principal_ref()).ok();
+            handoff.id() == *handoff_id
+                && handoff.status() == HandoffStatus::Approved
+                && proof.authority_scope() == handoff.scope()
+                && proof.decision_ref() == handoff_approval_decision_ref(*handoff_id)
+                && proof.actor() == &request.actor
+                && handoff.approved_by() == approver
+                && handoff.updated_at() == proof.decided_at()
+        }
+        (CommandFingerprint::DecideDependency { .. }, _, _)
+        | (CommandFingerprint::ChangeHandoff { .. }, _, Some(_))
+        | (_, _, Some(_)) => false,
+        (_, _, None) => true,
+    }
+}
+
+fn valid_dependency_human_decision(
+    dependency_id: DependencyId,
+    action: DependencyDecisionAction,
+    dependency: &DependencyAgreement,
+    proof: &HumanDecisionProof,
+    actor: &ActorAttribution,
+) -> bool {
+    let Ok(principal_id) = Uuid::parse_str(proof.principal_ref()) else {
+        return false;
+    };
+    if dependency.id() != dependency_id
+        || proof.actor() != actor
+        || dependency.updated_at() != proof.decided_at()
+    {
+        return false;
+    }
+    match action {
+        DependencyDecisionAction::AcceptSource | DependencyDecisionAction::AcceptTarget => {
+            let (side, endpoint, acceptance) = match action {
+                DependencyDecisionAction::AcceptSource => (
+                    DependencySide::Source,
+                    dependency.source(),
+                    dependency.source_acceptance(),
+                ),
+                DependencyDecisionAction::AcceptTarget => (
+                    DependencySide::Target,
+                    dependency.target(),
+                    dependency.target_acceptance(),
+                ),
+                _ => unreachable!("acceptance actions matched above"),
+            };
+            proof.authority_scope() == &endpoint.scope
+                && proof.decision_ref() == dependency_acceptance_decision_ref(dependency_id, side)
+                && acceptance.is_some_and(|acceptance| {
+                    acceptance.side == side
+                        && acceptance.owner_id == principal_id
+                        && acceptance.owner_id == endpoint.owner_id
+                        && acceptance.terms_version == dependency.terms_version()
+                        && acceptance.accepted_at == proof.decided_at()
+                })
+        }
+        DependencyDecisionAction::Reject => {
+            dependency.status() == DependencyStatus::Rejected
+                && dependency.owner_scope(principal_id) == Some(proof.authority_scope())
+                && proof.decision_ref() == dependency_rejection_decision_ref(dependency_id)
+        }
+        DependencyDecisionAction::Cancel | DependencyDecisionAction::Revoke => false,
+    }
+}
+
+fn requires_human_decision(fingerprint: &CommandFingerprint) -> bool {
+    matches!(
+        fingerprint,
+        CommandFingerprint::DecideDependency {
+            decision: DependencyDecisionAction::AcceptSource
+                | DependencyDecisionAction::AcceptTarget
+                | DependencyDecisionAction::Reject,
+            ..
+        } | CommandFingerprint::ChangeHandoff {
+            change: HandoffChangeAction::Approve,
+            ..
+        }
+    )
+}
+
+fn human_decision_payload(decision: &HumanDecisionProof) -> Value {
+    json!({
+        "principal_ref": decision.principal_ref(),
+        "actor_kind": decision.actor().kind,
+        "session_id": decision.actor().session_id.map(|session| session.as_uuid()),
+        "authority_scope": decision.authority_scope(),
+        "decision_ref": decision.decision_ref(),
+        "decided_at": decision.decided_at(),
+    })
 }
 
 fn valid_aggregate(value: &ProjectsAggregate) -> bool {
@@ -800,9 +932,21 @@ fn audit_action(value: &CommandFingerprint) -> &'static str {
         CommandFingerprint::ChangeProject { .. } => "projects.project.change",
         CommandFingerprint::PublishWorkflow { .. } => "projects.workflow.publish",
         CommandFingerprint::ProposeDependency { .. } => "projects.dependency.propose",
-        CommandFingerprint::DecideDependency { .. } => "projects.dependency.decide",
+        CommandFingerprint::DecideDependency { decision, .. } => match decision {
+            DependencyDecisionAction::AcceptSource => "projects.dependency.accept_source",
+            DependencyDecisionAction::AcceptTarget => "projects.dependency.accept_target",
+            DependencyDecisionAction::Reject => "projects.dependency.reject",
+            DependencyDecisionAction::Cancel => "projects.dependency.cancel",
+            DependencyDecisionAction::Revoke => "projects.dependency.revoke",
+        },
         CommandFingerprint::ProposeHandoff { .. } => "projects.handoff.propose",
-        CommandFingerprint::ChangeHandoff { .. } => "projects.handoff.change",
+        CommandFingerprint::ChangeHandoff { change, .. } => match change {
+            HandoffChangeAction::Approve => "projects.handoff.approve",
+            HandoffChangeAction::MarkReady => "projects.handoff.mark_ready",
+            HandoffChangeAction::MarkUncertain => "projects.handoff.mark_uncertain",
+            HandoffChangeAction::Cancel => "projects.handoff.cancel",
+            HandoffChangeAction::Reconcile => "projects.handoff.reconcile",
+        },
     }
 }
 
@@ -953,7 +1097,28 @@ fn map_store_error(error: CqrsSqlxError) -> PortError {
 
 #[cfg(test)]
 mod tests {
+    use chrono::DateTime;
+    use erpx_kernel::{ActorKind, AuditContext, SessionId};
+
     use super::*;
+
+    fn branch_scope() -> AuthorityScope {
+        AuthorityScope::Branch {
+            holding_id: Uuid::from_u128(1),
+            company_id: Uuid::from_u128(2),
+            branch_id: Uuid::from_u128(3),
+        }
+    }
+
+    fn human_actor() -> ActorAttribution {
+        ActorAttribution {
+            principal_ref: Uuid::from_u128(10).to_string(),
+            kind: ActorKind::HoldingUser,
+            session_id: Some(SessionId::try_from_uuid(Uuid::from_u128(11)).unwrap()),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        }
+    }
 
     #[test]
     fn fingerprint_target_and_hash_are_stable() {
@@ -975,5 +1140,136 @@ mod tests {
         assert!(source.contains("commit_normalized(command, &guard)"));
         assert!(source.contains("project_node_guards"));
         assert!(source.contains("handoff_guards"));
+    }
+
+    #[test]
+    fn dependency_acceptance_requires_and_serializes_exact_human_audit_evidence() {
+        let dependency_id = DependencyId::try_from_uuid(Uuid::from_u128(20)).unwrap();
+        let at = DateTime::from_timestamp(1_800_000_000, 0).unwrap();
+        let actor = human_actor();
+        let proof = HumanDecisionProof::try_new(
+            actor.clone(),
+            branch_scope(),
+            dependency_acceptance_decision_ref(dependency_id, DependencySide::Source),
+            at,
+        )
+        .unwrap();
+        let fingerprint = CommandFingerprint::DecideDependency {
+            dependency_id,
+            decision: DependencyDecisionAction::AcceptSource,
+            request_digest: "d".repeat(64),
+        };
+        assert!(requires_human_decision(&fingerprint));
+        assert_eq!(
+            audit_action(&fingerprint),
+            "projects.dependency.accept_source"
+        );
+        let payload = human_decision_payload(&proof);
+        assert_eq!(payload["principal_ref"], proof.principal_ref());
+        assert_eq!(payload["decision_ref"], proof.decision_ref());
+        assert_eq!(payload["authority_scope"], json!(branch_scope()));
+        assert_eq!(payload["decided_at"], json!(at));
+        assert_eq!(
+            payload["session_id"],
+            json!(proof.actor().session_id.map(|session| session.as_uuid()))
+        );
+
+        let non_human_policy = CommandFingerprint::DecideDependency {
+            dependency_id,
+            decision: DependencyDecisionAction::Cancel,
+            request_digest: "e".repeat(64),
+        };
+        assert!(!requires_human_decision(&non_human_policy));
+
+        let handoff_approval = CommandFingerprint::ChangeHandoff {
+            handoff_id: HandoffId::try_from_uuid(Uuid::from_u128(21)).unwrap(),
+            change: HandoffChangeAction::Approve,
+            request_digest: "f".repeat(64),
+        };
+        assert!(requires_human_decision(&handoff_approval));
+        assert_eq!(audit_action(&handoff_approval), "projects.handoff.approve");
+    }
+
+    #[test]
+    fn sqlx_commit_validation_binds_dependency_proof_to_persisted_owner_and_time() {
+        let dependency_id = DependencyId::try_from_uuid(Uuid::from_u128(20)).unwrap();
+        let source = erpx_projects::DependencyEndpoint {
+            project_id: ProjectId::try_from_uuid(Uuid::from_u128(21)).unwrap(),
+            project_version: 1,
+            node_id: erpx_projects::ProjectNodeId::try_from_uuid(Uuid::from_u128(22)).unwrap(),
+            node_version: 1,
+            scope: branch_scope(),
+            owner_id: Uuid::from_u128(10),
+        };
+        let target = erpx_projects::DependencyEndpoint {
+            project_id: ProjectId::try_from_uuid(Uuid::from_u128(23)).unwrap(),
+            project_version: 1,
+            node_id: erpx_projects::ProjectNodeId::try_from_uuid(Uuid::from_u128(24)).unwrap(),
+            node_version: 1,
+            scope: AuthorityScope::Branch {
+                holding_id: Uuid::from_u128(1),
+                company_id: Uuid::from_u128(2),
+                branch_id: Uuid::from_u128(4),
+            },
+            owner_id: Uuid::from_u128(12),
+        };
+        let created_at = DateTime::from_timestamp(1_799_999_900, 0).unwrap();
+        let decided_at = DateTime::from_timestamp(1_800_000_000, 0).unwrap();
+        let mut dependency = DependencyAgreement::propose(
+            dependency_id,
+            source,
+            target,
+            erpx_projects::DependencyKind::FinishToStart,
+            Uuid::from_u128(10),
+            created_at,
+        )
+        .unwrap();
+        let actor = human_actor();
+        let proof = HumanDecisionProof::try_new(
+            actor.clone(),
+            branch_scope(),
+            dependency_acceptance_decision_ref(dependency_id, DependencySide::Source),
+            decided_at,
+        )
+        .unwrap();
+        dependency
+            .accept(DependencySide::Source, 1, &proof)
+            .unwrap();
+        let request = ProjectsCommit {
+            identity: CommandIdentity {
+                command_id: CommandId::try_from_uuid(Uuid::from_u128(30)).unwrap(),
+                idempotency_key: erpx_cqrs::IdempotencyKey::try_new(
+                    "projects-sqlx-human-decision-test",
+                )
+                .unwrap(),
+                fingerprint: CommandFingerprint::DecideDependency {
+                    dependency_id,
+                    decision: DependencyDecisionAction::AcceptSource,
+                    request_digest: "f".repeat(64),
+                },
+            },
+            correlation_id: CorrelationId::try_from_uuid(Uuid::from_u128(31)).unwrap(),
+            causation_id: None,
+            actor,
+            authority_scope: AuthorityScope::Holding {
+                holding_id: Uuid::from_u128(1),
+            },
+            audit: AuditContext {
+                purpose: "projects SQLx human decision test".into(),
+                customer_visible: false,
+                module: Some("projects".into()),
+            },
+            human_decision: Some(proof),
+            expected_version: Some(1),
+            aggregate: ProjectsAggregate::Dependency(dependency),
+            events: Vec::new(),
+        };
+        assert!(valid_human_decision(&request));
+        assert!(validate_commit(&request).is_ok());
+
+        let mut missing = request.clone();
+        missing.human_decision = None;
+        assert!(!valid_human_decision(&missing));
+        assert!(validate_commit(&missing).is_err());
     }
 }

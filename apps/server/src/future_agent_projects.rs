@@ -30,9 +30,10 @@ use erpx_projects::{
     CommandContext as ProjectsApplicationCommandContext, CreateProject, DecideDependency,
     DependencyDecision, DependencyEndpoint, DependencyId, DependencyKind, DependencySide,
     HandoffChange, HandoffId, HandoffKind, NodeKind, ProjectApplicationError, ProjectClass,
-    ProjectGraphView, ProjectId, ProjectList, ProjectListFilter, ProjectNodeChange, ProjectNodeId,
-    ProjectRecordKind, ProjectRecordView, ProjectStatus, ProjectView, ProjectsAggregate,
-    ProposeDependency, ProposeHandoff, ReadProjection, TransitionProject,
+    ProjectDomainError, ProjectGraphView, ProjectId, ProjectList, ProjectListFilter,
+    ProjectNodeChange, ProjectNodeId, ProjectRecordKind, ProjectRecordView, ProjectStatus,
+    ProjectView, ProjectsAggregate, ProposeDependency, ProposeHandoff, ReadProjection,
+    TransitionProject,
 };
 use erpx_projects::{AuthorizationPort as _, ReadRepository as _};
 use erpx_projects_sqlx::{ProjectsCommandAdapter, ProjectsReadRepository, ProjectsWriteRepository};
@@ -432,13 +433,10 @@ impl FutureAgentProjectsAuthenticator for AppStateFutureAuthenticator {
         .map_err(map_future_auth_status)?;
         let session_id = SessionId::try_from_uuid(claims.session_id)
             .map_err(|_| FutureAuthenticationError::Internal)?;
+        let kind = crate::auth_actor::kernel_actor_kind(&claims);
         let presented_actor = ActorAttribution {
             principal_ref: claims.principal_ref,
-            kind: match claims.principal_kind {
-                erpx_identity::AuthenticatedPrincipalKind::Human => ActorKind::HoldingUser,
-                erpx_identity::AuthenticatedPrincipalKind::Agent
-                | erpx_identity::AuthenticatedPrincipalKind::Service => ActorKind::Service,
-            },
+            kind,
             session_id: Some(session_id),
             represented_principal_ref: None,
             support_capability_id: None,
@@ -1660,14 +1658,15 @@ where
             FutureOwnerContext::Projects,
         )
         .await?;
-        let owner_id = parse_uuid(&input.owner_principal_id, "owner_principal_id")?;
+        require_authenticated_human_decision(&authenticated.projects_context.actor)?;
+        // `owner_principal_id` is a legacy, untrusted hint. Human decision
+        // authority is derived only from the authenticated actor above.
         let decision = if input.accept {
             DependencyDecision::Accept {
                 side: decode_dependency_side(input.side)?,
-                owner_id,
             }
         } else {
-            DependencyDecision::Reject { owner_id }
+            DependencyDecision::Reject
         };
         let receipt = self
             .application
@@ -1757,10 +1756,7 @@ where
             FutureOwnerContext::Projects,
         )
         .await?;
-        let approved_by = parse_uuid(
-            &authenticated.projects_context.actor.principal_ref,
-            "authenticated principal_ref",
-        )?;
+        require_authenticated_human_decision(&authenticated.projects_context.actor)?;
         let receipt = self
             .application
             .change_handoff(
@@ -1768,7 +1764,7 @@ where
                 authenticated.projects_context,
                 ChangeHandoff {
                     handoff_id: handoff_id(&input.handoff_id)?,
-                    change: HandoffChange::Approve { approved_by },
+                    change: HandoffChange::Approve,
                 },
             )
             .await
@@ -2648,6 +2644,20 @@ fn invalid(message: &'static str) -> Status {
     Status::invalid_argument(message)
 }
 
+fn require_authenticated_human_decision(actor: &ActorAttribution) -> Result<(), Status> {
+    if actor.is_human()
+        && actor.session_id.is_some()
+        && actor.represented_principal_ref.is_none()
+        && actor.support_capability_id.is_none()
+    {
+        Ok(())
+    } else {
+        Err(Status::permission_denied(
+            "Projects decision requires a directly authenticated human session",
+        ))
+    }
+}
+
 fn status_from_authentication(
     error: FutureAuthenticationError,
     owner: FutureOwnerContext,
@@ -2670,6 +2680,14 @@ fn status_from_authentication(
 
 fn status_from_projects_application(error: ProjectApplicationError) -> Status {
     match error {
+        ProjectApplicationError::HumanDecisionRequired
+        | ProjectApplicationError::Domain(
+            ProjectDomainError::HumanDecisionRequired
+            | ProjectDomainError::DependencyAuthorityDenied
+            | ProjectDomainError::HandoffAuthorityDenied,
+        ) => Status::permission_denied(
+            "Projects decision requires an authorized authenticated human",
+        ),
         ProjectApplicationError::UnexpectedCreateVersion
         | ProjectApplicationError::MissingExpectedVersion
         | ProjectApplicationError::ScopeOutsideAuthority
@@ -2900,6 +2918,47 @@ mod tests {
     use std::collections::BTreeSet;
 
     use super::*;
+
+    fn decision_actor(kind: ActorKind, with_session: bool) -> ActorAttribution {
+        ActorAttribution {
+            principal_ref: Uuid::from_u128(7).to_string(),
+            kind,
+            session_id: with_session.then(|| SessionId::try_from_uuid(Uuid::from_u128(8)).unwrap()),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        }
+    }
+
+    #[test]
+    fn projects_decision_boundary_accepts_only_direct_authenticated_humans() {
+        for kind in [
+            ActorKind::Agent,
+            ActorKind::Service,
+            ActorKind::SystemWorker,
+        ] {
+            let status = require_authenticated_human_decision(&decision_actor(kind, true))
+                .expect_err("non-human actor must be denied");
+            assert_eq!(status.code(), tonic::Code::PermissionDenied);
+        }
+        let no_session = decision_actor(ActorKind::HoldingUser, false);
+        assert!(require_authenticated_human_decision(&no_session).is_err());
+
+        let mut represented = decision_actor(ActorKind::PlatformUser, true);
+        represented.represented_principal_ref = Some("principal:represented".into());
+        assert!(require_authenticated_human_decision(&represented).is_err());
+
+        assert!(
+            require_authenticated_human_decision(&decision_actor(ActorKind::HoldingUser, true))
+                .is_ok()
+        );
+        assert_eq!(
+            status_from_projects_application(ProjectApplicationError::Domain(
+                ProjectDomainError::HandoffAuthorityDenied,
+            ))
+            .code(),
+            tonic::Code::PermissionDenied
+        );
+    }
 
     #[test]
     fn owner_port_gap_inventory_is_unique_and_never_describes_success() {

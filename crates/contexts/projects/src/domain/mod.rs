@@ -6,7 +6,7 @@ use erpx_integration_contracts::{
     catalog::ContextId,
     reference::{RecordTypeId, ReferenceValidationError},
 };
-use erpx_kernel::{AuthorityScope, CorrelationId, RecordId};
+use erpx_kernel::{AuthorityScope, CorrelationId, HumanDecisionProof, RecordId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -1124,19 +1124,28 @@ impl DependencyAgreement {
     pub fn accept(
         &mut self,
         side: DependencySide,
-        owner_id: Uuid,
         terms_version: u64,
-        at: DateTime<Utc>,
+        decision: &HumanDecisionProof,
     ) -> Result<(), ProjectDomainError> {
+        let at = decision.decided_at();
         if self.status != DependencyStatus::Proposed
             || terms_version != self.terms_version
             || at < self.updated_at
         {
             return Err(ProjectDomainError::InvalidDependencyTransition);
         }
-        let (expected, slot) = match side {
-            DependencySide::Source => (self.source.owner_id, &mut self.source_acceptance),
-            DependencySide::Target => (self.target.owner_id, &mut self.target_acceptance),
+        let (expected, expected_scope) = match side {
+            DependencySide::Source => (self.source.owner_id, &self.source.scope),
+            DependencySide::Target => (self.target.owner_id, &self.target.scope),
+        };
+        let owner_id = exact_human_decision_principal(
+            decision,
+            expected_scope,
+            &dependency_acceptance_decision_ref(self.id, side),
+        )?;
+        let slot = match side {
+            DependencySide::Source => &mut self.source_acceptance,
+            DependencySide::Target => &mut self.target_acceptance,
         };
         if owner_id != expected || slot.is_some() {
             return Err(ProjectDomainError::DependencyAuthorityDenied);
@@ -1155,7 +1164,17 @@ impl DependencyAgreement {
         Ok(())
     }
 
-    pub fn reject(&mut self, owner_id: Uuid, at: DateTime<Utc>) -> Result<(), ProjectDomainError> {
+    pub fn reject(&mut self, decision: &HumanDecisionProof) -> Result<(), ProjectDomainError> {
+        let owner_id = decision_principal_uuid(decision)?;
+        let scope = self
+            .owner_scope(owner_id)
+            .ok_or(ProjectDomainError::DependencyAuthorityDenied)?;
+        exact_human_decision_principal(
+            decision,
+            scope,
+            &dependency_rejection_decision_ref(self.id),
+        )?;
+        let at = decision.decided_at();
         self.finish_proposal(DependencyStatus::Rejected, owner_id, at)
     }
 
@@ -1226,6 +1245,15 @@ impl DependencyAgreement {
     }
     pub const fn proposed_by(&self) -> Uuid {
         self.proposed_by
+    }
+    pub fn owner_scope(&self, owner_id: Uuid) -> Option<&AuthorityScope> {
+        if owner_id == self.source.owner_id {
+            Some(&self.source.scope)
+        } else if owner_id == self.target.owner_id {
+            Some(&self.target.scope)
+        } else {
+            None
+        }
     }
     pub const fn created_at(&self) -> DateTime<Utc> {
         self.created_at
@@ -1336,12 +1364,13 @@ impl ProjectHandoff {
         Ok(value)
     }
 
-    pub fn approve(
-        &mut self,
-        approved_by: Uuid,
-        at: DateTime<Utc>,
-    ) -> Result<(), ProjectDomainError> {
-        require_id(approved_by, "handoff_approved_by")?;
+    pub fn approve(&mut self, decision: &HumanDecisionProof) -> Result<(), ProjectDomainError> {
+        let approved_by = exact_human_decision_principal(
+            decision,
+            &self.scope,
+            &handoff_approval_decision_ref(self.id),
+        )?;
+        let at = decision.decided_at();
         if self.status != HandoffStatus::Proposed
             || approved_by == self.proposed_by
             || at < self.updated_at
@@ -1614,6 +1643,8 @@ pub enum ProjectDomainError {
     InvalidDependencyTransition,
     #[error("dependency owner authority is denied")]
     DependencyAuthorityDenied,
+    #[error("Projects decision requires exact authenticated-human evidence")]
+    HumanDecisionRequired,
     #[error("handoff is invalid")]
     InvalidHandoff,
     #[error("handoff transition is invalid")]
@@ -1622,6 +1653,47 @@ pub enum ProjectDomainError {
     HandoffAuthorityDenied,
     #[error("owner-context handoff outcome is invalid")]
     InvalidHandoffOutcome,
+}
+
+pub fn dependency_acceptance_decision_ref(
+    dependency_id: DependencyId,
+    side: DependencySide,
+) -> String {
+    let side = match side {
+        DependencySide::Source => "source",
+        DependencySide::Target => "target",
+    };
+    format!(
+        "projects.dependency:{}:accept:{side}",
+        dependency_id.as_uuid()
+    )
+}
+
+pub fn dependency_rejection_decision_ref(dependency_id: DependencyId) -> String {
+    format!("projects.dependency:{}:reject", dependency_id.as_uuid())
+}
+
+pub fn handoff_approval_decision_ref(handoff_id: HandoffId) -> String {
+    format!("projects.handoff:{}:approve", handoff_id.as_uuid())
+}
+
+fn decision_principal_uuid(decision: &HumanDecisionProof) -> Result<Uuid, ProjectDomainError> {
+    Uuid::parse_str(decision.principal_ref()).map_err(|_| ProjectDomainError::HumanDecisionRequired)
+}
+
+fn exact_human_decision_principal(
+    decision: &HumanDecisionProof,
+    scope: &AuthorityScope,
+    decision_ref: &str,
+) -> Result<Uuid, ProjectDomainError> {
+    if decision.authority_scope() != scope
+        || decision.decision_ref() != decision_ref
+        || !decision.actor().is_human()
+        || decision.actor().session_id.is_none()
+    {
+        return Err(ProjectDomainError::HumanDecisionRequired);
+    }
+    decision_principal_uuid(decision)
 }
 
 fn validate_scope(scope: &AuthorityScope) -> Result<(), ProjectDomainError> {

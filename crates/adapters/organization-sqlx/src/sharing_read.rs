@@ -15,8 +15,8 @@ use sqlx::{Postgres, Row, Transaction};
 use uuid::Uuid;
 
 use crate::{
-    CONTEXT_NAME, EVENT_VERSION, SHARING_PROJECTION_NAME, SHARING_SNAPSHOT_EVENT_TYPE,
-    sharing_partition,
+    CONTEXT_NAME, SHARING_PROJECTION_NAME, SHARING_SNAPSHOT_EVENT_TYPE,
+    SHARING_SNAPSHOT_EVENT_VERSION, sharing_partition,
 };
 
 const LIST_SCAN_BATCH: i64 = 128;
@@ -344,7 +344,7 @@ fn validate_projection_event(
         || event.context != CONTEXT_NAME
         || event.aggregate_type != "organization_sharing_agreement"
         || event.event_type != SHARING_SNAPSHOT_EVENT_TYPE
-        || event.event_version != EVENT_VERSION
+        || event.event_version != SHARING_SNAPSHOT_EVENT_VERSION
     {
         return Err(ProjectionFailure::new(
             "organization sharing projector received an incompatible event",

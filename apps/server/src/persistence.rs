@@ -231,8 +231,9 @@ pub(super) async fn seed_holding_owner(
     );
     sqlx::query(
         "INSERT INTO erpx_identity.principals
-            (id, principal_ref, status, created_at, updated_at)
-         VALUES ($1, $2, 'recovery_required', $3, $3)
+            (id, principal_ref, status, authenticated_realm, principal_kind,
+             created_at, updated_at)
+         VALUES ($1, $2, 'recovery_required', 'internal_workforce', 'human', $3, $3)
          ON CONFLICT (principal_ref) DO NOTHING",
     )
     .bind(generated_principal_id)
@@ -242,7 +243,7 @@ pub(super) async fn seed_holding_owner(
     .await
     .map_err(|_| Status::unavailable("owner identity write unavailable"))?;
     let principal_row = sqlx::query(
-        "SELECT id, status
+        "SELECT id, status, authenticated_realm, principal_kind
          FROM erpx_identity.principals
          WHERE principal_ref = $1
          FOR UPDATE",
@@ -257,6 +258,17 @@ pub(super) async fn seed_holding_owner(
     let principal_status: String = principal_row
         .try_get("status")
         .map_err(|_| Status::internal("owner identity record is invalid"))?;
+    let principal_realm: String = principal_row
+        .try_get("authenticated_realm")
+        .map_err(|_| Status::internal("owner identity record is invalid"))?;
+    let principal_kind: String = principal_row
+        .try_get("principal_kind")
+        .map_err(|_| Status::internal("owner identity record is invalid"))?;
+    if principal_realm != "internal_workforce" || principal_kind != "human" {
+        return Err(Status::failed_precondition(
+            "holding owner authenticated authority is contradictory",
+        ));
+    }
     if principal_status == "suspended" {
         return Err(Status::failed_precondition("owner identity is suspended"));
     }

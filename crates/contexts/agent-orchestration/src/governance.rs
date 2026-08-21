@@ -1,6 +1,6 @@
 use crate::AgentDomainError;
 use chrono::{DateTime, Utc};
-use erpx_kernel::{AuthorityScope, RecordId};
+use erpx_kernel::{AuthorityScope, HumanDecisionProof, RecordId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -35,6 +35,11 @@ pub enum AgentGovernanceStatus {
     Expired,
     Cancelled,
 }
+
+pub fn agent_governance_approval_decision_ref(record_id: Uuid) -> String {
+    format!("agent.governance:{record_id}:approve")
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AgentGovernanceRecord {
     id: Uuid,
@@ -68,11 +73,16 @@ impl AgentGovernanceRecord {
         value.validate()?;
         Ok(value)
     }
-    pub fn approve(&mut self, at: DateTime<Utc>) -> Result<(), AgentDomainError> {
+    pub fn approve(&mut self, decision: HumanDecisionProof) -> Result<(), AgentDomainError> {
+        if decision.authority_scope() != &self.scope
+            || decision.decision_ref() != agent_governance_approval_decision_ref(self.id)
+        {
+            return Err(AgentDomainError::InvalidGovernanceRecord);
+        }
         self.transition(
             AgentGovernanceStatus::Proposed,
             AgentGovernanceStatus::Approved,
-            at,
+            decision.decided_at(),
         )
     }
     pub fn activate(&mut self, at: DateTime<Utc>) -> Result<(), AgentDomainError> {
@@ -154,12 +164,33 @@ impl AgentGovernanceRecord {
 }
 #[cfg(test)]
 mod tests {
+    use erpx_kernel::{ActorAttribution, ActorKind, SessionId};
+
     use super::*;
 
     fn scope() -> AuthorityScope {
         AuthorityScope::Holding {
             holding_id: Uuid::new_v4(),
         }
+    }
+    fn human_decision(
+        scope: AuthorityScope,
+        decision_ref: String,
+        now: DateTime<Utc>,
+    ) -> HumanDecisionProof {
+        HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: "human:governance-reviewer".into(),
+                kind: ActorKind::HoldingUser,
+                session_id: Some(SessionId::try_from_uuid(Uuid::new_v4()).unwrap()),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            scope,
+            decision_ref,
+            now,
+        )
+        .unwrap()
     }
     #[test]
     fn governance_records_require_explicit_decisions() {
@@ -168,9 +199,11 @@ mod tests {
             AgentGovernanceRecordKind::BudgetDecision,
         ] {
             let now = Utc::now();
+            let record_scope = scope();
+            let record_id = Uuid::new_v4();
             let mut value = AgentGovernanceRecord::propose(
-                Uuid::new_v4(),
-                scope(),
+                record_id,
+                record_scope.clone(),
                 kind,
                 RecordId::try_from_uuid(Uuid::new_v4()).unwrap(),
                 "a".repeat(64),
@@ -178,7 +211,21 @@ mod tests {
             )
             .unwrap();
             assert!(value.activate(now).is_err());
-            value.approve(now).unwrap();
+            assert_eq!(
+                value.approve(human_decision(
+                    record_scope.clone(),
+                    agent_governance_approval_decision_ref(Uuid::new_v4()),
+                    now,
+                )),
+                Err(AgentDomainError::InvalidGovernanceRecord)
+            );
+            value
+                .approve(human_decision(
+                    record_scope,
+                    agent_governance_approval_decision_ref(record_id),
+                    now,
+                ))
+                .unwrap();
             value.activate(now).unwrap();
             value.complete(now).unwrap();
             assert_eq!(value.version(), 4)

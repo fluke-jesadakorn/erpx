@@ -5,7 +5,8 @@ use erpx_cqrs_sqlx::{
 };
 use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
-    ItemDescriptorDraft, RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
+    ItemDescriptorDraft, RecordTypeId, StableRecordRef, catalog::ContextId, organization,
+    record_policy_id,
 };
 use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId, RecordId};
 use erpx_organization::{
@@ -20,9 +21,27 @@ use sqlx::{Postgres, Row, Transaction};
 use uuid::Uuid;
 
 use crate::{
-    AGGREGATE_TYPE, CONTEXT_NAME, EVENT_VERSION, SNAPSHOT_EVENT_TYPE, node_partition,
+    AGGREGATE_TYPE, CONTEXT_NAME, NODE_SNAPSHOT_EVENT_VERSION, SNAPSHOT_EVENT_TYPE,
+    canonical_node_scope, node_partition,
     projection::{OrganizationOutboxPayload, OrganizationSnapshot, kind_name, status_name},
 };
+
+const REPARENT_BLOCKED_BY_CHILDREN_GUARD: &str =
+    "organization node has children and cannot be reparented";
+const NORMALIZED_VERSION_CONFLICT_GUARD: &str =
+    "organization normalized version did not advance exactly once";
+const ACTIVE_ANCESTOR_QUERY: &str = "WITH requested(node_id, ordinal) AS (
+         SELECT * FROM UNNEST($1::uuid[]) WITH ORDINALITY
+     )
+     SELECT authority.node_id,authority.node_kind,authority.node_status,
+            authority.parent_node_id,authority.lineage_node_ids,authority.holding_id,
+            authority.company_id,authority.branch_id,authority.department_id
+     FROM requested
+     JOIN erpx_organization_write.organization_node_authority authority
+       ON authority.node_id=requested.node_id
+      AND authority.holding_id=erpx_cqrs_write.current_holding_id()
+     ORDER BY requested.ordinal
+     FOR SHARE OF authority";
 
 #[derive(Debug, Clone)]
 pub struct OrganizationWriteRepository {
@@ -41,8 +60,7 @@ struct AuthoritySqlScope {
     holding_id: Option<Uuid>,
     company_id: Option<Uuid>,
     branch_id: Option<Uuid>,
-    company_ids: Vec<Uuid>,
-    branch_ids: Vec<Uuid>,
+    subtree_node_id: Option<Uuid>,
 }
 
 impl AuthoritySqlScope {
@@ -54,16 +72,14 @@ impl AuthoritySqlScope {
                 holding_id: None,
                 company_id: None,
                 branch_id: None,
-                company_ids: Vec::new(),
-                branch_ids: Vec::new(),
+                subtree_node_id: None,
             },
             AuthorityScope::Holding { holding_id } => Self {
                 mode: "holding",
                 holding_id: Some(*holding_id),
                 company_id: None,
                 branch_id: None,
-                company_ids: Vec::new(),
-                branch_ids: Vec::new(),
+                subtree_node_id: None,
             },
             AuthorityScope::Company {
                 holding_id,
@@ -73,8 +89,7 @@ impl AuthoritySqlScope {
                 holding_id: Some(*holding_id),
                 company_id: Some(*company_id),
                 branch_id: None,
-                company_ids: Vec::new(),
-                branch_ids: Vec::new(),
+                subtree_node_id: None,
             },
             AuthorityScope::Branch {
                 holding_id,
@@ -85,8 +100,7 @@ impl AuthoritySqlScope {
                 holding_id: Some(*holding_id),
                 company_id: Some(*company_id),
                 branch_id: Some(*branch_id),
-                company_ids: Vec::new(),
-                branch_ids: Vec::new(),
+                subtree_node_id: None,
             },
             AuthorityScope::Subtree {
                 holding_id,
@@ -96,8 +110,7 @@ impl AuthoritySqlScope {
                 holding_id: Some(*holding_id),
                 company_id: None,
                 branch_id: None,
-                company_ids: vec![*organization_node_id],
-                branch_ids: Vec::new(),
+                subtree_node_id: Some(*organization_node_id),
             },
         })
     }
@@ -122,9 +135,8 @@ impl WriteRepository for OrganizationWriteRepository {
                  OR ($2='holding' AND holding_id=$3)
                  OR ($2='company' AND holding_id=$3 AND company_id=$4)
                  OR ($2='branch' AND holding_id=$3 AND company_id=$4 AND branch_id=$5)
-                 OR ($2='subtree' AND holding_id=$3 AND company_id=ANY($6)
-                     AND ((branch_id IS NULL AND cardinality($7::uuid[])=0)
-                          OR branch_id=ANY($7)))
+                 OR ($2='subtree' AND holding_id=$3
+                     AND ($6=node_id OR $6=ANY(lineage_node_ids)))
                )",
         )
         .bind(node_id.as_uuid())
@@ -132,8 +144,7 @@ impl WriteRepository for OrganizationWriteRepository {
         .bind(authority.holding_id)
         .bind(authority.company_id)
         .bind(authority.branch_id)
-        .bind(&authority.company_ids)
-        .bind(&authority.branch_ids)
+        .bind(authority.subtree_node_id)
         .fetch_optional(&mut *transaction)
         .await
         .map_err(|_| PortError::Unavailable)?;
@@ -178,7 +189,11 @@ impl WriteRepository for OrganizationWriteRepository {
             updated_at: row.try_get("updated_at").map_err(|_| PortError::Internal)?,
         };
         let aggregate = OrganizationNode::try_rehydrate(state).map_err(|_| PortError::Internal)?;
-        if !authority_scope.contains(aggregate.scope()) {
+        if !aggregate
+            .placement()
+            .is_within_scope(aggregate.id(), authority_scope)
+            .map_err(|_| PortError::Internal)?
+        {
             return Err(PortError::Denied);
         }
         Ok(Some(aggregate))
@@ -198,10 +213,10 @@ impl HierarchyPort for OrganizationHierarchyRepository {
         node_id: OrganizationNodeId,
         placement: &OrganizationPlacement,
     ) -> Result<(), PortError> {
-        let scope = placement
-            .active_scope(node_id)
-            .map_err(|_| PortError::InvalidParent)?;
-        if !authority_scope.contains(&scope) {
+        if !placement
+            .is_within_scope(node_id, authority_scope)
+            .map_err(|_| PortError::InvalidParent)?
+        {
             return Err(PortError::Denied);
         }
         Ok(())
@@ -261,8 +276,9 @@ impl CommandUnitOfWork for OrganizationCommandAdapter {
         let request_hash = request_hash(&request.identity.fingerprint)?;
         let audit_action = audit_action(&request.identity.fingerprint);
         let idempotency_key = request.identity.idempotency_key.clone();
-        let mut events = request
-            .integration_events
+        let integration_events =
+            integration_events_with_lineage(&request.integration_events, &request.aggregate)?;
+        let mut events = integration_events
             .iter()
             .enumerate()
             .map(|(index, event)| OutboxEventWrite {
@@ -278,7 +294,7 @@ impl CommandUnitOfWork for OrganizationCommandAdapter {
         events.push(OutboxEventWrite {
             event_id: deterministic_event_id(command_id, SNAPSHOT_EVENT_TYPE, events.len()),
             event_type: SNAPSHOT_EVENT_TYPE.into(),
-            event_version: EVENT_VERSION,
+            event_version: NODE_SNAPSHOT_EVENT_VERSION,
             partition: partition.clone(),
             causation_id: request.causation_id,
             occurred_at,
@@ -386,6 +402,70 @@ fn organization_directory_draft(
     Ok(Some(value))
 }
 
+/// The SQL unit of work owns this publication so every committed aggregate
+/// state emits exactly one current lineage witness, including lifecycle-only
+/// changes and archive commands whose legacy integration fact is `Retired`.
+fn integration_events_with_lineage(
+    source: &[organization::Event],
+    aggregate: &OrganizationNode,
+) -> Result<Vec<organization::Event>, PortError> {
+    if source
+        .iter()
+        .any(|event| matches!(event, organization::Event::OrganizationLineageChanged(_)))
+    {
+        return Err(PortError::Internal);
+    }
+    let mut events = Vec::with_capacity(source.len() + 1);
+    events.extend_from_slice(source);
+    events.push(organization_lineage_event(aggregate)?);
+    Ok(events)
+}
+
+fn organization_lineage_event(
+    aggregate: &OrganizationNode,
+) -> Result<organization::Event, PortError> {
+    let node_id = aggregate.id();
+    let placement = aggregate.placement();
+    let key = organization::OrganizationLineageKey::try_new(
+        placement.holding_id(node_id),
+        node_id.as_uuid(),
+    )
+    .map_err(|_| PortError::Internal)?;
+    let witness = organization::OrganizationLineageWitness::try_new(
+        key,
+        integration_node_kind(aggregate.kind()),
+        integration_node_status(aggregate.status()),
+        placement.parent_id(node_id).map(|parent| parent.as_uuid()),
+        lineage_ids(node_id, placement),
+        aggregate.version(),
+    )
+    .map_err(|_| PortError::Internal)?;
+    let event = organization::Event::OrganizationLineageChanged(witness);
+    event.validate().map_err(|_| PortError::Internal)?;
+    Ok(event)
+}
+
+const fn integration_node_kind(kind: OrganizationNodeKind) -> organization::OrganizationNodeKind {
+    match kind {
+        OrganizationNodeKind::Holding => organization::OrganizationNodeKind::Holding,
+        OrganizationNodeKind::Company => organization::OrganizationNodeKind::Company,
+        OrganizationNodeKind::Headquarters => organization::OrganizationNodeKind::Headquarters,
+        OrganizationNodeKind::Branch => organization::OrganizationNodeKind::Branch,
+        OrganizationNodeKind::Department => organization::OrganizationNodeKind::Department,
+        OrganizationNodeKind::Team => organization::OrganizationNodeKind::Team,
+    }
+}
+
+const fn integration_node_status(
+    status: OrganizationNodeStatus,
+) -> organization::OrganizationNodeStatus {
+    match status {
+        OrganizationNodeStatus::Active => organization::OrganizationNodeStatus::Active,
+        OrganizationNodeStatus::Suspended => organization::OrganizationNodeStatus::Suspended,
+        OrganizationNodeStatus::Archived => organization::OrganizationNodeStatus::Archived,
+    }
+}
+
 struct OrganizationAtomicGuard {
     aggregate: OrganizationNode,
     requirement: Option<HierarchyGuard>,
@@ -400,6 +480,13 @@ struct GuardRow {
     company_id: Option<Uuid>,
     branch_id: Option<Uuid>,
     department_id: Option<Uuid>,
+}
+
+#[derive(Debug)]
+struct LockedAncestor {
+    node_id: Uuid,
+    parent_node_id: Option<Uuid>,
+    authority: GuardRow,
 }
 
 #[async_trait]
@@ -458,7 +545,28 @@ impl AtomicCommandGuard for OrganizationAtomicGuard {
                         "organization placement guard does not match aggregate",
                     ));
                 }
-                validate_parent(transaction, self.aggregate.id(), placement).await?;
+            }
+            Some(HierarchyGuard::ReparentPlacement(placement)) => {
+                if placement != self.aggregate.placement() {
+                    return Err(CqrsSqlxError::GuardRejected(
+                        "organization reparent guard does not match aggregate",
+                    ));
+                }
+                let child: Option<Uuid> = sqlx::query_scalar(
+                    "SELECT node_id
+                     FROM erpx_organization_write.organization_node_authority
+                     WHERE holding_id=erpx_cqrs_write.current_holding_id()
+                       AND parent_node_id = $1
+                     ORDER BY node_id LIMIT 1 FOR UPDATE",
+                )
+                .bind(self.aggregate.id().as_uuid())
+                .fetch_optional(&mut **transaction)
+                .await?;
+                if child.is_some() {
+                    return Err(CqrsSqlxError::GuardRejected(
+                        REPARENT_BLOCKED_BY_CHILDREN_GUARD,
+                    ));
+                }
             }
             Some(HierarchyGuard::NoActiveChildren) => {
                 let child: Option<Uuid> = sqlx::query_scalar(
@@ -478,6 +586,19 @@ impl AtomicCommandGuard for OrganizationAtomicGuard {
                 }
             }
             None => {}
+        }
+
+        // Any command that would leave this node active must pin its complete
+        // root-to-parent lineage in this same transaction. This applies to
+        // ordinary edits as well as create/reparent/activate, so a concurrent
+        // ancestor suspend, archive, or reparent cannot race the commit.
+        if self.aggregate.status() == OrganizationNodeStatus::Active {
+            validate_active_ancestor_chain(
+                transaction,
+                self.aggregate.id(),
+                self.aggregate.placement(),
+            )
+            .await?;
         }
 
         let parent_id = self.aggregate.placement().parent_id(self.aggregate.id());
@@ -562,14 +683,14 @@ impl AtomicCommandGuard for OrganizationAtomicGuard {
         .await?;
         if result.rows_affected() != 1 {
             return Err(CqrsSqlxError::GuardRejected(
-                "organization normalized version did not advance exactly once",
+                NORMALIZED_VERSION_CONFLICT_GUARD,
             ));
         }
         Ok(())
     }
 }
 
-async fn validate_parent(
+async fn validate_active_ancestor_chain(
     transaction: &mut Transaction<'_, Postgres>,
     node_id: OrganizationNodeId,
     placement: &OrganizationPlacement,
@@ -577,42 +698,129 @@ async fn validate_parent(
     placement
         .validate_for(node_id)
         .map_err(|_| CqrsSqlxError::GuardRejected("organization placement is invalid"))?;
-    let Some(parent_id) = placement.parent_id(node_id) else {
+    let lineage = lineage_ids(node_id, placement);
+    if lineage.is_empty() {
         return Ok(());
-    };
-    let row = sqlx::query(
-        "SELECT node_kind, node_status, lineage_node_ids, holding_id,
-                company_id, branch_id, department_id
-         FROM erpx_organization_write.organization_node_authority
-         WHERE holding_id=erpx_cqrs_write.current_holding_id() AND node_id=$1
-         FOR UPDATE",
-    )
-    .bind(parent_id.as_uuid())
-    .fetch_optional(&mut **transaction)
-    .await?;
-    let Some(row) = row else {
+    }
+    let rows = sqlx::query(ACTIVE_ANCESTOR_QUERY)
+        .bind(&lineage)
+        .fetch_all(&mut **transaction)
+        .await?;
+    let locked = rows
+        .into_iter()
+        .map(|row| {
+            Ok(LockedAncestor {
+                node_id: row.try_get("node_id")?,
+                parent_node_id: row.try_get("parent_node_id")?,
+                authority: GuardRow {
+                    kind: row.try_get("node_kind")?,
+                    status: row.try_get("node_status")?,
+                    lineage: row.try_get("lineage_node_ids")?,
+                    holding_id: row.try_get("holding_id")?,
+                    company_id: row.try_get("company_id")?,
+                    branch_id: row.try_get("branch_id")?,
+                    department_id: row.try_get("department_id")?,
+                },
+            })
+        })
+        .collect::<Result<Vec<_>, sqlx::Error>>()?;
+    if !active_ancestor_chain_matches(node_id, placement, &locked) {
         return Err(CqrsSqlxError::GuardRejected(
-            "organization parent does not exist",
-        ));
-    };
-    let parent = GuardRow {
-        kind: row.try_get("node_kind")?,
-        status: row.try_get("node_status")?,
-        lineage: row.try_get("lineage_node_ids")?,
-        holding_id: row.try_get("holding_id")?,
-        company_id: row.try_get("company_id")?,
-        branch_id: row.try_get("branch_id")?,
-        department_id: row.try_get("department_id")?,
-    };
-    if parent.status != "active"
-        || parent.lineage.contains(&node_id.as_uuid())
-        || !parent_matches(placement, &parent)
-    {
-        return Err(CqrsSqlxError::GuardRejected(
-            "organization parent lineage is invalid",
+            "organization ancestor placement is invalid",
         ));
     }
     Ok(())
+}
+
+fn active_ancestor_chain_matches(
+    node_id: OrganizationNodeId,
+    placement: &OrganizationPlacement,
+    rows: &[LockedAncestor],
+) -> bool {
+    let lineage = lineage_ids(node_id, placement);
+    let kinds = expected_active_ancestor_kinds(placement);
+    if rows.len() != lineage.len() || kinds.len() != lineage.len() {
+        return false;
+    }
+    for (index, ((row, expected_node_id), expected_kind)) in
+        rows.iter().zip(&lineage).zip(kinds).enumerate()
+    {
+        let expected_parent = index.checked_sub(1).map(|parent| lineage[parent]);
+        if row.node_id != *expected_node_id
+            || row.parent_node_id != expected_parent
+            || row.authority.kind != *expected_kind
+            || row.authority.status != "active"
+            || row.authority.lineage != lineage[..index]
+            || !normalized_ancestor_matches(&row.authority, row.node_id, expected_kind)
+        {
+            return false;
+        }
+    }
+    rows.last()
+        .is_some_and(|parent| parent_matches(placement, &parent.authority))
+}
+
+fn expected_active_ancestor_kinds(placement: &OrganizationPlacement) -> &'static [&'static str] {
+    match placement {
+        OrganizationPlacement::Holding => &[],
+        OrganizationPlacement::Company { .. } => &["holding"],
+        OrganizationPlacement::Headquarters { .. } | OrganizationPlacement::Branch { .. } => {
+            &["holding", "company"]
+        }
+        OrganizationPlacement::Department {
+            branch_id: None, ..
+        } => &["holding", "company"],
+        OrganizationPlacement::Department {
+            branch_id: Some(_), ..
+        } => &["holding", "company", "branch"],
+        OrganizationPlacement::Team {
+            branch_id: None, ..
+        } => &["holding", "company", "department"],
+        OrganizationPlacement::Team {
+            branch_id: Some(_), ..
+        } => &["holding", "company", "branch", "department"],
+    }
+}
+
+fn normalized_ancestor_matches(parent: &GuardRow, node_id: Uuid, kind: &str) -> bool {
+    let lineage = &parent.lineage;
+    match kind {
+        "holding" => {
+            parent.holding_id == node_id
+                && parent.company_id.is_none()
+                && parent.branch_id.is_none()
+                && parent.department_id.is_none()
+        }
+        "company" => {
+            lineage
+                .first()
+                .is_some_and(|holding| *holding == parent.holding_id)
+                && parent.company_id == Some(node_id)
+                && parent.branch_id.is_none()
+                && parent.department_id.is_none()
+        }
+        "branch" => {
+            lineage
+                .first()
+                .is_some_and(|holding| *holding == parent.holding_id)
+                && lineage.get(1).copied() == parent.company_id
+                && parent.branch_id == Some(node_id)
+                && parent.department_id.is_none()
+        }
+        "department" => {
+            lineage
+                .first()
+                .is_some_and(|holding| *holding == parent.holding_id)
+                && lineage.get(1).copied() == parent.company_id
+                && match lineage.len() {
+                    2 => parent.branch_id.is_none(),
+                    3 => lineage.get(2).copied() == parent.branch_id,
+                    _ => false,
+                }
+                && parent.department_id == Some(node_id)
+        }
+        _ => false,
+    }
 }
 
 fn parent_matches(placement: &OrganizationPlacement, parent: &GuardRow) -> bool {
@@ -726,12 +934,49 @@ fn validate_commit(request: &OrganizationCommit) -> Result<(), PortError> {
         .ok_or(PortError::Internal)?;
     if request.aggregate.validate().is_err()
         || fingerprint_node_id(&request.identity.fingerprint) != request.aggregate.id()
-        || !request.authority_scope.contains(request.aggregate.scope())
+        || !request
+            .aggregate
+            .placement()
+            .is_within_scope(request.aggregate.id(), &request.authority_scope)
+            .map_err(|_| PortError::Internal)?
+        || !hierarchy_guard_matches_command(
+            &request.identity.fingerprint,
+            request.hierarchy_guard.as_ref(),
+            request.aggregate.placement(),
+        )
         || request.aggregate.version() != next
     {
         return Err(PortError::Internal);
     }
     Ok(())
+}
+
+fn hierarchy_guard_matches_command(
+    fingerprint: &CommandFingerprint,
+    guard: Option<&HierarchyGuard>,
+    current_placement: &OrganizationPlacement,
+) -> bool {
+    match (fingerprint, guard) {
+        (
+            CommandFingerprint::Create { placement, .. },
+            Some(HierarchyGuard::Placement(guarded)),
+        ) => placement == current_placement && guarded == current_placement,
+        (
+            CommandFingerprint::Reparent { placement, .. },
+            Some(HierarchyGuard::ReparentPlacement(guarded)),
+        ) => placement == current_placement && guarded == current_placement,
+        (CommandFingerprint::Activate { .. }, Some(HierarchyGuard::Placement(guarded))) => {
+            guarded == current_placement
+        }
+        (CommandFingerprint::Archive { .. }, Some(HierarchyGuard::NoActiveChildren)) => true,
+        (
+            CommandFingerprint::Rename { .. }
+            | CommandFingerprint::ChangeCode { .. }
+            | CommandFingerprint::Suspend { .. },
+            None,
+        ) => true,
+        _ => false,
+    }
 }
 
 fn aggregate_id(node_id: OrganizationNodeId) -> Result<AggregateId, PortError> {
@@ -793,22 +1038,42 @@ fn audit_action(fingerprint: &CommandFingerprint) -> &'static str {
 fn receipt_to_stored(
     receipt: erpx_cqrs::CommandReceipt<OrganizationNode>,
 ) -> Result<StoredCommit, PortError> {
+    // Receipts written before exact Department/Team scopes persist the old
+    // company/branch scope witness inside the aggregate JSON. Rehydrate from
+    // the stable typed state so replay upgrades that witness deterministically
+    // without changing the receipt identity or aggregate version.
+    let response = normalize_receipt_node(&receipt.response)?;
     if receipt.aggregate.context != CONTEXT_NAME
         || receipt.aggregate.aggregate_type != AGGREGATE_TYPE
-        || receipt.aggregate.aggregate_id.as_uuid() != receipt.response.id().as_uuid()
-        || receipt.aggregate.version != receipt.response.version()
-        || receipt.response.validate().is_err()
+        || receipt.aggregate.aggregate_id.as_uuid() != response.id().as_uuid()
+        || receipt.aggregate.version != response.version()
     {
         return Err(PortError::Internal);
     }
     Ok(StoredCommit {
         command_id: receipt.command_id,
         correlation_id: receipt.correlation_id,
-        aggregate: receipt.response,
+        aggregate: response,
         committed_events: receipt.committed_events,
         committed_at: receipt.committed_at,
         replayed: receipt.replayed,
     })
+}
+
+fn normalize_receipt_node(value: &OrganizationNode) -> Result<OrganizationNode, PortError> {
+    canonical_node_scope(value.placement(), value.id(), value.scope())
+        .map_err(|_| PortError::Internal)?;
+    OrganizationNode::try_rehydrate(OrganizationNodeState {
+        id: value.id(),
+        version: value.version(),
+        code: value.code().into(),
+        name: value.name().into(),
+        placement: value.placement().clone(),
+        status: value.status(),
+        created_at: value.created_at(),
+        updated_at: value.updated_at(),
+    })
+    .map_err(|_| PortError::Internal)
 }
 
 fn map_store_error(error: CqrsSqlxError) -> PortError {
@@ -827,6 +1092,9 @@ fn map_store_error(error: CqrsSqlxError) -> PortError {
         CqrsSqlxError::GuardRejected("organization node has active children") => {
             PortError::ActiveChildren
         }
+        CqrsSqlxError::GuardRejected(REPARENT_BLOCKED_BY_CHILDREN_GUARD) => {
+            PortError::ReparentBlockedByChildren
+        }
         CqrsSqlxError::GuardRejected("organization parent lineage is invalid") => {
             PortError::HierarchyCycle
         }
@@ -836,18 +1104,18 @@ fn map_store_error(error: CqrsSqlxError) -> PortError {
             PortError::InvalidParent
         }
         CqrsSqlxError::GuardRejected("organization node already exists")
-        | CqrsSqlxError::GuardRejected("organization sibling code already exists") => {
-            PortError::Conflict {
-                expected: 0,
-                actual: 0,
-            }
-        }
+        | CqrsSqlxError::GuardRejected("organization sibling code already exists")
+        | CqrsSqlxError::GuardRejected(NORMALIZED_VERSION_CONFLICT_GUARD) => PortError::Conflict {
+            expected: 0,
+            actual: 0,
+        },
         CqrsSqlxError::GuardRejected(_) => PortError::Internal,
         CqrsSqlxError::Database(error)
-            if error
-                .as_database_error()
-                .and_then(|error| error.constraint())
-                == Some("organization_sibling_code") =>
+            if sibling_code_constraint(
+                error
+                    .as_database_error()
+                    .and_then(|error| error.constraint()),
+            ) =>
         {
             PortError::Conflict {
                 expected: 0,
@@ -857,6 +1125,13 @@ fn map_store_error(error: CqrsSqlxError) -> PortError {
         CqrsSqlxError::Database(_) => PortError::Unavailable,
         _ => PortError::Internal,
     }
+}
+
+fn sibling_code_constraint(constraint: Option<&str>) -> bool {
+    matches!(
+        constraint,
+        Some("organization_sibling_code" | "organization_node_authority_sibling_code")
+    )
 }
 
 fn to_i64(value: u64) -> Result<i64, CqrsSqlxError> {
@@ -970,6 +1245,73 @@ mod tests {
     }
 
     #[test]
+    fn reparent_children_guard_maps_to_the_typed_conflict() {
+        assert_eq!(
+            map_store_error(CqrsSqlxError::GuardRejected(
+                REPARENT_BLOCKED_BY_CHILDREN_GUARD,
+            )),
+            PortError::ReparentBlockedByChildren
+        );
+    }
+
+    #[test]
+    fn inactive_parent_guard_maps_to_invalid_parent() {
+        assert_eq!(
+            map_store_error(CqrsSqlxError::GuardRejected(
+                "organization parent is inactive",
+            )),
+            PortError::InvalidParent
+        );
+    }
+
+    #[test]
+    fn normalized_create_races_and_both_sibling_constraints_map_to_conflict() {
+        assert_eq!(
+            map_store_error(CqrsSqlxError::GuardRejected(
+                NORMALIZED_VERSION_CONFLICT_GUARD,
+            )),
+            PortError::Conflict {
+                expected: 0,
+                actual: 0,
+            }
+        );
+        assert!(sibling_code_constraint(Some("organization_sibling_code")));
+        assert!(sibling_code_constraint(Some(
+            "organization_node_authority_sibling_code"
+        )));
+        assert!(!sibling_code_constraint(Some("unrelated_constraint")));
+    }
+
+    #[test]
+    fn activation_requires_an_atomic_guard_for_its_current_placement() {
+        let root = OrganizationPlacement::Holding;
+        let branch = OrganizationPlacement::Branch {
+            holding_id: Uuid::from_u128(1),
+            company_id: Uuid::from_u128(2),
+        };
+        let activate = CommandFingerprint::Activate {
+            node_id: node_id(3),
+        };
+
+        assert!(hierarchy_guard_matches_command(
+            &activate,
+            Some(&HierarchyGuard::Placement(branch.clone())),
+            &branch,
+        ));
+        assert!(hierarchy_guard_matches_command(
+            &activate,
+            Some(&HierarchyGuard::Placement(root.clone())),
+            &root,
+        ));
+        assert!(!hierarchy_guard_matches_command(&activate, None, &branch,));
+        assert!(!hierarchy_guard_matches_command(
+            &activate,
+            Some(&HierarchyGuard::Placement(root)),
+            &branch,
+        ));
+    }
+
+    #[test]
     fn lineage_is_derived_from_typed_placement() {
         let placement = OrganizationPlacement::Team {
             holding_id: Uuid::from_u128(1),
@@ -986,6 +1328,304 @@ mod tests {
                 Uuid::from_u128(4)
             ]
         );
+    }
+
+    fn locked_ancestor(
+        node: u128,
+        parent: Option<u128>,
+        kind: &str,
+        status: &str,
+        lineage: &[u128],
+        normalized: (Option<u128>, Option<u128>, Option<u128>),
+    ) -> LockedAncestor {
+        LockedAncestor {
+            node_id: Uuid::from_u128(node),
+            parent_node_id: parent.map(Uuid::from_u128),
+            authority: GuardRow {
+                kind: kind.into(),
+                status: status.into(),
+                lineage: lineage.iter().copied().map(Uuid::from_u128).collect(),
+                holding_id: Uuid::from_u128(1),
+                company_id: normalized.0.map(Uuid::from_u128),
+                branch_id: normalized.1.map(Uuid::from_u128),
+                department_id: normalized.2.map(Uuid::from_u128),
+            },
+        }
+    }
+
+    #[test]
+    fn active_team_commit_rejects_a_suspended_branch_or_department_ancestor() {
+        let placement = OrganizationPlacement::Team {
+            holding_id: Uuid::from_u128(1),
+            company_id: Uuid::from_u128(2),
+            branch_id: Some(Uuid::from_u128(3)),
+            department_id: Uuid::from_u128(4),
+        };
+        let mut ancestors = vec![
+            locked_ancestor(1, None, "holding", "active", &[], (None, None, None)),
+            locked_ancestor(2, Some(1), "company", "active", &[1], (Some(2), None, None)),
+            locked_ancestor(
+                3,
+                Some(2),
+                "branch",
+                "active",
+                &[1, 2],
+                (Some(2), Some(3), None),
+            ),
+            locked_ancestor(
+                4,
+                Some(3),
+                "department",
+                "active",
+                &[1, 2, 3],
+                (Some(2), Some(3), Some(4)),
+            ),
+        ];
+        assert!(active_ancestor_chain_matches(
+            node_id(5),
+            &placement,
+            &ancestors,
+        ));
+
+        ancestors[2].authority.status = "suspended".into();
+        assert!(!active_ancestor_chain_matches(
+            node_id(5),
+            &placement,
+            &ancestors,
+        ));
+        ancestors[2].authority.status = "active".into();
+        ancestors[3].authority.status = "suspended".into();
+        assert!(!active_ancestor_chain_matches(
+            node_id(5),
+            &placement,
+            &ancestors,
+        ));
+    }
+
+    #[test]
+    fn every_resulting_active_command_uses_one_ordered_share_locked_ancestor_query() {
+        assert!(ACTIVE_ANCESTOR_QUERY.contains("UNNEST($1::uuid[]) WITH ORDINALITY"));
+        assert!(ACTIVE_ANCESTOR_QUERY.contains("ORDER BY requested.ordinal"));
+        assert!(ACTIVE_ANCESTOR_QUERY.contains("FOR SHARE OF authority"));
+
+        let source = include_str!("command.rs");
+        let requirement_match = source
+            .find("match &self.requirement")
+            .expect("the optional command-specific guard remains explicit");
+        let active_chain = source
+            .find("if self.aggregate.status() == OrganizationNodeStatus::Active")
+            .expect("all active outcomes validate their lineage");
+        let sibling_check = source
+            .find("let duplicate: Option<Uuid>")
+            .expect("the sibling-code guard remains after lineage validation");
+        assert!(requirement_match < active_chain && active_chain < sibling_check);
+    }
+
+    #[test]
+    fn lineage_event_maps_exact_department_and_team_paths() {
+        let at = chrono::Utc::now();
+        let department = OrganizationNode::create(
+            node_id(4),
+            OrganizationPlacement::Department {
+                holding_id: Uuid::from_u128(1),
+                company_id: Uuid::from_u128(2),
+                branch_id: Some(Uuid::from_u128(3)),
+            },
+            "OPS".into(),
+            "Operations".into(),
+            at,
+        )
+        .unwrap();
+        let team = OrganizationNode::create(
+            node_id(5),
+            OrganizationPlacement::Team {
+                holding_id: Uuid::from_u128(1),
+                company_id: Uuid::from_u128(2),
+                branch_id: Some(Uuid::from_u128(3)),
+                department_id: Uuid::from_u128(4),
+            },
+            "AP".into(),
+            "Accounts Payable".into(),
+            at,
+        )
+        .unwrap();
+
+        let organization::Event::OrganizationLineageChanged(department_witness) =
+            organization_lineage_event(&department).unwrap()
+        else {
+            panic!("department must emit a lineage witness")
+        };
+        assert_eq!(
+            department_witness.kind(),
+            organization::OrganizationNodeKind::Department
+        );
+        assert_eq!(
+            department_witness.key().node_id().as_uuid(),
+            department.id().as_uuid()
+        );
+        assert_eq!(
+            department_witness.key().holding_id().as_uuid(),
+            Uuid::from_u128(1)
+        );
+        assert_eq!(
+            department_witness
+                .lineage_node_ids()
+                .iter()
+                .map(|node| node.as_uuid())
+                .collect::<Vec<_>>(),
+            vec![Uuid::from_u128(1), Uuid::from_u128(2), Uuid::from_u128(3),]
+        );
+        assert_eq!(department_witness.aggregate_version(), department.version());
+
+        let organization::Event::OrganizationLineageChanged(team_witness) =
+            organization_lineage_event(&team).unwrap()
+        else {
+            panic!("team must emit a lineage witness")
+        };
+        assert_eq!(
+            team_witness.kind(),
+            organization::OrganizationNodeKind::Team
+        );
+        assert_eq!(
+            team_witness
+                .lineage_node_ids()
+                .iter()
+                .map(|node| node.as_uuid())
+                .collect::<Vec<_>>(),
+            vec![
+                Uuid::from_u128(1),
+                Uuid::from_u128(2),
+                Uuid::from_u128(3),
+                Uuid::from_u128(4),
+            ]
+        );
+        assert_eq!(team_witness.aggregate_version(), team.version());
+    }
+
+    #[test]
+    fn archived_state_emits_current_lineage_after_the_legacy_fact() {
+        let at = chrono::Utc::now();
+        let mut department = OrganizationNode::create(
+            node_id(4),
+            OrganizationPlacement::Department {
+                holding_id: Uuid::from_u128(1),
+                company_id: Uuid::from_u128(2),
+                branch_id: None,
+            },
+            "OPS".into(),
+            "Operations".into(),
+            at,
+        )
+        .unwrap();
+        department
+            .archive(at + chrono::Duration::minutes(1))
+            .unwrap();
+        let legacy = organization::Event::OrganizationUnitRetired {
+            business_unit: organization::BusinessUnitRef::try_from_uuid(department.id().as_uuid())
+                .unwrap(),
+        };
+        let events =
+            integration_events_with_lineage(std::slice::from_ref(&legacy), &department).unwrap();
+
+        assert_eq!(events.first(), Some(&legacy));
+        let Some(organization::Event::OrganizationLineageChanged(witness)) = events.last() else {
+            panic!("current lineage must be the final integration event")
+        };
+        assert_eq!(events.len(), 2);
+        assert_eq!(
+            witness.status(),
+            organization::OrganizationNodeStatus::Archived
+        );
+        assert_eq!(witness.key().node_id().as_uuid(), department.id().as_uuid());
+        assert_eq!(witness.aggregate_version(), department.version());
+        assert_eq!(
+            events.last().unwrap().event_type(),
+            organization::ORGANIZATION_LINEAGE_CHANGED_EVENT_TYPE
+        );
+        assert_eq!(
+            events.last().unwrap().schema_version(),
+            organization::ORGANIZATION_LINEAGE_CHANGED_VERSION
+        );
+    }
+
+    #[test]
+    fn adapter_rejects_a_caller_supplied_lineage_witness() {
+        let node = OrganizationNode::create(
+            node_id(1),
+            OrganizationPlacement::Holding,
+            "H".into(),
+            "Holding".into(),
+            chrono::Utc::now(),
+        )
+        .unwrap();
+        let event = organization_lineage_event(&node).unwrap();
+        assert_eq!(
+            integration_events_with_lineage(&[event], &node),
+            Err(PortError::Internal)
+        );
+    }
+
+    #[test]
+    fn subtree_write_filter_uses_authoritative_node_lineage() {
+        let node = Uuid::from_u128(4);
+        let scope = AuthoritySqlScope::try_from_scope(&AuthorityScope::Subtree {
+            holding_id: Uuid::from_u128(1),
+            organization_node_id: node,
+        })
+        .unwrap();
+        assert_eq!(scope.mode, "subtree");
+        assert_eq!(scope.subtree_node_id, Some(node));
+        assert!(scope.company_id.is_none());
+        assert!(scope.branch_id.is_none());
+
+        let source = include_str!("command.rs");
+        assert!(source.contains("$6=node_id OR $6=ANY(lineage_node_ids)"));
+        let obsolete_company_alias = ["company_id", "=ANY($6)"].concat();
+        assert!(!source.contains(&obsolete_company_alias));
+    }
+
+    #[test]
+    fn legacy_department_receipt_scope_is_upcast_from_typed_placement() {
+        let department = OrganizationNode::create(
+            node_id(4),
+            OrganizationPlacement::Department {
+                holding_id: Uuid::from_u128(1),
+                company_id: Uuid::from_u128(2),
+                branch_id: Some(Uuid::from_u128(3)),
+            },
+            "OPS".into(),
+            "Operations".into(),
+            chrono::Utc::now(),
+        )
+        .unwrap();
+        let mut legacy = serde_json::to_value(&department).unwrap();
+        legacy["scope"] = serde_json::to_value(AuthorityScope::Branch {
+            holding_id: Uuid::from_u128(1),
+            company_id: Uuid::from_u128(2),
+            branch_id: Uuid::from_u128(3),
+        })
+        .unwrap();
+        let legacy: OrganizationNode = serde_json::from_value(legacy).unwrap();
+        assert!(legacy.validate().is_err());
+
+        let normalized = normalize_receipt_node(&legacy).unwrap();
+        assert_eq!(
+            normalized.scope(),
+            &AuthorityScope::Subtree {
+                holding_id: Uuid::from_u128(1),
+                organization_node_id: Uuid::from_u128(4),
+            }
+        );
+        assert_eq!(normalized.version(), legacy.version());
+
+        let mut corrupted = serde_json::to_value(&department).unwrap();
+        corrupted["scope"] = serde_json::to_value(AuthorityScope::Company {
+            holding_id: Uuid::from_u128(1),
+            company_id: Uuid::from_u128(99),
+        })
+        .unwrap();
+        let corrupted: OrganizationNode = serde_json::from_value(corrupted).unwrap();
+        assert_eq!(normalize_receipt_node(&corrupted), Err(PortError::Internal));
     }
 
     #[test]

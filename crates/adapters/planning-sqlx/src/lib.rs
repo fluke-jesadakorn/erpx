@@ -100,6 +100,14 @@ impl PlanningWriteRepository for SqlxPlanningWriteRepository {
                 .collect::<Result<Vec<_>, _>>()?;
             return Ok(CommitReceipt { aggregate_keys: stored_keys, aggregate_versions, committed_at, replayed: true });
         }
+        // This command can lock several aggregates before emitting several
+        // shared outbox rows. Take the same commit-order lock up front so a
+        // reversed aggregate batch cannot form row-lock -> outbox-lock and
+        // outbox-lock -> row-lock edges across two transactions.
+        sqlx::query("SELECT erpx_cqrs_write.lock_outbox_commit_order()")
+            .execute(&mut *tx)
+            .await
+            .map_err(map_error)?;
         for (index, aggregate) in request.aggregates.iter().enumerate() {
             let (kind, id, document) = aggregate_parts(aggregate)?;
             let projection_document = document.clone();
@@ -638,5 +646,17 @@ mod tests {
         let source = include_str!("projection.rs");
         assert!(source.contains("GOVERNED_RECORD_SNAPSHOT_EVENT_TYPE"));
         assert!(source.contains("ctx.generation"));
+    }
+
+    #[test]
+    fn multi_aggregate_commit_takes_outbox_order_lock_before_row_locks() {
+        let source = include_str!("lib.rs");
+        let lock = source
+            .find("SELECT erpx_cqrs_write.lock_outbox_commit_order()")
+            .expect("commit-order lock");
+        let aggregate_loop = source
+            .find("for (index, aggregate) in request.aggregates.iter().enumerate()")
+            .expect("multi-aggregate lock loop");
+        assert!(lock < aggregate_loop);
     }
 }

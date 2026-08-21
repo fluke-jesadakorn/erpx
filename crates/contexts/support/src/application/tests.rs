@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicUsize, Ordering},
+};
 
 use async_trait::async_trait;
 use chrono::{TimeZone, Utc};
@@ -8,8 +11,8 @@ use erpx_cqrs::{
 };
 use erpx_integration_contracts::{DisplayName, ReferenceCode, customer, organization};
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
-    FixedClock, QueryId,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+    ErrorCategory, EventId, FixedClock, QueryId, SessionId as KernelSessionId,
 };
 use uuid::Uuid;
 
@@ -44,6 +47,49 @@ fn customer_fact() -> customer::CustomerProfileFact {
         status: customer::CustomerStatus::Active,
     }
 }
+fn principal(value: u128) -> identity_access::PrincipalRef {
+    identity_access::PrincipalRef::try_from_uuid(id(value)).unwrap()
+}
+fn requested_session() -> SupportSession {
+    let opened_at = at() - chrono::Duration::minutes(2);
+    let mut ticket = SupportTicket::open(
+        SupportTicketId::try_from_uuid(id(20)).unwrap(),
+        scope(),
+        customer_fact(),
+        "SUP-20".into(),
+        "identity".into(),
+        "high".into(),
+        "cannot authenticate".into(),
+        opened_at,
+    )
+    .unwrap();
+    ticket
+        .transition(
+            TicketStatus::Triaged,
+            opened_at + chrono::Duration::seconds(30),
+        )
+        .unwrap();
+    ticket
+        .transition(
+            TicketStatus::AccessRequested,
+            opened_at + chrono::Duration::minutes(1),
+        )
+        .unwrap();
+    SupportSession::request(
+        SessionId::try_from_uuid(id(30)).unwrap(),
+        &ticket,
+        principal(32),
+        None,
+        SupportMode::DiagnosticRead,
+        vec!["holding.read".into()],
+        scope(),
+        "support".into(),
+        "customer requested diagnostics".into(),
+        chrono::Duration::minutes(30),
+        opened_at + chrono::Duration::minutes(1),
+    )
+    .unwrap()
+}
 fn actor(value: &str) -> ActorAttribution {
     ActorAttribution {
         principal_ref: value.into(),
@@ -51,6 +97,32 @@ fn actor(value: &str) -> ActorAttribution {
         session_id: None,
         represented_principal_ref: None,
         support_capability_id: None,
+    }
+}
+fn approve_envelope(kind: ActorKind) -> CommandEnvelope<SupportCommand> {
+    CommandEnvelope {
+        contract_version: CONTRACT_VERSION,
+        command_id: CommandId::try_from_uuid(id(510)).unwrap(),
+        idempotency_key: IdempotencyKey::try_new("support-approve-session-stable-key").unwrap(),
+        correlation_id: CorrelationId::try_from_uuid(id(511)).unwrap(),
+        causation_id: None,
+        actor: ActorAttribution {
+            principal_ref: principal(33).as_uuid().to_string(),
+            kind,
+            session_id: Some(KernelSessionId::try_from_uuid(id(512)).unwrap()),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        },
+        active_scope: scope(),
+        audit: AuditContext {
+            purpose: "customer approves Support session".into(),
+            customer_visible: true,
+            module: Some("support".into()),
+        },
+        expected_aggregate_version: Some(1),
+        command: SupportCommand::ApproveSession(ApproveSupportSession {
+            session_id: SessionId::try_from_uuid(id(30)).unwrap(),
+        }),
     }
 }
 fn envelope(principal: &str, correlation: u128) -> CommandEnvelope<SupportCommand> {
@@ -114,6 +186,44 @@ impl WriteRepository for FakeWrite {
 }
 
 #[derive(Clone)]
+struct SessionWrite {
+    session: SupportSession,
+    loads: Arc<AtomicUsize>,
+}
+#[async_trait]
+impl WriteRepository for SessionWrite {
+    async fn load_ticket(
+        &self,
+        _: &AuthorityScope,
+        _: SupportTicketId,
+    ) -> Result<Option<SupportTicket>, PortError> {
+        Ok(None)
+    }
+    async fn load_incident(
+        &self,
+        _: &AuthorityScope,
+        _: IncidentId,
+    ) -> Result<Option<Incident>, PortError> {
+        Ok(None)
+    }
+    async fn load_session(
+        &self,
+        _: &AuthorityScope,
+        _: SessionId,
+    ) -> Result<Option<SupportSession>, PortError> {
+        self.loads.fetch_add(1, Ordering::SeqCst);
+        Ok(Some(self.session.clone()))
+    }
+    async fn load_capability(
+        &self,
+        _: &AuthorityScope,
+        _: CapabilityId,
+    ) -> Result<Option<SupportCapability>, PortError> {
+        Ok(None)
+    }
+}
+
+#[derive(Clone)]
 struct Allow;
 #[async_trait]
 impl AuthorizationPort for Allow {
@@ -133,6 +243,7 @@ impl EntitlementPort for Allow {
 struct FakeUow {
     commits: Arc<Mutex<Vec<SupportCommit>>>,
     stored: Arc<Mutex<Option<(CommandIdentity, StoredCommit)>>>,
+    receipt_reads: Arc<AtomicUsize>,
 }
 #[async_trait]
 impl CommandUnitOfWork for FakeUow {
@@ -140,6 +251,7 @@ impl CommandUnitOfWork for FakeUow {
         &self,
         identity: &CommandIdentity,
     ) -> Result<Option<StoredCommit>, PortError> {
+        self.receipt_reads.fetch_add(1, Ordering::SeqCst);
         Ok(self
             .stored
             .lock()
@@ -179,6 +291,7 @@ async fn command_commit_is_atomic_shape_and_stable_retry_does_not_commit_twice()
         assert_eq!(commit.aggregate.version(), 1);
         assert!(commit.expected_version.is_none());
         assert!(commit.dependency.is_none());
+        assert!(commit.human_decision.is_none());
         assert_eq!(commit.integration_events.len(), 1);
         assert_eq!(commit.audit.purpose, "support.test");
     }
@@ -186,6 +299,89 @@ async fn command_commit_is_atomic_shape_and_stable_retry_does_not_commit_twice()
     assert!(retry.replayed);
     assert_eq!(retry.correlation_id, first.correlation_id);
     assert_eq!(uow.commits.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn non_humans_are_denied_before_support_repository_access() {
+    for kind in [
+        ActorKind::Agent,
+        ActorKind::Service,
+        ActorKind::SystemWorker,
+    ] {
+        let loads = Arc::new(AtomicUsize::new(0));
+        let write = SessionWrite {
+            session: requested_session(),
+            loads: loads.clone(),
+        };
+        let uow = FakeUow::default();
+        let handler =
+            SupportCommandHandler::new(write, uow.clone(), Allow, Allow, FixedClock::new(at()));
+        let error = handler.handle(approve_envelope(kind)).await.unwrap_err();
+        assert_eq!(error.category(), ErrorCategory::Denied);
+        assert_eq!(loads.load(Ordering::SeqCst), 0);
+        assert_eq!(uow.receipt_reads.load(Ordering::SeqCst), 0);
+        assert!(uow.commits.lock().unwrap().is_empty());
+    }
+}
+
+#[tokio::test]
+async fn human_kind_without_authenticated_session_is_denied_before_repository_access() {
+    let loads = Arc::new(AtomicUsize::new(0));
+    let write = SessionWrite {
+        session: requested_session(),
+        loads: loads.clone(),
+    };
+    let uow = FakeUow::default();
+    let handler =
+        SupportCommandHandler::new(write, uow.clone(), Allow, Allow, FixedClock::new(at()));
+    let mut command = approve_envelope(ActorKind::HoldingUser);
+    command.actor.session_id = None;
+    let error = handler.handle(command).await.unwrap_err();
+    assert_eq!(error.category(), ErrorCategory::Denied);
+    assert_eq!(loads.load(Ordering::SeqCst), 0);
+    assert_eq!(uow.receipt_reads.load(Ordering::SeqCst), 0);
+    assert!(uow.commits.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn approve_session_commits_exact_authenticated_human_decision() {
+    let loads = Arc::new(AtomicUsize::new(0));
+    let write = SessionWrite {
+        session: requested_session(),
+        loads: loads.clone(),
+    };
+    let uow = FakeUow::default();
+    let handler =
+        SupportCommandHandler::new(write, uow.clone(), Allow, Allow, FixedClock::new(at()));
+    handler
+        .handle(approve_envelope(ActorKind::HoldingUser))
+        .await
+        .unwrap();
+    assert_eq!(loads.load(Ordering::SeqCst), 1);
+    let commits = uow.commits.lock().unwrap();
+    let commit = commits.first().expect("one Support approval commit");
+    let decision = commit
+        .human_decision
+        .as_ref()
+        .expect("approval carries human decision evidence");
+    let session_id = SessionId::try_from_uuid(id(30)).unwrap();
+    assert_eq!(decision.actor(), &commit.actor);
+    assert_eq!(decision.actor().kind, ActorKind::HoldingUser);
+    assert_eq!(
+        decision.actor().session_id.map(|session| session.as_uuid()),
+        Some(id(512))
+    );
+    assert_eq!(decision.authority_scope(), &scope());
+    assert_eq!(
+        decision.decision_ref(),
+        support_session_approval_decision_ref(session_id)
+    );
+    assert_eq!(decision.decided_at(), at());
+    let SupportAggregate::Session(session) = &commit.aggregate else {
+        panic!("approval must commit a Support session");
+    };
+    assert_eq!(session.approved_by(), Some(decision.principal_ref()));
+    assert_eq!(session.approved_at(), Some(decision.decided_at()));
 }
 
 #[test]
