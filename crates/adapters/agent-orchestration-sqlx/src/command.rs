@@ -3,8 +3,9 @@ use erpx_agent_orchestration::{
     AgentDefinition, AgentDefinitionStatus, AgentVersionStatus, Assignment, AssignmentCommit,
     AssignmentState, BudgetLayerKind, BudgetReservation, DefinitionCommit, DelegationCommit,
     InvocationOrigin, OrchestrationUnitOfWork, PortError, RootAssignmentCommit,
+    RootAssignmentReceipt,
 };
-use erpx_kernel::AuthorityScope;
+use erpx_kernel::{AuthorityScope, CommandId, CorrelationId, EventId};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use sqlx::{Postgres, Transaction};
@@ -116,6 +117,7 @@ impl OrchestrationUnitOfWork for SqlxAgentRuntime {
             &commit.assignment,
             serde_json::to_value(&commit.actor).map_err(|_| PortError::Persistence)?,
             commit.assignment.updated_at(),
+            None,
         )
         .await?;
         tx.commit().await.map_err(|_| PortError::Persistence)?;
@@ -125,18 +127,20 @@ impl OrchestrationUnitOfWork for SqlxAgentRuntime {
     async fn commit_root_assignment(
         &self,
         commit: RootAssignmentCommit,
-    ) -> Result<Assignment, PortError> {
+    ) -> Result<RootAssignmentReceipt, PortError> {
         validate_root_commit(&commit)?;
         let scope = scope_key(commit.assignment.scope());
+        let human_decision = human_decision_json(&commit.human_decision)?;
         let request_digest = digest(&json!({
             "assignment": &commit.assignment,
             "reservation": &commit.reservation,
             "prompt_ref": &commit.prompt_ref,
             "payload_manifest": &commit.payload_manifest,
+            "human_decision": &human_decision,
         }))?;
         let holding_id = self.holding_id();
         let mut tx = self.database.begin().await?;
-        if let Some(replayed) = replay_assignment(
+        if let Some(replayed) = replay_root_assignment(
             &mut tx,
             holding_id,
             &scope,
@@ -164,31 +168,39 @@ impl OrchestrationUnitOfWork for SqlxAgentRuntime {
             &commit.reservation,
             &commit.prompt_ref,
             &commit.payload_manifest,
+            Some(&commit.human_decision),
             false,
         )
         .await?;
-        insert_receipt(
-            &mut tx,
-            holding_id,
-            &scope,
-            &commit.assignment.root_invocation().idempotency_key,
-            &request_digest,
-            "assignment",
-            commit.assignment.id().as_uuid(),
-            commit.assignment.version(),
-            commit.assignment.created_at(),
-        )
-        .await?;
-        append_assignment_state_fact(
+        let fact = append_assignment_state_fact(
             &mut tx,
             holding_id,
             &commit.assignment,
             serde_json::to_value(&commit.actor).map_err(|_| PortError::Persistence)?,
             commit.assignment.created_at(),
+            Some((commit.command_id, commit.correlation_id)),
+        )
+        .await?;
+        insert_root_receipt(
+            &mut tx,
+            holding_id,
+            &scope,
+            &commit.assignment.root_invocation().idempotency_key,
+            &request_digest,
+            &commit,
+            &fact,
         )
         .await?;
         tx.commit().await.map_err(|_| PortError::Persistence)?;
-        Ok(commit.assignment)
+        Ok(RootAssignmentReceipt {
+            command_id: commit.command_id,
+            correlation_id: commit.correlation_id,
+            assignment: commit.assignment,
+            event_id: fact.event_id,
+            global_sequence: fact.global_sequence,
+            committed_at: fact.committed_at,
+            replayed: false,
+        })
     }
 
     async fn commit_delegation(&self, commit: DelegationCommit) -> Result<Assignment, PortError> {
@@ -252,6 +264,7 @@ impl OrchestrationUnitOfWork for SqlxAgentRuntime {
             &commit.reservation,
             &commit.prompt_ref,
             &commit.payload_manifest,
+            None,
             true,
         )
         .await?;
@@ -294,6 +307,7 @@ impl OrchestrationUnitOfWork for SqlxAgentRuntime {
             &commit.child,
             serde_json::to_value(&commit.actor).map_err(|_| PortError::Persistence)?,
             commit.child.created_at(),
+            None,
         )
         .await?;
         tx.commit().await.map_err(|_| PortError::Persistence)?;
@@ -537,6 +551,7 @@ async fn insert_assignment(
     reservation: &BudgetReservation,
     prompt_ref: &str,
     payload_manifest: &erpx_agent_orchestration::PayloadManifest,
+    human_decision: Option<&erpx_kernel::HumanDecisionProof>,
     delegated: bool,
 ) -> Result<(), PortError> {
     let trigger = if delegated {
@@ -549,11 +564,12 @@ async fn insert_assignment(
             (holding_id,assignment_id,root_assignment_id,parent_assignment_id,scope_key,active_scope,
              root_action_ref,root_initiating_principal_ref,trigger_kind,requested_agent_ref,
              root_idempotency_key,agent_definition_id,agent_version_id,provider_ref,model_ref,prompt_digest,
-             policy_digest,encrypted_prompt_ref,payload_manifest,assignment_status,depth,
+             policy_digest,encrypted_prompt_ref,payload_manifest,human_assignment_decision,
+             assignment_status,depth,
              hops,attempt,budget_reservation_id,queue_priority,aggregate_version,
              created_at,updated_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
-                 'queued',$20,$21,0,$22,$23,$24,$25,$26)",
+                 $20,'queued',$21,$22,0,$23,$24,$25,$26,$27)",
     )
     .bind(holding_id)
     .bind(assignment.id().as_uuid())
@@ -574,6 +590,7 @@ async fn insert_assignment(
     .bind(&assignment.pin().manifest.policy_digest)
     .bind(prompt_ref)
     .bind(serde_json::to_value(payload_manifest).map_err(|_| PortError::Persistence)?)
+    .bind(human_decision.map(human_decision_json).transpose()?)
     .bind(i32::from(assignment.depth()))
     .bind(i32::from(assignment.hops()))
     .bind(reservation.id.as_uuid())
@@ -744,6 +761,90 @@ async fn replay_assignment(
     normalized::load_assignment(tx, holding_id, expected_id).await
 }
 
+async fn replay_root_assignment(
+    tx: &mut Transaction<'_, Postgres>,
+    holding_id: uuid::Uuid,
+    scope: &str,
+    key: &str,
+    request_digest: &str,
+    expected_id: erpx_agent_orchestration::AssignmentId,
+) -> Result<Option<RootAssignmentReceipt>, PortError> {
+    let receipt: Option<(
+        String,
+        uuid::Uuid,
+        chrono::DateTime<chrono::Utc>,
+        Option<uuid::Uuid>,
+        Option<uuid::Uuid>,
+        Option<uuid::Uuid>,
+        Option<i64>,
+    )> = sqlx::query_as(
+        "SELECT r.request_digest,r.aggregate_id,r.committed_at,
+                COALESCE(r.command_id,o.command_id),
+                COALESCE(r.correlation_id,o.correlation_id),
+                COALESCE(r.event_id,o.event_id),
+                COALESCE(r.global_sequence,o.global_sequence)
+         FROM erpx_agent_write.agent_command_receipts r
+         LEFT JOIN LATERAL (
+             SELECT command_id,correlation_id,event_id,global_sequence
+             FROM erpx_cqrs_write.outbox_events
+             WHERE holding_id=r.holding_id
+               AND aggregate_type='assignment'
+               AND aggregate_id=r.aggregate_id
+               AND aggregate_version=r.aggregate_version
+               AND event_type='agent.assignment.state_notification.requested'
+             ORDER BY global_sequence ASC LIMIT 1
+         ) o ON TRUE
+         WHERE r.holding_id=$1 AND r.scope_key=$2 AND r.idempotency_key=$3
+         FOR UPDATE OF r",
+    )
+    .bind(holding_id)
+    .bind(scope)
+    .bind(key)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(|_| PortError::Persistence)?;
+    let Some((
+        stored_digest,
+        stored_id,
+        committed_at,
+        command_id,
+        correlation_id,
+        event_id,
+        global_sequence,
+    )) = receipt
+    else {
+        return Ok(None);
+    };
+    if stored_digest != request_digest || stored_id != expected_id.as_uuid() {
+        return Err(PortError::IdempotencyConflict);
+    }
+    let assignment = normalized::load_assignment(tx, holding_id, expected_id)
+        .await?
+        .ok_or(PortError::Persistence)?;
+    let command_id = command_id
+        .and_then(|value| CommandId::try_from_uuid(value).ok())
+        .ok_or(PortError::Persistence)?;
+    let correlation_id = correlation_id
+        .and_then(|value| CorrelationId::try_from_uuid(value).ok())
+        .ok_or(PortError::Persistence)?;
+    let event_id = event_id
+        .and_then(|value| EventId::try_from_uuid(value).ok())
+        .ok_or(PortError::Persistence)?;
+    let global_sequence = global_sequence
+        .and_then(|value| u64::try_from(value).ok())
+        .filter(|value| *value > 0)
+        .ok_or(PortError::Persistence)?;
+    Ok(Some(RootAssignmentReceipt {
+        command_id,
+        correlation_id,
+        assignment,
+        event_id,
+        global_sequence,
+        committed_at,
+        replayed: true,
+    }))
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn insert_receipt(
     tx: &mut Transaction<'_, Postgres>,
@@ -785,21 +886,78 @@ async fn insert_receipt(
     Ok(())
 }
 
+async fn insert_root_receipt(
+    tx: &mut Transaction<'_, Postgres>,
+    holding_id: uuid::Uuid,
+    scope: &str,
+    key: &str,
+    request_digest: &str,
+    commit: &RootAssignmentCommit,
+    fact: &CommittedAssignmentFact,
+) -> Result<(), PortError> {
+    sqlx::query(
+        "INSERT INTO erpx_agent_write.agent_command_receipts
+            (holding_id,scope_key,idempotency_key,request_digest,aggregate_type,
+             aggregate_id,aggregate_version,committed_at,command_id,correlation_id,
+             event_id,global_sequence)
+         VALUES ($1,$2,$3,$4,'assignment',$5,$6,$7,$8,$9,$10,$11)",
+    )
+    .bind(holding_id)
+    .bind(scope)
+    .bind(key)
+    .bind(request_digest)
+    .bind(commit.assignment.id().as_uuid())
+    .bind(to_i64(commit.assignment.version())?)
+    .bind(fact.committed_at)
+    .bind(commit.command_id.as_uuid())
+    .bind(commit.correlation_id.as_uuid())
+    .bind(fact.event_id.as_uuid())
+    .bind(to_i64(fact.global_sequence)?)
+    .execute(&mut **tx)
+    .await
+    .map_err(|error| {
+        if error
+            .as_database_error()
+            .is_some_and(|error| error.is_unique_violation())
+        {
+            PortError::IdempotencyConflict
+        } else {
+            PortError::Persistence
+        }
+    })?;
+    Ok(())
+}
+
 /// Appends the authoritative, replayable notification request in the same
 /// transaction as the assignment state change. The payload intentionally
 /// contains only opaque identities, state, and version; protected prompt,
 /// provider output, action payload, and failure details are never copied.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct CommittedAssignmentFact {
+    event_id: EventId,
+    global_sequence: u64,
+    committed_at: chrono::DateTime<chrono::Utc>,
+}
+
 pub(crate) async fn append_assignment_state_fact(
     tx: &mut Transaction<'_, Postgres>,
     holding_id: uuid::Uuid,
     assignment: &Assignment,
     actor: serde_json::Value,
     occurred_at: chrono::DateTime<chrono::Utc>,
-) -> Result<uuid::Uuid, PortError> {
+    command_context: Option<(CommandId, CorrelationId)>,
+) -> Result<CommittedAssignmentFact, PortError> {
     let state = assignment_status_name(assignment.state());
     let event_id = stable_fact_uuid(holding_id, assignment, state, b"event");
-    let command_id = stable_fact_uuid(holding_id, assignment, state, b"command");
-    let correlation_id = stable_fact_uuid(holding_id, assignment, state, b"correlation");
+    let (command_id, correlation_id) = command_context.map_or_else(
+        || {
+            (
+                stable_fact_uuid(holding_id, assignment, state, b"command"),
+                stable_fact_uuid(holding_id, assignment, state, b"correlation"),
+            )
+        },
+        |(command_id, correlation_id)| (command_id.as_uuid(), correlation_id.as_uuid()),
+    );
     let audit_id = stable_fact_uuid(holding_id, assignment, state, b"audit");
     let partition_key = format!("holding:{holding_id}");
     let idempotency_key = format!(
@@ -864,7 +1022,7 @@ pub(crate) async fn append_assignment_state_fact(
     .execute(&mut **tx)
     .await
     .map_err(|_| PortError::Persistence)?;
-    let inserted = sqlx::query(
+    let inserted: Option<i64> = sqlx::query_scalar(
         "INSERT INTO erpx_cqrs_write.outbox_events
             (holding_id,event_id,context_name,partition_key,command_id,event_type,event_version,
              aggregate_type,aggregate_id,aggregate_version,active_scope,actor,
@@ -872,7 +1030,8 @@ pub(crate) async fn append_assignment_state_fact(
          VALUES ($1,$2,'agent_orchestration',$3,$4,
                  'agent.assignment.state_notification.requested',1,
                  'assignment',$5,$6,$7,$8,$9,NULL,$10,$11,$11)
-         ON CONFLICT (holding_id,event_id) DO NOTHING",
+         ON CONFLICT (holding_id,event_id) DO NOTHING
+         RETURNING global_sequence",
     )
     .bind(holding_id)
     .bind(event_id)
@@ -885,12 +1044,21 @@ pub(crate) async fn append_assignment_state_fact(
     .bind(correlation_id)
     .bind(payload)
     .bind(occurred_at)
-    .execute(&mut **tx)
+    .fetch_optional(&mut **tx)
     .await
     .map_err(|_| PortError::Persistence)?;
-    if inserted.rows_affected() > 1 {
-        return Err(PortError::Persistence);
-    }
+    let global_sequence = match inserted {
+        Some(value) => value,
+        None => sqlx::query_scalar::<_, i64>(
+            "SELECT global_sequence FROM erpx_cqrs_write.outbox_events
+             WHERE holding_id=$1 AND event_id=$2",
+        )
+        .bind(holding_id)
+        .bind(event_id)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(|_| PortError::Persistence)?,
+    };
     crate::publication::append_assignment_directory_draft(
         tx,
         holding_id,
@@ -899,7 +1067,26 @@ pub(crate) async fn append_assignment_state_fact(
         occurred_at,
     )
     .await?;
-    Ok(event_id)
+    Ok(CommittedAssignmentFact {
+        event_id: EventId::try_from_uuid(event_id).map_err(|_| PortError::Persistence)?,
+        global_sequence: u64::try_from(global_sequence)
+            .ok()
+            .filter(|value| *value > 0)
+            .ok_or(PortError::Persistence)?,
+        committed_at: occurred_at,
+    })
+}
+
+fn human_decision_json(
+    proof: &erpx_kernel::HumanDecisionProof,
+) -> Result<serde_json::Value, PortError> {
+    Ok(json!({
+        "actor": serde_json::to_value(proof.actor()).map_err(|_| PortError::Persistence)?,
+        "authority_scope": serde_json::to_value(proof.authority_scope())
+            .map_err(|_| PortError::Persistence)?,
+        "decision_ref": proof.decision_ref(),
+        "decided_at": proof.decided_at(),
+    }))
 }
 
 fn stable_fact_uuid(

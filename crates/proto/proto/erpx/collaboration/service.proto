@@ -80,6 +80,29 @@ message TypedCommentToken {
   optional string current_display_label = 11;
 }
 
+message AutocompleteTargetsRequest {
+  string holding_id = 1;
+  erpx.interface.AuthorityScope authority_scope = 2;
+  string actor_principal_id = 3;
+  erpx.interface.RecordRef anchor = 4;
+  string query = 5;
+  uint32 page_size = 6;
+}
+
+message AutocompleteTarget {
+  TypedCommentTokenKind kind = 1;
+  optional PrincipalRef principal = 2;
+  optional string stable_id = 3;
+  optional string version_id = 4;
+  optional erpx.interface.RecordRef record = 5;
+  string display_label = 6;
+}
+
+message AutocompleteTargetsResponse {
+  repeated AutocompleteTarget targets = 1;
+  erpx.interface.DirectoryFreshness freshness = 2;
+}
+
 message CommentDocument {
   uint32 schema_version = 1;
   bytes block_json_utf8 = 2;
@@ -177,8 +200,9 @@ message CommentProjectionV2 {
   PrincipalRef author = 2;
   uint64 revision = 3;
   CommentVisibilityV2 visibility = 4;
-  // Phase 2 comments are plain text. Strings that look like @mentions remain
-  // text and never trigger notification, assignment, or Agent invocation.
+  // Strings that merely look like @mentions remain plain text. Only typed
+  // tokens selected from an authorized directory can trigger notification;
+  // Agent invocation always requires a separate confirmed command.
   optional string plain_text = 5;
   repeated AttachmentView attachments = 6;
   repeated ReactionView reactions = 7;
@@ -554,6 +578,7 @@ service CollaborationQueryService {
   rpc GetThreadV2(GetThreadRequest) returns (GetThreadV2Response);
   rpc ListThreadsByRecordV2(ListThreadsByRecordRequest) returns (ListThreadsByRecordV2Response);
   rpc GetAttachmentDownload(GetAttachmentDownloadRequest) returns (GetAttachmentDownloadResponse);
+  rpc AutocompleteTargets(AutocompleteTargetsRequest) returns (AutocompleteTargetsResponse);
 }
 
 service CollaborationStreamService {

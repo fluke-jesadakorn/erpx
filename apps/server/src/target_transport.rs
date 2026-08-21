@@ -31,11 +31,11 @@ use erpx_collaboration::{
     ThreadWriteRepository, TypedCommentToken,
 };
 use erpx_collaboration_sqlx::{
-    DirectoryAccess, DirectoryLookup, DirectorySearchRequest, GlobalCollaborationAccess,
-    GlobalCollaborationOutcome, ProjectionFreshness, SqlxAttachmentRegistry,
-    SqlxCollaborationAuthorization, SqlxDraftRepository, SqlxGlobalCollaborationGateway,
-    SqlxItemDirectory, SqlxRecordRelationRepository, SqlxThreadReadRepository,
-    SqlxThreadWriteRepository, attachment_object_key,
+    DirectoryAccess, DirectoryAutocompleteTarget, DirectoryLookup, DirectorySearchRequest,
+    GlobalCollaborationAccess, GlobalCollaborationOutcome, ProjectionFreshness,
+    SqlxAttachmentRegistry, SqlxCollaborationAuthorization, SqlxDraftRepository,
+    SqlxGlobalCollaborationGateway, SqlxItemDirectory, SqlxRecordRelationRepository,
+    SqlxThreadReadRepository, SqlxThreadWriteRepository, attachment_object_key,
 };
 use erpx_domain::{contracts::AuthorityScope as Scope, data_plane::HOLDING_INFRASTRUCTURE_READ};
 use erpx_infrastructure::{
@@ -48,7 +48,8 @@ use erpx_kernel::{
 };
 use erpx_proto::erpx::{
     collaboration::{
-        AddCommentRequest, AddRecordRelationRequest, AudienceRealm, CollaborationStreamRequest,
+        AddCommentRequest, AddRecordRelationRequest, AudienceRealm, AutocompleteTarget,
+        AutocompleteTargetsRequest, AutocompleteTargetsResponse, CollaborationStreamRequest,
         CommentIdentityRequest, ConfirmActionCardRequest, CreateThreadRequest, EditCommentRequest,
         FollowingRequest, GetAttachmentDownloadRequest, GetAttachmentDownloadResponse,
         GetThreadRequest, GetThreadResponse, GetThreadV2Response, ListMentionInboxRequest,
@@ -59,7 +60,7 @@ use erpx_proto::erpx::{
         ReactionRequest, RecordRelationKind,
         RelationMutationReceipt as ProtoRelationMutationReceipt, RevokeRecordRelationRequest,
         SearchThreadsRequest, SearchThreadsResponse, StartRecordThreadWithCommentRequest,
-        ThreadTransition, TransitionThreadRequest, WithdrawMentionRequest,
+        ThreadTransition, TransitionThreadRequest, TypedCommentTokenKind, WithdrawMentionRequest,
         collaboration_command_service_server::CollaborationCommandService,
         collaboration_query_service_server::CollaborationQueryService,
         collaboration_stream_service_server::CollaborationStreamService,
@@ -1682,6 +1683,63 @@ impl CollaborationQueryService for CollaborationQueryRpc {
             expires_at: signed.expires_at.to_rfc3339(),
         }))
     }
+
+    async fn autocomplete_targets(
+        &self,
+        request: Request<AutocompleteTargetsRequest>,
+    ) -> Result<Response<AutocompleteTargetsResponse>, Status> {
+        let claims = self.state.auth.authorize(&request).await?;
+        let input = request.into_inner();
+        if matches!(
+            authority_scope(input.authority_scope.as_ref())?.1,
+            Scope::Platform
+        ) {
+            return Ok(Response::new(AutocompleteTargetsResponse {
+                targets: Vec::new(),
+                freshness: DirectoryFreshness::Unavailable as i32,
+            }));
+        }
+        let authorized = authorize_holding_request(
+            &self.state,
+            &claims,
+            input.authority_scope.as_ref(),
+            Some((&input.holding_id, &input.actor_principal_id)),
+            COLLABORATION_READ_PERMISSION,
+        )
+        .await?;
+        let anchor = stable_record_ref(required(input.anchor.as_ref(), "anchor")?)?;
+        let page_size = u16::try_from(input.page_size)
+            .ok()
+            .filter(|value| *value > 0 && *value <= 50)
+            .ok_or_else(|| Status::invalid_argument("page_size is invalid"))?;
+        let access = authorized.directory_access()?;
+        let result = SqlxItemDirectory::new(authorized.read_pool)
+            .autocomplete(&access, &anchor, &input.query, page_size, Utc::now())
+            .await
+            .map_err(map_directory_error)?;
+        let response = match result {
+            DirectoryLookup::Visible { value, freshness } => AutocompleteTargetsResponse {
+                targets: value
+                    .into_iter()
+                    .map(autocomplete_target_to_proto)
+                    .collect(),
+                freshness: freshness_to_proto(freshness) as i32,
+            },
+            DirectoryLookup::Neutral => AutocompleteTargetsResponse {
+                targets: Vec::new(),
+                freshness: DirectoryFreshness::Unspecified as i32,
+            },
+            DirectoryLookup::Degraded(freshness) => AutocompleteTargetsResponse {
+                targets: Vec::new(),
+                freshness: freshness_to_proto(freshness) as i32,
+            },
+            DirectoryLookup::Unavailable => AutocompleteTargetsResponse {
+                targets: Vec::new(),
+                freshness: DirectoryFreshness::Unavailable as i32,
+            },
+        };
+        Ok(Response::new(response))
+    }
 }
 
 struct AuthorizedHoldingRequest {
@@ -2700,6 +2758,49 @@ fn empty_record_thread_page(freshness: DirectoryFreshness) -> ListThreadsByRecor
         next_cursor: None,
         authorized_count: 0,
         freshness: freshness as i32,
+    }
+}
+
+fn autocomplete_target_to_proto(value: DirectoryAutocompleteTarget) -> AutocompleteTarget {
+    match value {
+        DirectoryAutocompleteTarget::Human {
+            principal_id,
+            label,
+        } => AutocompleteTarget {
+            kind: TypedCommentTokenKind::User as i32,
+            principal: Some(erpx_proto::erpx::collaboration::PrincipalRef {
+                principal_id: principal_id.to_string(),
+                kind: erpx_proto::erpx::collaboration::PrincipalKind::Human as i32,
+            }),
+            stable_id: None,
+            version_id: None,
+            record: None,
+            display_label: label,
+        },
+        DirectoryAutocompleteTarget::Agent {
+            principal_id,
+            definition_id,
+            version_id,
+            label,
+        } => AutocompleteTarget {
+            kind: TypedCommentTokenKind::Agent as i32,
+            principal: Some(erpx_proto::erpx::collaboration::PrincipalRef {
+                principal_id: principal_id.to_string(),
+                kind: erpx_proto::erpx::collaboration::PrincipalKind::Agent as i32,
+            }),
+            stable_id: Some(definition_id.to_string()),
+            version_id: Some(version_id.to_string()),
+            record: None,
+            display_label: label,
+        },
+        DirectoryAutocompleteTarget::Record { record, label } => AutocompleteTarget {
+            kind: TypedCommentTokenKind::Record as i32,
+            principal: None,
+            stable_id: None,
+            version_id: None,
+            record: Some(record_ref_to_proto(&record)),
+            display_label: label,
+        },
     }
 }
 

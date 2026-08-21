@@ -1018,7 +1018,7 @@ mod tests {
         async fn commit_session(
             &self,
             _commit: erpx_agent_orchestration::SessionCommit,
-        ) -> Result<erpx_agent_orchestration::AgentSession, PortError> {
+        ) -> Result<erpx_agent_orchestration::SessionMutationReceipt, PortError> {
             Err(PortError::Internal)
         }
 

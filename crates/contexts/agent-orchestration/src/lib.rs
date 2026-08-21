@@ -12,7 +12,7 @@ pub mod suggestion_application;
 pub use application::{
     AddAgentVersion, AgentOrchestrationError, AgentOrchestrationService, ApproveAgentVersion,
     CancelWork, CompleteWork, DelegateWork, FailWork, RegisterAgent, RetireAgent, RetryWork,
-    StartAgentWork, SuspendAgent,
+    StartAgentWork, SuspendAgent, agent_assignment_decision_ref,
 };
 pub use domain::{
     ActionCardId, ActionCardProposal, AgentDefinition, AgentDefinitionId, AgentDefinitionStatus,
@@ -46,7 +46,8 @@ pub use ports::{
     InvocationEvidenceCommit, InvocationEvidenceSummary, OrchestrationAction,
     OrchestrationUnitOfWork, PoolCandidatePort, PoolCommit, PoolRoutingCommit, PoolRoutingSummary,
     PortError, ProviderInvocationPort, ProviderInvocationRequest, ProviderInvocationResponse,
-    ProviderPolicyPort, RootAssignmentCommit, SessionCommit, WorkerAssignmentPort,
+    ProviderPolicyPort, RootAssignmentCommit, RootAssignmentReceipt, SessionCommit,
+    SessionMutationReceipt, WorkerAssignmentPort,
 };
 pub use suggestion::{
     SUGGESTION_SCHEMA_VERSION, SuggestionCapability, SuggestionEnvelope, SuggestionError,

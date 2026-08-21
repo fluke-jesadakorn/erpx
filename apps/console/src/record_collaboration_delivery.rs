@@ -25,7 +25,7 @@ use erpx_console_feature_ai_collaboration::{
 #[cfg(feature = "server")]
 use erpx_integration_contracts::{RecordTypeId, StableRecordRef, catalog::record_type};
 #[cfg(feature = "server")]
-use erpx_kernel::{HoldingId, RecordId};
+use erpx_kernel::{HoldingId, PrincipalId, RecordId};
 #[cfg(feature = "server")]
 use erpx_proto::erpx::interface::{
     AuthorityScope, AuthorityScopeLevel, DirectoryFreshness, ResolveReferenceRequest,
@@ -868,14 +868,11 @@ async fn autocomplete_from_item_directory(
     request: AutocompleteRequest,
 ) -> dioxus::prelude::ServerFnResult<AutocompleteState> {
     use erpx_console_feature_ai_collaboration::AutocompleteTrigger;
+    use erpx_proto::erpx::collaboration::collaboration_query_service_client::CollaborationQueryServiceClient;
     use erpx_proto::erpx::interface::SearchItemsRequest;
     use erpx_proto::erpx::reference::reference_query_service_client::ReferenceQueryServiceClient;
     use erpx_ui_ai_collaboration::{TokenIdentity, TokenKind, TypedToken};
 
-    if matches!(request.trigger, AutocompleteTrigger::Mention) {
-        // Phase 2 deliberately treats @text as text, never as a lookup.
-        return Ok(AutocompleteState::Idle);
-    }
     let query = request.query.trim();
     if query.is_empty() {
         return Ok(AutocompleteState::Idle);
@@ -896,6 +893,38 @@ async fn autocomplete_from_item_directory(
         Err(GatewayError::Offline) => return Ok(AutocompleteState::Offline),
         Err(_) => return Ok(AutocompleteState::Failed { retryable: true }),
     };
+    if matches!(request.trigger, AutocompleteTrigger::Mention) {
+        let autocomplete = wire::AutocompleteTargetsRequest {
+            holding_id: authority.holding_id.clone(),
+            authority_scope: Some(authority.scope.clone()),
+            actor_principal_id: authority.credential.principal_ref.clone(),
+            anchor: Some(wire_record(&request.anchor)),
+            query: query.to_owned(),
+            page_size: 20,
+        };
+        let autocomplete = match authenticated(&authority, autocomplete) {
+            Ok(value) => value,
+            Err(GatewayError::Denied | GatewayError::Restricted) => {
+                return Ok(AutocompleteState::Denied);
+            }
+            Err(GatewayError::Offline) => return Ok(AutocompleteState::Offline),
+            Err(_) => return Ok(AutocompleteState::Failed { retryable: true }),
+        };
+        let response = match CollaborationQueryServiceClient::new(channel)
+            .autocomplete_targets(autocomplete)
+            .await
+        {
+            Ok(response) => response.into_inner(),
+            Err(status) => {
+                return Ok(match gateway_status(status) {
+                    GatewayError::Denied | GatewayError::Restricted => AutocompleteState::Denied,
+                    GatewayError::Offline => AutocompleteState::Offline,
+                    _ => AutocompleteState::Failed { retryable: true },
+                });
+            }
+        };
+        return Ok(autocomplete_targets_state(query, response)?);
+    }
     if let Err(error) = resolve_exact_descriptor(
         channel.clone(),
         &authority,
@@ -962,6 +991,96 @@ async fn autocomplete_from_item_directory(
             identity: TokenIdentity::Record { record },
             display_label_snapshot: display_label.clone(),
             display_label,
+            restricted: false,
+        });
+    }
+    Ok(if candidates.is_empty() {
+        AutocompleteState::Empty {
+            query: query.to_owned(),
+        }
+    } else {
+        AutocompleteState::Results {
+            query: query.to_owned(),
+            candidates,
+        }
+    })
+}
+
+#[cfg(feature = "server")]
+fn autocomplete_targets_state(
+    query: &str,
+    response: wire::AutocompleteTargetsResponse,
+) -> Result<AutocompleteState, dioxus::prelude::ServerFnError> {
+    use erpx_proto::erpx::collaboration::{PrincipalKind, TypedCommentTokenKind};
+    use erpx_ui_ai_collaboration::{TokenIdentity, TokenKind, TypedToken};
+
+    match DirectoryFreshness::try_from(response.freshness) {
+        Ok(DirectoryFreshness::Fresh) => {}
+        Ok(DirectoryFreshness::Unspecified) => return Ok(AutocompleteState::Denied),
+        Ok(DirectoryFreshness::Stale | DirectoryFreshness::Unavailable) | Err(_) => {
+            return Ok(AutocompleteState::Failed { retryable: true });
+        }
+    }
+    let mut candidates = Vec::with_capacity(response.targets.len());
+    for target in response.targets {
+        let label = target.display_label.trim().to_owned();
+        if label.is_empty() || label.len() > 255 || label.chars().any(char::is_control) {
+            return Ok(AutocompleteState::Failed { retryable: false });
+        }
+        let (kind, identity) = match TypedCommentTokenKind::try_from(target.kind) {
+            Ok(TypedCommentTokenKind::User) => {
+                let principal = target.principal.filter(|value| {
+                    PrincipalKind::try_from(value.kind) == Ok(PrincipalKind::Human)
+                });
+                let principal_id = principal
+                    .and_then(|value| Uuid::parse_str(&value.principal_id).ok())
+                    .and_then(|value| PrincipalId::try_from_uuid(value).ok());
+                let Some(principal_id) = principal_id else {
+                    return Ok(AutocompleteState::Failed { retryable: false });
+                };
+                (TokenKind::Human, TokenIdentity::Principal { principal_id })
+            }
+            Ok(TypedCommentTokenKind::Agent) => {
+                let principal = target.principal.filter(|value| {
+                    PrincipalKind::try_from(value.kind) == Ok(PrincipalKind::Agent)
+                });
+                let principal_id = principal
+                    .and_then(|value| Uuid::parse_str(&value.principal_id).ok())
+                    .and_then(|value| PrincipalId::try_from_uuid(value).ok());
+                let definition_id = target
+                    .stable_id
+                    .and_then(|value| Uuid::parse_str(&value).ok());
+                let version_id = target
+                    .version_id
+                    .and_then(|value| Uuid::parse_str(&value).ok());
+                let (Some(principal_id), Some(definition_id), Some(version_id)) =
+                    (principal_id, definition_id, version_id)
+                else {
+                    return Ok(AutocompleteState::Failed { retryable: false });
+                };
+                (
+                    TokenKind::Agent,
+                    TokenIdentity::Agent {
+                        principal_id,
+                        definition_id,
+                        version_id,
+                    },
+                )
+            }
+            Ok(TypedCommentTokenKind::Record) => {
+                let Some(record) = target.record.and_then(|value| stable_record(value).ok()) else {
+                    return Ok(AutocompleteState::Failed { retryable: false });
+                };
+                (TokenKind::Record, TokenIdentity::Record { record })
+            }
+            _ => return Ok(AutocompleteState::Failed { retryable: false }),
+        };
+        candidates.push(TypedToken {
+            token_id: Uuid::new_v4(),
+            kind,
+            identity,
+            display_label_snapshot: label.clone(),
+            display_label: label,
             restricted: false,
         });
     }

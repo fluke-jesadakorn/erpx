@@ -498,6 +498,7 @@ impl WorkerAssignmentPort for SqlxWorkerQueue {
             &assignment,
             worker_actor(worker_ref),
             at,
+            None,
         )
         .await?;
         tx.commit().await.map_err(|_| PortError::Persistence)?;
@@ -671,6 +672,7 @@ impl WorkerAssignmentPort for SqlxWorkerQueue {
             &assignment,
             assignment_actor(&assignment),
             at,
+            None,
         )
         .await?;
         tx.commit().await.map_err(|_| PortError::Persistence)
@@ -732,6 +734,7 @@ impl WorkerAssignmentPort for SqlxWorkerQueue {
             &assignment,
             assignment_actor(&assignment),
             at,
+            None,
         )
         .await?;
         tx.commit().await.map_err(|_| PortError::Persistence)
@@ -807,6 +810,7 @@ pub(crate) async fn recover_one_expired_assignment(
         &assignment,
         worker_actor("system:expired-agent-lease-recovery"),
         at,
+        None,
     )
     .await?;
     Ok(true)

@@ -1,6 +1,9 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use erpx_kernel::{ActorAttribution, AuditContext, AuthorityScope};
+use erpx_kernel::{
+    ActorAttribution, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
+    HumanDecisionProof,
+};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -195,6 +198,9 @@ pub struct AssignmentCommit {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RootAssignmentCommit {
+    pub command_id: CommandId,
+    pub correlation_id: CorrelationId,
+    pub human_decision: HumanDecisionProof,
     pub actor: ActorAttribution,
     pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
@@ -202,6 +208,17 @@ pub struct RootAssignmentCommit {
     pub reservation: BudgetReservation,
     pub prompt_ref: String,
     pub payload_manifest: PayloadManifest,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RootAssignmentReceipt {
+    pub command_id: CommandId,
+    pub correlation_id: CorrelationId,
+    pub assignment: Assignment,
+    pub event_id: EventId,
+    pub global_sequence: u64,
+    pub committed_at: DateTime<Utc>,
+    pub replayed: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -240,12 +257,25 @@ pub struct PoolRoutingCommit {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SessionCommit {
+    pub command_id: CommandId,
+    pub correlation_id: CorrelationId,
     pub actor: ActorAttribution,
     pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
     pub idempotency_key: String,
     pub session: AgentSession,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionMutationReceipt {
+    pub command_id: CommandId,
+    pub correlation_id: CorrelationId,
+    pub session: AgentSession,
+    pub event_id: EventId,
+    pub global_sequence: u64,
+    pub committed_at: DateTime<Utc>,
+    pub replayed: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -265,7 +295,10 @@ pub trait AgentExperienceUnitOfWork: Send + Sync {
         &self,
         commit: PoolRoutingCommit,
     ) -> Result<PoolRoutingDecision, PortError>;
-    async fn commit_session(&self, commit: SessionCommit) -> Result<AgentSession, PortError>;
+    async fn commit_session(
+        &self,
+        commit: SessionCommit,
+    ) -> Result<SessionMutationReceipt, PortError>;
     async fn commit_invocation_evidence(
         &self,
         commit: InvocationEvidenceCommit,
@@ -282,7 +315,7 @@ pub trait OrchestrationUnitOfWork: Send + Sync {
     async fn commit_root_assignment(
         &self,
         commit: RootAssignmentCommit,
-    ) -> Result<Assignment, PortError>;
+    ) -> Result<RootAssignmentReceipt, PortError>;
     async fn commit_delegation(&self, commit: DelegationCommit) -> Result<Assignment, PortError>;
 }
 

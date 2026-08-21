@@ -5,15 +5,24 @@
 //! and a truthful target response. Missing owner ports return
 //! `FAILED_PRECONDITION`; they never return an empty or fabricated success.
 
-use std::sync::Arc;
+use std::{collections::BTreeSet, sync::Arc};
 
 use async_trait::async_trait;
-use chrono::NaiveDate;
+use chrono::{DateTime, NaiveDate, Utc};
 use erpx_agent_orchestration::{
-    AgentExperienceQueryPort, InvocationEvidenceSummary, PoolRoutingDecisionId, PoolRoutingSummary,
-    PortError as AgentPortError, ProviderInvocationId,
+    AgentAuthorizationPort, AgentDefinitionId, AgentExperienceQueryPort, AgentExperienceService,
+    AgentOrchestrationError, AgentOrchestrationService, AgentSessionId, AgentVersionId,
+    AppendPrivateSessionMessage, AssignmentId, AssignmentState,
+    AuthorizationRequest as AgentAuthorizationRequest, BudgetRequest, BudgetReservationId,
+    BudgetSubjects, InvocationEvidenceSummary, InvocationOrigin, OrchestrationAction,
+    PayloadManifest, PoolRoutingDecisionId, PoolRoutingSummary, PortError as AgentPortError,
+    PrincipalKind as AgentPrincipalKind, ProviderInvocationId, PublishPrivateSessionMessage,
+    RootAssignmentReceipt, RootInvocation, SessionContext, SessionMessageId,
+    SessionMutationReceipt, StartAgentWork, StartPrivateSession, agent_assignment_decision_ref,
 };
-use erpx_agent_orchestration_sqlx::SqlxAgentExperienceQuery;
+use erpx_agent_orchestration_sqlx::{
+    SqlxAgentExperienceQuery, SqlxAgentExperienceStore, SqlxAgentRegistry, SqlxAgentRuntime,
+};
 use erpx_cqrs::{
     CommandReceipt, FreshnessState, IdempotencyKey, ProjectionMetadata, QueryConsistency,
     ReadYourWrites,
@@ -22,8 +31,9 @@ use erpx_cqrs_sqlx::{ReadPool, WritePool};
 use erpx_infrastructure::RoutedDatabaseSide;
 use erpx_integration_contracts::{StableRecordRef, catalog::ContextId, reference::RecordTypeId};
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
-    HoldingId, QueryId, RecordId, SessionId, SystemClock,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+    DataClassification, EventId, HoldingId, HumanDecisionProof, QueryId, RecordId, SessionId,
+    SystemClock,
 };
 use erpx_projects::{
     AddProjectNodeInput, AttachmentRef, ChangeHandoff, ChangeProjectNode,
@@ -294,13 +304,59 @@ pub trait AgentQueryApplication: Send + Sync + 'static {
 }
 
 #[derive(Debug, Clone)]
-pub struct AgentCommandRpc<G> {
+pub struct AgentApplicationCommandContext {
+    command_id: CommandId,
+    correlation_id: CorrelationId,
+    idempotency_key: String,
+    actor: ActorAttribution,
+    authority_scope: AuthorityScope,
+    audit: AuditContext,
+    expected_version: Option<u64>,
+}
+
+#[async_trait]
+pub trait AgentCommandApplication: Send + Sync + 'static {
+    async fn start_assignment(
+        &self,
+        route: FutureHoldingRoute,
+        context: AgentApplicationCommandContext,
+        command: StartAgentWork,
+    ) -> Result<RootAssignmentReceipt, AgentOrchestrationError>;
+
+    async fn start_private_session(
+        &self,
+        route: FutureHoldingRoute,
+        context: AgentApplicationCommandContext,
+        command: StartPrivateSession,
+    ) -> Result<SessionMutationReceipt, AgentOrchestrationError>;
+
+    async fn append_private_session_message(
+        &self,
+        route: FutureHoldingRoute,
+        context: AgentApplicationCommandContext,
+        command: AppendPrivateSessionMessage,
+    ) -> Result<SessionMutationReceipt, AgentOrchestrationError>;
+
+    async fn publish_private_session_message(
+        &self,
+        route: FutureHoldingRoute,
+        context: AgentApplicationCommandContext,
+        command: PublishPrivateSessionMessage,
+    ) -> Result<SessionMutationReceipt, AgentOrchestrationError>;
+}
+
+#[derive(Debug, Clone)]
+pub struct AgentCommandRpc<A, G> {
+    application: Arc<A>,
     authenticator: Arc<G>,
 }
 
-impl<G> AgentCommandRpc<G> {
-    pub const fn new(authenticator: Arc<G>) -> Self {
-        Self { authenticator }
+impl<A, G> AgentCommandRpc<A, G> {
+    pub const fn new(application: Arc<A>, authenticator: Arc<G>) -> Self {
+        Self {
+            application,
+            authenticator,
+        }
     }
 }
 
@@ -955,9 +1011,230 @@ impl AgentQueryApplication for AppStateAgentQueryApplication {
     }
 }
 
+#[derive(Debug, Clone)]
+struct AgentBoundaryAccess {
+    actor: ActorAttribution,
+    authority_scope: AuthorityScope,
+}
+
+#[async_trait]
+impl AgentAuthorizationPort for AgentBoundaryAccess {
+    async fn authorize(
+        &self,
+        request: AgentAuthorizationRequest<'_>,
+    ) -> Result<(), AgentPortError> {
+        if request.actor != &self.actor
+            || request.authority_scope != &self.authority_scope
+            || !self.authority_scope.contains(request.target_scope)
+            || !matches!(
+                request.action,
+                OrchestrationAction::StartAssignment
+                    | OrchestrationAction::StartSession
+                    | OrchestrationAction::AppendSessionMessage
+                    | OrchestrationAction::PublishSession
+            )
+        {
+            return Err(AgentPortError::Denied);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct AppStateAgentCommandApplication {
+    state: AppState,
+}
+
+impl AppStateAgentCommandApplication {
+    pub(crate) const fn new(state: AppState) -> Self {
+        Self { state }
+    }
+
+    async fn write_pool(
+        &self,
+        route: &FutureHoldingRoute,
+    ) -> Result<(sqlx::PgPool, Uuid), AgentOrchestrationError> {
+        let holding_id = Uuid::parse_str(route.holding_id())
+            .map_err(|_| AgentOrchestrationError::Port(AgentPortError::Persistence))?;
+        let pool = self
+            .state
+            .holding_router
+            .as_ref()
+            .ok_or(AgentOrchestrationError::Port(AgentPortError::Persistence))?
+            .route(
+                route.holding_id(),
+                route.data_profile_key(),
+                RoutedDatabaseSide::Write,
+            )
+            .await
+            .map_err(|_| AgentOrchestrationError::Port(AgentPortError::Persistence))?
+            .database_pool()
+            .clone();
+        Ok((pool, holding_id))
+    }
+
+    async fn experience_service(
+        &self,
+        route: &FutureHoldingRoute,
+        context: &AgentApplicationCommandContext,
+    ) -> Result<ConcreteAgentExperienceService, AgentOrchestrationError> {
+        let (pool, holding_id) = self.write_pool(route).await?;
+        let store = SqlxAgentExperienceStore::try_new(pool, holding_id)?;
+        let access = AgentBoundaryAccess {
+            actor: context.actor.clone(),
+            authority_scope: context.authority_scope.clone(),
+        };
+        Ok(AgentExperienceService::new(
+            store.clone(),
+            store.clone(),
+            store,
+            access,
+            SystemClock,
+        ))
+    }
+}
+
+type ConcreteAgentExperienceService = AgentExperienceService<
+    SqlxAgentExperienceStore,
+    SqlxAgentExperienceStore,
+    SqlxAgentExperienceStore,
+    AgentBoundaryAccess,
+    SystemClock,
+>;
+
+#[async_trait]
+impl AgentCommandApplication for AppStateAgentCommandApplication {
+    async fn start_assignment(
+        &self,
+        route: FutureHoldingRoute,
+        context: AgentApplicationCommandContext,
+        command: StartAgentWork,
+    ) -> Result<RootAssignmentReceipt, AgentOrchestrationError> {
+        if command.command_id != context.command_id
+            || command.correlation_id != context.correlation_id
+            || command.invocation.idempotency_key != context.idempotency_key
+            || command.budget_subjects.data_profile_key != route.data_profile_key()
+            || command.budget_subjects.principal_ref != context.actor.principal_ref
+            || command.budget_subjects.root_assignment_ref
+                != command.assignment_id.as_uuid().to_string()
+            || command.budget_subjects.agent_ref
+                != command.agent_definition_id.as_uuid().to_string()
+        {
+            return Err(AgentOrchestrationError::Port(AgentPortError::Denied));
+        }
+        let (pool, holding_id) = self.write_pool(&route).await?;
+        let registry = SqlxAgentRegistry::try_new(pool.clone(), holding_id)?;
+        let runtime = SqlxAgentRuntime::try_new(pool, holding_id)?;
+        let access = AgentBoundaryAccess {
+            actor: context.actor.clone(),
+            authority_scope: context.authority_scope.clone(),
+        };
+        AgentOrchestrationService::new(
+            registry,
+            runtime.clone(),
+            runtime.clone(),
+            runtime,
+            access,
+            SystemClock,
+        )
+        .start_work(
+            context.actor,
+            context.authority_scope,
+            context.audit,
+            command,
+        )
+        .await
+    }
+
+    async fn start_private_session(
+        &self,
+        route: FutureHoldingRoute,
+        context: AgentApplicationCommandContext,
+        command: StartPrivateSession,
+    ) -> Result<SessionMutationReceipt, AgentOrchestrationError> {
+        validate_session_command_context(
+            &context,
+            command.command_id,
+            command.correlation_id,
+            &command.idempotency_key,
+        )?;
+        self.experience_service(&route, &context)
+            .await?
+            .start_session(
+                context.actor,
+                context.authority_scope,
+                context.audit,
+                command,
+            )
+            .await
+    }
+
+    async fn append_private_session_message(
+        &self,
+        route: FutureHoldingRoute,
+        context: AgentApplicationCommandContext,
+        command: AppendPrivateSessionMessage,
+    ) -> Result<SessionMutationReceipt, AgentOrchestrationError> {
+        validate_session_command_context(
+            &context,
+            command.command_id,
+            command.correlation_id,
+            &command.idempotency_key,
+        )?;
+        self.experience_service(&route, &context)
+            .await?
+            .append_session_message(
+                context.actor,
+                context.authority_scope,
+                context.audit,
+                command,
+            )
+            .await
+    }
+
+    async fn publish_private_session_message(
+        &self,
+        route: FutureHoldingRoute,
+        context: AgentApplicationCommandContext,
+        command: PublishPrivateSessionMessage,
+    ) -> Result<SessionMutationReceipt, AgentOrchestrationError> {
+        validate_session_command_context(
+            &context,
+            command.command_id,
+            command.correlation_id,
+            &command.idempotency_key,
+        )?;
+        self.experience_service(&route, &context)
+            .await?
+            .publish_session_message(
+                context.actor,
+                context.authority_scope,
+                context.audit,
+                command,
+            )
+            .await
+    }
+}
+
+fn validate_session_command_context(
+    context: &AgentApplicationCommandContext,
+    command_id: CommandId,
+    correlation_id: CorrelationId,
+    idempotency_key: &str,
+) -> Result<(), AgentOrchestrationError> {
+    if command_id == context.command_id
+        && correlation_id == context.correlation_id
+        && idempotency_key == context.idempotency_key
+    {
+        Ok(())
+    } else {
+        Err(AgentOrchestrationError::Port(AgentPortError::Denied))
+    }
+}
+
 pub(crate) type AgentCommandTonicService =
     agent::agent_orchestration_command_service_server::AgentOrchestrationCommandServiceServer<
-        AgentCommandRpc<AppStateFutureAuthenticator>,
+        AgentCommandRpc<AppStateAgentCommandApplication, AppStateFutureAuthenticator>,
     >;
 pub(crate) type AgentQueryTonicService =
     agent::agent_orchestration_query_service_server::AgentOrchestrationQueryServiceServer<
@@ -982,9 +1259,13 @@ pub(crate) struct FutureAgentProjectsTonicServices {
 pub(crate) fn tonic_services(state: AppState) -> FutureAgentProjectsTonicServices {
     let authenticator = Arc::new(AppStateFutureAuthenticator::new(state.clone()));
     let projects = Arc::new(AppStateProjectsApplication::new(state.clone()));
+    let agent_commands = Arc::new(AppStateAgentCommandApplication::new(state.clone()));
     let agent_queries = Arc::new(AppStateAgentQueryApplication::new(state));
     FutureAgentProjectsTonicServices {
-        agent_command: AgentCommandTonicService::new(AgentCommandRpc::new(authenticator.clone())),
+        agent_command: AgentCommandTonicService::new(AgentCommandRpc::new(
+            agent_commands,
+            authenticator.clone(),
+        )),
         agent_query: AgentQueryTonicService::new(AgentQueryRpc::new(
             agent_queries,
             authenticator.clone(),
@@ -1034,8 +1315,9 @@ macro_rules! unsupported_agent_command {
 }
 
 #[async_trait]
-impl<G> AgentOrchestrationCommandService for AgentCommandRpc<G>
+impl<A, G> AgentOrchestrationCommandService for AgentCommandRpc<A, G>
 where
+    A: AgentCommandApplication,
     G: FutureAgentProjectsAuthenticator,
 {
     unsupported_agent_command!(
@@ -1063,11 +1345,36 @@ where
         agent::AgentDefinitionIdentityRequest,
         "AGN-CMD-RETIRE-RECEIPT"
     );
-    unsupported_agent_command!(
-        start_assignment,
-        agent::StartAgentAssignmentRequest,
-        "AGN-CMD-START-RECEIPT"
-    );
+    async fn start_assignment(
+        &self,
+        request: Request<agent::StartAgentAssignmentRequest>,
+    ) -> Result<Response<agent::AgentMutationResponse>, Status> {
+        let transport = request.metadata().clone();
+        let input = request.into_inner();
+        if !input.human_confirmed {
+            return Err(Status::failed_precondition(
+                "Agent assignment requires an explicit human confirmation",
+            ));
+        }
+        let authenticated = authenticate_command(
+            self.authenticator.as_ref(),
+            transport,
+            input.context.clone(),
+            FutureOwnerContext::AgentOrchestration,
+        )
+        .await?;
+        let command = decode_start_agent_work(&input, &authenticated.agent_context)?;
+        let receipt = self
+            .application
+            .start_assignment(
+                authenticated.holding_route,
+                authenticated.agent_context,
+                command,
+            )
+            .await
+            .map_err(status_from_agent_application)?;
+        Ok(Response::new(encode_agent_assignment_mutation(receipt)))
+    }
     unsupported_agent_command!(
         delegate_assignment,
         agent::DelegateAgentAssignmentRequest,
@@ -1098,21 +1405,83 @@ where
         agent::RouteAgentPoolRequest,
         "AGN-CMD-POOL-ROUTE-RECEIPT"
     );
-    unsupported_agent_command!(
-        start_private_session,
-        agent::StartPrivateAgentSessionRequest,
-        "AGN-CMD-SESSION-START-RECEIPT"
-    );
-    unsupported_agent_command!(
-        append_private_session_message,
-        agent::AppendPrivateAgentSessionMessageRequest,
-        "AGN-CMD-SESSION-APPEND-RECEIPT"
-    );
-    unsupported_agent_command!(
-        publish_private_session_message,
-        agent::PublishPrivateAgentSessionMessageRequest,
-        "AGN-CMD-SESSION-PUBLISH-RECEIPT"
-    );
+    async fn start_private_session(
+        &self,
+        request: Request<agent::StartPrivateAgentSessionRequest>,
+    ) -> Result<Response<agent::AgentMutationResponse>, Status> {
+        let transport = request.metadata().clone();
+        let input = request.into_inner();
+        let authenticated = authenticate_command(
+            self.authenticator.as_ref(),
+            transport,
+            input.context.clone(),
+            FutureOwnerContext::AgentOrchestration,
+        )
+        .await?;
+        let command = decode_start_private_session(&input, &authenticated.agent_context)?;
+        let receipt = self
+            .application
+            .start_private_session(
+                authenticated.holding_route,
+                authenticated.agent_context,
+                command,
+            )
+            .await
+            .map_err(status_from_agent_application)?;
+        Ok(Response::new(encode_agent_session_mutation(receipt)))
+    }
+
+    async fn append_private_session_message(
+        &self,
+        request: Request<agent::AppendPrivateAgentSessionMessageRequest>,
+    ) -> Result<Response<agent::AgentMutationResponse>, Status> {
+        let transport = request.metadata().clone();
+        let input = request.into_inner();
+        let authenticated = authenticate_command(
+            self.authenticator.as_ref(),
+            transport,
+            input.context.clone(),
+            FutureOwnerContext::AgentOrchestration,
+        )
+        .await?;
+        let command = decode_append_private_session_message(&input, &authenticated.agent_context)?;
+        let receipt = self
+            .application
+            .append_private_session_message(
+                authenticated.holding_route,
+                authenticated.agent_context,
+                command,
+            )
+            .await
+            .map_err(status_from_agent_application)?;
+        Ok(Response::new(encode_agent_session_mutation(receipt)))
+    }
+
+    async fn publish_private_session_message(
+        &self,
+        request: Request<agent::PublishPrivateAgentSessionMessageRequest>,
+    ) -> Result<Response<agent::AgentMutationResponse>, Status> {
+        let transport = request.metadata().clone();
+        let input = request.into_inner();
+        let authenticated = authenticate_command(
+            self.authenticator.as_ref(),
+            transport,
+            input.context.clone(),
+            FutureOwnerContext::AgentOrchestration,
+        )
+        .await?;
+        let command = decode_publish_private_session_message(&input, &authenticated.agent_context)?;
+        let receipt = self
+            .application
+            .publish_private_session_message(
+                authenticated.holding_route,
+                authenticated.agent_context,
+                command,
+            )
+            .await
+            .map_err(status_from_agent_application)?;
+        Ok(Response::new(encode_agent_session_mutation(receipt)))
+    }
     unsupported_agent_command!(
         set_private_session_legal_hold,
         agent::SetPrivateAgentSessionLegalHoldRequest,
@@ -1955,6 +2324,7 @@ where
 struct AuthenticatedCommand {
     holding_route: FutureHoldingRoute,
     active_scope: AuthorityScope,
+    agent_context: AgentApplicationCommandContext,
     projects_context: ProjectsApplicationCommandContext,
 }
 
@@ -1997,9 +2367,19 @@ async fn authenticate_command<G: FutureAgentProjectsAuthenticator>(
     let canonical_scope = authenticated.active_scope.clone();
     let projects_context =
         decode_projects_command_context(context, canonical_actor, canonical_scope.clone())?;
+    let agent_context = AgentApplicationCommandContext {
+        command_id: projects_context.command_id,
+        correlation_id: projects_context.correlation_id,
+        idempotency_key: projects_context.idempotency_key.as_str().to_owned(),
+        actor: projects_context.actor.clone(),
+        authority_scope: projects_context.authority_scope.clone(),
+        audit: projects_context.audit.clone(),
+        expected_version: projects_context.expected_version,
+    };
     Ok(AuthenticatedCommand {
         holding_route: authenticated.holding_route,
         active_scope: canonical_scope,
+        agent_context,
         projects_context,
     })
 }
@@ -2162,6 +2542,330 @@ fn decode_target_scope(
     }
 }
 
+fn decode_start_agent_work(
+    input: &agent::StartAgentAssignmentRequest,
+    context: &AgentApplicationCommandContext,
+) -> Result<StartAgentWork, Status> {
+    if !context.actor.is_human()
+        || context.actor.session_id.is_none()
+        || context.actor.represented_principal_ref.is_some()
+        || context.actor.support_capability_id.is_some()
+        || input.initiating_human_ref != context.actor.principal_ref
+    {
+        return Err(Status::permission_denied(
+            "Agent assignment requires the authenticated human actor",
+        ));
+    }
+    let assignment_id =
+        AssignmentId::try_from_uuid(parse_uuid(&input.assignment_id, "assignment_id")?)
+            .map_err(|_| invalid("assignment_id is invalid"))?;
+    let agent_definition_id = AgentDefinitionId::try_from_uuid(parse_uuid(
+        &input.agent_definition_id,
+        "agent_definition_id",
+    )?)
+    .map_err(|_| invalid("agent_definition_id is invalid"))?;
+    let agent_version_id =
+        AgentVersionId::try_from_uuid(parse_uuid(&input.agent_version_id, "agent_version_id")?)
+            .map_err(|_| invalid("agent_version_id is invalid"))?;
+    let assignment_scope =
+        decode_target_scope(input.assignment_scope.clone(), &context.authority_scope)?;
+    validate_agent_text(&input.source_action_ref, "source_action_ref", 256)?;
+    validate_agent_text(&input.prompt_ref, "prompt_ref", 512)?;
+    let origin = match agent::AgentInvocationOrigin::try_from(input.origin).ok() {
+        Some(agent::AgentInvocationOrigin::Mention) => InvocationOrigin::Mention,
+        Some(agent::AgentInvocationOrigin::Assign) => InvocationOrigin::Assign,
+        Some(agent::AgentInvocationOrigin::Run) => InvocationOrigin::Run,
+        Some(agent::AgentInvocationOrigin::Compare) => InvocationOrigin::Compare,
+        _ => return Err(invalid("origin is invalid")),
+    };
+    let budget_reservation_id = BudgetReservationId::try_from_uuid(parse_uuid(
+        &input.budget_reservation_id,
+        "budget_reservation_id",
+    )?)
+    .map_err(|_| invalid("budget_reservation_id is invalid"))?;
+    let subjects = input
+        .budget_subjects
+        .as_ref()
+        .ok_or_else(|| invalid("budget_subjects are required"))?;
+    for (value, field) in [
+        (&subjects.data_profile_key, "data_profile_key"),
+        (&subjects.workspace_ref, "workspace_ref"),
+        (&subjects.agent_ref, "agent_ref"),
+        (&subjects.principal_ref, "principal_ref"),
+        (&subjects.root_assignment_ref, "root_assignment_ref"),
+    ] {
+        validate_agent_text(value, field, 256)?;
+    }
+    let budget = input
+        .budget_request
+        .as_ref()
+        .ok_or_else(|| invalid("budget_request is required"))?;
+    let queue_priority =
+        u16::try_from(budget.queue_priority).map_err(|_| invalid("queue_priority is invalid"))?;
+    if budget.estimated_units == 0
+        || budget.estimated_cost_micros == 0
+        || budget.stop_after_units < budget.estimated_units
+    {
+        return Err(invalid("budget_request is invalid"));
+    }
+    let payload = input
+        .payload
+        .as_ref()
+        .ok_or_else(|| invalid("payload is required"))?;
+    validate_sha256_hex(&payload.payload_digest, "payload_digest")?;
+    if payload.contains_secret {
+        return Err(Status::permission_denied(
+            "secret-bearing Agent payloads are denied",
+        ));
+    }
+    validate_agent_text(&payload.residency, "residency", 128)?;
+    let classification = match agent::DataClassification::try_from(payload.classification).ok() {
+        Some(agent::DataClassification::Public) => DataClassification::Public,
+        Some(agent::DataClassification::Internal) => DataClassification::Internal,
+        Some(agent::DataClassification::Confidential) => DataClassification::Confidential,
+        Some(agent::DataClassification::Restricted) => DataClassification::Restricted,
+        _ => return Err(invalid("payload classification is invalid")),
+    };
+    let authorization_checked_at = DateTime::parse_from_rfc3339(&payload.authorization_checked_at)
+        .map_err(|_| invalid("authorization_checked_at is invalid"))?
+        .with_timezone(&Utc);
+    let now = Utc::now();
+    if authorization_checked_at > now
+        || authorization_checked_at < now - chrono::Duration::minutes(5)
+    {
+        return Err(Status::failed_precondition(
+            "Agent payload authorization is stale",
+        ));
+    }
+    if payload.field_refs.len() > 256 || payload.document_record_ids.len() > 256 {
+        return Err(invalid("payload references exceed the limit"));
+    }
+    let field_refs = payload
+        .field_refs
+        .iter()
+        .map(|value| {
+            validate_agent_text(value, "field_ref", 256)?;
+            Ok(value.clone())
+        })
+        .collect::<Result<BTreeSet<_>, Status>>()?;
+    if field_refs.len() != payload.field_refs.len() {
+        return Err(invalid("field_refs contain duplicates"));
+    }
+    let document_refs = payload
+        .document_record_ids
+        .iter()
+        .map(|value| {
+            RecordId::try_from_uuid(parse_uuid(value, "document_record_id")?)
+                .map_err(|_| invalid("document_record_id is invalid"))
+        })
+        .collect::<Result<BTreeSet<_>, Status>>()?;
+    if document_refs.len() != payload.document_record_ids.len() {
+        return Err(invalid("document_record_ids contain duplicates"));
+    }
+    let human_decision = HumanDecisionProof::try_new(
+        context.actor.clone(),
+        assignment_scope.clone(),
+        agent_assignment_decision_ref(assignment_id, context.command_id),
+        now,
+    )
+    .map_err(|_| Status::permission_denied("Agent assignment confirmation is invalid"))?;
+    Ok(StartAgentWork {
+        command_id: context.command_id,
+        correlation_id: context.correlation_id,
+        assignment_id,
+        agent_definition_id,
+        agent_version_id,
+        scope: assignment_scope,
+        invocation: RootInvocation {
+            initiating_principal_ref: context.actor.principal_ref.clone(),
+            initiating_principal_kind: AgentPrincipalKind::Human,
+            origin,
+            source_action_ref: input.source_action_ref.clone(),
+            idempotency_key: context.idempotency_key.clone(),
+        },
+        budget_reservation_id,
+        budget_subjects: BudgetSubjects {
+            data_profile_key: subjects.data_profile_key.clone(),
+            workspace_ref: subjects.workspace_ref.clone(),
+            agent_ref: subjects.agent_ref.clone(),
+            principal_ref: subjects.principal_ref.clone(),
+            root_assignment_ref: subjects.root_assignment_ref.clone(),
+        },
+        budget_request: BudgetRequest {
+            estimated_units: budget.estimated_units,
+            estimated_cost_micros: budget.estimated_cost_micros,
+            queue_priority,
+            stop_after_units: budget.stop_after_units,
+        },
+        prompt_ref: input.prompt_ref.clone(),
+        payload_manifest: PayloadManifest {
+            payload_digest: payload.payload_digest.clone(),
+            classification,
+            field_refs,
+            document_refs,
+            authorization_checked_at,
+            contains_secret: false,
+            residency: payload.residency.clone(),
+        },
+        human_decision,
+    })
+}
+
+fn validate_agent_text(value: &str, field: &'static str, maximum: usize) -> Result<(), Status> {
+    if value.trim().is_empty() || value.len() > maximum || value.chars().any(char::is_control) {
+        Err(invalid(field))
+    } else {
+        Ok(())
+    }
+}
+
+fn validate_sha256_hex(value: &str, field: &'static str) -> Result<(), Status> {
+    if value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        Ok(())
+    } else {
+        Err(invalid(field))
+    }
+}
+
+fn decode_start_private_session(
+    input: &agent::StartPrivateAgentSessionRequest,
+    context: &AgentApplicationCommandContext,
+) -> Result<StartPrivateSession, Status> {
+    if context.expected_version.is_some()
+        || !context.actor.is_human()
+        || context.actor.session_id.is_none()
+        || context.actor.represented_principal_ref.is_some()
+        || context.actor.support_capability_id.is_some()
+        || input.owner_human_ref != context.actor.principal_ref
+    {
+        return Err(Status::permission_denied(
+            "Private Agent sessions require their authenticated human owner",
+        ));
+    }
+    let session_id = AgentSessionId::try_from_uuid(parse_uuid(&input.session_id, "session_id")?)
+        .map_err(|_| invalid("session_id is invalid"))?;
+    let scope = decode_target_scope(input.scope.clone(), &context.authority_scope)?;
+    let expires_at = DateTime::parse_from_rfc3339(&input.expires_at)
+        .map_err(|_| invalid("expires_at is invalid"))?
+        .with_timezone(&Utc);
+    let record_id = input
+        .context_record_id
+        .as_deref()
+        .map(|value| {
+            RecordId::try_from_uuid(parse_uuid(value, "context_record_id")?)
+                .map_err(|_| invalid("context_record_id is invalid"))
+        })
+        .transpose()?;
+    let session_context = match (
+        record_id,
+        input.context_descriptor_version,
+        input.context_source_event_position,
+    ) {
+        (None, None, None) => None,
+        (Some(record_id), Some(descriptor_version), Some(source_event_position))
+            if descriptor_version > 0 && source_event_position > 0 =>
+        {
+            Some(SessionContext {
+                record_id,
+                descriptor_version,
+                source_event_position,
+            })
+        }
+        _ => return Err(invalid("private session context is incomplete")),
+    };
+    Ok(StartPrivateSession {
+        command_id: context.command_id,
+        correlation_id: context.correlation_id,
+        session_id,
+        scope,
+        owner_human_ref: context.actor.principal_ref.clone(),
+        context: session_context,
+        expires_at,
+        idempotency_key: context.idempotency_key.clone(),
+    })
+}
+
+fn decode_append_private_session_message(
+    input: &agent::AppendPrivateAgentSessionMessageRequest,
+    context: &AgentApplicationCommandContext,
+) -> Result<AppendPrivateSessionMessage, Status> {
+    let expected_version = context
+        .expected_version
+        .filter(|version| *version > 0)
+        .ok_or_else(|| invalid("expected_aggregate_version is required"))?;
+    if input.author_ref != context.actor.principal_ref {
+        return Err(Status::permission_denied(
+            "Private session message author does not match the authenticated actor",
+        ));
+    }
+    let author_kind = match agent::SessionMessageAuthorKind::try_from(input.author_kind).ok() {
+        Some(agent::SessionMessageAuthorKind::Human) if context.actor.is_human() => {
+            AgentPrincipalKind::Human
+        }
+        Some(agent::SessionMessageAuthorKind::Agent) if context.actor.kind == ActorKind::Agent => {
+            AgentPrincipalKind::Agent
+        }
+        _ => {
+            return Err(Status::permission_denied(
+                "Private session message actor kind is invalid",
+            ));
+        }
+    };
+    validate_agent_text(&input.encrypted_payload_ref, "encrypted_payload_ref", 512)?;
+    validate_sha256_hex(&input.content_digest, "content_digest")?;
+    Ok(AppendPrivateSessionMessage {
+        command_id: context.command_id,
+        correlation_id: context.correlation_id,
+        session_id: AgentSessionId::try_from_uuid(parse_uuid(&input.session_id, "session_id")?)
+            .map_err(|_| invalid("session_id is invalid"))?,
+        expected_version,
+        message_id: SessionMessageId::try_from_uuid(parse_uuid(&input.message_id, "message_id")?)
+            .map_err(|_| invalid("message_id is invalid"))?,
+        author_kind,
+        author_ref: context.actor.principal_ref.clone(),
+        encrypted_payload_ref: input.encrypted_payload_ref.clone(),
+        content_digest: input.content_digest.clone(),
+        idempotency_key: context.idempotency_key.clone(),
+    })
+}
+
+fn decode_publish_private_session_message(
+    input: &agent::PublishPrivateAgentSessionMessageRequest,
+    context: &AgentApplicationCommandContext,
+) -> Result<PublishPrivateSessionMessage, Status> {
+    let expected_version = context
+        .expected_version
+        .filter(|version| *version > 0)
+        .ok_or_else(|| invalid("expected_aggregate_version is required"))?;
+    if !context.actor.is_human()
+        || context.actor.session_id.is_none()
+        || context.actor.represented_principal_ref.is_some()
+        || context.actor.support_capability_id.is_some()
+        || input.approving_human_ref != context.actor.principal_ref
+        || !input.audience_reauthorized
+    {
+        return Err(Status::permission_denied(
+            "Publishing Agent output requires direct human review and audience reauthorization",
+        ));
+    }
+    Ok(PublishPrivateSessionMessage {
+        command_id: context.command_id,
+        correlation_id: context.correlation_id,
+        session_id: AgentSessionId::try_from_uuid(parse_uuid(&input.session_id, "session_id")?)
+            .map_err(|_| invalid("session_id is invalid"))?,
+        expected_version,
+        message_id: SessionMessageId::try_from_uuid(parse_uuid(&input.message_id, "message_id")?)
+            .map_err(|_| invalid("message_id is invalid"))?,
+        approving_human_ref: context.actor.principal_ref.clone(),
+        audience_reauthorized: true,
+        publication_anchor_ref: parse_uuid(
+            &input.publication_anchor_ref,
+            "publication_anchor_ref",
+        )?,
+        idempotency_key: context.idempotency_key.clone(),
+    })
+}
+
 fn decode_consistency(
     consistency: Option<common::QueryConsistency>,
 ) -> Result<QueryConsistency, Status> {
@@ -2309,6 +3013,71 @@ fn encode_projects_mutation(
         receipt: Some(encode_receipt(&receipt)),
         record_type,
         record_id,
+    }
+}
+
+fn encode_agent_assignment_mutation(
+    receipt: RootAssignmentReceipt,
+) -> agent::AgentMutationResponse {
+    let assignment = &receipt.assignment;
+    agent::AgentMutationResponse {
+        receipt: Some(common::CommandReceipt {
+            command_id: receipt.command_id.to_string(),
+            correlation_id: receipt.correlation_id.to_string(),
+            aggregate: Some(common::AggregateVersion {
+                context: "agent_orchestration".into(),
+                aggregate_type: "assignment".into(),
+                aggregate_id: assignment.id().as_uuid().to_string(),
+                version: assignment.version(),
+            }),
+            committed_events: vec![common::EventPosition {
+                event_id: receipt.event_id.to_string(),
+                global_sequence: receipt.global_sequence,
+            }],
+            committed_at: receipt.committed_at.to_rfc3339(),
+            replayed: receipt.replayed,
+        }),
+        record_type: "agent.assignment".into(),
+        record_id: assignment.id().as_uuid().to_string(),
+        lifecycle_status: match assignment.state() {
+            AssignmentState::Queued => "queued",
+            AssignmentState::Running => "running",
+            AssignmentState::Waiting => "waiting",
+            AssignmentState::Completed => "completed",
+            AssignmentState::Failed => "failed",
+            AssignmentState::Cancelled => "cancelled",
+        }
+        .into(),
+    }
+}
+
+fn encode_agent_session_mutation(receipt: SessionMutationReceipt) -> agent::AgentMutationResponse {
+    let session = &receipt.session;
+    agent::AgentMutationResponse {
+        receipt: Some(common::CommandReceipt {
+            command_id: receipt.command_id.to_string(),
+            correlation_id: receipt.correlation_id.to_string(),
+            aggregate: Some(common::AggregateVersion {
+                context: "agent_orchestration".into(),
+                aggregate_type: "agent_session".into(),
+                aggregate_id: session.id().as_uuid().to_string(),
+                version: session.version(),
+            }),
+            committed_events: vec![common::EventPosition {
+                event_id: receipt.event_id.to_string(),
+                global_sequence: receipt.global_sequence,
+            }],
+            committed_at: receipt.committed_at.to_rfc3339(),
+            replayed: receipt.replayed,
+        }),
+        record_type: "agent.private-session".into(),
+        record_id: session.id().as_uuid().to_string(),
+        lifecycle_status: if session.expired_at().is_some() {
+            "expired"
+        } else {
+            "private-review"
+        }
+        .into(),
     }
 }
 
@@ -2744,6 +3513,25 @@ fn status_from_agent_port(error: AgentPortError) -> Status {
     }
 }
 
+fn status_from_agent_application(error: AgentOrchestrationError) -> Status {
+    match error {
+        AgentOrchestrationError::Port(error) => status_from_agent_port(error),
+        AgentOrchestrationError::NotFound => {
+            Status::not_found("Approved Agent version was not found")
+        }
+        AgentOrchestrationError::VersionConflict => Status::aborted("Agent assignment has changed"),
+        AgentOrchestrationError::BudgetApprovalRequired => {
+            Status::resource_exhausted("Agent budget requires explicit approval")
+        }
+        AgentOrchestrationError::HumanDecision(_) => {
+            Status::permission_denied("Agent assignment confirmation is invalid")
+        }
+        AgentOrchestrationError::Domain(_) => {
+            Status::failed_precondition("Agent assignment is invalid")
+        }
+    }
+}
+
 #[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OwnerPortGap {
@@ -2787,12 +3575,6 @@ pub const OWNER_PORT_GAPS: &[OwnerPortGap] = &[
     },
     OwnerPortGap {
         service: "AgentOrchestrationCommandService",
-        rpc: "StartAssignment",
-        gap_id: "AGN-CMD-START-RECEIPT",
-        reason: "owner UoW does not return a target command receipt or replay fact",
-    },
-    OwnerPortGap {
-        service: "AgentOrchestrationCommandService",
         rpc: "DelegateAssignment",
         gap_id: "AGN-CMD-DELEGATE-RECEIPT",
         reason: "owner UoW does not return a target command receipt or replay fact",
@@ -2825,24 +3607,6 @@ pub const OWNER_PORT_GAPS: &[OwnerPortGap] = &[
         service: "AgentOrchestrationCommandService",
         rpc: "RoutePool",
         gap_id: "AGN-CMD-POOL-ROUTE-RECEIPT",
-        reason: "owner UoW does not return a target command receipt or replay fact",
-    },
-    OwnerPortGap {
-        service: "AgentOrchestrationCommandService",
-        rpc: "StartPrivateSession",
-        gap_id: "AGN-CMD-SESSION-START-RECEIPT",
-        reason: "owner UoW does not return a target command receipt or replay fact",
-    },
-    OwnerPortGap {
-        service: "AgentOrchestrationCommandService",
-        rpc: "AppendPrivateSessionMessage",
-        gap_id: "AGN-CMD-SESSION-APPEND-RECEIPT",
-        reason: "owner UoW does not return a target command receipt or replay fact",
-    },
-    OwnerPortGap {
-        service: "AgentOrchestrationCommandService",
-        rpc: "PublishPrivateSessionMessage",
-        gap_id: "AGN-CMD-SESSION-PUBLISH-RECEIPT",
         reason: "owner UoW does not return a target command receipt or replay fact",
     },
     OwnerPortGap {
@@ -2975,7 +3739,7 @@ mod tests {
             assert!(!gap.reason.trim().is_empty());
             assert!(!gap.reason.contains("success"));
         }
-        assert_eq!(OWNER_PORT_GAPS.len(), 26);
+        assert_eq!(OWNER_PORT_GAPS.len(), 22);
     }
 
     #[test]
@@ -2998,10 +3762,14 @@ mod tests {
             "ProjectsQueryService.GetProject",
             "ProjectsQueryService.GetProjectGraph",
             "ProjectsQueryService.ListProjects",
+            "AgentOrchestrationCommandService.StartAssignment",
+            "AgentOrchestrationCommandService.StartPrivateSession",
+            "AgentOrchestrationCommandService.AppendPrivateSessionMessage",
+            "AgentOrchestrationCommandService.PublishPrivateSessionMessage",
             "AgentOrchestrationQueryService.GetRoutingDecision",
             "AgentOrchestrationQueryService.GetInvocationEvidence",
         ];
-        assert_eq!(supported.len(), 19);
+        assert_eq!(supported.len(), 23);
         assert!(
             OWNER_PORT_GAPS
                 .iter()
@@ -3014,5 +3782,91 @@ mod tests {
         let status = owner_port_gap("AGN-CMD-REGISTER-RECEIPT");
         assert_eq!(status.code(), tonic::Code::FailedPrecondition);
         assert!(status.message().contains("AGN-CMD-REGISTER-RECEIPT"));
+    }
+
+    #[test]
+    fn assignment_decoder_binds_confirmation_scope_identity_and_fresh_payload() {
+        let holding_id = Uuid::new_v4();
+        let actor = ActorAttribution {
+            principal_ref: Uuid::new_v4().to_string(),
+            kind: ActorKind::HoldingUser,
+            session_id: Some(SessionId::try_from_uuid(Uuid::new_v4()).unwrap()),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        };
+        let scope = AuthorityScope::Holding { holding_id };
+        let command_id = CommandId::try_from_uuid(Uuid::new_v4()).unwrap();
+        let context = AgentApplicationCommandContext {
+            command_id,
+            correlation_id: CorrelationId::try_from_uuid(Uuid::new_v4()).unwrap(),
+            idempotency_key: Uuid::new_v4().to_string(),
+            actor: actor.clone(),
+            authority_scope: scope.clone(),
+            audit: AuditContext {
+                purpose: "test assignment".into(),
+                customer_visible: false,
+                module: Some("agent-orchestration".into()),
+            },
+            expected_version: None,
+        };
+        let assignment_id = Uuid::new_v4();
+        let definition_id = Uuid::new_v4();
+        let input = agent::StartAgentAssignmentRequest {
+            context: None,
+            assignment_id: assignment_id.to_string(),
+            agent_definition_id: definition_id.to_string(),
+            agent_version_id: Uuid::new_v4().to_string(),
+            assignment_scope: Some(encode_scope(&scope)),
+            origin: agent::AgentInvocationOrigin::Assign as i32,
+            initiating_human_ref: actor.principal_ref.clone(),
+            source_action_ref: format!("assign:{assignment_id}"),
+            budget_reservation_id: Uuid::new_v4().to_string(),
+            budget_subjects: Some(agent::AgentBudgetSubjects {
+                data_profile_key: holding_id.to_string(),
+                workspace_ref: format!("holding:{holding_id}"),
+                agent_ref: definition_id.to_string(),
+                principal_ref: actor.principal_ref.clone(),
+                root_assignment_ref: assignment_id.to_string(),
+            }),
+            budget_request: Some(agent::AgentBudgetRequest {
+                estimated_units: 10,
+                estimated_cost_micros: 100,
+                queue_priority: 1,
+                stop_after_units: 10,
+            }),
+            prompt_ref: "vault:prompt/1".into(),
+            payload: Some(agent::AgentPayloadManifest {
+                payload_digest: "ab".repeat(32),
+                classification: agent::DataClassification::Confidential as i32,
+                field_refs: vec!["finance.invoice.memo".into()],
+                document_record_ids: vec![Uuid::new_v4().to_string()],
+                authorization_checked_at: Utc::now().to_rfc3339(),
+                contains_secret: false,
+                residency: "th".into(),
+            }),
+            human_confirmed: true,
+        };
+        let decoded = decode_start_agent_work(&input, &context).unwrap();
+        assert_eq!(decoded.command_id, command_id);
+        assert_eq!(decoded.scope, scope);
+        assert_eq!(
+            decoded.invocation.initiating_principal_ref,
+            actor.principal_ref
+        );
+        assert_eq!(
+            decoded.human_decision.decision_ref(),
+            agent_assignment_decision_ref(decoded.assignment_id, command_id)
+        );
+        assert_eq!(decoded.human_decision.actor(), &actor);
+
+        let mut stale = input;
+        stale.payload.as_mut().unwrap().authorization_checked_at =
+            (Utc::now() - chrono::Duration::minutes(6)).to_rfc3339();
+        assert_eq!(
+            decode_start_agent_work(&stale, &context)
+                .unwrap_err()
+                .code(),
+            tonic::Code::FailedPrecondition
+        );
     }
 }

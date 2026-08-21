@@ -138,6 +138,7 @@ message StartAgentAssignmentRequest {
   AgentBudgetRequest budget_request = 11;
   string prompt_ref = 12;
   AgentPayloadManifest payload = 13;
+  bool human_confirmed = 14;
 }
 
 message AgentDelegationLimits {

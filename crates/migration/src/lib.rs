@@ -1193,7 +1193,7 @@ mod tests {
 
     #[test]
     fn holding_write_and_read_migrations_are_separate_and_rls_backed() {
-        assert_eq!(HOLDING_WRITE_MIGRATOR.iter().count(), 3);
+        assert_eq!(HOLDING_WRITE_MIGRATOR.iter().count(), 4);
         assert_eq!(HOLDING_READ_MIGRATOR.iter().count(), 3);
         let write = HOLDING_WRITE_MIGRATOR
             .iter()
@@ -1219,6 +1219,21 @@ mod tests {
                 .contains("erpx_holding.operations_events")
         );
         assert!(operations_write.sql.contains("FORCE ROW LEVEL SECURITY"));
+        let agent_phase3 = HOLDING_WRITE_MIGRATOR
+            .iter()
+            .find(|migration| {
+                migration
+                    .sql
+                    .contains("agent_command_receipt_phase3_metadata")
+            })
+            .expect("Agent Phase 3 receipt migration");
+        assert!(agent_phase3.sql.contains("human_assignment_decision"));
+        assert!(agent_phase3.sql.contains("global_sequence BIGINT"));
+        assert!(
+            agent_phase3
+                .sql
+                .contains("RENAME COLUMN holding_scope TO active_scope")
+        );
         assert!(!read.sql.contains("outbox_events"));
         assert!(read.sql.contains("erpx_holding.customer_summary"));
         assert!(

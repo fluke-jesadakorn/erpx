@@ -7,10 +7,11 @@ use erpx_agent_orchestration::{
     InvocationEvidenceSummary, PoolCandidate, PoolCandidatePort, PoolCommit, PoolRoutingCommit,
     PoolRoutingDecision, PoolRoutingDecisionId, PoolRoutingSummary, PortError, PrincipalKind,
     ProviderInvocationEvidence, ProviderInvocationId, ProviderInvocationOutcome, SessionCommit,
-    SessionContext, SessionMessage, SessionMessageId,
+    SessionContext, SessionMessage, SessionMessageId, SessionMutationReceipt,
 };
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, AuthorityScope, DataClassification, RecordId,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+    DataClassification, EventId, RecordId,
 };
 use serde::Serialize;
 use serde_json::json;
@@ -765,7 +766,10 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
         Ok(commit.decision)
     }
 
-    async fn commit_session(&self, commit: SessionCommit) -> Result<AgentSession, PortError> {
+    async fn commit_session(
+        &self,
+        commit: SessionCommit,
+    ) -> Result<SessionMutationReceipt, PortError> {
         if !commit.authority_scope.contains(commit.session.scope()) {
             return Err(PortError::Denied);
         }
@@ -773,18 +777,18 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
         let scope_key = scope_key(commit.session.scope());
         let holding_id = self.database.holding_id();
         let mut tx = self.database.begin().await?;
-        if replay_receipt(
+        if let Some(replayed) = replay_session_receipt(
             &mut tx,
             holding_id,
             &scope_key,
             &commit.idempotency_key,
             &digest,
-            commit.session.id().as_uuid(),
+            commit.session.id(),
         )
         .await?
         {
             tx.commit().await.map_err(|_| PortError::Persistence)?;
-            return Ok(commit.session);
+            return Ok(replayed);
         }
         let current: Option<i64> = sqlx::query_scalar(
             "SELECT session_version FROM erpx_agent_write.agent_sessions
@@ -911,24 +915,25 @@ impl AgentExperienceUnitOfWork for SqlxAgentExperienceStore {
             )
             .await?;
         }
-        finish_commit(
+        let fact = finish_session_commit(
             &mut tx,
             holding_id,
             &scope_key,
             &commit.idempotency_key,
             &digest,
-            "agent_session",
-            commit.session.id().as_uuid(),
-            commit.session.version(),
-            commit.session.scope(),
-            &commit.actor,
-            &commit.audit,
-            "agent.session.changed",
-            commit.session.updated_at(),
+            &commit,
         )
         .await?;
         tx.commit().await.map_err(|_| PortError::Persistence)?;
-        Ok(commit.session)
+        Ok(SessionMutationReceipt {
+            command_id: commit.command_id,
+            correlation_id: commit.correlation_id,
+            session: commit.session,
+            event_id: fact.event_id,
+            global_sequence: fact.global_sequence,
+            committed_at: fact.committed_at,
+            replayed: false,
+        })
     }
 
     async fn commit_invocation_evidence(
@@ -1258,6 +1263,190 @@ fn ensure_projection_fresh(row: &sqlx::postgres::PgRow) -> Result<(), PortError>
 }
 
 #[allow(clippy::too_many_arguments)]
+#[derive(Debug, Clone, Copy)]
+struct CommittedSessionFact {
+    event_id: EventId,
+    global_sequence: u64,
+    committed_at: chrono::DateTime<chrono::Utc>,
+}
+
+async fn replay_session_receipt(
+    tx: &mut Transaction<'_, Postgres>,
+    holding_id: Uuid,
+    scope_key: &str,
+    idempotency_key: &str,
+    request_digest: &str,
+    session_id: AgentSessionId,
+) -> Result<Option<SessionMutationReceipt>, PortError> {
+    let receipt: Option<(
+        String,
+        Uuid,
+        chrono::DateTime<chrono::Utc>,
+        Option<Uuid>,
+        Option<Uuid>,
+        Option<Uuid>,
+        Option<i64>,
+    )> = sqlx::query_as(
+        "SELECT r.request_digest,r.aggregate_id,r.committed_at,
+                COALESCE(r.command_id,o.command_id),
+                COALESCE(r.correlation_id,o.correlation_id),
+                COALESCE(r.event_id,o.event_id),
+                COALESCE(r.global_sequence,o.global_sequence)
+         FROM erpx_agent_write.agent_command_receipts r
+         LEFT JOIN LATERAL (
+             SELECT command_id,correlation_id,event_id,global_sequence
+             FROM erpx_cqrs_write.outbox_events
+             WHERE holding_id=r.holding_id
+               AND aggregate_type='agent_session'
+               AND aggregate_id=r.aggregate_id
+               AND aggregate_version=r.aggregate_version
+               AND event_type='agent.session.changed'
+             ORDER BY global_sequence ASC LIMIT 1
+         ) o ON TRUE
+         WHERE r.holding_id=$1 AND r.scope_key=$2 AND r.idempotency_key=$3
+         FOR UPDATE OF r",
+    )
+    .bind(holding_id)
+    .bind(scope_key)
+    .bind(idempotency_key)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(|_| PortError::Persistence)?;
+    let Some((
+        digest,
+        aggregate_id,
+        committed_at,
+        command_id,
+        correlation_id,
+        event_id,
+        global_sequence,
+    )) = receipt
+    else {
+        return Ok(None);
+    };
+    if digest != request_digest || aggregate_id != session_id.as_uuid() {
+        return Err(PortError::IdempotencyConflict);
+    }
+    let session = load_session_in_transaction(tx, holding_id, session_id)
+        .await?
+        .ok_or(PortError::Persistence)?;
+    Ok(Some(SessionMutationReceipt {
+        command_id: command_id
+            .and_then(|value| CommandId::try_from_uuid(value).ok())
+            .ok_or(PortError::Persistence)?,
+        correlation_id: correlation_id
+            .and_then(|value| CorrelationId::try_from_uuid(value).ok())
+            .ok_or(PortError::Persistence)?,
+        session,
+        event_id: event_id
+            .and_then(|value| EventId::try_from_uuid(value).ok())
+            .ok_or(PortError::Persistence)?,
+        global_sequence: global_sequence
+            .and_then(|value| u64::try_from(value).ok())
+            .filter(|value| *value > 0)
+            .ok_or(PortError::Persistence)?,
+        committed_at,
+        replayed: true,
+    }))
+}
+
+async fn finish_session_commit(
+    tx: &mut Transaction<'_, Postgres>,
+    holding_id: Uuid,
+    scope_key: &str,
+    idempotency_key: &str,
+    request_digest: &str,
+    commit: &SessionCommit,
+) -> Result<CommittedSessionFact, PortError> {
+    let aggregate_id = commit.session.id().as_uuid();
+    let aggregate_version = commit.session.version();
+    let occurred_at = commit.session.updated_at();
+    let audit_id = stable_id(
+        holding_id,
+        aggregate_id,
+        &aggregate_version.to_be_bytes(),
+        b"audit",
+    );
+    let event_uuid = stable_id(
+        holding_id,
+        aggregate_id,
+        &aggregate_version.to_be_bytes(),
+        b"event",
+    );
+    sqlx::query(
+        "INSERT INTO erpx_cqrs_write.audit_log
+            (holding_id,audit_id,context_name,partition_key,command_id,correlation_id,
+             active_scope,actor,audit_context,action,aggregate_type,aggregate_id,
+             aggregate_version,details,occurred_at)
+         VALUES ($1,$2,'agent_orchestration',$3,$4,$5,$6,$7,$8,
+                 'agent.session.changed','agent_session',$9,$10,$11,$12)",
+    )
+    .bind(holding_id)
+    .bind(audit_id)
+    .bind(scope_key)
+    .bind(commit.command_id.as_uuid())
+    .bind(commit.correlation_id.as_uuid())
+    .bind(serde_json::to_value(commit.session.scope()).map_err(|_| PortError::Persistence)?)
+    .bind(serde_json::to_value(&commit.actor).map_err(|_| PortError::Persistence)?)
+    .bind(serde_json::to_value(&commit.audit).map_err(|_| PortError::Persistence)?)
+    .bind(aggregate_id)
+    .bind(to_i64(aggregate_version)?)
+    .bind(json!({"opaque": true, "aggregate_version": aggregate_version}))
+    .bind(occurred_at)
+    .execute(&mut **tx)
+    .await
+    .map_err(|_| PortError::Persistence)?;
+    let global_sequence: i64 = sqlx::query_scalar(
+        "INSERT INTO erpx_cqrs_write.outbox_events
+            (holding_id,event_id,context_name,partition_key,command_id,event_type,event_version,
+             aggregate_type,aggregate_id,aggregate_version,active_scope,actor,correlation_id,
+             causation_id,payload,occurred_at,available_at)
+         VALUES ($1,$2,'agent_orchestration',$3,$4,'agent.session.changed',1,
+                 'agent_session',$5,$6,$7,$8,$9,NULL,$10,$11,$11)
+         RETURNING global_sequence",
+    )
+    .bind(holding_id)
+    .bind(event_uuid)
+    .bind(scope_key)
+    .bind(commit.command_id.as_uuid())
+    .bind(aggregate_id)
+    .bind(to_i64(aggregate_version)?)
+    .bind(serde_json::to_value(commit.session.scope()).map_err(|_| PortError::Persistence)?)
+    .bind(serde_json::to_value(&commit.actor).map_err(|_| PortError::Persistence)?)
+    .bind(commit.correlation_id.as_uuid())
+    .bind(json!({"aggregate_id": aggregate_id, "aggregate_version": aggregate_version}))
+    .bind(occurred_at)
+    .fetch_one(&mut **tx)
+    .await
+    .map_err(|_| PortError::Persistence)?;
+    sqlx::query(
+        "INSERT INTO erpx_agent_write.agent_command_receipts
+            (holding_id,scope_key,idempotency_key,request_digest,aggregate_type,
+             aggregate_id,aggregate_version,committed_at,command_id,correlation_id,
+             event_id,global_sequence)
+         VALUES ($1,$2,$3,$4,'agent_session',$5,$6,$7,$8,$9,$10,$11)",
+    )
+    .bind(holding_id)
+    .bind(scope_key)
+    .bind(idempotency_key)
+    .bind(request_digest)
+    .bind(aggregate_id)
+    .bind(to_i64(aggregate_version)?)
+    .bind(occurred_at)
+    .bind(commit.command_id.as_uuid())
+    .bind(commit.correlation_id.as_uuid())
+    .bind(event_uuid)
+    .bind(global_sequence)
+    .execute(&mut **tx)
+    .await
+    .map_err(map_unique)?;
+    Ok(CommittedSessionFact {
+        event_id: EventId::try_from_uuid(event_uuid).map_err(|_| PortError::Persistence)?,
+        global_sequence: positive_u64(global_sequence)?,
+        committed_at: occurred_at,
+    })
+}
+
 async fn finish_commit(
     tx: &mut Transaction<'_, Postgres>,
     holding_id: Uuid,

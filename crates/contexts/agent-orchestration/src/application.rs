@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use erpx_kernel::{
-    ActorAttribution, AuditContext, AuthorityScope, Clock, HumanDecisionError, HumanDecisionProof,
+    ActorAttribution, AuditContext, AuthorityScope, Clock, CommandId, CorrelationId,
+    HumanDecisionError, HumanDecisionProof,
 };
 use thiserror::Error;
 
@@ -15,6 +16,7 @@ use crate::{
         AgentAuthorizationPort, AgentDefinitionRepository, AssignmentCommit, AssignmentRepository,
         AuthorizationRequest, BudgetLedgerPort, BudgetSubjects, DefinitionCommit, DelegationCommit,
         OrchestrationAction, OrchestrationUnitOfWork, PortError, RootAssignmentCommit,
+        RootAssignmentReceipt,
     },
 };
 
@@ -61,6 +63,8 @@ pub struct RetireAgent {
 
 #[derive(Debug, Clone)]
 pub struct StartAgentWork {
+    pub command_id: CommandId,
+    pub correlation_id: CorrelationId,
     pub assignment_id: AssignmentId,
     pub agent_definition_id: AgentDefinitionId,
     pub agent_version_id: AgentVersionId,
@@ -71,6 +75,11 @@ pub struct StartAgentWork {
     pub budget_request: BudgetRequest,
     pub prompt_ref: String,
     pub payload_manifest: PayloadManifest,
+    pub human_decision: HumanDecisionProof,
+}
+
+pub fn agent_assignment_decision_ref(assignment_id: AssignmentId, command_id: CommandId) -> String {
+    format!("agent-assignment:{}:{command_id}", assignment_id.as_uuid())
 }
 
 #[derive(Debug, Clone)]
@@ -220,8 +229,18 @@ where
         authority_scope: AuthorityScope,
         audit: AuditContext,
         command: StartAgentWork,
-    ) -> Result<Assignment, AgentOrchestrationError> {
+    ) -> Result<RootAssignmentReceipt, AgentOrchestrationError> {
         command.invocation.validate()?;
+        if command.human_decision.actor() != &actor
+            || command.human_decision.authority_scope() != &command.scope
+            || command.human_decision.decision_ref()
+                != agent_assignment_decision_ref(command.assignment_id, command.command_id)
+            || command.human_decision.decided_at() > self.clock.now()
+        {
+            return Err(AgentOrchestrationError::HumanDecision(
+                HumanDecisionError::InvalidDecisionReference,
+            ));
+        }
         let definition = self
             .definitions
             .load_definition(&authority_scope, command.agent_definition_id)
@@ -254,6 +273,9 @@ where
         )?;
         self.unit_of_work
             .commit_root_assignment(RootAssignmentCommit {
+                command_id: command.command_id,
+                correlation_id: command.correlation_id,
+                human_decision: command.human_decision,
                 actor,
                 authority_scope,
                 audit,

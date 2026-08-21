@@ -663,13 +663,11 @@ impl CollaborationGateway for NativeGrpcGateway {
         request: AutocompleteRequest,
     ) -> Result<AutocompleteState, GatewayError> {
         use erpx_console_feature_ai_collaboration::AutocompleteTrigger;
+        use erpx_proto::erpx::collaboration::collaboration_query_service_client::CollaborationQueryServiceClient;
         use erpx_proto::erpx::interface::SearchItemsRequest;
         use erpx_proto::erpx::reference::reference_query_service_client::ReferenceQueryServiceClient;
         use erpx_ui_ai_collaboration::{TokenIdentity, TokenKind, TypedToken};
 
-        if matches!(request.trigger, AutocompleteTrigger::Mention) {
-            return Ok(AutocompleteState::Idle);
-        }
         let query = request.query.trim();
         if query.is_empty() {
             return Ok(AutocompleteState::Idle);
@@ -678,6 +676,25 @@ impl CollaborationGateway for NativeGrpcGateway {
             return Ok(AutocompleteState::Failed { retryable: false });
         }
         let session = self.collaboration_session()?;
+        if matches!(request.trigger, AutocompleteTrigger::Mention) {
+            let request = native_authenticated(
+                session,
+                erpx_proto::erpx::collaboration::AutocompleteTargetsRequest {
+                    holding_id: session.holding_id.clone(),
+                    authority_scope: Some(session.authority_scope.clone()),
+                    actor_principal_id: session.actor_principal_id.clone(),
+                    anchor: Some(native_wire_record(&request.anchor)),
+                    query: query.to_owned(),
+                    page_size: 20,
+                },
+            )?;
+            let response = CollaborationQueryServiceClient::new(self.channel())
+                .autocomplete_targets(request)
+                .await
+                .map_err(native_status)?
+                .into_inner();
+            return native_autocomplete_targets(query, response);
+        }
         let source = native_resolve_descriptor(
             self,
             session,
@@ -751,6 +768,93 @@ impl CollaborationGateway for NativeGrpcGateway {
     ) -> Result<UiMutationReceipt, GatewayError> {
         native_mutate(self, request).await
     }
+}
+
+fn native_autocomplete_targets(
+    query: &str,
+    response: erpx_proto::erpx::collaboration::AutocompleteTargetsResponse,
+) -> Result<AutocompleteState, GatewayError> {
+    use erpx_kernel::PrincipalId;
+    use erpx_proto::erpx::collaboration::{PrincipalKind, TypedCommentTokenKind};
+    use erpx_proto::erpx::interface::DirectoryFreshness;
+    use erpx_ui_ai_collaboration::{TokenIdentity, TokenKind, TypedToken};
+
+    match DirectoryFreshness::try_from(response.freshness) {
+        Ok(DirectoryFreshness::Fresh) => {}
+        Ok(DirectoryFreshness::Unspecified) => return Ok(AutocompleteState::Denied),
+        Ok(DirectoryFreshness::Stale) => return Err(GatewayError::Stale),
+        _ => return Err(GatewayError::Unavailable),
+    }
+    let mut candidates = Vec::with_capacity(response.targets.len());
+    for target in response.targets {
+        let label = target.display_label.trim().to_owned();
+        if label.is_empty() || label.len() > 255 || label.chars().any(char::is_control) {
+            return Err(GatewayError::Unavailable);
+        }
+        let (kind, identity) = match TypedCommentTokenKind::try_from(target.kind) {
+            Ok(TypedCommentTokenKind::User) => {
+                let principal = target.principal.filter(|value| {
+                    PrincipalKind::try_from(value.kind) == Ok(PrincipalKind::Human)
+                });
+                let principal_id = principal
+                    .and_then(|value| uuid::Uuid::parse_str(&value.principal_id).ok())
+                    .and_then(|value| PrincipalId::try_from_uuid(value).ok())
+                    .ok_or(GatewayError::Unavailable)?;
+                (TokenKind::Human, TokenIdentity::Principal { principal_id })
+            }
+            Ok(TypedCommentTokenKind::Agent) => {
+                let principal = target.principal.filter(|value| {
+                    PrincipalKind::try_from(value.kind) == Ok(PrincipalKind::Agent)
+                });
+                let principal_id = principal
+                    .and_then(|value| uuid::Uuid::parse_str(&value.principal_id).ok())
+                    .and_then(|value| PrincipalId::try_from_uuid(value).ok())
+                    .ok_or(GatewayError::Unavailable)?;
+                let definition_id = target
+                    .stable_id
+                    .and_then(|value| uuid::Uuid::parse_str(&value).ok())
+                    .ok_or(GatewayError::Unavailable)?;
+                let version_id = target
+                    .version_id
+                    .and_then(|value| uuid::Uuid::parse_str(&value).ok())
+                    .ok_or(GatewayError::Unavailable)?;
+                (
+                    TokenKind::Agent,
+                    TokenIdentity::Agent {
+                        principal_id,
+                        definition_id,
+                        version_id,
+                    },
+                )
+            }
+            Ok(TypedCommentTokenKind::Record) => {
+                let record = target
+                    .record
+                    .ok_or(GatewayError::Unavailable)
+                    .and_then(native_stable_record)?;
+                (TokenKind::Record, TokenIdentity::Record { record })
+            }
+            _ => return Err(GatewayError::Unavailable),
+        };
+        candidates.push(TypedToken {
+            token_id: uuid::Uuid::new_v4(),
+            kind,
+            identity,
+            display_label_snapshot: label.clone(),
+            display_label: label,
+            restricted: false,
+        });
+    }
+    Ok(if candidates.is_empty() {
+        AutocompleteState::Empty {
+            query: query.to_owned(),
+        }
+    } else {
+        AutocompleteState::Results {
+            query: query.to_owned(),
+            candidates,
+        }
+    })
 }
 
 fn native_command_metadata(

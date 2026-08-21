@@ -1,7 +1,9 @@
 use std::collections::BTreeSet;
 
 use chrono::{DateTime, Utc};
-use erpx_kernel::{ActorAttribution, ActorKind, AuditContext, AuthorityScope, Clock};
+use erpx_kernel::{
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, Clock, CommandId, CorrelationId,
+};
 use uuid::Uuid;
 
 use crate::{
@@ -14,7 +16,7 @@ use crate::{
     ports::{
         AgentAuthorizationPort, AgentExperienceRepository, AgentExperienceUnitOfWork,
         AuthorizationRequest, OrchestrationAction, PoolCandidatePort, PoolCommit,
-        PoolRoutingCommit, SessionCommit,
+        PoolRoutingCommit, SessionCommit, SessionMutationReceipt,
     },
 };
 
@@ -55,6 +57,8 @@ pub struct RouteAgentPool {
 
 #[derive(Debug, Clone)]
 pub struct StartPrivateSession {
+    pub command_id: CommandId,
+    pub correlation_id: CorrelationId,
     pub session_id: AgentSessionId,
     pub scope: AuthorityScope,
     pub owner_human_ref: String,
@@ -65,6 +69,8 @@ pub struct StartPrivateSession {
 
 #[derive(Debug, Clone)]
 pub struct AppendPrivateSessionMessage {
+    pub command_id: CommandId,
+    pub correlation_id: CorrelationId,
     pub session_id: AgentSessionId,
     pub expected_version: u64,
     pub message_id: SessionMessageId,
@@ -77,6 +83,8 @@ pub struct AppendPrivateSessionMessage {
 
 #[derive(Debug, Clone)]
 pub struct PublishPrivateSessionMessage {
+    pub command_id: CommandId,
+    pub correlation_id: CorrelationId,
     pub session_id: AgentSessionId,
     pub expected_version: u64,
     pub message_id: SessionMessageId,
@@ -88,6 +96,8 @@ pub struct PublishPrivateSessionMessage {
 
 #[derive(Debug, Clone)]
 pub struct SetPrivateSessionLegalHold {
+    pub command_id: CommandId,
+    pub correlation_id: CorrelationId,
     pub session_id: AgentSessionId,
     pub expected_version: u64,
     pub enabled: bool,
@@ -96,6 +106,8 @@ pub struct SetPrivateSessionLegalHold {
 
 #[derive(Debug, Clone)]
 pub struct ExpirePrivateSession {
+    pub command_id: CommandId,
+    pub correlation_id: CorrelationId,
     pub session_id: AgentSessionId,
     pub expected_version: u64,
     pub idempotency_key: String,
@@ -279,7 +291,7 @@ where
         authority_scope: AuthorityScope,
         audit: AuditContext,
         command: StartPrivateSession,
-    ) -> Result<AgentSession, AgentOrchestrationError> {
+    ) -> Result<SessionMutationReceipt, AgentOrchestrationError> {
         if !is_human(&actor) || actor.principal_ref != command.owner_human_ref {
             return Err(AgentOrchestrationError::Port(
                 crate::ports::PortError::Denied,
@@ -304,6 +316,8 @@ where
             actor,
             authority_scope,
             audit,
+            command.command_id,
+            command.correlation_id,
             None,
             command.idempotency_key,
             session,
@@ -317,7 +331,7 @@ where
         authority_scope: AuthorityScope,
         audit: AuditContext,
         command: AppendPrivateSessionMessage,
-    ) -> Result<AgentSession, AgentOrchestrationError> {
+    ) -> Result<SessionMutationReceipt, AgentOrchestrationError> {
         let mut session = self
             .load_session(&authority_scope, command.session_id)
             .await?;
@@ -357,6 +371,8 @@ where
             actor,
             authority_scope,
             audit,
+            command.command_id,
+            command.correlation_id,
             Some(command.expected_version),
             command.idempotency_key,
             session,
@@ -370,7 +386,7 @@ where
         authority_scope: AuthorityScope,
         audit: AuditContext,
         command: PublishPrivateSessionMessage,
-    ) -> Result<AgentSession, AgentOrchestrationError> {
+    ) -> Result<SessionMutationReceipt, AgentOrchestrationError> {
         let mut session = self
             .load_session(&authority_scope, command.session_id)
             .await?;
@@ -398,6 +414,8 @@ where
             actor,
             authority_scope,
             audit,
+            command.command_id,
+            command.correlation_id,
             Some(command.expected_version),
             command.idempotency_key,
             session,
@@ -411,7 +429,7 @@ where
         authority_scope: AuthorityScope,
         audit: AuditContext,
         command: SetPrivateSessionLegalHold,
-    ) -> Result<AgentSession, AgentOrchestrationError> {
+    ) -> Result<SessionMutationReceipt, AgentOrchestrationError> {
         let mut session = self
             .load_session(&authority_scope, command.session_id)
             .await?;
@@ -428,6 +446,8 @@ where
             actor,
             authority_scope,
             audit,
+            command.command_id,
+            command.correlation_id,
             Some(command.expected_version),
             command.idempotency_key,
             session,
@@ -441,7 +461,7 @@ where
         authority_scope: AuthorityScope,
         audit: AuditContext,
         command: ExpirePrivateSession,
-    ) -> Result<AgentSession, AgentOrchestrationError> {
+    ) -> Result<SessionMutationReceipt, AgentOrchestrationError> {
         let mut session = self
             .load_session(&authority_scope, command.session_id)
             .await?;
@@ -458,6 +478,8 @@ where
             actor,
             authority_scope,
             audit,
+            command.command_id,
+            command.correlation_id,
             Some(command.expected_version),
             command.idempotency_key,
             session,
@@ -509,12 +531,16 @@ where
         actor: ActorAttribution,
         authority_scope: AuthorityScope,
         audit: AuditContext,
+        command_id: CommandId,
+        correlation_id: CorrelationId,
         expected_version: Option<u64>,
         idempotency_key: String,
         session: AgentSession,
-    ) -> Result<AgentSession, AgentOrchestrationError> {
+    ) -> Result<SessionMutationReceipt, AgentOrchestrationError> {
         self.unit_of_work
             .commit_session(SessionCommit {
+                command_id,
+                correlation_id,
                 actor,
                 authority_scope,
                 audit,

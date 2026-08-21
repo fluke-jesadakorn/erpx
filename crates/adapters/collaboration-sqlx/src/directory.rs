@@ -136,6 +136,24 @@ pub struct DirectorySearchRequest {
     pub cursor: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DirectoryAutocompleteTarget {
+    Human {
+        principal_id: PrincipalId,
+        label: String,
+    },
+    Agent {
+        principal_id: PrincipalId,
+        definition_id: Uuid,
+        version_id: Uuid,
+        label: String,
+    },
+    Record {
+        record: StableRecordRef,
+        label: String,
+    },
+}
+
 impl DirectorySearchRequest {
     pub fn validate(&self) -> Result<(), DirectoryAdapterError> {
         validate_search_text(&self.query, MAX_DIRECTORY_SEARCH_BYTES, "search query")?;
@@ -442,6 +460,199 @@ impl SqlxItemDirectory {
                 next_cursor,
                 authorized_count,
             },
+            freshness,
+        })
+    }
+
+    /// Reauthorizes the anchor and selects only authorized people, approved
+    /// Agent versions, and records under the same Item Directory checkpoint
+    /// and PostgreSQL snapshot. A denied anchor produces no candidate labels,
+    /// counts, or existence signal.
+    pub async fn autocomplete(
+        &self,
+        access: &DirectoryAccess,
+        anchor: &StableRecordRef,
+        query: &str,
+        page_size: u16,
+        now: DateTime<Utc>,
+    ) -> Result<DirectoryLookup<Vec<DirectoryAutocompleteTarget>>, DirectoryAdapterError> {
+        anchor
+            .validate()
+            .map_err(|_| DirectoryAdapterError::Invalid("anchor"))?;
+        validate_search_text(query, 128, "autocomplete query")?;
+        if page_size == 0 || page_size > 50 {
+            return Err(DirectoryAdapterError::Invalid("page_size"));
+        }
+        let mut tx = self.begin(access.holding_id()).await?;
+        let rows = sqlx::query(
+            "WITH projection AS MATERIALIZED (\
+               SELECT state,source_high_watermark,applied_position,last_success_at \
+               FROM erpx_collaboration_read.item_directory_projection_state \
+               WHERE holding_id=$1\
+             ), anchor_authorized AS MATERIALIZED (\
+               SELECT projection.applied_position \
+               FROM projection \
+               JOIN erpx_collaboration_read.item_directory_effective_grants grant_fact \
+                 ON grant_fact.holding_id=$1 AND grant_fact.record_id=$2 \
+                AND grant_fact.principal_id=$3 AND grant_fact.can_view \
+               JOIN erpx_collaboration_read.item_directory_descriptors descriptor \
+                 ON descriptor.holding_id=grant_fact.holding_id \
+                AND descriptor.record_id=grant_fact.record_id \
+                AND descriptor.authorization_policy_id=grant_fact.authorization_policy_id \
+                AND descriptor.authorization_policy_version=grant_fact.policy_version \
+                AND grant_fact.source_event_position>=descriptor.source_event_position \
+               WHERE projection.state='ready' \
+                 AND projection.applied_position=projection.source_high_watermark \
+                 AND projection.last_success_at BETWEEN $6-INTERVAL '60 seconds' AND $6 \
+                 AND descriptor.source_event_position<=projection.applied_position \
+                 AND grant_fact.source_event_position<=projection.applied_position \
+                 AND grant_fact.effective_at<=$6 AND grant_fact.expires_at>$6 \
+                 AND descriptor.tombstoned_at IS NULL \
+                 AND erpx_collaboration_read.scope_contains($4,descriptor.record_scope)\
+             ), human_generation AS MATERIALIZED (\
+               SELECT generation FROM erpx_cqrs_read.projection_generations \
+               WHERE holding_id=$1 AND projection_name='identity_access.principals' \
+                 AND status='active'\
+             ), agent_generation AS MATERIALIZED (\
+               SELECT generation FROM erpx_cqrs_read.projection_generations \
+               WHERE holding_id=$1 AND projection_name='agent_orchestration.agent_directory' \
+                 AND status='active'\
+             ), candidates AS MATERIALIZED (\
+               SELECT 'human'::TEXT AS target_kind,p.principal_id,NULL::UUID AS definition_id, \
+                      NULL::UUID AS version_id,NULL::JSONB AS descriptor,p.display_name AS label, \
+                      p.source_global_sequence AS source_position \
+               FROM anchor_authorized anchor \
+               JOIN human_generation g ON TRUE \
+               JOIN erpx_identity_access_read.principal_projection p \
+                 ON p.holding_id=$1 AND p.generation=g.generation \
+                AND p.principal_status='active' \
+                AND p.source_global_sequence<=anchor.applied_position \
+               WHERE erpx_collaboration_read.scope_contains($4,p.holding_scope) \
+                 AND p.display_name ILIKE '%'||$5||'%' \
+               UNION ALL \
+               SELECT 'agent'::TEXT,a.agent_definition_id,a.agent_definition_id, \
+                      versions.version_id,NULL::JSONB,a.agent_name,a.source_global_sequence \
+               FROM anchor_authorized anchor \
+               JOIN agent_generation g ON TRUE \
+               JOIN erpx_agent_read.agent_directory_projection a \
+                 ON a.holding_id=$1 AND a.generation=g.generation \
+                AND a.definition_status='approved' \
+                AND a.source_global_sequence<=anchor.applied_position \
+               CROSS JOIN LATERAL unnest(a.approved_version_ids) versions(version_id) \
+               WHERE erpx_collaboration_read.scope_contains($4,a.holding_scope) \
+                 AND a.agent_name ILIKE '%'||$5||'%' \
+               UNION ALL \
+               SELECT 'record'::TEXT,NULL::UUID,NULL::UUID,NULL::UUID,d.descriptor, \
+                      d.display_label,d.source_event_position \
+               FROM anchor_authorized anchor \
+               JOIN erpx_collaboration_read.item_directory_effective_grants grant_fact \
+                 ON grant_fact.holding_id=$1 AND grant_fact.principal_id=$3 \
+                AND grant_fact.can_view AND grant_fact.effective_at<=$6 \
+                AND grant_fact.expires_at>$6 \
+               JOIN erpx_collaboration_read.item_directory_descriptors d \
+                 ON d.holding_id=grant_fact.holding_id AND d.record_id=grant_fact.record_id \
+                AND d.authorization_policy_id=grant_fact.authorization_policy_id \
+                AND d.authorization_policy_version=grant_fact.policy_version \
+                AND grant_fact.source_event_position>=d.source_event_position \
+               WHERE d.tombstoned_at IS NULL AND d.display_label IS NOT NULL \
+                 AND d.source_event_position<=anchor.applied_position \
+                 AND grant_fact.source_event_position<=anchor.applied_position \
+                 AND erpx_collaboration_read.scope_contains($4,d.record_scope) \
+                 AND d.search_vector @@ websearch_to_tsquery('simple',$5)\
+             ), page AS (\
+               SELECT * FROM candidates \
+               ORDER BY target_kind,label,source_position DESC LIMIT $7\
+             ) \
+             SELECT projection.state,projection.source_high_watermark, \
+                    projection.applied_position,projection.last_success_at, \
+                    EXISTS(SELECT 1 FROM anchor_authorized) AS anchor_authorized, \
+                    page.target_kind,page.principal_id,page.definition_id,page.version_id, \
+                    page.descriptor,page.label \
+             FROM projection LEFT JOIN page ON TRUE",
+        )
+        .bind(access.holding_id().as_uuid())
+        .bind(anchor.id().as_uuid())
+        .bind(access.principal_id().as_uuid())
+        .bind(scope_json(access.authority_scope())?)
+        .bind(query)
+        .bind(now)
+        .bind(i64::from(page_size))
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(map_database_error)?;
+        tx.commit().await.map_err(map_database_error)?;
+        let Some(first) = rows.first() else {
+            return Ok(DirectoryLookup::Unavailable);
+        };
+        let freshness = projection_freshness_from_row(first, now)?;
+        if freshness == ProjectionFreshness::Unavailable {
+            return Ok(DirectoryLookup::Unavailable);
+        }
+        if freshness == ProjectionFreshness::Stale {
+            return Ok(DirectoryLookup::Degraded(freshness));
+        }
+        if !first
+            .try_get::<bool, _>("anchor_authorized")
+            .map_err(|_| DirectoryAdapterError::Unavailable)?
+        {
+            return Ok(DirectoryLookup::Neutral);
+        }
+        let mut targets = Vec::new();
+        for row in rows {
+            let Some(kind) = row
+                .try_get::<Option<String>, _>("target_kind")
+                .map_err(|_| DirectoryAdapterError::Unavailable)?
+            else {
+                continue;
+            };
+            let label = row
+                .try_get::<Option<String>, _>("label")
+                .map_err(|_| DirectoryAdapterError::Unavailable)?
+                .filter(|label| !label.trim().is_empty())
+                .ok_or(DirectoryAdapterError::Unavailable)?;
+            let target = match kind.as_str() {
+                "human" => DirectoryAutocompleteTarget::Human {
+                    principal_id: PrincipalId::try_from_uuid(
+                        row.try_get("principal_id")
+                            .map_err(|_| DirectoryAdapterError::Unavailable)?,
+                    )
+                    .map_err(|_| DirectoryAdapterError::Unavailable)?,
+                    label,
+                },
+                "agent" => DirectoryAutocompleteTarget::Agent {
+                    principal_id: PrincipalId::try_from_uuid(
+                        row.try_get("principal_id")
+                            .map_err(|_| DirectoryAdapterError::Unavailable)?,
+                    )
+                    .map_err(|_| DirectoryAdapterError::Unavailable)?,
+                    definition_id: row
+                        .try_get("definition_id")
+                        .map_err(|_| DirectoryAdapterError::Unavailable)?,
+                    version_id: row
+                        .try_get("version_id")
+                        .map_err(|_| DirectoryAdapterError::Unavailable)?,
+                    label,
+                },
+                "record" => {
+                    let descriptor: serde_json::Value = row
+                        .try_get("descriptor")
+                        .map_err(|_| DirectoryAdapterError::Unavailable)?;
+                    let descriptor = serde_json::from_value::<ItemDescriptor>(descriptor)
+                        .map_err(|_| DirectoryAdapterError::Unavailable)?;
+                    descriptor
+                        .validate()
+                        .map_err(|_| DirectoryAdapterError::Unavailable)?;
+                    DirectoryAutocompleteTarget::Record {
+                        record: descriptor.record().clone(),
+                        label,
+                    }
+                }
+                _ => return Err(DirectoryAdapterError::Unavailable),
+            };
+            targets.push(target);
+        }
+        Ok(DirectoryLookup::Visible {
+            value: targets,
             freshness,
         })
     }
@@ -1598,7 +1809,7 @@ mod tests {
             .split("pub async fn search")
             .nth(1)
             .expect("search")
-            .split("pub async fn backlinks")
+            .split("pub async fn autocomplete")
             .next()
             .expect("search boundary");
         let grants = search
@@ -1644,9 +1855,16 @@ mod tests {
             .split("pub async fn search")
             .nth(1)
             .expect("search")
-            .split("pub async fn backlinks")
+            .split("pub async fn autocomplete")
             .next()
             .expect("search boundary");
+        let autocomplete = source
+            .split("pub async fn autocomplete")
+            .nth(1)
+            .expect("autocomplete")
+            .split("pub async fn backlinks")
+            .next()
+            .expect("autocomplete boundary");
         let backlinks = source
             .split("pub async fn backlinks")
             .nth(1)
@@ -1722,6 +1940,23 @@ mod tests {
         );
         assert!(search.contains("authorized_count AS"));
         assert!(backlinks.contains("authorized_count AS"));
+        assert_eq!(autocomplete.matches("let rows = sqlx::query(").count(), 1);
+        assert!(autocomplete.contains("anchor_authorized AS MATERIALIZED"));
+        assert!(autocomplete.contains("FROM anchor_authorized anchor"));
+        assert!(
+            autocomplete.contains("descriptor.source_event_position<=projection.applied_position")
+        );
+        assert!(
+            autocomplete.contains("grant_fact.source_event_position<=projection.applied_position")
+        );
+        assert!(autocomplete.contains("p.source_global_sequence<=anchor.applied_position"));
+        assert!(autocomplete.contains("a.source_global_sequence<=anchor.applied_position"));
+        assert!(autocomplete.contains("d.source_event_position<=anchor.applied_position"));
+        assert!(autocomplete.contains("grant_fact.source_event_position<=anchor.applied_position"));
+        assert!(autocomplete.contains("a.definition_status='approved'"));
+        assert!(autocomplete.contains("d.display_label IS NOT NULL"));
+        assert!(!autocomplete.contains("self.resolve("));
+        assert!(!autocomplete.contains("self.search("));
     }
 
     #[test]
